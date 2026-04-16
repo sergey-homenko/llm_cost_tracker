@@ -1,0 +1,27 @@
+# frozen_string_literal: true
+
+LlmCostTracker.configure do |config|
+  # Enable/disable tracking
+  config.enabled = true
+
+  # Storage backend: :log, :active_record, or :custom
+  config.storage_backend = :active_record
+
+  # Default tags added to every tracked event
+  # config.default_tags = { environment: Rails.env, app: "my_app" }
+
+  # Monthly budget in USD. Set to nil to disable budget alerts.
+  # config.monthly_budget = 100.00
+
+  # Callback when monthly budget is exceeded.
+  # config.on_budget_exceeded = ->(data) {
+  #   Rails.logger.warn "[LlmCostTracker] Budget exceeded! " \
+  #     "Monthly total: $#{data[:monthly_total]}, Budget: $#{data[:budget]}"
+  #   # Or send a Slack notification, email, etc.
+  # }
+
+  # Override built-in pricing for specific models (per 1M tokens, USD)
+  # config.pricing_overrides = {
+  #   "my-custom-model" => { input: 1.00, output: 2.00 }
+  # }
+end
