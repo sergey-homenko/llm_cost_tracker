@@ -5,7 +5,7 @@
 Track token usage and costs for every LLM API call your app makes — OpenAI, Anthropic, Google Gemini, and any OpenAI-compatible provider. Works as Faraday middleware, so it plugs into **any** Ruby LLM client without code changes.
 
 [![Gem Version](https://badge.fury.io/rb/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker)
-[![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions)
+[![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions)
 
 ## Why?
 
