@@ -14,7 +14,7 @@ module LlmCostTracker
         false
       end
 
-      def parse(request_url, request_body, response_status, response_body)
+      def parse(request_url, _request_body, response_status, response_body)
         return nil unless response_status == 200
 
         response = safe_json_parse(response_body)
@@ -29,8 +29,9 @@ module LlmCostTracker
           model: model,
           input_tokens: usage["promptTokenCount"] || 0,
           output_tokens: usage["candidatesTokenCount"] || 0,
-          total_tokens: usage["totalTokenCount"] || 0
-        }
+          total_tokens: usage["totalTokenCount"] || 0,
+          cached_input_tokens: usage["cachedContentTokenCount"]
+        }.compact
       end
 
       private

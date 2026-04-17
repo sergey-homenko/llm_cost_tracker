@@ -1,0 +1,44 @@
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.1
+  SuggestExtensions: false
+  UseCache: false
+  Exclude:
+    - "tmp/**/*"
+    - "vendor/**/*"
+    - "pkg/**/*"
+
+Style/Documentation:
+  Enabled: false
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Metrics/BlockLength:
+  Exclude:
+    - "*.gemspec"
+    - "spec/**/*.rb"
+
+Metrics/MethodLength:
+  Max: 25
+
+Metrics/AbcSize:
+  Max: 45
+
+Metrics/ClassLength:
+  Max: 130
+
+Metrics/CyclomaticComplexity:
+  Max: 10
+
+Metrics/ParameterLists:
+  Max: 6
+
+Metrics/PerceivedComplexity:
+  Max: 10
+
+Gemspec/DevelopmentDependencies:
+  Enabled: false
+
+Layout/HashAlignment:
+  Enabled: false

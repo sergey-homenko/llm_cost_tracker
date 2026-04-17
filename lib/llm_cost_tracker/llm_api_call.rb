@@ -9,7 +9,9 @@ module LlmCostTracker
     # Scopes for querying
     scope :by_provider, ->(provider) { where(provider: provider) }
     scope :by_model,    ->(model)    { where(model: model) }
-    scope :by_tag,      ->(key, value) { where("tags LIKE ?", "%\"#{key}\":\"#{value}\"%") }
+    scope :by_tag, lambda { |key, value|
+      where("tags LIKE ?", "%\"#{key}\":\"#{value}\"%")
+    }
 
     scope :today,       -> { where(tracked_at: Time.now.utc.beginning_of_day..) }
     scope :this_week,   -> { where(tracked_at: Time.now.utc.beginning_of_week..) }

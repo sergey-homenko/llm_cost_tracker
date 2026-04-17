@@ -1,22 +1,25 @@
 # LlmCostTracker
 
-**Provider-agnostic LLM API cost tracking for Ruby.**
+**Self-hosted LLM API cost tracking for Ruby and Rails apps.**
 
-Track token usage and costs for every LLM API call your app makes — OpenAI, Anthropic, Google Gemini, and any OpenAI-compatible provider. Works as Faraday middleware, so it plugs into **any** Ruby LLM client without code changes.
+Track token usage and estimated costs for OpenAI, Anthropic, and Google Gemini calls from Faraday-based Ruby clients. Store the data in your own database, tag calls by user or feature, and get budget alerts without adding an external SaaS or proxy.
 
 [![Gem Version](https://badge.fury.io/rb/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker)
 [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions)
 
 ## Why?
 
-Every Rails app integrating LLMs faces the same problem: **you don't know how much AI is costing you** until the invoice arrives. Existing solutions either lock you into a specific LLM gem (like `ruby_llm-monitoring`) or require external SaaS (Langfuse, Helicone).
+Every Rails app integrating LLMs faces the same problem: **you don't know how much AI is costing you** until the invoice arrives. Full observability platforms like Langfuse and Helicone are powerful, but sometimes you just need a small Rails-native cost ledger that lives in your app database.
 
 `llm_cost_tracker` takes a different approach:
 
-- 🔌 **Provider-agnostic** — intercepts HTTP responses at the Faraday level
+- 🔌 **Faraday-native** — intercepts LLM HTTP responses without changing the response
 - 🏠 **Self-hosted** — your data stays in your database
-- 🧩 **Zero coupling** — works with `ruby-openai`, `anthropic-rb`, `ruby_llm`, or raw Faraday
-- ⚡ **Zero config** — add the middleware, done
+- 🧩 **Client-light** — works with raw Faraday and LLM gems that expose their Faraday connection
+- 🏷️ **Attribution-first** — tag spend by feature, tenant, user, job, or environment
+- 💸 **Budget-aware** — emit notifications and callbacks before spend surprises you
+
+This gem is intentionally not a tracing platform, prompt CMS, eval system, or gateway. It focuses on the boring but valuable question: "What did this app spend on LLM APIs, and where did that spend come from?"
 
 ## Installation
 
@@ -35,9 +38,9 @@ bin/rails db:migrate
 
 ## Quick Start
 
-### Option 1: Faraday Middleware (automatic)
+### Option 1: Faraday Middleware
 
-If your LLM client uses Faraday (most do), just add the middleware:
+If your LLM client uses Faraday, add the middleware to that connection:
 
 ```ruby
 conn = Faraday.new(url: "https://api.openai.com") do |f|
@@ -47,16 +50,16 @@ conn = Faraday.new(url: "https://api.openai.com") do |f|
   f.adapter Faraday.default_adapter
 end
 
-# Every request through this connection is now tracked automatically
-response = conn.post("/v1/chat/completions", {
-  model: "gpt-4o",
-  messages: [{ role: "user", content: "Hello!" }]
+# Every supported LLM request through this connection is tracked
+response = conn.post("/v1/responses", {
+  model: "gpt-5-mini",
+  input: "Hello!"
 })
 ```
 
 ### Option 2: Patch an existing client
 
-Most LLM gems expose their Faraday connection. For example, with `ruby-openai`:
+Some LLM gems expose their Faraday connection. For example, with `ruby-openai`:
 
 ```ruby
 # config/initializers/openai.rb
@@ -69,6 +72,8 @@ OpenAI.configure do |config|
 end
 ```
 
+If a client does not expose its HTTP connection, use manual tracking or register a custom parser around the HTTP layer you control.
+
 ### Option 3: Manual tracking
 
 For non-Faraday clients, track manually:
@@ -79,6 +84,7 @@ LlmCostTracker.track(
   model: "claude-sonnet-4-6",
   input_tokens: 1500,
   output_tokens: 320,
+  cache_read_input_tokens: 1200,
   feature: "summarizer",
   user_id: current_user.id
 )
@@ -108,10 +114,12 @@ LlmCostTracker.configure do |config|
 
   # Override pricing for custom/fine-tuned models (per 1M tokens)
   config.pricing_overrides = {
-    "ft:gpt-4o-mini:my-org" => { input: 0.30, output: 1.20 }
+    "ft:gpt-4o-mini:my-org" => { input: 0.30, cached_input: 0.15, output: 1.20 }
   }
 end
 ```
+
+Pricing is best-effort and based on public provider pricing for standard token usage. Providers change pricing frequently, and some features have extra charges or tiered pricing. Use `pricing_overrides` for fine-tunes, gateway-specific model IDs, enterprise discounts, batch pricing, long-context premiums, and any model this gem does not know yet.
 
 ## Querying Costs (ActiveRecord)
 
@@ -155,7 +163,15 @@ ActiveSupport::Notifications.subscribe("llm_request.llm_cost_tracker") do |*, pa
   #   input_tokens: 150,
   #   output_tokens: 42,
   #   total_tokens: 192,
-  #   cost: { input_cost: 0.000375, output_cost: 0.00042, total_cost: 0.000795, currency: "USD" },
+  #   cost: {
+  #     input_cost: 0.000375,
+  #     cached_input_cost: 0.0,
+  #     cache_read_input_cost: 0.0,
+  #     cache_creation_input_cost: 0.0,
+  #     output_cost: 0.00042,
+  #     total_cost: 0.000795,
+  #     currency: "USD"
+  #   },
   #   tags: { feature: "chat", user_id: 42 },
   #   tracked_at: 2026-04-16 14:30:00 UTC
   # }
@@ -211,10 +227,16 @@ LlmCostTracker::Parsers::Registry.register(DeepSeekParser.new)
 
 | Provider | Auto-detected | Models with pricing |
 |----------|:---:|---|
-| OpenAI | ✅ | GPT-4o, GPT-4o-mini, GPT-4-turbo, GPT-4, GPT-3.5-turbo, o1, o1-mini, o3-mini |
-| Anthropic | ✅ | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5, Claude 3.5 Sonnet, Claude 3 Opus |
-| Google Gemini | ✅ | Gemini 2.5 Pro/Flash, 2.0 Flash, 1.5 Pro/Flash |
+| OpenAI | ✅ | GPT-5.2/5.1/5, GPT-5 mini/nano, GPT-4.1, GPT-4o, o1/o3/o4-mini |
+| Anthropic | ✅ | Claude Opus 4.6/4.1/4, Sonnet 4.6/4.5/4, Haiku 4.5, Claude 3.x |
+| Google Gemini | ✅ | Gemini 2.5 Pro/Flash/Flash-Lite, 2.0 Flash/Flash-Lite, 1.5 Pro/Flash |
 | Any other | 🔧 | Via custom parser (see above) |
+
+Supported endpoint families:
+
+- OpenAI: Chat Completions, Responses, Completions, Embeddings
+- Anthropic: Messages
+- Google Gemini: `generateContent` responses with `usageMetadata`
 
 ## How It Works
 
@@ -229,7 +251,9 @@ Your App → Faraday → [LlmCostTracker Middleware] → LLM API
                ActiveRecord / Log / Custom
 ```
 
-The middleware intercepts **outgoing** HTTP responses (not incoming requests), parses the `usage` object from the LLM provider's response body, looks up pricing, and records the event. It never modifies requests or responses — it's read-only.
+The middleware intercepts **outgoing** HTTP responses (not incoming Rails requests), parses the provider usage object, looks up pricing, and records the event. It never modifies requests or responses.
+
+For streaming APIs, tracking depends on the final response body including provider usage data. If the client consumes server-sent events without exposing the final usage payload to Faraday, use manual tracking.
 
 ## Development
 
@@ -238,6 +262,7 @@ git clone https://github.com/sergey-homenko/llm_cost_tracker.git
 cd llm_cost_tracker
 bundle install
 bundle exec rspec
+bundle exec rubocop
 ```
 
 ## Contributing

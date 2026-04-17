@@ -14,7 +14,7 @@ module LlmCostTracker
             input_cost:    event.dig(:cost, :input_cost),
             output_cost:   event.dig(:cost, :output_cost),
             total_cost:    event.dig(:cost, :total_cost),
-            tags:          event[:tags].to_json,
+            tags:          stringify_tags(event[:tags]).to_json,
             tracked_at:    event[:tracked_at]
           )
         end
@@ -30,6 +30,18 @@ module LlmCostTracker
 
         def model_class
           LlmCostTracker::LlmApiCall
+        end
+
+        private
+
+        def stringify_tags(tags)
+          tags.transform_keys(&:to_s).transform_values { |value| stringify_tag_value(value) }
+        end
+
+        def stringify_tag_value(value)
+          return value.transform_values { |nested| stringify_tag_value(nested) } if value.is_a?(Hash)
+
+          value.to_s
         end
       end
     end

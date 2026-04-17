@@ -6,18 +6,23 @@ module LlmCostTracker
 
     class << self
       def record(provider:, model:, input_tokens:, output_tokens:, metadata: {})
+        usage = usage_data(input_tokens, output_tokens, metadata)
+
         cost_data = Pricing.cost_for(
           model: model,
-          input_tokens: input_tokens,
-          output_tokens: output_tokens
+          input_tokens: usage[:input_tokens],
+          output_tokens: usage[:output_tokens],
+          cached_input_tokens: usage[:cached_input_tokens],
+          cache_read_input_tokens: usage[:cache_read_input_tokens],
+          cache_creation_input_tokens: usage[:cache_creation_input_tokens]
         )
 
         event = {
           provider: provider,
           model: model,
-          input_tokens: input_tokens,
-          output_tokens: output_tokens,
-          total_tokens: input_tokens + output_tokens,
+          input_tokens: usage[:input_tokens],
+          output_tokens: usage[:output_tokens],
+          total_tokens: usage[:total_tokens],
           cost: cost_data,
           tags: LlmCostTracker.configuration.default_tags.merge(metadata),
           tracked_at: Time.now.utc
@@ -51,7 +56,7 @@ module LlmCostTracker
       end
 
       def log_event(event)
-        cost_str = event[:cost] ? "$#{'%.6f' % event[:cost][:total_cost]}" : "unknown"
+        cost_str = event[:cost] ? "$#{format('%.6f', event[:cost][:total_cost])}" : "unknown"
 
         message = "[LlmCostTracker] #{event[:provider]}/#{event[:model]} " \
                   "tokens=#{event[:input_tokens]}+#{event[:output_tokens]} " \
@@ -72,9 +77,12 @@ module LlmCostTracker
       end
 
       def store_active_record(event)
-        return unless defined?(LlmCostTracker::Storage::ActiveRecordStore)
+        require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
+        require_relative "storage/active_record_store" unless defined?(LlmCostTracker::Storage::ActiveRecordStore)
 
         LlmCostTracker::Storage::ActiveRecordStore.save(event)
+      rescue LoadError => e
+        raise Error, "ActiveRecord storage requires the active_record gem: #{e.message}"
       end
 
       def check_budget(event)
@@ -96,11 +104,40 @@ module LlmCostTracker
         # For :active_record backend, query the DB
         if LlmCostTracker.configuration.active_record? &&
            defined?(LlmCostTracker::Storage::ActiveRecordStore)
-          LlmCostTracker::Storage::ActiveRecordStore.monthly_total + latest_cost
+          LlmCostTracker::Storage::ActiveRecordStore.monthly_total
         else
           # For other backends, we can only report the latest cost
           latest_cost
         end
+      end
+
+      def usage_data(input_tokens, output_tokens, metadata)
+        cache_read_input_tokens = integer_metadata(metadata, :cache_read_input_tokens, :cache_read_tokens)
+        cache_creation_input_tokens = integer_metadata(
+          metadata,
+          :cache_creation_input_tokens,
+          :cache_creation_tokens
+        )
+        cached_input_tokens = integer_metadata(metadata, :cached_input_tokens)
+
+        {
+          input_tokens: input_tokens.to_i,
+          output_tokens: output_tokens.to_i,
+          cached_input_tokens: cached_input_tokens,
+          cache_read_input_tokens: cache_read_input_tokens,
+          cache_creation_input_tokens: cache_creation_input_tokens,
+          total_tokens: input_tokens.to_i + output_tokens.to_i +
+            cache_read_input_tokens + cache_creation_input_tokens
+        }
+      end
+
+      def integer_metadata(metadata, *keys)
+        keys.each do |key|
+          value = metadata[key] || metadata[key.to_s]
+          return value.to_i unless value.nil?
+        end
+
+        0
       end
     end
   end

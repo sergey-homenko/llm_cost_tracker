@@ -19,9 +19,6 @@ module LlmCostTracker
         @app.call(request_env).on_complete do |response_env|
           process(request_url, request_body, response_env)
         end
-      rescue StandardError => e
-        # Never break the actual request — log and re-raise
-        raise e
       end
 
       private
@@ -46,7 +43,9 @@ module LlmCostTracker
           metadata: @tags.merge(parsed.except(:provider, :model, :input_tokens, :output_tokens, :total_tokens))
         )
       rescue StandardError => e
-        warn "[LlmCostTracker] Error processing response: #{e.message}" if LlmCostTracker.configuration.log_level == :debug
+        return unless LlmCostTracker.configuration.log_level == :debug
+
+        warn "[LlmCostTracker] Error processing response: #{e.message}"
       end
 
       def read_body(body)
