@@ -20,7 +20,7 @@ By model:
   claude-sonnet-4-6           $31.200000
   gemini-2.5-flash            $14.120000
 
-By feature:
+By tag (feature):
   chat                        $73.500000
   summarizer                  $29.220000
   translate                   $24.700000
@@ -104,7 +104,7 @@ OpenAI.configure do |config|
     f.use :llm_cost_tracker, tags: -> {
       {
         user_id: Current.user&.id,
-        feature: Current.llm_feature || "openai"
+        feature: Current.llm_feature || "chat"
       }
     }
   end
@@ -220,7 +220,7 @@ config.unknown_pricing_behavior = :raise # fail fast with UnknownPricingError
 config.unknown_pricing_behavior = :ignore # keep tracking tokens silently
 ```
 
-When pricing is unknown, the event can still be recorded with token counts, but `cost` is `nil` and budget enforcement is skipped for that event. Use `prices_file` or `pricing_overrides` to ensure all production models are priced. Check this ActiveRecord query for a list of unpriced models in your data:
+When pricing is unknown, the event can still be recorded with token counts, but `cost` is `nil` and budget guardrails are skipped for that event. Use `prices_file` or `pricing_overrides` to ensure all production models are priced. Check this ActiveRecord query for a list of unpriced models in your data:
 
 ```ruby
 LlmCostTracker::LlmApiCall.unknown_pricing.group(:model).count
@@ -289,7 +289,7 @@ end
 
 Pre-request blocking needs `storage_backend = :active_record` because the middleware must query your stored monthly total before sending the request. With `:log` or `:custom` storage, `:raise` and the post-response part of `:block_requests` still work for the event being tracked.
 
-`:block_requests` is a best-effort guardrail, not a transactional hard quota. In highly concurrent deployments, multiple workers can pass the preflight check at the same time before any of them records its final cost. The request that first pushes the month over budget is stored before the post-response `BudgetExceededError` is raised; later Faraday requests are blocked during preflight once the stored monthly total is exhausted. Use provider-side limits or a gateway-level quota if you need strict cross-process enforcement.
+`:block_requests` is a best-effort guardrail, not a transactional hard quota. In highly concurrent deployments, multiple workers can pass the preflight check at the same time before any of them records its final cost. The request that first pushes the month over budget is stored before the post-response `BudgetExceededError` is raised; later Faraday requests are blocked during preflight once the stored monthly total is exhausted. Use provider-side limits or a gateway-level quota if you need strict cross-process caps.
 
 ## Querying Costs (ActiveRecord)
 
@@ -332,6 +332,15 @@ LlmCostTracker::LlmApiCall.this_month.cost_by_model
 LlmCostTracker::LlmApiCall.this_month.cost_by_provider
 # => { "openai" => 8.20, "anthropic" => 4.25 }
 
+# SQL-side cost breakdown by any tag key
+calls = LlmCostTracker::LlmApiCall.this_month
+calls.group_by_tag("feature").sum(:total_cost)
+# => { "chat" => 7.10, "summarizer" => 1.10 }
+
+# Convenience wrapper with "(untagged)" labels and float values
+calls.cost_by_tag("feature")
+# => { "chat" => 7.10, "summarizer" => 1.10 }
+
 # Daily cost trend
 LlmCostTracker::LlmApiCall.daily_costs(days: 7)
 # => { "2026-04-10" => 1.5, "2026-04-11" => 2.3, ... }
@@ -340,18 +349,14 @@ LlmCostTracker::LlmApiCall.daily_costs(days: 7)
 LlmCostTracker::LlmApiCall.with_latency.average_latency_ms
 LlmCostTracker::LlmApiCall.this_month.latency_by_model
 
-# Filter by feature
+# Filter by one tag
 LlmCostTracker::LlmApiCall.by_tag("feature", "chat").this_month.total_cost
 
-# Filter by user
+# Filter by another tag
 LlmCostTracker::LlmApiCall.by_tag("user_id", "42").today.total_cost
-LlmCostTracker::LlmApiCall.by_user(42).today.total_cost
 
 # Filter by multiple tags
 LlmCostTracker::LlmApiCall.by_tags(user_id: 42, feature: "chat").this_month.total_cost
-
-# Feature shortcut
-LlmCostTracker::LlmApiCall.by_feature("summarizer").this_month.total_cost
 
 # Find models without pricing
 LlmCostTracker::LlmApiCall.unknown_pricing.group(:model).count
@@ -481,7 +486,7 @@ This covers OpenRouter, DeepSeek, and private gateways that expose OpenAI-style 
 - Treat `:block_requests` as best-effort in concurrent systems, not a strict quota.
 - Keep `unknown_pricing_behavior = :warn` or `:raise` until pricing overrides are complete.
 - Add `pricing_overrides` for custom, fine-tuned, gateway-specific, or newly released models.
-- Tag calls with `tenant_id`, `user_id`, and `feature` where possible.
+- Tag calls with useful business context such as `tenant_id`, `user_id`, and `feature`.
 - Check `LlmCostTracker::LlmApiCall.unknown_pricing.group(:model).count` after deploys.
 - Track `latency_ms` and watch `latency_by_model` for slow or degraded providers.
 

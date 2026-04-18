@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-04-18
+
+### Breaking Changes
+
+- Removed `LlmApiCall.by_user(id)` and `LlmApiCall.by_feature(name)` convenience scopes. Use
+  `by_tag("user_id", id)`, `by_tag("feature", name)`, or `by_tags(...)` for filters.
+- Removed `LlmApiCall#user_id` and `LlmApiCall#feature` tag accessors. Use
+  `parsed_tags["user_id"]` or `parsed_tags["feature"]` when reading stored tags.
+- Removed `ReportData#cost_by_feature`. Use `ReportData#cost_by_tags.fetch("feature")` or
+  `LlmApiCall.cost_by_tag("feature")`.
+
+### Added
+
+- Add SQL-side `group_by_tag(key)` and `cost_by_tag(key)` aggregations across any attribution tag.
+- Use generic tag breakdowns in reports instead of feature-specific report data.
+
 ## [0.1.3] - 2026-04-18
 
 ### Thread-safety, pricing UX, and internal hardening
@@ -17,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Warn on unknown keys in local prices files.
 - Add `llm_cost_tracker:prices` generator for creating a local price override template.
-- Document that budget enforcement skips events with unknown pricing.
+- Document that budget guardrails skip events with unknown pricing.
 
 **Onboarding UX**
 

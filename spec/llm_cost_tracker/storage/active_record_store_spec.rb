@@ -107,10 +107,111 @@ RSpec.describe "ActiveRecord storage integration" do
     matching_calls = llm_api_call_model.by_tags(user_id: 42, feature: "chat")
 
     expect(matching_calls.count).to eq(1)
-    expect(matching_calls.first.feature).to eq("chat")
+    expect(matching_calls.first.parsed_tags["feature"]).to eq("chat")
   end
 
-  it "filters by user and feature convenience scopes" do
+  it "aggregates cost by any tag key" do
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0,
+      feature: "chat"
+    )
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o-mini",
+      input_tokens: 1_000,
+      output_tokens: 0,
+      feature: "summarizer"
+    )
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o-mini",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+
+    expect(llm_api_call_model.this_month.cost_by_tag("feature")).to eq(
+      "chat" => 0.0025,
+      "summarizer" => 0.00015,
+      "(untagged)" => 0.00015
+    )
+  end
+
+  it "groups by tag keys on the SQL side" do
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0,
+      feature: "chat"
+    )
+    LlmCostTracker.track(
+      provider: :anthropic,
+      model: "claude-haiku-4-5",
+      input_tokens: 1_000,
+      output_tokens: 0,
+      feature: "summarizer"
+    )
+
+    expect(llm_api_call_model.group_by_tag("feature").to_sql).to include("json_extract")
+    expect(llm_api_call_model.group_by_tag("feature").sum(:total_cost).transform_values(&:to_f)).to eq(
+      "chat" => 0.0025,
+      "summarizer" => 0.001
+    )
+  end
+
+  it "supports safe tag keys with dots and dashes" do
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0,
+      "feature.name" => "chat"
+    )
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o-mini",
+      input_tokens: 1_000,
+      output_tokens: 0,
+      "feature.name" => "summarizer"
+    )
+
+    expect(llm_api_call_model.cost_by_tag("feature.name")).to eq(
+      "chat" => 0.0025,
+      "summarizer" => 0.00015
+    )
+  end
+
+  it "composes tag grouping with other scopes" do
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0,
+      feature: "chat"
+    )
+    LlmCostTracker.track(
+      provider: :anthropic,
+      model: "claude-haiku-4-5",
+      input_tokens: 1_000,
+      output_tokens: 0,
+      feature: "chat"
+    )
+
+    result = llm_api_call_model.this_month.by_provider("openai").group_by_tag("feature").sum(:total_cost)
+
+    expect(result.transform_values(&:to_f)).to eq("chat" => 0.0025)
+  end
+
+  it "rejects invalid tag keys before building SQL" do
+    expect do
+      llm_api_call_model.group_by_tag("feature; DROP TABLE llm_api_calls")
+    end.to raise_error(ArgumentError, /invalid tag key/)
+  end
+
+  it "filters by tag convenience scopes" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
@@ -120,9 +221,9 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "chat"
     )
 
-    expect(llm_api_call_model.by_user(42).count).to eq(1)
-    expect(llm_api_call_model.by_feature("chat").count).to eq(1)
-    expect(llm_api_call_model.by_feature("summarizer").count).to eq(0)
+    expect(llm_api_call_model.by_tag("user_id", 42).count).to eq(1)
+    expect(llm_api_call_model.by_tag("feature", "chat").count).to eq(1)
+    expect(llm_api_call_model.by_tag("feature", "summarizer").count).to eq(0)
   end
 
   it "escapes text tag queries so wildcard values do not over-match" do
@@ -141,7 +242,7 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "1000"
     )
 
-    expect(llm_api_call_model.by_feature("100%").count).to eq(1)
+    expect(llm_api_call_model.by_tag("feature", "100%").count).to eq(1)
   end
 
   it "filters calls with and without known pricing" do

@@ -8,6 +8,10 @@ require_relative "tags_column"
 
 module LlmCostTracker
   class LlmApiCall < ActiveRecord::Base
+    TAG_KEY_PATTERN = /\A[\w.-]+\z/
+
+    private_constant :TAG_KEY_PATTERN
+
     extend TagsColumn
     include TagAccessors
 
@@ -16,8 +20,6 @@ module LlmCostTracker
     # Scopes for querying
     scope :by_provider, ->(provider) { where(provider: provider) }
     scope :by_model,    ->(model)    { where(model: model) }
-    scope :by_user,    ->(user_id) { by_tag("user_id", user_id) }
-    scope :by_feature, ->(feature) { by_tag("feature", feature) }
     scope :with_cost, -> { where.not(total_cost: nil) }
     scope :without_cost, -> { where(total_cost: nil) }
     scope :unknown_pricing, -> { without_cost }
@@ -61,6 +63,17 @@ module LlmCostTracker
       group(:provider).sum(:total_cost)
     end
 
+    def self.group_by_tag(key)
+      group(Arel.sql(tag_group_expression(key)))
+    end
+
+    def self.cost_by_tag(key)
+      costs = group_by_tag(key).sum(:total_cost).each_with_object(Hash.new(0.0)) do |(tag_value, cost), grouped|
+        grouped[tag_label(tag_value)] += cost.to_f
+      end
+      costs.sort_by { |_label, cost| -cost }.to_h
+    end
+
     def self.average_latency_ms
       return nil unless latency_column?
 
@@ -85,5 +98,39 @@ module LlmCostTracker
         .sum(:total_cost)
         .transform_keys(&:to_s)
     end
+
+    def self.tag_label(value)
+      value.nil? || value == "" ? "(untagged)" : value.to_s
+    end
+    private_class_method :tag_label
+
+    def self.tag_group_expression(key)
+      key = validated_tag_key(key)
+      column = "#{quoted_table_name}.#{connection.quote_column_name('tags')}"
+
+      case connection.adapter_name
+      when /postgres/i
+        json_column = tags_json_column? ? column : "(#{column})::jsonb"
+        "#{json_column}->>#{connection.quote(key)}"
+      when /mysql/i
+        "JSON_UNQUOTE(JSON_EXTRACT(#{column}, #{connection.quote(json_path(key))}))"
+      else
+        "json_extract(#{column}, #{connection.quote(json_path(key))})"
+      end
+    end
+    private_class_method :tag_group_expression
+
+    def self.validated_tag_key(key)
+      key = key.to_s
+      return key if key.match?(TAG_KEY_PATTERN)
+
+      raise ArgumentError, "invalid tag key: #{key.inspect}"
+    end
+    private_class_method :validated_tag_key
+
+    def self.json_path(key)
+      "$.\"#{key}\""
+    end
+    private_class_method :json_path
   end
 end

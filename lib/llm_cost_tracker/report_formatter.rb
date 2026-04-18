@@ -13,7 +13,7 @@ module LlmCostTracker
       append_summary(lines)
       append_cost_section(lines, "By provider", @data.cost_by_provider)
       append_cost_section(lines, "By model", @data.cost_by_model)
-      append_cost_section(lines, "By feature", @data.cost_by_feature)
+      append_tag_sections(lines)
       append_top_calls(lines)
       lines.join("\n")
     end
@@ -34,6 +34,12 @@ module LlmCostTracker
 
       rows.first(TOP_LIMIT).each do |name, cost|
         lines << "  #{name.to_s.ljust(28)} #{money(cost)}"
+      end
+    end
+
+    def append_tag_sections(lines)
+      @data.cost_by_tags.each do |tag_key, rows|
+        append_cost_section(lines, "By tag (#{tag_key})", rows)
       end
     end
 

@@ -11,13 +11,5 @@ module LlmCostTracker
     rescue JSON::ParserError
       {}
     end
-
-    def feature
-      parsed_tags["feature"]
-    end
-
-    def user_id
-      parsed_tags["user_id"]
-    end
   end
 end

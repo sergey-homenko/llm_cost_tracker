@@ -27,7 +27,7 @@ module LlmCostTracker
       def warn_missing(model)
         Logging.warn(
           "No pricing configured for model #{model.inspect}. " \
-          "Cost and budget enforcement will be skipped for this event. " \
+          "Cost and budget guardrails will be skipped for this event. " \
           "Add a pricing_overrides entry or set unknown_pricing_behavior."
         )
       end

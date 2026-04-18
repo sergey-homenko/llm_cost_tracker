@@ -15,12 +15,13 @@ module LlmCostTracker
     :unknown_pricing_count,
     :cost_by_provider,
     :cost_by_model,
-    :cost_by_feature,
+    :cost_by_tags,
     :top_calls
   )
 
   ReportData.const_set(:DEFAULT_DAYS, 30)
   ReportData.const_set(:TOP_LIMIT, 5)
+  ReportData.const_set(:DEFAULT_TAG_BREAKDOWNS, %w[feature].freeze)
 
   class << ReportData
     def build(days: ReportData::DEFAULT_DAYS, now: Time.now.utc)
@@ -39,7 +40,7 @@ module LlmCostTracker
         unknown_pricing_count: scope.where(total_cost: nil).count,
         cost_by_provider: cost_by(scope, :provider),
         cost_by_model: cost_by(scope, :model),
-        cost_by_feature: cost_by_feature(scope),
+        cost_by_tags: cost_by_tags(scope, ReportData::DEFAULT_TAG_BREAKDOWNS),
         top_calls: top_calls(scope)
       )
     end
@@ -65,12 +66,8 @@ module LlmCostTracker
       scope.group(column).sum(:total_cost).transform_values(&:to_f).sort_by { |_name, cost| -cost }
     end
 
-    def cost_by_feature(scope)
-      costs = Hash.new(0.0)
-      scope.select(:id, :tags, :total_cost).find_each do |call|
-        costs[call.feature || "(untagged)"] += call.total_cost.to_f
-      end
-      costs.sort_by { |_feature, cost| -cost }
+    def cost_by_tags(scope, keys)
+      keys.to_h { |key| [key, scope.cost_by_tag(key).to_a] }
     end
 
     def top_calls(scope)

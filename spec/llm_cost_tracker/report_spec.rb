@@ -62,6 +62,7 @@ RSpec.describe LlmCostTracker::Report do
     expect(report).to include("Requests: 2")
     expect(report).to include("Avg latency: 200ms")
     expect(report).to include("gpt-4o")
+    expect(report).to include("By tag (feature):")
     expect(report).to include("chat")
   end
 
@@ -78,7 +79,7 @@ RSpec.describe LlmCostTracker::Report do
 
     expect(data).to be_a(LlmCostTracker::ReportData)
     expect(data.total_cost).to eq(0.0025)
-    expect(data.cost_by_feature).to eq([["chat", 0.0025]])
+    expect(data.cost_by_tags.fetch("feature")).to eq([["chat", 0.0025]])
     expect(data.top_calls.first.model).to eq("gpt-4o")
   end
 end
