@@ -5,21 +5,21 @@ module LlmCostTracker
     class ActiveRecordStore
       class << self
         def save(event)
-          tags = stringify_tags(event[:tags] || {})
+          tags = stringify_tags(event.tags || {})
 
           attributes = {
-            provider:      event[:provider],
-            model:         event[:model],
-            input_tokens:  event[:input_tokens],
-            output_tokens: event[:output_tokens],
-            total_tokens:  event[:total_tokens],
-            input_cost:    event.dig(:cost, :input_cost),
-            output_cost:   event.dig(:cost, :output_cost),
-            total_cost:    event.dig(:cost, :total_cost),
+            provider:      event.provider,
+            model:         event.model,
+            input_tokens:  event.input_tokens,
+            output_tokens: event.output_tokens,
+            total_tokens:  event.total_tokens,
+            input_cost:    event.cost&.input_cost,
+            output_cost:   event.cost&.output_cost,
+            total_cost:    event.cost&.total_cost,
             tags:          tags_for_storage(tags),
-            tracked_at:    event[:tracked_at]
+            tracked_at:    event.tracked_at
           }
-          attributes[:latency_ms] = event[:latency_ms] if model_class.latency_column?
+          attributes[:latency_ms] = event.latency_ms if model_class.latency_column?
 
           model_class.create!(attributes)
         end

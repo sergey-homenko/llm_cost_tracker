@@ -4,8 +4,22 @@ module LlmCostTracker
   # Calculates costs from price entries expressed in USD per 1M tokens.
   module Pricing
     PRICES = PriceRegistry.builtin_prices
+    PRICES_MUTEX = Mutex.new
+    SORTED_PRICE_KEYS_MUTEX = Mutex.new
+
+    private_constant :PRICES_MUTEX
+    private_constant :SORTED_PRICE_KEYS_MUTEX
 
     class << self
+      # Estimate model cost from token counts.
+      #
+      # @param model [String] Provider model identifier.
+      # @param input_tokens [Integer] Input token count, including cached tokens if reported that way.
+      # @param output_tokens [Integer] Output token count.
+      # @param cached_input_tokens [Integer] OpenAI-style cached input tokens.
+      # @param cache_read_input_tokens [Integer] Anthropic-style cache read tokens.
+      # @param cache_creation_input_tokens [Integer] Anthropic-style cache creation tokens.
+      # @return [LlmCostTracker::Cost, nil] nil when no price is configured for the model.
       def cost_for(model:, input_tokens:, output_tokens:, cached_input_tokens: 0,
                    cache_read_input_tokens: 0, cache_creation_input_tokens: 0)
         prices = lookup(model)
@@ -15,7 +29,7 @@ module LlmCostTracker
                                                cache_read_input_tokens, cache_creation_input_tokens)
         costs = calculate_costs(token_counts, prices)
 
-        {
+        Cost.new(
           input_cost: costs[:input].round(8),
           cached_input_cost: costs[:cached_input].round(8),
           cache_read_input_cost: costs[:cache_read_input].round(8),
@@ -23,7 +37,7 @@ module LlmCostTracker
           output_cost: costs[:output].round(8),
           total_cost: costs.values.sum.round(8),
           currency: "USD"
-        }
+        )
       end
 
       def lookup(model)
@@ -43,9 +57,18 @@ module LlmCostTracker
       end
 
       def prices
-        PRICES
-          .merge(PriceRegistry.file_prices(LlmCostTracker.configuration.prices_file))
-          .merge(PriceRegistry.normalize_price_table(LlmCostTracker.configuration.pricing_overrides))
+        file_prices = PriceRegistry.file_prices(LlmCostTracker.configuration.prices_file)
+        overrides = PriceRegistry.normalize_price_table(LlmCostTracker.configuration.pricing_overrides)
+        cache_key = [file_prices.object_id, LlmCostTracker.configuration.pricing_overrides.hash]
+
+        return @prices if @prices_cache_key == cache_key
+
+        PRICES_MUTEX.synchronize do
+          return @prices if @prices_cache_key == cache_key
+
+          @prices_cache_key = cache_key
+          @prices = PRICES.merge(file_prices).merge(overrides).freeze
+        end
       end
 
       private
@@ -97,11 +120,14 @@ module LlmCostTracker
       end
 
       def sorted_price_keys(table)
-        cache_key = table.keys
-        return @sorted_price_keys if @sorted_price_keys_cache_key == cache_key
+        return @sorted_price_keys if @sorted_price_keys_table.equal?(table)
 
-        @sorted_price_keys_cache_key = cache_key
-        @sorted_price_keys = cache_key.sort_by { |key| -key.length }
+        SORTED_PRICE_KEYS_MUTEX.synchronize do
+          return @sorted_price_keys if @sorted_price_keys_table.equal?(table)
+
+          @sorted_price_keys_table = table
+          @sorted_price_keys = table.keys.sort_by { |key| -key.length }
+        end
       end
     end
   end

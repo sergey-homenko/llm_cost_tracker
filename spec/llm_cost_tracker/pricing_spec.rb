@@ -13,6 +13,7 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 500
       )
 
+      expect(result).to be_a(LlmCostTracker::Cost)
       expect(result[:input_cost]).to be > 0
       expect(result[:output_cost]).to be > 0
       expect(result[:total_cost]).to eq(result[:input_cost] + result[:output_cost])
@@ -219,6 +220,26 @@ RSpec.describe LlmCostTracker::Pricing do
 
       expect(result[:input_cost]).to eq(0.27)
       expect(result[:output_cost]).to eq(1.1)
+    end
+  end
+
+  describe ".lookup" do
+    it "memoizes sorted price keys safely under concurrent lookup" do
+      %i[@sorted_price_keys @sorted_price_keys_table].each do |ivar|
+        described_class.remove_instance_variable(ivar) if described_class.instance_variable_defined?(ivar)
+      end
+
+      table = {
+        "gpt-4" => { input: 30.0, output: 60.0 },
+        "gpt-4o" => { input: 2.5, output: 10.0 }
+      }
+
+      results = 10.times.map do
+        Thread.new { described_class.send(:sorted_price_keys, table) }
+      end.map(&:value)
+
+      expect(results.map(&:object_id).uniq.size).to eq(1)
+      expect(results.first).to eq(%w[gpt-4o gpt-4])
     end
   end
 

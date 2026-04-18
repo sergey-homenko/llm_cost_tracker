@@ -5,8 +5,13 @@ module LlmCostTracker
     generators do
       require_relative "generators/llm_cost_tracker/add_latency_ms_generator"
       require_relative "generators/llm_cost_tracker/install_generator"
+      require_relative "generators/llm_cost_tracker/prices_generator"
       require_relative "generators/llm_cost_tracker/upgrade_cost_precision_generator"
       require_relative "generators/llm_cost_tracker/upgrade_tags_to_jsonb_generator"
+    end
+
+    rake_tasks do
+      load File.expand_path("../tasks/llm_cost_tracker.rake", __dir__)
     end
 
     initializer "llm_cost_tracker.configure" do

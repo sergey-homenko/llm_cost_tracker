@@ -102,20 +102,35 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     it "rejects unknown storage behavior values" do
+      expect do
+        LlmCostTracker.configure { |c| c.storage_error_behavior = :explode }
+      end.to raise_error(LlmCostTracker::Error, /Unknown storage_error_behavior/)
+    end
+
+    it "rejects unknown storage backends at configuration time" do
+      expect do
+        LlmCostTracker.configure { |c| c.storage_backend = :somewhere_else }
+      end.to raise_error(LlmCostTracker::Error, /Unknown storage_backend/)
+    end
+
+    it "honors a false custom storage return by skipping budget checks" do
+      budget_data = nil
+
       LlmCostTracker.configure do |c|
         c.storage_backend = :custom
-        c.storage_error_behavior = :explode
-        c.custom_storage = ->(_event) { raise "storage down" }
+        c.custom_storage = ->(_event) { false }
+        c.monthly_budget = 0.0001
+        c.on_budget_exceeded = ->(data) { budget_data = data }
       end
 
-      expect do
-        described_class.record(
-          provider: "openai",
-          model: "gpt-4o",
-          input_tokens: 100,
-          output_tokens: 50
-        )
-      end.to raise_error(LlmCostTracker::Error, /Unknown storage_error_behavior/)
+      described_class.record(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+
+      expect(budget_data).to be_nil
     end
 
     it "merges default_tags with metadata" do
@@ -199,18 +214,8 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     it "rejects unknown budget behavior values" do
-      LlmCostTracker.configure do |c|
-        c.monthly_budget = 0.0001
-        c.budget_exceeded_behavior = :explode
-      end
-
       expect do
-        described_class.record(
-          provider: "openai",
-          model: "gpt-4o",
-          input_tokens: 1_000_000,
-          output_tokens: 1_000_000
-        )
+        LlmCostTracker.configure { |c| c.budget_exceeded_behavior = :explode }
       end.to raise_error(LlmCostTracker::Error, /Unknown budget_exceeded_behavior/)
     end
 
@@ -263,19 +268,8 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     it "rejects unknown pricing behavior values" do
-      LlmCostTracker.configure do |c|
-        c.storage_backend = :custom
-        c.custom_storage = ->(_event) {}
-        c.unknown_pricing_behavior = :explode
-      end
-
       expect do
-        described_class.record(
-          provider: "openai",
-          model: "unknown-chat-model",
-          input_tokens: 100,
-          output_tokens: 50
-        )
+        LlmCostTracker.configure { |c| c.unknown_pricing_behavior = :explode }
       end.to raise_error(LlmCostTracker::Error, /Unknown unknown_pricing_behavior/)
     end
   end

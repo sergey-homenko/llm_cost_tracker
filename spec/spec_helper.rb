@@ -4,6 +4,8 @@ require "bundler/setup"
 require "webmock/rspec"
 require "llm_cost_tracker"
 
+Dir[File.expand_path("support/**/*.rb", __dir__)].each { |file| require file }
+
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true

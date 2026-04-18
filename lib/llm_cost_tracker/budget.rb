@@ -1,10 +1,13 @@
 # frozen_string_literal: true
 
+require_relative "logging"
+
 module LlmCostTracker
   class Budget
-    class << self
-      WARNING_MUTEX = Mutex.new
+    WARNING_MUTEX = Mutex.new
+    private_constant :WARNING_MUTEX
 
+    class << self
       def enforce!
         return unless LlmCostTracker.configuration.monthly_budget
         return unless behavior == :block_requests
@@ -55,7 +58,7 @@ module LlmCostTracker
         end
         return unless should_warn
 
-        log_warning(":block_requests preflight requires storage_backend = :active_record; request was not blocked.")
+        Logging.warn(":block_requests preflight requires storage_backend = :active_record; request was not blocked.")
       end
 
       def handle_exceeded(monthly_total:, last_event: nil)
@@ -75,22 +78,7 @@ module LlmCostTracker
       end
 
       def behavior
-        behavior = (LlmCostTracker.configuration.budget_exceeded_behavior || :notify).to_sym
-        return behavior if Configuration::BUDGET_EXCEEDED_BEHAVIORS.include?(behavior)
-
-        raise Error,
-              "Unknown budget_exceeded_behavior: #{behavior.inspect}. " \
-              "Use one of: #{Configuration::BUDGET_EXCEEDED_BEHAVIORS.join(', ')}"
-      end
-
-      def log_warning(message)
-        message = "[LlmCostTracker] #{message}"
-
-        if defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
-          Rails.logger.warn(message)
-        else
-          warn message
-        end
+        LlmCostTracker.configuration.budget_exceeded_behavior
       end
     end
   end

@@ -1,29 +1,21 @@
 # frozen_string_literal: true
 
 require "active_record"
-require "json"
+
+require_relative "tag_accessors"
+require_relative "tag_query"
+require_relative "tags_column"
 
 module LlmCostTracker
   class LlmApiCall < ActiveRecord::Base
+    extend TagsColumn
+    include TagAccessors
+
     self.table_name = "llm_api_calls"
 
     # Scopes for querying
     scope :by_provider, ->(provider) { where(provider: provider) }
     scope :by_model,    ->(model)    { where(model: model) }
-    scope :by_tag, ->(key, value) { by_tags(key => value) }
-    scope :by_tags, lambda { |tags|
-      normalized_tags = normalize_tags(tags)
-
-      if normalized_tags.empty?
-        all
-      elsif tags_json_column?
-        where("tags @> ?::jsonb", normalized_tags.to_json)
-      else
-        normalized_tags.reduce(all) do |relation, (key, value)|
-          relation.where("tags LIKE ? ESCAPE '\\'", "%#{sanitize_sql_like(json_tag_fragment(key, value))}%")
-        end
-      end
-    }
     scope :by_user,    ->(user_id) { by_tag("user_id", user_id) }
     scope :by_feature, ->(feature) { by_tag("feature", feature) }
     scope :with_cost, -> { where.not(total_cost: nil) }
@@ -43,6 +35,14 @@ module LlmCostTracker
     scope :this_week,   -> { where(tracked_at: Time.now.utc.beginning_of_week..) }
     scope :this_month,  -> { where(tracked_at: Time.now.utc.beginning_of_month..) }
     scope :between,     ->(from, to) { where(tracked_at: from..to) }
+
+    def self.by_tag(key, value)
+      by_tags(key => value)
+    end
+
+    def self.by_tags(tags)
+      TagQuery.apply(self, tags)
+    end
 
     # Aggregations
     def self.total_cost
@@ -84,41 +84,6 @@ module LlmCostTracker
         .group("DATE(tracked_at)")
         .sum(:total_cost)
         .transform_keys(&:to_s)
-    end
-
-    def self.tags_json_column?
-      column = columns_hash["tags"]
-      return false unless column
-
-      %i[json jsonb].include?(column.type) || column.sql_type.to_s.downcase == "jsonb"
-    end
-
-    def self.latency_column?
-      columns_hash.key?("latency_ms")
-    end
-
-    def self.normalize_tags(tags)
-      (tags || {}).to_h.transform_keys(&:to_s).transform_values(&:to_s)
-    end
-
-    def self.json_tag_fragment(key, value)
-      JSON.generate(key => value).delete_prefix("{").delete_suffix("}")
-    end
-
-    def parsed_tags
-      return tags.transform_keys(&:to_s) if tags.is_a?(Hash)
-
-      JSON.parse(tags || "{}")
-    rescue JSON::ParserError
-      {}
-    end
-
-    def feature
-      parsed_tags["feature"]
-    end
-
-    def user_id
-      parsed_tags["user_id"]
     end
   end
 end

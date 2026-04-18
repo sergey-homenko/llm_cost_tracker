@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "yaml"
 
 RSpec.describe "generator templates" do
   def template(name)
@@ -45,5 +46,17 @@ RSpec.describe "generator templates" do
     expect(migration).to include("change_column(")
     expect(migration).to include("using: \"CASE WHEN tags IS NULL")
     expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin")
+  end
+
+  it "provides a valid local prices override template" do
+    prices_template = template("llm_cost_tracker_prices.yml.erb")
+    parsed = YAML.safe_load(prices_template.gsub(/^#.*$/, ""), aliases: false)
+    supported_keys = %w[input output cached_input cache_read_input cache_creation_input _source _updated _notes]
+    example_keys = prices_template.scan(/^#\s+([a-z_]+):/).flatten - ["models"]
+
+    expect(parsed).to eq("models" => nil)
+    expect(example_keys - supported_keys).to be_empty
+    expect(prices_template).to include("Supported price keys")
+    expect(prices_template).to include("_updated")
   end
 end

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "logging"
+
 module LlmCostTracker
   class UnknownPricing
     class << self
@@ -23,24 +25,15 @@ module LlmCostTracker
       end
 
       def warn_missing(model)
-        message = "[LlmCostTracker] No pricing configured for model #{model.inspect}. " \
-                  "Cost and budget enforcement will be skipped for this event. " \
-                  "Add a pricing_overrides entry or set unknown_pricing_behavior."
-
-        if defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
-          Rails.logger.warn(message)
-        else
-          Kernel.warn(message)
-        end
+        Logging.warn(
+          "No pricing configured for model #{model.inspect}. " \
+          "Cost and budget enforcement will be skipped for this event. " \
+          "Add a pricing_overrides entry or set unknown_pricing_behavior."
+        )
       end
 
       def behavior
-        behavior = (LlmCostTracker.configuration.unknown_pricing_behavior || :warn).to_sym
-        return behavior if Configuration::UNKNOWN_PRICING_BEHAVIORS.include?(behavior)
-
-        raise Error,
-              "Unknown unknown_pricing_behavior: #{behavior.inspect}. " \
-              "Use one of: #{Configuration::UNKNOWN_PRICING_BEHAVIORS.join(', ')}"
+        LlmCostTracker.configuration.unknown_pricing_behavior
       end
     end
   end

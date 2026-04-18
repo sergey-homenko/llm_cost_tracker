@@ -78,6 +78,47 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:model]).to eq("gpt-4o")
   end
 
+  it "supports callable tags evaluated per request" do
+    current_user_id = 42
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker, tags: -> { { feature: "chat", user_id: current_user_id } }
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          [200, { "Content-Type" => "application/json" }, openai_response_body]
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+
+    expect(events.first[:tags]).to include(feature: "chat", user_id: 42)
+  end
+
+  it "passes the Faraday request env to callable tags when accepted" do
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker, tags: ->(env) { { path: env.url.path } }
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          [200, { "Content-Type" => "application/json" }, openai_response_body]
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+
+    expect(events.first[:tags]).to include(path: "/v1/chat/completions")
+  end
+
   it "does not break requests when tracking is disabled" do
     LlmCostTracker.configuration.enabled = false
 

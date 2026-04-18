@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "json"
 require "uri"
 
 require_relative "base"
@@ -26,7 +25,7 @@ module LlmCostTracker
 
         request = safe_json_parse(request_body)
 
-        {
+        ParsedUsage.build(
           provider: "anthropic",
           model: response["model"] || request["model"],
           input_tokens: usage["input_tokens"] || 0,
@@ -36,7 +35,7 @@ module LlmCostTracker
             (usage["cache_creation_input_tokens"] || 0),
           cache_read_input_tokens: usage["cache_read_input_tokens"],
           cache_creation_input_tokens: usage["cache_creation_input_tokens"]
-        }.compact
+        )
       end
     end
   end

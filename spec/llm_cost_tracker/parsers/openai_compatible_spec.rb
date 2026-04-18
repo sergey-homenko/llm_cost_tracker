@@ -5,6 +5,10 @@ require "spec_helper"
 RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
   subject(:parser) { described_class.new }
 
+  it "uses the shared OpenAI usage extractor without inheriting from the OpenAI parser" do
+    expect(described_class.superclass).to eq(LlmCostTracker::Parsers::Base)
+  end
+
   describe "#match?" do
     it "matches OpenRouter chat completions URLs" do
       expect(parser.match?("https://openrouter.ai/api/v1/chat/completions")).to be true
@@ -50,6 +54,12 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
   end
 
   describe "#parse" do
+    it_behaves_like "a parser with common usage failure handling",
+                    url: "https://openrouter.ai/api/v1/chat/completions",
+                    request_body: { model: "openai/gpt-4o-mini" }.to_json,
+                    response_body: { error: "rate limited" }.to_json,
+                    missing_usage_body: { model: "openai/gpt-4o-mini" }.to_json
+
     it "extracts OpenRouter usage and provider name" do
       result = parser.parse(
         "https://openrouter.ai/api/v1/chat/completions",

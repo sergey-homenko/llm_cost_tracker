@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-04-18
+
+### Thread-safety, pricing UX, and internal hardening
+
+**Thread-safety**
+
+- Guard `PriceRegistry.file_prices` and `Pricing.sorted_price_keys` memoization with mutexes.
+
+**Pricing UX**
+
+- Warn on unknown keys in local prices files.
+- Add `llm_cost_tracker:prices` generator for creating a local price override template.
+- Document that budget enforcement skips events with unknown pricing.
+
+**Onboarding UX**
+
+- Add callable Faraday `tags:` support for per-request Rails attribution with `Current`.
+- Add `llm_cost_tracker:report` rake task for a quick terminal cost report.
+- Rework README with a no-database quick try, report output, and safety guarantees.
+
+**Internal refactor (no behavior change)**
+
+- Extract `Logging` module and remove duplicated warning helpers.
+- Extract `TagQuery`, `TagsColumn`, and `TagAccessors` helpers from `LlmApiCall`.
+- Introduce typed `Cost`, `Event`, and `ParsedUsage` value objects while preserving hash-like access.
+- Move storage dispatch into dedicated backend objects with a uniform save contract.
+- Split `Report` into `ReportData` and `ReportFormatter`.
+- Use `OpenaiUsage` composition for OpenAI-compatible providers instead of parser inheritance.
+- Move config enum validation into `Configuration` setters.
+- Memoize the merged built-in/file/override prices table.
+- Restrict the Gemini parser to `generateContent` and `streamGenerateContent` paths.
+
 ## [0.1.2] - 2026-04-18
 
 ### Added

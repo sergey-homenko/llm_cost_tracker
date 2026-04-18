@@ -30,6 +30,12 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       }.to_json
     end
 
+    it_behaves_like "a parser with common usage failure handling",
+                    url: "https://api.anthropic.com/v1/messages",
+                    request_body: { model: "claude-sonnet-4-6" }.to_json,
+                    response_body: { error: "rate limited" }.to_json,
+                    missing_usage_body: { model: "claude-sonnet-4-6" }.to_json
+
     it "extracts token usage including cache tokens" do
       result = parser.parse(
         "https://api.anthropic.com/v1/messages",

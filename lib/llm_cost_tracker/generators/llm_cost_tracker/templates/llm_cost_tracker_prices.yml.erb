@@ -1,0 +1,36 @@
+# Local LlmCostTracker price overrides.
+#
+# Add only the models you want to override or add. Built-in prices still come
+# from the gem's prices.json, and Ruby pricing_overrides still take precedence.
+#
+# Units: USD per 1M tokens.
+#
+# Supported price keys:
+# - input
+# - output
+# - cached_input
+# - cache_read_input
+# - cache_creation_input
+#
+# Optional metadata keys, ignored by cost calculation:
+# - _source
+# - _updated
+# - _notes
+#
+# Example: custom fine-tune
+# models:
+#   "ft:gpt-4o-mini:my-org":
+#     input: 0.30
+#     cached_input: 0.15
+#     output: 1.20
+#     _notes: "Internal fine-tune rate"
+#
+# Example: negotiated provider discount
+# models:
+#   "gpt-4o":
+#     input: 2.00
+#     output: 8.00
+#     _source: "Enterprise agreement"
+#     _updated: "2026-04-18"
+
+models:
