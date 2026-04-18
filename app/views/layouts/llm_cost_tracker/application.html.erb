@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LLM Costs</title>
+    <style>
+      :root {
+        --lct-bg: #f7f8fa;
+        --lct-panel: #ffffff;
+        --lct-border: #d9dee7;
+        --lct-text: #1f2937;
+        --lct-muted: #64748b;
+        --lct-accent: #0f766e;
+      }
+
+      body {
+        margin: 0;
+        background: var(--lct-bg);
+        color: var(--lct-text);
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .lct-shell {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .lct-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+
+      .lct-title {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.2;
+      }
+
+      .lct-nav {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .lct-nav a {
+        color: var(--lct-muted);
+        text-decoration: none;
+        font-size: 14px;
+      }
+
+      .lct-nav a:hover {
+        color: var(--lct-accent);
+      }
+
+      .lct-panel {
+        background: var(--lct-panel);
+        border: 1px solid var(--lct-border);
+        border-radius: 8px;
+        padding: 24px;
+      }
+
+      .lct-muted {
+        color: var(--lct-muted);
+      }
+
+      .lct-code {
+        background: #eef2f7;
+        border-radius: 6px;
+        padding: 2px 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 0.95em;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="lct-shell">
+      <header class="lct-header">
+        <h1 class="lct-title">LLM Costs</h1>
+        <nav class="lct-nav" aria-label="Dashboard">
+          <%= link_to "Overview", root_path %>
+        </nav>
+      </header>
+
+      <%= yield %>
+    </main>
+  </body>
+</html>

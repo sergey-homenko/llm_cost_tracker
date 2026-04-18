@@ -20,6 +20,7 @@ RSpec.configure do |config|
   config.order = :random
 
   config.before(:each) do
+    Rails.logger = nil if defined?(Rails) && Rails.respond_to?(:logger=)
     LlmCostTracker.reset_configuration!
     LlmCostTracker::Parsers::Registry.reset!
   end

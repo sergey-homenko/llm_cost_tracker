@@ -1,0 +1,14 @@
+<section class="lct-panel">
+  <% if llm_api_calls_table_available? %>
+    <% if @calls_count.positive? %>
+      <p class="lct-muted">Tracking <%= number_with_delimiter(@calls_count) %> LLM API calls.</p>
+    <% else %>
+      <p class="lct-muted">No LLM calls have been recorded yet.</p>
+    <% end %>
+  <% else %>
+    <p class="lct-muted">
+      The <span class="lct-code">llm_api_calls</span> table is not available yet.
+      Run <span class="lct-code">rails generate llm_cost_tracker:install</span> and migrate your database.
+    </p>
+  <% end %>
+</section>
