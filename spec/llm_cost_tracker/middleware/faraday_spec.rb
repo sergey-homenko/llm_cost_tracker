@@ -41,7 +41,41 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:input_tokens]).to eq(10)
     expect(events.first[:output_tokens]).to eq(5)
     expect(events.first[:cost]).not_to be_nil
+    expect(events.first[:latency_ms]).to be_a(Integer)
+    expect(events.first[:latency_ms]).to be >= 0
     expect(events.first[:tags]).to include(feature: "test")
+  end
+
+  it "tracks responses that Faraday has already parsed as JSON" do
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          [
+            200,
+            { "Content-Type" => "application/json" },
+            {
+              model: "gpt-4o",
+              usage: {
+                prompt_tokens: 10,
+                completion_tokens: 5,
+                total_tokens: 15
+              }
+            }
+          ]
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o" })
+
+    expect(events.size).to eq(1)
+    expect(events.first[:model]).to eq("gpt-4o")
   end
 
   it "does not break requests when tracking is disabled" do
@@ -67,5 +101,81 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     response = conn.get("/api/users")
     expect(response.status).to eq(200)
     expect(events).to be_empty
+  end
+
+  it "warns when a supported response body cannot be read" do
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          [200, { "Content-Type" => "text/event-stream" }, proc {}]
+        end
+      end
+    end
+
+    expect do
+      conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+    end.to output(%r{streaming/SSE responses require manual tracking}).to_stderr
+  end
+
+  it "raises budget errors from post-response enforcement" do
+    LlmCostTracker.configure do |config|
+      config.monthly_budget = 0.000001
+      config.budget_exceeded_behavior = :raise
+    end
+
+    expect do
+      connection.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+    end.to raise_error(LlmCostTracker::BudgetExceededError)
+  end
+
+  it "raises unknown pricing errors from post-response enforcement" do
+    LlmCostTracker.configure do |config|
+      config.unknown_pricing_behavior = :raise
+    end
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          body = {
+            model: "unknown-chat-model",
+            usage: {
+              prompt_tokens: 10,
+              completion_tokens: 5,
+              total_tokens: 15
+            }
+          }.to_json
+
+          [200, { "Content-Type" => "application/json" }, body]
+        end
+      end
+    end
+
+    expect do
+      conn.post("/v1/chat/completions", { model: "unknown-chat-model" }.to_json)
+    end.to raise_error(LlmCostTracker::UnknownPricingError)
+  end
+
+  it "can block LLM requests before they hit the adapter" do
+    error = LlmCostTracker::BudgetExceededError.new(monthly_total: 1.0, budget: 1.0)
+    requests = 0
+
+    allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(error)
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          requests += 1
+          [200, { "Content-Type" => "application/json" }, openai_response_body]
+        end
+      end
+    end
+
+    expect do
+      conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+    end.to raise_error(LlmCostTracker::BudgetExceededError)
+    expect(requests).to eq(0)
   end
 end

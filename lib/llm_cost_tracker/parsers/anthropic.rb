@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require "json"
+require "uri"
+
+require_relative "base"
 
 module LlmCostTracker
   module Parsers
@@ -9,7 +12,7 @@ module LlmCostTracker
 
       def match?(url)
         uri = URI.parse(url.to_s)
-        HOSTS.include?(uri.host) && uri.path.include?("/v1/messages")
+        HOSTS.include?(uri.host.to_s.downcase) && uri.path.include?("/v1/messages")
       rescue URI::InvalidURIError
         false
       end

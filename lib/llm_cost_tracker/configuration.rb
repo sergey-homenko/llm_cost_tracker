@@ -2,14 +2,30 @@
 
 module LlmCostTracker
   class Configuration
+    # Hostname => provider name for OpenAI-compatible APIs.
+    OPENAI_COMPATIBLE_PROVIDERS = {
+      "openrouter.ai" => "openrouter",
+      "api.deepseek.com" => "deepseek"
+    }.freeze
+
+    BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
+    STORAGE_ERROR_BEHAVIORS = %i[ignore warn raise].freeze
+    UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
+
     attr_accessor :enabled,
                   :storage_backend,    # :log, :active_record, :custom
                   :custom_storage,     # callable object for :custom backend
                   :default_tags,       # Hash of default tags added to every event
                   :on_budget_exceeded, # callable, receives event hash
                   :monthly_budget,     # Float, in USD — nil means no limit
+                  :budget_exceeded_behavior, # :notify, :raise, :block_requests
+                  :storage_error_behavior, # :ignore, :warn, :raise
+                  :unknown_pricing_behavior, # :ignore, :warn, :raise
                   :log_level,          # :debug, :info, :warn
+                  :prices_file,        # JSON/YAML file that overrides built-in prices
                   :pricing_overrides   # Hash to override built-in pricing
+
+    attr_reader :openai_compatible_providers
 
     def initialize
       @enabled            = true
@@ -18,8 +34,21 @@ module LlmCostTracker
       @default_tags       = {}
       @on_budget_exceeded = nil
       @monthly_budget     = nil
+      @budget_exceeded_behavior = :notify
+      @storage_error_behavior = :warn
+      @unknown_pricing_behavior = :warn
       @log_level          = :info
+      @prices_file        = nil
       @pricing_overrides  = {}
+      self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
+    end
+
+    def openai_compatible_providers=(providers)
+      @openai_compatible_providers = normalize_openai_compatible_providers(providers)
+    end
+
+    def normalize_openai_compatible_providers!
+      self.openai_compatible_providers = openai_compatible_providers
     end
 
     def active_record?
@@ -28,6 +57,14 @@ module LlmCostTracker
 
     def log?
       storage_backend == :log
+    end
+
+    private
+
+    def normalize_openai_compatible_providers(providers)
+      (providers || {}).each_with_object({}) do |(host, provider), normalized|
+        normalized[host.to_s.downcase] = provider.to_s
+      end
     end
   end
 end

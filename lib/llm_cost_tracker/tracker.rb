@@ -5,8 +5,12 @@ module LlmCostTracker
     EVENT_NAME = "llm_request.llm_cost_tracker"
 
     class << self
-      def record(provider:, model:, input_tokens:, output_tokens:, metadata: {})
-        usage = usage_data(input_tokens, output_tokens, metadata)
+      def enforce_budget!
+        Budget.enforce!
+      end
+
+      def record(provider:, model:, input_tokens:, output_tokens:, metadata: {}, latency_ms: nil)
+        usage = EventMetadata.usage_data(input_tokens, output_tokens, metadata)
 
         cost_data = Pricing.cost_for(
           model: model,
@@ -17,6 +21,8 @@ module LlmCostTracker
           cache_creation_input_tokens: usage[:cache_creation_input_tokens]
         )
 
+        UnknownPricing.handle!(model) unless cost_data
+
         event = {
           provider: provider,
           model: model,
@@ -24,7 +30,8 @@ module LlmCostTracker
           output_tokens: usage[:output_tokens],
           total_tokens: usage[:total_tokens],
           cost: cost_data,
-          tags: LlmCostTracker.configuration.default_tags.merge(metadata),
+          tags: LlmCostTracker.configuration.default_tags.merge(EventMetadata.tags(metadata)),
+          latency_ms: normalized_latency_ms(latency_ms),
           tracked_at: Time.now.utc
         }
 
@@ -32,10 +39,8 @@ module LlmCostTracker
         ActiveSupport::Notifications.instrument(EVENT_NAME, event)
 
         # Store based on backend
-        store(event)
-
-        # Budget check
-        check_budget(event)
+        stored = store(event)
+        Budget.check!(event) unless stored == false
 
         event
       end
@@ -53,6 +58,13 @@ module LlmCostTracker
         when :custom
           config.custom_storage&.call(event)
         end
+
+        true
+      rescue BudgetExceededError, UnknownPricingError
+        raise
+      rescue StandardError => e
+        handle_storage_error(e)
+        false
       end
 
       def log_event(event)
@@ -61,6 +73,7 @@ module LlmCostTracker
         message = "[LlmCostTracker] #{event[:provider]}/#{event[:model]} " \
                   "tokens=#{event[:input_tokens]}+#{event[:output_tokens]} " \
                   "cost=#{cost_str}"
+        message += " latency=#{event[:latency_ms]}ms" if event[:latency_ms]
         message += " tags=#{event[:tags]}" unless event[:tags].empty?
 
         case LlmCostTracker.configuration.log_level
@@ -76,6 +89,16 @@ module LlmCostTracker
         warn(message) unless defined?(Rails)
       end
 
+      def log_warning(message)
+        message = "[LlmCostTracker] #{message}"
+
+        if defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
+          Rails.logger.warn(message)
+        else
+          warn message
+        end
+      end
+
       def store_active_record(event)
         require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
         require_relative "storage/active_record_store" unless defined?(LlmCostTracker::Storage::ActiveRecordStore)
@@ -85,59 +108,31 @@ module LlmCostTracker
         raise Error, "ActiveRecord storage requires the active_record gem: #{e.message}"
       end
 
-      def check_budget(event)
-        config = LlmCostTracker.configuration
-        return unless config.monthly_budget && config.on_budget_exceeded
-        return unless event[:cost]
-
-        monthly_total = calculate_monthly_total(event[:cost][:total_cost])
-        return unless monthly_total > config.monthly_budget
-
-        config.on_budget_exceeded.call(
-          monthly_total: monthly_total,
-          budget: config.monthly_budget,
-          last_event: event
-        )
-      end
-
-      def calculate_monthly_total(latest_cost)
-        # For :active_record backend, query the DB
-        if LlmCostTracker.configuration.active_record? &&
-           defined?(LlmCostTracker::Storage::ActiveRecordStore)
-          LlmCostTracker::Storage::ActiveRecordStore.monthly_total
-        else
-          # For other backends, we can only report the latest cost
-          latest_cost
+      def handle_storage_error(error)
+        case storage_error_behavior
+        when :ignore
+          nil
+        when :warn
+          log_warning("Storage failed; tracking event was not persisted: #{error.class}: #{error.message}")
+        when :raise
+          storage_error = StorageError.new(error)
+          raise storage_error
         end
       end
 
-      def usage_data(input_tokens, output_tokens, metadata)
-        cache_read_input_tokens = integer_metadata(metadata, :cache_read_input_tokens, :cache_read_tokens)
-        cache_creation_input_tokens = integer_metadata(
-          metadata,
-          :cache_creation_input_tokens,
-          :cache_creation_tokens
-        )
-        cached_input_tokens = integer_metadata(metadata, :cached_input_tokens)
+      def storage_error_behavior
+        behavior = (LlmCostTracker.configuration.storage_error_behavior || :warn).to_sym
+        return behavior if Configuration::STORAGE_ERROR_BEHAVIORS.include?(behavior)
 
-        {
-          input_tokens: input_tokens.to_i,
-          output_tokens: output_tokens.to_i,
-          cached_input_tokens: cached_input_tokens,
-          cache_read_input_tokens: cache_read_input_tokens,
-          cache_creation_input_tokens: cache_creation_input_tokens,
-          total_tokens: input_tokens.to_i + output_tokens.to_i +
-            cache_read_input_tokens + cache_creation_input_tokens
-        }
+        raise Error,
+              "Unknown storage_error_behavior: #{behavior.inspect}. " \
+              "Use one of: #{Configuration::STORAGE_ERROR_BEHAVIORS.join(', ')}"
       end
 
-      def integer_metadata(metadata, *keys)
-        keys.each do |key|
-          value = metadata[key] || metadata[key.to_s]
-          return value.to_i unless value.nil?
-        end
+      def normalized_latency_ms(latency_ms)
+        return nil if latency_ms.nil?
 
-        0
+        [latency_ms.to_i, 0].max
       end
     end
   end

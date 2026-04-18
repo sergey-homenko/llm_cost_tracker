@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require "json"
+require "uri"
+
+require_relative "base"
 
 module LlmCostTracker
   module Parsers
@@ -10,12 +13,12 @@ module LlmCostTracker
 
       def match?(url)
         uri = URI.parse(url.to_s)
-        HOSTS.include?(uri.host) && TRACKED_PATHS.include?(uri.path)
+        HOSTS.include?(uri.host.to_s.downcase) && TRACKED_PATHS.include?(uri.path)
       rescue URI::InvalidURIError
         false
       end
 
-      def parse(_request_url, request_body, response_status, response_body)
+      def parse(request_url, request_body, response_status, response_body)
         return nil unless response_status == 200
 
         response = safe_json_parse(response_body)
@@ -25,7 +28,7 @@ module LlmCostTracker
         request = safe_json_parse(request_body)
 
         {
-          provider: "openai",
+          provider: provider_for(request_url),
           model: response["model"] || request["model"],
           input_tokens: usage["prompt_tokens"] || usage["input_tokens"] || 0,
           output_tokens: usage["completion_tokens"] || usage["output_tokens"] || 0,
@@ -35,6 +38,10 @@ module LlmCostTracker
       end
 
       private
+
+      def provider_for(_request_url)
+        "openai"
+      end
 
       def cached_input_tokens(usage)
         details = usage["prompt_tokens_details"] || usage["input_tokens_details"] || {}

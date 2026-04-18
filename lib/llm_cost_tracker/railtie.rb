@@ -3,7 +3,10 @@
 module LlmCostTracker
   class Railtie < Rails::Railtie
     generators do
+      require_relative "generators/llm_cost_tracker/add_latency_ms_generator"
       require_relative "generators/llm_cost_tracker/install_generator"
+      require_relative "generators/llm_cost_tracker/upgrade_cost_precision_generator"
+      require_relative "generators/llm_cost_tracker/upgrade_tags_to_jsonb_generator"
     end
 
     initializer "llm_cost_tracker.configure" do

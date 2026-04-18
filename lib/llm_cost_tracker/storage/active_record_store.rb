@@ -5,7 +5,9 @@ module LlmCostTracker
     class ActiveRecordStore
       class << self
         def save(event)
-          model_class.create!(
+          tags = stringify_tags(event[:tags] || {})
+
+          attributes = {
             provider:      event[:provider],
             model:         event[:model],
             input_tokens:  event[:input_tokens],
@@ -14,9 +16,12 @@ module LlmCostTracker
             input_cost:    event.dig(:cost, :input_cost),
             output_cost:   event.dig(:cost, :output_cost),
             total_cost:    event.dig(:cost, :total_cost),
-            tags:          stringify_tags(event[:tags]).to_json,
+            tags:          tags_for_storage(tags),
             tracked_at:    event[:tracked_at]
-          )
+          }
+          attributes[:latency_ms] = event[:latency_ms] if model_class.latency_column?
+
+          model_class.create!(attributes)
         end
 
         def monthly_total(time: Time.now.utc)
@@ -36,6 +41,10 @@ module LlmCostTracker
 
         def stringify_tags(tags)
           tags.transform_keys(&:to_s).transform_values { |value| stringify_tag_value(value) }
+        end
+
+        def tags_for_storage(tags)
+          model_class.tags_json_column? ? tags : tags.to_json
         end
 
         def stringify_tag_value(value)

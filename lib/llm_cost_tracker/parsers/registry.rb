@@ -4,16 +4,14 @@ module LlmCostTracker
   module Parsers
     class Registry
       class << self
+        PARSERS_MUTEX = Mutex.new
+
         def parsers
-          @parsers ||= [
-            Openai.new,
-            Anthropic.new,
-            Gemini.new
-          ]
+          @parsers || PARSERS_MUTEX.synchronize { @parsers ||= default_parsers }
         end
 
         def register(parser)
-          parsers.unshift(parser)
+          PARSERS_MUTEX.synchronize { parsers.unshift(parser) }
         end
 
         def find_for(url)
@@ -21,7 +19,18 @@ module LlmCostTracker
         end
 
         def reset!
-          @parsers = nil
+          PARSERS_MUTEX.synchronize { @parsers = nil }
+        end
+
+        private
+
+        def default_parsers
+          [
+            Openai.new,
+            OpenaiCompatible.new,
+            Anthropic.new,
+            Gemini.new
+          ]
         end
       end
     end

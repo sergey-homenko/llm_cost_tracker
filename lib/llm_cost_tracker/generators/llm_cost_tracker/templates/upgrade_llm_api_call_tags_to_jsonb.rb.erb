@@ -1,0 +1,41 @@
+class UpgradeLlmApiCallTagsToJsonb < ActiveRecord::Migration<%= migration_version %>
+  def up
+    unless postgresql?
+      say "Skipping llm_api_calls.tags JSONB upgrade: database adapter is #{connection.adapter_name}."
+      return
+    end
+
+    return if tags_jsonb?
+
+    remove_index :llm_api_calls, :tags if index_exists?(:llm_api_calls, :tags)
+
+    change_column(
+      :llm_api_calls,
+      :tags,
+      :jsonb,
+      using: "CASE WHEN tags IS NULL OR tags = '' THEN '{}'::jsonb ELSE tags::jsonb END",
+      default: {},
+      null: false
+    )
+
+    add_index :llm_api_calls, :tags, using: :gin unless index_exists?(:llm_api_calls, :tags)
+  end
+
+  def down
+    return unless postgresql?
+
+    remove_index :llm_api_calls, :tags if index_exists?(:llm_api_calls, :tags)
+    change_column :llm_api_calls, :tags, :text, using: "tags::text"
+  end
+
+  private
+
+  def postgresql?
+    connection.adapter_name.downcase.include?("postgres")
+  end
+
+  def tags_jsonb?
+    column = connection.columns(:llm_api_calls).find { |candidate| candidate.name == "tags" }
+    column&.sql_type.to_s.downcase == "jsonb"
+  end
+end

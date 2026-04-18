@@ -12,6 +12,13 @@ LlmCostTracker.configure do |config|
 
   # Monthly budget in USD. Set to nil to disable budget alerts.
   # config.monthly_budget = 100.00
+  # config.budget_exceeded_behavior = :notify # :notify, :raise, or :block_requests
+
+  # What to do when storage fails.
+  # config.storage_error_behavior = :warn # :ignore, :warn, or :raise
+
+  # What to do when a model has no built-in price and no pricing_overrides entry.
+  # config.unknown_pricing_behavior = :warn # :ignore, :warn, or :raise
 
   # Callback when monthly budget is exceeded.
   # config.on_budget_exceeded = ->(data) {
@@ -20,8 +27,14 @@ LlmCostTracker.configure do |config|
   #   # Or send a Slack notification, email, etc.
   # }
 
-  # Override built-in pricing for specific models (per 1M tokens, USD)
+  # Load a local JSON/YAML price table that overrides built-in pricing.
+  # config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.json")
+
+  # Override pricing for specific models in Ruby (per 1M tokens, USD).
   # config.pricing_overrides = {
   #   "my-custom-model" => { input: 1.00, output: 2.00 }
   # }
+
+  # OpenAI-compatible APIs. OpenRouter and DeepSeek are included by default.
+  # config.openai_compatible_providers["llm.my-company.com"] = "internal_gateway"
 end

@@ -6,10 +6,15 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
       t.integer :input_tokens,  null: false, default: 0
       t.integer :output_tokens, null: false, default: 0
       t.integer :total_tokens,  null: false, default: 0
-      t.decimal :input_cost,    precision: 12, scale: 8
-      t.decimal :output_cost,   precision: 12, scale: 8
-      t.decimal :total_cost,    precision: 12, scale: 8
-      t.text    :tags
+      t.decimal :input_cost,    precision: 20, scale: 8
+      t.decimal :output_cost,   precision: 20, scale: 8
+      t.decimal :total_cost,    precision: 20, scale: 8
+      t.integer :latency_ms
+      if postgresql?
+        t.jsonb :tags, null: false, default: {}
+      else
+        t.text :tags
+      end
       t.datetime :tracked_at,   null: false
 
       t.timestamps
@@ -19,5 +24,12 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
     add_index :llm_api_calls, :model
     add_index :llm_api_calls, :tracked_at
     add_index :llm_api_calls, [:provider, :tracked_at]
+    add_index :llm_api_calls, :tags, using: :gin if postgresql?
+  end
+
+  private
+
+  def postgresql?
+    connection.adapter_name.downcase.include?("postgres")
   end
 end

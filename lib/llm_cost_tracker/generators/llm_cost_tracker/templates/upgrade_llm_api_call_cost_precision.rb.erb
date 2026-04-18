@@ -1,0 +1,15 @@
+class UpgradeLlmApiCallCostPrecision < ActiveRecord::Migration<%= migration_version %>
+  COST_COLUMNS = %i[input_cost output_cost total_cost].freeze
+
+  def up
+    COST_COLUMNS.each do |column|
+      change_column :llm_api_calls, column, :decimal, precision: 20, scale: 8
+    end
+  end
+
+  def down
+    COST_COLUMNS.each do |column|
+      change_column :llm_api_calls, column, :decimal, precision: 12, scale: 8
+    end
+  end
+end

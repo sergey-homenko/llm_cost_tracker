@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require "json"
+require "uri"
+
+require_relative "base"
 
 module LlmCostTracker
   module Parsers
@@ -9,7 +12,7 @@ module LlmCostTracker
 
       def match?(url)
         uri = URI.parse(url.to_s)
-        HOSTS.include?(uri.host)
+        HOSTS.include?(uri.host.to_s.downcase)
       rescue URI::InvalidURIError
         false
       end
@@ -28,13 +31,17 @@ module LlmCostTracker
           provider: "gemini",
           model: model,
           input_tokens: usage["promptTokenCount"] || 0,
-          output_tokens: usage["candidatesTokenCount"] || 0,
+          output_tokens: output_tokens(usage),
           total_tokens: usage["totalTokenCount"] || 0,
           cached_input_tokens: usage["cachedContentTokenCount"]
         }.compact
       end
 
       private
+
+      def output_tokens(usage)
+        (usage["candidatesTokenCount"] || 0) + (usage["thoughtsTokenCount"] || 0)
+      end
 
       def extract_model_from_url(url)
         uri = URI.parse(url.to_s)
