@@ -341,7 +341,14 @@ calls.group_by_tag("feature").sum(:total_cost)
 calls.cost_by_tag("feature")
 # => { "chat" => 7.10, "summarizer" => 1.10 }
 
-# Daily cost trend
+# SQL-side day/month cost trends
+LlmCostTracker::LlmApiCall.this_month.group_by_period(:day).sum(:total_cost)
+# => { "2026-04-17" => 1.5, "2026-04-18" => 2.3 }
+
+LlmCostTracker::LlmApiCall.group_by_period(:month).sum(:total_cost)
+# => { "2026-04" => 12.45 }
+
+# Daily cost trend convenience wrapper
 LlmCostTracker::LlmApiCall.daily_costs(days: 7)
 # => { "2026-04-10" => 1.5, "2026-04-11" => 2.3, ... }
 

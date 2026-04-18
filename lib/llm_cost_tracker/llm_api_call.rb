@@ -2,6 +2,7 @@
 
 require "active_record"
 
+require_relative "period_grouping"
 require_relative "tag_accessors"
 require_relative "tag_query"
 require_relative "tags_column"
@@ -12,6 +13,7 @@ module LlmCostTracker
 
     private_constant :TAG_KEY_PATTERN
 
+    extend PeriodGrouping
     extend TagsColumn
     include TagAccessors
 
@@ -90,13 +92,6 @@ module LlmCostTracker
       return {} unless latency_column?
 
       group(:provider).average(:latency_ms).transform_values(&:to_f)
-    end
-
-    def self.daily_costs(days: 30)
-      where(tracked_at: days.days.ago..)
-        .group("DATE(tracked_at)")
-        .sum(:total_cost)
-        .transform_keys(&:to_s)
     end
 
     def self.tag_label(value)
