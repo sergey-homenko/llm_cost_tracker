@@ -312,7 +312,7 @@
         <h1 class="lct-title">LLM Costs</h1>
         <nav class="lct-nav" aria-label="Dashboard">
           <%= link_to "Overview", root_path, class: ("lct-active" if request.path.delete_suffix("/") == root_path.delete_suffix("/")) %>
-          <%= link_to "Calls", calls_path, class: ("lct-active" if request.path == calls_path) %>
+          <%= link_to "Calls", calls_path, class: ("lct-active" if request.path.start_with?(calls_path)) %>
         </nav>
       </header>
 

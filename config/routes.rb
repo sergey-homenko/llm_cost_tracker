@@ -2,6 +2,5 @@
 
 LlmCostTracker::Engine.routes.draw do
   root "dashboard#index"
-  get "calls", to: "dashboard#calls", as: :calls
-  get "calls/:id", to: "dashboard#show", as: :call, constraints: { id: /\d+/ }
+  resources :calls, only: %i[index show], constraints: { id: /\d+/ }
 end

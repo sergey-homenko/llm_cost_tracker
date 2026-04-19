@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and tag summaries.
 - Add dashboard Call details pages with full token/cost breakdowns, tags JSON, and
   friendly not-found handling.
+- Refactor dashboard internals toward standard Rails controllers, routes, shared setup
+  state, and smaller request specs.
 
 ## [0.1.4] - 2026-04-18
 

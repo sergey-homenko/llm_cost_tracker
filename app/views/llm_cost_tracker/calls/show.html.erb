@@ -1,0 +1,67 @@
+<section class="lct-panel">
+  <p class="lct-muted"><%= link_to "Back to calls", calls_path %></p>
+  <h2 class="lct-section-title">Call #<%= @call.id %></h2>
+
+  <div class="lct-detail-grid">
+    <dl class="lct-dl">
+      <dt>Tracked At</dt>
+      <dd><%= format_date(@call.tracked_at) %></dd>
+
+      <dt>Provider</dt>
+      <dd><%= @call.provider %></dd>
+
+      <dt>Model</dt>
+      <dd><%= @call.model %></dd>
+
+      <dt>Pricing Status</dt>
+      <dd><%= pricing_status(@call) %></dd>
+
+      <% if @call.has_attribute?("created_at") %>
+        <dt>Created At</dt>
+        <dd><%= format_date(@call.created_at) %></dd>
+      <% end %>
+
+      <% if @call.has_attribute?("updated_at") %>
+        <dt>Updated At</dt>
+        <dd><%= format_date(@call.updated_at) %></dd>
+      <% end %>
+    </dl>
+
+    <dl class="lct-dl">
+      <dt>Input Tokens</dt>
+      <dd><%= format_tokens(@call.input_tokens) %></dd>
+
+      <dt>Output Tokens</dt>
+      <dd><%= format_tokens(@call.output_tokens) %></dd>
+
+      <dt>Total Tokens</dt>
+      <dd><%= format_tokens(@call.total_tokens) %></dd>
+
+      <dt>Input Cost</dt>
+      <dd><%= optional_money(@call.input_cost) %></dd>
+
+      <dt>Output Cost</dt>
+      <dd><%= optional_money(@call.output_cost) %></dd>
+
+      <dt>Total Cost</dt>
+      <dd><%= optional_money(@call.total_cost) %></dd>
+
+      <% if @latency_available %>
+        <dt>Latency</dt>
+        <dd><%= @call.latency_ms ? "#{optional_number(@call.latency_ms)}ms" : "n/a" %></dd>
+      <% end %>
+    </dl>
+  </div>
+</section>
+
+<section class="lct-panel">
+  <h2 class="lct-section-title">Tags</h2>
+  <pre class="lct-pre"><%= safe_json(@tags) %></pre>
+</section>
+
+<% if @metadata_available %>
+  <section class="lct-panel">
+    <h2 class="lct-section-title">Metadata</h2>
+    <pre class="lct-pre"><%= safe_json(@metadata) %></pre>
+  </section>
+<% end %>

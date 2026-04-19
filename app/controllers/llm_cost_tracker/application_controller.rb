@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "llm_cost_tracker/llm_api_call"
 require_relative "../../services/llm_cost_tracker/dashboard/errors"
 
 module LlmCostTracker
@@ -8,14 +9,20 @@ module LlmCostTracker
 
     layout "llm_cost_tracker/application"
 
+    before_action :ensure_llm_api_calls_table
+
     rescue_from ActiveRecord::ConnectionNotEstablished, with: :render_database_error
     rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
     rescue_from ActiveRecord::StatementInvalid, with: :render_database_error
     rescue_from LlmCostTracker::Dashboard::InvalidFilter, with: :render_invalid_filter
 
-    helper_method :llm_api_calls_table_available?
-
     private
+
+    def ensure_llm_api_calls_table
+      return if llm_api_calls_table_available?
+
+      render template: "llm_cost_tracker/shared/setup_required"
+    end
 
     def llm_api_calls_table_available?
       LlmCostTracker::LlmApiCall.table_exists?
