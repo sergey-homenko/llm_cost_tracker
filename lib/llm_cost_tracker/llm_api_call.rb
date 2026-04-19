@@ -4,15 +4,12 @@ require "active_record"
 
 require_relative "period_grouping"
 require_relative "tag_accessors"
+require_relative "tag_key"
 require_relative "tag_query"
 require_relative "tags_column"
 
 module LlmCostTracker
   class LlmApiCall < ActiveRecord::Base
-    TAG_KEY_PATTERN = /\A[\w.-]+\z/
-
-    private_constant :TAG_KEY_PATTERN
-
     extend PeriodGrouping
     extend TagsColumn
     include TagAccessors
@@ -116,10 +113,7 @@ module LlmCostTracker
     private_class_method :tag_group_expression
 
     def self.validated_tag_key(key)
-      key = key.to_s
-      return key if key.match?(TAG_KEY_PATTERN)
-
-      raise ArgumentError, "invalid tag key: #{key.inspect}"
+      TagKey.validate!(key)
     end
     private_class_method :validated_tag_key
 

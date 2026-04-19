@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add SQL-side `LlmApiCall.group_by_period(:day/:month)` for date and month cost trends.
 - Add initial opt-in `LlmCostTracker::Engine` skeleton with Rails 7.1+ guard, root route,
   layout, empty state, and setup state.
+- Add dashboard data services for pagination, filtering, time series, overview stats,
+  top models, and top tag breakdowns.
 
 ## [0.1.4] - 2026-04-18
 
