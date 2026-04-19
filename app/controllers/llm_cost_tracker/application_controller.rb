@@ -9,6 +9,7 @@ module LlmCostTracker
     layout "llm_cost_tracker/application"
 
     rescue_from ActiveRecord::ConnectionNotEstablished, with: :render_database_error
+    rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
     rescue_from ActiveRecord::StatementInvalid, with: :render_database_error
     rescue_from LlmCostTracker::Dashboard::InvalidFilter, with: :render_invalid_filter
 
@@ -30,6 +31,10 @@ module LlmCostTracker
     def render_invalid_filter(error)
       @error_message = error.message
       render "llm_cost_tracker/errors/invalid_filter", status: :bad_request
+    end
+
+    def render_not_found
+      render "llm_cost_tracker/errors/not_found", status: :not_found
     end
   end
 end

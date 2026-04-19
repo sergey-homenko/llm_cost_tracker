@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   top models, and feature cost breakdowns.
 - Add a dashboard Calls index with filters, pagination, cost/tokens/latency columns,
   and tag summaries.
+- Add dashboard Call details pages with full token/cost breakdowns, tags JSON, and
+  friendly not-found handling.
 
 ## [0.1.4] - 2026-04-18
 

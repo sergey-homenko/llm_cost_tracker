@@ -247,6 +247,39 @@
         white-space: nowrap;
       }
 
+      .lct-detail-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+
+      .lct-dl {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: minmax(120px, 0.4fr) minmax(0, 1fr);
+        margin: 0;
+      }
+
+      .lct-dl dt {
+        color: var(--lct-muted);
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .lct-dl dd {
+        margin: 0;
+      }
+
+      .lct-pre {
+        background: #0f172a;
+        border-radius: 8px;
+        color: #e5e7eb;
+        margin: 0;
+        overflow: auto;
+        padding: 16px;
+      }
+
       @media (max-width: 800px) {
         .lct-header {
           align-items: flex-start;
@@ -265,6 +298,10 @@
         .lct-pagination {
           align-items: flex-start;
           flex-direction: column;
+        }
+
+        .lct-detail-grid {
+          grid-template-columns: 1fr;
         }
       }
     </style>

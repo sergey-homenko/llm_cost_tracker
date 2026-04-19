@@ -178,6 +178,8 @@ RSpec.describe "LlmCostTracker::Engine" do
     expect(response.body).to include("250ms")
     expect(response.body).to include("feature=chat")
     expect(response.body).to include("user_id=42")
+    expect(response.body).to include("Details")
+    expect(response.body).to include("/llm-costs/calls/#{LlmCostTracker::LlmApiCall.first.id}")
   end
 
   it "filters calls and paginates newest first" do
@@ -249,6 +251,79 @@ RSpec.describe "LlmCostTracker::Engine" do
     expect(response.body).to include("invalid tag key")
   end
 
+  it "renders call details with token, cost, latency, pricing, and tags data" do
+    call = create_call(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 1_200,
+      output_tokens: 300,
+      input_cost: 1.25,
+      output_cost: 1.75,
+      total_cost: 3.0,
+      latency_ms: 250,
+      tags: { feature: "chat", user_id: 42 },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+
+    response = get("/llm-costs/calls/#{call.id}")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Call ##{call.id}")
+    expect(response.body).to include("2026-04-18 12:00")
+    expect(response.body).to include("openai")
+    expect(response.body).to include("gpt-4o")
+    expect(response.body).to include("Estimated")
+    expect(response.body).to include("1,200")
+    expect(response.body).to include("300")
+    expect(response.body).to include("1,500")
+    expect(response.body).to include("$1.25")
+    expect(response.body).to include("$1.75")
+    expect(response.body).to include("$3.00")
+    expect(response.body).to include("250ms")
+    expect(response.body).to include("Tags")
+    expect(response.body).to include("feature")
+    expect(response.body).to include("chat")
+    expect(response.body).to include("Back to calls")
+  end
+
+  it "marks call details with nil total cost as unknown pricing" do
+    call = create_call(total_cost: nil)
+
+    response = get("/llm-costs/calls/#{call.id}")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Unknown pricing")
+    expect(response.body).to include("n/a")
+  end
+
+  it "renders optional metadata on call details when the column exists" do
+    ActiveRecord::Base.connection.add_column :llm_api_calls, :metadata, :text
+    LlmCostTracker::LlmApiCall.reset_column_information
+    call = create_call
+    call.update!(metadata: { request_id: "req_123" }.to_json)
+
+    response = get("/llm-costs/calls/#{call.id}")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Metadata")
+    expect(response.body).to include("request_id")
+    expect(response.body).to include("req_123")
+  end
+
+  it "renders a friendly not-found page for missing call details" do
+    response = get("/llm-costs/calls/999")
+
+    expect(response.status).to eq(404)
+    expect(response.body).to include("Call not found")
+    expect(response.body).to include("Back to calls")
+  end
+
+  it "does not route non-numeric call detail ids" do
+    response = get("/llm-costs/calls/not-a-number")
+
+    expect(response.status).to eq(404)
+  end
+
   it "renders a setup state when the ledger table is missing" do
     ActiveRecord::Base.connection.drop_table(:llm_api_calls)
     LlmCostTracker::LlmApiCall.reset_column_information
@@ -265,6 +340,17 @@ RSpec.describe "LlmCostTracker::Engine" do
     LlmCostTracker::LlmApiCall.reset_column_information
 
     response = get("/llm-costs/calls")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("llm_api_calls")
+    expect(response.body).to include("rails generate llm_cost_tracker:install")
+  end
+
+  it "renders a call details setup state when the ledger table is missing" do
+    ActiveRecord::Base.connection.drop_table(:llm_api_calls)
+    LlmCostTracker::LlmApiCall.reset_column_information
+
+    response = get("/llm-costs/calls/1")
 
     expect(response.status).to eq(200)
     expect(response.body).to include("llm_api_calls")

@@ -15,6 +15,10 @@ module LlmCostTracker
       value.nil? ? "n/a" : money(value)
     end
 
+    def optional_number(value)
+      value.nil? ? "n/a" : number(value)
+    end
+
     def number(value)
       number_with_delimiter(value.to_i)
     end
@@ -25,6 +29,10 @@ module LlmCostTracker
 
     def format_date(value)
       value.respond_to?(:strftime) ? value.strftime("%Y-%m-%d %H:%M") : value.to_s
+    end
+
+    def pricing_status(call)
+      call.total_cost.nil? ? "Unknown pricing" : "Estimated"
     end
 
     def percent(value)

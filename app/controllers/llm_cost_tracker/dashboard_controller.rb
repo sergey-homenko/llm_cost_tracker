@@ -23,7 +23,7 @@ module LlmCostTracker
     end
 
     def calls
-      return render_setup_state(template: :calls) unless llm_api_calls_table_available?
+      return render_setup_state unless llm_api_calls_table_available?
 
       @page = Dashboard::Page.from(params)
       @filter_params = calls_filter_params
@@ -39,11 +39,21 @@ module LlmCostTracker
       @latency_available = LlmCostTracker::LlmApiCall.latency_column?
     end
 
+    def show
+      return render_setup_state unless llm_api_calls_table_available?
+
+      @call = LlmCostTracker::LlmApiCall.find(params[:id])
+      @tags = @call.parsed_tags
+      @metadata_available = @call.has_attribute?("metadata")
+      @metadata = @call.read_attribute("metadata") if @metadata_available
+      @latency_available = LlmCostTracker::LlmApiCall.latency_column?
+    end
+
     private
 
-    def render_setup_state(template: :index)
+    def render_setup_state
       @setup_required = true
-      render template
+      render action_name
     end
 
     def overview_range

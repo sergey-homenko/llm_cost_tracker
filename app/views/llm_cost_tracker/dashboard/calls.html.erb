@@ -73,6 +73,7 @@
                 <th>Latency</th>
               <% end %>
               <th>Tags</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -92,6 +93,7 @@
                 <td>
                   <span class="lct-tags" title="<%= safe_json(tags) %>"><%= tags_summary(tags) %></span>
                 </td>
+                <td><%= link_to "Details", call_path(call), class: "lct-button lct-button-secondary" %></td>
               </tr>
             <% end %>
           </tbody>
