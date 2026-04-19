@@ -11,6 +11,10 @@ module LlmCostTracker
       "$#{format("%.#{precision}f", value)}"
     end
 
+    def optional_money(value)
+      value.nil? ? "n/a" : money(value)
+    end
+
     def number(value)
       number_with_delimiter(value.to_i)
     end
@@ -39,6 +43,38 @@ module LlmCostTracker
       JSON.pretty_generate(parsed || {})
     rescue JSON::ParserError, TypeError
       value.to_s
+    end
+
+    def tags_summary(tags, limit: 3)
+      tags = normalized_tags(tags)
+      return "(untagged)" if tags.empty?
+
+      summary = tags.first(limit).map { |key, value| "#{key}=#{tag_value_summary(value)}" }
+      summary << "+#{tags.size - limit}" if tags.size > limit
+      summary.join(", ")
+    end
+
+    def dashboard_query(overrides = {})
+      request.query_parameters.merge(overrides.stringify_keys)
+    end
+
+    private
+
+    def normalized_tags(tags)
+      return tags.transform_keys(&:to_s) if tags.is_a?(Hash)
+
+      JSON.parse(tags || "{}")
+    rescue JSON::ParserError, TypeError
+      {}
+    end
+
+    def tag_value_summary(value)
+      case value
+      when Hash, Array
+        JSON.generate(value)
+      else
+        value.to_s
+      end
     end
   end
 end

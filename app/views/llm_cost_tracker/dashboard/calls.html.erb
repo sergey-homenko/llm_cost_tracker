@@ -1,0 +1,118 @@
+<% if @setup_required %>
+  <section class="lct-panel">
+    <p class="lct-muted">
+      The <span class="lct-code">llm_api_calls</span> table is not available yet.
+      Run <span class="lct-code">rails generate llm_cost_tracker:install</span> and migrate your database.
+    </p>
+  </section>
+<% else %>
+  <section class="lct-panel">
+    <h2 class="lct-section-title">Calls</h2>
+    <form class="lct-filters" action="<%= calls_path %>" method="get">
+      <div class="lct-field">
+        <label for="lct-from">From</label>
+        <input id="lct-from" type="date" name="from" value="<%= params[:from] %>">
+      </div>
+
+      <div class="lct-field">
+        <label for="lct-to">To</label>
+        <input id="lct-to" type="date" name="to" value="<%= params[:to] %>">
+      </div>
+
+      <div class="lct-field">
+        <label for="lct-provider">Provider</label>
+        <input id="lct-provider" type="text" name="provider" value="<%= params[:provider] %>">
+      </div>
+
+      <div class="lct-field">
+        <label for="lct-model">Model</label>
+        <input id="lct-model" type="text" name="model" value="<%= params[:model] %>">
+      </div>
+
+      <div class="lct-field">
+        <label for="lct-tag-key">Tag key</label>
+        <input id="lct-tag-key" type="text" name="tag_key" value="<%= @tag_key %>">
+      </div>
+
+      <div class="lct-field">
+        <label for="lct-tag-value">Tag value</label>
+        <input id="lct-tag-value" type="text" name="tag_value" value="<%= @tag_value %>">
+      </div>
+
+      <div class="lct-field">
+        <label for="lct-per">Per page</label>
+        <input id="lct-per" type="number" name="per" min="1" max="200" value="<%= @page.per %>">
+      </div>
+
+      <div class="lct-button-row">
+        <button class="lct-button" type="submit">Apply</button>
+        <%= link_to "Reset", calls_path, class: "lct-button lct-button-secondary" %>
+      </div>
+    </form>
+  </section>
+
+  <% if @calls_count.zero? %>
+    <section class="lct-panel lct-empty">
+      <h2 class="lct-section-title">No matching calls</h2>
+      <p class="lct-muted">Tracked requests will appear here when they match the current filters.</p>
+    </section>
+  <% else %>
+    <section class="lct-panel">
+      <div class="lct-table-wrap">
+        <table class="lct-table lct-calls-table">
+          <thead>
+            <tr>
+              <th>Tracked At</th>
+              <th>Provider</th>
+              <th>Model</th>
+              <th>Input</th>
+              <th>Output</th>
+              <th>Total</th>
+              <th>Cost</th>
+              <% if @latency_available %>
+                <th>Latency</th>
+              <% end %>
+              <th>Tags</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @calls.each do |call| %>
+              <% tags = call.parsed_tags %>
+              <tr>
+                <td class="lct-nowrap"><%= format_date(call.tracked_at) %></td>
+                <td><%= call.provider %></td>
+                <td><%= call.model %></td>
+                <td><%= format_tokens(call.input_tokens) %></td>
+                <td><%= format_tokens(call.output_tokens) %></td>
+                <td><%= format_tokens(call.total_tokens) %></td>
+                <td><%= optional_money(call.total_cost) %></td>
+                <% if @latency_available %>
+                  <td><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
+                <% end %>
+                <td>
+                  <span class="lct-tags" title="<%= safe_json(tags) %>"><%= tags_summary(tags) %></span>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <nav class="lct-pagination" aria-label="Pagination">
+        <% first_row = @page.offset + 1 %>
+        <% last_row = [@page.offset + @calls.length, @calls_count].min %>
+        <span class="lct-muted">
+          <%= number(first_row) %>-<%= number(last_row) %> of <%= number(@calls_count) %>
+        </span>
+        <span>
+          <% if @page.prev_page? %>
+            <%= link_to "Previous", calls_path(dashboard_query(page: @page.page - 1, per: @page.per)), class: "lct-button lct-button-secondary" %>
+          <% end %>
+          <% if @page.next_page?(@calls_count) %>
+            <%= link_to "Next", calls_path(dashboard_query(page: @page.page + 1, per: @page.per)), class: "lct-button lct-button-secondary" %>
+          <% end %>
+        </span>
+      </nav>
+    </section>
+  <% end %>
+<% end %>

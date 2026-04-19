@@ -59,6 +59,11 @@
         color: var(--lct-accent);
       }
 
+      .lct-nav .lct-active {
+        color: var(--lct-accent);
+        font-weight: 700;
+      }
+
       .lct-panel {
         background: var(--lct-panel);
         border: 1px solid var(--lct-border);
@@ -122,6 +127,10 @@
         font-size: 14px;
       }
 
+      .lct-table-wrap {
+        overflow-x: auto;
+      }
+
       .lct-table th,
       .lct-table td {
         border-bottom: 1px solid var(--lct-border);
@@ -140,6 +149,11 @@
       .lct-table td:last-child,
       .lct-table th:last-child {
         text-align: right;
+      }
+
+      .lct-calls-table td:last-child,
+      .lct-calls-table th:last-child {
+        text-align: left;
       }
 
       .lct-bar-track {
@@ -164,6 +178,75 @@
         text-align: center;
       }
 
+      .lct-filters {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+
+      .lct-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .lct-field label {
+        color: var(--lct-muted);
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .lct-field input {
+        border: 1px solid var(--lct-border);
+        border-radius: 6px;
+        color: var(--lct-text);
+        font: inherit;
+        padding: 8px 10px;
+      }
+
+      .lct-button-row {
+        align-items: end;
+        display: flex;
+        gap: 8px;
+      }
+
+      .lct-button {
+        background: var(--lct-accent);
+        border: 1px solid var(--lct-accent);
+        border-radius: 6px;
+        color: #ffffff;
+        display: inline-block;
+        font: inherit;
+        padding: 8px 12px;
+        text-decoration: none;
+      }
+
+      .lct-button-secondary {
+        background: var(--lct-panel);
+        color: var(--lct-accent);
+      }
+
+      .lct-pagination {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .lct-tags {
+        display: inline-block;
+        max-width: 280px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .lct-nowrap {
+        white-space: nowrap;
+      }
+
       @media (max-width: 800px) {
         .lct-header {
           align-items: flex-start;
@@ -174,6 +257,15 @@
         .lct-two-col {
           grid-template-columns: 1fr;
         }
+
+        .lct-filters {
+          grid-template-columns: 1fr;
+        }
+
+        .lct-pagination {
+          align-items: flex-start;
+          flex-direction: column;
+        }
       }
     </style>
   </head>
@@ -182,7 +274,8 @@
       <header class="lct-header">
         <h1 class="lct-title">LLM Costs</h1>
         <nav class="lct-nav" aria-label="Dashboard">
-          <%= link_to "Overview", root_path %>
+          <%= link_to "Overview", root_path, class: ("lct-active" if request.path.delete_suffix("/") == root_path.delete_suffix("/")) %>
+          <%= link_to "Calls", calls_path, class: ("lct-active" if request.path == calls_path) %>
         </nav>
       </header>
 

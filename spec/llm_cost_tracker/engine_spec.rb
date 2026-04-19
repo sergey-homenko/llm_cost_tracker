@@ -154,11 +154,117 @@ RSpec.describe "LlmCostTracker::Engine" do
     expect(response.body).to include("invalid tag key")
   end
 
+  it "renders the calls index with cost, token, latency, and tag columns" do
+    create_call(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 1_200,
+      output_tokens: 300,
+      total_cost: 2.5,
+      latency_ms: 250,
+      tags: { feature: "chat", user_id: 42 },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+
+    response = get("/llm-costs/calls")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Calls")
+    expect(response.body).to include("gpt-4o")
+    expect(response.body).to include("1,200")
+    expect(response.body).to include("300")
+    expect(response.body).to include("1,500")
+    expect(response.body).to include("$2.50")
+    expect(response.body).to include("250ms")
+    expect(response.body).to include("feature=chat")
+    expect(response.body).to include("user_id=42")
+  end
+
+  it "filters calls and paginates newest first" do
+    create_call(
+      provider: "openai",
+      model: "new-chat",
+      total_cost: 2.0,
+      tags: { feature: "chat" },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+    create_call(
+      provider: "openai",
+      model: "old-chat",
+      total_cost: 1.0,
+      tags: { feature: "chat" },
+      tracked_at: Time.utc(2026, 4, 18, 11, 0, 0)
+    )
+    create_call(
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+      total_cost: 3.0,
+      tags: { feature: "summarizer" },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+
+    response = get("/llm-costs/calls?provider=openai&tag%5Bfeature%5D=chat&per=1")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("new-chat")
+    expect(response.body).not_to include("old-chat")
+    expect(response.body).not_to include("claude-haiku-4-5")
+    expect(response.body).to include("1-1 of 2")
+    expect(response.body).to include("Next")
+
+    second_page = get("/llm-costs/calls?provider=openai&tag%5Bfeature%5D=chat&per=1&page=2")
+
+    expect(second_page.status).to eq(200)
+    expect(second_page.body).to include("old-chat")
+    expect(second_page.body).not_to include("new-chat")
+    expect(second_page.body).to include("Previous")
+  end
+
+  it "supports tag key and value filter fields on the calls index" do
+    create_call(model: "chat-model", tags: { feature: "chat" })
+    create_call(model: "summary-model", tags: { feature: "summarizer" })
+
+    response = get("/llm-costs/calls?tag_key=feature&tag_value=summarizer")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("summary-model")
+    expect(response.body).not_to include("chat-model")
+  end
+
+  it "renders an empty calls state when filters match nothing" do
+    create_call(model: "gpt-4o", tags: { feature: "chat" })
+
+    response = get("/llm-costs/calls?model=missing")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("No matching calls")
+    expect(response.body).not_to include("gpt-4o")
+  end
+
+  it "renders invalid calls filters as bad requests" do
+    response = get("/llm-costs/calls?tag%5B%3BDROP%5D=x")
+
+    expect(response.status).to eq(400)
+    expect(response.body).to include("Invalid filter")
+    expect(response.body).to include("invalid tag key")
+  end
+
   it "renders a setup state when the ledger table is missing" do
     ActiveRecord::Base.connection.drop_table(:llm_api_calls)
     LlmCostTracker::LlmApiCall.reset_column_information
 
     response = get("/llm-costs")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("llm_api_calls")
+    expect(response.body).to include("rails generate llm_cost_tracker:install")
+  end
+
+  it "renders a calls setup state when the ledger table is missing" do
+    ActiveRecord::Base.connection.drop_table(:llm_api_calls)
+    LlmCostTracker::LlmApiCall.reset_column_information
+
+    response = get("/llm-costs/calls")
 
     expect(response.status).to eq(200)
     expect(response.body).to include("llm_api_calls")

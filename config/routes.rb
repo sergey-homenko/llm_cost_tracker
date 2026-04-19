@@ -2,4 +2,5 @@
 
 LlmCostTracker::Engine.routes.draw do
   root "dashboard#index"
+  get "calls", to: "dashboard#calls", as: :calls
 end
