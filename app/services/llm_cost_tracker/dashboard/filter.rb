@@ -33,11 +33,12 @@ module LlmCostTracker
       attr_reader :scope, :params
 
       def normalize_params(params)
-        return {} if params.nil?
-        return params.to_unsafe_h if params.respond_to?(:to_unsafe_h)
-        return params.to_h if params.respond_to?(:to_h)
+        return {}.with_indifferent_access if params.nil?
 
-        {}
+        raw = params.respond_to?(:to_unsafe_h) ? params.to_unsafe_h : params.to_h
+        raw.with_indifferent_access
+      rescue NoMethodError
+        {}.with_indifferent_access
       end
 
       def apply_date_filters(relation)
@@ -78,7 +79,7 @@ module LlmCostTracker
       end
 
       def hash_param(key)
-        raw = params[key] || params[key.to_s]
+        raw = params[key]
         raw = raw.to_unsafe_h if raw.respond_to?(:to_unsafe_h)
         raw = raw.to_h if raw.respond_to?(:to_h)
         raw.is_a?(Hash) ? raw : {}
@@ -94,7 +95,7 @@ module LlmCostTracker
       end
 
       def string_param(key)
-        normalized_string(params[key] || params[key.to_s])
+        normalized_string(params[key])
       end
 
       def normalized_string(value)

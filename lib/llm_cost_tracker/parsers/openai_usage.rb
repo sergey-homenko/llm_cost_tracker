@@ -17,9 +17,9 @@ module LlmCostTracker
         ParsedUsage.build(
           provider: provider_for(request_url),
           model: response["model"] || request["model"],
-          input_tokens: usage["prompt_tokens"] || usage["input_tokens"] || 0,
-          output_tokens: usage["completion_tokens"] || usage["output_tokens"] || 0,
-          total_tokens: usage["total_tokens"] || 0,
+          input_tokens: (usage["prompt_tokens"] || usage["input_tokens"]).to_i,
+          output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
+          total_tokens: usage["total_tokens"].to_i,
           cached_input_tokens: cached_input_tokens(usage)
         )
       end

@@ -27,7 +27,7 @@ module LlmCostTracker
                         else
                           event.cost.total_cost
                         end
-        return unless monthly_total > config.monthly_budget
+        return unless monthly_total >= config.monthly_budget
 
         handle_exceeded(monthly_total: monthly_total, last_event: event)
       end

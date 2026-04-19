@@ -11,32 +11,20 @@ module LlmCostTracker
     EMPTY_PRICES = {}.freeze
     PRICE_KEYS = %w[input cached_input output cache_read_input cache_creation_input].freeze
     METADATA_KEYS = %w[_source _updated _notes].freeze
-    NORMALIZE_PRICE_ENTRY = lambda do |price|
-      (price || {}).each_with_object({}) do |(key, value), normalized|
-        key = key.to_s
-        normalized[key.to_sym] = Float(value) if PRICE_KEYS.include?(key)
-      end
-    end
-    NORMALIZE_PRICE_TABLE = lambda do |table|
-      (table || {}).each_with_object({}) do |(model, price), normalized|
-        normalized[model.to_s] = NORMALIZE_PRICE_ENTRY.call(price)
-      end
-    end
-    RAW_REGISTRY = JSON.parse(File.read(DEFAULT_PRICES_PATH)).freeze
-    PRICE_METADATA = RAW_REGISTRY.fetch("metadata", {}).freeze
-    BUILTIN_PRICES = NORMALIZE_PRICE_TABLE.call(RAW_REGISTRY.fetch("models", {})).freeze
 
     class << self
       def builtin_prices
-        BUILTIN_PRICES
+        @builtin_prices ||= normalize_price_table(raw_registry.fetch("models", {})).freeze
       end
 
       def metadata
-        PRICE_METADATA
+        @metadata ||= raw_registry.fetch("metadata", {}).freeze
       end
 
       def normalize_price_table(table)
-        NORMALIZE_PRICE_TABLE.call(table)
+        (table || {}).each_with_object({}) do |(model, price), normalized|
+          normalized[model.to_s] = normalize_price_entry(price)
+        end
       end
 
       def file_prices(path)
@@ -56,15 +44,22 @@ module LlmCostTracker
 
       private
 
+      def raw_registry
+        @raw_registry ||= JSON.parse(File.read(DEFAULT_PRICES_PATH)).freeze
+      end
+
+      def normalize_price_entry(price)
+        (price || {}).each_with_object({}) do |(key, value), normalized|
+          key = key.to_s
+          normalized[key.to_sym] = Float(value) if PRICE_KEYS.include?(key)
+        end
+      end
+
       def normalize_file_prices(table, path:)
         (table || {}).each_with_object({}) do |(model, price), normalized|
           warn_unknown_keys(model, price, path)
           normalized[model.to_s] = normalize_price_entry(price)
         end
-      end
-
-      def normalize_price_entry(price)
-        NORMALIZE_PRICE_ENTRY.call(price)
       end
 
       def warn_unknown_keys(model, price, path)

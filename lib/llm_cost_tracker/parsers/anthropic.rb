@@ -28,11 +28,10 @@ module LlmCostTracker
         ParsedUsage.build(
           provider: "anthropic",
           model: response["model"] || request["model"],
-          input_tokens: usage["input_tokens"] || 0,
-          output_tokens: usage["output_tokens"] || 0,
-          total_tokens: (usage["input_tokens"] || 0) + (usage["output_tokens"] || 0) +
-            (usage["cache_read_input_tokens"] || 0) +
-            (usage["cache_creation_input_tokens"] || 0),
+          input_tokens: usage["input_tokens"].to_i,
+          output_tokens: usage["output_tokens"].to_i,
+          total_tokens: usage["input_tokens"].to_i + usage["output_tokens"].to_i +
+            usage["cache_read_input_tokens"].to_i + usage["cache_creation_input_tokens"].to_i,
           cache_read_input_tokens: usage["cache_read_input_tokens"],
           cache_creation_input_tokens: usage["cache_creation_input_tokens"]
         )

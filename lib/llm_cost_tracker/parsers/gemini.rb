@@ -30,9 +30,9 @@ module LlmCostTracker
         ParsedUsage.build(
           provider: "gemini",
           model: model,
-          input_tokens: usage["promptTokenCount"] || 0,
+          input_tokens: usage["promptTokenCount"].to_i,
           output_tokens: output_tokens(usage),
-          total_tokens: usage["totalTokenCount"] || 0,
+          total_tokens: usage["totalTokenCount"].to_i,
           cached_input_tokens: usage["cachedContentTokenCount"]
         )
       end
@@ -40,7 +40,7 @@ module LlmCostTracker
       private
 
       def output_tokens(usage)
-        (usage["candidatesTokenCount"] || 0) + (usage["thoughtsTokenCount"] || 0)
+        usage["candidatesTokenCount"].to_i + usage["thoughtsTokenCount"].to_i
       end
 
       def extract_model_from_url(url)
