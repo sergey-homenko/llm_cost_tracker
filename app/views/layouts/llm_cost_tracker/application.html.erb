@@ -313,6 +313,7 @@
         <nav class="lct-nav" aria-label="Dashboard">
           <%= link_to "Overview", root_path, class: ("lct-active" if request.path.delete_suffix("/") == root_path.delete_suffix("/")) %>
           <%= link_to "Calls", calls_path, class: ("lct-active" if request.path.start_with?(calls_path)) %>
+          <%= link_to "Models", models_path, class: ("lct-active" if request.path.start_with?(models_path)) %>
         </nav>
       </header>
 
