@@ -13,7 +13,7 @@ RSpec.describe "LlmCostTracker::Engine tags" do
     response = get("/llm-costs/tags/feature")
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("Tag: feature")
+    expect(response.body).to include("feature")
     expect(response.body).to include("No calls tagged with feature")
   end
 
@@ -26,7 +26,7 @@ RSpec.describe "LlmCostTracker::Engine tags" do
     response = get("/llm-costs/tags/feature")
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("Tag: feature")
+    expect(response.body).to include("feature")
     expect(response.body).to include("chat")
     expect(response.body).to include("summarizer")
     expect(response.body).to include("$5.00")

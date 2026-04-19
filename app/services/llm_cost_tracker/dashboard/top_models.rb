@@ -15,16 +15,24 @@ module LlmCostTracker
 
     class TopModels
       DEFAULT_LIMIT = 5
+      SORT_OPTIONS = {
+        "cost"     => "total_cost_sum DESC",
+        "calls"    => "calls_count DESC",
+        "avg_cost" => "total_cost_sum / calls_count DESC",
+        "latency"  => "average_latency DESC NULLS LAST"
+      }.freeze
+      DEFAULT_SORT = "cost"
 
       class << self
-        def call(scope: LlmCostTracker::LlmApiCall.all, limit: DEFAULT_LIMIT)
-          new(scope: scope, limit: limit).rows
+        def call(scope: LlmCostTracker::LlmApiCall.all, limit: DEFAULT_LIMIT, sort: DEFAULT_SORT)
+          new(scope: scope, limit: limit, sort: sort).rows
         end
       end
 
-      def initialize(scope:, limit:)
+      def initialize(scope:, limit:, sort: DEFAULT_SORT)
         @scope = scope
         @limit = limit
+        @sort = SORT_OPTIONS.key?(sort.to_s) ? sort.to_s : DEFAULT_SORT
       end
 
       def rows
@@ -47,14 +55,15 @@ module LlmCostTracker
 
       private
 
-      attr_reader :scope, :limit
+      attr_reader :scope, :limit, :sort
 
       def grouped_rows
+        order_sql = sort == "latency" && !scope.klass.latency_column? ? "total_cost_sum DESC" : SORT_OPTIONS[sort]
         scope
           .group(:provider, :model)
           .select(selects)
-          .order(Arel.sql("total_cost_sum DESC"))
-          .limit(limit)
+          .order(Arel.sql(order_sql))
+          .then { |r| limit ? r.limit(limit) : r }
       end
 
       def selects

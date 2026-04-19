@@ -17,7 +17,7 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.body).to include("No LLM calls yet")
   end
 
-  it "renders overview stats, daily spend, top models, feature costs, and budget status" do
+  it "renders overview stats, daily spend, top models, and budget status" do
     LlmCostTracker.configure do |config|
       config.storage_backend = :active_record
       config.monthly_budget = 10.0
@@ -51,14 +51,21 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.body).to include("Soft monthly limit. Blocking is not atomic under concurrency.")
     expect(response.body).to include("Daily Spend")
     expect(response.body).to include("Top Models")
+    expect(response.body).to include("By Provider")
     expect(response.body).to include("gpt-4o")
-    expect(response.body).to include("Cost By Feature")
-    expect(response.body).to include("chat")
-    expect(response.body).to include("summarizer")
-    expect(response.body.index("summarizer")).to be < response.body.index("chat")
+    expect(response.body).not_to include("Cost By Feature")
   end
 
-  it "applies overview filters to stats and breakdowns" do
+  it "renders delta badges for cost and calls" do
+    create_call(total_cost: 5.0, tracked_at: Time.now.utc)
+
+    response = get("/llm-costs")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("vs. prior")
+  end
+
+  it "applies overview filters to stats and top models" do
     create_call(
       provider: "openai",
       model: "gpt-4o",
@@ -81,8 +88,6 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.body).not_to include("$5.00")
     expect(response.body).to include("gpt-4o")
     expect(response.body).not_to include("claude-haiku-4-5")
-    expect(response.body).to include("chat")
-    expect(response.body).not_to include("summarizer")
   end
 
   it "renders invalid filter errors as bad requests" do

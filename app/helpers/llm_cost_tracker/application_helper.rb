@@ -4,6 +4,12 @@ require "json"
 
 module LlmCostTracker
   module ApplicationHelper
+    def coverage_percent(numerator, denominator)
+      return 0.0 unless denominator.to_i.positive?
+
+      (numerator.to_f / denominator) * 100.0
+    end
+
     def money(value)
       value = value.to_f
       precision = value.abs < 0.01 && value != 0.0 ? 6 : 2
@@ -37,6 +43,29 @@ module LlmCostTracker
 
     def percent(value)
       "#{format('%.1f', value.to_f)}%"
+    end
+
+    # Returns { text:, css_class: } for a delta-vs-previous value.
+    # `mode: :cost` colors up-is-bad (red) / down-is-good (green). `mode: :neutral`
+    # keeps everything gray — useful for counts where up/down has no inherent polarity.
+    # Neutral placeholder when the prior period has no data (can't divide by zero).
+    def delta_badge(delta_percent, mode: :cost)
+      return { text: "vs. prior: n/a", css_class: "lct-delta lct-delta-neutral" } if delta_percent.nil?
+
+      rounded = delta_percent.round(1)
+      return { text: "= vs. prior", css_class: "lct-delta lct-delta-neutral" } if rounded.zero?
+
+      sign = rounded.positive? ? "+" : ""
+      text = "#{sign}#{format('%.1f', rounded)}% vs. prior"
+      css_class = if mode == :neutral
+                    "lct-delta lct-delta-neutral"
+                  elsif rounded.positive?
+                    "lct-delta lct-delta-up"
+                  else
+                    "lct-delta lct-delta-down"
+                  end
+
+      { text: text, css_class: css_class }
     end
 
     def bar_width(value, max)

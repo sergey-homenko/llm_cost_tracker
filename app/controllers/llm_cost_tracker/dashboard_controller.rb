@@ -5,11 +5,12 @@ module LlmCostTracker
     def index
       @from_date, @to_date = overview_range
       scope = Dashboard::Filter.call(params: overview_filter_params)
+      previous_scope = Dashboard::Filter.call(params: previous_filter_params)
 
-      @stats = Dashboard::OverviewStats.call(scope: scope)
+      @stats = Dashboard::OverviewStats.call(scope: scope, previous_scope: previous_scope)
       @time_series = Dashboard::TimeSeries.call(scope: scope, from: @from_date, to: @to_date)
       @top_models = Dashboard::TopModels.call(scope: scope, limit: 5)
-      @feature_costs = scope.cost_by_tag("feature").first(5)
+      @providers = Dashboard::ProviderBreakdown.call(scope: scope)
     end
 
     private
@@ -20,10 +21,25 @@ module LlmCostTracker
       [from_date, to_date]
     end
 
+    def previous_range
+      span_days = (@to_date - @from_date).to_i + 1
+      prev_to = @from_date - 1
+      prev_from = prev_to - (span_days - 1)
+      [prev_from, prev_to]
+    end
+
     def overview_filter_params
       params.to_unsafe_h.merge(
         "from" => @from_date.iso8601,
         "to" => @to_date.iso8601
+      )
+    end
+
+    def previous_filter_params
+      prev_from, prev_to = previous_range
+      params.to_unsafe_h.merge(
+        "from" => prev_from.iso8601,
+        "to" => prev_to.iso8601
       )
     end
 

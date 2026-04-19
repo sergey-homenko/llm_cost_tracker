@@ -200,4 +200,38 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("llm_api_calls")
     expect(response.body).to include("rails generate llm_cost_tracker:install")
   end
+
+  it "exports filtered calls as CSV" do
+    create_call(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 100,
+      output_tokens: 50,
+      total_cost: 1.25,
+      latency_ms: 200,
+      tags: { feature: "chat" },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+    create_call(
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+      total_cost: 0.5,
+      tags: { feature: "summarizer" },
+      tracked_at: Time.utc(2026, 4, 18, 13, 0, 0)
+    )
+
+    response = get("/llm-costs/calls.csv?provider=openai")
+
+    expect(response.status).to eq(200)
+    expect(response.headers["Content-Type"]).to include("text/csv")
+    expect(response.headers["Content-Disposition"]).to include("attachment")
+    expect(response.headers["Content-Disposition"]).to include(".csv")
+
+    lines = response.body.lines
+    expect(lines.first).to include("tracked_at", "provider", "model", "total_cost", "tags")
+    expect(response.body).to include("openai")
+    expect(response.body).to include("gpt-4o")
+    expect(response.body).to include("1.25")
+    expect(response.body).not_to include("claude-haiku-4-5")
+  end
 end

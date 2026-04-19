@@ -221,6 +221,71 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       expect(described_class.call.average_latency_ms).to be_nil
     end
+
+    it "returns nil deltas when no previous scope is given" do
+      create_call(total_cost: 2.0)
+
+      stats = described_class.call
+
+      expect(stats.cost_delta_percent).to be_nil
+      expect(stats.calls_delta_percent).to be_nil
+      expect(stats.previous_total_cost).to be_nil
+    end
+
+    it "computes delta vs previous period when a previous scope is given" do
+      create_call(total_cost: 2.0, tracked_at: Time.utc(2026, 4, 15, 12))
+      create_call(total_cost: 6.0, tracked_at: Time.utc(2026, 4, 18, 12))
+
+      current = LlmCostTracker::LlmApiCall.where(tracked_at: Time.utc(2026, 4, 18)..Time.utc(2026, 4, 18, 23, 59, 59))
+      previous = LlmCostTracker::LlmApiCall.where(tracked_at: Time.utc(2026, 4, 15)..Time.utc(2026, 4, 15, 23, 59, 59))
+
+      stats = described_class.call(scope: current, previous_scope: previous)
+
+      expect(stats.total_cost).to eq(6.0)
+      expect(stats.previous_total_cost).to eq(2.0)
+      expect(stats.cost_delta_percent).to eq(200.0)
+      expect(stats.calls_delta_percent).to eq(0.0)
+    end
+
+    it "returns nil delta when previous period has zero cost" do
+      create_call(total_cost: 2.0, tracked_at: Time.utc(2026, 4, 18, 12))
+
+      current = LlmCostTracker::LlmApiCall.where(tracked_at: Time.utc(2026, 4, 18).all_day)
+      previous = LlmCostTracker::LlmApiCall.where(tracked_at: Time.utc(2026, 4, 15).all_day)
+
+      stats = described_class.call(scope: current, previous_scope: previous)
+
+      expect(stats.cost_delta_percent).to be_nil
+    end
+  end
+
+  describe LlmCostTracker::Dashboard::ProviderBreakdown do
+    it "returns empty array for empty dataset" do
+      expect(described_class.call).to eq([])
+    end
+
+    it "aggregates cost, calls, and share by provider sorted by spend" do
+      create_call(provider: "openai", total_cost: 2.0)
+      create_call(provider: "openai", total_cost: 6.0)
+      create_call(provider: "anthropic", total_cost: 2.0)
+
+      rows = described_class.call
+
+      expect(rows.map(&:provider)).to eq(%w[openai anthropic])
+      expect(rows.first.total_cost).to eq(8.0)
+      expect(rows.first.calls).to eq(2)
+      expect(rows.first.share_percent).to be_within(0.1).of(80.0)
+      expect(rows.last.share_percent).to be_within(0.1).of(20.0)
+    end
+
+    it "returns zero share when every row has nil cost" do
+      create_call(provider: "openai", total_cost: nil)
+
+      rows = described_class.call
+
+      expect(rows.first.share_percent).to eq(0.0)
+      expect(rows.first.calls).to eq(1)
+    end
   end
 
   describe LlmCostTracker::Dashboard::TopModels do
@@ -237,6 +302,141 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(rows.first.input_tokens).to eq(30)
       expect(rows.first.output_tokens).to eq(15)
       expect(rows.first.average_cost_per_call).to eq(2.5)
+    end
+
+    it "sorts by call volume with sort: calls" do
+      create_call(model: "cheap", total_cost: 0.1)
+      create_call(model: "cheap", total_cost: 0.1)
+      create_call(model: "expensive", total_cost: 5.0)
+
+      rows = described_class.call(sort: "calls")
+
+      expect(rows.first.model).to eq("cheap")
+      expect(rows.first.calls).to eq(2)
+    end
+
+    it "sorts by avg cost per call with sort: avg_cost" do
+      create_call(model: "cheap", total_cost: 1.0)
+      create_call(model: "cheap", total_cost: 1.0)
+      create_call(model: "pricey", total_cost: 5.0)
+
+      rows = described_class.call(sort: "avg_cost")
+
+      expect(rows.first.model).to eq("pricey")
+    end
+
+    it "falls back to cost sort when sort: latency but column absent" do
+      ActiveRecord::Base.connection.disconnect!
+      reset_database!(latency: false)
+      create_call(model: "a", total_cost: 1.0)
+      create_call(model: "b", total_cost: 5.0)
+
+      rows = described_class.call(sort: "latency")
+
+      expect(rows.first.model).to eq("b")
+    end
+  end
+
+  describe LlmCostTracker::Dashboard::DataQuality do
+    it "returns zeros for empty dataset" do
+      stats = described_class.call
+
+      expect(stats.total_calls).to eq(0)
+      expect(stats.unknown_pricing_count).to eq(0)
+      expect(stats.untagged_calls_count).to eq(0)
+      expect(stats.unknown_pricing_by_model).to be_empty
+    end
+
+    it "counts unknown pricing and untagged calls correctly" do
+      create_call(total_cost: 1.0, tags: { env: "prod" })
+      create_call(total_cost: nil, tags: {})
+      create_call(total_cost: nil, tags: { env: "prod" })
+
+      stats = described_class.call
+
+      expect(stats.total_calls).to eq(3)
+      expect(stats.unknown_pricing_count).to eq(2)
+      expect(stats.untagged_calls_count).to eq(1)
+    end
+
+    it "reports missing latency count when column is present" do
+      create_call(latency_ms: 100)
+      create_call(latency_ms: nil)
+
+      stats = described_class.call
+
+      expect(stats.latency_column_present).to be true
+      expect(stats.missing_latency_count).to eq(1)
+    end
+
+    it "groups unknown pricing by model" do
+      create_call(model: "unknown-x", total_cost: nil)
+      create_call(model: "unknown-x", total_cost: nil)
+      create_call(model: "unknown-y", total_cost: nil)
+
+      stats = described_class.call
+
+      expect(stats.unknown_pricing_by_model["unknown-x"]).to eq(2)
+      expect(stats.unknown_pricing_by_model["unknown-y"]).to eq(1)
+    end
+  end
+
+  describe LlmCostTracker::Dashboard::TagKeyExplorer do
+    it "returns empty array when no tagged calls exist" do
+      create_call(tags: {})
+
+      rows = described_class.call
+
+      expect(rows).to eq([])
+    end
+
+    it "discovers tag keys and their call counts" do
+      create_call(tags: { env: "prod", service: "api" })
+      create_call(tags: { env: "staging" })
+      create_call(tags: { service: "worker" })
+
+      rows = described_class.call
+      keys = rows.map(&:key)
+
+      expect(keys).to include("env", "service")
+    end
+
+    it "counts distinct values per key" do
+      create_call(tags: { env: "prod" })
+      create_call(tags: { env: "staging" })
+      create_call(tags: { env: "prod" })
+
+      rows = described_class.call
+      env_row = rows.find { |r| r.key == "env" }
+
+      expect(env_row.calls_count).to eq(3)
+      expect(env_row.distinct_values).to eq(2)
+    end
+
+    it "orders by call count descending" do
+      create_call(tags: { rare: "x" })
+      create_call(tags: { common: "a" })
+      create_call(tags: { common: "b" })
+
+      rows = described_class.call
+
+      expect(rows.first.key).to eq("common")
+    end
+
+    it "uses a Ruby fallback when the SQL path is not available (MySQL)" do
+      create_call(tags: { env: "prod", service: "api" })
+      create_call(tags: { env: "staging" })
+      create_call(tags: {})
+
+      allow(LlmCostTracker::LlmApiCall.connection).to receive(:adapter_name).and_return("Mysql2")
+
+      rows = described_class.call
+      keys = rows.map(&:key)
+
+      expect(keys).to include("env", "service")
+      env_row = rows.find { |r| r.key == "env" }
+      expect(env_row.calls_count).to eq(2)
+      expect(env_row.distinct_values).to eq(2)
     end
   end
 end

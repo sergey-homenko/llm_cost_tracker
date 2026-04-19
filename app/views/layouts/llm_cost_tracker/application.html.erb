@@ -90,7 +90,7 @@
       }
 
       .lct-stats {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       }
 
       .lct-two-col {
@@ -126,6 +126,21 @@
         width: 100%;
         font-size: 14px;
       }
+
+      .lct-stat-sub {
+        color: var(--lct-muted);
+        font-size: 12px;
+        margin: 4px 0 0;
+      }
+
+      .lct-delta {
+        font-size: 12px;
+        margin: 4px 0 0;
+      }
+
+      .lct-delta-neutral { color: var(--lct-muted); }
+      .lct-delta-up      { color: #b91c1c; }
+      .lct-delta-down    { color: #047857; }
 
       .lct-table-wrap {
         overflow-x: auto;
@@ -197,12 +212,14 @@
         text-transform: uppercase;
       }
 
-      .lct-field input {
+      .lct-field input,
+      .lct-field select {
         border: 1px solid var(--lct-border);
         border-radius: 6px;
         color: var(--lct-text);
         font: inherit;
         padding: 8px 10px;
+        background: var(--lct-panel);
       }
 
       .lct-button-row {
@@ -312,8 +329,10 @@
         <h1 class="lct-title">LLM Costs</h1>
         <nav class="lct-nav" aria-label="Dashboard">
           <%= link_to "Overview", root_path, class: ("lct-active" if request.path.delete_suffix("/") == root_path.delete_suffix("/")) %>
-          <%= link_to "Calls", calls_path, class: ("lct-active" if request.path.start_with?(calls_path)) %>
           <%= link_to "Models", models_path, class: ("lct-active" if request.path.start_with?(models_path)) %>
+          <%= link_to "Calls", calls_path, class: ("lct-active" if request.path.start_with?(calls_path)) %>
+          <%= link_to "Tags", tags_path, class: ("lct-active" if request.path.start_with?(tags_path)) %>
+          <%= link_to "Data Quality", data_quality_path, class: ("lct-active" if request.path.start_with?(data_quality_path)) %>
         </nav>
       </header>
 

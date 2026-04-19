@@ -8,11 +8,15 @@
     <article class="lct-stat">
       <p class="lct-stat-label">Total spend</p>
       <p class="lct-stat-value"><%= money(@stats.total_cost) %></p>
+      <% badge = delta_badge(@stats.cost_delta_percent) %>
+      <p class="<%= badge[:css_class] %>"><%= badge[:text] %></p>
     </article>
 
     <article class="lct-stat">
       <p class="lct-stat-label">Calls</p>
       <p class="lct-stat-value"><%= number(@stats.total_calls) %></p>
+      <% badge = delta_badge(@stats.calls_delta_percent, mode: :neutral) %>
+      <p class="<%= badge[:css_class] %>"><%= badge[:text] %></p>
     </article>
 
     <article class="lct-stat">
@@ -24,6 +28,17 @@
       <article class="lct-stat">
         <p class="lct-stat-label">Avg latency</p>
         <p class="lct-stat-value"><%= number(@stats.average_latency_ms.round) %>ms</p>
+      </article>
+    <% end %>
+
+    <% if @stats.unknown_pricing_count.positive? %>
+      <article class="lct-stat">
+        <p class="lct-stat-label">Unknown pricing</p>
+        <p class="lct-stat-value"><%= number(@stats.unknown_pricing_count) %></p>
+        <p class="lct-stat-sub">
+          <%= percent(coverage_percent(@stats.unknown_pricing_count, @stats.total_calls)) %> of calls &middot;
+          <%= link_to "Review →", data_quality_path %>
+        </p>
       </article>
     <% end %>
   </section>
@@ -76,52 +91,55 @@
     </table>
   </section>
 
-  <section class="lct-grid lct-two-col">
-    <article class="lct-panel">
-      <h2 class="lct-section-title">Top Models</h2>
+  <% if @providers.any? %>
+    <section class="lct-panel">
+      <h2 class="lct-section-title">By Provider</h2>
       <table class="lct-table">
         <thead>
           <tr>
-            <th>Model</th>
+            <th>Provider</th>
             <th>Calls</th>
             <th>Spend</th>
+            <th>Share</th>
           </tr>
         </thead>
         <tbody>
-          <% @top_models.each do |row| %>
+          <% @providers.each do |row| %>
             <tr>
-              <td>
-                <strong><%= row.model %></strong><br>
-                <span class="lct-muted"><%= row.provider %></span>
-              </td>
+              <td><%= row.provider %></td>
               <td><%= number(row.calls) %></td>
               <td><%= money(row.total_cost) %></td>
+              <td><%= percent(row.share_percent) %></td>
             </tr>
           <% end %>
         </tbody>
       </table>
-    </article>
+    </section>
+  <% end %>
 
-    <% if @feature_costs.any? %>
-      <article class="lct-panel">
-        <h2 class="lct-section-title">Cost By Feature</h2>
-        <table class="lct-table">
-          <thead>
-            <tr>
-              <th>Feature</th>
-              <th>Spend</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @feature_costs.each do |feature, cost| %>
-              <tr>
-                <td><%= feature %></td>
-                <td><%= money(cost) %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </article>
-    <% end %>
+  <section class="lct-panel">
+    <h2 class="lct-section-title">Top Models</h2>
+    <table class="lct-table">
+      <thead>
+        <tr>
+          <th>Provider</th>
+          <th>Model</th>
+          <th>Calls</th>
+          <th>Spend</th>
+          <th>Avg cost / call</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @top_models.each do |row| %>
+          <tr>
+            <td><%= row.provider %></td>
+            <td><%= row.model %></td>
+            <td><%= number(row.calls) %></td>
+            <td><%= money(row.total_cost) %></td>
+            <td><%= money(row.average_cost_per_call) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
   </section>
 <% end %>

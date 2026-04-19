@@ -2,7 +2,7 @@
 
 **See where your Rails app spends money on LLM APIs.**
 
-Track cost by user, tenant, feature, provider, and model, all in your own database. No proxy. No SaaS required.
+Track cost by provider, model, time, and arbitrary tag dimensions — all in your own database. No proxy. No SaaS required.
 
 [![Gem Version](https://img.shields.io/gem/v/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker)
 [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions)
@@ -20,10 +20,9 @@ By model:
   claude-sonnet-4-6           $31.200000
   gemini-2.5-flash            $14.120000
 
-By tag (feature):
-  chat                        $73.500000
-  summarizer                  $29.220000
-  translate                   $24.700000
+By tag key "env":
+  production                  $119.300000
+  staging                     $8.120000
 ```
 
 ## Why?
@@ -35,7 +34,7 @@ Every Rails app integrating LLMs faces the same problem: **you don't know how mu
 - 🔌 **Faraday-native** — intercepts LLM HTTP responses without changing the response
 - 🏠 **Self-hosted** — your data stays in your database
 - 🧩 **Client-light** — works with raw Faraday and LLM gems that expose their Faraday connection
-- 🏷️ **Attribution-first** — tag spend by feature, tenant, user, job, or environment
+- 🏷️ **Generic tag dimensions** — attach arbitrary key/value tags per call; break down spend by any tag key
 - 🌐 **OpenAI-compatible** — auto-detect OpenRouter and DeepSeek, with custom compatible hosts configurable
 - 🛑 **Budget guardrails** — notify, raise, or block requests when monthly spend is exhausted
 - 📊 **Quick reports** — print a terminal cost report with one rake task
@@ -421,11 +420,13 @@ mount LlmCostTracker::Engine => "/llm-costs"
 
 Routes:
 
-- `GET /llm-costs` — overview: spend, calls, avg cost/call, avg latency, budget, daily trend, top models, cost by `feature`
-- `GET /llm-costs/calls` — filterable, paginated call list
+- `GET /llm-costs` — overview: spend, calls, avg cost/call, avg latency, budget, daily trend, top models
+- `GET /llm-costs/models` — all models aggregated by provider and model; sortable by spend, volume, avg cost, latency
+- `GET /llm-costs/calls` — filterable, paginated call list; outlier sort modes (most expensive, largest input/output, slowest, unknown pricing)
 - `GET /llm-costs/calls/:id` — call details
-- `GET /llm-costs/models` — calls aggregated by provider and model
-- `GET /llm-costs/tags/:key` — calls aggregated by a tag value (e.g. `/llm-costs/tags/feature`)
+- `GET /llm-costs/tags` — tag key explorer: all keys present in the dataset with coverage and distinct value counts
+- `GET /llm-costs/tags/:key` — breakdown by a specific tag key's values (coverage, calls, cost per value)
+- `GET /llm-costs/data_quality` — data quality surface: unknown pricing share, untagged calls, missing latency, unknown pricing by model
 
 All routes are GET-only. Invalid tag keys return 400.
 

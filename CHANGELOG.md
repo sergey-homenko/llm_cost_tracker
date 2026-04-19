@@ -32,9 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add SQL-side `LlmApiCall.group_by_period(:day/:month)`.
-- Add opt-in `LlmCostTracker::Engine` read-only dashboard with Overview, Calls,
-  Call Details, Models, and Tag Breakdown pages. Requires Rails 7.1+; the core
-  middleware keeps working without Rails.
+- Add opt-in `LlmCostTracker::Engine` read-only dashboard: Overview (with
+  delta-vs-previous-period badges and provider rollup), Models (with sort by
+  cost/calls/avg_cost/latency), Calls (with outlier sort modes — expensive,
+  largest input/output, slowest, unknown pricing — and CSV export), Call
+  Details, Tag Key Explorer, Tag Breakdown, and Data Quality. Tags are treated
+  as generic key/value dimensions with no built-in semantics for specific keys.
+  Tag Key Explorer supports PostgreSQL and SQLite via adapter-specific SQL and
+  falls back to an in-Ruby scan (capped at 50k rows) on MySQL. Requires Rails
+  7.1+; the core middleware keeps working without Rails.
 
 ## [0.1.4] - 2026-04-18
 

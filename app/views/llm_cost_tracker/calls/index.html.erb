@@ -32,6 +32,20 @@
     </div>
 
     <div class="lct-field">
+      <label for="lct-sort">Sort / filter</label>
+      <select id="lct-sort" name="sort">
+        <option value=""               <%= "selected" if @sort.blank? %>>Recent first</option>
+        <option value="expensive"      <%= "selected" if @sort == "expensive" %>>Most expensive</option>
+        <option value="input"          <%= "selected" if @sort == "input" %>>Largest input</option>
+        <option value="output"         <%= "selected" if @sort == "output" %>>Largest output</option>
+        <% if @latency_available %>
+          <option value="slow" <%= "selected" if @sort == "slow" %>>Slowest</option>
+        <% end %>
+        <option value="unknown_pricing" <%= "selected" if @sort == "unknown_pricing" %>>Unknown pricing only</option>
+      </select>
+    </div>
+
+    <div class="lct-field">
       <label for="lct-per">Per page</label>
       <input id="lct-per" type="number" name="per" min="1" max="200" value="<%= @page.per %>">
     </div>
@@ -39,8 +53,10 @@
     <div class="lct-button-row">
       <button class="lct-button" type="submit">Apply</button>
       <%= link_to "Reset", calls_path, class: "lct-button lct-button-secondary" %>
+      <%= link_to "Export CSV", calls_path(current_query(format: :csv)), class: "lct-button lct-button-secondary" %>
     </div>
   </form>
+  <p class="lct-muted">CSV export is capped at <%= number(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT) %> rows per request — narrow the date range to export larger slices.</p>
 </section>
 
 <% if @calls_count.zero? %>
