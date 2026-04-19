@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "value_object"
-
 module LlmCostTracker
-  ParsedUsage = ValueObject.define(
+  ParsedUsage = Data.define(
     :provider,
     :model,
     :input_tokens,
@@ -15,10 +13,10 @@ module LlmCostTracker
     :reasoning_tokens
   )
 
-  ParsedUsage.const_set(:TRACKING_KEYS, %i[provider model input_tokens output_tokens total_tokens].freeze)
+  class ParsedUsage
+    TRACKING_KEYS = %i[provider model input_tokens output_tokens total_tokens].freeze
 
-  class << ParsedUsage
-    def build(**attributes)
+    def self.build(**attributes)
       new(
         provider: attributes.fetch(:provider),
         model: attributes.fetch(:model),
@@ -31,11 +29,9 @@ module LlmCostTracker
         reasoning_tokens: attributes[:reasoning_tokens]
       )
     end
-  end
 
-  class ParsedUsage
     def metadata
-      except(*TRACKING_KEYS)
+      to_h.except(*TRACKING_KEYS)
     end
 
     def to_h

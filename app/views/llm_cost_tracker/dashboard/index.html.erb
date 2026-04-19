@@ -102,7 +102,7 @@
       </table>
     </article>
 
-    <% if @top_tags["feature"]&.any? %>
+    <% if @feature_costs.any? %>
       <article class="lct-panel">
         <h2 class="lct-section-title">Cost By Feature</h2>
         <table class="lct-table">
@@ -113,7 +113,7 @@
             </tr>
           </thead>
           <tbody>
-            <% @top_tags["feature"].each do |feature, cost| %>
+            <% @feature_costs.each do |feature, cost| %>
               <tr>
                 <td><%= feature %></td>
                 <td><%= money(cost) %></td>

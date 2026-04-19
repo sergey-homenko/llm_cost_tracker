@@ -43,11 +43,11 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         }.to_json
       )
 
-      expect(result[:provider]).to eq("gemini")
-      expect(result[:model]).to eq("gemini-2.5-flash")
-      expect(result[:input_tokens]).to eq(100)
-      expect(result[:output_tokens]).to eq(75)
-      expect(result[:total_tokens]).to eq(175)
+      expect(result.provider).to eq("gemini")
+      expect(result.model).to eq("gemini-2.5-flash")
+      expect(result.input_tokens).to eq(100)
+      expect(result.output_tokens).to eq(75)
+      expect(result.total_tokens).to eq(175)
     end
   end
 end

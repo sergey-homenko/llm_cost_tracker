@@ -296,7 +296,7 @@ RSpec.describe "ActiveRecord storage integration" do
       tracked_at: tracked_at
     )
 
-    result = llm_api_call_model.this_month.by_provider("openai").group_by_period(:day).sum(:total_cost)
+    result = llm_api_call_model.this_month.where(provider: "openai").group_by_period(:day).sum(:total_cost)
 
     expect(result.transform_values(&:to_f)).to eq(tracked_at.strftime("%Y-%m-%d") => 1.25)
   end
@@ -351,7 +351,7 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "chat"
     )
 
-    result = llm_api_call_model.this_month.by_provider("openai").group_by_tag("feature").sum(:total_cost)
+    result = llm_api_call_model.this_month.where(provider: "openai").group_by_tag("feature").sum(:total_cost)
 
     expect(result.transform_values(&:to_f)).to eq("chat" => 0.0025)
   end

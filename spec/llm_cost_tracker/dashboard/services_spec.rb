@@ -1,17 +1,10 @@
 # frozen_string_literal: true
 
-require "active_record"
-require "json"
 require "spec_helper"
 
-require "llm_cost_tracker/llm_api_call"
-require_relative "../../../app/services/llm_cost_tracker/dashboard/errors"
-require_relative "../../../app/services/llm_cost_tracker/dashboard/page"
-require_relative "../../../app/services/llm_cost_tracker/dashboard/filter"
-require_relative "../../../app/services/llm_cost_tracker/dashboard/time_series"
-require_relative "../../../app/services/llm_cost_tracker/dashboard/overview_stats"
-require_relative "../../../app/services/llm_cost_tracker/dashboard/top_models"
-require_relative "../../../app/services/llm_cost_tracker/dashboard/top_tags"
+ENV["RAILS_ENV"] ||= "test"
+
+require_relative "../../dummy/config/environment"
 
 RSpec.describe "LlmCostTracker dashboard services" do
   def reset_database!(latency: true)
@@ -66,9 +59,9 @@ RSpec.describe "LlmCostTracker dashboard services" do
     ActiveRecord::Base.connection.disconnect!
   end
 
-  describe LlmCostTracker::Dashboard::Page do
+  describe LlmCostTracker::Pagination do
     it "uses defaults for nil params" do
-      page = described_class.from(nil)
+      page = described_class.call(nil)
 
       expect(page.page).to eq(1)
       expect(page.per).to eq(50)
@@ -76,7 +69,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     end
 
     it "normalizes invalid pagination params" do
-      page = described_class.from("page" => "-1", "per" => "10000")
+      page = described_class.call("page" => "-1", "per" => "10000")
 
       expect(page.page).to eq(1)
       expect(page.per).to eq(200)
@@ -86,7 +79,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     end
 
     it "calculates offsets and next-page state" do
-      page = described_class.from(page: "3", per: "50")
+      page = described_class.call(page: "3", per: "50")
 
       expect(page.offset).to eq(100)
       expect(page.prev_page?).to be true
@@ -116,7 +109,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
         tracked_at: Time.utc(2026, 4, 18, 12)
       )
 
-      relation = described_class.apply(
+      relation = described_class.call(
         params: {
           "from" => "2026-04-18",
           "to" => "2026-04-18",
@@ -133,7 +126,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "ignores invalid dates" do
       create_call(tracked_at: Time.utc(2026, 4, 18, 12))
 
-      relation = described_class.apply(params: { from: "not-a-date", to: "also-bad" })
+      relation = described_class.call(params: { from: "not-a-date", to: "also-bad" })
 
       expect(relation.count).to eq(1)
     end
@@ -141,15 +134,24 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "ignores malformed non-hash tag params" do
       create_call(tags: { feature: "chat" })
 
-      relation = described_class.apply(params: { tag: "malformed" })
+      relation = described_class.call(params: { tag: "malformed" })
 
       expect(relation.count).to eq(1)
     end
 
+    it "merges tag_key and tag_value into the tag filter" do
+      create_call(model: "chat-model", tags: { feature: "chat" })
+      create_call(model: "summary-model", tags: { feature: "summarizer" })
+
+      relation = described_class.call(params: { tag_key: "feature", tag_value: "summarizer" })
+
+      expect(relation.pluck(:model)).to eq(["summary-model"])
+    end
+
     it "raises an invalid filter error for unsafe tag keys" do
       expect do
-        described_class.apply(params: { tag: { ";DROP TABLE" => "x" } })
-      end.to raise_error(LlmCostTracker::Dashboard::InvalidFilter, /invalid tag key/)
+        described_class.call(params: { tag: { ";DROP TABLE" => "x" } })
+      end.to raise_error(LlmCostTracker::InvalidFilterError, /invalid tag key/)
     end
   end
 
@@ -189,7 +191,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
   describe LlmCostTracker::Dashboard::OverviewStats do
     it "returns zero values for an empty scope" do
-      stats = described_class.build
+      stats = described_class.call
 
       expect(stats.total_cost).to eq(0.0)
       expect(stats.total_calls).to eq(0)
@@ -203,7 +205,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(total_cost: 2.0, latency_ms: 100)
       create_call(total_cost: 4.0, latency_ms: 300)
 
-      stats = described_class.build
+      stats = described_class.call
 
       expect(stats.total_cost).to eq(6.0)
       expect(stats.total_calls).to eq(2)
@@ -217,7 +219,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       reset_database!(latency: false)
       create_call(total_cost: 2.0)
 
-      expect(described_class.build.average_latency_ms).to be_nil
+      expect(described_class.call.average_latency_ms).to be_nil
     end
   end
 
@@ -235,21 +237,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(rows.first.input_tokens).to eq(30)
       expect(rows.first.output_tokens).to eq(15)
       expect(rows.first.average_cost_per_call).to eq(2.5)
-    end
-  end
-
-  describe LlmCostTracker::Dashboard::TopTags do
-    it "returns feature tag breakdowns by default" do
-      create_call(total_cost: 2.0, tags: { feature: "chat" })
-      create_call(total_cost: 1.0, tags: { feature: "summarizer" })
-
-      expect(described_class.call).to eq(
-        "feature" => [["chat", 2.0], ["summarizer", 1.0]]
-      )
-    end
-
-    it "omits empty tag breakdowns" do
-      expect(described_class.call).to eq({})
     end
   end
 end

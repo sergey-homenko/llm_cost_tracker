@@ -3,6 +3,8 @@
 module LlmCostTracker
   class Error < StandardError; end
 
+  class InvalidFilterError < Error; end
+
   class BudgetExceededError < Error
     attr_reader :monthly_total, :budget, :last_event
 

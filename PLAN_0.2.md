@@ -119,7 +119,7 @@ Return string keys across all adapters:
 ```ruby
 LlmCostTracker::LlmApiCall
   .this_month
-  .by_provider("openai")
+  .where(provider: "openai")
   .group_by_period(:day)
   .sum(:total_cost)
 ```
@@ -437,7 +437,7 @@ Example:
 
 ### CI
 
-- Ruby 3.1, 3.2, 3.3
+- Ruby 3.3, 3.4
 - Rails Engine specs on Rails 7.1, 7.2, 8.0
 - SQLite default
 - PostgreSQL job for period grouping and tag grouping

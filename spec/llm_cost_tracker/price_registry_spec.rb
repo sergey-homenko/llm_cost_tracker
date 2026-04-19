@@ -6,9 +6,9 @@ require "tempfile"
 
 RSpec.describe LlmCostTracker::PriceRegistry do
   def clear_file_price_cache
-    %i[@file_prices @file_prices_cache_key].each do |ivar|
-      described_class.remove_instance_variable(ivar) if described_class.instance_variable_defined?(ivar)
-    end
+    return unless described_class.instance_variable_defined?(:@file_prices_cache)
+
+    described_class.remove_instance_variable(:@file_prices_cache)
   end
 
   def capture_stderr
@@ -26,7 +26,7 @@ RSpec.describe LlmCostTracker::PriceRegistry do
   end
 
   describe ".file_prices" do
-    it "handles concurrent first-load safely" do
+    it "returns consistent prices under concurrent first-load" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write({ models: { "custom-model" => { input: 1.0, output: 2.0 } } }.to_json)
         file.close
@@ -35,8 +35,7 @@ RSpec.describe LlmCostTracker::PriceRegistry do
           Thread.new { described_class.file_prices(file.path) }
         end.map(&:value)
 
-        expect(results.map(&:object_id).uniq.size).to eq(1)
-        expect(results.first).to eq("custom-model" => { input: 1.0, output: 2.0 })
+        expect(results).to all(eq("custom-model" => { input: 1.0, output: 2.0 }))
       end
     end
 

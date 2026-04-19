@@ -39,7 +39,7 @@ RSpec.describe LlmCostTracker::Tracker do
         latency_ms: 123
       )
 
-      expect(event[:latency_ms]).to eq(123)
+      expect(event.latency_ms).to eq(123)
     end
 
     it "warns and keeps returning the event when storage fails by default" do
@@ -59,7 +59,7 @@ RSpec.describe LlmCostTracker::Tracker do
         )
       end.to output(/Storage failed; tracking event was not persisted: RuntimeError: storage down/).to_stderr
 
-      expect(event[:model]).to eq("gpt-4o")
+      expect(event.model).to eq("gpt-4o")
     end
 
     it "handles custom storage errors that inherit from LlmCostTracker::Error" do
@@ -171,8 +171,8 @@ RSpec.describe LlmCostTracker::Tracker do
         }
       )
 
-      expect(event[:total_tokens]).to eq(185)
-      expect(event[:tags]).to eq(feature: "summarize")
+      expect(event.total_tokens).to eq(185)
+      expect(event.tags).to eq(feature: "summarize")
     end
 
     it "triggers budget callback when exceeded" do
@@ -209,7 +209,7 @@ RSpec.describe LlmCostTracker::Tracker do
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
         expect(error.monthly_total).to be > error.budget
-        expect(error.last_event[:provider]).to eq("openai")
+        expect(error.last_event.provider).to eq("openai")
       }
     end
 
@@ -245,7 +245,7 @@ RSpec.describe LlmCostTracker::Tracker do
         )
       end.to output(/No pricing configured for model "unknown-chat-model"/).to_stderr
 
-      expect(event[:cost]).to be_nil
+      expect(event.cost).to be_nil
     end
 
     it "raises unknown pricing errors when configured" do

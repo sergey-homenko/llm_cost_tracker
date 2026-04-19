@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
   spec.homepage      = "https://github.com/sergey-homenko/llm_cost_tracker"
   spec.license       = "MIT"
 
-  spec.required_ruby_version = ">= 3.1.0"
+  spec.required_ruby_version = ">= 3.3.0"
 
   spec.metadata["homepage_uri"]  = spec.homepage
   spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
@@ -31,10 +31,10 @@ Gem::Specification.new do |spec|
 
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "activesupport", ">= 7.0", "< 9.0"
-  spec.add_dependency "faraday", ">= 1.0", "< 3.0"
+  spec.add_dependency "activesupport", ">= 7.1", "< 9.0"
+  spec.add_dependency "faraday", ">= 2.0", "< 3.0"
 
-  spec.add_development_dependency "activerecord", ">= 7.0", "< 9.0"
+  spec.add_development_dependency "activerecord", ">= 7.1", "< 9.0"
   spec.add_development_dependency "railties", ">= 7.1", "< 9.0"
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rspec", "~> 3.0"

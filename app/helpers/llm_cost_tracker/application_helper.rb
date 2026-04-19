@@ -62,7 +62,7 @@ module LlmCostTracker
       summary.join(", ")
     end
 
-    def dashboard_query(overrides = {})
+    def current_query(overrides = {})
       request.query_parameters.merge(overrides.stringify_keys)
     end
 

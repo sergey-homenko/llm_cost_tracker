@@ -23,12 +23,12 @@
 
     <div class="lct-field">
       <label for="lct-tag-key">Tag key</label>
-      <input id="lct-tag-key" type="text" name="tag_key" value="<%= @tag_key %>">
+      <input id="lct-tag-key" type="text" name="tag_key" value="<%= params[:tag_key] %>">
     </div>
 
     <div class="lct-field">
       <label for="lct-tag-value">Tag value</label>
-      <input id="lct-tag-value" type="text" name="tag_value" value="<%= @tag_value %>">
+      <input id="lct-tag-value" type="text" name="tag_value" value="<%= params[:tag_value] %>">
     </div>
 
     <div class="lct-field">
@@ -100,10 +100,10 @@
       </span>
       <span>
         <% if @page.prev_page? %>
-          <%= link_to "Previous", calls_path(dashboard_query(page: @page.page - 1, per: @page.per)), class: "lct-button lct-button-secondary" %>
+          <%= link_to "Previous", calls_path(current_query(page: @page.page - 1, per: @page.per)), class: "lct-button lct-button-secondary" %>
         <% end %>
         <% if @page.next_page?(@calls_count) %>
-          <%= link_to "Next", calls_path(dashboard_query(page: @page.page + 1, per: @page.per)), class: "lct-button lct-button-secondary" %>
+          <%= link_to "Next", calls_path(current_query(page: @page.page + 1, per: @page.per)), class: "lct-button lct-button-secondary" %>
         <% end %>
       </span>
     </nav>

@@ -4,17 +4,15 @@ require_relative "logging"
 
 module LlmCostTracker
   class Budget
-    WARNING_MUTEX = Mutex.new
-    private_constant :WARNING_MUTEX
-
     class << self
       def enforce!
-        return unless LlmCostTracker.configuration.monthly_budget
-        return unless behavior == :block_requests
-        return warn_non_active_record_block_requests unless LlmCostTracker.configuration.active_record?
+        config = LlmCostTracker.configuration
+        return unless config.monthly_budget
+        return unless config.budget_exceeded_behavior == :block_requests
+        return unless config.active_record?
 
-        monthly_total = calculate_monthly_total(0)
-        return unless monthly_total >= LlmCostTracker.configuration.monthly_budget
+        monthly_total = active_record_monthly_total
+        return unless monthly_total >= config.monthly_budget
 
         handle_exceeded(monthly_total: monthly_total)
       end
@@ -22,23 +20,19 @@ module LlmCostTracker
       def check!(event)
         config = LlmCostTracker.configuration
         return unless config.monthly_budget
-        return unless event[:cost]
+        return unless event.cost
 
-        monthly_total = calculate_monthly_total(event[:cost][:total_cost])
+        monthly_total = if config.active_record?
+                          active_record_monthly_total
+                        else
+                          event.cost.total_cost
+                        end
         return unless monthly_total > config.monthly_budget
 
         handle_exceeded(monthly_total: monthly_total, last_event: event)
       end
 
       private
-
-      def calculate_monthly_total(latest_cost)
-        if LlmCostTracker.configuration.active_record?
-          active_record_monthly_total
-        else
-          latest_cost
-        end
-      end
 
       def active_record_monthly_total
         require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
@@ -47,18 +41,6 @@ module LlmCostTracker
         LlmCostTracker::Storage::ActiveRecordStore.monthly_total
       rescue LoadError => e
         raise Error, "ActiveRecord storage requires the active_record gem: #{e.message}"
-      end
-
-      def warn_non_active_record_block_requests
-        should_warn = WARNING_MUTEX.synchronize do
-          unless @warned_non_active_record_block_requests
-            @warned_non_active_record_block_requests = true
-            true
-          end
-        end
-        return unless should_warn
-
-        Logging.warn(":block_requests preflight requires storage_backend = :active_record; request was not blocked.")
       end
 
       def handle_exceeded(monthly_total:, last_event: nil)
@@ -70,15 +52,11 @@ module LlmCostTracker
         }
 
         config.on_budget_exceeded&.call(payload)
-        raise BudgetExceededError.new(**payload) if raise_on_exceeded?
+        raise BudgetExceededError.new(**payload) if raise_on_exceeded?(config)
       end
 
-      def raise_on_exceeded?
-        %i[raise block_requests].include?(behavior)
-      end
-
-      def behavior
-        LlmCostTracker.configuration.budget_exceeded_behavior
+      def raise_on_exceeded?(config)
+        %i[raise block_requests].include?(config.budget_exceeded_behavior)
       end
     end
   end

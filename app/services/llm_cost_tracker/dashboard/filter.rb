@@ -2,17 +2,15 @@
 
 require "date"
 
-require_relative "errors"
-
 module LlmCostTracker
   module Dashboard
     # Parses dashboard params into an ActiveRecord relation.
     #
     # Invalid dates are ignored, pagination is handled elsewhere, and invalid
-    # tag keys raise InvalidFilter so controllers can fail closed with HTTP 400.
+    # tag keys raise InvalidFilterError so controllers can fail closed with HTTP 400.
     class Filter
       class << self
-        def apply(scope: LlmCostTracker::LlmApiCall.all, params: {})
+        def call(scope: LlmCostTracker::LlmApiCall.all, params: {})
           new(scope: scope, params: params).relation
         end
       end
@@ -66,17 +64,24 @@ module LlmCostTracker
       end
 
       def tag_params
-        raw_tags = params[:tag] || params["tag"] || {}
-        raw_tags = raw_tags.to_unsafe_h if raw_tags.respond_to?(:to_unsafe_h)
-        raw_tags = raw_tags.to_h if raw_tags.respond_to?(:to_h)
-        return {} unless raw_tags.is_a?(Hash)
+        tags = hash_param(:tag)
+        tag_key = string_param(:tag_key)
+        tag_value = string_param(:tag_value)
+        tags = tags.merge(tag_key => tag_value) if tag_key && tag_value
 
-        raw_tags.each_with_object({}) do |(key, value), tags|
+        tags.each_with_object({}) do |(key, value), normalized|
           value = normalized_string(value)
           next if value.nil?
 
-          tags[LlmCostTracker::TagKey.validate!(key, error_class: InvalidFilter)] = value
+          normalized[LlmCostTracker::TagKey.validate!(key, error_class: LlmCostTracker::InvalidFilterError)] = value
         end
+      end
+
+      def hash_param(key)
+        raw = params[key] || params[key.to_s]
+        raw = raw.to_unsafe_h if raw.respond_to?(:to_unsafe_h)
+        raw = raw.to_h if raw.respond_to?(:to_h)
+        raw.is_a?(Hash) ? raw : {}
       end
 
       def parse_date(key)

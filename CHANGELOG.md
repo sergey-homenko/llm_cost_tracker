@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Minimum Ruby is now 3.3.0 (was 3.1.0). Ruby 3.1 is EOL since March 2025 and
+  Ruby 3.2 is EOL since March 2026; supported versions are 3.3 and 3.4.
+- Minimum Rails / ActiveSupport / ActiveRecord is now 7.1 (was 7.0). Rails 7.0
+  is EOL since October 2025.
+- Minimum Faraday is now 2.0 (was 1.0). Faraday 1.x no longer receives fixes.
+- `LlmCostTracker::Event` and `LlmCostTracker::Cost` are now plain `Data.define`
+  value objects without the previous Hash-compatibility shim. Read attributes
+  with method access (`event.cost.total_cost`, `event.provider`, `event.tags`)
+  instead of `[:key]` lookups. The `ActiveSupport::Notifications` payload is
+  unchanged — it is still a Hash because `event.to_h` is published.
+- `LlmCostTracker::ParsedUsage` now exposes typed attributes
+  (`parsed.provider`, `parsed.input_tokens`, `parsed.cache_read_input_tokens`, …)
+  instead of Hash access. Custom parsers should call `ParsedUsage.build(...)`
+  (unchanged keyword arguments) and return the value object.
+- Renamed `LlmCostTracker::InvalidFilter` to `LlmCostTracker::InvalidFilterError`
+  for consistency with the other `*Error` classes.
+- Removed the rarely used `LlmApiCall.by_provider(name)` and
+  `LlmApiCall.by_model(name)` convenience scopes. Use
+  `where(provider: ...)` / `where(model: ...)`.
+
 ### Added
 
 - Add SQL-side `LlmApiCall.group_by_period(:day/:month)` for date and month cost trends.

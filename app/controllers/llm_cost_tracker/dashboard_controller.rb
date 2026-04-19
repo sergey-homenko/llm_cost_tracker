@@ -1,21 +1,15 @@
 # frozen_string_literal: true
 
-require_relative "../../services/llm_cost_tracker/dashboard/filter"
-require_relative "../../services/llm_cost_tracker/dashboard/overview_stats"
-require_relative "../../services/llm_cost_tracker/dashboard/time_series"
-require_relative "../../services/llm_cost_tracker/dashboard/top_models"
-require_relative "../../services/llm_cost_tracker/dashboard/top_tags"
-
 module LlmCostTracker
   class DashboardController < ApplicationController
     def index
       @from_date, @to_date = overview_range
-      scope = Dashboard::Filter.apply(params: overview_filter_params)
+      scope = Dashboard::Filter.call(params: overview_filter_params)
 
-      @stats = Dashboard::OverviewStats.build(scope: scope)
+      @stats = Dashboard::OverviewStats.call(scope: scope)
       @time_series = Dashboard::TimeSeries.call(scope: scope, from: @from_date, to: @to_date)
       @top_models = Dashboard::TopModels.call(scope: scope, limit: 5)
-      @top_tags = Dashboard::TopTags.call(scope: scope, limit: 5)
+      @feature_costs = scope.cost_by_tag("feature").first(5)
     end
 
     private

@@ -2,7 +2,7 @@
 
 module LlmCostTracker
   module Dashboard
-    TopModel = LlmCostTracker::ValueObject.define(
+    TopModel = Data.define(
       :provider,
       :model,
       :calls,

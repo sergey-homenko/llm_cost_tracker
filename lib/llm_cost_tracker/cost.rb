@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "value_object"
-
 module LlmCostTracker
-  Cost = ValueObject.define(
+  Cost = Data.define(
     :input_cost,
     :cached_input_cost,
     :cache_read_input_cost,

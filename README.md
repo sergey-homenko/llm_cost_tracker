@@ -447,11 +447,11 @@ LlmCostTracker.configure do |config|
   config.custom_storage = ->(event) {
     InfluxDB.write("llm_costs", {
       values: {
-        cost: event[:cost]&.fetch(:total_cost, nil),
-        tokens: event[:total_tokens],
-        latency_ms: event[:latency_ms]
+        cost: event.cost&.total_cost,
+        tokens: event.total_tokens,
+        latency_ms: event.latency_ms
       },
-      tags: { provider: event[:provider], model: event[:model] }
+      tags: { provider: event.provider, model: event.model }
     })
   }
 end
@@ -521,12 +521,12 @@ class AcmeParser < LlmCostTracker::Parsers::Base
     usage = response["usage"]
     return nil unless usage
 
-    {
+    LlmCostTracker::ParsedUsage.build(
       provider: "acme",
       model: response["model"],
       input_tokens: usage["input"] || 0,
       output_tokens: usage["output"] || 0
-    }
+    )
   end
 end
 

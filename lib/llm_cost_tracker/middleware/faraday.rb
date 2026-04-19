@@ -37,10 +37,10 @@ module LlmCostTracker
         return unless parsed
 
         Tracker.record(
-          provider: parsed[:provider],
-          model: parsed[:model],
-          input_tokens: parsed[:input_tokens],
-          output_tokens: parsed[:output_tokens],
+          provider: parsed.provider,
+          model: parsed.model,
+          input_tokens: parsed.input_tokens,
+          output_tokens: parsed.output_tokens,
           latency_ms: latency_ms,
           metadata: resolved_tags(request_env).merge(parsed.metadata)
         )

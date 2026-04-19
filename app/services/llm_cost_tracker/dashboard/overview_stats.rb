@@ -9,7 +9,7 @@ module LlmCostTracker
                   :average_latency_ms,
                   :monthly_budget_status
 
-      def self.build(scope: LlmCostTracker::LlmApiCall.all)
+      def self.call(scope: LlmCostTracker::LlmApiCall.all)
         row = aggregate(scope)
         total_calls = row.calls_count.to_i
         total_cost = row.total_cost_sum.to_f
