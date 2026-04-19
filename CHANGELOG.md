@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   layout, empty state, and setup state.
 - Add dashboard data services for pagination, filtering, time series, overview stats,
   top models, and top tag breakdowns.
+- Add the first real dashboard Overview page with stats, budget status, daily spend,
+  top models, and feature cost breakdowns.
 
 ## [0.1.4] - 2026-04-18
 

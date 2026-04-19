@@ -1,0 +1,5 @@
+<% variant_class = local_assigns[:variant] == "budget" ? " lct-budget-fill" : "" %>
+
+<div class="lct-bar-track" aria-hidden="true">
+  <div class="lct-bar-fill<%= variant_class %>" style="width: <%= bar_width(value, max) %>"></div>
+</div>

@@ -12,6 +12,8 @@
         --lct-text: #1f2937;
         --lct-muted: #64748b;
         --lct-accent: #0f766e;
+        --lct-accent-soft: #ccfbf1;
+        --lct-danger: #b91c1c;
       }
 
       body {
@@ -62,6 +64,7 @@
         border: 1px solid var(--lct-border);
         border-radius: 8px;
         padding: 24px;
+        margin-bottom: 20px;
       }
 
       .lct-muted {
@@ -74,6 +77,103 @@
         padding: 2px 6px;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         font-size: 0.95em;
+      }
+
+      .lct-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .lct-stats {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .lct-two-col {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+
+      .lct-stat {
+        background: var(--lct-panel);
+        border: 1px solid var(--lct-border);
+        border-radius: 8px;
+        padding: 18px;
+      }
+
+      .lct-stat-label {
+        color: var(--lct-muted);
+        font-size: 13px;
+        margin: 0 0 8px;
+      }
+
+      .lct-stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        margin: 0;
+      }
+
+      .lct-section-title {
+        margin: 0 0 16px;
+        font-size: 18px;
+      }
+
+      .lct-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+
+      .lct-table th,
+      .lct-table td {
+        border-bottom: 1px solid var(--lct-border);
+        padding: 10px 8px;
+        text-align: left;
+        vertical-align: middle;
+      }
+
+      .lct-table th {
+        color: var(--lct-muted);
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .lct-table td:last-child,
+      .lct-table th:last-child {
+        text-align: right;
+      }
+
+      .lct-bar-track {
+        background: #e5e7eb;
+        border-radius: 999px;
+        height: 8px;
+        overflow: hidden;
+        min-width: 96px;
+      }
+
+      .lct-bar-fill {
+        background: var(--lct-accent);
+        height: 100%;
+      }
+
+      .lct-budget-fill {
+        background: var(--lct-danger);
+      }
+
+      .lct-empty {
+        padding: 32px;
+        text-align: center;
+      }
+
+      @media (max-width: 800px) {
+        .lct-header {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .lct-stats,
+        .lct-two-col {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>

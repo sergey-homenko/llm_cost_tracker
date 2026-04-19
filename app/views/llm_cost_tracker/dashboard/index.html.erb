@@ -1,14 +1,134 @@
-<section class="lct-panel">
-  <% if llm_api_calls_table_available? %>
-    <% if @calls_count.positive? %>
-      <p class="lct-muted">Tracking <%= number_with_delimiter(@calls_count) %> LLM API calls.</p>
-    <% else %>
-      <p class="lct-muted">No LLM calls have been recorded yet.</p>
-    <% end %>
-  <% else %>
+<% if @setup_required %>
+  <section class="lct-panel">
     <p class="lct-muted">
       The <span class="lct-code">llm_api_calls</span> table is not available yet.
       Run <span class="lct-code">rails generate llm_cost_tracker:install</span> and migrate your database.
     </p>
+  </section>
+<% elsif @stats.total_calls.zero? %>
+  <section class="lct-panel lct-empty">
+    <h2 class="lct-section-title">No LLM calls yet</h2>
+    <p class="lct-muted">Tracked requests will appear here after your application records its first LLM API call.</p>
+  </section>
+<% else %>
+  <section class="lct-grid lct-stats">
+    <article class="lct-stat">
+      <p class="lct-stat-label">Total spend</p>
+      <p class="lct-stat-value"><%= money(@stats.total_cost) %></p>
+    </article>
+
+    <article class="lct-stat">
+      <p class="lct-stat-label">Calls</p>
+      <p class="lct-stat-value"><%= number(@stats.total_calls) %></p>
+    </article>
+
+    <article class="lct-stat">
+      <p class="lct-stat-label">Avg cost / call</p>
+      <p class="lct-stat-value"><%= money(@stats.average_cost_per_call) %></p>
+    </article>
+
+    <% if @stats.average_latency_ms %>
+      <article class="lct-stat">
+        <p class="lct-stat-label">Avg latency</p>
+        <p class="lct-stat-value"><%= number(@stats.average_latency_ms.round) %>ms</p>
+      </article>
+    <% end %>
+  </section>
+
+  <% if @stats.monthly_budget_status %>
+    <% budget = @stats.monthly_budget_status %>
+    <section class="lct-panel">
+      <h2 class="lct-section-title">Monthly Budget</h2>
+      <p class="lct-muted">Soft monthly limit. Blocking is not atomic under concurrency.</p>
+      <table class="lct-table">
+        <tbody>
+          <tr>
+            <th>Spent</th>
+            <td><%= money(budget[:spent]) %></td>
+          </tr>
+          <tr>
+            <th>Budget</th>
+            <td><%= money(budget[:budget]) %></td>
+          </tr>
+          <tr>
+            <th>Used</th>
+            <td><%= percent(budget[:percent_used]) %></td>
+          </tr>
+        </tbody>
+      </table>
+      <%= render "llm_cost_tracker/shared/bar", value: budget[:percent_used], max: 100.0, variant: "budget" %>
+    </section>
   <% end %>
-</section>
+
+  <section class="lct-panel">
+    <h2 class="lct-section-title">Daily Spend</h2>
+    <% max_cost = @time_series.map { |point| point[:cost] }.max.to_f %>
+    <table class="lct-table">
+      <thead>
+        <tr>
+          <th>Day</th>
+          <th>Spend</th>
+          <th>Trend</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @time_series.each do |point| %>
+          <tr>
+            <td><%= point[:label] %></td>
+            <td><%= money(point[:cost]) %></td>
+            <td><%= render "llm_cost_tracker/shared/bar", value: point[:cost], max: max_cost %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="lct-grid lct-two-col">
+    <article class="lct-panel">
+      <h2 class="lct-section-title">Top Models</h2>
+      <table class="lct-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Calls</th>
+            <th>Spend</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @top_models.each do |row| %>
+            <tr>
+              <td>
+                <strong><%= row.model %></strong><br>
+                <span class="lct-muted"><%= row.provider %></span>
+              </td>
+              <td><%= number(row.calls) %></td>
+              <td><%= money(row.total_cost) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </article>
+
+    <% if @top_tags["feature"]&.any? %>
+      <article class="lct-panel">
+        <h2 class="lct-section-title">Cost By Feature</h2>
+        <table class="lct-table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Spend</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @top_tags["feature"].each do |feature, cost| %>
+              <tr>
+                <td><%= feature %></td>
+                <td><%= money(cost) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </article>
+    <% end %>
+  </section>
+<% end %>
