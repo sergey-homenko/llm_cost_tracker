@@ -407,6 +407,53 @@ bin/rails generate llm_cost_tracker:add_latency_ms
 bin/rails db:migrate
 ```
 
+## Rails Dashboard (Optional)
+
+An opt-in Rails Engine mounts a read-only dashboard. Plain ERB, inline CSS, no JavaScript. Requires **Rails 7.1+**; the core middleware and `LlmCostTracker.track(...)` keep working without Rails.
+
+```ruby
+# config/application.rb (or an initializer)
+require "llm_cost_tracker/engine"
+
+# config/routes.rb
+mount LlmCostTracker::Engine => "/llm-costs"
+```
+
+Routes:
+
+- `GET /llm-costs` — overview: spend, calls, avg cost/call, avg latency, budget, daily trend, top models, cost by `feature`
+- `GET /llm-costs/calls` — filterable, paginated call list
+- `GET /llm-costs/calls/:id` — call details
+- `GET /llm-costs/models` — calls aggregated by provider and model
+- `GET /llm-costs/tags/:key` — calls aggregated by a tag value (e.g. `/llm-costs/tags/feature`)
+
+All routes are GET-only. Invalid tag keys return 400.
+
+> ⚠️ **Do not expose this dashboard publicly.** Tags may contain internal user, tenant, or feature identifiers. There is no built-in auth — protect the mount point with your app's existing auth.
+
+### Basic Auth
+
+```ruby
+authenticated = ->(req) {
+  ActionController::HttpAuthentication::Basic.authenticate(req) do |name, password|
+    ActiveSupport::SecurityUtils.secure_compare(name, ENV.fetch("LLM_DASHBOARD_USER")) &
+      ActiveSupport::SecurityUtils.secure_compare(password, ENV.fetch("LLM_DASHBOARD_PASSWORD"))
+  end
+}
+
+constraints(authenticated) do
+  mount LlmCostTracker::Engine => "/llm-costs"
+end
+```
+
+### Devise
+
+```ruby
+authenticate :user, ->(user) { user.admin? } do
+  mount LlmCostTracker::Engine => "/llm-costs"
+end
+```
+
 ## ActiveSupport::Notifications
 
 Every tracked call emits an `llm_request.llm_cost_tracker` event:

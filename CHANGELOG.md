@@ -31,19 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add SQL-side `LlmApiCall.group_by_period(:day/:month)` for date and month cost trends.
-- Add initial opt-in `LlmCostTracker::Engine` skeleton with Rails 7.1+ guard, root route,
-  layout, empty state, and setup state.
-- Add dashboard data services for pagination, filtering, time series, overview stats,
-  top models, and top tag breakdowns.
-- Add the first real dashboard Overview page with stats, budget status, daily spend,
-  top models, and feature cost breakdowns.
-- Add a dashboard Calls index with filters, pagination, cost/tokens/latency columns,
-  and tag summaries.
-- Add dashboard Call details pages with full token/cost breakdowns, tags JSON, and
-  friendly not-found handling.
-- Refactor dashboard internals toward standard Rails controllers, routes, shared setup
-  state, and smaller request specs.
+- Add SQL-side `LlmApiCall.group_by_period(:day/:month)`.
+- Add opt-in `LlmCostTracker::Engine` read-only dashboard with Overview, Calls,
+  Call Details, Models, and Tag Breakdown pages. Requires Rails 7.1+; the core
+  middleware keeps working without Rails.
 
 ## [0.1.4] - 2026-04-18
 
