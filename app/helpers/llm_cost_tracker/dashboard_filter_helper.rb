@@ -16,6 +16,12 @@ module LlmCostTracker
       "latency" => "Avg latency"
     }.freeze
 
+    FILTER_PARAM_KEYS = %i[from to provider model tag sort page per].freeze
+
+    def any_filter_applied?
+      FILTER_PARAM_KEYS.any? { |key| params[key].present? }
+    end
+
     def active_tag_filters
       tag_params = normalized_query_tags(params[:tag])
       return [] unless tag_params.is_a?(Hash)

@@ -31,7 +31,7 @@
 
       <div class="lct-filter-actions">
         <button class="lct-button" type="submit">Apply</button>
-        <%= link_to "Reset", root_path, class: "lct-button lct-button-secondary" %>
+        <%= link_to("Reset", root_path, class: "lct-button lct-button-secondary") if any_filter_applied? %>
       </div>
     </div>
   </form>
@@ -48,6 +48,19 @@
     </div>
   </section>
 <% else %>
+  <% if @stats.unknown_pricing_count.positive? %>
+    <aside class="lct-banner lct-banner-warning" role="status">
+      <div class="lct-banner-body">
+        <p class="lct-banner-title">
+          <%= number(@stats.unknown_pricing_count) %> call<%= "s" unless @stats.unknown_pricing_count == 1 %> missing pricing
+          <span class="lct-banner-muted">· <%= percent(coverage_percent(@stats.unknown_pricing_count, @stats.total_calls)) %> of the slice</span>
+        </p>
+        <p class="lct-banner-copy">Totals undercount until every model has a known price. Update <code class="lct-code">pricing_overrides</code> or <code class="lct-code">prices_file</code> to fix.</p>
+      </div>
+      <%= link_to "Fix now →", data_quality_path, class: "lct-button lct-button-secondary" %>
+    </aside>
+  <% end %>
+
   <section class="lct-hero">
     <article class="lct-panel lct-hero-primary">
       <div>
@@ -85,16 +98,6 @@
           </article>
         <% end %>
 
-        <% if @stats.unknown_pricing_count.positive? %>
-          <article class="lct-stat">
-            <p class="lct-stat-label">Unknown pricing</p>
-            <p class="lct-stat-value"><%= number(@stats.unknown_pricing_count) %></p>
-            <p class="lct-stat-sub">
-              <%= percent(coverage_percent(@stats.unknown_pricing_count, @stats.total_calls)) %> of calls &middot;
-              <%= link_to "Review →", data_quality_path %>
-            </p>
-          </article>
-        <% end %>
       </div>
 
       <% if @stats.monthly_budget_status %>

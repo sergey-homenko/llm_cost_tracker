@@ -38,7 +38,7 @@
 
       <div class="lct-filter-actions">
         <button class="lct-button" type="submit">Apply</button>
-        <%= link_to "Reset", tag_path(@tag_key), class: "lct-button lct-button-secondary" %>
+        <%= link_to("Reset", tag_path(@tag_key), class: "lct-button lct-button-secondary") if any_filter_applied? %>
       </div>
     </div>
   </form>
