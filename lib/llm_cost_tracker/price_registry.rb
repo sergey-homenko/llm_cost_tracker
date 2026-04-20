@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "monitor"
 require "yaml"
 
 require_relative "logging"
@@ -11,14 +12,17 @@ module LlmCostTracker
     EMPTY_PRICES = {}.freeze
     PRICE_KEYS = %w[input cached_input output cache_read_input cache_creation_input].freeze
     METADATA_KEYS = %w[_source _updated _notes].freeze
+    MUTEX = Monitor.new
 
     class << self
       def builtin_prices
-        @builtin_prices ||= normalize_price_table(raw_registry.fetch("models", {})).freeze
+        @builtin_prices ||= MUTEX.synchronize do
+          @builtin_prices || normalize_price_table(raw_registry.fetch("models", {})).freeze
+        end
       end
 
       def metadata
-        @metadata ||= raw_registry.fetch("metadata", {}).freeze
+        @metadata ||= MUTEX.synchronize { @metadata || raw_registry.fetch("metadata", {}).freeze }
       end
 
       def normalize_price_table(table)
@@ -35,9 +39,14 @@ module LlmCostTracker
         cached = @file_prices_cache
         return cached[:value] if cached && cached[:key] == cache_key
 
-        value = normalize_file_prices(price_file_models(load_price_file(path)), path: path).freeze
-        @file_prices_cache = { key: cache_key, value: value }.freeze
-        value
+        MUTEX.synchronize do
+          cached = @file_prices_cache
+          return cached[:value] if cached && cached[:key] == cache_key
+
+          value = normalize_file_prices(price_file_models(load_price_file(path)), path: path).freeze
+          @file_prices_cache = { key: cache_key, value: value }.freeze
+          value
+        end
       rescue Errno::ENOENT, JSON::ParserError, Psych::Exception, ArgumentError, TypeError, NoMethodError => e
         raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
       end
@@ -45,7 +54,9 @@ module LlmCostTracker
       private
 
       def raw_registry
-        @raw_registry ||= JSON.parse(File.read(DEFAULT_PRICES_PATH)).freeze
+        @raw_registry ||= MUTEX.synchronize do
+          @raw_registry || JSON.parse(File.read(DEFAULT_PRICES_PATH)).freeze
+        end
       end
 
       def normalize_price_entry(price)

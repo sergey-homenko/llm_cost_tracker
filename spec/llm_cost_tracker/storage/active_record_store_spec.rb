@@ -488,12 +488,23 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(llm_api_call_model.tags_json_column?).to be false
   end
 
-  it "builds a JSONB containment query for JSON-backed tag columns" do
-    allow(llm_api_call_model).to receive(:tags_json_column?).and_return(true)
+  it "builds a JSONB containment query for PostgreSQL JSONB tag columns" do
+    allow(llm_api_call_model).to receive_messages(tags_json_column?: true, tags_jsonb_column?: true,
+                                                  tags_mysql_json_column?: false)
 
     sql = llm_api_call_model.by_tags(user_id: 42, feature: "chat").to_sql
 
     expect(sql).to include("tags @>")
+    expect(sql).to include('{"user_id":"42","feature":"chat"}')
+  end
+
+  it "builds a JSON_CONTAINS query for MySQL JSON tag columns" do
+    allow(llm_api_call_model).to receive_messages(tags_json_column?: true, tags_jsonb_column?: false,
+                                                  tags_mysql_json_column?: true)
+
+    sql = llm_api_call_model.by_tags(user_id: 42, feature: "chat").to_sql
+
+    expect(sql).to include("JSON_CONTAINS(tags,")
     expect(sql).to include('{"user_id":"42","feature":"chat"}')
   end
 

@@ -234,4 +234,19 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("1.25")
     expect(response.body).not_to include("claude-haiku-4-5")
   end
+
+  it "prefixes CSV values that look like spreadsheet formulas" do
+    create_call(
+      provider: "openai",
+      model: "=CMD('/bin/sh')",
+      total_cost: 0.1,
+      tags: { feature: "chat" },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+
+    response = get("/llm-costs/calls.csv")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("'=CMD('/bin/sh')")
+  end
 end

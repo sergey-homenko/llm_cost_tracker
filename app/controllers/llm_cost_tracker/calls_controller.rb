@@ -13,6 +13,7 @@ module LlmCostTracker
     }.freeze
 
     CSV_EXPORT_LIMIT = 10_000
+    CSV_FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"].freeze
 
     def index
       @sort = params[:sort].to_s
@@ -60,18 +61,25 @@ module LlmCostTracker
         relation.each do |call|
           row = [
             call.tracked_at&.utc&.iso8601,
-            call.provider,
-            call.model,
+            csv_safe(call.provider),
+            csv_safe(call.model),
             call.input_tokens,
             call.output_tokens,
             call.total_tokens,
             call.total_cost
           ]
           row << call.latency_ms if latency
-          row << call.parsed_tags.to_json
+          row << csv_safe(call.parsed_tags.to_json)
           csv << row
         end
       end
+    end
+
+    def csv_safe(value)
+      return value if value.nil?
+
+      string = value.to_s
+      CSV_FORMULA_PREFIXES.include?(string[0]) ? "'#{string}" : string
     end
   end
 end

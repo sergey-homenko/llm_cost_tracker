@@ -2,6 +2,18 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `LlmCostTracker::Retention.prune(older_than:)` and `llm_cost_tracker:prune` rake task.
+
+### Fixed
+
+- Thread-safe price memoization (regression from 0.1.3).
+- `by_tag` on MySQL JSON columns.
+- CSV export escapes formula-prefixed values.
+
 ## [0.2.0.alpha1, 0.2.0.alpha2] - 2026-04-20
 
 ### Breaking

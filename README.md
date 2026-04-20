@@ -201,6 +201,7 @@ rescue LlmCostTracker::BudgetExceededError => e
 ```bash
 bin/rails llm_cost_tracker:report
 DAYS=7 bin/rails llm_cost_tracker:report
+DAYS=90 bin/rails llm_cost_tracker:prune  # delete calls older than N days in batches
 ```
 
 ```ruby

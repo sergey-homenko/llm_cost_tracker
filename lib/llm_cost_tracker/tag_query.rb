@@ -9,7 +9,8 @@ module LlmCostTracker
         normalized_tags = normalize_tags(tags)
         return model.all if normalized_tags.empty?
 
-        return json_query(model, normalized_tags) if model.tags_json_column?
+        return postgres_json_query(model, normalized_tags) if model.tags_jsonb_column?
+        return mysql_json_query(model, normalized_tags) if model.tags_mysql_json_column?
 
         text_query(model, normalized_tags)
       end
@@ -20,8 +21,12 @@ module LlmCostTracker
 
       private
 
-      def json_query(model, tags)
+      def postgres_json_query(model, tags)
         model.where("tags @> ?::jsonb", tags.to_json)
+      end
+
+      def mysql_json_query(model, tags)
+        model.where("JSON_CONTAINS(tags, ?)", tags.to_json)
       end
 
       def text_query(model, tags)

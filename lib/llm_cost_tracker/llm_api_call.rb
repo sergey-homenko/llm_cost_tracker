@@ -100,7 +100,7 @@ module LlmCostTracker
 
       case connection.adapter_name
       when /postgres/i
-        json_column = tags_json_column? ? column : "(#{column})::jsonb"
+        json_column = tags_jsonb_column? ? column : "(#{column})::jsonb"
         "#{json_column}->>#{connection.quote(key)}"
       when /mysql/i
         "JSON_UNQUOTE(JSON_EXTRACT(#{column}, #{connection.quote(json_path(key))}))"

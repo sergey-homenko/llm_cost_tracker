@@ -1,9 +1,12 @@
 # frozen_string_literal: true
 
+require "monitor"
+
 module LlmCostTracker
   # Calculates costs from price entries expressed in USD per 1M tokens.
   module Pricing
     PRICES = PriceRegistry.builtin_prices
+    MUTEX = Monitor.new
 
     class << self
       # Estimate model cost from token counts.
@@ -59,9 +62,14 @@ module LlmCostTracker
         cached = @prices_cache
         return cached[:value] if cached && cached[:key] == cache_key
 
-        value = PRICES.merge(file_prices).merge(overrides).freeze
-        @prices_cache = { key: cache_key, value: value }.freeze
-        value
+        MUTEX.synchronize do
+          cached = @prices_cache
+          return cached[:value] if cached && cached[:key] == cache_key
+
+          value = PRICES.merge(file_prices).merge(overrides).freeze
+          @prices_cache = { key: cache_key, value: value }.freeze
+          value
+        end
       end
 
       private
@@ -116,9 +124,14 @@ module LlmCostTracker
         cached = @sorted_price_keys_cache
         return cached[:keys] if cached && cached[:table].equal?(table)
 
-        keys = table.keys.sort_by { |key| -key.length }
-        @sorted_price_keys_cache = { table: table, keys: keys }.freeze
-        keys
+        MUTEX.synchronize do
+          cached = @sorted_price_keys_cache
+          return cached[:keys] if cached && cached[:table].equal?(table)
+
+          keys = table.keys.sort_by { |key| -key.length }
+          @sorted_price_keys_cache = { table: table, keys: keys }.freeze
+          keys
+        end
       end
     end
   end
