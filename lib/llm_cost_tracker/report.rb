@@ -13,16 +13,16 @@ module LlmCostTracker
       # @param days [Integer] Number of trailing days to include.
       # @param now [Time] Report end time.
       # @return [String]
-      def generate(days: DEFAULT_DAYS, now: Time.now.utc)
-        ReportFormatter.new(data(days: days, now: now)).to_s
+      def generate(days: DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
+        ReportFormatter.new(data(days: days, now: now, tag_breakdowns: tag_breakdowns)).to_s
       rescue LoadError => e
         "Unable to build LLM cost report: ActiveRecord storage is unavailable (#{e.message})"
       rescue StandardError => e
         "Unable to build LLM cost report: #{e.class}: #{e.message}"
       end
 
-      def data(days: DEFAULT_DAYS, now: Time.now.utc)
-        ReportData.build(days: days, now: now)
+      def data(days: DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
+        ReportData.build(days: days, now: now, tag_breakdowns: tag_breakdowns)
       end
     end
   end

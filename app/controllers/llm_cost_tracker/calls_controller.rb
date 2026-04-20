@@ -12,8 +12,6 @@ module LlmCostTracker
       "unknown_pricing" => "tracked_at DESC, id DESC"
     }.freeze
 
-    # Upper bound on rows exported in a single CSV request. Protects memory on
-    # large tables; users should filter by date range to export beyond the cap.
     CSV_EXPORT_LIMIT = 10_000
 
     def index

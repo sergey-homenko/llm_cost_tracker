@@ -8,4 +8,5 @@
 /tmp/
 *.gem
 Gemfile.lock
+gemfiles/*.lock
 .DS_Store

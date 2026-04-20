@@ -22,14 +22,14 @@ module LlmCostTracker
   class ReportData
     DEFAULT_DAYS = 30
     TOP_LIMIT = 5
-    DEFAULT_TAG_BREAKDOWNS = %w[feature].freeze
 
-    def self.build(days: DEFAULT_DAYS, now: Time.now.utc)
+    def self.build(days: DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
       require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
 
       days = normalized_days(days)
       from = now - days.days
       scope = LlmApiCall.where(tracked_at: from..now)
+      tag_breakdowns ||= LlmCostTracker.configuration.report_tag_breakdowns || []
 
       new(
         days: days,
@@ -41,7 +41,7 @@ module LlmCostTracker
         unknown_pricing_count: scope.where(total_cost: nil).count,
         cost_by_provider: cost_by(scope, :provider),
         cost_by_model: cost_by(scope, :model),
-        cost_by_tags: cost_by_tags(scope, DEFAULT_TAG_BREAKDOWNS),
+        cost_by_tags: cost_by_tags(scope, tag_breakdowns),
         top_calls: top_calls(scope)
       )
     end

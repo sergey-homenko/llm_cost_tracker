@@ -45,10 +45,6 @@ module LlmCostTracker
       "#{format('%.1f', value.to_f)}%"
     end
 
-    # Returns { text:, css_class: } for a delta-vs-previous value.
-    # `mode: :cost` colors up-is-bad (red) / down-is-good (green). `mode: :neutral`
-    # keeps everything gray — useful for counts where up/down has no inherent polarity.
-    # Neutral placeholder when the prior period has no data (can't divide by zero).
     def delta_badge(delta_percent, mode: :cost)
       return { text: "vs. prior: n/a", css_class: "lct-delta lct-delta-neutral" } if delta_percent.nil?
 
@@ -92,7 +88,7 @@ module LlmCostTracker
     end
 
     def current_query(overrides = {})
-      request.query_parameters.merge(overrides.stringify_keys)
+      request.query_parameters.symbolize_keys.merge(overrides)
     end
 
     private

@@ -22,7 +22,8 @@ module LlmCostTracker
                   :monthly_budget,     # Float, in USD — nil means no limit
                   :log_level,          # :debug, :info, :warn
                   :prices_file,        # JSON/YAML file that overrides built-in prices
-                  :pricing_overrides   # Hash to override built-in pricing
+                  :pricing_overrides,  # Hash to override built-in pricing
+                  :report_tag_breakdowns # Array of tag keys to break down in the rake report
 
     attr_reader :budget_exceeded_behavior, # :notify, :raise, :block_requests
                 :storage_backend, # :log, :active_record, :custom
@@ -43,6 +44,7 @@ module LlmCostTracker
       @log_level          = :info
       @prices_file        = nil
       @pricing_overrides  = {}
+      @report_tag_breakdowns = []
       self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
     end
 

@@ -6,13 +6,7 @@ module LlmCostTracker
   module Dashboard
     TagKeyRow = Data.define(:key, :calls_count, :distinct_values)
 
-    # Discovers all tag keys present in the dataset and reports per-key coverage.
-    # Uses database-specific SQL (PostgreSQL, SQLite) with an in-Ruby fallback
-    # for MySQL where portable JSON key unnesting is not available.
     class TagKeyExplorer
-      # Upper bound on rows scanned by the Ruby fallback (MySQL / unknown adapters).
-      # Keeps memory predictable on large tables; users should filter by date
-      # range or tag to see beyond the cap.
       RUBY_FALLBACK_LIMIT = 50_000
 
       class << self
@@ -38,7 +32,8 @@ module LlmCostTracker
             distinct_values: row["distinct_values"].to_i
           )
         end
-      rescue StandardError
+      rescue StandardError => e
+        LlmCostTracker::Logging.warn("Tag key discovery failed (#{connection.adapter_name}): #{e.class}: #{e.message}")
         []
       end
 
@@ -77,7 +72,8 @@ module LlmCostTracker
           .map do |key, count|
             TagKeyRow.new(key: key.to_s, calls_count: count, distinct_values: values_per_key[key].size)
           end
-      rescue StandardError
+      rescue StandardError => e
+        LlmCostTracker::Logging.warn("Tag key Ruby fallback failed: #{e.class}: #{e.message}")
         []
       end
 

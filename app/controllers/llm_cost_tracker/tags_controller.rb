@@ -12,8 +12,10 @@ module LlmCostTracker
       scope = Dashboard::Filter.call(params: params)
       @rows = Dashboard::TagBreakdown.call(scope: scope, key: @tag_key)
       @total_calls = @rows.sum(&:calls)
-      @tagged_calls = @rows.reject { |r| r.value == "(untagged)" }.sum(&:calls)
-      @distinct_values = @rows.reject { |r| r.value == "(untagged)" }.size
+
+      tagged_rows = @rows.reject { |r| r.value == "(untagged)" }
+      @tagged_calls = tagged_rows.sum(&:calls)
+      @distinct_values = tagged_rows.size
     end
   end
 end
