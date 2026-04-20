@@ -1,3 +1,5 @@
+<% overview_filter_scope = current_query(from: @from_date.iso8601, to: @to_date.iso8601) %>
+
 <section class="lct-panel lct-toolbar">
   <form class="lct-filters" action="<%= root_path %>" method="get">
     <div class="lct-filter-row">
@@ -13,12 +15,16 @@
 
       <div class="lct-field lct-field-short">
         <label for="lct-overview-provider">Provider</label>
-        <input id="lct-overview-provider" type="text" name="provider" value="<%= params[:provider] %>" placeholder="openai">
+        <%= select_tag :provider,
+                       options_for_select([["All providers", ""]] + provider_filter_options(filter_params: overview_filter_scope).map { |value| [value, value] }, dashboard_filter_value(:provider)),
+                       id: "lct-overview-provider" %>
       </div>
 
       <div class="lct-field lct-field-medium">
         <label for="lct-overview-model">Model</label>
-        <input id="lct-overview-model" type="text" name="model" value="<%= params[:model] %>" placeholder="gpt-4o">
+        <%= select_tag :model,
+                       options_for_select([["All models", ""]] + model_filter_options(filter_params: overview_filter_scope).map { |value| [value, value] }, dashboard_filter_value(:model)),
+                       id: "lct-overview-model" %>
       </div>
 
       <div class="lct-filter-actions">
@@ -26,21 +32,6 @@
         <%= link_to "Reset", root_path, class: "lct-button lct-button-secondary" %>
       </div>
     </div>
-
-    <details class="lct-filter-advanced"<%= " open".html_safe if params[:tag_key].present? || params[:tag_value].present? %>>
-      <summary>Tag filters</summary>
-      <div class="lct-filter-row">
-        <div class="lct-field lct-field-short">
-          <label for="lct-overview-tag-key">Tag key</label>
-          <input id="lct-overview-tag-key" type="text" name="tag_key" value="<%= params[:tag_key] %>" placeholder="feature">
-        </div>
-
-        <div class="lct-field lct-field-wide">
-          <label for="lct-overview-tag-value">Tag value</label>
-          <input id="lct-overview-tag-value" type="text" name="tag_value" value="<%= params[:tag_value] %>" placeholder="chat">
-        </div>
-      </div>
-    </details>
   </form>
 
   <%= render "llm_cost_tracker/shared/active_filters", chips: dashboard_active_filters, clear_path: root_path %>
@@ -168,7 +159,7 @@
                 <td class="lct-num"><%= number(row.calls) %></td>
                 <td class="lct-num"><%= money(row.total_cost) %></td>
                 <td class="lct-num"><%= percent(row.share_percent) %></td>
-                <td><%= link_to "Calls", calls_path(current_query(provider: row.provider, page: nil, per: nil, format: nil)), class: "lct-button lct-button-secondary" %></td>
+                <td><%= link_to "Calls", calls_path(current_query(provider: row.provider, page: nil, per: nil, format: nil)), class: "lct-button lct-button-secondary lct-button-compact" %></td>
               </tr>
             <% end %>
           </tbody>
@@ -183,7 +174,7 @@
         <h2 class="lct-section-title">Top Models</h2>
         <p class="lct-section-copy">The heaviest contributors in the current slice.</p>
       </div>
-      <%= link_to "View all models", models_path(current_query), class: "lct-button lct-button-secondary" %>
+      <%= link_to "View all models", models_path(current_query), class: "lct-button lct-button-secondary lct-button-compact" %>
     </div>
     <table class="lct-table lct-table-compact">
       <thead>
@@ -204,7 +195,7 @@
             <td class="lct-num"><%= number(row.calls) %></td>
             <td class="lct-num"><%= money(row.total_cost) %></td>
             <td class="lct-num"><%= money(row.average_cost_per_call) %></td>
-            <td><%= link_to "Calls", calls_path(calls_query_for_model(provider: row.provider, model: row.model)), class: "lct-button lct-button-secondary" %></td>
+            <td><%= link_to "Calls", calls_path(calls_query_for_model(provider: row.provider, model: row.model)), class: "lct-button lct-button-secondary lct-button-compact" %></td>
           </tr>
         <% end %>
       </tbody>

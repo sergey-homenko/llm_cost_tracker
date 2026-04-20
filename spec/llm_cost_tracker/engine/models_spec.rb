@@ -26,6 +26,7 @@ RSpec.describe "LlmCostTracker::Engine models" do
                 input_tokens: 10, output_tokens: 5, total_cost: 0.5, latency_ms: 100)
 
     response = get("/llm-costs/models")
+    rows = response.body.scan(%r{<td><code class="lct-code">([^<]+)</code></td>}).flatten
 
     expect(response.status).to eq(200)
     expect(response.body).to include("gpt-4o")
@@ -39,7 +40,7 @@ RSpec.describe "LlmCostTracker::Engine models" do
     expect(response.body).to include("300")
     expect(response.body).to include("150")
     expect(response.body).to include("/llm-costs/calls?model=gpt-4o&amp;provider=openai")
-    expect(response.body.index("gpt-4o")).to be < response.body.index("claude-haiku-4-5")
+    expect(rows).to eq(["gpt-4o", "claude-haiku-4-5"])
   end
 
   it "applies provider and model filters" do

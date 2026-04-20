@@ -22,12 +22,16 @@
 
       <div class="lct-field lct-field-short">
         <label for="lct-tag-show-provider">Provider</label>
-        <input id="lct-tag-show-provider" type="text" name="provider" value="<%= params[:provider] %>" placeholder="openai">
+        <%= select_tag :provider,
+                       options_for_select([["All providers", ""]] + provider_filter_options.map { |value| [value, value] }, dashboard_filter_value(:provider)),
+                       id: "lct-tag-show-provider" %>
       </div>
 
       <div class="lct-field lct-field-medium">
         <label for="lct-tag-show-model">Model</label>
-        <input id="lct-tag-show-model" type="text" name="model" value="<%= params[:model] %>" placeholder="gpt-4o">
+        <%= select_tag :model,
+                       options_for_select([["All models", ""]] + model_filter_options.map { |value| [value, value] }, dashboard_filter_value(:model)),
+                       id: "lct-tag-show-model" %>
       </div>
 
       <div class="lct-filter-actions">
@@ -100,7 +104,7 @@
                 <% if row.value == "(untagged)" %>
                   <span class="lct-muted">n/a</span>
                 <% else %>
-                  <%= link_to "Calls", calls_path(calls_query_for_tag(key: @tag_key, value: row.value)), class: "lct-button lct-button-secondary" %>
+                  <%= link_to "Calls", calls_path(calls_query_for_tag(key: @tag_key, value: row.value)), class: "lct-button lct-button-secondary lct-button-compact" %>
                 <% end %>
               </td>
             </tr>

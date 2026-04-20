@@ -5,6 +5,7 @@ require "json"
 module LlmCostTracker
   module ApplicationHelper
     include DashboardFilterHelper
+    include DashboardFilterOptionsHelper
     include DashboardQueryHelper
     include ChartHelper
 

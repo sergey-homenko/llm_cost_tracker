@@ -496,39 +496,8 @@
         align-items: flex-end;
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
+        gap: 16px;
       }
-
-      .lct-filter-row-advanced {
-        border-top: 1px solid var(--lct-border);
-        padding-top: 12px;
-      }
-
-      .lct-filter-advanced {
-        border-top: 1px solid var(--lct-border);
-        padding-top: 4px;
-      }
-      .lct-filter-advanced > summary {
-        color: var(--lct-muted);
-        cursor: pointer;
-        font-size: var(--fs-sm);
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        list-style: none;
-        padding: 8px 0 4px;
-        user-select: none;
-      }
-      .lct-filter-advanced > summary::-webkit-details-marker { display: none; }
-      .lct-filter-advanced > summary::before {
-        content: "▸";
-        display: inline-block;
-        font-size: 10px;
-        margin-right: 6px;
-        transition: transform .15s ease;
-      }
-      .lct-filter-advanced[open] > summary::before { transform: rotate(90deg); }
-      .lct-filter-advanced[open] > summary { color: var(--lct-text); }
-      .lct-filter-advanced > .lct-filter-row { padding-top: 10px; }
 
       .lct-filter-actions {
         align-items: end;
@@ -547,11 +516,11 @@
       }
 
       .lct-field-date {
-        flex: 0 1 148px;
+        flex: 0 1 156px;
       }
 
       .lct-field-short {
-        flex: 0 1 168px;
+        flex: 0 1 180px;
       }
 
       .lct-field-medium {
@@ -633,6 +602,12 @@
       .lct-button-secondary {
         background: var(--lct-panel);
         color: var(--lct-text);
+      }
+
+      .lct-button-compact {
+        font-size: var(--fs-sm);
+        min-height: auto;
+        padding: 6px 10px;
       }
 
       .lct-toolbar-note {

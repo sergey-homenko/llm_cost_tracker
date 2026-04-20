@@ -139,15 +139,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(relation.count).to eq(1)
     end
 
-    it "merges tag_key and tag_value into the tag filter" do
-      create_call(model: "chat-model", tags: { feature: "chat" })
-      create_call(model: "summary-model", tags: { feature: "summarizer" })
-
-      relation = described_class.call(params: { tag_key: "feature", tag_value: "summarizer" })
-
-      expect(relation.pluck(:model)).to eq(["summary-model"])
-    end
-
     it "raises an invalid filter error for unsafe tag keys" do
       expect do
         described_class.call(params: { tag: { ";DROP TABLE" => "x" } })

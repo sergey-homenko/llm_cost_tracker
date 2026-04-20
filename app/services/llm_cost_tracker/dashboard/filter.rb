@@ -66,9 +66,6 @@ module LlmCostTracker
 
       def tag_params
         tags = hash_param(:tag)
-        tag_key = string_param(:tag_key)
-        tag_value = string_param(:tag_value)
-        tags = tags.merge(tag_key => tag_value) if tag_key && tag_value
 
         tags.each_with_object({}) do |(key, value), normalized|
           value = normalized_string(value)

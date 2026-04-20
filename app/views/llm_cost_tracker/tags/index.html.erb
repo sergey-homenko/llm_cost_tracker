@@ -17,12 +17,16 @@
 
       <div class="lct-field lct-field-short">
         <label for="lct-tags-provider">Provider</label>
-        <input id="lct-tags-provider" type="text" name="provider" value="<%= params[:provider] %>" placeholder="openai">
+        <%= select_tag :provider,
+                       options_for_select([["All providers", ""]] + provider_filter_options.map { |value| [value, value] }, dashboard_filter_value(:provider)),
+                       id: "lct-tags-provider" %>
       </div>
 
       <div class="lct-field lct-field-medium">
         <label for="lct-tags-model">Model</label>
-        <input id="lct-tags-model" type="text" name="model" value="<%= params[:model] %>" placeholder="gpt-4o">
+        <%= select_tag :model,
+                       options_for_select([["All models", ""]] + model_filter_options.map { |value| [value, value] }, dashboard_filter_value(:model)),
+                       id: "lct-tags-model" %>
       </div>
 
       <div class="lct-filter-actions">
@@ -66,7 +70,7 @@
               <td><code class="lct-code"><%= row.key %></code></td>
               <td class="lct-num"><%= number(row.calls_count) %></td>
               <td class="lct-num"><%= number(row.distinct_values) %></td>
-              <td><%= link_to "Breakdown", tag_path(row.key, current_query), class: "lct-button lct-button-secondary" %></td>
+              <td><%= link_to "Breakdown", tag_path(row.key, current_query), class: "lct-button lct-button-secondary lct-button-compact" %></td>
             </tr>
           <% end %>
         </tbody>

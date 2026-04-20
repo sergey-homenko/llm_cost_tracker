@@ -79,44 +79,22 @@ module LlmCostTracker
     end
 
     def tag_filter_chips
-      chips = []
-      seen = {}
       tag_params = normalized_query_tags(params[:tag])
-
-      chips.concat(stored_tag_chips(tag_params, seen))
-      manual_chip = manual_tag_chip(seen)
-      chips << manual_chip if manual_chip
-
-      chips
+      stored_tag_chips(tag_params)
     end
 
-    def stored_tag_chips(tag_params, seen)
+    def stored_tag_chips(tag_params)
       return [] unless tag_params.is_a?(Hash)
 
       tag_params.filter_map do |key, value|
         next if key.blank? || value.blank?
 
-        label = "#{key}=#{value}"
-        seen[label] = true
         {
           label: "Tag",
-          value: label,
+          value: "#{key}=#{value}",
           path: dashboard_filter_path(current_query(tag: tag_params.except(key.to_s).presence, page: nil))
         }
       end
-    end
-
-    def manual_tag_chip(seen)
-      return nil unless params[:tag_key].present? && params[:tag_value].present?
-
-      label = "#{params[:tag_key]}=#{params[:tag_value]}"
-      return nil if seen[label]
-
-      {
-        label: "Tag",
-        value: label,
-        path: dashboard_filter_path(current_query(tag_key: nil, tag_value: nil, page: nil))
-      }
     end
   end
 end

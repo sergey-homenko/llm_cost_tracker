@@ -20,12 +20,16 @@
 
       <div class="lct-field lct-field-short">
         <label for="lct-provider">Provider</label>
-        <input id="lct-provider" type="text" name="provider" value="<%= params[:provider] %>" placeholder="openai">
+        <%= select_tag :provider,
+                       options_for_select([["All providers", ""]] + provider_filter_options.map { |value| [value, value] }, dashboard_filter_value(:provider)),
+                       id: "lct-provider" %>
       </div>
 
       <div class="lct-field lct-field-medium">
         <label for="lct-model">Model</label>
-        <input id="lct-model" type="text" name="model" value="<%= params[:model] %>" placeholder="gpt-4o">
+        <%= select_tag :model,
+                       options_for_select([["All models", ""]] + model_filter_options.map { |value| [value, value] }, dashboard_filter_value(:model)),
+                       id: "lct-model" %>
       </div>
 
       <div class="lct-field lct-field-short">
@@ -47,26 +51,6 @@
         <%= link_to "Reset", calls_path, class: "lct-button lct-button-secondary" %>
       </div>
     </div>
-
-    <details class="lct-filter-advanced"<%= " open".html_safe if params[:tag_key].present? || params[:tag_value].present? %>>
-      <summary>Tag filters &amp; pagination</summary>
-      <div class="lct-filter-row">
-        <div class="lct-field lct-field-short">
-          <label for="lct-tag-key">Tag key</label>
-          <input id="lct-tag-key" type="text" name="tag_key" value="<%= params[:tag_key] %>" placeholder="feature">
-        </div>
-
-        <div class="lct-field lct-field-wide">
-          <label for="lct-tag-value">Tag value</label>
-          <input id="lct-tag-value" type="text" name="tag_value" value="<%= params[:tag_value] %>" placeholder="chat">
-        </div>
-
-        <div class="lct-field lct-field-compact">
-          <label for="lct-per">Per page</label>
-          <input id="lct-per" type="number" name="per" min="1" max="200" value="<%= @page.per %>">
-        </div>
-      </div>
-    </details>
   </form>
 
   <%= render "llm_cost_tracker/shared/active_filters", chips: dashboard_active_filters(include_sort: true, sort: @sort), clear_path: calls_path %>
@@ -121,7 +105,7 @@
                 <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
               <% end %>
               <td><%= render "llm_cost_tracker/shared/tag_chips", tags: tags %></td>
-              <td><%= link_to "Details", call_path(call), class: "lct-button lct-button-secondary" %></td>
+              <td><%= link_to "Details", call_path(call), class: "lct-button lct-button-secondary lct-button-compact" %></td>
             </tr>
           <% end %>
         </tbody>
@@ -136,10 +120,10 @@
       </span>
       <span>
         <% if @page.prev_page? %>
-          <%= link_to "Previous", calls_path(current_query(page: @page.page - 1, per: @page.per)), class: "lct-button lct-button-secondary" %>
+          <%= link_to "Previous", calls_path(current_query(page: @page.page - 1, per: @page.per)), class: "lct-button lct-button-secondary lct-button-compact" %>
         <% end %>
         <% if @page.next_page?(@calls_count) %>
-          <%= link_to "Next", calls_path(current_query(page: @page.page + 1, per: @page.per)), class: "lct-button lct-button-secondary" %>
+          <%= link_to "Next", calls_path(current_query(page: @page.page + 1, per: @page.per)), class: "lct-button lct-button-secondary lct-button-compact" %>
         <% end %>
       </span>
     </nav>

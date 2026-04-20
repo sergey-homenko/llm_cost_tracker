@@ -13,8 +13,6 @@ module LlmCostTracker
       query = current_query(page: nil, per: nil, format: nil)
       tags = normalized_query_tags(query[:tag])
       query[:tag] = tags.merge(key.to_s => value.to_s)
-      query.delete(:tag_key)
-      query.delete(:tag_value)
       query
     end
 

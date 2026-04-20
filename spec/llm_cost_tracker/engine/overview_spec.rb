@@ -93,6 +93,27 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.body).not_to include("claude-haiku-4-5")
   end
 
+  it "renders provider and model dropdown filters" do
+    create_call(provider: "openai", model: "gpt-4o", tracked_at: Time.now.utc)
+    create_call(provider: "anthropic", model: "claude-haiku-4-5", tracked_at: Time.now.utc)
+
+    response = get("/llm-costs?provider=openai")
+    provider_select = response.body
+                              .match(%r{<select name="provider" id="lct-overview-provider">(.*?)</select>}m)
+                              &.captures
+                              &.first
+    model_select = response.body
+                           .match(%r{<select name="model" id="lct-overview-model">(.*?)</select>}m)
+                           &.captures
+                           &.first
+
+    expect(response.status).to eq(200)
+    expect(provider_select).to include('<option selected="selected" value="openai">openai</option>')
+    expect(provider_select).to include('<option value="anthropic">anthropic</option>')
+    expect(model_select).to include('<option value="gpt-4o">gpt-4o</option>')
+    expect(model_select).not_to include("claude-haiku-4-5")
+  end
+
   it "renders invalid filter errors as bad requests" do
     response = get("/llm-costs?tag[%3BDROP]=x")
 

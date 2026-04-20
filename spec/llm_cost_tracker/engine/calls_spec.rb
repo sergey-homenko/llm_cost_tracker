@@ -61,31 +61,51 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     )
 
     response = get("/llm-costs/calls?provider=openai&tag%5Bfeature%5D=chat&per=1")
+    rows = response.body.scan(%r{<td><code class="lct-code">([^<]+)</code></td>}).flatten
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("new-chat")
-    expect(response.body).not_to include("old-chat")
-    expect(response.body).not_to include("claude-haiku-4-5")
+    expect(rows).to eq(["new-chat"])
     expect(response.body).to include("1-1 of 2")
     expect(response.body).to include("Next")
 
     second_page = get("/llm-costs/calls?provider=openai&tag%5Bfeature%5D=chat&per=1&page=2")
+    second_rows = second_page.body.scan(%r{<td><code class="lct-code">([^<]+)</code></td>}).flatten
 
     expect(second_page.status).to eq(200)
-    expect(second_page.body).to include("old-chat")
-    expect(second_page.body).not_to include("new-chat")
+    expect(second_rows).to eq(["old-chat"])
     expect(second_page.body).to include("Previous")
   end
 
-  it "supports tag key and value filter fields on the calls index" do
+  it "supports tag hash filters on the calls index" do
     create_call(model: "chat-model", tags: { feature: "chat" })
     create_call(model: "summary-model", tags: { feature: "summarizer" })
 
-    response = get("/llm-costs/calls?tag_key=feature&tag_value=summarizer")
+    response = get("/llm-costs/calls?tag%5Bfeature%5D=summarizer")
 
     expect(response.status).to eq(200)
     expect(response.body).to include("summary-model")
     expect(response.body).not_to include("chat-model")
+  end
+
+  it "renders provider and model dropdown filters" do
+    create_call(provider: "openai", model: "gpt-4o")
+    create_call(provider: "anthropic", model: "claude-haiku-4-5")
+
+    response = get("/llm-costs/calls?provider=openai")
+    provider_select = response.body
+                              .match(%r{<select name="provider" id="lct-provider">(.*?)</select>}m)
+                              &.captures
+                              &.first
+    model_select = response.body
+                           .match(%r{<select name="model" id="lct-model">(.*?)</select>}m)
+                           &.captures
+                           &.first
+
+    expect(response.status).to eq(200)
+    expect(provider_select).to include('<option selected="selected" value="openai">openai</option>')
+    expect(provider_select).to include('<option value="anthropic">anthropic</option>')
+    expect(model_select).to include('<option value="gpt-4o">gpt-4o</option>')
+    expect(model_select).not_to include("claude-haiku-4-5")
   end
 
   it "sorts calls by total cost with unknown pricing last" do
@@ -106,10 +126,10 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     create_call(model: "unknown-latency", latency_ms: nil, tracked_at: Time.utc(2026, 4, 18, 13, 0, 0))
 
     response = get("/llm-costs/calls?sort=slow")
+    rows = response.body.scan(%r{<td><code class="lct-code">([^<]+)</code></td>}).flatten
 
     expect(response.status).to eq(200)
-    expect(response.body.index("slow-call")).to be < response.body.index("fast-call")
-    expect(response.body.index("fast-call")).to be < response.body.index("unknown-latency")
+    expect(rows).to eq(%w[slow-call fast-call unknown-latency])
   end
 
   it "renders an empty calls state when filters match nothing" do
