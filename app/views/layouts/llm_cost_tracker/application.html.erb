@@ -6,19 +6,19 @@
     <title>LLM Cost Tracker</title>
     <style>
       :root {
-        --lct-bg: #f3f5f9;
+        --lct-bg: #f6f9fc;
         --lct-panel: #ffffff;
         --lct-surface: #eef2f7;
-        --lct-border: #d7dde7;
-        --lct-text: #111827;
-        --lct-muted: #5f6c80;
-        --lct-accent: #0f766e;
-        --lct-accent-soft: #dff7f3;
-        --lct-success: #047857;
-        --lct-success-soft: #d1fae5;
-        --lct-warning: #b45309;
-        --lct-warning-soft: #fef3c7;
-        --lct-danger: #b91c1c;
+        --lct-border: #e3e8ee;
+        --lct-text: #0a2540;
+        --lct-muted: #697386;
+        --lct-accent: #635bff;
+        --lct-accent-soft: #f0edff;
+        --lct-success: #0f766e;
+        --lct-success-soft: #ccfbf1;
+        --lct-warning: #d97706;
+        --lct-warning-soft: #ffedd5;
+        --lct-danger: #dc2626;
         --lct-danger-soft: #fee2e2;
         --lct-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 24px rgba(15, 23, 42, 0.04);
 
@@ -100,7 +100,7 @@
 
       .lct-nav a:hover {
         color: var(--lct-accent);
-        background: rgba(15, 118, 110, 0.08);
+        background: rgba(99, 91, 255, 0.06);
       }
 
       .lct-nav .lct-active {
@@ -280,7 +280,7 @@
       .lct-delta-badge .lct-delta-arrow { font-size: 9px; }
       .lct-delta-neutral { background: var(--lct-surface); color: var(--lct-muted); }
       .lct-delta-up      { background: var(--lct-danger-soft);  color: #991b1b; }
-      .lct-delta-down    { background: var(--lct-success-soft); color: #065f46; }
+      .lct-delta-down    { background: var(--lct-success-soft); color: #115e59; }
 
       .lct-table-wrap {
         overflow-x: auto;
@@ -366,7 +366,7 @@
         overflow: hidden;
       }
       .lct-budget-fill {
-        background: linear-gradient(90deg, #10b981, #0f766e);
+        background: linear-gradient(90deg, #635bff, #7a73ff);
         height: 100%;
         transition: width 0.2s ease;
       }
@@ -382,7 +382,7 @@
         height: 180px;
         width: 100%;
       }
-      .lct-chart-area { fill: rgba(15, 118, 110, 0.14); }
+      .lct-chart-area { fill: rgba(99, 91, 255, 0.12); }
       .lct-chart-line { fill: none; stroke: var(--lct-accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
       .lct-chart-dot  { fill: var(--lct-accent); }
       .lct-chart-grid { stroke: var(--lct-border); stroke-dasharray: 2 3; }
@@ -588,13 +588,13 @@
       }
 
       .lct-field input::placeholder {
-        color: #94a3b8;
+        color: #8792a2;
       }
 
       .lct-field input:focus,
       .lct-field select:focus {
         border-color: var(--lct-accent);
-        box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+        box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.14);
         outline: none;
       }
 
@@ -618,7 +618,7 @@
       }
 
       .lct-button:hover {
-        filter: brightness(0.98);
+        filter: brightness(0.96);
       }
 
       .lct-button:focus-visible,
@@ -626,13 +626,13 @@
       .lct-clear-link:focus-visible,
       .lct-nav a:focus-visible {
         border-radius: 6px;
-        box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
+        box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.18);
         outline: none;
       }
 
       .lct-button-secondary {
         background: var(--lct-panel);
-        color: var(--lct-accent);
+        color: var(--lct-text);
       }
 
       .lct-toolbar-note {
@@ -650,8 +650,8 @@
 
       .lct-chip {
         align-items: center;
-        background: var(--lct-surface);
-        border: 1px solid var(--lct-border);
+        background: var(--lct-accent-soft);
+        border: 1px solid rgba(99, 91, 255, 0.12);
         border-radius: 999px;
         color: var(--lct-text);
         display: inline-flex;
@@ -661,7 +661,7 @@
       }
 
       .lct-chip-remove {
-        color: var(--lct-muted);
+        color: rgba(10, 37, 64, 0.58);
         font-size: var(--fs-lg);
         line-height: 1;
         text-decoration: none;
@@ -673,7 +673,7 @@
       }
 
       .lct-chip-label {
-        color: var(--lct-muted);
+        color: var(--lct-accent);
         font-size: var(--fs-xs);
         font-weight: 700;
         letter-spacing: 0.04em;
@@ -681,7 +681,7 @@
       }
 
       .lct-clear-link {
-        color: var(--lct-muted);
+        color: var(--lct-accent);
         font-size: var(--fs-sm);
         font-weight: 600;
         margin-left: 4px;
