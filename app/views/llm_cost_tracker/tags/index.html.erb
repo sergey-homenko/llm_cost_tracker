@@ -5,17 +5,17 @@
 
   <form class="lct-filters" action="<%= tags_path %>" method="get">
     <div class="lct-filter-row lct-filter-row-basic">
-      <div class="lct-field lct-field-date">
+      <div class="lct-field">
         <label for="lct-tags-from">From</label>
         <input id="lct-tags-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
       </div>
 
-      <div class="lct-field lct-field-date">
+      <div class="lct-field">
         <label for="lct-tags-to">To</label>
         <input id="lct-tags-to" type="date" name="to" value="<%= params[:to] %>">
       </div>
 
-      <div class="lct-field lct-field-short">
+      <div class="lct-field">
         <label for="lct-tags-provider">Provider</label>
         <%= select_tag :provider,
                        options_for_select(provider_filter_options, params[:provider]),
@@ -23,7 +23,7 @@
                        id: "lct-tags-provider" %>
       </div>
 
-      <div class="lct-field lct-field-medium">
+      <div class="lct-field">
         <label for="lct-tags-model">Model</label>
         <%= select_tag :model,
                        options_for_select(model_filter_options, params[:model]),

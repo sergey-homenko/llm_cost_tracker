@@ -4,11 +4,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-20
+
 ### Added
 
 - `LlmCostTracker::Retention.prune(older_than:)` and `llm_cost_tracker:prune` rake task.
-- Overview adds budget projection, previous-period daily spend comparison, and spend anomaly alerts.
-- Call details add token and cost mix breakdowns.
+- Overview: budget projection, previous-period daily spend comparison, spend anomaly alerts.
+- Call details: token and cost mix breakdowns.
+- Dashboard CSS served as a fingerprinted, immutably-cached file via `LlmCostTracker::AssetsController`.
+- Filter dropdowns for Provider and Model, scoped to the current slice.
+- Pagination with per-page selector and Stripe-style page window.
+
+### Changed
+
+- Dashboard UI aligned to Tailwind UI Application UI: dot-indicator badges, value-first stat tiles, inset-shadow form inputs, white secondary buttons with `shadow-sm`.
+- CSS fully namespaced under `lct-*`; removed bare `body` selector to avoid host-app leakage.
 
 ### Fixed
 

@@ -5,17 +5,17 @@
 
   <form class="lct-filters" action="<%= models_path %>" method="get">
     <div class="lct-filter-row lct-filter-row-with-sort">
-      <div class="lct-field lct-field-date">
+      <div class="lct-field">
         <label for="lct-models-from">From</label>
         <input id="lct-models-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
       </div>
 
-      <div class="lct-field lct-field-date">
+      <div class="lct-field">
         <label for="lct-models-to">To</label>
         <input id="lct-models-to" type="date" name="to" value="<%= params[:to] %>">
       </div>
 
-      <div class="lct-field lct-field-short">
+      <div class="lct-field">
         <label for="lct-models-provider">Provider</label>
         <%= select_tag :provider,
                        options_for_select(provider_filter_options, params[:provider]),
@@ -23,7 +23,7 @@
                        id: "lct-models-provider" %>
       </div>
 
-      <div class="lct-field lct-field-medium">
+      <div class="lct-field">
         <label for="lct-models-model">Model</label>
         <%= select_tag :model,
                        options_for_select(model_filter_options, params[:model]),
@@ -31,7 +31,7 @@
                        id: "lct-models-model" %>
       </div>
 
-      <div class="lct-field lct-field-short">
+      <div class="lct-field">
         <label for="lct-models-sort">Sort</label>
         <select id="lct-models-sort" name="sort">
           <option value="cost" <%= "selected" if @sort.blank? || @sort == "cost" %>>Total spend</option>

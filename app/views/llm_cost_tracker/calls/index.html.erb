@@ -8,17 +8,17 @@
 
   <form class="lct-filters" action="<%= calls_path %>" method="get">
     <div class="lct-filter-row lct-filter-row-with-sort">
-      <div class="lct-field lct-field-date">
+      <div class="lct-field">
         <label for="lct-from">From</label>
         <input id="lct-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
       </div>
 
-      <div class="lct-field lct-field-date">
+      <div class="lct-field">
         <label for="lct-to">To</label>
         <input id="lct-to" type="date" name="to" value="<%= params[:to] %>">
       </div>
 
-      <div class="lct-field lct-field-short">
+      <div class="lct-field">
         <label for="lct-provider">Provider</label>
         <%= select_tag :provider,
                        options_for_select(provider_filter_options, params[:provider]),
@@ -26,7 +26,7 @@
                        id: "lct-provider" %>
       </div>
 
-      <div class="lct-field lct-field-medium">
+      <div class="lct-field">
         <label for="lct-model">Model</label>
         <%= select_tag :model,
                        options_for_select(model_filter_options, params[:model]),
@@ -34,7 +34,7 @@
                        id: "lct-model" %>
       </div>
 
-      <div class="lct-field lct-field-short">
+      <div class="lct-field">
         <label for="lct-sort">Sort</label>
         <select id="lct-sort" name="sort">
           <option value=""               <%= "selected" if @sort.blank? %>>Recent first</option>

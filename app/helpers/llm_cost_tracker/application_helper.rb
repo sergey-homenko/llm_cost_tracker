@@ -52,14 +52,13 @@ module LlmCostTracker
     end
 
     def delta_badge(delta_percent, mode: :cost)
-      return { text: "n/a vs. prior", arrow: "–", css_class: "lct-delta-badge lct-delta-neutral" } if delta_percent.nil?
+      return { text: "n/a vs. prior", css_class: "lct-delta-badge lct-delta-neutral" } if delta_percent.nil?
 
       rounded = delta_percent.round(1)
-      return { text: "0.0% vs. prior", arrow: "=", css_class: "lct-delta-badge lct-delta-neutral" } if rounded.zero?
+      return { text: "0.0% vs. prior", css_class: "lct-delta-badge lct-delta-neutral" } if rounded.zero?
 
       sign = rounded.positive? ? "+" : ""
       text = "#{sign}#{format('%.1f', rounded)}% vs. prior"
-      arrow = rounded.positive? ? "▲" : "▼"
       css_class = if mode == :neutral
                     "lct-delta-badge lct-delta-neutral"
                   elsif rounded.positive?
@@ -68,7 +67,7 @@ module LlmCostTracker
                     "lct-delta-badge lct-delta-down"
                   end
 
-      { text: text, arrow: arrow, css_class: css_class }
+      { text: text, css_class: css_class }
     end
 
     def bar_width(value, max)

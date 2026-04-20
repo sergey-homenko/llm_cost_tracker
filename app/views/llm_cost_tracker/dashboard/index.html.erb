@@ -3,17 +3,17 @@
 <section class="lct-panel lct-toolbar">
   <form class="lct-filters" action="<%= root_path %>" method="get">
     <div class="lct-filter-row lct-filter-row-basic">
-      <div class="lct-field lct-field-date">
+      <div class="lct-field">
         <label for="lct-overview-from">From</label>
         <input id="lct-overview-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] || @from_date.iso8601 %>">
       </div>
 
-      <div class="lct-field lct-field-date">
+      <div class="lct-field">
         <label for="lct-overview-to">To</label>
         <input id="lct-overview-to" type="date" name="to" value="<%= params[:to] || @to_date.iso8601 %>">
       </div>
 
-      <div class="lct-field lct-field-short">
+      <div class="lct-field">
         <label for="lct-overview-provider">Provider</label>
         <%= select_tag :provider,
                        options_for_select(provider_filter_options(filter_params: overview_filter_scope), params[:provider]),
@@ -21,7 +21,7 @@
                        id: "lct-overview-provider" %>
       </div>
 
-      <div class="lct-field lct-field-medium">
+      <div class="lct-field">
         <label for="lct-overview-model">Model</label>
         <%= select_tag :model,
                        options_for_select(model_filter_options(filter_params: overview_filter_scope), params[:model]),
@@ -88,7 +88,7 @@
         <p class="lct-stat-label">Total spend</p>
         <p class="lct-hero-value"><%= money(@stats.total_cost) %></p>
         <% badge = delta_badge(@stats.cost_delta_percent) %>
-        <span class="<%= badge[:css_class] %>"><span class="lct-delta-arrow" aria-hidden="true"><%= badge[:arrow] %></span><%= badge[:text] %></span>
+        <span class="<%= badge[:css_class] %>"><span class="lct-delta-dot" aria-hidden="true"></span><%= badge[:text] %></span>
       </div>
     </article>
 
@@ -98,7 +98,7 @@
           <p class="lct-stat-label">Calls</p>
           <p class="lct-stat-value"><%= number(@stats.total_calls) %></p>
           <% badge = delta_badge(@stats.calls_delta_percent, mode: :neutral) %>
-          <span class="<%= badge[:css_class] %>"><span class="lct-delta-arrow" aria-hidden="true"><%= badge[:arrow] %></span><%= badge[:text] %></span>
+          <span class="<%= badge[:css_class] %>"><span class="lct-delta-dot" aria-hidden="true"></span><%= badge[:text] %></span>
         </article>
 
         <article class="lct-stat">
