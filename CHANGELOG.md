@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0.alpha1] - 2026-04-20
+## [0.2.0.alpha1, 0.2.0.alpha2] - 2026-04-20
 
 ### Breaking
 
