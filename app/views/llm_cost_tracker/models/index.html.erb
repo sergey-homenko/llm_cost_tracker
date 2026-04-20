@@ -22,14 +22,16 @@
       <div class="lct-field lct-field-short">
         <label for="lct-models-provider">Provider</label>
         <%= select_tag :provider,
-                       options_for_select([["All providers", ""]] + provider_filter_options.map { |value| [value, value] }, dashboard_filter_value(:provider)),
+                       options_for_select(provider_filter_options, params[:provider]),
+                       include_blank: "All providers",
                        id: "lct-models-provider" %>
       </div>
 
       <div class="lct-field lct-field-medium">
         <label for="lct-models-model">Model</label>
         <%= select_tag :model,
-                       options_for_select([["All models", ""]] + model_filter_options.map { |value| [value, value] }, dashboard_filter_value(:model)),
+                       options_for_select(model_filter_options, params[:model]),
+                       include_blank: "All models",
                        id: "lct-models-model" %>
       </div>
 
@@ -52,7 +54,7 @@
     </div>
   </form>
 
-  <%= render "llm_cost_tracker/shared/active_filters", chips: dashboard_active_filters(include_sort: true, sort_label: models_sort_label(@sort)), clear_path: models_path %>
+  <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: models_path %>
 
   <p class="lct-summary-row">
     <span><strong><%= number(total_groups) %></strong> model groups</span>

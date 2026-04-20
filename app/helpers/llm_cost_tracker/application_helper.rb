@@ -8,6 +8,7 @@ module LlmCostTracker
     include DashboardFilterOptionsHelper
     include DashboardQueryHelper
     include ChartHelper
+    include PaginationHelper
 
     def coverage_percent(numerator, denominator)
       return 0.0 unless denominator.to_i.positive?

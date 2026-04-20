@@ -3,48 +3,32 @@
 module LlmCostTracker
   module DashboardFilterOptionsHelper
     def provider_filter_options(filter_params: params)
-      dashboard_filter_options(column: :provider, except: :provider, filter_params: filter_params)
+      filter_options_for(:provider, filter_params: filter_params)
     end
 
     def model_filter_options(filter_params: params)
-      dashboard_filter_options(column: :model, except: :model, filter_params: filter_params)
-    end
-
-    def dashboard_filter_value(key, fallback: nil, filter_params: params)
-      source = dashboard_filter_source(filter_params)
-      value = source[key.to_s] || source[key.to_sym]
-      value.present? ? value : fallback
+      filter_options_for(:model, filter_params: filter_params)
     end
 
     private
 
-    def dashboard_filter_options(column:, except:, filter_params:)
-      values = LlmCostTracker::Dashboard::Filter.call(
-        params: option_filter_params(except: except, filter_params: filter_params)
-      ).where.not(column => [nil, ""]).distinct.order(column).pluck(column)
-      current = dashboard_filter_value(except, filter_params: filter_params)
-      values.unshift(current) if current.present? && !values.include?(current)
+    def filter_options_for(column, filter_params:)
+      source = filter_source_hash(filter_params)
+      scope_params = source.stringify_keys.merge(
+        column.to_s => nil, "format" => nil, "page" => nil, "per" => nil, "sort" => nil
+      )
+      values = LlmCostTracker::Dashboard::Filter.call(params: scope_params)
+                                                .where.not(column => [nil, ""])
+                                                .distinct.order(column).pluck(column)
+      current = source[column.to_s].presence || source[column].presence
+      values.unshift(current) if current && !values.include?(current)
       values
     end
 
-    def option_filter_params(except:, filter_params:)
-      dashboard_filter_source(filter_params).stringify_keys.merge(
-        except.to_s => nil,
-        "format" => nil,
-        "page" => nil,
-        "per" => nil,
-        "sort" => nil
-      )
-    end
+    def filter_source_hash(filter_params)
+      return filter_params.to_unsafe_h if filter_params.respond_to?(:to_unsafe_h)
 
-    def dashboard_filter_source(filter_params)
-      source = filter_params
-      return source.to_unsafe_h if source.respond_to?(:to_unsafe_h)
-      return source.to_h if source.respond_to?(:to_h)
-
-      {}
-    rescue NoMethodError
-      {}
+      filter_params.to_h
     end
   end
 end
