@@ -15,12 +15,7 @@ module LlmCostTracker
 
     class TopModels
       DEFAULT_LIMIT = 5
-      SORT_OPTIONS = {
-        "cost"     => "total_cost_sum DESC",
-        "calls"    => "calls_count DESC",
-        "avg_cost" => "total_cost_sum / calls_count DESC",
-        "latency"  => "average_latency DESC NULLS LAST"
-      }.freeze
+      SORT_OPTIONS = %w[cost calls avg_cost latency].freeze
       DEFAULT_SORT = "cost"
 
       class << self
@@ -32,7 +27,7 @@ module LlmCostTracker
       def initialize(scope:, limit:, sort: DEFAULT_SORT)
         @scope = scope
         @limit = limit
-        @sort = SORT_OPTIONS.key?(sort.to_s) ? sort.to_s : DEFAULT_SORT
+        @sort = SORT_OPTIONS.include?(sort.to_s) ? sort.to_s : DEFAULT_SORT
       end
 
       def rows
@@ -58,12 +53,26 @@ module LlmCostTracker
       attr_reader :scope, :limit, :sort
 
       def grouped_rows
-        order_sql = sort == "latency" && !scope.klass.latency_column? ? "total_cost_sum DESC" : SORT_OPTIONS[sort]
         scope
           .group(:provider, :model)
           .select(selects)
           .order(Arel.sql(order_sql))
           .then { |r| limit ? r.limit(limit) : r }
+      end
+
+      def order_sql
+        case sort
+        when "calls"
+          "COUNT(*) DESC"
+        when "avg_cost"
+          "COALESCE(SUM(total_cost), 0) / NULLIF(COUNT(*), 0) DESC"
+        when "latency"
+          return "COALESCE(SUM(total_cost), 0) DESC" unless scope.klass.latency_column?
+
+          "CASE WHEN AVG(latency_ms) IS NULL THEN 1 ELSE 0 END ASC, AVG(latency_ms) DESC"
+        else
+          "COALESCE(SUM(total_cost), 0) DESC"
+        end
       end
 
       def selects

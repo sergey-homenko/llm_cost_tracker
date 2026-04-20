@@ -1,0 +1,60 @@
+# frozen_string_literal: true
+
+module LlmCostTracker
+  module DashboardQueryHelper
+    def dashboard_filter_path(query)
+      cleaned = clean_dashboard_query(query)
+      return request.path if cleaned.blank?
+
+      "#{request.path}?#{cleaned.to_query}"
+    end
+
+    def calls_query_for_tag(key:, value:)
+      query = current_query(page: nil, per: nil, format: nil)
+      tags = normalized_query_tags(query[:tag])
+      query[:tag] = tags.merge(key.to_s => value.to_s)
+      query.delete(:tag_key)
+      query.delete(:tag_value)
+      query
+    end
+
+    private
+
+    def normalized_query_tags(tags)
+      return {} unless tags
+
+      tags = tags.to_unsafe_h if tags.respond_to?(:to_unsafe_h)
+      tags = tags.to_h if tags.respond_to?(:to_h)
+      return {} unless tags.is_a?(Hash)
+
+      tags.transform_keys(&:to_s).transform_values(&:to_s)
+    end
+
+    def clean_dashboard_query(value)
+      return clean_dashboard_hash(value.to_unsafe_h) if value.is_a?(ActionController::Parameters)
+      return clean_dashboard_hash(value) if value.is_a?(Hash)
+      return clean_dashboard_array(value) if value.is_a?(Array)
+      return clean_dashboard_string(value) if value.is_a?(String)
+
+      value
+    end
+
+    def clean_dashboard_hash(hash)
+      hash.each_with_object({}) do |(key, nested), cleaned|
+        nested = clean_dashboard_query(nested)
+        next if nested.nil? || nested == {} || nested == []
+
+        cleaned[key] = nested
+      end
+    end
+
+    def clean_dashboard_array(array)
+      array.filter_map { |item| clean_dashboard_query(item) }.presence
+    end
+
+    def clean_dashboard_string(string)
+      stripped = string.strip
+      stripped.empty? ? nil : stripped
+    end
+  end
+end

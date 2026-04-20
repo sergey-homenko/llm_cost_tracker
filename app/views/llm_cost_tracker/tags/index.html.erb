@@ -1,19 +1,62 @@
+<section class="lct-panel lct-toolbar">
+  <div class="lct-toolbar-head">
+    <h2 class="lct-section-title">Tag keys</h2>
+  </div>
+
+  <form class="lct-filters" action="<%= tags_path %>" method="get">
+    <div class="lct-filter-row">
+      <div class="lct-field lct-field-date">
+        <label for="lct-tags-from">From</label>
+        <input id="lct-tags-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
+      </div>
+
+      <div class="lct-field lct-field-date">
+        <label for="lct-tags-to">To</label>
+        <input id="lct-tags-to" type="date" name="to" value="<%= params[:to] %>">
+      </div>
+
+      <div class="lct-field lct-field-short">
+        <label for="lct-tags-provider">Provider</label>
+        <input id="lct-tags-provider" type="text" name="provider" value="<%= params[:provider] %>" placeholder="openai">
+      </div>
+
+      <div class="lct-field lct-field-medium">
+        <label for="lct-tags-model">Model</label>
+        <input id="lct-tags-model" type="text" name="model" value="<%= params[:model] %>" placeholder="gpt-4o">
+      </div>
+
+      <div class="lct-filter-actions">
+        <button class="lct-button" type="submit">Apply</button>
+        <%= link_to "Reset", tags_path, class: "lct-button lct-button-secondary" %>
+      </div>
+    </div>
+  </form>
+
+  <%= render "llm_cost_tracker/shared/active_filters", chips: dashboard_active_filters, clear_path: tags_path %>
+
+  <p class="lct-summary-row">
+    <span><strong><%= number(@rows.size) %></strong> keys discovered</span>
+    <span>Filtered to the current provider, model, and date slice</span>
+  </p>
+</section>
+
 <% if @rows.empty? %>
   <section class="lct-panel lct-empty">
-    <h2 class="lct-section-title">No tag keys found</h2>
-    <p class="lct-muted">No calls with tags have been recorded yet. Tag keys will appear here once data is available.</p>
+    <h2 class="lct-state-title">No tag keys found</h2>
+    <p class="lct-state-copy">Tag keys will appear here once tagged calls exist in the current slice.</p>
+    <div class="lct-state-actions">
+      <%= link_to "Clear filters", tags_path, class: "lct-button lct-button-secondary" %>
+    </div>
   </section>
 <% else %>
   <section class="lct-panel">
-    <h2 class="lct-section-title">Tag Keys</h2>
-    <p class="lct-muted">All tag keys present in the dataset. Click a key to explore spend and call distribution by value.</p>
     <div class="lct-table-wrap">
-      <table class="lct-table">
+      <table class="lct-table lct-table-compact">
         <thead>
           <tr>
-            <th>Tag Key</th>
-            <th>Calls with this key</th>
-            <th>Distinct values</th>
+            <th>Tag key</th>
+            <th class="lct-num">Calls with this key</th>
+            <th class="lct-num">Distinct values</th>
             <th></th>
           </tr>
         </thead>
@@ -21,9 +64,9 @@
           <% @rows.each do |row| %>
             <tr>
               <td><code class="lct-code"><%= row.key %></code></td>
-              <td><%= number(row.calls_count) %></td>
-              <td><%= number(row.distinct_values) %></td>
-              <td><%= link_to "Breakdown →", tag_path(row.key), class: "lct-button lct-button-secondary" %></td>
+              <td class="lct-num"><%= number(row.calls_count) %></td>
+              <td class="lct-num"><%= number(row.distinct_values) %></td>
+              <td><%= link_to "Breakdown", tag_path(row.key, current_query), class: "lct-button lct-button-secondary" %></td>
             </tr>
           <% end %>
         </tbody>
@@ -31,4 +74,3 @@
     </div>
   </section>
 <% end %>
-

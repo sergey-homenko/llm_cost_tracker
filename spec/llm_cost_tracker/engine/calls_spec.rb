@@ -88,6 +88,30 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).not_to include("chat-model")
   end
 
+  it "sorts calls by total cost with unknown pricing last" do
+    create_call(model: "mid-cost", total_cost: 2.0, tracked_at: Time.utc(2026, 4, 18, 11, 0, 0))
+    create_call(model: "high-cost", total_cost: 5.0, tracked_at: Time.utc(2026, 4, 18, 12, 0, 0))
+    create_call(model: "unknown-cost", total_cost: nil, tracked_at: Time.utc(2026, 4, 18, 13, 0, 0))
+
+    response = get("/llm-costs/calls?sort=expensive")
+
+    expect(response.status).to eq(200)
+    expect(response.body.index("high-cost")).to be < response.body.index("mid-cost")
+    expect(response.body.index("mid-cost")).to be < response.body.index("unknown-cost")
+  end
+
+  it "sorts calls by latency with missing latency last" do
+    create_call(model: "fast-call", latency_ms: 100, tracked_at: Time.utc(2026, 4, 18, 11, 0, 0))
+    create_call(model: "slow-call", latency_ms: 500, tracked_at: Time.utc(2026, 4, 18, 12, 0, 0))
+    create_call(model: "unknown-latency", latency_ms: nil, tracked_at: Time.utc(2026, 4, 18, 13, 0, 0))
+
+    response = get("/llm-costs/calls?sort=slow")
+
+    expect(response.status).to eq(200)
+    expect(response.body.index("slow-call")).to be < response.body.index("fast-call")
+    expect(response.body.index("fast-call")).to be < response.body.index("unknown-latency")
+  end
+
   it "renders an empty calls state when filters match nothing" do
     create_call(model: "gpt-4o", tags: { feature: "chat" })
 
@@ -95,7 +119,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
 
     expect(response.status).to eq(200)
     expect(response.body).to include("No matching calls")
-    expect(response.body).not_to include("gpt-4o")
+    expect(response.body).not_to include("Matching calls")
   end
 
   it "renders invalid calls filters as bad requests" do
@@ -188,6 +212,16 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.status).to eq(200)
     expect(response.body).to include("llm_api_calls")
     expect(response.body).to include("rails generate llm_cost_tracker:install")
+  end
+
+  it "renders a database error when the database is unavailable" do
+    allow(LlmCostTracker::LlmApiCall).to receive(:table_exists?)
+      .and_raise(ActiveRecord::ConnectionNotEstablished, "database unavailable")
+
+    response = get("/llm-costs/calls")
+
+    expect(response.status).to eq(500)
+    expect(response.body).to include("Database unavailable")
   end
 
   it "renders a call details setup state when the ledger table is missing" do

@@ -1,0 +1,15 @@
+<%# locals: tags: Hash, limit: Integer (optional) %>
+<% entries = tag_chip_entries(tags, limit: local_assigns.fetch(:limit, 3)) %>
+<% if entries.empty? %>
+  <span class="lct-tag-empty">(untagged)</span>
+<% else %>
+  <span class="lct-tag-chips" title="<%= safe_json(tags) %>">
+    <% entries.each do |entry| %>
+      <% if entry[:more] %>
+        <span class="lct-tag-chip lct-tag-chip-more">+<%= entry[:more] %></span>
+      <% else %>
+        <span class="lct-tag-chip"><%= entry[:key] %>=<%= entry[:value] %></span>
+      <% end %>
+    <% end %>
+  </span>
+<% end %>

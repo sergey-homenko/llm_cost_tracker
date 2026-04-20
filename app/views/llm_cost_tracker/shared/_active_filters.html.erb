@@ -1,0 +1,16 @@
+<% if chips.any? %>
+  <div class="lct-chip-row" aria-label="Active filters">
+    <% chips.each do |chip| %>
+      <span class="lct-chip">
+        <span class="lct-chip-label"><%= chip[:label] %></span>
+        <span><%= chip[:value] %></span>
+        <% if chip[:path] %>
+          <%= link_to "×", chip[:path], class: "lct-chip-remove", aria: { label: "Remove #{chip[:label]} #{chip[:value]}" } %>
+        <% end %>
+      </span>
+    <% end %>
+    <% if local_assigns[:clear_path] %>
+      <%= link_to "Clear all", clear_path, class: "lct-clear-link" %>
+    <% end %>
+  </div>
+<% end %>

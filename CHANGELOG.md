@@ -13,6 +13,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Thread-safe price memoization (regression from 0.1.3).
 - `by_tag` on MySQL JSON columns.
 - CSV export escapes formula-prefixed values.
+- Portable dashboard sorting across adapters.
+- Dashboard shows database errors instead of install/setup guidance when the DB is unavailable.
+- Tag key explorer uses SQL discovery on MySQL 8.0+.
 
 ## [0.2.0.alpha1, 0.2.0.alpha2] - 2026-04-20
 
@@ -27,7 +30,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Added
 
 - `LlmApiCall.group_by_period(:day/:month)` — SQL-side period grouping.
-- Opt-in `LlmCostTracker::Engine` dashboard (Rails 7.1+): overview with delta-vs-previous-period, provider rollup, models, filterable call list with CSV export and outlier sort modes, call details, tag key explorer, per-key tag breakdown, data quality. PostgreSQL/SQLite use adapter-specific SQL; MySQL falls back to an in-Ruby scan capped at 50k rows. Core middleware still works without Rails.
+- Opt-in `LlmCostTracker::Engine` dashboard (Rails 7.1+): overview with delta-vs-previous-period, provider rollup, models, filterable call list with CSV export and outlier sort modes, call details, tag key explorer, per-key tag breakdown, data quality. PostgreSQL/SQLite use adapter-specific SQL; MySQL 8.0+ uses JSON_TABLE-based tag discovery. Core middleware still works without Rails.
 
 ## [0.1.4] - 2026-04-18
 

@@ -13,7 +13,7 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     response = get("/llm-costs")
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("LLM Costs")
+    expect(response.body).to include("LLM Cost Tracker")
     expect(response.body).to include("No LLM calls yet")
   end
 
@@ -54,6 +54,8 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.body).to include("Top Models")
     expect(response.body).to include("By Provider")
     expect(response.body).to include("gpt-4o")
+    expect(response.body).to include("/llm-costs/calls?model=gpt-4o&amp;provider=openai")
+    expect(response.body).to include("/llm-costs/calls?provider=anthropic")
     expect(response.body).not_to include("Cost By Feature")
   end
 

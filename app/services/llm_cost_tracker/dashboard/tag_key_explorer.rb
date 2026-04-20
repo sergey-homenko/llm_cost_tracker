@@ -1,14 +1,10 @@
 # frozen_string_literal: true
 
-require "json"
-
 module LlmCostTracker
   module Dashboard
     TagKeyRow = Data.define(:key, :calls_count, :distinct_values)
 
     class TagKeyExplorer
-      RUBY_FALLBACK_LIMIT = 50_000
-
       class << self
         def call(scope: LlmCostTracker::LlmApiCall.all)
           new(scope: scope).rows
@@ -21,10 +17,7 @@ module LlmCostTracker
       end
 
       def rows
-        sql = build_sql
-        return ruby_fallback_rows if sql.nil?
-
-        results = @connection.select_all(sql).to_a
+        results = @connection.select_all(build_sql).to_a
         results.map do |row|
           TagKeyRow.new(
             key: row["key"].to_s,
@@ -48,48 +41,28 @@ module LlmCostTracker
       def build_sql
         case connection.adapter_name
         when /postgres/i then postgresql_sql
-        when /mysql/i    then nil
+        when /mysql/i    then mysql_sql
         else                  sqlite_sql
         end
       end
 
-      def ruby_fallback_rows
-        calls_counter = Hash.new(0)
-        values_per_key = Hash.new { |h, k| h[k] = Set.new }
-
-        scope.limit(RUBY_FALLBACK_LIMIT).pluck(:tags).each do |raw|
-          tags = parse_tags(raw)
-          next if tags.empty?
-
-          tags.each do |key, value|
-            calls_counter[key] += 1
-            values_per_key[key] << value.to_s
-          end
-        end
-
-        calls_counter
-          .sort_by { |_, count| -count }
-          .map do |key, count|
-            TagKeyRow.new(key: key.to_s, calls_count: count, distinct_values: values_per_key[key].size)
-          end
-      rescue StandardError => e
-        LlmCostTracker::Logging.warn("Tag key Ruby fallback failed: #{e.class}: #{e.message}")
-        []
-      end
-
-      def parse_tags(raw)
-        case raw
-        when Hash then raw
-        when String
-          return {} if raw.strip.empty?
-
-          parsed = JSON.parse(raw)
-          parsed.is_a?(Hash) ? parsed : {}
-        else
-          {}
-        end
-      rescue JSON::ParserError
-        {}
+      def mysql_sql
+        <<~SQL.squish
+          SELECT jt.key AS key,
+                 COUNT(*) AS calls_count,
+                 COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(sub.tags, CONCAT('$.', JSON_QUOTE(jt.key))))) AS distinct_values
+          FROM (#{subquery}) AS sub
+          JOIN JSON_TABLE(
+            COALESCE(JSON_KEYS(sub.tags), JSON_ARRAY()),
+            '$[*]' COLUMNS(
+              key VARCHAR(255) PATH '$'
+            )
+          ) AS jt
+          WHERE sub.tags IS NOT NULL
+            AND sub.tags != ''
+          GROUP BY jt.key
+          ORDER BY calls_count DESC
+        SQL
       end
 
       def postgresql_sql

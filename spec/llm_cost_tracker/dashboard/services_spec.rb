@@ -325,6 +325,16 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(rows.first.model).to eq("pricey")
     end
 
+    it "sorts by average latency with nils last" do
+      create_call(model: "fast", total_cost: 1.0, latency_ms: 100)
+      create_call(model: "slow", total_cost: 1.0, latency_ms: 300)
+      create_call(model: "unknown", total_cost: 1.0, latency_ms: nil)
+
+      rows = described_class.call(sort: "latency")
+
+      expect(rows.map(&:model)).to eq(%w[slow fast unknown])
+    end
+
     it "falls back to cost sort when sort: latency but column absent" do
       ActiveRecord::Base.connection.disconnect!
       reset_database!(latency: false)
@@ -423,20 +433,29 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(rows.first.key).to eq("common")
     end
 
-    it "uses a Ruby fallback when the SQL path is not available (MySQL)" do
+    it "uses JSON_TABLE-based discovery on MySQL" do
       create_call(tags: { env: "prod", service: "api" })
       create_call(tags: { env: "staging" })
-      create_call(tags: {})
 
-      allow(LlmCostTracker::LlmApiCall.connection).to receive(:adapter_name).and_return("Mysql2")
+      connection = LlmCostTracker::LlmApiCall.connection
+      captured_sql = nil
+
+      allow(connection).to receive(:adapter_name).and_return("Mysql2")
+      allow(connection).to receive(:select_all) do |sql|
+        captured_sql = sql
+        ActiveRecord::Result.new(
+          %w[key calls_count distinct_values],
+          [["env", 2, 2], ["service", 1, 1]]
+        )
+      end
 
       rows = described_class.call
-      keys = rows.map(&:key)
 
-      expect(keys).to include("env", "service")
-      env_row = rows.find { |r| r.key == "env" }
-      expect(env_row.calls_count).to eq(2)
-      expect(env_row.distinct_values).to eq(2)
+      expect(captured_sql).to include("JSON_TABLE")
+      expect(captured_sql).to include("JSON_KEYS")
+      expect(rows.map(&:key)).to eq(%w[env service])
+      expect(rows.first.calls_count).to eq(2)
+      expect(rows.first.distinct_values).to eq(2)
     end
   end
 end

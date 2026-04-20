@@ -38,6 +38,7 @@ RSpec.describe "LlmCostTracker::Engine models" do
     expect(response.body).to include("250ms")
     expect(response.body).to include("300")
     expect(response.body).to include("150")
+    expect(response.body).to include("/llm-costs/calls?model=gpt-4o&amp;provider=openai")
     expect(response.body.index("gpt-4o")).to be < response.body.index("claude-haiku-4-5")
   end
 

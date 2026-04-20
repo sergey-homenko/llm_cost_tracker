@@ -1,0 +1,11 @@
+<%# locals: series: Array[{ label:, cost: }] %>
+<% if series.blank? %>
+  <div class="lct-chart-empty">No spend in this range.</div>
+<% else %>
+  <%= spend_chart_svg(series) %>
+  <div class="lct-chart-legend">
+    <span><%= series.first[:label] %></span>
+    <span>Peak <%= money(series.map { |p| p[:cost] }.max) %></span>
+    <span><%= series.last[:label] %></span>
+  </div>
+<% end %>

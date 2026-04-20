@@ -1,91 +1,119 @@
-<section class="lct-panel">
-  <h2 class="lct-section-title">Models</h2>
+<% total_groups = @rows.size %>
+<% total_spend = @rows.sum(&:total_cost) %>
+<% provider_count = @rows.map(&:provider).uniq.size %>
+
+<section class="lct-panel lct-toolbar">
+  <div class="lct-toolbar-head">
+    <h2 class="lct-section-title">Models</h2>
+  </div>
+
   <form class="lct-filters" action="<%= models_path %>" method="get">
-    <div class="lct-field">
-      <label for="lct-from">From</label>
-      <input id="lct-from" type="date" name="from" value="<%= params[:from] %>">
+    <div class="lct-filter-row">
+      <div class="lct-field lct-field-date">
+        <label for="lct-models-from">From</label>
+        <input id="lct-models-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
+      </div>
+
+      <div class="lct-field lct-field-date">
+        <label for="lct-models-to">To</label>
+        <input id="lct-models-to" type="date" name="to" value="<%= params[:to] %>">
+      </div>
+
+      <div class="lct-field lct-field-short">
+        <label for="lct-models-provider">Provider</label>
+        <input id="lct-models-provider" type="text" name="provider" value="<%= params[:provider] %>" placeholder="openai">
+      </div>
+
+      <div class="lct-field lct-field-medium">
+        <label for="lct-models-model">Model</label>
+        <input id="lct-models-model" type="text" name="model" value="<%= params[:model] %>" placeholder="gpt-4o">
+      </div>
+
+      <div class="lct-field lct-field-short">
+        <label for="lct-models-sort">Sort</label>
+        <select id="lct-models-sort" name="sort">
+          <option value="cost" <%= "selected" if @sort.blank? || @sort == "cost" %>>Total spend</option>
+          <option value="calls" <%= "selected" if @sort == "calls" %>>Call volume</option>
+          <option value="avg_cost" <%= "selected" if @sort == "avg_cost" %>>Avg cost / call</option>
+          <% if @latency_available %>
+            <option value="latency" <%= "selected" if @sort == "latency" %>>Avg latency</option>
+          <% end %>
+        </select>
+      </div>
+
+      <div class="lct-filter-actions">
+        <button class="lct-button" type="submit">Apply</button>
+        <%= link_to "Reset", models_path, class: "lct-button lct-button-secondary" %>
+      </div>
     </div>
 
-    <div class="lct-field">
-      <label for="lct-to">To</label>
-      <input id="lct-to" type="date" name="to" value="<%= params[:to] %>">
-    </div>
+    <details class="lct-filter-advanced"<%= " open".html_safe if params[:tag_key].present? || params[:tag_value].present? %>>
+      <summary>Tag filters</summary>
+      <div class="lct-filter-row">
+        <div class="lct-field lct-field-short">
+          <label for="lct-models-tag-key">Tag key</label>
+          <input id="lct-models-tag-key" type="text" name="tag_key" value="<%= params[:tag_key] %>" placeholder="feature">
+        </div>
 
-    <div class="lct-field">
-      <label for="lct-provider">Provider</label>
-      <input id="lct-provider" type="text" name="provider" value="<%= params[:provider] %>">
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-model">Model</label>
-      <input id="lct-model" type="text" name="model" value="<%= params[:model] %>">
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-tag-key">Tag key</label>
-      <input id="lct-tag-key" type="text" name="tag_key" value="<%= params[:tag_key] %>">
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-tag-value">Tag value</label>
-      <input id="lct-tag-value" type="text" name="tag_value" value="<%= params[:tag_value] %>">
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-sort">Sort by</label>
-      <select id="lct-sort" name="sort">
-        <option value="cost"     <%= "selected" if @sort.blank? || @sort == "cost" %>>Total spend</option>
-        <option value="calls"    <%= "selected" if @sort == "calls" %>>Call volume</option>
-        <option value="avg_cost" <%= "selected" if @sort == "avg_cost" %>>Avg cost / call</option>
-        <% if @latency_available %>
-          <option value="latency" <%= "selected" if @sort == "latency" %>>Avg latency</option>
-        <% end %>
-      </select>
-    </div>
-
-    <div class="lct-button-row">
-      <button class="lct-button" type="submit">Apply</button>
-      <%= link_to "Reset", models_path, class: "lct-button lct-button-secondary" %>
-    </div>
+        <div class="lct-field lct-field-wide">
+          <label for="lct-models-tag-value">Tag value</label>
+          <input id="lct-models-tag-value" type="text" name="tag_value" value="<%= params[:tag_value] %>" placeholder="chat">
+        </div>
+      </div>
+    </details>
   </form>
+
+  <%= render "llm_cost_tracker/shared/active_filters", chips: dashboard_active_filters(include_sort: true, sort_label: models_sort_label(@sort)), clear_path: models_path %>
+
+  <p class="lct-summary-row">
+    <span><strong><%= number(total_groups) %></strong> model groups</span>
+    <span>Across <strong><%= number(provider_count) %></strong> providers</span>
+    <span>Sorted by <strong><%= models_sort_label(@sort) %></strong></span>
+    <span>Total spend <strong><%= money(total_spend) %></strong></span>
+  </p>
 </section>
 
 <% if @rows.empty? %>
   <section class="lct-panel lct-empty">
-    <h2 class="lct-section-title">No models</h2>
-    <p class="lct-muted">Tracked models will appear here when they match the current filters.</p>
+    <h2 class="lct-state-title">No models in this slice</h2>
+    <p class="lct-state-copy">Tracked models will appear here once calls match the current provider, model, tag, and date filters.</p>
+    <div class="lct-state-actions">
+      <%= link_to "Clear filters", models_path, class: "lct-button lct-button-secondary" %>
+    </div>
   </section>
 <% else %>
   <section class="lct-panel">
     <div class="lct-table-wrap">
-      <table class="lct-table">
+      <table class="lct-table lct-table-compact">
         <thead>
           <tr>
             <th>Provider</th>
             <th>Model</th>
-            <th>Calls</th>
-            <th>Input</th>
-            <th>Output</th>
-            <th>Total cost</th>
-            <th>Avg cost / call</th>
+            <th class="lct-num">Calls</th>
+            <th class="lct-num">Input</th>
+            <th class="lct-num">Output</th>
+            <th class="lct-num">Total cost</th>
+            <th class="lct-num">Avg cost / call</th>
             <% if @latency_available %>
-              <th>Avg latency</th>
+              <th class="lct-num">Avg latency</th>
             <% end %>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           <% @rows.each do |row| %>
             <tr>
               <td><%= row.provider %></td>
-              <td><%= row.model %></td>
-              <td><%= number(row.calls) %></td>
-              <td><%= format_tokens(row.input_tokens) %></td>
-              <td><%= format_tokens(row.output_tokens) %></td>
-              <td><%= money(row.total_cost) %></td>
-              <td><%= money(row.average_cost_per_call) %></td>
+              <td><code class="lct-code"><%= row.model %></code></td>
+              <td class="lct-num"><%= number(row.calls) %></td>
+              <td class="lct-num"><%= format_tokens(row.input_tokens) %></td>
+              <td class="lct-num"><%= format_tokens(row.output_tokens) %></td>
+              <td class="lct-num"><%= money(row.total_cost) %></td>
+              <td class="lct-num"><%= money(row.average_cost_per_call) %></td>
               <% if @latency_available %>
-                <td><%= row.average_latency_ms ? "#{number(row.average_latency_ms.round)}ms" : "n/a" %></td>
+                <td class="lct-num<%= ' lct-num-muted' if row.average_latency_ms.nil? %>"><%= row.average_latency_ms ? "#{number(row.average_latency_ms.round)}ms" : "n/a" %></td>
               <% end %>
+              <td><%= link_to "Calls", calls_path(calls_query_for_model(provider: row.provider, model: row.model)), class: "lct-button lct-button-secondary" %></td>
             </tr>
           <% end %>
         </tbody>

@@ -32,6 +32,7 @@ RSpec.describe "LlmCostTracker::Engine tags" do
     expect(response.body).to include("$5.00")
     expect(response.body).to include("$2.50")
     expect(response.body).to include("$1.00")
+    expect(response.body).to include("/llm-costs/calls?tag%5Bfeature%5D=chat")
     expect(response.body).not_to include("other_key")
     expect(response.body.index("chat")).to be < response.body.index("summarizer")
   end

@@ -23,9 +23,9 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
     response = get("/llm-costs/data_quality")
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("Unknown Pricing by Model")
+    expect(response.body).to include("Unknown pricing by model")
     expect(response.body).to include("unknown-model")
-    expect(response.body).to include("Coverage Summary")
+    expect(response.body).to include("Coverage summary")
     expect(response.body).to include("Cost (pricing known)")
     expect(response.body).to include("Tags (at least one tag)")
     expect(response.body).to include("Data Quality")

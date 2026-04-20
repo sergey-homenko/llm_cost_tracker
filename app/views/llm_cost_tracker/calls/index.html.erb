@@ -1,84 +1,106 @@
-<section class="lct-panel">
-  <h2 class="lct-section-title">Calls</h2>
-  <form class="lct-filters" action="<%= calls_path %>" method="get">
-    <div class="lct-field">
-      <label for="lct-from">From</label>
-      <input id="lct-from" type="date" name="from" value="<%= params[:from] %>">
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-to">To</label>
-      <input id="lct-to" type="date" name="to" value="<%= params[:to] %>">
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-provider">Provider</label>
-      <input id="lct-provider" type="text" name="provider" value="<%= params[:provider] %>">
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-model">Model</label>
-      <input id="lct-model" type="text" name="model" value="<%= params[:model] %>">
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-tag-key">Tag key</label>
-      <input id="lct-tag-key" type="text" name="tag_key" value="<%= params[:tag_key] %>">
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-tag-value">Tag value</label>
-      <input id="lct-tag-value" type="text" name="tag_value" value="<%= params[:tag_value] %>">
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-sort">Sort / filter</label>
-      <select id="lct-sort" name="sort">
-        <option value=""               <%= "selected" if @sort.blank? %>>Recent first</option>
-        <option value="expensive"      <%= "selected" if @sort == "expensive" %>>Most expensive</option>
-        <option value="input"          <%= "selected" if @sort == "input" %>>Largest input</option>
-        <option value="output"         <%= "selected" if @sort == "output" %>>Largest output</option>
-        <% if @latency_available %>
-          <option value="slow" <%= "selected" if @sort == "slow" %>>Slowest</option>
-        <% end %>
-        <option value="unknown_pricing" <%= "selected" if @sort == "unknown_pricing" %>>Unknown pricing only</option>
-      </select>
-    </div>
-
-    <div class="lct-field">
-      <label for="lct-per">Per page</label>
-      <input id="lct-per" type="number" name="per" min="1" max="200" value="<%= @page.per %>">
-    </div>
-
-    <div class="lct-button-row">
-      <button class="lct-button" type="submit">Apply</button>
-      <%= link_to "Reset", calls_path, class: "lct-button lct-button-secondary" %>
+<section class="lct-panel lct-toolbar">
+  <div class="lct-toolbar-head">
+    <h2 class="lct-section-title">Calls</h2>
+    <div class="lct-toolbar-actions">
       <%= link_to "Export CSV", calls_path(current_query(format: :csv)), class: "lct-button lct-button-secondary" %>
     </div>
+  </div>
+
+  <form class="lct-filters" action="<%= calls_path %>" method="get">
+    <div class="lct-filter-row">
+      <div class="lct-field lct-field-date">
+        <label for="lct-from">From</label>
+        <input id="lct-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
+      </div>
+
+      <div class="lct-field lct-field-date">
+        <label for="lct-to">To</label>
+        <input id="lct-to" type="date" name="to" value="<%= params[:to] %>">
+      </div>
+
+      <div class="lct-field lct-field-short">
+        <label for="lct-provider">Provider</label>
+        <input id="lct-provider" type="text" name="provider" value="<%= params[:provider] %>" placeholder="openai">
+      </div>
+
+      <div class="lct-field lct-field-medium">
+        <label for="lct-model">Model</label>
+        <input id="lct-model" type="text" name="model" value="<%= params[:model] %>" placeholder="gpt-4o">
+      </div>
+
+      <div class="lct-field lct-field-short">
+        <label for="lct-sort">Sort</label>
+        <select id="lct-sort" name="sort">
+          <option value=""               <%= "selected" if @sort.blank? %>>Recent first</option>
+          <option value="expensive"      <%= "selected" if @sort == "expensive" %>>Most expensive</option>
+          <option value="input"          <%= "selected" if @sort == "input" %>>Largest input</option>
+          <option value="output"         <%= "selected" if @sort == "output" %>>Largest output</option>
+          <% if @latency_available %>
+            <option value="slow" <%= "selected" if @sort == "slow" %>>Slowest</option>
+          <% end %>
+          <option value="unknown_pricing" <%= "selected" if @sort == "unknown_pricing" %>>Unknown pricing only</option>
+        </select>
+      </div>
+
+      <div class="lct-filter-actions">
+        <button class="lct-button" type="submit">Apply</button>
+        <%= link_to "Reset", calls_path, class: "lct-button lct-button-secondary" %>
+      </div>
+    </div>
+
+    <details class="lct-filter-advanced"<%= " open".html_safe if params[:tag_key].present? || params[:tag_value].present? %>>
+      <summary>Tag filters &amp; pagination</summary>
+      <div class="lct-filter-row">
+        <div class="lct-field lct-field-short">
+          <label for="lct-tag-key">Tag key</label>
+          <input id="lct-tag-key" type="text" name="tag_key" value="<%= params[:tag_key] %>" placeholder="feature">
+        </div>
+
+        <div class="lct-field lct-field-wide">
+          <label for="lct-tag-value">Tag value</label>
+          <input id="lct-tag-value" type="text" name="tag_value" value="<%= params[:tag_value] %>" placeholder="chat">
+        </div>
+
+        <div class="lct-field lct-field-compact">
+          <label for="lct-per">Per page</label>
+          <input id="lct-per" type="number" name="per" min="1" max="200" value="<%= @page.per %>">
+        </div>
+      </div>
+    </details>
   </form>
-  <p class="lct-muted">CSV export is capped at <%= number(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT) %> rows per request — narrow the date range to export larger slices.</p>
+
+  <%= render "llm_cost_tracker/shared/active_filters", chips: dashboard_active_filters(include_sort: true, sort: @sort), clear_path: calls_path %>
+
+  <p class="lct-summary-row">
+    <span><strong><%= number(@calls_count) %></strong> calls</span>
+    <span>Sorted by <strong><%= dashboard_sort_label(@sort) %></strong></span>
+  </p>
+  <p class="lct-toolbar-note">CSV export is capped at <%= number(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT) %> rows per request — narrow the date range to export larger slices.</p>
 </section>
 
 <% if @calls_count.zero? %>
   <section class="lct-panel lct-empty">
-    <h2 class="lct-section-title">No matching calls</h2>
-    <p class="lct-muted">Tracked requests will appear here when they match the current filters.</p>
+    <h2 class="lct-state-title">No matching calls</h2>
+    <p class="lct-state-copy">Tracked requests will appear here when they match the current filters.</p>
+    <div class="lct-state-actions">
+      <%= link_to "Clear filters", calls_path, class: "lct-button lct-button-secondary" %>
+    </div>
   </section>
 <% else %>
   <section class="lct-panel">
     <div class="lct-table-wrap">
-      <table class="lct-table lct-calls-table">
+      <table class="lct-table lct-table-compact lct-calls-table">
         <thead>
           <tr>
             <th>Tracked At</th>
             <th>Provider</th>
             <th>Model</th>
-            <th>Input</th>
-            <th>Output</th>
-            <th>Total</th>
-            <th>Cost</th>
+            <th class="lct-num">Input</th>
+            <th class="lct-num">Output</th>
+            <th class="lct-num">Total</th>
+            <th class="lct-num">Cost</th>
             <% if @latency_available %>
-              <th>Latency</th>
+              <th class="lct-num">Latency</th>
             <% end %>
             <th>Tags</th>
             <th></th>
@@ -90,17 +112,15 @@
             <tr>
               <td class="lct-nowrap"><%= format_date(call.tracked_at) %></td>
               <td><%= call.provider %></td>
-              <td><%= call.model %></td>
-              <td><%= format_tokens(call.input_tokens) %></td>
-              <td><%= format_tokens(call.output_tokens) %></td>
-              <td><%= format_tokens(call.total_tokens) %></td>
-              <td><%= optional_money(call.total_cost) %></td>
+              <td><code class="lct-code"><%= call.model %></code></td>
+              <td class="lct-num"><%= format_tokens(call.input_tokens) %></td>
+              <td class="lct-num"><%= format_tokens(call.output_tokens) %></td>
+              <td class="lct-num"><%= format_tokens(call.total_tokens) %></td>
+              <td class="lct-num<%= ' lct-num-muted' if call.total_cost.nil? %>"><%= optional_money(call.total_cost) %></td>
               <% if @latency_available %>
-                <td><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
+                <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
               <% end %>
-              <td>
-                <span class="lct-tags" title="<%= safe_json(tags) %>"><%= tags_summary(tags) %></span>
-              </td>
+              <td><%= render "llm_cost_tracker/shared/tag_chips", tags: tags %></td>
               <td><%= link_to "Details", call_path(call), class: "lct-button lct-button-secondary" %></td>
             </tr>
           <% end %>

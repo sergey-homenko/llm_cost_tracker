@@ -4,14 +4,6 @@ require "csv"
 
 module LlmCostTracker
   class CallsController < ApplicationController
-    SORT_ORDERS = {
-      "expensive"       => "total_cost DESC NULLS LAST, tracked_at DESC",
-      "input"           => "input_tokens DESC, tracked_at DESC",
-      "output"          => "output_tokens DESC, tracked_at DESC",
-      "slow"            => "latency_ms DESC NULLS LAST, tracked_at DESC",
-      "unknown_pricing" => "tracked_at DESC, id DESC"
-    }.freeze
-
     CSV_EXPORT_LIMIT = 10_000
     CSV_FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"].freeze
 
@@ -47,7 +39,24 @@ module LlmCostTracker
     private
 
     def calls_order(sort)
-      SORT_ORDERS[sort] || "tracked_at DESC, id DESC"
+      case sort
+      when "expensive"
+        "CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END ASC, total_cost DESC, #{default_order}"
+      when "input"
+        "input_tokens DESC, #{default_order}"
+      when "output"
+        "output_tokens DESC, #{default_order}"
+      when "slow"
+        return default_order unless LlmApiCall.latency_column?
+
+        "CASE WHEN latency_ms IS NULL THEN 1 ELSE 0 END ASC, latency_ms DESC, #{default_order}"
+      else
+        default_order
+      end
+    end
+
+    def default_order
+      "tracked_at DESC, id DESC"
     end
 
     def render_csv(relation)

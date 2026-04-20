@@ -4,6 +4,10 @@ require "json"
 
 module LlmCostTracker
   module ApplicationHelper
+    include DashboardFilterHelper
+    include DashboardQueryHelper
+    include ChartHelper
+
     def coverage_percent(numerator, denominator)
       return 0.0 unless denominator.to_i.positive?
 
@@ -46,22 +50,23 @@ module LlmCostTracker
     end
 
     def delta_badge(delta_percent, mode: :cost)
-      return { text: "vs. prior: n/a", css_class: "lct-delta lct-delta-neutral" } if delta_percent.nil?
+      return { text: "n/a vs. prior", arrow: "–", css_class: "lct-delta-badge lct-delta-neutral" } if delta_percent.nil?
 
       rounded = delta_percent.round(1)
-      return { text: "= vs. prior", css_class: "lct-delta lct-delta-neutral" } if rounded.zero?
+      return { text: "0.0% vs. prior", arrow: "=", css_class: "lct-delta-badge lct-delta-neutral" } if rounded.zero?
 
       sign = rounded.positive? ? "+" : ""
       text = "#{sign}#{format('%.1f', rounded)}% vs. prior"
+      arrow = rounded.positive? ? "▲" : "▼"
       css_class = if mode == :neutral
-                    "lct-delta lct-delta-neutral"
+                    "lct-delta-badge lct-delta-neutral"
                   elsif rounded.positive?
-                    "lct-delta lct-delta-up"
+                    "lct-delta-badge lct-delta-up"
                   else
-                    "lct-delta lct-delta-down"
+                    "lct-delta-badge lct-delta-down"
                   end
 
-      { text: text, css_class: css_class }
+      { text: text, arrow: arrow, css_class: css_class }
     end
 
     def bar_width(value, max)
@@ -87,8 +92,31 @@ module LlmCostTracker
       summary.join(", ")
     end
 
+    def tag_chip_entries(tags, limit: 3)
+      normalized = normalized_tags(tags)
+      return [] if normalized.empty?
+
+      visible = normalized.first(limit).map do |key, value|
+        { key: key.to_s, value: tag_value_summary(value) }
+      end
+      visible << { more: normalized.size - limit } if normalized.size > limit
+      visible
+    end
+
+    def budget_fill_modifier(percent)
+      percent = percent.to_f
+      return "lct-budget-fill--over" if percent >= 100.0
+      return "lct-budget-fill--warn" if percent >= 80.0
+
+      ""
+    end
+
     def current_query(overrides = {})
       request.query_parameters.symbolize_keys.merge(overrides)
+    end
+
+    def calls_query_for_model(provider:, model:)
+      current_query(provider: provider, model: model, page: nil, per: nil, format: nil)
     end
 
     private

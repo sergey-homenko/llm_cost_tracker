@@ -1,110 +1,224 @@
 <% total = @stats.total_calls %>
+<% known_pricing_calls = total - @stats.unknown_pricing_count %>
+<% tagged_calls = total - @stats.untagged_calls_count %>
+<% latency_calls = @stats.latency_column_present ? total - @stats.missing_latency_count : nil %>
+
+<section class="lct-panel lct-toolbar">
+  <div class="lct-toolbar-head">
+    <h2 class="lct-section-title">Data Quality</h2>
+  </div>
+
+  <form class="lct-filters" action="<%= data_quality_path %>" method="get">
+    <div class="lct-filter-row">
+      <div class="lct-field lct-field-date">
+        <label for="lct-quality-from">From</label>
+        <input id="lct-quality-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
+      </div>
+
+      <div class="lct-field lct-field-date">
+        <label for="lct-quality-to">To</label>
+        <input id="lct-quality-to" type="date" name="to" value="<%= params[:to] %>">
+      </div>
+
+      <div class="lct-field lct-field-short">
+        <label for="lct-quality-provider">Provider</label>
+        <input id="lct-quality-provider" type="text" name="provider" value="<%= params[:provider] %>" placeholder="openai">
+      </div>
+
+      <div class="lct-field lct-field-medium">
+        <label for="lct-quality-model">Model</label>
+        <input id="lct-quality-model" type="text" name="model" value="<%= params[:model] %>" placeholder="gpt-4o">
+      </div>
+
+      <div class="lct-filter-actions">
+        <button class="lct-button" type="submit">Apply</button>
+        <%= link_to "Reset", data_quality_path, class: "lct-button lct-button-secondary" %>
+      </div>
+    </div>
+
+    <details class="lct-filter-advanced"<%= " open".html_safe if params[:tag_key].present? || params[:tag_value].present? %>>
+      <summary>Tag filters</summary>
+      <div class="lct-filter-row">
+        <div class="lct-field lct-field-short">
+          <label for="lct-quality-tag-key">Tag key</label>
+          <input id="lct-quality-tag-key" type="text" name="tag_key" value="<%= params[:tag_key] %>" placeholder="feature">
+        </div>
+
+        <div class="lct-field lct-field-wide">
+          <label for="lct-quality-tag-value">Tag value</label>
+          <input id="lct-quality-tag-value" type="text" name="tag_value" value="<%= params[:tag_value] %>" placeholder="chat">
+        </div>
+      </div>
+    </details>
+  </form>
+
+  <%= render "llm_cost_tracker/shared/active_filters", chips: dashboard_active_filters, clear_path: data_quality_path %>
+</section>
 
 <% if total.zero? %>
   <section class="lct-panel lct-empty">
-    <h2 class="lct-section-title">No data yet</h2>
-    <p class="lct-muted">Data quality metrics will appear here once calls are recorded.</p>
+    <h2 class="lct-state-title">No data yet</h2>
+    <p class="lct-state-copy">Quality metrics will appear here once calls are recorded in the current slice.</p>
+    <div class="lct-state-actions">
+      <%= link_to "Clear filters", data_quality_path, class: "lct-button lct-button-secondary" %>
+    </div>
   </section>
 <% else %>
-  <section class="lct-grid lct-stats">
-    <article class="lct-stat">
-      <p class="lct-stat-label">Total calls</p>
-      <p class="lct-stat-value"><%= number(total) %></p>
+  <section class="lct-hero">
+    <article class="lct-panel lct-hero-primary">
+      <div>
+        <p class="lct-stat-label">Quality coverage</p>
+        <p class="lct-hero-subtitle">These metrics tell you whether spend and attribution can be trusted for the current slice.</p>
+      </div>
+      <div>
+        <p class="lct-stat-label">Total calls inspected</p>
+        <p class="lct-hero-value"><%= number(total) %></p>
+        <p class="lct-stat-copy">Across the current provider, model, tag, and date filters.</p>
+      </div>
     </article>
 
-    <article class="lct-stat">
-      <p class="lct-stat-label">Unknown pricing</p>
-      <p class="lct-stat-value"><%= number(@stats.unknown_pricing_count) %></p>
-      <p class="lct-stat-sub"><%= percent(coverage_percent(@stats.unknown_pricing_count, total)) %> of calls</p>
-    </article>
+    <div class="lct-hero-side">
+      <div class="lct-stat-grid">
+        <article class="lct-stat">
+          <p class="lct-stat-label">Unknown pricing</p>
+          <p class="lct-stat-value"><%= number(@stats.unknown_pricing_count) %></p>
+          <p class="lct-stat-sub"><%= percent(coverage_percent(@stats.unknown_pricing_count, total)) %> of calls</p>
+        </article>
 
-    <article class="lct-stat">
-      <p class="lct-stat-label">Calls without tags</p>
-      <p class="lct-stat-value"><%= number(@stats.untagged_calls_count) %></p>
-      <p class="lct-stat-sub"><%= percent(coverage_percent(@stats.untagged_calls_count, total)) %> of calls</p>
-    </article>
+        <article class="lct-stat">
+          <p class="lct-stat-label">Calls without tags</p>
+          <p class="lct-stat-value"><%= number(@stats.untagged_calls_count) %></p>
+          <p class="lct-stat-sub"><%= percent(coverage_percent(@stats.untagged_calls_count, total)) %> of calls</p>
+        </article>
 
-    <% if @stats.latency_column_present %>
-      <article class="lct-stat">
-        <p class="lct-stat-label">Missing latency</p>
-        <p class="lct-stat-value"><%= number(@stats.missing_latency_count) %></p>
-        <p class="lct-stat-sub"><%= percent(coverage_percent(@stats.missing_latency_count, total)) %> of calls</p>
-      </article>
-    <% end %>
+        <% if @stats.latency_column_present %>
+          <article class="lct-stat">
+            <p class="lct-stat-label">Missing latency</p>
+            <p class="lct-stat-value"><%= number(@stats.missing_latency_count) %></p>
+            <p class="lct-stat-sub"><%= percent(coverage_percent(@stats.missing_latency_count, total)) %> of calls</p>
+          </article>
+        <% end %>
+      </div>
+    </div>
+  </section>
+
+  <section class="lct-grid lct-two-col">
+    <section class="lct-panel">
+      <div class="lct-section-head">
+        <div>
+          <h2 class="lct-section-title">Coverage summary</h2>
+          <p class="lct-section-copy">Good dashboards start with clean pricing, tags, and latency coverage.</p>
+        </div>
+      </div>
+
+      <table class="lct-table lct-table-compact">
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th class="lct-num">Coverage</th>
+            <th class="lct-num">Calls with data</th>
+            <th>Visual</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% cost_coverage = coverage_percent(known_pricing_calls, total) %>
+          <tr>
+            <td>Cost (pricing known)</td>
+            <td class="lct-num"><%= percent(cost_coverage) %></td>
+            <td class="lct-num"><%= number(known_pricing_calls) %></td>
+            <td><%= render "llm_cost_tracker/shared/bar", value: cost_coverage, max: 100.0 %></td>
+          </tr>
+
+          <% tag_coverage = coverage_percent(tagged_calls, total) %>
+          <tr>
+            <td>Tags (at least one tag)</td>
+            <td class="lct-num"><%= percent(tag_coverage) %></td>
+            <td class="lct-num"><%= number(tagged_calls) %></td>
+            <td><%= render "llm_cost_tracker/shared/bar", value: tag_coverage, max: 100.0 %></td>
+          </tr>
+
+          <% if @stats.latency_column_present %>
+            <% latency_coverage = coverage_percent(latency_calls, total) %>
+            <tr>
+              <td>Latency</td>
+              <td class="lct-num"><%= percent(latency_coverage) %></td>
+              <td class="lct-num"><%= number(latency_calls) %></td>
+              <td><%= render "llm_cost_tracker/shared/bar", value: latency_coverage, max: 100.0 %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="lct-panel">
+      <div class="lct-section-head">
+        <div>
+          <h2 class="lct-section-title">Next actions</h2>
+          <p class="lct-section-copy">Use these fixes to improve the trustworthiness of downstream cost reports.</p>
+        </div>
+      </div>
+
+      <table class="lct-table lct-table-compact">
+        <thead>
+          <tr>
+            <th>Issue</th>
+            <th>Why it matters</th>
+            <th>Suggested action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Unknown pricing</td>
+            <td>Cost stays <code class="lct-code">nil</code>, so totals undercount.</td>
+            <td>Update <code class="lct-code">pricing_overrides</code> or <code class="lct-code">prices_file</code>.</td>
+          </tr>
+          <tr>
+            <td>Missing tags</td>
+            <td>Attribution by tenant, user, or feature becomes less useful.</td>
+            <td>Pass <code class="lct-code">tags:</code> from middleware using request context.</td>
+          </tr>
+          <% if @stats.latency_column_present %>
+            <tr>
+              <td>Missing latency</td>
+              <td>Slow requests become harder to isolate on the calls page.</td>
+              <td>Make sure latency capture is enabled on every tracked request.</td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </section>
   </section>
 
   <% unless @stats.unknown_pricing_by_model.empty? %>
     <section class="lct-panel">
-      <h2 class="lct-section-title">Unknown Pricing by Model</h2>
-      <p class="lct-muted">
-        These models have no pricing configured. Token counts are recorded but cost is <code class="lct-code">nil</code>.
-        Add entries to <code class="lct-code">pricing_overrides</code> or <code class="lct-code">prices_file</code> to fix.
-      </p>
+      <div class="lct-section-head">
+        <div>
+          <h2 class="lct-section-title">Unknown pricing by model</h2>
+          <p class="lct-section-copy">These models have token counts but no configured rates, so cost stays unknown.</p>
+        </div>
+        <%= link_to "Review calls", calls_path(current_query(sort: "unknown_pricing")), class: "lct-button lct-button-secondary" %>
+      </div>
+
       <div class="lct-table-wrap">
-        <table class="lct-table">
+        <table class="lct-table lct-table-compact">
           <thead>
             <tr>
               <th>Model</th>
-              <th>Calls without cost</th>
-              <th>Share of total</th>
+              <th class="lct-num">Calls without cost</th>
+              <th class="lct-num">Share of total</th>
             </tr>
           </thead>
           <tbody>
             <% @stats.unknown_pricing_by_model.each do |model, count| %>
               <tr>
                 <td><code class="lct-code"><%= model %></code></td>
-                <td><%= number(count) %></td>
-                <td><%= percent(total.positive? ? (count.to_f / total) * 100 : 0) %></td>
+                <td class="lct-num"><%= number(count) %></td>
+                <td class="lct-num"><%= percent(total.positive? ? (count.to_f / total) * 100.0 : 0.0) %></td>
               </tr>
             <% end %>
           </tbody>
         </table>
       </div>
-      <p class="lct-muted" style="margin-top:12px">
-        <%= link_to "View all unknown pricing calls →", calls_path(sort: "unknown_pricing") %>
-      </p>
     </section>
   <% end %>
-
-  <section class="lct-panel">
-    <h2 class="lct-section-title">Coverage Summary</h2>
-    <table class="lct-table">
-      <thead>
-        <tr>
-          <th>Dimension</th>
-          <th>Coverage</th>
-          <th>Calls with data</th>
-          <th>Visual</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% cost_coverage = coverage_percent(total - @stats.unknown_pricing_count, total) %>
-        <tr>
-          <td>Cost (pricing known)</td>
-          <td><%= percent(cost_coverage) %></td>
-          <td><%= number(total - @stats.unknown_pricing_count) %></td>
-          <td><%= render "llm_cost_tracker/shared/bar", value: cost_coverage, max: 100.0 %></td>
-        </tr>
-
-        <% tag_coverage = coverage_percent(total - @stats.untagged_calls_count, total) %>
-        <tr>
-          <td>Tags (at least one tag)</td>
-          <td><%= percent(tag_coverage) %></td>
-          <td><%= number(total - @stats.untagged_calls_count) %></td>
-          <td><%= render "llm_cost_tracker/shared/bar", value: tag_coverage, max: 100.0 %></td>
-        </tr>
-
-        <% if @stats.latency_column_present %>
-          <% latency_coverage = coverage_percent(total - @stats.missing_latency_count, total) %>
-          <tr>
-            <td>Latency</td>
-            <td><%= percent(latency_coverage) %></td>
-            <td><%= number(total - @stats.missing_latency_count) %></td>
-            <td><%= render "llm_cost_tracker/shared/bar", value: latency_coverage, max: 100.0 %></td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
-  </section>
 <% end %>
-

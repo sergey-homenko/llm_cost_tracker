@@ -14,15 +14,9 @@ module LlmCostTracker
     private
 
     def ensure_llm_api_calls_table
-      return if llm_api_calls_table_available?
+      return if LlmCostTracker::LlmApiCall.table_exists?
 
       render template: "llm_cost_tracker/shared/setup_required"
-    end
-
-    def llm_api_calls_table_available?
-      LlmCostTracker::LlmApiCall.table_exists?
-    rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::StatementInvalid
-      false
     end
 
     def render_database_error(error)
