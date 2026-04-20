@@ -74,11 +74,26 @@ module LlmCostTracker
           budget = LlmCostTracker.configuration.monthly_budget
           return nil unless budget
 
+          now = Time.now.utc
+          month_start = now.beginning_of_month
+          month_end = now.end_of_month
           spent = LlmCostTracker::LlmApiCall.this_month.total_cost
+          elapsed_seconds = now - month_start
+          total_seconds = month_end - month_start
+          projected_spent = if spent.zero? || !elapsed_seconds.positive?
+                              spent
+                            else
+                              spent * (total_seconds / elapsed_seconds)
+                            end
+
           {
             budget: budget.to_f,
             spent: spent,
-            percent_used: budget.to_f.positive? ? (spent / budget.to_f) * 100.0 : 0.0
+            percent_used: budget.to_f.positive? ? (spent / budget.to_f) * 100.0 : 0.0,
+            projected_spent: projected_spent,
+            projected_percent_used: budget.to_f.positive? ? (projected_spent / budget.to_f) * 100.0 : 0.0,
+            projected_delta: projected_spent - budget.to_f,
+            projection_end_label: month_end.strftime("%b %-d")
           }
         end
       end

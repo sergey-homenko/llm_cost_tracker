@@ -4,7 +4,7 @@
   </div>
 
   <form class="lct-filters" action="<%= tags_path %>" method="get">
-    <div class="lct-filter-row">
+    <div class="lct-filter-row lct-filter-row-basic">
       <div class="lct-field lct-field-date">
         <label for="lct-tags-from">From</label>
         <input id="lct-tags-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
@@ -39,11 +39,6 @@
   </form>
 
   <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: tags_path %>
-
-  <p class="lct-summary-row">
-    <span><strong><%= number(@rows.size) %></strong> keys discovered</span>
-    <span>Filtered to the current provider, model, and date slice</span>
-  </p>
 </section>
 
 <% if @rows.empty? %>

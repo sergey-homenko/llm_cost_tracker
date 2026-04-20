@@ -9,7 +9,7 @@
   </div>
 
   <form class="lct-filters" action="<%= data_quality_path %>" method="get">
-    <div class="lct-filter-row">
+    <div class="lct-filter-row lct-filter-row-basic">
       <div class="lct-field lct-field-date">
         <label for="lct-quality-from">From</label>
         <input id="lct-quality-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
@@ -58,13 +58,8 @@
   <section class="lct-hero">
     <article class="lct-panel lct-hero-primary">
       <div>
-        <p class="lct-stat-label">Quality coverage</p>
-        <p class="lct-hero-subtitle">These metrics tell you whether spend and attribution can be trusted for the current slice.</p>
-      </div>
-      <div>
-        <p class="lct-stat-label">Total calls inspected</p>
+        <p class="lct-stat-label">Calls inspected</p>
         <p class="lct-hero-value"><%= number(total) %></p>
-        <p class="lct-stat-copy">Across the current provider, model, and date filters.</p>
       </div>
     </article>
 

@@ -1,15 +1,11 @@
 # frozen_string_literal: true
 
 module LlmCostTracker
-  # Server-rendered inline SVG helpers for the dashboard.
-  # Keeps the dashboard JS-free while still producing a real chart.
   module ChartHelper
-    # Build a compact SVG spend chart from a time series of
-    # `{ label:, cost: }` points. Returns html-safe SVG markup.
-    def spend_chart_svg(points, height: 180, y_ticks: 3)
+    def spend_chart_svg(points, comparison_points: nil, height: 180, y_ticks: 3)
       return nil if points.blank?
 
-      cfg = chart_config(points, height, y_ticks)
+      cfg = chart_config(points, comparison_points, height, y_ticks)
       parts = [chart_svg_open(cfg)]
       parts.concat(chart_grid_and_axis(cfg))
       parts << chart_paths(cfg)
@@ -25,22 +21,30 @@ module LlmCostTracker
       format("%.2f", value)
     end
 
-    def chart_config(points, height, y_ticks)
+    def chart_config(points, comparison_points, height, y_ticks)
       width = 720
       pad = { top: 16, right: 16, bottom: 28, left: 56 }
       plot_w = width - pad[:left] - pad[:right]
       plot_h = height - pad[:top] - pad[:bottom]
-      max_cost = [points.map { |p| p[:cost].to_f }.max.to_f, 0.0001].max
-      n = points.size
-      step = n > 1 ? plot_w.to_f / (n - 1) : 0.0
-      coords = points.each_with_index.map do |p, i|
-        x = pad[:left] + (i * step)
-        y = pad[:top] + plot_h - ((p[:cost].to_f / max_cost) * plot_h)
-        [x, y]
-      end
+      all_costs = points.map { |p| p[:cost].to_f } + Array(comparison_points).map { |p| p[:cost].to_f }
+      max_cost = [all_costs.max.to_f, 0.0001].max
+      coords = chart_coords(points, pad, plot_w, plot_h, max_cost)
+      comparison_coords = chart_coords(comparison_points, pad, plot_w, plot_h, max_cost) if comparison_points.present?
 
       { width: width, height: height, pad: pad, plot_w: plot_w, plot_h: plot_h,
-        max_cost: max_cost, n: n, y_ticks: y_ticks, points: points, coords: coords }
+        max_cost: max_cost, n: points.size, y_ticks: y_ticks, points: points, coords: coords,
+        comparison_points: comparison_points, comparison_coords: comparison_coords }
+    end
+
+    def chart_coords(points, pad, plot_w, plot_h, max_cost)
+      n = points.size
+      step = n > 1 ? plot_w.to_f / (n - 1) : 0.0
+
+      points.each_with_index.map do |point, idx|
+        x = pad[:left] + (idx * step)
+        y = pad[:top] + plot_h - ((point[:cost].to_f / max_cost) * plot_h)
+        [x, y]
+      end
     end
 
     def chart_svg_open(cfg)
@@ -73,13 +77,21 @@ module LlmCostTracker
     end
 
     def chart_paths(cfg)
-      coords = cfg[:coords]
-      line = coords.each_with_index.map do |(x, y), i|
-        "#{i.zero? ? 'M' : 'L'}#{chart_fmt(x)},#{chart_fmt(y)}"
-      end.join(" ")
+      line = build_line_path(cfg[:coords])
       base_y = cfg[:pad][:top] + cfg[:plot_h]
-      area = build_area_path(coords, cfg, base_y, line)
-      %(<path class="lct-chart-area" d="#{area}"/><path class="lct-chart-line" d="#{line}"/>)
+      area = build_area_path(cfg[:coords], cfg, base_y, line)
+      secondary = if cfg[:comparison_coords].present?
+                    %(<path class="lct-chart-line-secondary" d="#{build_line_path(cfg[:comparison_coords])}"/>)
+                  else
+                    ""
+                  end
+      %(<path class="lct-chart-area" d="#{area}"/>#{secondary}<path class="lct-chart-line" d="#{line}"/>)
+    end
+
+    def build_line_path(coords)
+      coords.each_with_index.map do |(x, y), idx|
+        "#{idx.zero? ? 'M' : 'L'}#{chart_fmt(x)},#{chart_fmt(y)}"
+      end.join(" ")
     end
 
     def build_area_path(coords, cfg, base_y, line)

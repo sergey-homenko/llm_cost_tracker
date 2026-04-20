@@ -7,7 +7,7 @@
   </div>
 
   <form class="lct-filters" action="<%= calls_path %>" method="get">
-    <div class="lct-filter-row">
+    <div class="lct-filter-row lct-filter-row-with-sort">
       <div class="lct-field lct-field-date">
         <label for="lct-from">From</label>
         <input id="lct-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
@@ -58,8 +58,16 @@
   <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: calls_path %>
 
   <p class="lct-summary-row">
-    <span><strong><%= number(@calls_count) %></strong> calls</span>
-    <span>Sorted by <strong><%= dashboard_sort_label(@sort) %></strong></span>
+    <span class="lct-pagination-per">
+      <span class="lct-pagination-per-label">Per page:</span>
+      <% LlmCostTracker::PaginationHelper::PER_PAGE_CHOICES.each do |choice| %>
+        <% if choice == @page.per %>
+          <span class="lct-pagination-per-option is-active" aria-current="true"><%= choice %></span>
+        <% else %>
+          <%= link_to choice, calls_path(current_query(per: choice, page: 1)), class: "lct-pagination-per-option" %>
+        <% end %>
+      <% end %>
+    </span>
   </p>
   <p class="lct-toolbar-note">CSV export is capped at <%= number(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT) %> rows per request — narrow the date range to export larger slices.</p>
 </section>
@@ -120,24 +128,14 @@
       <% total_pages = @page.total_pages(@calls_count) %>
 
       <div class="lct-pagination-info">
-        <span><%= number(first_row) %>-<%= number(last_row) %> of <%= number(@calls_count) %></span>
-        <span class="lct-pagination-per">
-          <span class="lct-pagination-per-label">Per page</span>
-          <% LlmCostTracker::PaginationHelper::PER_PAGE_CHOICES.each do |choice| %>
-            <% if choice == @page.per %>
-              <span class="lct-pagination-per-option is-active" aria-current="true"><%= choice %></span>
-            <% else %>
-              <%= link_to choice, calls_path(current_query(per: choice, page: 1)), class: "lct-pagination-per-option" %>
-            <% end %>
-          <% end %>
-        </span>
+        <span>Showing <strong><%= number(first_row) %></strong> to <strong><%= number(last_row) %></strong> of <strong><%= number(@calls_count) %></strong> results</span>
       </div>
 
-      <div class="lct-pagination-pages" role="group" aria-label="Page navigation">
+      <div class="lct-pagination-nav" role="group" aria-label="Page navigation">
         <% if @page.prev_page? %>
-          <%= link_to "‹ Previous", calls_path(current_query(page: @page.page - 1, per: @page.per)), class: "lct-page-link lct-page-arrow", rel: "prev" %>
+          <%= link_to "‹", calls_path(current_query(page: @page.page - 1, per: @page.per)), class: "lct-page-link lct-page-arrow", rel: "prev", aria: { label: "Previous page" } %>
         <% else %>
-          <span class="lct-page-link lct-page-arrow is-disabled" aria-disabled="true">‹ Previous</span>
+          <span class="lct-page-link lct-page-arrow is-disabled" aria-disabled="true" aria-label="Previous page">‹</span>
         <% end %>
 
         <% pagination_page_items(@page.page, total_pages).each do |item| %>
@@ -151,9 +149,9 @@
         <% end %>
 
         <% if @page.next_page?(@calls_count) %>
-          <%= link_to "Next ›", calls_path(current_query(page: @page.page + 1, per: @page.per)), class: "lct-page-link lct-page-arrow", rel: "next" %>
+          <%= link_to "›", calls_path(current_query(page: @page.page + 1, per: @page.per)), class: "lct-page-link lct-page-arrow", rel: "next", aria: { label: "Next page" } %>
         <% else %>
-          <span class="lct-page-link lct-page-arrow is-disabled" aria-disabled="true">Next ›</span>
+          <span class="lct-page-link lct-page-arrow is-disabled" aria-disabled="true" aria-label="Next page">›</span>
         <% end %>
       </div>
     </nav>

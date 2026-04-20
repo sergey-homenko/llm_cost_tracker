@@ -1,6 +1,63 @@
+<% token_segments = [
+  { label: "Input", value: @call.input_tokens, formatted_value: format_tokens(@call.input_tokens), css_class: "lct-stack-fill-input" },
+  { label: "Output", value: @call.output_tokens, formatted_value: format_tokens(@call.output_tokens), css_class: "lct-stack-fill-output" }
+] %>
+<% cost_segments = [
+  { label: "Input", value: @call.input_cost, formatted_value: optional_money(@call.input_cost), css_class: "lct-stack-fill-input" },
+  { label: "Output", value: @call.output_cost, formatted_value: optional_money(@call.output_cost), css_class: "lct-stack-fill-output" }
+] %>
+
 <section class="lct-panel">
   <p class="lct-muted"><%= link_to "Back to calls", calls_path %></p>
-  <h2 class="lct-section-title">Call #<%= @call.id %></h2>
+  <div class="lct-call-hero">
+    <div>
+      <h2 class="lct-section-title lct-call-title">Call #<%= @call.id %></h2>
+      <p class="lct-call-subtitle">
+        <code class="lct-code"><%= @call.provider %></code>
+        <span>·</span>
+        <code class="lct-code"><%= @call.model %></code>
+        <span>·</span>
+        <span><%= format_date(@call.tracked_at) %></span>
+      </p>
+    </div>
+
+    <div class="lct-call-summary">
+      <div class="lct-call-summary-item">
+        <span class="lct-call-summary-label">Pricing</span>
+        <strong><%= pricing_status(@call) %></strong>
+      </div>
+      <div class="lct-call-summary-item">
+        <span class="lct-call-summary-label">Total cost</span>
+        <strong><%= optional_money(@call.total_cost) %></strong>
+      </div>
+      <div class="lct-call-summary-item">
+        <span class="lct-call-summary-label">Total tokens</span>
+        <strong><%= format_tokens(@call.total_tokens) %></strong>
+      </div>
+      <% if @latency_available %>
+        <div class="lct-call-summary-item">
+          <span class="lct-call-summary-label">Latency</span>
+          <strong><%= @call.latency_ms ? "#{optional_number(@call.latency_ms)}ms" : "n/a" %></strong>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="lct-call-breakdown-grid">
+    <section class="lct-call-breakdown">
+      <h3 class="lct-call-breakdown-title">Token Mix</h3>
+      <%= render "llm_cost_tracker/shared/metric_stack", segments: token_segments, empty_message: "No token data for this call." %>
+    </section>
+
+    <section class="lct-call-breakdown">
+      <h3 class="lct-call-breakdown-title">Cost Mix</h3>
+      <% if @call.total_cost.nil? %>
+        <p class="lct-call-breakdown-empty">Pricing not available for this call.</p>
+      <% else %>
+        <%= render "llm_cost_tracker/shared/metric_stack", segments: cost_segments, empty_message: "No cost breakdown for this call." %>
+      <% end %>
+    </section>
+  </div>
 
   <div class="lct-detail-grid">
     <dl class="lct-dl">

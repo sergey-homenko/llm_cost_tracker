@@ -78,6 +78,18 @@ module LlmCostTracker
       "#{[(value.to_f / max) * 100.0, 100.0].min.round(2)}%"
     end
 
+    def stack_segments(entries)
+      total = entries.sum { |entry| entry[:value].to_f }
+      return [] unless total.positive?
+
+      entries.filter_map do |entry|
+        value = entry[:value].to_f
+        next unless value.positive?
+
+        entry.merge(percent: (value / total) * 100.0)
+      end
+    end
+
     def safe_json(value)
       parsed = value.is_a?(String) ? JSON.parse(value) : value
       JSON.pretty_generate(parsed || {})

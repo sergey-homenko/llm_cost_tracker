@@ -18,9 +18,11 @@ RSpec.describe "LlmCostTracker::Engine overview" do
   end
 
   it "renders overview stats, daily spend, top models, and budget status" do
+    allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 16, 0, 0, 0))
+
     LlmCostTracker.configure do |config|
       config.storage_backend = :active_record
-      config.monthly_budget = 10.0
+      config.monthly_budget = 6.0
     end
 
     create_call(
@@ -49,8 +51,14 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.body).to include("200ms")
     expect(response.body).to include("Monthly Budget")
     expect(response.body).to include("Current-month spend across")
+    expect(response.body).to include("Projected")
+    expect(response.body).to include("$10.00")
+    expect(response.body).to include("Apr 30")
+    expect(response.body).to include("$4.00 over budget")
     expect(response.body).to include("Soft limit: blocking is not atomic under concurrency.")
     expect(response.body).to include("Daily Spend")
+    expect(response.body).to include("Current slice vs. previous")
+    expect(response.body).to include("lct-chart-line-secondary")
     expect(response.body).to include("Top Models")
     expect(response.body).to include("By Provider")
     expect(response.body).to include("gpt-4o")
@@ -120,6 +128,26 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.status).to eq(400)
     expect(response.body).to include("Invalid filter")
     expect(response.body).to include("invalid tag key")
+  end
+
+  it "renders a spend anomaly alert for the latest day in the slice" do
+    create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 13, 12))
+    create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 14, 12))
+    create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 15, 12))
+    create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 16, 12))
+    create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 17, 12))
+    create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 18, 12))
+    create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 19, 12))
+    create_call(provider: "openai", model: "gpt-4o", total_cost: 12.0, tracked_at: Time.utc(2026, 4, 20, 12))
+
+    response = get("/llm-costs?from=2026-04-13&to=2026-04-20")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Spend anomaly detected")
+    expect(response.body).to include("gpt-4o")
+    expect(response.body).to include("12.0× its prior 7-day average in this slice")
+    anomaly_link = "/llm-costs/calls?from=2026-04-20&amp;model=gpt-4o&amp;provider=openai&amp;to=2026-04-20"
+    expect(response.body).to include(anomaly_link)
   end
 
   it "renders a setup state when the ledger table is missing" do

@@ -2,20 +2,6 @@
 
 module LlmCostTracker
   module DashboardFilterHelper
-    CALLS_SORT_LABELS = {
-      "expensive" => "Most expensive",
-      "input" => "Largest input",
-      "output" => "Largest output",
-      "slow" => "Slowest",
-      "unknown_pricing" => "Unknown pricing only"
-    }.freeze
-
-    MODELS_SORT_LABELS = {
-      "calls" => "Call volume",
-      "avg_cost" => "Avg cost / call",
-      "latency" => "Avg latency"
-    }.freeze
-
     FILTER_PARAM_KEYS = %i[from to provider model tag sort page per].freeze
 
     def any_filter_applied?
@@ -41,14 +27,6 @@ module LlmCostTracker
       from_label = short_date_label(from) || "Any time"
       to_label = short_date_label(to) || "Now"
       "#{from_label} - #{to_label}"
-    end
-
-    def dashboard_sort_label(sort)
-      CALLS_SORT_LABELS[sort.to_s] || "Recent first"
-    end
-
-    def models_sort_label(sort)
-      MODELS_SORT_LABELS[sort.to_s] || "Total spend"
     end
 
     private

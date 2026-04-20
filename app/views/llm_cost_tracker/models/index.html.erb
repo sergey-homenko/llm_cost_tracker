@@ -1,14 +1,10 @@
-<% total_groups = @rows.size %>
-<% total_spend = @rows.sum(&:total_cost) %>
-<% provider_count = @rows.map(&:provider).uniq.size %>
-
 <section class="lct-panel lct-toolbar">
   <div class="lct-toolbar-head">
     <h2 class="lct-section-title">Models</h2>
   </div>
 
   <form class="lct-filters" action="<%= models_path %>" method="get">
-    <div class="lct-filter-row">
+    <div class="lct-filter-row lct-filter-row-with-sort">
       <div class="lct-field lct-field-date">
         <label for="lct-models-from">From</label>
         <input id="lct-models-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
@@ -55,13 +51,6 @@
   </form>
 
   <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: models_path %>
-
-  <p class="lct-summary-row">
-    <span><strong><%= number(total_groups) %></strong> model groups</span>
-    <span>Across <strong><%= number(provider_count) %></strong> providers</span>
-    <span>Sorted by <strong><%= models_sort_label(@sort) %></strong></span>
-    <span>Total spend <strong><%= money(total_spend) %></strong></span>
-  </p>
 </section>
 
 <% if @rows.empty? %>

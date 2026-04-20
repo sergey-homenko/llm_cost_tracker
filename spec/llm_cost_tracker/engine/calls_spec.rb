@@ -65,7 +65,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
 
     expect(response.status).to eq(200)
     expect(rows).to eq(["new-chat"])
-    expect(response.body).to include("1-1 of 2")
+    expect(response.body).to include("Showing <strong>1</strong> to <strong>1</strong> of <strong>2</strong> results")
     expect(response.body).to include("Next")
 
     second_page = get("/llm-costs/calls?provider=openai&tag%5Bfeature%5D=chat&per=1&page=2")
@@ -179,6 +179,10 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("$1.75")
     expect(response.body).to include("$3.00")
     expect(response.body).to include("250ms")
+    expect(response.body).to include("Token Mix")
+    expect(response.body).to include("Cost Mix")
+    expect(response.body).to include("80.0%")
+    expect(response.body).to include("20.0%")
     expect(response.body).to include("Tags")
     expect(response.body).to include("feature")
     expect(response.body).to include("chat")
@@ -193,6 +197,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.status).to eq(200)
     expect(response.body).to include("Unknown pricing")
     expect(response.body).to include("n/a")
+    expect(response.body).to include("Pricing not available for this call.")
   end
 
   it "renders optional metadata on call details when the column exists" do

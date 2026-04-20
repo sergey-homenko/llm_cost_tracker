@@ -4,12 +4,16 @@ module LlmCostTracker
   class DashboardController < ApplicationController
     def index
       @from_date, @to_date = overview_range
+      prev_from, prev_to = previous_range
       scope = Dashboard::Filter.call(params: overview_filter_params)
       previous_scope = Dashboard::Filter.call(params: previous_filter_params)
+      model_rows = Dashboard::TopModels.call(scope: scope, limit: 10)
 
       @stats = Dashboard::OverviewStats.call(scope: scope, previous_scope: previous_scope)
       @time_series = Dashboard::TimeSeries.call(scope: scope, from: @from_date, to: @to_date)
-      @top_models = Dashboard::TopModels.call(scope: scope, limit: 5)
+      @comparison_series = Dashboard::TimeSeries.call(scope: previous_scope, from: prev_from, to: prev_to)
+      @spend_anomaly = Dashboard::SpendAnomaly.call(from: @from_date, to: @to_date, scope: scope)
+      @top_models = model_rows.first(5)
       @providers = Dashboard::ProviderBreakdown.call(scope: scope)
     end
 

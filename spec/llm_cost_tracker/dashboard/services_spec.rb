@@ -139,6 +139,15 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(relation.count).to eq(1)
     end
 
+    it "filters by a single tag key from the tag hash" do
+      create_call(model: "chat-model", tags: { feature: "chat" })
+      create_call(model: "summary-model", tags: { feature: "summarizer" })
+
+      relation = described_class.call(params: { tag: { feature: "summarizer" } })
+
+      expect(relation.pluck(:model)).to eq(["summary-model"])
+    end
+
     it "raises an invalid filter error for unsafe tag keys" do
       expect do
         described_class.call(params: { tag: { ";DROP TABLE" => "x" } })
@@ -192,6 +201,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     end
 
     it "aggregates total cost, calls, average cost, latency, and budget status" do
+      allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 16, 0, 0, 0))
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
       create_call(total_cost: 2.0, latency_ms: 100)
       create_call(total_cost: 4.0, latency_ms: 300)
@@ -203,6 +213,10 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.average_cost_per_call).to eq(3.0)
       expect(stats.average_latency_ms).to eq(200.0)
       expect(stats.monthly_budget_status).to include(budget: 10.0, spent: 6.0, percent_used: 60.0)
+      expect(stats.monthly_budget_status[:projected_spent]).to be_within(0.01).of(12.0)
+      expect(stats.monthly_budget_status[:projected_percent_used]).to be_within(0.01).of(120.0)
+      expect(stats.monthly_budget_status[:projected_delta]).to be_within(0.01).of(2.0)
+      expect(stats.monthly_budget_status[:projection_end_label]).to eq("Apr 30")
     end
 
     it "omits average latency when the column is unavailable" do
@@ -247,6 +261,42 @@ RSpec.describe "LlmCostTracker dashboard services" do
       stats = described_class.call(scope: current, previous_scope: previous)
 
       expect(stats.cost_delta_percent).to be_nil
+    end
+  end
+
+  describe LlmCostTracker::Dashboard::SpendAnomaly do
+    it "returns nil when the current slice is shorter than eight days" do
+      create_call(total_cost: 10.0, tracked_at: Time.utc(2026, 4, 20, 12))
+
+      alert = described_class.call(from: Date.new(2026, 4, 18), to: Date.new(2026, 4, 20))
+
+      expect(alert).to be_nil
+    end
+
+    it "detects a latest-day spike versus the prior seven-day average" do
+      7.times do |offset|
+        create_call(
+          provider: "openai",
+          model: "gpt-4o",
+          total_cost: 1.0,
+          tracked_at: Time.utc(2026, 4, 13 + offset, 12)
+        )
+      end
+      create_call(
+        provider: "openai",
+        model: "gpt-4o",
+        total_cost: 12.0,
+        tracked_at: Time.utc(2026, 4, 20, 12)
+      )
+
+      alert = described_class.call(from: Date.new(2026, 4, 13), to: Date.new(2026, 4, 20))
+
+      expect(alert.provider).to eq("openai")
+      expect(alert.model).to eq("gpt-4o")
+      expect(alert.day).to eq(Date.new(2026, 4, 20))
+      expect(alert.latest_spend).to eq(12.0)
+      expect(alert.baseline_mean).to eq(1.0)
+      expect(alert.ratio).to eq(12.0)
     end
   end
 

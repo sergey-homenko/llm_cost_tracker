@@ -2,7 +2,7 @@
 
 <section class="lct-panel lct-toolbar">
   <form class="lct-filters" action="<%= root_path %>" method="get">
-    <div class="lct-filter-row">
+    <div class="lct-filter-row lct-filter-row-basic">
       <div class="lct-field lct-field-date">
         <label for="lct-overview-from">From</label>
         <input id="lct-overview-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] || @from_date.iso8601 %>">
@@ -61,12 +61,29 @@
     </aside>
   <% end %>
 
+  <% if @spend_anomaly %>
+    <aside class="lct-banner lct-banner-danger" role="status">
+      <div class="lct-banner-body">
+        <p class="lct-banner-title">
+          Spend anomaly detected
+          <span class="lct-banner-muted">· <code class="lct-code"><%= @spend_anomaly.model %></code> on <%= @spend_anomaly.day.strftime("%b %-d") %></span>
+        </p>
+        <p class="lct-banner-copy">
+          <% if @spend_anomaly.ratio %>
+            <%= number_with_precision(@spend_anomaly.ratio, precision: 1) %>× its prior 7-day average in this slice
+          <% else %>
+            <%= money(@spend_anomaly.latest_spend) %> after seven quiet days in this slice
+          <% end %>
+        </p>
+      </div>
+      <%= link_to "Review calls →",
+                  calls_path(current_query(provider: @spend_anomaly.provider, model: @spend_anomaly.model, from: @to_date.iso8601, to: @to_date.iso8601, page: nil, per: nil, format: nil)),
+                  class: "lct-button lct-button-secondary" %>
+    </aside>
+  <% end %>
+
   <section class="lct-hero">
     <article class="lct-panel lct-hero-primary">
-      <div>
-        <p class="lct-stat-label">Selected range</p>
-        <p class="lct-hero-subtitle"><%= dashboard_date_range_label(@from_date.iso8601, @to_date.iso8601) %></p>
-      </div>
       <div>
         <p class="lct-stat-label">Total spend</p>
         <p class="lct-hero-value"><%= money(@stats.total_cost) %></p>
@@ -87,14 +104,12 @@
         <article class="lct-stat">
           <p class="lct-stat-label">Avg cost / call</p>
           <p class="lct-stat-value"><%= money(@stats.average_cost_per_call) %></p>
-          <p class="lct-stat-copy">Across the selected slice</p>
         </article>
 
         <% if @stats.average_latency_ms %>
           <article class="lct-stat">
             <p class="lct-stat-label">Avg latency</p>
             <p class="lct-stat-value"><%= number(@stats.average_latency_ms.round) %>ms</p>
-            <p class="lct-stat-copy">Requests with latency recorded</p>
           </article>
         <% end %>
 
@@ -103,6 +118,8 @@
       <% if @stats.monthly_budget_status %>
         <% budget = @stats.monthly_budget_status %>
         <% fill_mod = budget_fill_modifier(budget[:percent_used]) %>
+        <% projected_marker = [[budget[:projected_percent_used].to_f, 0.0].max, 100.0].min %>
+        <% projected_delta = budget[:projected_delta].to_f %>
         <section class="lct-panel lct-panel-tight">
           <div class="lct-section-head">
             <div>
@@ -120,7 +137,16 @@
             </div>
             <div class="lct-budget-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= [budget[:percent_used].to_f, 100.0].min.round %>">
               <div class="lct-budget-fill <%= fill_mod %>" style="width: <%= [budget[:percent_used].to_f, 100.0].min %>%"></div>
+              <% if budget[:projected_spent].positive? %>
+                <span class="lct-budget-marker" aria-hidden="true" style="left: calc(<%= projected_marker %>% - 1px)"></span>
+              <% end %>
             </div>
+            <p class="lct-budget-projection">
+              <span>Projected <strong><%= money(budget[:projected_spent]) %></strong> by <%= budget[:projection_end_label] %></span>
+              <span class="lct-budget-projection-status <%= projected_delta.positive? ? "lct-budget-projection-status--over" : "lct-budget-projection-status--under" %>">
+                <%= money(projected_delta.abs) %> <%= projected_delta.positive? ? "over" : "under" %> budget
+              </span>
+            </p>
             <p class="lct-budget-meta">Soft limit: blocking is not atomic under concurrency.</p>
           </div>
         </section>
@@ -133,10 +159,10 @@
       <div class="lct-section-head">
         <div>
           <h2 class="lct-section-title">Daily Spend</h2>
-          <p class="lct-section-copy">The last <%= number(@time_series.size) %> days in the current slice.</p>
+          <p class="lct-section-copy">Current slice vs. previous <%= number(@comparison_series.size) %>-day slice.</p>
         </div>
       </div>
-      <%= render "llm_cost_tracker/shared/spend_chart", series: @time_series %>
+      <%= render "llm_cost_tracker/shared/spend_chart", series: @time_series, comparison_series: @comparison_series %>
     </section>
 
     <% if @providers.any? %>

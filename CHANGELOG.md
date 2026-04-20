@@ -7,6 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Added
 
 - `LlmCostTracker::Retention.prune(older_than:)` and `llm_cost_tracker:prune` rake task.
+- Overview adds budget projection, previous-period daily spend comparison, and spend anomaly alerts.
+- Call details add token and cost mix breakdowns.
 
 ### Fixed
 

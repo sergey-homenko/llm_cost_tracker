@@ -264,10 +264,10 @@ mount LlmCostTracker::Engine => "/llm-costs"
 
 Routes (GET-only; CSV export included):
 
-- `/llm-costs` — overview: spend (with delta vs previous period), calls, avg cost/call, avg latency, unknown pricing, budget, daily trend, provider rollup, top models
+- `/llm-costs` — overview: spend with delta vs previous period, budget projection, spend anomaly banner, daily trend vs previous slice, provider rollup, top models
 - `/llm-costs/models` — by provider + model; sortable by spend, volume, avg cost, latency
 - `/llm-costs/calls` — filterable + paginated; outlier sort modes (expensive, largest input/output, slowest, unknown pricing); CSV export
-- `/llm-costs/calls/:id` — details
+- `/llm-costs/calls/:id` — details with token mix and cost mix breakdowns
 - `/llm-costs/tags` — tag keys present in the dataset (PG/SQLite native; MySQL 8.0+ via JSON_TABLE)
 - `/llm-costs/tags/:key` — breakdown by values of a given tag key
 - `/llm-costs/data_quality` — unknown pricing share, untagged calls, missing latency

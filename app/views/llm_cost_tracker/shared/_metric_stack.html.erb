@@ -1,0 +1,23 @@
+<% visible_segments = stack_segments(segments) %>
+
+<% if visible_segments.empty? %>
+  <p class="lct-call-breakdown-empty"><%= empty_message %></p>
+<% else %>
+  <div class="lct-stack-track" aria-hidden="true">
+    <% visible_segments.each do |segment| %>
+      <span class="lct-stack-fill <%= segment[:css_class] %>" style="width: <%= segment[:percent].round(2) %>%"></span>
+    <% end %>
+  </div>
+
+  <div class="lct-stack-legend">
+    <% visible_segments.each do |segment| %>
+      <div class="lct-stack-legend-item">
+        <span class="lct-stack-key">
+          <span class="lct-stack-swatch <%= segment[:css_class] %>"></span>
+          <span><%= segment[:label] %></span>
+        </span>
+        <span class="lct-stack-meta"><%= segment[:formatted_value] %> · <%= percent(segment[:percent]) %></span>
+      </div>
+    <% end %>
+  </div>
+<% end %>
