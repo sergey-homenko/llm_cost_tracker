@@ -11,63 +11,55 @@ module LlmCostTracker
     EMPTY_PRICES = {}.freeze
     PRICE_KEYS = %w[input cached_input output cache_read_input cache_creation_input].freeze
     METADATA_KEYS = %w[_source _updated _notes].freeze
-    FILE_PRICES_MUTEX = Mutex.new
-    NORMALIZE_PRICE_ENTRY = lambda do |price|
-      (price || {}).each_with_object({}) do |(key, value), normalized|
-        key = key.to_s
-        normalized[key.to_sym] = Float(value) if PRICE_KEYS.include?(key)
-      end
-    end
-    NORMALIZE_PRICE_TABLE = lambda do |table|
-      (table || {}).each_with_object({}) do |(model, price), normalized|
-        normalized[model.to_s] = NORMALIZE_PRICE_ENTRY.call(price)
-      end
-    end
-    RAW_REGISTRY = JSON.parse(File.read(DEFAULT_PRICES_PATH)).freeze
-    PRICE_METADATA = RAW_REGISTRY.fetch("metadata", {}).freeze
-    BUILTIN_PRICES = NORMALIZE_PRICE_TABLE.call(RAW_REGISTRY.fetch("models", {})).freeze
-
-    private_constant :FILE_PRICES_MUTEX
 
     class << self
       def builtin_prices
-        BUILTIN_PRICES
+        @builtin_prices ||= normalize_price_table(raw_registry.fetch("models", {})).freeze
       end
 
       def metadata
-        PRICE_METADATA
+        @metadata ||= raw_registry.fetch("metadata", {}).freeze
       end
 
       def normalize_price_table(table)
-        NORMALIZE_PRICE_TABLE.call(table)
+        (table || {}).each_with_object({}) do |(model, price), normalized|
+          normalized[model.to_s] = normalize_price_entry(price)
+        end
       end
 
       def file_prices(path)
         return EMPTY_PRICES unless path
 
         path = path.to_s
-        FILE_PRICES_MUTEX.synchronize do
-          cache_key = [path, File.mtime(path).to_f]
-          return @file_prices if @file_prices_cache_key == cache_key
+        cache_key = [path, File.mtime(path).to_f]
+        cached = @file_prices_cache
+        return cached[:value] if cached && cached[:key] == cache_key
 
-          @file_prices_cache_key = cache_key
-          @file_prices = normalize_file_prices(price_file_models(load_price_file(path)), path: path).freeze
-        end
+        value = normalize_file_prices(price_file_models(load_price_file(path)), path: path).freeze
+        @file_prices_cache = { key: cache_key, value: value }.freeze
+        value
       rescue Errno::ENOENT, JSON::ParserError, Psych::Exception, ArgumentError, TypeError, NoMethodError => e
         raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
       end
 
       private
 
+      def raw_registry
+        @raw_registry ||= JSON.parse(File.read(DEFAULT_PRICES_PATH)).freeze
+      end
+
+      def normalize_price_entry(price)
+        (price || {}).each_with_object({}) do |(key, value), normalized|
+          key = key.to_s
+          normalized[key.to_sym] = Float(value) if PRICE_KEYS.include?(key)
+        end
+      end
+
       def normalize_file_prices(table, path:)
         (table || {}).each_with_object({}) do |(model, price), normalized|
           warn_unknown_keys(model, price, path)
           normalized[model.to_s] = normalize_price_entry(price)
         end
-      end
-
-      def normalize_price_entry(price)
-        NORMALIZE_PRICE_ENTRY.call(price)
       end
 
       def warn_unknown_keys(model, price, path)

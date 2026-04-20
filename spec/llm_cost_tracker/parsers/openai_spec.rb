@@ -56,10 +56,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       )
 
       expect(result).to be_a(LlmCostTracker::ParsedUsage)
-      expect(result[:provider]).to eq("openai")
-      expect(result[:model]).to eq("gpt-4o")
-      expect(result[:input_tokens]).to eq(150)
-      expect(result[:output_tokens]).to eq(42)
+      expect(result.provider).to eq("openai")
+      expect(result.model).to eq("gpt-4o")
+      expect(result.input_tokens).to eq(150)
+      expect(result.output_tokens).to eq(42)
     end
 
     it "extracts token usage from a Responses API response" do
@@ -80,11 +80,11 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         response_body
       )
 
-      expect(result[:provider]).to eq("openai")
-      expect(result[:model]).to eq("gpt-5-mini")
-      expect(result[:input_tokens]).to eq(150)
-      expect(result[:output_tokens]).to eq(42)
-      expect(result[:cached_input_tokens]).to eq(100)
+      expect(result.provider).to eq("openai")
+      expect(result.model).to eq("gpt-5-mini")
+      expect(result.input_tokens).to eq(150)
+      expect(result.output_tokens).to eq(42)
+      expect(result.cached_input_tokens).to eq(100)
     end
   end
 end

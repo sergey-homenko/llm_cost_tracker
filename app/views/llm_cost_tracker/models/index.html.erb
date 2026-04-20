@@ -1,0 +1,95 @@
+<section class="lct-panel">
+  <h2 class="lct-section-title">Models</h2>
+  <form class="lct-filters" action="<%= models_path %>" method="get">
+    <div class="lct-field">
+      <label for="lct-from">From</label>
+      <input id="lct-from" type="date" name="from" value="<%= params[:from] %>">
+    </div>
+
+    <div class="lct-field">
+      <label for="lct-to">To</label>
+      <input id="lct-to" type="date" name="to" value="<%= params[:to] %>">
+    </div>
+
+    <div class="lct-field">
+      <label for="lct-provider">Provider</label>
+      <input id="lct-provider" type="text" name="provider" value="<%= params[:provider] %>">
+    </div>
+
+    <div class="lct-field">
+      <label for="lct-model">Model</label>
+      <input id="lct-model" type="text" name="model" value="<%= params[:model] %>">
+    </div>
+
+    <div class="lct-field">
+      <label for="lct-tag-key">Tag key</label>
+      <input id="lct-tag-key" type="text" name="tag_key" value="<%= params[:tag_key] %>">
+    </div>
+
+    <div class="lct-field">
+      <label for="lct-tag-value">Tag value</label>
+      <input id="lct-tag-value" type="text" name="tag_value" value="<%= params[:tag_value] %>">
+    </div>
+
+    <div class="lct-field">
+      <label for="lct-sort">Sort by</label>
+      <select id="lct-sort" name="sort">
+        <option value="cost"     <%= "selected" if @sort.blank? || @sort == "cost" %>>Total spend</option>
+        <option value="calls"    <%= "selected" if @sort == "calls" %>>Call volume</option>
+        <option value="avg_cost" <%= "selected" if @sort == "avg_cost" %>>Avg cost / call</option>
+        <% if @latency_available %>
+          <option value="latency" <%= "selected" if @sort == "latency" %>>Avg latency</option>
+        <% end %>
+      </select>
+    </div>
+
+    <div class="lct-button-row">
+      <button class="lct-button" type="submit">Apply</button>
+      <%= link_to "Reset", models_path, class: "lct-button lct-button-secondary" %>
+    </div>
+  </form>
+</section>
+
+<% if @rows.empty? %>
+  <section class="lct-panel lct-empty">
+    <h2 class="lct-section-title">No models</h2>
+    <p class="lct-muted">Tracked models will appear here when they match the current filters.</p>
+  </section>
+<% else %>
+  <section class="lct-panel">
+    <div class="lct-table-wrap">
+      <table class="lct-table">
+        <thead>
+          <tr>
+            <th>Provider</th>
+            <th>Model</th>
+            <th>Calls</th>
+            <th>Input</th>
+            <th>Output</th>
+            <th>Total cost</th>
+            <th>Avg cost / call</th>
+            <% if @latency_available %>
+              <th>Avg latency</th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td><%= row.provider %></td>
+              <td><%= row.model %></td>
+              <td><%= number(row.calls) %></td>
+              <td><%= format_tokens(row.input_tokens) %></td>
+              <td><%= format_tokens(row.output_tokens) %></td>
+              <td><%= money(row.total_cost) %></td>
+              <td><%= money(row.average_cost_per_call) %></td>
+              <% if @latency_available %>
+                <td><%= row.average_latency_ms ? "#{number(row.average_latency_ms.round)}ms" : "n/a" %></td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<% end %>

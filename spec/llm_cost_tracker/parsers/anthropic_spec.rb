@@ -44,13 +44,13 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
         response_body
       )
 
-      expect(result[:provider]).to eq("anthropic")
-      expect(result[:model]).to eq("claude-sonnet-4-6")
-      expect(result[:input_tokens]).to eq(200)
-      expect(result[:output_tokens]).to eq(80)
-      expect(result[:total_tokens]).to eq(340)
-      expect(result[:cache_read_input_tokens]).to eq(50)
-      expect(result[:cache_creation_input_tokens]).to eq(10)
+      expect(result.provider).to eq("anthropic")
+      expect(result.model).to eq("claude-sonnet-4-6")
+      expect(result.input_tokens).to eq(200)
+      expect(result.output_tokens).to eq(80)
+      expect(result.total_tokens).to eq(340)
+      expect(result.cache_read_input_tokens).to eq(50)
+      expect(result.cache_creation_input_tokens).to eq(10)
     end
   end
 end

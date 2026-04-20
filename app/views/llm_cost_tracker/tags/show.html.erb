@@ -1,0 +1,69 @@
+<section class="lct-panel">
+  <p class="lct-muted"><%= link_to "← All tag keys", tags_path %></p>
+  <h2 class="lct-section-title">Tag key: <code class="lct-code"><%= @tag_key %></code></h2>
+  <% if @total_calls.positive? %>
+    <p class="lct-muted">
+      <%= number(@tagged_calls) %> of <%= number(@total_calls) %> calls have this key
+      (<%= percent(coverage_percent(@tagged_calls, @total_calls)) %> coverage) &middot;
+      <%= number(@distinct_values) %> distinct <%= @distinct_values == 1 ? "value" : "values" %>
+    </p>
+  <% end %>
+  <form class="lct-filters" action="<%= tag_path(@tag_key) %>" method="get">
+    <div class="lct-field">
+      <label for="lct-from">From</label>
+      <input id="lct-from" type="date" name="from" value="<%= params[:from] %>">
+    </div>
+
+    <div class="lct-field">
+      <label for="lct-to">To</label>
+      <input id="lct-to" type="date" name="to" value="<%= params[:to] %>">
+    </div>
+
+    <div class="lct-field">
+      <label for="lct-provider">Provider</label>
+      <input id="lct-provider" type="text" name="provider" value="<%= params[:provider] %>">
+    </div>
+
+    <div class="lct-field">
+      <label for="lct-model">Model</label>
+      <input id="lct-model" type="text" name="model" value="<%= params[:model] %>">
+    </div>
+
+    <div class="lct-button-row">
+      <button class="lct-button" type="submit">Apply</button>
+      <%= link_to "Reset", tag_path(@tag_key), class: "lct-button lct-button-secondary" %>
+    </div>
+  </form>
+</section>
+
+<% if @rows.empty? %>
+  <section class="lct-panel lct-empty">
+    <h2 class="lct-section-title">No calls tagged with <%= @tag_key %></h2>
+    <p class="lct-muted">Calls carrying this tag will appear here when they match the current filters.</p>
+  </section>
+<% else %>
+  <section class="lct-panel">
+    <div class="lct-table-wrap">
+      <table class="lct-table">
+        <thead>
+          <tr>
+            <th>Value</th>
+            <th>Calls</th>
+            <th>Total cost</th>
+            <th>Avg cost / call</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td><%= row.value %></td>
+              <td><%= number(row.calls) %></td>
+              <td><%= money(row.total_cost) %></td>
+              <td><%= money(row.average_cost_per_call) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<% end %>

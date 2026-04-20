@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LLM Costs</title>
+    <style>
+      :root {
+        --lct-bg: #f7f8fa;
+        --lct-panel: #ffffff;
+        --lct-border: #d9dee7;
+        --lct-text: #1f2937;
+        --lct-muted: #64748b;
+        --lct-accent: #0f766e;
+        --lct-accent-soft: #ccfbf1;
+        --lct-danger: #b91c1c;
+      }
+
+      body {
+        margin: 0;
+        background: var(--lct-bg);
+        color: var(--lct-text);
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .lct-shell {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .lct-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+
+      .lct-title {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.2;
+      }
+
+      .lct-nav {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .lct-nav a {
+        color: var(--lct-muted);
+        text-decoration: none;
+        font-size: 14px;
+      }
+
+      .lct-nav a:hover {
+        color: var(--lct-accent);
+      }
+
+      .lct-nav .lct-active {
+        color: var(--lct-accent);
+        font-weight: 700;
+      }
+
+      .lct-panel {
+        background: var(--lct-panel);
+        border: 1px solid var(--lct-border);
+        border-radius: 8px;
+        padding: 24px;
+        margin-bottom: 20px;
+      }
+
+      .lct-muted {
+        color: var(--lct-muted);
+      }
+
+      .lct-code {
+        background: #eef2f7;
+        border-radius: 6px;
+        padding: 2px 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 0.95em;
+      }
+
+      .lct-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .lct-stats {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      }
+
+      .lct-two-col {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+
+      .lct-stat {
+        background: var(--lct-panel);
+        border: 1px solid var(--lct-border);
+        border-radius: 8px;
+        padding: 18px;
+      }
+
+      .lct-stat-label {
+        color: var(--lct-muted);
+        font-size: 13px;
+        margin: 0 0 8px;
+      }
+
+      .lct-stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        margin: 0;
+      }
+
+      .lct-section-title {
+        margin: 0 0 16px;
+        font-size: 18px;
+      }
+
+      .lct-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+
+      .lct-stat-sub {
+        color: var(--lct-muted);
+        font-size: 12px;
+        margin: 4px 0 0;
+      }
+
+      .lct-delta {
+        font-size: 12px;
+        margin: 4px 0 0;
+      }
+
+      .lct-delta-neutral { color: var(--lct-muted); }
+      .lct-delta-up      { color: #b91c1c; }
+      .lct-delta-down    { color: #047857; }
+
+      .lct-table-wrap {
+        overflow-x: auto;
+      }
+
+      .lct-table th,
+      .lct-table td {
+        border-bottom: 1px solid var(--lct-border);
+        padding: 10px 8px;
+        text-align: left;
+        vertical-align: middle;
+      }
+
+      .lct-table th {
+        color: var(--lct-muted);
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .lct-table td:last-child,
+      .lct-table th:last-child {
+        text-align: right;
+      }
+
+      .lct-calls-table td:last-child,
+      .lct-calls-table th:last-child {
+        text-align: left;
+      }
+
+      .lct-bar-track {
+        background: #e5e7eb;
+        border-radius: 999px;
+        height: 8px;
+        overflow: hidden;
+        min-width: 96px;
+      }
+
+      .lct-bar-fill {
+        background: var(--lct-accent);
+        height: 100%;
+      }
+
+      .lct-budget-fill {
+        background: var(--lct-danger);
+      }
+
+      .lct-empty {
+        padding: 32px;
+        text-align: center;
+      }
+
+      .lct-filters {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+
+      .lct-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .lct-field label {
+        color: var(--lct-muted);
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .lct-field input,
+      .lct-field select {
+        border: 1px solid var(--lct-border);
+        border-radius: 6px;
+        color: var(--lct-text);
+        font: inherit;
+        padding: 8px 10px;
+        background: var(--lct-panel);
+      }
+
+      .lct-button-row {
+        align-items: end;
+        display: flex;
+        gap: 8px;
+      }
+
+      .lct-button {
+        background: var(--lct-accent);
+        border: 1px solid var(--lct-accent);
+        border-radius: 6px;
+        color: #ffffff;
+        display: inline-block;
+        font: inherit;
+        padding: 8px 12px;
+        text-decoration: none;
+      }
+
+      .lct-button-secondary {
+        background: var(--lct-panel);
+        color: var(--lct-accent);
+      }
+
+      .lct-pagination {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .lct-tags {
+        display: inline-block;
+        max-width: 280px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .lct-nowrap {
+        white-space: nowrap;
+      }
+
+      .lct-detail-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+
+      .lct-dl {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: minmax(120px, 0.4fr) minmax(0, 1fr);
+        margin: 0;
+      }
+
+      .lct-dl dt {
+        color: var(--lct-muted);
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .lct-dl dd {
+        margin: 0;
+      }
+
+      .lct-pre {
+        background: #0f172a;
+        border-radius: 8px;
+        color: #e5e7eb;
+        margin: 0;
+        overflow: auto;
+        padding: 16px;
+      }
+
+      @media (max-width: 800px) {
+        .lct-header {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .lct-stats,
+        .lct-two-col {
+          grid-template-columns: 1fr;
+        }
+
+        .lct-filters {
+          grid-template-columns: 1fr;
+        }
+
+        .lct-pagination {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .lct-detail-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="lct-shell">
+      <header class="lct-header">
+        <h1 class="lct-title">LLM Costs</h1>
+        <nav class="lct-nav" aria-label="Dashboard">
+          <%= link_to "Overview", root_path, class: ("lct-active" if request.path.delete_suffix("/") == root_path.delete_suffix("/")) %>
+          <%= link_to "Models", models_path, class: ("lct-active" if request.path.start_with?(models_path)) %>
+          <%= link_to "Calls", calls_path, class: ("lct-active" if request.path.start_with?(calls_path)) %>
+          <%= link_to "Tags", tags_path, class: ("lct-active" if request.path.start_with?(tags_path)) %>
+          <%= link_to "Data Quality", data_quality_path, class: ("lct-active" if request.path.start_with?(data_quality_path)) %>
+        </nav>
+      </header>
+
+      <%= yield %>
+    </main>
+  </body>
+</html>

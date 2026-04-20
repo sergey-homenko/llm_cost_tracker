@@ -1,0 +1,237 @@
+# frozen_string_literal: true
+
+require "spec_helper"
+
+ENV["RAILS_ENV"] ||= "test"
+
+require_relative "../../dummy/config/environment"
+
+RSpec.describe "LlmCostTracker::Engine calls" do
+  include_context "with mounted llm cost tracker engine"
+
+  it "renders the calls index with cost, token, latency, and tag columns" do
+    create_call(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 1_200,
+      output_tokens: 300,
+      total_cost: 2.5,
+      latency_ms: 250,
+      tags: { feature: "chat", user_id: 42 },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+
+    response = get("/llm-costs/calls")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Calls")
+    expect(response.body).to include("gpt-4o")
+    expect(response.body).to include("1,200")
+    expect(response.body).to include("300")
+    expect(response.body).to include("1,500")
+    expect(response.body).to include("$2.50")
+    expect(response.body).to include("250ms")
+    expect(response.body).to include("feature=chat")
+    expect(response.body).to include("user_id=42")
+    expect(response.body).to include("Details")
+    expect(response.body).to include("/llm-costs/calls/#{LlmCostTracker::LlmApiCall.first.id}")
+  end
+
+  it "filters calls and paginates newest first" do
+    create_call(
+      provider: "openai",
+      model: "new-chat",
+      total_cost: 2.0,
+      tags: { feature: "chat" },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+    create_call(
+      provider: "openai",
+      model: "old-chat",
+      total_cost: 1.0,
+      tags: { feature: "chat" },
+      tracked_at: Time.utc(2026, 4, 18, 11, 0, 0)
+    )
+    create_call(
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+      total_cost: 3.0,
+      tags: { feature: "summarizer" },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+
+    response = get("/llm-costs/calls?provider=openai&tag%5Bfeature%5D=chat&per=1")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("new-chat")
+    expect(response.body).not_to include("old-chat")
+    expect(response.body).not_to include("claude-haiku-4-5")
+    expect(response.body).to include("1-1 of 2")
+    expect(response.body).to include("Next")
+
+    second_page = get("/llm-costs/calls?provider=openai&tag%5Bfeature%5D=chat&per=1&page=2")
+
+    expect(second_page.status).to eq(200)
+    expect(second_page.body).to include("old-chat")
+    expect(second_page.body).not_to include("new-chat")
+    expect(second_page.body).to include("Previous")
+  end
+
+  it "supports tag key and value filter fields on the calls index" do
+    create_call(model: "chat-model", tags: { feature: "chat" })
+    create_call(model: "summary-model", tags: { feature: "summarizer" })
+
+    response = get("/llm-costs/calls?tag_key=feature&tag_value=summarizer")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("summary-model")
+    expect(response.body).not_to include("chat-model")
+  end
+
+  it "renders an empty calls state when filters match nothing" do
+    create_call(model: "gpt-4o", tags: { feature: "chat" })
+
+    response = get("/llm-costs/calls?model=missing")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("No matching calls")
+    expect(response.body).not_to include("gpt-4o")
+  end
+
+  it "renders invalid calls filters as bad requests" do
+    response = get("/llm-costs/calls?tag%5B%3BDROP%5D=x")
+
+    expect(response.status).to eq(400)
+    expect(response.body).to include("Invalid filter")
+    expect(response.body).to include("invalid tag key")
+  end
+
+  it "renders call details with token, cost, latency, pricing, and tags data" do
+    call = create_call(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 1_200,
+      output_tokens: 300,
+      input_cost: 1.25,
+      output_cost: 1.75,
+      total_cost: 3.0,
+      latency_ms: 250,
+      tags: { feature: "chat", user_id: 42 },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+
+    response = get("/llm-costs/calls/#{call.id}")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Call ##{call.id}")
+    expect(response.body).to include("2026-04-18 12:00")
+    expect(response.body).to include("openai")
+    expect(response.body).to include("gpt-4o")
+    expect(response.body).to include("Estimated")
+    expect(response.body).to include("1,200")
+    expect(response.body).to include("300")
+    expect(response.body).to include("1,500")
+    expect(response.body).to include("$1.25")
+    expect(response.body).to include("$1.75")
+    expect(response.body).to include("$3.00")
+    expect(response.body).to include("250ms")
+    expect(response.body).to include("Tags")
+    expect(response.body).to include("feature")
+    expect(response.body).to include("chat")
+    expect(response.body).to include("Back to calls")
+  end
+
+  it "marks call details with nil total cost as unknown pricing" do
+    call = create_call(total_cost: nil)
+
+    response = get("/llm-costs/calls/#{call.id}")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Unknown pricing")
+    expect(response.body).to include("n/a")
+  end
+
+  it "renders optional metadata on call details when the column exists" do
+    ActiveRecord::Base.connection.add_column :llm_api_calls, :metadata, :text
+    LlmCostTracker::LlmApiCall.reset_column_information
+    call = create_call
+    call.update!(metadata: { request_id: "req_123" }.to_json)
+
+    response = get("/llm-costs/calls/#{call.id}")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Metadata")
+    expect(response.body).to include("request_id")
+    expect(response.body).to include("req_123")
+  end
+
+  it "renders a friendly not-found page for missing call details" do
+    response = get("/llm-costs/calls/999")
+
+    expect(response.status).to eq(404)
+    expect(response.body).to include("Call not found")
+    expect(response.body).to include("Back to calls")
+  end
+
+  it "does not route non-numeric call detail ids" do
+    response = get("/llm-costs/calls/not-a-number")
+
+    expect(response.status).to eq(404)
+  end
+
+  it "renders a calls setup state when the ledger table is missing" do
+    ActiveRecord::Base.connection.drop_table(:llm_api_calls)
+    LlmCostTracker::LlmApiCall.reset_column_information
+
+    response = get("/llm-costs/calls")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("llm_api_calls")
+    expect(response.body).to include("rails generate llm_cost_tracker:install")
+  end
+
+  it "renders a call details setup state when the ledger table is missing" do
+    ActiveRecord::Base.connection.drop_table(:llm_api_calls)
+    LlmCostTracker::LlmApiCall.reset_column_information
+
+    response = get("/llm-costs/calls/1")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("llm_api_calls")
+    expect(response.body).to include("rails generate llm_cost_tracker:install")
+  end
+
+  it "exports filtered calls as CSV" do
+    create_call(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 100,
+      output_tokens: 50,
+      total_cost: 1.25,
+      latency_ms: 200,
+      tags: { feature: "chat" },
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+    )
+    create_call(
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+      total_cost: 0.5,
+      tags: { feature: "summarizer" },
+      tracked_at: Time.utc(2026, 4, 18, 13, 0, 0)
+    )
+
+    response = get("/llm-costs/calls.csv?provider=openai")
+
+    expect(response.status).to eq(200)
+    expect(response.headers["Content-Type"]).to include("text/csv")
+    expect(response.headers["Content-Disposition"]).to include("attachment")
+    expect(response.headers["Content-Disposition"]).to include(".csv")
+
+    lines = response.body.lines
+    expect(lines.first).to include("tracked_at", "provider", "model", "total_cost", "tags")
+    expect(response.body).to include("openai")
+    expect(response.body).to include("gpt-4o")
+    expect(response.body).to include("1.25")
+    expect(response.body).not_to include("claude-haiku-4-5")
+  end
+end

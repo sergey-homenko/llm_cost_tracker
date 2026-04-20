@@ -3,6 +3,8 @@
 module LlmCostTracker
   class ReportFormatter
     TOP_LIMIT = 5
+    NAME_COLUMN_WIDTH = 28
+    TOP_CALL_COLUMN_WIDTH = 32
 
     def initialize(data)
       @data = data
@@ -33,7 +35,7 @@ module LlmCostTracker
       return lines << "  none" if rows.empty?
 
       rows.first(TOP_LIMIT).each do |name, cost|
-        lines << "  #{name.to_s.ljust(28)} #{money(cost)}"
+        lines << "  #{name.to_s.ljust(NAME_COLUMN_WIDTH)} #{money(cost)}"
       end
     end
 
@@ -50,7 +52,7 @@ module LlmCostTracker
 
       @data.top_calls.first(TOP_LIMIT).each do |call|
         label = "#{call.provider}/#{call.model}"
-        lines << "  #{label.ljust(32)} #{money(call.total_cost)}"
+        lines << "  #{label.ljust(TOP_CALL_COLUMN_WIDTH)} #{money(call.total_cost)}"
       end
     end
 

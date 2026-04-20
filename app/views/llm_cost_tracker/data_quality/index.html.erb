@@ -1,0 +1,110 @@
+<% total = @stats.total_calls %>
+
+<% if total.zero? %>
+  <section class="lct-panel lct-empty">
+    <h2 class="lct-section-title">No data yet</h2>
+    <p class="lct-muted">Data quality metrics will appear here once calls are recorded.</p>
+  </section>
+<% else %>
+  <section class="lct-grid lct-stats">
+    <article class="lct-stat">
+      <p class="lct-stat-label">Total calls</p>
+      <p class="lct-stat-value"><%= number(total) %></p>
+    </article>
+
+    <article class="lct-stat">
+      <p class="lct-stat-label">Unknown pricing</p>
+      <p class="lct-stat-value"><%= number(@stats.unknown_pricing_count) %></p>
+      <p class="lct-stat-sub"><%= percent(coverage_percent(@stats.unknown_pricing_count, total)) %> of calls</p>
+    </article>
+
+    <article class="lct-stat">
+      <p class="lct-stat-label">Calls without tags</p>
+      <p class="lct-stat-value"><%= number(@stats.untagged_calls_count) %></p>
+      <p class="lct-stat-sub"><%= percent(coverage_percent(@stats.untagged_calls_count, total)) %> of calls</p>
+    </article>
+
+    <% if @stats.latency_column_present %>
+      <article class="lct-stat">
+        <p class="lct-stat-label">Missing latency</p>
+        <p class="lct-stat-value"><%= number(@stats.missing_latency_count) %></p>
+        <p class="lct-stat-sub"><%= percent(coverage_percent(@stats.missing_latency_count, total)) %> of calls</p>
+      </article>
+    <% end %>
+  </section>
+
+  <% unless @stats.unknown_pricing_by_model.empty? %>
+    <section class="lct-panel">
+      <h2 class="lct-section-title">Unknown Pricing by Model</h2>
+      <p class="lct-muted">
+        These models have no pricing configured. Token counts are recorded but cost is <code class="lct-code">nil</code>.
+        Add entries to <code class="lct-code">pricing_overrides</code> or <code class="lct-code">prices_file</code> to fix.
+      </p>
+      <div class="lct-table-wrap">
+        <table class="lct-table">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Calls without cost</th>
+              <th>Share of total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @stats.unknown_pricing_by_model.each do |model, count| %>
+              <tr>
+                <td><code class="lct-code"><%= model %></code></td>
+                <td><%= number(count) %></td>
+                <td><%= percent(total.positive? ? (count.to_f / total) * 100 : 0) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <p class="lct-muted" style="margin-top:12px">
+        <%= link_to "View all unknown pricing calls →", calls_path(sort: "unknown_pricing") %>
+      </p>
+    </section>
+  <% end %>
+
+  <section class="lct-panel">
+    <h2 class="lct-section-title">Coverage Summary</h2>
+    <table class="lct-table">
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th>Coverage</th>
+          <th>Calls with data</th>
+          <th>Visual</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% cost_coverage = coverage_percent(total - @stats.unknown_pricing_count, total) %>
+        <tr>
+          <td>Cost (pricing known)</td>
+          <td><%= percent(cost_coverage) %></td>
+          <td><%= number(total - @stats.unknown_pricing_count) %></td>
+          <td><%= render "llm_cost_tracker/shared/bar", value: cost_coverage, max: 100.0 %></td>
+        </tr>
+
+        <% tag_coverage = coverage_percent(total - @stats.untagged_calls_count, total) %>
+        <tr>
+          <td>Tags (at least one tag)</td>
+          <td><%= percent(tag_coverage) %></td>
+          <td><%= number(total - @stats.untagged_calls_count) %></td>
+          <td><%= render "llm_cost_tracker/shared/bar", value: tag_coverage, max: 100.0 %></td>
+        </tr>
+
+        <% if @stats.latency_column_present %>
+          <% latency_coverage = coverage_percent(total - @stats.missing_latency_count, total) %>
+          <tr>
+            <td>Latency</td>
+            <td><%= percent(latency_coverage) %></td>
+            <td><%= number(total - @stats.missing_latency_count) %></td>
+            <td><%= render "llm_cost_tracker/shared/bar", value: latency_coverage, max: 100.0 %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+<% end %>
+

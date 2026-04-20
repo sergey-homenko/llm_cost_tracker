@@ -60,12 +60,46 @@ module LlmCostTracker
 
       def store(event)
         config = LlmCostTracker.configuration
-        Storage::Backends.fetch(config.storage_backend).save(event, config: config)
+        case config.storage_backend
+        when :log            then log_event(event, config)
+        when :active_record  then active_record_save(event)
+        when :custom         then custom_save(event, config)
+        end
       rescue BudgetExceededError, UnknownPricingError
         raise
       rescue StandardError => e
         handle_storage_error(e)
         false
+      end
+
+      def log_event(event, config)
+        message = "#{event.provider}/#{event.model} " \
+                  "tokens=#{event.input_tokens}+#{event.output_tokens} " \
+                  "cost=#{log_cost_label(event)}"
+        message += " latency=#{event.latency_ms}ms" if event.latency_ms
+        message += " tags=#{event.tags}" unless event.tags.empty?
+
+        Logging.log(config.log_level, message)
+        event
+      end
+
+      def log_cost_label(event)
+        event.cost ? "$#{format('%.6f', event.cost.total_cost)}" : "unknown"
+      end
+
+      def active_record_save(event)
+        require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
+        require_relative "storage/active_record_store" unless defined?(LlmCostTracker::Storage::ActiveRecordStore)
+
+        Storage::ActiveRecordStore.save(event)
+        event
+      rescue LoadError => e
+        raise Error, "ActiveRecord storage requires the active_record gem: #{e.message}"
+      end
+
+      def custom_save(event, config)
+        result = config.custom_storage&.call(event)
+        result == false ? false : event
       end
 
       def handle_storage_error(error)

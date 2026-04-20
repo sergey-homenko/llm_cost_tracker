@@ -162,6 +162,157 @@ RSpec.describe "ActiveRecord storage integration" do
     )
   end
 
+  it "groups costs by day on the SQL side" do
+    llm_api_call_model.create!(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      total_cost: 1.25,
+      tags: "{}",
+      tracked_at: Time.utc(2026, 4, 18, 10, 30)
+    )
+    llm_api_call_model.create!(
+      provider: "openai",
+      model: "gpt-4o-mini",
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      total_cost: 2.75,
+      tags: "{}",
+      tracked_at: Time.utc(2026, 4, 18, 23, 59)
+    )
+    llm_api_call_model.create!(
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      total_cost: 3.5,
+      tags: "{}",
+      tracked_at: Time.utc(2026, 4, 19, 0, 1)
+    )
+
+    expect(llm_api_call_model.group_by_period(:day).to_sql).to include("strftime")
+    expect(llm_api_call_model.group_by_period(:day).sum(:total_cost).transform_values(&:to_f)).to eq(
+      "2026-04-18" => 4.0,
+      "2026-04-19" => 3.5
+    )
+  end
+
+  it "groups costs by month on the SQL side" do
+    llm_api_call_model.create!(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      total_cost: 1.25,
+      tags: "{}",
+      tracked_at: Time.utc(2026, 4, 18)
+    )
+    llm_api_call_model.create!(
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      total_cost: 3.5,
+      tags: "{}",
+      tracked_at: Time.utc(2026, 5, 1)
+    )
+
+    expect(llm_api_call_model.group_by_period(:month).sum(:total_cost).transform_values(&:to_f)).to eq(
+      "2026-04" => 1.25,
+      "2026-05" => 3.5
+    )
+  end
+
+  it "groups by a whitelisted custom timestamp column" do
+    llm_api_call_model.create!(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      total_cost: 1.25,
+      tags: "{}",
+      tracked_at: Time.utc(2026, 4, 18),
+      created_at: Time.utc(2026, 5, 2),
+      updated_at: Time.utc(2026, 5, 2)
+    )
+
+    expect(
+      llm_api_call_model.group_by_period(:day, column: :created_at).sum(:total_cost).transform_values(&:to_f)
+    ).to eq("2026-05-02" => 1.25)
+  end
+
+  it "builds PostgreSQL period grouping SQL" do
+    allow(llm_api_call_model.connection).to receive(:adapter_name).and_return("PostgreSQL")
+
+    day_sql = llm_api_call_model.group_by_period(:day).to_sql
+    month_sql = llm_api_call_model.group_by_period(:month).to_sql
+
+    expect(day_sql).to include("TO_CHAR(DATE_TRUNC('day'")
+    expect(day_sql).to include("'YYYY-MM-DD'")
+    expect(month_sql).to include("TO_CHAR(DATE_TRUNC('month'")
+    expect(month_sql).to include("'YYYY-MM'")
+  end
+
+  it "builds MySQL period grouping SQL" do
+    allow(llm_api_call_model.connection).to receive(:adapter_name).and_return("Mysql2")
+
+    day_sql = llm_api_call_model.group_by_period(:day).to_sql
+    month_sql = llm_api_call_model.group_by_period(:month).to_sql
+
+    expect(day_sql).to include("DATE_FORMAT")
+    expect(day_sql).to include("'%Y-%m-%d'")
+    expect(month_sql).to include("DATE_FORMAT")
+    expect(month_sql).to include("'%Y-%m'")
+  end
+
+  it "composes period grouping with other scopes" do
+    tracked_at = Time.now.utc
+
+    llm_api_call_model.create!(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      total_cost: 1.25,
+      tags: "{}",
+      tracked_at: tracked_at
+    )
+    llm_api_call_model.create!(
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      total_cost: 3.5,
+      tags: "{}",
+      tracked_at: tracked_at
+    )
+
+    result = llm_api_call_model.this_month.where(provider: "openai").group_by_period(:day).sum(:total_cost)
+
+    expect(result.transform_values(&:to_f)).to eq(tracked_at.strftime("%Y-%m-%d") => 1.25)
+  end
+
+  it "rejects invalid periods before building SQL" do
+    expect do
+      llm_api_call_model.group_by_period("day; DROP TABLE llm_api_calls")
+    end.to raise_error(ArgumentError, /invalid period/)
+  end
+
+  it "rejects invalid period columns before building SQL" do
+    expect do
+      llm_api_call_model.group_by_period(:day, column: "tracked_at; DROP TABLE llm_api_calls")
+    end.to raise_error(ArgumentError, /invalid period column/)
+  end
+
   it "supports safe tag keys with dots and dashes" do
     LlmCostTracker.track(
       provider: :openai,
@@ -200,7 +351,7 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "chat"
     )
 
-    result = llm_api_call_model.this_month.by_provider("openai").group_by_tag("feature").sum(:total_cost)
+    result = llm_api_call_model.this_month.where(provider: "openai").group_by_tag("feature").sum(:total_cost)
 
     expect(result.transform_values(&:to_f)).to eq("chat" => 0.0025)
   end

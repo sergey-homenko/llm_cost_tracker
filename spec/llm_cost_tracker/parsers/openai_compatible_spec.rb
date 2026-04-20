@@ -75,11 +75,11 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
         }.to_json
       )
 
-      expect(result[:provider]).to eq("openrouter")
-      expect(result[:model]).to eq("openai/gpt-4o-mini")
-      expect(result[:input_tokens]).to eq(25)
-      expect(result[:output_tokens]).to eq(10)
-      expect(result[:total_tokens]).to eq(35)
+      expect(result.provider).to eq("openrouter")
+      expect(result.model).to eq("openai/gpt-4o-mini")
+      expect(result.input_tokens).to eq(25)
+      expect(result.output_tokens).to eq(10)
+      expect(result.total_tokens).to eq(35)
     end
 
     it "extracts DeepSeek usage and provider name" do
@@ -97,10 +97,10 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
         }.to_json
       )
 
-      expect(result[:provider]).to eq("deepseek")
-      expect(result[:model]).to eq("deepseek-chat")
-      expect(result[:input_tokens]).to eq(300)
-      expect(result[:output_tokens]).to eq(80)
+      expect(result.provider).to eq("deepseek")
+      expect(result.model).to eq("deepseek-chat")
+      expect(result.input_tokens).to eq(300)
+      expect(result.output_tokens).to eq(80)
     end
 
     it "uses the configured provider name for custom compatible hosts" do
@@ -122,10 +122,10 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
         }.to_json
       )
 
-      expect(result[:provider]).to eq("internal_gateway")
-      expect(result[:model]).to eq("custom-chat")
-      expect(result[:input_tokens]).to eq(150)
-      expect(result[:output_tokens]).to eq(42)
+      expect(result.provider).to eq("internal_gateway")
+      expect(result.model).to eq("custom-chat")
+      expect(result.input_tokens).to eq(150)
+      expect(result.output_tokens).to eq(42)
     end
   end
 end

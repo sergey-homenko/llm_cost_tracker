@@ -25,10 +25,8 @@ module LlmCostTracker
         end
 
         def monthly_total(time: Time.now.utc)
-          beginning_of_month = Time.new(time.year, time.month, 1, 0, 0, 0, "+00:00")
-
           model_class
-            .where(tracked_at: beginning_of_month..time)
+            .where(tracked_at: time.beginning_of_month..time)
             .sum(:total_cost)
             .to_f
         end

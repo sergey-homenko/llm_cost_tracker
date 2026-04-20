@@ -1,0 +1,34 @@
+<% if @rows.empty? %>
+  <section class="lct-panel lct-empty">
+    <h2 class="lct-section-title">No tag keys found</h2>
+    <p class="lct-muted">No calls with tags have been recorded yet. Tag keys will appear here once data is available.</p>
+  </section>
+<% else %>
+  <section class="lct-panel">
+    <h2 class="lct-section-title">Tag Keys</h2>
+    <p class="lct-muted">All tag keys present in the dataset. Click a key to explore spend and call distribution by value.</p>
+    <div class="lct-table-wrap">
+      <table class="lct-table">
+        <thead>
+          <tr>
+            <th>Tag Key</th>
+            <th>Calls with this key</th>
+            <th>Distinct values</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td><code class="lct-code"><%= row.key %></code></td>
+              <td><%= number(row.calls_count) %></td>
+              <td><%= number(row.distinct_values) %></td>
+              <td><%= link_to "Breakdown →", tag_path(row.key), class: "lct-button lct-button-secondary" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<% end %>
+

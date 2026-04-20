@@ -4,11 +4,6 @@ module LlmCostTracker
   # Calculates costs from price entries expressed in USD per 1M tokens.
   module Pricing
     PRICES = PriceRegistry.builtin_prices
-    PRICES_MUTEX = Mutex.new
-    SORTED_PRICE_KEYS_MUTEX = Mutex.new
-
-    private_constant :PRICES_MUTEX
-    private_constant :SORTED_PRICE_KEYS_MUTEX
 
     class << self
       # Estimate model cost from token counts.
@@ -61,14 +56,12 @@ module LlmCostTracker
         overrides = PriceRegistry.normalize_price_table(LlmCostTracker.configuration.pricing_overrides)
         cache_key = [file_prices.object_id, LlmCostTracker.configuration.pricing_overrides.hash]
 
-        return @prices if @prices_cache_key == cache_key
+        cached = @prices_cache
+        return cached[:value] if cached && cached[:key] == cache_key
 
-        PRICES_MUTEX.synchronize do
-          return @prices if @prices_cache_key == cache_key
-
-          @prices_cache_key = cache_key
-          @prices = PRICES.merge(file_prices).merge(overrides).freeze
-        end
+        value = PRICES.merge(file_prices).merge(overrides).freeze
+        @prices_cache = { key: cache_key, value: value }.freeze
+        value
       end
 
       private
@@ -120,14 +113,12 @@ module LlmCostTracker
       end
 
       def sorted_price_keys(table)
-        return @sorted_price_keys if @sorted_price_keys_table.equal?(table)
+        cached = @sorted_price_keys_cache
+        return cached[:keys] if cached && cached[:table].equal?(table)
 
-        SORTED_PRICE_KEYS_MUTEX.synchronize do
-          return @sorted_price_keys if @sorted_price_keys_table.equal?(table)
-
-          @sorted_price_keys_table = table
-          @sorted_price_keys = table.keys.sort_by { |key| -key.length }
-        end
+        keys = table.keys.sort_by { |key| -key.length }
+        @sorted_price_keys_cache = { table: table, keys: keys }.freeze
+        keys
       end
     end
   end

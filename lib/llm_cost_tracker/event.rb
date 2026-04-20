@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "value_object"
-
 module LlmCostTracker
-  Event = ValueObject.define(
+  Event = Data.define(
     :provider,
     :model,
     :input_tokens,

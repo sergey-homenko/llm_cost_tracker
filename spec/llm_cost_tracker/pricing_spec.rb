@@ -14,10 +14,10 @@ RSpec.describe LlmCostTracker::Pricing do
       )
 
       expect(result).to be_a(LlmCostTracker::Cost)
-      expect(result[:input_cost]).to be > 0
-      expect(result[:output_cost]).to be > 0
-      expect(result[:total_cost]).to eq(result[:input_cost] + result[:output_cost])
-      expect(result[:currency]).to eq("USD")
+      expect(result.input_cost).to be > 0
+      expect(result.output_cost).to be > 0
+      expect(result.total_cost).to eq(result.input_cost + result.output_cost)
+      expect(result.currency).to eq("USD")
     end
 
     it "returns nil for unknown models" do
@@ -38,7 +38,7 @@ RSpec.describe LlmCostTracker::Pricing do
       )
 
       expect(result).not_to be_nil
-      expect(result[:input_cost]).to eq(2.5)
+      expect(result.input_cost).to eq(2.5)
     end
 
     it "matches OpenRouter-style provider-prefixed model names" do
@@ -49,7 +49,7 @@ RSpec.describe LlmCostTracker::Pricing do
       )
 
       expect(result).not_to be_nil
-      expect(result[:input_cost]).to eq(0.15)
+      expect(result.input_cost).to eq(0.15)
     end
 
     it "prefers the longest fuzzy match for overlapping model names" do
@@ -59,7 +59,7 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result[:input_cost]).to eq(1.75)
+      expect(result.input_cost).to eq(1.75)
     end
 
     it "prices cached OpenAI input tokens at the cached rate" do
@@ -70,9 +70,9 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result[:input_cost]).to eq(0.15)
-      expect(result[:cached_input_cost]).to eq(0.01)
-      expect(result[:total_cost]).to eq(0.16)
+      expect(result.input_cost).to eq(0.15)
+      expect(result.cached_input_cost).to eq(0.01)
+      expect(result.total_cost).to eq(0.16)
     end
 
     it "prices Anthropic cache read and creation tokens separately" do
@@ -84,11 +84,11 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 10_000
       )
 
-      expect(result[:input_cost]).to eq(0.3)
-      expect(result[:cache_read_input_cost]).to eq(0.06)
-      expect(result[:cache_creation_input_cost]).to eq(1.125)
-      expect(result[:output_cost]).to eq(0.15)
-      expect(result[:total_cost]).to eq(1.635)
+      expect(result.input_cost).to eq(0.3)
+      expect(result.cache_read_input_cost).to eq(0.06)
+      expect(result.cache_creation_input_cost).to eq(1.125)
+      expect(result.output_cost).to eq(0.15)
+      expect(result.total_cost).to eq(1.635)
     end
 
     it "uses current Gemini 2.5 Flash standard pricing" do
@@ -98,8 +98,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000_000
       )
 
-      expect(result[:input_cost]).to eq(0.3)
-      expect(result[:output_cost]).to eq(2.5)
+      expect(result.input_cost).to eq(0.3)
+      expect(result.output_cost).to eq(2.5)
     end
 
     it "uses pricing overrides when configured" do
@@ -115,8 +115,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000_000
       )
 
-      expect(result[:input_cost]).to eq(1.0)
-      expect(result[:output_cost]).to eq(2.0)
+      expect(result.input_cost).to eq(1.0)
+      expect(result.output_cost).to eq(2.0)
     end
 
     it "loads local JSON pricing files ahead of built-in prices" do
@@ -136,7 +136,7 @@ RSpec.describe LlmCostTracker::Pricing do
           output_tokens: 0
         )
 
-        expect(result[:input_cost]).to eq(9.0)
+        expect(result.input_cost).to eq(9.0)
       end
     end
 
@@ -160,8 +160,8 @@ RSpec.describe LlmCostTracker::Pricing do
           output_tokens: 1_000_000
         )
 
-        expect(result[:input_cost]).to eq(1.0)
-        expect(result[:output_cost]).to eq(2.0)
+        expect(result.input_cost).to eq(1.0)
+        expect(result.output_cost).to eq(2.0)
       end
     end
 
@@ -185,8 +185,8 @@ RSpec.describe LlmCostTracker::Pricing do
           output_tokens: 1_000_000
         )
 
-        expect(result[:input_cost]).to eq(3.0)
-        expect(result[:output_cost]).to eq(4.0)
+        expect(result.input_cost).to eq(3.0)
+        expect(result.output_cost).to eq(4.0)
       end
     end
 
@@ -218,15 +218,15 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000_000
       )
 
-      expect(result[:input_cost]).to eq(0.27)
-      expect(result[:output_cost]).to eq(1.1)
+      expect(result.input_cost).to eq(0.27)
+      expect(result.output_cost).to eq(1.1)
     end
   end
 
   describe ".lookup" do
-    it "memoizes sorted price keys safely under concurrent lookup" do
-      %i[@sorted_price_keys @sorted_price_keys_table].each do |ivar|
-        described_class.remove_instance_variable(ivar) if described_class.instance_variable_defined?(ivar)
+    it "returns consistent sorted keys under concurrent lookup" do
+      if described_class.instance_variable_defined?(:@sorted_price_keys_cache)
+        described_class.remove_instance_variable(:@sorted_price_keys_cache)
       end
 
       table = {
@@ -238,8 +238,7 @@ RSpec.describe LlmCostTracker::Pricing do
         Thread.new { described_class.send(:sorted_price_keys, table) }
       end.map(&:value)
 
-      expect(results.map(&:object_id).uniq.size).to eq(1)
-      expect(results.first).to eq(%w[gpt-4o gpt-4])
+      expect(results).to all(eq(%w[gpt-4o gpt-4]))
     end
   end
 

@@ -16,22 +16,17 @@ module LlmCostTracker
 
     class << self
       def usage_data(input_tokens, output_tokens, metadata)
-        cache_read_input_tokens = integer_metadata(metadata, :cache_read_input_tokens, :cache_read_tokens)
-        cache_creation_input_tokens = integer_metadata(
-          metadata,
-          :cache_creation_input_tokens,
-          :cache_creation_tokens
-        )
-        cached_input_tokens = integer_metadata(metadata, :cached_input_tokens)
+        metadata = metadata.to_h.symbolize_keys
+        cache_read = first_integer(metadata, :cache_read_input_tokens, :cache_read_tokens)
+        cache_creation = first_integer(metadata, :cache_creation_input_tokens, :cache_creation_tokens)
 
         {
           input_tokens: input_tokens.to_i,
           output_tokens: output_tokens.to_i,
-          cached_input_tokens: cached_input_tokens,
-          cache_read_input_tokens: cache_read_input_tokens,
-          cache_creation_input_tokens: cache_creation_input_tokens,
-          total_tokens: input_tokens.to_i + output_tokens.to_i +
-            cache_read_input_tokens + cache_creation_input_tokens
+          cached_input_tokens: metadata[:cached_input_tokens].to_i,
+          cache_read_input_tokens: cache_read,
+          cache_creation_input_tokens: cache_creation,
+          total_tokens: input_tokens.to_i + output_tokens.to_i + cache_read + cache_creation
         }
       end
 
@@ -41,12 +36,8 @@ module LlmCostTracker
 
       private
 
-      def integer_metadata(metadata, *keys)
-        keys.each do |key|
-          value = metadata[key] || metadata[key.to_s]
-          return value.to_i unless value.nil?
-        end
-
+      def first_integer(metadata, *keys)
+        keys.each { |key| return metadata[key].to_i unless metadata[key].nil? }
         0
       end
     end

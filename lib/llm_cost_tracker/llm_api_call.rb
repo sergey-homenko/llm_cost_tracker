@@ -2,24 +2,21 @@
 
 require "active_record"
 
+require_relative "period_grouping"
 require_relative "tag_accessors"
+require_relative "tag_key"
 require_relative "tag_query"
 require_relative "tags_column"
 
 module LlmCostTracker
   class LlmApiCall < ActiveRecord::Base
-    TAG_KEY_PATTERN = /\A[\w.-]+\z/
-
-    private_constant :TAG_KEY_PATTERN
-
+    extend PeriodGrouping
     extend TagsColumn
     include TagAccessors
 
     self.table_name = "llm_api_calls"
 
     # Scopes for querying
-    scope :by_provider, ->(provider) { where(provider: provider) }
-    scope :by_model,    ->(model)    { where(model: model) }
     scope :with_cost, -> { where.not(total_cost: nil) }
     scope :without_cost, -> { where(total_cost: nil) }
     scope :unknown_pricing, -> { without_cost }
@@ -92,13 +89,6 @@ module LlmCostTracker
       group(:provider).average(:latency_ms).transform_values(&:to_f)
     end
 
-    def self.daily_costs(days: 30)
-      where(tracked_at: days.days.ago..)
-        .group("DATE(tracked_at)")
-        .sum(:total_cost)
-        .transform_keys(&:to_s)
-    end
-
     def self.tag_label(value)
       value.nil? || value == "" ? "(untagged)" : value.to_s
     end
@@ -121,10 +111,7 @@ module LlmCostTracker
     private_class_method :tag_group_expression
 
     def self.validated_tag_key(key)
-      key = key.to_s
-      return key if key.match?(TAG_KEY_PATTERN)
-
-      raise ArgumentError, "invalid tag key: #{key.inspect}"
+      TagKey.validate!(key)
     end
     private_class_method :validated_tag_key
 

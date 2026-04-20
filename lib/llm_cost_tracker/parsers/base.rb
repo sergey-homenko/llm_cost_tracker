@@ -5,15 +5,10 @@ require "json"
 module LlmCostTracker
   module Parsers
     class Base
-      # Returns a hash with parsed usage data, or nil if not applicable.
+      # Parse a provider response into a {LlmCostTracker::ParsedUsage}, or return
+      # nil when the response is not trackable (non-200, missing usage, etc).
       #
-      # Expected return format:
-      # {
-      #   provider: "openai",
-      #   model: "gpt-4o",
-      #   input_tokens: 150,
-      #   output_tokens: 42
-      # }
+      # @return [LlmCostTracker::ParsedUsage, nil]
       def parse(request_url, request_body, response_status, response_body)
         raise NotImplementedError
       end

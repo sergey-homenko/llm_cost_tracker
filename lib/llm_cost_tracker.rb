@@ -7,7 +7,6 @@ require_relative "llm_cost_tracker/version"
 require_relative "llm_cost_tracker/configuration"
 require_relative "llm_cost_tracker/errors"
 require_relative "llm_cost_tracker/logging"
-require_relative "llm_cost_tracker/value_object"
 require_relative "llm_cost_tracker/cost"
 require_relative "llm_cost_tracker/event"
 require_relative "llm_cost_tracker/parsed_usage"
@@ -25,9 +24,9 @@ require_relative "llm_cost_tracker/budget"
 require_relative "llm_cost_tracker/unknown_pricing"
 require_relative "llm_cost_tracker/event_metadata"
 require_relative "llm_cost_tracker/tags_column"
+require_relative "llm_cost_tracker/tag_key"
 require_relative "llm_cost_tracker/tag_query"
 require_relative "llm_cost_tracker/tag_accessors"
-require_relative "llm_cost_tracker/storage/backends"
 require_relative "llm_cost_tracker/tracker"
 require_relative "llm_cost_tracker/report_data"
 require_relative "llm_cost_tracker/report_formatter"
@@ -35,12 +34,10 @@ require_relative "llm_cost_tracker/report"
 
 module LlmCostTracker
   class << self
-    CONFIGURATION_MUTEX = Mutex.new
-
     attr_writer :configuration
 
     def configuration
-      @configuration || CONFIGURATION_MUTEX.synchronize { @configuration ||= Configuration.new }
+      @configuration ||= Configuration.new
     end
 
     # Configure the gem once during application boot.
@@ -54,7 +51,7 @@ module LlmCostTracker
     end
 
     def reset_configuration!
-      CONFIGURATION_MUTEX.synchronize { @configuration = Configuration.new }
+      @configuration = Configuration.new
     end
 
     # Track an LLM request manually for non-Faraday clients.

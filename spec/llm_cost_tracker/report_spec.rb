@@ -30,6 +30,7 @@ RSpec.describe LlmCostTracker::Report do
 
     LlmCostTracker.configure do |config|
       config.storage_backend = :active_record
+      config.report_tag_breakdowns = %w[feature]
     end
   end
 
