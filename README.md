@@ -252,6 +252,8 @@ bin/rails db:migrate
 
 ## Dashboard (optional)
 
+<img width="1258" height="860" alt="Screenshot 2026-04-20 at 22 55 07" src="https://github.com/user-attachments/assets/c65c5fca-2017-4823-a702-e99b8ac4d657" />
+
 Opt-in Rails Engine. Plain ERB, inline CSS, no JS. Requires Rails 7.1+; the core middleware works without Rails.
 
 ```ruby
