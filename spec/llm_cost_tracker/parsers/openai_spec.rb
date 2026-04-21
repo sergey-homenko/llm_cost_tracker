@@ -86,5 +86,77 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.output_tokens).to eq(42)
       expect(result.cached_input_tokens).to eq(100)
     end
+
+    it "tags non-streaming usage with a :response source" do
+      result = parser.parse(
+        "https://api.openai.com/v1/chat/completions",
+        request_body,
+        200,
+        response_body
+      )
+
+      expect(result.stream).to be false
+      expect(result.usage_source).to eq(:response)
+    end
+  end
+
+  describe "#streaming_request?" do
+    it "detects a stream:true body" do
+      expect(parser.streaming_request?("https://api.openai.com/v1/chat/completions",
+                                       '{"model":"gpt-4o","stream":true}')).to be true
+    end
+
+    it "ignores non-streaming bodies" do
+      expect(parser.streaming_request?("https://api.openai.com/v1/chat/completions",
+                                       '{"model":"gpt-4o"}')).to be false
+    end
+  end
+
+  describe "#parse_stream" do
+    let(:request_body) { { model: "gpt-4o", stream: true }.to_json }
+
+    it "extracts usage from a final chunk carrying the usage hash" do
+      events = [
+        { event: nil, data: { "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] } },
+        { event: nil, data: { "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } } }
+      ]
+
+      result = parser.parse_stream(
+        "https://api.openai.com/v1/chat/completions",
+        request_body,
+        200,
+        events
+      )
+
+      expect(result.provider).to eq("openai")
+      expect(result.model).to eq("gpt-4o")
+      expect(result.input_tokens).to eq(12)
+      expect(result.output_tokens).to eq(3)
+      expect(result.total_tokens).to eq(15)
+      expect(result.stream).to be true
+      expect(result.usage_source).to eq(:stream_final)
+    end
+
+    it "returns an unknown-usage ParsedUsage when no usage chunk arrives" do
+      events = [
+        { event: nil, data: { "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] } }
+      ]
+
+      result = parser.parse_stream(
+        "https://api.openai.com/v1/chat/completions",
+        request_body,
+        200,
+        events
+      )
+
+      expect(result.stream).to be true
+      expect(result.usage_source).to eq(:unknown)
+      expect(result.input_tokens).to eq(0)
+      expect(result.output_tokens).to eq(0)
+    end
+
+    it "returns nil on non-200 responses" do
+      expect(parser.parse_stream("https://api.openai.com/v1/chat/completions", request_body, 500, [])).to be_nil
+    end
   end
 end

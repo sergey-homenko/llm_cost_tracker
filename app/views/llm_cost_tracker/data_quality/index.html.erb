@@ -2,6 +2,9 @@
 <% known_pricing_calls = total - @stats.unknown_pricing_count %>
 <% tagged_calls = total - @stats.untagged_calls_count %>
 <% latency_calls = @stats.latency_column_present ? total - @stats.missing_latency_count : nil %>
+<% streaming_count = @stats.streaming_count %>
+<% streaming_missing_usage = @stats.streaming_missing_usage_count %>
+<% streams_with_usage = streaming_count && streaming_missing_usage ? streaming_count - streaming_missing_usage : nil %>
 
 <section class="lct-panel lct-toolbar">
   <div class="lct-toolbar-head">
@@ -35,6 +38,16 @@
                        include_blank: "All models",
                        id: "lct-quality-model" %>
       </div>
+
+      <% if LlmCostTracker::LlmApiCall.stream_column? %>
+        <div class="lct-field">
+          <label for="lct-quality-stream">Stream</label>
+          <%= select_tag :stream,
+                         options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
+                         include_blank: "All calls",
+                         id: "lct-quality-stream" %>
+        </div>
+      <% end %>
 
       <div class="lct-filter-actions">
         <button class="lct-button" type="submit">Apply</button>
@@ -84,6 +97,22 @@
             <p class="lct-stat-sub"><%= percent(coverage_percent(@stats.missing_latency_count, total)) %> of calls</p>
           </article>
         <% end %>
+
+        <% if @stats.stream_column_present %>
+          <article class="lct-stat">
+            <p class="lct-stat-label">Streaming calls</p>
+            <p class="lct-stat-value"><%= number(streaming_count) %></p>
+            <p class="lct-stat-sub"><%= percent(coverage_percent(streaming_count, total)) %> of calls</p>
+          </article>
+
+          <% if streaming_missing_usage && streaming_count.positive? %>
+            <article class="lct-stat">
+              <p class="lct-stat-label">Streams without usage</p>
+              <p class="lct-stat-value"><%= number(streaming_missing_usage) %></p>
+              <p class="lct-stat-sub"><%= percent(coverage_percent(streaming_missing_usage, streaming_count)) %> of streams</p>
+            </article>
+          <% end %>
+        <% end %>
       </div>
     </div>
   </section>
@@ -132,6 +161,16 @@
               <td><%= render "llm_cost_tracker/shared/bar", value: latency_coverage, max: 100.0 %></td>
             </tr>
           <% end %>
+
+          <% if @stats.stream_column_present && streams_with_usage && streaming_count.to_i.positive? %>
+            <% stream_coverage = coverage_percent(streams_with_usage, streaming_count) %>
+            <tr>
+              <td>Streaming usage captured</td>
+              <td class="lct-num"><%= percent(stream_coverage) %></td>
+              <td class="lct-num"><%= number(streams_with_usage) %> / <%= number(streaming_count) %></td>
+              <td><%= render "llm_cost_tracker/shared/bar", value: stream_coverage, max: 100.0 %></td>
+            </tr>
+          <% end %>
         </tbody>
       </table>
     </section>
@@ -168,6 +207,13 @@
               <td>Missing latency</td>
               <td>Slow requests become harder to isolate on the calls page.</td>
               <td>Make sure latency capture is enabled on every tracked request.</td>
+            </tr>
+          <% end %>
+          <% if @stats.stream_column_present && streaming_missing_usage.to_i.positive? %>
+            <tr>
+              <td>Streams without usage</td>
+              <td>Token totals undercount when streaming responses drop the final usage event.</td>
+              <td>Send OpenAI requests with <code class="lct-code">stream_options: { include_usage: true }</code>, or wrap custom clients with <code class="lct-code">LlmCostTracker.track_stream</code>.</td>
             </tr>
           <% end %>
         </tbody>

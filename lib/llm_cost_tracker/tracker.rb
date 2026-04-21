@@ -6,21 +6,15 @@ module LlmCostTracker
   class Tracker
     EVENT_NAME = "llm_request.llm_cost_tracker"
 
+    USAGE_SOURCES = %i[response stream_final manual unknown].freeze
+
     class << self
       def enforce_budget!
         Budget.enforce!
       end
 
-      # Build, notify, persist, and budget-check a single LLM usage event.
-      #
-      # @param provider [String] Provider name.
-      # @param model [String] Model identifier.
-      # @param input_tokens [Integer] Input token count.
-      # @param output_tokens [Integer] Output token count.
-      # @param metadata [Hash] Attribution tags plus provider-specific usage metadata.
-      # @param latency_ms [Integer, nil] Optional latency in milliseconds.
-      # @return [LlmCostTracker::Event]
-      def record(provider:, model:, input_tokens:, output_tokens:, metadata: {}, latency_ms: nil)
+      def record(provider:, model:, input_tokens:, output_tokens:,
+                 metadata: {}, latency_ms: nil, stream: false, usage_source: nil)
         usage = EventMetadata.usage_data(input_tokens, output_tokens, metadata)
 
         cost_data = Pricing.cost_for(
@@ -43,13 +37,13 @@ module LlmCostTracker
           cost: cost_data,
           tags: LlmCostTracker.configuration.default_tags.merge(EventMetadata.tags(metadata)).freeze,
           latency_ms: normalized_latency_ms(latency_ms),
+          stream: stream ? true : false,
+          usage_source: normalized_usage_source(usage_source),
           tracked_at: Time.now.utc
         )
 
-        # Emit ActiveSupport::Notifications event
         ActiveSupport::Notifications.instrument(EVENT_NAME, event.to_h)
 
-        # Store based on backend
         stored = store(event)
         Budget.check!(event) unless stored == false
 
@@ -77,6 +71,8 @@ module LlmCostTracker
                   "tokens=#{event.input_tokens}+#{event.output_tokens} " \
                   "cost=#{log_cost_label(event)}"
         message += " latency=#{event.latency_ms}ms" if event.latency_ms
+        message += " stream=#{event.stream}" if event.stream
+        message += " source=#{event.usage_source}" if event.usage_source
         message += " tags=#{event.tags}" unless event.tags.empty?
 
         Logging.log(config.log_level, message)
@@ -118,6 +114,13 @@ module LlmCostTracker
         return nil if latency_ms.nil?
 
         [latency_ms.to_i, 0].max
+      end
+
+      def normalized_usage_source(value)
+        return nil if value.nil?
+
+        symbol = value.to_sym
+        USAGE_SOURCES.include?(symbol) ? symbol.to_s : nil
       end
     end
   end

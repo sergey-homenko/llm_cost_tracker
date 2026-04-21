@@ -20,8 +20,16 @@ module LlmCostTracker
         false
       end
 
+      def provider_names
+        %w[openai]
+      end
+
       def parse(request_url, request_body, response_status, response_body)
         parse_openai_usage(request_url, request_body, response_status, response_body)
+      end
+
+      def parse_stream(request_url, request_body, response_status, events)
+        parse_openai_stream_usage(request_url, request_body, response_status, events)
       end
 
       private

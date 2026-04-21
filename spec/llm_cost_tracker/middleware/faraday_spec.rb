@@ -156,7 +156,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
     expect do
       conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
-    end.to output(%r{streaming/SSE responses require manual tracking}).to_stderr
+    end.to output(/streaming responses are captured automatically/).to_stderr
   end
 
   it "raises budget errors from post-response enforcement" do
@@ -196,6 +196,87 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect do
       conn.post("/v1/chat/completions", { model: "unknown-chat-model" }.to_json)
     end.to raise_error(LlmCostTracker::UnknownPricingError)
+  end
+
+  it "captures streaming OpenAI responses through the on_data tap" do
+    sse_body = "data: {\"model\":\"gpt-4o\",\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" \
+               "data: {\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":2,\"total_tokens\":9}}\n\n" \
+               "data: [DONE]\n\n"
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          env.request.on_data.call(sse_body, sse_body.bytesize, env) if env.request.on_data
+          [200, { "Content-Type" => "text/event-stream" }, ""]
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json) do |req|
+      req.options.on_data = proc { |_chunk, _size, _env| }
+    end
+
+    expect(events.size).to eq(1)
+    expect(events.first[:input_tokens]).to eq(7)
+    expect(events.first[:output_tokens]).to eq(2)
+    expect(events.first[:stream]).to be true
+    expect(events.first[:usage_source]).to eq("stream_final")
+  end
+
+  it "falls back to reading the response body when the caller set no on_data" do
+    sse_body = "data: {\"model\":\"gpt-4o\"}\n\n" \
+               "data: {\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":1,\"total_tokens\":5}}\n\n"
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          [200, { "Content-Type" => "text/event-stream" }, sse_body]
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json)
+
+    expect(events.size).to eq(1)
+    expect(events.first[:input_tokens]).to eq(4)
+    expect(events.first[:stream]).to be true
+  end
+
+  it "records an unknown-usage streaming event when no usage chunk arrives" do
+    sse_body = "data: {\"model\":\"gpt-4o\",\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" \
+               "data: [DONE]\n\n"
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          [200, { "Content-Type" => "text/event-stream" }, sse_body]
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json)
+
+    expect(events.first[:stream]).to be true
+    expect(events.first[:usage_source]).to eq("unknown")
+    expect(events.first[:input_tokens]).to eq(0)
   end
 
   it "can block LLM requests before they hit the adapter" do

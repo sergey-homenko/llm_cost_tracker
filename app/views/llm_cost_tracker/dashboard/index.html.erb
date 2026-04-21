@@ -29,6 +29,16 @@
                        id: "lct-overview-model" %>
       </div>
 
+      <% if LlmCostTracker::LlmApiCall.stream_column? %>
+        <div class="lct-field">
+          <label for="lct-overview-stream">Stream</label>
+          <%= select_tag :stream,
+                         options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
+                         include_blank: "All calls",
+                         id: "lct-overview-stream" %>
+        </div>
+      <% end %>
+
       <div class="lct-filter-actions">
         <button class="lct-button" type="submit">Apply</button>
         <%= link_to("Reset", root_path, class: "lct-button lct-button-secondary") if any_filter_applied? %>

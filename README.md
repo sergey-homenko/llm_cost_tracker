@@ -105,7 +105,41 @@ end
 conn.post("/v1/responses", { model: "gpt-5-mini", input: "Hello!" })
 ```
 
-Place `llm_cost_tracker` inside the Faraday stack where it can see the final response body. For streaming APIs, tracking requires the final body to expose provider usage; otherwise the gem warns and skips — use manual tracking there.
+Place `llm_cost_tracker` inside the Faraday stack where it can see the final response body.
+
+### Streaming
+
+Streaming is captured automatically for OpenAI, Anthropic, and Gemini when the request goes through the Faraday middleware — the middleware tees the `on_data` callback, accumulates the SSE stream, and extracts the final `usage` block after the response finishes. Your application code keeps streaming chunks to the user unchanged.
+
+```ruby
+# OpenAI: include usage in the final chunk
+client.chat(parameters: {
+  model: "gpt-4o",
+  messages: [...],
+  stream: proc { |chunk| ... },
+  stream_options: { include_usage: true }
+})
+```
+
+Anthropic emits usage in `message_start` + `message_delta` events (no extra flag needed). Gemini's `:streamGenerateContent` endpoint ships `usageMetadata` on every chunk; the last one is used.
+
+Streamed calls are persisted with `stream: true` and `usage_source: "stream_final"`. When a provider drops the final usage event, the call is still recorded with `usage_source: "unknown"` so it shows up on the Data Quality page — the fix is usually adding `stream_options: { include_usage: true }` (OpenAI) or catching server-side timeouts.
+
+For non-Faraday clients (raw `Net::HTTP`, custom SSE code, Azure OpenAI), use the explicit helper:
+
+```ruby
+LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+  my_client.stream(...) { |chunk| stream.event(chunk) }
+end
+
+# Or skip the chunk parsing entirely if you already know the totals:
+LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+  # ... your streaming loop ...
+  stream.usage(input_tokens: 120, output_tokens: 45)
+end
+```
+
+Run `bin/rails g llm_cost_tracker:add_streaming` once on existing installs to add the `stream` and `usage_source` columns.
 
 ### Manual tracking
 
@@ -375,7 +409,7 @@ LlmCostTracker::Parsers::Registry.register(AcmeParser.new)
 | Google Gemini | ✅ | Gemini 2.5 Pro/Flash/Flash-Lite, 2.0 Flash/Flash-Lite, 1.5 Pro/Flash |
 | Any other | 🔧 | Custom parser |
 
-Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenAI-compatible equivalents; Anthropic Messages; Gemini `generateContent` with `usageMetadata`.
+Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenAI-compatible equivalents; Anthropic Messages; Gemini `generateContent` and `streamGenerateContent`. All endpoints support streaming capture.
 
 ## Safety
 
@@ -388,7 +422,7 @@ Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenA
 ## Known limitations
 
 - `:block_requests` is best-effort under concurrency; use an external quota system for hard caps.
-- Streaming/SSE tracked only when Faraday exposes a final body with usage.
+- Streaming capture relies on the provider emitting a final-usage event (OpenAI needs `stream_options: { include_usage: true }`); missing events are recorded with `usage_source: "unknown"` so they surface on the Data Quality page.
 - Anthropic cache TTL variants (1h vs 5min writes) not modeled separately.
 - OpenAI reasoning tokens included in output totals; separate reasoning-token attribution not stored.
 

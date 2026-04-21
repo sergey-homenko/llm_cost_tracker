@@ -21,6 +21,14 @@ module LlmCostTracker
     scope :without_cost, -> { where(total_cost: nil) }
     scope :unknown_pricing, -> { without_cost }
     scope :with_latency, -> { latency_column? ? where.not(latency_ms: nil) : none }
+    scope :streaming,     -> { stream_column? ? where(stream: true) : none }
+    scope :non_streaming, -> { stream_column? ? where(stream: [false, nil]) : all }
+    scope :by_usage_source, ->(source) { usage_source_column? ? where(usage_source: source.to_s) : none }
+    scope :streaming_missing_usage, lambda {
+      return none unless stream_column? && usage_source_column?
+
+      where(stream: true).where(usage_source: ["unknown", nil])
+    }
 
     scope :with_json_tags, lambda {
       if tags_json_column?

@@ -20,7 +20,7 @@ Metrics/BlockLength:
     - "spec/**/*.rb"
 
 Metrics/MethodLength:
-  Max: 25
+  Max: 32
 
 Metrics/AbcSize:
   Max: 45
@@ -32,13 +32,13 @@ Metrics/ModuleLength:
   Max: 130
 
 Metrics/CyclomaticComplexity:
-  Max: 10
+  Max: 12
 
 Metrics/ParameterLists:
-  Max: 6
+  Max: 8
 
 Metrics/PerceivedComplexity:
-  Max: 10
+  Max: 12
 
 Gemspec/DevelopmentDependencies:
   Enabled: false

@@ -24,5 +24,13 @@ module LlmCostTracker
     def latency_column?
       columns_hash.key?("latency_ms")
     end
+
+    def stream_column?
+      columns_hash.key?("stream")
+    end
+
+    def usage_source_column?
+      columns_hash.key?("usage_source")
+    end
   end
 end

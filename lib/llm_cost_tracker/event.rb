@@ -10,6 +10,8 @@ module LlmCostTracker
     :cost,
     :tags,
     :latency_ms,
+    :stream,
+    :usage_source,
     :tracked_at
   ) do
     def to_h

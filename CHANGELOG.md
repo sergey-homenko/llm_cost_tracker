@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- Streaming capture for OpenAI, Anthropic, and Gemini: middleware tees `on_data` chunks, parses SSE / JSON-array bodies, and extracts final-usage totals.
+- `LlmCostTracker.track_stream` escape hatch for custom clients, with `stream.event(chunk)` and explicit `stream.usage(...)`.
+- `stream` and `usage_source` columns on `llm_api_calls` via a new `add_streaming` generator.
+- Dashboard filter + Data Quality surfaces for streaming calls and streams that dropped their final usage event.
+
 ## [0.2.0] - 2026-04-20
 
 ### Added

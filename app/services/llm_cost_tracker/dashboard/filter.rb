@@ -25,6 +25,8 @@ module LlmCostTracker
         filtered_scope = apply_date_filters(filtered_scope)
         filtered_scope = apply_exact_filter(filtered_scope, :provider)
         filtered_scope = apply_exact_filter(filtered_scope, :model)
+        filtered_scope = apply_stream_filter(filtered_scope)
+        filtered_scope = apply_usage_source_filter(filtered_scope)
         apply_tag_filters(filtered_scope)
       end
 
@@ -62,6 +64,26 @@ module LlmCostTracker
         return relation if tags.empty?
 
         relation.by_tags(tags)
+      end
+
+      def apply_stream_filter(relation)
+        value = string_param(:stream)
+        return relation if value.nil?
+        return relation unless relation.klass.stream_column?
+
+        case value.downcase
+        when "yes", "true", "1" then relation.where(stream: true)
+        when "no", "false", "0" then relation.where(stream: [false, nil])
+        else relation
+        end
+      end
+
+      def apply_usage_source_filter(relation)
+        value = string_param(:usage_source)
+        return relation if value.nil?
+        return relation unless relation.klass.usage_source_column?
+
+        relation.where(usage_source: value)
       end
 
       def tag_params

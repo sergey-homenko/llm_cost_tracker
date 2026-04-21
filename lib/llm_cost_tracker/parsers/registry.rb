@@ -16,6 +16,11 @@ module LlmCostTracker
           parsers.find { |parser| parser.match?(url) }
         end
 
+        def find_for_provider(provider)
+          provider_name = provider.to_s
+          parsers.find { |parser| parser.provider_names.include?(provider_name) }
+        end
+
         def reset!
           @parsers = nil
         end

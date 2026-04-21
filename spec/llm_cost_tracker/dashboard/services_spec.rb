@@ -7,7 +7,7 @@ ENV["RAILS_ENV"] ||= "test"
 require_relative "../../dummy/config/environment"
 
 RSpec.describe "LlmCostTracker dashboard services" do
-  def reset_database!(latency: true)
+  def reset_database!(latency: true, streaming: false)
     ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: ":memory:")
 
     ActiveRecord::Schema.verbose = false
@@ -22,6 +22,10 @@ RSpec.describe "LlmCostTracker dashboard services" do
         t.decimal :output_cost, precision: 20, scale: 8
         t.decimal :total_cost, precision: 20, scale: 8
         t.integer :latency_ms if latency
+        if streaming
+          t.boolean :stream, null: false, default: false
+          t.string  :usage_source
+        end
         t.text :tags
         t.datetime :tracked_at, null: false
 
@@ -40,6 +44,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
       output_tokens: 5,
       total_cost: 1.0,
       latency_ms: 100,
+      stream: false,
+      usage_source: nil,
       tags: {},
       tracked_at: Time.utc(2026, 4, 18, 12)
     }
@@ -47,6 +53,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
     attrs[:total_tokens] = attrs.fetch(:input_tokens) + attrs.fetch(:output_tokens)
     attrs[:tags] = attrs.fetch(:tags).to_json
     attrs.delete(:latency_ms) unless LlmCostTracker::LlmApiCall.latency_column?
+    attrs.delete(:stream) unless LlmCostTracker::LlmApiCall.stream_column?
+    attrs.delete(:usage_source) unless LlmCostTracker::LlmApiCall.usage_source_column?
 
     LlmCostTracker::LlmApiCall.create!(attrs)
   end
@@ -152,6 +160,41 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect do
         described_class.call(params: { tag: { ";DROP TABLE" => "x" } })
       end.to raise_error(LlmCostTracker::InvalidFilterError, /invalid tag key/)
+    end
+
+    context "with stream and usage_source columns" do
+      before do
+        ActiveRecord::Base.connection.disconnect!
+        reset_database!(streaming: true)
+      end
+
+      it "narrows to streaming calls when stream=yes" do
+        create_call(model: "stream-model", stream: true, usage_source: "stream_final")
+        create_call(model: "sync-model",   stream: false, usage_source: "response")
+
+        relation = described_class.call(params: { stream: "yes" })
+
+        expect(relation.pluck(:model)).to eq(["stream-model"])
+      end
+
+      it "narrows to non-streaming calls when stream=no" do
+        create_call(model: "stream-model", stream: true)
+        create_call(model: "sync-model",   stream: false)
+
+        relation = described_class.call(params: { stream: "no" })
+
+        expect(relation.pluck(:model)).to eq(["sync-model"])
+      end
+
+      it "filters by usage_source value" do
+        create_call(model: "a", stream: true,  usage_source: "stream_final")
+        create_call(model: "b", stream: true,  usage_source: "unknown")
+        create_call(model: "c", stream: false, usage_source: "response")
+
+        relation = described_class.call(params: { usage_source: "unknown" })
+
+        expect(relation.pluck(:model)).to eq(["b"])
+      end
     end
   end
 
@@ -429,6 +472,33 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       expect(stats.unknown_pricing_by_model["unknown-x"]).to eq(2)
       expect(stats.unknown_pricing_by_model["unknown-y"]).to eq(1)
+    end
+
+    it "reports stream column absence when the schema lacks it" do
+      stats = described_class.call
+
+      expect(stats.stream_column_present).to be false
+      expect(stats.streaming_count).to be_nil
+      expect(stats.streaming_missing_usage_count).to be_nil
+    end
+
+    context "with stream and usage_source columns" do
+      before do
+        ActiveRecord::Base.connection.disconnect!
+        reset_database!(streaming: true)
+      end
+
+      it "counts streaming calls and streams missing usage" do
+        create_call(stream: true,  usage_source: "stream_final")
+        create_call(stream: true,  usage_source: "unknown")
+        create_call(stream: false, usage_source: "response")
+
+        stats = described_class.call
+
+        expect(stats.stream_column_present).to be true
+        expect(stats.streaming_count).to eq(2)
+        expect(stats.streaming_missing_usage_count).to eq(1)
+      end
     end
   end
 

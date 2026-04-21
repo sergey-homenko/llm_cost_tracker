@@ -19,6 +19,8 @@ RSpec.describe "ActiveRecord storage integration" do
         t.decimal :output_cost, precision: 20, scale: 8
         t.decimal :total_cost, precision: 20, scale: 8
         t.integer :latency_ms
+        t.boolean :stream, null: false, default: false
+        t.string :usage_source
         t.text :tags
         t.datetime :tracked_at, null: false
 

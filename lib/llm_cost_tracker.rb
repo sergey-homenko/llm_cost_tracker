@@ -18,6 +18,7 @@ require_relative "llm_cost_tracker/parsers/openai"
 require_relative "llm_cost_tracker/parsers/openai_compatible"
 require_relative "llm_cost_tracker/parsers/anthropic"
 require_relative "llm_cost_tracker/parsers/gemini"
+require_relative "llm_cost_tracker/parsers/sse"
 require_relative "llm_cost_tracker/parsers/registry"
 require_relative "llm_cost_tracker/middleware/faraday"
 require_relative "llm_cost_tracker/budget"
@@ -55,33 +56,33 @@ module LlmCostTracker
       @configuration = Configuration.new
     end
 
-    # Track an LLM request manually for non-Faraday clients.
-    #
-    #   LlmCostTracker.track(
-    #     provider: :openai,
-    #     model: "gpt-4o",
-    #     input_tokens: 150,
-    #     output_tokens: 50,
-    #     feature: "chat",
-    #     user_id: current_user.id
-    #   )
-    #
-    # @param provider [String, Symbol] Provider name, such as :openai or :anthropic.
-    # @param model [String] Provider model identifier.
-    # @param input_tokens [Integer] Billed input token count.
-    # @param output_tokens [Integer] Billed output token count.
-    # @param latency_ms [Integer, nil] Optional request latency in milliseconds.
-    # @param metadata [Hash] Attribution tags and provider-specific usage metadata.
-    # @return [LlmCostTracker::Event] The tracked event.
-    def track(provider:, model:, input_tokens:, output_tokens:, latency_ms: nil, **metadata)
+    def track(provider:, model:, input_tokens:, output_tokens:,
+              latency_ms: nil, stream: false, usage_source: :manual, **metadata)
       Tracker.record(
         provider: provider.to_s,
         model: model,
         input_tokens: input_tokens,
         output_tokens: output_tokens,
         latency_ms: latency_ms,
+        stream: stream,
+        usage_source: usage_source,
         metadata: metadata
       )
+    end
+
+    def track_stream(provider:, model:, latency_ms: nil, **metadata)
+      require_relative "llm_cost_tracker/stream_collector"
+      collector = StreamCollector.new(
+        provider: provider.to_s,
+        model: model,
+        latency_ms: latency_ms,
+        metadata: metadata
+      )
+      yield collector
+      collector.finish!
+    rescue StandardError
+      collector&.finish!(errored: true)
+      raise
     end
 
     private

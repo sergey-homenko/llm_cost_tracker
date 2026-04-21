@@ -2,7 +2,12 @@
 
 module LlmCostTracker
   module DashboardFilterHelper
-    FILTER_PARAM_KEYS = %i[from to provider model tag sort page per].freeze
+    FILTER_PARAM_KEYS = %i[from to provider model stream usage_source tag sort page per].freeze
+
+    STREAM_FILTER_OPTIONS = [
+      ["Streaming only", "yes"],
+      ["Non-streaming only", "no"]
+    ].freeze
 
     def any_filter_applied?
       FILTER_PARAM_KEYS.any? { |key| params[key].present? }

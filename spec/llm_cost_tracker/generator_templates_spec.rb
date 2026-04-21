@@ -18,8 +18,12 @@ RSpec.describe "generator templates" do
 
     expect(migration).to include("precision: 20, scale: 8")
     expect(migration).to include("t.integer :latency_ms")
+    expect(migration).to include("t.boolean :stream")
+    expect(migration).to include("t.string  :usage_source")
     expect(migration).to include("t.jsonb :tags")
     expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin if postgresql?")
+    expect(migration).to include("add_index :llm_api_calls, :stream")
+    expect(migration).to include("add_index :llm_api_calls, :usage_source")
     expect(migration).to include("t.text :tags")
   end
 
@@ -29,6 +33,16 @@ RSpec.describe "generator templates" do
     expect(migration).to include("class AddLatencyMsToLlmApiCalls")
     expect(migration).to include("add_column :llm_api_calls, :latency_ms, :integer")
     expect(migration).to include("remove_column :llm_api_calls, :latency_ms")
+  end
+
+  it "provides a streaming upgrade migration" do
+    migration = template("add_streaming_to_llm_api_calls.rb.erb")
+
+    expect(migration).to include("class AddStreamingToLlmApiCalls")
+    expect(migration).to include("add_column :llm_api_calls, :stream, :boolean")
+    expect(migration).to include("add_column :llm_api_calls, :usage_source, :string")
+    expect(migration).to include("remove_column :llm_api_calls, :stream")
+    expect(migration).to include("remove_column :llm_api_calls, :usage_source")
   end
 
   it "provides a cost precision upgrade migration" do

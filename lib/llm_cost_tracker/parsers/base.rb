@@ -5,17 +5,29 @@ require "json"
 module LlmCostTracker
   module Parsers
     class Base
-      # Parse a provider response into a {LlmCostTracker::ParsedUsage}, or return
-      # nil when the response is not trackable (non-200, missing usage, etc).
-      #
-      # @return [LlmCostTracker::ParsedUsage, nil]
       def parse(request_url, request_body, response_status, response_body)
         raise NotImplementedError
       end
 
-      # Returns true if this parser can handle the given URL.
+      def provider_names
+        []
+      end
+
       def match?(url)
         raise NotImplementedError
+      end
+
+      def streaming_request?(_request_url, request_body)
+        return false if request_body.nil?
+
+        body = request_body.to_s
+        return false if body.empty?
+
+        body.include?('"stream":true') || body.include?('"stream": true') || body.include?("stream: true")
+      end
+
+      def parse_stream(_request_url, _request_body, _response_status, _events)
+        nil
       end
 
       private

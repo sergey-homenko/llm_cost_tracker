@@ -34,6 +34,16 @@
                        id: "lct-model" %>
       </div>
 
+      <% if LlmCostTracker::LlmApiCall.stream_column? %>
+        <div class="lct-field">
+          <label for="lct-stream">Stream</label>
+          <%= select_tag :stream,
+                         options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
+                         include_blank: "All calls",
+                         id: "lct-stream" %>
+        </div>
+      <% end %>
+
       <div class="lct-field">
         <label for="lct-sort">Sort</label>
         <select id="lct-sort" name="sort">

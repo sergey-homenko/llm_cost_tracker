@@ -18,22 +18,39 @@ module LlmCostTracker
 
         request_url  = request_env.url.to_s
         request_body = read_body(request_env.body) || ""
+        parser       = Parsers::Registry.find_for(request_url)
+        streaming    = parser&.streaming_request?(request_url, request_body)
+        stream_buffer = install_stream_tap(request_env) if streaming
 
-        enforce_budget_before_request(request_url)
+        Tracker.enforce_budget! if parser
         started_at = monotonic_time
 
         @app.call(request_env).on_complete do |response_env|
-          process(request_env, request_url, request_body, response_env, elapsed_ms(started_at))
+          process(
+            parser: parser,
+            request_env: request_env,
+            request_url: request_url,
+            request_body: request_body,
+            response_env: response_env,
+            latency_ms: elapsed_ms(started_at),
+            streaming: streaming,
+            stream_buffer: stream_buffer
+          )
         end
       end
 
       private
 
-      def process(request_env, request_url, request_body, response_env, latency_ms)
-        parser = Parsers::Registry.find_for(request_url)
+      def process(parser:, request_env:, request_url:, request_body:, response_env:,
+                  latency_ms:, streaming:, stream_buffer:)
         return unless parser
 
-        parsed = parse_response(parser, request_url, request_body, response_env)
+        parsed =
+          if streaming
+            parse_stream(parser, request_url, request_body, response_env, stream_buffer)
+          else
+            parse_response(parser, request_url, request_body, response_env)
+          end
         return unless parsed
 
         Tracker.record(
@@ -42,6 +59,8 @@ module LlmCostTracker
           input_tokens: parsed.input_tokens,
           output_tokens: parsed.output_tokens,
           latency_ms: latency_ms,
+          stream: parsed.stream,
+          usage_source: parsed.usage_source,
           metadata: resolved_tags(request_env).merge(parsed.metadata)
         )
       rescue LlmCostTracker::Error
@@ -54,7 +73,9 @@ module LlmCostTracker
         response_body = read_body(response_env.body)
         unless response_body
           Logging.warn(
-            "Unable to read response body for #{request_url}; streaming/SSE responses require manual tracking."
+            "Unable to read response body for #{request_url}; " \
+            "streaming responses are captured automatically for OpenAI/Anthropic/Gemini " \
+            "or via LlmCostTracker.track_stream for custom clients."
           )
           return nil
         end
@@ -62,10 +83,37 @@ module LlmCostTracker
         parser.parse(request_url, request_body, response_env.status, response_body)
       end
 
-      def enforce_budget_before_request(request_url)
-        return unless Parsers::Registry.find_for(request_url)
+      def parse_stream(parser, request_url, request_body, response_env, stream_buffer)
+        body = stream_buffer&.string
+        body = read_body(response_env.body) if body.nil? || body.empty?
 
-        Tracker.enforce_budget!
+        if body.nil? || body.empty?
+          Logging.warn(
+            "Unable to capture streaming response for #{request_url}; " \
+            "fall back to LlmCostTracker.track_stream for manual capture."
+          )
+          return nil
+        end
+
+        events = Parsers::SSE.parse(body)
+        parser.parse_stream(request_url, request_body, response_env.status, events)
+      end
+
+      def install_stream_tap(request_env)
+        return nil unless request_env.respond_to?(:request) && request_env.request
+
+        original = request_env.request.on_data
+        return nil unless original
+
+        buffer = StringIO.new
+        request_env.request.on_data = proc do |chunk, size, env|
+          buffer << chunk.to_s
+          original.call(chunk, size, env)
+        end
+        buffer
+      rescue StandardError => e
+        Logging.warn("Unable to install streaming tap: #{e.class}: #{e.message}")
+        nil
       end
 
       def read_body(body)

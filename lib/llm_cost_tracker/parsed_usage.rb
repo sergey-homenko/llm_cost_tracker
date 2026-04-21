@@ -10,11 +10,13 @@ module LlmCostTracker
     :cached_input_tokens,
     :cache_read_input_tokens,
     :cache_creation_input_tokens,
-    :reasoning_tokens
+    :reasoning_tokens,
+    :stream,
+    :usage_source
   )
 
   class ParsedUsage
-    TRACKING_KEYS = %i[provider model input_tokens output_tokens total_tokens].freeze
+    TRACKING_KEYS = %i[provider model input_tokens output_tokens total_tokens stream usage_source].freeze
 
     def self.build(**attributes)
       new(
@@ -26,7 +28,9 @@ module LlmCostTracker
         cached_input_tokens: attributes[:cached_input_tokens],
         cache_read_input_tokens: attributes[:cache_read_input_tokens],
         cache_creation_input_tokens: attributes[:cache_creation_input_tokens],
-        reasoning_tokens: attributes[:reasoning_tokens]
+        reasoning_tokens: attributes[:reasoning_tokens],
+        stream: attributes[:stream] || false,
+        usage_source: attributes[:usage_source]
       )
     end
 

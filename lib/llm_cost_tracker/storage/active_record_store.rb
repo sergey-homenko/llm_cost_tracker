@@ -19,7 +19,9 @@ module LlmCostTracker
             tags:          tags_for_storage(tags),
             tracked_at:    event.tracked_at
           }
-          attributes[:latency_ms] = event.latency_ms if model_class.latency_column?
+          attributes[:latency_ms]   = event.latency_ms   if model_class.latency_column?
+          attributes[:stream]       = event.stream       if model_class.stream_column?
+          attributes[:usage_source] = event.usage_source if model_class.usage_source_column?
 
           model_class.create!(attributes)
         end
