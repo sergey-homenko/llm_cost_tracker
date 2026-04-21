@@ -14,10 +14,12 @@ RSpec.describe LlmCostTracker::Parsers::SSE do
 
       events = described_class.parse(body)
 
-      expect(events).to eq([
-        { event: nil, data: { "id" => "1" } },
-        { event: nil, data: { "id" => "2" } }
-      ])
+      expect(events).to eq(
+        [
+          { event: nil, data: { "id" => "1" } },
+          { event: nil, data: { "id" => "2" } }
+        ]
+      )
     end
 
     it "parses named SSE events alongside their data payload" do
@@ -32,10 +34,12 @@ RSpec.describe LlmCostTracker::Parsers::SSE do
 
       events = described_class.parse(body)
 
-      expect(events).to eq([
-        { event: "message_start", data: { "type" => "message_start" } },
-        { event: "message_delta", data: { "type" => "message_delta" } }
-      ])
+      expect(events).to eq(
+        [
+          { event: "message_start", data: { "type" => "message_start" } },
+          { event: "message_delta", data: { "type" => "message_delta" } }
+        ]
+      )
     end
 
     it "drops the [DONE] sentinel" do

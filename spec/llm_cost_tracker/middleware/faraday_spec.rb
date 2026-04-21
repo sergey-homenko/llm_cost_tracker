@@ -207,7 +207,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       f.use :llm_cost_tracker
       f.adapter :test do |stub|
         stub.post("/v1/chat/completions") do |env|
-          env.request.on_data.call(sse_body, sse_body.bytesize, env) if env.request.on_data
+          env.request.on_data&.call(sse_body, sse_body.bytesize, env)
           [200, { "Content-Type" => "text/event-stream" }, ""]
         end
       end

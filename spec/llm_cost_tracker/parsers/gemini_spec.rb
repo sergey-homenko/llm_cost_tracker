@@ -56,16 +56,16 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
   describe "#streaming_request?" do
     it "flags the streamGenerateContent path as streaming" do
       expect(parser.streaming_request?(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent",
-        nil
-      )).to be true
+               "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent",
+               nil
+             )).to be true
     end
 
     it "does not flag generateContent as streaming" do
       expect(parser.streaming_request?(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-        nil
-      )).to be false
+               "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+               nil
+             )).to be false
     end
   end
 

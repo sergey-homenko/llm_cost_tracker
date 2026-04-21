@@ -52,7 +52,12 @@ RSpec.describe LlmCostTracker do
       end
 
       described_class.track_stream(provider: "internal_gateway", model: "custom-chat") do |stream|
-        stream.event({ "model" => "custom-chat", "usage" => { "input_tokens" => 9, "output_tokens" => 2, "total_tokens" => 11 } })
+        stream.event(
+          {
+            "model" => "custom-chat",
+            "usage" => { "input_tokens" => 9, "output_tokens" => 2, "total_tokens" => 11 }
+          }
+        )
       end
 
       expect(collected.size).to eq(1)
