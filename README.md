@@ -109,7 +109,7 @@ Place `llm_cost_tracker` inside the Faraday stack where it can see the final res
 
 ### Streaming
 
-Streaming is captured automatically for OpenAI, Anthropic, and Gemini when the request goes through the Faraday middleware — the middleware tees the `on_data` callback, accumulates the SSE stream, and extracts the final `usage` block after the response finishes. Your application code keeps streaming chunks to the user unchanged.
+Streaming is captured automatically for OpenAI, Anthropic, and Gemini when the request goes through the Faraday middleware. The middleware tees the `on_data` callback, keeps the stream flowing to your code, and records the final usage block once the response completes.
 
 ```ruby
 # OpenAI: include usage in the final chunk
@@ -121,9 +121,9 @@ client.chat(parameters: {
 })
 ```
 
-Anthropic emits usage in `message_start` + `message_delta` events (no extra flag needed). Gemini's `:streamGenerateContent` endpoint ships `usageMetadata` on every chunk; the last one is used.
+Anthropic emits usage in `message_start` + `message_delta` events. Gemini's `:streamGenerateContent` endpoint includes `usageMetadata`; the last chunk wins.
 
-Streamed calls are persisted with `stream: true` and `usage_source: "stream_final"`. When a provider drops the final usage event, the call is still recorded with `usage_source: "unknown"` so it shows up on the Data Quality page — the fix is usually adding `stream_options: { include_usage: true }` (OpenAI) or catching server-side timeouts.
+Streamed calls are stored with `stream: true` and `usage_source: "stream_final"`. If the provider never sends final usage, the call is still recorded with `usage_source: "unknown"` so it is easy to spot on the Data Quality page.
 
 For non-Faraday clients (raw `Net::HTTP`, custom SSE code, Azure OpenAI), use the explicit helper:
 
@@ -194,7 +194,7 @@ LlmCostTracker::LlmApiCall.unknown_pricing.group(:model).count
 
 ### Keeping prices current
 
-Built-in prices are in `lib/llm_cost_tracker/prices.json`. The gem never fetches pricing on boot. For production, generate a local overrides file and point the gem at it:
+Built-in prices live in `lib/llm_cost_tracker/prices.json`. The gem never fetches pricing on boot. For production, keep a local snapshot under `config/` and point the gem at it:
 
 ```bash
 bin/rails generate llm_cost_tracker:prices
@@ -209,7 +209,21 @@ bin/rails generate llm_cost_tracker:prices
 }
 ```
 
-`pricing_overrides` has the highest precedence; use it for small Ruby-only tweaks, `prices_file` for broader tables.
+`pricing_overrides` has the highest precedence. Use it for a handful of Ruby-side overrides; use `prices_file` when you want a real local pricing table under source control.
+
+To refresh prices on demand from structured JSON sources:
+
+```bash
+bin/rails llm_cost_tracker:prices:sync
+```
+
+`llm_cost_tracker:prices:sync` refreshes the current registry from structured JSON sources: LiteLLM first, OpenRouter second. LiteLLM is the primary source; OpenRouter fills gaps and provides a second opinion when prices diverge.
+
+If `config.prices_file` is configured, the task syncs that file automatically; otherwise it works from the built-in snapshot. `_source: "manual"` entries are never touched. Models that are still in your file but missing from both upstream sources are left alone and reported as orphaned. For intentional custom entries, mark them as manual so they stop showing up in orphaned warnings.
+
+Use `PREVIEW=1` to see the diff without writing. Use `STRICT=1` to fail instead of applying a partial refresh when a source fails or the validator rejects a price. Use `bin/rails llm_cost_tracker:prices:check` in CI to print the current diff and exit non-zero when the snapshot has drifted or refresh fails.
+
+Large negotiated changes are flagged during sync. If a specific entry is expected to move by more than 3x, add `_validator_override: ["skip_relative_change"]` to that entry in your local price file.
 
 ## Budget enforcement
 
@@ -413,7 +427,7 @@ Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenA
 
 ## Safety
 
-- No external HTTP calls.
+- No external HTTP calls at request-tracking time.
 - No prompt or response bodies stored.
 - Faraday responses not modified.
 - Storage failures non-fatal by default (`storage_error_behavior = :warn`).

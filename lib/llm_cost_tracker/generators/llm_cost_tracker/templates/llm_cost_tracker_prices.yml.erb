@@ -14,8 +14,11 @@
 #
 # Optional metadata keys, ignored by cost calculation:
 # - _source
+# - _source_version
+# - _fetched_at
 # - _updated
 # - _notes
+# - _validator_override
 #
 # Example: custom fine-tune
 # models:
@@ -30,7 +33,11 @@
 #   "gpt-4o":
 #     input: 2.00
 #     output: 8.00
-#     _source: "Enterprise agreement"
+#     _source: "manual"
 #     _updated: "2026-04-18"
+#
+# Use _source: "manual" for custom or orphaned entries you never want sync to touch.
+# Use _validator_override: ["skip_relative_change"] if a negotiated price would
+# otherwise trip the >3x sync warning.
 
 models:

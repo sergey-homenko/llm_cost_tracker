@@ -99,9 +99,9 @@ module LlmCostTracker
       def extract_model_from_url(url)
         uri = URI.parse(url.to_s)
         match = uri.path.match(%r{/models/([^/:]+)})
-        match ? match[1] : "unknown"
+        match && match[1]
       rescue URI::InvalidURIError
-        "unknown"
+        nil
       end
     end
   end

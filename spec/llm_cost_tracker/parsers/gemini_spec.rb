@@ -101,5 +101,18 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.usage_source).to eq(:unknown)
       expect(result.model).to eq("gemini-2.5-flash")
     end
+
+    it "returns a nil model when the streaming URL has no model identifier" do
+      result = parser.parse_stream(
+        "https://generativelanguage.googleapis.com/v1beta/models:streamGenerateContent",
+        nil,
+        200,
+        [{ event: nil, data: { "text" => "hi" } }]
+      )
+
+      expect(result.stream).to be true
+      expect(result.usage_source).to eq(:unknown)
+      expect(result.model).to be_nil
+    end
   end
 end

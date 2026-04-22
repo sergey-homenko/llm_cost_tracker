@@ -14,6 +14,16 @@ RSpec.describe LlmCostTracker::Parsers::Registry do
       expect(parser).to be_a(LlmCostTracker::Parsers::OpenaiCompatible)
     end
 
+    it "picks up configured provider names after the parser was already initialized" do
+      expect(described_class.find_for_provider("openai_compatible")).to be_a(LlmCostTracker::Parsers::OpenaiCompatible)
+
+      LlmCostTracker.configure do |config|
+        config.openai_compatible_providers["llm.example.com"] = "internal_gateway"
+      end
+
+      expect(described_class.find_for_provider("internal_gateway")).to be_a(LlmCostTracker::Parsers::OpenaiCompatible)
+    end
+
     it "lets registered parsers opt into provider lookup via provider_names" do
       parser_class = Class.new(LlmCostTracker::Parsers::Base) do
         def provider_names

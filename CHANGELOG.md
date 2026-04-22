@@ -6,10 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
-- Streaming capture for OpenAI, Anthropic, and Gemini: middleware tees `on_data` chunks, parses SSE / JSON-array bodies, and extracts final-usage totals.
-- `LlmCostTracker.track_stream` escape hatch for custom clients, with `stream.event(chunk)` and explicit `stream.usage(...)`.
-- `stream` and `usage_source` columns on `llm_api_calls` via a new `add_streaming` generator.
-- Dashboard filter + Data Quality surfaces for streaming calls and streams that dropped their final usage event.
+- Streaming capture across OpenAI, Anthropic, and Gemini, including `LlmCostTracker.track_stream` for non-Faraday clients.
+- `stream` / `usage_source` persistence and dashboard coverage for streamed calls.
+- `llm_cost_tracker:prices:sync` and `llm_cost_tracker:prices:check` for keeping local price snapshots current.
+
+### Changed
+
+- Price refresh now uses structured JSON sources (LiteLLM primary, OpenRouter secondary) instead of scraping provider HTML pages.
+- Synced price entries now carry source provenance (`_source`, `_source_version`, `_fetched_at`), while `_source: "manual"` entries remain untouched.
+- Manual stream parsing now resolves parsers through the shared registry, so configured OpenAI-compatible providers work the same way as built-in ones.
 
 ## [0.2.0] - 2026-04-20
 

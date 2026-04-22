@@ -2,6 +2,8 @@
 
 require "spec_helper"
 require "active_record"
+require "json"
+require "tempfile"
 
 RSpec.describe "ActiveRecord storage integration" do
   before do
@@ -62,6 +64,59 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.total_cost.to_f).to eq(0.0075)
     expect(call.latency_ms).to eq(250)
     expect(call.parsed_tags).to include("user_id" => "42", "feature" => "chat")
+  end
+
+  it "keeps persisted historical costs when the price file changes for later requests" do
+    Tempfile.create(["llm-prices-old", ".json"]) do |old_file|
+      Tempfile.create(["llm-prices-new", ".json"]) do |new_file|
+        old_file.write(JSON.generate(
+                         "models" => {
+                           "snapshot-model" => { "input" => 1.0, "output" => 2.0 }
+                         }
+                       ))
+        old_file.close
+
+        new_file.write(JSON.generate(
+                         "models" => {
+                           "snapshot-model" => { "input" => 3.0, "output" => 4.0 }
+                         }
+                       ))
+        new_file.close
+
+        LlmCostTracker.configure do |config|
+          config.prices_file = old_file.path
+        end
+
+        LlmCostTracker.track(
+          provider: :openai,
+          model: "snapshot-model",
+          input_tokens: 1_000_000,
+          output_tokens: 1_000_000
+        )
+
+        LlmCostTracker.configure do |config|
+          config.prices_file = new_file.path
+        end
+
+        LlmCostTracker.track(
+          provider: :openai,
+          model: "snapshot-model",
+          input_tokens: 1_000_000,
+          output_tokens: 1_000_000
+        )
+
+        calls = llm_api_call_model.order(:id).to_a
+
+        expect(calls.size).to eq(2)
+        expect(calls.first.input_cost.to_f).to eq(1.0)
+        expect(calls.first.output_cost.to_f).to eq(2.0)
+        expect(calls.first.total_cost.to_f).to eq(3.0)
+        expect(calls.second.input_cost.to_f).to eq(3.0)
+        expect(calls.second.output_cost.to_f).to eq(4.0)
+        expect(calls.second.total_cost.to_f).to eq(7.0)
+        expect(llm_api_call_model.sum(:total_cost).to_f).to eq(10.0)
+      end
+    end
   end
 
   it "does not treat latency as a tag" do

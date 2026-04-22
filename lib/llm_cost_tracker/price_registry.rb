@@ -11,7 +11,7 @@ module LlmCostTracker
     DEFAULT_PRICES_PATH = File.expand_path("prices.json", __dir__)
     EMPTY_PRICES = {}.freeze
     PRICE_KEYS = %w[input cached_input output cache_read_input cache_creation_input].freeze
-    METADATA_KEYS = %w[_source _updated _notes].freeze
+    METADATA_KEYS = %w[_source _source_version _fetched_at _updated _notes _validator_override].freeze
     MUTEX = Monitor.new
 
     class << self
