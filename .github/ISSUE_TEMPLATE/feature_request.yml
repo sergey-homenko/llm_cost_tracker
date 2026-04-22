@@ -1,0 +1,51 @@
+name: Feature request
+description: Suggest a new feature or enhancement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please skim the **Scope** section in [CONTRIBUTING.md](https://github.com/sergey-homenko/llm_cost_tracker/blob/main/.github/CONTRIBUTING.md). This gem is a narrow Rails-native cost ledger — some useful ideas (OTel exporters, response caching, warehouse export, eval dashboards) belong in companion gems rather than core.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case or pain point. Example scenarios are more useful than abstract feature names.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? A rough API sketch helps.
+      render: ruby
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you've tried, or existing features that partially cover this.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope_check
+    attributes:
+      label: Scope check
+      options:
+        - label: This is about tracking, attribution, pricing, or dashboard presentation of LLM costs
+        - label: This is about a new provider or a new pricing shape for an existing provider
+        - label: This is about data quality, completeness, or correctness signals
+        - label: I've read CONTRIBUTING.md and I think this fits the gem's scope
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and discussions for similar proposals
+          required: true

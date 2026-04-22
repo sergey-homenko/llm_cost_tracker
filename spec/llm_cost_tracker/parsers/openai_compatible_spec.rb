@@ -1,9 +1,17 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "uri"
 
 RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
   subject(:parser) { described_class.new }
+
+  let(:openrouter_chat_url) { URI::HTTPS.build(host: "openrouter.ai", path: "/api/v1/chat/completions").to_s }
+  let(:openrouter_models_url) { URI::HTTPS.build(host: "openrouter.ai", path: "/api/v1/models").to_s }
+  let(:deepseek_v1_chat_url) { URI::HTTPS.build(host: "api.deepseek.com", path: "/v1/chat/completions").to_s }
+  let(:deepseek_chat_url) { URI::HTTPS.build(host: "api.deepseek.com", path: "/chat/completions").to_s }
+  let(:configured_responses_url) { URI::HTTPS.build(host: "llm.example.com", path: "/v1/responses").to_s }
+  let(:configured_chat_url) { URI::HTTPS.build(host: "llm.example.com", path: "/v1/chat/completions").to_s }
 
   it "uses the shared OpenAI usage extractor without inheriting from the OpenAI parser" do
     expect(described_class.superclass).to eq(LlmCostTracker::Parsers::Base)
@@ -11,11 +19,11 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
 
   describe "#match?" do
     it "matches OpenRouter chat completions URLs" do
-      expect(parser.match?("https://openrouter.ai/api/v1/chat/completions")).to be true
+      expect(parser.match?(openrouter_chat_url)).to be true
     end
 
     it "matches DeepSeek chat completions URLs" do
-      expect(parser.match?("https://api.deepseek.com/v1/chat/completions")).to be true
+      expect(parser.match?(deepseek_v1_chat_url)).to be true
     end
 
     it "matches configured OpenAI-compatible hosts" do
@@ -23,7 +31,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
         config.openai_compatible_providers["llm.example.com"] = "internal_gateway"
       end
 
-      expect(parser.match?("https://llm.example.com/v1/responses")).to be true
+      expect(parser.match?(configured_responses_url)).to be true
     end
 
     it "matches configured OpenAI-compatible hosts case-insensitively" do
@@ -31,7 +39,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
         config.openai_compatible_providers["LLM.EXAMPLE.COM"] = "internal_gateway"
       end
 
-      expect(parser.match?("https://llm.example.com/v1/responses")).to be true
+      expect(parser.match?(configured_responses_url)).to be true
     end
 
     it "normalizes configured OpenAI-compatible host keys after configure" do
@@ -45,24 +53,24 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
     end
 
     it "does not match unknown hosts" do
-      expect(parser.match?("https://llm.example.com/v1/chat/completions")).to be false
+      expect(parser.match?(configured_chat_url)).to be false
     end
 
     it "does not match unrelated paths on configured hosts" do
-      expect(parser.match?("https://openrouter.ai/api/v1/models")).to be false
+      expect(parser.match?(openrouter_models_url)).to be false
     end
   end
 
   describe "#parse" do
     it_behaves_like "a parser with common usage failure handling",
-                    url: "https://openrouter.ai/api/v1/chat/completions",
+                    url: URI::HTTPS.build(host: "openrouter.ai", path: "/api/v1/chat/completions").to_s,
                     request_body: { model: "openai/gpt-4o-mini" }.to_json,
                     response_body: { error: "rate limited" }.to_json,
                     missing_usage_body: { model: "openai/gpt-4o-mini" }.to_json
 
     it "extracts OpenRouter usage and provider name" do
       result = parser.parse(
-        "https://openrouter.ai/api/v1/chat/completions",
+        openrouter_chat_url,
         { model: "openai/gpt-4o-mini" }.to_json,
         200,
         {
@@ -84,7 +92,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
 
     it "extracts DeepSeek usage and provider name" do
       result = parser.parse(
-        "https://api.deepseek.com/chat/completions",
+        deepseek_chat_url,
         { model: "deepseek-chat" }.to_json,
         200,
         {
@@ -109,7 +117,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
       end
 
       result = parser.parse(
-        "https://llm.example.com/v1/responses",
+        configured_responses_url,
         { model: "custom-chat" }.to_json,
         200,
         {

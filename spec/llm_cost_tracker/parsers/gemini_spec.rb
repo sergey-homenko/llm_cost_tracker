@@ -1,36 +1,56 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "uri"
 
 RSpec.describe LlmCostTracker::Parsers::Gemini do
   subject(:parser) { described_class.new }
 
+  let(:generate_content_url) do
+    URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models/gemini-2.5-flash:generateContent").to_s
+  end
+  let(:stream_generate_content_url) do
+    URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models/gemini-2.5-flash:streamGenerateContent").to_s
+  end
+  let(:models_index_url) do
+    URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models").to_s
+  end
+  let(:model_less_stream_url) do
+    URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models:streamGenerateContent").to_s
+  end
+
   describe "#match?" do
     it "matches Gemini URLs case-insensitively" do
-      expect(parser.match?("https://GENERATIVELANGUAGE.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"))
-        .to be true
+      uppercased_host_url = URI::HTTPS.build(
+        host: "GENERATIVELANGUAGE.googleapis.com",
+        path: "/v1beta/models/gemini-2.5-flash:generateContent"
+      ).to_s
+
+      expect(parser.match?(uppercased_host_url)).to be true
     end
 
     it "matches Gemini streaming generation URLs" do
-      expect(parser.match?("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent"))
-        .to be true
+      expect(parser.match?(stream_generate_content_url)).to be true
     end
 
     it "does not match unrelated Gemini endpoints" do
-      expect(parser.match?("https://generativelanguage.googleapis.com/v1beta/models")).to be false
+      expect(parser.match?(models_index_url)).to be false
     end
   end
 
   describe "#parse" do
     it_behaves_like "a parser with common usage failure handling",
-                    url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+                    url: URI::HTTPS.build(
+                      host: "generativelanguage.googleapis.com",
+                      path: "/v1beta/models/gemini-2.5-flash:generateContent"
+                    ).to_s,
                     request_body: nil,
                     response_body: { error: "rate limited" }.to_json,
                     missing_usage_body: { model: "gemini-2.5-flash" }.to_json
 
     it "counts thinking tokens as output tokens" do
       result = parser.parse(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        generate_content_url,
         nil,
         200,
         {
@@ -58,21 +78,21 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
   describe "#streaming_request?" do
     it "flags the streamGenerateContent path as streaming" do
       expect(parser.streaming_request?(
-               "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent",
+               stream_generate_content_url,
                nil
              )).to be true
     end
 
     it "does not flag generateContent as streaming" do
       expect(parser.streaming_request?(
-               "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+               generate_content_url,
                nil
              )).to be false
     end
   end
 
   describe "#parse_stream" do
-    let(:url) { "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent" }
+    let(:url) { stream_generate_content_url }
 
     it "takes the last usageMetadata block across streamed chunks" do
       events = [
@@ -116,7 +136,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
     it "returns a nil model when the streaming URL has no model identifier" do
       result = parser.parse_stream(
-        "https://generativelanguage.googleapis.com/v1beta/models:streamGenerateContent",
+        model_less_stream_url,
         nil,
         200,
         [{ event: nil, data: { "text" => "hi" } }]

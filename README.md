@@ -4,6 +4,10 @@
 
 [![Gem Version](https://img.shields.io/gem/v/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker)
 [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions)
+[![codecov](https://codecov.io/gh/sergey-homenko/llm_cost_tracker/branch/main/graph/badge.svg)](https://codecov.io/gh/sergey-homenko/llm_cost_tracker)
+
+Requires Ruby 3.3+, Rails/ActiveRecord 7.1+, and Faraday 2.0+.
+Core tracking works without Rails; the mounted dashboard requires Rails 7.1+.
 
 ## Why
 
@@ -12,6 +16,62 @@ Every Rails app with LLM integrations eventually runs into the same question: wh
 `llm_cost_tracker` is built for that. It plugs into Faraday or lets you record usage explicitly with `track` / `track_stream`, looks up pricing locally, and writes an event. You end up with a ledger you can query with plain ActiveRecord, slice by any tag dimension, and optionally surface on a built-in dashboard. No proxy, no SaaS, no separate service to run.
 
 It is not a tracing platform, prompt CMS, eval system, or gateway. The goal is to answer _"what did this app spend on LLM APIs, and where did that spend come from?"_ clearly enough to make spend review routine.
+
+## What You Get
+
+- A local ActiveRecord ledger of provider, model, tokens, cost, latency, tags, streaming usage, and provider response IDs
+- Faraday middleware plus explicit `track` / `track_stream` helpers for non-Faraday clients
+- Server-rendered Rails dashboard with overview, calls, tags, CSV export, and data-quality pages
+- Local pricing snapshots, price sync tasks, and budget guardrails
+- No proxy, no prompt/response body storage, no separate service to operate
+
+## Dashboard
+
+LLM Cost Tracker ships with an optional server-rendered Rails Engine dashboard for spend review, attribution, and data quality checks.
+
+![LLM Cost Tracker dashboard](docs/dashboard-overview.png)
+
+The overview page includes spend trend, budget status, provider breakdown, top models, and filterable slices. The engine also includes Calls, Tags, and Data Quality pages. Plain ERB, no JavaScript bundle.
+
+## Quickstart
+
+```ruby
+gem "llm_cost_tracker"
+```
+
+```bash
+bin/rails generate llm_cost_tracker:install
+bin/rails db:migrate
+```
+
+```ruby
+LlmCostTracker.configure do |config|
+  config.storage_backend = :active_record
+  config.default_tags = { app: "my_app", environment: Rails.env }
+end
+
+OpenAI.configure do |config|
+  config.access_token = ENV["OPENAI_API_KEY"]
+  config.faraday do |f|
+    f.use :llm_cost_tracker, tags: -> { { user_id: Current.user&.id, feature: "chat" } }
+  end
+end
+```
+
+```ruby
+mount LlmCostTracker::Engine => "/llm-costs"
+```
+
+After that, LLM Cost Tracker starts recording calls into `llm_api_calls` and the dashboard becomes available at `/llm-costs`.
+Protect the mounted engine with your application's authentication before exposing it outside development.
+
+## Tradeoffs
+
+- Self-hosted ledger first: no proxy, no SaaS, no separate service to operate
+- Best-effort pricing for spend review and attribution, not invoice-grade billing
+- No prompt or response body storage
+- No built-in auth on the mounted dashboard
+- Use `:active_record` when you want shared dashboards and budget checks across Puma workers and Sidekiq processes
 
 ## Installation
 
@@ -293,7 +353,7 @@ bin/rails generate llm_cost_tracker:add_latency_ms
 bin/rails db:migrate
 ```
 
-## Dashboard (optional)
+## Mounting the dashboard
 
 Optional Rails Engine. Plain ERB, no JavaScript framework, no asset pipeline required. Requires Rails 7.1+; the core middleware works without Rails.
 
@@ -315,7 +375,7 @@ Routes (GET-only; CSV export included):
 - `/llm-costs/tags/:key` — breakdown by values of a given tag key
 - `/llm-costs/data_quality` — unknown pricing share, untagged calls, missing latency
 
-> ⚠️ **No built-in auth.** Tags carry whatever your app puts in them. Protect the mount point with your application's authentication.
+No built-in auth is included. Tags carry whatever your app puts in them, so protect the mount point with your application's authentication.
 
 ### Basic auth
 
@@ -381,20 +441,26 @@ Configured hosts are parsed using the OpenAI-compatible usage shape (`prompt_tok
 For providers with a non-OpenAI usage shape:
 
 ```ruby
+require "uri"
+
 class AcmeParser < LlmCostTracker::Parsers::Base
   def match?(url)
-    url.to_s.include?("api.acme-llm.example")
+    uri = URI.parse(url.to_s)
+    uri.host == "api.acme-llm.example" && uri.path == "/v1/generate"
+  rescue URI::InvalidURIError
+    false
   end
 
   def parse(request_url, request_body, response_status, response_body)
     return nil unless response_status == 200
 
-    usage = safe_json_parse(response_body)&.dig("usage")
+    payload = safe_json_parse(response_body)
+    usage = payload&.dig("usage")
     return nil unless usage
 
     LlmCostTracker::ParsedUsage.build(
       provider: "acme",
-      model: safe_json_parse(response_body)["model"],
+      model: payload["model"],
       input_tokens: usage["input"] || 0,
       output_tokens: usage["output"] || 0
     )
@@ -420,9 +486,12 @@ Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenA
 
 ## Safety
 
+**By design, `llm_cost_tracker` never persists prompt or response content.** The only data stored per call is the metadata needed for a cost ledger (provider, model, token counts, cost, latency, tags, provider response ID, HTTP status, and a timestamp). Tags carry whatever your application passes in — treat them as user-controlled input and avoid putting request bodies, completions, or secrets into them.
+
 - No external HTTP calls at request-tracking time.
 - No prompt or response bodies stored.
 - Faraday responses not modified.
+- Authorization headers and API keys are never stored or logged.
 - Storage failures non-fatal by default (`storage_error_behavior = :warn`).
 - Budget and unknown-pricing errors are raised only when you opt in.
 

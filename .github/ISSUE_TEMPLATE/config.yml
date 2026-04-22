@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/sergey-homenko/llm_cost_tracker/discussions
+    about: For general questions, design discussions, or usage help, please open a Discussion instead of an issue.
+  - name: Security report
+    url: mailto:sergey@mm.st
+    about: Please email security reports privately rather than opening a public issue.

@@ -1,29 +1,36 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "uri"
 
 RSpec.describe LlmCostTracker::Parsers::Openai do
   subject(:parser) { described_class.new }
 
+  let(:chat_completions_url) { URI::HTTPS.build(host: "api.openai.com", path: "/v1/chat/completions").to_s }
+  let(:embeddings_url) { URI::HTTPS.build(host: "api.openai.com", path: "/v1/embeddings").to_s }
+  let(:responses_url) { URI::HTTPS.build(host: "api.openai.com", path: "/v1/responses").to_s }
+  let(:response_retrieval_url) { URI::HTTPS.build(host: "api.openai.com", path: "/v1/responses/resp_123").to_s }
+  let(:anthropic_messages_url) { URI::HTTPS.build(host: "api.anthropic.com", path: "/v1/messages").to_s }
+
   describe "#match?" do
     it "matches OpenAI chat completions URL" do
-      expect(parser.match?("https://api.openai.com/v1/chat/completions")).to be true
+      expect(parser.match?(chat_completions_url)).to be true
     end
 
     it "matches OpenAI embeddings URL" do
-      expect(parser.match?("https://api.openai.com/v1/embeddings")).to be true
+      expect(parser.match?(embeddings_url)).to be true
     end
 
     it "matches OpenAI Responses URL" do
-      expect(parser.match?("https://api.openai.com/v1/responses")).to be true
+      expect(parser.match?(responses_url)).to be true
     end
 
     it "does not match OpenAI response retrieval URLs" do
-      expect(parser.match?("https://api.openai.com/v1/responses/resp_123")).to be false
+      expect(parser.match?(response_retrieval_url)).to be false
     end
 
     it "does not match other URLs" do
-      expect(parser.match?("https://api.anthropic.com/v1/messages")).to be false
+      expect(parser.match?(anthropic_messages_url)).to be false
     end
   end
 
@@ -42,14 +49,14 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
     end
 
     it_behaves_like "a parser with common usage failure handling",
-                    url: "https://api.openai.com/v1/chat/completions",
+                    url: URI::HTTPS.build(host: "api.openai.com", path: "/v1/chat/completions").to_s,
                     request_body: { model: "gpt-4o" }.to_json,
                     response_body: { error: "rate limited" }.to_json,
                     missing_usage_body: { model: "gpt-4o" }.to_json
 
     it "extracts token usage from a successful response" do
       result = parser.parse(
-        "https://api.openai.com/v1/chat/completions",
+        chat_completions_url,
         request_body,
         200,
         {
@@ -84,7 +91,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       }.to_json
 
       result = parser.parse(
-        "https://api.openai.com/v1/responses",
+        responses_url,
         { model: "gpt-5-mini" }.to_json,
         200,
         response_body
@@ -100,7 +107,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "tags non-streaming usage with a :response source" do
       result = parser.parse(
-        "https://api.openai.com/v1/chat/completions",
+        chat_completions_url,
         request_body,
         200,
         response_body
@@ -113,12 +120,12 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
   describe "#streaming_request?" do
     it "detects a stream:true body" do
-      expect(parser.streaming_request?("https://api.openai.com/v1/chat/completions",
+      expect(parser.streaming_request?(chat_completions_url,
                                        '{"model":"gpt-4o","stream":true}')).to be true
     end
 
     it "ignores non-streaming bodies" do
-      expect(parser.streaming_request?("https://api.openai.com/v1/chat/completions",
+      expect(parser.streaming_request?(chat_completions_url,
                                        '{"model":"gpt-4o"}')).to be false
     end
   end
@@ -133,7 +140,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        "https://api.openai.com/v1/chat/completions",
+        chat_completions_url,
         request_body,
         200,
         events
@@ -159,7 +166,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        "https://api.openai.com/v1/chat/completions",
+        chat_completions_url,
         request_body,
         200,
         events
@@ -178,7 +185,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        "https://api.openai.com/v1/responses",
+        responses_url,
         { model: "gpt-5-mini", stream: true }.to_json,
         200,
         events
@@ -193,7 +200,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        "https://api.openai.com/v1/chat/completions",
+        chat_completions_url,
         request_body,
         200,
         events
@@ -207,7 +214,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
     end
 
     it "returns nil on non-200 responses" do
-      expect(parser.parse_stream("https://api.openai.com/v1/chat/completions", request_body, 500, [])).to be_nil
+      expect(parser.parse_stream(chat_completions_url, request_body, 500, [])).to be_nil
     end
   end
 end

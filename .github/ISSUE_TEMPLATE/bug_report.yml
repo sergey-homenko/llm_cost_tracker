@@ -1,0 +1,120 @@
+name: Bug report
+description: Report a reproducible bug in llm_cost_tracker
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill in the fields below so the issue can be triaged quickly.
+
+  - type: input
+    id: gem_version
+    attributes:
+      label: llm_cost_tracker version
+      description: Output of `bundle info llm_cost_tracker` or the version from your Gemfile.lock
+      placeholder: "0.3.1"
+    validations:
+      required: true
+
+  - type: input
+    id: ruby_version
+    attributes:
+      label: Ruby version
+      placeholder: "3.3.5"
+    validations:
+      required: true
+
+  - type: input
+    id: rails_version
+    attributes:
+      label: Rails / ActiveRecord version
+      placeholder: "8.0.1 (leave blank if running without Rails)"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database adapter
+      options:
+        - PostgreSQL
+        - MySQL
+        - SQLite
+        - Other (please describe in steps to reproduce)
+        - Not applicable
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: providers
+    attributes:
+      label: Provider(s) involved
+      options:
+        - label: OpenAI
+        - label: Anthropic
+        - label: Google Gemini
+        - label: OpenAI-compatible (OpenRouter, DeepSeek, private gateway, etc.)
+        - label: Not provider-specific
+
+  - type: dropdown
+    id: entry_point
+    attributes:
+      label: How are calls being tracked?
+      options:
+        - Faraday middleware
+        - Explicit track / track_stream
+        - Both
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened?
+      description: Include error messages, stack traces, or unexpected values in the ledger. Please redact any API keys or prompt content.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: A minimal code snippet that reproduces the bug. If the issue depends on a specific provider response, include a sanitized sample of the response body.
+      render: ruby
+    validations:
+      required: true
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Relevant LlmCostTracker configuration
+      description: The contents of your `LlmCostTracker.configure` block, with secrets redacted.
+      render: ruby
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else?
+      description: Logs, screenshots of the dashboard, related issues, etc.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and this is not a duplicate
+          required: true
+        - label: I have removed API keys, prompt content, and any other sensitive data from this report
+          required: true

@@ -28,7 +28,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir.chdir(__dir__) do
     `git ls-files -z`.split("\x0").reject do |f|
       (File.expand_path(f) == __FILE__) ||
-        f.start_with?("bin/", "test/", "spec/", ".git", ".github", "gemfiles/", ".rubocop", "Gemfile")
+        f.start_with?("bin/", "docs/", "test/", "spec/", ".git", ".github", "gemfiles/", ".rubocop", "Gemfile")
     end
   end
 
@@ -43,6 +43,8 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rspec", "~> 3.0"
   spec.add_development_dependency "rubocop", "~> 1.0"
+  spec.add_development_dependency "simplecov", "~> 0.22"
+  spec.add_development_dependency "simplecov-lcov", "~> 0.8"
   spec.add_development_dependency "sqlite3", ">= 1.4", "< 3.0"
   spec.add_development_dependency "webmock", "~> 3.0"
 end

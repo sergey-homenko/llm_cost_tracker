@@ -1,17 +1,21 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "uri"
 
 RSpec.describe LlmCostTracker::Parsers::Anthropic do
   subject(:parser) { described_class.new }
 
+  let(:anthropic_messages_url) { URI::HTTPS.build(host: "api.anthropic.com", path: "/v1/messages").to_s }
+  let(:openai_chat_url) { URI::HTTPS.build(host: "api.openai.com", path: "/v1/chat/completions").to_s }
+
   describe "#match?" do
     it "matches Anthropic messages URL" do
-      expect(parser.match?("https://api.anthropic.com/v1/messages")).to be true
+      expect(parser.match?(anthropic_messages_url)).to be true
     end
 
     it "does not match OpenAI URLs" do
-      expect(parser.match?("https://api.openai.com/v1/chat/completions")).to be false
+      expect(parser.match?(openai_chat_url)).to be false
     end
   end
 
@@ -31,14 +35,14 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
     end
 
     it_behaves_like "a parser with common usage failure handling",
-                    url: "https://api.anthropic.com/v1/messages",
+                    url: URI::HTTPS.build(host: "api.anthropic.com", path: "/v1/messages").to_s,
                     request_body: { model: "claude-sonnet-4-6" }.to_json,
                     response_body: { error: "rate limited" }.to_json,
                     missing_usage_body: { model: "claude-sonnet-4-6" }.to_json
 
     it "extracts token usage including cache tokens" do
       result = parser.parse(
-        "https://api.anthropic.com/v1/messages",
+        anthropic_messages_url,
         request_body,
         200,
         response_body
@@ -58,7 +62,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
 
     it "extracts the provider message id from a successful response" do
       result = parser.parse(
-        "https://api.anthropic.com/v1/messages",
+        anthropic_messages_url,
         request_body,
         200,
         {
@@ -95,7 +99,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       ]
 
       result = parser.parse_stream(
-        "https://api.anthropic.com/v1/messages",
+        anthropic_messages_url,
         request_body,
         200,
         events
@@ -114,7 +118,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
 
     it "returns unknown usage when no message events are present" do
       result = parser.parse_stream(
-        "https://api.anthropic.com/v1/messages",
+        anthropic_messages_url,
         request_body,
         200,
         []
