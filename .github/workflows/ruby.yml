@@ -37,6 +37,7 @@ jobs:
       if: matrix.ruby-version == '3.4' && matrix.gemfile == 'gemfiles/rails_8_1.gemfile'
       uses: codecov/codecov-action@v5
       with:
+        token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage/lcov.info
         flags: unittests
         fail_ci_if_error: false
