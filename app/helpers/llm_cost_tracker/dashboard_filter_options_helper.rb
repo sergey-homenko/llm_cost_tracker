@@ -13,7 +13,7 @@ module LlmCostTracker
     private
 
     def filter_options_for(column, filter_params:)
-      source = filter_source_hash(filter_params)
+      source = LlmCostTracker::ParameterHash.to_hash(filter_params)
       scope_params = source.stringify_keys.merge(
         column.to_s => nil, "format" => nil, "page" => nil, "per" => nil, "sort" => nil
       )
@@ -23,12 +23,6 @@ module LlmCostTracker
       current = source[column.to_s].presence || source[column].presence
       values.unshift(current) if current && !values.include?(current)
       values
-    end
-
-    def filter_source_hash(filter_params)
-      return filter_params.to_unsafe_h if filter_params.respond_to?(:to_unsafe_h)
-
-      filter_params.to_h
     end
   end
 end

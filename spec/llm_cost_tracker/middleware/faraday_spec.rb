@@ -201,7 +201,9 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   it "captures streaming OpenAI responses through the on_data tap" do
-    sse_body = "data: {\"id\":\"chatcmpl_stream_123\",\"model\":\"gpt-4o\",\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" \
+    sse_body = "data: " \
+               "{\"id\":\"chatcmpl_stream_123\",\"model\":\"gpt-4o\"," \
+               "\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" \
                "data: {\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":2,\"total_tokens\":9}}\n\n" \
                "data: [DONE]\n\n"
 

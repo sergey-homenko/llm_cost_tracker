@@ -1,4 +1,3 @@
-<%# locals: tags: Hash, limit: Integer (optional) %>
 <% entries = tag_chip_entries(tags, limit: local_assigns.fetch(:limit, 3)) %>
 <% if entries.empty? %>
   <span class="lct-tag-empty">(untagged)</span>

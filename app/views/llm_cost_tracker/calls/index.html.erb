@@ -10,7 +10,7 @@
     <div class="lct-filter-row lct-filter-row-with-sort">
       <div class="lct-field">
         <label for="lct-from">From</label>
-        <input id="lct-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
+        <input id="lct-from" type="date" name="from" value="<%= params[:from] %>">
       </div>
 
       <div class="lct-field">
@@ -46,16 +46,17 @@
 
       <div class="lct-field">
         <label for="lct-sort">Sort</label>
-        <select id="lct-sort" name="sort">
-          <option value=""               <%= "selected" if @sort.blank? %>>Recent first</option>
-          <option value="expensive"      <%= "selected" if @sort == "expensive" %>>Most expensive</option>
-          <option value="input"          <%= "selected" if @sort == "input" %>>Largest input</option>
-          <option value="output"         <%= "selected" if @sort == "output" %>>Largest output</option>
-          <% if @latency_available %>
-            <option value="slow" <%= "selected" if @sort == "slow" %>>Slowest</option>
-          <% end %>
-          <option value="unknown_pricing" <%= "selected" if @sort == "unknown_pricing" %>>Unknown pricing only</option>
-        </select>
+        <%= select_tag :sort,
+                       options_for_select(
+                         [["Recent first", ""],
+                          ["Most expensive", "expensive"],
+                          ["Largest input", "input"],
+                          ["Largest output", "output"]] +
+                         (@latency_available ? [["Slowest", "slow"]] : []) +
+                         [["Unknown pricing only", "unknown_pricing"]],
+                         @sort
+                       ),
+                       id: "lct-sort" %>
       </div>
 
       <div class="lct-filter-actions">
@@ -112,7 +113,6 @@
         </thead>
         <tbody>
           <% @calls.each do |call| %>
-            <% tags = call.parsed_tags %>
             <tr>
               <td class="lct-nowrap"><%= format_date(call.tracked_at) %></td>
               <td><%= call.provider %></td>
@@ -124,7 +124,7 @@
               <% if @latency_available %>
                 <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
               <% end %>
-              <td><%= render "llm_cost_tracker/shared/tag_chips", tags: tags %></td>
+              <td><%= render "llm_cost_tracker/shared/tag_chips", tags: call.parsed_tags %></td>
               <td><%= link_to "Details", call_path(call), class: "lct-button lct-button-secondary lct-button-compact" %></td>
             </tr>
           <% end %>

@@ -36,6 +36,7 @@ Metrics/CyclomaticComplexity:
 
 Metrics/ParameterLists:
   Max: 8
+  CountKeywordArgs: false
 
 Metrics/PerceivedComplexity:
   Max: 12

@@ -3,21 +3,11 @@
 require "monitor"
 
 module LlmCostTracker
-  # Calculates costs from price entries expressed in USD per 1M tokens.
   module Pricing
     PRICES = PriceRegistry.builtin_prices
     MUTEX = Monitor.new
 
     class << self
-      # Estimate model cost from token counts.
-      #
-      # @param model [String] Provider model identifier.
-      # @param input_tokens [Integer] Input token count, including cached tokens if reported that way.
-      # @param output_tokens [Integer] Output token count.
-      # @param cached_input_tokens [Integer] OpenAI-style cached input tokens.
-      # @param cache_read_input_tokens [Integer] Anthropic-style cache read tokens.
-      # @param cache_creation_input_tokens [Integer] Anthropic-style cache creation tokens.
-      # @return [LlmCostTracker::Cost, nil] nil when no price is configured for the model.
       def cost_for(model:, input_tokens:, output_tokens:, cached_input_tokens: 0,
                    cache_read_input_tokens: 0, cache_creation_input_tokens: 0)
         prices = lookup(model)
@@ -111,7 +101,6 @@ module LlmCostTracker
         model.to_s.split("/").last
       end
 
-      # Try to match model names like "gpt-4o-2024-08-06" to "gpt-4o".
       def fuzzy_match(model, normalized_model, table)
         sorted_price_keys(table).each do |key|
           return table[key] if model.start_with?(key) || normalized_model.start_with?(key)

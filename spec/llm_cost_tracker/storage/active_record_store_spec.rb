@@ -31,6 +31,8 @@ RSpec.describe "ActiveRecord storage integration" do
       end
     end
 
+    LlmCostTracker::LlmApiCall.reset_column_information if defined?(LlmCostTracker::LlmApiCall)
+
     LlmCostTracker.configure do |config|
       config.storage_backend = :active_record
     end

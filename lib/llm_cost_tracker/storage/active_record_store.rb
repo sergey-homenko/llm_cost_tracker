@@ -19,23 +19,21 @@ module LlmCostTracker
             tags:          tags_for_storage(tags),
             tracked_at:    event.tracked_at
           }
-          attributes[:latency_ms]   = event.latency_ms   if model_class.latency_column?
-          attributes[:stream]       = event.stream       if model_class.stream_column?
-          attributes[:usage_source] = event.usage_source if model_class.usage_source_column?
-          attributes[:provider_response_id] = event.provider_response_id if model_class.provider_response_id_column?
+          attributes[:latency_ms] = event.latency_ms if LlmCostTracker::LlmApiCall.latency_column?
+          attributes[:stream] = event.stream if LlmCostTracker::LlmApiCall.stream_column?
+          attributes[:usage_source] = event.usage_source if LlmCostTracker::LlmApiCall.usage_source_column?
+          if LlmCostTracker::LlmApiCall.provider_response_id_column?
+            attributes[:provider_response_id] = event.provider_response_id
+          end
 
-          model_class.create!(attributes)
+          LlmCostTracker::LlmApiCall.create!(attributes)
         end
 
         def monthly_total(time: Time.now.utc)
-          model_class
+          LlmCostTracker::LlmApiCall
             .where(tracked_at: time.beginning_of_month..time)
             .sum(:total_cost)
             .to_f
-        end
-
-        def model_class
-          LlmCostTracker::LlmApiCall
         end
 
         private
@@ -45,7 +43,7 @@ module LlmCostTracker
         end
 
         def tags_for_storage(tags)
-          model_class.tags_json_column? ? tags : tags.to_json
+          LlmCostTracker::LlmApiCall.tags_json_column? ? tags : tags.to_json
         end
 
         def stringify_tag_value(value)

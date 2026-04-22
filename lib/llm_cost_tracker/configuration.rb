@@ -5,7 +5,6 @@ require_relative "value_helpers"
 
 module LlmCostTracker
   class Configuration
-    # Hostname => provider name for OpenAI-compatible APIs.
     OPENAI_COMPATIBLE_PROVIDERS = {
       "openrouter.ai" => "openrouter",
       "api.deepseek.com" => "deepseek"

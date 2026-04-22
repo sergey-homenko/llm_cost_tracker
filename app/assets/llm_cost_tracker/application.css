@@ -34,7 +34,7 @@
     --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   }
 
-  body:has(> .lct-app) { margin: 0; }
+  .lct-body { margin: 0; }
 
   .lct-app {
     background: var(--lct-bg);
@@ -183,7 +183,6 @@
 
   .lct-stat-sub { color: var(--lct-muted); font-size: var(--fs-xs); margin: 4px 0 0; }
 
-  /* Shared "small uppercase-ish label" recipe */
   .lct-stat-label,
   .lct-field label,
   .lct-dl dt,
@@ -201,7 +200,6 @@
   .lct-chip-label { color: var(--lct-accent); font-weight: 700; }
   .lct-field label { color: var(--lct-text); font-size: var(--fs-md); font-weight: 500; }
 
-  /* Shared "muted body copy" recipe */
   .lct-section-copy,
   .lct-stat-copy,
   .lct-banner-copy,
@@ -285,7 +283,6 @@
   .lct-calls-table td:last-child,
   .lct-calls-table th:last-child { text-align: right; }
 
-  /* Track + fill primitives — shared by bar / budget / stack */
   .lct-bar-track,
   .lct-budget-track,
   .lct-stack-track {

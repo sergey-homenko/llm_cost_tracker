@@ -8,11 +8,6 @@ module LlmCostTracker
     DEFAULT_DAYS = ReportData::DEFAULT_DAYS
 
     class << self
-      # Render a terminal-friendly cost report from ActiveRecord storage.
-      #
-      # @param days [Integer] Number of trailing days to include.
-      # @param now [Time] Report end time.
-      # @return [String]
       def generate(days: DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
         ReportFormatter.new(data(days: days, now: now, tag_breakdowns: tag_breakdowns)).to_s
       rescue LoadError => e

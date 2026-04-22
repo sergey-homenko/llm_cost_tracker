@@ -4,9 +4,6 @@ module LlmCostTracker
   module Dashboard
     ProviderRow = Data.define(:provider, :calls, :total_cost, :share_percent)
 
-    # Aggregates cost and call counts per provider for a given scope.
-    # Sorted by total cost descending; providers with zero cost fall to the bottom
-    # but are still returned so users can see calls without pricing.
     class ProviderBreakdown
       def self.call(scope: LlmCostTracker::LlmApiCall.all)
         new(scope: scope).rows

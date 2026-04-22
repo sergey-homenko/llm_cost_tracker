@@ -19,18 +19,14 @@ module LlmCostTracker
     private
 
     def normalized_query_tags(tags)
-      return {} unless tags
-
-      tags = tags.to_unsafe_h if tags.respond_to?(:to_unsafe_h)
-      tags = tags.to_h if tags.respond_to?(:to_h)
-      return {} unless tags.is_a?(Hash)
-
-      tags.transform_keys(&:to_s).transform_values(&:to_s)
+      LlmCostTracker::ParameterHash.to_hash(tags).transform_keys(&:to_s).transform_values(&:to_s)
     end
 
     def clean_dashboard_query(value)
-      return clean_dashboard_hash(value.to_unsafe_h) if value.is_a?(ActionController::Parameters)
-      return clean_dashboard_hash(value) if value.is_a?(Hash)
+      if LlmCostTracker::ParameterHash.hash_like?(value)
+        return clean_dashboard_hash(LlmCostTracker::ParameterHash.to_hash(value))
+      end
+
       return clean_dashboard_array(value) if value.is_a?(Array)
       return clean_dashboard_string(value) if value.is_a?(String)
 

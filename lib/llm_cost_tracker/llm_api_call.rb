@@ -16,7 +16,6 @@ module LlmCostTracker
 
     self.table_name = "llm_api_calls"
 
-    # Scopes for querying
     scope :with_cost, -> { where.not(total_cost: nil) }
     scope :without_cost, -> { where(total_cost: nil) }
     scope :unknown_pricing, -> { without_cost }
@@ -57,7 +56,6 @@ module LlmCostTracker
       TagQuery.apply(self, tags)
     end
 
-    # Aggregations
     def self.total_cost
       sum(:total_cost).to_f
     end

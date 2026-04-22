@@ -7,7 +7,7 @@
     <div class="lct-filter-row lct-filter-row-with-sort">
       <div class="lct-field">
         <label for="lct-models-from">From</label>
-        <input id="lct-models-from" data-lct-filter-input type="date" name="from" value="<%= params[:from] %>">
+        <input id="lct-models-from" type="date" name="from" value="<%= params[:from] %>">
       </div>
 
       <div class="lct-field">
@@ -33,14 +33,15 @@
 
       <div class="lct-field">
         <label for="lct-models-sort">Sort</label>
-        <select id="lct-models-sort" name="sort">
-          <option value="cost" <%= "selected" if @sort.blank? || @sort == "cost" %>>Total spend</option>
-          <option value="calls" <%= "selected" if @sort == "calls" %>>Call volume</option>
-          <option value="avg_cost" <%= "selected" if @sort == "avg_cost" %>>Avg cost / call</option>
-          <% if @latency_available %>
-            <option value="latency" <%= "selected" if @sort == "latency" %>>Avg latency</option>
-          <% end %>
-        </select>
+        <%= select_tag :sort,
+                       options_for_select(
+                         [["Total spend", "cost"],
+                          ["Call volume", "calls"],
+                          ["Avg cost / call", "avg_cost"]] +
+                         (@latency_available ? [["Avg latency", "latency"]] : []),
+                         @sort.presence || "cost"
+                       ),
+                       id: "lct-models-sort" %>
       </div>
 
       <div class="lct-filter-actions">

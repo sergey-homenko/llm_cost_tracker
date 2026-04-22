@@ -101,7 +101,12 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
     end
 
     it "returns an unknown-usage ParsedUsage when no usage metadata is seen" do
-      result = parser.parse_stream(url, nil, 200, [{ event: nil, data: { "text" => "hi", "responseId" => "gemini-resp-789" } }])
+      result = parser.parse_stream(
+        url,
+        nil,
+        200,
+        [{ event: nil, data: { "text" => "hi", "responseId" => "gemini-resp-789" } }]
+      )
 
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:unknown)

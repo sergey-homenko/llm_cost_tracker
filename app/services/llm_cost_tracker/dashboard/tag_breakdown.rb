@@ -9,8 +9,6 @@ module LlmCostTracker
       :average_cost_per_call
     )
 
-    # Aggregates calls grouped by the distinct values of a single tag key.
-    # Invalid keys raise InvalidFilterError so controllers can return HTTP 400.
     class TagBreakdown
       class << self
         def call(key:, scope: LlmCostTracker::LlmApiCall.all)

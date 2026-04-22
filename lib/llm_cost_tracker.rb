@@ -8,6 +8,7 @@ require_relative "llm_cost_tracker/version"
 require_relative "llm_cost_tracker/configuration"
 require_relative "llm_cost_tracker/errors"
 require_relative "llm_cost_tracker/logging"
+require_relative "llm_cost_tracker/parameter_hash"
 require_relative "llm_cost_tracker/cost"
 require_relative "llm_cost_tracker/event"
 require_relative "llm_cost_tracker/parsed_usage"
@@ -44,10 +45,6 @@ module LlmCostTracker
       CONFIGURATION_MUTEX.synchronize { @configuration ||= Configuration.new }
     end
 
-    # Configure the gem once during application boot.
-    #
-    # @yieldparam configuration [LlmCostTracker::Configuration]
-    # @return [void]
     def configure
       config = CONFIGURATION_MUTEX.synchronize do
         current = @configuration || Configuration.new
@@ -69,13 +66,8 @@ module LlmCostTracker
       Tracker.enforce_budget!
     end
 
-    def track(provider:, model:, input_tokens:, output_tokens:, provider_response_id: nil, **options)
-      latency_ms = options.delete(:latency_ms)
-      stream = options.key?(:stream) ? options.delete(:stream) : false
-      usage_source = options.key?(:usage_source) ? options.delete(:usage_source) : :manual
-      enforce_budget = options.key?(:enforce_budget) ? options.delete(:enforce_budget) : false
-      metadata = options
-
+    def track(provider:, model:, input_tokens:, output_tokens:, latency_ms: nil, stream: false, usage_source: :manual,
+              enforce_budget: false, provider_response_id: nil, **metadata)
       enforce_budget! if enforce_budget
       Tracker.record(
         provider: provider.to_s,
@@ -118,10 +110,8 @@ module LlmCostTracker
   end
 end
 
-# Load Railtie if Rails is present
 require_relative "llm_cost_tracker/railtie" if defined?(Rails::Railtie)
 
-# Auto-register Faraday middleware
 if defined?(Faraday)
   Faraday::Middleware.register_middleware(
     llm_cost_tracker: LlmCostTracker::Middleware::Faraday

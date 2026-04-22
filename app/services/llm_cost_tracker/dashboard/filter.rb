@@ -4,10 +4,6 @@ require "date"
 
 module LlmCostTracker
   module Dashboard
-    # Parses dashboard params into an ActiveRecord relation.
-    #
-    # Invalid dates are ignored, pagination is handled elsewhere, and invalid
-    # tag keys raise InvalidFilterError so controllers can fail closed with HTTP 400.
     class Filter
       class << self
         def call(scope: LlmCostTracker::LlmApiCall.all, params: {})
@@ -17,7 +13,7 @@ module LlmCostTracker
 
       def initialize(scope:, params:)
         @scope = scope
-        @params = normalize_params(params)
+        @params = LlmCostTracker::ParameterHash.with_indifferent_access(params)
       end
 
       def relation
@@ -34,15 +30,6 @@ module LlmCostTracker
 
       attr_reader :scope, :params
 
-      def normalize_params(params)
-        return {}.with_indifferent_access if params.nil?
-
-        raw = params.respond_to?(:to_unsafe_h) ? params.to_unsafe_h : params.to_h
-        raw.with_indifferent_access
-      rescue NoMethodError
-        {}.with_indifferent_access
-      end
-
       def apply_date_filters(relation)
         from = parse_date(:from)&.beginning_of_day
         to = parse_date(:to)&.end_of_day
@@ -53,7 +40,7 @@ module LlmCostTracker
       end
 
       def apply_exact_filter(relation, key)
-        value = string_param(key)
+        value = normalized_string(params[key])
         return relation if value.nil?
 
         relation.where(key => value)
@@ -67,7 +54,7 @@ module LlmCostTracker
       end
 
       def apply_stream_filter(relation)
-        value = string_param(:stream)
+        value = normalized_string(params[:stream])
         return relation if value.nil?
         return relation unless relation.klass.stream_column?
 
@@ -79,7 +66,7 @@ module LlmCostTracker
       end
 
       def apply_usage_source_filter(relation)
-        value = string_param(:usage_source)
+        value = normalized_string(params[:usage_source])
         return relation if value.nil?
         return relation unless relation.klass.usage_source_column?
 
@@ -98,23 +85,16 @@ module LlmCostTracker
       end
 
       def hash_param(key)
-        raw = params[key]
-        raw = raw.to_unsafe_h if raw.respond_to?(:to_unsafe_h)
-        raw = raw.to_h if raw.respond_to?(:to_h)
-        raw.is_a?(Hash) ? raw : {}
+        LlmCostTracker::ParameterHash.to_hash(params[key])
       end
 
       def parse_date(key)
-        value = string_param(key)
+        value = normalized_string(params[key])
         return nil if value.nil?
 
         Date.iso8601(value)
       rescue ArgumentError
         nil
-      end
-
-      def string_param(key)
-        normalized_string(params[key])
       end
 
       def normalized_string(value)

@@ -151,7 +151,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "extracts response ids from chat completion stream chunks" do
       events = [
-        { event: nil, data: { "id" => "chatcmpl_456", "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] } },
+        {
+          event: nil,
+          data: { "id" => "chatcmpl_456", "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] }
+        },
         { event: nil, data: { "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } } }
       ]
 
@@ -167,7 +170,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "extracts response ids from Responses API stream events" do
       events = [
-        { event: nil, data: { "type" => "response.created", "response" => { "id" => "resp_456", "model" => "gpt-5-mini" } } },
+        {
+          event: nil,
+          data: { "type" => "response.created", "response" => { "id" => "resp_456", "model" => "gpt-5-mini" } }
+        },
         { event: nil, data: { "usage" => { "input_tokens" => 12, "output_tokens" => 3, "total_tokens" => 15 } } }
       ]
 

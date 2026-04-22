@@ -9,20 +9,12 @@ module LlmCostTracker
     attr_reader :page, :per
 
     def self.call(params)
-      params = normalize_params(params)
+      params = LlmCostTracker::ParameterHash.with_indifferent_access(params)
       new(
         page: integer_param(params, :page, default: MIN_PAGE, min: MIN_PAGE),
         per: integer_param(params, :per, default: DEFAULT_PER, min: 1, max: MAX_PER)
       )
     end
-
-    def self.normalize_params(params)
-      return {}.with_indifferent_access if params.nil?
-
-      raw = params.respond_to?(:to_unsafe_h) ? params.to_unsafe_h : params.to_h
-      raw.with_indifferent_access
-    end
-    private_class_method :normalize_params
 
     def self.integer_param(params, key, default:, min:, max: nil)
       value = Integer(params[key], 10)

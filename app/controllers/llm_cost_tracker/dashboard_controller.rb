@@ -5,7 +5,7 @@ module LlmCostTracker
     def index
       @from_date, @to_date = overview_range
       prev_from, prev_to = previous_range
-      filter_params = params.to_unsafe_h
+      filter_params = LlmCostTracker::ParameterHash.to_hash(params)
       scope = Dashboard::Filter.call(
         params: filter_params.merge("from" => @from_date.iso8601, "to" => @to_date.iso8601)
       )

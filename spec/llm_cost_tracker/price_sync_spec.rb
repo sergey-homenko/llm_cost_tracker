@@ -245,6 +245,17 @@ RSpec.describe LlmCostTracker::PriceSync do
     end
   end
 
+  it "raises a readable error for invalid registry shapes" do
+    Tempfile.create(["price-sync", ".json"]) do |file|
+      file.write(JSON.generate([]))
+      file.close
+
+      expect do
+        described_class.check(path: file.path, fetcher: fetcher, today: today)
+      end.to raise_error(LlmCostTracker::Error, /Unable to load pricing registry/)
+    end
+  end
+
   def fixture_path(name)
     File.expand_path("../fixtures/pricing/#{name}", __dir__)
   end

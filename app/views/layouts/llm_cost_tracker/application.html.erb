@@ -6,7 +6,7 @@
     <title>LLM Cost Tracker</title>
     <%= stylesheet_link_tag stylesheet_path %>
   </head>
-  <body>
+  <body class="lct-body">
     <div class="lct-app">
       <main class="lct-shell">
         <header class="lct-header">
@@ -25,20 +25,5 @@
         <%= yield %>
       </main>
     </div>
-    <script>
-      document.addEventListener("keydown", function(event) {
-        if (event.key !== "/" || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-
-        var target = event.target;
-        if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
-
-        var input = document.querySelector("[data-lct-filter-input]");
-        if (!input) return;
-
-        event.preventDefault();
-        input.focus();
-        if (typeof input.select === "function") input.select();
-      });
-    </script>
   </body>
 </html>

@@ -6,6 +6,7 @@ module LlmCostTracker
   class CallsController < ApplicationController
     CSV_EXPORT_LIMIT = 10_000
     CSV_FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"].freeze
+    DEFAULT_ORDER = "tracked_at DESC, id DESC"
 
     def index
       @sort = params[:sort].to_s
@@ -38,22 +39,18 @@ module LlmCostTracker
     def calls_order(sort)
       case sort
       when "expensive"
-        "CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END ASC, total_cost DESC, #{default_order}"
+        "CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END ASC, total_cost DESC, #{DEFAULT_ORDER}"
       when "input"
-        "input_tokens DESC, #{default_order}"
+        "input_tokens DESC, #{DEFAULT_ORDER}"
       when "output"
-        "output_tokens DESC, #{default_order}"
+        "output_tokens DESC, #{DEFAULT_ORDER}"
       when "slow"
-        return default_order unless LlmApiCall.latency_column?
+        return DEFAULT_ORDER unless LlmApiCall.latency_column?
 
-        "CASE WHEN latency_ms IS NULL THEN 1 ELSE 0 END ASC, latency_ms DESC, #{default_order}"
+        "CASE WHEN latency_ms IS NULL THEN 1 ELSE 0 END ASC, latency_ms DESC, #{DEFAULT_ORDER}"
       else
-        default_order
+        DEFAULT_ORDER
       end
-    end
-
-    def default_order
-      "tracked_at DESC, id DESC"
     end
 
     def render_csv(relation)

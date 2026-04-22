@@ -20,7 +20,10 @@ module LlmCostTracker
       end
 
       def provider_names
-        ["openai_compatible", *configured_providers.each_value.map(&:to_s)].uniq.freeze
+        [
+          "openai_compatible",
+          *LlmCostTracker.configuration.openai_compatible_providers.each_value.map(&:to_s)
+        ].uniq.freeze
       end
 
       def parse(request_url, request_body, response_status, response_body)
@@ -41,11 +44,7 @@ module LlmCostTracker
       end
 
       def provider_for_host(host)
-        configured_providers[host.to_s.downcase]&.to_s
-      end
-
-      def configured_providers
-        LlmCostTracker.configuration.openai_compatible_providers
+        LlmCostTracker.configuration.openai_compatible_providers[host.to_s.downcase]&.to_s
       end
 
       def tracked_path?(path)

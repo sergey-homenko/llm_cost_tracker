@@ -89,6 +89,13 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(page.prev_page?).to be false
     end
 
+    it "uses defaults for unsupported param objects" do
+      page = described_class.call(Object.new)
+
+      expect(page.page).to eq(1)
+      expect(page.per).to eq(50)
+    end
+
     it "calculates offsets and next-page state" do
       page = described_class.call(page: "3", per: "50")
 
@@ -140,6 +147,15 @@ RSpec.describe "LlmCostTracker dashboard services" do
       relation = described_class.call(params: { from: "not-a-date", to: "also-bad" })
 
       expect(relation.count).to eq(1)
+    end
+
+    it "returns the original scope for unsupported param objects" do
+      create_call(model: "gpt-4o")
+
+      relation = described_class.call(params: Object.new)
+
+      expect(relation.count).to eq(1)
+      expect(relation.first.model).to eq("gpt-4o")
     end
 
     it "ignores malformed non-hash tag params" do
