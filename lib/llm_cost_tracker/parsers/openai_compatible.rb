@@ -20,13 +20,7 @@ module LlmCostTracker
       end
 
       def provider_names
-        providers = configured_providers
-        cached = @provider_names_cache
-        return cached[:value] if cached && cached[:key] == providers.object_id
-
-        value = ["openai_compatible", *providers.each_value.map(&:to_s)].uniq.freeze
-        @provider_names_cache = { key: providers.object_id, value: value }.freeze
-        value
+        ["openai_compatible", *configured_providers.each_value.map(&:to_s)].uniq.freeze
       end
 
       def parse(request_url, request_body, response_status, response_body)

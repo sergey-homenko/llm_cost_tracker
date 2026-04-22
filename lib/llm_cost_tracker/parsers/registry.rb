@@ -1,15 +1,22 @@
 # frozen_string_literal: true
 
+require "monitor"
+
 module LlmCostTracker
   module Parsers
     class Registry
+      MUTEX = Monitor.new
+
       class << self
         def parsers
-          @parsers ||= default_parsers
+          @parsers || MUTEX.synchronize { @parsers ||= default_parsers.freeze }
         end
 
         def register(parser)
-          parsers.unshift(parser)
+          MUTEX.synchronize do
+            current = @parsers || default_parsers.freeze
+            @parsers = ([parser] + current).freeze
+          end
         end
 
         def find_for(url)
@@ -22,7 +29,7 @@ module LlmCostTracker
         end
 
         def reset!
-          @parsers = nil
+          MUTEX.synchronize { @parsers = nil }
         end
 
         private

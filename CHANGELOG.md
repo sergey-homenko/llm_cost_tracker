@@ -9,12 +9,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Streaming capture across OpenAI, Anthropic, and Gemini, including `LlmCostTracker.track_stream` for non-Faraday clients.
 - `stream` / `usage_source` persistence and dashboard coverage for streamed calls.
 - `llm_cost_tracker:prices:sync` and `llm_cost_tracker:prices:check` for keeping local price snapshots current.
+- `LlmCostTracker.enforce_budget!` and opt-in `enforce_budget:` keyword for `track` / `track_stream`.
 
 ### Changed
 
 - Price refresh now uses structured JSON sources (LiteLLM primary, OpenRouter secondary) instead of scraping provider HTML pages.
 - Synced price entries now carry source provenance (`_source`, `_source_version`, `_fetched_at`), while `_source: "manual"` entries remain untouched.
 - Manual stream parsing now resolves parsers through the shared registry, so configured OpenAI-compatible providers work the same way as built-in ones.
+- `LlmCostTracker.configure` deep-freezes `default_tags`, `pricing_overrides`, `report_tag_breakdowns`, and `openai_compatible_providers` on exit; runtime mutation now raises `FrozenError`.
 
 ## [0.2.0] - 2026-04-20
 

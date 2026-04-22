@@ -200,7 +200,25 @@ rescue LlmCostTracker::BudgetExceededError => e
   # e.monthly_total, e.budget, e.last_event
 ```
 
-`:block_requests` is best effort under concurrency, not a transactional cap. Use provider- or gateway-level limits for strict quotas.
+`:block_requests` is a **guardrail, not a hard cap**. The preflight and the spend-recording write are separate statements, so under Puma / Sidekiq concurrency multiple workers can all pass the preflight and then collectively overshoot the budget. The setting reliably *stops new requests after the overshoot is visible* — it does not prevent the overshoot itself. For strict quotas use a provider- or gateway-level limit, or a database-backed counter outside this gem.
+
+Preflight is wired into the Faraday middleware automatically. When you record events via `LlmCostTracker.track` / `track_stream` and also want the same preflight, opt in:
+
+```ruby
+LlmCostTracker.track(
+  provider: "openai",
+  model: "gpt-4o",
+  input_tokens: 120,
+  output_tokens: 45,
+  enforce_budget: true
+)
+
+LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o", enforce_budget: true) do |stream|
+  # raises BudgetExceededError before the block runs when over budget
+end
+
+LlmCostTracker.enforce_budget! # standalone preflight
+```
 
 ## Querying costs
 
@@ -396,9 +414,21 @@ Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenA
 - Storage failures non-fatal by default (`storage_error_behavior = :warn`).
 - Budget and unknown-pricing errors are raised only when you opt in.
 
+## Thread safety (Puma, Sidekiq)
+
+The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and Sidekiq with `concurrency > 1` are both supported. A few rules:
+
+- **Configure once at boot.** `LlmCostTracker.configure` deep-freezes `default_tags`, `pricing_overrides`, `report_tag_breakdowns`, and `openai_compatible_providers` when the block returns. Replacing or mutating these from a web request or job raises `FrozenError`.
+- **Use `:active_record` storage for shared ledgers.** Puma workers and Sidekiq processes do not share memory; `:log` and `:custom` backends see per-process state only. `:active_record` writes to a single table and is the right choice for dashboards and budget checks across processes.
+- **Size your connection pool.** Each tracked call on the middleware path issues up to three SQL queries (preflight `SUM`, `INSERT`, post-check `SUM`). Make sure the AR pool covers `puma max_threads + sidekiq concurrency` plus your app's own usage.
+- **Don't share a `StreamCollector` across threads you don't own.** The collector itself is thread-safe — `event`, `usage`, and `finish!` synchronize internally and `finish!` is idempotent — but the documented pattern is one collector per stream.
+- **`finish!` is a barrier.** Once a stream is finished, later `event`, `usage`, or `model=` calls raise `FrozenError` instead of mutating a closed collector.
+- **`ActiveSupport::Notifications` subscribers run synchronously** in the caller's thread. Keep them fast or hand off to a background job; otherwise they add latency to every tracked call.
+- **`storage_error_behavior = :raise` inside Sidekiq** will retry the job, which can duplicate an expensive LLM call. Prefer `:warn` plus a Notifications subscriber, or `:ignore`, for worker contexts.
+
 ## Known limitations
 
-- `:block_requests` is best effort under concurrency; use an external quota system for hard caps.
+- `:block_requests` is a best-effort guardrail, not a hard cap. Concurrent workers can pass preflight simultaneously and collectively overshoot the budget. Use an external quota system if you need a transactional cap.
 - Streaming capture relies on the provider emitting a final-usage event (OpenAI needs `stream_options: { include_usage: true }`); missing events are recorded with `usage_source: "unknown"` so they surface on the Data Quality page.
 - Anthropic cache TTL variants (1h vs 5min writes) not modeled separately.
 - OpenAI reasoning tokens included in output totals; separate reasoning-token attribution not stored.

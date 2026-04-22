@@ -48,8 +48,10 @@ module LlmCostTracker
     # @yieldparam configuration [LlmCostTracker::Configuration]
     # @return [void]
     def configure
+      @configuration = configuration.dup_for_configuration if configuration.finalized?
       yield(configuration)
       configuration.normalize_openai_compatible_providers!
+      configuration.finalize!
       warn_for_configuration!
     end
 
@@ -57,8 +59,18 @@ module LlmCostTracker
       @configuration = Configuration.new
     end
 
-    def track(provider:, model:, input_tokens:, output_tokens:,
-              latency_ms: nil, stream: false, usage_source: :manual, **metadata)
+    def enforce_budget!
+      Tracker.enforce_budget!
+    end
+
+    def track(provider:, model:, input_tokens:, output_tokens:, **options)
+      latency_ms = options.delete(:latency_ms)
+      stream = options.key?(:stream) ? options.delete(:stream) : false
+      usage_source = options.key?(:usage_source) ? options.delete(:usage_source) : :manual
+      enforce_budget = options.key?(:enforce_budget) ? options.delete(:enforce_budget) : false
+      metadata = options
+
+      enforce_budget! if enforce_budget
       Tracker.record(
         provider: provider.to_s,
         model: model,
@@ -71,8 +83,9 @@ module LlmCostTracker
       )
     end
 
-    def track_stream(provider:, model:, latency_ms: nil, **metadata)
+    def track_stream(provider:, model:, latency_ms: nil, enforce_budget: false, **metadata)
       require_relative "llm_cost_tracker/stream_collector"
+      enforce_budget! if enforce_budget
       collector = StreamCollector.new(
         provider: provider.to_s,
         model: model,

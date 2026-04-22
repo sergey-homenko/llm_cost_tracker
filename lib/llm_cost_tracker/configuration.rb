@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "errors"
+require_relative "value_helpers"
 
 module LlmCostTracker
   class Configuration
@@ -15,21 +16,25 @@ module LlmCostTracker
     STORAGE_BACKENDS = %i[log active_record custom].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
 
-    attr_accessor :enabled,
-                  :custom_storage,     # callable object for :custom backend
-                  :default_tags,       # Hash of default tags added to every event
-                  :on_budget_exceeded, # callable, receives event hash
-                  :monthly_budget,     # Float, in USD — nil means no limit
-                  :log_level,          # :debug, :info, :warn
-                  :prices_file,        # JSON/YAML file that overrides built-in prices
-                  :pricing_overrides,  # Hash to override built-in pricing
-                  :report_tag_breakdowns # Array of tag keys to break down in the rake report
+    attr_accessor(
+      :enabled,
+      :custom_storage,
+      :on_budget_exceeded,
+      :monthly_budget,
+      :log_level,
+      :prices_file
+    )
 
-    attr_reader :budget_exceeded_behavior, # :notify, :raise, :block_requests
-                :storage_backend, # :log, :active_record, :custom
-                :storage_error_behavior, # :ignore, :warn, :raise
-                :unknown_pricing_behavior, # :ignore, :warn, :raise
-                :openai_compatible_providers
+    attr_reader(
+      :budget_exceeded_behavior,
+      :default_tags,
+      :pricing_overrides,
+      :report_tag_breakdowns,
+      :storage_backend,
+      :storage_error_behavior,
+      :unknown_pricing_behavior,
+      :openai_compatible_providers
+    )
 
     def initialize
       @enabled = true
@@ -46,10 +51,27 @@ module LlmCostTracker
       @pricing_overrides  = {}
       @report_tag_breakdowns = []
       self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
+      @finalized = false
+    end
+
+    def default_tags=(value)
+      ensure_shared_configuration_mutable!
+      @default_tags = value
     end
 
     def openai_compatible_providers=(providers)
+      ensure_shared_configuration_mutable!
       @openai_compatible_providers = normalize_openai_compatible_providers(providers)
+    end
+
+    def pricing_overrides=(value)
+      ensure_shared_configuration_mutable!
+      @pricing_overrides = value
+    end
+
+    def report_tag_breakdowns=(value)
+      ensure_shared_configuration_mutable!
+      @report_tag_breakdowns = value
     end
 
     def storage_backend=(value)
@@ -87,6 +109,29 @@ module LlmCostTracker
       self.openai_compatible_providers = openai_compatible_providers
     end
 
+    def finalize!
+      @default_tags = ValueHelpers.deep_freeze(@default_tags || {})
+      @pricing_overrides = ValueHelpers.deep_freeze(@pricing_overrides || {})
+      @report_tag_breakdowns = ValueHelpers.deep_freeze(Array(@report_tag_breakdowns))
+      @openai_compatible_providers = ValueHelpers.deep_freeze(@openai_compatible_providers || {})
+      @finalized = true
+      self
+    end
+
+    def finalized?
+      @finalized
+    end
+
+    def dup_for_configuration
+      copy = dup
+      copy.instance_variable_set(:@default_tags, ValueHelpers.deep_dup(@default_tags || {}))
+      copy.instance_variable_set(:@pricing_overrides, ValueHelpers.deep_dup(@pricing_overrides || {}))
+      copy.instance_variable_set(:@report_tag_breakdowns, ValueHelpers.deep_dup(@report_tag_breakdowns || []))
+      copy.instance_variable_set(:@openai_compatible_providers, ValueHelpers.deep_dup(@openai_compatible_providers || {}))
+      copy.instance_variable_set(:@finalized, false)
+      copy
+    end
+
     def active_record?
       storage_backend == :active_record
     end
@@ -109,6 +154,12 @@ module LlmCostTracker
       (providers || {}).each_with_object({}) do |(host, provider), normalized|
         normalized[host.to_s.downcase] = provider.to_s
       end
+    end
+
+    def ensure_shared_configuration_mutable!
+      return unless finalized?
+
+      raise FrozenError, "can't modify frozen LlmCostTracker::Configuration"
     end
   end
 end
