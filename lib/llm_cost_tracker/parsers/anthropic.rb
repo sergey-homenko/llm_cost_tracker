@@ -31,6 +31,7 @@ module LlmCostTracker
 
         ParsedUsage.build(
           provider: "anthropic",
+          provider_response_id: response["id"],
           model: response["model"] || request["model"],
           input_tokens: usage["input_tokens"].to_i,
           output_tokens: usage["output_tokens"].to_i,
@@ -48,35 +49,9 @@ module LlmCostTracker
         request = safe_json_parse(request_body)
         model = stream_model(events) || request["model"]
         usage = stream_usage(events)
+        response_id = stream_response_id(events)
 
-        if usage
-          input = usage["input_tokens"].to_i
-          output = usage["output_tokens"].to_i
-          cache_read = usage["cache_read_input_tokens"].to_i
-          cache_creation = usage["cache_creation_input_tokens"].to_i
-
-          ParsedUsage.build(
-            provider: "anthropic",
-            model: model,
-            input_tokens: input,
-            output_tokens: output,
-            total_tokens: input + output + cache_read + cache_creation,
-            cache_read_input_tokens: usage["cache_read_input_tokens"],
-            cache_creation_input_tokens: usage["cache_creation_input_tokens"],
-            stream: true,
-            usage_source: :stream_final
-          )
-        else
-          ParsedUsage.build(
-            provider: "anthropic",
-            model: model,
-            input_tokens: 0,
-            output_tokens: 0,
-            total_tokens: 0,
-            stream: true,
-            usage_source: :unknown
-          )
-        end
+        usage ? build_stream_result(model, usage, response_id) : build_unknown_stream_result(model, response_id)
       end
 
       private
@@ -113,6 +88,50 @@ module LlmCostTracker
           return model if model && !model.empty?
         end
         nil
+      end
+
+      def stream_response_id(events)
+        events.each do |event|
+          data = event[:data]
+          next unless data.is_a?(Hash)
+
+          id = data.dig("message", "id") || data["id"]
+          return id if id && !id.to_s.empty?
+        end
+        nil
+      end
+
+      def build_stream_result(model, usage, response_id)
+        input = usage["input_tokens"].to_i
+        output = usage["output_tokens"].to_i
+        cache_read = usage["cache_read_input_tokens"].to_i
+        cache_creation = usage["cache_creation_input_tokens"].to_i
+
+        ParsedUsage.build(
+          provider: "anthropic",
+          provider_response_id: response_id,
+          model: model,
+          input_tokens: input,
+          output_tokens: output,
+          total_tokens: input + output + cache_read + cache_creation,
+          cache_read_input_tokens: usage["cache_read_input_tokens"],
+          cache_creation_input_tokens: usage["cache_creation_input_tokens"],
+          stream: true,
+          usage_source: :stream_final
+        )
+      end
+
+      def build_unknown_stream_result(model, response_id)
+        ParsedUsage.build(
+          provider: "anthropic",
+          provider_response_id: response_id,
+          model: model,
+          input_tokens: 0,
+          output_tokens: 0,
+          total_tokens: 0,
+          stream: true,
+          usage_source: :unknown
+        )
       end
     end
   end

@@ -26,6 +26,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
           t.boolean :stream, null: false, default: false
           t.string  :usage_source
         end
+        t.string :provider_response_id
         t.text :tags
         t.datetime :tracked_at, null: false
 
@@ -46,6 +47,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       latency_ms: 100,
       stream: false,
       usage_source: nil,
+      provider_response_id: nil,
       tags: {},
       tracked_at: Time.utc(2026, 4, 18, 12)
     }
@@ -55,6 +57,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     attrs.delete(:latency_ms) unless LlmCostTracker::LlmApiCall.latency_column?
     attrs.delete(:stream) unless LlmCostTracker::LlmApiCall.stream_column?
     attrs.delete(:usage_source) unless LlmCostTracker::LlmApiCall.usage_source_column?
+    attrs.delete(:provider_response_id) unless LlmCostTracker::LlmApiCall.provider_response_id_column?
 
     LlmCostTracker::LlmApiCall.create!(attrs)
   end
@@ -480,6 +483,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.stream_column_present).to be false
       expect(stats.streaming_count).to be_nil
       expect(stats.streaming_missing_usage_count).to be_nil
+      expect(stats.provider_response_id_column_present).to be true
+      expect(stats.missing_provider_response_id_count).to eq(0)
     end
 
     context "with stream and usage_source columns" do
@@ -489,15 +494,17 @@ RSpec.describe "LlmCostTracker dashboard services" do
       end
 
       it "counts streaming calls and streams missing usage" do
-        create_call(stream: true,  usage_source: "stream_final")
+        create_call(stream: true,  usage_source: "stream_final", provider_response_id: "resp_1")
         create_call(stream: true,  usage_source: "unknown")
-        create_call(stream: false, usage_source: "response")
+        create_call(stream: false, usage_source: "response", provider_response_id: "resp_2")
 
         stats = described_class.call
 
         expect(stats.stream_column_present).to be true
         expect(stats.streaming_count).to eq(2)
         expect(stats.streaming_missing_usage_count).to eq(1)
+        expect(stats.provider_response_id_column_present).to be true
+        expect(stats.missing_provider_response_id_count).to eq(1)
       end
     end
   end

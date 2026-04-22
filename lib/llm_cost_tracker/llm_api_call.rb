@@ -24,6 +24,12 @@ module LlmCostTracker
     scope :streaming,     -> { stream_column? ? where(stream: true) : none }
     scope :non_streaming, -> { stream_column? ? where(stream: [false, nil]) : all }
     scope :by_usage_source, ->(source) { usage_source_column? ? where(usage_source: source.to_s) : none }
+    scope :with_provider_response_id, lambda {
+      provider_response_id_column? ? where.not(provider_response_id: [nil, ""]) : none
+    }
+    scope :missing_provider_response_id, lambda {
+      provider_response_id_column? ? where(provider_response_id: [nil, ""]) : none
+    }
     scope :streaming_missing_usage, lambda {
       return none unless stream_column? && usage_source_column?
 

@@ -5,15 +5,19 @@ module LlmCostTracker
     def index
       @from_date, @to_date = overview_range
       prev_from, prev_to = previous_range
-      scope = Dashboard::Filter.call(params: overview_filter_params)
-      previous_scope = Dashboard::Filter.call(params: previous_filter_params)
-      model_rows = Dashboard::TopModels.call(scope: scope, limit: 10)
+      filter_params = params.to_unsafe_h
+      scope = Dashboard::Filter.call(
+        params: filter_params.merge("from" => @from_date.iso8601, "to" => @to_date.iso8601)
+      )
+      previous_scope = Dashboard::Filter.call(
+        params: filter_params.merge("from" => prev_from.iso8601, "to" => prev_to.iso8601)
+      )
 
       @stats = Dashboard::OverviewStats.call(scope: scope, previous_scope: previous_scope)
       @time_series = Dashboard::TimeSeries.call(scope: scope, from: @from_date, to: @to_date)
       @comparison_series = Dashboard::TimeSeries.call(scope: previous_scope, from: prev_from, to: prev_to)
       @spend_anomaly = Dashboard::SpendAnomaly.call(from: @from_date, to: @to_date, scope: scope)
-      @top_models = model_rows.first(5)
+      @top_models = Dashboard::TopModels.call(scope: scope)
       @providers = Dashboard::ProviderBreakdown.call(scope: scope)
     end
 
@@ -30,21 +34,6 @@ module LlmCostTracker
       prev_to = @from_date - 1
       prev_from = prev_to - (span_days - 1)
       [prev_from, prev_to]
-    end
-
-    def overview_filter_params
-      params.to_unsafe_h.merge(
-        "from" => @from_date.iso8601,
-        "to" => @to_date.iso8601
-      )
-    end
-
-    def previous_filter_params
-      prev_from, prev_to = previous_range
-      params.to_unsafe_h.merge(
-        "from" => prev_from.iso8601,
-        "to" => prev_to.iso8601
-      )
     end
 
     def parsed_date(value)

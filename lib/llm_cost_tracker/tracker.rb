@@ -13,8 +13,7 @@ module LlmCostTracker
         Budget.enforce!
       end
 
-      def record(provider:, model:, input_tokens:, output_tokens:,
-                 metadata: {}, latency_ms: nil, stream: false, usage_source: nil)
+      def record(provider:, model:, input_tokens:, output_tokens:, metadata: {}, **options)
         usage = EventMetadata.usage_data(input_tokens, output_tokens, metadata)
 
         cost_data = Pricing.cost_for(
@@ -36,9 +35,10 @@ module LlmCostTracker
           total_tokens: usage[:total_tokens],
           cost: cost_data,
           tags: LlmCostTracker.configuration.default_tags.merge(EventMetadata.tags(metadata)).freeze,
-          latency_ms: normalized_latency_ms(latency_ms),
-          stream: stream ? true : false,
-          usage_source: normalized_usage_source(usage_source),
+          latency_ms: normalized_latency_ms(options[:latency_ms]),
+          stream: options[:stream] ? true : false,
+          usage_source: normalized_usage_source(options[:usage_source]),
+          provider_response_id: normalized_provider_response_id(options[:provider_response_id]),
           tracked_at: Time.now.utc
         )
 
@@ -121,6 +121,13 @@ module LlmCostTracker
 
         symbol = value.to_sym
         USAGE_SOURCES.include?(symbol) ? symbol.to_s : nil
+      end
+
+      def normalized_provider_response_id(value)
+        return nil if value.nil?
+
+        string = value.to_s
+        string.empty? ? nil : string
       end
     end
   end

@@ -78,6 +78,8 @@ Anthropic emits usage in `message_start` + `message_delta` events. Gemini's `:st
 
 Streamed calls are stored with `stream: true` and `usage_source: "stream_final"`. If the provider never sends final usage, the call is still recorded with `usage_source: "unknown"` so those calls surface on the Data Quality page.
 
+When the provider emits a stable response object ID, LLM Cost Tracker stores it as `provider_response_id`. OpenAI and Anthropic are covered end-to-end; Gemini is best effort and may vary by endpoint or API version.
+
 For non-Faraday clients (raw `Net::HTTP`, custom SSE code, Azure OpenAI), use the explicit helper:
 
 ```ruby
@@ -92,7 +94,16 @@ LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o") do |stream|
 end
 ```
 
-Run `bin/rails g llm_cost_tracker:add_streaming` once on existing installs to add the `stream` and `usage_source` columns.
+If your custom streaming client exposes the provider's response object ID after the stream starts, set it explicitly:
+
+```ruby
+LlmCostTracker.track_stream(provider: "anthropic", model: "claude-sonnet-4-6") do |stream|
+  stream.provider_response_id = response.id
+  stream.usage(input_tokens: 120, output_tokens: 45)
+end
+```
+
+Run `bin/rails g llm_cost_tracker:add_streaming` once on existing installs to add the `stream` and `usage_source` columns. Run `bin/rails g llm_cost_tracker:add_provider_response_id` to persist provider-issued response IDs.
 
 ### Manual tracking
 
@@ -102,6 +113,7 @@ LlmCostTracker.track(
   model: "claude-sonnet-4-6",
   input_tokens: 1500,
   output_tokens: 320,
+  provider_response_id: "msg_01XFDUDYJgAACzvnptvVoYEL",
   cache_read_input_tokens: 1200,
   feature: "summarizer",
   user_id: current_user.id
@@ -430,6 +442,7 @@ The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and
 
 - `:block_requests` is a best-effort guardrail, not a hard cap. Concurrent workers can pass preflight simultaneously and collectively overshoot the budget. Use an external quota system if you need a transactional cap.
 - Streaming capture relies on the provider emitting a final-usage event (OpenAI needs `stream_options: { include_usage: true }`); missing events are recorded with `usage_source: "unknown"` so they surface on the Data Quality page.
+- `provider_response_id` is stored only when the provider exposes a stable response object ID. Missing IDs stay `nil` and surface on the Data Quality page.
 - Anthropic cache TTL variants (1h vs 5min writes) not modeled separately.
 - OpenAI reasoning tokens included in output totals; separate reasoning-token attribution not stored.
 

@@ -52,7 +52,15 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         "https://api.openai.com/v1/chat/completions",
         request_body,
         200,
-        response_body
+        {
+          id: "chatcmpl_123",
+          model: "gpt-4o",
+          usage: {
+            prompt_tokens: 150,
+            completion_tokens: 42,
+            total_tokens: 192
+          }
+        }.to_json
       )
 
       expect(result).to be_a(LlmCostTracker::ParsedUsage)
@@ -60,10 +68,12 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.model).to eq("gpt-4o")
       expect(result.input_tokens).to eq(150)
       expect(result.output_tokens).to eq(42)
+      expect(result.provider_response_id).to eq("chatcmpl_123")
     end
 
     it "extracts token usage from a Responses API response" do
       response_body = {
+        id: "resp_123",
         model: "gpt-5-mini",
         usage: {
           input_tokens: 150,
@@ -85,6 +95,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.input_tokens).to eq(150)
       expect(result.output_tokens).to eq(42)
       expect(result.cached_input_tokens).to eq(100)
+      expect(result.provider_response_id).to eq("resp_123")
     end
 
     it "tags non-streaming usage with a :response source" do
@@ -135,6 +146,39 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.total_tokens).to eq(15)
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)
+      expect(result.provider_response_id).to be_nil
+    end
+
+    it "extracts response ids from chat completion stream chunks" do
+      events = [
+        { event: nil, data: { "id" => "chatcmpl_456", "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] } },
+        { event: nil, data: { "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } } }
+      ]
+
+      result = parser.parse_stream(
+        "https://api.openai.com/v1/chat/completions",
+        request_body,
+        200,
+        events
+      )
+
+      expect(result.provider_response_id).to eq("chatcmpl_456")
+    end
+
+    it "extracts response ids from Responses API stream events" do
+      events = [
+        { event: nil, data: { "type" => "response.created", "response" => { "id" => "resp_456", "model" => "gpt-5-mini" } } },
+        { event: nil, data: { "usage" => { "input_tokens" => 12, "output_tokens" => 3, "total_tokens" => 15 } } }
+      ]
+
+      result = parser.parse_stream(
+        "https://api.openai.com/v1/responses",
+        { model: "gpt-5-mini", stream: true }.to_json,
+        200,
+        events
+      )
+
+      expect(result.provider_response_id).to eq("resp_456")
     end
 
     it "returns an unknown-usage ParsedUsage when no usage chunk arrives" do
@@ -153,6 +197,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.usage_source).to eq(:unknown)
       expect(result.input_tokens).to eq(0)
       expect(result.output_tokens).to eq(0)
+      expect(result.provider_response_id).to be_nil
     end
 
     it "returns nil on non-200 responses" do

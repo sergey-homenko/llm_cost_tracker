@@ -35,7 +35,12 @@ module LlmCostTracker
         usage    = response["usageMetadata"]
         return nil unless usage
 
-        build_parsed_usage(request_url, usage, usage_source: :response)
+        build_parsed_usage(
+          request_url,
+          usage,
+          usage_source: :response,
+          provider_response_id: response["responseId"]
+        )
       end
 
       def parse_stream(request_url, _request_body, response_status, events)
@@ -45,10 +50,17 @@ module LlmCostTracker
         model = extract_model_from_url(request_url)
 
         if usage
-          build_parsed_usage(request_url, usage, stream: true, usage_source: :stream_final)
+          build_parsed_usage(
+            request_url,
+            usage,
+            stream: true,
+            usage_source: :stream_final,
+            provider_response_id: stream_response_id(events)
+          )
         else
           ParsedUsage.build(
             provider: "gemini",
+            provider_response_id: stream_response_id(events),
             model: model,
             input_tokens: 0,
             output_tokens: 0,
@@ -61,7 +73,7 @@ module LlmCostTracker
 
       private
 
-      def build_parsed_usage(request_url, usage, usage_source:, stream: false)
+      def build_parsed_usage(request_url, usage, usage_source:, stream: false, provider_response_id: nil)
         ParsedUsage.build(
           provider: "gemini",
           model: extract_model_from_url(request_url),
@@ -70,7 +82,8 @@ module LlmCostTracker
           total_tokens: usage["totalTokenCount"].to_i,
           cached_input_tokens: usage["cachedContentTokenCount"],
           stream: stream,
-          usage_source: usage_source
+          usage_source: usage_source,
+          provider_response_id: provider_response_id
         )
       end
 
@@ -88,6 +101,17 @@ module LlmCostTracker
 
       def output_tokens(usage)
         usage["candidatesTokenCount"].to_i + usage["thoughtsTokenCount"].to_i
+      end
+
+      def stream_response_id(events)
+        events.each do |event|
+          data = event[:data]
+          next unless data.is_a?(Hash)
+
+          id = data["responseId"]
+          return id if id && !id.to_s.empty?
+        end
+        nil
       end
 
       def streaming_url?(request_url)

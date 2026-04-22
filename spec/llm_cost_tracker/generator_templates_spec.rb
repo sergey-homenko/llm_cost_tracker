@@ -20,10 +20,12 @@ RSpec.describe "generator templates" do
     expect(migration).to include("t.integer :latency_ms")
     expect(migration).to include("t.boolean :stream")
     expect(migration).to include("t.string  :usage_source")
+    expect(migration).to include("t.string  :provider_response_id")
     expect(migration).to include("t.jsonb :tags")
     expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin if postgresql?")
     expect(migration).to include("add_index :llm_api_calls, :stream")
     expect(migration).to include("add_index :llm_api_calls, :usage_source")
+    expect(migration).to include("add_index :llm_api_calls, :provider_response_id")
     expect(migration).to include("t.text :tags")
   end
 
@@ -43,6 +45,15 @@ RSpec.describe "generator templates" do
     expect(migration).to include("add_column :llm_api_calls, :usage_source, :string")
     expect(migration).to include("remove_column :llm_api_calls, :stream")
     expect(migration).to include("remove_column :llm_api_calls, :usage_source")
+  end
+
+  it "provides a provider response id upgrade migration" do
+    migration = template("add_provider_response_id_to_llm_api_calls.rb.erb")
+
+    expect(migration).to include("class AddProviderResponseIdToLlmApiCalls")
+    expect(migration).to include("add_column :llm_api_calls, :provider_response_id, :string")
+    expect(migration).to include("add_index :llm_api_calls, :provider_response_id")
+    expect(migration).to include("remove_column :llm_api_calls, :provider_response_id")
   end
 
   it "provides a cost precision upgrade migration" do

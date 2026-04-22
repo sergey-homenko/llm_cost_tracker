@@ -10,6 +10,7 @@ module LlmCostTracker
       cached_input_tokens
       input_tokens
       output_tokens
+      provider_response_id
       reasoning_tokens
       total_tokens
     ].freeze

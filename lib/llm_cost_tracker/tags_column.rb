@@ -32,5 +32,9 @@ module LlmCostTracker
     def usage_source_column?
       columns_hash.key?("usage_source")
     end
+
+    def provider_response_id_column?
+      columns_hash.key?("provider_response_id")
+    end
   end
 end

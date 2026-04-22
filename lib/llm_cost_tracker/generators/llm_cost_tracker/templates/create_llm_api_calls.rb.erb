@@ -12,6 +12,7 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
       t.integer :latency_ms
       t.boolean :stream,        null: false, default: false
       t.string  :usage_source
+      t.string  :provider_response_id
       if postgresql?
         t.jsonb :tags, null: false, default: {}
       else
@@ -28,6 +29,7 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
     add_index :llm_api_calls, [:provider, :tracked_at]
     add_index :llm_api_calls, :stream
     add_index :llm_api_calls, :usage_source
+    add_index :llm_api_calls, :provider_response_id
     add_index :llm_api_calls, :tags, using: :gin if postgresql?
   end
 

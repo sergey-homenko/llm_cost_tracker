@@ -8,10 +8,11 @@ module LlmCostTracker
   class StreamCollector
     attr_reader :provider
 
-    def initialize(provider:, model:, latency_ms: nil, metadata: {})
+    def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, metadata: {})
       @provider = provider.to_s
       @model = model
       @latency_ms = latency_ms
+      @provider_response_id = provider_response_id
       @metadata = ValueHelpers.deep_dup(metadata || {})
       @events = []
       @explicit_usage = nil
@@ -20,18 +21,23 @@ module LlmCostTracker
       @monitor = Monitor.new
     end
 
-    def model
-      @monitor.synchronize { @model }
-    end
+    def model = @monitor.synchronize { @model }
 
-    def metadata
-      @monitor.synchronize { ValueHelpers.deep_dup(@metadata) }
-    end
+    def metadata = @monitor.synchronize { ValueHelpers.deep_dup(@metadata) }
+
+    def provider_response_id = @monitor.synchronize { @provider_response_id }
 
     def model=(value)
       @monitor.synchronize do
         ensure_open!
         @model = value
+      end
+    end
+
+    def provider_response_id=(value)
+      @monitor.synchronize do
+        ensure_open!
+        @provider_response_id = value
       end
     end
 
@@ -67,6 +73,7 @@ module LlmCostTracker
           explicit_usage: ValueHelpers.deep_dup(@explicit_usage),
           model: @model,
           latency_ms: @latency_ms,
+          provider_response_id: @provider_response_id,
           metadata: ValueHelpers.deep_dup(@metadata)
         }
       end
@@ -80,6 +87,7 @@ module LlmCostTracker
         latency_ms: snapshot[:latency_ms] || elapsed_ms,
         stream: true,
         usage_source: parsed.usage_source,
+        provider_response_id: parsed.provider_response_id || snapshot[:provider_response_id],
         metadata: error_metadata(errored).merge(snapshot[:metadata]).merge(parsed.metadata)
       )
     end
@@ -147,12 +155,8 @@ module LlmCostTracker
       )
     end
 
-    def error_metadata(errored)
-      errored ? { stream_errored: true } : {}
-    end
+    def error_metadata(errored) = errored ? { stream_errored: true } : {}
 
-    def elapsed_ms
-      ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at) * 1000).round
-    end
+    def elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at) * 1000).round
   end
 end

@@ -1,10 +1,7 @@
 <% total = @stats.total_calls %>
-<% known_pricing_calls = total - @stats.unknown_pricing_count %>
-<% tagged_calls = total - @stats.untagged_calls_count %>
-<% latency_calls = @stats.latency_column_present ? total - @stats.missing_latency_count : nil %>
 <% streaming_count = @stats.streaming_count %>
 <% streaming_missing_usage = @stats.streaming_missing_usage_count %>
-<% streams_with_usage = streaming_count && streaming_missing_usage ? streaming_count - streaming_missing_usage : nil %>
+<% calls_with_provider_response_id = @stats.provider_response_id_column_present ? total - @stats.missing_provider_response_id_count : nil %>
 
 <section class="lct-panel lct-toolbar">
   <div class="lct-toolbar-head">
@@ -113,6 +110,14 @@
             </article>
           <% end %>
         <% end %>
+
+        <% if @stats.provider_response_id_column_present %>
+          <article class="lct-stat">
+            <p class="lct-stat-label">Calls with provider response ID</p>
+            <p class="lct-stat-value"><%= number(calls_with_provider_response_id) %></p>
+            <p class="lct-stat-sub"><%= percent(coverage_percent(calls_with_provider_response_id, total)) %> of calls</p>
+          </article>
+        <% end %>
       </div>
     </div>
   </section>
@@ -136,39 +141,49 @@
           </tr>
         </thead>
         <tbody>
-          <% cost_coverage = coverage_percent(known_pricing_calls, total) %>
+          <% cost_coverage = coverage_percent(total - @stats.unknown_pricing_count, total) %>
           <tr>
             <td>Cost (pricing known)</td>
             <td class="lct-num"><%= percent(cost_coverage) %></td>
-            <td class="lct-num"><%= number(known_pricing_calls) %></td>
+            <td class="lct-num"><%= number(total - @stats.unknown_pricing_count) %></td>
             <td><%= render "llm_cost_tracker/shared/bar", value: cost_coverage, max: 100.0 %></td>
           </tr>
 
-          <% tag_coverage = coverage_percent(tagged_calls, total) %>
+          <% tag_coverage = coverage_percent(total - @stats.untagged_calls_count, total) %>
           <tr>
             <td>Tags (at least one tag)</td>
             <td class="lct-num"><%= percent(tag_coverage) %></td>
-            <td class="lct-num"><%= number(tagged_calls) %></td>
+            <td class="lct-num"><%= number(total - @stats.untagged_calls_count) %></td>
             <td><%= render "llm_cost_tracker/shared/bar", value: tag_coverage, max: 100.0 %></td>
           </tr>
 
           <% if @stats.latency_column_present %>
-            <% latency_coverage = coverage_percent(latency_calls, total) %>
+            <% latency_coverage = coverage_percent(total - @stats.missing_latency_count, total) %>
             <tr>
               <td>Latency</td>
               <td class="lct-num"><%= percent(latency_coverage) %></td>
-              <td class="lct-num"><%= number(latency_calls) %></td>
+              <td class="lct-num"><%= number(total - @stats.missing_latency_count) %></td>
               <td><%= render "llm_cost_tracker/shared/bar", value: latency_coverage, max: 100.0 %></td>
             </tr>
           <% end %>
 
-          <% if @stats.stream_column_present && streams_with_usage && streaming_count.to_i.positive? %>
-            <% stream_coverage = coverage_percent(streams_with_usage, streaming_count) %>
+          <% if @stats.stream_column_present && streaming_count.to_i.positive? && streaming_missing_usage %>
+            <% stream_coverage = coverage_percent(streaming_count - streaming_missing_usage, streaming_count) %>
             <tr>
               <td>Streaming usage captured</td>
               <td class="lct-num"><%= percent(stream_coverage) %></td>
-              <td class="lct-num"><%= number(streams_with_usage) %> / <%= number(streaming_count) %></td>
+              <td class="lct-num"><%= number(streaming_count - streaming_missing_usage) %> / <%= number(streaming_count) %></td>
               <td><%= render "llm_cost_tracker/shared/bar", value: stream_coverage, max: 100.0 %></td>
+            </tr>
+          <% end %>
+
+          <% if @stats.provider_response_id_column_present %>
+            <% provider_response_id_coverage = coverage_percent(calls_with_provider_response_id, total) %>
+            <tr>
+              <td>Provider response ID</td>
+              <td class="lct-num"><%= percent(provider_response_id_coverage) %></td>
+              <td class="lct-num"><%= number(calls_with_provider_response_id) %></td>
+              <td><%= render "llm_cost_tracker/shared/bar", value: provider_response_id_coverage, max: 100.0 %></td>
             </tr>
           <% end %>
         </tbody>
@@ -214,6 +229,13 @@
               <td>Streams without usage</td>
               <td>Token totals undercount when streaming responses drop the final usage event.</td>
               <td>Send OpenAI requests with <code class="lct-code">stream_options: { include_usage: true }</code>, or wrap custom clients with <code class="lct-code">LlmCostTracker.track_stream</code>.</td>
+            </tr>
+          <% end %>
+          <% if @stats.provider_response_id_column_present && @stats.missing_provider_response_id_count.to_i.positive? %>
+            <tr>
+              <td>Missing provider response IDs</td>
+              <td>Proof of provider-issued responses is weaker when calls cannot be tied back to provider objects.</td>
+              <td>Upgrade to the latest parser coverage and pass <code class="lct-code">provider_response_id:</code> for custom clients when the provider exposes one.</td>
             </tr>
           <% end %>
         </tbody>

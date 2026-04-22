@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- `provider_response_id` persistence, parser extraction, and Data Quality coverage for provider-issued response object IDs.
+
 ## [0.3.0] - 2026-04-22
 
 ### Added

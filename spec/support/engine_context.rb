@@ -24,6 +24,7 @@ module LlmCostTrackerEngineContext
         t.integer :latency_ms
         t.boolean :stream, null: false, default: false
         t.string :usage_source
+        t.string :provider_response_id
         t.text :tags
         t.datetime :tracked_at, null: false
 
@@ -40,6 +41,7 @@ module LlmCostTrackerEngineContext
       output_tokens: 5,
       total_cost: 1.0,
       latency_ms: 100,
+      provider_response_id: nil,
       tags: {},
       tracked_at: Time.now.utc
     }.merge(overrides)

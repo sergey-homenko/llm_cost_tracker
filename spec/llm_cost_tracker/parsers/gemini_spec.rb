@@ -34,6 +34,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         nil,
         200,
         {
+          responseId: "gemini-resp-123",
           usageMetadata: {
             promptTokenCount: 100,
             candidatesTokenCount: 25,
@@ -50,6 +51,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.total_tokens).to eq(175)
       expect(result.stream).to be false
       expect(result.usage_source).to eq(:response)
+      expect(result.provider_response_id).to eq("gemini-resp-123")
     end
   end
 
@@ -75,12 +77,15 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
     it "takes the last usageMetadata block across streamed chunks" do
       events = [
         { event: nil, data: { "usageMetadata" => { "promptTokenCount" => 80, "candidatesTokenCount" => 5 } } },
-        { event: nil, data: { "usageMetadata" => {
-          "promptTokenCount" => 80,
-          "candidatesTokenCount" => 42,
-          "thoughtsTokenCount" => 10,
-          "totalTokenCount" => 132
-        } } }
+        { event: nil, data: {
+          "responseId" => "gemini-resp-456",
+          "usageMetadata" => {
+            "promptTokenCount" => 80,
+            "candidatesTokenCount" => 42,
+            "thoughtsTokenCount" => 10,
+            "totalTokenCount" => 132
+          }
+        } }
       ]
 
       result = parser.parse_stream(url, nil, 200, events)
@@ -92,14 +97,16 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.total_tokens).to eq(132)
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)
+      expect(result.provider_response_id).to eq("gemini-resp-456")
     end
 
     it "returns an unknown-usage ParsedUsage when no usage metadata is seen" do
-      result = parser.parse_stream(url, nil, 200, [{ event: nil, data: { "text" => "hi" } }])
+      result = parser.parse_stream(url, nil, 200, [{ event: nil, data: { "text" => "hi", "responseId" => "gemini-resp-789" } }])
 
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:unknown)
       expect(result.model).to eq("gemini-2.5-flash")
+      expect(result.provider_response_id).to eq("gemini-resp-789")
     end
 
     it "returns a nil model when the streaming URL has no model identifier" do

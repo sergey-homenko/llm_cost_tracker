@@ -23,6 +23,7 @@ RSpec.describe "ActiveRecord storage integration" do
         t.integer :latency_ms
         t.boolean :stream, null: false, default: false
         t.string :usage_source
+        t.string :provider_response_id
         t.text :tags
         t.datetime :tracked_at, null: false
 
@@ -129,6 +130,21 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     expect(llm_api_call_model.first.parsed_tags).not_to have_key("latency_ms")
+  end
+
+  it "persists provider_response_id without treating it as a tag" do
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 10,
+      output_tokens: 5,
+      provider_response_id: "chatcmpl_123"
+    )
+
+    call = llm_api_call_model.first
+
+    expect(call.provider_response_id).to eq("chatcmpl_123")
+    expect(call.parsed_tags).not_to have_key("provider_response_id")
   end
 
   it "finds stringified numeric tags through by_tag" do

@@ -69,7 +69,7 @@ module LlmCostTracker
       Tracker.enforce_budget!
     end
 
-    def track(provider:, model:, input_tokens:, output_tokens:, **options)
+    def track(provider:, model:, input_tokens:, output_tokens:, provider_response_id: nil, **options)
       latency_ms = options.delete(:latency_ms)
       stream = options.key?(:stream) ? options.delete(:stream) : false
       usage_source = options.key?(:usage_source) ? options.delete(:usage_source) : :manual
@@ -85,17 +85,19 @@ module LlmCostTracker
         latency_ms: latency_ms,
         stream: stream,
         usage_source: usage_source,
+        provider_response_id: provider_response_id,
         metadata: metadata
       )
     end
 
-    def track_stream(provider:, model:, latency_ms: nil, enforce_budget: false, **metadata)
+    def track_stream(provider:, model:, latency_ms: nil, enforce_budget: false, provider_response_id: nil, **metadata)
       require_relative "llm_cost_tracker/stream_collector"
       enforce_budget! if enforce_budget
       collector = StreamCollector.new(
         provider: provider.to_s,
         model: model,
         latency_ms: latency_ms,
+        provider_response_id: provider_response_id,
         metadata: metadata
       )
       yield collector

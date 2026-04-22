@@ -6,6 +6,7 @@ require "faraday"
 RSpec.describe LlmCostTracker::Middleware::Faraday do
   let(:openai_response_body) do
     {
+      id: "chatcmpl_sync_123",
       model: "gpt-4o",
       choices: [{ message: { content: "Hello!" } }],
       usage: {
@@ -43,6 +44,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:cost]).not_to be_nil
     expect(events.first[:latency_ms]).to be_a(Integer)
     expect(events.first[:latency_ms]).to be >= 0
+    expect(events.first[:provider_response_id]).to eq("chatcmpl_sync_123")
     expect(events.first[:tags]).to include(feature: "test")
   end
 
@@ -199,7 +201,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   it "captures streaming OpenAI responses through the on_data tap" do
-    sse_body = "data: {\"model\":\"gpt-4o\",\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" \
+    sse_body = "data: {\"id\":\"chatcmpl_stream_123\",\"model\":\"gpt-4o\",\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" \
                "data: {\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":2,\"total_tokens\":9}}\n\n" \
                "data: [DONE]\n\n"
 
@@ -227,6 +229,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:output_tokens]).to eq(2)
     expect(events.first[:stream]).to be true
     expect(events.first[:usage_source]).to eq("stream_final")
+    expect(events.first[:provider_response_id]).to eq("chatcmpl_stream_123")
   end
 
   it "falls back to reading the response body when the caller set no on_data" do

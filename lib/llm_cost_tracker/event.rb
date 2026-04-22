@@ -12,6 +12,7 @@ module LlmCostTracker
     :latency_ms,
     :stream,
     :usage_source,
+    :provider_response_id,
     :tracked_at
   ) do
     def to_h

@@ -1,0 +1,15 @@
+class AddProviderResponseIdToLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
+  def up
+    return if column_exists?(:llm_api_calls, :provider_response_id)
+
+    add_column :llm_api_calls, :provider_response_id, :string
+    add_index :llm_api_calls, :provider_response_id
+  end
+
+  def down
+    return unless column_exists?(:llm_api_calls, :provider_response_id)
+
+    remove_index :llm_api_calls, :provider_response_id if index_exists?(:llm_api_calls, :provider_response_id)
+    remove_column :llm_api_calls, :provider_response_id
+  end
+end

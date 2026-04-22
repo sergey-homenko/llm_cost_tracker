@@ -72,12 +72,13 @@ RSpec.describe LlmCostTracker do
       collected = events
 
       described_class.track_stream(provider: "custom", model: "local-7b") do |stream|
-        stream.usage(input_tokens: 50, output_tokens: 20)
+        stream.usage(input_tokens: 50, output_tokens: 20, provider_response_id: "custom_resp_123")
       end
 
       expect(collected.first[:input_tokens]).to eq(50)
       expect(collected.first[:output_tokens]).to eq(20)
       expect(collected.first[:usage_source]).to eq("manual")
+      expect(collected.first[:provider_response_id]).to eq("custom_resp_123")
       expect(collected.first[:stream]).to be true
     end
 
@@ -106,6 +107,17 @@ RSpec.describe LlmCostTracker do
 
       expect(collected.size).to eq(1)
       expect(collected.first[:tags]).to include(stream_errored: true)
+    end
+
+    it "accepts a provider response id during stream collection" do
+      collected = events
+
+      described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+        stream.provider_response_id = "chatcmpl_manual_123"
+        stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
+      end
+
+      expect(collected.first[:provider_response_id]).to eq("chatcmpl_manual_123")
     end
   end
 end

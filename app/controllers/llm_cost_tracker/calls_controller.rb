@@ -30,9 +30,6 @@ module LlmCostTracker
 
     def show
       @call = LlmApiCall.find(params[:id])
-      @tags = @call.parsed_tags
-      @metadata_available = @call.has_attribute?("metadata")
-      @metadata = @call.read_attribute("metadata") if @metadata_available
       @latency_available = LlmApiCall.latency_column?
     end
 
@@ -64,6 +61,7 @@ module LlmCostTracker
       CSV.generate do |csv|
         headers = %w[tracked_at provider model input_tokens output_tokens total_tokens total_cost]
         headers << "latency_ms" if latency
+        headers << "provider_response_id" if LlmApiCall.provider_response_id_column?
         headers << "tags"
         csv << headers
 
@@ -78,6 +76,7 @@ module LlmCostTracker
             call.total_cost
           ]
           row << call.latency_ms if latency
+          row << csv_safe(call.provider_response_id) if LlmApiCall.provider_response_id_column?
           row << csv_safe(call.parsed_tags.to_json)
           csv << row
         end

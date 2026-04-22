@@ -11,6 +11,8 @@ module LlmCostTracker
       :streaming_count,
       :streaming_missing_usage_count,
       :stream_column_present,
+      :missing_provider_response_id_count,
+      :provider_response_id_column_present,
       :unknown_pricing_by_model
     )
 
@@ -20,6 +22,7 @@ module LlmCostTracker
           total = scope.count
           latency_present = LlmCostTracker::LlmApiCall.latency_column?
           stream_present = LlmCostTracker::LlmApiCall.stream_column?
+          provider_response_id_present = LlmCostTracker::LlmApiCall.provider_response_id_column?
 
           DataQualityStats.new(
             total_calls: total,
@@ -28,8 +31,14 @@ module LlmCostTracker
             missing_latency_count: latency_present ? scope.where(latency_ms: nil).count : nil,
             latency_column_present: latency_present,
             streaming_count: stream_present ? scope.streaming.count : nil,
-            streaming_missing_usage_count: streaming_missing_usage_count(scope, stream_present),
+            streaming_missing_usage_count: if stream_present && LlmCostTracker::LlmApiCall.usage_source_column?
+                                             scope.streaming_missing_usage.count
+                                           end,
             stream_column_present: stream_present,
+            missing_provider_response_id_count: (
+              provider_response_id_present ? scope.missing_provider_response_id.count : nil
+            ),
+            provider_response_id_column_present: provider_response_id_present,
             unknown_pricing_by_model: scope.unknown_pricing
                                       .group(:model)
                                       .order(Arel.sql("COUNT(*) DESC"))
@@ -37,15 +46,6 @@ module LlmCostTracker
                                       .first(10)
                                       .to_h
           )
-        end
-
-        private
-
-        def streaming_missing_usage_count(scope, stream_present)
-          return nil unless stream_present
-          return nil unless LlmCostTracker::LlmApiCall.usage_source_column?
-
-          scope.streaming_missing_usage.count
         end
       end
     end

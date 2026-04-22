@@ -3,14 +3,12 @@
 module LlmCostTracker
   class TagsController < ApplicationController
     def index
-      scope = Dashboard::Filter.call(params: params)
-      @rows = Dashboard::TagKeyExplorer.call(scope: scope)
+      @rows = Dashboard::TagKeyExplorer.call(scope: Dashboard::Filter.call(params: params))
     end
 
     def show
       @tag_key = params[:key]
-      scope = Dashboard::Filter.call(params: params)
-      @rows = Dashboard::TagBreakdown.call(scope: scope, key: @tag_key)
+      @rows = Dashboard::TagBreakdown.call(scope: Dashboard::Filter.call(params: params), key: @tag_key)
       @total_calls = @rows.sum(&:calls)
 
       tagged_rows = @rows.reject { |r| r.value == "(untagged)" }

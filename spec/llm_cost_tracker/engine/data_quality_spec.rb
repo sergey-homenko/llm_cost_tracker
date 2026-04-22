@@ -50,15 +50,18 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
   end
 
   it "surfaces streaming coverage and a streams-without-usage callout" do
-    create_call(stream: true,  usage_source: "stream_final")
+    create_call(stream: true,  usage_source: "stream_final", provider_response_id: "resp_1")
     create_call(stream: true,  usage_source: "unknown")
-    create_call(stream: false, usage_source: "response")
+    create_call(stream: false, usage_source: "response", provider_response_id: "resp_2")
 
     response = get("/llm-costs/data_quality")
 
     expect(response.body).to include("Streaming calls")
     expect(response.body).to include("Streams without usage")
     expect(response.body).to include("Streaming usage captured")
+    expect(response.body).to include("Calls with provider response ID")
+    expect(response.body).to include("Provider response ID")
+    expect(response.body).to include("Missing provider response IDs")
     expect(response.body).to include("track_stream")
   end
 end

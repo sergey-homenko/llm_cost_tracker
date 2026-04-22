@@ -16,6 +16,7 @@ module LlmCostTracker
 
         ParsedUsage.build(
           provider: provider_for(request_url),
+          provider_response_id: response["id"],
           model: response["model"] || request["model"],
           input_tokens: (usage["prompt_tokens"] || usage["input_tokens"]).to_i,
           output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
@@ -35,6 +36,7 @@ module LlmCostTracker
         if usage
           ParsedUsage.build(
             provider: provider_for(request_url),
+            provider_response_id: detect_stream_response_id(events),
             model: model,
             input_tokens: (usage["prompt_tokens"] || usage["input_tokens"]).to_i,
             output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
@@ -46,6 +48,7 @@ module LlmCostTracker
         else
           ParsedUsage.build(
             provider: provider_for(request_url),
+            provider_response_id: detect_stream_response_id(events),
             model: model,
             input_tokens: 0,
             output_tokens: 0,
@@ -74,6 +77,17 @@ module LlmCostTracker
 
           model = data["model"]
           return model if model && !model.to_s.empty?
+        end
+        nil
+      end
+
+      def detect_stream_response_id(events)
+        events.each do |event|
+          data = event[:data]
+          next unless data.is_a?(Hash)
+
+          id = data["id"] || data.dig("response", "id")
+          return id if id && !id.to_s.empty?
         end
         nil
       end

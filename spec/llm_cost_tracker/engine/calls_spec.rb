@@ -160,6 +160,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
       output_cost: 1.75,
       total_cost: 3.0,
       latency_ms: 250,
+      provider_response_id: "chatcmpl_show_123",
       tags: { feature: "chat", user_id: 42 },
       tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
     )
@@ -172,6 +173,8 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("openai")
     expect(response.body).to include("gpt-4o")
     expect(response.body).to include("Estimated")
+    expect(response.body).to include("Provider Response ID")
+    expect(response.body).to include("chatcmpl_show_123")
     expect(response.body).to include("1,200")
     expect(response.body).to include("300")
     expect(response.body).to include("1,500")
@@ -212,6 +215,16 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("Metadata")
     expect(response.body).to include("request_id")
     expect(response.body).to include("req_123")
+  end
+
+  it "includes provider_response_id in CSV exports when the column exists" do
+    create_call(provider_response_id: "chatcmpl_csv_123")
+
+    response = get("/llm-costs/calls.csv")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("provider_response_id")
+    expect(response.body).to include("chatcmpl_csv_123")
   end
 
   it "renders a friendly not-found page for missing call details" do

@@ -61,6 +61,7 @@ module LlmCostTracker
           latency_ms: latency_ms,
           stream: parsed.stream,
           usage_source: parsed.usage_source,
+          provider_response_id: parsed.provider_response_id,
           metadata: resolved_tags(request_env).merge(parsed.metadata)
         )
       rescue LlmCostTracker::Error

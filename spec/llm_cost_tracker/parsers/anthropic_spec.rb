@@ -53,6 +53,25 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.cache_creation_input_tokens).to eq(10)
       expect(result.stream).to be false
       expect(result.usage_source).to eq(:response)
+      expect(result.provider_response_id).to be_nil
+    end
+
+    it "extracts the provider message id from a successful response" do
+      result = parser.parse(
+        "https://api.anthropic.com/v1/messages",
+        request_body,
+        200,
+        {
+          id: "msg_123",
+          model: "claude-sonnet-4-6",
+          usage: {
+            input_tokens: 200,
+            output_tokens: 80
+          }
+        }.to_json
+      )
+
+      expect(result.provider_response_id).to eq("msg_123")
     end
   end
 
@@ -64,6 +83,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
         { event: "message_start", data: {
           "type" => "message_start",
           "message" => {
+            "id" => "msg_456",
             "model" => "claude-sonnet-4-6",
             "usage" => { "input_tokens" => 120, "output_tokens" => 1, "cache_read_input_tokens" => 40 }
           }
@@ -89,6 +109,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.cache_read_input_tokens).to eq(40)
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)
+      expect(result.provider_response_id).to eq("msg_456")
     end
 
     it "returns unknown usage when no message events are present" do
