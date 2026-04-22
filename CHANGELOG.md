@@ -4,9 +4,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-22
+
 ### Added
 
 - `provider_response_id` persistence, parser extraction, and Data Quality coverage for provider-issued response object IDs.
+
+### Changed
+
+- Simplified dashboard helpers, filter normalization, and view templates without changing dashboard behavior.
+- Split `PriceSync` internals into smaller components and removed redundant internal wrapper layers.
+
+### Fixed
+
+- Removed inline dashboard JavaScript to keep the engine server-rendered.
+- Reset ActiveRecord model column information in storage specs to avoid stale schema state across recreated tables.
 
 ## [0.3.0] - 2026-04-22
 
