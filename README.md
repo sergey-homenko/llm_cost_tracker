@@ -1,6 +1,6 @@
-# LlmCostTracker
+# LLM Cost Tracker
 
-**Self-hosted LLM cost tracking for Ruby and Rails.** Intercepts Faraday LLM responses, prices them locally, stores events in your database. No proxy, no SaaS.
+**Self-hosted LLM cost tracking for Ruby and Rails.** Intercepts Faraday LLM responses or records usage explicitly, prices events locally, and stores them in your database. No proxy, no SaaS.
 
 [![Gem Version](https://img.shields.io/gem/v/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker)
 [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions)
@@ -9,7 +9,7 @@
 
 Every Rails app with LLM integrations eventually runs into the same question: where did that invoice come from? Full observability platforms like Langfuse and Helicone solve a broader set of problems; sometimes you just need a small Rails-native ledger in your own database.
 
-`llm_cost_tracker` is built for that. It plugs into Faraday, parses provider usage out of the response, looks up pricing locally, and writes an event. You end up with a ledger you can query with plain ActiveRecord, slice by any tag dimension, and optionally surface on a built-in dashboard. No proxy, no SaaS, no separate service to run.
+`llm_cost_tracker` is built for that. It plugs into Faraday or lets you record usage explicitly with `track` / `track_stream`, looks up pricing locally, and writes an event. You end up with a ledger you can query with plain ActiveRecord, slice by any tag dimension, and optionally surface on a built-in dashboard. No proxy, no SaaS, no separate service to run.
 
 It is not a tracing platform, prompt CMS, eval system, or gateway. The goal is to answer _"what did this app spend on LLM APIs, and where did that spend come from?"_ clearly enough to make spend review routine.
 
@@ -283,7 +283,7 @@ bin/rails db:migrate
 
 ## Dashboard (optional)
 
-Optional Rails Engine. Plain ERB, inline CSS, no JS. Requires Rails 7.1+; the core middleware works without Rails.
+Optional Rails Engine. Plain ERB, no JavaScript framework, no asset pipeline required. Requires Rails 7.1+; the core middleware works without Rails.
 
 ```ruby
 # config/application.rb (or an initializer)
@@ -418,7 +418,7 @@ Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenA
 
 The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and Sidekiq with `concurrency > 1` are both supported. A few rules:
 
-- **Configure once at boot.** `LlmCostTracker.configure` deep-freezes `default_tags`, `pricing_overrides`, `report_tag_breakdowns`, and `openai_compatible_providers` when the block returns. Replacing or mutating these from a web request or job raises `FrozenError`.
+- **Configure once at boot.** `LlmCostTracker.configure` deep-freezes `default_tags`, `pricing_overrides`, `report_tag_breakdowns`, and `openai_compatible_providers` when the block returns. Mutating or replacing shared fields through `LlmCostTracker.configuration` raises `FrozenError`.
 - **Use `:active_record` storage for shared ledgers.** Puma workers and Sidekiq processes do not share memory; `:log` and `:custom` backends see per-process state only. `:active_record` writes to a single table and is the right choice for dashboards and budget checks across processes.
 - **Size your connection pool.** Each tracked call on the middleware path issues up to three SQL queries (preflight `SUM`, `INSERT`, post-check `SUM`). Make sure the AR pool covers `puma max_threads + sidekiq concurrency` plus your app's own usage.
 - **Don't share a `StreamCollector` across threads you don't own.** The collector itself is thread-safe — `event`, `usage`, and `finish!` synchronize internally and `finish!` is idempotent — but the documented pattern is one collector per stream.

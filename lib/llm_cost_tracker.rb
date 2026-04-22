@@ -2,6 +2,7 @@
 
 require "active_support"
 require "active_support/notifications"
+require "monitor"
 
 require_relative "llm_cost_tracker/version"
 require_relative "llm_cost_tracker/configuration"
@@ -36,11 +37,11 @@ require_relative "llm_cost_tracker/report_formatter"
 require_relative "llm_cost_tracker/report"
 
 module LlmCostTracker
-  class << self
-    attr_writer :configuration
+  CONFIGURATION_MUTEX = Monitor.new
 
+  class << self
     def configuration
-      @configuration ||= Configuration.new
+      CONFIGURATION_MUTEX.synchronize { @configuration ||= Configuration.new }
     end
 
     # Configure the gem once during application boot.
@@ -48,15 +49,20 @@ module LlmCostTracker
     # @yieldparam configuration [LlmCostTracker::Configuration]
     # @return [void]
     def configure
-      @configuration = configuration.dup_for_configuration if configuration.finalized?
-      yield(configuration)
-      configuration.normalize_openai_compatible_providers!
-      configuration.finalize!
-      warn_for_configuration!
+      config = CONFIGURATION_MUTEX.synchronize do
+        current = @configuration || Configuration.new
+        current = current.dup_for_configuration if current.finalized?
+        @configuration = current
+        yield(current)
+        current.normalize_openai_compatible_providers!
+        current.finalize!
+        current
+      end
+      warn_for_configuration!(config)
     end
 
     def reset_configuration!
-      @configuration = Configuration.new
+      CONFIGURATION_MUTEX.synchronize { @configuration = Configuration.new }
     end
 
     def enforce_budget!
@@ -101,9 +107,9 @@ module LlmCostTracker
 
     private
 
-    def warn_for_configuration!
-      return unless configuration.budget_exceeded_behavior == :block_requests
-      return if configuration.active_record?
+    def warn_for_configuration!(config = configuration)
+      return unless config.budget_exceeded_behavior == :block_requests
+      return if config.active_record?
 
       Logging.warn(":block_requests requires storage_backend = :active_record; preflight blocking will be skipped.")
     end

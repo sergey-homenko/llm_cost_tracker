@@ -15,17 +15,23 @@ module LlmCostTracker
     STORAGE_ERROR_BEHAVIORS = %i[ignore warn raise].freeze
     STORAGE_BACKENDS = %i[log active_record custom].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
-
-    attr_accessor(
-      :enabled,
-      :custom_storage,
-      :on_budget_exceeded,
-      :monthly_budget,
-      :log_level,
-      :prices_file
-    )
+    SHARED_SCALAR_ATTRIBUTES = %i[
+      enabled
+      custom_storage
+      on_budget_exceeded
+      monthly_budget
+      log_level
+      prices_file
+    ].freeze
+    SHARED_ENUM_ATTRIBUTES = {
+      storage_backend: [STORAGE_BACKENDS, :log],
+      budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
+      storage_error_behavior: [STORAGE_ERROR_BEHAVIORS, :warn],
+      unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn]
+    }.freeze
 
     attr_reader(
+      *SHARED_SCALAR_ATTRIBUTES,
       :budget_exceeded_behavior,
       :default_tags,
       :pricing_overrides,
@@ -74,35 +80,18 @@ module LlmCostTracker
       @report_tag_breakdowns = value
     end
 
-    def storage_backend=(value)
-      @storage_backend = normalize_enum(:storage_backend, value, STORAGE_BACKENDS, default: :log)
+    SHARED_SCALAR_ATTRIBUTES.each do |name|
+      define_method("#{name}=") do |value|
+        ensure_shared_configuration_mutable!
+        instance_variable_set(:"@#{name}", value)
+      end
     end
 
-    def budget_exceeded_behavior=(value)
-      @budget_exceeded_behavior = normalize_enum(
-        :budget_exceeded_behavior,
-        value,
-        BUDGET_EXCEEDED_BEHAVIORS,
-        default: :notify
-      )
-    end
-
-    def storage_error_behavior=(value)
-      @storage_error_behavior = normalize_enum(
-        :storage_error_behavior,
-        value,
-        STORAGE_ERROR_BEHAVIORS,
-        default: :warn
-      )
-    end
-
-    def unknown_pricing_behavior=(value)
-      @unknown_pricing_behavior = normalize_enum(
-        :unknown_pricing_behavior,
-        value,
-        UNKNOWN_PRICING_BEHAVIORS,
-        default: :warn
-      )
+    SHARED_ENUM_ATTRIBUTES.each do |name, (allowed, default)|
+      define_method("#{name}=") do |value|
+        ensure_shared_configuration_mutable!
+        instance_variable_set(:"@#{name}", normalize_enum(name, value, allowed, default: default))
+      end
     end
 
     def normalize_openai_compatible_providers!
@@ -118,27 +107,23 @@ module LlmCostTracker
       self
     end
 
-    def finalized?
-      @finalized
-    end
+    def finalized? = @finalized
 
     def dup_for_configuration
       copy = dup
       copy.instance_variable_set(:@default_tags, ValueHelpers.deep_dup(@default_tags || {}))
       copy.instance_variable_set(:@pricing_overrides, ValueHelpers.deep_dup(@pricing_overrides || {}))
       copy.instance_variable_set(:@report_tag_breakdowns, ValueHelpers.deep_dup(@report_tag_breakdowns || []))
-      copy.instance_variable_set(:@openai_compatible_providers, ValueHelpers.deep_dup(@openai_compatible_providers || {}))
+      copy.instance_variable_set(
+        :@openai_compatible_providers,
+        ValueHelpers.deep_dup(@openai_compatible_providers || {})
+      )
       copy.instance_variable_set(:@finalized, false)
       copy
     end
 
-    def active_record?
-      storage_backend == :active_record
-    end
-
-    def log?
-      storage_backend == :log
-    end
+    def active_record? = storage_backend == :active_record
+    def log? = storage_backend == :log
 
     private
 

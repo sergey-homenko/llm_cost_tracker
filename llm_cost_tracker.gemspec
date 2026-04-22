@@ -8,19 +8,21 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Sergii Khomenko"]
   spec.email         = ["sergey@mm.st"]
 
-  spec.summary       = "Self-hosted LLM API cost guardrails for Ruby and Rails"
-  spec.description   = "Tracks token usage and estimated costs for OpenAI, Anthropic, Google Gemini, " \
-                       "OpenRouter, DeepSeek, and OpenAI-compatible calls. " \
-                       "Works as Faraday middleware for Ruby clients, with ActiveRecord storage, " \
-                       "arbitrary tag-based attribution, and budget guardrails."
+  spec.summary       = "Self-hosted LLM usage and cost tracking for Ruby and Rails"
+  spec.description   = "Tracks token usage, latency, and estimated costs for OpenAI, Anthropic, " \
+                       "Google Gemini, OpenRouter, DeepSeek, and OpenAI-compatible APIs. " \
+                       "Works through Faraday middleware or explicit track/track_stream helpers, " \
+                       "with ActiveRecord storage, tag-based attribution, price sync tasks, " \
+                       "and budget guardrails."
   spec.homepage      = "https://github.com/sergey-homenko/llm_cost_tracker"
   spec.license       = "MIT"
 
   spec.required_ruby_version = ">= 3.3.0"
 
-  spec.metadata["homepage_uri"]    = spec.homepage
   spec.metadata["bug_tracker_uri"] = "#{spec.homepage}/issues"
   spec.metadata["changelog_uri"]   = "#{spec.homepage}/blob/main/CHANGELOG.md"
+  spec.metadata["source_code_uri"] = spec.homepage
+  spec.metadata["documentation_uri"] = "#{spec.homepage}#readme"
   spec.metadata["rubygems_mfa_required"] = "true"
 
   spec.files = Dir.chdir(__dir__) do

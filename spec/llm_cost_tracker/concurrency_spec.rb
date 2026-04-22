@@ -35,8 +35,8 @@ RSpec.describe "concurrency", :aggregate_failures do
       writers = Array.new(16) do |i|
         Thread.new do
           20.times { |j| collector.event({ "i" => i, "j" => j }) }
-        rescue FrozenError => error
-          write_errors << error
+        rescue FrozenError => e
+          write_errors << e
         end
       end
 
@@ -101,6 +101,14 @@ RSpec.describe "concurrency", :aggregate_failures do
   end
 
   describe LlmCostTracker::Configuration do
+    it "returns one shared instance under concurrent first access" do
+      LlmCostTracker.instance_variable_set(:@configuration, nil)
+
+      results = Array.new(16) { Thread.new { LlmCostTracker.configuration } }.map(&:value)
+
+      expect(results.uniq.size).to eq(1)
+    end
+
     it "freezes mutable state after configure returns" do
       LlmCostTracker.configure do |config|
         config.default_tags = { env: "test" }
@@ -134,6 +142,38 @@ RSpec.describe "concurrency", :aggregate_failures do
       expect { LlmCostTracker.configuration.pricing_overrides = {} }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.report_tag_breakdowns = [] }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.openai_compatible_providers = {} }.to raise_error(FrozenError)
+    end
+
+    it "rejects runtime replacement of shared scalar configuration" do
+      LlmCostTracker.configure do |config|
+        config.enabled = true
+        config.custom_storage = ->(_event) {}
+        config.on_budget_exceeded = ->(_data) {}
+        config.monthly_budget = 10.0
+        config.log_level = :info
+        config.prices_file = "/tmp/prices.json"
+        config.storage_backend = :custom
+        config.budget_exceeded_behavior = :notify
+        config.storage_error_behavior = :warn
+        config.unknown_pricing_behavior = :warn
+      end
+
+      expect { LlmCostTracker.configuration.enabled = false }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.custom_storage = nil }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.on_budget_exceeded = nil }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.monthly_budget = 20.0 }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.log_level = :debug }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.prices_file = "/tmp/other.json" }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.storage_backend = :log }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.budget_exceeded_behavior = :raise }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.storage_error_behavior = :ignore }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.unknown_pricing_behavior = :ignore }.to raise_error(FrozenError)
+    end
+
+    it "does not expose a public configuration writer" do
+      expect do
+        LlmCostTracker.configuration = LlmCostTracker::Configuration.new
+      end.to raise_error(NoMethodError)
     end
 
     it "allows a later configure block to replace frozen shared state" do
