@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-22
+
+### Added
+
+- Test coverage reporting via SimpleCov with LCOV upload to Codecov from CI.
+- Repository governance files: `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CONTRIBUTING.md`, and GitHub issue templates.
+
 ## [0.3.1] - 2026-04-22
 
 ### Added
