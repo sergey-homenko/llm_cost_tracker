@@ -13,17 +13,13 @@ Core tracking works without Rails; the mounted dashboard requires Rails 7.1+.
 
 Every Rails app with LLM integrations eventually runs into the same question: where did that invoice come from? Full observability platforms like Langfuse and Helicone solve a broader set of problems; sometimes you just need a small Rails-native ledger in your own database.
 
-`llm_cost_tracker` is built for that. It plugs into Faraday or lets you record usage explicitly with `track` / `track_stream`, looks up pricing locally, and writes an event. You end up with a ledger you can query with plain ActiveRecord, slice by any tag dimension, and optionally surface on a built-in dashboard. No proxy, no SaaS, no separate service to run.
-
-It is not a tracing platform, prompt CMS, eval system, or gateway. The goal is to answer _"what did this app spend on LLM APIs, and where did that spend come from?"_ clearly enough to make spend review routine.
-
 ## What You Get
 
 - A local ActiveRecord ledger of provider, model, tokens, cost, latency, tags, streaming usage, and provider response IDs
 - Faraday middleware plus explicit `track` / `track_stream` helpers for non-Faraday clients
 - Server-rendered Rails dashboard with overview, calls, tags, CSV export, and data-quality pages
 - Local pricing snapshots, price sync tasks, and budget guardrails
-- No proxy, no prompt/response body storage, no separate service to operate
+- Prompt and response bodies are never persisted
 
 ## Dashboard
 

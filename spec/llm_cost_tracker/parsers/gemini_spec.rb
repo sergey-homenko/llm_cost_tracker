@@ -7,10 +7,16 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
   subject(:parser) { described_class.new }
 
   let(:generate_content_url) do
-    URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models/gemini-2.5-flash:generateContent").to_s
+    URI::HTTPS.build(
+      host: "generativelanguage.googleapis.com",
+      path: "/v1beta/models/gemini-2.5-flash:generateContent"
+    ).to_s
   end
   let(:stream_generate_content_url) do
-    URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models/gemini-2.5-flash:streamGenerateContent").to_s
+    URI::HTTPS.build(
+      host: "generativelanguage.googleapis.com",
+      path: "/v1beta/models/gemini-2.5-flash:streamGenerateContent"
+    ).to_s
   end
   let(:models_index_url) do
     URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models").to_s
