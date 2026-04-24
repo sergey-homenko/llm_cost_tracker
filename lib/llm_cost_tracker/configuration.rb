@@ -19,6 +19,8 @@ module LlmCostTracker
       custom_storage
       on_budget_exceeded
       monthly_budget
+      daily_budget
+      per_call_budget
       log_level
       prices_file
     ].freeze
@@ -48,6 +50,8 @@ module LlmCostTracker
       @default_tags       = {}
       @on_budget_exceeded = nil
       @monthly_budget     = nil
+      @daily_budget       = nil
+      @per_call_budget    = nil
       self.budget_exceeded_behavior = :notify
       self.storage_error_behavior = :warn
       self.unknown_pricing_behavior = :warn

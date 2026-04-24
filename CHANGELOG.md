@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `llm_cost_tracker:add_usage_breakdown` generator for upgrading existing ActiveRecord installs.
 - Generic `pricing_mode` support with mode-prefixed local price keys.
 - Data Quality now shows usage bucket totals and hidden-output share.
+- Daily budget and per-call budget guardrails.
 
 ## [0.3.3] - 2026-04-24
 

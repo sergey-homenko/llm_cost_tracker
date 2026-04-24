@@ -189,12 +189,14 @@ LlmCostTracker.configure do |config|
   config.default_tags = { app: "my_app", environment: Rails.env }
 
   config.monthly_budget = 500.00
+  config.daily_budget = 50.00
+  config.per_call_budget = 2.00
   config.budget_exceeded_behavior = :notify  # :notify, :raise, :block_requests
   config.storage_error_behavior   = :warn    # :ignore, :warn, :raise
   config.unknown_pricing_behavior = :warn    # :ignore, :warn, :raise
 
   config.on_budget_exceeded = ->(data) {
-    SlackNotifier.notify("#alerts", "🚨 LLM budget $#{data[:monthly_total].round(2)} / $#{data[:budget]}")
+    SlackNotifier.notify("#alerts", "🚨 LLM #{data[:budget_type]} budget $#{data[:total].round(2)} / $#{data[:budget]}")
   }
 
   config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
@@ -262,16 +264,20 @@ Large price changes are flagged during sync. If a specific entry is expected to 
 ```ruby
 config.storage_backend = :active_record
 config.monthly_budget = 100.00
+config.daily_budget = 10.00
+config.per_call_budget = 1.00
 config.budget_exceeded_behavior = :block_requests
 ```
 
 - `:notify` — fire `on_budget_exceeded` after an event pushes the month over budget.
 - `:raise` — record the event, then raise `BudgetExceededError`.
-- `:block_requests` — block preflight when the stored monthly total is already over budget; still raises post-response on the event that crosses the line. Needs `:active_record` storage.
+- `:block_requests` — block preflight when the stored monthly or daily total is already over budget; still raises post-response on the event that crosses the line. Needs `:active_record` storage for preflight.
+
+`monthly_budget` and `daily_budget` are cumulative ledger limits. `per_call_budget` is a ceiling for a single priced event and runs after the response cost is known.
 
 ```ruby
 rescue LlmCostTracker::BudgetExceededError => e
-  # e.monthly_total, e.budget, e.last_event
+  # e.budget_type, e.total, e.budget, e.monthly_total, e.daily_total, e.call_cost, e.last_event
 ```
 
 `:block_requests` is a **guardrail, not a hard cap**. The preflight and the spend-recording write are separate statements, so under Puma / Sidekiq concurrency multiple workers can all pass the preflight and then collectively overshoot the budget. The setting reliably *stops new requests after the overshoot is visible* — it does not prevent the overshoot itself. For strict quotas use a provider- or gateway-level limit, or a database-backed counter outside this gem.

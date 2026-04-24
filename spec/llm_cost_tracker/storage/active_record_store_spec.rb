@@ -728,6 +728,27 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(budget_totals).to eq([0.005])
   end
 
+  it "notifies once when :notify first crosses the daily budget" do
+    budget_totals = []
+
+    LlmCostTracker.configure do |config|
+      config.storage_backend = :active_record
+      config.daily_budget = 0.004
+      config.on_budget_exceeded = ->(data) { budget_totals << data[:daily_total] }
+    end
+
+    3.times do
+      LlmCostTracker.track(
+        provider: :openai,
+        model: "gpt-4o",
+        input_tokens: 1_000,
+        output_tokens: 0
+      )
+    end
+
+    expect(budget_totals).to eq([0.005])
+  end
+
   it "blocks before a request when the ActiveRecord monthly budget is exhausted" do
     LlmCostTracker.track(
       provider: :openai,
@@ -748,5 +769,40 @@ RSpec.describe "ActiveRecord storage integration" do
       expect(error.monthly_total).to eq(0.0025)
       expect(error.budget).to eq(0.001)
     }
+  end
+
+  it "blocks before a request when the ActiveRecord daily budget is exhausted" do
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+
+    LlmCostTracker.configure do |config|
+      config.storage_backend = :active_record
+      config.daily_budget = 0.001
+      config.budget_exceeded_behavior = :block_requests
+    end
+
+    expect do
+      LlmCostTracker::Tracker.enforce_budget!
+    end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+      expect(error.budget_type).to eq(:daily)
+      expect(error.daily_total).to eq(0.0025)
+      expect(error.budget).to eq(0.001)
+    }
+  end
+
+  it "calculates daily totals for the requested day" do
+    allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
+    LlmCostTracker.track(provider: :openai, model: "gpt-4o", input_tokens: 1_000, output_tokens: 0)
+
+    allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 17, 12))
+    LlmCostTracker.track(provider: :openai, model: "gpt-4o", input_tokens: 1_000, output_tokens: 0)
+
+    total = LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.utc(2026, 4, 18, 23))
+
+    expect(total).to eq(0.0025)
   end
 end

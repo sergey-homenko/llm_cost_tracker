@@ -12,6 +12,8 @@ LlmCostTracker.configure do |config|
 
   # Monthly budget in USD. Set to nil to disable budget alerts.
   # config.monthly_budget = 100.00
+  # config.daily_budget = 10.00
+  # config.per_call_budget = 1.00
   # config.budget_exceeded_behavior = :notify # :notify, :raise, or :block_requests
 
   # What to do when storage fails.
@@ -23,7 +25,7 @@ LlmCostTracker.configure do |config|
   # Callback when monthly budget is exceeded.
   # config.on_budget_exceeded = ->(data) {
   #   Rails.logger.warn "[LlmCostTracker] Budget exceeded! " \
-  #     "Monthly total: $#{data[:monthly_total]}, Budget: $#{data[:budget]}"
+  #     "#{data[:budget_type]} total: $#{data[:total]}, Budget: $#{data[:budget]}"
   #   # Or send a Slack notification, email, etc.
   # }
 

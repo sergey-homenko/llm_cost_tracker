@@ -51,6 +51,13 @@ module LlmCostTracker
           end
         end
 
+        def daily_total(time: Time.now.utc)
+          LlmCostTracker::LlmApiCall
+            .where(tracked_at: time.beginning_of_day..time)
+            .sum(:total_cost)
+            .to_f
+        end
+
         private
 
         def increment_monthly_total(event)

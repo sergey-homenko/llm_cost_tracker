@@ -246,6 +246,30 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(budget_data[:monthly_total]).to be > 0
     end
 
+    it "triggers per-call budget callback when one event exceeds the ceiling" do
+      budget_data = nil
+
+      LlmCostTracker.configure do |c|
+        c.per_call_budget = 0.0001
+        c.on_budget_exceeded = ->(data) { budget_data = data }
+      end
+
+      event = described_class.record(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 1_000_000,
+        output_tokens: 0
+      )
+
+      expect(budget_data).to include(
+        budget_type: :per_call,
+        call_cost: event.cost.total_cost,
+        total: event.cost.total_cost,
+        budget: 0.0001,
+        last_event: event
+      )
+    end
+
     it "raises a budget error when configured to raise" do
       LlmCostTracker.configure do |c|
         c.monthly_budget = 0.0001
@@ -262,6 +286,27 @@ RSpec.describe LlmCostTracker::Tracker do
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
         expect(error.monthly_total).to be > error.budget
         expect(error.last_event.provider).to eq("openai")
+      }
+    end
+
+    it "raises a per-call budget error when configured to raise" do
+      LlmCostTracker.configure do |c|
+        c.per_call_budget = 0.0001
+        c.budget_exceeded_behavior = :raise
+      end
+
+      expect do
+        described_class.record(
+          provider: "openai",
+          model: "gpt-4o",
+          input_tokens: 1_000_000,
+          output_tokens: 0
+        )
+      end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error.budget_type).to eq(:per_call)
+        expect(error.call_cost).to eq(error.total)
+        expect(error.monthly_total).to be_nil
+        expect(error.budget).to eq(0.0001)
       }
     end
 

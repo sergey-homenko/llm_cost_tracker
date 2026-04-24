@@ -111,7 +111,10 @@ module LlmCostTracker
       return unless config.budget_exceeded_behavior == :block_requests
       return if config.active_record?
 
-      Logging.warn(":block_requests requires storage_backend = :active_record; preflight blocking will be skipped.")
+      Logging.warn(
+        ":block_requests requires storage_backend = :active_record for monthly and daily preflight; " \
+        "preflight blocking will be skipped."
+      )
     end
   end
 end

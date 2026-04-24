@@ -150,6 +150,8 @@ RSpec.describe "concurrency", :aggregate_failures do
         config.custom_storage = ->(_event) {}
         config.on_budget_exceeded = ->(_data) {}
         config.monthly_budget = 10.0
+        config.daily_budget = 5.0
+        config.per_call_budget = 1.0
         config.log_level = :info
         config.prices_file = "/tmp/prices.json"
         config.storage_backend = :custom
@@ -162,6 +164,8 @@ RSpec.describe "concurrency", :aggregate_failures do
       expect { LlmCostTracker.configuration.custom_storage = nil }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.on_budget_exceeded = nil }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.monthly_budget = 20.0 }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.daily_budget = 10.0 }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.per_call_budget = 2.0 }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.log_level = :debug }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.prices_file = "/tmp/other.json" }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.storage_backend = :log }.to raise_error(FrozenError)
