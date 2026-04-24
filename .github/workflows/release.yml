@@ -38,9 +38,31 @@ jobs:
     - name: Publish gem
       uses: rubygems/release-gem@v1
 
+    - name: Build release notes from changelog
+      run: |
+        version="${GITHUB_REF_NAME#v}"
+        VERSION="$version" RELEASE_NOTES_PATH="release_notes.md" ruby -e '
+          version = ENV.fetch("VERSION")
+          lines = File.readlines("CHANGELOG.md", chomp: true)
+          start = lines.index { |line| line.match?(/^## \[#{Regexp.escape(version)}\] - /) }
+          abort "Missing CHANGELOG entry for #{version}" unless start
+
+          rest = lines[(start + 1)..]
+          finish = rest.index { |line| line.start_with?("## [") }
+          section = lines[(start + 1)...(finish ? start + 1 + finish : lines.length)]
+          notes = section.drop_while(&:empty?).join("\n").rstrip
+
+          abort "Empty CHANGELOG entry for #{version}" if notes.empty?
+
+          File.write(ENV.fetch("RELEASE_NOTES_PATH"), notes + "\n")
+        '
+
     - name: Create GitHub release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
-          gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes --title "${GITHUB_REF_NAME}"
+        if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+          gh release edit "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file release_notes.md
+        else
+          gh release create "${GITHUB_REF_NAME}" --verify-tag --title "${GITHUB_REF_NAME}" --notes-file release_notes.md
+        fi
