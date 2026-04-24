@@ -11,44 +11,67 @@ RSpec.describe "LlmCostTracker dashboard services" do
     ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: ":memory:")
 
     ActiveRecord::Schema.verbose = false
+    table_definition = llm_api_calls_table_definition(latency:, streaming:, usage_breakdown:)
     ActiveRecord::Schema.define do
-      create_table :llm_api_calls do |t|
-        t.string :provider, null: false
-        t.string :model, null: false
-        t.integer :input_tokens, null: false, default: 0
-        t.integer :output_tokens, null: false, default: 0
-        t.integer :total_tokens, null: false, default: 0
-        if usage_breakdown
-          t.integer :cache_read_input_tokens, null: false, default: 0
-          t.integer :cache_write_input_tokens, null: false, default: 0
-          t.integer :hidden_output_tokens, null: false, default: 0
-        end
-        t.decimal :input_cost, precision: 20, scale: 8
-        if usage_breakdown
-          t.decimal :cache_read_input_cost, precision: 20, scale: 8
-          t.decimal :cache_write_input_cost, precision: 20, scale: 8
-        end
-        t.decimal :output_cost, precision: 20, scale: 8
-        t.decimal :total_cost, precision: 20, scale: 8
-        t.integer :latency_ms if latency
-        if streaming
-          t.boolean :stream, null: false, default: false
-          t.string  :usage_source
-        end
-        t.string :provider_response_id
-        t.string :pricing_mode if usage_breakdown
-        t.text :tags
-        t.datetime :tracked_at, null: false
-
-        t.timestamps
-      end
+      create_table :llm_api_calls, &table_definition
     end
 
     LlmCostTracker::LlmApiCall.reset_column_information
   end
 
   def create_call(**overrides)
-    defaults = {
+    attrs = call_defaults.merge(overrides)
+    attrs[:total_tokens] = total_tokens_for(attrs)
+    attrs[:tags] = attrs.fetch(:tags).to_json
+    normalize_call_columns!(attrs)
+
+    LlmCostTracker::LlmApiCall.create!(attrs)
+  end
+
+  def llm_api_calls_table_definition(latency:, streaming:, usage_breakdown:)
+    proc do |t|
+      add_usage_columns(t, usage_breakdown:)
+      add_cost_columns(t, usage_breakdown:)
+      add_tracking_columns(t, latency:, streaming:, usage_breakdown:)
+      t.timestamps
+    end
+  end
+
+  def add_usage_columns(table, usage_breakdown:)
+    table.string :provider, null: false
+    table.string :model, null: false
+    table.integer :input_tokens, null: false, default: 0
+    table.integer :output_tokens, null: false, default: 0
+    table.integer :total_tokens, null: false, default: 0
+    return unless usage_breakdown
+
+    table.integer :cache_read_input_tokens, null: false, default: 0
+    table.integer :cache_write_input_tokens, null: false, default: 0
+    table.integer :hidden_output_tokens, null: false, default: 0
+  end
+
+  def add_cost_columns(table, usage_breakdown:)
+    table.decimal :input_cost, precision: 20, scale: 8
+    table.decimal :cache_read_input_cost, precision: 20, scale: 8 if usage_breakdown
+    table.decimal :cache_write_input_cost, precision: 20, scale: 8 if usage_breakdown
+    table.decimal :output_cost, precision: 20, scale: 8
+    table.decimal :total_cost, precision: 20, scale: 8
+  end
+
+  def add_tracking_columns(table, latency:, streaming:, usage_breakdown:)
+    table.integer :latency_ms if latency
+    if streaming
+      table.boolean :stream, null: false, default: false
+      table.string  :usage_source
+    end
+    table.string :provider_response_id
+    table.string :pricing_mode if usage_breakdown
+    table.text :tags
+    table.datetime :tracked_at, null: false
+  end
+
+  def call_defaults
+    {
       provider: "openai",
       model: "gpt-4o",
       input_tokens: 10,
@@ -68,12 +91,16 @@ RSpec.describe "LlmCostTracker dashboard services" do
       tags: {},
       tracked_at: Time.utc(2026, 4, 18, 12)
     }
-    attrs = defaults.merge(overrides)
-    attrs[:total_tokens] = attrs.fetch(:input_tokens) +
-                           attrs.fetch(:cache_read_input_tokens) +
-                           attrs.fetch(:cache_write_input_tokens) +
-                           attrs.fetch(:output_tokens)
-    attrs[:tags] = attrs.fetch(:tags).to_json
+  end
+
+  def total_tokens_for(attrs)
+    attrs.fetch(:input_tokens) +
+      attrs.fetch(:cache_read_input_tokens) +
+      attrs.fetch(:cache_write_input_tokens) +
+      attrs.fetch(:output_tokens)
+  end
+
+  def normalize_call_columns!(attrs)
     attrs.delete(:latency_ms) unless LlmCostTracker::LlmApiCall.latency_column?
     attrs.delete(:stream) unless LlmCostTracker::LlmApiCall.stream_column?
     attrs.delete(:usage_source) unless LlmCostTracker::LlmApiCall.usage_source_column?
@@ -88,8 +115,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
       attrs.delete(:cache_write_input_cost)
     end
     attrs.delete(:pricing_mode) unless LlmCostTracker::LlmApiCall.pricing_mode_column?
-
-    LlmCostTracker::LlmApiCall.create!(attrs)
   end
 
   before do

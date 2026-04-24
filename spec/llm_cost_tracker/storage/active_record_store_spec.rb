@@ -44,7 +44,7 @@ RSpec.describe "ActiveRecord storage integration" do
         t.timestamps
       end
 
-      add_index :llm_cost_tracker_period_totals, [:period, :period_start], unique: true
+      add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
     end
 
     LlmCostTracker::LlmApiCall.reset_column_information if defined?(LlmCostTracker::LlmApiCall)
