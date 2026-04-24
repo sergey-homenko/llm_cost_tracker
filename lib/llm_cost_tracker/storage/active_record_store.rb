@@ -50,6 +50,10 @@ module LlmCostTracker
           ActiveRecordRollups.daily_total(time: time)
         end
 
+        def period_totals(periods, time: Time.now.utc)
+          ActiveRecordRollups.period_totals(periods, time: time)
+        end
+
         private
 
         def stringify_tags(tags)

@@ -10,8 +10,16 @@ module LlmCostTracker
         return unless config.budget_exceeded_behavior == :block_requests
         return unless config.active_record?
 
-        enforce_period_budget(:monthly, config.monthly_budget)
-        enforce_period_budget(:daily, config.daily_budget)
+        budgets = enforce_period_budgets(config)
+        return if budgets.empty?
+
+        totals = active_record_totals(budgets.keys, time: Time.now.utc)
+
+        budgets.each do |period, budget|
+          total = totals.fetch(period)
+
+          handle_exceeded(budget_type: period, total: total, budget: budget) if total >= budget
+        end
       end
 
       def check!(event)
@@ -19,20 +27,17 @@ module LlmCostTracker
         return unless event.cost
 
         check_per_call_budget(event, config)
-        check_period_budget(event, config, :daily, config.daily_budget)
-        check_period_budget(event, config, :monthly, config.monthly_budget)
+        budgets = check_period_budgets(config)
+        totals = totals_for_check(event, config, budgets)
+
+        budgets.each do |period, budget|
+          total = totals.fetch(period)
+
+          handle_exceeded(budget_type: period, total: total, budget: budget, last_event: event) if total >= budget
+        end
       end
 
       private
-
-      def enforce_period_budget(period, budget)
-        return unless budget
-
-        total = active_record_total(period, time: Time.now.utc)
-        return unless total >= budget
-
-        handle_exceeded(budget_type: period, total: total, budget: budget)
-      end
 
       def check_per_call_budget(event, config)
         budget = config.per_call_budget
@@ -44,40 +49,32 @@ module LlmCostTracker
         handle_exceeded(budget_type: :per_call, total: call_cost, budget: budget, last_event: event)
       end
 
-      def check_period_budget(event, config, period, budget)
-        return unless budget
-
-        total = if config.active_record?
-                  active_record_total(period, time: event.tracked_at)
-                else
-                  event.cost.total_cost
-                end
-        return unless total >= budget
-
-        handle_exceeded(budget_type: period, total: total, budget: budget, last_event: event)
+      def enforce_period_budgets(config)
+        {
+          monthly: config.monthly_budget,
+          daily: config.daily_budget
+        }.compact
       end
 
-      def active_record_total(period, time:)
-        case period
-        when :monthly then active_record_monthly_total(time: time)
-        when :daily   then active_record_daily_total(time: time)
-        end
+      def check_period_budgets(config)
+        {
+          daily: config.daily_budget,
+          monthly: config.monthly_budget
+        }.compact
       end
 
-      def active_record_monthly_total(time: Time.now.utc)
+      def totals_for_check(event, config, budgets)
+        return {} if budgets.empty?
+        return active_record_totals(budgets.keys, time: event.tracked_at) if config.active_record?
+
+        budgets.to_h { |period, _budget| [period, event.cost.total_cost] }
+      end
+
+      def active_record_totals(periods, time:)
         require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
         require_relative "storage/active_record_store" unless defined?(LlmCostTracker::Storage::ActiveRecordStore)
 
-        LlmCostTracker::Storage::ActiveRecordStore.monthly_total(time: time)
-      rescue LoadError => e
-        raise Error, "ActiveRecord storage requires the active_record gem: #{e.message}"
-      end
-
-      def active_record_daily_total(time: Time.now.utc)
-        require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
-        require_relative "storage/active_record_store" unless defined?(LlmCostTracker::Storage::ActiveRecordStore)
-
-        LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: time)
+        LlmCostTracker::Storage::ActiveRecordStore.period_totals(periods, time: time)
       rescue LoadError => e
         raise Error, "ActiveRecord storage requires the active_record gem: #{e.message}"
       end

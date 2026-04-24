@@ -138,6 +138,15 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.total_cost.to_f).to eq(1.5)
   end
 
+  it "refreshes optional column capability checks after reset_column_information" do
+    expect(llm_api_call_model.pricing_mode_column?).to be true
+
+    ActiveRecord::Base.connection.remove_column(:llm_api_calls, :pricing_mode)
+    llm_api_call_model.reset_column_information
+
+    expect(llm_api_call_model.pricing_mode_column?).to be false
+  end
+
   it "keeps persisted historical costs when the price file changes for later requests" do
     Tempfile.create(["llm-prices-old", ".json"]) do |old_file|
       Tempfile.create(["llm-prices-new", ".json"]) do |new_file|
@@ -212,6 +221,26 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Storage::ActiveRecordStore.monthly_total).to eq(0.00265)
   end
 
+  it "updates daily and monthly period rollups in one bulk write" do
+    allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
+    received_rows = nil
+
+    allow(period_total_model).to receive(:upsert_all).and_wrap_original do |method, rows, **options|
+      received_rows = rows
+      method.call(rows, **options)
+    end
+
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+
+    expect(period_total_model).to have_received(:upsert_all).once
+    expect(received_rows.map { |row| row[:period] }).to contain_exactly("month", "day")
+  end
+
   it "keeps daily budget rollups in sync" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
@@ -248,6 +277,24 @@ RSpec.describe "ActiveRecord storage integration" do
 
     expect(LlmCostTracker::Storage::ActiveRecordStore.monthly_total).to eq(0.0025)
     expect(LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.0025)
+  end
+
+  it "reads daily and monthly period totals together" do
+    allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
+
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+
+    totals = LlmCostTracker::Storage::ActiveRecordStore.period_totals(
+      %i[daily monthly],
+      time: Time.utc(2026, 4, 18, 23)
+    )
+
+    expect(totals).to eq(daily: 0.0025, monthly: 0.0025)
   end
 
   it "does not treat latency as a tag" do

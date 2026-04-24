@@ -17,47 +17,67 @@ module LlmCostTracker
           return unless event.cost&.total_cost
           return unless period_totals_enabled?
 
-          PERIODS.each_key { |period| increment_period_total(period, event) }
-        end
-
-        def monthly_total(time: Time.now.utc)
-          period_total(:monthly, time)
-        end
-
-        def daily_total(time: Time.now.utc)
-          period_total(:daily, time)
-        end
-
-        private
-
-        def period_total(period, time)
-          if period_totals_enabled?
-            period_total_model
-              .where(period: PERIODS.fetch(period), period_start: bucket_for(period, time))
-              .pick(:total_cost)
-              .to_f
-          else
-            LlmCostTracker::LlmApiCall
-              .where(tracked_at: range_start_for(period, time)..time)
-              .sum(:total_cost)
-              .to_f
-          end
-        end
-
-        def increment_period_total(period, event)
           model = period_total_model
           model.upsert_all(
-            [
-              {
-                period: PERIODS.fetch(period),
-                period_start: bucket_for(period, event.tracked_at),
-                total_cost: event.cost.total_cost
-              }
-            ],
+            period_rows(event),
             on_duplicate: total_upsert_sql(model),
             record_timestamps: true,
             unique_by: unique_by(model, %i[period period_start])
           )
+        end
+
+        def monthly_total(time: Time.now.utc)
+          period_totals(%i[monthly], time: time).fetch(:monthly)
+        end
+
+        def daily_total(time: Time.now.utc)
+          period_totals(%i[daily], time: time).fetch(:daily)
+        end
+
+        def period_totals(periods, time: Time.now.utc)
+          periods = periods.map(&:to_sym).select { |period| PERIODS.key?(period) }
+          return {} if periods.empty?
+
+          if period_totals_enabled?
+            rollup_period_totals(periods, time)
+          else
+            periods.to_h { |period| [period, fallback_period_total(period, time)] }
+          end
+        end
+
+        private
+
+        def period_rows(event)
+          PERIODS.map do |period, name|
+            {
+              period: name,
+              period_start: bucket_for(period, event.tracked_at),
+              total_cost: event.cost.total_cost
+            }
+          end
+        end
+
+        def rollup_period_totals(periods, time)
+          buckets = periods.to_h { |period| [period, bucket_for(period, time)] }
+          index = buckets.to_h { |period, bucket| [[PERIODS.fetch(period), bucket], period] }
+          totals = periods.to_h { |period| [period, 0.0] }
+
+          period_total_model
+            .where(period: periods.map { |period| PERIODS.fetch(period) }, period_start: buckets.values)
+            .pluck(:period, :period_start, :total_cost)
+            .each do |name, start, total|
+              period = index[[name, start.to_date]]
+              totals[period] = total.to_f if period
+            end
+
+          totals
+        end
+
+        def fallback_period_total(period, time)
+          LlmCostTracker::LlmApiCall
+            .where(tracked_at: range_start_for(period, time)..time)
+            .sum(:total_cost)
+            .to_f
         end
 
         def period_totals_enabled?

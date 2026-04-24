@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed
+
+- Batched ActiveRecord period rollup writes and budget total reads.
+
 ## [0.4.0] - 2026-04-24
 
 ### Changed
