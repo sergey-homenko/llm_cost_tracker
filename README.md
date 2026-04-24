@@ -343,11 +343,14 @@ On other adapters tags fall back to JSON in a text column. `by_tag` uses JSONB c
 Upgrade an existing install:
 
 ```bash
+bin/rails generate llm_cost_tracker:add_monthly_totals   # shared monthly budget rollups
 bin/rails generate llm_cost_tracker:upgrade_tags_to_jsonb   # PG: text → jsonb + GIN
 bin/rails generate llm_cost_tracker:upgrade_cost_precision  # widen cost columns
 bin/rails generate llm_cost_tracker:add_latency_ms
 bin/rails db:migrate
 ```
+
+On PostgreSQL, the generated `upgrade_tags_to_jsonb` migration rewrites `llm_api_calls`. Run it during a maintenance window on large tables, or replace it with a two-phase backfill for zero-downtime deploys.
 
 ## Mounting the dashboard
 

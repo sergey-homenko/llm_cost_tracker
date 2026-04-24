@@ -69,7 +69,7 @@ module LlmCostTracker
 
         @finished = true
         {
-          events: ValueHelpers.deep_dup(@events),
+          events: @events.dup,
           explicit_usage: ValueHelpers.deep_dup(@explicit_usage),
           model: @model,
           latency_ms: @latency_ms,

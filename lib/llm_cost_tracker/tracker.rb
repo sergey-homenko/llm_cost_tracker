@@ -10,11 +10,15 @@ module LlmCostTracker
 
     class << self
       def enforce_budget!
+        return unless LlmCostTracker.configuration.enabled
+
         Budget.enforce!
       end
 
       def record(provider:, model:, input_tokens:, output_tokens:, latency_ms: nil, stream: false,
                  usage_source: nil, provider_response_id: nil, metadata: {})
+        return unless LlmCostTracker.configuration.enabled
+
         usage = EventMetadata.usage_data(input_tokens, output_tokens, metadata)
 
         cost_data = Pricing.cost_for(

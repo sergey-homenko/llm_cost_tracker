@@ -14,6 +14,7 @@ RSpec.describe "llm_cost_tracker generators" do
   it "registers the documented install and upgrade generators" do
     {
       "llm_cost_tracker:install" => "LlmCostTracker::Generators::InstallGenerator",
+      "llm_cost_tracker:add_monthly_totals" => "LlmCostTracker::Generators::AddMonthlyTotalsGenerator",
       "llm_cost_tracker:add_latency_ms" => "LlmCostTracker::Generators::AddLatencyMsGenerator",
       "llm_cost_tracker:add_streaming" => "LlmCostTracker::Generators::AddStreamingGenerator",
       "llm_cost_tracker:add_provider_response_id" => "LlmCostTracker::Generators::AddProviderResponseIdGenerator",

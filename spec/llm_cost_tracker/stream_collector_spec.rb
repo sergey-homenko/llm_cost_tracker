@@ -3,6 +3,32 @@
 require "spec_helper"
 
 RSpec.describe LlmCostTracker do
+  describe ".track" do
+    it "does not record or enforce budget when tracking is disabled" do
+      collected = []
+      ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+        collected << payload
+      end
+
+      LlmCostTracker.configure do |config|
+        config.enabled = false
+      end
+
+      expect(LlmCostTracker::Budget).not_to receive(:enforce!)
+
+      result = described_class.track(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 10,
+        output_tokens: 5,
+        enforce_budget: true
+      )
+
+      expect(result).to be_nil
+      expect(collected).to be_empty
+    end
+  end
+
   describe ".track_stream" do
     let(:events) do
       captured = []
@@ -118,6 +144,26 @@ RSpec.describe LlmCostTracker do
       end
 
       expect(collected.first[:provider_response_id]).to eq("chatcmpl_manual_123")
+    end
+
+    it "still yields the stream object but does not record or enforce budget when tracking is disabled" do
+      collected = events
+      yielded = false
+
+      LlmCostTracker.configure do |config|
+        config.enabled = false
+      end
+
+      expect(LlmCostTracker::Budget).not_to receive(:enforce!)
+
+      result = described_class.track_stream(provider: "openai", model: "gpt-4o", enforce_budget: true) do |stream|
+        yielded = true
+        stream.usage(input_tokens: 1, output_tokens: 1)
+      end
+
+      expect(yielded).to be true
+      expect(result).to be_nil
+      expect(collected).to be_empty
     end
   end
 end

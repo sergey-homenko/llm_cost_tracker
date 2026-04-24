@@ -8,6 +8,8 @@ require_relative "../logging"
 module LlmCostTracker
   module Middleware
     class Faraday < ::Faraday::Middleware
+      STREAM_CAPTURE_LIMIT_BYTES = 1_048_576
+
       def initialize(app, **options)
         super(app)
         @tags = options.fetch(:tags, {})
@@ -85,15 +87,12 @@ module LlmCostTracker
       end
 
       def parse_stream(parser, request_url, request_body, response_env, stream_buffer)
-        body = stream_buffer&.string
+        body = stream_buffer&.dig(:buffer)&.string
         body = read_body(response_env.body) if body.nil? || body.empty?
 
         if body.nil? || body.empty?
-          Logging.warn(
-            "Unable to capture streaming response for #{request_url}; " \
-            "fall back to LlmCostTracker.track_stream for manual capture."
-          )
-          return nil
+          Logging.warn(capture_warning(request_url, stream_buffer))
+          return parser.parse_stream(request_url, request_body, response_env.status, [])
         end
 
         events = Parsers::SSE.parse(body)
@@ -106,12 +105,21 @@ module LlmCostTracker
         original = request_env.request.on_data
         return nil unless original
 
-        buffer = StringIO.new
+        state = { buffer: StringIO.new, bytes: 0, overflowed: false }
         request_env.request.on_data = proc do |chunk, size, env|
-          buffer << chunk.to_s
+          chunk = chunk.to_s
+          unless state[:overflowed]
+            if state[:bytes] + chunk.bytesize <= STREAM_CAPTURE_LIMIT_BYTES
+              state[:buffer] << chunk
+              state[:bytes] += chunk.bytesize
+            else
+              state[:overflowed] = true
+              state[:buffer] = nil
+            end
+          end
           original.call(chunk, size, env)
         end
-        buffer
+        state
       rescue StandardError => e
         Logging.warn("Unable to install streaming tap: #{e.class}: #{e.message}")
         nil
@@ -144,6 +152,16 @@ module LlmCostTracker
 
       def elapsed_ms(started_at)
         ((monotonic_time - started_at) * 1000).round
+      end
+
+      def capture_warning(request_url, stream_buffer)
+        unless stream_buffer&.dig(:overflowed)
+          return "Unable to capture streaming response for #{request_url}; " \
+                 "recording usage_source=unknown. Use LlmCostTracker.track_stream for manual capture."
+        end
+
+        "Streaming response for #{request_url} exceeded #{STREAM_CAPTURE_LIMIT_BYTES} bytes; " \
+          "recording usage_source=unknown. Use LlmCostTracker.track_stream for manual capture."
       end
     end
   end

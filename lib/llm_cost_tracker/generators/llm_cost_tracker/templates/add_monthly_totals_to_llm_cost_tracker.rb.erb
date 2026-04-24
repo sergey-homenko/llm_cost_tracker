@@ -1,0 +1,48 @@
+class AddMonthlyTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_version %>
+  def up
+    create_table :llm_cost_tracker_monthly_totals do |t|
+      t.date :month_start, null: false
+      t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
+
+      t.timestamps
+    end unless table_exists?(:llm_cost_tracker_monthly_totals)
+
+    add_index :llm_cost_tracker_monthly_totals, :month_start,
+              unique: true unless index_exists?(:llm_cost_tracker_monthly_totals, :month_start)
+
+    backfill_monthly_totals
+  end
+
+  def down
+    remove_index :llm_cost_tracker_monthly_totals, :month_start if index_exists?(:llm_cost_tracker_monthly_totals, :month_start)
+    drop_table :llm_cost_tracker_monthly_totals if table_exists?(:llm_cost_tracker_monthly_totals)
+  end
+
+  private
+
+  def backfill_monthly_totals
+    return unless table_exists?(:llm_api_calls)
+
+    execute <<~SQL
+      INSERT INTO llm_cost_tracker_monthly_totals (month_start, total_cost, created_at, updated_at)
+      SELECT #{month_bucket_sql} AS month_start,
+             SUM(total_cost) AS total_cost,
+             CURRENT_TIMESTAMP,
+             CURRENT_TIMESTAMP
+      FROM llm_api_calls
+      WHERE total_cost IS NOT NULL
+      GROUP BY #{month_bucket_sql}
+    SQL
+  end
+
+  def month_bucket_sql
+    case connection.adapter_name
+    when /postgres/i
+      "DATE_TRUNC('month', tracked_at)::date"
+    when /mysql/i
+      "DATE_FORMAT(tracked_at, '%Y-%m-01')"
+    else
+      "strftime('%Y-%m-01', tracked_at)"
+    end
+  end
+end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "stringio"
 
 RSpec.describe LlmCostTracker::Tracker do
   describe ".record" do
@@ -246,6 +247,32 @@ RSpec.describe LlmCostTracker::Tracker do
       end.to output(/No pricing configured for model "unknown-chat-model"/).to_stderr
 
       expect(event.cost).to be_nil
+    end
+
+    it "warns once per unknown model" do
+      LlmCostTracker.configure do |c|
+        c.storage_backend = :custom
+        c.custom_storage = ->(_event) {}
+      end
+
+      original_stderr = $stderr
+      fake_stderr = StringIO.new
+      $stderr = fake_stderr
+
+      begin
+        2.times do
+          described_class.record(
+            provider: "openai",
+            model: "unknown-model-dedup",
+            input_tokens: 100,
+            output_tokens: 50
+          )
+        end
+      ensure
+        $stderr = original_stderr
+      end
+
+      expect(fake_stderr.string.scan('No pricing configured for model "unknown-model-dedup"').size).to eq(1)
     end
 
     it "raises unknown pricing errors when configured" do

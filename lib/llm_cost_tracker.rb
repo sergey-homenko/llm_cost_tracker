@@ -60,6 +60,8 @@ module LlmCostTracker
 
     def reset_configuration!
       CONFIGURATION_MUTEX.synchronize { @configuration = Configuration.new }
+      UnknownPricing.reset! if defined?(UnknownPricing)
+      Storage::ActiveRecordStore.reset! if defined?(Storage::ActiveRecordStore)
     end
 
     def enforce_budget!

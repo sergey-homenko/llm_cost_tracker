@@ -128,6 +128,13 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(parser.streaming_request?(chat_completions_url,
                                        '{"model":"gpt-4o"}')).to be false
     end
+
+    it "ignores stream text inside string content" do
+      expect(parser.streaming_request?(
+               chat_completions_url,
+               '{"model":"gpt-4o","messages":[{"role":"user","content":"\\"stream\\":true"}]}'
+             )).to be false
+    end
   end
 
   describe "#parse_stream" do

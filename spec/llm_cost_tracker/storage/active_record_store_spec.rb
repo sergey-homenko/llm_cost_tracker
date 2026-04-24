@@ -29,9 +29,19 @@ RSpec.describe "ActiveRecord storage integration" do
 
         t.timestamps
       end
+
+      create_table :llm_cost_tracker_monthly_totals do |t|
+        t.date :month_start, null: false
+        t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
+
+        t.timestamps
+      end
+
+      add_index :llm_cost_tracker_monthly_totals, :month_start, unique: true
     end
 
     LlmCostTracker::LlmApiCall.reset_column_information if defined?(LlmCostTracker::LlmApiCall)
+    LlmCostTracker::MonthlyTotal.reset_column_information if defined?(LlmCostTracker::MonthlyTotal)
 
     LlmCostTracker.configure do |config|
       config.storage_backend = :active_record
@@ -46,6 +56,12 @@ RSpec.describe "ActiveRecord storage integration" do
     require "llm_cost_tracker/llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
 
     LlmCostTracker::LlmApiCall
+  end
+
+  def monthly_total_model
+    require "llm_cost_tracker/monthly_total" unless defined?(LlmCostTracker::MonthlyTotal)
+
+    LlmCostTracker::MonthlyTotal
   end
 
   it "lazy-loads the ActiveRecord store and persists events" do
@@ -120,6 +136,40 @@ RSpec.describe "ActiveRecord storage integration" do
         expect(llm_api_call_model.sum(:total_cost).to_f).to eq(10.0)
       end
     end
+  end
+
+  it "keeps monthly budget rollups in sync" do
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o-mini",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+
+    month_total = monthly_total_model.find_by!(month_start: Date.current.beginning_of_month)
+
+    expect(monthly_total_model.count).to eq(1)
+    expect(month_total.total_cost.to_f).to eq(0.00265)
+    expect(LlmCostTracker::Storage::ActiveRecordStore.monthly_total).to eq(0.00265)
+  end
+
+  it "falls back to llm_api_calls sums when monthly rollups are unavailable" do
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_monthly_totals)
+
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+
+    expect(LlmCostTracker::Storage::ActiveRecordStore.monthly_total).to eq(0.0025)
   end
 
   it "does not treat latency as a tag" do
@@ -601,6 +651,27 @@ RSpec.describe "ActiveRecord storage integration" do
 
     expect(llm_api_call_model.total_cost).to eq(0.0025)
     expect(budget_data[:monthly_total]).to eq(0.0025)
+  end
+
+  it "notifies once when :notify first crosses the monthly budget" do
+    budget_totals = []
+
+    LlmCostTracker.configure do |config|
+      config.storage_backend = :active_record
+      config.monthly_budget = 0.004
+      config.on_budget_exceeded = ->(data) { budget_totals << data[:monthly_total] }
+    end
+
+    3.times do
+      LlmCostTracker.track(
+        provider: :openai,
+        model: "gpt-4o",
+        input_tokens: 1_000,
+        output_tokens: 0
+      )
+    end
+
+    expect(budget_totals).to eq([0.005])
   end
 
   it "blocks before a request when the ActiveRecord monthly budget is exhausted" do

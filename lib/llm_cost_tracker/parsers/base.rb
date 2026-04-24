@@ -23,7 +23,8 @@ module LlmCostTracker
         body = request_body.to_s
         return false if body.empty?
 
-        body.include?('"stream":true') || body.include?('"stream": true') || body.include?("stream: true")
+        request = safe_json_parse(body)
+        request.is_a?(Hash) && request["stream"] == true
       end
 
       def parse_stream(_request_url, _request_body, _response_status, _events)

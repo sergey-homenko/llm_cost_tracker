@@ -8,6 +8,7 @@ class UpgradeLlmApiCallTagsToJsonb < ActiveRecord::Migration<%= migration_versio
     return if tags_jsonb?
 
     remove_index :llm_api_calls, :tags if index_exists?(:llm_api_calls, :tags)
+    say "Upgrading llm_api_calls.tags to jsonb rewrites the table on PostgreSQL. Run this migration during a maintenance window on large datasets."
 
     change_column(
       :llm_api_calls,

@@ -4,6 +4,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- Monthly rollup totals for ActiveRecord budget checks, plus `llm_cost_tracker:add_monthly_totals` for upgrading existing installs.
+
+### Changed
+
+- ActiveRecord monthly totals now update through a single atomic upsert.
+- Faraday stream capture overflow now records `usage_source: "unknown"` instead of dropping the tracked event.
+- Budget `:notify` callbacks now fire only on the first event that crosses the monthly limit.
+
+### Fixed
+
+- Treat `config.enabled = false` as a global kill switch for direct `track` and `track_stream` calls too.
+- Deduplicate unknown-pricing warnings per model.
+- Detect streaming requests from parsed JSON instead of raw body substring matching.
+- Cap automatic SSE capture to avoid unbounded memory growth on large streaming responses.
+- Warn that the generated PostgreSQL `tags -> jsonb` upgrade migration rewrites large tables and should run in a maintenance window.
+
 ## [0.3.2] - 2026-04-22
 
 ### Added

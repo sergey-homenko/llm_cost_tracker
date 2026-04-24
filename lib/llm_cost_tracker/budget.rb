@@ -23,7 +23,7 @@ module LlmCostTracker
         return unless event.cost
 
         monthly_total = if config.active_record?
-                          active_record_monthly_total
+                          active_record_monthly_total(time: event.tracked_at)
                         else
                           event.cost.total_cost
                         end
@@ -34,11 +34,11 @@ module LlmCostTracker
 
       private
 
-      def active_record_monthly_total
+      def active_record_monthly_total(time: Time.now.utc)
         require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
         require_relative "storage/active_record_store" unless defined?(LlmCostTracker::Storage::ActiveRecordStore)
 
-        LlmCostTracker::Storage::ActiveRecordStore.monthly_total
+        LlmCostTracker::Storage::ActiveRecordStore.monthly_total(time: time)
       rescue LoadError => e
         raise Error, "ActiveRecord storage requires the active_record gem: #{e.message}"
       end
@@ -51,8 +51,18 @@ module LlmCostTracker
           last_event: last_event
         }
 
-        config.on_budget_exceeded&.call(payload)
+        if notify_exceeded?(config, monthly_total: monthly_total, last_event: last_event)
+          config.on_budget_exceeded&.call(payload)
+        end
         raise BudgetExceededError.new(**payload) if raise_on_exceeded?(config)
+      end
+
+      def notify_exceeded?(config, monthly_total:, last_event:)
+        return false unless config.on_budget_exceeded
+        return true unless config.budget_exceeded_behavior == :notify
+        return true unless last_event&.cost
+
+        monthly_total - last_event.cost.total_cost < config.monthly_budget
       end
 
       def raise_on_exceeded?(config)

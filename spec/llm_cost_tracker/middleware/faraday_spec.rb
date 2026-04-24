@@ -234,6 +234,43 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:provider_response_id]).to eq("chatcmpl_stream_123")
   end
 
+  it "records an unknown-usage event for oversized streaming responses" do
+    stub_const("LlmCostTracker::Middleware::Faraday::STREAM_CAPTURE_LIMIT_BYTES", 32)
+
+    sse_body = "data: " \
+               "{\"id\":\"chatcmpl_stream_oversized\",\"model\":\"gpt-4o\"," \
+               "\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":2,\"total_tokens\":9}}\n\n"
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          env.request.on_data&.call(sse_body, sse_body.bytesize, env)
+          [200, { "Content-Type" => "text/event-stream" }, ""]
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    expect do
+      response = conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json) do |req|
+        req.options.on_data = proc { |_chunk, _size, _env| }
+      end
+
+      expect(response.status).to eq(200)
+    end.to output(/exceeded 32 bytes/).to_stderr
+
+    expect(events.size).to eq(1)
+    expect(events.first[:stream]).to be true
+    expect(events.first[:usage_source]).to eq("unknown")
+    expect(events.first[:input_tokens]).to eq(0)
+    expect(events.first[:output_tokens]).to eq(0)
+  end
+
   it "falls back to reading the response body when the caller set no on_data" do
     sse_body = "data: {\"model\":\"gpt-4o\"}\n\n" \
                "data: {\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":1,\"total_tokens\":5}}\n\n"
