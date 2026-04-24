@@ -31,9 +31,14 @@ RSpec.describe "generator templates" do
     expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin if postgresql?")
     expect(migration).to include("create_table :llm_cost_tracker_period_totals")
     expect(migration).to include("add_index :llm_cost_tracker_period_totals, [:period, :period_start], unique: true")
+    expect(migration).to include("add_index :llm_api_calls, :tracked_at")
+    expect(migration).to include("add_index :llm_api_calls, [:provider, :tracked_at]")
+    expect(migration).to include("add_index :llm_api_calls, [:model, :tracked_at]")
     expect(migration).to include("add_index :llm_api_calls, :stream")
     expect(migration).to include("add_index :llm_api_calls, :usage_source")
     expect(migration).to include("add_index :llm_api_calls, :provider_response_id")
+    expect(migration).not_to match(/add_index :llm_api_calls, :provider$/)
+    expect(migration).not_to match(/add_index :llm_api_calls, :model$/)
     expect(migration).to include("t.text :tags")
   end
 
