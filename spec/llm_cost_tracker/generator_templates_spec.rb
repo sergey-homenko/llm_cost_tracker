@@ -31,6 +31,8 @@ RSpec.describe "generator templates" do
     expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin if postgresql?")
     expect(migration).to include("create_table :llm_cost_tracker_monthly_totals")
     expect(migration).to include("add_index :llm_cost_tracker_monthly_totals, :month_start, unique: true")
+    expect(migration).to include("create_table :llm_cost_tracker_daily_totals")
+    expect(migration).to include("add_index :llm_cost_tracker_daily_totals, :day, unique: true")
     expect(migration).to include("add_index :llm_api_calls, :stream")
     expect(migration).to include("add_index :llm_api_calls, :usage_source")
     expect(migration).to include("add_index :llm_api_calls, :provider_response_id")
@@ -54,6 +56,17 @@ RSpec.describe "generator templates" do
     expect(migration).to include("DATE_TRUNC('month', tracked_at)::date")
     expect(migration).to include("DATE_FORMAT(tracked_at, '%Y-%m-01')")
     expect(migration).to include("strftime('%Y-%m-01', tracked_at)")
+  end
+
+  it "provides a daily totals upgrade migration" do
+    migration = template("add_daily_totals_to_llm_cost_tracker.rb.erb")
+
+    expect(migration).to include("class AddDailyTotalsToLlmCostTracker")
+    expect(migration).to include("create_table :llm_cost_tracker_daily_totals")
+    expect(migration).to include("SUM(total_cost)")
+    expect(migration).to include("DATE_TRUNC('day', tracked_at)::date")
+    expect(migration).to include("DATE(tracked_at)")
+    expect(migration).to include("date(tracked_at)")
   end
 
   it "provides a streaming upgrade migration" do

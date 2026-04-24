@@ -17,3 +17,5 @@ Provider-specific names belong only at ingestion boundaries: parsers, stream ada
 Pricing logic should prefer generic mechanisms over provider branches. Use provider/model price entries only for lookup and rate selection. Use `pricing_mode` plus mode-prefixed price keys for alternate billing modes instead of adding model-specific conditionals.
 
 Tags remain the extension point for app-specific attribution such as tenant, user, feature, trace, job, workflow, or agent session. Do not promote those dimensions into first-class columns unless the ledger itself needs them for provider-agnostic billing behavior.
+
+Hot-path guardrails must not aggregate over the growing call ledger. ActiveRecord period budgets should read maintained rollup tables such as `llm_cost_tracker_monthly_totals` and `llm_cost_tracker_daily_totals`; dashboard analytics may run grouped queries because they are user-initiated reporting paths.

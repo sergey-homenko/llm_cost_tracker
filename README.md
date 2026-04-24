@@ -275,6 +275,8 @@ config.budget_exceeded_behavior = :block_requests
 
 `monthly_budget` and `daily_budget` are cumulative ledger limits. `per_call_budget` is a ceiling for a single priced event and runs after the response cost is known.
 
+ActiveRecord installs keep `llm_cost_tracker_monthly_totals` and `llm_cost_tracker_daily_totals` in sync with atomic upserts. Budget preflight reads those rollups instead of scanning `llm_api_calls`.
+
 ```ruby
 rescue LlmCostTracker::BudgetExceededError => e
   # e.budget_type, e.total, e.budget, e.monthly_total, e.daily_total, e.call_cost, e.last_event
@@ -356,6 +358,7 @@ Upgrade an existing install:
 
 ```bash
 bin/rails generate llm_cost_tracker:add_monthly_totals   # shared monthly budget rollups
+bin/rails generate llm_cost_tracker:add_daily_totals     # shared daily budget rollups
 bin/rails generate llm_cost_tracker:upgrade_tags_to_jsonb   # PG: text → jsonb + GIN
 bin/rails generate llm_cost_tracker:upgrade_cost_precision  # widen cost columns
 bin/rails generate llm_cost_tracker:add_latency_ms

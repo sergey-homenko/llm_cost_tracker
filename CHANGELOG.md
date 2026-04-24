@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Generic `pricing_mode` support with mode-prefixed local price keys.
 - Data Quality now shows usage bucket totals and hidden-output share.
 - Daily budget and per-call budget guardrails.
+- Daily budget checks use ActiveRecord rollups when available, plus `llm_cost_tracker:add_daily_totals`.
 
 ## [0.3.3] - 2026-04-24
 

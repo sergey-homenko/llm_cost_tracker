@@ -43,11 +43,20 @@ RSpec.describe "ActiveRecord storage integration" do
         t.timestamps
       end
 
+      create_table :llm_cost_tracker_daily_totals do |t|
+        t.date :day, null: false
+        t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
+
+        t.timestamps
+      end
+
       add_index :llm_cost_tracker_monthly_totals, :month_start, unique: true
+      add_index :llm_cost_tracker_daily_totals, :day, unique: true
     end
 
     LlmCostTracker::LlmApiCall.reset_column_information if defined?(LlmCostTracker::LlmApiCall)
     LlmCostTracker::MonthlyTotal.reset_column_information if defined?(LlmCostTracker::MonthlyTotal)
+    LlmCostTracker::DailyTotal.reset_column_information if defined?(LlmCostTracker::DailyTotal)
 
     LlmCostTracker.configure do |config|
       config.storage_backend = :active_record
@@ -68,6 +77,12 @@ RSpec.describe "ActiveRecord storage integration" do
     require "llm_cost_tracker/monthly_total" unless defined?(LlmCostTracker::MonthlyTotal)
 
     LlmCostTracker::MonthlyTotal
+  end
+
+  def daily_total_model
+    require "llm_cost_tracker/daily_total" unless defined?(LlmCostTracker::DailyTotal)
+
+    LlmCostTracker::DailyTotal
   end
 
   it "lazy-loads the ActiveRecord store and persists events" do
@@ -211,6 +226,29 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Storage::ActiveRecordStore.monthly_total).to eq(0.00265)
   end
 
+  it "keeps daily budget rollups in sync" do
+    allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
+
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o-mini",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+
+    day_total = daily_total_model.find_by!(day: Date.new(2026, 4, 18))
+
+    expect(daily_total_model.count).to eq(1)
+    expect(day_total.total_cost.to_f).to eq(0.00265)
+    expect(LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.00265)
+  end
+
   it "falls back to llm_api_calls sums when monthly rollups are unavailable" do
     ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_monthly_totals)
 
@@ -222,6 +260,20 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     expect(LlmCostTracker::Storage::ActiveRecordStore.monthly_total).to eq(0.0025)
+  end
+
+  it "falls back to llm_api_calls sums when daily rollups are unavailable" do
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_daily_totals)
+    allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
+
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+
+    expect(LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.0025)
   end
 
   it "does not treat latency as a tag" do
