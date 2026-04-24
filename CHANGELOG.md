@@ -4,13 +4,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-24
+
 ### Changed
 
 - Batched ActiveRecord period rollup writes and budget total reads.
+- Memoized schema capability checks and refreshed them on `reset_column_information`.
 - Install migration adds `[:model, :tracked_at]` composite index and drops redundant single-column `:provider` / `:model` indexes.
 - Data Quality now reads counters and usage sums through one aggregate query.
 - Parser URL matching, stream-event extraction, and custom parser registration now share a smaller base/registry extension surface.
 - Added cookbook recipes for `ruby-openai`, `anthropic-sdk-ruby`, `gemini-ai`, `langchainrb`, Azure OpenAI, and LiteLLM proxy setups.
+
+### Fixed
+
+- `llm_cost_tracker:add_period_totals` now imports legacy monthly rollups and backfills before adding the unique index.
+- Budget docs now describe `:notify` across monthly, daily, and per-call budgets.
 
 ## [0.4.0] - 2026-04-24
 
