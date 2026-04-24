@@ -4,19 +4,20 @@ module LlmCostTracker
   module Storage
     class ActiveRecordRollups
       PERIODS = {
-        monthly: { table: "llm_cost_tracker_monthly_totals", column: :month_start },
-        daily:   { table: "llm_cost_tracker_daily_totals", column: :day }
+        monthly: "month",
+        daily:   "day"
       }.freeze
 
       class << self
         def reset!
-          remove_instance_variable(:@totals_enabled) if instance_variable_defined?(:@totals_enabled)
+          remove_instance_variable(:@period_totals_enabled) if instance_variable_defined?(:@period_totals_enabled)
         end
 
         def increment!(event)
           return unless event.cost&.total_cost
+          return unless period_totals_enabled?
 
-          PERIODS.each_key { |period| increment_total(period, event) }
+          PERIODS.each_key { |period| increment_period_total(period, event) }
         end
 
         def monthly_total(time: Time.now.utc)
@@ -30,8 +31,11 @@ module LlmCostTracker
         private
 
         def period_total(period, time)
-          if totals_enabled?(period)
-            model_for(period).where(column_for(period) => bucket_for(period, time)).pick(:total_cost).to_f
+          if period_totals_enabled?
+            period_total_model
+              .where(period: PERIODS.fetch(period), period_start: bucket_for(period, time))
+              .pick(:total_cost)
+              .to_f
           else
             LlmCostTracker::LlmApiCall
               .where(tracked_at: range_start_for(period, time)..time)
@@ -40,56 +44,41 @@ module LlmCostTracker
           end
         end
 
-        def increment_total(period, event)
-          return unless totals_enabled?(period)
-
-          model = model_for(period)
+        def increment_period_total(period, event)
+          model = period_total_model
           model.upsert_all(
             [
               {
-                column_for(period) => bucket_for(period, event.tracked_at),
+                period: PERIODS.fetch(period),
+                period_start: bucket_for(period, event.tracked_at),
                 total_cost: event.cost.total_cost
               }
             ],
             on_duplicate: total_upsert_sql(model),
             record_timestamps: true,
-            unique_by: unique_by(model, column_for(period))
+            unique_by: unique_by(model, %i[period period_start])
           )
         end
 
-        def totals_enabled?(period)
-          @totals_enabled ||= {}
-          return @totals_enabled[period] if @totals_enabled.key?(period)
+        def period_totals_enabled?
+          return @period_totals_enabled unless @period_totals_enabled.nil?
 
-          @totals_enabled[period] =
-            LlmCostTracker::LlmApiCall.connection.data_source_exists?(table_for(period))
+          @period_totals_enabled =
+            LlmCostTracker::LlmApiCall.connection.data_source_exists?("llm_cost_tracker_period_totals")
         end
 
-        def table_for(period)
-          PERIODS.fetch(period).fetch(:table)
-        end
+        def period_total_model
+          require_relative "../period_total" unless defined?(LlmCostTracker::PeriodTotal)
 
-        def column_for(period)
-          PERIODS.fetch(period).fetch(:column)
-        end
-
-        def model_for(period)
-          case period
-          when :monthly
-            require_relative "../monthly_total" unless defined?(LlmCostTracker::MonthlyTotal)
-
-            LlmCostTracker::MonthlyTotal
-          when :daily
-            require_relative "../daily_total" unless defined?(LlmCostTracker::DailyTotal)
-
-            LlmCostTracker::DailyTotal
-          end
+          LlmCostTracker::PeriodTotal
         end
 
         def range_start_for(period, time)
+          utc_time = time.to_time.utc
+
           case period
-          when :monthly then time.beginning_of_month
-          when :daily   then time.beginning_of_day
+          when :monthly then utc_time.beginning_of_month
+          when :daily   then utc_time.beginning_of_day
           end
         end
 

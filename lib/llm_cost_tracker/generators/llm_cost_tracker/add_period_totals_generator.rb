@@ -5,17 +5,17 @@ require "rails/generators/active_record"
 
 module LlmCostTracker
   module Generators
-    class AddMonthlyTotalsGenerator < Rails::Generators::Base
+    class AddPeriodTotalsGenerator < Rails::Generators::Base
       include ActiveRecord::Generators::Migration
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Creates a migration to add llm_cost_tracker_monthly_totals"
+      desc "Creates a migration to add llm_cost_tracker_period_totals"
 
       def create_migration_file
         migration_template(
-          "add_monthly_totals_to_llm_cost_tracker.rb.erb",
-          "db/migrate/add_monthly_totals_to_llm_cost_tracker.rb"
+          "add_period_totals_to_llm_cost_tracker.rb.erb",
+          "db/migrate/add_period_totals_to_llm_cost_tracker.rb"
         )
       end
 

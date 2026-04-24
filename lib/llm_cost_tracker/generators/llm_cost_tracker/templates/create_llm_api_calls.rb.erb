@@ -29,15 +29,9 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
       t.timestamps
     end
 
-    create_table :llm_cost_tracker_monthly_totals do |t|
-      t.date :month_start, null: false
-      t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
-
-      t.timestamps
-    end
-
-    create_table :llm_cost_tracker_daily_totals do |t|
-      t.date :day, null: false
+    create_table :llm_cost_tracker_period_totals do |t|
+      t.string :period, null: false
+      t.date :period_start, null: false
       t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
 
       t.timestamps
@@ -51,8 +45,7 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
     add_index :llm_api_calls, :usage_source
     add_index :llm_api_calls, :provider_response_id
     add_index :llm_api_calls, :tags, using: :gin if postgresql?
-    add_index :llm_cost_tracker_monthly_totals, :month_start, unique: true
-    add_index :llm_cost_tracker_daily_totals, :day, unique: true
+    add_index :llm_cost_tracker_period_totals, [:period, :period_start], unique: true
   end
 
   private

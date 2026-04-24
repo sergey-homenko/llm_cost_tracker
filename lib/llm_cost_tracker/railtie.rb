@@ -3,8 +3,7 @@
 module LlmCostTracker
   class Railtie < Rails::Railtie
     generators do
-      require_relative "generators/llm_cost_tracker/add_daily_totals_generator"
-      require_relative "generators/llm_cost_tracker/add_monthly_totals_generator"
+      require_relative "generators/llm_cost_tracker/add_period_totals_generator"
       require_relative "generators/llm_cost_tracker/add_latency_ms_generator"
       require_relative "generators/llm_cost_tracker/add_provider_response_id_generator"
       require_relative "generators/llm_cost_tracker/add_streaming_generator"

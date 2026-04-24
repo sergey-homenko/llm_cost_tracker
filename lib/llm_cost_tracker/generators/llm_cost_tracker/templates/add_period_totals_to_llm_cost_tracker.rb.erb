@@ -1,0 +1,66 @@
+class AddPeriodTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_version %>
+  def up
+    create_table :llm_cost_tracker_period_totals do |t|
+      t.string :period, null: false
+      t.date :period_start, null: false
+      t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
+
+      t.timestamps
+    end unless table_exists?(:llm_cost_tracker_period_totals)
+
+    add_index :llm_cost_tracker_period_totals, [:period, :period_start],
+              unique: true unless index_exists?(:llm_cost_tracker_period_totals, [:period, :period_start])
+
+    backfill_period_totals
+  end
+
+  def down
+    remove_index :llm_cost_tracker_period_totals, [:period, :period_start] if index_exists?(:llm_cost_tracker_period_totals, [:period, :period_start])
+    drop_table :llm_cost_tracker_period_totals if table_exists?(:llm_cost_tracker_period_totals)
+  end
+
+  private
+
+  def backfill_period_totals
+    return unless table_exists?(:llm_api_calls)
+
+    backfill_period_total("day", day_bucket_sql)
+    backfill_period_total("month", month_bucket_sql)
+  end
+
+  def backfill_period_total(period, bucket_sql)
+    execute <<~SQL
+      INSERT INTO llm_cost_tracker_period_totals (period, period_start, total_cost, created_at, updated_at)
+      SELECT #{connection.quote(period)} AS period,
+             #{bucket_sql} AS period_start,
+             SUM(total_cost) AS total_cost,
+             CURRENT_TIMESTAMP,
+             CURRENT_TIMESTAMP
+      FROM llm_api_calls
+      WHERE total_cost IS NOT NULL
+      GROUP BY #{bucket_sql}
+    SQL
+  end
+
+  def day_bucket_sql
+    case connection.adapter_name
+    when /postgres/i
+      "DATE_TRUNC('day', tracked_at)::date"
+    when /mysql/i
+      "DATE(tracked_at)"
+    else
+      "date(tracked_at)"
+    end
+  end
+
+  def month_bucket_sql
+    case connection.adapter_name
+    when /postgres/i
+      "DATE_TRUNC('month', tracked_at)::date"
+    when /mysql/i
+      "DATE_FORMAT(tracked_at, '%Y-%m-01')"
+    else
+      "strftime('%Y-%m-01', tracked_at)"
+    end
+  end
+end

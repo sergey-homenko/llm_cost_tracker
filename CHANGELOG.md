@@ -9,11 +9,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - BREAKING: Canonical usage and pricing now use `cache_read_input` / `cache_write_input` instead of `cached_input` / `cache_creation_input`.
 - BREAKING: `Pricing.cost_for` now requires `provider:` and prefers provider-specific price entries before model-only entries.
 - BREAKING: Fresh ActiveRecord installs include cache-read, cache-write, and hidden-output token/cost breakdown columns.
+- BREAKING: ActiveRecord budget rollups now use `llm_cost_tracker_period_totals`.
+- BREAKING: `llm_cost_tracker:add_monthly_totals` was replaced by `llm_cost_tracker:add_period_totals`.
 - `llm_cost_tracker:add_usage_breakdown` generator for upgrading existing ActiveRecord installs.
+- `llm_cost_tracker:add_period_totals` generator for upgrading existing ActiveRecord installs.
 - Generic `pricing_mode` support with mode-prefixed local price keys.
 - Data Quality now shows usage bucket totals and hidden-output share.
 - Daily budget and per-call budget guardrails.
-- Daily budget checks use ActiveRecord rollups when available, plus `llm_cost_tracker:add_daily_totals`.
 
 ## [0.3.3] - 2026-04-24
 
