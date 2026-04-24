@@ -6,13 +6,19 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
       t.integer :input_tokens,  null: false, default: 0
       t.integer :output_tokens, null: false, default: 0
       t.integer :total_tokens,  null: false, default: 0
+      t.integer :cache_read_input_tokens,  null: false, default: 0
+      t.integer :cache_write_input_tokens, null: false, default: 0
+      t.integer :hidden_output_tokens,     null: false, default: 0
       t.decimal :input_cost,    precision: 20, scale: 8
+      t.decimal :cache_read_input_cost,  precision: 20, scale: 8
+      t.decimal :cache_write_input_cost, precision: 20, scale: 8
       t.decimal :output_cost,   precision: 20, scale: 8
       t.decimal :total_cost,    precision: 20, scale: 8
       t.integer :latency_ms
       t.boolean :stream,        null: false, default: false
       t.string  :usage_source
       t.string  :provider_response_id
+      t.string  :pricing_mode
       if postgresql?
         t.jsonb :tags, null: false, default: {}
       else

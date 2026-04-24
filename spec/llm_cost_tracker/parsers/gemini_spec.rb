@@ -74,6 +74,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.model).to eq("gemini-2.5-flash")
       expect(result.input_tokens).to eq(100)
       expect(result.output_tokens).to eq(75)
+      expect(result.hidden_output_tokens).to eq(50)
       expect(result.total_tokens).to eq(175)
       expect(result.stream).to be false
       expect(result.usage_source).to eq(:response)
@@ -120,6 +121,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.model).to eq("gemini-2.5-flash")
       expect(result.input_tokens).to eq(80)
       expect(result.output_tokens).to eq(52)
+      expect(result.hidden_output_tokens).to eq(10)
       expect(result.total_tokens).to eq(132)
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)

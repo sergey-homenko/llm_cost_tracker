@@ -86,6 +86,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
           input_tokens: 150,
           input_tokens_details: { cached_tokens: 100 },
           output_tokens: 42,
+          output_tokens_details: { reasoning_tokens: 20 },
           total_tokens: 192
         }
       }.to_json
@@ -99,9 +100,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
       expect(result.provider).to eq("openai")
       expect(result.model).to eq("gpt-5-mini")
-      expect(result.input_tokens).to eq(150)
+      expect(result.input_tokens).to eq(50)
       expect(result.output_tokens).to eq(42)
-      expect(result.cached_input_tokens).to eq(100)
+      expect(result.cache_read_input_tokens).to eq(100)
+      expect(result.hidden_output_tokens).to eq(20)
       expect(result.provider_response_id).to eq("resp_123")
     end
 

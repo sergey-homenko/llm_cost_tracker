@@ -18,9 +18,15 @@ RSpec.describe "generator templates" do
 
     expect(migration).to include("precision: 20, scale: 8")
     expect(migration).to include("t.integer :latency_ms")
+    expect(migration).to include("t.integer :cache_read_input_tokens")
+    expect(migration).to include("t.integer :cache_write_input_tokens")
+    expect(migration).to include("t.integer :hidden_output_tokens")
+    expect(migration).to include("t.decimal :cache_read_input_cost")
+    expect(migration).to include("t.decimal :cache_write_input_cost")
     expect(migration).to include("t.boolean :stream")
     expect(migration).to include("t.string  :usage_source")
     expect(migration).to include("t.string  :provider_response_id")
+    expect(migration).to include("t.string  :pricing_mode")
     expect(migration).to include("t.jsonb :tags")
     expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin if postgresql?")
     expect(migration).to include("create_table :llm_cost_tracker_monthly_totals")
@@ -69,6 +75,19 @@ RSpec.describe "generator templates" do
     expect(migration).to include("remove_column :llm_api_calls, :provider_response_id")
   end
 
+  it "provides a usage breakdown upgrade migration" do
+    migration = template("add_usage_breakdown_to_llm_api_calls.rb.erb")
+
+    expect(migration).to include("class AddUsageBreakdownToLlmApiCalls")
+    expect(migration).to include("add_column :llm_api_calls, :cache_read_input_tokens, :integer")
+    expect(migration).to include("add_column :llm_api_calls, :cache_write_input_tokens, :integer")
+    expect(migration).to include("add_column :llm_api_calls, :hidden_output_tokens, :integer")
+    expect(migration).to include("add_column :llm_api_calls, :cache_read_input_cost, :decimal")
+    expect(migration).to include("add_column :llm_api_calls, :cache_write_input_cost, :decimal")
+    expect(migration).to include("add_column :llm_api_calls, :pricing_mode, :string")
+    expect(migration).to include("remove_column :llm_api_calls, :cache_read_input_tokens")
+  end
+
   it "provides a cost precision upgrade migration" do
     migration = template("upgrade_llm_api_call_cost_precision.rb.erb")
 
@@ -90,7 +109,10 @@ RSpec.describe "generator templates" do
   it "provides a valid local prices override template" do
     prices_template = template("llm_cost_tracker_prices.yml.erb")
     parsed = YAML.safe_load(prices_template.gsub(/^#.*$/, ""), aliases: false)
-    supported_keys = %w[input output cached_input cache_read_input cache_creation_input _source _updated _notes]
+    supported_keys = %w[
+      input output cache_read_input cache_write_input batch_input batch_output _source _source_version _fetched_at
+      _updated _notes _validator_override
+    ]
     example_keys = prices_template.scan(/^#\s+([a-z_]+):/).flatten - ["models"]
 
     expect(parsed).to eq("models" => nil)

@@ -18,6 +18,7 @@ RSpec.describe "llm_cost_tracker generators" do
       "llm_cost_tracker:add_latency_ms" => "LlmCostTracker::Generators::AddLatencyMsGenerator",
       "llm_cost_tracker:add_streaming" => "LlmCostTracker::Generators::AddStreamingGenerator",
       "llm_cost_tracker:add_provider_response_id" => "LlmCostTracker::Generators::AddProviderResponseIdGenerator",
+      "llm_cost_tracker:add_usage_breakdown" => "LlmCostTracker::Generators::AddUsageBreakdownGenerator",
       "llm_cost_tracker:prices" => "LlmCostTracker::Generators::PricesGenerator",
       "llm_cost_tracker:upgrade_cost_precision" => "LlmCostTracker::Generators::UpgradeCostPrecisionGenerator",
       "llm_cost_tracker:upgrade_tags_to_jsonb" => "LlmCostTracker::Generators::UpgradeTagsToJsonbGenerator"

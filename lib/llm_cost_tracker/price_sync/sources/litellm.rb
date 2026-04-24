@@ -65,9 +65,8 @@ module LlmCostTracker
             provider: provider,
             input: price_per_million(entry["input_cost_per_token"]),
             output: price_per_million(entry["output_cost_per_token"]),
-            cached_input: provider == "anthropic" ? nil : cache_read,
-            cache_read_input: provider == "anthropic" ? cache_read : nil,
-            cache_creation_input: provider == "anthropic" ? cache_write : nil,
+            cache_read_input: cache_read,
+            cache_write_input: cache_write,
             source: name,
             source_version: response_version(response),
             fetched_at: response.fetched_at

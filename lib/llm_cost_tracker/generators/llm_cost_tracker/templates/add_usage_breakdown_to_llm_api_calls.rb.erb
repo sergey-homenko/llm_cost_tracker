@@ -1,0 +1,29 @@
+class AddUsageBreakdownToLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
+  def up
+    unless column_exists?(:llm_api_calls, :cache_read_input_tokens)
+      add_column :llm_api_calls, :cache_read_input_tokens, :integer, null: false, default: 0
+    end
+    unless column_exists?(:llm_api_calls, :cache_write_input_tokens)
+      add_column :llm_api_calls, :cache_write_input_tokens, :integer, null: false, default: 0
+    end
+    unless column_exists?(:llm_api_calls, :hidden_output_tokens)
+      add_column :llm_api_calls, :hidden_output_tokens, :integer, null: false, default: 0
+    end
+    unless column_exists?(:llm_api_calls, :cache_read_input_cost)
+      add_column :llm_api_calls, :cache_read_input_cost, :decimal, precision: 20, scale: 8
+    end
+    unless column_exists?(:llm_api_calls, :cache_write_input_cost)
+      add_column :llm_api_calls, :cache_write_input_cost, :decimal, precision: 20, scale: 8
+    end
+    add_column :llm_api_calls, :pricing_mode, :string unless column_exists?(:llm_api_calls, :pricing_mode)
+  end
+
+  def down
+    remove_column :llm_api_calls, :pricing_mode if column_exists?(:llm_api_calls, :pricing_mode)
+    remove_column :llm_api_calls, :cache_write_input_cost if column_exists?(:llm_api_calls, :cache_write_input_cost)
+    remove_column :llm_api_calls, :cache_read_input_cost if column_exists?(:llm_api_calls, :cache_read_input_cost)
+    remove_column :llm_api_calls, :hidden_output_tokens if column_exists?(:llm_api_calls, :hidden_output_tokens)
+    remove_column :llm_api_calls, :cache_write_input_tokens if column_exists?(:llm_api_calls, :cache_write_input_tokens)
+    remove_column :llm_api_calls, :cache_read_input_tokens if column_exists?(:llm_api_calls, :cache_read_input_tokens)
+  end
+end

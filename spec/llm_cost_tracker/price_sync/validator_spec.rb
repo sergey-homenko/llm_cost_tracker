@@ -11,9 +11,8 @@ RSpec.describe LlmCostTracker::PriceSync::Validator do
       provider: "openai",
       input: input,
       output: output,
-      cached_input: nil,
       cache_read_input: nil,
-      cache_creation_input: nil,
+      cache_write_input: nil,
       source: :litellm,
       source_version: "litellm-v1",
       fetched_at: "2026-04-22T00:00:00Z"

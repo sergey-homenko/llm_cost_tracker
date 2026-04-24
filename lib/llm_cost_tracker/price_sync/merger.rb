@@ -6,7 +6,7 @@ module LlmCostTracker
       Discrepancy = Data.define(:model, :field, :values)
 
       PRIORITY_ORDER = %i[litellm openrouter].freeze
-      SUPPLEMENTAL_FIELDS = %i[cached_input cache_read_input cache_creation_input].freeze
+      SUPPLEMENTAL_FIELDS = %i[cache_read_input cache_write_input].freeze
 
       def merge(results_by_source)
         prices = collect_prices(results_by_source)

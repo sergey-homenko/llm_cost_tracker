@@ -17,13 +17,19 @@ RSpec.describe "ActiveRecord storage integration" do
         t.integer :input_tokens, null: false, default: 0
         t.integer :output_tokens, null: false, default: 0
         t.integer :total_tokens, null: false, default: 0
+        t.integer :cache_read_input_tokens, null: false, default: 0
+        t.integer :cache_write_input_tokens, null: false, default: 0
+        t.integer :hidden_output_tokens, null: false, default: 0
         t.decimal :input_cost, precision: 20, scale: 8
+        t.decimal :cache_read_input_cost, precision: 20, scale: 8
+        t.decimal :cache_write_input_cost, precision: 20, scale: 8
         t.decimal :output_cost, precision: 20, scale: 8
         t.decimal :total_cost, precision: 20, scale: 8
         t.integer :latency_ms
         t.boolean :stream, null: false, default: false
         t.string :usage_source
         t.string :provider_response_id
+        t.string :pricing_mode
         t.text :tags
         t.datetime :tracked_at, null: false
 
@@ -83,6 +89,52 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.total_cost.to_f).to eq(0.0075)
     expect(call.latency_ms).to eq(250)
     expect(call.parsed_tags).to include("user_id" => "42", "feature" => "chat")
+  end
+
+  it "persists canonical usage and cost breakdowns when columns are present" do
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 900,
+      output_tokens: 500,
+      cache_read_input_tokens: 100,
+      hidden_output_tokens: 20
+    )
+
+    call = llm_api_call_model.first
+    expect(call.input_tokens).to eq(900)
+    expect(call.cache_read_input_tokens).to eq(100)
+    expect(call.cache_write_input_tokens).to eq(0)
+    expect(call.hidden_output_tokens).to eq(20)
+    expect(call.input_cost.to_f).to eq(0.00225)
+    expect(call.cache_read_input_cost.to_f).to eq(0.000125)
+    expect(call.cache_write_input_cost.to_f).to eq(0.0)
+    expect(call.total_cost.to_f).to eq(0.007375)
+  end
+
+  it "persists pricing_mode when the column is present" do
+    LlmCostTracker.configure do |config|
+      config.pricing_overrides = {
+        "batchable-model" => {
+          input: 1.0,
+          output: 2.0,
+          batch_input: 0.5,
+          batch_output: 1.0
+        }
+      }
+    end
+
+    LlmCostTracker.track(
+      provider: :custom,
+      model: "batchable-model",
+      input_tokens: 1_000_000,
+      output_tokens: 1_000_000,
+      pricing_mode: :batch
+    )
+
+    call = llm_api_call_model.first
+    expect(call.pricing_mode).to eq("batch")
+    expect(call.total_cost.to_f).to eq(1.5)
   end
 
   it "keeps persisted historical costs when the price file changes for later requests" do
@@ -568,7 +620,8 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "does not write latency when an older schema has no latency column" do
-    allow(llm_api_call_model).to receive(:latency_column?).and_return(false)
+    ActiveRecord::Base.connection.remove_column(:llm_api_calls, :latency_ms)
+    llm_api_call_model.reset_column_information
 
     expect do
       LlmCostTracker.track(
@@ -579,6 +632,7 @@ RSpec.describe "ActiveRecord storage integration" do
         latency_ms: 123
       )
     end.not_to raise_error
+    expect(llm_api_call_model.first.attributes).not_to have_key("latency_ms")
   end
 
   it "warns and does not raise when ActiveRecord storage fails" do

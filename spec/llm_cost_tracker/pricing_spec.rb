@@ -8,6 +8,7 @@ RSpec.describe LlmCostTracker::Pricing do
   describe ".cost_for" do
     it "calculates cost for a known model" do
       result = described_class.cost_for(
+        provider: "openai",
         model: "gpt-4o",
         input_tokens: 1_000,
         output_tokens: 500
@@ -22,6 +23,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "returns nil for unknown models" do
       result = described_class.cost_for(
+        provider: "openai",
         model: "totally-unknown-model",
         input_tokens: 100,
         output_tokens: 50
@@ -32,6 +34,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "fuzzy-matches versioned model names" do
       result = described_class.cost_for(
+        provider: "openai",
         model: "gpt-4o-2024-08-06",
         input_tokens: 1_000_000,
         output_tokens: 0
@@ -43,6 +46,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "matches OpenRouter-style provider-prefixed model names" do
       result = described_class.cost_for(
+        provider: "openrouter",
         model: "openai/gpt-4o-mini",
         input_tokens: 1_000_000,
         output_tokens: 0
@@ -54,6 +58,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prefers the longest fuzzy match for overlapping model names" do
       result = described_class.cost_for(
+        provider: "openai",
         model: "gpt-5.2-2026-01-01",
         input_tokens: 1_000_000,
         output_tokens: 0
@@ -62,37 +67,40 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.input_cost).to eq(1.75)
     end
 
-    it "prices cached OpenAI input tokens at the cached rate" do
+    it "prices cache-read input tokens separately" do
       result = described_class.cost_for(
+        provider: "openai",
         model: "gpt-5-mini",
-        input_tokens: 1_000_000,
-        cached_input_tokens: 400_000,
+        input_tokens: 600_000,
+        cache_read_input_tokens: 400_000,
         output_tokens: 0
       )
 
       expect(result.input_cost).to eq(0.15)
-      expect(result.cached_input_cost).to eq(0.01)
+      expect(result.cache_read_input_cost).to eq(0.01)
       expect(result.total_cost).to eq(0.16)
     end
 
-    it "prices Anthropic cache read and creation tokens separately" do
+    it "prices cache read and write tokens separately" do
       result = described_class.cost_for(
+        provider: "anthropic",
         model: "claude-sonnet-4-6",
         input_tokens: 100_000,
         cache_read_input_tokens: 200_000,
-        cache_creation_input_tokens: 300_000,
+        cache_write_input_tokens: 300_000,
         output_tokens: 10_000
       )
 
       expect(result.input_cost).to eq(0.3)
       expect(result.cache_read_input_cost).to eq(0.06)
-      expect(result.cache_creation_input_cost).to eq(1.125)
+      expect(result.cache_write_input_cost).to eq(1.125)
       expect(result.output_cost).to eq(0.15)
       expect(result.total_cost).to eq(1.635)
     end
 
     it "uses current Gemini 2.5 Flash standard pricing" do
       result = described_class.cost_for(
+        provider: "gemini",
         model: "gemini-2.5-flash",
         input_tokens: 1_000_000,
         output_tokens: 1_000_000
@@ -110,6 +118,7 @@ RSpec.describe LlmCostTracker::Pricing do
       end
 
       result = described_class.cost_for(
+        provider: "custom",
         model: "my-custom-model",
         input_tokens: 1_000_000,
         output_tokens: 1_000_000
@@ -117,6 +126,55 @@ RSpec.describe LlmCostTracker::Pricing do
 
       expect(result.input_cost).to eq(1.0)
       expect(result.output_cost).to eq(2.0)
+    end
+
+    it "uses mode-specific price keys when pricing_mode is provided" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "batchable-model" => {
+            input: 1.0,
+            output: 2.0,
+            batch_input: 0.5,
+            batch_output: 1.0
+          }
+        }
+      end
+
+      result = described_class.cost_for(
+        provider: "custom",
+        model: "batchable-model",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        pricing_mode: :batch
+      )
+
+      expect(result.input_cost).to eq(0.5)
+      expect(result.output_cost).to eq(1.0)
+      expect(result.total_cost).to eq(1.5)
+    end
+
+    it "falls back to standard price keys for missing mode-specific keys" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "mixed-mode-model" => {
+            input: 1.0,
+            output: 2.0,
+            batch_input: 0.5
+          }
+        }
+      end
+
+      result = described_class.cost_for(
+        provider: "custom",
+        model: "mixed-mode-model",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        pricing_mode: :batch
+      )
+
+      expect(result.input_cost).to eq(0.5)
+      expect(result.output_cost).to eq(2.0)
+      expect(result.total_cost).to eq(2.5)
     end
 
     it "loads local JSON pricing files ahead of built-in prices" do
@@ -131,6 +189,7 @@ RSpec.describe LlmCostTracker::Pricing do
         end
 
         result = described_class.cost_for(
+          provider: "openai",
           model: "gpt-4o",
           input_tokens: 1_000_000,
           output_tokens: 0
@@ -155,6 +214,7 @@ RSpec.describe LlmCostTracker::Pricing do
         end
 
         result = described_class.cost_for(
+          provider: "custom",
           model: "my-custom-model",
           input_tokens: 1_000_000,
           output_tokens: 1_000_000
@@ -180,6 +240,7 @@ RSpec.describe LlmCostTracker::Pricing do
         end
 
         result = described_class.cost_for(
+          provider: "custom",
           model: "yaml-model",
           input_tokens: 1_000_000,
           output_tokens: 1_000_000
@@ -200,26 +261,28 @@ RSpec.describe LlmCostTracker::Pricing do
         end
 
         expect do
-          described_class.cost_for(model: "gpt-4o", input_tokens: 1, output_tokens: 1)
+          described_class.cost_for(provider: "openai", model: "gpt-4o", input_tokens: 1, output_tokens: 1)
         end.to raise_error(LlmCostTracker::Error, /Unable to load prices_file/)
       end
     end
 
-    it "uses normalized pricing overrides for provider-prefixed models" do
+    it "prefers provider-specific pricing overrides" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
-          "deepseek-chat" => { input: 0.27, output: 1.10 }
+          "deepseek-chat" => { input: 0.27, output: 1.10 },
+          "deepseek/deepseek-chat" => { input: 0.20, output: 0.90 }
         }
       end
 
       result = described_class.cost_for(
-        model: "deepseek/deepseek-chat",
+        provider: "deepseek",
+        model: "deepseek-chat",
         input_tokens: 1_000_000,
         output_tokens: 1_000_000
       )
 
-      expect(result.input_cost).to eq(0.27)
-      expect(result.output_cost).to eq(1.1)
+      expect(result.input_cost).to eq(0.2)
+      expect(result.output_cost).to eq(0.9)
     end
   end
 

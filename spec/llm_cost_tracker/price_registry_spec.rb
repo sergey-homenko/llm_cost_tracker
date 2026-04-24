@@ -77,6 +77,37 @@ RSpec.describe LlmCostTracker::PriceRegistry do
       end
     end
 
+    it "allows mode-specific price keys without warnings" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write({
+          models: {
+            "custom-model" => {
+              input: 1.0,
+              output: 2.0,
+              batch_input: 0.5,
+              batch_output: 1.0,
+              priority_cache_read_input: 0.25
+            }
+          }
+        }.to_json)
+        file.close
+
+        output = capture_stderr do
+          expect(described_class.file_prices(file.path)).to eq(
+            "custom-model" => {
+              input: 1.0,
+              output: 2.0,
+              batch_input: 0.5,
+              batch_output: 1.0,
+              priority_cache_read_input: 0.25
+            }
+          )
+        end
+
+        expect(output).to be_empty
+      end
+    end
+
     it "raises a readable error for invalid price entry shapes" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write({ models: { "custom-model" => 1.0 } }.to_json)

@@ -13,15 +13,17 @@ module LlmCostTracker
         return nil unless usage
 
         request = safe_json_parse(request_body)
+        cache_read = cache_read_input_tokens(usage)
 
         ParsedUsage.build(
           provider: provider_for(request_url),
           provider_response_id: response["id"],
           model: response["model"] || request["model"],
-          input_tokens: (usage["prompt_tokens"] || usage["input_tokens"]).to_i,
+          input_tokens: regular_input_tokens(usage, cache_read),
           output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
           total_tokens: usage["total_tokens"].to_i,
-          cached_input_tokens: cached_input_tokens(usage),
+          cache_read_input_tokens: cache_read,
+          hidden_output_tokens: hidden_output_tokens(usage),
           usage_source: :response
         )
       end
@@ -34,14 +36,16 @@ module LlmCostTracker
         usage = detect_stream_usage(events)
 
         if usage
+          cache_read = cache_read_input_tokens(usage)
           ParsedUsage.build(
             provider: provider_for(request_url),
             provider_response_id: detect_stream_response_id(events),
             model: model,
-            input_tokens: (usage["prompt_tokens"] || usage["input_tokens"]).to_i,
+            input_tokens: regular_input_tokens(usage, cache_read),
             output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
             total_tokens: usage["total_tokens"].to_i,
-            cached_input_tokens: cached_input_tokens(usage),
+            cache_read_input_tokens: cache_read,
+            hidden_output_tokens: hidden_output_tokens(usage),
             stream: true,
             usage_source: :stream_final
           )
@@ -92,9 +96,18 @@ module LlmCostTracker
         nil
       end
 
-      def cached_input_tokens(usage)
+      def regular_input_tokens(usage, cache_read)
+        [(usage["prompt_tokens"] || usage["input_tokens"]).to_i - cache_read.to_i, 0].max
+      end
+
+      def cache_read_input_tokens(usage)
         details = usage["prompt_tokens_details"] || usage["input_tokens_details"] || {}
         details["cached_tokens"]
+      end
+
+      def hidden_output_tokens(usage)
+        details = usage["completion_tokens_details"] || usage["output_tokens_details"] || {}
+        details["reasoning_tokens"]
       end
     end
   end

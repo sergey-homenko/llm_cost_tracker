@@ -36,5 +36,24 @@ module LlmCostTracker
     def provider_response_id_column?
       columns_hash.key?("provider_response_id")
     end
+
+    def pricing_mode_column?
+      columns_hash.key?("pricing_mode")
+    end
+
+    def usage_breakdown_columns?
+      %w[
+        cache_read_input_tokens
+        cache_write_input_tokens
+        hidden_output_tokens
+      ].all? { |column| columns_hash.key?(column) }
+    end
+
+    def usage_breakdown_cost_columns?
+      %w[
+        cache_read_input_cost
+        cache_write_input_cost
+      ].all? { |column| columns_hash.key?(column) }
+    end
   end
 end

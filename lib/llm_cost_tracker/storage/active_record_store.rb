@@ -10,6 +10,8 @@ module LlmCostTracker
 
         def save(event)
           tags = stringify_tags(event.tags || {})
+          model = LlmCostTracker::LlmApiCall
+          columns = model.columns_hash
 
           attributes = {
             provider:      event.provider,
@@ -20,18 +22,19 @@ module LlmCostTracker
             input_cost:    event.cost&.input_cost,
             output_cost:   event.cost&.output_cost,
             total_cost:    event.cost&.total_cost,
-            tags:          tags_for_storage(tags),
+            tags:          tags_for_storage(tags, model),
             tracked_at:    event.tracked_at
           }
-          attributes[:latency_ms] = event.latency_ms if LlmCostTracker::LlmApiCall.latency_column?
-          attributes[:stream] = event.stream if LlmCostTracker::LlmApiCall.stream_column?
-          attributes[:usage_source] = event.usage_source if LlmCostTracker::LlmApiCall.usage_source_column?
-          if LlmCostTracker::LlmApiCall.provider_response_id_column?
-            attributes[:provider_response_id] = event.provider_response_id
+          optional_attributes(event).each do |name, value|
+            attributes[name] = value if columns.key?(name.to_s)
           end
+          attributes[:latency_ms] = event.latency_ms if columns.key?("latency_ms")
+          attributes[:stream] = event.stream if columns.key?("stream")
+          attributes[:usage_source] = event.usage_source if columns.key?("usage_source")
+          attributes[:provider_response_id] = event.provider_response_id if columns.key?("provider_response_id")
 
-          LlmCostTracker::LlmApiCall.transaction do
-            call = LlmCostTracker::LlmApiCall.create!(attributes)
+          model.transaction do
+            call = model.create!(attributes)
             increment_monthly_total(event)
             call
           end
@@ -114,8 +117,19 @@ module LlmCostTracker
           tags.transform_keys(&:to_s).transform_values { |value| stringify_tag_value(value) }
         end
 
-        def tags_for_storage(tags)
-          LlmCostTracker::LlmApiCall.tags_json_column? ? tags : tags.to_json
+        def tags_for_storage(tags, model)
+          model.tags_json_column? ? tags : tags.to_json
+        end
+
+        def optional_attributes(event)
+          {
+            cache_read_input_tokens: event.cache_read_input_tokens,
+            cache_write_input_tokens: event.cache_write_input_tokens,
+            hidden_output_tokens: event.hidden_output_tokens,
+            cache_read_input_cost: event.cost&.cache_read_input_cost,
+            cache_write_input_cost: event.cost&.cache_write_input_cost,
+            pricing_mode: event.pricing_mode
+          }
         end
 
         def stringify_tag_value(value)

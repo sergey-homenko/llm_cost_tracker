@@ -28,6 +28,8 @@ module LlmCostTracker
         return nil unless usage
 
         request = safe_json_parse(request_body)
+        cache_read = usage["cache_read_input_tokens"].to_i
+        cache_write = usage["cache_creation_input_tokens"].to_i
 
         ParsedUsage.build(
           provider: "anthropic",
@@ -35,10 +37,9 @@ module LlmCostTracker
           model: response["model"] || request["model"],
           input_tokens: usage["input_tokens"].to_i,
           output_tokens: usage["output_tokens"].to_i,
-          total_tokens: usage["input_tokens"].to_i + usage["output_tokens"].to_i +
-            usage["cache_read_input_tokens"].to_i + usage["cache_creation_input_tokens"].to_i,
+          total_tokens: usage["input_tokens"].to_i + usage["output_tokens"].to_i + cache_read + cache_write,
           cache_read_input_tokens: usage["cache_read_input_tokens"],
-          cache_creation_input_tokens: usage["cache_creation_input_tokens"],
+          cache_write_input_tokens: usage["cache_creation_input_tokens"],
           usage_source: :response
         )
       end
@@ -105,7 +106,7 @@ module LlmCostTracker
         input = usage["input_tokens"].to_i
         output = usage["output_tokens"].to_i
         cache_read = usage["cache_read_input_tokens"].to_i
-        cache_creation = usage["cache_creation_input_tokens"].to_i
+        cache_write = usage["cache_creation_input_tokens"].to_i
 
         ParsedUsage.build(
           provider: "anthropic",
@@ -113,9 +114,9 @@ module LlmCostTracker
           model: model,
           input_tokens: input,
           output_tokens: output,
-          total_tokens: input + output + cache_read + cache_creation,
+          total_tokens: input + output + cache_read + cache_write,
           cache_read_input_tokens: usage["cache_read_input_tokens"],
-          cache_creation_input_tokens: usage["cache_creation_input_tokens"],
+          cache_write_input_tokens: usage["cache_creation_input_tokens"],
           stream: true,
           usage_source: :stream_final
         )

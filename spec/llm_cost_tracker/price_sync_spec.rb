@@ -53,13 +53,13 @@ RSpec.describe LlmCostTracker::PriceSync do
         "unit" => "1M tokens"
       },
       "models" => {
-        "gpt-4o" => { "input" => 9.0, "cached_input" => 4.5, "output" => 11.0, "_notes" => "keep me" },
+        "gpt-4o" => { "input" => 9.0, "cache_read_input" => 4.5, "output" => 11.0, "_notes" => "keep me" },
         "gpt-4o-2024-05-13" => { "input" => 5.0, "output" => 15.0 },
         "gpt-4o-mini" => { "input" => 0.2, "output" => 0.8 },
         "claude-sonnet-4-6" => {
           "input" => 2.0,
           "cache_read_input" => 0.2,
-          "cache_creation_input" => 2.5,
+          "cache_write_input" => 2.5,
           "output" => 10.0
         },
         "gemini-2.5-flash" => { "input" => 0.2, "output" => 2.0 },
@@ -130,7 +130,7 @@ RSpec.describe LlmCostTracker::PriceSync do
         expect(registry.dig("models", "gpt-4o", "_source")).to eq("openrouter")
         expect(registry.dig("metadata", "source_urls")).to eq([LlmCostTracker::PriceSync::Sources::OpenRouter::URL])
         expect(registry.dig("models", "gpt-4o-mini", "output")).to eq(0.63)
-        expect(registry.dig("models", "claude-sonnet-4-6", "cache_creation_input")).to eq(3.75)
+        expect(registry.dig("models", "claude-sonnet-4-6", "cache_write_input")).to eq(3.75)
         expect(registry.dig("models", "custom-gateway-model", "_source")).to eq("manual")
       end
     end
@@ -217,12 +217,12 @@ RSpec.describe LlmCostTracker::PriceSync do
         expect(result.orphaned_models).to eq(%w[gemini-1.5-pro legacy-orphan-model])
         expect(result.discrepancies.map { |issue| [issue.model, issue.field] }).to eq([%w[gpt-4o-mini output]])
         expect(result.changes.fetch("gpt-4o")).to eq(
-          "cached_input" => { "from" => 4.5, "to" => 1.25 },
+          "cache_read_input" => { "from" => 4.5, "to" => 1.25 },
           "input" => { "from" => 9.0, "to" => 2.5 },
           "output" => { "from" => 11.0, "to" => 10.0 }
         )
         expect(result.changes.fetch("gpt-4o-mini")).to eq(
-          "cached_input" => { "from" => nil, "to" => 0.075 },
+          "cache_read_input" => { "from" => nil, "to" => 0.075 },
           "input" => { "from" => 0.2, "to" => 0.15 },
           "output" => { "from" => 0.8, "to" => 0.6 }
         )

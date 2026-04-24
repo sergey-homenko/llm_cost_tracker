@@ -10,7 +10,7 @@ module LlmCostTracker
   module PriceRegistry
     DEFAULT_PRICES_PATH = File.expand_path("prices.json", __dir__)
     EMPTY_PRICES = {}.freeze
-    PRICE_KEYS = %w[input cached_input output cache_read_input cache_creation_input].freeze
+    PRICE_KEYS = %w[input output cache_read_input cache_write_input].freeze
     METADATA_KEYS = %w[_source _source_version _fetched_at _updated _notes _validator_override].freeze
     MUTEX = Monitor.new
 
@@ -60,7 +60,7 @@ module LlmCostTracker
       def normalize_price_entry(price)
         price.each_with_object({}) do |(key, value), normalized|
           key = key.to_s
-          normalized[key.to_sym] = Float(value) if PRICE_KEYS.include?(key)
+          normalized[key.to_sym] = Float(value) if price_key?(key)
         end
       end
 
@@ -80,13 +80,23 @@ module LlmCostTracker
       end
 
       def warn_unknown_keys(model, price, path)
-        unknown_keys = price.keys.map(&:to_s) - PRICE_KEYS - METADATA_KEYS
+        unknown_keys = price.keys.map(&:to_s).reject do |key|
+          price_key?(key) || METADATA_KEYS.include?(key)
+        end
         return if unknown_keys.empty?
 
         Logging.warn(
           "Unknown price keys #{unknown_keys.inspect} for #{model.inspect} in #{path}; " \
-          "ignored. Known keys: #{(PRICE_KEYS + METADATA_KEYS).inspect}"
+          "ignored. Known keys: #{(PRICE_KEYS + METADATA_KEYS).inspect}; mode-specific keys use mode_input"
         )
+      end
+
+      def price_key?(key)
+        return true if PRICE_KEYS.include?(key)
+
+        PRICE_KEYS.any? do |base_key|
+          key.end_with?("_#{base_key}") && key.delete_suffix("_#{base_key}") != ""
+        end
       end
 
       def load_price_file(path)

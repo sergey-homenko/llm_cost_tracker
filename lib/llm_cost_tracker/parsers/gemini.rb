@@ -74,13 +74,16 @@ module LlmCostTracker
       private
 
       def build_parsed_usage(request_url, usage, usage_source:, stream: false, provider_response_id: nil)
+        cache_read = usage["cachedContentTokenCount"].to_i
+
         ParsedUsage.build(
           provider: "gemini",
           model: extract_model_from_url(request_url),
-          input_tokens: usage["promptTokenCount"].to_i,
+          input_tokens: [usage["promptTokenCount"].to_i - cache_read, 0].max,
           output_tokens: output_tokens(usage),
           total_tokens: usage["totalTokenCount"].to_i,
-          cached_input_tokens: usage["cachedContentTokenCount"],
+          cache_read_input_tokens: usage["cachedContentTokenCount"],
+          hidden_output_tokens: usage["thoughtsTokenCount"],
           stream: stream,
           usage_source: usage_source,
           provider_response_id: provider_response_id

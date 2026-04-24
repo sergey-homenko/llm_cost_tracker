@@ -167,13 +167,64 @@ RSpec.describe LlmCostTracker::Tracker do
         metadata: {
           feature: "summarize",
           cache_read_input_tokens: 25,
-          cache_creation_tokens: 10,
-          reasoning_tokens: 5
+          cache_write_input_tokens: 10,
+          hidden_output_tokens: 5
         }
       )
 
       expect(event.total_tokens).to eq(185)
       expect(event.tags).to eq(feature: "summarize")
+    end
+
+    it "uses pricing_mode without storing it as a tag" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "batchable-model" => {
+            input: 1.0,
+            output: 2.0,
+            batch_input: 0.5,
+            batch_output: 1.0
+          }
+        }
+      end
+
+      event = described_class.record(
+        provider: "custom",
+        model: "batchable-model",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        pricing_mode: :batch,
+        metadata: { feature: "bulk" }
+      )
+
+      expect(event.pricing_mode).to eq("batch")
+      expect(event.cost.total_cost).to eq(1.5)
+      expect(event.tags).to eq(feature: "bulk")
+    end
+
+    it "accepts pricing_mode from internal metadata" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "metadata-mode-model" => {
+            input: 1.0,
+            output: 2.0,
+            batch_input: 0.5,
+            batch_output: 1.0
+          }
+        }
+      end
+
+      event = described_class.record(
+        provider: "custom",
+        model: "metadata-mode-model",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        metadata: { pricing_mode: :batch, feature: "bulk" }
+      )
+
+      expect(event.pricing_mode).to eq("batch")
+      expect(event.cost.total_cost).to eq(1.5)
+      expect(event.tags).to eq(feature: "bulk")
     end
 
     it "triggers budget callback when exceeded" do

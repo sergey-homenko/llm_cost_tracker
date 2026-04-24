@@ -8,9 +8,9 @@
 # Supported price keys:
 # - input
 # - output
-# - cached_input
 # - cache_read_input
-# - cache_creation_input
+# - cache_write_input
+# - mode_input / mode_output / mode_cache_read_input / mode_cache_write_input
 #
 # Optional metadata keys, ignored by cost calculation:
 # - _source
@@ -24,9 +24,17 @@
 # models:
 #   "ft:gpt-4o-mini:my-org":
 #     input: 0.30
-#     cached_input: 0.15
+#     cache_read_input: 0.15
 #     output: 1.20
 #     _notes: "Internal fine-tune rate"
+#
+# Example: alternate pricing mode
+# models:
+#   "batchable-model":
+#     input: 1.00
+#     output: 2.00
+#     batch_input: 0.50
+#     batch_output: 1.00
 #
 # Example: negotiated provider discount
 # models:

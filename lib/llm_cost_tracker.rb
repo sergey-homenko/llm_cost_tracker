@@ -10,6 +10,7 @@ require_relative "llm_cost_tracker/errors"
 require_relative "llm_cost_tracker/logging"
 require_relative "llm_cost_tracker/parameter_hash"
 require_relative "llm_cost_tracker/cost"
+require_relative "llm_cost_tracker/usage_breakdown"
 require_relative "llm_cost_tracker/event"
 require_relative "llm_cost_tracker/parsed_usage"
 require_relative "llm_cost_tracker/price_registry"
@@ -69,7 +70,7 @@ module LlmCostTracker
     end
 
     def track(provider:, model:, input_tokens:, output_tokens:, latency_ms: nil, stream: false, usage_source: :manual,
-              enforce_budget: false, provider_response_id: nil, **metadata)
+              enforce_budget: false, provider_response_id: nil, pricing_mode: nil, **metadata)
       enforce_budget! if enforce_budget
       Tracker.record(
         provider: provider.to_s,
@@ -80,11 +81,13 @@ module LlmCostTracker
         stream: stream,
         usage_source: usage_source,
         provider_response_id: provider_response_id,
+        pricing_mode: pricing_mode,
         metadata: metadata
       )
     end
 
-    def track_stream(provider:, model:, latency_ms: nil, enforce_budget: false, provider_response_id: nil, **metadata)
+    def track_stream(provider:, model:, latency_ms: nil, enforce_budget: false, provider_response_id: nil,
+                     pricing_mode: nil, **metadata)
       require_relative "llm_cost_tracker/stream_collector"
       enforce_budget! if enforce_budget
       collector = StreamCollector.new(
@@ -92,6 +95,7 @@ module LlmCostTracker
         model: model,
         latency_ms: latency_ms,
         provider_response_id: provider_response_id,
+        pricing_mode: pricing_mode,
         metadata: metadata
       )
       yield collector

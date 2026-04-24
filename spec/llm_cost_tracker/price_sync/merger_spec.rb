@@ -11,9 +11,8 @@ RSpec.describe LlmCostTracker::PriceSync::Merger do
           provider: "openai",
           input: 0.15,
           output: 0.6,
-          cached_input: nil,
           cache_read_input: nil,
-          cache_creation_input: nil,
+          cache_write_input: nil,
           source: :litellm,
           source_version: "litellm-v1",
           fetched_at: "2026-04-22T00:00:00Z"
@@ -32,9 +31,8 @@ RSpec.describe LlmCostTracker::PriceSync::Merger do
           provider: "openai",
           input: 0.15,
           output: 0.63,
-          cached_input: 0.075,
-          cache_read_input: nil,
-          cache_creation_input: nil,
+          cache_read_input: 0.075,
+          cache_write_input: nil,
           source: :openrouter,
           source_version: "openrouter-v1",
           fetched_at: "2026-04-22T00:00:00Z"
@@ -55,7 +53,7 @@ RSpec.describe LlmCostTracker::PriceSync::Merger do
       source: :litellm,
       input: 0.15,
       output: 0.6,
-      cached_input: 0.075
+      cache_read_input: 0.075
     )
     expect(discrepancies.map { |issue| [issue.model, issue.field] }).to eq([%w[gpt-4o-mini output]])
   end

@@ -28,7 +28,20 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
     expect(response.body).to include("Coverage summary")
     expect(response.body).to include("Cost (pricing known)")
     expect(response.body).to include("Tags (at least one tag)")
+    expect(response.body).to include("Usage breakdown")
+    expect(response.body).to include("Regular input")
     expect(response.body).to include("Data Quality")
+  end
+
+  it "shows hidden output share when breakdown columns have output tokens" do
+    create_call(output_tokens: 100, hidden_output_tokens: 25)
+
+    response = get("/llm-costs/data_quality")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Hidden output share")
+    expect(response.body).to include("Hidden output")
+    expect(response.body).to include("25.0%")
   end
 
   it "links to unknown pricing calls" do

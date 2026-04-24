@@ -8,32 +8,40 @@ module LlmCostTracker
     MUTEX = Monitor.new
 
     class << self
-      def cost_for(model:, input_tokens:, output_tokens:, cached_input_tokens: 0,
-                   cache_read_input_tokens: 0, cache_creation_input_tokens: 0)
-        prices = lookup(model)
+      def cost_for(provider:, model:, input_tokens:, output_tokens:, cache_read_input_tokens: 0,
+                   cache_write_input_tokens: 0, pricing_mode: nil)
+        prices = lookup(provider: provider, model: model)
         return nil unless prices
 
-        token_counts = normalized_token_counts(input_tokens, output_tokens, cached_input_tokens,
-                                               cache_read_input_tokens, cache_creation_input_tokens)
-        costs = calculate_costs(token_counts, prices)
+        usage = UsageBreakdown.build(
+          input_tokens: input_tokens,
+          output_tokens: output_tokens,
+          cache_read_input_tokens: cache_read_input_tokens,
+          cache_write_input_tokens: cache_write_input_tokens
+        )
+        costs = calculate_costs(usage, prices, pricing_mode: pricing_mode)
 
         Cost.new(
           input_cost: costs[:input].round(8),
-          cached_input_cost: costs[:cached_input].round(8),
           cache_read_input_cost: costs[:cache_read_input].round(8),
-          cache_creation_input_cost: costs[:cache_creation_input].round(8),
+          cache_write_input_cost: costs[:cache_write_input].round(8),
           output_cost: costs[:output].round(8),
           total_cost: costs.values.sum.round(8),
           currency: "USD"
         )
       end
 
-      def lookup(model)
+      def lookup(provider:, model:)
         table = prices
+        provider_name = provider.to_s
         model_name = model.to_s
+        provider_model = provider_name.empty? ? model_name : "#{provider_name}/#{model_name}"
         normalized_model = normalize_model_name(model_name)
 
-        table[model_name] || table[normalized_model] || fuzzy_match(model_name, normalized_model, table)
+        table[provider_model] ||
+          table[model_name] ||
+          table[normalized_model] ||
+          fuzzy_match(provider_model, normalized_model, table)
       end
 
       def models
@@ -64,36 +72,40 @@ module LlmCostTracker
 
       private
 
-      def normalized_token_counts(input_tokens, output_tokens, cached_input_tokens,
-                                  cache_read_input_tokens, cache_creation_input_tokens)
-        cached_input_tokens = cached_input_tokens.to_i
-
+      def calculate_costs(usage, prices, pricing_mode:)
         {
-          input: [input_tokens.to_i - cached_input_tokens, 0].max,
-          cached_input: cached_input_tokens,
-          cache_read_input: cache_read_input_tokens.to_i,
-          cache_creation_input: cache_creation_input_tokens.to_i,
-          output: output_tokens.to_i
+          input: token_cost(usage.input_tokens, price_for(prices, :input, pricing_mode)),
+          cache_read_input: token_cost(
+            usage.cache_read_input_tokens,
+            price_for(prices, :cache_read_input, pricing_mode) || price_for(prices, :input, pricing_mode)
+          ),
+          cache_write_input: token_cost(
+            usage.cache_write_input_tokens,
+            price_for(prices, :cache_write_input, pricing_mode) || price_for(prices, :input, pricing_mode)
+          ),
+          output: token_cost(usage.output_tokens, price_for(prices, :output, pricing_mode))
         }
       end
 
-      def calculate_costs(token_counts, prices)
-        {
-          input: token_cost(token_counts[:input], prices[:input]),
-          cached_input: token_cost(token_counts[:cached_input], prices[:cached_input] || prices[:input]),
-          cache_read_input: token_cost(
-            token_counts[:cache_read_input],
-            prices[:cache_read_input] || prices[:cached_input] || prices[:input]
-          ),
-          cache_creation_input: token_cost(
-            token_counts[:cache_creation_input],
-            prices[:cache_creation_input] || prices[:input]
-          ),
-          output: token_cost(token_counts[:output], prices[:output])
-        }
+      def price_for(prices, key, pricing_mode)
+        mode = normalized_pricing_mode(pricing_mode)
+        return prices[key] unless mode
+
+        prices[:"#{mode}_#{key}"] || prices[key]
+      end
+
+      def normalized_pricing_mode(value)
+        return nil if value.nil?
+
+        mode = value.to_s.strip
+        return nil if mode.empty? || mode == "standard"
+
+        mode
       end
 
       def token_cost(tokens, per_million_price)
+        return 0.0 if tokens.to_i.zero?
+
         (tokens.to_f / 1_000_000) * per_million_price
       end
 

@@ -2,6 +2,8 @@
 <% streaming_count = @stats.streaming_count %>
 <% streaming_missing_usage = @stats.streaming_missing_usage_count %>
 <% calls_with_provider_response_id = @stats.provider_response_id_column_present ? total - @stats.missing_provider_response_id_count : nil %>
+<% billable_tokens = @stats.input_tokens + @stats.output_tokens + @stats.cache_read_input_tokens.to_i + @stats.cache_write_input_tokens.to_i %>
+<% hidden_output_share = coverage_percent(@stats.hidden_output_tokens.to_i, @stats.output_tokens) %>
 
 <section class="lct-panel lct-toolbar">
   <div class="lct-toolbar-head">
@@ -116,6 +118,14 @@
             <p class="lct-stat-label">Calls with provider response ID</p>
             <p class="lct-stat-value"><%= number(calls_with_provider_response_id) %></p>
             <p class="lct-stat-sub"><%= percent(coverage_percent(calls_with_provider_response_id, total)) %> of calls</p>
+          </article>
+        <% end %>
+
+        <% if @stats.usage_breakdown_column_present && @stats.output_tokens.positive? %>
+          <article class="lct-stat">
+            <p class="lct-stat-label">Hidden output share</p>
+            <p class="lct-stat-value"><%= percent(hidden_output_share) %></p>
+            <p class="lct-stat-sub"><%= number(@stats.hidden_output_tokens) %> of <%= number(@stats.output_tokens) %> output tokens</p>
           </article>
         <% end %>
       </div>
@@ -242,6 +252,61 @@
       </table>
     </section>
   </section>
+
+  <% if @stats.usage_breakdown_column_present %>
+    <section class="lct-panel">
+      <div class="lct-section-head">
+        <div>
+          <h2 class="lct-section-title">Usage breakdown</h2>
+        </div>
+      </div>
+
+      <div class="lct-table-wrap">
+        <table class="lct-table lct-table-compact">
+          <thead>
+            <tr>
+              <th>Bucket</th>
+              <th class="lct-num">Tokens</th>
+              <th class="lct-num">Share</th>
+              <th class="lct-num">Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Regular input</td>
+              <td class="lct-num"><%= number(@stats.input_tokens) %></td>
+              <td class="lct-num"><%= percent(coverage_percent(@stats.input_tokens, billable_tokens)) %></td>
+              <td class="lct-num"><%= money(@stats.input_cost) %></td>
+            </tr>
+            <tr>
+              <td>Cache read input</td>
+              <td class="lct-num"><%= number(@stats.cache_read_input_tokens) %></td>
+              <td class="lct-num"><%= percent(coverage_percent(@stats.cache_read_input_tokens, billable_tokens)) %></td>
+              <td class="lct-num<%= ' lct-num-muted' if @stats.cache_read_input_cost.nil? %>"><%= optional_money(@stats.cache_read_input_cost) %></td>
+            </tr>
+            <tr>
+              <td>Cache write input</td>
+              <td class="lct-num"><%= number(@stats.cache_write_input_tokens) %></td>
+              <td class="lct-num"><%= percent(coverage_percent(@stats.cache_write_input_tokens, billable_tokens)) %></td>
+              <td class="lct-num<%= ' lct-num-muted' if @stats.cache_write_input_cost.nil? %>"><%= optional_money(@stats.cache_write_input_cost) %></td>
+            </tr>
+            <tr>
+              <td>Output</td>
+              <td class="lct-num"><%= number(@stats.output_tokens) %></td>
+              <td class="lct-num"><%= percent(coverage_percent(@stats.output_tokens, billable_tokens)) %></td>
+              <td class="lct-num"><%= money(@stats.output_cost) %></td>
+            </tr>
+            <tr>
+              <td>Hidden output</td>
+              <td class="lct-num"><%= number(@stats.hidden_output_tokens) %></td>
+              <td class="lct-num"><%= percent(hidden_output_share) %> of output</td>
+              <td class="lct-num lct-num-muted">n/a</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% end %>
 
   <% unless @stats.unknown_pricing_by_model.empty? %>
     <section class="lct-panel">

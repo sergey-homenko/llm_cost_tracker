@@ -15,7 +15,7 @@ Every Rails app with LLM integrations eventually runs into the same question: wh
 
 ## What You Get
 
-- A local ActiveRecord ledger of provider, model, tokens, cost, latency, tags, streaming usage, and provider response IDs
+- A local ActiveRecord ledger of provider, model, usage breakdown, cost, latency, tags, streaming usage, and provider response IDs
 - Faraday middleware plus explicit `track` / `track_stream` helpers for non-Faraday clients
 - Server-rendered Rails dashboard with overview, calls, tags, CSV export, and data-quality pages
 - Local pricing snapshots, price sync tasks, and budget guardrails
@@ -159,7 +159,7 @@ LlmCostTracker.track_stream(provider: "anthropic", model: "claude-sonnet-4-6") d
 end
 ```
 
-Run `bin/rails g llm_cost_tracker:add_streaming` once on existing installs to add the `stream` and `usage_source` columns. Run `bin/rails g llm_cost_tracker:add_provider_response_id` to persist provider-issued response IDs.
+Run `bin/rails g llm_cost_tracker:add_streaming` once on existing installs to add the `stream` and `usage_source` columns. Run `bin/rails g llm_cost_tracker:add_provider_response_id` to persist provider-issued response IDs. Run `bin/rails g llm_cost_tracker:add_usage_breakdown` to add cache-read, cache-write, hidden-output, and pricing-mode columns.
 
 ### Manual tracking
 
@@ -175,6 +175,10 @@ LlmCostTracker.track(
   user_id: current_user.id
 )
 ```
+
+`input_tokens` is regular non-cache input. Put cache hits in
+`cache_read_input_tokens` and cache writes in `cache_write_input_tokens`; total
+tokens are calculated from the canonical billing breakdown.
 
 ## Configuration
 
@@ -195,7 +199,7 @@ LlmCostTracker.configure do |config|
 
   config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
   config.pricing_overrides = {
-    "ft:gpt-4o-mini:my-org" => { input: 0.30, cached_input: 0.15, output: 1.20 }
+    "ft:gpt-4o-mini:my-org" => { input: 0.30, cache_read_input: 0.15, output: 1.20 }
   }
 
   # Built-in: openrouter.ai, api.deepseek.com
@@ -203,7 +207,9 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-Pricing is best effort. OpenRouter-style IDs like `openai/gpt-4o-mini` are normalized to built-in names when possible. Use `prices_file` / `pricing_overrides` for fine-tunes, gateway-specific IDs, enterprise discounts, batch pricing, or models the gem does not know.
+Pricing is best effort. OpenRouter-style IDs like `openai/gpt-4o-mini` are normalized to built-in names when possible. Use `prices_file` / `pricing_overrides` for fine-tunes, gateway-specific IDs, enterprise discounts, alternate pricing modes, or models the gem does not know.
+Provider-specific entries like `openai/gpt-4o-mini` win over model-only entries like `gpt-4o-mini`.
+Pass `pricing_mode: :batch` to use optional mode-specific keys such as `batch_input` / `batch_output`; missing mode-specific keys fall back to standard `input` / `output` rates. The same pattern works for custom modes, for example `contract_input`.
 
 `storage_error_behavior = :warn` (default) lets LLM responses continue if storage fails; `:raise` exposes `StorageError#original_error`.
 
@@ -225,7 +231,7 @@ bin/rails generate llm_cost_tracker:prices
 {
   "metadata": { "updated_at": "2026-04-18", "currency": "USD", "unit": "1M tokens" },
   "models": {
-    "my-gateway/gpt-4o-mini": { "input": 0.20, "cached_input": 0.10, "output": 0.80 }
+    "my-gateway/gpt-4o-mini": { "input": 0.20, "cache_read_input": 0.10, "output": 0.80, "batch_input": 0.10, "batch_output": 0.40 }
   }
 }
 ```
@@ -403,12 +409,14 @@ ActiveSupport::Notifications.subscribe("llm_request.llm_cost_tracker") do |*, pa
   # payload =>
   # {
   #   provider: "openai", model: "gpt-4o",
-  #   input_tokens: 150, output_tokens: 42, total_tokens: 192, latency_ms: 248,
+  #   input_tokens: 150, cache_read_input_tokens: 0, cache_write_input_tokens: 0,
+  #   hidden_output_tokens: 0, output_tokens: 42, total_tokens: 192, latency_ms: 248,
   #   cost: {
-  #     input_cost: 0.000375, cached_input_cost: 0.0,
-  #     cache_read_input_cost: 0.0, cache_creation_input_cost: 0.0,
-  #     output_cost: 0.00042, total_cost: 0.000795, currency: "USD"
+  #     input_cost: 0.000375, cache_read_input_cost: 0.0,
+  #     cache_write_input_cost: 0.0, output_cost: 0.00042,
+  #     total_cost: 0.000795, currency: "USD"
   #   },
+  #   pricing_mode: "batch",
   #   tags: { feature: "chat", user_id: 42 },
   #   tracked_at: 2026-04-16 14:30:00 UTC
   # }
@@ -511,10 +519,11 @@ The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and
 - `:block_requests` is a best-effort guardrail, not a hard cap. Concurrent workers can pass preflight simultaneously and collectively overshoot the budget. Use an external quota system if you need a transactional cap.
 - Streaming capture relies on the provider emitting a final-usage event (OpenAI needs `stream_options: { include_usage: true }`); missing events are recorded with `usage_source: "unknown"` so they surface on the Data Quality page.
 - `provider_response_id` is stored only when the provider exposes a stable response object ID. Missing IDs stay `nil` and surface on the Data Quality page.
-- Anthropic cache TTL variants (1h vs 5min writes) not modeled separately.
-- OpenAI reasoning tokens included in output totals; separate reasoning-token attribution not stored.
+- Cache write TTL variants (1h vs 5min writes) not modeled separately.
 
 ## Development
+
+Architecture rules for future changes live in [`docs/architecture.md`](docs/architecture.md).
 
 ```bash
 bundle install

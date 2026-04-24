@@ -13,7 +13,7 @@
       "input": 3.0,
       "output": 15.0,
       "cache_read_input": 0.3,
-      "cache_creation_input": 3.75,
+      "cache_write_input": 3.75,
       "_source": "litellm",
       "_source_version": "litellm-fixture-v1",
       "_fetched_at": "2026-04-22T00:00:00Z"
@@ -39,7 +39,7 @@
     "gpt-4o": {
       "input": 2.5,
       "output": 10.0,
-      "cached_input": 1.25,
+      "cache_read_input": 1.25,
       "_notes": "keep me",
       "_source": "litellm",
       "_source_version": "litellm-fixture-v1",
@@ -48,7 +48,7 @@
     "gpt-4o-2024-05-13": {
       "input": 2.5,
       "output": 10.0,
-      "cached_input": 1.25,
+      "cache_read_input": 1.25,
       "_source": "litellm",
       "_source_version": "litellm-fixture-v1",
       "_fetched_at": "2026-04-22T00:00:00Z"
@@ -56,7 +56,7 @@
     "gpt-4o-mini": {
       "input": 0.15,
       "output": 0.6,
-      "cached_input": 0.075,
+      "cache_read_input": 0.075,
       "_source": "litellm",
       "_source_version": "litellm-fixture-v1",
       "_fetched_at": "2026-04-22T00:00:00Z"

@@ -18,13 +18,19 @@ module LlmCostTrackerEngineContext
         t.integer :input_tokens, null: false, default: 0
         t.integer :output_tokens, null: false, default: 0
         t.integer :total_tokens, null: false, default: 0
+        t.integer :cache_read_input_tokens, null: false, default: 0
+        t.integer :cache_write_input_tokens, null: false, default: 0
+        t.integer :hidden_output_tokens, null: false, default: 0
         t.decimal :input_cost, precision: 20, scale: 8
+        t.decimal :cache_read_input_cost, precision: 20, scale: 8
+        t.decimal :cache_write_input_cost, precision: 20, scale: 8
         t.decimal :output_cost, precision: 20, scale: 8
         t.decimal :total_cost, precision: 20, scale: 8
         t.integer :latency_ms
         t.boolean :stream, null: false, default: false
         t.string :usage_source
         t.string :provider_response_id
+        t.string :pricing_mode
         t.text :tags
         t.datetime :tracked_at, null: false
 
@@ -39,13 +45,19 @@ module LlmCostTrackerEngineContext
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5,
+      cache_read_input_tokens: 0,
+      cache_write_input_tokens: 0,
+      hidden_output_tokens: 0,
       total_cost: 1.0,
       latency_ms: 100,
       provider_response_id: nil,
       tags: {},
       tracked_at: Time.now.utc
     }.merge(overrides)
-    attrs[:total_tokens] = attrs.fetch(:input_tokens) + attrs.fetch(:output_tokens)
+    attrs[:total_tokens] = attrs.fetch(:input_tokens) +
+                           attrs.fetch(:cache_read_input_tokens) +
+                           attrs.fetch(:cache_write_input_tokens) +
+                           attrs.fetch(:output_tokens)
     attrs[:tags] = attrs.fetch(:tags).to_json
 
     LlmCostTracker::LlmApiCall.create!(attrs)

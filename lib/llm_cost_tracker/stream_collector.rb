@@ -8,11 +8,12 @@ module LlmCostTracker
   class StreamCollector
     attr_reader :provider
 
-    def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, metadata: {})
+    def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, pricing_mode: nil, metadata: {})
       @provider = provider.to_s
       @model = model
       @latency_ms = latency_ms
       @provider_response_id = provider_response_id
+      @pricing_mode = pricing_mode
       @metadata = ValueHelpers.deep_dup(metadata || {})
       @events = []
       @explicit_usage = nil
@@ -74,6 +75,7 @@ module LlmCostTracker
           model: @model,
           latency_ms: @latency_ms,
           provider_response_id: @provider_response_id,
+          pricing_mode: @pricing_mode,
           metadata: ValueHelpers.deep_dup(@metadata)
         }
       end
@@ -88,6 +90,7 @@ module LlmCostTracker
         stream: true,
         usage_source: parsed.usage_source,
         provider_response_id: parsed.provider_response_id || snapshot[:provider_response_id],
+        pricing_mode: snapshot[:pricing_mode],
         metadata: error_metadata(errored).merge(snapshot[:metadata]).merge(parsed.metadata)
       )
     end
@@ -136,7 +139,6 @@ module LlmCostTracker
         model: snapshot[:model],
         input_tokens: input,
         output_tokens: output,
-        total_tokens: input + output,
         stream: true,
         usage_source: :manual,
         **extras

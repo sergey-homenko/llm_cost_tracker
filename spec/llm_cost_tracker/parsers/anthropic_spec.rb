@@ -54,7 +54,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.output_tokens).to eq(80)
       expect(result.total_tokens).to eq(340)
       expect(result.cache_read_input_tokens).to eq(50)
-      expect(result.cache_creation_input_tokens).to eq(10)
+      expect(result.cache_write_input_tokens).to eq(10)
       expect(result.stream).to be false
       expect(result.usage_source).to eq(:response)
       expect(result.provider_response_id).to be_nil
