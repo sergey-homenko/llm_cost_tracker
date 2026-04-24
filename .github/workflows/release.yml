@@ -31,9 +31,7 @@ jobs:
         test "v${version}" = "${GITHUB_REF_NAME}"
 
     - name: Run release checks
-      run: |
-        bundle exec rubocop
-        bundle exec rspec
+      run: bin/check
 
     - name: Publish gem
       uses: rubygems/release-gem@v1
