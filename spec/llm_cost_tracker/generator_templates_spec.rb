@@ -55,6 +55,11 @@ RSpec.describe "generator templates" do
 
     expect(migration).to include("class AddPeriodTotalsToLlmCostTracker")
     expect(migration).to include("create_table :llm_cost_tracker_period_totals")
+    expect(migration).to include("backfill_legacy_monthly_totals if table_exists?(:llm_cost_tracker_monthly_totals)")
+    expect(migration).to include("FROM llm_cost_tracker_monthly_totals legacy")
+    expect(migration).to include("WHERE NOT EXISTS (")
+    expect(migration).to include("FROM (")
+    expect(migration).to include("aggregated.period_start")
     expect(migration).to include("add_index :llm_cost_tracker_period_totals, [:period, :period_start]")
     expect(migration).to include("SUM(total_cost)")
     expect(migration).to include("DATE_TRUNC('day', tracked_at)::date")

@@ -8,10 +8,10 @@ class AddPeriodTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_ver
       t.timestamps
     end unless table_exists?(:llm_cost_tracker_period_totals)
 
+    backfill_period_totals
+
     add_index :llm_cost_tracker_period_totals, [:period, :period_start],
               unique: true unless index_exists?(:llm_cost_tracker_period_totals, [:period, :period_start])
-
-    backfill_period_totals
   end
 
   def down
@@ -22,23 +22,53 @@ class AddPeriodTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_ver
   private
 
   def backfill_period_totals
+    backfill_legacy_monthly_totals if table_exists?(:llm_cost_tracker_monthly_totals)
     return unless table_exists?(:llm_api_calls)
 
     backfill_period_total("day", day_bucket_sql)
     backfill_period_total("month", month_bucket_sql)
   end
 
+  def backfill_legacy_monthly_totals
+    execute <<~SQL
+      INSERT INTO llm_cost_tracker_period_totals (period, period_start, total_cost, created_at, updated_at)
+      SELECT #{connection.quote("month")} AS period,
+             month AS period_start,
+             total_cost,
+             CURRENT_TIMESTAMP,
+             CURRENT_TIMESTAMP
+      FROM llm_cost_tracker_monthly_totals legacy
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM llm_cost_tracker_period_totals existing
+        WHERE existing.period = #{connection.quote("month")}
+          AND existing.period_start = legacy.month
+      )
+    SQL
+  end
+
   def backfill_period_total(period, bucket_sql)
     execute <<~SQL
       INSERT INTO llm_cost_tracker_period_totals (period, period_start, total_cost, created_at, updated_at)
-      SELECT #{connection.quote(period)} AS period,
-             #{bucket_sql} AS period_start,
-             SUM(total_cost) AS total_cost,
+      SELECT aggregated.period,
+             aggregated.period_start,
+             aggregated.total_cost,
              CURRENT_TIMESTAMP,
              CURRENT_TIMESTAMP
-      FROM llm_api_calls
-      WHERE total_cost IS NOT NULL
-      GROUP BY #{bucket_sql}
+      FROM (
+        SELECT #{connection.quote(period)} AS period,
+               #{bucket_sql} AS period_start,
+               SUM(total_cost) AS total_cost
+        FROM llm_api_calls
+        WHERE total_cost IS NOT NULL
+        GROUP BY #{bucket_sql}
+      ) aggregated
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM llm_cost_tracker_period_totals existing
+        WHERE existing.period = aggregated.period
+          AND existing.period_start = aggregated.period_start
+      )
     SQL
   end
 

@@ -271,7 +271,7 @@ config.per_call_budget = 1.00
 config.budget_exceeded_behavior = :block_requests
 ```
 
-- `:notify` — fire `on_budget_exceeded` after an event pushes the month over budget.
+- `:notify` — fire `on_budget_exceeded` after an event pushes the monthly, daily, or per-call budget over the limit.
 - `:raise` — record the event, then raise `BudgetExceededError`.
 - `:block_requests` — block preflight when the stored monthly or daily total is already over budget; still raises post-response on the event that crosses the line. Needs `:active_record` storage for preflight.
 

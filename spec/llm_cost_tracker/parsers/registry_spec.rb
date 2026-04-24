@@ -65,5 +65,26 @@ RSpec.describe LlmCostTracker::Parsers::Registry do
 
       expect(described_class.find_for_provider("ACME")).to eq(parser)
     end
+
+    it "normalizes non-string provider names from custom parsers" do
+      parser_class = Class.new(LlmCostTracker::Parsers::Base) do
+        def provider_names
+          [:acme]
+        end
+
+        def match?(_url)
+          false
+        end
+
+        def parse(*)
+          nil
+        end
+      end
+      parser = parser_class.new
+
+      described_class.register(parser)
+
+      expect(described_class.find_for_provider("acme")).to eq(parser)
+    end
   end
 end

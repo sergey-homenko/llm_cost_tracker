@@ -108,15 +108,6 @@ module LlmCostTracker
           }
         end
 
-        def usage_sum_columns(usage_breakdown_present, usage_breakdown_cost_present)
-          columns = %i[input_tokens output_tokens input_cost output_cost]
-          if usage_breakdown_present
-            columns += %i[cache_read_input_tokens cache_write_input_tokens hidden_output_tokens]
-          end
-          columns += %i[cache_read_input_cost cache_write_input_cost] if usage_breakdown_cost_present
-          columns
-        end
-
         def unknown_pricing_by_model(scope)
           scope.unknown_pricing
                .group(:model)
