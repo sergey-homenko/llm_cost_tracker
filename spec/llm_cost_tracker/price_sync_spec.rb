@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "pathname"
 require "spec_helper"
 require "tempfile"
 require "tmpdir"
@@ -44,6 +45,30 @@ RSpec.describe LlmCostTracker::PriceSync do
   end
 
   let(:fetcher) { PriceSyncFixtureFetcher.new(fixtures: fixtures) }
+
+  describe ".configured_output_path" do
+    it "prefers OUTPUT over configured prices_file" do
+      config = double(prices_file: "config/llm_cost_tracker_prices.yml")
+
+      expect(described_class.configured_output_path(env: { "OUTPUT" => "tmp/prices.yml" }, config: config)).to eq(
+        "tmp/prices.yml"
+      )
+    end
+
+    it "falls back to configured prices_file" do
+      config = double(prices_file: Pathname.new("config/llm_cost_tracker_prices.yml"))
+
+      expect(described_class.configured_output_path(env: {}, config: config)).to eq(
+        "config/llm_cost_tracker_prices.yml"
+      )
+    end
+
+    it "returns nil when no writable target is configured" do
+      config = double(prices_file: nil)
+
+      expect(described_class.configured_output_path(env: {}, config: config)).to be_nil
+    end
+  end
 
   let(:seed_registry) do
     {

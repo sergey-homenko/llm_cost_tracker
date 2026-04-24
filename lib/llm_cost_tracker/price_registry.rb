@@ -25,6 +25,20 @@ module LlmCostTracker
         @metadata ||= MUTEX.synchronize { @metadata || raw_registry.fetch("metadata", {}).freeze }
       end
 
+      def file_metadata(path)
+        return {} unless path
+
+        registry = load_price_file(path.to_s)
+        raise ArgumentError, "prices_file must be a hash" unless registry.is_a?(Hash)
+
+        metadata = registry.fetch("metadata", {})
+        raise ArgumentError, "prices_file metadata must be a hash" unless metadata.is_a?(Hash)
+
+        metadata
+      rescue Errno::ENOENT, JSON::ParserError, Psych::Exception, ArgumentError, TypeError => e
+        raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+      end
+
       def normalize_price_table(table)
         normalize_price_entries(table, context: "price table")
       end

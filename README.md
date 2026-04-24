@@ -205,6 +205,8 @@ Configuration reference:
 | `openai_compatible_providers` | OpenRouter + DeepSeek | Host-to-provider map for compatible APIs. |
 | `report_tag_breakdowns` | `[]` | Tag keys included in text reports. |
 
+LLM Cost Tracker estimates cost from recorded usage and a versioned price registry. Providers usually return token usage, not a stable per-request price, so request costs are calculated locally and stored with the call. Historical rows do not change when prices update.
+
 Pricing is best effort. OpenRouter-style IDs like `openai/gpt-4o-mini` are normalized to built-in names when possible. Use `prices_file` / `pricing_overrides` for fine-tunes, gateway-specific IDs, enterprise discounts, alternate pricing modes, or models the gem does not know.
 Provider-specific entries like `openai/gpt-4o-mini` win over model-only entries like `gpt-4o-mini`.
 Pass `pricing_mode: :batch` to use optional mode-specific keys such as `batch_input` / `batch_output`; missing mode-specific keys fall back to standard `input` / `output` rates. The same pattern works for custom modes, for example `contract_input`.
@@ -253,11 +255,20 @@ bin/rails llm_cost_tracker:prices:sync
 - LiteLLM pricing JSON: `https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json`
 - OpenRouter Models API: `https://openrouter.ai/api/v1/models`
 
-By default the task writes to `ENV["OUTPUT"]`, then `config.prices_file`, then the gem's bundled `prices.json`, in that order. In production, prefer `OUTPUT=` or `config.prices_file`; the bundled path is mainly useful while developing the gem. `_source: "manual"` entries are never touched. Models that are still in your file but missing from both upstream sources are left alone and reported as orphaned. For intentional custom entries, mark them as manual so they stop showing up in orphaned warnings.
+The task writes to `ENV["OUTPUT"]`, then `config.prices_file`, in that order. It aborts if neither is present. The gem's bundled `prices.json` is only updated when you explicitly pass it through `OUTPUT=` while developing the gem. `_source: "manual"` entries are never touched. Models that are still in your file but missing from both upstream sources are left alone and reported as orphaned. For intentional custom entries, mark them as manual so they stop showing up in orphaned warnings.
 
 Use `OUTPUT=config/llm_cost_tracker_prices.yml` to choose a target file explicitly. Use `PREVIEW=1` to see the diff without writing. Use `STRICT=1` to fail instead of applying a partial refresh when a source fails or the validator rejects a price. Use `bin/rails llm_cost_tracker:prices:check` in CI to print the current diff and exit non-zero when the snapshot has drifted or refresh fails.
 
 Large price changes are flagged during sync. If a specific entry is expected to move by more than 3x, add `_validator_override: ["skip_relative_change"]` to that entry in your local price file.
+
+For unattended updates, run the check daily and sync through review:
+
+```bash
+bin/rails llm_cost_tracker:prices:check
+STRICT=1 bin/rails llm_cost_tracker:prices:sync
+```
+
+`bin/rails llm_cost_tracker:doctor` warns when the configured price file has no `metadata.updated_at` or when it is older than 30 days.
 
 ## Budget enforcement
 

@@ -25,6 +25,37 @@ RSpec.describe LlmCostTracker::PriceRegistry do
     clear_file_price_cache
   end
 
+  describe ".file_metadata" do
+    it "loads registry metadata from a local prices file" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write({
+          metadata: { updated_at: "2026-04-22", currency: "USD" },
+          models: { "custom-model" => { input: 1.0, output: 2.0 } }
+        }.to_json)
+        file.close
+
+        expect(described_class.file_metadata(file.path)).to eq(
+          "updated_at" => "2026-04-22",
+          "currency" => "USD"
+        )
+      end
+    end
+
+    it "raises a readable error for invalid metadata shapes" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write({
+          metadata: ["bad"],
+          models: { "custom-model" => { input: 1.0, output: 2.0 } }
+        }.to_json)
+        file.close
+
+        expect do
+          described_class.file_metadata(file.path)
+        end.to raise_error(LlmCostTracker::Error, /prices_file metadata must be a hash/)
+      end
+    end
+  end
+
   describe ".file_prices" do
     it "returns consistent prices under concurrent first-load" do
       Tempfile.create(["llm-prices", ".json"]) do |file|

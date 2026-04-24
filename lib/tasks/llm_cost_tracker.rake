@@ -26,7 +26,7 @@ namespace :llm_cost_tracker do
 
   namespace :prices do
     desc(
-      "Sync built-in pricing data from LiteLLM/OpenRouter JSON sources. " \
+      "Sync the configured pricing file from LiteLLM/OpenRouter JSON sources. " \
       "Use PREVIEW=1 to preview, STRICT=1 to fail on provider errors, " \
       "or OUTPUT=path/to/file.json."
     )
@@ -34,7 +34,7 @@ namespace :llm_cost_tracker do
       Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
       require_relative "../llm_cost_tracker"
 
-      output_path = ENV["OUTPUT"] || LlmCostTracker.configuration.prices_file || LlmCostTracker::PriceSync::DEFAULT_OUTPUT_PATH
+      output_path = price_sync_output_path
       strict = ENV["STRICT"] == "1" || ARGV.include?("--strict")
       result = LlmCostTracker::PriceSync.sync(
         path: output_path,
@@ -65,7 +65,7 @@ namespace :llm_cost_tracker do
       Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
       require_relative "../llm_cost_tracker"
 
-      output_path = ENV["OUTPUT"] || LlmCostTracker.configuration.prices_file || LlmCostTracker::PriceSync::DEFAULT_OUTPUT_PATH
+      output_path = price_sync_output_path
       result = LlmCostTracker::PriceSync.check(path: output_path)
 
       puts "llm_cost_tracker: checked pricing file #{result.path}"
@@ -138,4 +138,14 @@ def print_failures(failed_sources, heading:)
   failed_sources.each do |source, message|
     puts "    - #{source}: #{message}"
   end
+end
+
+def price_sync_output_path
+  path = LlmCostTracker::PriceSync.configured_output_path
+  return path if path
+
+  abort(
+    "llm_cost_tracker: configure prices_file, run bin/rails generate llm_cost_tracker:prices, " \
+    "or set OUTPUT=config/llm_cost_tracker_prices.yml"
+  )
 end

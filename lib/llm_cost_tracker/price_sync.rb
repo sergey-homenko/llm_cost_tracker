@@ -67,6 +67,16 @@ module LlmCostTracker
     end
 
     class << self
+      def configured_output_path(env: ENV, config: LlmCostTracker.configuration)
+        output = env["OUTPUT"].to_s.strip
+        return output unless output.empty?
+
+        prices_file = config.prices_file
+        return prices_file.to_s if prices_file
+
+        nil
+      end
+
       def sync(path: DEFAULT_OUTPUT_PATH, seed_path: DEFAULT_OUTPUT_PATH, preview: false, strict: false,
                fetcher: Fetcher.new, today: Date.today)
         plan = RefreshPlanBuilder.new(sources: sources).call(

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "price_freshness"
+
 module LlmCostTracker
   class Doctor
     Check = Data.define(:status, :name, :message)
@@ -93,10 +95,18 @@ module LlmCostTracker
 
     def prices_check
       path = LlmCostTracker.configuration.prices_file
-      return Check.new(:warn, "prices", "using bundled prices; configure prices_file for production") unless path
+      unless path
+        return Check.new(
+          :warn,
+          "prices",
+          "using bundled prices updated_at=#{builtin_prices_updated_at}; configure prices_file for production"
+        )
+      end
 
       count = LlmCostTracker::PriceRegistry.file_prices(path).size
-      Check.new(:ok, "prices", "loaded #{count} models from #{path}")
+      metadata = LlmCostTracker::PriceRegistry.file_metadata(path)
+      status, freshness = LlmCostTracker::PriceFreshness.call(metadata)
+      Check.new(status, "prices", "loaded #{count} models from #{path}; #{freshness}")
     rescue LlmCostTracker::Error => e
       Check.new(:error, "prices", e.message)
     end
@@ -134,5 +144,9 @@ module LlmCostTracker
     def column_names(table) = LlmCostTracker::LlmApiCall.connection.columns(table).map(&:name)
 
     def feature_generators(columns) = columns.map { |column| FEATURE_COLUMNS.fetch(column) }.uniq
+
+    def builtin_prices_updated_at
+      LlmCostTracker::Pricing.metadata.fetch("updated_at", "unknown")
+    end
   end
 end
