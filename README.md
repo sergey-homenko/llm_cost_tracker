@@ -69,19 +69,6 @@ Protect the mounted engine with your application's authentication before exposin
 - No built-in auth on the mounted dashboard
 - Use `:active_record` when you want shared dashboards and budget checks across Puma workers and Sidekiq processes
 
-## Installation
-
-```ruby
-gem "llm_cost_tracker"
-```
-
-For ActiveRecord storage:
-
-```bash
-bin/rails generate llm_cost_tracker:install
-bin/rails db:migrate
-```
-
 ## Usage
 
 ### Patch an existing client's Faraday connection
@@ -198,7 +185,7 @@ LlmCostTracker.configure do |config|
   config.unknown_pricing_behavior = :warn    # :ignore, :warn, :raise
 
   config.on_budget_exceeded = ->(data) {
-    SlackNotifier.notify("#alerts", "🚨 LLM #{data[:budget_type]} budget $#{data[:total].round(2)} / $#{data[:budget]}")
+    SlackNotifier.notify("#alerts", "LLM #{data[:budget_type]} budget $#{data[:total].round(2)} / $#{data[:budget]}")
   }
 
   config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
@@ -493,15 +480,15 @@ LlmCostTracker::Parsers::Registry.register(AcmeParser)
 
 | Provider | Auto-detected | Models with pricing |
 |---|:---:|---|
-| OpenAI | ✅ | GPT-5.2/5.1/5, GPT-5 mini/nano, GPT-4.1, GPT-4o, o1/o3/o4-mini |
-| OpenRouter | ✅ | OpenAI-compatible usage; provider-prefixed OpenAI model IDs normalized when possible |
-| DeepSeek | ✅ | OpenAI-compatible usage; add `pricing_overrides` for DeepSeek models |
-| OpenAI-compatible hosts | 🔧 | Configure `openai_compatible_providers` |
-| Anthropic | ✅ | Claude Opus 4.6/4.1/4, Sonnet 4.6/4.5/4, Haiku 4.5, Claude 3.x |
-| Google Gemini | ✅ | Gemini 2.5 Pro/Flash/Flash-Lite, 2.0 Flash/Flash-Lite, 1.5 Pro/Flash |
-| Any other | 🔧 | Custom parser |
+| OpenAI | Yes | GPT-5.2/5.1/5, GPT-5 mini/nano, GPT-4.1, GPT-4o, o1/o3/o4-mini |
+| OpenRouter | Yes | OpenAI-compatible usage; provider-prefixed OpenAI model IDs normalized when possible |
+| DeepSeek | Yes | OpenAI-compatible usage; add `pricing_overrides` for DeepSeek models |
+| OpenAI-compatible hosts | Config | Configure `openai_compatible_providers` |
+| Anthropic | Yes | Claude Opus 4.6/4.1/4, Sonnet 4.6/4.5/4, Haiku 4.5, Claude 3.x |
+| Google Gemini | Yes | Gemini 2.5 Pro/Flash/Flash-Lite, 2.0 Flash/Flash-Lite, 1.5 Pro/Flash |
+| Any other | Config | Custom parser |
 
-Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenAI-compatible equivalents; Anthropic Messages; Gemini `generateContent` and `streamGenerateContent`. All endpoints support streaming capture.
+Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenAI-compatible equivalents; Anthropic Messages; Gemini `generateContent` and `streamGenerateContent`. Streaming capture is supported for endpoints that emit stream events with final usage.
 
 ## Safety
 
@@ -520,7 +507,7 @@ The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and
 
 - **Configure once at boot.** `LlmCostTracker.configure` deep-freezes `default_tags`, `pricing_overrides`, `report_tag_breakdowns`, and `openai_compatible_providers` when the block returns. Mutating or replacing shared fields through `LlmCostTracker.configuration` raises `FrozenError`.
 - **Use `:active_record` storage for shared ledgers.** Puma workers and Sidekiq processes do not share memory; `:log` and `:custom` backends see per-process state only. `:active_record` writes to a single table and is the right choice for dashboards and budget checks across processes.
-- **Size your connection pool.** Each tracked call on the middleware path issues up to three SQL queries (preflight `SUM`, `INSERT`, post-check `SUM`). Make sure the AR pool covers `puma max_threads + sidekiq concurrency` plus your app's own usage.
+- **Size your connection pool.** Each tracked call on the middleware path uses the host app's ActiveRecord connection for ledger writes, period rollups, and optional budget checks. Make sure the AR pool covers `puma max_threads + sidekiq concurrency` plus your app's own usage.
 - **Don't share a `StreamCollector` across threads you don't own.** The collector itself is thread-safe — `event`, `usage`, and `finish!` synchronize internally and `finish!` is idempotent — but the documented pattern is one collector per stream.
 - **`finish!` is a barrier.** Once a stream is finished, later `event`, `usage`, or `model=` calls raise `FrozenError` instead of mutating a closed collector.
 - **`ActiveSupport::Notifications` subscribers run synchronously** in the caller's thread. Keep them fast or hand off to a background job; otherwise they add latency to every tracked call.
@@ -539,8 +526,7 @@ Architecture rules for future changes live in [`docs/architecture.md`](docs/arch
 
 ```bash
 bundle install
-bundle exec rspec
-bundle exec rubocop
+bin/check
 ```
 
 ## License
