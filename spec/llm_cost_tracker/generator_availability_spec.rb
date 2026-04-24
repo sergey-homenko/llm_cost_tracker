@@ -28,4 +28,10 @@ RSpec.describe "llm_cost_tracker generators" do
       expect(Rails::Generators.find_by_namespace(name, base)&.name).to eq(class_name)
     end
   end
+
+  it "exposes install flags for dashboard mounting and local prices" do
+    generator = Rails::Generators.find_by_namespace("install", "llm_cost_tracker")
+
+    expect(generator.class_options.keys).to include(:dashboard, :prices)
+  end
 end

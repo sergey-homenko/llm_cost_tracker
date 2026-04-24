@@ -161,6 +161,23 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end.to output(/streaming responses are captured automatically/).to_stderr
   end
 
+  it "removes query strings from warning URLs" do
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          [200, { "Content-Type" => "text/event-stream" }, proc {}]
+        end
+      end
+    end
+
+    expect do
+      conn.post("/v1/chat/completions?api_key=secret-token", { model: "gpt-4o" }.to_json)
+    end.to output(
+      a_string_matching(%r{\A(?!.*secret-token).*https://api\.openai\.com/v1/chat/completions;}m)
+    ).to_stderr
+  end
+
   it "raises budget errors from post-response enforcement" do
     LlmCostTracker.configure do |config|
       config.monthly_budget = 0.000001

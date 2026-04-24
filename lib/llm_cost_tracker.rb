@@ -28,6 +28,7 @@ require_relative "llm_cost_tracker/middleware/faraday"
 require_relative "llm_cost_tracker/budget"
 require_relative "llm_cost_tracker/unknown_pricing"
 require_relative "llm_cost_tracker/event_metadata"
+require_relative "llm_cost_tracker/tag_context"
 require_relative "llm_cost_tracker/tags_column"
 require_relative "llm_cost_tracker/tag_key"
 require_relative "llm_cost_tracker/tag_query"
@@ -37,6 +38,7 @@ require_relative "llm_cost_tracker/retention"
 require_relative "llm_cost_tracker/report_data"
 require_relative "llm_cost_tracker/report_formatter"
 require_relative "llm_cost_tracker/report"
+require_relative "llm_cost_tracker/doctor"
 
 module LlmCostTracker
   CONFIGURATION_MUTEX = Monitor.new
@@ -63,10 +65,16 @@ module LlmCostTracker
       CONFIGURATION_MUTEX.synchronize { @configuration = Configuration.new }
       UnknownPricing.reset! if defined?(UnknownPricing)
       Storage::ActiveRecordStore.reset! if defined?(Storage::ActiveRecordStore)
+      TagContext.clear! if defined?(TagContext)
     end
 
     def enforce_budget!
       Tracker.enforce_budget!
+    end
+
+    def with_tags(tags = nil, **kwargs, &)
+      merged = (tags || {}).to_h.merge(kwargs)
+      TagContext.with(merged, &)
     end
 
     def track(provider:, model:, input_tokens:, output_tokens:, latency_ms: nil, stream: false, usage_source: :manual,

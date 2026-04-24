@@ -81,7 +81,7 @@ module LlmCostTracker
           hidden_output_tokens: usage[:hidden_output_tokens],
           pricing_mode: usage[:pricing_mode],
           cost: cost_data,
-          tags: LlmCostTracker.configuration.default_tags.merge(EventMetadata.tags(metadata)).freeze,
+          tags: LlmCostTracker::TagContext.tags.merge(EventMetadata.tags(metadata)).freeze,
           latency_ms: normalized_latency_ms(latency_ms),
           stream: stream ? true : false,
           usage_source: normalized_usage_source(usage_source),

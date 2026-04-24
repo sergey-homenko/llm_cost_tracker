@@ -158,6 +158,68 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(tags[:feature]).to eq("summarize")
     end
 
+    it "evaluates callable default tags for each event" do
+      value = "first"
+      LlmCostTracker.configure do |c|
+        c.default_tags = -> { { request_id: value } }
+      end
+
+      first = described_class.record(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 1,
+        output_tokens: 1
+      )
+      value = "second"
+      second = described_class.record(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 1,
+        output_tokens: 1
+      )
+
+      expect(first.tags).to include(request_id: "first")
+      expect(second.tags).to include(request_id: "second")
+    end
+
+    it "merges scoped tags between default tags and explicit metadata" do
+      LlmCostTracker.configure do |c|
+        c.default_tags = { env: "test", feature: "default" }
+      end
+
+      event = LlmCostTracker.with_tags(feature: "chat", request_id: "req_123") do
+        described_class.record(
+          provider: "openai",
+          model: "gpt-4o",
+          input_tokens: 1,
+          output_tokens: 1,
+          metadata: { feature: "summary", user_id: 42 }
+        )
+      end
+
+      expect(event.tags).to eq(env: "test", feature: "summary", request_id: "req_123", user_id: 42)
+    end
+
+    it "restores scoped tags after the block" do
+      inside = LlmCostTracker.with_tags(request_id: "req_123") do
+        described_class.record(
+          provider: "openai",
+          model: "gpt-4o",
+          input_tokens: 1,
+          output_tokens: 1
+        )
+      end
+      outside = described_class.record(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 1,
+        output_tokens: 1
+      )
+
+      expect(inside.tags).to include(request_id: "req_123")
+      expect(outside.tags).not_to include(:request_id)
+    end
+
     it "keeps internal usage metadata out of tags" do
       event = described_class.record(
         provider: "anthropic",

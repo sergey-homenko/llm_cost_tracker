@@ -1,13 +1,13 @@
 # LLM Cost Tracker
 
-**Self-hosted LLM cost tracking for Ruby and Rails.** Intercepts Faraday LLM responses or records usage explicitly, prices events locally, and stores them in your database. No proxy, no SaaS.
+**Self-hosted LLM cost tracking for Ruby and Rails.** Intercepts Faraday LLM responses or records usage explicitly, prices events locally, and can store them in your database. No proxy, no SaaS.
 
 [![Gem Version](https://img.shields.io/gem/v/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker)
 [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions)
 [![codecov](https://codecov.io/gh/sergey-homenko/llm_cost_tracker/branch/main/graph/badge.svg)](https://codecov.io/gh/sergey-homenko/llm_cost_tracker)
 
-Requires Ruby 3.3+, Rails/ActiveRecord 7.1+, and Faraday 2.0+.
-Core tracking works without Rails; the mounted dashboard requires Rails 7.1+.
+Requires Ruby 3.3+, ActiveSupport 7.1+, and Faraday 2.0+.
+ActiveRecord storage requires ActiveRecord 7.1+. The mounted dashboard requires Rails 7.1+.
 
 ## Why
 
@@ -17,17 +17,17 @@ Every Rails app with LLM integrations eventually runs into the same question: wh
 
 - A local ActiveRecord ledger of provider, model, usage breakdown, cost, latency, tags, streaming usage, and provider response IDs
 - Faraday middleware plus explicit `track` / `track_stream` helpers for non-Faraday clients
-- Server-rendered Rails dashboard with overview, calls, tags, CSV export, and data-quality pages
+- Server-rendered Rails dashboard with overview, models, calls, tags, CSV export, and data-quality pages
 - Local pricing snapshots, price sync tasks, and budget guardrails
 - Prompt and response bodies are never persisted
 
 ## Dashboard
 
-LLM Cost Tracker ships with an optional server-rendered Rails Engine dashboard for spend review, attribution, and data quality checks.
+LLM Cost Tracker ships with a server-rendered Rails Engine dashboard for spend review, attribution, and data quality checks.
 
 ![LLM Cost Tracker dashboard](docs/dashboard-overview.png)
 
-The overview page includes spend trend, budget status, provider breakdown, top models, and filterable slices. The engine also includes Calls, Tags, and Data Quality pages. Plain ERB, no JavaScript bundle.
+The overview page includes spend trend, budget status, provider breakdown, top models, and filterable slices. The engine also includes Models, Calls, Tags, and Data Quality pages. Plain ERB, no JavaScript bundle.
 
 ## Quickstart
 
@@ -36,14 +36,17 @@ gem "llm_cost_tracker"
 ```
 
 ```bash
-bin/rails generate llm_cost_tracker:install
+bin/rails generate llm_cost_tracker:install --dashboard --prices
 bin/rails db:migrate
+bin/rails llm_cost_tracker:doctor
 ```
+
+Skip `--dashboard` if you only want the ledger. Skip `--prices` if you do not want a local pricing file yet.
 
 ```ruby
 LlmCostTracker.configure do |config|
   config.storage_backend = :active_record
-  config.default_tags = { app: "my_app", environment: Rails.env }
+  config.default_tags = -> { { environment: Rails.env } }
 end
 
 OpenAI.configure do |config|
@@ -52,10 +55,6 @@ OpenAI.configure do |config|
     f.use :llm_cost_tracker, tags: -> { { user_id: Current.user&.id, feature: "chat" } }
   end
 end
-```
-
-```ruby
-mount LlmCostTracker::Engine => "/llm-costs"
 ```
 
 After that, LLM Cost Tracker starts recording calls into `llm_api_calls` and the dashboard becomes available at `/llm-costs`.
@@ -71,24 +70,9 @@ Protect the mounted engine with your application's authentication before exposin
 
 ## Usage
 
-### Patch an existing client's Faraday connection
+### Faraday middleware
 
-```ruby
-# config/initializers/openai.rb
-OpenAI.configure do |config|
-  config.access_token = ENV["OPENAI_API_KEY"]
-
-  config.faraday do |f|
-    f.use :llm_cost_tracker, tags: -> {
-      { user_id: Current.user&.id, workflow: Current.workflow, env: Rails.env }
-    }
-  end
-end
-```
-
-`tags:` can be a callable and is evaluated on each request.
-
-### Raw Faraday
+`tags:` can be a hash or callable. Callables are evaluated on each request and may accept the Faraday request env.
 
 ```ruby
 conn = Faraday.new(url: "https://api.openai.com") do |f|
@@ -105,7 +89,7 @@ Place `llm_cost_tracker` inside the Faraday stack where it can see the final res
 
 ### Streaming
 
-Streaming is captured automatically for OpenAI, Anthropic, and Gemini when the request goes through the Faraday middleware. The middleware tees the `on_data` callback, keeps the stream flowing to your code, and records the final usage block once the response completes.
+Streaming is captured automatically for OpenAI, Anthropic, and Gemini when the request goes through the Faraday middleware. The middleware tees the `on_data` callback, keeps the stream flowing to your code, and records provider-reported usage once the response completes.
 
 ```ruby
 # OpenAI: include usage in the final chunk
@@ -117,7 +101,7 @@ client.chat(parameters: {
 })
 ```
 
-Anthropic emits usage in `message_start` + `message_delta` events. Gemini's `:streamGenerateContent` endpoint includes `usageMetadata`; usage from the final chunk is used.
+Anthropic emits usage in `message_start` + `message_delta` events. Gemini's `:streamGenerateContent` endpoint includes `usageMetadata`; the latest usage block is used.
 
 Streamed calls are stored with `stream: true` and `usage_source: "stream_final"`. If the provider never sends final usage, the call is still recorded with `usage_source: "unknown"` so those calls surface on the Data Quality page.
 
@@ -127,10 +111,10 @@ For non-Faraday clients (raw `Net::HTTP`, custom SSE code, Azure OpenAI), use th
 
 ```ruby
 LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o") do |stream|
-  my_client.stream(...) { |chunk| stream.event(chunk) }
+  my_client.stream(...) { |event| stream.event(event.to_h) }
 end
 
-# Or skip the chunk parsing entirely if you already know the totals:
+# Or skip provider event parsing entirely if you already know the totals:
 LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o") do |stream|
   # ... your streaming loop ...
   stream.usage(input_tokens: 120, output_tokens: 45)
@@ -169,34 +153,57 @@ LlmCostTracker.track(
 `cache_read_input_tokens` and cache writes in `cache_write_input_tokens`; total
 tokens are calculated from the canonical billing breakdown.
 
+### Tags
+
+Tags are application context, not provider metadata. LLM Cost Tracker detects provider/model from the response when a parser is available; tags tell you who or what caused the call.
+
+```ruby
+LlmCostTracker.with_tags(user_id: current_user.id, feature: "support_chat", trace_id: request.uuid) do
+  client.chat(parameters: { model: "gpt-4o", messages: [...] })
+end
+```
+
+`default_tags` can be a hash or callable. Scoped tags from `with_tags` apply only inside the block and are isolated per thread/fiber. Explicit tags passed to `track`, `track_stream`, or middleware metadata win over scoped/default tags.
+
 ## Configuration
 
 ```ruby
-# config/initializers/llm_cost_tracker.rb
 LlmCostTracker.configure do |config|
-  config.storage_backend = :active_record # :log (default), :active_record, :custom
-  config.default_tags = { app: "my_app", environment: Rails.env }
-
+  config.storage_backend = :active_record
+  config.default_tags = -> { { environment: Rails.env } }
+  config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
   config.monthly_budget = 500.00
   config.daily_budget = 50.00
   config.per_call_budget = 2.00
-  config.budget_exceeded_behavior = :notify  # :notify, :raise, :block_requests
-  config.storage_error_behavior   = :warn    # :ignore, :warn, :raise
-  config.unknown_pricing_behavior = :warn    # :ignore, :warn, :raise
-
+  config.budget_exceeded_behavior = :notify
   config.on_budget_exceeded = ->(data) {
     SlackNotifier.notify("#alerts", "LLM #{data[:budget_type]} budget $#{data[:total].round(2)} / $#{data[:budget]}")
   }
-
-  config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
-  config.pricing_overrides = {
-    "ft:gpt-4o-mini:my-org" => { input: 0.30, cache_read_input: 0.15, output: 1.20 }
-  }
-
-  # Built-in: openrouter.ai, api.deepseek.com
-  config.openai_compatible_providers["llm.my-company.com"] = "internal_gateway"
 end
 ```
+
+Storage backends: `:log` (default), `:active_record`, `:custom`. Error behaviors: `:ignore`, `:warn`, `:raise`; budget behavior also supports `:block_requests`.
+
+Configuration reference:
+
+| Option | Default | Purpose |
+|---|---:|---|
+| `enabled` | `true` | Turns tracking on/off. |
+| `storage_backend` | `:log` | `:log`, `:active_record`, or `:custom`. |
+| `custom_storage` | `nil` | Callable storage hook for `:custom`. |
+| `default_tags` | `{}` | Hash or callable merged into every event. |
+| `prices_file` | `nil` | Local JSON/YAML price table. |
+| `pricing_overrides` | `{}` | Ruby-side model price overrides. |
+| `monthly_budget` | `nil` | Monthly spend guardrail. |
+| `daily_budget` | `nil` | Daily spend guardrail. |
+| `per_call_budget` | `nil` | Single-event spend guardrail. |
+| `budget_exceeded_behavior` | `:notify` | `:notify`, `:raise`, or `:block_requests`. |
+| `on_budget_exceeded` | `nil` | Callback for budget events. |
+| `storage_error_behavior` | `:warn` | `:ignore`, `:warn`, or `:raise`. |
+| `unknown_pricing_behavior` | `:warn` | `:ignore`, `:warn`, or `:raise`. |
+| `log_level` | `:info` | Log level used by `:log` storage. |
+| `openai_compatible_providers` | OpenRouter + DeepSeek | Host-to-provider map for compatible APIs. |
+| `report_tag_breakdowns` | `[]` | Tag keys included in text reports. |
 
 Pricing is best effort. OpenRouter-style IDs like `openai/gpt-4o-mini` are normalized to built-in names when possible. Use `prices_file` / `pricing_overrides` for fine-tunes, gateway-specific IDs, enterprise discounts, alternate pricing modes, or models the gem does not know.
 Provider-specific entries like `openai/gpt-4o-mini` win over model-only entries like `gpt-4o-mini`.
@@ -204,7 +211,7 @@ Pass `pricing_mode: :batch` to use optional mode-specific keys such as `batch_in
 
 `storage_error_behavior = :warn` (default) lets LLM responses continue if storage fails; `:raise` exposes `StorageError#original_error`.
 
-Unknown pricing still records token counts, but `cost` is `nil` and budget guardrails skip that event. Find unpriced models:
+With `unknown_pricing_behavior = :ignore` or `:warn`, unknown pricing still records token counts, but `cost` is `nil` and budget guardrails skip that event. With `:raise`, the event raises before storage. Find unpriced models:
 
 ```ruby
 LlmCostTracker::LlmApiCall.unknown_pricing.group(:model).count
@@ -216,6 +223,10 @@ Built-in prices live in `lib/llm_cost_tracker/prices.json`. The gem never fetche
 
 ```bash
 bin/rails generate llm_cost_tracker:prices
+```
+
+```ruby
+config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
 ```
 
 ```json
@@ -235,16 +246,16 @@ To refresh prices on demand:
 bin/rails llm_cost_tracker:prices:sync
 ```
 
-`llm_cost_tracker:prices:sync` refreshes the current registry from two structured sources: LiteLLM first, OpenRouter second. LiteLLM is the primary source; OpenRouter fills gaps and helps surface discrepancies.
+`llm_cost_tracker:prices:sync` refreshes a pricing file from two structured sources: LiteLLM first, OpenRouter second. LiteLLM is the primary source; OpenRouter fills gaps and helps surface discrepancies.
 
 `llm_cost_tracker:prices:sync` / `llm_cost_tracker:prices:check` perform HTTP GET requests to:
 
 - LiteLLM pricing JSON: `https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json`
 - OpenRouter Models API: `https://openrouter.ai/api/v1/models`
 
-If `config.prices_file` is configured, the task syncs that file automatically; otherwise it works from the built-in snapshot. `_source: "manual"` entries are never touched. Models that are still in your file but missing from both upstream sources are left alone and reported as orphaned. For intentional custom entries, mark them as manual so they stop showing up in orphaned warnings.
+By default the task writes to `ENV["OUTPUT"]`, then `config.prices_file`, then the gem's bundled `prices.json`, in that order. In production, prefer `OUTPUT=` or `config.prices_file`; the bundled path is mainly useful while developing the gem. `_source: "manual"` entries are never touched. Models that are still in your file but missing from both upstream sources are left alone and reported as orphaned. For intentional custom entries, mark them as manual so they stop showing up in orphaned warnings.
 
-Use `PREVIEW=1` to see the diff without writing. Use `STRICT=1` to fail instead of applying a partial refresh when a source fails or the validator rejects a price. Use `bin/rails llm_cost_tracker:prices:check` in CI to print the current diff and exit non-zero when the snapshot has drifted or refresh fails.
+Use `OUTPUT=config/llm_cost_tracker_prices.yml` to choose a target file explicitly. Use `PREVIEW=1` to see the diff without writing. Use `STRICT=1` to fail instead of applying a partial refresh when a source fails or the validator rejects a price. Use `bin/rails llm_cost_tracker:prices:check` in CI to print the current diff and exit non-zero when the snapshot has drifted or refresh fails.
 
 Large price changes are flagged during sync. If a specific entry is expected to move by more than 3x, add `_validator_override: ["skip_relative_change"]` to that entry in your local price file.
 
@@ -264,7 +275,7 @@ config.budget_exceeded_behavior = :block_requests
 
 `monthly_budget` and `daily_budget` are cumulative ledger limits. `per_call_budget` is a ceiling for a single priced event and runs after the response cost is known.
 
-ActiveRecord installs keep `llm_cost_tracker_period_totals` in sync with atomic upserts. Budget preflight reads period rollups instead of scanning `llm_api_calls`.
+ActiveRecord installs keep `llm_cost_tracker_period_totals` in sync with atomic upserts. Budget preflight reads period rollups when they are available instead of scanning `llm_api_calls`.
 
 ```ruby
 rescue LlmCostTracker::BudgetExceededError => e
@@ -291,7 +302,19 @@ end
 LlmCostTracker.enforce_budget! # standalone preflight
 ```
 
+## Doctor
+
+Run the setup check after install, deploy, or upgrades:
+
+```bash
+bin/rails llm_cost_tracker:doctor
+```
+
+It checks storage mode, ActiveRecord availability, table/column coverage, period rollups, pricing file loading, and whether calls are being recorded. Setup errors exit non-zero; warnings point at optional production hardening.
+
 ## Querying costs
+
+These helpers and rake tasks require ActiveRecord storage.
 
 ```bash
 bin/rails llm_cost_tracker:report
@@ -326,7 +349,7 @@ LlmCostTracker::LlmApiCall.between(1.week.ago, Time.current).cost_by_model
 
 ## Retention
 
-Retention is not enforced automatically. Use the rake task below if you need to delete older records in batches.
+Retention is not enforced automatically. With ActiveRecord storage, use the rake task below if you need to delete older records in batches.
 
 ```bash
 DAYS=90 bin/rails llm_cost_tracker:prune  # delete calls older than N days in batches
@@ -343,10 +366,15 @@ add_index :llm_api_calls, :tags, using: :gin
 
 On other adapters tags fall back to JSON in a text column. `by_tag` uses JSONB containment on PG, text matching elsewhere.
 
-Upgrade an existing install:
+## Upgrading existing installs
+
+Run the generators that match columns missing from older versions:
 
 ```bash
 bin/rails generate llm_cost_tracker:add_period_totals    # shared budget rollups
+bin/rails generate llm_cost_tracker:add_streaming         # stream + usage_source
+bin/rails generate llm_cost_tracker:add_provider_response_id
+bin/rails generate llm_cost_tracker:add_usage_breakdown
 bin/rails generate llm_cost_tracker:upgrade_tags_to_jsonb   # PG: text → jsonb + GIN
 bin/rails generate llm_cost_tracker:upgrade_cost_precision  # widen cost columns
 bin/rails generate llm_cost_tracker:add_latency_ms
@@ -357,7 +385,9 @@ On PostgreSQL, the generated `upgrade_tags_to_jsonb` migration rewrites `llm_api
 
 ## Mounting the dashboard
 
-Optional Rails Engine. Plain ERB, no JavaScript framework, no asset pipeline required. Requires Rails 7.1+; the core middleware works without Rails.
+Optional Rails Engine. Plain ERB, no JavaScript framework, no asset pipeline required. Requires Rails 7.1+; the core middleware works without Rails. The dashboard reads `llm_api_calls`, so use `storage_backend = :active_record` for apps that mount it.
+
+`bin/rails generate llm_cost_tracker:install --dashboard` adds the require and route for you. Manual setup:
 
 ```ruby
 # config/application.rb (or an initializer)
@@ -371,11 +401,11 @@ Routes (GET-only; CSV export included):
 
 - `/llm-costs` — overview: spend with delta vs previous period, budget projection, spend anomaly banner, daily trend vs previous slice, provider rollup, top models
 - `/llm-costs/models` — by provider + model; sortable by spend, volume, avg cost, latency
-- `/llm-costs/calls` — filterable + paginated; outlier sort modes (expensive, largest input/output, slowest, unknown pricing); CSV export
+- `/llm-costs/calls` — filterable + paginated; sort modes for recency, spend, input tokens, output tokens, latency, and unknown pricing; CSV export
 - `/llm-costs/calls/:id` — details with token mix and cost mix breakdowns
 - `/llm-costs/tags` — tag keys present in the dataset (PG/SQLite native; MySQL 8.0+ via JSON_TABLE)
 - `/llm-costs/tags/:key` — breakdown by values of a given tag key
-- `/llm-costs/data_quality` — unknown pricing share, untagged calls, missing latency
+- `/llm-costs/data_quality` — unknown pricing, untagged calls, missing latency, incomplete stream usage, and missing provider response IDs
 
 No built-in auth is included. Tags carry whatever your app puts in them, so protect the mount point with your application's authentication.
 
@@ -414,6 +444,7 @@ ActiveSupport::Notifications.subscribe("llm_request.llm_cost_tracker") do |*, pa
   #     total_cost: 0.000795, currency: "USD"
   #   },
   #   pricing_mode: "batch",
+  #   stream: false, usage_source: "response", provider_response_id: "chatcmpl_123",
   #   tags: { feature: "chat", user_id: 42 },
   #   tracked_at: 2026-04-16 14:30:00 UTC
   # }
@@ -492,12 +523,12 @@ Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenA
 
 ## Safety
 
-**By design, `llm_cost_tracker` never persists prompt or response content.** The only data stored per call is the metadata needed for a cost ledger (provider, model, token counts, cost, latency, tags, provider response ID, HTTP status, and a timestamp). Tags carry whatever your application passes in — treat them as user-controlled input and avoid putting request bodies, completions, or secrets into them.
+**By design, `llm_cost_tracker` never persists prompt or response content.** The only data stored per call is the metadata needed for a cost ledger (provider, model, token counts, cost, latency, tags, provider response ID, and timestamp). Tags carry whatever your application passes in — treat them as user-controlled input and avoid putting request bodies, completions, or secrets into them.
 
 - No external HTTP calls at request-tracking time.
 - No prompt or response bodies stored.
 - Faraday responses not modified.
-- Authorization headers and API keys are never stored or logged.
+- Request headers are never stored. Warning logs strip query strings from URLs before logging.
 - Storage failures non-fatal by default (`storage_error_behavior = :warn`).
 - Budget and unknown-pricing errors are raised only when you opt in.
 
@@ -505,7 +536,7 @@ Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenA
 
 The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and Sidekiq with `concurrency > 1` are both supported. A few rules:
 
-- **Configure once at boot.** `LlmCostTracker.configure` deep-freezes `default_tags`, `pricing_overrides`, `report_tag_breakdowns`, and `openai_compatible_providers` when the block returns. Mutating or replacing shared fields through `LlmCostTracker.configuration` raises `FrozenError`.
+- **Configure once at boot.** `LlmCostTracker.configure` freezes mutable shared configuration when the block returns, and replacing shared fields through `LlmCostTracker.configuration` raises `FrozenError`. If `default_tags` is callable, keep it fast and thread-safe.
 - **Use `:active_record` storage for shared ledgers.** Puma workers and Sidekiq processes do not share memory; `:log` and `:custom` backends see per-process state only. `:active_record` writes to a single table and is the right choice for dashboards and budget checks across processes.
 - **Size your connection pool.** Each tracked call on the middleware path uses the host app's ActiveRecord connection for ledger writes, period rollups, and optional budget checks. Make sure the AR pool covers `puma max_threads + sidekiq concurrency` plus your app's own usage.
 - **Don't share a `StreamCollector` across threads you don't own.** The collector itself is thread-safe — `event`, `usage`, and `finish!` synchronize internally and `finish!` is idempotent — but the documented pattern is one collector per stream.
@@ -518,7 +549,7 @@ The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and
 - `:block_requests` is a best-effort guardrail, not a hard cap. Concurrent workers can pass preflight simultaneously and collectively overshoot the budget. Use an external quota system if you need a transactional cap.
 - Streaming capture relies on the provider emitting a final-usage event (OpenAI needs `stream_options: { include_usage: true }`); missing events are recorded with `usage_source: "unknown"` so they surface on the Data Quality page.
 - `provider_response_id` is stored only when the provider exposes a stable response object ID. Missing IDs stay `nil` and surface on the Data Quality page.
-- Cache write TTL variants (1h vs 5min writes) not modeled separately.
+- Cache write TTL variants (1h vs 5min writes) are not modeled separately.
 
 ## Development
 

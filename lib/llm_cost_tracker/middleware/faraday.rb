@@ -4,6 +4,7 @@ require "faraday"
 require "json"
 
 require_relative "../logging"
+require_relative "../request_url"
 
 module LlmCostTracker
   module Middleware
@@ -76,7 +77,7 @@ module LlmCostTracker
         response_body = read_body(response_env.body)
         unless response_body
           Logging.warn(
-            "Unable to read response body for #{request_url}; " \
+            "Unable to read response body for #{RequestUrl.label(request_url)}; " \
             "streaming responses are captured automatically for OpenAI/Anthropic/Gemini " \
             "or via LlmCostTracker.track_stream for custom clients."
           )
@@ -156,11 +157,11 @@ module LlmCostTracker
 
       def capture_warning(request_url, stream_buffer)
         unless stream_buffer&.dig(:overflowed)
-          return "Unable to capture streaming response for #{request_url}; " \
+          return "Unable to capture streaming response for #{RequestUrl.label(request_url)}; " \
                  "recording usage_source=unknown. Use LlmCostTracker.track_stream for manual capture."
         end
 
-        "Streaming response for #{request_url} exceeded #{STREAM_CAPTURE_LIMIT_BYTES} bytes; " \
+        "Streaming response for #{RequestUrl.label(request_url)} exceeded #{STREAM_CAPTURE_LIMIT_BYTES} bytes; " \
           "recording usage_source=unknown. Use LlmCostTracker.track_stream for manual capture."
       end
     end

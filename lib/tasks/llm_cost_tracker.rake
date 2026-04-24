@@ -2,6 +2,14 @@
 
 # rubocop:disable Metrics/BlockLength
 namespace :llm_cost_tracker do
+  desc "Check LLM Cost Tracker setup"
+  task :doctor do
+    Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
+    checks = LlmCostTracker::Doctor.call
+    puts LlmCostTracker::Doctor.report(checks)
+    abort("llm_cost_tracker: doctor found setup errors") unless LlmCostTracker::Doctor.healthy?(checks)
+  end
+
   desc "Print an LLM cost report from ActiveRecord storage"
   task report: :environment do
     days = (ENV["DAYS"] || LlmCostTracker::Report::DEFAULT_DAYS).to_i

@@ -212,6 +212,31 @@ RSpec.describe "concurrency", :aggregate_failures do
     end
   end
 
+  describe LlmCostTracker::TagContext do
+    it "keeps scoped tags isolated across threads" do
+      recorded = Queue.new
+
+      threads = Array.new(8) do |i|
+        Thread.new do
+          LlmCostTracker.with_tags(request_id: "req_#{i}") do
+            event = LlmCostTracker::Tracker.record(
+              provider: "openai",
+              model: "gpt-4o",
+              input_tokens: 1,
+              output_tokens: 1
+            )
+            recorded << event.tags[:request_id]
+          end
+        end
+      end
+      threads.each(&:join)
+
+      values = []
+      values << recorded.pop until recorded.empty?
+      expect(values.sort).to eq(Array.new(8) { |i| "req_#{i}" })
+    end
+  end
+
   describe "opt-in budget preflight" do
     it "raises before tracking when track opts in" do
       allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(

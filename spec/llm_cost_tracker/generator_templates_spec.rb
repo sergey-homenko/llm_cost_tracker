@@ -42,6 +42,28 @@ RSpec.describe "generator templates" do
     expect(migration).to include("t.text :tags")
   end
 
+  it "provides a complete initializer template" do
+    initializer = template("initializer.rb.erb")
+
+    expect(initializer).to include("config.enabled = true")
+    expect(initializer).to include("config.storage_backend = :active_record")
+    expect(initializer).to include("config.default_tags = -> { { environment: Rails.env } }")
+    expect(initializer).to include("config.budget_exceeded_behavior = :notify")
+    expect(initializer).to include("config.storage_error_behavior = :warn")
+    expect(initializer).to include("config.unknown_pricing_behavior = :warn")
+    expect(initializer).to include("config.log_level = :info")
+    expect(initializer).to include("if options[:prices]")
+    expect(initializer).to include("config.prices_file = Rails.root.join")
+    expect(initializer).to include("# config.monthly_budget = 100.00")
+    expect(initializer).to include("# config.daily_budget = 10.00")
+    expect(initializer).to include("# config.per_call_budget = 1.00")
+    expect(initializer).to include("# config.on_budget_exceeded")
+    expect(initializer).to include("# config.pricing_overrides")
+    expect(initializer).to include("# config.openai_compatible_providers")
+    expect(initializer).to include("# config.report_tag_breakdowns")
+    expect(initializer).to include("# config.custom_storage")
+  end
+
   it "provides a latency upgrade migration" do
     migration = template("add_latency_ms_to_llm_api_calls.rb.erb")
 
