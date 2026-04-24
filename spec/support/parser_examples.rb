@@ -14,3 +14,9 @@ RSpec.shared_examples "a parser with common usage failure handling" do |url:, re
     expect(result).to be_nil
   end
 end
+
+RSpec.shared_examples "a parser with invalid URL handling" do
+  it "returns false for invalid URLs" do
+    expect(parser.match?("https://%zz")).to be false
+  end
+end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "uri"
 
 module LlmCostTracker
   module Parsers
@@ -39,6 +40,21 @@ module LlmCostTracker
         JSON.parse(body)
       rescue JSON::ParserError
         {}
+      end
+
+      def uri_matches?(url)
+        uri = parsed_uri(url)
+        uri ? yield(uri) : false
+      end
+
+      def parsed_uri(url)
+        URI.parse(url.to_s)
+      rescue URI::InvalidURIError
+        nil
+      end
+
+      def host_matches?(uri, hosts)
+        hosts.include?(uri.host.to_s.downcase)
       end
     end
   end

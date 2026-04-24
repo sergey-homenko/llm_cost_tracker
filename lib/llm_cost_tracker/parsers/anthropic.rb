@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "uri"
-
 require_relative "base"
 
 module LlmCostTracker
@@ -10,10 +8,7 @@ module LlmCostTracker
       HOSTS = %w[api.anthropic.com].freeze
 
       def match?(url)
-        uri = URI.parse(url.to_s)
-        HOSTS.include?(uri.host.to_s.downcase) && uri.path.include?("/v1/messages")
-      rescue URI::InvalidURIError
-        false
+        uri_matches?(url) { |uri| host_matches?(uri, HOSTS) && uri.path.include?("/v1/messages") }
       end
 
       def provider_names

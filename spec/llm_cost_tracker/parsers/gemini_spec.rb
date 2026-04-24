@@ -26,6 +26,8 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
   end
 
   describe "#match?" do
+    it_behaves_like "a parser with invalid URL handling"
+
     it "matches Gemini URLs case-insensitively" do
       uppercased_host_url = URI::HTTPS.build(
         host: "GENERATIVELANGUAGE.googleapis.com",

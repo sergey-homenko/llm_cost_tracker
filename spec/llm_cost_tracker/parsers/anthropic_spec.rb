@@ -10,6 +10,8 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
   let(:openai_chat_url) { URI::HTTPS.build(host: "api.openai.com", path: "/v1/chat/completions").to_s }
 
   describe "#match?" do
+    it_behaves_like "a parser with invalid URL handling"
+
     it "matches Anthropic messages URL" do
       expect(parser.match?(anthropic_messages_url)).to be true
     end

@@ -18,6 +18,8 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
   end
 
   describe "#match?" do
+    it_behaves_like "a parser with invalid URL handling"
+
     it "matches OpenRouter chat completions URLs" do
       expect(parser.match?(openrouter_chat_url)).to be true
     end

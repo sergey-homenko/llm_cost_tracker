@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "uri"
-
 require_relative "base"
 
 module LlmCostTracker
@@ -12,10 +10,7 @@ module LlmCostTracker
       STREAM_PATH_PATTERN  = /:streamGenerateContent\z/
 
       def match?(url)
-        uri = URI.parse(url.to_s)
-        HOSTS.include?(uri.host.to_s.downcase) && uri.path.match?(TRACKED_PATH_PATTERN)
-      rescue URI::InvalidURIError
-        false
+        uri_matches?(url) { |uri| host_matches?(uri, HOSTS) && uri.path.match?(TRACKED_PATH_PATTERN) }
       end
 
       def provider_names
@@ -118,17 +113,15 @@ module LlmCostTracker
       end
 
       def streaming_url?(request_url)
-        URI.parse(request_url.to_s).path.match?(STREAM_PATH_PATTERN)
-      rescue URI::InvalidURIError
-        false
+        uri_matches?(request_url) { |uri| uri.path.match?(STREAM_PATH_PATTERN) }
       end
 
       def extract_model_from_url(url)
-        uri = URI.parse(url.to_s)
+        uri = parsed_uri(url)
+        return nil unless uri
+
         match = uri.path.match(%r{/models/([^/:]+)})
         match && match[1]
-      rescue URI::InvalidURIError
-        nil
       end
     end
   end

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "uri"
-
 require_relative "base"
 require_relative "openai_usage"
 
@@ -14,10 +12,7 @@ module LlmCostTracker
       TRACKED_PATHS = %w[/v1/chat/completions /v1/completions /v1/embeddings /v1/responses].freeze
 
       def match?(url)
-        uri = URI.parse(url.to_s)
-        HOSTS.include?(uri.host.to_s.downcase) && TRACKED_PATHS.include?(uri.path)
-      rescue URI::InvalidURIError
-        false
+        uri_matches?(url) { |uri| host_matches?(uri, HOSTS) && TRACKED_PATHS.include?(uri.path) }
       end
 
       def provider_names
