@@ -11,7 +11,7 @@ module LlmCostTracker
       TRACKED_PATH_SUFFIXES = %w[/chat/completions /completions /embeddings /responses].freeze
 
       def match?(url)
-        uri_matches?(url) { |uri| !provider_for_host(uri.host).nil? && tracked_path?(uri.path) }
+        match_uri?(url, path_suffixes: TRACKED_PATH_SUFFIXES) { |uri| provider_for_uri(uri) }
       end
 
       def provider_names
@@ -33,17 +33,13 @@ module LlmCostTracker
 
       def provider_for(request_url)
         uri = parsed_uri(request_url)
-        return "openai_compatible" unless uri
-
-        provider_for_host(uri.host) || "openai_compatible"
+        provider_for_uri(uri) || "openai_compatible"
       end
 
-      def provider_for_host(host)
-        LlmCostTracker.configuration.openai_compatible_providers[host.to_s.downcase]&.to_s
-      end
+      def provider_for_uri(uri)
+        return nil unless uri
 
-      def tracked_path?(path)
-        TRACKED_PATH_SUFFIXES.any? { |suffix| path == suffix || path.end_with?(suffix) }
+        LlmCostTracker.configuration.openai_compatible_providers[uri.host.to_s.downcase]&.to_s
       end
     end
   end

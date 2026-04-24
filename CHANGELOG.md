@@ -8,6 +8,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - Batched ActiveRecord period rollup writes and budget total reads.
 - Install migration adds `[:model, :tracked_at]` composite index and drops redundant single-column `:provider` / `:model` indexes.
+- Data Quality now reads counters and usage sums through one aggregate query.
+- Parser URL matching, stream-event extraction, and custom parser registration now share a smaller base/registry extension surface.
+- Added cookbook recipes for `ruby-openai`, `anthropic-sdk-ruby`, `gemini-ai`, `langchainrb`, Azure OpenAI, and LiteLLM proxy setups.
 
 ## [0.4.0] - 2026-04-24
 

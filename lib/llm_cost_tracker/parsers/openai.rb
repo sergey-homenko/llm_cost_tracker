@@ -12,7 +12,7 @@ module LlmCostTracker
       TRACKED_PATHS = %w[/v1/chat/completions /v1/completions /v1/embeddings /v1/responses].freeze
 
       def match?(url)
-        uri_matches?(url) { |uri| host_matches?(uri, HOSTS) && TRACKED_PATHS.include?(uri.path) }
+        match_uri?(url, hosts: HOSTS, exact_paths: TRACKED_PATHS)
       end
 
       def provider_names

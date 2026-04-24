@@ -29,66 +29,82 @@ module LlmCostTracker
     class DataQuality
       class << self
         def call(scope: LlmCostTracker::LlmApiCall.all)
-          total = scope.count
+          model = scope.klass
+          aggregates = DataQualityAggregate.call(scope: scope)
+          total = aggregates.fetch(:total_calls).to_i
 
           DataQualityStats.new(
             total_calls: total,
-            unknown_pricing_count: scope.unknown_pricing.count,
-            untagged_calls_count: total - scope.with_json_tags.count,
-            **latency_stats(scope),
-            **stream_stats(scope),
-            **provider_response_id_stats(scope),
-            **usage_stats(scope),
+            unknown_pricing_count: aggregates.fetch(:unknown_pricing_count).to_i,
+            untagged_calls_count: total - aggregates.fetch(:tagged_calls_count).to_i,
+            **latency_stats(aggregates, model:),
+            **stream_stats(aggregates, model:),
+            **provider_response_id_stats(aggregates, model:),
+            **usage_stats(aggregates, model:),
             unknown_pricing_by_model: unknown_pricing_by_model(scope)
           )
         end
 
         private
 
-        def latency_stats(scope)
-          latency_present = LlmCostTracker::LlmApiCall.latency_column?
+        def latency_stats(aggregates, model:)
+          latency_present = model.latency_column?
 
           {
-            missing_latency_count: latency_present ? scope.where(latency_ms: nil).count : nil,
+            missing_latency_count: latency_present ? aggregates.fetch(:missing_latency_count).to_i : nil,
             latency_column_present: latency_present
           }
         end
 
-        def stream_stats(scope)
-          stream_present = LlmCostTracker::LlmApiCall.stream_column?
+        def stream_stats(aggregates, model:)
+          stream_present = model.stream_column?
+          usage_source_present = model.usage_source_column?
+          streaming_missing_usage_count = nil
+          if stream_present && usage_source_present
+            streaming_missing_usage_count = aggregates.fetch(:streaming_missing_usage_count).to_i
+          end
 
           {
-            streaming_count: stream_present ? scope.streaming.count : nil,
-            streaming_missing_usage_count: streaming_missing_usage_count(scope, stream_present),
+            streaming_count: stream_present ? aggregates.fetch(:streaming_count).to_i : nil,
+            streaming_missing_usage_count: streaming_missing_usage_count,
             stream_column_present: stream_present
           }
         end
 
-        def provider_response_id_stats(scope)
-          column_present = LlmCostTracker::LlmApiCall.provider_response_id_column?
+        def provider_response_id_stats(aggregates, model:)
+          column_present = model.provider_response_id_column?
+          missing_provider_response_id_count = nil
+          if column_present
+            missing_provider_response_id_count = aggregates.fetch(:missing_provider_response_id_count).to_i
+          end
 
           {
-            missing_provider_response_id_count: column_present ? scope.missing_provider_response_id.count : nil,
+            missing_provider_response_id_count: missing_provider_response_id_count,
             provider_response_id_column_present: column_present
           }
         end
 
-        def usage_stats(scope)
-          usage_breakdown_present = LlmCostTracker::LlmApiCall.usage_breakdown_columns?
-          usage_breakdown_cost_present = LlmCostTracker::LlmApiCall.usage_breakdown_cost_columns?
-          sums = sum_columns(scope, usage_sum_columns(usage_breakdown_present, usage_breakdown_cost_present))
+        def usage_stats(aggregates, model:)
+          usage_breakdown_present = model.usage_breakdown_columns?
+          usage_breakdown_cost_present = model.usage_breakdown_cost_columns?
+          cache_read_input_cost = nil
+          cache_write_input_cost = nil
+          if usage_breakdown_cost_present
+            cache_read_input_cost = decimal_sum(aggregates.fetch(:cache_read_input_cost))
+            cache_write_input_cost = decimal_sum(aggregates.fetch(:cache_write_input_cost))
+          end
 
           {
             usage_breakdown_column_present: usage_breakdown_present,
-            input_tokens: sums[:input_tokens].to_i,
-            cache_read_input_tokens: usage_breakdown_present ? sums[:cache_read_input_tokens].to_i : nil,
-            cache_write_input_tokens: usage_breakdown_present ? sums[:cache_write_input_tokens].to_i : nil,
-            output_tokens: sums[:output_tokens].to_i,
-            hidden_output_tokens: usage_breakdown_present ? sums[:hidden_output_tokens].to_i : nil,
-            input_cost: decimal_sum(sums[:input_cost]),
-            cache_read_input_cost: usage_breakdown_cost_present ? decimal_sum(sums[:cache_read_input_cost]) : nil,
-            cache_write_input_cost: usage_breakdown_cost_present ? decimal_sum(sums[:cache_write_input_cost]) : nil,
-            output_cost: decimal_sum(sums[:output_cost])
+            input_tokens: aggregates.fetch(:input_tokens).to_i,
+            cache_read_input_tokens: usage_breakdown_present ? aggregates.fetch(:cache_read_input_tokens).to_i : nil,
+            cache_write_input_tokens: usage_breakdown_present ? aggregates.fetch(:cache_write_input_tokens).to_i : nil,
+            output_tokens: aggregates.fetch(:output_tokens).to_i,
+            hidden_output_tokens: usage_breakdown_present ? aggregates.fetch(:hidden_output_tokens).to_i : nil,
+            input_cost: decimal_sum(aggregates.fetch(:input_cost)),
+            cache_read_input_cost: cache_read_input_cost,
+            cache_write_input_cost: cache_write_input_cost,
+            output_cost: decimal_sum(aggregates.fetch(:output_cost))
           }
         end
 
@@ -101,12 +117,6 @@ module LlmCostTracker
           columns
         end
 
-        def streaming_missing_usage_count(scope, stream_present)
-          return unless stream_present && LlmCostTracker::LlmApiCall.usage_source_column?
-
-          scope.streaming_missing_usage.count
-        end
-
         def unknown_pricing_by_model(scope)
           scope.unknown_pricing
                .group(:model)
@@ -114,16 +124,6 @@ module LlmCostTracker
                .count
                .first(10)
                .to_h
-        end
-
-        def sum_columns(scope, columns)
-          values = scope.unscope(:order).pick(*columns.map { |column| sum_expression(scope, column) })
-
-          columns.zip(values).to_h
-        end
-
-        def sum_expression(scope, column)
-          Arel.sql("COALESCE(SUM(#{scope.connection.quote_column_name(column)}), 0)")
         end
 
         def decimal_sum(value)

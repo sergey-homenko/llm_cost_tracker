@@ -161,6 +161,8 @@ end
 
 Run `bin/rails g llm_cost_tracker:add_streaming` once on existing installs to add the `stream` and `usage_source` columns. Run `bin/rails g llm_cost_tracker:add_provider_response_id` to persist provider-issued response IDs. Run `bin/rails g llm_cost_tracker:add_usage_breakdown` to add cache-read, cache-write, hidden-output, and pricing-mode columns.
 
+More client-specific snippets live in [`docs/cookbook.md`](docs/cookbook.md).
+
 ### Manual tracking
 
 ```ruby
@@ -456,21 +458,23 @@ Configured hosts are parsed using the OpenAI-compatible usage shape (`prompt_tok
 For providers with a non-OpenAI usage shape:
 
 ```ruby
-require "uri"
-
 class AcmeParser < LlmCostTracker::Parsers::Base
-  def match?(url)
-    uri = URI.parse(url.to_s)
-    uri.host == "api.acme-llm.example" && uri.path == "/v1/generate"
-  rescue URI::InvalidURIError
-    false
+  HOSTS = %w[api.acme-llm.example].freeze
+  TRACKED_PATHS = %w[/v1/generate].freeze
+
+  def provider_names
+    %w[acme]
   end
 
-  def parse(request_url, request_body, response_status, response_body)
+  def match?(url)
+    match_uri?(url, hosts: HOSTS, exact_paths: TRACKED_PATHS)
+  end
+
+  def parse(_request_url, _request_body, response_status, response_body)
     return nil unless response_status == 200
 
     payload = safe_json_parse(response_body)
-    usage = payload&.dig("usage")
+    usage = payload.dig("usage")
     return nil unless usage
 
     LlmCostTracker::ParsedUsage.build(
@@ -482,7 +486,7 @@ class AcmeParser < LlmCostTracker::Parsers::Base
   end
 end
 
-LlmCostTracker::Parsers::Registry.register(AcmeParser.new)
+LlmCostTracker::Parsers::Registry.register(AcmeParser)
 ```
 
 ## Supported providers
@@ -531,7 +535,7 @@ The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and
 
 ## Development
 
-Architecture rules for future changes live in [`docs/architecture.md`](docs/architecture.md).
+Architecture rules for future changes live in [`docs/architecture.md`](docs/architecture.md). Integration recipes live in [`docs/cookbook.md`](docs/cookbook.md).
 
 ```bash
 bundle install

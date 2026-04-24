@@ -8,7 +8,7 @@ module LlmCostTracker
       HOSTS = %w[api.anthropic.com].freeze
 
       def match?(url)
-        uri_matches?(url) { |uri| host_matches?(uri, HOSTS) && uri.path.include?("/v1/messages") }
+        match_uri?(url, hosts: HOSTS, path_includes: "/v1/messages")
       end
 
       def provider_names
@@ -47,25 +47,25 @@ module LlmCostTracker
         usage = stream_usage(events)
         response_id = stream_response_id(events)
 
-        usage ? build_stream_result(model, usage, response_id) : build_unknown_stream_result(model, response_id)
+        if usage
+          build_stream_result(model, usage, response_id)
+        else
+          build_unknown_stream_usage(
+            provider: "anthropic",
+            model: model,
+            provider_response_id: response_id
+          )
+        end
       end
 
       private
 
       def stream_usage(events)
-        start_usage = nil
-        latest_delta = nil
-
-        events.each do |event|
-          data = event[:data]
-          next unless data.is_a?(Hash)
-
-          case data["type"]
-          when "message_start"
-            start_usage = data.dig("message", "usage")
-          when "message_delta"
-            latest_delta = data["usage"] if data["usage"].is_a?(Hash)
-          end
+        start_usage = find_event_value(events, reverse: true) do |data|
+          data.dig("message", "usage") if data["type"] == "message_start"
+        end
+        latest_delta = find_event_value(events, reverse: true) do |data|
+          data["usage"] if data["type"] == "message_delta" && data["usage"].is_a?(Hash)
         end
 
         return nil unless start_usage || latest_delta
@@ -76,25 +76,11 @@ module LlmCostTracker
       end
 
       def stream_model(events)
-        events.each do |event|
-          data = event[:data]
-          next unless data.is_a?(Hash)
-
-          model = data.dig("message", "model")
-          return model if model && !model.empty?
-        end
-        nil
+        find_event_value(events) { |data| data.dig("message", "model") }
       end
 
       def stream_response_id(events)
-        events.each do |event|
-          data = event[:data]
-          next unless data.is_a?(Hash)
-
-          id = data.dig("message", "id") || data["id"]
-          return id if id && !id.to_s.empty?
-        end
-        nil
+        find_event_value(events) { |data| data.dig("message", "id") || data["id"] }
       end
 
       def build_stream_result(model, usage, response_id)
@@ -114,19 +100,6 @@ module LlmCostTracker
           cache_write_input_tokens: usage["cache_creation_input_tokens"],
           stream: true,
           usage_source: :stream_final
-        )
-      end
-
-      def build_unknown_stream_result(model, response_id)
-        ParsedUsage.build(
-          provider: "anthropic",
-          provider_response_id: response_id,
-          model: model,
-          input_tokens: 0,
-          output_tokens: 0,
-          total_tokens: 0,
-          stream: true,
-          usage_source: :unknown
         )
       end
     end

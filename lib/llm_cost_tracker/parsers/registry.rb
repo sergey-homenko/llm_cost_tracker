@@ -13,10 +13,14 @@ module LlmCostTracker
         end
 
         def register(parser)
+          parser = coerce_parser(parser)
+
           MUTEX.synchronize do
             current = @parsers || default_parsers.freeze
             @parsers = ([parser] + current).freeze
           end
+
+          parser
         end
 
         def find_for(url)
@@ -24,7 +28,7 @@ module LlmCostTracker
         end
 
         def find_for_provider(provider)
-          provider_name = provider.to_s
+          provider_name = provider.to_s.downcase
           parsers.find { |parser| parser.provider_names.include?(provider_name) }
         end
 
@@ -33,6 +37,13 @@ module LlmCostTracker
         end
 
         private
+
+        def coerce_parser(parser)
+          return parser.new if parser.is_a?(Class) && parser <= Base
+          return parser if parser.is_a?(Base)
+
+          raise ArgumentError, "parser must be a LlmCostTracker::Parsers::Base instance or class"
+        end
 
         def default_parsers
           [Openai.new, OpenaiCompatible.new, Anthropic.new, Gemini.new]

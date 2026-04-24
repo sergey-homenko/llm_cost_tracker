@@ -10,7 +10,7 @@ module LlmCostTracker
       STREAM_PATH_PATTERN  = /:streamGenerateContent\z/
 
       def match?(url)
-        uri_matches?(url) { |uri| host_matches?(uri, HOSTS) && uri.path.match?(TRACKED_PATH_PATTERN) }
+        match_uri?(url, hosts: HOSTS, path_pattern: TRACKED_PATH_PATTERN)
       end
 
       def provider_names
@@ -43,6 +43,7 @@ module LlmCostTracker
 
         usage = merged_stream_usage(events)
         model = extract_model_from_url(request_url)
+        response_id = stream_response_id(events)
 
         if usage
           build_parsed_usage(
@@ -50,18 +51,13 @@ module LlmCostTracker
             usage,
             stream: true,
             usage_source: :stream_final,
-            provider_response_id: stream_response_id(events)
+            provider_response_id: response_id
           )
         else
-          ParsedUsage.build(
+          build_unknown_stream_usage(
             provider: "gemini",
-            provider_response_id: stream_response_id(events),
             model: model,
-            input_tokens: 0,
-            output_tokens: 0,
-            total_tokens: 0,
-            stream: true,
-            usage_source: :unknown
+            provider_response_id: response_id
           )
         end
       end
@@ -86,15 +82,10 @@ module LlmCostTracker
       end
 
       def merged_stream_usage(events)
-        latest = nil
-        events.each do |event|
-          data = event[:data]
-          next unless data.is_a?(Hash)
-
+        find_event_value(events, reverse: true) do |data|
           meta = data["usageMetadata"]
-          latest = meta if meta.is_a?(Hash)
+          meta if meta.is_a?(Hash)
         end
-        latest
       end
 
       def output_tokens(usage)
@@ -102,18 +93,11 @@ module LlmCostTracker
       end
 
       def stream_response_id(events)
-        events.each do |event|
-          data = event[:data]
-          next unless data.is_a?(Hash)
-
-          id = data["responseId"]
-          return id if id && !id.to_s.empty?
-        end
-        nil
+        find_event_value(events) { |data| data["responseId"] }
       end
 
       def streaming_url?(request_url)
-        uri_matches?(request_url) { |uri| uri.path.match?(STREAM_PATH_PATTERN) }
+        match_uri?(request_url, path_pattern: STREAM_PATH_PATTERN)
       end
 
       def extract_model_from_url(url)

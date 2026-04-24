@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "active_record"
+require "active_support/notifications"
+require "llm_cost_tracker/llm_api_call"
 
 ENV["RAILS_ENV"] ||= "test"
 
@@ -115,6 +118,23 @@ RSpec.describe "LlmCostTracker dashboard services" do
       attrs.delete(:cache_write_input_cost)
     end
     attrs.delete(:pricing_mode) unless LlmCostTracker::LlmApiCall.pricing_mode_column?
+  end
+
+  def capture_llm_api_call_selects
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+      sql = payload[:sql].to_s
+      next if payload[:name] == "SCHEMA"
+      next unless sql.match?(/\ASELECT/i)
+      next unless sql.include?("llm_api_calls")
+
+      statements << sql
+    end
+
+    yield
+    statements
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 
   before do
@@ -582,6 +602,21 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.cache_read_input_cost).to eq(0.03)
       expect(stats.cache_write_input_cost).to eq(0.03)
       expect(stats.output_cost).to eq(0.6)
+    end
+
+    it "reads aggregate counters and sums without count fan-out" do
+      create_call(total_cost: 1.0, tags: { env: "prod" }, latency_ms: 100)
+      create_call(total_cost: nil, tags: {})
+
+      LlmCostTracker::LlmApiCall.latency_column?
+      LlmCostTracker::LlmApiCall.stream_column?
+      LlmCostTracker::LlmApiCall.provider_response_id_column?
+      LlmCostTracker::LlmApiCall.usage_breakdown_columns?
+      LlmCostTracker::LlmApiCall.usage_breakdown_cost_columns?
+
+      statements = capture_llm_api_call_selects { described_class.call }
+
+      expect(statements.size).to eq(2)
     end
 
     it "reports usage breakdown absence when the schema lacks canonical breakdown columns" do

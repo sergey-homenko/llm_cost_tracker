@@ -34,12 +34,13 @@ module LlmCostTracker
         request = safe_json_parse(request_body)
         model = detect_stream_model(events) || request["model"]
         usage = detect_stream_usage(events)
+        response_id = detect_stream_response_id(events)
 
         if usage
           cache_read = cache_read_input_tokens(usage)
           ParsedUsage.build(
             provider: provider_for(request_url),
-            provider_response_id: detect_stream_response_id(events),
+            provider_response_id: response_id,
             model: model,
             input_tokens: regular_input_tokens(usage, cache_read),
             output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
@@ -50,50 +51,27 @@ module LlmCostTracker
             usage_source: :stream_final
           )
         else
-          ParsedUsage.build(
+          build_unknown_stream_usage(
             provider: provider_for(request_url),
-            provider_response_id: detect_stream_response_id(events),
             model: model,
-            input_tokens: 0,
-            output_tokens: 0,
-            total_tokens: 0,
-            stream: true,
-            usage_source: :unknown
+            provider_response_id: response_id
           )
         end
       end
 
       def detect_stream_usage(events)
-        events.reverse_each do |event|
-          data = event[:data]
-          next unless data.is_a?(Hash)
-
+        find_event_value(events, reverse: true) do |data|
           usage = data["usage"]
-          return usage if usage.is_a?(Hash) && !usage.empty?
+          usage if usage.is_a?(Hash)
         end
-        nil
       end
 
       def detect_stream_model(events)
-        events.each do |event|
-          data = event[:data]
-          next unless data.is_a?(Hash)
-
-          model = data["model"]
-          return model if model && !model.to_s.empty?
-        end
-        nil
+        find_event_value(events) { |data| data["model"] }
       end
 
       def detect_stream_response_id(events)
-        events.each do |event|
-          data = event[:data]
-          next unless data.is_a?(Hash)
-
-          id = data["id"] || data.dig("response", "id")
-          return id if id && !id.to_s.empty?
-        end
-        nil
+        find_event_value(events) { |data| data["id"] || data.dig("response", "id") }
       end
 
       def regular_input_tokens(usage, cache_read)
