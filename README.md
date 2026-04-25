@@ -225,7 +225,7 @@ LlmCostTracker::LlmApiCall.unknown_pricing.group(:model).count
 
 ### Keeping prices current
 
-Built-in prices live in `lib/llm_cost_tracker/prices.json`. The gem never fetches pricing on boot. For production, keep a local snapshot under `config/` and point the gem at it:
+Built-in prices live in `lib/llm_cost_tracker/prices.json`. The gem never fetches pricing on boot. For production, generate a local snapshot from the bundled registry, keep it under source control, and point the gem at it:
 
 ```bash
 bin/rails generate llm_cost_tracker:prices
@@ -235,16 +235,23 @@ bin/rails generate llm_cost_tracker:prices
 config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
 ```
 
-```json
-{
-  "metadata": { "updated_at": "2026-04-18", "currency": "USD", "unit": "1M tokens" },
-  "models": {
-    "my-gateway/gpt-4o-mini": { "input": 0.20, "cache_read_input": 0.10, "output": 0.80, "batch_input": 0.10, "batch_output": 0.40 }
-  }
-}
+The generated file has the same shape as the bundled registry:
+
+```yaml
+metadata:
+  updated_at: "2026-04-25"
+  currency: USD
+  unit: 1M tokens
+models:
+  my-gateway/gpt-4o-mini:
+    input: 0.20
+    cache_read_input: 0.10
+    output: 0.80
+    batch_input: 0.10
+    batch_output: 0.40
 ```
 
-`pricing_overrides` has the highest precedence. Use it for a handful of Ruby-side overrides; use `prices_file` when you want a local pricing table under source control.
+Pricing precedence is `pricing_overrides`, then `prices_file`, then bundled prices. Use `prices_file` for the app's source-controlled snapshot and `pricing_overrides` only for a handful of Ruby-side emergency overrides.
 
 To refresh prices on demand:
 

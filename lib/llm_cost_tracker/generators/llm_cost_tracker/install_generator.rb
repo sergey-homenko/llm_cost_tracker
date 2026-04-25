@@ -31,10 +31,7 @@ module LlmCostTracker
       def create_prices_file
         return unless options[:prices]
 
-        template(
-          "llm_cost_tracker_prices.yml.erb",
-          "config/llm_cost_tracker_prices.yml"
-        )
+        invoke "llm_cost_tracker:prices"
       end
 
       def mount_engine

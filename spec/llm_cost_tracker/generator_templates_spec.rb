@@ -1,7 +1,12 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "json"
+require "tmpdir"
 require "yaml"
+
+require "llm_cost_tracker/price_registry"
+require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 
 RSpec.describe "generator templates" do
   def template(name)
@@ -140,18 +145,16 @@ RSpec.describe "generator templates" do
     expect(migration).to include("rewrites the table on PostgreSQL")
   end
 
-  it "provides a valid local prices override template" do
-    prices_template = template("llm_cost_tracker_prices.yml.erb")
-    parsed = YAML.safe_load(prices_template.gsub(/^#.*$/, ""), aliases: false)
-    supported_keys = %w[
-      input output cache_read_input cache_write_input batch_input batch_output _source _source_version _fetched_at
-      _updated _notes _validator_override
-    ]
-    example_keys = prices_template.scan(/^#\s+([a-z_]+):/).flatten - ["models"]
+  it "generates a local prices snapshot from bundled prices" do
+    expected = JSON.parse(File.read(LlmCostTracker::PriceRegistry::DEFAULT_PRICES_PATH))
 
-    expect(parsed).to eq("models" => nil)
-    expect(example_keys - supported_keys).to be_empty
-    expect(prices_template).to include("Supported price keys")
-    expect(prices_template).to include("_updated")
+    Dir.mktmpdir do |dir|
+      LlmCostTracker::Generators::PricesGenerator.start([], destination_root: dir)
+      path = File.join(dir, "config/llm_cost_tracker_prices.yml")
+      parsed = YAML.safe_load_file(path, aliases: false)
+
+      expect(parsed.fetch("metadata")).to eq(expected.fetch("metadata"))
+      expect(parsed.fetch("models")).to eq(expected.fetch("models"))
+    end
   end
 end
