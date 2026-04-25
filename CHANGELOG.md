@@ -7,7 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - Pricing fuzzy matching now only accepts dated snapshot suffixes instead of guessing new model families.
-- Built-in prices include GPT-5.5, GPT-5.4 variants, and Claude Opus 4.7.
+- Built-in prices include GPT-5.5/5.4 variants and remove retired Claude/Gemini entries.
 - Missing model identifiers now normalize to `unknown` instead of leaking nil into tracked events.
 - `llm_cost_tracker:prices` now generates a full local price snapshot instead of an empty override file.
 

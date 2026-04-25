@@ -2,6 +2,7 @@
 
 require "digest"
 require "net/http"
+require "openssl"
 require "time"
 require "uri"
 
@@ -52,7 +53,7 @@ module LlmCostTracker
         else
           raise Error, "Unable to fetch #{url}: HTTP #{response.code}"
         end
-      rescue SocketError, SystemCallError, Timeout::Error => e
+      rescue OpenSSL::SSL::SSLError, SocketError, SystemCallError, Timeout::Error => e
         raise Error, "Unable to fetch #{url}: #{e.class}: #{e.message}"
       end
 

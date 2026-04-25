@@ -16,7 +16,7 @@ Every Rails app with LLM integrations eventually runs into the same question: wh
 ## What You Get
 
 - A local ActiveRecord ledger of provider, model, usage breakdown, cost, latency, tags, streaming usage, and provider response IDs
-- Optional official OpenAI and Anthropic SDK integrations, plus automatic Faraday middleware
+- Optional official OpenAI and Anthropic SDK integrations, plus Faraday middleware for custom clients
 - Explicit `track` / `track_stream` helpers as a fallback for unsupported clients
 - Server-rendered Rails dashboard with overview, models, calls, tags, CSV export, and data-quality pages
 - Local pricing snapshots, price sync tasks, and budget guardrails
@@ -99,9 +99,9 @@ LlmCostTracker.with_tags(feature: "support_chat", user_id: Current.user&.id) do
 end
 ```
 
-Community clients such as `ruby-openai` are not patched by `instrument`. `ruby-openai` exposes a Faraday block on its constructor and is covered by the middleware below. See [`docs/cookbook.md`](docs/cookbook.md) for the exact setup.
+Community clients such as `ruby-openai` are not patched by `instrument`. `ruby-openai` exposes a Faraday block on its constructor and is covered by the middleware below.
 
-Google does not currently publish an official Ruby SDK for the Gemini API. Use the Faraday middleware against Gemini's REST API, or keep custom clients behind the fallback helpers until a stable SDK integration exists.
+Google's official Gemini SDKs do not include Ruby. Use the Faraday middleware against Gemini's REST API, or keep custom clients behind the fallback helpers until a stable SDK integration exists.
 
 ### Faraday middleware
 
@@ -120,7 +120,7 @@ conn.post("/v1/responses", { model: "gpt-5-mini", input: "Hello!" })
 
 Place `llm_cost_tracker` inside the Faraday stack where it can see the final response body.
 
-The same middleware covers `ruby-openai` through its constructor block. See [`docs/cookbook.md`](docs/cookbook.md) for the exact configuration.
+The same middleware covers `ruby-openai` through its constructor block.
 
 ### Streaming
 
@@ -311,6 +311,8 @@ The task writes to `ENV["OUTPUT"]`, then `config.prices_file`, in that order. It
 Use `OUTPUT=config/llm_cost_tracker_prices.yml` to choose a target file explicitly. Use `PREVIEW=1` to see the diff without writing. Use `STRICT=1` to fail instead of applying a partial refresh when a source fails or the validator rejects a price. Use `bin/rails llm_cost_tracker:prices:check` in CI to print the current diff and exit non-zero when the snapshot has drifted or refresh fails.
 
 Large price changes are flagged during sync. If a specific entry is expected to move by more than 3x, add `_validator_override: ["skip_relative_change"]` to that entry in your local price file.
+
+If sync reports `certificate verify failed`, fix the host Ruby/OpenSSL trust store rather than disabling TLS verification. Common fixes are installing `ca-certificates` in Docker/Linux images, configuring the corporate proxy CA, setting `SSL_CERT_FILE` to the system CA bundle, or rebuilding rbenv/asdf Ruby after an OpenSSL upgrade.
 
 For unattended updates, run the check daily and sync through review:
 
@@ -573,12 +575,12 @@ LlmCostTracker::Parsers::Registry.register(AcmeParser)
 
 | Provider | Auto-detected | Models with pricing |
 |---|:---:|---|
-| OpenAI | Yes | GPT-5.5/5.4/5.2/5.1/5, GPT-5.4 mini/nano, GPT-5 mini/nano, GPT-4.1, GPT-4o, o1/o3/o4-mini |
+| OpenAI | Yes | GPT-5.5/5.4/5.2/5.1/5, GPT-5.5/5.4/5.2/5 pro, GPT-5.4 mini/nano, GPT-5 mini/nano, GPT-4.1, GPT-4o, o1/o3/o4-mini |
 | OpenRouter | Yes | OpenAI-compatible usage; provider-prefixed OpenAI model IDs normalized when possible |
 | DeepSeek | Yes | OpenAI-compatible usage; add `pricing_overrides` for DeepSeek models |
 | OpenAI-compatible hosts | Config | Configure `openai_compatible_providers` |
-| Anthropic | Yes | Claude Opus 4.7/4.6/4.1/4, Sonnet 4.6/4.5/4, Haiku 4.5, Claude 3.x |
-| Google Gemini | Yes | Gemini 2.5 Pro/Flash/Flash-Lite, 2.0 Flash/Flash-Lite, 1.5 Pro/Flash |
+| Anthropic | Yes | Claude Opus 4.7/4.6/4.5/4.1/4, Sonnet 4.6/4.5/4, Haiku 4.5 |
+| Google Gemini | Yes | Gemini 2.5 Pro/Flash/Flash-Lite, 2.0 Flash/Flash-Lite |
 | Any other | Config | Custom parser |
 
 Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenAI-compatible equivalents; Anthropic Messages; Gemini `generateContent` and `streamGenerateContent`. Official SDK integrations currently cover non-streaming OpenAI Responses / Chat Completions and Anthropic Messages. Streaming capture is supported for Faraday endpoints that emit stream events with final usage.

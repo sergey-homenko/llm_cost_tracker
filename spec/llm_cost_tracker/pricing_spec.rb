@@ -105,9 +105,16 @@ RSpec.describe LlmCostTracker::Pricing do
         cache_read_input_tokens: 1_000_000,
         output_tokens: 1_000_000
       )
+      gpt55pro = described_class.cost_for(
+        provider: "openai",
+        model: "gpt-5.5-pro",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
 
       expect(gpt54.total_cost).to eq(17.75)
       expect(gpt55.total_cost).to eq(35.5)
+      expect(gpt55pro.total_cost).to eq(420.0)
     end
 
     it "prices current GPT-5.4 variants exactly" do

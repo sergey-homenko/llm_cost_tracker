@@ -199,6 +199,7 @@ RSpec.describe LlmCostTracker::PriceSync do
 
         expect(result.written).to be(false)
         expect(result.failed_sources.keys).to contain_exactly(:litellm, :openrouter)
+        expect(result.orphaned_models).to eq([])
         expect(File.exist?(output_path)).to be(false)
       end
     end

@@ -31,7 +31,7 @@ module LlmCostTracker
           ),
           accepted: validated.accepted,
           changes: price_changes(current_models, updated_models),
-          orphaned_models: compute_orphaned(current_models, merged.keys),
+          orphaned_models: compute_orphaned(current_models, merged.keys, source_results),
           failed_sources: failed_sources,
           discrepancies: discrepancies,
           rejected: validated.rejected,
@@ -70,7 +70,9 @@ module LlmCostTracker
         merged.sort.to_h
       end
 
-      def compute_orphaned(current_models, merged_models)
+      def compute_orphaned(current_models, merged_models, source_results)
+        return [] if source_results.empty?
+
         seed_models(current_models).keys.reject do |model|
           manual_model?(current_models[model]) || merged_models.include?(model)
         end.sort

@@ -4,54 +4,401 @@
     "currency": "USD",
     "unit": "1M tokens",
     "source_urls": [
-      "https://openai.com/api/pricing",
-      "https://www.anthropic.com/pricing",
-      "https://ai.google.dev/gemini-api/docs/pricing"
+      "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
+      "https://openrouter.ai/api/v1/models"
     ]
   },
   "models": {
-    "gpt-5.5": { "input": 5.0, "cache_read_input": 0.5, "output": 30.0 },
-    "gpt-5.4-pro": { "input": 30.0, "output": 180.0 },
-    "gpt-5.4": { "input": 2.5, "cache_read_input": 0.25, "output": 15.0 },
-    "gpt-5.4-mini": { "input": 0.75, "cache_read_input": 0.075, "output": 4.5 },
-    "gpt-5.4-nano": { "input": 0.2, "cache_read_input": 0.02, "output": 1.25 },
-    "gpt-5.2": { "input": 1.75, "cache_read_input": 0.175, "output": 14.0 },
-    "gpt-5.1": { "input": 1.25, "cache_read_input": 0.125, "output": 10.0 },
-    "gpt-5": { "input": 1.25, "cache_read_input": 0.125, "output": 10.0 },
-    "gpt-5-mini": { "input": 0.25, "cache_read_input": 0.025, "output": 2.0 },
-    "gpt-5-nano": { "input": 0.05, "cache_read_input": 0.005, "output": 0.4 },
-    "gpt-4.1": { "input": 2.0, "cache_read_input": 0.5, "output": 8.0 },
-    "gpt-4.1-mini": { "input": 0.4, "cache_read_input": 0.1, "output": 1.6 },
-    "gpt-4.1-nano": { "input": 0.1, "cache_read_input": 0.025, "output": 0.4 },
-    "gpt-4o-2024-05-13": { "input": 5.0, "output": 15.0 },
-    "gpt-4o": { "input": 2.5, "cache_read_input": 1.25, "output": 10.0 },
-    "gpt-4o-mini": { "input": 0.15, "cache_read_input": 0.075, "output": 0.6 },
-    "gpt-4-turbo": { "input": 10.0, "output": 30.0 },
-    "gpt-4": { "input": 30.0, "output": 60.0 },
-    "gpt-3.5-turbo": { "input": 0.5, "output": 1.5 },
-    "o1": { "input": 15.0, "cache_read_input": 7.5, "output": 60.0 },
-    "o1-mini": { "input": 1.1, "cache_read_input": 0.55, "output": 4.4 },
-    "o3": { "input": 2.0, "cache_read_input": 0.5, "output": 8.0 },
-    "o3-mini": { "input": 1.1, "cache_read_input": 0.55, "output": 4.4 },
-    "o4-mini": { "input": 1.1, "cache_read_input": 0.275, "output": 4.4 },
-    "claude-opus-4-7": { "input": 5.0, "output": 25.0, "cache_read_input": 0.5, "cache_write_input": 6.25 },
-    "claude-sonnet-4-6": { "input": 3.0, "output": 15.0, "cache_read_input": 0.3, "cache_write_input": 3.75 },
-    "claude-opus-4-6": { "input": 5.0, "output": 25.0, "cache_read_input": 0.5, "cache_write_input": 6.25 },
-    "claude-opus-4-1": { "input": 15.0, "output": 75.0, "cache_read_input": 1.5, "cache_write_input": 18.75 },
-    "claude-opus-4": { "input": 15.0, "output": 75.0, "cache_read_input": 1.5, "cache_write_input": 18.75 },
-    "claude-sonnet-4-5": { "input": 3.0, "output": 15.0, "cache_read_input": 0.3, "cache_write_input": 3.75 },
-    "claude-sonnet-4": { "input": 3.0, "output": 15.0, "cache_read_input": 0.3, "cache_write_input": 3.75 },
-    "claude-haiku-4-5": { "input": 1.0, "output": 5.0, "cache_read_input": 0.1, "cache_write_input": 1.25 },
-    "claude-3-7-sonnet": { "input": 3.0, "output": 15.0, "cache_read_input": 0.3, "cache_write_input": 3.75 },
-    "claude-3-5-sonnet": { "input": 3.0, "output": 15.0, "cache_read_input": 0.3, "cache_write_input": 3.75 },
-    "claude-3-5-haiku": { "input": 0.8, "output": 4.0, "cache_read_input": 0.08, "cache_write_input": 1.0 },
-    "claude-3-opus": { "input": 15.0, "output": 75.0, "cache_read_input": 1.5, "cache_write_input": 18.75 },
-    "gemini-2.5-pro": { "input": 1.25, "cache_read_input": 0.125, "output": 10.0 },
-    "gemini-2.5-flash": { "input": 0.3, "cache_read_input": 0.03, "output": 2.5 },
-    "gemini-2.5-flash-lite": { "input": 0.1, "cache_read_input": 0.01, "output": 0.4 },
-    "gemini-2.0-flash": { "input": 0.1, "cache_read_input": 0.025, "output": 0.4 },
-    "gemini-2.0-flash-lite": { "input": 0.075, "output": 0.3 },
-    "gemini-1.5-pro": { "input": 1.25, "output": 5.0 },
-    "gemini-1.5-flash": { "input": 0.075, "output": 0.3 }
+    "claude-haiku-4-5": {
+      "_source": "litellm",
+      "input": 1.0,
+      "output": 5.0,
+      "cache_read_input": 0.09999999999999999,
+      "cache_write_input": 1.25,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "claude-opus-4": {
+      "_source": "openrouter",
+      "input": 15.0,
+      "output": 75.0,
+      "cache_read_input": 1.5,
+      "cache_write_input": 18.75,
+      "_source_version": "e5f9f0125b69f8b3dbc2ff76f6f6caddc18896623ecd99d3beb5733c88149d45",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "claude-opus-4-1": {
+      "_source": "litellm",
+      "input": 15.0,
+      "output": 75.0,
+      "cache_read_input": 1.5,
+      "cache_write_input": 18.75,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "claude-opus-4-5": {
+      "_source": "litellm",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read_input": 0.5,
+      "cache_write_input": 6.25,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "claude-opus-4-6": {
+      "_source": "litellm",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read_input": 0.5,
+      "cache_write_input": 6.25,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "claude-opus-4-7": {
+      "_source": "litellm",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read_input": 0.5,
+      "cache_write_input": 6.25,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "claude-sonnet-4": {
+      "_source": "openrouter",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read_input": 0.3,
+      "cache_write_input": 3.75,
+      "_source_version": "e5f9f0125b69f8b3dbc2ff76f6f6caddc18896623ecd99d3beb5733c88149d45",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "claude-sonnet-4-5": {
+      "_source": "litellm",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read_input": 0.3,
+      "cache_write_input": 3.75,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "claude-sonnet-4-6": {
+      "_source": "litellm",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read_input": 0.3,
+      "cache_write_input": 3.75,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gemini-2.0-flash": {
+      "input": 0.1,
+      "cache_read_input": 0.025,
+      "output": 0.4,
+      "_source": "seed"
+    },
+    "gemini-2.0-flash-lite": {
+      "input": 0.075,
+      "output": 0.3,
+      "_source": "seed"
+    },
+    "gemini-2.5-flash": {
+      "_source": "openrouter",
+      "input": 0.3,
+      "output": 2.5,
+      "cache_read_input": 0.03,
+      "cache_write_input": 0.08333333333333334,
+      "_source_version": "e5f9f0125b69f8b3dbc2ff76f6f6caddc18896623ecd99d3beb5733c88149d45",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gemini-2.5-flash-lite": {
+      "_source": "openrouter",
+      "input": 0.09999999999999999,
+      "output": 0.39999999999999997,
+      "cache_read_input": 0.01,
+      "cache_write_input": 0.08333333333333334,
+      "_source_version": "e5f9f0125b69f8b3dbc2ff76f6f6caddc18896623ecd99d3beb5733c88149d45",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gemini-2.5-pro": {
+      "_source": "openrouter",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_read_input": 0.125,
+      "cache_write_input": 0.375,
+      "_source_version": "e5f9f0125b69f8b3dbc2ff76f6f6caddc18896623ecd99d3beb5733c88149d45",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-3.5-turbo": {
+      "_source": "litellm",
+      "input": 0.5,
+      "output": 1.5,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-4": {
+      "_source": "litellm",
+      "input": 30.0,
+      "output": 60.0,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-4-turbo": {
+      "_source": "litellm",
+      "input": 10.0,
+      "output": 30.0,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-4.1": {
+      "_source": "litellm",
+      "input": 2.0,
+      "output": 8.0,
+      "cache_read_input": 0.5,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-4.1-mini": {
+      "_source": "litellm",
+      "input": 0.39999999999999997,
+      "output": 1.5999999999999999,
+      "cache_read_input": 0.09999999999999999,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-4.1-nano": {
+      "_source": "litellm",
+      "input": 0.09999999999999999,
+      "output": 0.39999999999999997,
+      "cache_read_input": 0.024999999999999998,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-4o": {
+      "_source": "litellm",
+      "input": 2.5,
+      "output": 10.0,
+      "cache_read_input": 1.25,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-4o-2024-05-13": {
+      "_source": "litellm",
+      "input": 5.0,
+      "output": 15.0,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-4o-mini": {
+      "_source": "litellm",
+      "input": 0.15,
+      "output": 0.6,
+      "cache_read_input": 0.075,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5": {
+      "_source": "litellm",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_read_input": 0.125,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5-chat-latest": {
+      "_source": "litellm",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_read_input": 0.125,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5-codex": {
+      "_source": "litellm",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_read_input": 0.125,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5-mini": {
+      "_source": "litellm",
+      "input": 0.25,
+      "output": 2.0,
+      "cache_read_input": 0.024999999999999998,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5-nano": {
+      "_source": "litellm",
+      "input": 0.049999999999999996,
+      "output": 0.39999999999999997,
+      "cache_read_input": 0.005,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5-pro": {
+      "_source": "litellm",
+      "input": 15.0,
+      "output": 120.0,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.1": {
+      "_source": "litellm",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_read_input": 0.125,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.1-chat-latest": {
+      "_source": "litellm",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_read_input": 0.125,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.1-codex": {
+      "_source": "litellm",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_read_input": 0.125,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.1-codex-max": {
+      "_source": "litellm",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_read_input": 0.125,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.1-codex-mini": {
+      "_source": "litellm",
+      "input": 0.25,
+      "output": 2.0,
+      "cache_read_input": 0.024999999999999998,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.2": {
+      "_source": "litellm",
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read_input": 0.175,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.2-chat-latest": {
+      "_source": "litellm",
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read_input": 0.175,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.2-codex": {
+      "_source": "litellm",
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read_input": 0.175,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.2-pro": {
+      "_source": "litellm",
+      "input": 21.0,
+      "output": 168.0,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.4": {
+      "_source": "litellm",
+      "input": 2.5,
+      "output": 15.0,
+      "cache_read_input": 0.25,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.4-mini": {
+      "_source": "litellm",
+      "input": 0.75,
+      "output": 4.5,
+      "cache_read_input": 0.075,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.4-nano": {
+      "_source": "litellm",
+      "input": 0.19999999999999998,
+      "output": 1.25,
+      "cache_read_input": 0.02,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.4-pro": {
+      "_source": "litellm",
+      "input": 30.0,
+      "output": 180.0,
+      "cache_read_input": 3.0,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.5": {
+      "_source": "litellm",
+      "input": 5.0,
+      "output": 30.0,
+      "cache_read_input": 0.5,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "gpt-5.5-pro": {
+      "_source": "litellm",
+      "input": 60.0,
+      "output": 360.0,
+      "cache_read_input": 6.0,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "o1": {
+      "_source": "litellm",
+      "input": 15.0,
+      "output": 60.0,
+      "cache_read_input": 7.5,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "o1-mini": {
+      "input": 1.1,
+      "cache_read_input": 0.55,
+      "output": 4.4,
+      "_source": "seed"
+    },
+    "o3": {
+      "_source": "litellm",
+      "input": 2.0,
+      "output": 8.0,
+      "cache_read_input": 0.5,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "o3-mini": {
+      "_source": "litellm",
+      "input": 1.1,
+      "output": 4.4,
+      "cache_read_input": 0.55,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    },
+    "o4-mini": {
+      "_source": "litellm",
+      "input": 1.1,
+      "output": 4.4,
+      "cache_read_input": 0.275,
+      "_source_version": "W/\"94f52f337ca0b4f45b6b9c56dcb43317895294a30d00ce62cf9376ab3bfddccf\"",
+      "_fetched_at": "2026-04-25T10:28:30Z"
+    }
   }
 }

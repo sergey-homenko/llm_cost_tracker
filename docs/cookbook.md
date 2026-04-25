@@ -4,8 +4,8 @@ Short integration recipes for common Ruby clients. Prefer SDK integrations or mi
 
 | Client | Best path | Why |
 |---|---|---|
-| Official `openai` gem | `config.instrument :openai` | The SDK uses `net/http`, so LLM Cost Tracker wraps the SDK resource methods. |
-| Official `anthropic` gem | `config.instrument :anthropic` | The SDK uses `net/http`, so LLM Cost Tracker records returned message usage. |
+| Official `openai` gem | `config.instrument :openai` | The integration wraps SDK resource methods without changing call sites. |
+| Official `anthropic` gem | `config.instrument :anthropic` | The integration records returned message usage without changing call sites. |
 | `ruby-openai` | Faraday middleware | The client is built on Faraday and accepts middleware via the constructor block. |
 | OpenAI-compatible proxy | Faraday middleware | Use `ruby-openai` or a direct Faraday client against the proxy host. |
 | Custom Faraday client | Faraday middleware | The middleware can parse known provider responses automatically. |
@@ -70,22 +70,30 @@ Use the constructor block on every client you build, or wrap client creation in 
 
 ## Azure OpenAI
 
-Azure's v1 API works with OpenAI-compatible HTTP shapes, but pricing and deployment names are yours. Use the Faraday middleware path and keep Azure-specific prices in `prices_file` or `pricing_overrides`.
+Azure's v1 API works with OpenAI-compatible HTTP shapes, but pricing and deployment names are yours. Register the Azure host, use the Faraday middleware path, and keep Azure-specific prices in `prices_file` or `pricing_overrides`.
 
 ```ruby
-client = OpenAI::Client.new(
-  access_token: ENV["AZURE_OPENAI_API_KEY"],
-  uri_base: "#{ENV.fetch("AZURE_OPENAI_BASE_URL")}/openai/v1/"
-) do |f|
-  f.use :llm_cost_tracker, tags: { feature: "chat" }
+LlmCostTracker.configure do |config|
+  config.openai_compatible_providers["my-resource.openai.azure.com"] = "azure_openai"
 end
 
-client.responses.create(parameters: { model: "gpt-4o-prod", input: "Hello" })
+conn = Faraday.new(url: "https://my-resource.openai.azure.com") do |f|
+  f.use :llm_cost_tracker, tags: { feature: "chat" }
+  f.request :json
+  f.response :json
+  f.adapter Faraday.default_adapter
+end
+
+conn.post(
+  "/openai/v1/responses",
+  { model: "gpt-4o-prod", input: "Hello" },
+  { "api-key" => ENV.fetch("AZURE_OPENAI_API_KEY") }
+)
 ```
 
 ## Gemini API
 
-Google does not currently publish an official Ruby SDK for the Gemini API. Use a Faraday client against the REST API so the Gemini parser can capture usage automatically.
+Google's official Gemini SDKs do not include Ruby. Use a Faraday client against the REST API so the Gemini parser can capture usage automatically.
 
 ```ruby
 conn = Faraday.new(url: "https://generativelanguage.googleapis.com") do |f|
