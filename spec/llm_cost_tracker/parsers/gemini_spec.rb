@@ -144,7 +144,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.provider_response_id).to eq("gemini-resp-789")
     end
 
-    it "returns a nil model when the streaming URL has no model identifier" do
+    it "returns unknown when the streaming URL has no model identifier" do
       result = parser.parse_stream(
         model_less_stream_url,
         nil,
@@ -154,7 +154,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:unknown)
-      expect(result.model).to be_nil
+      expect(result.model).to eq("unknown")
     end
   end
 end

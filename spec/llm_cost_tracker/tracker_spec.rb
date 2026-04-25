@@ -200,6 +200,18 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.tags).to eq(env: "test", feature: "summary", request_id: "req_123", user_id: 42)
     end
 
+    it "uses unknown when manual tracking has no model" do
+      event = described_class.record(
+        provider: "custom",
+        model: nil,
+        input_tokens: 1,
+        output_tokens: 1
+      )
+
+      expect(event.model).to eq("unknown")
+      expect(event.cost).to be_nil
+    end
+
     it "restores scoped tags after the block" do
       inside = LlmCostTracker.with_tags(request_id: "req_123") do
         described_class.record(

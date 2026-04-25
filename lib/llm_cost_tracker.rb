@@ -77,8 +77,8 @@ module LlmCostTracker
       TagContext.with(merged, &)
     end
 
-    def track(provider:, model:, input_tokens:, output_tokens:, latency_ms: nil, stream: false, usage_source: :manual,
-              enforce_budget: false, provider_response_id: nil, pricing_mode: nil, **metadata)
+    def track(provider:, input_tokens:, output_tokens:, model: nil, latency_ms: nil, stream: false,
+              usage_source: :manual, enforce_budget: false, provider_response_id: nil, pricing_mode: nil, **metadata)
       enforce_budget! if enforce_budget
       Tracker.record(
         provider: provider.to_s,
@@ -94,7 +94,7 @@ module LlmCostTracker
       )
     end
 
-    def track_stream(provider:, model:, latency_ms: nil, enforce_budget: false, provider_response_id: nil,
+    def track_stream(provider:, model: nil, latency_ms: nil, enforce_budget: false, provider_response_id: nil,
                      pricing_mode: nil, **metadata)
       require_relative "llm_cost_tracker/stream_collector"
       enforce_budget! if enforce_budget

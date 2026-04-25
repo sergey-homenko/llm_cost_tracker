@@ -67,6 +67,111 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.input_cost).to eq(1.75)
     end
 
+    it "does not fuzzy-match unknown model families to older prices" do
+      expect(
+        described_class.cost_for(provider: "openai", model: "gpt-5.3", input_tokens: 1_000_000, output_tokens: 0)
+      ).to be_nil
+    end
+
+    it "does not fuzzy-match unknown model variants to base prices" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "base-model" => { input: 1.0, output: 2.0 }
+        }
+      end
+
+      result = described_class.cost_for(
+        provider: "custom",
+        model: "base-model-pro",
+        input_tokens: 1_000_000,
+        output_tokens: 0
+      )
+
+      expect(result).to be_nil
+    end
+
+    it "prices current GPT-5.4 and GPT-5.5 models exactly" do
+      gpt54 = described_class.cost_for(
+        provider: "openai",
+        model: "gpt-5.4",
+        input_tokens: 1_000_000,
+        cache_read_input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+      gpt55 = described_class.cost_for(
+        provider: "openai",
+        model: "gpt-5.5",
+        input_tokens: 1_000_000,
+        cache_read_input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+
+      expect(gpt54.total_cost).to eq(17.75)
+      expect(gpt55.total_cost).to eq(35.5)
+    end
+
+    it "prices current GPT-5.4 variants exactly" do
+      mini = described_class.cost_for(
+        provider: "openai",
+        model: "gpt-5.4-mini",
+        input_tokens: 1_000_000,
+        cache_read_input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+      nano = described_class.cost_for(
+        provider: "openai",
+        model: "gpt-5.4-nano",
+        input_tokens: 1_000_000,
+        cache_read_input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+      pro = described_class.cost_for(
+        provider: "openai",
+        model: "gpt-5.4-pro",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+
+      expect(mini.total_cost).to eq(5.325)
+      expect(nano.total_cost).to eq(1.47)
+      expect(pro.total_cost).to eq(210.0)
+    end
+
+    it "uses snapshot suffix matching only for dated model snapshots" do
+      gpt54 = described_class.cost_for(
+        provider: "openai",
+        model: "gpt-5.4-2026-03-05",
+        input_tokens: 1_000_000,
+        output_tokens: 0
+      )
+      claude = described_class.cost_for(
+        provider: "anthropic",
+        model: "claude-opus-4-7-20260416",
+        input_tokens: 1_000_000,
+        output_tokens: 0
+      )
+
+      expect(gpt54.input_cost).to eq(2.5)
+      expect(claude.input_cost).to eq(5.0)
+    end
+
+    it "prices current Claude Opus 4.7 exactly" do
+      result = described_class.cost_for(
+        provider: "anthropic",
+        model: "claude-opus-4-7",
+        input_tokens: 1_000_000,
+        cache_read_input_tokens: 1_000_000,
+        cache_write_input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+
+      expect(result.input_cost).to eq(5.0)
+      expect(result.cache_read_input_cost).to eq(0.5)
+      expect(result.cache_write_input_cost).to eq(6.25)
+      expect(result.output_cost).to eq(25.0)
+      expect(result.total_cost).to eq(36.75)
+    end
+
     it "prices cache-read input tokens separately" do
       result = described_class.cost_for(
         provider: "openai",
@@ -307,7 +412,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
   describe ".metadata" do
     it "exposes built-in pricing metadata" do
-      expect(described_class.metadata).to include("updated_at" => "2026-04-18")
+      expect(described_class.metadata).to include("updated_at" => "2026-04-25")
       expect(described_class.metadata.fetch("source_urls")).not_to be_empty
     end
   end

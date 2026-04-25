@@ -107,6 +107,8 @@ Streamed calls are stored with `stream: true` and `usage_source: "stream_final"`
 
 When the provider emits a stable response object ID, LLM Cost Tracker stores it as `provider_response_id`. OpenAI and Anthropic are covered end-to-end; Gemini is best effort and may vary by endpoint or API version.
 
+Model identifiers are extracted from the provider response, request body, stream events, or URL path depending on the provider. If no source carries a model, the event is stored under `model: "unknown"` and shows up as unknown pricing instead of being guessed.
+
 For non-Faraday clients (raw `Net::HTTP`, custom SSE code, Azure OpenAI), use the explicit helper:
 
 ```ruby
@@ -152,6 +154,8 @@ LlmCostTracker.track(
 `input_tokens` is regular non-cache input. Put cache hits in
 `cache_read_input_tokens` and cache writes in `cache_write_input_tokens`; total
 tokens are calculated from the canonical billing breakdown.
+
+For manual tracking, pass the real upstream model when you know it. If a gateway only exposes a deployment or router name, use that stable identifier and add a matching `prices_file` / `pricing_overrides` entry.
 
 ### Tags
 
@@ -522,11 +526,11 @@ LlmCostTracker::Parsers::Registry.register(AcmeParser)
 
 | Provider | Auto-detected | Models with pricing |
 |---|:---:|---|
-| OpenAI | Yes | GPT-5.2/5.1/5, GPT-5 mini/nano, GPT-4.1, GPT-4o, o1/o3/o4-mini |
+| OpenAI | Yes | GPT-5.5/5.4/5.2/5.1/5, GPT-5.4 mini/nano, GPT-5 mini/nano, GPT-4.1, GPT-4o, o1/o3/o4-mini |
 | OpenRouter | Yes | OpenAI-compatible usage; provider-prefixed OpenAI model IDs normalized when possible |
 | DeepSeek | Yes | OpenAI-compatible usage; add `pricing_overrides` for DeepSeek models |
 | OpenAI-compatible hosts | Config | Configure `openai_compatible_providers` |
-| Anthropic | Yes | Claude Opus 4.6/4.1/4, Sonnet 4.6/4.5/4, Haiku 4.5, Claude 3.x |
+| Anthropic | Yes | Claude Opus 4.7/4.6/4.1/4, Sonnet 4.6/4.5/4, Haiku 4.5, Claude 3.x |
 | Google Gemini | Yes | Gemini 2.5 Pro/Flash/Flash-Lite, 2.0 Flash/Flash-Lite, 1.5 Pro/Flash |
 | Any other | Config | Custom parser |
 

@@ -115,10 +115,17 @@ module LlmCostTracker
 
       def fuzzy_match(model, normalized_model, table)
         sorted_price_keys(table).each do |key|
-          return table[key] if model.start_with?(key) || normalized_model.start_with?(key)
+          return table[key] if snapshot_variant?(model, key) || snapshot_variant?(normalized_model, key)
         end
 
         nil
+      end
+
+      def snapshot_variant?(model, key)
+        suffix = model.delete_prefix("#{key}-")
+        return false if suffix == model
+
+        suffix.match?(/\A(?:\d{4}-\d{2}-\d{2}|\d{8})\z/)
       end
 
       def sorted_price_keys(table)

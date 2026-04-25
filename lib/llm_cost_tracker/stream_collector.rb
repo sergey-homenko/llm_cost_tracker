@@ -115,7 +115,7 @@ module LlmCostTracker
     def finalize(parsed, snapshot)
       parsed.with(
         provider: @provider,
-        model: present_model(parsed.model) || snapshot[:model]
+        model: present_model(parsed.model) || present_model(snapshot[:model]) || ParsedUsage::UNKNOWN_MODEL
       )
     end
 
@@ -136,7 +136,7 @@ module LlmCostTracker
 
       ParsedUsage.build(
         provider: @provider,
-        model: snapshot[:model],
+        model: snapshot[:model] || ParsedUsage::UNKNOWN_MODEL,
         input_tokens: input,
         output_tokens: output,
         stream: true,
@@ -148,7 +148,7 @@ module LlmCostTracker
     def build_unknown_usage(snapshot)
       ParsedUsage.build(
         provider: @provider,
-        model: snapshot[:model],
+        model: snapshot[:model] || ParsedUsage::UNKNOWN_MODEL,
         input_tokens: 0,
         output_tokens: 0,
         total_tokens: 0,

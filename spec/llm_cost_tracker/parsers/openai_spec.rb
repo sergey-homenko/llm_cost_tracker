@@ -120,6 +120,23 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.stream).to be false
       expect(result.usage_source).to eq(:response)
     end
+
+    it "uses unknown when neither response nor request carries a model" do
+      result = parser.parse(
+        chat_completions_url,
+        {}.to_json,
+        200,
+        {
+          usage: {
+            prompt_tokens: 150,
+            completion_tokens: 42,
+            total_tokens: 192
+          }
+        }.to_json
+      )
+
+      expect(result.model).to eq("unknown")
+    end
   end
 
   describe "#streaming_request?" do
@@ -203,6 +220,25 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       )
 
       expect(result.provider_response_id).to eq("resp_456")
+    end
+
+    it "extracts model identifiers from Responses API stream events" do
+      events = [
+        {
+          event: nil,
+          data: { "type" => "response.created", "response" => { "id" => "resp_456", "model" => "gpt-5-mini" } }
+        },
+        { event: nil, data: { "usage" => { "input_tokens" => 12, "output_tokens" => 3, "total_tokens" => 15 } } }
+      ]
+
+      result = parser.parse_stream(
+        responses_url,
+        {}.to_json,
+        200,
+        events
+      )
+
+      expect(result.model).to eq("gpt-5-mini")
     end
 
     it "returns an unknown-usage ParsedUsage when no usage chunk arrives" do

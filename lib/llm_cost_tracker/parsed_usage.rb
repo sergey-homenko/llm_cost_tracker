@@ -16,6 +16,7 @@ module LlmCostTracker
   )
 
   class ParsedUsage
+    UNKNOWN_MODEL = "unknown"
     TRACKING_KEYS = %i[
       provider
       model
@@ -30,7 +31,7 @@ module LlmCostTracker
     def self.build(**attributes)
       new(
         provider: attributes.fetch(:provider),
-        model: attributes.fetch(:model),
+        model: normalize_model(attributes.fetch(:model)),
         input_tokens: attributes.fetch(:input_tokens).to_i,
         output_tokens: attributes.fetch(:output_tokens).to_i,
         total_tokens: attributes.fetch(:total_tokens, usage_breakdown(attributes).total_tokens).to_i,
@@ -61,5 +62,11 @@ module LlmCostTracker
       )
     end
     private_class_method :usage_breakdown
+
+    def self.normalize_model(value)
+      model = value.to_s.strip
+      model.empty? ? UNKNOWN_MODEL : model
+    end
+    private_class_method :normalize_model
   end
 end

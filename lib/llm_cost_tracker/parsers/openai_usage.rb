@@ -67,7 +67,7 @@ module LlmCostTracker
       end
 
       def detect_stream_model(events)
-        find_event_value(events) { |data| data["model"] }
+        find_event_value(events) { |data| data["model"] || data.dig("response", "model") }
       end
 
       def detect_stream_response_id(events)

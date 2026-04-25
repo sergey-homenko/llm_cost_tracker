@@ -19,6 +19,7 @@ module LlmCostTracker
                  usage_source: nil, provider_response_id: nil, pricing_mode: nil, metadata: {})
         return unless LlmCostTracker.configuration.enabled
 
+        model = normalize_model(model)
         usage = usage_data(input_tokens, output_tokens, metadata, pricing_mode)
         cost_data = cost_for_usage(provider, model, usage)
 
@@ -67,6 +68,8 @@ module LlmCostTracker
           pricing_mode: usage[:pricing_mode]
         )
       end
+
+      def normalize_model(value) = value.to_s.strip.then { |model| model.empty? ? ParsedUsage::UNKNOWN_MODEL : model }
 
       def build_event(provider:, model:, usage:, cost_data:, metadata:, latency_ms:, stream:, usage_source:,
                       provider_response_id:)

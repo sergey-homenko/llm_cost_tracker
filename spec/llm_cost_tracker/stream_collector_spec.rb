@@ -54,6 +54,29 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
+    it "infers the model from stream events when no model is passed" do
+      collected = events
+
+      described_class.track_stream(provider: "openai") do |stream|
+        stream.event({ "model" => "gpt-5.4-mini", "choices" => [{ "delta" => { "content" => "hi" } }] })
+        stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
+      end
+
+      expect(collected.first[:model]).to eq("gpt-5.4-mini")
+      expect(collected.first[:usage_source]).to eq("stream_final")
+    end
+
+    it "uses unknown when no stream model is available" do
+      collected = events
+
+      described_class.track_stream(provider: "openai") do |stream|
+        stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
+      end
+
+      expect(collected.first[:model]).to eq("unknown")
+      expect(collected.first[:usage_source]).to eq("stream_final")
+    end
+
     it "parses built-in OpenAI-compatible providers like OpenRouter" do
       collected = events
 
