@@ -1,6 +1,6 @@
 # LLM Cost Tracker
 
-**Self-hosted LLM cost tracking for Ruby and Rails.** Intercepts Faraday LLM responses or records usage explicitly, prices events locally, and can store them in your database. No proxy, no SaaS.
+**Self-hosted LLM cost tracking for Ruby and Rails.** Instruments common Ruby SDKs, intercepts Faraday LLM responses, prices events locally, and can store them in your database. No proxy, no SaaS.
 
 [![Gem Version](https://img.shields.io/gem/v/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker)
 [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions)
@@ -16,7 +16,8 @@ Every Rails app with LLM integrations eventually runs into the same question: wh
 ## What You Get
 
 - A local ActiveRecord ledger of provider, model, usage breakdown, cost, latency, tags, streaming usage, and provider response IDs
-- Faraday middleware plus explicit `track` / `track_stream` helpers for non-Faraday clients
+- Optional official OpenAI and Anthropic SDK integrations, plus automatic Faraday middleware
+- Explicit `track` / `track_stream` helpers as a fallback for unsupported clients
 - Server-rendered Rails dashboard with overview, models, calls, tags, CSV export, and data-quality pages
 - Local pricing snapshots, price sync tasks, and budget guardrails
 - Prompt and response bodies are never persisted
@@ -33,6 +34,7 @@ The overview page includes spend trend, budget status, provider breakdown, top m
 
 ```ruby
 gem "llm_cost_tracker"
+gem "openai"
 ```
 
 ```bash
@@ -47,13 +49,12 @@ Skip `--dashboard` if you only want the ledger. Skip `--prices` if you do not wa
 LlmCostTracker.configure do |config|
   config.storage_backend = :active_record
   config.default_tags = -> { { environment: Rails.env } }
+  config.instrument :openai
 end
 
-OpenAI.configure do |config|
-  config.access_token = ENV["OPENAI_API_KEY"]
-  config.faraday do |f|
-    f.use :llm_cost_tracker, tags: -> { { user_id: Current.user&.id, feature: "chat" } }
-  end
+LlmCostTracker.with_tags(user_id: Current.user&.id, feature: "chat") do
+  client = OpenAI::Client.new(api_key: ENV["OPENAI_API_KEY"])
+  client.responses.create(model: "gpt-4o", input: "Hello")
 end
 ```
 
@@ -74,6 +75,34 @@ Protect the mounted engine with your application's authentication before exposin
 
 ## Usage
 
+### Official SDK integrations
+
+`config.instrument` patches **official** provider SDKs only — currently the official `openai` and `anthropic` gems. SDK integrations are optional and do not add provider SDKs as gem dependencies. Install the provider SDK you already use, then enable its integration.
+
+```ruby
+LlmCostTracker.configure do |config|
+  config.instrument :openai
+  config.instrument :anthropic
+end
+```
+
+The OpenAI integration records non-streaming calls through the official `openai` gem's `responses.create` and `chat.completions.create`. The Anthropic integration records non-streaming calls through the official `anthropic` gem's `messages.create`. Both integrations extract usage, model, latency, provider response ID, cache tokens, and hidden/reasoning tokens when the SDK response exposes them.
+
+```ruby
+LlmCostTracker.with_tags(feature: "support_chat", user_id: Current.user&.id) do
+  anthropic = Anthropic::Client.new(api_key: ENV["ANTHROPIC_API_KEY"])
+  anthropic.messages.create(
+    model: "claude-sonnet-4-5-20250929",
+    max_tokens: 1024,
+    messages: [{ role: "user", content: "Hello" }]
+  )
+end
+```
+
+Community clients such as `ruby-openai` are not patched by `instrument`. `ruby-openai` exposes a Faraday block on its constructor and is covered by the middleware below. See [`docs/cookbook.md`](docs/cookbook.md) for the exact setup.
+
+Google does not currently publish an official Ruby SDK for the Gemini API. Use the Faraday middleware against Gemini's REST API, or keep custom clients behind the fallback helpers until a stable SDK integration exists.
+
 ### Faraday middleware
 
 `tags:` can be a hash or callable. Callables are evaluated on each request and may accept the Faraday request env.
@@ -90,6 +119,8 @@ conn.post("/v1/responses", { model: "gpt-5-mini", input: "Hello!" })
 ```
 
 Place `llm_cost_tracker` inside the Faraday stack where it can see the final response body.
+
+The same middleware covers `ruby-openai` through its constructor block. See [`docs/cookbook.md`](docs/cookbook.md) for the exact configuration.
 
 ### Streaming
 
@@ -113,7 +144,7 @@ When the provider emits a stable response object ID, LLM Cost Tracker stores it 
 
 Model identifiers are extracted from the provider response, request body, stream events, or URL path depending on the provider. If no source carries a model, the event is stored under `model: "unknown"` and shows up as unknown pricing instead of being guessed.
 
-For non-Faraday clients (raw `Net::HTTP`, custom SSE code, Azure OpenAI), use the explicit helper:
+For non-Faraday clients without an SDK integration, prefer adding a supported adapter. Use the explicit helper only as a fallback while wiring a client that does not expose a stable hook yet:
 
 ```ruby
 LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o") do |stream|
@@ -140,7 +171,9 @@ Run `bin/rails g llm_cost_tracker:add_streaming` once on existing installs to ad
 
 More client-specific snippets live in [`docs/cookbook.md`](docs/cookbook.md).
 
-### Manual tracking
+### Fallback tracking
+
+Automatic capture should be the default integration path. `track` exists for custom clients, internal gateways, migrations, and SDKs that do not expose a stable middleware or instrumentation hook yet.
 
 ```ruby
 LlmCostTracker.track(
@@ -179,6 +212,8 @@ end
 LlmCostTracker.configure do |config|
   config.storage_backend = :active_record
   config.default_tags = -> { { environment: Rails.env } }
+  config.instrument :openai
+  config.instrument :anthropic
   config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
   config.monthly_budget = 500.00
   config.daily_budget = 50.00
@@ -202,6 +237,7 @@ Configuration reference:
 | `default_tags` | `{}` | Hash or callable merged into every event. |
 | `prices_file` | `nil` | Local JSON/YAML price table. |
 | `pricing_overrides` | `{}` | Ruby-side model price overrides. |
+| `instrument` | none | Enables optional SDK integrations such as `:openai`, `:anthropic`, or `:all`. |
 | `monthly_budget` | `nil` | Monthly spend guardrail. |
 | `daily_budget` | `nil` | Daily spend guardrail. |
 | `per_call_budget` | `nil` | Single-event spend guardrail. |
@@ -310,7 +346,7 @@ rescue LlmCostTracker::BudgetExceededError => e
 
 `:block_requests` is a **guardrail, not a hard cap**. The preflight and the spend-recording write are separate statements, so under Puma / Sidekiq concurrency multiple workers can all pass the preflight and then collectively overshoot the budget. The setting reliably *stops new requests after the overshoot is visible* — it does not prevent the overshoot itself. For strict quotas use a provider- or gateway-level limit, or a database-backed counter outside this gem.
 
-Preflight is wired into the Faraday middleware automatically. When you record events via `LlmCostTracker.track` / `track_stream` and also want the same preflight, opt in:
+Preflight is wired into the Faraday middleware and SDK integrations automatically. When you record events via `LlmCostTracker.track` / `track_stream` and also want the same preflight, opt in:
 
 ```ruby
 LlmCostTracker.track(
@@ -545,7 +581,7 @@ LlmCostTracker::Parsers::Registry.register(AcmeParser)
 | Google Gemini | Yes | Gemini 2.5 Pro/Flash/Flash-Lite, 2.0 Flash/Flash-Lite, 1.5 Pro/Flash |
 | Any other | Config | Custom parser |
 
-Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenAI-compatible equivalents; Anthropic Messages; Gemini `generateContent` and `streamGenerateContent`. Streaming capture is supported for endpoints that emit stream events with final usage.
+Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenAI-compatible equivalents; Anthropic Messages; Gemini `generateContent` and `streamGenerateContent`. Official SDK integrations currently cover non-streaming OpenAI Responses / Chat Completions and Anthropic Messages. Streaming capture is supported for Faraday endpoints that emit stream events with final usage.
 
 ## Safety
 
@@ -573,6 +609,7 @@ The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and
 ## Known limitations
 
 - `:block_requests` is a best-effort guardrail, not a hard cap. Concurrent workers can pass preflight simultaneously and collectively overshoot the budget. Use an external quota system if you need a transactional cap.
+- Official SDK integrations currently cover non-streaming calls. Use Faraday middleware or `track_stream` for SDK streaming until stable stream wrappers are added.
 - Streaming capture relies on the provider emitting a final-usage event (OpenAI needs `stream_options: { include_usage: true }`); missing events are recorded with `usage_source: "unknown"` so they surface on the Data Quality page.
 - `provider_response_id` is stored only when the provider exposes a stable response object ID. Missing IDs stay `nil` and surface on the Data Quality page.
 - Cache write TTL variants (1h vs 5min writes) are not modeled separately.

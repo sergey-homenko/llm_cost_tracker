@@ -1,20 +1,61 @@
 # Cookbook
 
-Short integration recipes for common Ruby clients. Use middleware when the client exposes Faraday. Use `track` or `track_stream` when it does not.
+Short integration recipes for common Ruby clients. Prefer SDK integrations or middleware. Use `track` and `track_stream` only as fallback helpers for unsupported clients.
+
+| Client | Best path | Why |
+|---|---|---|
+| Official `openai` gem | `config.instrument :openai` | The SDK uses `net/http`, so LLM Cost Tracker wraps the SDK resource methods. |
+| Official `anthropic` gem | `config.instrument :anthropic` | The SDK uses `net/http`, so LLM Cost Tracker records returned message usage. |
+| `ruby-openai` | Faraday middleware | The client is built on Faraday and accepts middleware via the constructor block. |
+| OpenAI-compatible proxy | Faraday middleware | Use `ruby-openai` or a direct Faraday client against the proxy host. |
+| Custom Faraday client | Faraday middleware | The middleware can parse known provider responses automatically. |
+| Other clients | Adapter first, fallback helpers second | Add a stable integration instead of scattering per-call ledger code. |
+
+## Official OpenAI SDK
+
+Enable the integration once, then keep normal `openai` gem calls unchanged.
+
+```ruby
+LlmCostTracker.configure do |config|
+  config.instrument :openai
+end
+
+client = OpenAI::Client.new(api_key: ENV["OPENAI_API_KEY"])
+
+client.responses.create(model: "gpt-4o", input: "Hello")
+client.chat.completions.create(
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello" }]
+)
+```
+
+## Official Anthropic SDK
+
+Enable the integration once, then keep normal `anthropic` gem calls unchanged.
+
+```ruby
+LlmCostTracker.configure do |config|
+  config.instrument :anthropic
+end
+
+client = Anthropic::Client.new(api_key: ENV["ANTHROPIC_API_KEY"])
+
+client.messages.create(
+  max_tokens: 1024,
+  model: "claude-sonnet-4-5-20250929",
+  messages: [{ role: "user", content: "Hello" }]
+)
+```
 
 ## ruby-openai
 
-`ruby-openai` already lets you patch the Faraday stack, so auto-capture is the clean path.
+`ruby-openai` is a community client that occupies the same `OpenAI::Client` constant as the official gem; only one of the two can be loaded. `config.instrument :openai` is for the official gem. For `ruby-openai`, attach the Faraday middleware via the constructor block:
 
 ```ruby
-OpenAI.configure do |config|
-  config.access_token = ENV["OPENAI_API_KEY"]
-  config.faraday do |f|
-    f.use :llm_cost_tracker, tags: -> { { feature: "chat", user_id: Current.user&.id } }
-  end
+client = OpenAI::Client.new(access_token: ENV["OPENAI_API_KEY"]) do |f|
+  f.use :llm_cost_tracker, tags: { feature: "chat" }
 end
 
-client = OpenAI::Client.new
 client.chat(
   parameters: {
     model: "gpt-4o",
@@ -25,88 +66,39 @@ client.chat(
 )
 ```
 
-## anthropic-sdk-ruby
-
-The official Anthropic SDK does not go through Faraday, so wrap the SSE loop with `track_stream`.
-
-```ruby
-client = Anthropic::Client.new(api_key: ENV["ANTHROPIC_API_KEY"])
-
-LlmCostTracker.track_stream(provider: "anthropic", model: "claude-sonnet-4-5-20250929") do |stream|
-  response = client.messages.stream(
-    max_tokens: 1024,
-    model: :"claude-sonnet-4-5-20250929",
-    messages: [{ role: :user, content: "Hello" }]
-  )
-
-  response.each { |event| stream.event(event.to_h) }
-end
-```
-
-## gemini-ai
-
-`gemini-ai` can stream raw Gemini events, which LLM Cost Tracker already knows how to parse.
-
-```ruby
-client = Gemini.new(
-  credentials: {
-    service: "generative-language-api",
-    api_key: ENV["GOOGLE_API_KEY"]
-  },
-  options: { model: "gemini-2.5-flash", server_sent_events: true }
-)
-
-LlmCostTracker.track_stream(provider: "gemini", model: "gemini-2.5-flash") do |stream|
-  events = client.stream_generate_content(
-    contents: { role: "user", parts: { text: "Hello" } }
-  )
-
-  events.each { |event| stream.event(event) }
-end
-```
-
-## langchainrb
-
-Langchain.rb already gives you provider-neutral token totals on the response object. Record them at the boundary where you call the LLM.
-
-```ruby
-llm = Langchain::LLM::OpenAI.new(
-  api_key: ENV["OPENAI_API_KEY"],
-  default_options: { chat_model: "gpt-4o" }
-)
-
-result = llm.chat(messages: [{ role: "user", content: "Hello" }])
-
-LlmCostTracker.track(
-  provider: "openai",
-  model: "gpt-4o",
-  input_tokens: result.prompt_tokens,
-  output_tokens: result.completion_tokens,
-  feature: "chat"
-)
-```
-
-Swap `Langchain::LLM::OpenAI` for `Langchain::LLM::Anthropic` or `Langchain::LLM::GoogleGemini` and keep the ledger call the same.
+Use the constructor block on every client you build, or wrap client creation in your own factory.
 
 ## Azure OpenAI
 
-Azure's v1 API works with the OpenAI client shape, but pricing and deployment names are yours. Track it explicitly and keep Azure-specific prices in `prices_file` or `pricing_overrides`.
+Azure's v1 API works with OpenAI-compatible HTTP shapes, but pricing and deployment names are yours. Use the Faraday middleware path and keep Azure-specific prices in `prices_file` or `pricing_overrides`.
 
 ```ruby
 client = OpenAI::Client.new(
-  base_url: "#{ENV.fetch("AZURE_OPENAI_BASE_URL")}/openai/v1/",
-  api_key: ENV["AZURE_OPENAI_API_KEY"]
-)
-
-LlmCostTracker.track_stream(provider: "azure_openai", model: "gpt-4o-prod") do |stream|
-  response = client.responses.create(
-    model: "gpt-4o-prod",
-    input: "Hello",
-    stream: true
-  )
-
-  response.each { |event| stream.event(event.to_h) }
+  access_token: ENV["AZURE_OPENAI_API_KEY"],
+  uri_base: "#{ENV.fetch("AZURE_OPENAI_BASE_URL")}/openai/v1/"
+) do |f|
+  f.use :llm_cost_tracker, tags: { feature: "chat" }
 end
+
+client.responses.create(parameters: { model: "gpt-4o-prod", input: "Hello" })
+```
+
+## Gemini API
+
+Google does not currently publish an official Ruby SDK for the Gemini API. Use a Faraday client against the REST API so the Gemini parser can capture usage automatically.
+
+```ruby
+conn = Faraday.new(url: "https://generativelanguage.googleapis.com") do |f|
+  f.use :llm_cost_tracker, tags: { feature: "chat" }
+  f.request :json
+  f.response :json
+  f.adapter Faraday.default_adapter
+end
+
+conn.post(
+  "/v1beta/models/gemini-2.5-flash:generateContent?key=#{ENV.fetch("GOOGLE_API_KEY")}",
+  { contents: [{ role: "user", parts: [{ text: "Hello" }] }] }
+)
 ```
 
 ## LiteLLM proxy
@@ -118,15 +110,13 @@ LlmCostTracker.configure do |config|
   config.openai_compatible_providers["proxy.internal.example"] = "litellm"
 end
 
-OpenAI.configure do |config|
-  config.access_token = ENV["LITELLM_API_KEY"]
-  config.uri_base = "https://proxy.internal.example"
-  config.faraday do |f|
-    f.use :llm_cost_tracker, tags: -> { { gateway: "litellm" } }
-  end
+client = OpenAI::Client.new(
+  access_token: ENV["LITELLM_API_KEY"],
+  uri_base: "https://proxy.internal.example"
+) do |f|
+  f.use :llm_cost_tracker, tags: { gateway: "litellm" }
 end
 
-client = OpenAI::Client.new
 client.chat(parameters: { model: "openai/gpt-5-mini", messages: [{ role: "user", content: "Hello" }] })
 ```
 

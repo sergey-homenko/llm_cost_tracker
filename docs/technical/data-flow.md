@@ -11,6 +11,14 @@ This is the normal path from an application LLM call to stored ledger data.
 5. The parser returns `ParsedUsage` with canonical fields.
 6. `Tracker.record` prices and persists the event.
 
+## SDK Integrations
+
+1. The host app enables an integration with `config.instrument`.
+2. `LlmCostTracker::Integrations` prepends a narrow wrapper to supported SDK resource methods.
+3. The host app keeps calling the provider SDK normally.
+4. The wrapper measures latency, extracts usage from the SDK response object, and sends canonical fields to `Tracker.record`.
+5. If the provider SDK is not loaded, boot continues and `llm_cost_tracker:doctor` reports the missing integration.
+
 ## Explicit Tracking
 
 1. The host app calls `LlmCostTracker.track` with known usage totals, or `LlmCostTracker.track_stream` with stream events.

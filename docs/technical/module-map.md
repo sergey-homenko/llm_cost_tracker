@@ -22,6 +22,21 @@ Responsibilities:
 
 This module should stay small. It can orchestrate other modules, but it should not contain provider parsing, SQL details, dashboard aggregation, or pricing-source logic.
 
+## SDK Integrations
+
+Primary files:
+
+- `lib/llm_cost_tracker/integrations/*`
+
+Responsibilities:
+
+- Add optional instrumentation for Ruby SDKs without adding provider SDK dependencies.
+- Install narrow, idempotent `Module#prepend` wrappers around stable SDK resource methods.
+- Extract SDK response objects into canonical usage fields.
+- Keep SDK-specific object handling out of `Tracker` and storage.
+
+Integrations are for Ruby SDK object shapes. Parsers are for HTTP and stream payload shapes.
+
 ## Ingestion
 
 Primary files:

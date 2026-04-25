@@ -6,7 +6,7 @@ module LlmCostTracker
   class Tracker
     EVENT_NAME = "llm_request.llm_cost_tracker"
 
-    USAGE_SOURCES = %i[response stream_final manual unknown].freeze
+    USAGE_SOURCES = %i[response stream_final sdk_response manual unknown].freeze
 
     class << self
       def enforce_budget!

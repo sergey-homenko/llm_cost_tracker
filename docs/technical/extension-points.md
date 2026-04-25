@@ -16,6 +16,20 @@ Expected parser contract:
 
 Use `Parsers::Base` helpers for URL matching and stream-event extraction. Use `Parsers::OpenaiUsage` only for OpenAI-shaped usage hashes.
 
+## SDK Integrations
+
+Use SDK integrations when a popular Ruby client does not expose a Faraday middleware stack but returns stable usage objects. The official `openai` and `anthropic` gems use `net/http` and qualify. Faraday-based clients that expose a middleware hook (e.g. `ruby-openai`'s constructor block) are covered by the Faraday middleware instead. Faraday-based clients that do **not** expose a middleware hook (e.g. `ruby_llm` today) cannot be auto-captured here and must use the explicit `track` / `track_stream` fallback.
+
+Expected integration contract:
+
+- no hard dependency on the provider SDK
+- no boot failure when the SDK is missing
+- idempotent `Module#prepend` around narrow resource methods
+- no tracking when the integration is not enabled in configuration
+- canonical usage fields passed to `Tracker.record`
+
+SDK integrations belong under `LlmCostTracker::Integrations`. Do not put SDK object-shape handling in parsers, storage, or pricing.
+
 ## OpenAI-Compatible Gateways
 
 Use `config.openai_compatible_providers` when a gateway speaks the OpenAI request and response shape.

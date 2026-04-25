@@ -25,6 +25,7 @@ require_relative "llm_cost_tracker/parsers/gemini"
 require_relative "llm_cost_tracker/parsers/sse"
 require_relative "llm_cost_tracker/parsers/registry"
 require_relative "llm_cost_tracker/middleware/faraday"
+require_relative "llm_cost_tracker/integrations/registry"
 require_relative "llm_cost_tracker/budget"
 require_relative "llm_cost_tracker/unknown_pricing"
 require_relative "llm_cost_tracker/event_metadata"
@@ -54,10 +55,11 @@ module LlmCostTracker
         current = current.dup_for_configuration if current.finalized?
         @configuration = current
         yield(current)
-        current.normalize_openai_compatible_providers!
+        current.openai_compatible_providers = current.openai_compatible_providers.dup
         current.finalize!
         current
       end
+      Integrations.install!
       warn_for_configuration!(config)
     end
 

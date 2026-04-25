@@ -2,9 +2,12 @@
 
 require_relative "errors"
 require_relative "value_helpers"
+require_relative "configuration/instrumentation"
 
 module LlmCostTracker
   class Configuration
+    include ConfigurationInstrumentation
+
     OPENAI_COMPATIBLE_PROVIDERS = {
       "openrouter.ai" => "openrouter",
       "api.deepseek.com" => "deepseek"
@@ -36,6 +39,7 @@ module LlmCostTracker
       :budget_exceeded_behavior,
       :default_tags,
       :pricing_overrides,
+      :instrumented_integrations,
       :report_tag_breakdowns,
       :storage_backend,
       :storage_error_behavior,
@@ -58,6 +62,7 @@ module LlmCostTracker
       @log_level          = :info
       @prices_file        = nil
       @pricing_overrides  = {}
+      @instrumented_integrations = []
       @report_tag_breakdowns = []
       self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
       @finalized = false
@@ -97,13 +102,10 @@ module LlmCostTracker
       end
     end
 
-    def normalize_openai_compatible_providers!
-      self.openai_compatible_providers = openai_compatible_providers
-    end
-
     def finalize!
       @default_tags = ValueHelpers.deep_freeze(@default_tags || {})
       @pricing_overrides = ValueHelpers.deep_freeze(@pricing_overrides || {})
+      @instrumented_integrations = ValueHelpers.deep_freeze(@instrumented_integrations || [])
       @report_tag_breakdowns = ValueHelpers.deep_freeze(Array(@report_tag_breakdowns))
       @openai_compatible_providers = ValueHelpers.deep_freeze(@openai_compatible_providers || {})
       @finalized = true
@@ -116,6 +118,10 @@ module LlmCostTracker
       copy = dup
       copy.instance_variable_set(:@default_tags, ValueHelpers.deep_dup(@default_tags || {}))
       copy.instance_variable_set(:@pricing_overrides, ValueHelpers.deep_dup(@pricing_overrides || {}))
+      copy.instance_variable_set(
+        :@instrumented_integrations,
+        ValueHelpers.deep_dup(@instrumented_integrations || [])
+      )
       copy.instance_variable_set(:@report_tag_breakdowns, ValueHelpers.deep_dup(@report_tag_breakdowns || []))
       copy.instance_variable_set(
         :@openai_compatible_providers,
@@ -126,7 +132,6 @@ module LlmCostTracker
     end
 
     def active_record? = storage_backend == :active_record
-    def log? = storage_backend == :log
 
     private
 

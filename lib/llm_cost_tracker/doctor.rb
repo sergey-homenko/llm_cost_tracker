@@ -36,14 +36,28 @@ module LlmCostTracker
     end
 
     def checks
-      [configuration_check, active_record_check, table_check, column_check, period_totals_check, prices_check,
-       calls_check].compact
+      [
+        configuration_check,
+        *integration_checks,
+        active_record_check,
+        table_check,
+        column_check,
+        period_totals_check,
+        prices_check,
+        calls_check
+      ].compact
     end
 
     private
 
     def configuration_check
       Check.new(:ok, "configuration", "storage_backend=#{LlmCostTracker.configuration.storage_backend.inspect}")
+    end
+
+    def integration_checks
+      LlmCostTracker::Integrations.checks.map do |check|
+        Check.new(check.status, check.name.to_s, check.message)
+      end
     end
 
     def active_record_check
