@@ -68,6 +68,10 @@ Protect the mounted engine with your application's authentication before exposin
 - No built-in auth on the mounted dashboard
 - Use `:active_record` when you want shared dashboards and budget checks across Puma workers and Sidekiq processes
 
+## Technical Docs
+
+- [Architecture](docs/architecture.md)
+
 ## Usage
 
 ### Faraday middleware
@@ -559,7 +563,7 @@ Endpoints: OpenAI Chat Completions / Responses / Completions / Embeddings; OpenA
 The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and Sidekiq with `concurrency > 1` are both supported. A few rules:
 
 - **Configure once at boot.** `LlmCostTracker.configure` freezes mutable shared configuration when the block returns, and replacing shared fields through `LlmCostTracker.configuration` raises `FrozenError`. If `default_tags` is callable, keep it fast and thread-safe.
-- **Use `:active_record` storage for shared ledgers.** Puma workers and Sidekiq processes do not share memory; `:log` and `:custom` backends see per-process state only. `:active_record` writes to a single table and is the right choice for dashboards and budget checks across processes.
+- **Use `:active_record` storage for the built-in shared ledger.** Puma workers and Sidekiq processes do not share memory; `:log` is process-local, and `:custom` is only as shared as the sink you write to. `:active_record` writes to a single table and is the right choice for the bundled dashboard and budget checks across processes.
 - **Size your connection pool.** Each tracked call on the middleware path uses the host app's ActiveRecord connection for ledger writes, period rollups, and optional budget checks. Make sure the AR pool covers `puma max_threads + sidekiq concurrency` plus your app's own usage.
 - **Don't share a `StreamCollector` across threads you don't own.** The collector itself is thread-safe — `event`, `usage`, and `finish!` synchronize internally and `finish!` is idempotent — but the documented pattern is one collector per stream.
 - **`finish!` is a barrier.** Once a stream is finished, later `event`, `usage`, or `model=` calls raise `FrozenError` instead of mutating a closed collector.
@@ -575,7 +579,7 @@ The gem is designed for multi-threaded hosts — Puma with `max_threads > 1` and
 
 ## Development
 
-Architecture rules for future changes live in [`docs/architecture.md`](docs/architecture.md). Integration recipes live in [`docs/cookbook.md`](docs/cookbook.md).
+Architecture rules for future changes live in [`docs/architecture.md`](docs/architecture.md).
 
 ```bash
 bundle install
