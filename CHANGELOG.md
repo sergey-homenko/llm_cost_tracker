@@ -4,12 +4,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-25
+
+### Added
+
+- Optional SDK integrations: `config.instrument :openai`, `:anthropic`, or `:all` patches the official `openai` and `anthropic` gems' resource methods to record usage automatically. Provider SDKs are not added as hard dependencies.
+- `LlmCostTracker.with_tags` plus `TagContext` for thread- and fiber-isolated request-scoped tags that flow through middleware, SDK integrations, and `track` / `track_stream`.
+- `LlmCostTracker::Doctor` and the `llm_cost_tracker:doctor` rake task for diagnosing storage, schema, optional columns, period totals, integrations, prices, and recent calls.
+- `LlmCostTracker::PriceFreshness` helper plus a price-freshness doctor check that warns when bundled or local prices are stale.
+- Technical documentation under `docs/technical/` covering architecture, data flow, extension points, module map, and operational notes.
+
 ### Changed
 
 - Pricing fuzzy matching now only accepts dated snapshot suffixes instead of guessing new model families.
-- Built-in prices include GPT-5.5/5.4 variants and remove retired Claude/Gemini entries.
+- Built-in prices include GPT-5.5 and GPT-5.4 variants and drop retired Claude and Gemini entries.
 - Missing model identifiers now normalize to `unknown` instead of leaking nil into tracked events.
 - `llm_cost_tracker:prices` now generates a full local price snapshot instead of an empty override file.
+- Price sync workflow surfaces clearer error context for fetcher failures and skips refresh-plan entries with malformed pricing.
+- README, cookbook, and technical docs clarify that `config.instrument` patches official SDKs only; `ruby-openai` (alexrudall) routes through the Faraday middleware via its constructor block, and `ruby_llm` is not auto-captured today because the gem does not expose a Faraday middleware hook.
 
 ## [0.4.1] - 2026-04-24
 
