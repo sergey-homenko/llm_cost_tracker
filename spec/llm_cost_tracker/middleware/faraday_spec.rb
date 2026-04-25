@@ -174,7 +174,10 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect do
       conn.post("/v1/chat/completions?api_key=secret-token", { model: "gpt-4o" }.to_json)
     end.to output(
-      a_string_matching(%r{\A(?!.*secret-token).*https://api\.openai\.com/v1/chat/completions;}m)
+      satisfy do |captured|
+        captured.include?("https://api.openai.com/v1/chat/completions;") &&
+          !captured.include?("secret-token")
+      end
     ).to_stderr
   end
 
