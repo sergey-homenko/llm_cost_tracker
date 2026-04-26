@@ -57,9 +57,9 @@ Dashboard reads do not mutate ledger state. They can be heavier than request-tim
 
 ## Pricing Refresh
 
-1. `llm_cost_tracker:prices:sync` chooses `ENV["OUTPUT"]`, then `config.prices_file`.
-2. Price-source adapters fetch structured LiteLLM and OpenRouter data.
-3. `ModelCatalog`, `Merger`, and `Validator` normalize and validate entries.
+1. `llm_cost_tracker:prices:refresh` chooses `ENV["OUTPUT"]`, then `config.prices_file`, then `config/llm_cost_tracker_prices.yml`.
+2. `PriceSync::Fetcher` fetches the maintained LLM Cost Tracker price snapshot.
+3. `PriceSync` validates schema compatibility, gem-version compatibility, and model price shape.
 4. `RegistryWriter` writes a local JSON or YAML registry.
 5. Runtime pricing reloads the local file when its mtime changes.
 

@@ -12,7 +12,7 @@ Core vocabulary belongs in provider-neutral terms:
 - `pricing_mode`
 - `provider_response_id`
 
-Provider-specific names belong only at ingestion boundaries: parsers, stream adapters, and price-source adapters. Those adapters translate raw fields into the canonical ledger vocabulary before data reaches `Tracker`, `Pricing`, storage, dashboard services, or reports.
+Provider-specific names belong only at ingestion boundaries: parsers and stream adapters. Those adapters translate raw fields into the canonical ledger vocabulary before data reaches `Tracker`, `Pricing`, storage, dashboard services, or reports.
 
 Pricing logic should prefer generic mechanisms over provider branches. Use provider/model price entries only for lookup and rate selection. Use `pricing_mode` plus mode-prefixed price keys for alternate billing modes instead of adding model-specific conditionals.
 

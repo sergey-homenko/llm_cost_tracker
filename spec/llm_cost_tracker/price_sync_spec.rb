@@ -1,54 +1,54 @@
 # frozen_string_literal: true
 
 require "json"
-require "pathname"
 require "spec_helper"
 require "tempfile"
-require "tmpdir"
+require "yaml"
 
-class PriceSyncFixtureFetcher
-  def initialize(fixtures:, failures: {})
-    @fixtures = fixtures
-    @failures = failures
+class CuratedPriceFetcher
+  attr_reader :requested_etag
+
+  def initialize(response)
+    @response = response
   end
 
-  def get(url, etag: nil)
-    raise LlmCostTracker::Error, @failures.fetch(url) if @failures.key?(url)
-
-    fixture = @fixtures.fetch(url)
-    LlmCostTracker::PriceSync::Fetcher::Response.new(
-      body: fixture.fetch(:body),
-      etag: fixture[:etag] || etag,
-      last_modified: fixture[:last_modified],
-      not_modified: false,
-      fetched_at: fixture.fetch(:fetched_at)
-    )
+  def get(_url, etag: nil)
+    @requested_etag = etag
+    @response
   end
 end
 
 RSpec.describe LlmCostTracker::PriceSync do
-  let(:today) { Date.new(2026, 4, 22) }
-
-  let(:fixtures) do
+  let(:source_url) { "https://example.com/llm_cost_tracker/prices.json" }
+  let(:remote_registry) do
     {
-      LlmCostTracker::PriceSync::Sources::Litellm::URL => {
-        body: File.read(fixture_path("litellm_snapshot_2026-04-22.json")),
-        etag: "litellm-fixture-v1",
-        fetched_at: "2026-04-22T00:00:00Z"
+      "metadata" => {
+        "schema_version" => 1,
+        "min_gem_version" => "0.0.1",
+        "updated_at" => "2026-04-25",
+        "currency" => "USD",
+        "unit" => "1M tokens"
       },
-      LlmCostTracker::PriceSync::Sources::OpenRouter::URL => {
-        body: File.read(fixture_path("openrouter_snapshot_2026-04-22.json")),
-        etag: "openrouter-fixture-v1",
-        fetched_at: "2026-04-22T00:00:00Z"
+      "models" => {
+        "gpt-4o" => { "input" => 2.5, "cache_read_input" => 1.25, "output" => 10.0 },
+        "gpt-5-mini" => { "input" => 0.25, "cache_read_input" => 0.025, "output" => 2.0 }
       }
     }
   end
 
-  let(:fetcher) { PriceSyncFixtureFetcher.new(fixtures: fixtures) }
+  def response(body:, etag: "snapshot-v1", not_modified: false)
+    LlmCostTracker::PriceSync::Fetcher::Response.new(
+      body: body,
+      etag: etag,
+      last_modified: nil,
+      not_modified: not_modified,
+      fetched_at: "2026-04-25T12:00:00Z"
+    )
+  end
 
   describe ".configured_output_path" do
     it "prefers OUTPUT over configured prices_file" do
-      config = double(prices_file: "config/llm_cost_tracker_prices.yml")
+      config = double(prices_file: "config/custom_prices.yml")
 
       expect(described_class.configured_output_path(env: { "OUTPUT" => "tmp/prices.yml" }, config: config)).to eq(
         "tmp/prices.yml"
@@ -56,233 +56,186 @@ RSpec.describe LlmCostTracker::PriceSync do
     end
 
     it "falls back to configured prices_file" do
-      config = double(prices_file: Pathname.new("config/llm_cost_tracker_prices.yml"))
+      config = double(prices_file: "config/custom_prices.yml")
 
-      expect(described_class.configured_output_path(env: {}, config: config)).to eq(
+      expect(described_class.configured_output_path(env: {}, config: config)).to eq("config/custom_prices.yml")
+    end
+
+    it "uses the conventional local prices path when no output is configured" do
+      config = double(prices_file: nil)
+
+      expect(described_class.configured_output_path(env: {}, config: config)).to end_with(
         "config/llm_cost_tracker_prices.yml"
       )
     end
+  end
 
-    it "returns nil when no writable target is configured" do
-      config = double(prices_file: nil)
+  describe ".configured_remote_url" do
+    it "uses URL when provided" do
+      expect(described_class.configured_remote_url(env: { "URL" => source_url })).to eq(source_url)
+    end
 
-      expect(described_class.configured_output_path(env: {}, config: config)).to be_nil
+    it "defaults to the maintained repository snapshot" do
+      expect(described_class.configured_remote_url).to include("llm_cost_tracker/main/lib/llm_cost_tracker/prices.json")
     end
   end
 
-  let(:seed_registry) do
-    {
-      "metadata" => {
-        "updated_at" => "2026-04-18",
-        "currency" => "USD",
-        "unit" => "1M tokens"
-      },
-      "models" => {
-        "gpt-4o" => { "input" => 9.0, "cache_read_input" => 4.5, "output" => 11.0, "_notes" => "keep me" },
-        "gpt-4o-2024-05-13" => { "input" => 5.0, "output" => 15.0 },
-        "gpt-4o-mini" => { "input" => 0.2, "output" => 0.8 },
-        "claude-sonnet-4-6" => {
-          "input" => 2.0,
-          "cache_read_input" => 0.2,
-          "cache_write_input" => 2.5,
-          "output" => 10.0
-        },
-        "gemini-2.5-flash" => { "input" => 0.2, "output" => 2.0 },
-        "gemini-1.5-pro" => { "input" => 0.9, "output" => 4.5 },
-        "custom-gateway-model" => {
-          "input" => 0.7,
-          "output" => 0.9,
-          "_source" => "manual",
-          "_notes" => "leave me"
-        },
-        "legacy-orphan-model" => { "input" => 1.2, "output" => 1.5 }
-      }
-    }
-  end
-
-  describe ".sync" do
-    it "writes the expected registry snapshot from structured JSON sources" do
-      Tempfile.create(["price-sync", ".json"]) do |file|
-        file.write(JSON.pretty_generate(seed_registry))
+  describe ".refresh" do
+    it "writes the curated remote snapshot and reports price changes" do
+      Tempfile.create(["llm-prices", ".yml"]) do |file|
+        file.write(
+          {
+            "metadata" => { "source_version" => "old-snapshot" },
+            "models" => { "gpt-4o" => { "input" => 5.0, "output" => 15.0 } }
+          }.to_yaml
+        )
         file.close
 
-        result = described_class.sync(path: file.path, fetcher: fetcher, today: today)
-        expected = JSON.parse(File.read(fixture_path("expected_prices_after_sync.json")))
-        actual = JSON.parse(File.read(file.path))
-
-        expect(result.updated_models).to eq(
-          %w[claude-sonnet-4-6 gemini-2.5-flash gpt-4o gpt-4o-2024-05-13 gpt-4o-mini]
+        result = described_class.refresh(
+          path: file.path,
+          url: source_url,
+          fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
         )
-        expect(result.orphaned_models).to eq(%w[gemini-1.5-pro legacy-orphan-model])
-        expect(result.failed_sources).to eq({})
-        expect(result.discrepancies.map { |issue| [issue.model, issue.field] }).to eq([%w[gpt-4o-mini output]])
-        expect(result.sources_used.fetch(:litellm).source_version).to eq("litellm-fixture-v1")
-        expect(result.sources_used.fetch(:openrouter).source_version).to eq("openrouter-fixture-v1")
+        written = YAML.safe_load_file(file.path, aliases: false)
+
         expect(result.written).to be(true)
-        expect(actual).to eq(expected)
+        expect(result.not_modified).to be(false)
+        expect(result.changes.fetch("gpt-4o")).to eq(
+          "cache_read_input" => { "from" => nil, "to" => 1.25 },
+          "input" => { "from" => 5.0, "to" => 2.5 },
+          "output" => { "from" => 15.0, "to" => 10.0 }
+        )
+        expect(written.dig("metadata", "source_url")).to eq(source_url)
+        expect(written.dig("metadata", "source_version")).to eq("snapshot-v1")
+        expect(written.dig("models", "gpt-5-mini", "output")).to eq(2.0)
       end
     end
 
-    it "supports previews without writing the file" do
-      Tempfile.create(["price-sync", ".json"]) do |file|
-        original_contents = JSON.pretty_generate(seed_registry)
-        file.write(original_contents)
+    it "does not write when previewing" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        original = JSON.generate("metadata" => {}, "models" => {})
+        file.write(original)
         file.close
 
-        result = described_class.sync(path: file.path, fetcher: fetcher, today: today, preview: true)
+        result = described_class.refresh(
+          path: file.path,
+          url: source_url,
+          preview: true,
+          fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
+        )
 
         expect(result.written).to be(false)
-        expect(result.updated_models).not_to be_empty
-        expect(File.read(file.path)).to eq(original_contents)
+        expect(File.read(file.path)).to eq(original)
       end
     end
 
-    it "falls back to secondary JSON sources when the primary source fails" do
-      failing_fetcher = PriceSyncFixtureFetcher.new(
-        fixtures: fixtures,
-        failures: { LlmCostTracker::PriceSync::Sources::Litellm::URL => "timeout while fetching LiteLLM" }
-      )
-
-      Tempfile.create(["price-sync", ".json"]) do |file|
-        file.write(JSON.pretty_generate(seed_registry))
+    it "uses the existing source version as the conditional request etag" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(JSON.generate("metadata" => { "source_version" => "snapshot-v1" }, "models" => {}))
         file.close
 
-        result = described_class.sync(path: file.path, fetcher: failing_fetcher, today: today)
-        registry = JSON.parse(File.read(file.path))
+        fetcher = CuratedPriceFetcher.new(response(body: nil, not_modified: true))
+        result = described_class.refresh(path: file.path, url: source_url, fetcher: fetcher)
 
-        expect(result.failed_sources).to eq(litellm: "timeout while fetching LiteLLM")
-        expect(result.sources_used.keys).to eq([:openrouter])
-        expect(registry.dig("models", "gpt-4o", "_source")).to eq("openrouter")
-        expect(registry.dig("metadata", "source_urls")).to eq([LlmCostTracker::PriceSync::Sources::OpenRouter::URL])
-        expect(registry.dig("models", "gpt-4o-mini", "output")).to eq(0.63)
-        expect(registry.dig("models", "claude-sonnet-4-6", "cache_write_input")).to eq(3.75)
-        expect(registry.dig("models", "custom-gateway-model", "_source")).to eq("manual")
+        expect(fetcher.requested_etag).to eq("snapshot-v1")
+        expect(result.not_modified).to be(true)
+        expect(result.written).to be(false)
       end
     end
 
-    it "raises in strict mode and leaves the existing file untouched on source failures" do
-      failing_fetcher = PriceSyncFixtureFetcher.new(
-        fixtures: fixtures,
-        failures: { LlmCostTracker::PriceSync::Sources::Litellm::URL => "timeout while fetching LiteLLM" }
-      )
-
-      Tempfile.create(["price-sync", ".json"]) do |file|
-        original_contents = JSON.pretty_generate(seed_registry)
-        file.write(original_contents)
+    it "leaves the existing file untouched when the remote schema is too new" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        original = JSON.generate("metadata" => {}, "models" => {})
+        file.write(original)
         file.close
+        registry = remote_registry.merge("metadata" => remote_registry.fetch("metadata").merge("schema_version" => 99))
 
         expect do
-          described_class.sync(path: file.path, fetcher: failing_fetcher, today: today, strict: true)
-        end.to raise_error(LlmCostTracker::Error, /Price sync failed in strict mode: source failures:/)
-
-        expect(File.read(file.path)).to eq(original_contents)
+          described_class.refresh(
+            path: file.path,
+            url: source_url,
+            fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(registry)))
+          )
+        end.to raise_error(LlmCostTracker::Error, /schema_version=99/)
+        expect(File.read(file.path)).to eq(original)
       end
     end
 
-    it "does not write anything when every JSON source fails" do
-      failing_fetcher = PriceSyncFixtureFetcher.new(
-        fixtures: fixtures,
-        failures: fixtures.keys.to_h { |url| [url, "unavailable: #{url}"] }
-      )
+    it "rejects invalid remote schema metadata" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        original = JSON.generate("metadata" => {}, "models" => {})
+        file.write(original)
+        file.close
+        registry = remote_registry.merge("metadata" => remote_registry.fetch("metadata").merge("schema_version" => nil))
 
-      Dir.mktmpdir do |dir|
-        output_path = File.join(dir, "llm_cost_tracker_prices.json")
-        seed_path = File.join(dir, "seed_prices.json")
-        File.write(seed_path, JSON.pretty_generate(seed_registry))
+        expect do
+          described_class.refresh(
+            path: file.path,
+            url: source_url,
+            fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(registry)))
+          )
+        end.to raise_error(LlmCostTracker::Error, /Unable to load remote pricing snapshot/)
+        expect(File.read(file.path)).to eq(original)
+      end
+    end
 
-        result = described_class.sync(
-          path: output_path,
-          seed_path: seed_path,
-          fetcher: failing_fetcher,
-          today: today
+    it "leaves the existing file untouched when the snapshot requires a newer gem" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        original = JSON.generate("metadata" => {}, "models" => {})
+        file.write(original)
+        file.close
+        registry = remote_registry.merge(
+          "metadata" => remote_registry.fetch("metadata").merge("min_gem_version" => "99.0.0")
         )
 
-        expect(result.written).to be(false)
-        expect(result.failed_sources.keys).to contain_exactly(:litellm, :openrouter)
-        expect(result.orphaned_models).to eq([])
-        expect(File.exist?(output_path)).to be(false)
-      end
-    end
-
-    it "keeps the file untouched when sources return no matching models" do
-      Tempfile.create(["price-sync", ".json"]) do |file|
-        registry = {
-          "metadata" => {
-            "updated_at" => "2026-04-18",
-            "currency" => "USD",
-            "unit" => "1M tokens"
-          },
-          "models" => {
-            "my-private-model" => { "input" => 1.0, "output" => 2.0, "_source" => "manual" }
-          }
-        }
-        original_contents = JSON.pretty_generate(registry)
-        file.write(original_contents)
-        file.close
-
-        result = described_class.sync(path: file.path, fetcher: fetcher, today: today)
-
-        expect(result.written).to be(false)
-        expect(result.updated_models).to eq([])
-        expect(File.read(file.path)).to eq(original_contents)
+        expect do
+          described_class.refresh(
+            path: file.path,
+            url: source_url,
+            fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(registry)))
+          )
+        end.to raise_error(LlmCostTracker::Error, /requires llm_cost_tracker >= 99.0.0/)
+        expect(File.read(file.path)).to eq(original)
       end
     end
   end
 
   describe ".check" do
-    it "returns detailed price changes without writing the file" do
-      Tempfile.create(["price-sync", ".json"]) do |file|
-        original_contents = JSON.pretty_generate(seed_registry)
-        file.write(original_contents)
+    it "reports drift without writing" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        original = JSON.generate(
+          "metadata" => {},
+          "models" => { "gpt-4o" => { "input" => 5.0, "output" => 15.0 } }
+        )
+        file.write(original)
         file.close
 
-        result = described_class.check(path: file.path, fetcher: fetcher, today: today)
+        result = described_class.check(
+          path: file.path,
+          url: source_url,
+          fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
+        )
 
         expect(result.up_to_date).to be(false)
-        expect(result.failed_sources).to eq({})
-        expect(result.orphaned_models).to eq(%w[gemini-1.5-pro legacy-orphan-model])
-        expect(result.discrepancies.map { |issue| [issue.model, issue.field] }).to eq([%w[gpt-4o-mini output]])
-        expect(result.changes.fetch("gpt-4o")).to eq(
-          "cache_read_input" => { "from" => 4.5, "to" => 1.25 },
-          "input" => { "from" => 9.0, "to" => 2.5 },
-          "output" => { "from" => 11.0, "to" => 10.0 }
-        )
-        expect(result.changes.fetch("gpt-4o-mini")).to eq(
-          "cache_read_input" => { "from" => nil, "to" => 0.075 },
-          "input" => { "from" => 0.2, "to" => 0.15 },
-          "output" => { "from" => 0.8, "to" => 0.6 }
-        )
-        expect(File.read(file.path)).to eq(original_contents)
+        expect(result.changes.keys).to include("gpt-4o", "gpt-5-mini")
+        expect(File.read(file.path)).to eq(original)
       end
     end
 
-    it "reports up-to-date when the snapshot already matches the synced output" do
-      Tempfile.create(["price-sync", ".json"]) do |file|
-        file.write(JSON.pretty_generate(seed_registry))
+    it "reports up-to-date on a not-modified response" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(JSON.generate("metadata" => { "source_version" => "snapshot-v1" }, "models" => {}))
         file.close
 
-        described_class.sync(path: file.path, fetcher: fetcher, today: today)
-        result = described_class.check(path: file.path, fetcher: fetcher, today: today)
+        result = described_class.check(
+          path: file.path,
+          url: source_url,
+          fetcher: CuratedPriceFetcher.new(response(body: nil, not_modified: true))
+        )
 
         expect(result.up_to_date).to be(true)
         expect(result.changes).to eq({})
-        expect(result.discrepancies.map { |issue| [issue.model, issue.field] }).to eq([%w[gpt-4o-mini output]])
       end
     end
-  end
-
-  it "raises a readable error for invalid registry shapes" do
-    Tempfile.create(["price-sync", ".json"]) do |file|
-      file.write(JSON.generate([]))
-      file.close
-
-      expect do
-        described_class.check(path: file.path, fetcher: fetcher, today: today)
-      end.to raise_error(LlmCostTracker::Error, /Unable to load pricing registry/)
-    end
-  end
-
-  def fixture_path(name)
-    File.expand_path("../fixtures/pricing/#{name}", __dir__)
   end
 end

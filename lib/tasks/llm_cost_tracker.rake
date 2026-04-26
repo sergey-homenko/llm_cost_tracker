@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "fileutils"
+
 # rubocop:disable Metrics/BlockLength
 namespace :llm_cost_tracker do
   desc "Check LLM Cost Tracker setup"
@@ -26,72 +28,55 @@ namespace :llm_cost_tracker do
 
   namespace :prices do
     desc(
-      "Sync the configured pricing file from LiteLLM/OpenRouter JSON sources. " \
-      "Use PREVIEW=1 to preview, STRICT=1 to fail on provider errors, " \
-      "or OUTPUT=path/to/file.json."
+      "Refresh the configured pricing file from the maintained LLM Cost Tracker price snapshot. " \
+      "Use PREVIEW=1 to preview, URL=... to override the source, or OUTPUT=path/to/file.json."
     )
-    task :sync do
+    task :refresh do
       Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
       require_relative "../llm_cost_tracker"
 
-      output_path = price_sync_output_path
-      strict = ENV["STRICT"] == "1" || ARGV.include?("--strict")
-      result = LlmCostTracker::PriceSync.sync(
+      output_path = price_refresh_output_path
+      source_url = LlmCostTracker::PriceSync.configured_remote_url
+      preview = ENV["PREVIEW"] == "1"
+      result = LlmCostTracker::PriceSync.refresh(
         path: output_path,
-        preview: ENV["PREVIEW"] == "1",
-        strict: strict
+        url: source_url,
+        preview: preview
       )
 
-      action = if ENV["PREVIEW"] == "1"
+      action = if preview
                  "previewed"
                elsif result.written
-                 "updated"
+                 "refreshed"
                else
                  "kept"
                end
 
       puts "llm_cost_tracker: #{action} pricing file #{result.path}"
-      print_source_usage(result.sources_used)
+      puts "  source: #{result.source_url}"
+      puts "  version: #{result.source_version.inspect}" if result.source_version
       print_changes(result.changes)
-      print_discrepancies(result.discrepancies)
-      print_issues("validator rejected", result.rejected)
-      print_issues("validator flagged", result.flagged)
-      print_models("orphaned models (no JSON source match)", result.orphaned_models)
-      print_failures(result.failed_sources, heading: "source failures (kept existing values)")
     end
 
-    desc "Compare the current pricing snapshot with LiteLLM/OpenRouter JSON sources and exit non-zero on drift."
+    desc "Compare the current pricing file with the maintained LLM Cost Tracker price snapshot."
     task :check do
       Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
       require_relative "../llm_cost_tracker"
 
-      output_path = price_sync_output_path
-      result = LlmCostTracker::PriceSync.check(path: output_path)
+      output_path = price_refresh_output_path
+      source_url = LlmCostTracker::PriceSync.configured_remote_url
+      result = LlmCostTracker::PriceSync.check(path: output_path, url: source_url)
 
       puts "llm_cost_tracker: checked pricing file #{result.path}"
-      print_source_usage(result.sources_used)
+      puts "  source: #{result.source_url}"
+      puts "  version: #{result.source_version.inspect}" if result.source_version
       print_changes(result.changes)
-      print_discrepancies(result.discrepancies)
-      print_issues("validator rejected", result.rejected)
-      print_issues("validator flagged", result.flagged)
-      print_models("orphaned models (no JSON source match)", result.orphaned_models)
-      print_failures(result.failed_sources, heading: "source failures")
       puts "  pricing is up to date" if result.up_to_date
       abort("llm_cost_tracker: pricing check failed") unless result.up_to_date
     end
   end
 end
 # rubocop:enable Metrics/BlockLength
-
-def print_source_usage(sources_used)
-  return if sources_used.empty?
-
-  puts "  sources used:"
-  sources_used.each do |source, usage|
-    version = usage.source_version ? ", version=#{usage.source_version.inspect}" : ""
-    puts "    - #{source} (#{usage.prices_count} prices#{version})"
-  end
-end
 
 def print_changes(changes)
   puts "  changed models: #{changes.size}"
@@ -105,47 +90,8 @@ def print_changes(changes)
   end
 end
 
-def print_discrepancies(discrepancies)
-  return if discrepancies.empty?
-
-  puts "  source discrepancies: #{discrepancies.size}"
-  discrepancies.each do |issue|
-    formatted = issue.values.map { |source, value| "#{source}=#{value.inspect}" }.join(", ")
-    puts "    - #{issue.model} #{issue.field}: #{formatted}"
-  end
-end
-
-def print_issues(heading, issues)
-  return if issues.empty?
-
-  puts "  #{heading}: #{issues.size}"
-  issues.each do |issue|
-    puts "    - #{issue.model}: #{issue.reason}"
-  end
-end
-
-def print_models(heading, models)
-  return if models.empty?
-
-  puts "  #{heading}: #{models.size}"
-  models.each { |model| puts "    - #{model}" }
-end
-
-def print_failures(failed_sources, heading:)
-  return if failed_sources.empty?
-
-  puts "  #{heading}: #{failed_sources.size}"
-  failed_sources.each do |source, message|
-    puts "    - #{source}: #{message}"
-  end
-end
-
-def price_sync_output_path
+def price_refresh_output_path
   path = LlmCostTracker::PriceSync.configured_output_path
-  return path if path
-
-  abort(
-    "llm_cost_tracker: configure prices_file, run bin/rails generate llm_cost_tracker:prices, " \
-    "or set OUTPUT=config/llm_cost_tracker_prices.yml"
-  )
+  FileUtils.mkdir_p(File.dirname(path))
+  path
 end

@@ -20,7 +20,7 @@ Hot-path code must avoid:
 - full ledger aggregation
 - unbounded stream buffers
 - N+1 queries
-- price-source sync work
+- price-refresh work
 
 ## Pricing Freshness
 
@@ -30,7 +30,7 @@ Runtime pricing is local:
 2. configured local price snapshot
 3. bundled prices
 
-Price sync tasks are operational tooling. They can fetch network sources because the operator runs them intentionally. Request tracking must never depend on live provider pricing pages.
+Price update tasks are operational tooling. They can fetch the maintained LLM Cost Tracker price snapshot because the operator runs them intentionally. Request tracking must never depend on live provider pricing pages.
 
 ## Budget Reads
 

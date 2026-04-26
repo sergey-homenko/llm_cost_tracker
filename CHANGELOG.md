@@ -4,6 +4,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-04-26
+
+### Changed
+
+- Renamed `llm_cost_tracker:prices:update` to `llm_cost_tracker:prices:refresh` and `LlmCostTracker::PriceSync.update` to `.refresh` to match the operation's actual semantics (re-fetching a curated remote snapshot).
+
 ## [0.5.0] - 2026-04-25
 
 ### Added
@@ -20,8 +26,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Built-in prices include GPT-5.5 and GPT-5.4 variants and drop retired Claude and Gemini entries.
 - Missing model identifiers now normalize to `unknown` instead of leaking nil into tracked events.
 - `llm_cost_tracker:prices` now generates a full local price snapshot instead of an empty override file.
-- Price sync workflow surfaces clearer error context for fetcher failures and skips refresh-plan entries with malformed pricing.
-- README, cookbook, and technical docs clarify that `config.instrument` patches official SDKs only; `ruby-openai` (alexrudall) routes through the Faraday middleware via its constructor block, and `ruby_llm` is not auto-captured today because the gem does not expose a Faraday middleware hook.
+- `llm_cost_tracker:prices:update` refreshes local price files from the maintained LLM Cost Tracker snapshot instead of third-party price catalogs.
+- Removed legacy `llm_cost_tracker:prices:sync`; use `llm_cost_tracker:prices:update`.
+- README, cookbook, and technical docs clarify that `config.instrument` patches official SDKs only, and `ruby-openai` routes through the Faraday middleware via its constructor block.
 
 ## [0.4.1] - 2026-04-24
 

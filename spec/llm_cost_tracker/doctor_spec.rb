@@ -34,7 +34,7 @@ RSpec.describe LlmCostTracker::Doctor do
 
       expect(check.status).to eq(:warn)
       expect(check.message).to include("older than 30 days")
-      expect(check.message).to include("llm_cost_tracker:prices:sync")
+      expect(check.message).to include("llm_cost_tracker:prices:refresh")
     end
   end
 

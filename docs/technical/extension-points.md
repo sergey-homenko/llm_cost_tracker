@@ -1,6 +1,6 @@
 # Extension Points
 
-Extensions should plug into existing provider-agnostic boundaries. If a new feature needs a provider-specific branch outside ingestion or price-source code, revisit the design first.
+Extensions should plug into existing provider-agnostic boundaries. If a new feature needs a provider-specific branch outside ingestion code, revisit the design first.
 
 ## Custom Parsers
 
@@ -18,7 +18,7 @@ Use `Parsers::Base` helpers for URL matching and stream-event extraction. Use `P
 
 ## SDK Integrations
 
-Use SDK integrations when a popular Ruby client does not expose a Faraday middleware stack but returns stable usage objects. The official `openai` and `anthropic` gems use `net/http` and qualify. Faraday-based clients that expose a middleware hook (e.g. `ruby-openai`'s constructor block) are covered by the Faraday middleware instead. Faraday-based clients that do **not** expose a middleware hook (e.g. `ruby_llm` today) cannot be auto-captured here and must use the explicit `track` / `track_stream` fallback.
+Use SDK integrations when a popular Ruby client does not expose a Faraday middleware stack but returns stable usage objects. The official `openai` and `anthropic` gems use `net/http` and qualify. Faraday-based clients that expose a middleware hook, such as `ruby-openai`'s constructor block, are covered by the Faraday middleware instead. Clients with no stable hook must use the explicit `track` / `track_stream` fallback until an integration exists.
 
 Expected integration contract:
 
@@ -52,7 +52,7 @@ Supported canonical keys:
 - `batch_output`
 - mode-prefixed keys such as `priority_input` or `batch_cache_read_input`
 
-Provider-specific price-source fields must be translated before they reach runtime pricing.
+Provider-specific pricing details must be translated before they reach runtime pricing.
 
 ## Tags
 

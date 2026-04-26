@@ -15,7 +15,7 @@ module LlmCostTracker
         end
       end
 
-      USER_AGENT = "llm_cost_tracker price sync"
+      USER_AGENT = "llm_cost_tracker price refresh"
       MAX_REDIRECTS = 5
       OPEN_TIMEOUT = 5
       READ_TIMEOUT = 10
@@ -25,6 +25,8 @@ module LlmCostTracker
         raise Error, "Too many redirects while fetching #{url}" if redirects > MAX_REDIRECTS
 
         uri = URI.parse(url)
+        raise Error, "Pricing snapshot URL must use http or https" unless %w[http https].include?(uri.scheme)
+
         request = Net::HTTP::Get.new(uri)
         request["User-Agent"] = USER_AGENT
         request["If-None-Match"] = etag if etag

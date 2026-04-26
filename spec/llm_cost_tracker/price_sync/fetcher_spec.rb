@@ -22,12 +22,20 @@ RSpec.describe LlmCostTracker::PriceSync::Fetcher do
       described_class.new.get("https://example.com/prices.json")
     end
 
-    it "wraps SSL failures as price sync errors" do
+    it "wraps SSL failures as price refresh errors" do
       allow(Net::HTTP).to receive(:start).and_raise(OpenSSL::SSL::SSLError, "certificate verify failed")
 
       expect do
         described_class.new.get("https://example.com/prices.json")
       end.to raise_error(LlmCostTracker::Error, /Unable to fetch .*OpenSSL::SSL::SSLError/)
+    end
+
+    it "rejects unsupported URL schemes before opening a connection" do
+      expect(Net::HTTP).not_to receive(:start)
+
+      expect do
+        described_class.new.get("file:///tmp/prices.json")
+      end.to raise_error(LlmCostTracker::Error, /must use http or https/)
     end
   end
 end

@@ -19,7 +19,7 @@ Every Rails app with LLM integrations eventually runs into the same question: wh
 - Optional official OpenAI and Anthropic SDK integrations, plus Faraday middleware for custom clients
 - Explicit `track` / `track_stream` helpers as a fallback for unsupported clients
 - Server-rendered Rails dashboard with overview, models, calls, tags, CSV export, and data-quality pages
-- Local pricing snapshots, price sync tasks, and budget guardrails
+- Local pricing snapshots, price refresh tasks, and budget guardrails
 - Prompt and response bodies are never persisted
 
 ## Dashboard
@@ -265,7 +265,9 @@ LlmCostTracker::LlmApiCall.unknown_pricing.group(:model).count
 
 ### Keeping prices current
 
-Built-in prices live in `lib/llm_cost_tracker/prices.json`. The gem never fetches pricing on boot. For production, generate a local snapshot from the bundled registry, keep it under source control, and point the gem at it:
+Built-in prices live in `lib/llm_cost_tracker/prices.json`. The gem never fetches pricing on boot or while recording requests. Most apps can use bundled prices first and add a local price file only when they want price updates independent of gem releases, contract rates, gateway-specific model IDs, or pinned review.
+
+Generate a local snapshot when you want that control:
 
 ```bash
 bin/rails generate llm_cost_tracker:prices
@@ -296,29 +298,20 @@ Pricing precedence is `pricing_overrides`, then `prices_file`, then bundled pric
 To refresh prices on demand:
 
 ```bash
-bin/rails llm_cost_tracker:prices:sync
+bin/rails llm_cost_tracker:prices:refresh
 ```
 
-`llm_cost_tracker:prices:sync` refreshes a pricing file from two structured sources: LiteLLM first, OpenRouter second. LiteLLM is the primary source; OpenRouter fills gaps and helps surface discrepancies.
+`llm_cost_tracker:prices:refresh` refreshes the configured price file from the maintained LLM Cost Tracker snapshot in this repository. It writes to `ENV["OUTPUT"]`, then `config.prices_file`, then `config/llm_cost_tracker_prices.yml`. Use `PREVIEW=1` to see the diff without writing.
 
-`llm_cost_tracker:prices:sync` / `llm_cost_tracker:prices:check` perform HTTP GET requests to:
+The remote snapshot has `schema_version` and `min_gem_version` metadata. If it requires a newer gem or fails validation, the task raises and leaves the existing local file untouched.
 
-- LiteLLM pricing JSON: `https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json`
-- OpenRouter Models API: `https://openrouter.ai/api/v1/models`
+If refresh reports `certificate verify failed`, fix the host Ruby/OpenSSL trust store rather than disabling TLS verification. Common fixes are installing `ca-certificates` in Docker/Linux images, configuring the corporate proxy CA, setting `SSL_CERT_FILE` to the system CA bundle, or rebuilding rbenv/asdf Ruby after an OpenSSL upgrade.
 
-The task writes to `ENV["OUTPUT"]`, then `config.prices_file`, in that order. It aborts if neither is present. The gem's bundled `prices.json` is only updated when you explicitly pass it through `OUTPUT=` while developing the gem. `_source: "manual"` entries are never touched. Models that are still in your file but missing from both upstream sources are left alone and reported as orphaned. For intentional custom entries, mark them as manual so they stop showing up in orphaned warnings.
-
-Use `OUTPUT=config/llm_cost_tracker_prices.yml` to choose a target file explicitly. Use `PREVIEW=1` to see the diff without writing. Use `STRICT=1` to fail instead of applying a partial refresh when a source fails or the validator rejects a price. Use `bin/rails llm_cost_tracker:prices:check` in CI to print the current diff and exit non-zero when the snapshot has drifted or refresh fails.
-
-Large price changes are flagged during sync. If a specific entry is expected to move by more than 3x, add `_validator_override: ["skip_relative_change"]` to that entry in your local price file.
-
-If sync reports `certificate verify failed`, fix the host Ruby/OpenSSL trust store rather than disabling TLS verification. Common fixes are installing `ca-certificates` in Docker/Linux images, configuring the corporate proxy CA, setting `SSL_CERT_FILE` to the system CA bundle, or rebuilding rbenv/asdf Ruby after an OpenSSL upgrade.
-
-For unattended updates, run the check daily and sync through review:
+In CI, use `prices:check` to detect drift from the maintained snapshot, then run `prices:refresh` and review the diff:
 
 ```bash
 bin/rails llm_cost_tracker:prices:check
-STRICT=1 bin/rails llm_cost_tracker:prices:sync
+bin/rails llm_cost_tracker:prices:refresh
 ```
 
 `bin/rails llm_cost_tracker:doctor` warns when the configured price file has no `metadata.updated_at` or when it is older than 30 days.

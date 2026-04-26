@@ -90,7 +90,7 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result).to be_nil
     end
 
-    it "prices current GPT-5.4 and GPT-5.5 models exactly" do
+    it "prices bundled GPT-5.4 and GPT-5.5 models exactly" do
       gpt54 = described_class.cost_for(
         provider: "openai",
         model: "gpt-5.4",
@@ -114,10 +114,10 @@ RSpec.describe LlmCostTracker::Pricing do
 
       expect(gpt54.total_cost).to eq(17.75)
       expect(gpt55.total_cost).to eq(35.5)
-      expect(gpt55pro.total_cost).to eq(420.0)
+      expect(gpt55pro.total_cost).to eq(210.0)
     end
 
-    it "prices current GPT-5.4 variants exactly" do
+    it "prices bundled GPT-5.4 variants exactly" do
       mini = described_class.cost_for(
         provider: "openai",
         model: "gpt-5.4-mini",

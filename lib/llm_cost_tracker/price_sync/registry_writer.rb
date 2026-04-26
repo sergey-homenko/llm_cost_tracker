@@ -12,7 +12,11 @@ module LlmCostTracker
       def call(path:, registry:)
         FileUtils.mkdir_p(File.dirname(path))
         payload = yaml_file?(path) ? YAML.dump(registry) : "#{JSON.pretty_generate(registry)}\n"
-        File.write(path, payload)
+        temp_path = "#{path}.tmp-#{Process.pid}-#{Thread.current.object_id}"
+        File.write(temp_path, payload)
+        File.rename(temp_path, path)
+      ensure
+        FileUtils.rm_f(temp_path) if temp_path && File.exist?(temp_path)
       end
 
       private

@@ -17,20 +17,20 @@ module LlmCostTracker
 
         [:ok, "updated_at=#{updated_at}"]
       rescue Date::Error
-        [:warn, "metadata.updated_at=#{updated_at.inspect} is invalid; run bin/rails llm_cost_tracker:prices:sync"]
+        [:warn, "metadata.updated_at=#{updated_at.inspect} is invalid; run bin/rails llm_cost_tracker:prices:refresh"]
       end
 
       private
 
       def missing
-        [:warn, "metadata.updated_at missing; run bin/rails llm_cost_tracker:prices:sync"]
+        [:warn, "metadata.updated_at missing; run bin/rails llm_cost_tracker:prices:refresh"]
       end
 
       def stale(updated_at)
         [
           :warn,
           "updated_at=#{updated_at} is older than #{STALE_AFTER_DAYS} days; " \
-          "run bin/rails llm_cost_tracker:prices:sync"
+          "run bin/rails llm_cost_tracker:prices:refresh"
         ]
       end
     end

@@ -93,10 +93,10 @@ Responsibilities:
 - Load bundled prices, local price snapshots, and Ruby overrides.
 - Apply pricing precedence: `pricing_overrides`, `prices_file`, bundled prices.
 - Calculate costs from canonical usage fields.
-- Sync local snapshots from structured price sources.
-- Validate large price changes and impossible prices.
+- Update local snapshots from the maintained LLM Cost Tracker price registry.
+- Validate snapshot schema compatibility, gem-version compatibility, and price entry shape.
 
-Pricing sync must not perform boot-time or request-time network work. Runtime pricing uses bundled prices, local files, and in-memory caches.
+Pricing refresh must not perform boot-time or request-time network work. Runtime pricing uses bundled prices, local files, and in-memory caches.
 
 ## Storage
 
