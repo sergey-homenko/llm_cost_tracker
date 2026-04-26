@@ -32,44 +32,61 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result).to be_nil
     end
 
-    it "fuzzy-matches versioned model names" do
+    it "fuzzy-matches dated snapshot suffixes to the base model" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = { "demo-base" => { input: 1.0, output: 2.0 } }
+      end
+
       result = described_class.cost_for(
-        provider: "openai",
-        model: "gpt-4o-2024-08-06",
+        provider: "custom",
+        model: "demo-base-2026-01-01",
         input_tokens: 1_000_000,
         output_tokens: 0
       )
 
-      expect(result).not_to be_nil
-      expect(result.input_cost).to eq(2.5)
+      expect(result.input_cost).to eq(1.0)
     end
 
-    it "matches OpenRouter-style provider-prefixed model names" do
+    it "matches provider-prefixed model names from gateways" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = { "demo-mini" => { input: 0.1, output: 0.4 } }
+      end
+
       result = described_class.cost_for(
-        provider: "openrouter",
-        model: "openai/gpt-4o-mini",
+        provider: "demogateway",
+        model: "demo/demo-mini",
         input_tokens: 1_000_000,
         output_tokens: 0
       )
 
-      expect(result).not_to be_nil
-      expect(result.input_cost).to eq(0.15)
+      expect(result.input_cost).to eq(0.1)
     end
 
     it "prefers the longest fuzzy match for overlapping model names" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "demo-family" => { input: 5.0, output: 10.0 },
+          "demo-family-mini" => { input: 0.5, output: 1.0 }
+        }
+      end
+
       result = described_class.cost_for(
-        provider: "openai",
-        model: "gpt-5.2-2026-01-01",
+        provider: "custom",
+        model: "demo-family-mini-2026-01-01",
         input_tokens: 1_000_000,
         output_tokens: 0
       )
 
-      expect(result.input_cost).to eq(1.75)
+      expect(result.input_cost).to eq(0.5)
     end
 
     it "does not fuzzy-match unknown model families to older prices" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = { "demo-1.0" => { input: 1.0, output: 2.0 } }
+      end
+
       expect(
-        described_class.cost_for(provider: "openai", model: "gpt-5.3", input_tokens: 1_000_000, output_tokens: 0)
+        described_class.cost_for(provider: "custom", model: "demo-2.0", input_tokens: 1_000_000, output_tokens: 0)
       ).to be_nil
     end
 
@@ -90,99 +107,16 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result).to be_nil
     end
 
-    it "prices bundled GPT-5.4 and GPT-5.5 models exactly" do
-      gpt54 = described_class.cost_for(
-        provider: "openai",
-        model: "gpt-5.4",
-        input_tokens: 1_000_000,
-        cache_read_input_tokens: 1_000_000,
-        output_tokens: 1_000_000
-      )
-      gpt55 = described_class.cost_for(
-        provider: "openai",
-        model: "gpt-5.5",
-        input_tokens: 1_000_000,
-        cache_read_input_tokens: 1_000_000,
-        output_tokens: 1_000_000
-      )
-      gpt55pro = described_class.cost_for(
-        provider: "openai",
-        model: "gpt-5.5-pro",
-        input_tokens: 1_000_000,
-        output_tokens: 1_000_000
-      )
+    it "prices cache-read input tokens separately from regular input" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "demo-cached" => { input: 0.25, output: 2.0, cache_read_input: 0.025 }
+        }
+      end
 
-      expect(gpt54.total_cost).to eq(17.75)
-      expect(gpt55.total_cost).to eq(35.5)
-      expect(gpt55pro.total_cost).to eq(210.0)
-    end
-
-    it "prices bundled GPT-5.4 variants exactly" do
-      mini = described_class.cost_for(
-        provider: "openai",
-        model: "gpt-5.4-mini",
-        input_tokens: 1_000_000,
-        cache_read_input_tokens: 1_000_000,
-        output_tokens: 1_000_000
-      )
-      nano = described_class.cost_for(
-        provider: "openai",
-        model: "gpt-5.4-nano",
-        input_tokens: 1_000_000,
-        cache_read_input_tokens: 1_000_000,
-        output_tokens: 1_000_000
-      )
-      pro = described_class.cost_for(
-        provider: "openai",
-        model: "gpt-5.4-pro",
-        input_tokens: 1_000_000,
-        output_tokens: 1_000_000
-      )
-
-      expect(mini.total_cost).to eq(5.325)
-      expect(nano.total_cost).to eq(1.47)
-      expect(pro.total_cost).to eq(210.0)
-    end
-
-    it "uses snapshot suffix matching only for dated model snapshots" do
-      gpt54 = described_class.cost_for(
-        provider: "openai",
-        model: "gpt-5.4-2026-03-05",
-        input_tokens: 1_000_000,
-        output_tokens: 0
-      )
-      claude = described_class.cost_for(
-        provider: "anthropic",
-        model: "claude-opus-4-7-20260416",
-        input_tokens: 1_000_000,
-        output_tokens: 0
-      )
-
-      expect(gpt54.input_cost).to eq(2.5)
-      expect(claude.input_cost).to eq(5.0)
-    end
-
-    it "prices current Claude Opus 4.7 exactly" do
       result = described_class.cost_for(
-        provider: "anthropic",
-        model: "claude-opus-4-7",
-        input_tokens: 1_000_000,
-        cache_read_input_tokens: 1_000_000,
-        cache_write_input_tokens: 1_000_000,
-        output_tokens: 1_000_000
-      )
-
-      expect(result.input_cost).to eq(5.0)
-      expect(result.cache_read_input_cost).to eq(0.5)
-      expect(result.cache_write_input_cost).to eq(6.25)
-      expect(result.output_cost).to eq(25.0)
-      expect(result.total_cost).to eq(36.75)
-    end
-
-    it "prices cache-read input tokens separately" do
-      result = described_class.cost_for(
-        provider: "openai",
-        model: "gpt-5-mini",
+        provider: "custom",
+        model: "demo-cached",
         input_tokens: 600_000,
         cache_read_input_tokens: 400_000,
         output_tokens: 0
@@ -193,10 +127,21 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.total_cost).to eq(0.16)
     end
 
-    it "prices cache read and write tokens separately" do
+    it "prices cache read and write tokens separately and sums into total" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "demo-cache-rw" => {
+            input: 3.0,
+            output: 15.0,
+            cache_read_input: 0.3,
+            cache_write_input: 3.75
+          }
+        }
+      end
+
       result = described_class.cost_for(
-        provider: "anthropic",
-        model: "claude-sonnet-4-6",
+        provider: "custom",
+        model: "demo-cache-rw",
         input_tokens: 100_000,
         cache_read_input_tokens: 200_000,
         cache_write_input_tokens: 300_000,
@@ -207,19 +152,10 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.cache_read_input_cost).to eq(0.06)
       expect(result.cache_write_input_cost).to eq(1.125)
       expect(result.output_cost).to eq(0.15)
-      expect(result.total_cost).to eq(1.635)
-    end
-
-    it "uses current Gemini 2.5 Flash standard pricing" do
-      result = described_class.cost_for(
-        provider: "gemini",
-        model: "gemini-2.5-flash",
-        input_tokens: 1_000_000,
-        output_tokens: 1_000_000
+      expect(result.total_cost).to be_within(0.0001).of(
+        result.input_cost + result.cache_read_input_cost +
+          result.cache_write_input_cost + result.output_cost
       )
-
-      expect(result.input_cost).to eq(0.3)
-      expect(result.output_cost).to eq(2.5)
     end
 
     it "uses pricing overrides when configured" do
@@ -419,8 +355,67 @@ RSpec.describe LlmCostTracker::Pricing do
 
   describe ".metadata" do
     it "exposes built-in pricing metadata" do
-      expect(described_class.metadata).to include("updated_at" => "2026-04-25")
+      expect(described_class.metadata.fetch("updated_at")).to match(/\A\d{4}-\d{2}-\d{2}\z/)
       expect(described_class.metadata.fetch("source_urls")).not_to be_empty
+    end
+  end
+
+  describe "bundled price snapshot" do
+    let(:bundled) { LlmCostTracker::PriceRegistry.builtin_prices }
+
+    it "ships at least one model" do
+      expect(bundled.size).to be > 0
+    end
+
+    it "uses positive numeric values for every recognised price field" do
+      bundled.each do |model_id, fields|
+        fields.each do |field, value|
+          next unless LlmCostTracker::PriceRegistry::PRICE_KEYS.include?(field) ||
+                      field.match?(/_(input|output)\z/)
+
+          expect(value).to be_a(Numeric), "#{model_id}.#{field} expected Numeric, got #{value.inspect}"
+          expect(value).to be > 0, "#{model_id}.#{field} expected positive, got #{value}"
+        end
+      end
+    end
+
+    it "holds the Anthropic cache-hit pricing invariant (10% of base input)" do
+      bundled.each do |model_id, fields|
+        next unless model_id.start_with?("claude-")
+        next unless fields["input"] && fields["cache_read_input"]
+
+        expect(fields["cache_read_input"]).to be_within(0.0001).of(fields["input"] * 0.1),
+                                              "#{model_id}: cache_read_input " \
+                                              "#{fields['cache_read_input']} expected " \
+                                              "0.1 * input #{fields['input']}"
+      end
+    end
+
+    it "holds the Anthropic batch-discount invariant (50% of standard input/output)" do
+      bundled.each do |model_id, fields|
+        next unless model_id.start_with?("claude-")
+
+        if fields["batch_input"] && fields["input"]
+          expect(fields["batch_input"]).to be_within(0.0001).of(fields["input"] * 0.5),
+                                           "#{model_id}: batch_input expected 0.5 * input"
+        end
+        if fields["batch_output"] && fields["output"]
+          expect(fields["batch_output"]).to be_within(0.0001).of(fields["output"] * 0.5),
+                                            "#{model_id}: batch_output expected 0.5 * output"
+        end
+      end
+    end
+
+    it "keeps output more expensive than input for chat-style models" do
+      non_chat = /embed|audio|whisper|tts|image|moderation/
+      bundled.each do |model_id, fields|
+        next if model_id.match?(non_chat)
+        next unless fields["input"] && fields["output"]
+
+        expect(fields["output"]).to be > fields["input"],
+                                    "#{model_id}: expected output > input, " \
+                                    "got output=#{fields['output']} input=#{fields['input']}"
+      end
     end
   end
 end

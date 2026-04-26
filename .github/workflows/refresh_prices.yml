@@ -37,8 +37,39 @@ jobs:
           set -o pipefail
           bundle exec ruby scripts/price_scrape/runner.rb 2>&1 | tee refresh.log
 
-      - name: Build PR body
+      - name: Detect price changes
+        id: changes
         if: github.event.inputs.dry_run != 'true'
+        run: |
+          if git diff --quiet lib/llm_cost_tracker/prices.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "no price changes detected"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "price changes detected"
+          fi
+
+      - name: Close stale auto-refresh PR
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          open_pr=$(gh pr list \
+            --state open \
+            --head prices/auto-refresh \
+            --json number \
+            --jq '.[0].number')
+          if [ -n "$open_pr" ]; then
+            gh pr close "$open_pr" \
+              --comment "Superseded by today's price refresh." \
+              --delete-branch
+            echo "closed stale PR #${open_pr}"
+          else
+            echo "no open auto-refresh PR to close"
+          fi
+
+      - name: Build PR body
+        if: steps.changes.outputs.changed == 'true'
         run: |
           {
             echo "Automated price refresh from upstream provider pricing pages."
@@ -55,7 +86,7 @@ jobs:
           } > pr_body.md
 
       - name: Create Pull Request
-        if: github.event.inputs.dry_run != 'true'
+        if: steps.changes.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           branch: prices/auto-refresh
