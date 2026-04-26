@@ -1,0 +1,67 @@
+name: Refresh provider prices
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      providers:
+        description: "Comma-separated provider names to refresh"
+        default: "anthropic"
+      dry_run:
+        description: "Run without writing or opening a PR"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Run price scrape
+        env:
+          PROVIDERS: ${{ github.event.inputs.providers || 'anthropic' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+        run: |
+          set -o pipefail
+          bundle exec ruby scripts/price_scrape/runner.rb 2>&1 | tee refresh.log
+
+      - name: Build PR body
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          {
+            echo "Automated price refresh from upstream provider pricing pages."
+            echo
+            echo "Triggered by \`${{ github.event_name }}\` on $(date -u +"%Y-%m-%d %H:%M UTC")."
+            echo
+            echo "## Runner output"
+            echo
+            echo '```'
+            cat refresh.log
+            echo '```'
+            echo
+            echo "Review the diff to confirm new models, deprecated removals, and price field changes."
+          } > pr_body.md
+
+      - name: Create Pull Request
+        if: github.event.inputs.dry_run != 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: prices/auto-refresh
+          title: "chore(prices): refresh provider snapshots"
+          commit-message: "Refresh provider price snapshots"
+          body-path: pr_body.md
+          delete-branch: true
+          labels: prices,automated
+          add-paths: lib/llm_cost_tracker/prices.json

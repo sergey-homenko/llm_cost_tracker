@@ -33,6 +33,8 @@ end
 require "webmock/rspec"
 require "llm_cost_tracker"
 
+$LOAD_PATH.unshift File.expand_path("../scripts", __dir__)
+
 Dir[File.expand_path("support/**/*.rb", __dir__)].each { |file| require file }
 
 RSpec.configure do |config|
