@@ -7,6 +7,7 @@ module LlmCostTracker
   module PriceSync
     class RegistryLoader
       YAML_EXTENSIONS = %w[.yml .yaml].freeze
+      MAX_FILE_BYTES = 2_097_152
 
       def call(path:, seed_path:)
         source_path = File.exist?(path.to_s) ? path.to_s : seed_path.to_s
@@ -18,6 +19,8 @@ module LlmCostTracker
       private
 
       def load_registry_file(path)
+        raise ArgumentError, "pricing registry exceeds #{MAX_FILE_BYTES} bytes" if File.size(path) > MAX_FILE_BYTES
+
         contents = File.read(path)
         registry = yaml_file?(path) ? (YAML.safe_load(contents, aliases: false) || {}) : JSON.parse(contents)
         raise ArgumentError, "pricing registry must be a hash" unless registry.is_a?(Hash)

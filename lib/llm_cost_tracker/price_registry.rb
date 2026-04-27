@@ -12,6 +12,7 @@ module LlmCostTracker
     EMPTY_PRICES = {}.freeze
     PRICE_KEYS = %w[input output cache_read_input cache_write_input].freeze
     METADATA_KEYS = %w[_source _source_version _fetched_at _updated _notes _validator_override].freeze
+    MAX_FILE_BYTES = 2_097_152
     MUTEX = Monitor.new
 
     class << self
@@ -114,6 +115,8 @@ module LlmCostTracker
       end
 
       def load_price_file(path)
+        raise ArgumentError, "prices_file exceeds #{MAX_FILE_BYTES} bytes" if File.size(path) > MAX_FILE_BYTES
+
         contents = File.read(path)
         return YAML.safe_load(contents, aliases: false) || {} if yaml_file?(path)
 

@@ -139,6 +139,19 @@ RSpec.describe LlmCostTracker::PriceRegistry do
       end
     end
 
+    it "rejects oversized local price files before parsing" do
+      stub_const("LlmCostTracker::PriceRegistry::MAX_FILE_BYTES", 10)
+
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write({ models: { "custom-model" => { input: 1.0, output: 2.0 } } }.to_json)
+        file.close
+
+        expect do
+          described_class.file_prices(file.path)
+        end.to raise_error(LlmCostTracker::Error, /prices_file exceeds/)
+      end
+    end
+
     it "raises a readable error for invalid price entry shapes" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write({ models: { "custom-model" => 1.0 } }.to_json)

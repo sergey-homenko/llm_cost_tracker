@@ -143,6 +143,23 @@ RSpec.describe LlmCostTracker::PriceSync do
       end
     end
 
+    it "rejects oversized local registries before refreshing" do
+      stub_const("LlmCostTracker::PriceSync::RegistryLoader::MAX_FILE_BYTES", 10)
+
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(JSON.generate("metadata" => {}, "models" => {}))
+        file.close
+
+        expect do
+          described_class.refresh(
+            path: file.path,
+            url: source_url,
+            fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
+          )
+        end.to raise_error(LlmCostTracker::Error, /pricing registry exceeds/)
+      end
+    end
+
     it "leaves the existing file untouched when the remote schema is too new" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         original = JSON.generate("metadata" => {}, "models" => {})
