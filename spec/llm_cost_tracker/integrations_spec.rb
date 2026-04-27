@@ -88,8 +88,9 @@ RSpec.describe LlmCostTracker::Integrations do
       expect(events.first).to include(
         provider: "openai",
         model: "gpt-4o",
-        input_tokens: 100,
+        input_tokens: 80,
         output_tokens: 50,
+        total_tokens: 150,
         cache_read_input_tokens: 20,
         hidden_output_tokens: 7,
         usage_source: "sdk_response",
@@ -119,8 +120,9 @@ RSpec.describe LlmCostTracker::Integrations do
       expect(events.first).to include(
         provider: "openai",
         model: "gpt-4o",
-        input_tokens: 30,
+        input_tokens: 26,
         output_tokens: 10,
+        total_tokens: 40,
         cache_read_input_tokens: 4,
         hidden_output_tokens: 2,
         provider_response_id: "chatcmpl_123"
