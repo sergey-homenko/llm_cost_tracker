@@ -39,8 +39,10 @@ module LlmCostTracker
             standard_table = find_standard_table(tabs)
             next unless standard_table
 
-            fields = extract_text_pricing(standard_table)
-            models[model_id] = fields if fields
+            batch_table = find_batch_table(tabs)
+            raise Error, "Gemini batch pricing table not found for #{model_id}" unless batch_table
+
+            models[model_id] = extract_text_pricing(standard_table).merge(extract_batch_pricing(batch_table))
           end
         end
 
@@ -64,15 +66,27 @@ module LlmCostTracker
           tabs.css("section").find { |sec| sec.at_css("h3")&.text&.strip == "Standard" }&.at_css("table")
         end
 
+        def find_batch_table(tabs)
+          tabs.css("section").find { |sec| sec.at_css("h3")&.text&.strip == "Batch" }&.at_css("table")
+        end
+
         def extract_text_pricing(table)
+          extract_pricing(table, input: "input", output: "output")
+        end
+
+        def extract_batch_pricing(table)
+          extract_pricing(table, input: "batch_input", output: "batch_output")
+        end
+
+        def extract_pricing(table, input:, output:)
           rows = parse_table(table)
           input_key = rows.keys.find { |k| k.start_with?("Input price") }
           output_key = rows.keys.find { |k| k.start_with?("Output price") }
-          return nil unless input_key && output_key
+          raise Error, "Gemini text pricing rows not found" unless input_key && output_key
 
           {
-            "input" => parse_price(rows[input_key]),
-            "output" => parse_price(rows[output_key])
+            input => parse_price(rows[input_key]),
+            output => parse_price(rows[output_key])
           }
         end
 

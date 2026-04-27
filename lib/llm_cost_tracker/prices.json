@@ -87,29 +87,39 @@
     "gemini-2.0-flash": {
       "input": 0.1,
       "cache_read_input": 0.025,
-      "output": 0.4
+      "output": 0.4,
+      "batch_input": 0.05,
+      "batch_output": 0.2
     },
     "gemini-2.0-flash-lite": {
       "input": 0.075,
-      "output": 0.3
+      "output": 0.3,
+      "batch_input": 0.0375,
+      "batch_output": 0.15
     },
     "gemini-2.5-flash": {
       "input": 0.3,
       "output": 2.5,
       "cache_read_input": 0.03,
-      "cache_write_input": 0.083333333333
+      "cache_write_input": 0.083333333333,
+      "batch_input": 0.15,
+      "batch_output": 1.25
     },
     "gemini-2.5-flash-lite": {
       "input": 0.1,
       "output": 0.4,
       "cache_read_input": 0.01,
-      "cache_write_input": 0.083333333333
+      "cache_write_input": 0.083333333333,
+      "batch_input": 0.05,
+      "batch_output": 0.2
     },
     "gemini-2.5-pro": {
       "input": 1.25,
       "output": 10.0,
       "cache_read_input": 0.125,
-      "cache_write_input": 0.375
+      "cache_write_input": 0.375,
+      "batch_input": 0.625,
+      "batch_output": 5.0
     },
     "gpt-3.5-turbo": {
       "input": 0.5,
