@@ -3,13 +3,15 @@
 require_relative "../../lib/llm_cost_tracker"
 require_relative "fetcher"
 require_relative "providers/anthropic"
+require_relative "providers/gemini"
 require_relative "orchestrator"
 
 module LlmCostTracker
   module PriceScrape
     class Runner
       PROVIDERS = {
-        "anthropic" => Providers::Anthropic
+        "anthropic" => Providers::Anthropic,
+        "gemini" => Providers::Gemini
       }.freeze
 
       DEFAULT_REGISTRY_PATH = File.expand_path("../../lib/llm_cost_tracker/prices.json", __dir__)
