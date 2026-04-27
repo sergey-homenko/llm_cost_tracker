@@ -32,23 +32,11 @@ module LlmCostTracker
         request["User-Agent"] = USER_AGENT
         request["If-None-Match"] = etag if etag
 
-        response = Net::HTTP.start(
-          uri.host,
-          uri.port,
-          use_ssl: uri.scheme == "https",
-          open_timeout: OPEN_TIMEOUT,
-          read_timeout: READ_TIMEOUT,
-          write_timeout: WRITE_TIMEOUT
-        ) do |http|
-          http.request(request)
-        end
+        response, body = fetch_response(uri, request)
 
         case response
         when Net::HTTPSuccess
-          body = response.body.to_s
-          raise Error, "Pricing snapshot response exceeds #{MAX_BODY_BYTES} bytes" if body.bytesize > MAX_BODY_BYTES
-
-          build_response(response, body: body, not_modified: false)
+          build_response(response, body: body || limited_body(response), not_modified: false)
         when Net::HTTPNotModified
           build_response(response, body: nil, not_modified: true)
         when Net::HTTPRedirection
@@ -64,6 +52,39 @@ module LlmCostTracker
       end
 
       private
+
+      def fetch_response(uri, request)
+        body = nil
+        response = Net::HTTP.start(
+          uri.host,
+          uri.port,
+          use_ssl: uri.scheme == "https",
+          open_timeout: OPEN_TIMEOUT,
+          read_timeout: READ_TIMEOUT,
+          write_timeout: WRITE_TIMEOUT
+        ) do |http|
+          http.request(request) do |streamed_response|
+            body = limited_body(streamed_response) if streamed_response.is_a?(Net::HTTPSuccess)
+          end
+        end
+
+        [response, body]
+      end
+
+      def limited_body(response)
+        body = +""
+        if response.respond_to?(:read_body)
+          response.read_body do |chunk|
+            body << chunk.to_s
+            raise Error, "Pricing snapshot response exceeds #{MAX_BODY_BYTES} bytes" if body.bytesize > MAX_BODY_BYTES
+          end
+        else
+          body = response.body.to_s
+        end
+        raise Error, "Pricing snapshot response exceeds #{MAX_BODY_BYTES} bytes" if body.bytesize > MAX_BODY_BYTES
+
+        body
+      end
 
       def build_response(response, not_modified:, body: response.body)
         Response.new(
