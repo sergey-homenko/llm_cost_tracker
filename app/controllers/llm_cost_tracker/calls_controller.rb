@@ -84,7 +84,8 @@ module LlmCostTracker
       return value if value.nil?
 
       string = value.to_s
-      CSV_FORMULA_PREFIXES.include?(string[0]) ? "'#{string}" : string
+      stripped = string.lstrip
+      CSV_FORMULA_PREFIXES.include?(stripped[0]) ? "'#{string}" : string
     end
   end
 end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "llm_cost_tracker/stream_collector"
 
 RSpec.describe LlmCostTracker do
   describe ".track" do
@@ -142,6 +143,33 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:output_tokens]).to eq(0)
       expect(collected.first[:usage_source]).to eq("unknown")
       expect(collected.first[:stream]).to be true
+    end
+
+    it "falls back to unknown usage when buffered stream events exceed the capture cap" do
+      collected = events
+      stub_const("LlmCostTracker::StreamCollector::CAPTURE_LIMIT_BYTES", 10)
+
+      described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+        stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
+      end
+
+      expect(collected.first[:input_tokens]).to eq(0)
+      expect(collected.first[:output_tokens]).to eq(0)
+      expect(collected.first[:usage_source]).to eq("unknown")
+    end
+
+    it "uses explicit usage when provided after the capture cap is exceeded" do
+      collected = events
+      stub_const("LlmCostTracker::StreamCollector::CAPTURE_LIMIT_BYTES", 10)
+
+      described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+        stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
+        stream.usage(input_tokens: 7, output_tokens: 4)
+      end
+
+      expect(collected.first[:input_tokens]).to eq(7)
+      expect(collected.first[:output_tokens]).to eq(4)
+      expect(collected.first[:usage_source]).to eq("manual")
     end
 
     it "still records and then re-raises when the block raises" do

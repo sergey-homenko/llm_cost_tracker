@@ -39,6 +39,7 @@ module LlmCostTracker
 
         add_engine_require
         route %(mount LlmCostTracker::Engine => "/llm-costs")
+        say "Mount /llm-costs behind your app's admin auth before deploying.", :yellow
       end
 
       private

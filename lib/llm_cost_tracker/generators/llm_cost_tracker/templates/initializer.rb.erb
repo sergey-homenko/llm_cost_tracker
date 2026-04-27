@@ -11,6 +11,11 @@ LlmCostTracker.configure do |config|
   # Tags are merged into every event. Use a callable for request/job-time context.
   config.default_tags = -> { { environment: Rails.env } }
 
+  # Tag guardrails keep accidental high-cardinality or sensitive values out of the ledger.
+  # config.max_tag_count = 50
+  # config.max_tag_value_bytesize = 1024
+  # config.redacted_tag_keys = %w[api_key access_token authorization credential password refresh_token secret]
+
   # Optional SDK integrations. Provider SDK gems are not installed by LLM Cost Tracker.
   # Enable only the SDKs your app already uses.
   # config.instrument :openai

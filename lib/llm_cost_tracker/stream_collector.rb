@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
+require "json"
 require "monitor"
 
 require_relative "value_helpers"
 
 module LlmCostTracker
   class StreamCollector
+    CAPTURE_LIMIT_BYTES = 1_048_576
+
     attr_reader :provider
 
     def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, pricing_mode: nil, metadata: {})
@@ -16,6 +19,8 @@ module LlmCostTracker
       @pricing_mode = pricing_mode
       @metadata = ValueHelpers.deep_dup(metadata || {})
       @events = []
+      @captured_bytes = 0
+      @overflowed = false
       @explicit_usage = nil
       @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @finished = false
@@ -45,7 +50,7 @@ module LlmCostTracker
     def event(data, type: nil)
       @monitor.synchronize do
         ensure_open!
-        @events << { event: type, data: ValueHelpers.deep_dup(data) } unless data.nil?
+        capture_event(data, type: type) unless data.nil?
       end
       self
     end
@@ -71,6 +76,7 @@ module LlmCostTracker
         @finished = true
         {
           events: @events.dup,
+          overflowed: @overflowed,
           explicit_usage: ValueHelpers.deep_dup(@explicit_usage),
           model: @model,
           latency_ms: @latency_ms,
@@ -105,6 +111,7 @@ module LlmCostTracker
 
     def build_parsed_usage(snapshot)
       return build_from_explicit_usage(snapshot) if snapshot[:explicit_usage]
+      return build_unknown_usage(snapshot) if snapshot[:overflowed]
 
       parsed = Parsers::Registry.find_for_provider(@provider)&.parse_stream(nil, nil, 200, snapshot[:events])
       return finalize(parsed, snapshot) if parsed
@@ -155,6 +162,24 @@ module LlmCostTracker
         stream: true,
         usage_source: :unknown
       )
+    end
+
+    def capture_event(data, type:)
+      copied = ValueHelpers.deep_dup(data)
+      size = event_bytes(copied, type)
+      if @captured_bytes + size <= CAPTURE_LIMIT_BYTES
+        @events << { event: type, data: copied }
+        @captured_bytes += size
+      else
+        @overflowed = true
+        @events.clear
+      end
+    end
+
+    def event_bytes(data, type)
+      JSON.generate(event: type, data: data).bytesize
+    rescue JSON::GeneratorError, TypeError
+      type.to_s.bytesize + data.to_s.bytesize
     end
 
     def error_metadata(errored) = errored ? { stream_errored: true } : {}

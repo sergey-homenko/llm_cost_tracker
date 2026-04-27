@@ -84,7 +84,7 @@ module LlmCostTracker
           hidden_output_tokens: usage[:hidden_output_tokens],
           pricing_mode: usage[:pricing_mode],
           cost: cost_data,
-          tags: LlmCostTracker::TagContext.tags.merge(EventMetadata.tags(metadata)).freeze,
+          tags: sanitized_tags(metadata).freeze,
           latency_ms: normalized_latency_ms(latency_ms),
           stream: stream ? true : false,
           usage_source: normalized_usage_source(usage_source),
@@ -94,6 +94,10 @@ module LlmCostTracker
       end
 
       def normalized_latency_ms(latency_ms) = latency_ms.nil? ? nil : [latency_ms.to_i, 0].max
+
+      def sanitized_tags(metadata)
+        LlmCostTracker::TagSanitizer.call(LlmCostTracker::TagContext.tags.merge(EventMetadata.tags(metadata)))
+      end
 
       def normalized_usage_source(value)
         return nil if value.nil?

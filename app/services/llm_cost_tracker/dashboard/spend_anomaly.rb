@@ -65,11 +65,12 @@ module LlmCostTracker
 
         scope
           .where(tracked_at: window)
-          .pluck(:provider, :model, :tracked_at, :total_cost)
-          .each do |provider, model, tracked_at, total_cost|
-            next if total_cost.nil?
-
-            grouped[[provider, model]][tracked_at.to_date] += total_cost.to_f
+          .where.not(total_cost: nil)
+          .group(:provider, :model)
+          .group_by_period(:day)
+          .sum(:total_cost)
+          .each do |(provider, model, day), total_cost|
+            grouped[[provider, model]][Date.iso8601(day.to_s)] += total_cost.to_f
           end
 
         grouped

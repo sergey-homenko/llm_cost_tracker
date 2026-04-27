@@ -35,7 +35,26 @@ RSpec.describe LlmCostTracker::PriceSync::Fetcher do
 
       expect do
         described_class.new.get("file:///tmp/prices.json")
-      end.to raise_error(LlmCostTracker::Error, /must use http or https/)
+      end.to raise_error(LlmCostTracker::Error, /must use https/)
+    end
+
+    it "rejects http URLs before opening a connection" do
+      expect(Net::HTTP).not_to receive(:start)
+
+      expect do
+        described_class.new.get("http://example.com/prices.json")
+      end.to raise_error(LlmCostTracker::Error, /must use https/)
+    end
+
+    it "rejects oversized response bodies" do
+      response = Net::HTTPOK.new("1.1", "200", "OK")
+      allow(response).to receive(:body).and_return("x" * (described_class::MAX_BODY_BYTES + 1))
+
+      allow(Net::HTTP).to receive(:start).and_yield(instance_double(Net::HTTP, request: response))
+
+      expect do
+        described_class.new.get("https://example.com/prices.json")
+      end.to raise_error(LlmCostTracker::Error, /exceeds/)
     end
   end
 end

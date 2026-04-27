@@ -181,6 +181,37 @@ RSpec.describe "LlmCostTracker dashboard services" do
     end
   end
 
+  describe LlmCostTracker::Dashboard::DateRange do
+    it "defaults to the latest thirty days" do
+      range = described_class.call(params: {}, today: Date.new(2026, 4, 20))
+
+      expect(range.from).to eq(Date.new(2026, 3, 22))
+      expect(range.to).to eq(Date.new(2026, 4, 20))
+    end
+
+    it "uses provided iso8601 dates" do
+      range = described_class.call(
+        params: { from: "2026-04-01", to: "2026-04-18" },
+        today: Date.new(2026, 4, 20)
+      )
+
+      expect(range.from).to eq(Date.new(2026, 4, 1))
+      expect(range.to).to eq(Date.new(2026, 4, 18))
+    end
+
+    it "rejects reversed ranges" do
+      expect do
+        described_class.call(params: { from: "2026-04-20", to: "2026-04-18" })
+      end.to raise_error(LlmCostTracker::InvalidFilterError, /from date must be/)
+    end
+
+    it "rejects ranges over the dashboard cap" do
+      expect do
+        described_class.call(params: { from: "2025-01-01", to: "2026-04-20" })
+      end.to raise_error(LlmCostTracker::InvalidFilterError, /date range cannot exceed/)
+    end
+  end
+
   describe LlmCostTracker::Dashboard::Filter do
     it "filters by dates, provider, model, and multiple tag keys" do
       create_call(
@@ -434,6 +465,18 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(alert.latest_spend).to eq(12.0)
       expect(alert.baseline_mean).to eq(1.0)
       expect(alert.ratio).to eq(12.0)
+    end
+
+    it "aggregates the anomaly window in SQL" do
+      create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 19, 12))
+      create_call(provider: "openai", model: "gpt-4o", total_cost: 12.0, tracked_at: Time.utc(2026, 4, 20, 12))
+
+      sql = capture_llm_api_call_selects do
+        described_class.call(from: Date.new(2026, 4, 13), to: Date.new(2026, 4, 20))
+      end.join(" ")
+
+      expect(sql).to match(/SUM/i)
+      expect(sql).to match(/GROUP BY/i)
     end
   end
 

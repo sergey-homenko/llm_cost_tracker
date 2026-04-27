@@ -130,6 +130,14 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.body).to include("invalid tag key")
   end
 
+  it "rejects oversized overview ranges as bad requests" do
+    response = get("/llm-costs?from=2025-01-01&to=2026-04-20")
+
+    expect(response.status).to eq(400)
+    expect(response.body).to include("Invalid filter")
+    expect(response.body).to include("date range cannot exceed")
+  end
+
   it "renders a spend anomaly alert for the latest day in the slice" do
     create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 13, 12))
     create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 14, 12))

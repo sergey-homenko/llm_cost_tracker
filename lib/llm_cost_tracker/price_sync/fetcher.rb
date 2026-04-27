@@ -17,6 +17,7 @@ module LlmCostTracker
 
       USER_AGENT = "llm_cost_tracker price refresh"
       MAX_REDIRECTS = 5
+      MAX_BODY_BYTES = 2_097_152
       OPEN_TIMEOUT = 5
       READ_TIMEOUT = 10
       WRITE_TIMEOUT = 10
@@ -25,7 +26,7 @@ module LlmCostTracker
         raise Error, "Too many redirects while fetching #{url}" if redirects > MAX_REDIRECTS
 
         uri = URI.parse(url)
-        raise Error, "Pricing snapshot URL must use http or https" unless %w[http https].include?(uri.scheme)
+        raise Error, "Pricing snapshot URL must use https" unless uri.scheme == "https"
 
         request = Net::HTTP::Get.new(uri)
         request["User-Agent"] = USER_AGENT
@@ -44,7 +45,10 @@ module LlmCostTracker
 
         case response
         when Net::HTTPSuccess
-          build_response(response, not_modified: false)
+          body = response.body.to_s
+          raise Error, "Pricing snapshot response exceeds #{MAX_BODY_BYTES} bytes" if body.bytesize > MAX_BODY_BYTES
+
+          build_response(response, body: body, not_modified: false)
         when Net::HTTPNotModified
           build_response(response, body: nil, not_modified: true)
         when Net::HTTPRedirection

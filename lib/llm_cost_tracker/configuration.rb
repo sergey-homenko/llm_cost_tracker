@@ -8,31 +8,21 @@ module LlmCostTracker
   class Configuration
     include ConfigurationInstrumentation
 
-    OPENAI_COMPATIBLE_PROVIDERS = {
-      "openrouter.ai" => "openrouter",
-      "api.deepseek.com" => "deepseek"
-    }.freeze
+    OPENAI_COMPATIBLE_PROVIDERS = { "openrouter.ai" => "openrouter", "api.deepseek.com" => "deepseek" }.freeze
 
     BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
     STORAGE_ERROR_BEHAVIORS = %i[ignore warn raise].freeze
     STORAGE_BACKENDS = %i[log active_record custom].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
-    SHARED_SCALAR_ATTRIBUTES = %i[
-      enabled
-      custom_storage
-      on_budget_exceeded
-      monthly_budget
-      daily_budget
-      per_call_budget
-      log_level
-      prices_file
-    ].freeze
+    SHARED_SCALAR_ATTRIBUTES = %i[enabled custom_storage on_budget_exceeded monthly_budget daily_budget per_call_budget
+                                  log_level prices_file max_tag_count max_tag_value_bytesize].freeze
     SHARED_ENUM_ATTRIBUTES = {
       storage_backend: [STORAGE_BACKENDS, :log],
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
       storage_error_behavior: [STORAGE_ERROR_BEHAVIORS, :warn],
       unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn]
     }.freeze
+    DEFAULT_REDACTED_TAG_KEYS = %w[api_key access_token authorization credential password refresh_token secret].freeze
 
     attr_reader(
       *SHARED_SCALAR_ATTRIBUTES,
@@ -41,6 +31,7 @@ module LlmCostTracker
       :pricing_overrides,
       :instrumented_integrations,
       :report_tag_breakdowns,
+      :redacted_tag_keys,
       :storage_backend,
       :storage_error_behavior,
       :unknown_pricing_behavior,
@@ -61,9 +52,12 @@ module LlmCostTracker
       self.unknown_pricing_behavior = :warn
       @log_level          = :info
       @prices_file        = nil
-      @pricing_overrides  = {}
+      @max_tag_count      = 50
+      @max_tag_value_bytesize = 1024
+      @pricing_overrides = {}
       @instrumented_integrations = []
       @report_tag_breakdowns = []
+      @redacted_tag_keys = DEFAULT_REDACTED_TAG_KEYS.dup
       self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
       @finalized = false
     end
@@ -88,6 +82,11 @@ module LlmCostTracker
       @report_tag_breakdowns = value
     end
 
+    def redacted_tag_keys=(value)
+      ensure_shared_configuration_mutable!
+      @redacted_tag_keys = Array(value).map(&:to_s)
+    end
+
     SHARED_SCALAR_ATTRIBUTES.each do |name|
       define_method("#{name}=") do |value|
         ensure_shared_configuration_mutable!
@@ -107,6 +106,7 @@ module LlmCostTracker
       @pricing_overrides = ValueHelpers.deep_freeze(@pricing_overrides || {})
       @instrumented_integrations = ValueHelpers.deep_freeze(@instrumented_integrations || [])
       @report_tag_breakdowns = ValueHelpers.deep_freeze(Array(@report_tag_breakdowns))
+      @redacted_tag_keys = ValueHelpers.deep_freeze(Array(@redacted_tag_keys))
       @openai_compatible_providers = ValueHelpers.deep_freeze(@openai_compatible_providers || {})
       @finalized = true
       self
@@ -123,6 +123,7 @@ module LlmCostTracker
         ValueHelpers.deep_dup(@instrumented_integrations || [])
       )
       copy.instance_variable_set(:@report_tag_breakdowns, ValueHelpers.deep_dup(@report_tag_breakdowns || []))
+      copy.instance_variable_set(:@redacted_tag_keys, ValueHelpers.deep_dup(@redacted_tag_keys || []))
       copy.instance_variable_set(
         :@openai_compatible_providers,
         ValueHelpers.deep_dup(@openai_compatible_providers || {})
