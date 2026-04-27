@@ -16,6 +16,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   refresh:
@@ -96,3 +97,65 @@ jobs:
           delete-branch: true
           labels: prices,automated
           add-paths: lib/llm_cost_tracker/prices.json
+
+      - name: Open issue on provider failure
+        if: failure() && github.event.inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set +e
+          test -f refresh.log || { echo "no refresh.log to inspect"; exit 0; }
+
+          failed_providers=$(grep -oE '^\[[a-z_-]+\] FAILED' refresh.log \
+            | sed -E 's/^\[([a-z_-]+)\] FAILED$/\1/' \
+            | sort -u)
+          if [ -z "$failed_providers" ]; then
+            echo "no provider-specific failure marker in log"
+            exit 0
+          fi
+
+          gh label create parser-broken \
+            --color D73A4A \
+            --description "Price scraper parser failure" 2>/dev/null || true
+
+          for provider in $failed_providers; do
+            gh label create "provider:${provider}" \
+              --color BFDADC \
+              --description "Affects ${provider} provider" 2>/dev/null || true
+
+            existing=$(gh issue list \
+              --label parser-broken \
+              --label "provider:${provider}" \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty')
+
+            body_file=$(mktemp)
+            {
+              echo "Provider \`${provider}\` failed during automated price refresh."
+              echo
+              echo "**Workflow run:** ${RUN_URL}"
+              echo "**Parser:** [scripts/price_scrape/providers/${provider}.rb](${REPO_URL}/blob/main/scripts/price_scrape/providers/${provider}.rb)"
+              echo "**Time:** $(date -u +"%Y-%m-%d %H:%M UTC")"
+              echo
+              echo "## Runner output"
+              echo
+              echo '```'
+              cat refresh.log
+              echo '```'
+            } > "$body_file"
+
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body-file "$body_file"
+              echo "commented on issue #${existing} for ${provider}"
+            else
+              gh issue create \
+                --title "Price scraper for ${provider} is broken" \
+                --label "parser-broken,provider:${provider}" \
+                --body-file "$body_file"
+              echo "created issue for ${provider}"
+            fi
+            rm -f "$body_file"
+          done

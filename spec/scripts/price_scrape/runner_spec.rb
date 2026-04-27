@@ -64,6 +64,43 @@ RSpec.describe LlmCostTracker::PriceScrape::Runner do
   it "raises on an unknown provider name" do
     expect do
       described_class.new(io: io).call(providers: ["xai"])
-    end.to raise_error(described_class::Error, /unknown provider/)
+    end.to raise_error(described_class::Error, /unknown providers/)
+  end
+
+  it "marks a provider run as failed and raises after the loop when its parser breaks" do
+    stub_request(:get, LlmCostTracker::PriceScrape::Providers::Anthropic::SOURCE_URL)
+      .to_return(status: 200, body: "<html><body></body></html>",
+                 headers: { "Content-Type" => "text/html; charset=utf-8" })
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.pretty_generate(build_registry(haiku_entry: { "input" => 1.0, "output" => 5.0 })))
+      file.close
+
+      expect do
+        described_class.new(io: io).call(providers: ["anthropic"], registry_path: file.path)
+      end.to raise_error(described_class::Error, /provider scrape failures: anthropic/)
+
+      expect(io.string).to include("[anthropic] FAILED:")
+      expect(io.string).to include("[summary] providers=1 ok=0 failed=1")
+    end
+  end
+
+  it "continues running remaining providers when one fails" do
+    stub_request(:get, LlmCostTracker::PriceScrape::Providers::Gemini::SOURCE_URL)
+      .to_return(status: 200, body: "<html><body></body></html>",
+                 headers: { "Content-Type" => "text/html; charset=utf-8" })
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.pretty_generate(build_registry(haiku_entry: { "input" => 1.0, "output" => 5.0 })))
+      file.close
+
+      expect do
+        described_class.new(io: io).call(providers: %w[anthropic gemini], registry_path: file.path)
+      end.to raise_error(described_class::Error, /provider scrape failures: gemini/)
+
+      expect(io.string).to include("[anthropic] parsed")
+      expect(io.string).to include("[gemini] FAILED:")
+      expect(io.string).to include("[summary] providers=2 ok=1 failed=1")
+    end
   end
 end

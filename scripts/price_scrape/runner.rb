@@ -16,7 +16,7 @@ module LlmCostTracker
 
       DEFAULT_REGISTRY_PATH = File.expand_path("../../lib/llm_cost_tracker/prices.json", __dir__)
 
-      ProviderRun = Data.define(:name, :scraped, :orchestrator)
+      ProviderRun = Data.define(:name, :scraped, :orchestrator, :error)
 
       class Error < StandardError; end
 
@@ -29,19 +29,23 @@ module LlmCostTracker
       end
 
       def call(providers:, registry_path: DEFAULT_REGISTRY_PATH, dry_run: false)
+        unknown = providers - PROVIDERS.keys
+        raise Error, "unknown providers: #{unknown.inspect}" if unknown.any?
+
         runs = providers.map do |name|
           run_provider(name: name, registry_path: registry_path, dry_run: dry_run)
         end
         log_summary(runs, dry_run: dry_run)
+        failures = runs.select(&:error)
+        raise Error, "provider scrape failures: #{failures.map(&:name).join(', ')}" if failures.any?
+
         runs
       end
 
       private
 
       def run_provider(name:, registry_path:, dry_run:)
-        provider_class = PROVIDERS.fetch(name) do
-          raise Error, "unknown provider #{name.inspect}; known: #{PROVIDERS.keys.inspect}"
-        end
+        provider_class = PROVIDERS.fetch(name)
 
         @io.puts "[#{name}] fetching #{provider_class::SOURCE_URL}"
         response = @fetcher.get(provider_class::SOURCE_URL)
@@ -60,7 +64,11 @@ module LlmCostTracker
         )
         log_provider_result(name, orchestrator_result, dry_run: dry_run)
 
-        ProviderRun.new(name: name, scraped: scraped, orchestrator: orchestrator_result)
+        ProviderRun.new(name: name, scraped: scraped, orchestrator: orchestrator_result, error: nil)
+      rescue StandardError => e
+        @io.puts "[#{name}] FAILED: #{e.class}: #{e.message}"
+        e.backtrace.first(5).each { |line| @io.puts "[#{name}]   #{line}" }
+        ProviderRun.new(name: name, scraped: nil, orchestrator: nil, error: e)
       end
 
       def log_provider_result(name, result, dry_run:)
@@ -75,13 +83,14 @@ module LlmCostTracker
       end
 
       def log_summary(runs, dry_run:)
-        added = runs.sum { |run| run.orchestrator.added.size }
-        removed = runs.sum { |run| run.orchestrator.removed.size }
-        updated = runs.sum { |run| run.orchestrator.updated.size }
-        wrote = runs.count { |run| run.orchestrator.written }
+        failures, successes = runs.partition(&:error)
+        added = successes.sum { |run| run.orchestrator.added.size }
+        removed = successes.sum { |run| run.orchestrator.removed.size }
+        updated = successes.sum { |run| run.orchestrator.updated.size }
+        wrote = successes.count { |run| run.orchestrator.written }
         @io.puts(
-          "[summary] providers=#{runs.size} wrote=#{wrote} " \
-          "added=#{added} removed=#{removed} updated=#{updated} dry_run=#{dry_run}"
+          "[summary] providers=#{runs.size} ok=#{successes.size} failed=#{failures.size} " \
+          "wrote=#{wrote} added=#{added} removed=#{removed} updated=#{updated} dry_run=#{dry_run}"
         )
       end
     end
