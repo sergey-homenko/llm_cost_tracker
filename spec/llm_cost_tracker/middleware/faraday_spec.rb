@@ -158,7 +158,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
     expect do
       conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
-    end.to output(/streaming responses are captured automatically/).to_stderr
+    end.to output(/known streaming responses are captured automatically/).to_stderr
   end
 
   it "removes query strings from warning URLs" do

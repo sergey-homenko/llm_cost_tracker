@@ -78,8 +78,8 @@ module LlmCostTracker
         unless response_body
           Logging.warn(
             "Unable to read response body for #{RequestUrl.label(request_url)}; " \
-            "streaming responses are captured automatically for OpenAI/Anthropic/Gemini " \
-            "or via LlmCostTracker.track_stream for custom clients."
+            "known streaming responses are captured automatically, or via LlmCostTracker.track_stream " \
+            "for custom clients."
           )
           return nil
         end
