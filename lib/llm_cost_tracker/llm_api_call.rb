@@ -73,12 +73,12 @@ module LlmCostTracker
     end
 
     def self.group_by_tag(key)
-      group(Arel.sql(tag_group_expression(key)))
+      group(Arel.sql(tag_value_expression(key)))
     end
 
     def self.cost_by_tag(key)
       costs = group_by_tag(key).sum(:total_cost).each_with_object(Hash.new(0.0)) do |(tag_value, cost), grouped|
-        grouped[tag_label(tag_value)] += cost.to_f
+        grouped[tag_value_label(tag_value)] += cost.to_f
       end
       costs.sort_by { |_label, cost| -cost }.to_h
     end
@@ -101,14 +101,13 @@ module LlmCostTracker
       group(:provider).average(:latency_ms).transform_values(&:to_f)
     end
 
-    def self.tag_label(value)
+    def self.tag_value_label(value)
       value.nil? || value == "" ? "(untagged)" : value.to_s
     end
-    private_class_method :tag_label
 
-    def self.tag_group_expression(key)
+    def self.tag_value_expression(key, table_name: quoted_table_name)
       key = validated_tag_key(key)
-      column = "#{quoted_table_name}.#{connection.quote_column_name('tags')}"
+      column = "#{table_name}.#{connection.quote_column_name('tags')}"
 
       case connection.adapter_name
       when /postgres/i
@@ -120,7 +119,6 @@ module LlmCostTracker
         "json_extract(#{column}, #{connection.quote(json_path(key))})"
       end
     end
-    private_class_method :tag_group_expression
 
     def self.validated_tag_key(key)
       TagKey.validate!(key)

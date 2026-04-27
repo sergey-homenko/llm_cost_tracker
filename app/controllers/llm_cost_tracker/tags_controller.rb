@@ -8,12 +8,13 @@ module LlmCostTracker
 
     def show
       @tag_key = params[:key]
-      @rows = Dashboard::TagBreakdown.call(scope: Dashboard::Filter.call(params: params), key: @tag_key)
-      @total_calls = @rows.sum(&:calls)
-
-      tagged_rows = @rows.reject { |r| r.value == "(untagged)" }
-      @tagged_calls = tagged_rows.sum(&:calls)
-      @distinct_values = tagged_rows.size
+      breakdown = Dashboard::TagBreakdown.call(scope: Dashboard::Filter.call(params: params), key: @tag_key)
+      @rows = breakdown.rows
+      @total_calls = breakdown.total_calls
+      @tagged_calls = breakdown.tagged_calls
+      @distinct_values = breakdown.distinct_values
+      @tag_value_limit = breakdown.limit
+      @tag_values_limited = breakdown.limited?
     end
   end
 end

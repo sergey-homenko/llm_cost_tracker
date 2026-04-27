@@ -50,6 +50,10 @@
     <span><strong><%= percent(coverage_percent(@tagged_calls, @total_calls)) %></strong> coverage</span>
     <span><strong><%= number(@distinct_values) %></strong> distinct values</span>
   </p>
+
+  <% if @tag_values_limited %>
+    <p class="lct-toolbar-note">Showing top <%= number(@tag_value_limit) %> values by spend.</p>
+  <% end %>
 </section>
 
 <% if @rows.empty? %>

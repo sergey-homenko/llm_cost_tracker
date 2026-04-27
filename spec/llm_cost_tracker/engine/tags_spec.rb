@@ -10,11 +10,14 @@ RSpec.describe "LlmCostTracker::Engine tags" do
   include_context "with mounted llm cost tracker engine"
 
   it "renders an empty state when no calls carry the tag" do
+    create_call(tags: { other_key: "x" })
+
     response = get("/llm-costs/tags/feature")
 
     expect(response.status).to eq(200)
     expect(response.body).to include("feature")
     expect(response.body).to include("No calls tagged with feature")
+    expect(response.body).not_to include("other_key")
   end
 
   it "aggregates calls by tag value, sorted by total cost descending" do

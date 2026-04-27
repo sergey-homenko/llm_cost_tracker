@@ -729,6 +729,34 @@ RSpec.describe "LlmCostTracker dashboard services" do
     end
   end
 
+  describe LlmCostTracker::Dashboard::TagBreakdown do
+    it "returns top values without limiting summary counters" do
+      create_call(total_cost: 5.0, tags: { feature: "chat" })
+      create_call(total_cost: 2.0, tags: { feature: "batch" })
+      create_call(total_cost: 1.0, tags: { feature: "search" })
+      create_call(total_cost: 9.0, tags: { other: "missing" })
+
+      result = described_class.call(key: "feature", limit: 2)
+
+      expect(result.rows.map(&:value)).to eq(%w[chat batch])
+      expect(result.total_calls).to eq(4)
+      expect(result.tagged_calls).to eq(3)
+      expect(result.distinct_values).to eq(3)
+      expect(result).to be_limited
+    end
+
+    it "returns empty rows when no calls carry the tag key" do
+      create_call(tags: { other: "missing" })
+
+      result = described_class.call(key: "feature")
+
+      expect(result.rows).to eq([])
+      expect(result.total_calls).to eq(1)
+      expect(result.tagged_calls).to eq(0)
+      expect(result.distinct_values).to eq(0)
+    end
+  end
+
   describe LlmCostTracker::Dashboard::TagKeyExplorer do
     it "returns empty array when no tagged calls exist" do
       create_call(tags: {})
