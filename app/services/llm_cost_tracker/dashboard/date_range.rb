@@ -22,8 +22,9 @@ module LlmCostTracker
       end
 
       def self.validate!(from:, to:)
-        return if from.nil? || to.nil?
+        return if from.nil? && to.nil?
 
+        raise InvalidFilterError, "from and to dates must be provided together" if from.nil? || to.nil?
         raise InvalidFilterError, "from date must be on or before to date" if from > to
         return if ((to - from).to_i + 1) <= MAX_DAYS
 
@@ -31,17 +32,11 @@ module LlmCostTracker
       end
 
       def initialize(params:, today:)
-        @params = LlmCostTracker::ParameterHash.with_indifferent_access(params)
-        @today = today
         @to = self.class.parse(params, :to) || today
         @from = self.class.parse(params, :from) || (@to - (DEFAULT_DAYS - 1))
         self.class.validate!(from: @from, to: @to)
         freeze
       end
-
-      private
-
-      attr_reader :params, :today
     end
   end
 end

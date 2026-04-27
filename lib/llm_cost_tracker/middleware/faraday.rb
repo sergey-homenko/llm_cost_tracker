@@ -5,12 +5,11 @@ require "json"
 
 require_relative "../logging"
 require_relative "../request_url"
+require_relative "../stream_capture"
 
 module LlmCostTracker
   module Middleware
     class Faraday < ::Faraday::Middleware
-      STREAM_CAPTURE_LIMIT_BYTES = 1_048_576
-
       def initialize(app, **options)
         super(app)
         @tags = options.fetch(:tags, {})
@@ -110,7 +109,7 @@ module LlmCostTracker
         request_env.request.on_data = proc do |chunk, size, env|
           chunk = chunk.to_s
           unless state[:overflowed]
-            if state[:bytes] + chunk.bytesize <= STREAM_CAPTURE_LIMIT_BYTES
+            if state[:bytes] + chunk.bytesize <= StreamCapture::LIMIT_BYTES
               state[:buffer] << chunk
               state[:bytes] += chunk.bytesize
             else
@@ -161,7 +160,7 @@ module LlmCostTracker
                  "recording usage_source=unknown. Use LlmCostTracker.track_stream for manual capture."
         end
 
-        "Streaming response for #{RequestUrl.label(request_url)} exceeded #{STREAM_CAPTURE_LIMIT_BYTES} bytes; " \
+        "Streaming response for #{RequestUrl.label(request_url)} exceeded #{StreamCapture::LIMIT_BYTES} bytes; " \
           "recording usage_source=unknown. Use LlmCostTracker.track_stream for manual capture."
       end
     end

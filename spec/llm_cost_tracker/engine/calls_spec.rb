@@ -170,6 +170,14 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("date range cannot exceed")
   end
 
+  it "rejects one-sided calls ranges as bad requests" do
+    response = get("/llm-costs/calls?from=2026-04-18")
+
+    expect(response.status).to eq(400)
+    expect(response.body).to include("Invalid filter")
+    expect(response.body).to include("from and to dates")
+  end
+
   it "renders call details with token, cost, latency, pricing, and tags data" do
     call = create_call(
       provider: "openai",

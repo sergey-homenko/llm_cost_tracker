@@ -19,9 +19,9 @@ RSpec.describe LlmCostTracker::TagSanitizer do
   end
 
   it "redacts configured secret-like keys and common variants" do
-    tags = described_class.call({ openai_api_key: "sk-secret", accessToken: "token" }, config: config)
+    tags = described_class.call({ "openai.APIKey" => "sk-secret", accessToken: "token" }, config: config)
 
-    expect(tags[:openai_api_key]).to eq("[REDACTED]")
+    expect(tags["openai.APIKey"]).to eq("[REDACTED]")
     expect(tags[:accessToken]).to eq("[REDACTED]")
   end
 

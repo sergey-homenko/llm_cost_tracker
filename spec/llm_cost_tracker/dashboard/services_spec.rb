@@ -267,6 +267,16 @@ RSpec.describe "LlmCostTracker dashboard services" do
       end.to raise_error(LlmCostTracker::InvalidFilterError, /date range cannot exceed/)
     end
 
+    it "rejects one-sided date ranges" do
+      expect do
+        described_class.call(params: { from: "2026-04-18" }).load
+      end.to raise_error(LlmCostTracker::InvalidFilterError, /from and to dates/)
+
+      expect do
+        described_class.call(params: { to: "2026-04-18" }).load
+      end.to raise_error(LlmCostTracker::InvalidFilterError, /from and to dates/)
+    end
+
     it "returns the original scope for unsupported param objects" do
       create_call(model: "gpt-4o")
 

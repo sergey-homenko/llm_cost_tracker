@@ -26,14 +26,32 @@ module LlmCostTracker
       end
 
       def redacted_key?(key, config)
-        normalized = key.to_s.gsub(/([a-z\d])([A-Z])/, '\1_\2').downcase.tr("-", "_")
+        normalized = normalized_key(key)
         redacted_keys(config).any? do |candidate|
-          normalized == candidate || normalized.end_with?("_#{candidate}")
+          redacted_key_component?(normalized, candidate)
         end
       end
 
       def redacted_keys(config)
-        Array(config.redacted_tag_keys).map { |key| key.to_s.downcase.tr("-", "_") }
+        Array(config.redacted_tag_keys).map { |key| normalized_key(key) }
+      end
+
+      def normalized_key(key)
+        key.to_s
+           .gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2')
+           .gsub(/([a-z\d])([A-Z])/, '\1_\2')
+           .downcase
+           .gsub(/[^a-z0-9]+/, "_")
+           .gsub(/_+/, "_")
+           .delete_prefix("_")
+           .delete_suffix("_")
+      end
+
+      def redacted_key_component?(key, candidate)
+        key == candidate ||
+          key.start_with?("#{candidate}_") ||
+          key.end_with?("_#{candidate}") ||
+          key.include?("_#{candidate}_")
       end
 
       def value_string(value)

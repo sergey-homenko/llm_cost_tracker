@@ -31,10 +31,12 @@ module LlmCostTracker
       attr_reader :scope, :params
 
       def apply_date_filters(relation)
-        from = parse_date(:from)&.beginning_of_day
-        to = parse_date(:to)&.end_of_day
-        Dashboard::DateRange.validate!(from: from&.to_date, to: to&.to_date)
+        from_date = parse_date(:from)
+        to_date = parse_date(:to)
+        Dashboard::DateRange.validate!(from: from_date, to: to_date)
 
+        from = from_date&.beginning_of_day
+        to = to_date&.end_of_day
         relation = relation.where(tracked_at: from..) if from
         relation = relation.where(tracked_at: ..to) if to
         relation

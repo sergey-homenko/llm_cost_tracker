@@ -255,7 +255,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   it "records an unknown-usage event for oversized streaming responses" do
-    stub_const("LlmCostTracker::Middleware::Faraday::STREAM_CAPTURE_LIMIT_BYTES", 32)
+    stub_const("LlmCostTracker::StreamCapture::LIMIT_BYTES", 32)
 
     sse_body = "data: " \
                "{\"id\":\"chatcmpl_stream_oversized\",\"model\":\"gpt-4o\"," \

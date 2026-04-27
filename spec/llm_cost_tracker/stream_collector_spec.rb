@@ -147,7 +147,7 @@ RSpec.describe LlmCostTracker do
 
     it "falls back to unknown usage when buffered stream events exceed the capture cap" do
       collected = events
-      stub_const("LlmCostTracker::StreamCollector::CAPTURE_LIMIT_BYTES", 10)
+      stub_const("LlmCostTracker::StreamCapture::LIMIT_BYTES", 10)
 
       described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
         stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
@@ -160,7 +160,7 @@ RSpec.describe LlmCostTracker do
 
     it "uses explicit usage when provided after the capture cap is exceeded" do
       collected = events
-      stub_const("LlmCostTracker::StreamCollector::CAPTURE_LIMIT_BYTES", 10)
+      stub_const("LlmCostTracker::StreamCapture::LIMIT_BYTES", 10)
 
       described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
         stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })

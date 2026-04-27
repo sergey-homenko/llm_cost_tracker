@@ -3,12 +3,11 @@
 require "json"
 require "monitor"
 
+require_relative "stream_capture"
 require_relative "value_helpers"
 
 module LlmCostTracker
   class StreamCollector
-    CAPTURE_LIMIT_BYTES = 1_048_576
-
     attr_reader :provider
 
     def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, pricing_mode: nil, metadata: {})
@@ -167,7 +166,7 @@ module LlmCostTracker
     def capture_event(data, type:)
       copied = ValueHelpers.deep_dup(data)
       size = event_bytes(copied, type)
-      if @captured_bytes + size <= CAPTURE_LIMIT_BYTES
+      if @captured_bytes + size <= StreamCapture::LIMIT_BYTES
         @events << { event: type, data: copied }
         @captured_bytes += size
       else
