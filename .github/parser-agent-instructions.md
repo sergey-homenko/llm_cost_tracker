@@ -25,18 +25,23 @@ When an issue is labeled `parser-broken` with a `provider:<name>` label, the dai
    - Fixture: `spec/fixtures/scrape/<name>_pricing.html`
    - Spec: `spec/scripts/price_scrape/providers/<name>_spec.rb`
 3. The workflow refreshes the fixture before running the agent. Inspect what changed between the old fixture and the refreshed fixture: table headers, cell formatting, model name conventions, deprecation markers.
-4. Adjust the provider parser:
+4. Diagnose whether the failure is an upstream HTML change or a local regression:
+   - Inspect the failing line and nearby git history before changing parser structure.
+   - If the failure is caused by an obvious local regression, such as a selector or identifier containing `broken`, revert that regression with the smallest possible change.
+   - Do not rewrite, harden, or generalize adjacent parsing logic unless the refreshed fixture proves the upstream page actually changed in that area.
+   - Prefer a one-line fix over a structural rewrite when it restores the previous working behavior.
+5. Adjust the provider parser only as much as the diagnosis requires:
    - Match tables by header substring, never by table index.
    - Match columns by header substring, never by cell position.
    - `normalize_model_id` returns nil for unrecognised name patterns; do not add catch-all fallbacks that silently accept unknown names.
    - Keep `MIN_MODELS_EXPECTED` and `MAX_PRICE_PER_MTOK` sanity gates intact.
    - Preserve the structural pattern of the parser; do not refactor unrelated methods.
    - Do not introduce new dependencies. Nokogiri is already available as a dev dependency.
-5. Update the spec only if exact prices in the happy-path test changed because upstream values changed. Keep failure-mode tests intact. Do not delete tests to make them pass.
-6. Verify:
+6. Update the spec only if exact prices in the happy-path test changed because upstream values changed. Keep failure-mode tests intact. Do not delete tests to make them pass.
+7. Verify:
    - `bin/check`
    - `PROVIDERS=<name> DRY_RUN=1 bundle exec ruby scripts/price_scrape/runner.rb`
-7. Open a PR:
+8. Open a PR:
    - Title: `fix(prices): <name> parser HTML structure change`
    - Body: briefly describe what changed upstream, how the parser was adjusted, include verification commands, and link the original issue with `Closes #<number>`.
 
