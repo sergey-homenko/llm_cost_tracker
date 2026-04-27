@@ -27,6 +27,8 @@ Metrics/AbcSize:
 
 Metrics/ClassLength:
   Max: 130
+  CountAsOne:
+    - hash
 
 Metrics/ModuleLength:
   Max: 130

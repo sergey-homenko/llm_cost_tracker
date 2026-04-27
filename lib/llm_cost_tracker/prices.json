@@ -304,7 +304,8 @@
     },
     "gpt-5.3-chat-latest": {
       "input": 1.75,
-      "output": 14.0
+      "output": 14.0,
+      "cache_read_input": 0.175
     },
     "chatgpt-4o-latest": {
       "input": 5.0,
@@ -312,11 +313,13 @@
     },
     "gpt-5.3-codex": {
       "input": 1.75,
-      "output": 14.0
+      "output": 14.0,
+      "cache_read_input": 0.175
     },
     "codex-mini-latest": {
       "input": 1.5,
-      "output": 6.0
+      "output": 6.0,
+      "cache_read_input": 0.375
     }
   }
 }

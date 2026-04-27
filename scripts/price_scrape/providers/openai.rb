@@ -116,10 +116,7 @@ module LlmCostTracker
             model_id = normalize_model_id(unwrap(cells[0]))
             next unless model_id
 
-            fields = {
-              "input" => parse_price(unwrap(cells[1])),
-              "output" => parse_price(unwrap(cells[3]))
-            }
+            fields = extract_price_fields(cells)
             existing = models[model_id]
             if existing && existing != fields
               raise Error, "conflicting prices for #{model_id}: #{existing.inspect} vs #{fields.inspect}"
@@ -127,6 +124,16 @@ module LlmCostTracker
 
             models[model_id] = fields
           end
+        end
+
+        def extract_price_fields(cells)
+          fields = {
+            "input" => parse_price(unwrap(cells[1])),
+            "output" => parse_price(unwrap(cells[3]))
+          }
+          cache_read_input = parse_optional_price(unwrap(cells[2]))
+          fields["cache_read_input"] = cache_read_input if cache_read_input
+          fields
         end
 
         def normalize_model_id(display_name)
@@ -144,6 +151,13 @@ module LlmCostTracker
           raise Error, "unable to parse price #{value.inspect}" unless match
 
           Float(match[1])
+        end
+
+        def parse_optional_price(value)
+          text = value.to_s.strip
+          return nil if text.empty? || text == "-"
+
+          parse_price(value)
         end
 
         def unwrap(value)

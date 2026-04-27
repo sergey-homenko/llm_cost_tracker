@@ -27,10 +27,12 @@ RSpec.describe LlmCostTracker::PriceScrape::Providers::Openai do
       expect(result.scraped_at).to eq("2026-04-26T00:00:00Z")
       expect(result.models.fetch("gpt-5.5")).to eq(
         "input" => 5.0,
+        "cache_read_input" => 0.5,
         "output" => 30.0
       )
       expect(result.models.fetch("gpt-5.4-mini")).to eq(
         "input" => 0.75,
+        "cache_read_input" => 0.075,
         "output" => 4.5
       )
       expect(result.models.fetch("gpt-4-turbo")).to eq(
@@ -39,13 +41,14 @@ RSpec.describe LlmCostTracker::PriceScrape::Providers::Openai do
       )
       expect(result.models.fetch("gpt-5.2-codex")).to eq(
         "input" => 1.75,
+        "cache_read_input" => 0.175,
         "output" => 14.0
       )
       expect(result.models.fetch("o3-pro")).to eq(
         "input" => 20.0,
         "output" => 80.0
       )
-      expect(result.models.fetch("gpt-5.5").keys).to contain_exactly("input", "output")
+      expect(result.models.fetch("gpt-5.5-pro").keys).to contain_exactly("input", "output")
     end
 
     it "returns at least the minimum expected number of models" do
