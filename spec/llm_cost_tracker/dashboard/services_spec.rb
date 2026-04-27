@@ -749,6 +749,15 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(rows.first.key).to eq("common")
     end
 
+    it "limits discovered tag keys" do
+      create_call(tags: { first: "x" })
+      create_call(tags: { second: "x" })
+
+      rows = described_class.call(limit: 1)
+
+      expect(rows.size).to eq(1)
+    end
+
     it "uses JSON_TABLE-based discovery on MySQL" do
       create_call(tags: { env: "prod", service: "api" })
       create_call(tags: { env: "staging" })
@@ -769,6 +778,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       expect(captured_sql).to include("JSON_TABLE")
       expect(captured_sql).to include("JSON_KEYS")
+      expect(captured_sql).to include("LIMIT 100")
       expect(rows.map(&:key)).to eq(%w[env service])
       expect(rows.first.calls_count).to eq(2)
       expect(rows.first.distinct_values).to eq(2)

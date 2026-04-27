@@ -122,6 +122,23 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(model_select).not_to include("claude-haiku-4-5")
   end
 
+  it "caps model dropdown options while preserving the current selection" do
+    105.times do |index|
+      create_call(model: format("model-%03d", index), tracked_at: Time.now.utc)
+    end
+
+    response = get("/llm-costs?model=model-104")
+    model_select = response.body
+                           .match(%r{<select name="model" id="lct-overview-model">(.*?)</select>}m)
+                           &.captures
+                           &.first
+
+    expect(response.status).to eq(200)
+    expect(model_select.scan("<option").size).to eq(102)
+    expect(model_select).to include('<option selected="selected" value="model-104">model-104</option>')
+    expect(model_select).not_to include("model-103")
+  end
+
   it "renders invalid filter errors as bad requests" do
     response = get("/llm-costs?tag[%3BDROP]=x")
 

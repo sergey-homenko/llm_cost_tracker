@@ -37,6 +37,17 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("/llm-costs/calls/#{LlmCostTracker::LlmApiCall.first.id}")
   end
 
+  it "truncates long tag values in call list chips" do
+    long_value = "x" * 120
+    create_call(tags: { feature: long_value })
+
+    response = get("/llm-costs/calls")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("feature=#{'x' * 80}...")
+    expect(response.body).not_to include("feature=#{long_value}")
+  end
+
   it "filters calls and paginates newest first" do
     create_call(
       provider: "openai",

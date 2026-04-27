@@ -4,6 +4,8 @@ require "json"
 
 module LlmCostTracker
   module ApplicationHelper
+    TAG_VALUE_SUMMARY_BYTES = 80
+
     include DashboardFilterHelper
     include DashboardFilterOptionsHelper
     include DashboardQueryHelper
@@ -143,12 +145,15 @@ module LlmCostTracker
     end
 
     def tag_value_summary(value)
-      case value
-      when Hash, Array
-        JSON.generate(value)
-      else
-        value.to_s
-      end
+      string = case value
+               when Hash, Array
+                 JSON.generate(value)
+               else
+                 value.to_s
+               end
+      return string if string.bytesize <= TAG_VALUE_SUMMARY_BYTES
+
+      "#{string.byteslice(0, TAG_VALUE_SUMMARY_BYTES).to_s.encode('UTF-8', invalid: :replace, undef: :replace)}..."
     end
   end
 end

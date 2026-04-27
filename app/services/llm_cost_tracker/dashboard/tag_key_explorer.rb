@@ -5,15 +5,18 @@ module LlmCostTracker
     TagKeyRow = Data.define(:key, :calls_count, :distinct_values)
 
     class TagKeyExplorer
+      DEFAULT_LIMIT = 100
+
       class << self
-        def call(scope: LlmCostTracker::LlmApiCall.all)
-          new(scope: scope).rows
+        def call(scope: LlmCostTracker::LlmApiCall.all, limit: DEFAULT_LIMIT)
+          new(scope: scope, limit: limit).rows
         end
       end
 
-      def initialize(scope:)
+      def initialize(scope:, limit:)
         @scope = scope
         @connection = LlmCostTracker::LlmApiCall.connection
+        @limit = normalized_limit(limit)
       end
 
       def rows
@@ -32,7 +35,7 @@ module LlmCostTracker
 
       private
 
-      attr_reader :scope, :connection
+      attr_reader :scope, :connection, :limit
 
       def subquery
         scope.to_sql
@@ -62,6 +65,7 @@ module LlmCostTracker
             AND sub.tags != ''
           GROUP BY jt.key
           ORDER BY calls_count DESC
+          LIMIT #{limit}
         SQL
       end
 
@@ -76,6 +80,7 @@ module LlmCostTracker
             AND sub.tags::jsonb <> '{}'::jsonb
           GROUP BY key
           ORDER BY calls_count DESC
+          LIMIT #{limit}
         SQL
       end
 
@@ -91,7 +96,13 @@ module LlmCostTracker
             AND sub.tags != ''
           GROUP BY je.key
           ORDER BY calls_count DESC
+          LIMIT #{limit}
         SQL
+      end
+
+      def normalized_limit(value)
+        value = value.to_i
+        value.positive? ? [value, DEFAULT_LIMIT].min : DEFAULT_LIMIT
       end
     end
   end

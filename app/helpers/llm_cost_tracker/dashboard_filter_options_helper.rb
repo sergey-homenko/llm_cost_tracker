@@ -2,6 +2,8 @@
 
 module LlmCostTracker
   module DashboardFilterOptionsHelper
+    MAX_FILTER_OPTIONS = 100
+
     def provider_filter_options(filter_params: params)
       filter_options_for(:provider, filter_params: filter_params)
     end
@@ -19,7 +21,7 @@ module LlmCostTracker
       )
       values = LlmCostTracker::Dashboard::Filter.call(params: scope_params)
                                                 .where.not(column => [nil, ""])
-                                                .distinct.order(column).pluck(column)
+                                                .distinct.order(column).limit(MAX_FILTER_OPTIONS).pluck(column)
       current = source[column.to_s].presence || source[column].presence
       values.unshift(current) if current && !values.include?(current)
       values
