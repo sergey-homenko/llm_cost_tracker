@@ -102,11 +102,58 @@ jobs:
         if: failure() && github.event.inputs.dry_run != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COPILOT_ASSIGN_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set +e
           test -f refresh.log || { echo "no refresh.log to inspect"; exit 0; }
+
+          assign_copilot() {
+            issue_number="$1"
+            provider="$2"
+            base_branch="${BASE_BRANCH:-main}"
+
+            if [ -z "$COPILOT_ASSIGN_TOKEN" ]; then
+              echo "COPILOT_ASSIGN_TOKEN not configured; skipping Copilot assignment for issue #${issue_number}"
+              return 0
+            fi
+
+            assignees=$(GH_TOKEN="$COPILOT_ASSIGN_TOKEN" gh issue view "$issue_number" \
+              --json assignees \
+              --jq '.assignees[].login' 2>/dev/null || true)
+            if printf '%s\n' "$assignees" | grep -Eq '^(copilot-swe-agent|copilot-swe-agent\[bot\])$'; then
+              echo "issue #${issue_number} is already assigned to Copilot"
+              return 0
+            fi
+
+            payload_file=$(mktemp)
+            {
+              echo '{'
+              echo '  "assignees": ["copilot-swe-agent[bot]"],'
+              echo '  "agent_assignment": {'
+              echo "    \"target_repo\": \"${GITHUB_REPOSITORY}\","
+              echo "    \"base_branch\": \"${base_branch}\","
+              echo "    \"custom_instructions\": \"Fix the ${provider} parser-broken issue. Follow .github/copilot-instructions.md. Limit changes to the provider parser, fixture, and spec unless the issue proves impossible within that scope.\","
+              echo '    "custom_agent": "",'
+              echo '    "model": ""'
+              echo '  }'
+              echo '}'
+            } > "$payload_file"
+
+            if GH_TOKEN="$COPILOT_ASSIGN_TOKEN" gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${GITHUB_REPOSITORY}/issues/${issue_number}/assignees" \
+              --input "$payload_file" >/dev/null; then
+              echo "assigned issue #${issue_number} to Copilot"
+            else
+              echo "failed to assign issue #${issue_number} to Copilot"
+            fi
+            rm -f "$payload_file"
+          }
 
           failed_providers=$(grep -oE '^\[[a-z_-]+\] FAILED' refresh.log \
             | sed -E 's/^\[([a-z_-]+)\] FAILED$/\1/' \
@@ -136,9 +183,12 @@ jobs:
             {
               echo "Provider \`${provider}\` failed during automated price refresh."
               echo
+              echo "**Provider:** ${provider}"
               echo "**Workflow run:** ${RUN_URL}"
               echo "**Parser:** [scripts/price_scrape/providers/${provider}.rb](${REPO_URL}/blob/main/scripts/price_scrape/providers/${provider}.rb)"
               echo "**Time:** $(date -u +"%Y-%m-%d %H:%M UTC")"
+              echo
+              echo "Assign this issue to GitHub Copilot cloud agent to repair the parser. The agent should follow \`.github/copilot-instructions.md\`, refresh the fixture, update the provider parser/spec, run \`bin/check\`, and open a PR that closes this issue."
               echo
               echo "## Runner output"
               echo
@@ -150,12 +200,18 @@ jobs:
             if [ -n "$existing" ]; then
               gh issue comment "$existing" --body-file "$body_file"
               echo "commented on issue #${existing} for ${provider}"
+              assign_copilot "$existing" "$provider"
             else
-              gh issue create \
+              if issue_url=$(gh issue create \
                 --title "Price scraper for ${provider} is broken" \
                 --label "parser-broken,provider:${provider}" \
-                --body-file "$body_file"
-              echo "created issue for ${provider}"
+                --body-file "$body_file"); then
+                issue_number="${issue_url##*/}"
+                echo "created issue #${issue_number} for ${provider}"
+                assign_copilot "$issue_number" "$provider"
+              else
+                echo "failed to create issue for ${provider}"
+              fi
             fi
             rm -f "$body_file"
           done

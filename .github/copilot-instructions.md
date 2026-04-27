@@ -1,6 +1,6 @@
 # GitHub Copilot Coding Agent instructions
 
-This repository is `llm_cost_tracker`, a Rails Engine gem that ledgers LLM API calls. Read `AGENTS.md` in the repo root before starting any task — it contains the hard project rules. Key ones, restated for emphasis:
+This repository is `llm_cost_tracker`, a Rails Engine gem that ledgers LLM API calls. Follow these hard project rules:
 
 - **No code comments of any kind, ever.** Not YARD, not file-top summaries, not "why" narration. Method and identifier names carry intent. Every comment is a regression.
 - **`bin/check` must pass before pushing**: zero rubocop offences, full RSpec suite green.
@@ -21,7 +21,7 @@ When an issue is labeled `parser-broken` with a `provider:<name>` label (e.g. `p
 
 ### Fix workflow
 
-1. **Identify the failing provider** from the `provider:<name>` label. Files involved:
+1. **Identify the failing provider** from the `Provider: <name>` line in the issue body or the `provider:<name>` label. Files involved:
    - Parser: `scripts/price_scrape/providers/<name>.rb`
    - Fixture: `spec/fixtures/scrape/<name>_pricing.html`
    - Spec: `spec/scripts/price_scrape/providers/<name>_spec.rb`

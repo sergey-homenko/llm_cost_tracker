@@ -53,6 +53,14 @@ RSpec.describe LlmCostTracker::PriceScrape::Providers::Gemini do
       end.to raise_error(described_class::Error, /article body not found/)
     end
 
+    it "raises when standard pricing tables are missing" do
+      tableless_html = html.gsub(%r{<table\b.*?</table>}m, "")
+
+      expect do
+        described_class.new.call(html: tableless_html)
+      end.to raise_error(described_class::Error, /at least \d+ models/)
+    end
+
     it "raises when the parsed model count is below the minimum" do
       sparse_html = <<~HTML
         <html><body>
