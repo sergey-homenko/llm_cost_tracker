@@ -28,6 +28,9 @@ module LlmCostTrackerIntegrationSpecTypes
     :cached_tokens,
     :cache_creation_tokens,
     :thinking_tokens,
+    :reasoning_tokens,
+    :provider_response_id,
+    :raw,
     keyword_init: true
   )
 end
@@ -274,6 +277,34 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "tracks RubyLLM transcriptions through the provider contract" do
+    response = LlmCostTrackerIntegrationSpecTypes::RubyLlmResponse.new(
+      input_tokens: 12,
+      output_tokens: 3,
+      reasoning_tokens: 2,
+      raw: { "id" => "audio_resp_123" }
+    )
+    install_ruby_llm_fakes(response)
+    configure_integration(:ruby_llm)
+
+    capture_events do |events|
+      returned = RubyLLM::Provider.new.transcribe("audio.wav", model: :whisper_one)
+
+      expect(returned).to be(response)
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "whisper_one",
+        input_tokens: 12,
+        output_tokens: 3,
+        hidden_output_tokens: 2,
+        stream: false,
+        usage_source: "ruby_llm",
+        provider_response_id: "audio_resp_123"
+      )
+    end
+  end
+
   it "marks RubyLLM stream keyword calls as streaming" do
     response = LlmCostTrackerIntegrationSpecTypes::RubyLlmResponse.new(
       input_tokens: 100,
@@ -294,6 +325,16 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "reports installed RubyLLM integration checks after patching" do
+    install_ruby_llm_fakes(LlmCostTrackerIntegrationSpecTypes::RubyLlmResponse.new(input_tokens: 1, output_tokens: 1))
+    configure_integration(:ruby_llm)
+
+    check = LlmCostTracker::Integrations::Registry.checks([:ruby_llm]).first
+
+    expect(check.status).to eq(:ok)
+    expect(check.message).to eq("ruby_llm integration installed")
+  end
+
   it "raises when an enabled integration cannot satisfy its install contract" do
     stub_const("RubyLLM", Module.new)
     stub_const("RubyLLM::VERSION", "1.13.0")
@@ -304,6 +345,16 @@ RSpec.describe LlmCostTracker::Integrations do
       LlmCostTracker::Error,
       /ruby_llm integration cannot be installed: ruby_llm >= 1\.14\.1 is required, detected 1\.13\.0/
     )
+  end
+
+  it "reports incompatible integrations with invalid SDK version constants" do
+    stub_const("RubyLLM", Module.new)
+    stub_const("RubyLLM::VERSION", "not-a-version")
+
+    check = LlmCostTracker::Integrations::Registry.checks([:ruby_llm]).first
+
+    expect(check.status).to eq(:warn)
+    expect(check.message).to include("ruby_llm >= 1.14.1 is required, but ruby_llm is not loaded")
   end
 
   it "raises when an enabled integration target method is missing" do
