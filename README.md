@@ -225,7 +225,7 @@ Auth is your job. Examples for basic auth and Devise: [`docs/dashboard.md`](docs
 | OpenRouter | Yes | OpenAI-compatible usage; provider-prefixed model IDs are normalized |
 | DeepSeek | Yes | OpenAI-compatible usage; add `pricing_overrides` for DeepSeek-specific rates |
 | Other OpenAI-compatible hosts | Configurable | Register the host via `config.openai_compatible_providers` |
-| Anything else | Configurable | Custom parser — see [`docs/technical/extension-points.md`](docs/technical/extension-points.md) |
+| Anything else | Configurable | Custom parser — see [`docs/extending.md`](docs/extending.md) |
 
 Endpoints covered end-to-end: OpenAI Chat Completions / Responses / Completions / Embeddings, Anthropic Messages, Gemini `generateContent` and `streamGenerateContent`, plus their OpenAI-compatible equivalents. Streaming is captured for Faraday paths whenever the provider emits final-usage events.
 
@@ -237,17 +237,21 @@ Tags carry whatever your app passes — they are application-controlled input, t
 
 ## Documentation
 
-Deeper guides live in `docs/`. Mature today:
+Deeper guides live in `docs/`. Reference pages are being filled out as content
+moves out of this README; the inline sections above remain canonical where a page
+is still brief.
 
-- [Architecture & design rules](docs/architecture.md)
+- [Configuration reference](docs/configuration.md)
+- [Pricing & price refresh](docs/pricing.md)
+- [Budgets & guardrails](docs/budgets.md)
+- [Querying & reports](docs/querying.md)
+- [Dashboard mounting](docs/dashboard.md)
+- [Streaming capture](docs/streaming.md)
+- [Extending](docs/extending.md)
+- [Production operations](docs/operations.md)
+- [Upgrading](docs/upgrading.md)
 - [Cookbook — per-client recipes](docs/cookbook.md)
-- [Technical reference](docs/technical/) — data flow, extension points, module map, operational notes
-
-In the works as content moves out of this README:
-
-- `docs/configuration.md`, `docs/pricing.md`, `docs/budgets.md`, `docs/querying.md`, `docs/dashboard.md`, `docs/streaming.md`, `docs/extending.md`, `docs/operations.md`, `docs/upgrading.md`
-
-Until those land, the inline sections above are the source of truth.
+- [Architecture & design rules](docs/architecture.md)
 
 ## Known limitations
 
