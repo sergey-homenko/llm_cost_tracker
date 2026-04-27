@@ -1,0 +1,221 @@
+name: Fix parser-broken issues
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Refresh provider prices"]
+    types: [completed]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: fix-parser-broken
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Find parser issue
+        id: issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          issue_json=$(gh issue list \
+            --state open \
+            --label parser-broken \
+            --json number,title,body,labels,createdAt \
+            --jq 'sort_by(.createdAt) | .[0] // empty')
+
+          if [ -z "$issue_json" ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "no open parser-broken issues"
+            exit 0
+          fi
+
+          issue_number=$(printf '%s' "$issue_json" | jq -r '.number')
+          issue_title=$(printf '%s' "$issue_json" | jq -r '.title')
+          issue_body=$(printf '%s' "$issue_json" | jq -r '.body // ""')
+          provider=$(printf '%s' "$issue_json" | jq -r '[.labels[].name | select(startswith("provider:"))][0] // ""' | sed 's/^provider://')
+
+          if [ -z "$provider" ]; then
+            provider=$(printf '%s\n' "$issue_body" | sed -nE 's/^\*\*Provider:\*\*[[:space:]]*([a-z0-9_-]+).*$/\1/p' | head -n 1)
+          fi
+
+          if [ -z "$provider" ]; then
+            provider=$(printf '%s\n' "$issue_title" | sed -nE 's/^Price scraper for ([a-z0-9_-]+) is broken.*$/\1/p' | head -n 1)
+          fi
+
+          if [ -z "$provider" ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            gh issue comment "$issue_number" --body "Codex automation could not identify a provider from this issue."
+            exit 0
+          fi
+
+          parser_path="scripts/price_scrape/providers/${provider}.rb"
+          fixture_path="spec/fixtures/scrape/${provider}_pricing.html"
+          spec_path="spec/scripts/price_scrape/providers/${provider}_spec.rb"
+
+          if [ ! -f "$parser_path" ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            gh issue comment "$issue_number" --body "Codex automation could not find parser file \`${parser_path}\`."
+            exit 0
+          fi
+
+          {
+            echo "found=true"
+            echo "issue_number=${issue_number}"
+            echo "provider=${provider}"
+            echo "parser_path=${parser_path}"
+            echo "fixture_path=${fixture_path}"
+            echo "spec_path=${spec_path}"
+            echo "branch=codex/fix-price-scrape-${provider}-${issue_number}"
+          } >> "$GITHUB_OUTPUT"
+
+          printf '%s\n' "$issue_title" > .parser-issue-title.txt
+          printf '%s\n' "$issue_body" > .parser-issue-body.md
+
+      - name: Set up Ruby
+        if: steps.issue.outputs.found == 'true'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Refresh provider fixture
+        if: steps.issue.outputs.found == 'true'
+        id: fixture
+        env:
+          PARSER_PATH: ${{ steps.issue.outputs.parser_path }}
+          FIXTURE_PATH: ${{ steps.issue.outputs.fixture_path }}
+        run: |
+          source_url=$(ruby -e 'text = File.read(ENV.fetch("PARSER_PATH")); match = text.match(/SOURCE_URL\s*=\s*"([^"]+)"/); abort "SOURCE_URL not found" unless match; puts match[1]')
+          mkdir -p "$(dirname "$FIXTURE_PATH")"
+          curl -sSfL -A "llm_cost_tracker price scrape" "$source_url" -o "$FIXTURE_PATH"
+          test -s "$FIXTURE_PATH"
+          echo "source_url=${source_url}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Codex prompt
+        if: steps.issue.outputs.found == 'true'
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+          PROVIDER: ${{ steps.issue.outputs.provider }}
+          FIXTURE_PATH: ${{ steps.issue.outputs.fixture_path }}
+          SOURCE_URL: ${{ steps.fixture.outputs.source_url }}
+          PARSER_PATH: ${{ steps.issue.outputs.parser_path }}
+          SPEC_PATH: ${{ steps.issue.outputs.spec_path }}
+        run: |
+          {
+            echo "Fix parser-broken issue #${ISSUE_NUMBER} for provider \`${PROVIDER}\` in \`${GITHUB_REPOSITORY}\`."
+            echo
+            echo "Follow \`.github/parser-agent-instructions.md\`."
+            echo
+            echo "The workflow already refreshed \`${FIXTURE_PATH}\` from \`${SOURCE_URL}\` before running this agent. Inspect the parser, the refreshed fixture, the corresponding spec, and the issue content below. Repair the parser so it parses the refreshed provider pricing page correctly."
+            echo
+            echo "Allowed files:"
+            echo "- \`${PARSER_PATH}\`"
+            echo "- \`${FIXTURE_PATH}\`"
+            echo "- \`${SPEC_PATH}\`"
+            echo
+            echo "Do not modify shared scraper infrastructure, gem code, changelog files, workflow files, or dependencies."
+            echo "Do not add code comments."
+            echo "Do not use GitHub Copilot or assign issues to GitHub Copilot."
+            echo "Do not commit, push, or open the PR yourself; the workflow will do that after verification."
+            echo
+            echo "Verify locally if possible with:"
+            echo "- \`bin/check\`"
+            echo "- \`PROVIDERS=${PROVIDER} DRY_RUN=1 bundle exec ruby scripts/price_scrape/runner.rb\`"
+            echo
+            echo "Issue title:"
+            cat .parser-issue-title.txt
+            echo
+            echo "Issue body:"
+            cat .parser-issue-body.md
+          } > .codex-parser-prompt.md
+
+      - name: Run Codex
+        if: steps.issue.outputs.found == 'true'
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: workspace-write
+          effort: high
+          prompt-file: .codex-parser-prompt.md
+
+      - name: Verify
+        if: steps.issue.outputs.found == 'true'
+        env:
+          PROVIDERS: ${{ steps.issue.outputs.provider }}
+          DRY_RUN: "1"
+        run: |
+          bin/check
+          bundle exec ruby scripts/price_scrape/runner.rb
+
+      - name: Build pull request body
+        if: steps.issue.outputs.found == 'true'
+        env:
+          CODEX_FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+          PROVIDER: ${{ steps.issue.outputs.provider }}
+        run: |
+          {
+            echo "Fixes the ${PROVIDER} price scraper after the upstream pricing page changed."
+            echo
+            echo "Closes #${ISSUE_NUMBER}"
+            echo
+            echo "## Verification"
+            echo
+            echo "- \`bin/check\`"
+            echo "- \`PROVIDERS=${PROVIDER} DRY_RUN=1 bundle exec ruby scripts/price_scrape/runner.rb\`"
+            if [ -n "$CODEX_FINAL_MESSAGE" ]; then
+              echo
+              echo "## Codex summary"
+              echo
+              printf '%s\n' "$CODEX_FINAL_MESSAGE"
+            fi
+          } > pr_body.md
+
+      - name: Create pull request
+        if: steps.issue.outputs.found == 'true'
+        id: pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${{ steps.issue.outputs.branch }}
+          title: "fix(prices): ${{ steps.issue.outputs.provider }} parser HTML structure change"
+          commit-message: "Fix ${{ steps.issue.outputs.provider }} price scraper"
+          body-path: pr_body.md
+          delete-branch: true
+          labels: prices,parser-broken,automated,codex
+          add-paths: |
+            ${{ steps.issue.outputs.parser_path }}
+            ${{ steps.issue.outputs.fixture_path }}
+            ${{ steps.issue.outputs.spec_path }}
+
+      - name: Comment with pull request
+        if: steps.issue.outputs.found == 'true' && steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+          PR_URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body "Codex automation opened ${PR_URL}."
+
+      - name: Comment on automation failure
+        if: failure() && steps.issue.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body "Codex automation failed before opening a PR. Workflow run: ${RUN_URL}"

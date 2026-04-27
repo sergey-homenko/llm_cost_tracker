@@ -141,13 +141,13 @@ jobs:
               echo "**Parser:** [scripts/price_scrape/providers/${provider}.rb](${REPO_URL}/blob/main/scripts/price_scrape/providers/${provider}.rb)"
               echo "**Time:** $(date -u +"%Y-%m-%d %H:%M UTC")"
               echo
-              echo "Use OpenAI Codex or another coding agent to repair the parser. The agent should follow \`.github/copilot-instructions.md\`, refresh the fixture, update the provider parser/spec, run \`bin/check\`, and open a PR that closes this issue."
+              echo "Use OpenAI Codex or another coding agent to repair the parser. The agent should follow \`.github/parser-agent-instructions.md\`, refresh the fixture, update the provider parser/spec, run \`bin/check\`, and open a PR that closes this issue."
               echo
               echo "Suggested Codex prompt:"
               echo
               echo '```'
               echo "Fix the ${provider} parser-broken issue in ${GITHUB_REPOSITORY}."
-              echo "Use the workflow log below and follow .github/copilot-instructions.md."
+              echo "Use the workflow log below and follow .github/parser-agent-instructions.md."
               echo "Refresh the provider fixture from the parser SOURCE_URL, adjust scripts/price_scrape/providers/${provider}.rb and spec/scripts/price_scrape/providers/${provider}_spec.rb only, run bin/check and PROVIDERS=${provider} DRY_RUN=1 bundle exec ruby scripts/price_scrape/runner.rb, then open a PR that closes this issue."
               echo '```'
               echo
