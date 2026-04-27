@@ -129,7 +129,7 @@ jobs:
             echo
             echo "Do not modify shared scraper infrastructure, gem code, changelog files, workflow files, or dependencies."
             echo "Do not add code comments."
-            echo "Do not use GitHub Copilot or assign issues to GitHub Copilot."
+            echo "Do not use external coding agents or assign issues to another agent."
             echo "Do not commit, push, or open the PR yourself; the workflow will do that after verification."
             echo
             echo "Verify locally if possible with:"
