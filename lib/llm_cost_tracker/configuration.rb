@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "errors"
+require_relative "tag_key"
 require_relative "value_helpers"
 require_relative "configuration/instrumentation"
 
@@ -79,7 +80,7 @@ module LlmCostTracker
 
     def report_tag_breakdowns=(value)
       ensure_shared_configuration_mutable!
-      @report_tag_breakdowns = value
+      @report_tag_breakdowns = normalize_report_tag_breakdowns(value)
     end
 
     def redacted_tag_keys=(value)
@@ -148,6 +149,10 @@ module LlmCostTracker
       (providers || {}).each_with_object({}) do |(host, provider), normalized|
         normalized[host.to_s.downcase] = provider.to_s
       end
+    end
+
+    def normalize_report_tag_breakdowns(value)
+      Array(value).map { |key| TagKey.validate!(key, error_class: Error) }
     end
 
     def ensure_shared_configuration_mutable!

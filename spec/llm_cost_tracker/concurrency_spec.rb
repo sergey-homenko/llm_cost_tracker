@@ -130,6 +130,15 @@ RSpec.describe "concurrency", :aggregate_failures do
       expect { LlmCostTracker.configuration.openai_compatible_providers["x"] = "y" }.to raise_error(FrozenError)
     end
 
+    it "validates report tag breakdown keys during configuration" do
+      LlmCostTracker.configure { |config| config.report_tag_breakdowns = [:env, "feature.name"] }
+
+      expect(LlmCostTracker.configuration.report_tag_breakdowns).to eq(%w[env feature.name])
+      expect do
+        LlmCostTracker.configure { |config| config.report_tag_breakdowns = ["feature; DROP"] }
+      end.to raise_error(LlmCostTracker::Error, /invalid tag key/)
+    end
+
     it "rejects runtime replacement of shared configuration" do
       LlmCostTracker.configure do |config|
         config.default_tags = { env: "test" }
