@@ -7,7 +7,7 @@ on:
     inputs:
       providers:
         description: "Comma-separated provider names to refresh"
-        default: "anthropic,gemini"
+        default: "anthropic,gemini,openai"
       dry_run:
         description: "Run without writing or opening a PR"
         type: boolean
@@ -32,11 +32,14 @@ jobs:
 
       - name: Run price scrape
         env:
-          PROVIDERS: ${{ github.event.inputs.providers || 'anthropic,gemini' }}
+          PROVIDERS: ${{ github.event.inputs.providers || 'anthropic,gemini,openai' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
         run: |
           set -o pipefail
           bundle exec ruby scripts/price_scrape/runner.rb 2>&1 | tee refresh.log
+
+      - name: Run check
+        run: bin/check
 
       - name: Detect price changes
         id: changes
