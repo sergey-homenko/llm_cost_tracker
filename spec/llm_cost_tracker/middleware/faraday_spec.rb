@@ -232,7 +232,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       f.adapter :test do |stub|
         stub.post("/v1/chat/completions") do |env|
           env.request.on_data&.call(sse_body, sse_body.bytesize, env)
-          [200, { "Content-Type" => "text/event-stream" }, ""]
+          [200, { "Content-Type" => "text/event-stream" }, sse_body]
         end
       end
     end

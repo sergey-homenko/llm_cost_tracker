@@ -87,6 +87,11 @@ module LlmCostTracker
       end
 
       def parse_stream(parser, request_url, request_body, response_env, stream_buffer)
+        if stream_buffer&.dig(:overflowed)
+          Logging.warn(capture_warning(request_url, stream_buffer))
+          return parser.parse_stream(request_url, request_body, response_env.status, [])
+        end
+
         body = stream_buffer&.dig(:buffer)&.string
         body = read_body(response_env.body) if body.nil? || body.empty?
 

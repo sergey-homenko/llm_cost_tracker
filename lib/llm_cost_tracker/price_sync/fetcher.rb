@@ -75,8 +75,12 @@ module LlmCostTracker
         body = +""
         if response.respond_to?(:read_body)
           response.read_body do |chunk|
-            body << chunk.to_s
-            raise Error, "Pricing snapshot response exceeds #{MAX_BODY_BYTES} bytes" if body.bytesize > MAX_BODY_BYTES
+            chunk = chunk.to_s
+            if body.bytesize + chunk.bytesize > MAX_BODY_BYTES
+              raise Error, "Pricing snapshot response exceeds #{MAX_BODY_BYTES} bytes"
+            end
+
+            body << chunk
           end
         else
           body = response.body.to_s
