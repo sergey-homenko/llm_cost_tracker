@@ -43,12 +43,9 @@ module LlmCostTracker
 
         def call(html:, source_url: SOURCE_URL, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
-          specialized_models = extract_specialized_standard_models(doc)
-          models = extract_standard_models(doc).merge(specialized_models) do |model_id, left, right|
-            raise Error, "conflicting prices for #{model_id}: #{left.inspect} vs #{right.inspect}" unless left == right
-
-            left
-          end
+          models = merge_model_fields(extract_standard_models(doc), extract_specialized_models(doc, tier: "standard"))
+          models = merge_model_fields(models, extract_batch_models(doc))
+          models = merge_model_fields(models, extract_specialized_models(doc, tier: "batch"))
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -61,23 +58,31 @@ module LlmCostTracker
         private
 
         def extract_standard_models(doc)
-          props = pricing_props(doc).find { |candidate| unwrap(candidate["tier"]) == "standard" }
-          raise Error, "OpenAI standard pricing table not found" unless props
-
-          extract_rows(rows_from(props))
+          extract_tier_models(doc, tier: "standard", fields: standard_fields)
         end
 
-        def extract_specialized_standard_models(doc)
+        def extract_batch_models(doc)
+          extract_tier_models(doc, tier: "batch", fields: batch_fields)
+        end
+
+        def extract_tier_models(doc, tier:, fields:)
+          props = pricing_props(doc).find { |candidate| unwrap(candidate["tier"]) == tier }
+          raise Error, "OpenAI #{tier} pricing table not found" unless props
+
+          extract_rows(rows_from(props), fields: fields)
+        end
+
+        def extract_specialized_models(doc, tier:)
           root = doc.at_css("#content-switcher-specialized-pricing")
           return {} unless root
 
-          pane = root.at_css('[data-content-switcher-pane][data-value="standard"]')
+          pane = root.at_css(%([data-content-switcher-pane][data-value="#{tier}"]))
           return {} unless pane
 
           props = pricing_props(pane).find { |candidate| candidate.key?("groups") }
           return {} unless props
 
-          extract_rows(group_rows_from(props))
+          extract_rows(group_rows_from(props), fields: tier == "batch" ? batch_fields : standard_fields)
         end
 
         def pricing_props(node)
@@ -108,7 +113,7 @@ module LlmCostTracker
           end
         end
 
-        def extract_rows(rows)
+        def extract_rows(rows, fields:)
           rows.each_with_object({}) do |row, models|
             cells = unwrap(row)
             next unless cells.is_a?(Array) && cells.size >= 4
@@ -116,24 +121,43 @@ module LlmCostTracker
             model_id = normalize_model_id(unwrap(cells[0]))
             next unless model_id
 
-            fields = extract_price_fields(cells)
+            price_fields = extract_price_fields(cells, fields: fields)
             existing = models[model_id]
-            if existing && existing != fields
-              raise Error, "conflicting prices for #{model_id}: #{existing.inspect} vs #{fields.inspect}"
+            if existing && existing != price_fields
+              raise Error, "conflicting prices for #{model_id}: #{existing.inspect} vs #{price_fields.inspect}"
             end
 
-            models[model_id] = fields
+            models[model_id] = price_fields
           end
         end
 
-        def extract_price_fields(cells)
-          fields = {
-            "input" => parse_price(unwrap(cells[1])),
-            "output" => parse_price(unwrap(cells[3]))
+        def extract_price_fields(cells, fields:)
+          prices = {
+            fields.fetch(:input) => parse_price(unwrap(cells[1])),
+            fields.fetch(:output) => parse_price(unwrap(cells[3]))
           }
           cache_read_input = parse_optional_price(unwrap(cells[2]))
-          fields["cache_read_input"] = cache_read_input if cache_read_input
-          fields
+          prices[fields.fetch(:cache_read_input)] = cache_read_input if cache_read_input
+          prices
+        end
+
+        def merge_model_fields(left, right)
+          left.merge(right) do |model_id, existing, incoming|
+            conflicts = incoming.select { |field, value| existing.key?(field) && existing[field] != value }
+            if conflicts.any?
+              raise Error, "conflicting prices for #{model_id}: #{existing.inspect} vs #{incoming.inspect}"
+            end
+
+            existing.merge(incoming)
+          end
+        end
+
+        def standard_fields
+          { input: "input", cache_read_input: "cache_read_input", output: "output" }
+        end
+
+        def batch_fields
+          { input: "batch_input", cache_read_input: "batch_cache_read_input", output: "batch_output" }
         end
 
         def normalize_model_id(display_name)
