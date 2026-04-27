@@ -4,11 +4,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
-## [0.5.1] - 2026-04-26
+## [0.5.1] - 2026-04-27
 
 ### Changed
 
-- Renamed `llm_cost_tracker:prices:update` to `llm_cost_tracker:prices:refresh` and `LlmCostTracker::PriceSync.update` to `.refresh` to match the operation's actual semantics (re-fetching a curated remote snapshot).
+- Renamed `llm_cost_tracker:prices:sync` to `llm_cost_tracker:prices:refresh` and `LlmCostTracker::PriceSync.sync` to `.refresh`.
+- Price refresh now reads the maintained LLM Cost Tracker snapshot, supports `URL` overrides, and writes to `OUTPUT`, `config.prices_file`, or `config/llm_cost_tracker_prices.yml`.
+- Price refresh validates snapshot schema and minimum gem version before replacing the local registry.
+- Built-in prices now include OpenAI cached-input rates, OpenAI batch rates, Anthropic/Gemini batch rates, additional OpenAI models, and refreshed provider rates.
+- Price refresh writes registry files atomically.
 
 ## [0.5.0] - 2026-04-25
 
@@ -26,9 +30,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Built-in prices include GPT-5.5 and GPT-5.4 variants and drop retired Claude and Gemini entries.
 - Missing model identifiers now normalize to `unknown` instead of leaking nil into tracked events.
 - `llm_cost_tracker:prices` now generates a full local price snapshot instead of an empty override file.
-- `llm_cost_tracker:prices:update` refreshes local price files from the maintained LLM Cost Tracker snapshot instead of third-party price catalogs.
-- Removed legacy `llm_cost_tracker:prices:sync`; use `llm_cost_tracker:prices:update`.
-- README, cookbook, and technical docs clarify that `config.instrument` patches official SDKs only, and `ruby-openai` routes through the Faraday middleware via its constructor block.
+- Price sync workflow surfaces clearer error context for fetcher failures and skips refresh-plan entries with malformed pricing.
+- README, cookbook, and technical docs clarify that `config.instrument` patches official SDKs only; `ruby-openai` (alexrudall) routes through the Faraday middleware via its constructor block, and `ruby_llm` is not auto-captured today because the gem does not expose a Faraday middleware hook.
 
 ## [0.4.1] - 2026-04-24
 
