@@ -17,9 +17,10 @@ LlmCostTracker.configure do |config|
   # config.redacted_tag_keys = %w[api_key access_token authorization credential password refresh_token secret]
 
   # Optional SDK integrations. Provider SDK gems are not installed by LLM Cost Tracker.
-  # Enable only the SDKs your app already uses.
+  # Enabled integrations are checked at boot, so enable only clients your app loads.
   # config.instrument :openai
   # config.instrument :anthropic
+  # config.instrument :ruby_llm
 
   # Budget behavior: :notify calls on_budget_exceeded, :raise raises after recording,
   # :block_requests preflights monthly/daily budgets before supported requests.

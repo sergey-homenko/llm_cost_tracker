@@ -2,13 +2,15 @@
 
 require_relative "openai"
 require_relative "anthropic"
+require_relative "ruby_llm"
 
 module LlmCostTracker
   module Integrations
     module Registry
       INTEGRATIONS = {
         openai: Openai,
-        anthropic: Anthropic
+        anthropic: Anthropic,
+        ruby_llm: RubyLlm
       }.freeze
 
       module_function

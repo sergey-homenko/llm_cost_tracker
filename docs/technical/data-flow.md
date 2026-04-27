@@ -14,10 +14,11 @@ This is the normal path from an application LLM call to stored ledger data.
 ## SDK Integrations
 
 1. The host app enables an integration with `config.instrument`.
-2. `LlmCostTracker::Integrations` prepends a narrow wrapper to supported SDK resource methods.
-3. The host app keeps calling the provider SDK normally.
-4. The wrapper measures latency, extracts usage from the SDK response object, and sends canonical fields to `Tracker.record`.
-5. If the provider SDK is not loaded, boot continues and `llm_cost_tracker:doctor` reports the missing integration.
+2. `LlmCostTracker::Integrations` checks the SDK version, target classes, and target methods once at install time.
+3. `LlmCostTracker::Integrations` prepends a narrow wrapper to supported SDK resource methods.
+4. The host app keeps calling the provider SDK normally.
+5. The wrapper measures latency, extracts usage from the SDK response object, and sends canonical fields to `Tracker.record`.
+6. If an explicitly enabled SDK is not loaded or does not satisfy the install contract, boot raises before the app silently misses usage.
 
 ## Explicit Tracking
 

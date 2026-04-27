@@ -10,10 +10,14 @@ module LlmCostTracker
       class << self
         def integration_name = :openai
 
-        def target_patches
+        def minimum_version = "0.59.0"
+
+        def version_constant = "OpenAI::VERSION"
+
+        def patch_targets
           [
-            [constant("OpenAI::Resources::Responses"), ResponsesPatch],
-            [constant("OpenAI::Resources::Chat::Completions"), ChatCompletionsPatch]
+            patch_target("OpenAI::Resources::Responses", with: ResponsesPatch, methods: :create),
+            patch_target("OpenAI::Resources::Chat::Completions", with: ChatCompletionsPatch, methods: :create)
           ]
         end
 

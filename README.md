@@ -20,7 +20,7 @@ Add to your Gemfile alongside whatever LLM client you already use:
 
 ```ruby
 gem "llm_cost_tracker"
-gem "openai"  # or "anthropic", or your existing client
+gem "openai"  # or "anthropic", "ruby_llm", or your existing client
 ```
 
 Install, migrate, verify:
@@ -55,7 +55,7 @@ Visit `/llm-costs` for the dashboard. **Mount it behind your app's auth before d
 ## What you get
 
 - Local ActiveRecord ledger of every call: provider, model, token breakdown, cost, latency, tags, response IDs
-- Auto-capture for the official `openai` and `anthropic` Ruby SDKs, plus Faraday middleware for `ruby-openai`, the Gemini REST API, and any client you can inject middleware into
+- Auto-capture for RubyLLM and the official `openai` and `anthropic` Ruby SDKs, plus Faraday middleware for `ruby-openai`, the Gemini REST API, and any client you can inject middleware into
 - Server-rendered dashboard (plain ERB, zero JavaScript) with overview, models, calls, tags, CSV export, and a data-quality page
 - Local pricing snapshots refreshed daily from the official provider pricing pages, applied with `bin/rails llm_cost_tracker:prices:refresh`
 - Monthly / daily / per-call budget guardrails with notify, raise, or block-requests behaviour
@@ -73,13 +73,13 @@ Visit `/llm-costs` for the dashboard. **Mount it behind your app's auth before d
 
 Three paths, in order of preference. Use the first one that fits your stack.
 
-### 1. Official SDK integrations
+### 1. SDK integrations
 
-Drop-in for the official `openai` and `anthropic` gems. `config.instrument` patches the SDK's resource methods so you don't change a single call site:
+Drop-in for RubyLLM and the official `openai` and `anthropic` gems. `config.instrument` patches tested SDK methods so you don't change a single call site:
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.instrument :openai      # or :anthropic, or :all
+  config.instrument :openai      # or :anthropic / :ruby_llm
 end
 
 LlmCostTracker.with_tags(feature: "support_chat") do
@@ -93,7 +93,9 @@ end
 
 Captures usage, model, latency, response ID, cache tokens, and reasoning tokens whenever the SDK exposes them. Provider SDKs are not added as gem dependencies — you install whichever you actually use.
 
-This patches **only** the official Ruby SDKs. `ruby-openai` (alexrudall) and any custom client go through Faraday middleware below.
+Enabled integrations are checked at boot: the client gem must be loaded, meet the minimum supported version, and expose the expected classes and methods. If the contract check fails, boot raises instead of silently missing spend.
+
+This patches **only** RubyLLM and the official Ruby SDKs. `ruby-openai` (alexrudall) and any custom client go through Faraday middleware below.
 
 ### 2. Faraday middleware
 
@@ -227,6 +229,8 @@ Auth is your job. Examples for basic auth and Devise: [`docs/dashboard.md`](docs
 | Other OpenAI-compatible hosts | Configurable | Register the host via `config.openai_compatible_providers` |
 | Anything else | Configurable | Custom parser — see [`docs/extending.md`](docs/extending.md) |
 
+RubyLLM chat, embedding, and transcription calls are captured through RubyLLM's provider layer when `config.instrument :ruby_llm` is enabled.
+
 Endpoints covered end-to-end: OpenAI Chat Completions / Responses / Completions / Embeddings, Anthropic Messages, Gemini `generateContent` and `streamGenerateContent`, plus their OpenAI-compatible equivalents. Streaming is captured for Faraday paths whenever the provider emits final-usage events.
 
 ## Privacy
@@ -256,7 +260,7 @@ is still brief.
 ## Known limitations
 
 - `:block_requests` is best-effort under concurrency, not a transactional cap.
-- Official SDK integrations cover non-streaming calls; streaming via the SDKs falls back to Faraday middleware or `track_stream`.
+- Official OpenAI and Anthropic SDK integrations cover non-streaming calls; streaming via those SDKs falls back to Faraday middleware or `track_stream`.
 - Streaming usage capture relies on the provider emitting a final-usage event. Missing events are stored with `usage_source: "unknown"` so they appear on the data-quality page rather than vanishing.
 - `provider_response_id` is stored only when the provider exposes a stable ID. Gemini is best-effort and varies by endpoint.
 - Cache write TTL variants on Anthropic (1h vs 5min writes) are not modeled separately yet.

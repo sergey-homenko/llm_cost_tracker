@@ -10,10 +10,19 @@ module LlmCostTracker
       class << self
         def integration_name = :anthropic
 
-        def target_patches
+        def minimum_version = "1.36.0"
+
+        def version_constant = "Anthropic::VERSION"
+
+        def patch_targets
           [
-            [constant("Anthropic::Resources::Messages"), MessagesPatch],
-            [constant("Anthropic::Resources::Beta::Messages"), MessagesPatch]
+            patch_target("Anthropic::Resources::Messages", with: MessagesPatch, methods: :create),
+            patch_target(
+              "Anthropic::Resources::Beta::Messages",
+              with: MessagesPatch,
+              methods: :create,
+              optional: true
+            )
           ]
         end
 

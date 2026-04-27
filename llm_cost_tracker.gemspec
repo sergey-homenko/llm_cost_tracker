@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.email         = ["sergey@mm.st"]
 
   spec.summary       = "Self-hosted LLM usage and cost tracking for Ruby and Rails"
-  spec.description   = "Tracks token usage, latency, and estimated costs for OpenAI, Anthropic, " \
+  spec.description   = "Tracks token usage, latency, and estimated costs for RubyLLM, OpenAI, Anthropic, " \
                        "Google Gemini, OpenRouter, DeepSeek, and OpenAI-compatible APIs. " \
                        "Works through Faraday middleware or explicit track/track_stream helpers, " \
                        "with ActiveRecord storage, tag-based attribution, price sync tasks, " \

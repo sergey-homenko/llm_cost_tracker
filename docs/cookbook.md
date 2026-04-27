@@ -4,12 +4,30 @@ Short integration recipes for common Ruby clients. Prefer SDK integrations or mi
 
 | Client | Best path | Why |
 |---|---|---|
+| RubyLLM | `config.instrument :ruby_llm` | The integration wraps RubyLLM's provider layer without adding a third-party instrumentation gem. |
 | Official `openai` gem | `config.instrument :openai` | The integration wraps SDK resource methods without changing call sites. |
 | Official `anthropic` gem | `config.instrument :anthropic` | The integration records returned message usage without changing call sites. |
 | `ruby-openai` | Faraday middleware | The client is built on Faraday and accepts middleware via the constructor block. |
 | OpenAI-compatible proxy | Faraday middleware | Use `ruby-openai` or a direct Faraday client against the proxy host. |
 | Custom Faraday client | Faraday middleware | The middleware can parse known provider responses automatically. |
 | Other clients | Adapter first, fallback helpers second | Add a stable integration instead of scattering per-call ledger code. |
+
+## RubyLLM
+
+Enable the integration once, then keep normal RubyLLM calls unchanged.
+
+```ruby
+LlmCostTracker.configure do |config|
+  config.instrument :ruby_llm
+end
+
+LlmCostTracker.with_tags(feature: "support_chat") do
+  RubyLLM.chat.ask("Hello")
+  RubyLLM.embed("text to embed")
+end
+```
+
+The RubyLLM integration supports `ruby_llm >= 1.14.1` and checks RubyLLM's provider contract at boot. Chat, embedding, and transcription calls are captured. Image generation, moderation, and tool execution are not recorded as separate ledger rows.
 
 ## Official OpenAI SDK
 
@@ -29,6 +47,8 @@ client.chat.completions.create(
 )
 ```
 
+The OpenAI SDK integration supports `openai >= 0.59.0`.
+
 ## Official Anthropic SDK
 
 Enable the integration once, then keep normal `anthropic` gem calls unchanged.
@@ -46,6 +66,8 @@ client.messages.create(
   messages: [{ role: "user", content: "Hello" }]
 )
 ```
+
+The Anthropic SDK integration supports `anthropic >= 1.36.0`.
 
 ## ruby-openai
 

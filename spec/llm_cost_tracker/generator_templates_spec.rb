@@ -59,6 +59,7 @@ RSpec.describe "generator templates" do
     expect(initializer).to include("config.log_level = :info")
     expect(initializer).to include("# config.instrument :openai")
     expect(initializer).to include("# config.instrument :anthropic")
+    expect(initializer).to include("# config.instrument :ruby_llm")
     expect(initializer).to include("if options[:prices]")
     expect(initializer).to include("config.prices_file = Rails.root.join")
     expect(initializer).to include("# config.monthly_budget = 100.00")

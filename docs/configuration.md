@@ -23,7 +23,7 @@ This page is scoped to:
 
 - `storage_backend`: `:log`, `:active_record`, and `:custom`
 - `default_tags`: static tags and per-request callable tags
-- `instrument`: official SDK integrations
+- `instrument`: RubyLLM and official SDK integrations
 - `prices_file` and `pricing_overrides`
 - `monthly_budget`, `daily_budget`, and `per_call_budget`
 - `budget_exceeded_behavior`
@@ -46,3 +46,7 @@ end
 Keep configuration at boot. Mutable shared settings are frozen after
 `configure` returns so request-time code cannot silently change global tracking
 behavior.
+
+Enabled SDK integrations are fail-fast. The client gem must be loaded, meet the
+minimum supported version, and expose the expected classes and methods before
+LLM Cost Tracker installs its wrapper.

@@ -48,7 +48,7 @@ module LlmCostTracker
         return unless object.respond_to?(:[])
 
         object[key]
-      rescue IndexError, TypeError, NoMethodError
+      rescue IndexError, NameError, TypeError
         nil
       end
     end

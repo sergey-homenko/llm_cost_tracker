@@ -18,12 +18,13 @@ Use `Parsers::Base` helpers for URL matching and stream-event extraction. Use `P
 
 ## SDK Integrations
 
-Use SDK integrations when a popular Ruby client does not expose a Faraday middleware stack but returns stable usage objects. The official `openai` and `anthropic` gems use `net/http` and qualify. Faraday-based clients that expose a middleware hook, such as `ruby-openai`'s constructor block, are covered by the Faraday middleware instead. Clients with no stable hook must use the explicit `track` / `track_stream` fallback until an integration exists.
+Use SDK integrations when a popular Ruby client does not expose a Faraday middleware stack but returns stable usage objects. RubyLLM and the official `openai` and `anthropic` gems qualify. Faraday-based clients that expose a middleware hook, such as `ruby-openai`'s constructor block, are covered by the Faraday middleware instead. Clients with no stable hook must use the explicit `track` / `track_stream` fallback until an integration exists.
 
 Expected integration contract:
 
 - no hard dependency on the provider SDK
-- no boot failure when the SDK is missing
+- fail-fast boot when an explicitly enabled SDK is missing or below the minimum supported version
+- install-time checks for the target classes and methods
 - idempotent `Module#prepend` around narrow resource methods
 - no tracking when the integration is not enabled in configuration
 - canonical usage fields passed to `Tracker.record`

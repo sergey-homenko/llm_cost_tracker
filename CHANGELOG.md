@@ -4,6 +4,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- RubyLLM SDK integration for chat, embedding, and transcription calls.
+
+### Changed
+
+- SDK integrations now validate minimum versions and method contracts before installing wrappers.
+
 ## [0.5.1] - 2026-04-27
 
 ### Changed
