@@ -73,4 +73,21 @@ RSpec.describe LlmCostTracker::Retention do
   it "raises on unsupported older_than type" do
     expect { described_class.prune(older_than: "forever") }.to raise_error(ArgumentError)
   end
+
+  it "rejects non-positive integer day cutoffs" do
+    expect { described_class.prune(older_than: 0) }.to raise_error(ArgumentError, /days must be positive/)
+    expect { described_class.prune(older_than: -1) }.to raise_error(ArgumentError, /days must be positive/)
+  end
+
+  it "rejects non-positive batch sizes" do
+    expect { described_class.prune(older_than: 30, batch_size: 0) }
+      .to raise_error(ArgumentError, /batch_size must be positive/)
+  end
+
+  it "rejects absolute cutoffs that are not before now" do
+    now = Time.utc(2026, 4, 20, 12, 0, 0)
+
+    expect { described_class.prune(older_than: now, now: now) }
+      .to raise_error(ArgumentError, /cutoff must be before now/)
+  end
 end
