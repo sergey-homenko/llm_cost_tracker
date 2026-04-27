@@ -33,6 +33,7 @@ module LlmCostTracker
       def apply_date_filters(relation)
         from = parse_date(:from)&.beginning_of_day
         to = parse_date(:to)&.end_of_day
+        Dashboard::DateRange.validate!(from: from&.to_date, to: to&.to_date)
 
         relation = relation.where(tracked_at: from..) if from
         relation = relation.where(tracked_at: ..to) if to
@@ -89,12 +90,7 @@ module LlmCostTracker
       end
 
       def parse_date(key)
-        value = normalized_string(params[key])
-        return nil if value.nil?
-
-        Date.iso8601(value)
-      rescue ArgumentError
-        nil
+        Dashboard::DateRange.parse(params, key)
       end
 
       def normalized_string(value)

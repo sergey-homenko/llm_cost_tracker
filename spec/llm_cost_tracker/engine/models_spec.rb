@@ -54,6 +54,14 @@ RSpec.describe "LlmCostTracker::Engine models" do
     expect(response.body).not_to include("claude-haiku-4-5")
   end
 
+  it "rejects oversized model ranges as bad requests" do
+    response = get("/llm-costs/models?from=2025-01-01&to=2026-04-20")
+
+    expect(response.status).to eq(400)
+    expect(response.body).to include("Invalid filter")
+    expect(response.body).to include("date range cannot exceed")
+  end
+
   it "renders a setup state when the ledger table is missing" do
     ActiveRecord::Base.connection.drop_table(:llm_api_calls)
     LlmCostTracker::LlmApiCall.reset_column_information
