@@ -76,8 +76,11 @@ module LlmCostTracker
       group(Arel.sql(tag_value_expression(key)))
     end
 
-    def self.cost_by_tag(key)
-      costs = group_by_tag(key).sum(:total_cost).each_with_object(Hash.new(0.0)) do |(tag_value, cost), grouped|
+    def self.cost_by_tag(key, limit: nil)
+      relation = group_by_tag(key).order(Arel.sql("COALESCE(SUM(total_cost), 0) DESC"))
+      relation = relation.limit(limit) if limit
+
+      costs = relation.sum(:total_cost).each_with_object(Hash.new(0.0)) do |(tag_value, cost), grouped|
         grouped[tag_value_label(tag_value)] += cost.to_f
       end
       costs.sort_by { |_label, cost| -cost }.to_h

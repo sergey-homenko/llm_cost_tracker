@@ -58,11 +58,17 @@ module LlmCostTracker
     end
 
     def self.cost_by(scope, column)
-      scope.group(column).sum(:total_cost).transform_values(&:to_f).sort_by { |_name, cost| -cost }
+      scope
+        .group(column)
+        .order(Arel.sql("COALESCE(SUM(total_cost), 0) DESC"))
+        .limit(TOP_LIMIT)
+        .sum(:total_cost)
+        .transform_values(&:to_f)
+        .sort_by { |_name, cost| -cost }
     end
 
     def self.cost_by_tags(scope, keys)
-      keys.to_h { |key| [key, scope.cost_by_tag(key).to_a] }
+      keys.to_h { |key| [key, scope.cost_by_tag(key, limit: TOP_LIMIT).to_a] }
     end
 
     def self.top_calls(scope)

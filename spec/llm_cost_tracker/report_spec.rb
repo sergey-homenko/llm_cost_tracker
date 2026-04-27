@@ -38,6 +38,19 @@ RSpec.describe LlmCostTracker::Report do
     ActiveRecord::Base.connection.disconnect!
   end
 
+  def create_report_call(model:, total_cost:, tags: {}, provider: "openai", tracked_at: Time.now.utc)
+    LlmCostTracker::LlmApiCall.create!(
+      provider: provider,
+      model: model,
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      total_cost: total_cost,
+      tags: tags.to_json,
+      tracked_at: tracked_at
+    )
+  end
+
   it "renders a text cost report from ActiveRecord storage" do
     LlmCostTracker.track(
       provider: :openai,
@@ -82,5 +95,24 @@ RSpec.describe LlmCostTracker::Report do
     expect(data.total_cost).to eq(0.0025)
     expect(data.cost_by_tags.fetch("feature")).to eq([["chat", 0.0025]])
     expect(data.top_calls.first.model).to eq("gpt-4o")
+  end
+
+  it "limits grouped report rows to the rendered top values" do
+    now = Time.utc(2026, 4, 27, 12)
+    6.times do |index|
+      create_report_call(
+        provider: "provider-#{index}",
+        model: "model-#{index}",
+        total_cost: index + 1,
+        tags: { feature: "value-#{index}" },
+        tracked_at: now - 1.hour
+      )
+    end
+
+    data = described_class.data(days: 30, now: now)
+
+    expect(data.cost_by_provider.map(&:first)).to eq(%w[provider-5 provider-4 provider-3 provider-2 provider-1])
+    expect(data.cost_by_model.map(&:first)).to eq(%w[model-5 model-4 model-3 model-2 model-1])
+    expect(data.cost_by_tags.fetch("feature").map(&:first)).to eq(%w[value-5 value-4 value-3 value-2 value-1])
   end
 end
