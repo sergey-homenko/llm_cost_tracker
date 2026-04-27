@@ -72,7 +72,7 @@ module LlmCostTracker
           model: extract_model_from_url(request_url),
           input_tokens: [usage["promptTokenCount"].to_i - cache_read, 0].max,
           output_tokens: output_tokens(usage),
-          total_tokens: usage["totalTokenCount"].to_i,
+          total_tokens: total_tokens(usage, cache_read),
           cache_read_input_tokens: usage["cachedContentTokenCount"],
           hidden_output_tokens: usage["thoughtsTokenCount"],
           stream: stream,
@@ -90,6 +90,13 @@ module LlmCostTracker
 
       def output_tokens(usage)
         usage["candidatesTokenCount"].to_i + usage["thoughtsTokenCount"].to_i
+      end
+
+      def total_tokens(usage, cache_read)
+        total = usage["totalTokenCount"]
+        return total.to_i unless total.nil?
+
+        [usage["promptTokenCount"].to_i - cache_read, 0].max + cache_read + output_tokens(usage)
       end
 
       def stream_response_id(events)

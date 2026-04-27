@@ -79,6 +79,29 @@ RSpec.describe LlmCostTracker::PriceScrape::Fetcher do
     expect { fetcher.get(url) }.to raise_error(described_class::Error, /empty response body/)
   end
 
+  it "rejects oversized response bodies" do
+    stub_request(:get, url).to_return(status: 200, body: "x" * (described_class::MAX_BODY_BYTES + 1))
+
+    expect { fetcher.get(url) }.to raise_error(described_class::Error, /response body exceeds/)
+  end
+
+  it "stops reading successful bodies after the configured byte cap" do
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    chunks = 0
+    allow(response).to receive(:read_body) do |&block|
+      block.call("x" * described_class::MAX_BODY_BYTES)
+      chunks += 1
+      block.call("x")
+      chunks += 1
+    end
+    http = instance_double(Net::HTTP)
+    allow(http).to receive(:request).and_yield(response).and_return(response)
+    allow(Net::HTTP).to receive(:start).and_yield(http)
+
+    expect { fetcher.get(url) }.to raise_error(described_class::Error, /response body exceeds/)
+    expect(chunks).to eq(1)
+  end
+
   it "rejects a redirect without a Location header" do
     stub_request(:get, url).to_return(status: 302)
 

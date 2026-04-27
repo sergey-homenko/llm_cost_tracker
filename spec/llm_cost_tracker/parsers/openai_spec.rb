@@ -121,6 +121,27 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.usage_source).to eq(:response)
     end
 
+    it "computes total tokens when the provider omits total_tokens" do
+      result = parser.parse(
+        responses_url,
+        { model: "gpt-5-mini" }.to_json,
+        200,
+        {
+          model: "gpt-5-mini",
+          usage: {
+            input_tokens: 150,
+            input_tokens_details: { cached_tokens: 100 },
+            output_tokens: 42
+          }
+        }.to_json
+      )
+
+      expect(result.input_tokens).to eq(50)
+      expect(result.cache_read_input_tokens).to eq(100)
+      expect(result.output_tokens).to eq(42)
+      expect(result.total_tokens).to eq(192)
+    end
+
     it "uses unknown when neither response nor request carries a model" do
       result = parser.parse(
         chat_completions_url,
@@ -258,6 +279,37 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.input_tokens).to eq(0)
       expect(result.output_tokens).to eq(0)
       expect(result.provider_response_id).to be_nil
+    end
+
+    it "computes stream total tokens when the final usage omits total_tokens" do
+      events = [
+        {
+          event: nil,
+          data: { "type" => "response.created", "response" => { "id" => "resp_456", "model" => "gpt-5-mini" } }
+        },
+        {
+          event: nil,
+          data: {
+            "usage" => {
+              "input_tokens" => 12,
+              "input_tokens_details" => { "cached_tokens" => 7 },
+              "output_tokens" => 3
+            }
+          }
+        }
+      ]
+
+      result = parser.parse_stream(
+        responses_url,
+        { model: "gpt-5-mini", stream: true }.to_json,
+        200,
+        events
+      )
+
+      expect(result.input_tokens).to eq(5)
+      expect(result.cache_read_input_tokens).to eq(7)
+      expect(result.output_tokens).to eq(3)
+      expect(result.total_tokens).to eq(15)
     end
 
     it "returns nil on non-200 responses" do

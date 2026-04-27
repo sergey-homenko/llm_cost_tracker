@@ -39,6 +39,10 @@ module LlmCostTracker
       private
 
       def read_registry(path)
+        if File.size(path) > LlmCostTracker::PriceRegistry::MAX_FILE_BYTES
+          raise Error, "registry exceeds #{LlmCostTracker::PriceRegistry::MAX_FILE_BYTES} bytes at #{path}"
+        end
+
         contents = File.read(path)
         registry = JSON.parse(contents)
         raise Error, "registry must be a JSON object at #{path}" unless registry.is_a?(Hash)

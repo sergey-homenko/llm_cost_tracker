@@ -82,6 +82,27 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.usage_source).to eq(:response)
       expect(result.provider_response_id).to eq("gemini-resp-123")
     end
+
+    it "computes total tokens when Gemini omits totalTokenCount" do
+      result = parser.parse(
+        generate_content_url,
+        nil,
+        200,
+        {
+          usageMetadata: {
+            promptTokenCount: 100,
+            cachedContentTokenCount: 25,
+            candidatesTokenCount: 20,
+            thoughtsTokenCount: 5
+          }
+        }.to_json
+      )
+
+      expect(result.input_tokens).to eq(75)
+      expect(result.cache_read_input_tokens).to eq(25)
+      expect(result.output_tokens).to eq(25)
+      expect(result.total_tokens).to eq(125)
+    end
   end
 
   describe "#streaming_request?" do
@@ -128,6 +149,26 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)
       expect(result.provider_response_id).to eq("gemini-resp-456")
+    end
+
+    it "computes stream total tokens when Gemini omits totalTokenCount" do
+      events = [
+        { event: nil, data: {
+          "usageMetadata" => {
+            "promptTokenCount" => 80,
+            "cachedContentTokenCount" => 10,
+            "candidatesTokenCount" => 42,
+            "thoughtsTokenCount" => 8
+          }
+        } }
+      ]
+
+      result = parser.parse_stream(url, nil, 200, events)
+
+      expect(result.input_tokens).to eq(70)
+      expect(result.cache_read_input_tokens).to eq(10)
+      expect(result.output_tokens).to eq(50)
+      expect(result.total_tokens).to eq(130)
     end
 
     it "returns an unknown-usage ParsedUsage when no usage metadata is seen" do

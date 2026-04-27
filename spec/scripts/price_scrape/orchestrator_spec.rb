@@ -203,4 +203,18 @@ RSpec.describe LlmCostTracker::PriceScrape::Orchestrator do
       expect(File.read(path)).to eq(original)
     end
   end
+
+  it "rejects oversized registries before reading them" do
+    stub_const("LlmCostTracker::PriceRegistry::MAX_FILE_BYTES", 10)
+    provider_result = build_result(models: { "claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } })
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.generate(build_registry(models: {})))
+      file.close
+
+      expect do
+        described_class.new.call(provider: "anthropic", provider_result: provider_result, registry_path: file.path)
+      end.to raise_error(described_class::Error, /registry exceeds/)
+    end
+  end
 end

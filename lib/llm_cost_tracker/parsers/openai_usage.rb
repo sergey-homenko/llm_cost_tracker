@@ -21,7 +21,7 @@ module LlmCostTracker
           model: response["model"] || request["model"],
           input_tokens: regular_input_tokens(usage, cache_read),
           output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
-          total_tokens: usage["total_tokens"].to_i,
+          total_tokens: total_tokens(usage, cache_read),
           cache_read_input_tokens: cache_read,
           hidden_output_tokens: hidden_output_tokens(usage),
           usage_source: :response
@@ -44,7 +44,7 @@ module LlmCostTracker
             model: model,
             input_tokens: regular_input_tokens(usage, cache_read),
             output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
-            total_tokens: usage["total_tokens"].to_i,
+            total_tokens: total_tokens(usage, cache_read),
             cache_read_input_tokens: cache_read,
             hidden_output_tokens: hidden_output_tokens(usage),
             stream: true,
@@ -86,6 +86,15 @@ module LlmCostTracker
       def hidden_output_tokens(usage)
         details = usage["completion_tokens_details"] || usage["output_tokens_details"] || {}
         details["reasoning_tokens"]
+      end
+
+      def total_tokens(usage, cache_read)
+        total = usage["total_tokens"]
+        return total.to_i unless total.nil?
+
+        regular_input_tokens(usage, cache_read) +
+          cache_read.to_i +
+          (usage["completion_tokens"] || usage["output_tokens"]).to_i
       end
     end
   end

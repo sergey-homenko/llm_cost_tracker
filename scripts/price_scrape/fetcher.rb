@@ -13,6 +13,7 @@ module LlmCostTracker
       READ_TIMEOUT = 10
       MAX_REDIRECTS = 5
       MAX_ATTEMPTS = 3
+      MAX_BODY_BYTES = 5_242_880
       RETRY_BASE_DELAY = 1.0
 
       Response = Data.define(:url, :body, :status, :fetched_at, :elapsed_ms)
@@ -48,10 +49,10 @@ module LlmCostTracker
         raise Error, "non-https URL: #{url}" unless uri.scheme == "https"
 
         started = monotonic_ms
-        response = perform_request(uri)
+        response, body = perform_request(uri)
         elapsed = monotonic_ms - started
 
-        handle_response(response, url, redirects, elapsed)
+        handle_response(response, body, url, redirects, elapsed)
       rescue OpenSSL::SSL::SSLError, SocketError, SystemCallError, Timeout::Error => e
         raise NetworkError, "#{e.class}: #{e.message} fetching #{url}"
       end
@@ -59,19 +60,26 @@ module LlmCostTracker
       def perform_request(uri)
         request = Net::HTTP::Get.new(uri)
         request["User-Agent"] = @user_agent
-        Net::HTTP.start(
+        body = nil
+        response = Net::HTTP.start(
           uri.host,
           uri.port,
           use_ssl: true,
           open_timeout: OPEN_TIMEOUT,
           read_timeout: READ_TIMEOUT
-        ) { |http| http.request(request) }
+        ) do |http|
+          http.request(request) do |streamed_response|
+            body = limited_body(streamed_response) if streamed_response.is_a?(Net::HTTPSuccess)
+          end
+        end
+
+        [response, body]
       end
 
-      def handle_response(response, url, redirects, elapsed_ms)
+      def handle_response(response, body, url, redirects, elapsed_ms)
         case response
         when Net::HTTPSuccess
-          build_success(response, url, elapsed_ms)
+          build_success(response, body, url, elapsed_ms)
         when Net::HTTPRedirection
           follow_redirect(response, url, redirects)
         when Net::HTTPClientError
@@ -81,8 +89,8 @@ module LlmCostTracker
         end
       end
 
-      def build_success(response, url, elapsed_ms)
-        body = response.body.to_s
+      def build_success(response, body, url, elapsed_ms)
+        body ||= limited_body(response)
         raise Error, "empty response body from #{url}" if body.empty?
 
         Response.new(
@@ -99,6 +107,21 @@ module LlmCostTracker
         raise Error, "redirect without location from #{url}" if location.nil? || location.empty?
 
         fetch_once(URI.join(url, location).to_s, redirects + 1)
+      end
+
+      def limited_body(response)
+        body = +""
+        if response.respond_to?(:read_body)
+          response.read_body do |chunk|
+            body << chunk.to_s
+            raise Error, "response body exceeds #{MAX_BODY_BYTES} bytes" if body.bytesize > MAX_BODY_BYTES
+          end
+        else
+          body = response.body.to_s
+        end
+        raise Error, "response body exceeds #{MAX_BODY_BYTES} bytes" if body.bytesize > MAX_BODY_BYTES
+
+        body
       end
 
       def monotonic_ms
