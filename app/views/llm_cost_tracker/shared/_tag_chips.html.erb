@@ -2,7 +2,7 @@
 <% if entries.empty? %>
   <span class="lct-tag-empty">(untagged)</span>
 <% else %>
-  <span class="lct-tag-chips" title="<%= safe_json(tags) %>">
+  <span class="lct-tag-chips" title="<%= tag_chips_title(tags) %>">
     <% entries.each do |entry| %>
       <% if entry[:more] %>
         <span class="lct-tag-chip lct-tag-chip-more">+<%= entry[:more] %></span>

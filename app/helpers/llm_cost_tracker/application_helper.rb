@@ -5,6 +5,7 @@ require "json"
 module LlmCostTracker
   module ApplicationHelper
     TAG_VALUE_SUMMARY_BYTES = 80
+    TAG_TOOLTIP_BYTES = 512
 
     include DashboardFilterHelper
     include DashboardFilterOptionsHelper
@@ -118,6 +119,10 @@ module LlmCostTracker
       visible
     end
 
+    def tag_chips_title(tags)
+      truncate_text(safe_json(tags), TAG_TOOLTIP_BYTES)
+    end
+
     def budget_fill_modifier(percent)
       percent = percent.to_f
       return "lct-budget-fill--over" if percent >= 100.0
@@ -151,9 +156,14 @@ module LlmCostTracker
                else
                  value.to_s
                end
-      return string if string.bytesize <= TAG_VALUE_SUMMARY_BYTES
 
-      "#{string.byteslice(0, TAG_VALUE_SUMMARY_BYTES).to_s.encode('UTF-8', invalid: :replace, undef: :replace)}..."
+      truncate_text(string, TAG_VALUE_SUMMARY_BYTES)
+    end
+
+    def truncate_text(string, limit)
+      return string if string.bytesize <= limit
+
+      "#{string.byteslice(0, limit).to_s.encode('UTF-8', invalid: :replace, undef: :replace)}..."
     end
   end
 end

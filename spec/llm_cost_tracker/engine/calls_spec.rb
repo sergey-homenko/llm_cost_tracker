@@ -38,7 +38,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
   end
 
   it "truncates long tag values in call list chips" do
-    long_value = "x" * 120
+    long_value = "x" * 700
     create_call(tags: { feature: long_value })
 
     response = get("/llm-costs/calls")
@@ -46,6 +46,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.status).to eq(200)
     expect(response.body).to include("feature=#{'x' * 80}...")
     expect(response.body).not_to include("feature=#{long_value}")
+    expect(response.body).not_to include(long_value)
   end
 
   it "filters calls and paginates newest first" do
