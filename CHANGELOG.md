@@ -4,13 +4,32 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-04-27
+
 ### Added
 
 - RubyLLM SDK integration for chat, embedding, and transcription calls.
+- Tag guardrails for redacted tag keys, maximum tag count, and maximum tag value byte size.
 
 ### Changed
 
 - SDK integrations now validate minimum versions and method contracts before installing wrappers.
+- `config.instrument :all` now includes RubyLLM.
+- Dashboard date filters now reject one-sided, reversed, and over-366-day ranges.
+- Dashboard provider/model/tag option lists and tag value breakdowns now cap rendered rows.
+- Reports now cap rendered breakdown groups while keeping complete structured report data available.
+- Stream capture now enforces a shared 1 MiB buffer cap and records unknown usage on overflow.
+- Price refresh, price scrape, and local price registry reads now enforce response or file size caps.
+- Retention pruning now rejects non-positive batch sizes and invalid cutoffs before deleting rows.
+- The install generator now warns to mount the dashboard behind host-app admin authentication.
+
+### Fixed
+
+- OpenAI SDK integration now separates cached input tokens from regular input tokens.
+- OpenAI and Gemini parsers now compute total tokens when provider responses omit totals.
+- CSV export now prefixes formula-like values even when they have leading whitespace.
+- Tag chips now truncate oversized values and tooltips.
+- Report tag breakdown keys are validated at configuration time.
 
 ## [0.5.1] - 2026-04-27
 
