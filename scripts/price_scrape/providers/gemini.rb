@@ -30,7 +30,7 @@ module LlmCostTracker
         private
 
         def extract_models(doc)
-          article = doc.at_css("div.devsite-article-body-broken")
+          article = find_article(doc)
           raise Error, "Gemini pricing article body not found" unless article
 
           pair_sections(article).each_with_object({}) do |(model_id, tabs), models|
@@ -42,6 +42,12 @@ module LlmCostTracker
             fields = extract_text_pricing(standard_table)
             models[model_id] = fields if fields
           end
+        end
+
+        def find_article(doc)
+          doc.at_xpath(
+            "//div[contains(concat(' ', normalize-space(@class), ' '), ' devsite-article-body ')]"
+          )
         end
 
         def pair_sections(article)
@@ -77,12 +83,29 @@ module LlmCostTracker
         end
 
         def parse_table(table)
-          table.css("tbody tr").each_with_object({}) do |tr, acc|
-            cells = tr.css("td").map { |td| td.text.strip }
-            next if cells.size < 3
+          price_column_index = paid_tier_column_index(table)
+          return {} unless price_column_index
 
-            acc[cells[0]] = cells[2]
+          table.css("tbody tr").each_with_object({}) do |tr, acc|
+            cells = tr.css("td")
+            next if cells.size <= price_column_index
+
+            key = normalize_text(cells[0].text)
+            value = normalize_text(cells[price_column_index].text)
+            next if key.empty? || value.empty?
+
+            acc[key] = value
           end
+        end
+
+        def paid_tier_column_index(table)
+          headers = table.css("thead th").map { |th| normalize_text(th.text).downcase }
+          headers.find_index { |header| header.include?("paid tier") && header.include?("per 1m tokens") } ||
+            headers.find_index { |header| header.include?("paid tier") }
+        end
+
+        def normalize_text(text)
+          text.to_s.gsub(/\s+/, " ").strip
         end
 
         def normalize_model_id(raw_id)
