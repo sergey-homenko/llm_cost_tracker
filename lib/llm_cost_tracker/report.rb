@@ -9,7 +9,14 @@ module LlmCostTracker
 
     class << self
       def generate(days: DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
-        ReportFormatter.new(data(days: days, now: now, tag_breakdowns: tag_breakdowns)).to_s
+        report_data = ReportData.build(
+          days: days,
+          now: now,
+          tag_breakdowns: tag_breakdowns,
+          breakdown_limit: ReportFormatter::TOP_LIMIT
+        )
+
+        ReportFormatter.new(report_data).to_s
       rescue LoadError => e
         "Unable to build LLM cost report: ActiveRecord storage is unavailable (#{e.message})"
       rescue StandardError => e

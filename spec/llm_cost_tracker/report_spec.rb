@@ -39,6 +39,8 @@ RSpec.describe LlmCostTracker::Report do
   end
 
   def create_report_call(model:, total_cost:, tags: {}, provider: "openai", tracked_at: Time.now.utc)
+    require "llm_cost_tracker/llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
+
     LlmCostTracker::LlmApiCall.create!(
       provider: provider,
       model: model,
@@ -49,6 +51,18 @@ RSpec.describe LlmCostTracker::Report do
       tags: tags.to_json,
       tracked_at: tracked_at
     )
+  end
+
+  def create_ranked_report_calls(now)
+    6.times do |index|
+      create_report_call(
+        provider: "provider-#{index}",
+        model: "model-#{index}",
+        total_cost: index + 1,
+        tags: { feature: "value-#{index}" },
+        tracked_at: now - 1.hour
+      )
+    end
   end
 
   it "renders a text cost report from ActiveRecord storage" do
@@ -97,22 +111,32 @@ RSpec.describe LlmCostTracker::Report do
     expect(data.top_calls.first.model).to eq("gpt-4o")
   end
 
-  it "limits grouped report rows to the rendered top values" do
+  it "keeps structured report data complete" do
     now = Time.utc(2026, 4, 27, 12)
-    6.times do |index|
-      create_report_call(
-        provider: "provider-#{index}",
-        model: "model-#{index}",
-        total_cost: index + 1,
-        tags: { feature: "value-#{index}" },
-        tracked_at: now - 1.hour
-      )
-    end
+    create_ranked_report_calls(now)
 
     data = described_class.data(days: 30, now: now)
 
-    expect(data.cost_by_provider.map(&:first)).to eq(%w[provider-5 provider-4 provider-3 provider-2 provider-1])
-    expect(data.cost_by_model.map(&:first)).to eq(%w[model-5 model-4 model-3 model-2 model-1])
-    expect(data.cost_by_tags.fetch("feature").map(&:first)).to eq(%w[value-5 value-4 value-3 value-2 value-1])
+    expect(data.cost_by_provider.map(&:first)).to eq(
+      %w[provider-5 provider-4 provider-3 provider-2 provider-1 provider-0]
+    )
+    expect(data.cost_by_model.map(&:first)).to eq(%w[model-5 model-4 model-3 model-2 model-1 model-0])
+    expect(data.cost_by_tags.fetch("feature").map(&:first)).to eq(
+      %w[value-5 value-4 value-3 value-2 value-1 value-0]
+    )
+  end
+
+  it "limits generated report text to the rendered top values" do
+    now = Time.utc(2026, 4, 27, 12)
+    create_ranked_report_calls(now)
+
+    report = described_class.generate(days: 30, now: now)
+
+    expect(report).to include("provider-5")
+    expect(report).to include("model-5")
+    expect(report).to include("value-5")
+    expect(report).not_to include("provider-0")
+    expect(report).not_to include("model-0")
+    expect(report).not_to include("value-0")
   end
 end
