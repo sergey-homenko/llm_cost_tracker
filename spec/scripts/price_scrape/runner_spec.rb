@@ -13,7 +13,7 @@ RSpec.describe LlmCostTracker::PriceScrape::Runner do
   def build_registry(haiku_entry:)
     {
       "metadata" => { "schema_version" => 1, "updated_at" => "2026-04-01" },
-      "models" => { "claude-haiku-4-5" => haiku_entry }
+      "models" => { "anthropic/claude-haiku-4-5" => haiku_entry }
     }
   end
 
@@ -32,14 +32,14 @@ RSpec.describe LlmCostTracker::PriceScrape::Runner do
       expect(runs.size).to eq(1)
       orchestrator_result = runs.first.orchestrator
       expect(orchestrator_result.written).to be(true)
-      expect(orchestrator_result.added).to include("claude-opus-4-7", "claude-sonnet-4-6")
-      expect(orchestrator_result.updated["claude-haiku-4-5"]).to include(
+      expect(orchestrator_result.added).to include("anthropic/claude-opus-4-7", "anthropic/claude-sonnet-4-6")
+      expect(orchestrator_result.updated["anthropic/claude-haiku-4-5"]).to include(
         "batch_input" => { "from" => nil, "to" => 0.5 }
       )
 
       written = JSON.parse(File.read(file.path))
-      expect(written.dig("models", "claude-opus-4-7", "input")).to eq(5.0)
-      expect(written["models"]).not_to have_key("claude-sonnet-3-7")
+      expect(written.dig("models", "anthropic/claude-opus-4-7", "input")).to eq(5.0)
+      expect(written["models"]).not_to have_key("anthropic/claude-sonnet-3-7")
     end
   end
 

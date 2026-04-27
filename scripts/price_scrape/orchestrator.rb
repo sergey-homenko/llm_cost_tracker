@@ -20,16 +20,17 @@ module LlmCostTracker
         @dry_run = dry_run
       end
 
-      def call(provider_result:, registry_path:)
+      def call(provider:, provider_result:, registry_path:)
+        provider = normalize_provider(provider)
         registry = read_registry(registry_path)
         current_models = registry.fetch("models", {})
 
-        plan = build_plan(provider_result, current_models)
+        plan = build_plan(provider, provider_result, current_models)
         return plan unless plan.changed? && !@dry_run
 
         new_registry = registry.merge(
           "metadata" => registry.fetch("metadata", {}).merge("updated_at" => @today.iso8601),
-          "models" => apply_changes(current_models, provider_result, plan.removed)
+          "models" => apply_changes(provider, current_models, provider_result, plan.removed)
         )
         @writer.call(path: registry_path, registry: new_registry)
         plan.with(written: true)
@@ -45,38 +46,56 @@ module LlmCostTracker
         registry
       end
 
-      def build_plan(provider_result, current_models)
+      def build_plan(provider, provider_result, current_models)
         deprecated = provider_result.deprecated_models
         active = provider_result.models.except(*deprecated)
+        active_keys = active.keys.map { |id| registry_key(provider, id) }
+        legacy_active_keys = active.keys.select { |id| current_models.key?(id) }
+        deprecated_keys = deprecated.flat_map { |id| [registry_key(provider, id), id] }
+        removed = (legacy_active_keys + deprecated_keys.select { |id| current_models.key?(id) }).uniq
 
-        added = active.keys - current_models.keys
-        removed = deprecated & current_models.keys
-        updated = compute_updates(active, current_models)
-        unchanged = (active.keys & current_models.keys) - updated.keys
+        added = active_keys.reject { |id| current_models.key?(id) }
+        updated = compute_updates(provider, active, current_models)
+        unchanged = active_keys.select { |id| current_models.key?(id) } - updated.keys
 
         Result.new(added: added, removed: removed, updated: updated, unchanged: unchanged, written: false)
       end
 
-      def compute_updates(active, current_models)
+      def compute_updates(provider, active, current_models)
         active.each_with_object({}) do |(id, scraped_fields), updates|
-          next unless current_models.key?(id)
+          key = registry_key(provider, id)
+          next unless current_models.key?(key)
 
-          existing = current_models.fetch(id)
+          existing = current_models.fetch(key)
           field_diff = scraped_fields.each_with_object({}) do |(field, value), diff|
             diff[field] = { "from" => existing[field], "to" => value } if existing[field] != value
           end
-          updates[id] = field_diff if field_diff.any?
+          updates[key] = field_diff if field_diff.any?
         end
       end
 
-      def apply_changes(current_models, provider_result, removed_ids)
+      def apply_changes(provider, current_models, provider_result, removed_ids)
         active = provider_result.models.except(*provider_result.deprecated_models)
         next_models = current_models.dup
         removed_ids.each { |id| next_models.delete(id) }
         active.each do |id, scraped_fields|
-          next_models[id] = (next_models[id] || {}).merge(scraped_fields)
+          key = registry_key(provider, id)
+          existing = next_models[key] || current_models[id] || {}
+          next_models.delete(id)
+          next_models[key] = existing.merge(scraped_fields)
         end
         next_models
+      end
+
+      def registry_key(provider, model_id)
+        "#{provider}/#{model_id}"
+      end
+
+      def normalize_provider(provider)
+        normalized = provider.to_s.strip
+        raise Error, "provider is required" if normalized.empty?
+
+        normalized
       end
     end
   end

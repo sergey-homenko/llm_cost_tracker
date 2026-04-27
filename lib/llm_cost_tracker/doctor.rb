@@ -160,7 +160,7 @@ module LlmCostTracker
     def feature_generators(columns) = columns.map { |column| FEATURE_COLUMNS.fetch(column) }.uniq
 
     def builtin_prices_updated_at
-      LlmCostTracker::Pricing.metadata.fetch("updated_at", "unknown")
+      LlmCostTracker::PriceRegistry.metadata.fetch("updated_at", "unknown")
     end
   end
 end

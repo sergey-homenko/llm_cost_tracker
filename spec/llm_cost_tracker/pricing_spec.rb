@@ -62,6 +62,39 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.input_cost).to eq(0.1)
     end
 
+    it "matches unique provider-qualified prices for gateway model names" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = { "upstream/demo-mini" => { input: 0.1, output: 0.4 } }
+      end
+
+      result = described_class.cost_for(
+        provider: "gateway",
+        model: "demo-mini",
+        input_tokens: 1_000_000,
+        output_tokens: 0
+      )
+
+      expect(result.input_cost).to eq(0.1)
+    end
+
+    it "does not match ambiguous provider-qualified prices by model name alone" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "first/demo-mini" => { input: 0.1, output: 0.4 },
+          "second/demo-mini" => { input: 0.2, output: 0.8 }
+        }
+      end
+
+      result = described_class.cost_for(
+        provider: "gateway",
+        model: "demo-mini",
+        input_tokens: 1_000_000,
+        output_tokens: 0
+      )
+
+      expect(result).to be_nil
+    end
+
     it "prefers the longest fuzzy match for overlapping model names" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
@@ -353,13 +386,6 @@ RSpec.describe LlmCostTracker::Pricing do
     end
   end
 
-  describe ".metadata" do
-    it "exposes built-in pricing metadata" do
-      expect(described_class.metadata.fetch("updated_at")).to match(/\A\d{4}-\d{2}-\d{2}\z/)
-      expect(described_class.metadata.fetch("source_urls")).not_to be_empty
-    end
-  end
-
   describe "bundled price snapshot" do
     let(:bundled) { LlmCostTracker::PriceRegistry.builtin_prices }
 
@@ -367,11 +393,16 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(bundled.size).to be > 0
     end
 
+    it "uses provider-qualified model keys" do
+      expect(bundled.keys).to all(include("/"))
+    end
+
     it "uses positive numeric values for every recognised price field" do
       bundled.each do |model_id, fields|
         fields.each do |field, value|
-          next unless LlmCostTracker::PriceRegistry::PRICE_KEYS.include?(field) ||
-                      field.match?(/_(input|output)\z/)
+          field_name = field.to_s
+          next unless LlmCostTracker::PriceRegistry::PRICE_KEYS.include?(field_name) ||
+                      field_name.match?(/_(input|output)\z/)
 
           expect(value).to be_a(Numeric), "#{model_id}.#{field} expected Numeric, got #{value.inspect}"
           expect(value).to be > 0, "#{model_id}.#{field} expected positive, got #{value}"
@@ -379,29 +410,25 @@ RSpec.describe LlmCostTracker::Pricing do
       end
     end
 
-    it "holds the Anthropic cache-hit pricing invariant (10% of base input)" do
+    it "holds the Anthropic cache-hit pricing ratios" do
       bundled.each do |model_id, fields|
-        next unless model_id.start_with?("claude-")
-        next unless fields["input"] && fields["cache_read_input"]
+        next unless model_id.split("/").last.start_with?("claude-")
+        next unless fields[:input] && fields[:cache_read_input]
 
-        expect(fields["cache_read_input"]).to be_within(0.0001).of(fields["input"] * 0.1),
-                                              "#{model_id}: cache_read_input " \
-                                              "#{fields['cache_read_input']} expected " \
-                                              "0.1 * input #{fields['input']}"
+        expected_ratio = model_id.end_with?("/claude-haiku-3") ? 0.12 : 0.1
+        expect(fields[:cache_read_input]).to be_within(0.0001).of(fields[:input] * expected_ratio)
       end
     end
 
     it "holds the Anthropic batch-discount invariant (50% of standard input/output)" do
       bundled.each do |model_id, fields|
-        next unless model_id.start_with?("claude-")
+        next unless model_id.split("/").last.start_with?("claude-")
 
-        if fields["batch_input"] && fields["input"]
-          expect(fields["batch_input"]).to be_within(0.0001).of(fields["input"] * 0.5),
-                                           "#{model_id}: batch_input expected 0.5 * input"
+        if fields[:batch_input] && fields[:input]
+          expect(fields[:batch_input]).to be_within(0.0001).of(fields[:input] * 0.5)
         end
-        if fields["batch_output"] && fields["output"]
-          expect(fields["batch_output"]).to be_within(0.0001).of(fields["output"] * 0.5),
-                                            "#{model_id}: batch_output expected 0.5 * output"
+        if fields[:batch_output] && fields[:output]
+          expect(fields[:batch_output]).to be_within(0.0001).of(fields[:output] * 0.5)
         end
       end
     end
@@ -410,11 +437,9 @@ RSpec.describe LlmCostTracker::Pricing do
       non_chat = /embed|audio|whisper|tts|image|moderation/
       bundled.each do |model_id, fields|
         next if model_id.match?(non_chat)
-        next unless fields["input"] && fields["output"]
+        next unless fields[:input] && fields[:output]
 
-        expect(fields["output"]).to be > fields["input"],
-                                    "#{model_id}: expected output > input, " \
-                                    "got output=#{fields['output']} input=#{fields['input']}"
+        expect(fields[:output]).to be > fields[:input]
       end
     end
   end

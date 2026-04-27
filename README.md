@@ -277,7 +277,7 @@ bin/rails generate llm_cost_tracker:prices
 config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
 ```
 
-The generated file has the same shape as the bundled registry:
+The generated file has the same shape as the bundled registry. Use provider-qualified model keys when a price belongs to a specific upstream provider:
 
 ```yaml
 metadata:
@@ -294,6 +294,8 @@ models:
 ```
 
 Pricing precedence is `pricing_overrides`, then `prices_file`, then bundled prices. Use `prices_file` for the app's source-controlled snapshot and `pricing_overrides` only for a handful of Ruby-side emergency overrides.
+
+Unqualified model keys still load for older local files, but provider-qualified keys win when both exist.
 
 To refresh prices on demand:
 

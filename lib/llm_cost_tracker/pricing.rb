@@ -32,27 +32,20 @@ module LlmCostTracker
       end
 
       def lookup(provider:, model:)
-        table = prices
         provider_name = provider.to_s
         model_name = model.to_s
         provider_model = provider_name.empty? ? model_name : "#{provider_name}/#{model_name}"
         normalized_model = normalize_model_name(model_name)
+        current = current_price_tables
 
-        table[provider_model] ||
-          table[model_name] ||
-          table[normalized_model] ||
-          fuzzy_match(provider_model, normalized_model, table)
+        lookup_in_table(current.fetch(:pricing_overrides), provider_model, model_name, normalized_model) ||
+          lookup_in_table(current.fetch(:file_prices), provider_model, model_name, normalized_model) ||
+          lookup_in_table(PRICES, provider_model, model_name, normalized_model)
       end
 
-      def models
-        prices.keys
-      end
+      private
 
-      def metadata
-        PriceRegistry.metadata
-      end
-
-      def prices
+      def current_price_tables
         file_prices = PriceRegistry.file_prices(LlmCostTracker.configuration.prices_file)
         overrides = PriceRegistry.normalize_price_table(LlmCostTracker.configuration.pricing_overrides)
         cache_key = [file_prices.object_id, LlmCostTracker.configuration.pricing_overrides.hash]
@@ -64,13 +57,22 @@ module LlmCostTracker
           cached = @prices_cache
           return cached[:value] if cached && cached[:key] == cache_key
 
-          value = PRICES.merge(file_prices).merge(overrides).freeze
+          value = { pricing_overrides: overrides, file_prices: file_prices }.freeze
           @prices_cache = { key: cache_key, value: value }.freeze
           value
         end
       end
 
-      private
+      def lookup_in_table(table, provider_model, model_name, normalized_model)
+        return nil if table.empty?
+
+        table[provider_model] ||
+          table[model_name] ||
+          table[normalized_model] ||
+          unique_providerless_lookup(normalized_model, table) ||
+          fuzzy_match(provider_model, normalized_model, table) ||
+          unique_providerless_fuzzy_match(normalized_model, table)
+      end
 
       def calculate_costs(usage, prices, pricing_mode:)
         {
@@ -113,12 +115,22 @@ module LlmCostTracker
         model.to_s.split("/").last
       end
 
+      def unique_providerless_lookup(model, table)
+        matches = sorted_price_keys(table).select { |key| normalize_model_name(key) == model }
+        table[matches.first] if matches.one?
+      end
+
       def fuzzy_match(model, normalized_model, table)
         sorted_price_keys(table).each do |key|
           return table[key] if snapshot_variant?(model, key) || snapshot_variant?(normalized_model, key)
         end
 
         nil
+      end
+
+      def unique_providerless_fuzzy_match(model, table)
+        matches = sorted_price_keys(table).select { |key| snapshot_variant?(model, normalize_model_name(key)) }
+        table[matches.first] if matches.one?
       end
 
       def snapshot_variant?(model, key)

@@ -61,6 +61,7 @@ module LlmCostTracker
         @io.puts "[#{name}] parsed #{scraped.models.size} models (deprecated: #{scraped.deprecated_models.size})"
 
         orchestrator_result = @orchestrator_factory.call(dry_run: dry_run).call(
+          provider: name,
           provider_result: scraped,
           registry_path: registry_path
         )
