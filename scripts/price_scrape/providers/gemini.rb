@@ -30,7 +30,7 @@ module LlmCostTracker
         private
 
         def extract_models(doc)
-          article = doc.at_css("div.devsite-article-body-broken")
+          article = doc.at_css("div.devsite-article-body")
           raise Error, "Gemini pricing article body not found" unless article
 
           pair_sections(article).each_with_object({}) do |(model_id, tabs), models|
