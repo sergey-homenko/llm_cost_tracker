@@ -144,7 +144,7 @@ RSpec.describe LlmCostTracker::PriceSync do
     end
 
     it "rejects oversized local registries before refreshing" do
-      stub_const("LlmCostTracker::PriceSync::RegistryLoader::MAX_FILE_BYTES", 10)
+      stub_const("LlmCostTracker::PriceRegistry::MAX_FILE_BYTES", 10)
 
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write(JSON.generate("metadata" => {}, "models" => {}))
