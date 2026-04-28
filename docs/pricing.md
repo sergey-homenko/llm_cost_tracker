@@ -51,5 +51,25 @@ Mode-prefixed fields use the same base terms:
 - `priority_input`
 - `batch_cache_read_input`
 
+## Pricing Modes
+
+Pass `pricing_mode: :batch` when usage came from a provider batch job or another
+discounted mode:
+
+```ruby
+LlmCostTracker.track(
+  provider: "openai",
+  model: "gpt-4o",
+  input_tokens: 1_000_000,
+  output_tokens: 250_000,
+  pricing_mode: :batch,
+  feature: "offline_eval"
+)
+```
+
+The calculator uses `batch_input`, `batch_output`, and other matching
+mode-prefixed fields when present, then falls back to the base field for missing
+mode-specific rates.
+
 Provider-specific pricing pages belong in scrapers and snapshots. Runtime
 pricing should stay in canonical billing terms.

@@ -58,6 +58,22 @@ module LlmCostTrackerIntegrationSpecTypes
       self
     end
   end
+  FailingStream = Class.new do
+    include Enumerable
+
+    def initialize(events, error)
+      @iterator = Enumerator.new do |yielder|
+        events.each { |event| yielder << event }
+        raise error
+      end
+    end
+
+    def each(&block)
+      raise ArgumentError, "A block must be given to #each" unless block
+
+      @iterator.each(&block)
+    end
+  end
   EachOnlyStream = Class.new do
     include Enumerable
 
@@ -93,6 +109,7 @@ RSpec.describe LlmCostTracker::Integrations do
   let(:response_class) { LlmCostTrackerIntegrationSpecTypes::Response }
   let(:stream_event_class) { LlmCostTrackerIntegrationSpecTypes::StreamEvent }
   let(:stream_class) { LlmCostTrackerIntegrationSpecTypes::Stream }
+  let(:failing_stream_class) { LlmCostTrackerIntegrationSpecTypes::FailingStream }
   let(:each_only_stream_class) { LlmCostTrackerIntegrationSpecTypes::EachOnlyStream }
 
   def capture_events
@@ -432,6 +449,38 @@ RSpec.describe LlmCostTracker::Integrations do
         stream: true,
         usage_source: "unknown"
       )
+    end
+  end
+
+  it "records errored official SDK streams as unknown usage" do
+    stream = failing_stream_class.new(
+      [
+        stream_event_class.new(
+          type: :"response.created",
+          response: { id: "resp_error", model: "gpt-4o" }
+        )
+      ],
+      RuntimeError.new("stream failed")
+    )
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      expect do
+        OpenAI::Resources::Responses.new.stream(model: "gpt-4o").each { |_event| nil }
+      end.to raise_error(RuntimeError, "stream failed")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 0,
+        output_tokens: 0,
+        stream: true,
+        usage_source: "unknown",
+        provider_response_id: "resp_error"
+      )
+      expect(events.first[:tags]).to include(stream_errored: true)
     end
   end
 
