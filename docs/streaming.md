@@ -30,6 +30,28 @@ stream_options: { include_usage: true }
 Anthropic and Gemini are parsed from their provider stream event shapes when
 usage is present.
 
+## SDK Path
+
+Official OpenAI and Anthropic SDK streams are captured when `config.instrument`
+is enabled for the provider. The returned stream object is preserved, and usage
+is recorded after the stream is consumed.
+
+```ruby
+config.instrument :openai
+config.instrument :anthropic
+```
+
+Captured SDK helpers:
+
+- OpenAI `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, and `chat.completions.stream_raw`.
+- Anthropic `messages.stream` and `messages.stream_raw`.
+
+OpenAI Chat Completions streams need final usage:
+
+```ruby
+stream_options: { include_usage: true }
+```
+
 ## Manual Path
 
 ```ruby

@@ -61,7 +61,7 @@ module LlmCostTracker
 
       def detect_stream_usage(events)
         find_event_value(events, reverse: true) do |data|
-          usage = data["usage"]
+          usage = data["usage"] || data.dig("response", "usage")
           usage if usage.is_a?(Hash)
         end
       end

@@ -45,9 +45,25 @@ client.chat.completions.create(
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello" }]
 )
+
+client.responses.stream(model: "gpt-4o", input: "Hello").each do |event|
+  puts event.type
+end
+
+client.responses.stream_raw(model: "gpt-4o", input: "Hello").each do |event|
+  puts event.type
+end
+
+client.chat.completions.stream_raw(
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello" }],
+  stream_options: { include_usage: true }
+).each do |event|
+  puts event
+end
 ```
 
-The OpenAI SDK integration supports `openai >= 0.59.0`.
+The OpenAI SDK integration supports `openai >= 0.59.0`. Streaming calls are recorded after the returned stream is consumed. Chat Completions streams need `stream_options: { include_usage: true }` for final usage.
 
 ## Official Anthropic SDK
 
@@ -65,9 +81,25 @@ client.messages.create(
   model: "claude-sonnet-4-5-20250929",
   messages: [{ role: "user", content: "Hello" }]
 )
+
+client.messages.stream(
+  max_tokens: 1024,
+  model: "claude-sonnet-4-5-20250929",
+  messages: [{ role: "user", content: "Hello" }]
+).each do |event|
+  puts event.type
+end
+
+client.messages.stream_raw(
+  max_tokens: 1024,
+  model: "claude-sonnet-4-5-20250929",
+  messages: [{ role: "user", content: "Hello" }]
+).each do |event|
+  puts event.type
+end
 ```
 
-The Anthropic SDK integration supports `anthropic >= 1.36.0`.
+The Anthropic SDK integration supports `anthropic >= 1.36.0`. Streaming calls are recorded after the returned stream is consumed.
 
 ## ruby-openai
 

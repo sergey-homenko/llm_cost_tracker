@@ -243,6 +243,43 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.provider_response_id).to eq("resp_456")
     end
 
+    it "extracts usage from Responses API completed events" do
+      events = [
+        {
+          event: nil,
+          data: { "type" => "response.created", "response" => { "id" => "resp_456", "model" => "gpt-5-mini" } }
+        },
+        {
+          event: nil,
+          data: {
+            "type" => "response.completed",
+            "response" => {
+              "id" => "resp_456",
+              "model" => "gpt-5-mini",
+              "usage" => {
+                "input_tokens" => 50,
+                "output_tokens" => 7,
+                "total_tokens" => 57
+              }
+            }
+          }
+        }
+      ]
+
+      result = parser.parse_stream(
+        responses_url,
+        { model: "gpt-5-mini", stream: true }.to_json,
+        200,
+        events
+      )
+
+      expect(result.input_tokens).to eq(50)
+      expect(result.output_tokens).to eq(7)
+      expect(result.total_tokens).to eq(57)
+      expect(result.usage_source).to eq(:stream_final)
+      expect(result.provider_response_id).to eq("resp_456")
+    end
+
     it "extracts model identifiers from Responses API stream events" do
       events = [
         {

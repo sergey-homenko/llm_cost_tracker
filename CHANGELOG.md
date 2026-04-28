@@ -4,6 +4,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-04-28
+
+### Added
+
+- Official OpenAI SDK streaming capture for Responses streams, Responses raw streams, Responses retrieve streams, and Chat Completions raw streams.
+- Official Anthropic SDK streaming capture for Messages streams and raw streams.
+
+### Fixed
+
+- OpenAI Responses stream parsing now reads final usage from completed response events.
+
 ## [0.5.2] - 2026-04-27
 
 ### Added

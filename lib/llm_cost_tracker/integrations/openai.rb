@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require_relative "stream_tracker"
 
 module LlmCostTracker
   module Integrations
@@ -16,8 +17,16 @@ module LlmCostTracker
 
         def patch_targets
           [
-            patch_target("OpenAI::Resources::Responses", with: ResponsesPatch, methods: :create),
-            patch_target("OpenAI::Resources::Chat::Completions", with: ChatCompletionsPatch, methods: :create)
+            patch_target(
+              "OpenAI::Resources::Responses",
+              with: ResponsesPatch,
+              methods: %i[create stream stream_raw retrieve_streaming]
+            ),
+            patch_target(
+              "OpenAI::Resources::Chat::Completions",
+              with: ChatCompletionsPatch,
+              methods: %i[create stream_raw]
+            )
           ]
         end
 
@@ -70,6 +79,28 @@ module LlmCostTracker
         def regular_input_tokens(input_tokens, cache_read)
           [ObjectReader.integer(input_tokens) - cache_read.to_i, 0].max
         end
+
+        def track_stream(stream, collector:)
+          return stream unless active?
+
+          StreamTracker.wrap(
+            stream,
+            collector: collector,
+            active: -> { active? },
+            finish: ->(errored:) { finish_stream(collector, errored: errored) }
+          )
+        end
+
+        def stream_collector(request)
+          LlmCostTracker::StreamCollector.new(
+            provider: "openai",
+            model: request[:model] || request["model"]
+          )
+        end
+
+        def finish_stream(collector, errored:)
+          record_safely { collector.finish!(errored: errored) }
+        end
       end
 
       module ResponsesPatch
@@ -84,6 +115,31 @@ module LlmCostTracker
           )
           response
         end
+
+        def stream(*args, **kwargs)
+          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
+          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
+          LlmCostTracker::Integrations::Openai.enforce_budget!
+          stream = super
+          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+        end
+
+        def stream_raw(*args, **kwargs)
+          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
+          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
+          LlmCostTracker::Integrations::Openai.enforce_budget!
+          stream = super
+          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+        end
+
+        def retrieve_streaming(response_id, *args, **kwargs)
+          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
+          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
+          collector.provider_response_id = response_id
+          LlmCostTracker::Integrations::Openai.enforce_budget!
+          stream = super
+          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+        end
       end
 
       module ChatCompletionsPatch
@@ -97,6 +153,14 @@ module LlmCostTracker
             latency_ms: LlmCostTracker::Integrations::Openai.elapsed_ms(started_at)
           )
           response
+        end
+
+        def stream_raw(*args, **kwargs)
+          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
+          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
+          LlmCostTracker::Integrations::Openai.enforce_budget!
+          stream = super
+          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
         end
       end
     end

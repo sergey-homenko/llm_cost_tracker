@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require_relative "stream_tracker"
 
 module LlmCostTracker
   module Integrations
@@ -16,11 +17,11 @@ module LlmCostTracker
 
         def patch_targets
           [
-            patch_target("Anthropic::Resources::Messages", with: MessagesPatch, methods: :create),
+            patch_target("Anthropic::Resources::Messages", with: MessagesPatch, methods: %i[create stream stream_raw]),
             patch_target(
               "Anthropic::Resources::Beta::Messages",
               with: MessagesPatch,
-              methods: :create,
+              methods: %i[create stream stream_raw],
               optional: true
             )
           ]
@@ -64,6 +65,28 @@ module LlmCostTracker
             ObjectReader.nested(usage, :output_tokens_details, :reasoning_tokens)
           )
         end
+
+        def track_stream(stream, collector:)
+          return stream unless active?
+
+          StreamTracker.wrap(
+            stream,
+            collector: collector,
+            active: -> { active? },
+            finish: ->(errored:) { finish_stream(collector, errored: errored) }
+          )
+        end
+
+        def stream_collector(request)
+          LlmCostTracker::StreamCollector.new(
+            provider: "anthropic",
+            model: request[:model] || request["model"]
+          )
+        end
+
+        def finish_stream(collector, errored:)
+          record_safely { collector.finish!(errored: errored) }
+        end
       end
 
       module MessagesPatch
@@ -77,6 +100,22 @@ module LlmCostTracker
             latency_ms: LlmCostTracker::Integrations::Anthropic.elapsed_ms(started_at)
           )
           message
+        end
+
+        def stream(*args, **kwargs)
+          request = LlmCostTracker::Integrations::Anthropic.request_params(args, kwargs)
+          collector = LlmCostTracker::Integrations::Anthropic.stream_collector(request)
+          LlmCostTracker::Integrations::Anthropic.enforce_budget!
+          stream = super
+          LlmCostTracker::Integrations::Anthropic.track_stream(stream, collector: collector)
+        end
+
+        def stream_raw(*args, **kwargs)
+          request = LlmCostTracker::Integrations::Anthropic.request_params(args, kwargs)
+          collector = LlmCostTracker::Integrations::Anthropic.stream_collector(request)
+          LlmCostTracker::Integrations::Anthropic.enforce_budget!
+          stream = super
+          LlmCostTracker::Integrations::Anthropic.track_stream(stream, collector: collector)
         end
       end
     end

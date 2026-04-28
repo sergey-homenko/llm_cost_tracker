@@ -19,6 +19,58 @@ module LlmCostTrackerIntegrationSpecTypes
   )
   Details = Struct.new(:cached_tokens, :reasoning_tokens, keyword_init: true)
   Response = Struct.new(:id, :model, :usage, keyword_init: true)
+  BrokenStreamEvent = Class.new do
+    def to_h = raise "boom"
+  end
+  StreamEvent = Struct.new(:type, :id, :model, :usage, :response, :message, keyword_init: true) do
+    def to_h
+      {
+        type: type,
+        id: id,
+        model: model,
+        usage: usage,
+        response: response,
+        message: message
+      }.compact
+    end
+  end
+  Stream = Class.new do
+    include Enumerable
+
+    def initialize(events)
+      @iterator = events.each
+    end
+
+    def each(&block)
+      raise ArgumentError, "A block must be given to #each" unless block
+
+      @iterator.each(&block)
+    end
+
+    def text
+      Enumerator.new do |yielder|
+        @iterator.each { |event| yielder << event.type.to_s }
+      end
+    end
+
+    def until_done
+      each { |_event| nil }
+      self
+    end
+  end
+  EachOnlyStream = Class.new do
+    include Enumerable
+
+    def initialize(events)
+      @events = events
+    end
+
+    def each(&block)
+      return enum_for(:each) unless block
+
+      @events.each(&block)
+    end
+  end
   RubyLlmModel = Struct.new(:id, keyword_init: true)
   RubyLlmResponse = Struct.new(
     :id,
@@ -39,6 +91,9 @@ RSpec.describe LlmCostTracker::Integrations do
   let(:usage_class) { LlmCostTrackerIntegrationSpecTypes::Usage }
   let(:details_class) { LlmCostTrackerIntegrationSpecTypes::Details }
   let(:response_class) { LlmCostTrackerIntegrationSpecTypes::Response }
+  let(:stream_event_class) { LlmCostTrackerIntegrationSpecTypes::StreamEvent }
+  let(:stream_class) { LlmCostTrackerIntegrationSpecTypes::Stream }
+  let(:each_only_stream_class) { LlmCostTrackerIntegrationSpecTypes::EachOnlyStream }
 
   def capture_events
     events = []
@@ -59,28 +114,43 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
-  def install_openai_fakes(response)
+  def install_openai_fakes(response, stream: nil)
     stub_const("OpenAI", Module.new)
     stub_const("OpenAI::VERSION", "0.59.0")
     stub_const("OpenAI::Resources", Module.new)
     stub_const("OpenAI::Resources::Chat", Module.new)
     stub_const("OpenAI::Resources::Responses", Class.new do
-      define_method(:initialize) { @response = response }
+      define_method(:initialize) do
+        @response = response
+        @stream = stream
+      end
       define_method(:create) { |_params = {}| @response }
+      define_method(:stream) { |_params = {}| @stream }
+      define_method(:stream_raw) { |_params = {}| @stream }
+      define_method(:retrieve_streaming) { |_response_id, _params = {}| @stream }
     end)
     stub_const("OpenAI::Resources::Chat::Completions", Class.new do
-      define_method(:initialize) { @response = response }
+      define_method(:initialize) do
+        @response = response
+        @stream = stream
+      end
       define_method(:create) { |_params = {}| @response }
+      define_method(:stream_raw) { |_params = {}| @stream }
     end)
   end
 
-  def install_anthropic_fakes(message)
+  def install_anthropic_fakes(message, stream: nil)
     stub_const("Anthropic", Module.new)
     stub_const("Anthropic::VERSION", "1.36.0")
     stub_const("Anthropic::Resources", Module.new)
     stub_const("Anthropic::Resources::Messages", Class.new do
-      define_method(:initialize) { @message = message }
+      define_method(:initialize) do
+        @message = message
+        @stream = stream
+      end
       define_method(:create) { |_params = {}| @message }
+      define_method(:stream) { |_params = {}| @stream }
+      define_method(:stream_raw) { |_params = {}| @stream }
     end)
   end
 
@@ -175,6 +245,196 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "tracks official OpenAI responses.stream calls" do
+    stream = stream_class.new([
+                                stream_event_class.new(
+                                  type: :"response.created",
+                                  response: { id: "resp_456", model: "gpt-5-mini" }
+                                ),
+                                stream_event_class.new(
+                                  type: :"response.completed",
+                                  response: {
+                                    id: "resp_456",
+                                    model: "gpt-5-mini",
+                                    usage: {
+                                      input_tokens: 100,
+                                      input_tokens_details: { cached_tokens: 25 },
+                                      output_tokens: 40,
+                                      output_tokens_details: { reasoning_tokens: 9 },
+                                      total_tokens: 140
+                                    }
+                                  }
+                                )
+                              ])
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      expect(OpenAI::Resources::Responses.new.stream(model: "gpt-5-mini").text.to_a)
+        .to eq(%w[response.created response.completed])
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-5-mini",
+        input_tokens: 75,
+        output_tokens: 40,
+        total_tokens: 140,
+        cache_read_input_tokens: 25,
+        hidden_output_tokens: 9,
+        stream: true,
+        usage_source: "stream_final",
+        provider_response_id: "resp_456"
+      )
+    end
+  end
+
+  it "tracks official OpenAI chat.completions.stream_raw calls" do
+    stream = stream_class.new([
+                                stream_event_class.new(id: "chatcmpl_456", model: "gpt-4o"),
+                                stream_event_class.new(
+                                  usage: {
+                                    prompt_tokens: 30,
+                                    prompt_tokens_details: { cached_tokens: 5 },
+                                    completion_tokens: 10,
+                                    completion_tokens_details: { reasoning_tokens: 3 },
+                                    total_tokens: 40
+                                  }
+                                )
+                              ])
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Chat::Completions.new.stream_raw(model: "gpt-4o", messages: []).each { |_event| nil }
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 25,
+        output_tokens: 10,
+        total_tokens: 40,
+        cache_read_input_tokens: 5,
+        hidden_output_tokens: 3,
+        stream: true,
+        usage_source: "stream_final",
+        provider_response_id: "chatcmpl_456"
+      )
+    end
+  end
+
+  it "tracks official OpenAI responses.retrieve_streaming calls" do
+    stream = stream_class.new([
+                                stream_event_class.new(
+                                  type: :"response.completed",
+                                  response: {
+                                    id: "resp_789",
+                                    model: "gpt-5-mini",
+                                    usage: { input_tokens: 12, output_tokens: 8 }
+                                  }
+                                )
+                              ])
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Responses.new.retrieve_streaming("resp_789").each { |_event| nil }
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-5-mini",
+        input_tokens: 12,
+        output_tokens: 8,
+        stream: true,
+        usage_source: "stream_final",
+        provider_response_id: "resp_789"
+      )
+    end
+  end
+
+  it "tracks official SDK stream events with nested typed response objects" do
+    stream = stream_class.new([
+                                stream_event_class.new(
+                                  type: :"response.completed",
+                                  response: response_class.new(
+                                    id: "resp_typed",
+                                    model: "gpt-4o",
+                                    usage: usage_class.new(input_tokens: 9, output_tokens: 4)
+                                  )
+                                )
+                              ])
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Responses.new.stream(model: "gpt-4o").each { |_event| nil }
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 9,
+        output_tokens: 4,
+        stream: true,
+        usage_source: "stream_final",
+        provider_response_id: "resp_typed"
+      )
+    end
+  end
+
+  it "preserves each without a block for official SDK streams" do
+    stream = each_only_stream_class.new([
+                                          stream_event_class.new(
+                                            type: :"response.completed",
+                                            response: {
+                                              id: "resp_enum",
+                                              model: "gpt-4o",
+                                              usage: { input_tokens: 5, output_tokens: 3 }
+                                            }
+                                          )
+                                        ])
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      expect(OpenAI::Resources::Responses.new.stream(model: "gpt-4o").each.to_a.map(&:type))
+        .to eq([:"response.completed"])
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 5,
+        output_tokens: 3,
+        stream: true,
+        usage_source: "stream_final",
+        provider_response_id: "resp_enum"
+      )
+    end
+  end
+
+  it "keeps official SDK stream iteration working when capture cannot read an event" do
+    event = LlmCostTrackerIntegrationSpecTypes::BrokenStreamEvent.new
+    install_openai_fakes(response_class.new, stream: stream_class.new([event]))
+    configure_integration(:openai)
+
+    capture_events do |events|
+      expect(OpenAI::Resources::Responses.new.stream(model: "gpt-4o").to_a).to eq([event])
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 0,
+        output_tokens: 0,
+        stream: true,
+        usage_source: "unknown"
+      )
+    end
+  end
+
   it "tracks official Anthropic messages.create calls" do
     message = response_class.new(
       id: "msg_123",
@@ -204,6 +464,87 @@ RSpec.describe LlmCostTracker::Integrations do
         hidden_output_tokens: 6,
         usage_source: "sdk_response",
         provider_response_id: "msg_123"
+      )
+    end
+  end
+
+  it "tracks official Anthropic messages.stream calls" do
+    stream = stream_class.new([
+                                stream_event_class.new(
+                                  type: :message_start,
+                                  message: {
+                                    id: "msg_456",
+                                    model: "claude-sonnet-4-6",
+                                    usage: {
+                                      input_tokens: 120,
+                                      output_tokens: 1,
+                                      cache_read_input_tokens: 40,
+                                      cache_creation_input_tokens: 8
+                                    }
+                                  }
+                                ),
+                                stream_event_class.new(
+                                  type: :message_delta,
+                                  usage: { output_tokens: 64 }
+                                )
+                              ])
+    install_anthropic_fakes(response_class.new, stream: stream)
+    configure_integration(:anthropic)
+
+    capture_events do |events|
+      Anthropic::Resources::Messages.new.stream(
+        model: "claude-sonnet-4-6",
+        max_tokens: 1024,
+        messages: []
+      ).each { |_event| nil }
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "anthropic",
+        model: "claude-sonnet-4-6",
+        input_tokens: 120,
+        output_tokens: 64,
+        total_tokens: 232,
+        cache_read_input_tokens: 40,
+        cache_write_input_tokens: 8,
+        stream: true,
+        usage_source: "stream_final",
+        provider_response_id: "msg_456"
+      )
+    end
+  end
+
+  it "tracks official Anthropic messages.stream_raw calls" do
+    stream = stream_class.new([
+                                stream_event_class.new(
+                                  type: :message_start,
+                                  message: {
+                                    id: "msg_789",
+                                    model: "claude-sonnet-4-6",
+                                    usage: { input_tokens: 30, output_tokens: 0 }
+                                  }
+                                ),
+                                stream_event_class.new(type: :message_delta, usage: { output_tokens: 14 })
+                              ])
+    install_anthropic_fakes(response_class.new, stream: stream)
+    configure_integration(:anthropic)
+
+    capture_events do |events|
+      Anthropic::Resources::Messages.new.stream_raw(
+        model: "claude-sonnet-4-6",
+        max_tokens: 1024,
+        messages: []
+      ).each { |_event| nil }
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "anthropic",
+        model: "claude-sonnet-4-6",
+        input_tokens: 30,
+        output_tokens: 14,
+        stream: true,
+        usage_source: "stream_final",
+        provider_response_id: "msg_789"
       )
     end
   end

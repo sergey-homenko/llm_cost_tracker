@@ -231,7 +231,7 @@ Auth is your job. Examples for basic auth and Devise: [`docs/dashboard.md`](docs
 
 RubyLLM chat, embedding, and transcription calls are captured through RubyLLM's provider layer when `config.instrument :ruby_llm` is enabled.
 
-Endpoints covered end-to-end: OpenAI Chat Completions / Responses / Completions / Embeddings, Anthropic Messages, Gemini `generateContent` and `streamGenerateContent`, plus their OpenAI-compatible equivalents. Streaming is captured for Faraday paths whenever the provider emits final-usage events.
+Endpoints covered end-to-end: OpenAI Chat Completions / Responses / Completions / Embeddings, Anthropic Messages, Gemini `generateContent` and `streamGenerateContent`, plus their OpenAI-compatible equivalents. Streaming is captured for Faraday paths and official OpenAI / Anthropic SDK stream helpers whenever the provider emits final-usage events.
 
 ## Privacy
 
@@ -260,7 +260,6 @@ is still brief.
 ## Known limitations
 
 - `:block_requests` is best-effort under concurrency, not a transactional cap.
-- Official OpenAI and Anthropic SDK integrations cover non-streaming calls; streaming via those SDKs falls back to Faraday middleware or `track_stream`.
 - Streaming usage capture relies on the provider emitting a final-usage event. Missing events are stored with `usage_source: "unknown"` so they appear on the data-quality page rather than vanishing.
 - `provider_response_id` is stored only when the provider exposes a stable ID. Gemini is best-effort and varies by endpoint.
 - Cache write TTL variants on Anthropic (1h vs 5min writes) are not modeled separately yet.
