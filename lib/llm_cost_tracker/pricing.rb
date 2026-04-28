@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require "monitor"
+require_relative "pricing/lookup"
+require_relative "pricing/explainer"
 
 module LlmCostTracker
   module Pricing
     PRICES = PriceRegistry.builtin_prices
-    MUTEX = Monitor.new
 
     class << self
       def cost_for(provider:, model:, input_tokens:, output_tokens:, cache_read_input_tokens: 0,
@@ -20,6 +20,7 @@ module LlmCostTracker
           cache_write_input_tokens: cache_write_input_tokens
         )
         costs = calculate_costs(usage, prices, pricing_mode: pricing_mode)
+        return nil unless costs
 
         Cost.new(
           input_cost: costs[:input].round(8),
@@ -32,50 +33,26 @@ module LlmCostTracker
       end
 
       def lookup(provider:, model:)
-        provider_name = provider.to_s
-        model_name = model.to_s
-        provider_model = provider_name.empty? ? model_name : "#{provider_name}/#{model_name}"
-        normalized_model = normalize_model_name(model_name)
-        current = current_price_tables
+        Lookup.call(provider: provider, model: model)&.prices
+      end
 
-        lookup_in_table(current.fetch(:pricing_overrides), provider_model, model_name, normalized_model) ||
-          lookup_in_table(current.fetch(:file_prices), provider_model, model_name, normalized_model) ||
-          lookup_in_table(PRICES, provider_model, model_name, normalized_model)
+      def explain(provider:, model:, input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0,
+                  cache_write_input_tokens: 0, pricing_mode: nil)
+        Explainer.call(
+          provider: provider,
+          model: model,
+          input_tokens: input_tokens,
+          output_tokens: output_tokens,
+          cache_read_input_tokens: cache_read_input_tokens,
+          cache_write_input_tokens: cache_write_input_tokens,
+          pricing_mode: pricing_mode
+        )
       end
 
       private
 
-      def current_price_tables
-        file_prices = PriceRegistry.file_prices(LlmCostTracker.configuration.prices_file)
-        overrides = PriceRegistry.normalize_price_table(LlmCostTracker.configuration.pricing_overrides)
-        cache_key = [file_prices.object_id, LlmCostTracker.configuration.pricing_overrides.hash]
-
-        cached = @prices_cache
-        return cached[:value] if cached && cached[:key] == cache_key
-
-        MUTEX.synchronize do
-          cached = @prices_cache
-          return cached[:value] if cached && cached[:key] == cache_key
-
-          value = { pricing_overrides: overrides, file_prices: file_prices }.freeze
-          @prices_cache = { key: cache_key, value: value }.freeze
-          value
-        end
-      end
-
-      def lookup_in_table(table, provider_model, model_name, normalized_model)
-        return nil if table.empty?
-
-        table[provider_model] ||
-          table[model_name] ||
-          table[normalized_model] ||
-          unique_providerless_lookup(normalized_model, table) ||
-          fuzzy_match(provider_model, normalized_model, table) ||
-          unique_providerless_fuzzy_match(normalized_model, table)
-      end
-
       def calculate_costs(usage, prices, pricing_mode:)
-        {
+        costs = {
           input: token_cost(usage.input_tokens, price_for(prices, :input, pricing_mode)),
           cache_read_input: token_cost(
             usage.cache_read_input_tokens,
@@ -87,6 +64,9 @@ module LlmCostTracker
           ),
           output: token_cost(usage.output_tokens, price_for(prices, :output, pricing_mode))
         }
+        return nil if costs.value?(nil)
+
+        costs
       end
 
       def price_for(prices, key, pricing_mode)
@@ -107,51 +87,9 @@ module LlmCostTracker
 
       def token_cost(tokens, per_million_price)
         return 0.0 if tokens.to_i.zero?
+        return nil if per_million_price.nil?
 
         (tokens.to_f / 1_000_000) * per_million_price
-      end
-
-      def normalize_model_name(model)
-        model.to_s.split("/").last
-      end
-
-      def unique_providerless_lookup(model, table)
-        matches = sorted_price_keys(table).select { |key| normalize_model_name(key) == model }
-        table[matches.first] if matches.one?
-      end
-
-      def fuzzy_match(model, normalized_model, table)
-        sorted_price_keys(table).each do |key|
-          return table[key] if snapshot_variant?(model, key) || snapshot_variant?(normalized_model, key)
-        end
-
-        nil
-      end
-
-      def unique_providerless_fuzzy_match(model, table)
-        matches = sorted_price_keys(table).select { |key| snapshot_variant?(model, normalize_model_name(key)) }
-        table[matches.first] if matches.one?
-      end
-
-      def snapshot_variant?(model, key)
-        suffix = model.delete_prefix("#{key}-")
-        return false if suffix == model
-
-        suffix.match?(/\A(?:\d{4}-\d{2}-\d{2}|\d{8})\z/)
-      end
-
-      def sorted_price_keys(table)
-        cached = @sorted_price_keys_cache
-        return cached[:keys] if cached && cached[:table].equal?(table)
-
-        MUTEX.synchronize do
-          cached = @sorted_price_keys_cache
-          return cached[:keys] if cached && cached[:table].equal?(table)
-
-          keys = table.keys.sort_by { |key| -key.length }
-          @sorted_price_keys_cache = { table: table, keys: keys }.freeze
-          keys
-        end
       end
     end
   end

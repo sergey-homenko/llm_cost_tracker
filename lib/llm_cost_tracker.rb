@@ -41,6 +41,7 @@ require_relative "llm_cost_tracker/report_data"
 require_relative "llm_cost_tracker/report_formatter"
 require_relative "llm_cost_tracker/report"
 require_relative "llm_cost_tracker/doctor"
+require_relative "llm_cost_tracker/capture_verifier"
 
 module LlmCostTracker
   CONFIGURATION_MUTEX = Monitor.new

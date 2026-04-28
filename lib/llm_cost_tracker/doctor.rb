@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "price_freshness"
+require_relative "doctor/capture_check"
 
 module LlmCostTracker
   class Doctor
@@ -38,6 +39,7 @@ module LlmCostTracker
     def checks
       [
         configuration_check,
+        capture_check,
         *integration_checks,
         active_record_check,
         table_check,
@@ -51,8 +53,11 @@ module LlmCostTracker
     private
 
     def configuration_check
-      Check.new(:ok, "configuration", "storage_backend=#{LlmCostTracker.configuration.storage_backend.inspect}")
+      config = LlmCostTracker.configuration
+      Check.new(:ok, "configuration", "storage_backend=#{config.storage_backend.inspect}, enabled=#{config.enabled}")
     end
+
+    def capture_check = CaptureCheck.call(Check)
 
     def integration_checks
       LlmCostTracker::Integrations.checks.map do |check|

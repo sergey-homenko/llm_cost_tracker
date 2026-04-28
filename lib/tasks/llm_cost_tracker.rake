@@ -7,9 +7,19 @@ namespace :llm_cost_tracker do
   desc "Check LLM Cost Tracker setup"
   task :doctor do
     Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
+    require_relative "../llm_cost_tracker"
     checks = LlmCostTracker::Doctor.call
     puts LlmCostTracker::Doctor.report(checks)
     abort("llm_cost_tracker: doctor found setup errors") unless LlmCostTracker::Doctor.healthy?(checks)
+  end
+
+  desc "Verify that LLM Cost Tracker can capture and persist a synthetic event"
+  task :verify_capture do
+    Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
+    require_relative "../llm_cost_tracker"
+    checks = LlmCostTracker::CaptureVerifier.call
+    puts LlmCostTracker::CaptureVerifier.report(checks)
+    abort("llm_cost_tracker: capture verification failed") unless LlmCostTracker::CaptureVerifier.healthy?(checks)
   end
 
   desc "Print an LLM cost report from ActiveRecord storage"
@@ -74,6 +84,17 @@ namespace :llm_cost_tracker do
       puts "  pricing is up to date" if result.up_to_date
       abort("llm_cost_tracker: pricing check failed") unless result.up_to_date
     end
+
+    desc "Explain how a provider/model price is matched. Use PROVIDER=... MODEL=..."
+    task :explain do
+      Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
+      require_relative "../llm_cost_tracker"
+
+      explanation = price_explanation_from_env
+      puts "llm_cost_tracker: #{explanation.message}"
+      print_price_explanation(explanation)
+      abort("llm_cost_tracker: price is incomplete or unknown") unless explanation.complete?
+    end
   end
 end
 # rubocop:enable Metrics/BlockLength
@@ -94,4 +115,32 @@ def price_refresh_output_path
   path = LlmCostTracker::PriceSync.configured_output_path
   FileUtils.mkdir_p(File.dirname(path))
   path
+end
+
+def price_explanation_from_env
+  provider = ENV["PROVIDER"].to_s.strip
+  model = ENV["MODEL"].to_s.strip
+  abort("llm_cost_tracker: use PROVIDER=... MODEL=...") if provider.empty? || model.empty?
+
+  LlmCostTracker::Pricing.explain(
+    provider: provider,
+    model: model,
+    pricing_mode: ENV.fetch("PRICING_MODE", nil),
+    input_tokens: ENV.fetch("INPUT_TOKENS", 1).to_i,
+    output_tokens: ENV.fetch("OUTPUT_TOKENS", 1).to_i,
+    cache_read_input_tokens: ENV.fetch("CACHE_READ_INPUT_TOKENS", 0).to_i,
+    cache_write_input_tokens: ENV.fetch("CACHE_WRITE_INPUT_TOKENS", 0).to_i
+  )
+end
+
+def print_price_explanation(explanation)
+  return unless explanation.matched?
+
+  puts "  source: #{explanation.source}"
+  puts "  matched_key: #{explanation.matched_key}"
+  puts "  matched_by: #{explanation.matched_by}"
+  puts "  pricing_mode: #{explanation.pricing_mode || 'standard'}"
+  explanation.effective_prices.each do |key, value|
+    puts "  #{key}: #{value.nil? ? 'missing' : value}"
+  end
 end

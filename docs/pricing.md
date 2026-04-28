@@ -29,6 +29,7 @@ Until this page is expanded, use:
 bin/rails generate llm_cost_tracker:prices
 bin/rails llm_cost_tracker:prices:refresh
 bin/rails llm_cost_tracker:prices:check
+PROVIDER=openai MODEL=gpt-4o bin/rails llm_cost_tracker:prices:explain
 ```
 
 The refresh task reads the maintained LLM Cost Tracker snapshot and writes to
@@ -70,6 +71,24 @@ LlmCostTracker.track(
 The calculator uses `batch_input`, `batch_output`, and other matching
 mode-prefixed fields when present, then falls back to the base field for missing
 mode-specific rates.
+
+## Price Explain
+
+Use `prices:explain` when Data Quality shows unknown pricing or a local override
+does not behave as expected:
+
+```bash
+PROVIDER=openai MODEL=gpt-4o PRICING_MODE=batch bin/rails llm_cost_tracker:prices:explain
+```
+
+Optional token env vars let the command check the exact buckets that a call used:
+
+```bash
+PROVIDER=custom MODEL=gateway-model INPUT_TOKENS=1000 OUTPUT_TOKENS=200 CACHE_READ_INPUT_TOKENS=50 bin/rails llm_cost_tracker:prices:explain
+```
+
+The command reports the matched source, matched key, match strategy, effective
+rates, and any missing rate needed to price the event.
 
 Provider-specific pricing pages belong in scrapers and snapshots. Runtime
 pricing should stay in canonical billing terms.

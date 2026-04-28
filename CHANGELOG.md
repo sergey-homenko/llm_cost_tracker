@@ -10,10 +10,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - Official OpenAI SDK streaming capture for Responses streams, Responses raw streams, Responses retrieve streams, and Chat Completions raw streams.
 - Official Anthropic SDK streaming capture for Messages streams and raw streams.
+- Capture verification via `llm_cost_tracker:verify_capture` and expanded doctor capture diagnostics.
+- Pricing explanation via `LlmCostTracker::Pricing.explain` and `llm_cost_tracker:prices:explain`.
 
 ### Fixed
 
 - OpenAI Responses stream parsing now reads final usage from completed response events.
+- Incomplete price entries now return unknown pricing instead of raising `TypeError`.
 
 ## [0.5.2] - 2026-04-27
 

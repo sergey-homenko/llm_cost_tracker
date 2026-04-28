@@ -167,6 +167,12 @@ Refresh on demand from the maintained snapshot:
 bin/rails llm_cost_tracker:prices:refresh
 ```
 
+Explain why a model is priced or unknown:
+
+```bash
+PROVIDER=openai MODEL=gpt-4o bin/rails llm_cost_tracker:prices:explain
+```
+
 Precedence is `pricing_overrides` → `prices_file` → bundled. Provider-qualified keys like `openai/gpt-4o-mini` win over model-only keys. Full pricing reference: [`docs/pricing.md`](docs/pricing.md).
 
 ## Budgets

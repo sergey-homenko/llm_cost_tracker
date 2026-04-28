@@ -14,10 +14,19 @@ RSpec.describe LlmCostTracker::Doctor do
 
     expect(checks).to include(
       have_attributes(status: :ok, name: "configuration"),
+      have_attributes(status: :ok, name: "capture", message: include("Faraday middleware and manual capture")),
       have_attributes(status: :ok, name: "storage"),
       have_attributes(status: :warn, name: "prices")
     )
     expect(described_class.healthy?).to be true
+  end
+
+  it "warns when tracking is disabled" do
+    LlmCostTracker.configure { |config| config.enabled = false }
+
+    check = described_class.call.find { |item| item.name == "capture" }
+
+    expect(check).to have_attributes(status: :warn, message: include("tracking is disabled"))
   end
 
   it "warns when the configured prices file is stale" do

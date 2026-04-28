@@ -209,6 +209,42 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.output_cost).to eq(2.0)
     end
 
+    it "returns nil when a matched price is missing a required component" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "input-only-model" => { input: 1.0 }
+        }
+      end
+
+      result = described_class.cost_for(
+        provider: "custom",
+        model: "input-only-model",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+
+      expect(result).to be_nil
+    end
+
+    it "prices zero-token missing components as zero" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "input-only-model" => { input: 1.0 }
+        }
+      end
+
+      result = described_class.cost_for(
+        provider: "custom",
+        model: "input-only-model",
+        input_tokens: 1_000_000,
+        output_tokens: 0
+      )
+
+      expect(result.input_cost).to eq(1.0)
+      expect(result.output_cost).to eq(0.0)
+      expect(result.total_cost).to eq(1.0)
+    end
+
     it "uses mode-specific price keys when pricing_mode is provided" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
@@ -369,8 +405,8 @@ RSpec.describe LlmCostTracker::Pricing do
 
   describe ".lookup" do
     it "returns consistent sorted keys under concurrent lookup" do
-      if described_class.instance_variable_defined?(:@sorted_price_keys_cache)
-        described_class.remove_instance_variable(:@sorted_price_keys_cache)
+      if LlmCostTracker::Pricing::Lookup.instance_variable_defined?(:@sorted_price_keys_cache)
+        LlmCostTracker::Pricing::Lookup.remove_instance_variable(:@sorted_price_keys_cache)
       end
 
       table = {
@@ -379,10 +415,64 @@ RSpec.describe LlmCostTracker::Pricing do
       }
 
       results = 10.times.map do
-        Thread.new { described_class.send(:sorted_price_keys, table) }
+        Thread.new { LlmCostTracker::Pricing::Lookup.send(:sorted_price_keys, table) }
       end.map(&:value)
 
       expect(results).to all(eq(%w[gpt-4o gpt-4]))
+    end
+  end
+
+  describe ".explain" do
+    it "explains the matched pricing source and effective rates" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "custom/explained-model" => { input: 1.0, output: 2.0, batch_input: 0.5 }
+        }
+      end
+
+      result = described_class.explain(
+        provider: "custom",
+        model: "explained-model",
+        pricing_mode: :batch
+      )
+
+      expect(result).to have_attributes(
+        source: "pricing_overrides",
+        matched_key: "custom/explained-model",
+        matched_by: "provider_model",
+        pricing_mode: "batch",
+        missing_price_keys: []
+      )
+      expect(result.effective_prices).to include(input: 0.5, output: 2.0)
+      expect(result.message).to include("Matched custom/explained-model")
+    end
+
+    it "explains missing required price keys" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "input-only-model" => { input: 1.0 }
+        }
+      end
+
+      result = described_class.explain(
+        provider: "custom",
+        model: "input-only-model",
+        input_tokens: 1,
+        output_tokens: 1
+      )
+
+      expect(result.matched?).to be true
+      expect(result.complete?).to be false
+      expect(result.missing_price_keys).to eq([:output])
+      expect(result.message).to include("missing output")
+    end
+
+    it "explains unknown models" do
+      result = described_class.explain(provider: "custom", model: "missing-model")
+
+      expect(result.matched?).to be false
+      expect(result.complete?).to be false
+      expect(result.message).to include("No price entry matched custom/missing-model")
     end
   end
 

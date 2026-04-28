@@ -50,3 +50,16 @@ behavior.
 Enabled SDK integrations are fail-fast. The client gem must be loaded, meet the
 minimum supported version, and expose the expected classes and methods before
 LLM Cost Tracker installs its wrapper.
+
+## Capture Verification
+
+After boot, run:
+
+```bash
+bin/rails llm_cost_tracker:verify_capture
+```
+
+For ActiveRecord storage, the task records a synthetic manual event inside a
+rollback and checks that notifications and persistence both work. For log and
+custom storage, it reports the configured capture path without invoking external
+sinks.
