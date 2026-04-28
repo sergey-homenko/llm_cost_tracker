@@ -8,15 +8,9 @@ module LlmCostTracker
       def prune(older_than:, batch_size: DEFAULT_BATCH_SIZE, now: Time.now.utc)
         batch_size = normalized_batch_size(batch_size)
         cutoff = resolve_cutoff(older_than, now)
-        require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
+        require_relative "storage/active_record_backend"
 
-        deleted = 0
-        loop do
-          batch = LlmCostTracker::LlmApiCall.where(tracked_at: ...cutoff).limit(batch_size).delete_all
-          deleted += batch
-          break if batch < batch_size
-        end
-        deleted
+        Storage::ActiveRecordBackend.prune(cutoff: cutoff, batch_size: batch_size)
       end
 
       private

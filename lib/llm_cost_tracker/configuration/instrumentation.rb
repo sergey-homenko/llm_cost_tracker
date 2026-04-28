@@ -31,7 +31,7 @@ module LlmCostTracker
     end
 
     def available_instrumentation_names
-      Integrations::Registry::INTEGRATIONS.keys
+      Integrations::Registry.names
     end
   end
 end

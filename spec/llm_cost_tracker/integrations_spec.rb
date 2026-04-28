@@ -827,6 +827,29 @@ RSpec.describe LlmCostTracker::Integrations do
     expect { LlmCostTracker.configuration.instrumented_integrations << :gemini }.to raise_error(FrozenError)
   end
 
+  it "allows registering custom integrations" do
+    integration = Class.new do
+      class << self
+        attr_reader :installed
+
+        def install
+          @installed = true
+        end
+
+        def status
+          LlmCostTracker::Integrations::Base::Result.new(:custom_sdk, :ok, "custom_sdk integration installed")
+        end
+      end
+    end
+
+    LlmCostTracker::Integrations.register(:custom_sdk, integration)
+    LlmCostTracker.configure { |config| config.instrument :custom_sdk }
+
+    expect(integration.installed).to be true
+    expect(LlmCostTracker::Integrations::Registry.checks([:custom_sdk]).first)
+      .to have_attributes(status: :ok, name: :custom_sdk)
+  end
+
   it "rejects unknown integrations" do
     expect do
       LlmCostTracker.configure { |config| config.instrument :gemini }

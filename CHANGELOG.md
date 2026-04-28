@@ -12,11 +12,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Official Anthropic SDK streaming capture for Messages streams and raw streams.
 - Capture verification via `llm_cost_tracker:verify_capture` and expanded doctor capture diagnostics.
 - Pricing explanation via `LlmCostTracker::Pricing.explain` and `llm_cost_tracker:prices:explain`.
+- Extensible storage and SDK integration registries via `Storage.register` and `Integrations.register`.
 
 ### Fixed
 
 - OpenAI Responses stream parsing now reads final usage from completed response events.
 - Incomplete price entries now return unknown pricing instead of raising `TypeError`.
+- Retention pruning now keeps ActiveRecord period rollups in sync when deleting rows inside active budget windows.
 
 ## [0.5.2] - 2026-04-27
 

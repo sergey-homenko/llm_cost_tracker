@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "bigdecimal"
+
 module LlmCostTracker
   module Storage
     class ActiveRecordRollups
@@ -24,6 +26,15 @@ module LlmCostTracker
             record_timestamps: true,
             unique_by: unique_by(model, %i[period period_start])
           )
+        end
+
+        def decrement!(call_rows)
+          return unless period_totals_enabled?
+
+          totals = period_decrement_totals(call_rows)
+          return if totals.empty?
+
+          apply_decrements(totals)
         end
 
         def monthly_total(time: Time.now.utc)
@@ -55,6 +66,37 @@ module LlmCostTracker
               total_cost: event.cost.total_cost
             }
           end
+        end
+
+        def period_decrement_totals(call_rows)
+          call_rows.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |row, totals|
+            _id, tracked_at, total_cost = row
+            next unless total_cost
+
+            PERIODS.each_key do |period|
+              totals[[period, bucket_for(period, tracked_at)]] += decimal(total_cost)
+            end
+          end
+        end
+
+        def apply_decrements(totals)
+          model = period_total_model
+          now = Time.now.utc
+
+          totals.each do |(period, period_start), amount|
+            row = model.lock.find_by(period: PERIODS.fetch(period), period_start: period_start)
+            next unless row
+
+            row.update_columns(total_cost: decremented_total(row.total_cost, amount), updated_at: now)
+          end
+        end
+
+        def decremented_total(current, amount)
+          [decimal(current) - amount, BigDecimal("0")].max
+        end
+
+        def decimal(value)
+          BigDecimal(value.to_s)
         end
 
         def rollup_period_totals(periods, time)

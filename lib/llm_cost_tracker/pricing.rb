@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "pricing/lookup"
+require_relative "pricing/effective_prices"
 require_relative "pricing/explainer"
 
 module LlmCostTracker
@@ -52,37 +53,15 @@ module LlmCostTracker
       private
 
       def calculate_costs(usage, prices, pricing_mode:)
-        costs = {
-          input: token_cost(usage.input_tokens, price_for(prices, :input, pricing_mode)),
-          cache_read_input: token_cost(
-            usage.cache_read_input_tokens,
-            price_for(prices, :cache_read_input, pricing_mode) || price_for(prices, :input, pricing_mode)
-          ),
-          cache_write_input: token_cost(
-            usage.cache_write_input_tokens,
-            price_for(prices, :cache_write_input, pricing_mode) || price_for(prices, :input, pricing_mode)
-          ),
-          output: token_cost(usage.output_tokens, price_for(prices, :output, pricing_mode))
+        effective = EffectivePrices.call(usage: usage, prices: prices, pricing_mode: pricing_mode)
+        return nil unless effective.complete?
+
+        {
+          input: token_cost(usage.input_tokens, effective.input),
+          cache_read_input: token_cost(usage.cache_read_input_tokens, effective.cache_read_input),
+          cache_write_input: token_cost(usage.cache_write_input_tokens, effective.cache_write_input),
+          output: token_cost(usage.output_tokens, effective.output)
         }
-        return nil if costs.value?(nil)
-
-        costs
-      end
-
-      def price_for(prices, key, pricing_mode)
-        mode = normalized_pricing_mode(pricing_mode)
-        return prices[key] unless mode
-
-        prices[:"#{mode}_#{key}"] || prices[key]
-      end
-
-      def normalized_pricing_mode(value)
-        return nil if value.nil?
-
-        mode = value.to_s.strip
-        return nil if mode.empty? || mode == "standard"
-
-        mode
       end
 
       def token_cost(tokens, per_million_price)

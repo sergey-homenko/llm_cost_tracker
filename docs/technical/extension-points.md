@@ -31,6 +31,11 @@ Expected integration contract:
 
 SDK integrations belong under `LlmCostTracker::Integrations`. Do not put SDK object-shape handling in parsers, storage, or pricing.
 
+External integrations can register an adapter with
+`LlmCostTracker::Integrations.register(:name, adapter)`. The adapter must
+respond to `install` and `status`, and enabled names are still selected through
+`config.instrument`.
+
 ## OpenAI-Compatible Gateways
 
 Use `config.openai_compatible_providers` when a gateway speaks the OpenAI request and response shape.
@@ -76,6 +81,10 @@ Use `storage_backend = :custom` only when the host app needs to own persistence 
 Custom storage receives a canonical `Event`. Returning `false` tells the tracker not to run budget checks for that event.
 
 ActiveRecord storage is the production path for dashboards and cross-process budgets.
+
+Storage adapters can register with
+`LlmCostTracker::Storage.register(:name, backend)`. A backend must respond to
+`save(event)` and may expose `verify` for capture diagnostics.
 
 ## Dashboard
 

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "effective_prices"
+
 module LlmCostTracker
   module Pricing
     Explanation = Data.define(
@@ -44,8 +46,9 @@ module LlmCostTracker
 
         def explanation(provider, model, pricing_mode, match, usage)
           prices = match&.prices
-          effective = prices && usage ? effective_prices(usage, prices, pricing_mode) : {}
-          missing = prices && usage ? missing_price_keys(effective) : []
+          effective = if prices && usage
+                        EffectivePrices.call(usage: usage, prices: prices, pricing_mode: pricing_mode)
+                      end
 
           Explanation.new(
             provider.to_s,
@@ -55,37 +58,9 @@ module LlmCostTracker
             match&.key,
             match&.matched_by,
             prices,
-            effective,
-            missing
+            effective ? effective.to_h : {},
+            effective ? effective.missing_keys : []
           )
-        end
-
-        def effective_prices(usage, prices, pricing_mode)
-          {
-            input: price_for_usage(usage.input_tokens, prices, :input, pricing_mode),
-            cache_read_input: price_for_cache_usage(usage.cache_read_input_tokens, prices, :cache_read_input,
-                                                    pricing_mode),
-            cache_write_input: price_for_cache_usage(usage.cache_write_input_tokens, prices, :cache_write_input,
-                                                     pricing_mode),
-            output: price_for_usage(usage.output_tokens, prices, :output, pricing_mode)
-          }
-        end
-
-        def price_for_cache_usage(tokens, prices, key, pricing_mode)
-          return 0.0 unless tokens.positive?
-
-          price_for(prices, key, pricing_mode) || price_for(prices, :input, pricing_mode)
-        end
-
-        def price_for_usage(tokens, prices, key, pricing_mode)
-          tokens.positive? ? price_for(prices, key, pricing_mode) : 0.0
-        end
-
-        def price_for(prices, key, pricing_mode)
-          mode = normalized_pricing_mode(pricing_mode)
-          return prices[key] unless mode
-
-          prices[:"#{mode}_#{key}"] || prices[key]
         end
 
         def normalized_pricing_mode(value)
@@ -95,10 +70,6 @@ module LlmCostTracker
           return nil if mode.empty? || mode == "standard"
 
           mode
-        end
-
-        def missing_price_keys(effective)
-          effective.filter_map { |key, value| key if value.nil? }
         end
       end
     end

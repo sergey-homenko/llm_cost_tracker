@@ -4,10 +4,12 @@ require_relative "errors"
 require_relative "tag_key"
 require_relative "value_helpers"
 require_relative "configuration/instrumentation"
+require_relative "configuration/storage_backend"
 
 module LlmCostTracker
   class Configuration
     include ConfigurationInstrumentation
+    include ConfigurationStorageBackend
 
     OPENAI_COMPATIBLE_PROVIDERS = { "openrouter.ai" => "openrouter", "api.deepseek.com" => "deepseek" }.freeze
 
@@ -18,7 +20,6 @@ module LlmCostTracker
     SHARED_SCALAR_ATTRIBUTES = %i[enabled custom_storage on_budget_exceeded monthly_budget daily_budget per_call_budget
                                   log_level prices_file max_tag_count max_tag_value_bytesize].freeze
     SHARED_ENUM_ATTRIBUTES = {
-      storage_backend: [STORAGE_BACKENDS, :log],
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
       storage_error_behavior: [STORAGE_ERROR_BEHAVIORS, :warn],
       unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn]

@@ -54,5 +54,6 @@ RSpec.configure do |config|
     Rails.logger = nil if defined?(Rails) && Rails.respond_to?(:logger=)
     LlmCostTracker.reset_configuration!
     LlmCostTracker::Parsers::Registry.reset!
+    LlmCostTracker::Integrations::Registry.reset!
   end
 end

@@ -54,7 +54,33 @@ module LlmCostTracker
           ActiveRecordRollups.period_totals(periods, time: time)
         end
 
+        def prune(cutoff:, batch_size:)
+          deleted = 0
+          loop do
+            batch = prune_batch(cutoff, batch_size)
+            deleted += batch
+            break if batch < batch_size
+          end
+          deleted
+        end
+
         private
+
+        def prune_batch(cutoff, batch_size)
+          LlmCostTracker::LlmApiCall.transaction do
+            rows = LlmCostTracker::LlmApiCall
+                   .where(tracked_at: ...cutoff)
+                   .order(:id)
+                   .limit(batch_size)
+                   .lock
+                   .pluck(:id, :tracked_at, :total_cost)
+            next 0 if rows.empty?
+
+            deleted = LlmCostTracker::LlmApiCall.where(id: rows.map(&:first)).delete_all
+            ActiveRecordRollups.decrement!(rows) if deleted.positive?
+            deleted
+          end
+        end
 
         def stringify_tags(tags)
           tags.transform_keys(&:to_s).transform_values { |value| stringify_tag_value(value) }

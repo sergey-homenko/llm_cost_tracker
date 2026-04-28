@@ -84,13 +84,22 @@ RSpec.describe LlmCostTracker::Storage::Dispatcher do
       expect { described_class.save(event) }.to raise_error(error)
     end
 
-    it "wraps ActiveRecord store load failures through storage error handling" do
-      hide_const("LlmCostTracker::Storage::ActiveRecordStore")
-      allow(described_class).to receive(:require_relative).and_call_original
-      allow(described_class)
-        .to receive(:require_relative)
-        .with("active_record_store")
-        .and_raise(LoadError, "missing active_record")
+    it "uses registered storage backends" do
+      backend = Class.new do
+        def self.save(event)
+          event.with(usage_source: "registered")
+        end
+      end
+      LlmCostTracker::Storage.register(:registered, backend)
+      LlmCostTracker.configure { |config| config.storage_backend = :registered }
+
+      expect(described_class.save(event).usage_source).to eq("registered")
+    end
+
+    it "wraps ActiveRecord backend failures through storage error handling" do
+      allow(LlmCostTracker::Storage::ActiveRecordBackend)
+        .to receive(:save)
+        .and_raise(LlmCostTracker::Error, "ActiveRecord storage requires the active_record gem")
       LlmCostTracker.configure do |config|
         config.storage_backend = :active_record
         config.storage_error_behavior = :raise

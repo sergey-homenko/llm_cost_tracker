@@ -33,6 +33,10 @@ forever:
 DAYS=90 bin/rails llm_cost_tracker:prune
 ```
 
+When ActiveRecord period rollups are installed, pruning decrements the
+affected daily and monthly buckets in the same batch transaction as the ledger
+delete.
+
 ## Data Shape
 
 Tags are JSONB with a GIN index on PostgreSQL and JSON text elsewhere. The
