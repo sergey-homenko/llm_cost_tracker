@@ -3,3 +3,4 @@ set -euo pipefail
 
 bundle exec rubocop
 bundle exec rspec
+bundle exec ruby bin/coverage

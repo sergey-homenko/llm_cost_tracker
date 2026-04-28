@@ -1,0 +1,311 @@
+#!/usr/bin/env ruby
+
+require "open3"
+
+class CoverageGate
+  DEFAULT_PATHS = %w[app lib].freeze
+
+  def self.call
+    new.call
+  end
+
+  def call
+    report = LcovReport.new(lcov_path)
+    base = coverage_base
+    patch = PatchCoverage.new(report, base, coverage_paths)
+    failures = []
+
+    failures << project_failure(report) if report.percent < project_minimum
+    failures << patch_failure(patch) if patch.total.positive? && patch.percent < patch_minimum
+    failures.concat(missing_report_failures(patch))
+
+    print_summary(report, patch, failures)
+    exit(failures.empty? ? 0 : 1)
+  end
+
+  private
+
+  def lcov_path
+    ENV.fetch("LCOV_PATH", "coverage/lcov.info")
+  end
+
+  def project_minimum
+    Float(ENV.fetch("PROJECT_COVERAGE_MIN", "89.33"))
+  end
+
+  def patch_minimum
+    Float(ENV.fetch("PATCH_COVERAGE_MIN", "95.0"))
+  end
+
+  def coverage_paths
+    ENV.fetch("COVERAGE_PATHS", DEFAULT_PATHS.join(" ")).split
+  end
+
+  def coverage_base
+    ENV["COVERAGE_BASE"] || Git.coverage_base
+  end
+
+  def project_failure(report)
+    "Project coverage #{percent(report.percent)} is below #{percent(project_minimum)}"
+  end
+
+  def patch_failure(patch)
+    "Patch coverage #{percent(patch.percent)} is below #{percent(patch_minimum)}"
+  end
+
+  def print_summary(report, patch, failures)
+    puts "Coverage gate"
+    project_ratio = "#{report.covered_lines}/#{report.total_lines}"
+    puts "Project: #{percent(report.percent)} (#{project_ratio}), minimum #{percent(project_minimum)}"
+    print_patch_summary(patch)
+    print_file_rows(patch)
+    print_missing_reports(patch)
+    print_failures(failures)
+  end
+
+  def print_patch_summary(patch)
+    if patch.total.zero?
+      puts "Patch: no executable changed lines for base #{patch.base}"
+    else
+      patch_ratio = "#{patch.covered}/#{patch.total}"
+      puts "Patch: #{percent(patch.percent)} (#{patch_ratio}), minimum #{percent(patch_minimum)}, base #{patch.base}"
+    end
+  end
+
+  def print_file_rows(patch)
+    return if patch.rows.empty?
+
+    puts "Lowest patch files:"
+    patch.rows.sort_by(&:percent).first(10).each do |row|
+      puts "  #{percent(row.percent).rjust(7)} #{row.covered}/#{row.total} #{row.path}"
+    end
+  end
+
+  def print_missing_reports(patch)
+    return if patch.missing_reports.empty?
+
+    puts "Changed Ruby files missing from LCOV:"
+    patch.missing_reports.each { |path| puts "  #{path}" }
+  end
+
+  def print_failures(failures)
+    return if failures.empty?
+
+    puts
+    failures.each { |failure| warn failure }
+  end
+
+  def percent(value)
+    format("%.2f%%", value)
+  end
+
+  def missing_report_failures(patch)
+    return [] unless ENV["STRICT_COVERAGE_REPORTS"] == "true"
+
+    patch.missing_reports.map { |path| "No coverage report for #{path}" }
+  end
+end
+
+class LcovReport
+  attr_reader :covered_lines, :total_lines
+
+  def initialize(path)
+    abort "Missing coverage report: #{path}" unless File.exist?(path)
+
+    @files = Hash.new { |hash, key| hash[key] = {} }
+    @covered_lines = 0
+    @total_lines = 0
+    parse(path)
+  end
+
+  def percent
+    return 100.0 if total_lines.zero?
+
+    covered_lines * 100.0 / total_lines
+  end
+
+  def report_for?(path)
+    @files.key?(path)
+  end
+
+  def executable?(path, line)
+    @files[path].key?(line)
+  end
+
+  def covered?(path, line)
+    @files[path][line].positive?
+  end
+
+  private
+
+  def parse(path)
+    current_file = nil
+
+    File.foreach(path) do |raw_line|
+      line = raw_line.strip
+      current_file = source_file(line) if line.start_with?("SF:")
+      parse_line_data(current_file, line) if current_file && line.start_with?("DA:")
+    end
+  end
+
+  def source_file(line)
+    line.split(":", 2).last.sub(%r{\A#{Regexp.escape(Dir.pwd)}/}, "").sub(%r{\A\./}, "")
+  end
+
+  def parse_line_data(current_file, line)
+    line_number, hits = line.split(":", 2).last.split(",", 2)
+    @files[current_file][line_number.to_i] = hits.to_i
+    @total_lines += 1
+    @covered_lines += 1 if hits.to_i.positive?
+  end
+end
+
+class PatchCoverage
+  Row = Data.define(:path, :covered, :total) do
+    def percent
+      covered * 100.0 / total
+    end
+  end
+
+  attr_reader :base, :covered, :total, :rows, :missing_reports
+
+  def initialize(report, base, paths)
+    @report = report
+    @base = base
+    @paths = paths
+    @covered = 0
+    @total = 0
+    @rows = []
+    @missing_reports = []
+    calculate
+  end
+
+  def percent
+    return 100.0 if total.zero?
+
+    covered * 100.0 / total
+  end
+
+  private
+
+  def calculate
+    ChangedLines.new(base, @paths).each do |path, lines|
+      if report_missing?(path)
+        missing_reports << path
+        next
+      end
+
+      add_file(path, lines)
+    end
+  end
+
+  def report_missing?(path)
+    path.end_with?(".rb") && !@report.report_for?(path)
+  end
+
+  def add_file(path, lines)
+    covered = 0
+    total = 0
+
+    lines.each do |line|
+      next unless @report.executable?(path, line)
+
+      total += 1
+      covered += 1 if @report.covered?(path, line)
+    end
+
+    add_row(path, covered, total)
+  end
+
+  def add_row(path, covered, total)
+    return if total.zero?
+
+    @covered += covered
+    @total += total
+    @rows << Row.new(path, covered, total)
+  end
+end
+
+class ChangedLines
+  include Enumerable
+
+  def initialize(base, paths)
+    @base = base
+    @paths = paths
+  end
+
+  def each(&)
+    return enum_for(:each) unless block_given?
+
+    lines_by_path.each(&)
+  end
+
+  private
+
+  def lines_by_path
+    current_path = nil
+    next_line = nil
+    result = Hash.new { |hash, key| hash[key] = [] }
+
+    diff.each_line do |line|
+      current_path = parse_path(line) || current_path
+      next_line = parse_hunk_start(line) || next_line
+      next_line = parse_added_line(result, current_path, next_line, line)
+    end
+
+    result
+  end
+
+  def diff
+    Git.capture("diff", "--unified=0", @base, "--", *@paths)
+  end
+
+  def parse_path(line)
+    return unless line.start_with?("+++ b/")
+
+    path = line.delete_prefix("+++ b/").strip
+    path == File::NULL ? nil : path
+  end
+
+  def parse_hunk_start(line)
+    match = line.match(/\A@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/)
+    match && match[1].to_i
+  end
+
+  def parse_added_line(result, current_path, next_line, line)
+    return next_line unless current_path && next_line
+    return next_line if line.start_with?("\\")
+    return next_line + 1 if record_added_line?(result, current_path, next_line, line)
+    return next_line if line.start_with?("-")
+
+    next_line + 1
+  end
+
+  def record_added_line?(result, current_path, next_line, line)
+    return false unless line.start_with?("+") && !line.start_with?("+++")
+
+    result[current_path] << next_line
+    true
+  end
+end
+
+class Git
+  def self.coverage_base
+    upstream = capture("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}", allow_failure: true).strip
+    return "HEAD" if upstream.empty?
+
+    merge_base = capture("merge-base", upstream, "HEAD").strip
+    head = capture("rev-parse", "HEAD").strip
+    merge_base == head ? "HEAD" : merge_base
+  end
+
+  def self.capture(*, allow_failure: false)
+    stdout, stderr, status = Open3.capture3("git", *)
+    return stdout if status.success?
+    return "" if allow_failure
+
+    abort stderr
+  end
+end
+
+CoverageGate.call

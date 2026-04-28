@@ -68,6 +68,10 @@ The middleware should collect enough data to parse final usage while bounding me
 
 ## Release Checks
 
-Run `bin/check` before committing code changes intended for release. It is the local equivalent of the release workflow checks and includes full RuboCop plus full RSpec.
+Run `bin/check` before committing code changes intended for release. It includes full RuboCop, full RSpec, project coverage, and patch coverage for the current diff.
+
+Project coverage defaults to the Codecov target. Patch coverage defaults to 95% so local checks stay stricter than Codecov parser differences. Thresholds can be adjusted locally with `PROJECT_COVERAGE_MIN`, `PATCH_COVERAGE_MIN`, or `COVERAGE_BASE`.
+
+For the closest match to the Codecov upload job, run `BUNDLE_GEMFILE=gemfiles/rails_8_1.gemfile bin/check`.
 
 Docs-only changes do not require the full suite, but any code, generator, migration, parser, pricing, dashboard, or storage change does.

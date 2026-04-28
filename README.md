@@ -274,7 +274,7 @@ is still brief.
 
 ```bash
 bundle install
-bin/check       # rubocop + rspec
+bin/check       # rubocop + rspec + coverage gate
 ```
 
 Architecture rules and conventions for contributions live in [`AGENTS.md`](AGENTS.md) and [`docs/architecture.md`](docs/architecture.md).

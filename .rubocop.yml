@@ -14,6 +14,14 @@ Style/Documentation:
 Style/StringLiterals:
   EnforcedStyle: double_quotes
 
+Style/FrozenStringLiteralComment:
+  Exclude:
+    - "bin/coverage"
+
+Style/OneClassPerFile:
+  Exclude:
+    - "bin/coverage"
+
 Metrics/BlockLength:
   Exclude:
     - "*.gemspec"
