@@ -67,89 +67,7 @@ RSpec.describe "concurrency", :aggregate_failures do
     end
   end
 
-  describe LlmCostTracker::Parsers::Registry do
-    it "stays consistent when register! and lookups run concurrently" do
-      parser_class = Class.new(LlmCostTracker::Parsers::Base) do
-        def provider_names
-          %w[concurrent_parser]
-        end
-
-        def match?(_url)
-          false
-        end
-
-        def parse(*)
-          nil
-        end
-      end
-
-      lookup_threads = Array.new(8) do
-        Thread.new do
-          200.times { described_class.find_for_provider("openai_compatible") }
-        end
-      end
-
-      register_threads = Array.new(8) do
-        Thread.new do
-          10.times { described_class.register(parser_class.new) }
-        end
-      end
-
-      (lookup_threads + register_threads).each(&:join)
-
-      expect(described_class.find_for_provider("openai_compatible")).to be_a(LlmCostTracker::Parsers::OpenaiCompatible)
-      expect(described_class.find_for_provider("concurrent_parser")).to be_a(parser_class)
-    end
-  end
-
-  describe LlmCostTracker::Integrations::Registry do
-    it "serves immutable snapshots while integrations register concurrently" do
-      integration = Class.new do
-        def self.install; end
-
-        def self.status
-          LlmCostTracker::Integrations::Base::Result.new(:concurrent_sdk, :ok, "installed")
-        end
-      end
-      errors = Queue.new
-
-      readers = Array.new(8) do
-        Thread.new do
-          200.times do
-            described_class.fetch(:openai)
-            described_class.names
-          end
-        rescue StandardError => e
-          errors << e
-        end
-      end
-
-      writers = Array.new(4) do |i|
-        Thread.new do
-          25.times { |j| described_class.register(:"concurrent_sdk_#{i}_#{j}", integration) }
-        rescue StandardError => e
-          errors << e
-        end
-      end
-
-      (readers + writers).each(&:join)
-
-      collected_errors = []
-      collected_errors << errors.pop until errors.empty?
-      expect(collected_errors).to be_empty
-      expect(described_class.fetch("concurrent_sdk_0_0")).to eq(integration)
-    end
-  end
-
   describe LlmCostTracker::Configuration do
-    it "returns one shared instance under concurrent first access" do
-      LlmCostTracker.instance_variable_set(:@configuration, nil)
-
-      results = Array.new(16) { Thread.new { LlmCostTracker.configuration } }.map(&:value)
-
-      expect(results.uniq.size).to eq(1)
-    end
-
     it "freezes mutable state after configure returns" do
       LlmCostTracker.configure do |config|
         config.default_tags = { env: "test" }
@@ -175,6 +93,9 @@ RSpec.describe "concurrency", :aggregate_failures do
       LlmCostTracker.configure { |config| config.report_tag_breakdowns = [:env, "feature.name"] }
 
       expect(LlmCostTracker.configuration.report_tag_breakdowns).to eq(%w[env feature.name])
+    end
+
+    it "rejects invalid report tag breakdown keys during configuration" do
       expect do
         LlmCostTracker.configure { |config| config.report_tag_breakdowns = ["feature; DROP"] }
       end.to raise_error(LlmCostTracker::Error, /invalid tag key/)
@@ -224,14 +145,14 @@ RSpec.describe "concurrency", :aggregate_failures do
       end.to raise_error(NoMethodError)
     end
 
-    it "allows a later configure block to replace frozen shared state" do
+    it "rejects repeated configuration after finalization" do
       LlmCostTracker.configure { |config| config.default_tags = { env: "test" } }
 
       expect do
         LlmCostTracker.configure { |config| config.default_tags = { env: "prod" } }
-      end.not_to raise_error
+      end.to raise_error(LlmCostTracker::Error, /already configured/)
 
-      expect(LlmCostTracker.configuration.default_tags).to eq(env: "prod")
+      expect(LlmCostTracker.configuration.default_tags).to eq(env: "test")
     end
 
     it "serves a consistent snapshot to many concurrent readers" do

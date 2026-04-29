@@ -1,8 +1,8 @@
 # Extending LLM Cost Tracker
 
-Extensions belong at clear boundaries: parsers for response shapes, integrations
-for SDK hooks, pricing files for rates, and notifications for apps that need to
-observe captured events.
+Extensions belong at clear boundaries: OpenAI-compatible host mappings, pricing
+files for rates, notifications, and explicit tracking calls for unsupported
+response shapes.
 
 The practical extension guide is moving here from the README. The lower-level
 contracts already live in the technical extension reference.
@@ -17,15 +17,16 @@ Until this page is expanded, use:
 
 ## Extension Points
 
-- Custom parser: translate a provider response into `ParsedUsage`.
 - OpenAI-compatible host: register the host-to-provider mapping.
 - Notifications subscriber: observe `llm_request.llm_cost_tracker`.
 - Local price file: model gateway IDs, contract rates, or unsupported models.
+- Explicit tracking: call `LlmCostTracker.track` / `track_stream` when a provider response shape is not built in.
 
-## Parser Boundary
+## Provider Boundary
 
-A parser matches request URLs, translates provider response shapes into
-`ParsedUsage`, and returns `nil` when the response is outside its contract.
+Built-in parsers match supported request URLs, translate known provider response
+shapes into `ParsedUsage`, and return `nil` when the response is outside their
+contract.
 
-Do provider-specific translation at this boundary. Keep `Tracker`, storage,
-dashboard, and pricing in canonical ledger terms.
+Keep provider-specific translation outside storage, dashboard, and pricing. Use
+canonical ledger terms when calling `track` directly.

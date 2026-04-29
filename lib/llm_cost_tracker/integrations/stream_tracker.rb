@@ -2,7 +2,6 @@
 
 require "active_support/core_ext/object/deep_dup"
 require "active_support/core_ext/object/try"
-require "monitor"
 
 require_relative "../logging"
 require_relative "../stream_collector"
@@ -20,7 +19,7 @@ module LlmCostTracker
         @finish = finish || proc { |errored:| @collector.finish!(errored: errored) }
         @finished = false
         @capture_failed = false
-        @monitor = Monitor.new
+        @mutex = Mutex.new
       end
 
       def wrap
@@ -126,7 +125,7 @@ module LlmCostTracker
       end
 
       def warn_capture_failure(error)
-        should_warn = @monitor.synchronize do
+        should_warn = @mutex.synchronize do
           next false if @capture_failed
 
           @capture_failed = true
@@ -138,7 +137,7 @@ module LlmCostTracker
       end
 
       def finish!(errored:)
-        should_finish = @monitor.synchronize do
+        should_finish = @mutex.synchronize do
           next false if @finished
 
           @finished = true

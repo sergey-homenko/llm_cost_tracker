@@ -16,7 +16,7 @@ module LlmCostTracker
     def normalize_instrumentation_names(names)
       names.flatten.flat_map do |name|
         key = name.to_sym
-        next Integrations::Registry.names if key == :all
+        next Integrations.names if key == :all
 
         validate_instrumentation_name!(key)
         key
@@ -24,10 +24,10 @@ module LlmCostTracker
     end
 
     def validate_instrumentation_name!(name)
-      return if Integrations::Registry.names.include?(name)
+      return if Integrations.names.include?(name)
 
       raise Error, "Unknown integration: #{name.inspect}. " \
-                   "Use one of: #{Integrations::Registry.names.join(', ')}"
+                   "Use one of: #{Integrations.names.join(', ')}"
     end
   end
 end

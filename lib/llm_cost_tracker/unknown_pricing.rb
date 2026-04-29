@@ -1,12 +1,10 @@
 # frozen_string_literal: true
 
-require "monitor"
-
 require_relative "logging"
 
 module LlmCostTracker
   class UnknownPricing
-    MUTEX = Monitor.new
+    MUTEX = Mutex.new
 
     class << self
       def handle!(model)

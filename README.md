@@ -232,7 +232,7 @@ Auth is your job. Examples for basic auth and Devise: [`docs/dashboard.md`](docs
 | OpenRouter | Yes | OpenAI-compatible usage; provider-prefixed model IDs are normalized |
 | DeepSeek | Yes | OpenAI-compatible usage; add `pricing_overrides` for DeepSeek-specific rates |
 | Other OpenAI-compatible hosts | Configurable | Register the host via `config.openai_compatible_providers` |
-| Anything else | Configurable | Custom parser — see [`docs/extending.md`](docs/extending.md) |
+| Anything else | Manual | Use `LlmCostTracker.track` / `track_stream` |
 
 RubyLLM chat, embedding, and transcription calls are captured through RubyLLM's provider layer when `config.instrument :ruby_llm` is enabled.
 

@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "json"
-require "monitor"
 require "yaml"
 
 require_relative "logging"
@@ -13,17 +12,23 @@ module LlmCostTracker
     PRICE_KEYS = %w[input output cache_read_input cache_write_input].freeze
     METADATA_KEYS = %w[_source _source_version _fetched_at _updated _notes _validator_override].freeze
     MAX_FILE_BYTES = 2_097_152
-    MUTEX = Monitor.new
+    MUTEX = Mutex.new
 
     class << self
       def builtin_prices
-        @builtin_prices ||= MUTEX.synchronize do
-          @builtin_prices || normalize_price_table(raw_registry.fetch("models", {})).freeze
-        end
+        cached = @builtin_prices
+        return cached if cached
+
+        value = normalize_price_table(raw_registry.fetch("models", {})).freeze
+        MUTEX.synchronize { @builtin_prices ||= value }
       end
 
       def metadata
-        @metadata ||= MUTEX.synchronize { @metadata || raw_registry.fetch("metadata", {}).freeze }
+        cached = @metadata
+        return cached if cached
+
+        value = raw_registry.fetch("metadata", {}).freeze
+        MUTEX.synchronize { @metadata ||= value }
       end
 
       def file_metadata(path)
@@ -67,9 +72,10 @@ module LlmCostTracker
       private
 
       def raw_registry
-        @raw_registry ||= MUTEX.synchronize do
-          @raw_registry || JSON.parse(File.read(DEFAULT_PRICES_PATH)).freeze
-        end
+        cached = @raw_registry
+        return cached if cached
+
+        MUTEX.synchronize { @raw_registry ||= JSON.parse(File.read(DEFAULT_PRICES_PATH)).freeze }
       end
 
       def normalize_price_entry(price)

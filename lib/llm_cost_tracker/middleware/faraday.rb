@@ -20,7 +20,7 @@ module LlmCostTracker
 
         request_url  = request_env.url.to_s
         request_body = read_body(request_env.body) || ""
-        parser       = Parsers::Registry.find_for(request_url)
+        parser       = Parsers::Lookup.find_for(request_url)
         streaming    = parser&.streaming_request?(request_url, request_body)
         stream_buffer = install_stream_tap(request_env) if streaming
 

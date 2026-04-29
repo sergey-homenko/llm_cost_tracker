@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - BREAKING: ActiveRecord ledger write failures now raise directly; removed `storage_error_behavior` and `StorageError`.
+- BREAKING: Removed custom SDK integration and parser registration extension points.
 
 ## [0.7.0] - 2026-04-29
 

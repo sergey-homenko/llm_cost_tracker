@@ -8,7 +8,6 @@ require "active_support/core_ext/object/try"
 require "active_support/core_ext/hash/indifferent_access"
 require "active_support/core_ext/string/inflections"
 require "active_support/notifications"
-require "monitor"
 
 require_relative "llm_cost_tracker/version"
 require_relative "llm_cost_tracker/configuration"
@@ -29,9 +28,9 @@ require_relative "llm_cost_tracker/parsers/openai_compatible"
 require_relative "llm_cost_tracker/parsers/anthropic"
 require_relative "llm_cost_tracker/parsers/gemini"
 require_relative "llm_cost_tracker/parsers/sse"
-require_relative "llm_cost_tracker/parsers/registry"
+require_relative "llm_cost_tracker/parsers/lookup"
 require_relative "llm_cost_tracker/middleware/faraday"
-require_relative "llm_cost_tracker/integrations/registry"
+require_relative "llm_cost_tracker/integrations"
 require_relative "llm_cost_tracker/budget"
 require_relative "llm_cost_tracker/unknown_pricing"
 require_relative "llm_cost_tracker/event_metadata"
@@ -58,39 +57,28 @@ require_relative "llm_cost_tracker/doctor"
 require_relative "llm_cost_tracker/capture_verifier"
 
 module LlmCostTracker
-  CONFIGURATION_MUTEX = Monitor.new
+  @configuration = Configuration.new
 
   class << self
-    def configuration
-      CONFIGURATION_MUTEX.synchronize { @configuration ||= Configuration.new }
-    end
-
-    def configuration_generation
-      CONFIGURATION_MUTEX.synchronize { @configuration_generation ||= 0 }
-    end
+    attr_reader :configuration
 
     def configure
-      config = CONFIGURATION_MUTEX.synchronize do
-        current = @configuration || Configuration.new
-        current = current.dup_for_configuration if current.finalized?
-        @configuration = current
-        yield(current)
-        current.openai_compatible_providers = current.openai_compatible_providers.dup
-        current.finalize!
-        @configuration_generation = @configuration_generation.to_i + 1
-        current
-      end
-      Integrations::Registry.install!
+      config = configuration
+      raise Error, "LlmCostTracker is already configured" if config.finalized?
+
+      yield(config)
+      config.openai_compatible_providers = config.openai_compatible_providers.dup
+      config.finalize!
+      Pricing::Lookup.reset!
+      Integrations.install!
       config
     end
 
     def reset_configuration!
       Inbox.reset!
       Ingestor.shutdown!(drain: false)
-      CONFIGURATION_MUTEX.synchronize do
-        @configuration = Configuration.new
-        @configuration_generation = @configuration_generation.to_i + 1
-      end
+      @configuration = Configuration.new
+      Pricing::Lookup.reset!
       UnknownPricing.reset!
       LedgerStore.reset!
       Inbox.reset!

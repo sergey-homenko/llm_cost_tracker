@@ -2,7 +2,6 @@
 
 require "active_support/core_ext/object/blank"
 require "active_support/core_ext/object/deep_dup"
-require "monitor"
 
 require_relative "stream_capture"
 
@@ -23,37 +22,37 @@ module LlmCostTracker
       @explicit_usage = nil
       @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @finished = false
-      @monitor = Monitor.new
+      @mutex = Mutex.new
     end
 
     def model
-      @monitor.synchronize { @model }
+      @mutex.synchronize { @model }
     end
 
     def metadata
-      @monitor.synchronize { @metadata.deep_dup }
+      @mutex.synchronize { @metadata.deep_dup }
     end
 
     def provider_response_id
-      @monitor.synchronize { @provider_response_id }
+      @mutex.synchronize { @provider_response_id }
     end
 
     def model=(value)
-      @monitor.synchronize do
+      @mutex.synchronize do
         ensure_open!
         @model = value
       end
     end
 
     def provider_response_id=(value)
-      @monitor.synchronize do
+      @mutex.synchronize do
         ensure_open!
         @provider_response_id = value
       end
     end
 
     def event(data, type: nil)
-      @monitor.synchronize do
+      @mutex.synchronize do
         ensure_open!
         capture_event(data, type: type) unless data.nil?
       end
@@ -62,7 +61,7 @@ module LlmCostTracker
     alias chunk event
 
     def usage(input_tokens:, output_tokens:, **extra)
-      @monitor.synchronize do
+      @mutex.synchronize do
         ensure_open!
         @explicit_usage = extra.merge(
           input_tokens: input_tokens.to_i,
@@ -73,7 +72,7 @@ module LlmCostTracker
     end
 
     def finish!(errored: false)
-      snapshot = @monitor.synchronize do
+      snapshot = @mutex.synchronize do
         return if @finished
 
         @finished = true
@@ -117,7 +116,7 @@ module LlmCostTracker
       return build_from_explicit_usage(snapshot) if snapshot[:explicit_usage]
       return build_unknown_usage(snapshot) if snapshot[:overflowed]
 
-      parsed = Parsers::Registry.find_for_provider(@provider)&.parse_stream(nil, nil, 200, snapshot[:events])
+      parsed = Parsers::Lookup.find_for_provider(@provider)&.parse_stream(nil, nil, 200, snapshot[:events])
       return finalize(parsed, snapshot) if parsed
 
       build_unknown_usage(snapshot)

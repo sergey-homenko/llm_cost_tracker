@@ -59,7 +59,7 @@ module LlmCostTracker
     end
 
     def integration_checks
-      LlmCostTracker::Integrations::Registry.checks.map do |check|
+      LlmCostTracker::Integrations.checks.map do |check|
         Check.new(check.status, check.name.to_s, check.message)
       end
     end

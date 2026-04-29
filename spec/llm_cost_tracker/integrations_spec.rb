@@ -720,7 +720,7 @@ RSpec.describe LlmCostTracker::Integrations do
     install_ruby_llm_fakes(LlmCostTrackerIntegrationSpecTypes::RubyLlmResponse.new(input_tokens: 1, output_tokens: 1))
     configure_integration(:ruby_llm)
 
-    check = LlmCostTracker::Integrations::Registry.checks([:ruby_llm]).first
+    check = LlmCostTracker::Integrations.checks([:ruby_llm]).first
 
     expect(check.status).to eq(:ok)
     expect(check.message).to eq("ruby_llm integration installed")
@@ -742,7 +742,7 @@ RSpec.describe LlmCostTracker::Integrations do
     stub_const("RubyLLM", Module.new)
     stub_const("RubyLLM::VERSION", "not-a-version")
 
-    check = LlmCostTracker::Integrations::Registry.checks([:ruby_llm]).first
+    check = LlmCostTracker::Integrations.checks([:ruby_llm]).first
 
     expect(check.status).to eq(:warn)
     expect(check.message).to include("ruby_llm >= 1.14.1 is required, but ruby_llm is not loaded")
@@ -803,7 +803,7 @@ RSpec.describe LlmCostTracker::Integrations do
     )
     install_openai_fakes(response)
     configure_integration(:openai)
-    LlmCostTracker::Integrations::Registry.install!
+    LlmCostTracker::Integrations.install!
 
     capture_events do |events|
       OpenAI::Resources::Responses.new.create(model: "gpt-4o")
@@ -813,7 +813,7 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   it "reports missing enabled SDK integrations in doctor" do
-    expect(LlmCostTracker::Integrations::Registry.checks([:anthropic]).first.message)
+    expect(LlmCostTracker::Integrations.checks([:anthropic]).first.message)
       .to include("anthropic integration cannot be installed")
   end
 
@@ -826,29 +826,6 @@ RSpec.describe LlmCostTracker::Integrations do
 
     expect(LlmCostTracker.configuration.instrumented_integrations).to eq(%i[openai anthropic ruby_llm])
     expect { LlmCostTracker.configuration.instrumented_integrations << :gemini }.to raise_error(FrozenError)
-  end
-
-  it "allows registering custom integrations" do
-    integration = Class.new do
-      class << self
-        attr_reader :installed
-
-        def install
-          @installed = true
-        end
-
-        def status
-          LlmCostTracker::Integrations::Base::Result.new(:custom_sdk, :ok, "custom_sdk integration installed")
-        end
-      end
-    end
-
-    LlmCostTracker::Integrations::Registry.register(:custom_sdk, integration)
-    LlmCostTracker.configure { |config| config.instrument :custom_sdk }
-
-    expect(integration.installed).to be true
-    expect(LlmCostTracker::Integrations::Registry.checks([:custom_sdk]).first)
-      .to have_attributes(status: :ok, name: :custom_sdk)
   end
 
   it "rejects unknown integrations" do

@@ -37,19 +37,29 @@ RSpec.describe LlmCostTracker::CaptureVerifier do
   end
 
   it "reports enabled SDK integration checks" do
-    integration = Class.new do
-      def self.install = nil
+    stub_const("OpenAI", Module.new)
+    stub_const("OpenAI::VERSION", "0.59.0")
+    stub_const("OpenAI::Resources", Module.new)
+    stub_const("OpenAI::Resources::Chat", Module.new)
+    stub_const("OpenAI::Resources::Responses", Class.new do
+      def create(**); end
 
-      def self.status
-        LlmCostTracker::Integrations::Base::Result.new(:custom_sdk, :ok, "custom_sdk integration installed")
-      end
-    end
+      def stream(**); end
 
-    LlmCostTracker::Integrations::Registry.register(:custom_sdk, integration)
-    LlmCostTracker.configure { |config| config.instrument :custom_sdk }
+      def stream_raw(**); end
+
+      def retrieve_streaming(*); end
+    end)
+    stub_const("OpenAI::Resources::Chat::Completions", Class.new do
+      def create(**); end
+
+      def stream_raw(**); end
+    end)
+
+    LlmCostTracker.configure { |config| config.instrument :openai }
 
     expect(described_class.call).to include(
-      have_attributes(status: :ok, name: "sdk integration custom_sdk", message: "custom_sdk integration installed")
+      have_attributes(status: :ok, name: "sdk integration openai", message: "openai integration installed")
     )
   end
 

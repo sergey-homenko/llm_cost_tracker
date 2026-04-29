@@ -2,20 +2,6 @@
 
 Extensions should plug into existing provider-agnostic boundaries. If a new feature needs a provider-specific branch outside ingestion code, revisit the design first.
 
-## Custom Parsers
-
-Use parser registration when a provider or gateway has a response shape the built-ins do not cover.
-
-Expected parser contract:
-
-- `match?(url)` detects supported request URLs.
-- `parse(request_url, request_body, response_status, response_body)` returns `ParsedUsage` or `nil`.
-- `parse_stream(request_url, request_body, response_status, events)` returns `ParsedUsage` or `nil`.
-- `streaming_request?(request_url, request_body)` detects streaming requests when the provider does not use a simple `stream: true` field.
-- `provider_names` returns provider names that can be used by `track_stream(provider: ...)`.
-
-Use `Parsers::Base` helpers for URL matching and stream-event extraction. Use `Parsers::OpenaiUsage` only for OpenAI-shaped usage hashes.
-
 ## SDK Integrations
 
 Use SDK integrations when a popular Ruby client does not expose a Faraday middleware stack but returns stable usage objects. RubyLLM and the official `openai` and `anthropic` gems qualify. Faraday-based clients that expose a middleware hook, such as `ruby-openai`'s constructor block, are covered by the Faraday middleware instead. Clients with no stable hook must use the explicit `track` / `track_stream` fallback until an integration exists.
@@ -31,16 +17,13 @@ Expected integration contract:
 
 SDK integrations belong under `LlmCostTracker::Integrations`. Do not put SDK object-shape handling in parsers, storage, or pricing.
 
-External integrations can register an adapter with
-`LlmCostTracker::Integrations::Registry.register(:name, adapter)`. The adapter must
-respond to `install` and `status`, and enabled names are still selected through
-`config.instrument`.
-
 ## OpenAI-Compatible Gateways
 
 Use `config.openai_compatible_providers` when a gateway speaks the OpenAI request and response shape.
 
 This is for shape compatibility, not pricing. Gateway-specific model IDs or discounts belong in `prices_file` or `pricing_overrides`.
+
+Providers or gateways with non-compatible response shapes should use explicit `LlmCostTracker.track` / `track_stream` calls until a built-in parser exists.
 
 ## Prices
 

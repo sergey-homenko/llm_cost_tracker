@@ -108,24 +108,6 @@ module LlmCostTracker
       @finalized
     end
 
-    def dup_for_configuration
-      copy = dup
-      copy.instance_variable_set(:@default_tags, (@default_tags || {}).deep_dup)
-      copy.instance_variable_set(:@pricing_overrides, (@pricing_overrides || {}).deep_dup)
-      copy.instance_variable_set(
-        :@instrumented_integrations,
-        (@instrumented_integrations || []).deep_dup
-      )
-      copy.instance_variable_set(:@report_tag_breakdowns, (@report_tag_breakdowns || []).deep_dup)
-      copy.instance_variable_set(:@redacted_tag_keys, (@redacted_tag_keys || []).deep_dup)
-      copy.instance_variable_set(
-        :@openai_compatible_providers,
-        (@openai_compatible_providers || {}).deep_dup
-      )
-      copy.instance_variable_set(:@finalized, false)
-      copy
-    end
-
     private
 
     def normalize_enum(name, value, allowed, default:)
