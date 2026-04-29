@@ -6,6 +6,7 @@ require "tmpdir"
 require "yaml"
 
 require "llm_cost_tracker/price_registry"
+require "llm_cost_tracker/generators/llm_cost_tracker/add_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 
 RSpec.describe "generator templates" do
@@ -21,6 +22,8 @@ RSpec.describe "generator templates" do
   it "creates JSONB tags and a GIN index for PostgreSQL installs" do
     migration = template("create_llm_api_calls.rb.erb")
 
+    expect(migration).to include("require \"llm_cost_tracker/active_record_adapter\"")
+    expect(migration).to include("t.string  :event_id")
     expect(migration).to include("precision: 20, scale: 8")
     expect(migration).to include("t.integer :latency_ms")
     expect(migration).to include("t.integer :cache_read_input_tokens")
@@ -35,16 +38,22 @@ RSpec.describe "generator templates" do
     expect(migration).to include("t.jsonb :tags")
     expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin if postgresql?")
     expect(migration).to include("create_table :llm_cost_tracker_period_totals")
+    expect(migration).to include("create_table :llm_cost_tracker_inbox_events")
+    expect(migration).to include("create_table :llm_cost_tracker_ingestor_leases")
     expect(migration).to include("add_index :llm_cost_tracker_period_totals, [:period, :period_start], unique: true")
+    expect(migration).to include("add_index :llm_api_calls, :event_id, unique: true")
+    expect(migration).to include("add_index :llm_cost_tracker_inbox_events, :event_id, unique: true")
+    expect(migration).to include("add_index :llm_cost_tracker_ingestor_leases, :name, unique: true")
     expect(migration).to include("add_index :llm_api_calls, :tracked_at")
     expect(migration).to include("add_index :llm_api_calls, [:provider, :tracked_at]")
     expect(migration).to include("add_index :llm_api_calls, [:model, :tracked_at]")
-    expect(migration).to include("add_index :llm_api_calls, :stream")
-    expect(migration).to include("add_index :llm_api_calls, :usage_source")
+    expect(migration).not_to include("add_index :llm_api_calls, :stream")
+    expect(migration).not_to include("add_index :llm_api_calls, :usage_source")
     expect(migration).to include("add_index :llm_api_calls, :provider_response_id")
     expect(migration).not_to match(/add_index :llm_api_calls, :provider$/)
     expect(migration).not_to match(/add_index :llm_api_calls, :model$/)
     expect(migration).to include("t.text :tags")
+    expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)")
   end
 
   it "provides a complete initializer template" do
@@ -97,8 +106,35 @@ RSpec.describe "generator templates" do
     expect(migration).to include("SUM(total_cost)")
     expect(migration).to include("DATE_TRUNC('day', tracked_at)::date")
     expect(migration).to include("DATE_TRUNC('month', tracked_at)::date")
+    expect(migration).to include("require \"llm_cost_tracker/active_record_adapter\"")
+    expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)")
+    expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.mysql?(connection)")
     expect(migration).to include("DATE(tracked_at)")
     expect(migration).to include("date(tracked_at)")
+  end
+
+  it "provides a durable ingestion upgrade migration" do
+    migration = template("add_ingestion_to_llm_cost_tracker.rb.erb")
+
+    expect(migration).to include("class AddIngestionToLlmCostTracker")
+    expect(migration).to include("add_column :llm_api_calls, :event_id")
+    expect(migration).to include("add_index :llm_api_calls, :event_id, unique: true")
+    expect(migration).to include("create_table :llm_cost_tracker_inbox_events")
+    expect(migration).to include("create_table :llm_cost_tracker_ingestor_leases")
+    expect(migration).to include("add_index :llm_cost_tracker_inbox_events, :event_id, unique: true")
+    expect(migration).to include("add_index :llm_cost_tracker_ingestor_leases, :name, unique: true")
+    expect(migration).not_to include("t.string   :provider, null: false")
+    expect(migration).not_to include("t.string   :model, null: false")
+  end
+
+  it "generates a durable ingestion migration" do
+    Dir.mktmpdir do |dir|
+      LlmCostTracker::Generators::AddIngestionGenerator.start([], destination_root: dir)
+      paths = Dir[File.join(dir, "db/migrate/*add_ingestion_to_llm_cost_tracker.rb")]
+
+      expect(paths.size).to eq(1)
+      expect(File.read(paths.first)).to include("class AddIngestionToLlmCostTracker")
+    end
   end
 
   it "provides a streaming upgrade migration" do
@@ -107,6 +143,7 @@ RSpec.describe "generator templates" do
     expect(migration).to include("class AddStreamingToLlmApiCalls")
     expect(migration).to include("add_column :llm_api_calls, :stream, :boolean")
     expect(migration).to include("add_column :llm_api_calls, :usage_source, :string")
+    expect(migration).not_to include("add_index")
     expect(migration).to include("remove_column :llm_api_calls, :stream")
     expect(migration).to include("remove_column :llm_api_calls, :usage_source")
   end
@@ -149,6 +186,7 @@ RSpec.describe "generator templates" do
     expect(migration).to include("using: \"CASE WHEN tags IS NULL")
     expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin")
     expect(migration).to include("rewrites the table on PostgreSQL")
+    expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)")
   end
 
   it "generates a local prices snapshot from bundled prices" do

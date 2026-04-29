@@ -16,6 +16,7 @@ RSpec.describe LlmCostTracker::Storage::Dispatcher do
 
   let(:event) do
     LlmCostTracker::Event.new(
+      event_id: "evt_test",
       provider: "openai",
       model: "gpt-4o",
       input_tokens: 10,

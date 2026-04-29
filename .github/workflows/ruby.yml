@@ -54,3 +54,66 @@ jobs:
         bundler-cache: true
     - name: Run RuboCop
       run: bundle exec rubocop
+
+  database-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.3
+        env:
+          POSTGRES_USER: lct
+          POSTGRES_PASSWORD: lct
+          POSTGRES_DB: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U lct -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: lct
+          MYSQL_DATABASE: llm_cost_tracker_mysql_smoke
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd "mysqladmin ping -uroot -plct --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: PostgreSQL
+            adapter: postgresql
+            port: 55432
+            username: lct
+            password: lct
+            admin_database: postgres
+          - name: MySQL
+            adapter: trilogy
+            port: 3307
+            username: root
+            password: lct
+            admin_database: mysql
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/smoke.gemfile
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.4'
+        bundler-cache: true
+    - name: Run ${{ matrix.name }} smoke
+      run: bundle exec ruby -Ilib scripts/active_record_database_smoke.rb
+      env:
+        LCT_SMOKE_ADAPTER: ${{ matrix.adapter }}
+        LCT_SMOKE_HOST: 127.0.0.1
+        LCT_SMOKE_PORT: ${{ matrix.port }}
+        LCT_SMOKE_USERNAME: ${{ matrix.username }}
+        LCT_SMOKE_PASSWORD: ${{ matrix.password }}
+        LCT_SMOKE_ADMIN_DATABASE: ${{ matrix.admin_database }}

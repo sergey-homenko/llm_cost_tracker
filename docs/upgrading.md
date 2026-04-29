@@ -20,6 +20,7 @@ Existing installs can add newer optional columns through focused generators:
 
 ```bash
 bin/rails generate llm_cost_tracker:add_period_totals
+bin/rails generate llm_cost_tracker:add_ingestion
 bin/rails generate llm_cost_tracker:add_streaming
 bin/rails generate llm_cost_tracker:add_provider_response_id
 bin/rails generate llm_cost_tracker:add_usage_breakdown

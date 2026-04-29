@@ -20,6 +20,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     end
 
     LlmCostTracker::LlmApiCall.reset_column_information
+    LlmCostTracker::Storage::ActiveRecordRollups.reset!
   end
 
   def create_call(**overrides)
@@ -393,8 +394,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "aggregates total cost, calls, average cost, latency, and budget status" do
       allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 16, 0, 0, 0))
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
-      create_call(total_cost: 2.0, latency_ms: 100)
-      create_call(total_cost: 4.0, latency_ms: 300)
+      create_call(total_cost: 2.0, latency_ms: 100, tracked_at: Time.utc(2026, 4, 15, 12))
+      create_call(total_cost: 4.0, latency_ms: 300, tracked_at: Time.utc(2026, 4, 15, 13))
 
       stats = described_class.call
 
@@ -407,6 +408,18 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.monthly_budget_status[:projected_percent_used]).to be_within(0.01).of(120.0)
       expect(stats.monthly_budget_status[:projected_delta]).to be_within(0.01).of(2.0)
       expect(stats.monthly_budget_status[:projection_end_label]).to eq("Apr 30")
+    end
+
+    it "reads monthly budget status from maintained storage totals" do
+      now = Time.utc(2026, 4, 16, 0, 0, 0)
+      allow(Time).to receive(:now).and_return(now)
+      allow(LlmCostTracker::Storage::ActiveRecordStore).to receive(:monthly_total).and_return(7.5)
+      LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
+
+      stats = described_class.call
+
+      expect(LlmCostTracker::Storage::ActiveRecordStore).to have_received(:monthly_total).with(time: now)
+      expect(stats.monthly_budget_status).to include(spent: 7.5, percent_used: 75.0)
     end
 
     it "omits average latency when the column is unavailable" do
@@ -808,30 +821,32 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(rows.size).to eq(1)
     end
 
-    it "uses JSON_TABLE-based discovery on MySQL" do
+    it "uses JSON_TABLE-based discovery on MySQL-family adapters" do
       create_call(tags: { env: "prod", service: "api" })
       create_call(tags: { env: "staging" })
 
-      connection = LlmCostTracker::LlmApiCall.connection
-      captured_sql = nil
+      %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
+        connection = LlmCostTracker::LlmApiCall.connection
+        captured_sql = nil
 
-      allow(connection).to receive(:adapter_name).and_return("Mysql2")
-      allow(connection).to receive(:select_all) do |sql|
-        captured_sql = sql
-        ActiveRecord::Result.new(
-          %w[key calls_count distinct_values],
-          [["env", 2, 2], ["service", 1, 1]]
-        )
+        allow(connection).to receive(:adapter_name).and_return(adapter_name)
+        allow(connection).to receive(:select_all) do |sql|
+          captured_sql = sql
+          ActiveRecord::Result.new(
+            %w[key calls_count distinct_values],
+            [["env", 2, 2], ["service", 1, 1]]
+          )
+        end
+
+        rows = described_class.call
+
+        expect(captured_sql).to include("JSON_TABLE")
+        expect(captured_sql).to include("JSON_KEYS")
+        expect(captured_sql).to include("LIMIT 100")
+        expect(rows.map(&:key)).to eq(%w[env service])
+        expect(rows.first.calls_count).to eq(2)
+        expect(rows.first.distinct_values).to eq(2)
       end
-
-      rows = described_class.call
-
-      expect(captured_sql).to include("JSON_TABLE")
-      expect(captured_sql).to include("JSON_KEYS")
-      expect(captured_sql).to include("LIMIT 100")
-      expect(rows.map(&:key)).to eq(%w[env service])
-      expect(rows.first.calls_count).to eq(2)
-      expect(rows.first.distinct_values).to eq(2)
     end
   end
 end

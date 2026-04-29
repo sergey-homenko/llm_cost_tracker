@@ -3,6 +3,8 @@
 require "securerandom"
 
 require_relative "registry"
+require_relative "active_record_inbox"
+require_relative "active_record_ingestor"
 require_relative "active_record_store"
 
 module LlmCostTracker
@@ -14,7 +16,11 @@ module LlmCostTracker
         def save(event)
           require_relative "../llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
 
-          ActiveRecordStore.save(event)
+          if ActiveRecordInbox.enabled?
+            ActiveRecordInbox.save(event)
+          else
+            ActiveRecordStore.save(event)
+          end
           event
         rescue LoadError => e
           raise Error, "ActiveRecord storage requires the active_record gem: #{e.message}"
@@ -49,6 +55,8 @@ module LlmCostTracker
         private
 
         def active_record_capture_check
+          return active_record_inbox_capture_check if ActiveRecordInbox.enabled?
+
           provider, model = sample_priced_identity
           response_id = "lct_verify_#{SecureRandom.hex(8)}"
           notifications = []
@@ -81,17 +89,51 @@ module LlmCostTracker
           ActiveSupport::Notifications.unsubscribe(subscription) if subscription
         end
 
+        def active_record_inbox_capture_check
+          provider, model = sample_priced_identity
+          response_id = "lct_verify_#{SecureRandom.hex(8)}"
+          notifications = []
+          subscription = subscribe_to_verification(response_id, notifications)
+
+          event = LlmCostTracker.track(
+            provider: provider,
+            model: model,
+            input_tokens: 1,
+            output_tokens: 1,
+            provider_response_id: response_id,
+            feature: VERIFY_TAG
+          )
+          LlmCostTracker.flush!
+          persisted = LlmCostTracker::LlmApiCall.where(provider_response_id: response_id).exists?
+
+          if persisted && notifications.any?
+            return active_record_capture_success("manual event emitted and persisted through durable inbox")
+          end
+
+          VerificationResult.new(:error, "active_record capture", capture_failure_message(persisted, notifications))
+        rescue LlmCostTracker::BudgetExceededError => e
+          VerificationResult.new(:error, "active_record capture", "blocked by budget guardrail: #{e.message}")
+        rescue LlmCostTracker::Error => e
+          VerificationResult.new(:error, "active_record capture", e.message)
+        rescue StandardError => e
+          VerificationResult.new(:error, "active_record capture", "#{e.class}: #{e.message}")
+        ensure
+          cleanup_verification_call(response_id) if response_id
+          LlmCostTracker::InboxEvent.where(event_id: event.event_id).delete_all if event
+          ActiveSupport::Notifications.unsubscribe(subscription) if subscription
+        end
+
         def subscribe_to_verification(response_id, notifications)
           ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
             notifications << payload if payload[:provider_response_id] == response_id
           end
         end
 
-        def active_record_capture_success
+        def active_record_capture_success(message = "manual event emitted and persisted inside rollback")
           VerificationResult.new(
             :ok,
             "active_record capture",
-            "manual event emitted and persisted inside rollback"
+            message
           )
         end
 
@@ -100,6 +142,15 @@ module LlmCostTracker
           missing << "notification" if notifications.empty?
           missing << "persisted row" unless persisted
           "missing #{missing.join(' and ')} for synthetic manual event"
+        end
+
+        def cleanup_verification_call(response_id)
+          relation = LlmCostTracker::LlmApiCall.where(provider_response_id: response_id)
+          rows = relation.pluck(:id, :tracked_at, :total_cost)
+          return if rows.empty?
+
+          relation.delete_all
+          ActiveRecordRollups.decrement!(rows)
         end
 
         def sample_priced_identity

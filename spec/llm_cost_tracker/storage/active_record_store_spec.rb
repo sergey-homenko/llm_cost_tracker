@@ -241,6 +241,35 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(received_rows.map { |row| row[:period] }).to contain_exactly("month", "day")
   end
 
+  it "qualifies PostgreSQL rollup upsert totals" do
+    connection = double(adapter_name: "PostgreSQL")
+    allow(connection).to receive(:quote_column_name) { |name| %("#{name}") }
+    model = double(
+      connection: connection,
+      quoted_table_name: %("llm_cost_tracker_period_totals")
+    )
+
+    sql = LlmCostTracker::Storage::ActiveRecordRollupUpsertSql.call(model).to_s
+
+    expect(sql).to include(%("total_cost" = "llm_cost_tracker_period_totals"."total_cost" + excluded."total_cost"))
+    expect(sql).to include(%("updated_at" = excluded."updated_at"))
+  end
+
+  it "treats MySQL-family adapters consistently for rollup upserts" do
+    %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
+      connection = double(adapter_name: adapter_name)
+      model = double(
+        connection: connection,
+        table_name: "llm_cost_tracker_period_totals"
+      )
+
+      sql = LlmCostTracker::Storage::ActiveRecordRollupUpsertSql.call(model).to_s
+
+      expect(sql).to include("VALUES(total_cost)")
+      expect(sql).not_to include("excluded")
+    end
+  end
+
   it "keeps daily budget rollups in sync" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
@@ -510,16 +539,18 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(month_sql).to include("'YYYY-MM'")
   end
 
-  it "builds MySQL period grouping SQL" do
-    allow(llm_api_call_model.connection).to receive(:adapter_name).and_return("Mysql2")
+  it "builds MySQL-family period grouping SQL" do
+    %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
+      allow(llm_api_call_model.connection).to receive(:adapter_name).and_return(adapter_name)
 
-    day_sql = llm_api_call_model.group_by_period(:day).to_sql
-    month_sql = llm_api_call_model.group_by_period(:month).to_sql
+      day_sql = llm_api_call_model.group_by_period(:day).to_sql
+      month_sql = llm_api_call_model.group_by_period(:month).to_sql
 
-    expect(day_sql).to include("DATE_FORMAT")
-    expect(day_sql).to include("'%Y-%m-%d'")
-    expect(month_sql).to include("DATE_FORMAT")
-    expect(month_sql).to include("'%Y-%m'")
+      expect(day_sql).to include("DATE_FORMAT")
+      expect(day_sql).to include("'%Y-%m-%d'")
+      expect(month_sql).to include("DATE_FORMAT")
+      expect(month_sql).to include("'%Y-%m'")
+    end
   end
 
   it "composes period grouping with other scopes" do
@@ -740,6 +771,16 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(llm_api_call_model.tags_json_column?).to be false
   end
 
+  it "detects Trilogy JSON tag columns as MySQL JSON" do
+    column = double(type: :json, sql_type: "json")
+
+    %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
+      capabilities = llm_api_call_model.send(:build_lct_schema_capabilities, { "tags" => column }, adapter_name)
+
+      expect(capabilities.fetch(:tags_mysql_json)).to be true
+    end
+  end
+
   it "builds a JSONB containment query for PostgreSQL JSONB tag columns" do
     allow(llm_api_call_model).to receive_messages(tags_json_column?: true, tags_jsonb_column?: true,
                                                   tags_mysql_json_column?: false)
@@ -758,6 +799,18 @@ RSpec.describe "ActiveRecord storage integration" do
 
     expect(sql).to include("JSON_CONTAINS(tags,")
     expect(sql).to include('{"user_id":"42","feature":"chat"}')
+  end
+
+  it "builds MySQL-family tag value SQL" do
+    %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
+      allow(llm_api_call_model.connection).to receive(:adapter_name).and_return(adapter_name)
+      allow(llm_api_call_model).to receive(:tags_jsonb_column?).and_return(false)
+
+      sql = llm_api_call_model.tag_value_expression("user_id")
+
+      expect(sql).to include("JSON_UNQUOTE(JSON_EXTRACT")
+      expect(sql).to include(%('$."user_id"'))
+    end
   end
 
   it "does not double-count the latest event in budget callbacks" do

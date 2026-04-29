@@ -4,7 +4,7 @@ LlmCostTracker.configure do |config|
   # Set to false to temporarily disable tracking without removing middleware.
   config.enabled = true
 
-  # :active_record stores events in llm_api_calls for dashboards, reports, and shared budgets.
+  # :active_record captures events into a durable inbox and ingests them into llm_api_calls.
   # Other options: :log for local logging, :custom for your own storage callable.
   config.storage_backend = :active_record
 

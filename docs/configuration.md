@@ -21,7 +21,7 @@ Until this page is expanded, use:
 
 This page is scoped to:
 
-- `storage_backend`: `:log`, `:active_record`, and `:custom`
+- `storage_backend`: `:log`, `:active_record`, and `:custom`; ActiveRecord capture uses a durable inbox when the ingestion migration is present
 - `default_tags`: static tags and per-request callable tags
 - `instrument`: RubyLLM and official SDK integrations
 - `prices_file` and `pricing_overrides`

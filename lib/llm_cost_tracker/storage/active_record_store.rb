@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "active_record_inbox"
+require_relative "active_record_period_totals"
 require_relative "active_record_rollups"
 
 module LlmCostTracker
@@ -11,8 +13,33 @@ module LlmCostTracker
         end
 
         def save(event)
-          tags = stringify_tags(event.tags || {})
           model = LlmCostTracker::LlmApiCall
+          attributes = attributes_for(event, model)
+
+          model.transaction do
+            call = model.create!(attributes)
+            ActiveRecordRollups.increment!(event)
+            call
+          end
+        end
+
+        def insert_many(events)
+          events = Array(events)
+          return [] if events.empty?
+
+          model = LlmCostTracker::LlmApiCall
+          insertable = new_events(model, events)
+
+          if insertable.any?
+            rows = insertable.map { |event| attributes_for(event, model) }
+            model.insert_all!(rows, **insert_options)
+            ActiveRecordRollups.increment_many!(insertable)
+          end
+          events
+        end
+
+        def attributes_for(event, model = LlmCostTracker::LlmApiCall)
+          tags = stringify_tags(event.tags || {})
           columns = model.columns_hash
 
           attributes = {
@@ -27,6 +54,7 @@ module LlmCostTracker
             tags:          tags_for_storage(tags, model),
             tracked_at:    event.tracked_at
           }
+          attributes[:event_id] = event.event_id if columns.key?("event_id")
           optional_attributes(event).each do |name, value|
             attributes[name] = value if columns.key?(name.to_s)
           end
@@ -35,23 +63,19 @@ module LlmCostTracker
           attributes[:usage_source] = event.usage_source if columns.key?("usage_source")
           attributes[:provider_response_id] = event.provider_response_id if columns.key?("provider_response_id")
 
-          model.transaction do
-            call = model.create!(attributes)
-            ActiveRecordRollups.increment!(event)
-            call
-          end
+          attributes
         end
 
         def monthly_total(time: Time.now.utc)
-          ActiveRecordRollups.monthly_total(time: time)
+          period_totals(%i[monthly], time: time).fetch(:monthly)
         end
 
         def daily_total(time: Time.now.utc)
-          ActiveRecordRollups.daily_total(time: time)
+          period_totals(%i[daily], time: time).fetch(:daily)
         end
 
         def period_totals(periods, time: Time.now.utc)
-          ActiveRecordRollups.period_totals(periods, time: time)
+          ActiveRecordPeriodTotals.call(periods, time: time)
         end
 
         def prune(cutoff:, batch_size:)
@@ -65,6 +89,15 @@ module LlmCostTracker
         end
 
         private
+
+        def new_events(model, events)
+          return events unless model.columns_hash.key?("event_id")
+
+          existing_ids = model.where(event_id: events.map(&:event_id)).pluck(:event_id).to_set
+          events.reject { |event| existing_ids.include?(event.event_id) }
+        end
+
+        def insert_options = { record_timestamps: true, returning: false }
 
         def prune_batch(cutoff, batch_size)
           LlmCostTracker::LlmApiCall.transaction do

@@ -31,6 +31,7 @@ require_relative "llm_cost_tracker/unknown_pricing"
 require_relative "llm_cost_tracker/event_metadata"
 require_relative "llm_cost_tracker/tag_context"
 require_relative "llm_cost_tracker/tag_sanitizer"
+require_relative "llm_cost_tracker/active_record_adapter"
 require_relative "llm_cost_tracker/tags_column"
 require_relative "llm_cost_tracker/tag_key"
 require_relative "llm_cost_tracker/tag_sql"
@@ -68,10 +69,34 @@ module LlmCostTracker
     end
 
     def reset_configuration!
+      Storage::ActiveRecordInbox.reset! if defined?(Storage::ActiveRecordInbox)
+      Storage::ActiveRecordIngestor.shutdown!(drain: false) if defined?(Storage::ActiveRecordIngestor)
       CONFIGURATION_MUTEX.synchronize { @configuration = Configuration.new }
       UnknownPricing.reset! if defined?(UnknownPricing)
       Storage::ActiveRecordStore.reset! if defined?(Storage::ActiveRecordStore)
+      Storage::ActiveRecordInbox.reset! if defined?(Storage::ActiveRecordInbox)
+      Storage::ActiveRecordIngestor.reset! if defined?(Storage::ActiveRecordIngestor)
       TagContext.clear! if defined?(TagContext)
+    end
+
+    def flush!(timeout: nil)
+      return true unless defined?(Storage::ActiveRecordIngestor)
+
+      if timeout
+        Storage::ActiveRecordIngestor.flush!(timeout: timeout)
+      else
+        Storage::ActiveRecordIngestor.flush!
+      end
+    end
+
+    def shutdown!(timeout: nil, drain: true)
+      return true unless defined?(Storage::ActiveRecordIngestor)
+
+      if timeout
+        Storage::ActiveRecordIngestor.shutdown!(timeout: timeout, drain: drain)
+      else
+        Storage::ActiveRecordIngestor.shutdown!(drain: drain)
+      end
     end
 
     def enforce_budget!
@@ -140,3 +165,5 @@ if defined?(Faraday)
     llm_cost_tracker: LlmCostTracker::Middleware::Faraday
   )
 end
+
+at_exit { LlmCostTracker.shutdown!(drain: false) if defined?(LlmCostTracker) }

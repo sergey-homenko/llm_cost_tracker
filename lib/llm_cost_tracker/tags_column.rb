@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "active_record_adapter"
+
 module LlmCostTracker
   module TagsColumn
     USAGE_BREAKDOWN_COLUMNS = %w[
@@ -79,7 +81,11 @@ module LlmCostTracker
     def build_lct_schema_capabilities(columns, adapter_name)
       tag_column = columns["tags"]
       tags_jsonb = tag_column && (tag_column.type == :jsonb || tag_column.sql_type.to_s.downcase == "jsonb")
-      tags_mysql_json = tag_column && !tags_jsonb && tag_column.type == :json && adapter_name.match?(/mysql/i)
+      tags_mysql_json =
+        tag_column &&
+        !tags_jsonb &&
+        tag_column.type == :json &&
+        ActiveRecordAdapter.mysql?(adapter_name)
 
       {
         tags_jsonb: tags_jsonb ? true : false,

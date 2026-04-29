@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "active_record_adapter"
+
 module LlmCostTracker
   module PeriodGrouping
     PERIOD_FORMATS = {
@@ -34,10 +36,9 @@ module LlmCostTracker
       column = period_column_expression(column)
       formats = PERIOD_FORMATS.fetch(period)
 
-      case connection.adapter_name
-      when /postgres/i
+      if ActiveRecordAdapter.postgresql?(connection)
         postgres_period_expression(period, column, formats)
-      when /mysql/i
+      elsif ActiveRecordAdapter.mysql?(connection)
         "DATE_FORMAT(#{column}, #{connection.quote(formats.fetch(:mysql))})"
       else
         "strftime(#{connection.quote(formats.fetch(:sqlite))}, #{column})"

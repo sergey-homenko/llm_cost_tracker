@@ -1,6 +1,9 @@
+require "llm_cost_tracker/active_record_adapter"
+
 class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
   def change
     create_table :llm_api_calls do |t|
+      t.string  :event_id,      null: false
       t.string  :provider,      null: false
       t.string  :model,         null: false
       t.integer :input_tokens,  null: false, default: 0
@@ -37,19 +40,43 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
       t.timestamps
     end
 
+    create_table :llm_cost_tracker_inbox_events do |t|
+      t.string   :event_id, null: false
+      t.decimal  :total_cost, precision: 20, scale: 8
+      t.datetime :tracked_at, null: false
+      t.text     :payload, null: false
+      t.datetime :locked_at
+      t.string   :locked_by
+      t.integer  :attempts, null: false, default: 0
+      t.text     :last_error
+
+      t.timestamps
+    end
+
+    create_table :llm_cost_tracker_ingestor_leases do |t|
+      t.string   :name, null: false
+      t.string   :locked_by
+      t.datetime :locked_until
+
+      t.timestamps
+    end
+
+    add_index :llm_api_calls, :event_id, unique: true
     add_index :llm_api_calls, :tracked_at
     add_index :llm_api_calls, [:provider, :tracked_at]
     add_index :llm_api_calls, [:model, :tracked_at]
-    add_index :llm_api_calls, :stream
-    add_index :llm_api_calls, :usage_source
     add_index :llm_api_calls, :provider_response_id
     add_index :llm_api_calls, :tags, using: :gin if postgresql?
     add_index :llm_cost_tracker_period_totals, [:period, :period_start], unique: true
+    add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
+    add_index :llm_cost_tracker_inbox_events, :tracked_at
+    add_index :llm_cost_tracker_inbox_events, [:locked_at, :id]
+    add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
   end
 
   private
 
   def postgresql?
-    connection.adapter_name.downcase.include?("postgres")
+    LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)
   end
 end

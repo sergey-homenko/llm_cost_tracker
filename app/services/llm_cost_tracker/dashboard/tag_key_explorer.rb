@@ -42,11 +42,10 @@ module LlmCostTracker
       end
 
       def build_sql
-        case connection.adapter_name
-        when /postgres/i then postgresql_sql
-        when /mysql/i    then mysql_sql
-        else                  sqlite_sql
-        end
+        return postgresql_sql if ActiveRecordAdapter.postgresql?(connection)
+        return mysql_sql if ActiveRecordAdapter.mysql?(connection)
+
+        sqlite_sql
       end
 
       def mysql_sql

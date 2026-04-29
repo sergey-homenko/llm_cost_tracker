@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "active_record_adapter"
 require_relative "tag_key"
 
 module LlmCostTracker
@@ -9,11 +10,10 @@ module LlmCostTracker
         key = TagKey.validate!(key)
         column = "#{table_name}.#{model.connection.quote_column_name('tags')}"
 
-        case model.connection.adapter_name
-        when /postgres/i
+        if ActiveRecordAdapter.postgresql?(model.connection)
           json_column = model.tags_jsonb_column? ? column : "(#{column})::jsonb"
           "#{json_column}->>#{model.connection.quote(key)}"
-        when /mysql/i
+        elsif ActiveRecordAdapter.mysql?(model.connection)
           "JSON_UNQUOTE(JSON_EXTRACT(#{column}, #{model.connection.quote(json_path(key))}))"
         else
           "json_extract(#{column}, #{model.connection.quote(json_path(key))})"

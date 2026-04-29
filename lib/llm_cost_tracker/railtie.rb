@@ -3,6 +3,7 @@
 module LlmCostTracker
   class Railtie < Rails::Railtie
     generators do
+      require_relative "generators/llm_cost_tracker/add_ingestion_generator"
       require_relative "generators/llm_cost_tracker/add_period_totals_generator"
       require_relative "generators/llm_cost_tracker/add_latency_ms_generator"
       require_relative "generators/llm_cost_tracker/add_provider_response_id_generator"

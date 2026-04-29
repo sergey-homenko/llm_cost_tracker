@@ -1,3 +1,5 @@
+require "llm_cost_tracker/active_record_adapter"
+
 class AddPeriodTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_version %>
   def up
     create_table :llm_cost_tracker_period_totals do |t|
@@ -73,10 +75,9 @@ class AddPeriodTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_ver
   end
 
   def day_bucket_sql
-    case connection.adapter_name
-    when /postgres/i
+    if postgresql?
       "DATE_TRUNC('day', tracked_at)::date"
-    when /mysql/i
+    elsif mysql?
       "DATE(tracked_at)"
     else
       "date(tracked_at)"
@@ -84,13 +85,20 @@ class AddPeriodTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_ver
   end
 
   def month_bucket_sql
-    case connection.adapter_name
-    when /postgres/i
+    if postgresql?
       "DATE_TRUNC('month', tracked_at)::date"
-    when /mysql/i
+    elsif mysql?
       "DATE_FORMAT(tracked_at, '%Y-%m-01')"
     else
       "strftime('%Y-%m-01', tracked_at)"
     end
+  end
+
+  def postgresql?
+    LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)
+  end
+
+  def mysql?
+    LlmCostTracker::ActiveRecordAdapter.mysql?(connection)
   end
 end

@@ -2,6 +2,7 @@
 
 require_relative "price_freshness"
 require_relative "doctor/capture_check"
+require_relative "doctor/ingestion_check"
 
 module LlmCostTracker
   class Doctor
@@ -45,6 +46,7 @@ module LlmCostTracker
         table_check,
         column_check,
         period_totals_check,
+        IngestionCheck.call(Check),
         prices_check,
         calls_check
       ].compact

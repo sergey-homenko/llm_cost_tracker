@@ -1,3 +1,5 @@
+require "llm_cost_tracker/active_record_adapter"
+
 class UpgradeLlmApiCallTagsToJsonb < ActiveRecord::Migration<%= migration_version %>
   def up
     unless postgresql?
@@ -32,7 +34,7 @@ class UpgradeLlmApiCallTagsToJsonb < ActiveRecord::Migration<%= migration_versio
   private
 
   def postgresql?
-    connection.adapter_name.downcase.include?("postgres")
+    LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)
   end
 
   def tags_jsonb?

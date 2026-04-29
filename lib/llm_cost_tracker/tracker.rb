@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "securerandom"
+
 require_relative "storage/dispatcher"
 
 module LlmCostTracker
@@ -74,6 +76,7 @@ module LlmCostTracker
       def build_event(provider:, model:, usage:, cost_data:, metadata:, latency_ms:, stream:, usage_source:,
                       provider_response_id:)
         Event.new(
+          event_id: SecureRandom.uuid,
           provider: provider,
           model: model,
           input_tokens: usage[:input_tokens],

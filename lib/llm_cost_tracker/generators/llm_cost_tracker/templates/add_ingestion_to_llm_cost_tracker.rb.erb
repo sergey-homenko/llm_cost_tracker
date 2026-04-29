@@ -1,0 +1,33 @@
+class AddIngestionToLlmCostTracker < ActiveRecord::Migration<%= migration_version %>
+  def change
+    add_column :llm_api_calls, :event_id, :string unless column_exists?(:llm_api_calls, :event_id)
+    add_index :llm_api_calls, :event_id, unique: true if column_exists?(:llm_api_calls, :event_id) &&
+                                                         !index_exists?(:llm_api_calls, :event_id)
+
+    create_table :llm_cost_tracker_inbox_events do |t|
+      t.string   :event_id, null: false
+      t.decimal  :total_cost, precision: 20, scale: 8
+      t.datetime :tracked_at, null: false
+      t.text     :payload, null: false
+      t.datetime :locked_at
+      t.string   :locked_by
+      t.integer  :attempts, null: false, default: 0
+      t.text     :last_error
+
+      t.timestamps
+    end unless table_exists?(:llm_cost_tracker_inbox_events)
+
+    create_table :llm_cost_tracker_ingestor_leases do |t|
+      t.string   :name, null: false
+      t.string   :locked_by
+      t.datetime :locked_until
+
+      t.timestamps
+    end unless table_exists?(:llm_cost_tracker_ingestor_leases)
+
+    add_index :llm_cost_tracker_inbox_events, :event_id, unique: true unless index_exists?(:llm_cost_tracker_inbox_events, :event_id)
+    add_index :llm_cost_tracker_inbox_events, :tracked_at unless index_exists?(:llm_cost_tracker_inbox_events, :tracked_at)
+    add_index :llm_cost_tracker_inbox_events, [:locked_at, :id] unless index_exists?(:llm_cost_tracker_inbox_events, [:locked_at, :id])
+    add_index :llm_cost_tracker_ingestor_leases, :name, unique: true unless index_exists?(:llm_cost_tracker_ingestor_leases, :name)
+  end
+end

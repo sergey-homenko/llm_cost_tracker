@@ -18,7 +18,7 @@ Pricing logic should prefer generic mechanisms over provider branches. Use provi
 
 Tags remain the extension point for app-specific attribution such as tenant, user, feature, trace, job, workflow, or agent session. Do not promote those dimensions into first-class columns unless the ledger itself needs them for provider-agnostic billing behavior.
 
-Hot-path guardrails must not aggregate over the growing call ledger. ActiveRecord period budgets should read maintained rows in `llm_cost_tracker_period_totals`; dashboard analytics may run grouped queries because they are user-initiated reporting paths.
+Hot-path guardrails must not aggregate over the growing call ledger. ActiveRecord period budgets should read maintained rows in `llm_cost_tracker_period_totals`; dashboard analytics may run grouped queries because they are user-initiated reporting paths. Do not add dashboard-only aggregate tables until bounded indexed reads from `llm_api_calls` are no longer enough for the supported date range.
 
 ## Technical Docs
 

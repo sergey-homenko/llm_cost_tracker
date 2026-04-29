@@ -2,6 +2,9 @@
 
 require "bigdecimal"
 
+require_relative "active_record_rollup_batch"
+require_relative "active_record_rollup_upsert_sql"
+
 module LlmCostTracker
   module Storage
     class ActiveRecordRollups
@@ -22,7 +25,21 @@ module LlmCostTracker
           model = period_total_model
           model.upsert_all(
             period_rows(event),
-            on_duplicate: total_upsert_sql(model),
+            on_duplicate: ActiveRecordRollupUpsertSql.call(model),
+            record_timestamps: true,
+            unique_by: unique_by(model, %i[period period_start])
+          )
+        end
+
+        def increment_many!(events)
+          events = Array(events).select { |event| event.cost&.total_cost }
+          return if events.empty?
+          return unless period_totals_enabled?
+
+          model = period_total_model
+          model.upsert_all(
+            ActiveRecordRollupBatch.rows(events),
+            on_duplicate: ActiveRecordRollupUpsertSql.call(model),
             record_timestamps: true,
             unique_by: unique_by(model, %i[period period_start])
           )
@@ -35,14 +52,6 @@ module LlmCostTracker
           return if totals.empty?
 
           apply_decrements(totals)
-        end
-
-        def monthly_total(time: Time.now.utc)
-          period_totals(%i[monthly], time: time).fetch(:monthly)
-        end
-
-        def daily_total(time: Time.now.utc)
-          period_totals(%i[daily], time: time).fetch(:daily)
         end
 
         def period_totals(periods, time: Time.now.utc)
@@ -74,7 +83,7 @@ module LlmCostTracker
             next unless total_cost
 
             PERIODS.each_key do |period|
-              totals[[period, bucket_for(period, tracked_at)]] += decimal(total_cost)
+              totals[[period, bucket_for(period, tracked_at)]] += BigDecimal(total_cost.to_s)
             end
           end
         end
@@ -91,13 +100,7 @@ module LlmCostTracker
           end
         end
 
-        def decremented_total(current, amount)
-          [decimal(current) - amount, BigDecimal("0")].max
-        end
-
-        def decimal(value)
-          BigDecimal(value.to_s)
-        end
+        def decremented_total(current, amount) = [BigDecimal(current.to_s) - amount, BigDecimal("0")].max
 
         def rollup_period_totals(periods, time)
           buckets = periods.to_h { |period| [period, bucket_for(period, time)] }
@@ -157,26 +160,6 @@ module LlmCostTracker
           return unless model.connection.supports_insert_conflict_target?
 
           column
-        end
-
-        def total_upsert_sql(model)
-          Arel.sql(case model.connection.adapter_name
-                   when /mysql/i
-                     mysql_upsert_sql(model)
-                   else
-                     "total_cost = total_cost + excluded.total_cost, updated_at = excluded.updated_at"
-                   end)
-        end
-
-        def mysql_upsert_sql(model)
-          connection = model.connection
-          if connection.respond_to?(:supports_insert_raw_alias_syntax?, true) &&
-             connection.send(:supports_insert_raw_alias_syntax?)
-            values_reference = connection.quote_table_name("#{model.table_name}_values")
-            "total_cost = total_cost + #{values_reference}.total_cost, updated_at = #{values_reference}.updated_at"
-          else
-            "total_cost = total_cost + VALUES(total_cost), updated_at = VALUES(updated_at)"
-          end
         end
       end
     end

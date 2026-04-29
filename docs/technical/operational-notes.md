@@ -34,9 +34,19 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets should read `llm_cost_tracker_period_totals` when the table exists. Falling back to summing `llm_api_calls` is an upgrade compatibility path, not the preferred production path.
+Monthly and daily budgets should read `llm_cost_tracker_period_totals` when the table exists and add pending `llm_cost_tracker_inbox_events` totals while durable ingestion is enabled. Falling back to summing `llm_api_calls` is an upgrade compatibility path, not the preferred production path.
+
+The stored period total and pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 
 Per-call budgets are checked from the current event only.
+
+## Durable Ingestion
+
+Inbox writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should fail honestly through `storage_error_behavior` instead of writing into the caller transaction and pretending the event is durable.
+
+Ingestors should claim only retryable rows. Rows that keep failing after the retry cap stay in `llm_cost_tracker_inbox_events` with `last_error` for operator inspection and must not block healthy rows behind them.
+
+Process shutdown should stop the local ingestor thread without forcing every exiting process to drain the shared inbox. Operators can call `LlmCostTracker.flush!` when they intentionally want to wait for the durable inbox to drain.
 
 ## Retention
 
@@ -59,6 +69,8 @@ Dashboard queries can aggregate because they are user-initiated. They should sti
 - single aggregate queries for related counters
 
 Avoid loading ledger rows into Ruby just to count, sum, group, or sort.
+
+The dashboard is not the center of the storage design. Prefer bounded ranges, existing ledger indexes, pagination, and database-side aggregates over new dashboard-specific tables. Add a summary table only when a measured supported dashboard query cannot be made acceptable with the existing ledger and period totals.
 
 ## Streaming
 

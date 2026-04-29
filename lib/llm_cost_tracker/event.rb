@@ -2,6 +2,7 @@
 
 module LlmCostTracker
   Event = Data.define(
+    :event_id,
     :provider,
     :model,
     :input_tokens,

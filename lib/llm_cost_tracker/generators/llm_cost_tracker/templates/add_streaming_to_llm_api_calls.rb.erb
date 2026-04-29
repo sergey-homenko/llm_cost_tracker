@@ -2,23 +2,19 @@ class AddStreamingToLlmApiCalls < ActiveRecord::Migration<%= migration_version %
   def up
     unless column_exists?(:llm_api_calls, :stream)
       add_column :llm_api_calls, :stream, :boolean, null: false, default: false
-      add_index  :llm_api_calls, :stream
     end
 
     unless column_exists?(:llm_api_calls, :usage_source)
       add_column :llm_api_calls, :usage_source, :string
-      add_index  :llm_api_calls, :usage_source
     end
   end
 
   def down
     if column_exists?(:llm_api_calls, :usage_source)
-      remove_index  :llm_api_calls, :usage_source if index_exists?(:llm_api_calls, :usage_source)
       remove_column :llm_api_calls, :usage_source
     end
 
     if column_exists?(:llm_api_calls, :stream)
-      remove_index  :llm_api_calls, :stream if index_exists?(:llm_api_calls, :stream)
       remove_column :llm_api_calls, :stream
     end
   end
