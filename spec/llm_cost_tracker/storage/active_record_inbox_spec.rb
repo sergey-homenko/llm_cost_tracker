@@ -380,6 +380,24 @@ RSpec.describe "ActiveRecord durable inbox" do
     inbox_event_model.delete_all
   end
 
+  it "returns false when flush reaches the timeout during an ingest attempt" do
+    ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    LlmCostTracker.track(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0
+    )
+    allow(ingestor).to receive(:ingest_once) do
+      sleep 0.02
+      0
+    end
+
+    expect(ingestor.flush!(timeout: 0.001)).to be false
+  ensure
+    inbox_event_model.delete_all
+  end
+
   it "starts and stops the ingestor thread lazily" do
     allow(LlmCostTracker::Storage::ActiveRecordIngestor).to receive(:ensure_started).and_wrap_original(&:call)
     llm_api_call_model
@@ -403,6 +421,20 @@ RSpec.describe "ActiveRecord durable inbox" do
     ingestor.ensure_started
   ensure
     ingestor.instance_variable_set(:@thread, nil)
+  end
+
+  it "does not let an old ingestor generation resume after reset" do
+    ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    old_generation = ingestor.send(:next_generation)
+    ingestor.send(:next_generation)
+    ingestor.instance_variable_set(:@stop_requested, false)
+    allow(ingestor).to receive(:claimable_events?).and_return(true)
+    allow(ingestor).to receive(:ingest_once)
+
+    ingestor.send(:run, old_generation)
+
+    expect(ingestor).not_to have_received(:claimable_events?)
+    expect(ingestor).not_to have_received(:ingest_once)
   end
 
   it "verifies and cleans up capture through the durable inbox" do
@@ -537,6 +569,7 @@ RSpec.describe "ActiveRecord durable inbox" do
   it "keeps the ingestor loop alive after transient failures" do
     ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
     calls = 0
+    generation = ingestor.send(:next_generation)
     allow(ingestor).to receive(:sleep)
     allow(LlmCostTracker::Logging).to receive(:warn)
     allow(ActiveRecord::Base.connection_handler).to receive(:clear_active_connections!)
@@ -548,10 +581,25 @@ RSpec.describe "ActiveRecord durable inbox" do
     end
 
     ingestor.instance_variable_set(:@stop_requested, false)
-    ingestor.send(:run)
+    ingestor.send(:run, generation)
 
     expect(calls).to eq(1)
     expect(ActiveRecord::Base.connection_handler).to have_received(:clear_active_connections!).at_least(:once)
+  end
+
+  it "resets the idle interval after a processed batch" do
+    ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    generation = ingestor.send(:next_generation)
+    allow(ingestor).to receive(:claimable_events?).and_return(true)
+    allow(ingestor).to receive(:ingest_once) do
+      ingestor.instance_variable_set(:@stop_requested, true)
+      1
+    end
+
+    ingestor.instance_variable_set(:@stop_requested, false)
+    ingestor.send(:run, generation)
+
+    expect(ingestor).to have_received(:ingest_once)
   end
 
   it "ignores connection cleanup failures" do
@@ -564,22 +612,61 @@ RSpec.describe "ActiveRecord durable inbox" do
 
   it "does not acquire a leader lease while the inbox is empty" do
     ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    generation = ingestor.send(:next_generation)
     allow(ingestor).to receive(:sleep) { ingestor.instance_variable_set(:@stop_requested, true) }
     allow(ingestor).to receive(:claimable_events?).and_return(false)
     allow(ingestor).to receive(:ingest_once)
 
     ingestor.instance_variable_set(:@stop_requested, false)
-    ingestor.send(:run)
+    ingestor.send(:run, generation)
 
     expect(ingestor).not_to have_received(:ingest_once)
   end
 
-  it "ignores failures while marking failed rows" do
-    allow(inbox_event_model).to receive(:where).and_raise("write failed")
+  it "wraps background ingestion work with the Rails executor when available" do
+    ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    generation = ingestor.send(:next_generation)
+    executor = double("executor")
+    application = double("application", executor: executor)
+    stub_const("Rails", double("rails", application: application))
+    allow(executor).to receive(:wrap) { |&block| block.call }
+    allow(ingestor).to receive(:sleep) { ingestor.instance_variable_set(:@stop_requested, true) }
+    allow(ingestor).to receive(:claimable_events?).and_return(false)
+
+    ingestor.instance_variable_set(:@stop_requested, false)
+    ingestor.send(:run, generation)
+
+    expect(executor).to have_received(:wrap)
+  end
+
+  it "keeps running when Rails executor lookup fails" do
+    ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    rails = double("rails")
+    stub_const("Rails", rails)
+    allow(rails).to receive(:respond_to?).with(:application).and_return(true)
+    allow(rails).to receive(:application).and_raise("executor failed")
+    yielded = false
+
+    ingestor.send(:executor_wrap) { yielded = true }
+
+    expect(yielded).to be true
+  end
+
+  it "ignores wakeup races for threads that already stopped" do
+    thread = double("thread", alive?: true)
+    allow(thread).to receive(:wakeup).and_raise(ThreadError)
 
     expect do
-      LlmCostTracker::Storage::ActiveRecordIngestor.send(
-        :mark_failed,
+      LlmCostTracker::Storage::ActiveRecordIngestor.send(:wake_thread, thread)
+    end.not_to raise_error
+  end
+
+  it "ignores failures while marking failed rows" do
+    allow(inbox_event_model).to receive(:where).and_raise("write failed")
+    batch = LlmCostTracker::Storage::ActiveRecordInboxBatch.new(identity: "test")
+
+    expect do
+      batch.mark_failed(
         [instance_double(inbox_event_model, id: 1)],
         RuntimeError.new("boom")
       )

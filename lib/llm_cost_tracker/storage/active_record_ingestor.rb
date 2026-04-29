@@ -26,7 +26,8 @@ module LlmCostTracker
             return if @thread&.alive?
 
             @stop_requested = false
-            @thread = Thread.new { run }
+            generation = next_generation
+            @thread = Thread.new { run(generation) }
             @thread.name = "llm_cost_tracker_ingestor" if @thread.respond_to?(:name=)
             @thread.report_on_exception = false if @thread.respond_to?(:report_on_exception=)
           end
@@ -41,7 +42,7 @@ module LlmCostTracker
             return false if Time.now.utc >= deadline
 
             processed = ingest_once(require_lease: require_lease)
-            sleep([INTERVAL_SECONDS, deadline - Time.now.utc].min) if processed.zero?
+            return false if processed.zero? && !sleep_until_next_flush(deadline)
           end
         end
 
@@ -49,8 +50,10 @@ module LlmCostTracker
           ActiveRecordInbox.reset!
           thread = mutex.synchronize do
             @stop_requested = true
+            next_generation
             @thread
           end
+          wake_thread(thread)
           thread&.join([timeout, 1].min)
           drain ? flush!(timeout: timeout, require_lease: true) : true
         rescue StandardError => e
@@ -61,12 +64,16 @@ module LlmCostTracker
         end
 
         def reset!
-          mutex.synchronize do
+          thread = mutex.synchronize do
             @stop_requested = true
+            next_generation
+            thread = @thread
             @thread = nil
             @pid = nil
             @identity = nil
+            thread
           end
+          wake_thread(thread)
         end
 
         def ingest_once(require_lease: true)
@@ -82,16 +89,14 @@ module LlmCostTracker
 
         private
 
-        def mutex
-          @mutex ||= Mutex.new
-        end
+        def mutex = @mutex ||= Mutex.new
 
-        def run
+        def run(generation)
           idle_interval = IDLE_INTERVAL_SECONDS
           loop do
-            break if stop_requested?
+            break if stop_requested?(generation)
 
-            processed = claimable_events? ? ingest_once : 0
+            processed = executor_wrap { claimable_events? ? ingest_once : 0 }
             ActiveRecordConnectionCleanup.release!
             if processed.zero?
               sleep(idle_interval)
@@ -106,10 +111,16 @@ module LlmCostTracker
           end
         ensure
           ActiveRecordConnectionCleanup.release!
+          mutex.synchronize { @thread = nil if @thread.equal?(Thread.current) }
         end
 
-        def stop_requested?
-          mutex.synchronize { @stop_requested }
+        def sleep_until_next_flush(deadline)
+          duration = [INTERVAL_SECONDS, deadline - Time.now.utc].min
+          sleep(duration) if duration.positive?
+        end
+
+        def stop_requested?(generation)
+          mutex.synchronize { @stop_requested || generation != @generation }
         end
 
         def reset_after_fork!
@@ -120,24 +131,44 @@ module LlmCostTracker
           @identity = nil
         end
 
+        def next_generation
+          @generation = @generation.to_i + 1
+        end
+
+        def wake_thread(thread)
+          thread&.wakeup if thread&.alive?
+        rescue ThreadError
+          nil
+        end
+
+        def executor_wrap(&)
+          executor = rails_executor
+          return yield unless executor
+
+          executor.wrap(&)
+        end
+
+        def rails_executor
+          return unless defined?(Rails) && Rails.respond_to?(:application) && Rails.application.respond_to?(:executor)
+
+          Rails.application.executor
+        rescue StandardError
+          nil
+        end
+
         def identity = @identity ||= "pid-#{Process.pid}-#{SecureRandom.hex(6)}"
 
-        def acquire_lease
-          ActiveRecordIngestorLease.new(identity: identity, seconds: LEASE_SECONDS).acquire
-        end
+        def acquire_lease = ActiveRecordIngestorLease.new(identity: identity, seconds: LEASE_SECONDS).acquire
 
         def pending_events? = inbox_batch.pending?
 
         def claimable_events? = inbox_batch.claimable?
 
-        def mark_failed(rows, error) = inbox_batch.mark_failed(rows, error)
-
         def inbox_batch = ActiveRecordInboxBatch.new(identity: identity)
 
         def handle_error(error)
-          return if LlmCostTracker.configuration.storage_error_behavior == :ignore
-
-          Logging.warn("ActiveRecord ingestor failed: #{error.class}: #{error.message}")
+          Logging.warn("ActiveRecord ingestor failed: #{error.class}: #{error.message}") unless
+            LlmCostTracker.configuration.storage_error_behavior == :ignore
         end
       end
     end
