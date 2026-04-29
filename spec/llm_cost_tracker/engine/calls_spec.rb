@@ -349,4 +349,14 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.status).to eq(200)
     expect(response.body).to include("' \t=CMD('/bin/sh')")
   end
+
+  it "exports invalid stored tags as empty JSON" do
+    call = create_call(tags: { feature: "chat" })
+    call.update_column(:tags, "{")
+
+    response = get("/llm-costs/calls.csv")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("{}")
+  end
 end
