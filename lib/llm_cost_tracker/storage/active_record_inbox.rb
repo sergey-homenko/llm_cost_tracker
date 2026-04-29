@@ -7,6 +7,7 @@ require_relative "../active_record_adapter"
 require_relative "../cost"
 require_relative "../event"
 require_relative "../inbox_event"
+require_relative "active_record_periods"
 
 module LlmCostTracker
   module Storage
@@ -148,11 +149,7 @@ module LlmCostTracker
 
         def period_range(period, time)
           utc_time = time.to_time.utc
-
-          case period
-          when :monthly then utc_time.beginning_of_month..utc_time
-          when :daily then utc_time.beginning_of_day..utc_time
-          end
+          ActiveRecordPeriods.range_start(period, utc_time)..utc_time
         end
 
         def symbolize_keys(hash)

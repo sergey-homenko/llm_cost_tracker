@@ -424,13 +424,14 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(LlmCostTracker.shutdown!).to be true
   end
 
-  it "does not wake a running ingestor thread on every capture" do
+  it "wakes a running ingestor thread when a new row arrives" do
     ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
     thread = instance_double(Thread, alive?: true)
+    allow(ingestor).to receive(:ensure_started).and_wrap_original(&:call)
     ingestor.instance_variable_set(:@pid, Process.pid)
     ingestor.instance_variable_set(:@thread, thread)
 
-    expect(thread).not_to receive(:wakeup)
+    expect(thread).to receive(:wakeup)
 
     ingestor.ensure_started
   ensure

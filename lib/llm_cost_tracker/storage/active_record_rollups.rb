@@ -2,17 +2,13 @@
 
 require "bigdecimal"
 
+require_relative "active_record_periods"
 require_relative "active_record_rollup_batch"
 require_relative "active_record_rollup_upsert_sql"
 
 module LlmCostTracker
   module Storage
     class ActiveRecordRollups
-      PERIODS = {
-        monthly: "month",
-        daily:   "day"
-      }.freeze
-
       class << self
         def reset!
           remove_instance_variable(:@period_totals_enabled) if instance_variable_defined?(:@period_totals_enabled)
@@ -55,7 +51,7 @@ module LlmCostTracker
         end
 
         def period_totals(periods, time: Time.now.utc)
-          periods = periods.map(&:to_sym).select { |period| PERIODS.key?(period) }
+          periods = ActiveRecordPeriods.valid_keys(periods)
           return {} if periods.empty?
 
           if period_totals_enabled?
@@ -68,10 +64,10 @@ module LlmCostTracker
         private
 
         def period_rows(event)
-          PERIODS.map do |period, name|
+          ActiveRecordPeriods::PERIODS.map do |period, name|
             {
               period: name,
-              period_start: bucket_for(period, event.tracked_at),
+              period_start: ActiveRecordPeriods.bucket(period, event.tracked_at),
               total_cost: event.cost.total_cost
             }
           end
@@ -82,8 +78,8 @@ module LlmCostTracker
             _id, tracked_at, total_cost = row
             next unless total_cost
 
-            PERIODS.each_key do |period|
-              totals[[period, bucket_for(period, tracked_at)]] += BigDecimal(total_cost.to_s)
+            ActiveRecordPeriods::PERIODS.each_key do |period|
+              totals[[period, ActiveRecordPeriods.bucket(period, tracked_at)]] += BigDecimal(total_cost.to_s)
             end
           end
         end
@@ -93,7 +89,7 @@ module LlmCostTracker
           now = Time.now.utc
 
           totals.each do |(period, period_start), amount|
-            row = model.lock.find_by(period: PERIODS.fetch(period), period_start: period_start)
+            row = model.lock.find_by(period: ActiveRecordPeriods::PERIODS.fetch(period), period_start: period_start)
             next unless row
 
             row.update_columns(total_cost: decremented_total(row.total_cost, amount), updated_at: now)
@@ -103,12 +99,13 @@ module LlmCostTracker
         def decremented_total(current, amount) = [BigDecimal(current.to_s) - amount, BigDecimal("0")].max
 
         def rollup_period_totals(periods, time)
-          buckets = periods.to_h { |period| [period, bucket_for(period, time)] }
-          index = buckets.to_h { |period, bucket| [[PERIODS.fetch(period), bucket], period] }
+          buckets = periods.to_h { |period| [period, ActiveRecordPeriods.bucket(period, time)] }
+          index = buckets.to_h { |period, bucket| [[ActiveRecordPeriods::PERIODS.fetch(period), bucket], period] }
           totals = periods.to_h { |period| [period, 0.0] }
 
           period_total_model
-            .where(period: periods.map { |period| PERIODS.fetch(period) }, period_start: buckets.values)
+            .where(period: periods.map { |period| ActiveRecordPeriods::PERIODS.fetch(period) },
+                   period_start: buckets.values)
             .pluck(:period, :period_start, :total_cost)
             .each do |name, start, total|
               period = index[[name, start.to_date]]
@@ -120,7 +117,7 @@ module LlmCostTracker
 
         def fallback_period_total(period, time)
           LlmCostTracker::LlmApiCall
-            .where(tracked_at: range_start_for(period, time)..time)
+            .where(tracked_at: ActiveRecordPeriods.range_start(period, time)..time)
             .sum(:total_cost)
             .to_f
         end
@@ -136,24 +133,6 @@ module LlmCostTracker
           require_relative "../period_total" unless defined?(LlmCostTracker::PeriodTotal)
 
           LlmCostTracker::PeriodTotal
-        end
-
-        def range_start_for(period, time)
-          utc_time = time.to_time.utc
-
-          case period
-          when :monthly then utc_time.beginning_of_month
-          when :daily   then utc_time.beginning_of_day
-          end
-        end
-
-        def bucket_for(period, time)
-          utc_time = time.to_time.utc
-
-          case period
-          when :monthly then utc_time.beginning_of_month.to_date
-          when :daily   then utc_time.to_date
-          end
         end
 
         def unique_by(model, column)

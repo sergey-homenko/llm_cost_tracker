@@ -2,14 +2,11 @@
 
 require "bigdecimal"
 
+require_relative "active_record_periods"
+
 module LlmCostTracker
   module Storage
     class ActiveRecordRollupBatch
-      PERIODS = {
-        monthly: "month",
-        daily:   "day"
-      }.freeze
-
       def self.rows(events)
         new(events).rows
       end
@@ -34,15 +31,10 @@ module LlmCostTracker
 
       def totals
         events.each_with_object(Hash.new { |hash, key| hash[key] = BigDecimal("0") }) do |event, rows|
-          PERIODS.each do |period, name|
-            rows[[name, bucket_for(period, event.tracked_at)]] += BigDecimal(event.cost.total_cost.to_s)
+          ActiveRecordPeriods::PERIODS.each do |period, name|
+            rows[[name, ActiveRecordPeriods.bucket(period, event.tracked_at)]] += BigDecimal(event.cost.total_cost.to_s)
           end
         end
-      end
-
-      def bucket_for(period, time)
-        utc_time = time.to_time.utc
-        period == :monthly ? utc_time.beginning_of_month.to_date : utc_time.to_date
       end
     end
   end

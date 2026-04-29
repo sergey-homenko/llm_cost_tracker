@@ -21,16 +21,18 @@ module LlmCostTracker
         def ensure_started
           return unless ActiveRecordInbox.enabled?
 
-          mutex.synchronize do
+          thread = mutex.synchronize do
             reset_after_fork!
-            return if @thread&.alive?
-
-            @stop_requested = false
-            generation = next_generation
-            @thread = Thread.new { run(generation) }
-            @thread.name = "llm_cost_tracker_ingestor" if @thread.respond_to?(:name=)
-            @thread.report_on_exception = false if @thread.respond_to?(:report_on_exception=)
+            unless @thread&.alive?
+              @stop_requested = false
+              generation = next_generation
+              @thread = Thread.new { run(generation) }
+              @thread.name = "llm_cost_tracker_ingestor" if @thread.respond_to?(:name=)
+              @thread.report_on_exception = false if @thread.respond_to?(:report_on_exception=)
+            end
+            @thread
           end
+          wake_thread(thread)
         end
 
         def flush!(timeout: FLUSH_TIMEOUT_SECONDS, require_lease: false)
@@ -119,9 +121,7 @@ module LlmCostTracker
           sleep(duration) if duration.positive?
         end
 
-        def stop_requested?(generation)
-          mutex.synchronize { @stop_requested || generation != @generation }
-        end
+        def stop_requested?(generation) = mutex.synchronize { @stop_requested || generation != @generation }
 
         def reset_after_fork!
           return if @pid == Process.pid
@@ -131,9 +131,7 @@ module LlmCostTracker
           @identity = nil
         end
 
-        def next_generation
-          @generation = @generation.to_i + 1
-        end
+        def next_generation = (@generation = @generation.to_i + 1)
 
         def wake_thread(thread)
           thread&.wakeup if thread&.alive?

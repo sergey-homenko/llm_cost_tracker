@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "active_record_inbox"
+require_relative "active_record_periods"
 require_relative "active_record_rollups"
 
 module LlmCostTracker
@@ -11,7 +12,7 @@ module LlmCostTracker
       end
 
       def initialize(periods, time:)
-        @periods = periods.map(&:to_sym).select { |period| ActiveRecordRollups::PERIODS.key?(period) }
+        @periods = ActiveRecordPeriods.valid_keys(periods)
         @time = time
       end
 
@@ -51,8 +52,8 @@ module LlmCostTracker
       def rollup_total_sql(period)
         table = connection.quote_table_name("llm_cost_tracker_period_totals")
         "COALESCE((SELECT total_cost FROM #{table} " \
-          "WHERE period = #{connection.quote(ActiveRecordRollups::PERIODS.fetch(period))} " \
-          "AND period_start = #{connection.quote(bucket_for(period))} LIMIT 1), 0)"
+          "WHERE period = #{connection.quote(ActiveRecordPeriods::PERIODS.fetch(period))} " \
+          "AND period_start = #{connection.quote(ActiveRecordPeriods.bucket(period, time))} LIMIT 1), 0)"
       end
 
       def ledger_total_sql(start)
@@ -75,15 +76,7 @@ module LlmCostTracker
 
       def period_totals_table? = connection.data_source_exists?("llm_cost_tracker_period_totals")
 
-      def range_start_for(period)
-        utc_time = time.to_time.utc
-        period == :monthly ? utc_time.beginning_of_month : utc_time.beginning_of_day
-      end
-
-      def bucket_for(period)
-        utc_time = time.to_time.utc
-        period == :monthly ? utc_time.beginning_of_month.to_date : utc_time.to_date
-      end
+      def range_start_for(period) = ActiveRecordPeriods.range_start(period, time)
 
       def connection = LlmCostTracker::LlmApiCall.connection
     end
