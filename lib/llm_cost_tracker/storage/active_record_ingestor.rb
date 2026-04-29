@@ -96,7 +96,7 @@ module LlmCostTracker
           loop do
             break if stop_requested?(generation)
 
-            processed = executor_wrap { claimable_events? ? ingest_once : 0 }
+            processed = executor_wrap { ingest_once }
             ActiveRecordConnectionCleanup.release!
             if processed.zero?
               sleep(idle_interval)

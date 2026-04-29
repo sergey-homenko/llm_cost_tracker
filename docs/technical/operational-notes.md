@@ -44,6 +44,14 @@ Per-call budgets are checked from the current event only.
 
 Inbox writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should fail honestly through `storage_error_behavior` instead of writing into the caller transaction and pretending the event is durable.
 
+The ingestor is intentionally database-polled rather than woken on every inbox insert. A per-insert wakeup makes high-QPS request paths coordinate with a local background thread and still does not remove the database lease requirement across Puma, Sidekiq, Unicorn, deploy restarts, and multi-process hosts. Polling with adaptive idle backoff keeps the request path bounded and lets any process with a live ingestor make progress.
+
+Freshness and durability are separate concerns. A quiet process can leave a newly written inbox row waiting until the next idle poll, but budget reads include pending inbox totals and operators can call `LlmCostTracker.flush!` when they need the ledger drained before continuing.
+
+The ingestor should check for claimable rows before acquiring the leader lease. Empty queues should not create steady lease-table writes across an idle fleet.
+
+Batch size is a conservative internal constant. Do not expose it as a configuration knob until production measurements show that a supported workload needs tuning; more knobs make installations harder to reason about.
+
 Ingestors should claim only retryable rows. Rows that keep failing after the retry cap stay in `llm_cost_tracker_inbox_events` with `last_error` for operator inspection and must not block healthy rows behind them.
 
 Process shutdown should stop the local ingestor thread without forcing every exiting process to drain the shared inbox. Operators can call `LlmCostTracker.flush!` when they intentionally want to wait for the durable inbox to drain.

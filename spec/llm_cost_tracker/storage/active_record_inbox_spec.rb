@@ -615,12 +615,12 @@ RSpec.describe "ActiveRecord durable inbox" do
     generation = ingestor.send(:next_generation)
     allow(ingestor).to receive(:sleep) { ingestor.instance_variable_set(:@stop_requested, true) }
     allow(ingestor).to receive(:claimable_events?).and_return(false)
-    allow(ingestor).to receive(:ingest_once)
+    allow(ingestor).to receive(:acquire_lease)
 
     ingestor.instance_variable_set(:@stop_requested, false)
     ingestor.send(:run, generation)
 
-    expect(ingestor).not_to have_received(:ingest_once)
+    expect(ingestor).not_to have_received(:acquire_lease)
   end
 
   it "wraps background ingestion work with the Rails executor when available" do

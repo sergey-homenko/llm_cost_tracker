@@ -48,6 +48,8 @@ This is the normal path from an application LLM call to stored ledger data.
 5. `ActiveRecordRollups.increment_many!` updates daily and monthly totals only for rows inserted by the batch.
 6. Budget reads use period totals plus pending inbox totals when available.
 
+The inbox write is the durability boundary. Ledger freshness is eventually consistent unless the caller explicitly waits with `LlmCostTracker.flush!`.
+
 ## Dashboard Reads
 
 1. Controllers build a filtered `LlmApiCall` scope.
