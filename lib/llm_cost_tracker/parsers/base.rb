@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
 require "json"
 require "uri"
 
@@ -19,10 +20,9 @@ module LlmCostTracker
       end
 
       def streaming_request?(_request_url, request_body)
-        return false if request_body.nil?
+        return false if request_body.blank?
 
         body = request_body.to_s
-        return false if body.empty?
 
         request = safe_json_parse(body)
         request.is_a?(Hash) && request["stream"] == true
@@ -35,7 +35,7 @@ module LlmCostTracker
       private
 
       def safe_json_parse(body)
-        return {} if body.nil? || body.empty?
+        return {} if body.blank?
 
         JSON.parse(body)
       rescue JSON::ParserError
@@ -49,7 +49,7 @@ module LlmCostTracker
 
       def match_uri?(url, hosts: nil, exact_paths: nil, path_includes: nil, path_suffixes: nil, path_pattern: nil)
         uri_matches?(url) do |uri|
-          host_match = hosts.nil? || host_matches?(uri, hosts)
+          host_match = hosts.nil? || hosts.include?(uri.host.to_s.downcase)
           path_match = path_matches?(
             uri,
             exact_paths: exact_paths,
@@ -67,10 +67,6 @@ module LlmCostTracker
         URI.parse(url.to_s)
       rescue URI::InvalidURIError
         nil
-      end
-
-      def host_matches?(uri, hosts)
-        hosts.include?(uri.host.to_s.downcase)
       end
 
       def path_matches?(uri, exact_paths: nil, path_includes: nil, path_suffixes: nil, path_pattern: nil)
@@ -98,7 +94,7 @@ module LlmCostTracker
       def find_event_value(events, reverse: false)
         each_event_data(events, reverse:) do |data|
           value = yield(data)
-          return value if event_value_present?(value)
+          return value if value.present?
         end
 
         nil
@@ -115,10 +111,6 @@ module LlmCostTracker
           stream: true,
           usage_source: :unknown
         )
-      end
-
-      def event_value_present?(value)
-        !value.nil? && (!value.respond_to?(:empty?) || !value.empty?)
       end
     end
   end

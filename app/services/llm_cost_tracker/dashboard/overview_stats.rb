@@ -20,11 +20,11 @@ module LlmCostTracker
     class OverviewStats
       class << self
         def call(scope: LlmCostTracker::LlmApiCall.all, previous_scope: nil)
-          current = aggregate(scope)
+          current = scope.select(aggregate_selects(scope)).take
           total_calls = current.calls_count.to_i
           total_cost = current.total_cost_sum.to_f
 
-          previous = previous_scope && aggregate(previous_scope)
+          previous = previous_scope&.select(aggregate_selects(previous_scope))&.take
           prev_cost = previous&.total_cost_sum.to_f
           prev_calls = previous&.calls_count.to_i
 
@@ -43,10 +43,6 @@ module LlmCostTracker
         end
 
         private
-
-        def aggregate(scope)
-          scope.select(aggregate_selects(scope)).take
-        end
 
         def aggregate_selects(scope)
           selects = [

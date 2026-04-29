@@ -27,7 +27,7 @@ module LlmCostTracker
     end
 
     def pending?
-      model.where("attempts < ?", Inbox::MAX_ATTEMPTS).exists?
+      InboxEvent.where("attempts < ?", Inbox::MAX_ATTEMPTS).exists?
     end
 
     def claimable?
@@ -37,7 +37,7 @@ module LlmCostTracker
     def mark_failed(rows, error)
       message = "#{error.class}: #{error.message}".byteslice(0, 1_000)
       now = Time.now.utc
-      model
+      InboxEvent
         .where(id: rows.map(&:id), locked_by: identity)
         .update_all(last_error: message, locked_at: now, locked_by: nil, updated_at: now)
     rescue StandardError
@@ -51,16 +51,16 @@ module LlmCostTracker
     def claim
       now = Time.now.utc
       cutoff = now - LOCK_TIMEOUT_SECONDS
-      model.transaction do
+      InboxEvent.transaction do
         rows = claimable_scope(cutoff).order(:id).limit(BATCH_SIZE).lock.to_a
         ids = rows.map(&:id)
         next [] if ids.empty?
 
-        updates = model.sanitize_sql_array(
+        updates = InboxEvent.sanitize_sql_array(
           ["locked_at = ?, locked_by = ?, attempts = attempts + 1, updated_at = ?", now, identity, now]
         )
-        model.where(id: ids).update_all(updates)
-        model.where(id: ids, locked_by: identity).order(:id).to_a
+        InboxEvent.where(id: ids).update_all(updates)
+        InboxEvent.where(id: ids, locked_by: identity).order(:id).to_a
       end
     end
 
@@ -79,18 +79,14 @@ module LlmCostTracker
     def persist(rows, events)
       LlmCostTracker::LlmApiCall.transaction do
         LedgerStore.insert_many(events)
-        model.where(id: rows.map(&:id), locked_by: identity).delete_all
+        InboxEvent.where(id: rows.map(&:id), locked_by: identity).delete_all
       end
     end
 
     def claimable_scope(cutoff)
-      model
+      InboxEvent
         .where("attempts < ?", Inbox::MAX_ATTEMPTS)
         .where("locked_at IS NULL OR locked_at < ?", cutoff)
-    end
-
-    def model
-      LlmCostTracker::InboxEvent
     end
   end
 end

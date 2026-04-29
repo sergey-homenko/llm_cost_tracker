@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
 require "securerandom"
 
 require_relative "ledger"
@@ -21,7 +22,7 @@ module LlmCostTracker
                  usage_source: nil, provider_response_id: nil, pricing_mode: nil, metadata: {})
         return unless LlmCostTracker.configuration.enabled
 
-        model = model.to_s.strip.then { |normalized| normalized.empty? ? ParsedUsage::UNKNOWN_MODEL : normalized }
+        model = model.to_s.strip.presence || ParsedUsage::UNKNOWN_MODEL
         metadata = metadata.merge(pricing_mode: pricing_mode) unless pricing_mode.nil?
         usage = EventMetadata.usage_data(input_tokens, output_tokens, metadata)
         cost_data = Pricing.cost_for(

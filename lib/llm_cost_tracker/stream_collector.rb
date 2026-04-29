@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
+require "active_support/core_ext/object/deep_dup"
 require "monitor"
 
 require_relative "stream_capture"
-require_relative "value_helpers"
 
 module LlmCostTracker
   class StreamCollector
@@ -15,7 +16,7 @@ module LlmCostTracker
       @latency_ms = latency_ms
       @provider_response_id = provider_response_id
       @pricing_mode = pricing_mode
-      @metadata = ValueHelpers.deep_dup(metadata || {})
+      @metadata = (metadata || {}).deep_dup
       @events = []
       @captured_bytes = 0
       @overflowed = false
@@ -30,7 +31,7 @@ module LlmCostTracker
     end
 
     def metadata
-      @monitor.synchronize { ValueHelpers.deep_dup(@metadata) }
+      @monitor.synchronize { @metadata.deep_dup }
     end
 
     def provider_response_id
@@ -63,12 +64,10 @@ module LlmCostTracker
     def usage(input_tokens:, output_tokens:, **extra)
       @monitor.synchronize do
         ensure_open!
-        @explicit_usage = ValueHelpers.deep_dup(
-          extra.merge(
-            input_tokens: input_tokens.to_i,
-            output_tokens: output_tokens.to_i
-          )
-        )
+        @explicit_usage = extra.merge(
+          input_tokens: input_tokens.to_i,
+          output_tokens: output_tokens.to_i
+        ).deep_dup
       end
       self
     end
@@ -81,12 +80,12 @@ module LlmCostTracker
         {
           events: @events.dup,
           overflowed: @overflowed,
-          explicit_usage: ValueHelpers.deep_dup(@explicit_usage),
+          explicit_usage: @explicit_usage.deep_dup,
           model: @model,
           latency_ms: @latency_ms,
           provider_response_id: @provider_response_id,
           pricing_mode: @pricing_mode,
-          metadata: ValueHelpers.deep_dup(@metadata)
+          metadata: @metadata.deep_dup
         }
       end
 
@@ -170,18 +169,14 @@ module LlmCostTracker
     end
 
     def capture_event(data, type:)
-      size = event_bytes(data, type)
+      size = type.to_s.bytesize + estimated_bytes(data) + 32
       if @captured_bytes + size <= StreamCapture::LIMIT_BYTES
-        @events << { event: type, data: ValueHelpers.deep_dup(data) }
+        @events << { event: type, data: data.deep_dup }
         @captured_bytes += size
       else
         @overflowed = true
         @events.clear
       end
-    end
-
-    def event_bytes(data, type)
-      type.to_s.bytesize + estimated_bytes(data) + 32
     end
 
     def estimated_bytes(value)

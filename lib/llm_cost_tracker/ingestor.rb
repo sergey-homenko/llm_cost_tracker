@@ -147,9 +147,7 @@ module LlmCostTracker
       end
 
       def rails_executor
-        return unless defined?(Rails) && Rails.respond_to?(:application) && Rails.application.respond_to?(:executor)
-
-        Rails.application.executor
+        Rails.application.try(:executor)
       rescue StandardError
         nil
       end

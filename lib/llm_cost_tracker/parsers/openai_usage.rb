@@ -32,9 +32,10 @@ module LlmCostTracker
         return nil unless response_status == 200
 
         request = safe_json_parse(request_body)
-        model = detect_stream_model(events) || request["model"]
+        model =
+          find_event_value(events) { |data| data["model"] || data.dig("response", "model") } || request["model"]
         usage = detect_stream_usage(events)
-        response_id = detect_stream_response_id(events)
+        response_id = find_event_value(events) { |data| data["id"] || data.dig("response", "id") }
 
         if usage
           cache_read = cache_read_input_tokens(usage)
@@ -64,14 +65,6 @@ module LlmCostTracker
           usage = data["usage"] || data.dig("response", "usage")
           usage if usage.is_a?(Hash)
         end
-      end
-
-      def detect_stream_model(events)
-        find_event_value(events) { |data| data["model"] || data.dig("response", "model") }
-      end
-
-      def detect_stream_response_id(events)
-        find_event_value(events) { |data| data["id"] || data.dig("response", "id") }
       end
 
       def regular_input_tokens(usage, cache_read)

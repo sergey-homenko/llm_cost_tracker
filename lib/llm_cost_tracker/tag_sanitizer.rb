@@ -9,7 +9,7 @@ module LlmCostTracker
     class << self
       def call(tags, config: LlmCostTracker.configuration)
         tags = (tags || {}).to_h
-        tags.first(max_tag_count(config)).each_with_object({}) do |(key, value), sanitized|
+        tags.first([config.max_tag_count.to_i, 0].max).each_with_object({}) do |(key, value), sanitized|
           sanitized[key] = sanitized_value(key, value, config)
         end
       end
@@ -20,20 +20,17 @@ module LlmCostTracker
         return REDACTED_VALUE if redacted_key?(key, config)
 
         string = value_string(value)
-        return value if string.bytesize <= max_tag_value_bytesize(config)
+        limit = [config.max_tag_value_bytesize.to_i, 0].max
+        return value if string.bytesize <= limit
 
-        truncate_bytes(string, max_tag_value_bytesize(config))
+        string.byteslice(0, limit).to_s.encode("UTF-8", invalid: :replace, undef: :replace)
       end
 
       def redacted_key?(key, config)
         normalized = normalized_key(key)
-        redacted_keys(config).any? do |candidate|
+        Array(config.redacted_tag_keys).map { |redacted_key| normalized_key(redacted_key) }.any? do |candidate|
           redacted_key_component?(normalized, candidate)
         end
-      end
-
-      def redacted_keys(config)
-        Array(config.redacted_tag_keys).map { |key| normalized_key(key) }
       end
 
       def normalized_key(key)
@@ -63,18 +60,6 @@ module LlmCostTracker
         end
       rescue JSON::GeneratorError, TypeError
         value.to_s
-      end
-
-      def truncate_bytes(string, limit)
-        string.byteslice(0, limit).to_s.encode("UTF-8", invalid: :replace, undef: :replace)
-      end
-
-      def max_tag_count(config)
-        [config.max_tag_count.to_i, 0].max
-      end
-
-      def max_tag_value_bytesize(config)
-        [config.max_tag_value_bytesize.to_i, 0].max
       end
     end
   end

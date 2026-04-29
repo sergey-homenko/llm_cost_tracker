@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
+require "active_support/core_ext/hash/except"
 require "date"
 require "json"
 
@@ -96,8 +98,8 @@ module LlmCostTracker
       end
 
       def normalize_provider(provider)
-        normalized = provider.to_s.strip
-        raise Error, "provider is required" if normalized.empty?
+        normalized = provider.to_s.strip.presence
+        raise Error, "provider is required" unless normalized
 
         normalized
       end

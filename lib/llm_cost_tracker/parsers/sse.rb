@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
 require "json"
 
 module LlmCostTracker
@@ -9,9 +10,9 @@ module LlmCostTracker
 
       class << self
         def parse(body)
-          return [] if body.nil? || body.empty?
+          return [] if body.blank?
 
-          return parse_json_array(body) if probably_json_array?(body)
+          return parse_json_array(body) if body.lstrip.start_with?("[")
 
           parse_event_stream(body)
         end
@@ -65,15 +66,11 @@ module LlmCostTracker
         end
 
         def decode_data(payload)
-          return payload if payload.empty?
+          return payload if payload.blank?
 
           JSON.parse(payload)
         rescue JSON::ParserError
           payload
-        end
-
-        def probably_json_array?(body)
-          body.lstrip.start_with?("[")
         end
       end
     end

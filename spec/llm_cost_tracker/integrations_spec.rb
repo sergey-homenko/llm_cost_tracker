@@ -843,7 +843,7 @@ RSpec.describe LlmCostTracker::Integrations do
       end
     end
 
-    LlmCostTracker::Integrations.register(:custom_sdk, integration)
+    LlmCostTracker::Integrations::Registry.register(:custom_sdk, integration)
     LlmCostTracker.configure { |config| config.instrument :custom_sdk }
 
     expect(integration.installed).to be true

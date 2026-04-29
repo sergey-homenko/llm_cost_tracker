@@ -13,7 +13,7 @@ module LlmCostTracker
         budgets = enforce_period_budgets(config)
         return if budgets.empty?
 
-        totals = ledger_totals(budgets.keys, time: Time.now.utc)
+        totals = LlmCostTracker::LedgerStore.period_totals(budgets.keys, time: Time.now.utc)
 
         budgets.each do |period, budget|
           total = totals.fetch(period)
@@ -66,11 +66,7 @@ module LlmCostTracker
       def totals_for_check(event, budgets)
         return {} if budgets.empty?
 
-        ledger_totals(budgets.keys, time: event.tracked_at)
-      end
-
-      def ledger_totals(periods, time:)
-        LlmCostTracker::LedgerStore.period_totals(periods, time: time)
+        LlmCostTracker::LedgerStore.period_totals(budgets.keys, time: event.tracked_at)
       end
 
       def handle_exceeded(budget_type:, total:, budget:, last_event: nil)
@@ -85,7 +81,7 @@ module LlmCostTracker
         if notify_exceeded?(config, budget_type: budget_type, total: total, budget: budget, last_event: last_event)
           config.on_budget_exceeded&.call(payload)
         end
-        raise BudgetExceededError.new(**payload) if raise_on_exceeded?(config)
+        raise BudgetExceededError.new(**payload) if %i[raise block_requests].include?(config.budget_exceeded_behavior)
       end
 
       def budget_payload(budget_type:, total:, budget:, last_event:)
@@ -108,10 +104,6 @@ module LlmCostTracker
         return true if budget_type == :per_call
 
         total - last_event.cost.total_cost < budget
-      end
-
-      def raise_on_exceeded?(config)
-        %i[raise block_requests].include?(config.budget_exceeded_behavior)
       end
     end
   end

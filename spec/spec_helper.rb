@@ -52,7 +52,7 @@ RSpec.configure do |config|
   config.include LlmCostTrackerDatabaseSpecHelpers
 
   config.before(:each) do
-    Rails.logger = nil if defined?(Rails) && Rails.respond_to?(:logger=)
+    Rails.logger = nil
     LlmCostTracker.reset_configuration!
     LlmCostTracker::Parsers::Registry.reset!
     LlmCostTracker::Integrations::Registry.reset!

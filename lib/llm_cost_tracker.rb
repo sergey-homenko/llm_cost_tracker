@@ -1,7 +1,12 @@
 # frozen_string_literal: true
 
+require "rails"
 require "active_support"
 require "active_support/core_ext/object/blank"
+require "active_support/core_ext/object/deep_dup"
+require "active_support/core_ext/object/try"
+require "active_support/core_ext/hash/indifferent_access"
+require "active_support/core_ext/string/inflections"
 require "active_support/notifications"
 require "monitor"
 
@@ -156,12 +161,10 @@ module LlmCostTracker
   end
 end
 
-require_relative "llm_cost_tracker/railtie" if defined?(Rails::Railtie)
+require_relative "llm_cost_tracker/railtie"
 
-if defined?(Faraday)
-  Faraday::Middleware.register_middleware(
-    llm_cost_tracker: LlmCostTracker::Middleware::Faraday
-  )
-end
+Faraday::Middleware.register_middleware(
+  llm_cost_tracker: LlmCostTracker::Middleware::Faraday
+)
 
 at_exit { LlmCostTracker.shutdown!(drain: false) }

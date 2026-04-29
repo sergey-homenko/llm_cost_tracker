@@ -71,7 +71,7 @@ module LlmCostTracker
 
     def report_tag_breakdowns=(value)
       ensure_shared_configuration_mutable!
-      @report_tag_breakdowns = normalize_report_tag_breakdowns(value)
+      @report_tag_breakdowns = Array(value).map { |key| TagKey.validate!(key, error_class: Error) }
     end
 
     def redacted_tag_keys=(value)
@@ -110,17 +110,17 @@ module LlmCostTracker
 
     def dup_for_configuration
       copy = dup
-      copy.instance_variable_set(:@default_tags, ValueHelpers.deep_dup(@default_tags || {}))
-      copy.instance_variable_set(:@pricing_overrides, ValueHelpers.deep_dup(@pricing_overrides || {}))
+      copy.instance_variable_set(:@default_tags, (@default_tags || {}).deep_dup)
+      copy.instance_variable_set(:@pricing_overrides, (@pricing_overrides || {}).deep_dup)
       copy.instance_variable_set(
         :@instrumented_integrations,
-        ValueHelpers.deep_dup(@instrumented_integrations || [])
+        (@instrumented_integrations || []).deep_dup
       )
-      copy.instance_variable_set(:@report_tag_breakdowns, ValueHelpers.deep_dup(@report_tag_breakdowns || []))
-      copy.instance_variable_set(:@redacted_tag_keys, ValueHelpers.deep_dup(@redacted_tag_keys || []))
+      copy.instance_variable_set(:@report_tag_breakdowns, (@report_tag_breakdowns || []).deep_dup)
+      copy.instance_variable_set(:@redacted_tag_keys, (@redacted_tag_keys || []).deep_dup)
       copy.instance_variable_set(
         :@openai_compatible_providers,
-        ValueHelpers.deep_dup(@openai_compatible_providers || {})
+        (@openai_compatible_providers || {}).deep_dup
       )
       copy.instance_variable_set(:@finalized, false)
       copy
@@ -140,10 +140,6 @@ module LlmCostTracker
       (providers || {}).each_with_object({}) do |(host, provider), normalized|
         normalized[host.to_s.downcase] = provider.to_s
       end
-    end
-
-    def normalize_report_tag_breakdowns(value)
-      Array(value).map { |key| TagKey.validate!(key, error_class: Error) }
     end
 
     def ensure_shared_configuration_mutable!

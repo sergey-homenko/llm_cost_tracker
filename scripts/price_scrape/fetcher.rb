@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
 require "net/http"
 require "openssl"
 require "time"
@@ -91,7 +92,7 @@ module LlmCostTracker
 
       def build_success(response, body, url, elapsed_ms)
         body ||= limited_body(response)
-        raise Error, "empty response body from #{url}" if body.empty?
+        raise Error, "empty response body from #{url}" if body.blank?
 
         Response.new(
           url: url,
@@ -104,7 +105,7 @@ module LlmCostTracker
 
       def follow_redirect(response, url, redirects)
         location = response["location"]
-        raise Error, "redirect without location from #{url}" if location.nil? || location.empty?
+        raise Error, "redirect without location from #{url}" if location.blank?
 
         fetch_once(URI.join(url, location).to_s, redirects + 1)
       end

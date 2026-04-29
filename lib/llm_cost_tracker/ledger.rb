@@ -38,10 +38,6 @@ module LlmCostTracker
         [VerificationResult.new(:error, "active_record", "#{e.class}: #{e.message}")]
       end
 
-      def prune(cutoff:, batch_size:)
-        LedgerStore.prune(cutoff: cutoff, batch_size: batch_size)
-      end
-
       private
 
       def capture_check

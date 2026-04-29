@@ -65,7 +65,5 @@ module LlmCostTracker
         raise ArgumentError, "integration must respond to install and status"
       end
     end
-
-    def self.register(name, integration) = Registry.register(name, integration)
   end
 end

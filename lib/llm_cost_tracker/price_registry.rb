@@ -56,7 +56,7 @@ module LlmCostTracker
           cached = @file_prices_cache
           return cached[:value] if cached && cached[:key] == cache_key
 
-          value = normalize_file_prices(price_file_models(load_price_file(path)), path: path).freeze
+          value = normalize_price_entries(price_file_models(load_price_file(path)), context: path).freeze
           @file_prices_cache = { key: cache_key, value: value }.freeze
           value
         end
@@ -77,10 +77,6 @@ module LlmCostTracker
           key = key.to_s
           normalized[key.to_sym] = Float(value) if price_key?(key)
         end
-      end
-
-      def normalize_file_prices(table, path:)
-        normalize_price_entries(table, context: path)
       end
 
       def normalize_price_entries(table, context:)

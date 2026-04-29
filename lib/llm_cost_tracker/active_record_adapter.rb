@@ -34,19 +34,13 @@ module LlmCostTracker
 
       def adapter_instance?(value, class_names)
         class_names.any? do |class_name|
-          adapter_class = constantize(class_name)
+          adapter_class = class_name.safe_constantize
           adapter_class && value.is_a?(adapter_class)
         end
       end
 
-      def constantize(name)
-        name.split("::").reduce(Object) { |namespace, part| namespace.const_get(part, false) }
-      rescue NameError
-        nil
-      end
-
       def adapter_name(value)
-        value.respond_to?(:adapter_name) ? value.adapter_name.to_s : value.to_s
+        value.try(:adapter_name).presence || value.to_s
       end
     end
   end

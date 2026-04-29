@@ -24,7 +24,7 @@ module LlmCostTracker
       def read(object, key)
         return nil if object.nil?
 
-        read_hash(object, key) || read_method(object, key) || read_index(object, key)
+        read_hash(object, key) || object.try(key) || read_index(object, key)
       end
 
       def integer(value)
@@ -32,22 +32,14 @@ module LlmCostTracker
       end
 
       def read_hash(object, key)
-        return unless object.respond_to?(:key?)
-
-        return object[key] if object.key?(key)
+        return object[key] if object.try(:key?, key)
 
         string_key = key.to_s
-        object[string_key] if object.key?(string_key)
-      end
-
-      def read_method(object, key)
-        object.public_send(key) if object.respond_to?(key)
+        object[string_key] if object.try(:key?, string_key)
       end
 
       def read_index(object, key)
-        return unless object.respond_to?(:[])
-
-        object[key]
+        object.try(:[], key)
       rescue IndexError, NameError, TypeError
         nil
       end

@@ -29,7 +29,9 @@ module LlmCostTracker
 
         def find_for_provider(provider)
           provider_name = provider.to_s.downcase
-          parsers.find { |parser| provider_names_for(parser).include?(provider_name) }
+          parsers.find do |parser|
+            Array(parser.provider_names).map { |name| name.to_s.downcase }.include?(provider_name)
+          end
         end
 
         def reset!
@@ -43,10 +45,6 @@ module LlmCostTracker
           return parser if parser.is_a?(Base)
 
           raise ArgumentError, "parser must be a LlmCostTracker::Parsers::Base instance or class"
-        end
-
-        def provider_names_for(parser)
-          Array(parser.provider_names).map { |name| name.to_s.downcase }
         end
 
         def default_parsers

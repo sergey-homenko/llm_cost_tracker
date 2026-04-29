@@ -11,24 +11,20 @@ module LlmCostTracker
 
     def calls_query_for_tag(key:, value:)
       query = current_query(page: nil, per: nil, format: nil)
-      tags = normalized_query_tags(query[:tag])
+      tags = LlmCostTracker::ParameterHash.to_hash(query[:tag]).transform_keys(&:to_s).transform_values(&:to_s)
       query[:tag] = tags.merge(key.to_s => value.to_s)
       query
     end
 
     private
 
-    def normalized_query_tags(tags)
-      LlmCostTracker::ParameterHash.to_hash(tags).transform_keys(&:to_s).transform_values(&:to_s)
-    end
-
     def clean_dashboard_query(value)
-      if LlmCostTracker::ParameterHash.hash_like?(value)
+      if value.is_a?(Hash) || value.try(:to_unsafe_h).is_a?(Hash)
         return clean_dashboard_hash(LlmCostTracker::ParameterHash.to_hash(value))
       end
 
-      return clean_dashboard_array(value) if value.is_a?(Array)
-      return clean_dashboard_string(value) if value.is_a?(String)
+      return value.filter_map { |item| clean_dashboard_query(item) }.presence if value.is_a?(Array)
+      return value.strip.presence if value.is_a?(String)
 
       value
     end
@@ -40,14 +36,6 @@ module LlmCostTracker
 
         cleaned[key] = nested
       end
-    end
-
-    def clean_dashboard_array(array)
-      array.filter_map { |item| clean_dashboard_query(item) }.presence
-    end
-
-    def clean_dashboard_string(string)
-      string.strip.presence
     end
   end
 end

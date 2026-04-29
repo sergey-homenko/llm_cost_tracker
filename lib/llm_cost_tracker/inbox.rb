@@ -46,7 +46,7 @@ module LlmCostTracker
 
       def event_from_row(row)
         payload = JSON.parse(row.payload)
-        cost = payload["cost"] && LlmCostTracker::Cost.new(**symbolize_keys(payload["cost"]))
+        cost = payload["cost"] && LlmCostTracker::Cost.new(**payload["cost"].transform_keys(&:to_sym))
 
         LlmCostTracker::Event.new(
           event_id: payload.fetch("event_id"),
@@ -148,10 +148,6 @@ module LlmCostTracker
       def period_range(period, time)
         utc_time = time.to_time.utc
         Periods.range_start(period, utc_time)..utc_time
-      end
-
-      def symbolize_keys(hash)
-        hash.transform_keys(&:to_sym)
       end
     end
   end

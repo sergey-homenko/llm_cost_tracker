@@ -43,7 +43,7 @@ module LlmCostTracker
     end
 
     def format_date(value)
-      value.respond_to?(:strftime) ? value.strftime("%Y-%m-%d %H:%M") : value.to_s
+      value.try(:strftime, "%Y-%m-%d %H:%M") || value.to_s
     end
 
     def pricing_status(call)

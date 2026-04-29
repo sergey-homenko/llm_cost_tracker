@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/deep_dup"
+require "active_support/core_ext/object/try"
 require "monitor"
 
 require_relative "../logging"
 require_relative "../stream_collector"
-require_relative "../value_helpers"
 require_relative "object_reader"
 
 module LlmCostTracker
@@ -82,20 +83,10 @@ module LlmCostTracker
       end
 
       def capture(event)
-        payload = normalize(event_payload(event))
+        payload = normalize(event.try(:deep_to_h) || event.try(:to_h) || event_attributes(event))
         @collector.event(payload, type: event_type(event, payload))
       rescue StandardError => e
         warn_capture_failure(e)
-      end
-
-      def event_payload(event)
-        if event.respond_to?(:deep_to_h)
-          event.deep_to_h
-        elsif event.respond_to?(:to_h)
-          event.to_h
-        else
-          event_attributes(event)
-        end
       end
 
       def event_attributes(event)
@@ -124,16 +115,12 @@ module LlmCostTracker
           nil
         else
           converted = object_hash(value)
-          converted ? normalize(converted) : ValueHelpers.deep_dup(value)
+          converted ? normalize(converted) : value.deep_dup
         end
       end
 
       def object_hash(value)
-        if value.respond_to?(:deep_to_h)
-          value.deep_to_h
-        elsif value.respond_to?(:to_h)
-          value.to_h
-        end
+        value.try(:deep_to_h) || value.try(:to_h)
       rescue StandardError
         nil
       end

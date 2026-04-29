@@ -31,8 +31,8 @@ module LlmCostTracker
       attr_reader :scope, :params
 
       def apply_date_filters(relation)
-        from_date = parse_date(:from)
-        to_date = parse_date(:to)
+        from_date = Dashboard::DateRange.parse(params, :from)
+        to_date = Dashboard::DateRange.parse(params, :to)
         Dashboard::DateRange.validate!(from: from_date, to: to_date)
 
         from = from_date&.beginning_of_day
@@ -77,7 +77,7 @@ module LlmCostTracker
       end
 
       def tag_params
-        tags = hash_param(:tag)
+        tags = LlmCostTracker::ParameterHash.to_hash(params[:tag])
 
         tags.each_with_object({}) do |(key, value), normalized|
           value = normalized_string(value)
@@ -85,14 +85,6 @@ module LlmCostTracker
 
           normalized[LlmCostTracker::TagKey.validate!(key, error_class: LlmCostTracker::InvalidFilterError)] = value
         end
-      end
-
-      def hash_param(key)
-        LlmCostTracker::ParameterHash.to_hash(params[key])
-      end
-
-      def parse_date(key)
-        Dashboard::DateRange.parse(params, key)
       end
 
       def normalized_string(value)

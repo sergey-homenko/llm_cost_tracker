@@ -18,7 +18,7 @@ module LlmCostTracker
       end
 
       def streaming_request?(request_url, request_body)
-        return true if streaming_url?(request_url)
+        return true if match_uri?(request_url, path_pattern: STREAM_PATH_PATTERN)
 
         super
       end
@@ -101,10 +101,6 @@ module LlmCostTracker
 
       def stream_response_id(events)
         find_event_value(events) { |data| data["responseId"] }
-      end
-
-      def streaming_url?(request_url)
-        match_uri?(request_url, path_pattern: STREAM_PATH_PATTERN)
       end
 
       def extract_model_from_url(url)

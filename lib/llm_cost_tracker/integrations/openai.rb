@@ -100,7 +100,7 @@ module LlmCostTracker
         def stream_collector(request)
           LlmCostTracker::StreamCollector.new(
             provider: "openai",
-            model: request[:model] || request["model"]
+            model: request[:model]
           )
         end
 

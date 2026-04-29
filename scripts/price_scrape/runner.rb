@@ -101,7 +101,7 @@ module LlmCostTracker
 end
 
 if $PROGRAM_NAME == __FILE__
-  providers = (ENV["PROVIDERS"] || "anthropic").split(",").map(&:strip).reject(&:empty?)
+  providers = (ENV["PROVIDERS"] || "anthropic").split(",").map(&:strip).select(&:present?)
   dry_run = ENV["DRY_RUN"] == "1"
   LlmCostTracker::PriceScrape::Runner.new.call(providers: providers, dry_run: dry_run)
 end

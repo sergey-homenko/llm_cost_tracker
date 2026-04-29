@@ -9,8 +9,8 @@ module LlmCostTracker
         uri = URI.parse(value.to_s)
         uri.query = nil
         uri.fragment = nil
-        uri.user = nil if uri.respond_to?(:user=)
-        uri.password = nil if uri.respond_to?(:password=)
+        uri.try(:user=, nil)
+        uri.try(:password=, nil)
         uri.to_s
       rescue URI::InvalidURIError
         value.to_s.split("?", 2).first

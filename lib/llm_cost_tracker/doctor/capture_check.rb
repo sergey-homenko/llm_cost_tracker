@@ -13,27 +13,28 @@ module LlmCostTracker
 
       def call
         config = LlmCostTracker.configuration
-        return disabled_check unless config.enabled
-        return integrations_check(config.instrumented_integrations) if config.instrumented_integrations.any?
+        unless config.enabled
+          return check_class.new(:warn, "capture", "tracking is disabled; set config.enabled = true to record calls")
+        end
 
-        check(:ok, "no SDK integrations enabled; Faraday middleware and manual capture remain available")
+        if config.instrumented_integrations.any?
+          return check_class.new(
+            :ok,
+            "capture",
+            "SDK integrations enabled: #{config.instrumented_integrations.join(', ')}"
+          )
+        end
+
+        check_class.new(
+          :ok,
+          "capture",
+          "no SDK integrations enabled; Faraday middleware and manual capture remain available"
+        )
       end
 
       private
 
       attr_reader :check_class
-
-      def disabled_check
-        check(:warn, "tracking is disabled; set config.enabled = true to record calls")
-      end
-
-      def integrations_check(integrations)
-        check(:ok, "SDK integrations enabled: #{integrations.join(', ')}")
-      end
-
-      def check(status, message)
-        check_class.new(status, "capture", message)
-      end
     end
   end
 end

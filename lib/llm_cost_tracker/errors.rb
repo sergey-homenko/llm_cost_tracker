@@ -18,7 +18,10 @@ module LlmCostTracker
       @budget_type = budget_type || inferred_budget_type
       @last_event = last_event
 
-      super("LLM #{budget_label} budget exceeded: $#{format('%.6f', @total)} / $#{format('%.6f', budget)}")
+      super(
+        "LLM #{@budget_type.to_s.tr('_', '-')} budget exceeded: " \
+        "$#{format('%.6f', @total)} / $#{format('%.6f', budget)}"
+      )
     end
 
     private
@@ -29,10 +32,6 @@ module LlmCostTracker
       return :per_call if call_cost
 
       :unknown
-    end
-
-    def budget_label
-      budget_type.to_s.tr("_", "-")
     end
   end
 

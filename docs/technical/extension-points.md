@@ -32,7 +32,7 @@ Expected integration contract:
 SDK integrations belong under `LlmCostTracker::Integrations`. Do not put SDK object-shape handling in parsers, storage, or pricing.
 
 External integrations can register an adapter with
-`LlmCostTracker::Integrations.register(:name, adapter)`. The adapter must
+`LlmCostTracker::Integrations::Registry.register(:name, adapter)`. The adapter must
 respond to `install` and `status`, and enabled names are still selected through
 `config.instrument`.
 

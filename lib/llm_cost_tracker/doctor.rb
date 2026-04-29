@@ -26,17 +26,13 @@ module LlmCostTracker
       end
 
       def report(checks = call)
-        (["LLM Cost Tracker doctor"] + checks.map { |check| format_check(check) }).join("\n")
+        (["LLM Cost Tracker doctor"] + checks.map do |check|
+          "[#{check.status}] #{check.name}: #{check.message}"
+        end).join("\n")
       end
 
       def healthy?(checks = call)
         checks.none? { |check| check.status == :error }
-      end
-
-      private
-
-      def format_check(check)
-        "[#{check.status}] #{check.name}: #{check.message}"
       end
     end
 
@@ -122,7 +118,8 @@ module LlmCostTracker
         return Check.new(
           :warn,
           "prices",
-          "using bundled prices updated_at=#{builtin_prices_updated_at}; configure prices_file for production"
+          "using bundled prices updated_at=#{LlmCostTracker::PriceRegistry.metadata.fetch('updated_at', 'unknown')}; " \
+          "configure prices_file for production"
         )
       end
 
@@ -159,10 +156,6 @@ module LlmCostTracker
       LlmCostTracker::LlmApiCall.connection.data_source_exists?(name)
     rescue StandardError
       false
-    end
-
-    def builtin_prices_updated_at
-      LlmCostTracker::PriceRegistry.metadata.fetch("updated_at", "unknown")
     end
   end
 end

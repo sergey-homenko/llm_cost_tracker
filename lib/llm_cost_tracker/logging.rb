@@ -19,9 +19,10 @@ module LlmCostTracker
 
       def log(level, message)
         message = prefixed(message)
+        logger = Rails.logger
 
-        if rails_logger
-          rails_logger.public_send(level, message)
+        if logger
+          logger.try(level, message)
         else
           Kernel.warn(message)
         end
@@ -34,10 +35,6 @@ module LlmCostTracker
         return message if message.start_with?(PREFIX)
 
         "#{PREFIX} #{message}"
-      end
-
-      def rails_logger
-        Rails.logger if defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
       end
     end
   end

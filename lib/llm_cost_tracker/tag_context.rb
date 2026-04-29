@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/deep_dup"
 require "active_support/isolated_execution_state"
-
-require_relative "value_helpers"
 
 module LlmCostTracker
   module TagContext
@@ -10,42 +9,24 @@ module LlmCostTracker
 
     class << self
       def with(tags)
-        stack = current_stack
-        ActiveSupport::IsolatedExecutionState[KEY] = stack + [normalize(tags)]
+        stack = ActiveSupport::IsolatedExecutionState[KEY] || []
+        ActiveSupport::IsolatedExecutionState[KEY] = stack + [(tags || {}).deep_dup.to_h]
         yield
       ensure
         ActiveSupport::IsolatedExecutionState[KEY] = stack
       end
 
       def tags
-        config_tags.merge(scoped_tags)
+        default_tags = LlmCostTracker.configuration.default_tags
+        default_tags = default_tags.call if default_tags.respond_to?(:call)
+
+        (default_tags || {}).deep_dup.to_h.merge(
+          (ActiveSupport::IsolatedExecutionState[KEY] || []).reduce({}) { |merged, tags| merged.merge(tags) }
+        )
       end
 
       def clear!
         ActiveSupport::IsolatedExecutionState[KEY] = []
-      end
-
-      private
-
-      def config_tags
-        normalize(resolve_default_tags)
-      end
-
-      def resolve_default_tags
-        tags = LlmCostTracker.configuration.default_tags
-        tags.respond_to?(:call) ? tags.call : tags
-      end
-
-      def scoped_tags
-        current_stack.reduce({}) { |merged, tags| merged.merge(tags) }
-      end
-
-      def current_stack
-        ActiveSupport::IsolatedExecutionState[KEY] || []
-      end
-
-      def normalize(tags)
-        ValueHelpers.deep_dup(tags || {}).to_h
       end
     end
   end

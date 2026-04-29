@@ -38,7 +38,7 @@ module LlmCostTracker
       end
 
       def attributes_for(event, model = LlmCostTracker::LlmApiCall)
-        tags = stringify_tags(event.tags || {})
+        tags = (event.tags || {}).transform_keys(&:to_s).transform_values { |value| stringify_tag_value(value) }
         columns = model.columns_hash
 
         attributes = {
@@ -50,17 +50,25 @@ module LlmCostTracker
           input_cost:    event.cost&.input_cost,
           output_cost:   event.cost&.output_cost,
           total_cost:    event.cost&.total_cost,
-          tags:          tags_for_storage(tags, model),
+          tags:          model.tags_json_column? ? tags : tags.to_json,
           tracked_at:    event.tracked_at
         }
-        attributes[:event_id] = event.event_id if columns.key?("event_id")
-        optional_attributes(event).each do |name, value|
+
+        {
+          event_id: event.event_id,
+          cache_read_input_tokens: event.cache_read_input_tokens,
+          cache_write_input_tokens: event.cache_write_input_tokens,
+          hidden_output_tokens: event.hidden_output_tokens,
+          cache_read_input_cost: event.cost&.cache_read_input_cost,
+          cache_write_input_cost: event.cost&.cache_write_input_cost,
+          pricing_mode: event.pricing_mode,
+          latency_ms: event.latency_ms,
+          stream: event.stream,
+          usage_source: event.usage_source,
+          provider_response_id: event.provider_response_id
+        }.each do |name, value|
           attributes[name] = value if columns.key?(name.to_s)
         end
-        attributes[:latency_ms] = event.latency_ms if columns.key?("latency_ms")
-        attributes[:stream] = event.stream if columns.key?("stream")
-        attributes[:usage_source] = event.usage_source if columns.key?("usage_source")
-        attributes[:provider_response_id] = event.provider_response_id if columns.key?("provider_response_id")
 
         attributes
       end
@@ -110,25 +118,6 @@ module LlmCostTracker
           Rollups.decrement!(rows) if deleted.positive?
           deleted
         end
-      end
-
-      def stringify_tags(tags)
-        tags.transform_keys(&:to_s).transform_values { |value| stringify_tag_value(value) }
-      end
-
-      def tags_for_storage(tags, model)
-        model.tags_json_column? ? tags : tags.to_json
-      end
-
-      def optional_attributes(event)
-        {
-          cache_read_input_tokens: event.cache_read_input_tokens,
-          cache_write_input_tokens: event.cache_write_input_tokens,
-          hidden_output_tokens: event.hidden_output_tokens,
-          cache_read_input_cost: event.cost&.cache_read_input_cost,
-          cache_write_input_cost: event.cost&.cache_write_input_cost,
-          pricing_mode: event.pricing_mode
-        }
       end
 
       def stringify_tag_value(value)

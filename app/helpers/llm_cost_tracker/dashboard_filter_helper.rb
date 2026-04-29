@@ -14,8 +14,7 @@ module LlmCostTracker
     end
 
     def active_tag_filters
-      tag_params = normalized_query_tags(params[:tag])
-      return [] unless tag_params.is_a?(Hash)
+      tag_params = LlmCostTracker::ParameterHash.to_hash(params[:tag]).transform_keys(&:to_s).transform_values(&:to_s)
 
       tag_params.filter_map do |key, value|
         next if key.blank? || value.blank?

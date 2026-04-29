@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
 require "digest"
 require "net/http"
 require "openssl"
@@ -41,7 +42,7 @@ module LlmCostTracker
           build_response(response, body: nil, not_modified: true)
         when Net::HTTPRedirection
           location = response["location"]
-          raise Error, "Redirect without location while fetching #{url}" if location.nil? || location.empty?
+          raise Error, "Redirect without location while fetching #{url}" if location.blank?
 
           get(URI.join(url, location).to_s, etag: etag, redirects: redirects + 1)
         else

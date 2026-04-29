@@ -3,21 +3,6 @@
 module LlmCostTracker
   module ValueHelpers
     class << self
-      def deep_dup(value)
-        case value
-        when Hash
-          value.each_with_object({}) do |(key, nested_value), duplicated|
-            duplicated[deep_dup(key)] = deep_dup(nested_value)
-          end
-        when Array
-          value.map { |nested_value| deep_dup(nested_value) }
-        when String
-          value.dup
-        else
-          value
-        end
-      end
-
       def deep_freeze(value)
         case value
         when Hash

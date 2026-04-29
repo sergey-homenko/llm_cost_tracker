@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
+
 require_relative "active_record_adapter"
 require_relative "tag_key"
 
@@ -21,7 +23,7 @@ module LlmCostTracker
       end
 
       def value_label(value)
-        value.nil? || value == "" ? "(untagged)" : value.to_s
+        value.to_s.presence || "(untagged)"
       end
 
       private

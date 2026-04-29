@@ -51,7 +51,7 @@ module LlmCostTracker
     end
 
     def validated_period(period)
-      normalized_period = period.respond_to?(:to_sym) ? period.to_sym : nil
+      normalized_period = period.try(:to_sym)
       return normalized_period if PERIOD_FORMATS.key?(normalized_period)
 
       raise ArgumentError, "invalid period: #{period.inspect}"

@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/hash/indifferent_access"
+require "active_support/core_ext/string/inflections"
+
 require_relative "../logging"
 require_relative "object_reader"
 
@@ -16,20 +19,22 @@ module LlmCostTracker
       def install
         validate_contract!
         patch_targets.each do |target|
-          target_class = constant(target.constant_name)
+          target_class = target.constant_name.to_s.safe_constantize
           install_patch(target_class, target.patch) if target_class
         end
       end
 
       def status
         name = integration_name
-        problems = contract_problems
+        problems = version_problems + target_problems
         if problems.any?
           return Result.new(name, :warn, "#{name} integration cannot be installed: #{problems.join('; ')}")
         end
 
         required_targets = patch_targets.reject(&:optional)
-        installed = required_targets.count { |target| patch_installed?(constant(target.constant_name), target.patch) }
+        installed = required_targets.count do |target|
+          target.constant_name.to_s.safe_constantize&.ancestors&.include?(target.patch)
+        end
         return Result.new(name, :ok, "#{name} integration installed") if installed == required_targets.count
 
         Result.new(name, :warn, "#{name} integration is enabled but not installed")
@@ -53,15 +58,7 @@ module LlmCostTracker
 
       def request_params(args, kwargs)
         params = args.first.is_a?(Hash) ? args.first : {}
-        params.merge(kwargs)
-      end
-
-      def constant(path)
-        path.to_s.split("::").reduce(Object) do |scope, const_name|
-          return nil unless scope.const_defined?(const_name, false)
-
-          scope.const_get(const_name, false)
-        end
+        params.merge(kwargs).with_indifferent_access
       end
 
       def minimum_version
@@ -83,35 +80,27 @@ module LlmCostTracker
       private
 
       def validate_contract!
-        problems = contract_problems
+        problems = version_problems + target_problems
         return if problems.empty?
 
         raise Error, "#{integration_name} integration cannot be installed: #{problems.join('; ')}"
-      end
-
-      def contract_problems
-        version_problems + target_problems
       end
 
       def version_problems
         return [] unless minimum_version
 
         name = integration_name.to_s
-        version = installed_version
+        version = Gem.loaded_specs[integration_name.to_s]&.version || constant_version
         return ["#{name} >= #{minimum_version} is required, but #{name} is not loaded"] unless version
         return [] if version >= Gem::Version.new(minimum_version)
 
         ["#{name} >= #{minimum_version} is required, detected #{version}"]
       end
 
-      def installed_version
-        Gem.loaded_specs[integration_name.to_s]&.version || constant_version
-      end
-
       def constant_version
         return nil unless version_constant
 
-        value = constant(version_constant)
+        value = version_constant.to_s.safe_constantize
         value ? Gem::Version.new(value.to_s) : nil
       rescue ArgumentError
         nil
@@ -119,7 +108,7 @@ module LlmCostTracker
 
       def target_problems
         patch_targets.flat_map do |target|
-          target_class = constant(target.constant_name)
+          target_class = target.constant_name.to_s.safe_constantize
           next [] if target_class.nil? && target.optional
           next ["#{target.constant_name} is not loaded"] unless target_class
 
@@ -136,13 +125,9 @@ module LlmCostTracker
       end
 
       def install_patch(target, patch)
-        return if patch_installed?(target, patch)
+        return if target&.ancestors&.include?(patch)
 
         target.prepend(patch)
-      end
-
-      def patch_installed?(target, patch)
-        target&.ancestors&.include?(patch)
       end
     end
   end

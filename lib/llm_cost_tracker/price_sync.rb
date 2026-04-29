@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
 require "date"
 require "json"
 require "rubygems"
@@ -21,8 +22,8 @@ module LlmCostTracker
 
     class << self
       def configured_output_path(env: ENV, config: LlmCostTracker.configuration)
-        output = env["OUTPUT"].to_s.strip
-        return output unless output.empty?
+        output = env["OUTPUT"].to_s.strip.presence
+        return output if output
 
         prices_file = config.prices_file
         return prices_file.to_s if prices_file
@@ -31,13 +32,12 @@ module LlmCostTracker
       end
 
       def configured_remote_url(env: ENV)
-        url = env["URL"].to_s.strip
-        url.empty? ? DEFAULT_REMOTE_URL : url
+        env["URL"].to_s.strip.presence || DEFAULT_REMOTE_URL
       end
 
       def refresh(path: DEFAULT_OUTPUT_PATH, url: DEFAULT_REMOTE_URL, preview: false, fetcher: Fetcher.new,
                   today: Date.today)
-        current = load_current_registry(path)
+        current = RegistryLoader.new.call(path: path, seed_path: PriceRegistry::DEFAULT_PRICES_PATH)
         response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
 
         if response.not_modified
@@ -50,7 +50,7 @@ module LlmCostTracker
       end
 
       def check(path: DEFAULT_OUTPUT_PATH, url: DEFAULT_REMOTE_URL, fetcher: Fetcher.new, today: Date.today)
-        current = load_current_registry(path)
+        current = RegistryLoader.new.call(path: path, seed_path: PriceRegistry::DEFAULT_PRICES_PATH)
         response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
 
         if response.not_modified
@@ -78,15 +78,11 @@ module LlmCostTracker
       private
 
       def default_output_path
-        if defined?(Rails) && Rails.respond_to?(:root) && Rails.root
+        if Rails.root
           Rails.root.join(DEFAULT_OUTPUT_PATH).to_s
         else
           DEFAULT_OUTPUT_PATH
         end
-      end
-
-      def load_current_registry(path)
-        RegistryLoader.new.call(path: path, seed_path: PriceRegistry::DEFAULT_PRICES_PATH)
       end
 
       def normalize_remote_registry(body, url:, response:, today:)

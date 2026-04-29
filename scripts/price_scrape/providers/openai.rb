@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
 require "json"
 require "nokogiri"
 require "time"
@@ -179,7 +180,7 @@ module LlmCostTracker
 
         def parse_optional_price(value)
           text = value.to_s.strip
-          return nil if text.empty? || text == "-"
+          return nil if text.blank? || text == "-"
 
           parse_price(value)
         end

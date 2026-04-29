@@ -38,7 +38,7 @@ module LlmCostTracker
           end
 
           usage_sum_columns(usage_breakdown_present, usage_breakdown_cost_present).each do |column|
-            expressions[column] = sum_expression(scope, column)
+            expressions[column] = Arel.sql("COALESCE(SUM(#{scope.connection.quote_column_name(column)}), 0)")
           end
 
           expressions
@@ -70,10 +70,6 @@ module LlmCostTracker
                      "COALESCE(SUM(CASE WHEN #{column} IS NOT NULL AND #{column} <> '' " \
                      "AND #{column} <> '{}' THEN 1 ELSE 0 END), 0)"
                    end)
-        end
-
-        def sum_expression(scope, column)
-          Arel.sql("COALESCE(SUM(#{scope.connection.quote_column_name(column)}), 0)")
         end
       end
     end

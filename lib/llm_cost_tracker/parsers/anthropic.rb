@@ -43,9 +43,9 @@ module LlmCostTracker
         return nil unless response_status == 200
 
         request = safe_json_parse(request_body)
-        model = stream_model(events) || request["model"]
+        model = find_event_value(events) { |data| data.dig("message", "model") } || request["model"]
         usage = stream_usage(events)
-        response_id = stream_response_id(events)
+        response_id = find_event_value(events) { |data| data.dig("message", "id") || data["id"] }
 
         if usage
           build_stream_result(model, usage, response_id)
@@ -73,14 +73,6 @@ module LlmCostTracker
         (start_usage || {}).merge(latest_delta || {}) do |_key, start_val, delta_val|
           delta_val.nil? ? start_val : delta_val
         end
-      end
-
-      def stream_model(events)
-        find_event_value(events) { |data| data.dig("message", "model") }
-      end
-
-      def stream_response_id(events)
-        find_event_value(events) { |data| data.dig("message", "id") || data["id"] }
       end
 
       def build_stream_result(model, usage, response_id)

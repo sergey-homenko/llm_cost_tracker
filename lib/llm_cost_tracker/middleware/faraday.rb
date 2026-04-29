@@ -25,7 +25,7 @@ module LlmCostTracker
         stream_buffer = install_stream_tap(request_env) if streaming
 
         Tracker.enforce_budget! if parser
-        started_at = monotonic_time
+        started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
         @app.call(request_env).on_complete do |response_env|
           process(
@@ -34,7 +34,7 @@ module LlmCostTracker
             request_url: request_url,
             request_body: request_body,
             response_env: response_env,
-            latency_ms: elapsed_ms(started_at),
+            latency_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round,
             streaming: streaming,
             stream_buffer: stream_buffer
           )
@@ -93,9 +93,9 @@ module LlmCostTracker
         end
 
         body = stream_buffer&.dig(:buffer)&.string
-        body = read_body(response_env.body) if body.nil? || body.empty?
+        body = read_body(response_env.body) if body.blank?
 
-        if body.nil? || body.empty?
+        if body.blank?
           Logging.warn(capture_warning(request_url, stream_buffer))
           return parser.parse_stream(request_url, request_body, response_env.status, [])
         end
@@ -105,13 +105,14 @@ module LlmCostTracker
       end
 
       def install_stream_tap(request_env)
-        return nil unless request_env.respond_to?(:request) && request_env.request
+        request = request_env.try(:request)
+        return nil unless request
 
-        original = request_env.request.on_data
+        original = request.on_data
         return nil unless original
 
         state = { buffer: StringIO.new, bytes: 0, overflowed: false }
-        request_env.request.on_data = proc do |chunk, size, env|
+        request.on_data = proc do |chunk, size, env|
           chunk = chunk.to_s
           unless state[:overflowed]
             if state[:bytes] + chunk.bytesize <= StreamCapture::LIMIT_BYTES
@@ -136,27 +137,20 @@ module LlmCostTracker
         when nil then ""
         when Hash, Array then body.to_json
         else
-          body.respond_to?(:to_str) ? body.to_str : nil
+          body.try(:to_str)
         end
       end
 
       def resolved_tags(request_env)
-        tags = @tags.respond_to?(:call) ? call_tags(request_env) : @tags
+        tags =
+          if @tags.respond_to?(:call)
+            @tags.arity.zero? ? @tags.call : @tags.call(request_env)
+          else
+            @tags
+          end
         return {} if tags.nil?
 
         tags.to_h
-      end
-
-      def call_tags(request_env)
-        @tags.arity.zero? ? @tags.call : @tags.call(request_env)
-      end
-
-      def monotonic_time
-        Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      end
-
-      def elapsed_ms(started_at)
-        ((monotonic_time - started_at) * 1000).round
       end
 
       def capture_warning(request_url, stream_buffer)

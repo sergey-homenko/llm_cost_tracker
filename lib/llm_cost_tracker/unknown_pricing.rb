@@ -12,7 +12,7 @@ module LlmCostTracker
       def handle!(model)
         model = model.to_s.presence || "unknown"
 
-        case behavior
+        case LlmCostTracker.configuration.unknown_pricing_behavior
         when :ignore
           nil
         when :warn
@@ -40,10 +40,6 @@ module LlmCostTracker
           "Cost and budget guardrails will be skipped for this event. " \
           "Add a pricing_overrides entry or set unknown_pricing_behavior."
         )
-      end
-
-      def behavior
-        LlmCostTracker.configuration.unknown_pricing_behavior
       end
     end
   end
