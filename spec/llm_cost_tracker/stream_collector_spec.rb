@@ -31,7 +31,7 @@ RSpec.describe LlmCostTracker do
   end
 
   describe ".track_stream" do
-    before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+    before { allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true) }
 
     let(:events) do
       captured = []

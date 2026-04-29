@@ -42,7 +42,7 @@ Per-call budgets are checked from the current event only.
 
 ## Durable Ingestion
 
-Inbox writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should fail honestly through `storage_error_behavior` instead of writing into the caller transaction and pretending the event is durable.
+Inbox writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should fail honestly instead of writing into the caller transaction and pretending the event is durable.
 
 The ingestor is database-leased and database-polled, with an opportunistic local wake after a successful inbox insert. The wake only reduces freshness latency in the process that wrote the row; correctness still comes from the shared database lease, retryable row locks, and adaptive polling across Puma, Sidekiq, Unicorn, deploy restarts, and multi-process hosts.
 

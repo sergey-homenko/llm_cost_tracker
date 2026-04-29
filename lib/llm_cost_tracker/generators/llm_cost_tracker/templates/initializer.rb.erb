@@ -22,10 +22,6 @@ LlmCostTracker.configure do |config|
   # :block_requests preflights monthly/daily budgets before supported requests.
   config.budget_exceeded_behavior = :notify
 
-  # Storage failures are non-fatal by default so LLM responses can still return.
-  # Use :raise if failed ledger writes should fail the request/job.
-  config.storage_error_behavior = :warn
-
   # Unknown pricing records token usage with nil cost by default. Use :raise if
   # every model must have known pricing before it can be used.
   config.unknown_pricing_behavior = :warn

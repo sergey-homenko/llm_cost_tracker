@@ -562,17 +562,17 @@ RSpec.describe "ActiveRecord durable inbox" do
     allow(LlmCostTracker::Storage::ActiveRecordInbox)
       .to receive(:insert_with_separate_connection)
       .and_raise(ActiveRecord::ConnectionTimeoutError)
-    allow(LlmCostTracker::Logging).to receive(:warn)
 
-    event = LlmCostTracker.track(
-      provider: :openai,
-      model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0
-    )
+    expect do
+      LlmCostTracker.track(
+        provider: :openai,
+        model: "gpt-4o",
+        input_tokens: 1_000,
+        output_tokens: 0
+      )
+    end.to raise_error(LlmCostTracker::Error, /could not checkout/)
 
-    expect(inbox_event_model.where(event_id: event.event_id)).to be_empty
-    expect(LlmCostTracker::Logging).to have_received(:warn).with(include("could not checkout"))
+    expect(inbox_event_model.count).to eq(0)
   end
 
   it "returns false when shutdown cannot flush cleanly" do
@@ -719,13 +719,13 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(yielded).to be true
   end
 
-  it "suppresses ingestor warnings when storage errors are ignored" do
-    LlmCostTracker.configure { |config| config.storage_error_behavior = :ignore }
+  it "warns when ingestor storage errors happen" do
     allow(LlmCostTracker::Logging).to receive(:warn)
 
     LlmCostTracker::Storage::ActiveRecordIngestor.send(:handle_error, RuntimeError.new("boom"))
 
-    expect(LlmCostTracker::Logging).not_to have_received(:warn)
+    expect(LlmCostTracker::Logging).to have_received(:warn)
+      .with("ActiveRecord ingestor failed: RuntimeError: boom")
   end
 
   it "ignores wakeup races for threads that already stopped" do

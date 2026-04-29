@@ -5,7 +5,7 @@ require "stringio"
 
 RSpec.describe LlmCostTracker::Tracker do
   describe ".record" do
-    before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+    before { allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true) }
 
     it "emits an ActiveSupport::Notifications event" do
       events = []
@@ -45,32 +45,8 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.latency_ms).to eq(123)
     end
 
-    it "warns and keeps returning the event when storage fails by default" do
-      event = nil
-
-      allow(LlmCostTracker::Storage::Writer).to receive(:save).and_call_original
+    it "raises storage errors from the ActiveRecord backend" do
       allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_raise("storage down")
-
-      expect do
-        event = described_class.record(
-          provider: "openai",
-          model: "gpt-4o",
-          input_tokens: 100,
-          output_tokens: 50
-        )
-      end.to output(/ActiveRecord ledger write failed: RuntimeError: storage down/).to_stderr
-
-      expect(event.model).to eq("gpt-4o")
-    end
-
-    it "handles ledger write errors that inherit from LlmCostTracker::Error" do
-      ledger_error = Class.new(LlmCostTracker::Error)
-      stub_const("LedgerWriteFailure", ledger_error)
-
-      allow(LlmCostTracker::Storage::Writer).to receive(:save).and_call_original
-      allow(LlmCostTracker::Storage::ActiveRecordBackend)
-        .to receive(:save)
-        .and_raise(LedgerWriteFailure, "write failed")
 
       expect do
         described_class.record(
@@ -79,34 +55,7 @@ RSpec.describe LlmCostTracker::Tracker do
           input_tokens: 100,
           output_tokens: 50
         )
-      end.to output(/ActiveRecord ledger write failed: LedgerWriteFailure: write failed/)
-        .to_stderr
-    end
-
-    it "raises storage errors when configured" do
-      allow(LlmCostTracker::Storage::Writer).to receive(:save).and_call_original
-      allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_raise("storage down")
-
-      LlmCostTracker.configure do |c|
-        c.storage_error_behavior = :raise
-      end
-
-      expect do
-        described_class.record(
-          provider: "openai",
-          model: "gpt-4o",
-          input_tokens: 100,
-          output_tokens: 50
-        )
-      end.to raise_error(LlmCostTracker::StorageError) { |error|
-        expect(error.original_error.message).to eq("storage down")
-      }
-    end
-
-    it "rejects unknown storage behavior values" do
-      expect do
-        LlmCostTracker.configure { |c| c.storage_error_behavior = :explode }
-      end.to raise_error(LlmCostTracker::Error, /Unknown storage_error_behavior/)
+      end.to raise_error(RuntimeError, "storage down")
     end
 
     it "merges default_tags with metadata" do

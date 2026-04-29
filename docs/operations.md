@@ -17,8 +17,6 @@ Until this page is expanded, use:
 ## Production Defaults
 
 - Size the ActiveRecord connection pool for your app plus ledger writes.
-- Keep `storage_error_behavior = :warn` unless losing the LLM response is better
-  than losing the ledger event.
 - Treat `:block_requests` as a guardrail, not a hard quota.
 - Keep `default_tags` callables fast and thread-safe.
 

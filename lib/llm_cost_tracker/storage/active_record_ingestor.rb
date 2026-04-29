@@ -165,8 +165,7 @@ module LlmCostTracker
         def inbox_batch = ActiveRecordInboxBatch.new(identity: identity)
 
         def handle_error(error)
-          Logging.warn("ActiveRecord ingestor failed: #{error.class}: #{error.message}") unless
-            LlmCostTracker.configuration.storage_error_behavior == :ignore
+          Logging.warn("ActiveRecord ingestor failed: #{error.class}: #{error.message}")
         end
       end
     end

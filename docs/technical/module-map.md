@@ -105,8 +105,8 @@ Primary files:
 - `lib/llm_cost_tracker/llm_api_call.rb`
 - `lib/llm_cost_tracker/period_total.rb`
 - `lib/llm_cost_tracker/llm_api_call_metrics.rb`
+- `lib/llm_cost_tracker/storage/active_record_backend.rb`
 - `lib/llm_cost_tracker/storage/active_record_store.rb`
-- `lib/llm_cost_tracker/storage/writer.rb`
 - `lib/llm_cost_tracker/storage/active_record_rollups.rb`
 - `lib/llm_cost_tracker/tags_column.rb`
 - `lib/llm_cost_tracker/tag_key.rb`

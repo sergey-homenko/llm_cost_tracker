@@ -2,7 +2,7 @@
 
 Configuration is the contract between the host Rails app and the ledger: which
 integrations are enabled, how attribution is attached, and how the app reacts
-when storage, pricing, or budgets need attention.
+when pricing or budgets need attention.
 
 The full option reference is moving here from the README. Until that migration is
 complete, the README anchors below remain canonical.
@@ -28,7 +28,6 @@ This page is scoped to:
 - `prices_file` and `pricing_overrides`
 - `monthly_budget`, `daily_budget`, and `per_call_budget`
 - `budget_exceeded_behavior`
-- `storage_error_behavior`
 - `unknown_pricing_behavior`
 - `openai_compatible_providers`
 - `report_tag_breakdowns`

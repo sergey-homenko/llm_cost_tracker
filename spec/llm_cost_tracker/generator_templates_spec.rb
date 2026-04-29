@@ -64,7 +64,6 @@ RSpec.describe "generator templates" do
     expect(initializer).to include("config.enabled = true")
     expect(initializer).to include("config.default_tags = -> { { environment: Rails.env } }")
     expect(initializer).to include("config.budget_exceeded_behavior = :notify")
-    expect(initializer).to include("config.storage_error_behavior = :warn")
     expect(initializer).to include("config.unknown_pricing_behavior = :warn")
     expect(initializer).to include("config.log_level = :info")
     expect(initializer).to include("# config.instrument :openai")

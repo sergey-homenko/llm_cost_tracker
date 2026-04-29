@@ -4,7 +4,7 @@ require "spec_helper"
 require "faraday"
 
 RSpec.describe LlmCostTracker::Middleware::Faraday do
-  before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+  before { allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true) }
 
   let(:openai_response_body) do
     {

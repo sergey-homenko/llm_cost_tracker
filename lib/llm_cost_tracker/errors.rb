@@ -45,14 +45,4 @@ module LlmCostTracker
       super("No pricing configured for LLM model: #{model.inspect}")
     end
   end
-
-  class StorageError < Error
-    attr_reader :original_error
-
-    def initialize(original_error)
-      @original_error = original_error
-
-      super("Failed to store LLM cost event: #{original_error.class}: #{original_error.message}")
-    end
-  end
 end

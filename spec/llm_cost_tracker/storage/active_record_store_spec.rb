@@ -748,7 +748,7 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(llm_api_call_model.first.attributes).not_to have_key("latency_ms")
   end
 
-  it "warns and does not raise when ActiveRecord storage fails" do
+  it "raises when ActiveRecord storage fails" do
     require "llm_cost_tracker/storage/active_record_store"
 
     allow(LlmCostTracker::Storage::ActiveRecordStore).to receive(:save)
@@ -761,8 +761,7 @@ RSpec.describe "ActiveRecord storage integration" do
         input_tokens: 10,
         output_tokens: 5
       )
-    end.to output(/ActiveRecord ledger write failed: ActiveRecord::StatementInvalid: database down/)
-      .to_stderr
+    end.to raise_error(ActiveRecord::StatementInvalid, /database down/)
   end
 
   it "returns daily cost keys as strings across adapters" do

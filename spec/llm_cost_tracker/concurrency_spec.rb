@@ -5,7 +5,7 @@ require "llm_cost_tracker/stream_collector"
 
 RSpec.describe "concurrency", :aggregate_failures do
   describe LlmCostTracker::StreamCollector do
-    before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+    before { allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true) }
 
     it "records exactly one event when finish! races across many threads" do
       recorded = []
@@ -204,7 +204,6 @@ RSpec.describe "concurrency", :aggregate_failures do
         config.log_level = :info
         config.prices_file = "/tmp/prices.json"
         config.budget_exceeded_behavior = :notify
-        config.storage_error_behavior = :warn
         config.unknown_pricing_behavior = :warn
       end
 
@@ -216,7 +215,6 @@ RSpec.describe "concurrency", :aggregate_failures do
       expect { LlmCostTracker.configuration.log_level = :debug }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.prices_file = "/tmp/other.json" }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.budget_exceeded_behavior = :raise }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.storage_error_behavior = :ignore }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.unknown_pricing_behavior = :ignore }.to raise_error(FrozenError)
     end
 
@@ -259,7 +257,7 @@ RSpec.describe "concurrency", :aggregate_failures do
   end
 
   describe LlmCostTracker::TagContext do
-    before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+    before { allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true) }
 
     it "keeps scoped tags isolated across threads" do
       recorded = Queue.new
@@ -286,7 +284,7 @@ RSpec.describe "concurrency", :aggregate_failures do
   end
 
   describe "opt-in budget preflight" do
-    before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+    before { allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true) }
 
     it "raises before tracking when track opts in" do
       allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(

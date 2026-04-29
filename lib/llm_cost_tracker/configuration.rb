@@ -12,13 +12,11 @@ module LlmCostTracker
     OPENAI_COMPATIBLE_PROVIDERS = { "openrouter.ai" => "openrouter", "api.deepseek.com" => "deepseek" }.freeze
 
     BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
-    STORAGE_ERROR_BEHAVIORS = %i[ignore warn raise].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
     SHARED_SCALAR_ATTRIBUTES = %i[enabled on_budget_exceeded monthly_budget daily_budget per_call_budget log_level
                                   prices_file max_tag_count max_tag_value_bytesize].freeze
     SHARED_ENUM_ATTRIBUTES = {
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
-      storage_error_behavior: [STORAGE_ERROR_BEHAVIORS, :warn],
       unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn]
     }.freeze
     DEFAULT_REDACTED_TAG_KEYS = %w[api_key access_token authorization credential password refresh_token secret].freeze
@@ -31,7 +29,6 @@ module LlmCostTracker
       :instrumented_integrations,
       :report_tag_breakdowns,
       :redacted_tag_keys,
-      :storage_error_behavior,
       :unknown_pricing_behavior,
       :openai_compatible_providers
     )
@@ -44,7 +41,6 @@ module LlmCostTracker
       @daily_budget       = nil
       @per_call_budget    = nil
       self.budget_exceeded_behavior = :notify
-      self.storage_error_behavior = :warn
       self.unknown_pricing_behavior = :warn
       @log_level          = :info
       @prices_file        = nil
