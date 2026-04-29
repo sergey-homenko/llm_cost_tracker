@@ -398,6 +398,35 @@ RSpec.describe "ActiveRecord durable inbox" do
     inbox_event_model.delete_all
   end
 
+  it "keeps flushing after a processed inbox batch" do
+    ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    allow(ingestor).to receive(:pending_events?).and_return(true, false)
+    allow(ingestor).to receive(:ingest_once).and_return(1)
+
+    expect(ingestor.flush!(timeout: 0.01)).to be true
+    expect(ingestor).to have_received(:ingest_once).once
+  end
+
+  it "waits between empty flush attempts only while the deadline is still open" do
+    ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    attempts = 0
+    durations = []
+    allow(ingestor).to receive(:pending_events?).and_return(true)
+    allow(ingestor).to receive(:ingest_once) do
+      attempts += 1
+      sleep 0.02 if attempts == 2
+      0
+    end
+    allow(ingestor).to receive(:sleep) { |duration| durations << duration }
+
+    expect(ingestor.flush!(timeout: 0.01)).to be false
+
+    expect(attempts).to eq(2)
+    expect(durations.length).to eq(1)
+    expect(durations.first).to be > 0
+    expect(durations.first).to be <= LlmCostTracker::Storage::ActiveRecordIngestor::INTERVAL_SECONDS
+  end
+
   it "does not start or flush the ingestor when durable inbox is disabled" do
     ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
     allow(ingestor).to receive(:ensure_started).and_wrap_original(&:call)
