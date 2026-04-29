@@ -45,7 +45,7 @@ module LlmCostTracker
         return postgresql_sql if ActiveRecordAdapter.postgresql?(connection)
         return mysql_sql if ActiveRecordAdapter.mysql?(connection)
 
-        sqlite_sql
+        ActiveRecordAdapter.ensure_supported!(connection)
       end
 
       def mysql_sql
@@ -78,22 +78,6 @@ module LlmCostTracker
           WHERE sub.tags IS NOT NULL
             AND sub.tags::jsonb <> '{}'::jsonb
           GROUP BY key
-          ORDER BY calls_count DESC
-          LIMIT #{limit}
-        SQL
-      end
-
-      def sqlite_sql
-        <<~SQL.squish
-          SELECT je.key AS key,
-                 COUNT(*) AS calls_count,
-                 COUNT(DISTINCT je.value) AS distinct_values
-          FROM (#{subquery}) AS sub,
-               json_each(sub.tags) AS je
-          WHERE sub.tags IS NOT NULL
-            AND sub.tags != '{}'
-            AND sub.tags != ''
-          GROUP BY je.key
           ORDER BY calls_count DESC
           LIMIT #{limit}
         SQL

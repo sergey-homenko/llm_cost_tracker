@@ -8,7 +8,6 @@ module LlmCostTracker
       def enforce!
         config = LlmCostTracker.configuration
         return unless config.budget_exceeded_behavior == :block_requests
-        return unless config.active_record?
 
         budgets = enforce_period_budgets(config)
         return if budgets.empty?
@@ -28,7 +27,7 @@ module LlmCostTracker
 
         check_per_call_budget(event, config)
         budgets = check_period_budgets(config)
-        totals = totals_for_check(event, config, budgets)
+        totals = totals_for_check(event, budgets)
 
         budgets.each do |period, budget|
           total = totals.fetch(period)
@@ -63,11 +62,10 @@ module LlmCostTracker
         }.compact
       end
 
-      def totals_for_check(event, config, budgets)
+      def totals_for_check(event, budgets)
         return {} if budgets.empty?
-        return active_record_totals(budgets.keys, time: event.tracked_at) if config.active_record?
 
-        budgets.to_h { |period, _budget| [period, event.cost.total_cost] }
+        active_record_totals(budgets.keys, time: event.tracked_at)
       end
 
       def active_record_totals(periods, time:)

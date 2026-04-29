@@ -5,6 +5,8 @@ require "stringio"
 
 RSpec.describe LlmCostTracker::Tracker do
   describe ".record" do
+    before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+
     it "emits an ActiveSupport::Notifications event" do
       events = []
       ActiveSupport::Notifications.subscribe(described_class::EVENT_NAME) do |*, payload|
@@ -46,10 +48,8 @@ RSpec.describe LlmCostTracker::Tracker do
     it "warns and keeps returning the event when storage fails by default" do
       event = nil
 
-      LlmCostTracker.configure do |c|
-        c.storage_backend = :custom
-        c.custom_storage = ->(_event) { raise "storage down" }
-      end
+      allow(LlmCostTracker::Storage::Writer).to receive(:save).and_call_original
+      allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_raise("storage down")
 
       expect do
         event = described_class.record(
@@ -58,19 +58,19 @@ RSpec.describe LlmCostTracker::Tracker do
           input_tokens: 100,
           output_tokens: 50
         )
-      end.to output(/Storage failed; tracking event was not persisted: RuntimeError: storage down/).to_stderr
+      end.to output(/ActiveRecord ledger write failed: RuntimeError: storage down/).to_stderr
 
       expect(event.model).to eq("gpt-4o")
     end
 
-    it "handles custom storage errors that inherit from LlmCostTracker::Error" do
-      custom_error = Class.new(LlmCostTracker::Error)
-      stub_const("CustomStorageFailure", custom_error)
+    it "handles ledger write errors that inherit from LlmCostTracker::Error" do
+      ledger_error = Class.new(LlmCostTracker::Error)
+      stub_const("LedgerWriteFailure", ledger_error)
 
-      LlmCostTracker.configure do |c|
-        c.storage_backend = :custom
-        c.custom_storage = ->(_event) { raise CustomStorageFailure, "custom failure" }
-      end
+      allow(LlmCostTracker::Storage::Writer).to receive(:save).and_call_original
+      allow(LlmCostTracker::Storage::ActiveRecordBackend)
+        .to receive(:save)
+        .and_raise(LedgerWriteFailure, "write failed")
 
       expect do
         described_class.record(
@@ -79,15 +79,16 @@ RSpec.describe LlmCostTracker::Tracker do
           input_tokens: 100,
           output_tokens: 50
         )
-      end.to output(/Storage failed; tracking event was not persisted: CustomStorageFailure: custom failure/)
+      end.to output(/ActiveRecord ledger write failed: LedgerWriteFailure: write failed/)
         .to_stderr
     end
 
     it "raises storage errors when configured" do
+      allow(LlmCostTracker::Storage::Writer).to receive(:save).and_call_original
+      allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_raise("storage down")
+
       LlmCostTracker.configure do |c|
-        c.storage_backend = :custom
         c.storage_error_behavior = :raise
-        c.custom_storage = ->(_event) { raise "storage down" }
       end
 
       expect do
@@ -106,32 +107,6 @@ RSpec.describe LlmCostTracker::Tracker do
       expect do
         LlmCostTracker.configure { |c| c.storage_error_behavior = :explode }
       end.to raise_error(LlmCostTracker::Error, /Unknown storage_error_behavior/)
-    end
-
-    it "rejects unknown storage backends at configuration time" do
-      expect do
-        LlmCostTracker.configure { |c| c.storage_backend = :somewhere_else }
-      end.to raise_error(LlmCostTracker::Error, /Unknown storage_backend/)
-    end
-
-    it "honors a false custom storage return by skipping budget checks" do
-      budget_data = nil
-
-      LlmCostTracker.configure do |c|
-        c.storage_backend = :custom
-        c.custom_storage = ->(_event) { false }
-        c.monthly_budget = 0.0001
-        c.on_budget_exceeded = ->(data) { budget_data = data }
-      end
-
-      described_class.record(
-        provider: "openai",
-        model: "gpt-4o",
-        input_tokens: 1_000_000,
-        output_tokens: 1_000_000
-      )
-
-      expect(budget_data).to be_nil
     end
 
     it "merges default_tags with metadata" do
@@ -308,6 +283,7 @@ RSpec.describe LlmCostTracker::Tracker do
         c.monthly_budget = 0.0001 # very small budget
         c.on_budget_exceeded = ->(data) { budget_data = data }
       end
+      allow(LlmCostTracker::Storage::ActiveRecordStore).to receive(:period_totals).and_return(monthly: 12.5)
 
       described_class.record(
         provider: "openai",
@@ -349,6 +325,7 @@ RSpec.describe LlmCostTracker::Tracker do
         c.monthly_budget = 0.0001
         c.budget_exceeded_behavior = :raise
       end
+      allow(LlmCostTracker::Storage::ActiveRecordStore).to receive(:period_totals).and_return(monthly: 12.5)
 
       expect do
         described_class.record(
@@ -390,22 +367,8 @@ RSpec.describe LlmCostTracker::Tracker do
       end.to raise_error(LlmCostTracker::Error, /Unknown budget_exceeded_behavior/)
     end
 
-    it "warns when block_requests is configured without ActiveRecord storage" do
-      expect do
-        LlmCostTracker.configure do |c|
-          c.storage_backend = :log
-          c.budget_exceeded_behavior = :block_requests
-        end
-      end.to output(/:block_requests requires storage_backend = :active_record/).to_stderr
-    end
-
     it "warns by default when model pricing is unknown" do
       event = nil
-
-      LlmCostTracker.configure do |c|
-        c.storage_backend = :custom
-        c.custom_storage = ->(_event) {}
-      end
 
       expect do
         event = described_class.record(
@@ -420,11 +383,6 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     it "warns once per unknown model" do
-      LlmCostTracker.configure do |c|
-        c.storage_backend = :custom
-        c.custom_storage = ->(_event) {}
-      end
-
       original_stderr = $stderr
       fake_stderr = StringIO.new
       $stderr = fake_stderr
@@ -447,8 +405,6 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "raises unknown pricing errors when configured" do
       LlmCostTracker.configure do |c|
-        c.storage_backend = :custom
-        c.custom_storage = ->(_event) {}
         c.unknown_pricing_behavior = :raise
       end
 

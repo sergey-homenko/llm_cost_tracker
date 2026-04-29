@@ -2,7 +2,7 @@
 
 require "securerandom"
 
-require_relative "storage/dispatcher"
+require_relative "storage/writer"
 
 module LlmCostTracker
   class Tracker
@@ -41,7 +41,7 @@ module LlmCostTracker
 
         ActiveSupport::Notifications.instrument(EVENT_NAME, event.to_h)
 
-        stored = Storage::Dispatcher.save(event)
+        stored = Storage::Writer.save(event)
         Budget.check!(event) unless stored == false
 
         event

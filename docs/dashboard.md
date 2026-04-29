@@ -21,7 +21,7 @@ Until this page is expanded, use:
 mount LlmCostTracker::Engine => "/llm-costs"
 ```
 
-Use `storage_backend = :active_record` for apps that mount the dashboard.
+The dashboard reads from the ActiveRecord ledger installed by the generator.
 
 ## Pages
 

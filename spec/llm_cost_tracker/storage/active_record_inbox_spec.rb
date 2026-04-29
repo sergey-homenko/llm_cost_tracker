@@ -2,16 +2,15 @@
 
 require "spec_helper"
 require "active_record"
-require "tempfile"
 
 RSpec.describe "ActiveRecord durable inbox" do
   before do
-    @database = Tempfile.new(["llm-cost-tracker", ".sqlite3"])
-    ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: @database.path, pool: 5)
+    establish_database_connection!
 
     ActiveRecord::Schema.verbose = false
+    tags_column = method(:add_tags_column)
     ActiveRecord::Schema.define do
-      create_table :llm_api_calls do |t|
+      create_table :llm_api_calls, force: true do |t|
         t.string :event_id, null: false
         t.string :provider, null: false
         t.string :model, null: false
@@ -31,13 +30,13 @@ RSpec.describe "ActiveRecord durable inbox" do
         t.string :usage_source
         t.string :provider_response_id
         t.string :pricing_mode
-        t.text :tags
+        tags_column.call(t)
         t.datetime :tracked_at, null: false
 
         t.timestamps
       end
 
-      create_table :llm_cost_tracker_period_totals do |t|
+      create_table :llm_cost_tracker_period_totals, force: true do |t|
         t.string :period, null: false
         t.date :period_start, null: false
         t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
@@ -45,7 +44,7 @@ RSpec.describe "ActiveRecord durable inbox" do
         t.timestamps
       end
 
-      create_table :llm_cost_tracker_inbox_events do |t|
+      create_table :llm_cost_tracker_inbox_events, force: true do |t|
         t.string :event_id, null: false
         t.decimal :total_cost, precision: 20, scale: 8
         t.datetime :tracked_at, null: false
@@ -58,7 +57,7 @@ RSpec.describe "ActiveRecord durable inbox" do
         t.timestamps
       end
 
-      create_table :llm_cost_tracker_ingestor_leases do |t|
+      create_table :llm_cost_tracker_ingestor_leases, force: true do |t|
         t.string :name, null: false
         t.string :locked_by
         t.datetime :locked_until
@@ -79,17 +78,12 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker::Storage::ActiveRecordInbox.reset!
     LlmCostTracker::Storage::ActiveRecordStore.reset!
 
-    LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
-    end
-
     allow(LlmCostTracker::Storage::ActiveRecordIngestor).to receive(:ensure_started)
   end
 
   after do
     LlmCostTracker.shutdown!
-    ActiveRecord::Base.connection.disconnect!
-    @database.close!
+    disconnect_database!
   end
 
   def llm_api_call_model
@@ -182,7 +176,6 @@ RSpec.describe "ActiveRecord durable inbox" do
 
   it "ingests unknown-cost events without adding pending budget totals" do
     LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
       config.unknown_pricing_behavior = :ignore
     end
 
@@ -534,7 +527,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(checks.first).to have_attributes(status: :error, message: include("schema failed"))
   end
 
-  it "avoids a second SQLite writer connection inside caller transactions" do
+  it "captures inbox rows outside caller transactions" do
     llm_api_call_model.transaction do
       LlmCostTracker.track(
         provider: :openai,
@@ -546,13 +539,12 @@ RSpec.describe "ActiveRecord durable inbox" do
     end
 
     expect(llm_api_call_model.count).to eq(0)
-    expect(inbox_event_model.count).to eq(0)
+    expect(inbox_event_model.count).to eq(1)
   end
 
   it "can capture through a separate connection when the caller has an open transaction" do
     connection = llm_api_call_model.connection
     allow(connection).to receive(:transaction_open?).and_return(true)
-    allow(LlmCostTracker::Storage::ActiveRecordInbox).to receive(:sqlite_database?).and_return(false)
 
     event = LlmCostTracker.track(
       provider: :openai,
@@ -567,7 +559,6 @@ RSpec.describe "ActiveRecord durable inbox" do
   it "fails honestly when no separate connection is available inside a caller transaction" do
     connection = llm_api_call_model.connection
     allow(connection).to receive(:transaction_open?).and_return(true)
-    allow(LlmCostTracker::Storage::ActiveRecordInbox).to receive(:sqlite_database?).and_return(false)
     allow(LlmCostTracker::Storage::ActiveRecordInbox)
       .to receive(:insert_with_separate_connection)
       .and_raise(ActiveRecord::ConnectionTimeoutError)

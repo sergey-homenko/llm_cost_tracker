@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "storage/dispatcher"
+require_relative "storage/active_record_backend"
 
 module LlmCostTracker
   class CaptureVerifier
@@ -54,14 +54,7 @@ module LlmCostTracker
     end
 
     def storage_checks
-      backend = LlmCostTracker::Storage::Registry.fetch(LlmCostTracker.configuration.storage_backend)
-      unless backend.respond_to?(:verify)
-        return [
-          Check.new(:warn, "storage", "#{LlmCostTracker.configuration.storage_backend} backend has no verifier")
-        ]
-      end
-
-      backend.verify.map do |check|
+      LlmCostTracker::Storage::ActiveRecordBackend.verify.map do |check|
         Check.new(check.status, check.name, check.message)
       end
     rescue LlmCostTracker::Error => e

@@ -31,6 +31,8 @@ RSpec.describe LlmCostTracker do
   end
 
   describe ".track_stream" do
+    before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+
     let(:events) do
       captured = []
       ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|

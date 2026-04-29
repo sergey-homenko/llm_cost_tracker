@@ -1,7 +1,7 @@
 # Operations
 
-Production use is mostly about choosing the right storage backend, keeping the
-database healthy, and understanding where the gem is intentionally best effort.
+Production use is mostly about keeping the ActiveRecord ledger healthy and
+understanding where the gem is intentionally best effort.
 
 The operational guide is moving here from the README: retention, tag storage,
 thread safety, connection pools, and deployment notes.
@@ -16,8 +16,6 @@ Until this page is expanded, use:
 
 ## Production Defaults
 
-- Use `storage_backend = :active_record` for the shared ledger, dashboard, and
-  cross-process budget guardrails.
 - Size the ActiveRecord connection pool for your app plus ledger writes.
 - Keep `storage_error_behavior = :warn` unless losing the LLM response is better
   than losing the ledger event.
@@ -39,6 +37,6 @@ delete.
 
 ## Data Shape
 
-Tags are JSONB with a GIN index on PostgreSQL and JSON text elsewhere. The
-dashboard and query helpers work across supported adapters, but PostgreSQL is the
-strongest path for large tag-heavy ledgers.
+Tags are JSONB with a GIN index on PostgreSQL and native JSON on MySQL. The
+dashboard and query helpers work across both supported adapters, but PostgreSQL
+is the strongest path for large tag-heavy ledgers.

@@ -7,13 +7,11 @@ module LlmCostTracker
     PERIOD_FORMATS = {
       day: {
         postgres: "YYYY-MM-DD",
-        mysql: "%Y-%m-%d",
-        sqlite: "%Y-%m-%d"
+        mysql: "%Y-%m-%d"
       },
       month: {
         postgres: "YYYY-MM",
-        mysql: "%Y-%m",
-        sqlite: "%Y-%m"
+        mysql: "%Y-%m"
       }
     }.freeze
 
@@ -41,7 +39,7 @@ module LlmCostTracker
       elsif ActiveRecordAdapter.mysql?(connection)
         "DATE_FORMAT(#{column}, #{connection.quote(formats.fetch(:mysql))})"
       else
-        "strftime(#{connection.quote(formats.fetch(:sqlite))}, #{column})"
+        ActiveRecordAdapter.ensure_supported!(connection)
       end
     end
 

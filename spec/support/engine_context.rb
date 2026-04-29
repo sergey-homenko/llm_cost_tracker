@@ -10,9 +10,11 @@ module LlmCostTrackerEngineContext
   end
 
   def create_llm_api_calls_table
+    tags_column = method(:add_tags_column)
+
     ActiveRecord::Schema.verbose = false
     ActiveRecord::Schema.define do
-      create_table :llm_api_calls do |t|
+      create_table :llm_api_calls, force: true do |t|
         t.string :provider, null: false
         t.string :model, null: false
         t.integer :input_tokens, null: false, default: 0
@@ -31,7 +33,7 @@ module LlmCostTrackerEngineContext
         t.string :usage_source
         t.string :provider_response_id
         t.string :pricing_mode
-        t.text :tags
+        tags_column.call(t)
         t.datetime :tracked_at, null: false
 
         t.timestamps
@@ -58,7 +60,7 @@ module LlmCostTrackerEngineContext
                            attrs.fetch(:cache_read_input_tokens) +
                            attrs.fetch(:cache_write_input_tokens) +
                            attrs.fetch(:output_tokens)
-    attrs[:tags] = attrs.fetch(:tags).to_json
+    attrs[:tags] = tags_for_database(attrs.fetch(:tags))
 
     LlmCostTracker::LlmApiCall.create!(attrs)
   end
@@ -74,13 +76,12 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
 
   before do
     Rails.logger = Logger.new(nil)
-    ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: ":memory:")
+    establish_database_connection!
     create_llm_api_calls_table
     LlmCostTracker::LlmApiCall.reset_column_information
-    LlmCostTracker.configure { |config| config.storage_backend = :active_record }
   end
 
   after do
-    ActiveRecord::Base.connection.disconnect!
+    disconnect_database!
   end
 end

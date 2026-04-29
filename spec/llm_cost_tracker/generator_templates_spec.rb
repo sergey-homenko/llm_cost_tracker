@@ -52,15 +52,16 @@ RSpec.describe "generator templates" do
     expect(migration).to include("add_index :llm_api_calls, :provider_response_id")
     expect(migration).not_to match(/add_index :llm_api_calls, :provider$/)
     expect(migration).not_to match(/add_index :llm_api_calls, :model$/)
-    expect(migration).to include("t.text :tags")
+    expect(migration).to include("t.json :tags")
+    expect(migration).to include("LLM Cost Tracker supports PostgreSQL and MySQL only")
     expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)")
+    expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.mysql?(connection)")
   end
 
   it "provides a complete initializer template" do
     initializer = template("initializer.rb.erb")
 
     expect(initializer).to include("config.enabled = true")
-    expect(initializer).to include("config.storage_backend = :active_record")
     expect(initializer).to include("config.default_tags = -> { { environment: Rails.env } }")
     expect(initializer).to include("config.budget_exceeded_behavior = :notify")
     expect(initializer).to include("config.storage_error_behavior = :warn")
@@ -81,7 +82,8 @@ RSpec.describe "generator templates" do
     expect(initializer).to include("# config.pricing_overrides")
     expect(initializer).to include("# config.openai_compatible_providers")
     expect(initializer).to include("# config.report_tag_breakdowns")
-    expect(initializer).to include("# config.custom_storage")
+    expect(initializer).not_to include("config.storage_backend")
+    expect(initializer).not_to include("config.custom_storage")
   end
 
   it "provides a latency upgrade migration" do
@@ -110,7 +112,8 @@ RSpec.describe "generator templates" do
     expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)")
     expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.mysql?(connection)")
     expect(migration).to include("DATE(tracked_at)")
-    expect(migration).to include("date(tracked_at)")
+    expect(migration).to include("DATE_FORMAT(tracked_at, '%Y-%m-01')")
+    expect(migration).to include("LLM Cost Tracker supports PostgreSQL and MySQL only")
   end
 
   it "provides a durable ingestion upgrade migration" do

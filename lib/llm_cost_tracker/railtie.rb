@@ -21,10 +21,8 @@ module LlmCostTracker
 
     initializer "llm_cost_tracker.configure" do
       ActiveSupport.on_load(:active_record) do
-        if LlmCostTracker.configuration.active_record?
-          require_relative "llm_api_call"
-          require_relative "storage/active_record_store"
-        end
+        require_relative "llm_api_call"
+        require_relative "storage/active_record_store"
       end
     end
   end

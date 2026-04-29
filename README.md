@@ -10,7 +10,7 @@ If you have OpenAI, Anthropic, or Gemini in production and someone keeps asking 
 
 It is not Langfuse, Helicone, or LiteLLM. It does not capture prompts, score completions, or replay traces. It does one thing: tells you which provider, which model, which feature, and which user burned how much money. That's the entire pitch.
 
-Requires Ruby 3.3+, ActiveSupport 7.1+, Faraday 2.0+. ActiveRecord storage and the dashboard need Rails 7.1+.
+Requires Ruby 3.3+, Rails 7.1+, PostgreSQL or MySQL, and Faraday 2.0+.
 
 ![Dashboard overview](docs/dashboard-overview.png)
 
@@ -35,7 +35,6 @@ Drop this into `config/initializers/llm_cost_tracker.rb`:
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.storage_backend = :active_record
   config.default_tags    = -> { { environment: Rails.env } }
   config.instrument :openai
 end
@@ -219,7 +218,7 @@ Mount the engine wherever you want — it's plain ERB, no JavaScript bundle, no 
 mount LlmCostTracker::Engine => "/llm-costs"
 ```
 
-Pages: overview (spend trend, budget status, anomaly banner), models, calls (filterable, paginated, CSV export), tags, data quality. Reads `llm_api_calls`, so use `:active_record` storage if you want to mount it.
+Pages: overview (spend trend, budget status, anomaly banner), models, calls (filterable, paginated, CSV export), tags, data quality. Reads the ActiveRecord ledger in `llm_api_calls`.
 
 Auth is your job. Examples for basic auth and Devise: [`docs/dashboard.md`](docs/dashboard.md).
 

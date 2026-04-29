@@ -36,14 +36,14 @@ This is the normal path from an application LLM call to stored ledger data.
 3. `Pricing.cost_for` calculates a `Cost` object or returns `nil` for unknown pricing.
 4. Tags are merged from `with_tags`, `default_tags`, middleware tags, and explicit metadata.
 5. An `Event` is created and emitted through `ActiveSupport::Notifications`.
-6. The configured storage backend receives the event.
+6. The ActiveRecord ledger receives the event.
 7. Budget checks run unless storage explicitly returns `false`.
 
 ## ActiveRecord Storage
 
 1. `Storage::ActiveRecordInbox.save` writes a compact durable event row when the ingestion tables are present.
 2. `Storage::ActiveRecordIngestor` claims retryable inbox rows through a database lease and writes batches into `llm_api_calls`.
-3. `Storage::ActiveRecordStore.insert_many` converts tags for JSON or text storage and writes optional fields only when their columns exist.
+3. `Storage::ActiveRecordStore.insert_many` converts tags for PostgreSQL JSONB or MySQL JSON storage and writes optional fields only when their columns exist.
 4. The call rows, period rollup updates, and inbox deletes happen in one transaction.
 5. `ActiveRecordRollups.increment_many!` updates daily and monthly totals only for rows inserted by the batch.
 6. Budget reads use period totals plus pending inbox totals when available.

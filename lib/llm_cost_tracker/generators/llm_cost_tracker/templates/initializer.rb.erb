@@ -4,10 +4,6 @@ LlmCostTracker.configure do |config|
   # Set to false to temporarily disable tracking without removing middleware.
   config.enabled = true
 
-  # :active_record captures events into a durable inbox and ingests them into llm_api_calls.
-  # Other options: :log for local logging, :custom for your own storage callable.
-  config.storage_backend = :active_record
-
   # Tags are merged into every event. Use a callable for request/job-time context.
   config.default_tags = -> { { environment: Rails.env } }
 
@@ -34,7 +30,7 @@ LlmCostTracker.configure do |config|
   # every model must have known pricing before it can be used.
   config.unknown_pricing_behavior = :warn
 
-  # Used only by the :log storage backend.
+  # LLM Cost Tracker logs warnings through Rails.logger when available.
   config.log_level = :info
 <% if options[:prices] -%>
 
@@ -65,16 +61,4 @@ LlmCostTracker.configure do |config|
   # for bin/rails llm_cost_tracker:report.
   # config.openai_compatible_providers["llm.my-company.com"] = "internal_gateway"
   # config.report_tag_breakdowns = %w[feature user_id]
-
-  # Use :custom when you want to send events to your own sink instead of ActiveRecord.
-  # Return false from custom_storage to skip budget checks for that event.
-  # config.storage_backend = :custom
-  # config.custom_storage = ->(event) {
-  #   Rails.logger.info(
-  #     provider: event.provider,
-  #     model: event.model,
-  #     total_cost: event.cost&.total_cost,
-  #     tags: event.tags
-  #   )
-  # }
 end

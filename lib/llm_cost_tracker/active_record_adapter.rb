@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "errors"
+
 module LlmCostTracker
   module ActiveRecordAdapter
     MYSQL_ADAPTERS = %w[
@@ -10,12 +12,8 @@ module LlmCostTracker
     POSTGRESQL_ADAPTERS = %w[
       ActiveRecord::ConnectionAdapters::PostgreSQLAdapter
     ].freeze
-    SQLITE_ADAPTERS = %w[
-      ActiveRecord::ConnectionAdapters::SQLite3Adapter
-    ].freeze
     MYSQL_PATTERN = /mysql|trilogy|mariadb/i
     POSTGRESQL_PATTERN = /postgres/i
-    SQLITE_PATTERN = /sqlite/i
 
     class << self
       def mysql?(value) = adapter_instance?(value, MYSQL_ADAPTERS) || adapter_name(value).match?(MYSQL_PATTERN)
@@ -24,7 +22,13 @@ module LlmCostTracker
         adapter_instance?(value, POSTGRESQL_ADAPTERS) || adapter_name(value).match?(POSTGRESQL_PATTERN)
       end
 
-      def sqlite?(value) = adapter_instance?(value, SQLITE_ADAPTERS) || adapter_name(value).match?(SQLITE_PATTERN)
+      def supported?(value) = mysql?(value) || postgresql?(value)
+
+      def ensure_supported!(value)
+        return if supported?(value)
+
+        raise Error, "Unsupported database adapter: #{adapter_name(value)}. Use PostgreSQL or MySQL."
+      end
 
       private
 

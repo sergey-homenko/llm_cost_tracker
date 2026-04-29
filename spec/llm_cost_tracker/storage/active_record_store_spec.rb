@@ -7,11 +7,12 @@ require "tempfile"
 
 RSpec.describe "ActiveRecord storage integration" do
   before do
-    ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: ":memory:")
+    establish_database_connection!
 
     ActiveRecord::Schema.verbose = false
+    tags_column = method(:add_tags_column)
     ActiveRecord::Schema.define do
-      create_table :llm_api_calls do |t|
+      create_table :llm_api_calls, force: true do |t|
         t.string :provider, null: false
         t.string :model, null: false
         t.integer :input_tokens, null: false, default: 0
@@ -30,13 +31,13 @@ RSpec.describe "ActiveRecord storage integration" do
         t.string :usage_source
         t.string :provider_response_id
         t.string :pricing_mode
-        t.text :tags
+        tags_column.call(t)
         t.datetime :tracked_at, null: false
 
         t.timestamps
       end
 
-      create_table :llm_cost_tracker_period_totals do |t|
+      create_table :llm_cost_tracker_period_totals, force: true do |t|
         t.string :period, null: false
         t.date :period_start, null: false
         t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
@@ -49,14 +50,10 @@ RSpec.describe "ActiveRecord storage integration" do
 
     LlmCostTracker::LlmApiCall.reset_column_information if defined?(LlmCostTracker::LlmApiCall)
     LlmCostTracker::PeriodTotal.reset_column_information if defined?(LlmCostTracker::PeriodTotal)
-
-    LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
-    end
   end
 
   after do
-    ActiveRecord::Base.connection.disconnect!
+    disconnect_database!
   end
 
   def llm_api_call_model
@@ -434,7 +431,12 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "summarizer"
     )
 
-    expect(llm_api_call_model.group_by_tag("feature").to_sql).to include("json_extract")
+    tag_sql = llm_api_call_model.group_by_tag("feature").to_sql
+    if LlmCostTracker::ActiveRecordAdapter.postgresql?(llm_api_call_model.connection)
+      expect(tag_sql).to include("->>")
+    else
+      expect(tag_sql).to include("JSON_EXTRACT")
+    end
     expect(llm_api_call_model.group_by_tag("feature").sum(:total_cost).transform_values(&:to_f)).to eq(
       "chat" => 0.0025,
       "summarizer" => 0.001
@@ -449,7 +451,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 1.25,
-      tags: "{}",
+      tags: tags_for_database({}),
       tracked_at: Time.utc(2026, 4, 18, 10, 30)
     )
     llm_api_call_model.create!(
@@ -459,7 +461,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 2.75,
-      tags: "{}",
+      tags: tags_for_database({}),
       tracked_at: Time.utc(2026, 4, 18, 23, 59)
     )
     llm_api_call_model.create!(
@@ -469,11 +471,16 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 3.5,
-      tags: "{}",
+      tags: tags_for_database({}),
       tracked_at: Time.utc(2026, 4, 19, 0, 1)
     )
 
-    expect(llm_api_call_model.group_by_period(:day).to_sql).to include("strftime")
+    period_sql = llm_api_call_model.group_by_period(:day).to_sql
+    if LlmCostTracker::ActiveRecordAdapter.postgresql?(llm_api_call_model.connection)
+      expect(period_sql).to include("DATE_TRUNC")
+    else
+      expect(period_sql).to include("DATE_FORMAT")
+    end
     expect(llm_api_call_model.group_by_period(:day).sum(:total_cost).transform_values(&:to_f)).to eq(
       "2026-04-18" => 4.0,
       "2026-04-19" => 3.5
@@ -488,7 +495,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 1.25,
-      tags: "{}",
+      tags: tags_for_database({}),
       tracked_at: Time.utc(2026, 4, 18)
     )
     llm_api_call_model.create!(
@@ -498,7 +505,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 3.5,
-      tags: "{}",
+      tags: tags_for_database({}),
       tracked_at: Time.utc(2026, 5, 1)
     )
 
@@ -516,7 +523,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 1.25,
-      tags: "{}",
+      tags: tags_for_database({}),
       tracked_at: Time.utc(2026, 4, 18),
       created_at: Time.utc(2026, 5, 2),
       updated_at: Time.utc(2026, 5, 2)
@@ -541,7 +548,10 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "builds MySQL-family period grouping SQL" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-      allow(llm_api_call_model.connection).to receive(:adapter_name).and_return(adapter_name)
+      connection = llm_api_call_model.connection
+      allow(connection).to receive(:adapter_name).and_return(adapter_name)
+      allow(LlmCostTracker::ActiveRecordAdapter).to receive(:postgresql?).with(connection).and_return(false)
+      allow(LlmCostTracker::ActiveRecordAdapter).to receive(:mysql?).with(connection).and_return(true)
 
       day_sql = llm_api_call_model.group_by_period(:day).to_sql
       month_sql = llm_api_call_model.group_by_period(:month).to_sql
@@ -563,7 +573,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 1.25,
-      tags: "{}",
+      tags: tags_for_database({}),
       tracked_at: tracked_at
     )
     llm_api_call_model.create!(
@@ -573,7 +583,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 3.5,
-      tags: "{}",
+      tags: tags_for_database({}),
       tracked_at: tracked_at
     )
 
@@ -679,7 +689,6 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "filters calls with and without known pricing" do
     LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
       config.unknown_pricing_behavior = :ignore
     end
 
@@ -752,7 +761,7 @@ RSpec.describe "ActiveRecord storage integration" do
         input_tokens: 10,
         output_tokens: 5
       )
-    end.to output(/Storage failed; tracking event was not persisted: ActiveRecord::StatementInvalid: database down/)
+    end.to output(/ActiveRecord ledger write failed: ActiveRecord::StatementInvalid: database down/)
       .to_stderr
   end
 
@@ -767,8 +776,9 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(llm_api_call_model.daily_costs.keys).to all(be_a(String))
   end
 
-  it "detects text tag columns as the fallback storage path" do
-    expect(llm_api_call_model.tags_json_column?).to be false
+  it "detects PostgreSQL JSONB tag columns" do
+    expect(llm_api_call_model.tags_json_column?).to be true
+    expect(llm_api_call_model.tags_jsonb_column?).to be true
   end
 
   it "detects Trilogy JSON tag columns as MySQL JSON" do
@@ -803,7 +813,10 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "builds MySQL-family tag value SQL" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-      allow(llm_api_call_model.connection).to receive(:adapter_name).and_return(adapter_name)
+      connection = llm_api_call_model.connection
+      allow(connection).to receive(:adapter_name).and_return(adapter_name)
+      allow(LlmCostTracker::ActiveRecordAdapter).to receive(:postgresql?).with(connection).and_return(false)
+      allow(LlmCostTracker::ActiveRecordAdapter).to receive(:mysql?).with(connection).and_return(true)
       allow(llm_api_call_model).to receive(:tags_jsonb_column?).and_return(false)
 
       sql = llm_api_call_model.tag_value_expression("user_id")
@@ -817,7 +830,6 @@ RSpec.describe "ActiveRecord storage integration" do
     budget_data = nil
 
     LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
       config.monthly_budget = 0.001
       config.on_budget_exceeded = ->(data) { budget_data = data }
     end
@@ -837,7 +849,6 @@ RSpec.describe "ActiveRecord storage integration" do
     budget_totals = []
 
     LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
       config.monthly_budget = 0.004
       config.on_budget_exceeded = ->(data) { budget_totals << data[:monthly_total] }
     end
@@ -858,7 +869,6 @@ RSpec.describe "ActiveRecord storage integration" do
     budget_totals = []
 
     LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
       config.daily_budget = 0.004
       config.on_budget_exceeded = ->(data) { budget_totals << data[:daily_total] }
     end
@@ -884,7 +894,6 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
       config.monthly_budget = 0.001
       config.budget_exceeded_behavior = :block_requests
     end
@@ -906,7 +915,6 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
       config.daily_budget = 0.001
       config.budget_exceeded_behavior = :block_requests
     end

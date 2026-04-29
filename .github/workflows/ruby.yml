@@ -12,6 +12,20 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.3
+        env:
+          POSTGRES_USER: lct
+          POSTGRES_PASSWORD: lct
+          POSTGRES_DB: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U lct -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     strategy:
       fail-fast: false
       matrix:
@@ -23,6 +37,11 @@ jobs:
           - gemfiles/rails_8_1.gemfile
     env:
       BUNDLE_GEMFILE: ${{ github.workspace }}/${{ matrix.gemfile }}
+      LCT_TEST_HOST: 127.0.0.1
+      LCT_TEST_PORT: 55432
+      LCT_TEST_USERNAME: lct
+      LCT_TEST_PASSWORD: lct
+      LCT_TEST_ADMIN_DATABASE: postgres
 
     steps:
     - uses: actions/checkout@v4

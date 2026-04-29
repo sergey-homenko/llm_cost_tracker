@@ -7,14 +7,22 @@ ENV["RAILS_ENV"] ||= "test"
 require_relative "../dummy/config/environment"
 
 RSpec.describe LlmCostTracker::CaptureVerifier do
-  it "reports log storage as verifiable through logs" do
+  before do
+    establish_database_connection!
+  end
+
+  after do
+    disconnect_database!
+  end
+
+  it "reports missing ActiveRecord storage as a setup error" do
     checks = described_class.call
 
     expect(checks).to include(
       have_attributes(status: :ok, name: "tracking", message: "enabled"),
-      have_attributes(status: :ok, name: "storage", message: include("log backend"))
+      have_attributes(status: :error, name: "active_record", message: include("llm_api_calls table is missing"))
     )
-    expect(described_class.healthy?(checks)).to be true
+    expect(described_class.healthy?(checks)).to be false
   end
 
   it "fails when tracking is disabled" do
@@ -26,14 +34,6 @@ RSpec.describe LlmCostTracker::CaptureVerifier do
       have_attributes(status: :error, name: "tracking", message: include("disabled"))
     )
     expect(described_class.healthy?(checks)).to be false
-  end
-
-  it "fails when custom storage has no callable" do
-    LlmCostTracker.configure { |config| config.storage_backend = :custom }
-
-    check = described_class.call.find { |item| item.name == "storage" }
-
-    expect(check).to have_attributes(status: :error, message: include("custom_storage"))
   end
 
   it "reports enabled SDK integration checks" do

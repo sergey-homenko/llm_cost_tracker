@@ -28,7 +28,7 @@ body:
     id: rails_version
     attributes:
       label: Rails / ActiveRecord version
-      placeholder: "8.0.1 (leave blank if running without Rails)"
+      placeholder: "8.0.1"
     validations:
       required: false
 
@@ -39,9 +39,7 @@ body:
       options:
         - PostgreSQL
         - MySQL
-        - SQLite
         - Other (please describe in steps to reproduce)
-        - Not applicable
     validations:
       required: true
 

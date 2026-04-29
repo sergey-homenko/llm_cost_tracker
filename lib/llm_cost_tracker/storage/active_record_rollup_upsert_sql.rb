@@ -17,7 +17,7 @@ module LlmCostTracker
         return Arel.sql(mysql_sql) if ActiveRecordAdapter.mysql?(connection)
         return Arel.sql(postgres_sql) if ActiveRecordAdapter.postgresql?(connection)
 
-        Arel.sql("total_cost = total_cost + excluded.total_cost, updated_at = excluded.updated_at")
+        ActiveRecordAdapter.ensure_supported!(connection)
       end
 
       private

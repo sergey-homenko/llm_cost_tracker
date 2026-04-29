@@ -72,7 +72,7 @@ Responsibilities:
 - Normalize provider, model, usage, tags, latency, streaming flags, and response IDs.
 - Price canonical usage through `Pricing`.
 - Emit `ActiveSupport::Notifications`.
-- Persist the event through the configured storage backend.
+- Persist the event through the ActiveRecord ledger.
 - Run budget checks after successful storage.
 
 This module must remain provider-agnostic. It should never branch on a specific provider model family.
@@ -106,8 +106,8 @@ Primary files:
 - `lib/llm_cost_tracker/period_total.rb`
 - `lib/llm_cost_tracker/llm_api_call_metrics.rb`
 - `lib/llm_cost_tracker/storage/active_record_store.rb`
+- `lib/llm_cost_tracker/storage/writer.rb`
 - `lib/llm_cost_tracker/storage/active_record_rollups.rb`
-- `lib/llm_cost_tracker/storage/registry.rb`
 - `lib/llm_cost_tracker/tags_column.rb`
 - `lib/llm_cost_tracker/tag_key.rb`
 - `lib/llm_cost_tracker/tag_sql.rb`
@@ -118,7 +118,7 @@ Primary files:
 Responsibilities:
 
 - Persist canonical events into ActiveRecord.
-- Hide database-specific tag storage differences.
+- Hide PostgreSQL and MySQL tag storage differences.
 - Maintain period rollups for hot-path budget reads.
 - Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
 

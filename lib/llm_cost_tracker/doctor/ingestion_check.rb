@@ -16,7 +16,7 @@ module LlmCostTracker
       end
 
       def call
-        return unless active_record_storage? && llm_api_calls_table?
+        return unless llm_api_calls_table?
 
         missing = missing_parts
         if missing.empty?
@@ -55,8 +55,6 @@ module LlmCostTracker
           table_exists?("llm_cost_tracker_ingestor_leases") ? nil : "llm_cost_tracker_ingestor_leases"
         ].compact
       end
-
-      def active_record_storage? = LlmCostTracker.configuration.storage_backend == :active_record
 
       def llm_api_calls_table? = table_exists?("llm_api_calls")
 

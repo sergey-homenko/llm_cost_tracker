@@ -76,15 +76,8 @@ Use `config.default_tags`, middleware `tags:`, explicit metadata, and `LlmCostTr
 
 ## Storage
 
-Use `storage_backend = :custom` only when the host app needs to own persistence completely.
-
-Custom storage receives a canonical `Event`. Returning `false` tells the tracker not to run budget checks for that event.
-
-ActiveRecord storage is the production path for dashboards and cross-process budgets.
-
-Storage adapters can register with
-`LlmCostTracker::Storage.register(:name, backend)`. A backend must respond to
-`save(event)` and may expose `verify` for capture diagnostics.
+Storage is not an extension point. LLM Cost Tracker writes canonical `Event`
+objects to the host Rails app's ActiveRecord ledger.
 
 ## Dashboard
 

@@ -4,6 +4,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-29
+
+### Changed
+
+- BREAKING: ActiveRecord is now the only storage path; removed `storage_backend`, `custom_storage`, `Storage.register`, `:log`, and `:custom`.
+- BREAKING: PostgreSQL and MySQL are now the only supported database adapters; SQLite support was removed.
+- Runtime dependencies now include Rails and ActiveRecord.
+
 ## [0.6.1] - 2026-04-29
 
 ### Fixed

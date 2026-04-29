@@ -79,6 +79,8 @@ module LlmCostTracker
     end
 
     def build_lct_schema_capabilities(columns, adapter_name)
+      ActiveRecordAdapter.ensure_supported!(adapter_name)
+
       tag_column = columns["tags"]
       tags_jsonb = tag_column && (tag_column.type == :jsonb || tag_column.sql_type.to_s.downcase == "jsonb")
       tags_mysql_json =

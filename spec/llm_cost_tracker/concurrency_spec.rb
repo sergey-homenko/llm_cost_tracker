@@ -5,6 +5,8 @@ require "llm_cost_tracker/stream_collector"
 
 RSpec.describe "concurrency", :aggregate_failures do
   describe LlmCostTracker::StreamCollector do
+    before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+
     it "records exactly one event when finish! races across many threads" do
       recorded = []
       subscription = ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
@@ -97,43 +99,6 @@ RSpec.describe "concurrency", :aggregate_failures do
 
       expect(described_class.find_for_provider("openai_compatible")).to be_a(LlmCostTracker::Parsers::OpenaiCompatible)
       expect(described_class.find_for_provider("concurrent_parser")).to be_a(parser_class)
-    end
-  end
-
-  describe LlmCostTracker::Storage::Registry do
-    it "serves immutable snapshots while storage backends register concurrently" do
-      backend = Class.new do
-        def self.save(event)
-          event
-        end
-      end
-      errors = Queue.new
-
-      readers = Array.new(8) do
-        Thread.new do
-          200.times do
-            described_class.fetch(:log)
-            described_class.names
-          end
-        rescue StandardError => e
-          errors << e
-        end
-      end
-
-      writers = Array.new(4) do |i|
-        Thread.new do
-          25.times { |j| described_class.register(:"concurrent_storage_#{i}_#{j}", backend) }
-        rescue StandardError => e
-          errors << e
-        end
-      end
-
-      (readers + writers).each(&:join)
-
-      collected_errors = []
-      collected_errors << errors.pop until errors.empty?
-      expect(collected_errors).to be_empty
-      expect(described_class.fetch("concurrent_storage_0_0")).to eq(backend)
     end
   end
 
@@ -232,28 +197,24 @@ RSpec.describe "concurrency", :aggregate_failures do
     it "rejects runtime replacement of shared scalar configuration" do
       LlmCostTracker.configure do |config|
         config.enabled = true
-        config.custom_storage = ->(_event) {}
         config.on_budget_exceeded = ->(_data) {}
         config.monthly_budget = 10.0
         config.daily_budget = 5.0
         config.per_call_budget = 1.0
         config.log_level = :info
         config.prices_file = "/tmp/prices.json"
-        config.storage_backend = :custom
         config.budget_exceeded_behavior = :notify
         config.storage_error_behavior = :warn
         config.unknown_pricing_behavior = :warn
       end
 
       expect { LlmCostTracker.configuration.enabled = false }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.custom_storage = nil }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.on_budget_exceeded = nil }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.monthly_budget = 20.0 }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.daily_budget = 10.0 }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.per_call_budget = 2.0 }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.log_level = :debug }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.prices_file = "/tmp/other.json" }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.storage_backend = :log }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.budget_exceeded_behavior = :raise }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.storage_error_behavior = :ignore }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.unknown_pricing_behavior = :ignore }.to raise_error(FrozenError)
@@ -298,6 +259,8 @@ RSpec.describe "concurrency", :aggregate_failures do
   end
 
   describe LlmCostTracker::TagContext do
+    before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+
     it "keeps scoped tags isolated across threads" do
       recorded = Queue.new
 
@@ -323,6 +286,8 @@ RSpec.describe "concurrency", :aggregate_failures do
   end
 
   describe "opt-in budget preflight" do
+    before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+
     it "raises before tracking when track opts in" do
       allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(
         LlmCostTracker::BudgetExceededError.new(monthly_total: 1.0, budget: 0.01)
@@ -341,8 +306,6 @@ RSpec.describe "concurrency", :aggregate_failures do
 
     it "raises before running the track_stream block when over budget" do
       LlmCostTracker.configure do |config|
-        config.storage_backend = :custom
-        config.custom_storage = ->(_event) {}
         config.monthly_budget = 0.01
         config.budget_exceeded_behavior = :block_requests
       end

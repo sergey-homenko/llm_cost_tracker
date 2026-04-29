@@ -56,7 +56,7 @@ module LlmCostTracker
 
     def configuration_check
       config = LlmCostTracker.configuration
-      Check.new(:ok, "configuration", "storage_backend=#{config.storage_backend.inspect}, enabled=#{config.enabled}")
+      Check.new(:ok, "configuration", "active_record ledger enabled=#{config.enabled}")
     end
 
     def integration_checks
@@ -66,14 +66,13 @@ module LlmCostTracker
     end
 
     def active_record_check
-      return Check.new(:ok, "storage", "ActiveRecord storage is disabled") unless active_record_storage?
       return Check.new(:ok, "active_record", "available") if active_record_available?
 
-      Check.new(:error, "active_record", "unavailable; add ActiveRecord/Rails or change storage_backend")
+      Check.new(:error, "active_record", "unavailable")
     end
 
     def table_check
-      return unless active_record_storage? && active_record_available?
+      return unless active_record_available?
       return Check.new(:ok, "llm_api_calls", "table exists") if llm_api_calls_table?
 
       Check.new(
@@ -84,7 +83,7 @@ module LlmCostTracker
     end
 
     def column_check
-      return unless active_record_storage? && llm_api_calls_table?
+      return unless llm_api_calls_table?
 
       columns = column_names("llm_api_calls")
       missing_core = CORE_COLUMNS - columns
@@ -104,7 +103,7 @@ module LlmCostTracker
     end
 
     def period_totals_check
-      return unless active_record_storage? && llm_api_calls_table?
+      return unless llm_api_calls_table?
       if table_exists?("llm_cost_tracker_period_totals")
         return Check.new(:ok, "period totals", "llm_cost_tracker_period_totals exists")
       end
@@ -131,7 +130,7 @@ module LlmCostTracker
     end
 
     def calls_check
-      return unless active_record_storage? && llm_api_calls_table?
+      return unless llm_api_calls_table?
 
       count = LlmCostTracker::LlmApiCall.count
       return Check.new(:warn, "tracked calls", "none recorded yet") if count.zero?
@@ -139,8 +138,6 @@ module LlmCostTracker
       latest = LlmCostTracker::LlmApiCall.maximum(:tracked_at)&.utc&.iso8601
       Check.new(:ok, "tracked calls", "#{count} recorded; latest #{latest}")
     end
-
-    def active_record_storage? = LlmCostTracker.configuration.storage_backend == :active_record
 
     def active_record_available?
       require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)

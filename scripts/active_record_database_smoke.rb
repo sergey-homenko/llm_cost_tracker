@@ -119,8 +119,10 @@ end
 def add_call_tags_column(table, database_connection)
   if LlmCostTracker::ActiveRecordAdapter.postgresql?(database_connection)
     table.jsonb :tags, null: false, default: {}
+  elsif LlmCostTracker::ActiveRecordAdapter.mysql?(database_connection)
+    table.json :tags, null: false
   else
-    table.text :tags
+    LlmCostTracker::ActiveRecordAdapter.ensure_supported!(database_connection)
   end
 end
 
@@ -229,7 +231,6 @@ begin
 
   LlmCostTracker.reset_configuration!
   LlmCostTracker.configure do |config|
-    config.storage_backend = :active_record
     config.storage_error_behavior = :raise
     config.unknown_pricing_behavior = :raise
     config.pricing_overrides = {

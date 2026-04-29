@@ -24,8 +24,10 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
       t.string  :pricing_mode
       if postgresql?
         t.jsonb :tags, null: false, default: {}
+      elsif mysql?
+        t.json :tags, null: false
       else
-        t.text :tags
+        raise "LLM Cost Tracker supports PostgreSQL and MySQL only"
       end
       t.datetime :tracked_at,   null: false
 
@@ -78,5 +80,9 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
 
   def postgresql?
     LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)
+  end
+
+  def mysql?
+    LlmCostTracker::ActiveRecordAdapter.mysql?(connection)
   end
 end

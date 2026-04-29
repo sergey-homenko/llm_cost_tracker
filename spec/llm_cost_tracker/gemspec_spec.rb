@@ -12,4 +12,10 @@ RSpec.describe "gem package files" do
   it "keeps runtime files and top-level documentation" do
     expect(gemspec.files).to include("lib/llm_cost_tracker.rb", "README.md", "CHANGELOG.md")
   end
+
+  it "depends on Rails and ActiveRecord at runtime" do
+    dependency_names = gemspec.runtime_dependencies.map(&:name)
+
+    expect(dependency_names).to include("activerecord", "railties")
+  end
 end

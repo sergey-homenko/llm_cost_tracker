@@ -123,9 +123,8 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   def configure_integration(name)
+    allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true)
     LlmCostTracker.configure do |config|
-      config.storage_backend = :custom
-      config.custom_storage = ->(_event) {}
       config.unknown_pricing_behavior = :ignore
       config.instrument name
     end

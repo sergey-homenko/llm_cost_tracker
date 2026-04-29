@@ -8,12 +8,12 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Sergii Khomenko"]
   spec.email         = ["sergey@mm.st"]
 
-  spec.summary       = "Self-hosted LLM usage and cost tracking for Ruby and Rails"
+  spec.summary       = "Rails-native LLM usage and cost tracking with ActiveRecord storage"
   spec.description   = "Tracks token usage, latency, and estimated costs for RubyLLM, OpenAI, Anthropic, " \
                        "Google Gemini, OpenRouter, DeepSeek, and OpenAI-compatible APIs. " \
-                       "Works through Faraday middleware or explicit track/track_stream helpers, " \
-                       "with ActiveRecord storage, tag-based attribution, price sync tasks, " \
-                       "and budget guardrails."
+                       "Works through Rails SDK integrations, Faraday middleware, or explicit " \
+                       "track/track_stream helpers, with ActiveRecord storage, tag-based attribution, " \
+                       "price sync tasks, and budget guardrails."
   spec.homepage      = "https://github.com/sergey-homenko/llm_cost_tracker"
   spec.license       = "MIT"
 
@@ -35,18 +35,18 @@ Gem::Specification.new do |spec|
 
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "activerecord", ">= 7.1", "< 9.0"
   spec.add_dependency "activesupport", ">= 7.1", "< 9.0"
   spec.add_dependency "csv", "~> 3.0"
   spec.add_dependency "faraday", ">= 2.0", "< 3.0"
+  spec.add_dependency "railties", ">= 7.1", "< 9.0"
 
-  spec.add_development_dependency "activerecord", ">= 7.1", "< 9.0"
   spec.add_development_dependency "nokogiri", "~> 1.16"
-  spec.add_development_dependency "railties", ">= 7.1", "< 9.0"
+  spec.add_development_dependency "pg", "~> 1.6"
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rspec", "~> 3.0"
   spec.add_development_dependency "rubocop", "~> 1.0"
   spec.add_development_dependency "simplecov", "~> 0.22"
   spec.add_development_dependency "simplecov-lcov", "~> 0.8"
-  spec.add_development_dependency "sqlite3", ">= 1.4", "< 3.0"
   spec.add_development_dependency "webmock", "~> 3.0"
 end

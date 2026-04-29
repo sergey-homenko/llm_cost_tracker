@@ -26,7 +26,6 @@ RSpec.describe "LlmCostTracker::Engine tag key explorer" do
     response = get("/llm-costs/tags")
 
     expect(response.status).to eq(200)
-    # SQLite supports tag key discovery
     expect(response.body).to include("env")
     expect(response.body).to include("feature")
     expect(response.body).to include("Breakdown")

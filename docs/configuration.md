@@ -1,8 +1,8 @@
 # Configuration
 
-Configuration is the contract between the host app and the ledger: where events
-go, which integrations are enabled, how attribution is attached, and how the app
-reacts when storage, pricing, or budgets need attention.
+Configuration is the contract between the host Rails app and the ledger: which
+integrations are enabled, how attribution is attached, and how the app reacts
+when storage, pricing, or budgets need attention.
 
 The full option reference is moving here from the README. Until that migration is
 complete, the README anchors below remain canonical.
@@ -21,7 +21,8 @@ Until this page is expanded, use:
 
 This page is scoped to:
 
-- `storage_backend`: `:log`, `:active_record`, and `:custom`; ActiveRecord capture uses a durable inbox when the ingestion migration is present
+- ActiveRecord capture into `llm_api_calls`, with a durable inbox when the ingestion migration is present
+- PostgreSQL and MySQL database adapters
 - `default_tags`: static tags and per-request callable tags
 - `instrument`: RubyLLM and official SDK integrations
 - `prices_file` and `pricing_overrides`
@@ -36,7 +37,6 @@ This page is scoped to:
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.storage_backend = :active_record
   config.default_tags = -> { { environment: Rails.env } }
   config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
   config.instrument :openai
@@ -59,7 +59,5 @@ After boot, run:
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-For ActiveRecord storage, the task records a synthetic manual event inside a
-rollback and checks that notifications and persistence both work. For log and
-custom storage, it reports the configured capture path without invoking external
-sinks.
+The task records a synthetic manual event and checks that notifications and
+ActiveRecord persistence both work.

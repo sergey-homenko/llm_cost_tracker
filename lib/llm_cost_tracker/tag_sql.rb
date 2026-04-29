@@ -16,7 +16,7 @@ module LlmCostTracker
         elsif ActiveRecordAdapter.mysql?(model.connection)
           "JSON_UNQUOTE(JSON_EXTRACT(#{column}, #{model.connection.quote(json_path(key))}))"
         else
-          "json_extract(#{column}, #{model.connection.quote(json_path(key))})"
+          ActiveRecordAdapter.ensure_supported!(model.connection)
         end
       end
 

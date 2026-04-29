@@ -5,11 +5,12 @@ require "spec_helper"
 
 RSpec.describe LlmCostTracker::Report do
   before do
-    ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: ":memory:")
+    establish_database_connection!
 
     ActiveRecord::Schema.verbose = false
+    tags_column = method(:add_tags_column)
     ActiveRecord::Schema.define do
-      create_table :llm_api_calls do |t|
+      create_table :llm_api_calls, force: true do |t|
         t.string :provider, null: false
         t.string :model, null: false
         t.integer :input_tokens, null: false, default: 0
@@ -19,7 +20,7 @@ RSpec.describe LlmCostTracker::Report do
         t.decimal :output_cost, precision: 20, scale: 8
         t.decimal :total_cost, precision: 20, scale: 8
         t.integer :latency_ms
-        t.text :tags
+        tags_column.call(t)
         t.datetime :tracked_at, null: false
 
         t.timestamps
@@ -29,13 +30,12 @@ RSpec.describe LlmCostTracker::Report do
     LlmCostTracker::LlmApiCall.reset_column_information if defined?(LlmCostTracker::LlmApiCall)
 
     LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
       config.report_tag_breakdowns = %w[feature]
     end
   end
 
   after do
-    ActiveRecord::Base.connection.disconnect!
+    disconnect_database!
   end
 
   def create_report_call(model:, total_cost:, tags: {}, provider: "openai", tracked_at: Time.now.utc)
@@ -48,7 +48,7 @@ RSpec.describe LlmCostTracker::Report do
       output_tokens: 0,
       total_tokens: 0,
       total_cost: total_cost,
-      tags: tags.to_json,
+      tags: tags_for_database(tags),
       tracked_at: tracked_at
     )
   end

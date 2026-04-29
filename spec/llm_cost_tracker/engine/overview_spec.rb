@@ -21,7 +21,6 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 16, 0, 0, 0))
 
     LlmCostTracker.configure do |config|
-      config.storage_backend = :active_record
       config.monthly_budget = 6.0
     end
 

@@ -2,13 +2,14 @@
 
 require "securerandom"
 
-require_relative "registry"
 require_relative "active_record_inbox"
 require_relative "active_record_ingestor"
 require_relative "active_record_store"
 
 module LlmCostTracker
   module Storage
+    VerificationResult = Data.define(:status, :name, :message)
+
     class ActiveRecordBackend
       VERIFY_TAG = "llm_cost_tracker_verify"
 

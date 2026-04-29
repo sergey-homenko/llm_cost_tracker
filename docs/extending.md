@@ -1,8 +1,8 @@
 # Extending LLM Cost Tracker
 
 Extensions belong at clear boundaries: parsers for response shapes, integrations
-for SDK hooks, pricing files for rates, and custom storage for apps that own
-persistence themselves.
+for SDK hooks, pricing files for rates, and notifications for apps that need to
+observe captured events.
 
 The practical extension guide is moving here from the README. The lower-level
 contracts already live in the technical extension reference.
@@ -19,7 +19,6 @@ Until this page is expanded, use:
 
 - Custom parser: translate a provider response into `ParsedUsage`.
 - OpenAI-compatible host: register the host-to-provider mapping.
-- Custom storage: receive the canonical `Event` and write it elsewhere.
 - Notifications subscriber: observe `llm_request.llm_cost_tracker`.
 - Local price file: model gateway IDs, contract rates, or unsupported models.
 

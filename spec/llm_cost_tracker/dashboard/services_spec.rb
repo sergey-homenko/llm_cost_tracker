@@ -11,12 +11,12 @@ require_relative "../../dummy/config/environment"
 
 RSpec.describe "LlmCostTracker dashboard services" do
   def reset_database!(latency: true, streaming: false, usage_breakdown: true)
-    ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: ":memory:")
+    establish_database_connection!
 
     ActiveRecord::Schema.verbose = false
     table_definition = llm_api_calls_table_definition(latency:, streaming:, usage_breakdown:)
     ActiveRecord::Schema.define do
-      create_table :llm_api_calls, &table_definition
+      create_table :llm_api_calls, force: true, &table_definition
     end
 
     LlmCostTracker::LlmApiCall.reset_column_information
@@ -26,7 +26,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
   def create_call(**overrides)
     attrs = call_defaults.merge(overrides)
     attrs[:total_tokens] = total_tokens_for(attrs)
-    attrs[:tags] = attrs.fetch(:tags).to_json
+    attrs[:tags] = tags_for_database(attrs.fetch(:tags))
     normalize_call_columns!(attrs)
 
     LlmCostTracker::LlmApiCall.create!(attrs)
@@ -70,7 +70,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     end
     table.string :provider_response_id
     table.string :pricing_mode if usage_breakdown
-    table.text :tags
+    add_tags_column(table)
     table.datetime :tracked_at, null: false
   end
 
@@ -143,7 +143,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
   end
 
   after do
-    ActiveRecord::Base.connection.disconnect!
+    disconnect_database!
   end
 
   describe LlmCostTracker::Pagination do
@@ -830,6 +830,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
         captured_sql = nil
 
         allow(connection).to receive(:adapter_name).and_return(adapter_name)
+        allow(LlmCostTracker::ActiveRecordAdapter).to receive(:postgresql?).with(connection).and_return(false)
+        allow(LlmCostTracker::ActiveRecordAdapter).to receive(:mysql?).with(connection).and_return(true)
         allow(connection).to receive(:select_all) do |sql|
           captured_sql = sql
           ActiveRecord::Result.new(

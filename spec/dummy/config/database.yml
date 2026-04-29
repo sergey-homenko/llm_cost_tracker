@@ -1,3 +1,7 @@
 test:
-  adapter: sqlite3
-  database: ":memory:"
+  adapter: <%= ENV.fetch("LCT_TEST_ADAPTER", "postgresql") %>
+  host: <%= ENV.fetch("LCT_TEST_HOST", "127.0.0.1") %>
+  port: <%= ENV.fetch("LCT_TEST_PORT", "5432") %>
+  username: <%= ENV.fetch("LCT_TEST_USERNAME", "postgres") %>
+  password: <%= ENV.fetch("LCT_TEST_PASSWORD", "password") %>
+  database: <%= ENV.fetch("LCT_TEST_DATABASE", "llm_cost_tracker_test") %>

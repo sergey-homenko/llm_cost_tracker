@@ -70,7 +70,7 @@ module LlmCostTracker
         current
       end
       Integrations::Registry.install!
-      warn_for_configuration!(config)
+      config
     end
 
     def reset_configuration!
@@ -150,18 +150,6 @@ module LlmCostTracker
     rescue StandardError
       collector&.finish!(errored: true)
       raise
-    end
-
-    private
-
-    def warn_for_configuration!(config = configuration)
-      return unless config.budget_exceeded_behavior == :block_requests
-      return if config.active_record?
-
-      Logging.warn(
-        ":block_requests requires storage_backend = :active_record for monthly and daily preflight; " \
-        "preflight blocking will be skipped."
-      )
     end
   end
 end

@@ -3,7 +3,6 @@
 require "json"
 require "time"
 
-require_relative "../active_record_adapter"
 require_relative "../cost"
 require_relative "../event"
 require_relative "../inbox_event"
@@ -110,7 +109,7 @@ module LlmCostTracker
 
         def insert_row(row)
           connection = LlmCostTracker::LlmApiCall.connection
-          if connection.transaction_open? && !sqlite_database?(connection)
+          if connection.transaction_open?
             insert_with_separate_connection(row)
           else
             execute_insert(connection, row)
@@ -154,10 +153,6 @@ module LlmCostTracker
 
         def symbolize_keys(hash)
           hash.transform_keys(&:to_sym)
-        end
-
-        def sqlite_database?(connection)
-          ActiveRecordAdapter.sqlite?(connection)
         end
       end
     end

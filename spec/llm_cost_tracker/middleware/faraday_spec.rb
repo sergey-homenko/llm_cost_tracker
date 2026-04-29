@@ -4,6 +4,8 @@ require "spec_helper"
 require "faraday"
 
 RSpec.describe LlmCostTracker::Middleware::Faraday do
+  before { allow(LlmCostTracker::Storage::Writer).to receive(:save).and_return(true) }
+
   let(:openai_response_body) do
     {
       id: "chatcmpl_sync_123",
@@ -186,6 +188,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       config.monthly_budget = 0.000001
       config.budget_exceeded_behavior = :raise
     end
+    allow(LlmCostTracker::Storage::ActiveRecordStore).to receive(:period_totals).and_return(monthly: 0.000075)
 
     expect do
       connection.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
