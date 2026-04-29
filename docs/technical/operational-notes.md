@@ -44,9 +44,9 @@ Per-call budgets are checked from the current event only.
 
 Inbox writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should fail honestly through `storage_error_behavior` instead of writing into the caller transaction and pretending the event is durable.
 
-The ingestor is intentionally database-polled rather than woken on every inbox insert. A per-insert wakeup makes high-QPS request paths coordinate with a local background thread and still does not remove the database lease requirement across Puma, Sidekiq, Unicorn, deploy restarts, and multi-process hosts. Polling with adaptive idle backoff keeps the request path bounded and lets any process with a live ingestor make progress.
+The ingestor is database-leased and database-polled, with an opportunistic local wake after a successful inbox insert. The wake only reduces freshness latency in the process that wrote the row; correctness still comes from the shared database lease, retryable row locks, and adaptive polling across Puma, Sidekiq, Unicorn, deploy restarts, and multi-process hosts.
 
-Freshness and durability are separate concerns. A quiet process can leave a newly written inbox row waiting until the next idle poll, but budget reads include pending inbox totals and operators can call `LlmCostTracker.flush!` when they need the ledger drained before continuing.
+Freshness and durability are separate concerns. If the writing process exits before its local ingestor drains the row, another process can pick it up on a later poll; budget reads include pending inbox totals and operators can call `LlmCostTracker.flush!` when they need the ledger drained before continuing.
 
 The ingestor should check for claimable rows before acquiring the leader lease. Empty queues should not create steady lease-table writes across an idle fleet.
 

@@ -4,6 +4,36 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-29
+
+### Added
+
+- Durable ActiveRecord ingestion through `llm_cost_tracker_inbox_events` and `llm_cost_tracker_ingestor_leases`.
+- `llm_cost_tracker:add_ingestion` generator for upgrading existing ActiveRecord installs.
+- `LlmCostTracker.flush!` and `LlmCostTracker.shutdown!` for draining or stopping durable ingestion.
+- Doctor diagnostics for missing durable ingestion schema, stale pending inbox rows, and quarantined inbox rows.
+- PostgreSQL and MySQL smoke checks for ActiveRecord durable ingestion.
+
+### Changed
+
+- Fresh ActiveRecord installs now include durable ingestion tables, event IDs, and production indexes.
+- ActiveRecord budget totals now read stored period rollups plus pending inbox totals while durable ingestion is enabled.
+- ActiveRecord writes now use a durable inbox before batching ledger inserts and period rollup updates when ingestion tables are present.
+- Pricing lookup now caches normalized runtime price tables and model matches by configuration generation.
+- Stream capture now estimates buffered event size without serializing every captured event.
+- CSV export now selects only exported columns instead of loading full ActiveRecord objects.
+
+### Fixed
+
+- ActiveRecord rollups no longer double-count retried events when duplicate event IDs race across workers.
+- Invalid inbox rows are retried and quarantined without blocking healthy rows behind them.
+- Idle ingestors no longer acquire the leader lease while the inbox is empty.
+- ActiveRecord inbox writes now fail honestly when a separate connection is unavailable inside a caller transaction.
+- Ingestor shutdown/reset no longer lets an old sleeping thread resume as a second local ingestor.
+- `flush!` now returns `false` instead of raising when its timeout expires during ingestion.
+- ActiveRecord adapter family detection now works through known adapter class ancestry with an adapter-name fallback.
+- CSV export now emits `{}` for invalid stored tag payloads.
+
 ## [0.5.3] - 2026-04-28
 
 ### Added
