@@ -44,6 +44,7 @@ Base fields:
 - `output`
 - `cache_read_input`
 - `cache_write_input`
+- `cache_write_1h_input`
 
 Mode-prefixed fields use the same base terms:
 
@@ -51,6 +52,7 @@ Mode-prefixed fields use the same base terms:
 - `batch_output`
 - `priority_input`
 - `batch_cache_read_input`
+- `priority_cache_write_1h_input`
 
 ## Pricing Modes
 
@@ -84,7 +86,7 @@ PROVIDER=openai MODEL=gpt-4o PRICING_MODE=batch bin/rails llm_cost_tracker:price
 Optional token env vars let the command check the exact buckets that a call used:
 
 ```bash
-PROVIDER=custom MODEL=gateway-model INPUT_TOKENS=1000 OUTPUT_TOKENS=200 CACHE_READ_INPUT_TOKENS=50 bin/rails llm_cost_tracker:prices:explain
+PROVIDER=custom MODEL=gateway-model INPUT_TOKENS=1000 OUTPUT_TOKENS=200 CACHE_READ_INPUT_TOKENS=50 CACHE_WRITE_1H_INPUT_TOKENS=25 bin/rails llm_cost_tracker:prices:explain
 ```
 
 The command reports the matched source, matched key, match strategy, effective

@@ -32,6 +32,7 @@ module LlmCostTracker
           output_tokens: usage[:output_tokens],
           cache_read_input_tokens: usage[:cache_read_input_tokens],
           cache_write_input_tokens: usage[:cache_write_input_tokens],
+          cache_write_1h_input_tokens: usage[:cache_write_1h_input_tokens],
           pricing_mode: usage[:pricing_mode]
         )
 

@@ -10,7 +10,7 @@ module LlmCostTracker
 
     class << self
       def cost_for(provider:, model:, input_tokens:, output_tokens:, cache_read_input_tokens: 0,
-                   cache_write_input_tokens: 0, pricing_mode: nil)
+                   cache_write_input_tokens: 0, cache_write_1h_input_tokens: 0, pricing_mode: nil)
         prices = lookup(provider: provider, model: model)
         return nil unless prices
 
@@ -18,7 +18,8 @@ module LlmCostTracker
           input_tokens: input_tokens,
           output_tokens: output_tokens,
           cache_read_input_tokens: cache_read_input_tokens,
-          cache_write_input_tokens: cache_write_input_tokens
+          cache_write_input_tokens: cache_write_input_tokens,
+          cache_write_1h_input_tokens: cache_write_1h_input_tokens
         )
         costs = calculate_costs(usage, prices, pricing_mode: pricing_mode)
         return nil unless costs
@@ -38,7 +39,7 @@ module LlmCostTracker
       end
 
       def explain(provider:, model:, input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0,
-                  cache_write_input_tokens: 0, pricing_mode: nil)
+                  cache_write_input_tokens: 0, cache_write_1h_input_tokens: 0, pricing_mode: nil)
         Explainer.call(
           provider: provider,
           model: model,
@@ -46,6 +47,7 @@ module LlmCostTracker
           output_tokens: output_tokens,
           cache_read_input_tokens: cache_read_input_tokens,
           cache_write_input_tokens: cache_write_input_tokens,
+          cache_write_1h_input_tokens: cache_write_1h_input_tokens,
           pricing_mode: pricing_mode
         )
       end
@@ -59,7 +61,8 @@ module LlmCostTracker
         {
           input: token_cost(usage.input_tokens, effective.input),
           cache_read_input: token_cost(usage.cache_read_input_tokens, effective.cache_read_input),
-          cache_write_input: token_cost(usage.cache_write_input_tokens, effective.cache_write_input),
+          cache_write_input: token_cost(usage.standard_cache_write_input_tokens, effective.cache_write_input) +
+            token_cost(usage.cache_write_1h_input_tokens, effective.cache_write_1h_input),
           output: token_cost(usage.output_tokens, effective.output)
         }
       end

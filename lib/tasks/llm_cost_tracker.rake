@@ -129,7 +129,8 @@ def price_explanation_from_env
     input_tokens: ENV.fetch("INPUT_TOKENS", 1).to_i,
     output_tokens: ENV.fetch("OUTPUT_TOKENS", 1).to_i,
     cache_read_input_tokens: ENV.fetch("CACHE_READ_INPUT_TOKENS", 0).to_i,
-    cache_write_input_tokens: ENV.fetch("CACHE_WRITE_INPUT_TOKENS", 0).to_i
+    cache_write_input_tokens: ENV.fetch("CACHE_WRITE_INPUT_TOKENS", 0).to_i,
+    cache_write_1h_input_tokens: ENV.fetch("CACHE_WRITE_1H_INPUT_TOKENS", 0).to_i
   )
 end
 

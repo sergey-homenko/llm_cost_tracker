@@ -9,7 +9,7 @@ module LlmCostTracker
   module PriceRegistry
     DEFAULT_PRICES_PATH = File.expand_path("prices.json", __dir__)
     EMPTY_PRICES = {}.freeze
-    PRICE_KEYS = %w[input output cache_read_input cache_write_input].freeze
+    PRICE_KEYS = %w[input output cache_read_input cache_write_input cache_write_1h_input].freeze
     METADATA_KEYS = %w[_source _source_version _fetched_at _updated _notes _validator_override].freeze
     MAX_FILE_BYTES = 2_097_152
     MUTEX = Mutex.new

@@ -117,7 +117,8 @@ RSpec.describe LlmCostTracker::PriceRegistry do
               output: 2.0,
               batch_input: 0.5,
               batch_output: 1.0,
-              priority_cache_read_input: 0.25
+              priority_cache_read_input: 0.25,
+              priority_cache_write_1h_input: 1.5
             }
           }
         }.to_json)
@@ -130,7 +131,8 @@ RSpec.describe LlmCostTracker::PriceRegistry do
               output: 2.0,
               batch_input: 0.5,
               batch_output: 1.0,
-              priority_cache_read_input: 0.25
+              priority_cache_read_input: 0.25,
+              priority_cache_write_1h_input: 1.5
             }
           )
         end

@@ -90,7 +90,7 @@ LlmCostTracker.with_tags(feature: "support_chat") do
 end
 ```
 
-Captures usage, model, latency, response ID, cache tokens, and reasoning tokens whenever the SDK exposes them. Provider SDKs are not added as gem dependencies — you install whichever you actually use.
+Captures usage, model, latency, response ID, cache tokens, Anthropic cache-write TTLs, and reasoning tokens whenever the SDK exposes them. Provider SDKs are not added as gem dependencies — you install whichever you actually use.
 
 Enabled integrations are checked at boot: the client gem must be loaded, meet the minimum supported version, and expose the expected classes and methods. If the contract check fails, boot raises instead of silently missing spend.
 
@@ -267,7 +267,6 @@ is still brief.
 - `:block_requests` is best-effort under concurrency, not a transactional cap.
 - Streaming usage capture relies on the provider emitting a final-usage event. Missing events are stored with `usage_source: "unknown"` so they appear on the data-quality page rather than vanishing.
 - `provider_response_id` is stored only when the provider exposes a stable ID. Gemini is best-effort and varies by endpoint.
-- Cache write TTL variants on Anthropic (1h vs 5min writes) are not modeled separately yet.
 
 ## Development
 

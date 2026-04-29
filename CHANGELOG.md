@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - BREAKING: ActiveRecord ledger write failures now raise directly; removed `storage_error_behavior` and `StorageError`.
 - BREAKING: Removed custom SDK integration and parser registration extension points.
+- Anthropic pricing now uses response cache-write TTL usage to price 1-hour cache writes separately.
 
 ## [0.7.0] - 2026-04-29
 

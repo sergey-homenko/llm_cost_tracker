@@ -58,9 +58,15 @@ module LlmCostTracker
         end
 
         def usage_metadata(usage)
+          cache_write_1h = ObjectReader.nested(usage, :cache_creation, :ephemeral_1h_input_tokens)
+          cache_write = ObjectReader.first(usage, :cache_creation_input_tokens)
+          cache_write_5m = ObjectReader.nested(usage, :cache_creation, :ephemeral_5m_input_tokens)
+          cache_write ||= ObjectReader.integer(cache_write_5m) + ObjectReader.integer(cache_write_1h)
+
           {
             cache_read_input_tokens: ObjectReader.integer(ObjectReader.first(usage, :cache_read_input_tokens)),
-            cache_write_input_tokens: ObjectReader.integer(ObjectReader.first(usage, :cache_creation_input_tokens)),
+            cache_write_input_tokens: ObjectReader.integer(cache_write),
+            cache_write_1h_input_tokens: ObjectReader.integer(cache_write_1h),
             hidden_output_tokens: hidden_output_tokens(usage)
           }
         end

@@ -16,6 +16,7 @@ RSpec.describe LlmCostTracker::PriceScrape::Providers::Anthropic do
       expect(result.models.fetch("claude-opus-4-7")).to eq(
         "input" => 5.0,
         "cache_write_input" => 6.25,
+        "cache_write_1h_input" => 10.0,
         "cache_read_input" => 0.5,
         "output" => 25.0,
         "batch_input" => 2.5,
@@ -24,6 +25,7 @@ RSpec.describe LlmCostTracker::PriceScrape::Providers::Anthropic do
       expect(result.models.fetch("claude-sonnet-4-6")).to eq(
         "input" => 3.0,
         "cache_write_input" => 3.75,
+        "cache_write_1h_input" => 6.0,
         "cache_read_input" => 0.30,
         "output" => 15.0,
         "batch_input" => 1.5,

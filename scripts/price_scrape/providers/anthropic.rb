@@ -40,6 +40,7 @@ module LlmCostTracker
             {
               "input" => parse_price(cells[column_index(headers, "Base Input Tokens")]),
               "cache_write_input" => parse_price(cells[column_index(headers, "5m Cache Writes")]),
+              "cache_write_1h_input" => parse_price(cells[column_index(headers, "1h Cache Writes")]),
               "cache_read_input" => parse_price(cells[column_index(headers, "Cache Hits")]),
               "output" => parse_price(cells[column_index(headers, "Output Tokens")])
             }

@@ -34,13 +34,14 @@ module LlmCostTracker
     module Explainer
       class << self
         def call(provider:, model:, input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0,
-                 cache_write_input_tokens: 0, pricing_mode: nil)
+                 cache_write_input_tokens: 0, cache_write_1h_input_tokens: 0, pricing_mode: nil)
           match = Lookup.call(provider: provider, model: model)
           usage = match && UsageBreakdown.build(
             input_tokens: input_tokens,
             output_tokens: output_tokens,
             cache_read_input_tokens: cache_read_input_tokens,
-            cache_write_input_tokens: cache_write_input_tokens
+            cache_write_input_tokens: cache_write_input_tokens,
+            cache_write_1h_input_tokens: cache_write_1h_input_tokens
           )
 
           explanation(provider, model, pricing_mode, match, usage)

@@ -37,6 +37,7 @@ Supported canonical keys:
 - `output`
 - `cache_read_input`
 - `cache_write_input`
+- `cache_write_1h_input`
 - `batch_input`
 - `batch_output`
 - mode-prefixed keys such as `priority_input` or `batch_cache_read_input`

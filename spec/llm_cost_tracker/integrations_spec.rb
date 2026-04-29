@@ -14,6 +14,7 @@ module LlmCostTrackerIntegrationSpecTypes
     :completion_tokens_details,
     :cache_read_input_tokens,
     :cache_creation_input_tokens,
+    :cache_creation,
     :thinking_tokens,
     keyword_init: true
   )
@@ -493,7 +494,11 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 120,
         output_tokens: 35,
         cache_read_input_tokens: 50,
-        cache_creation_input_tokens: 11,
+        cache_creation_input_tokens: 30,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 20,
+          ephemeral_1h_input_tokens: 10
+        },
         thinking_tokens: 6
       )
     )
@@ -510,11 +515,12 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 120,
         output_tokens: 35,
         cache_read_input_tokens: 50,
-        cache_write_input_tokens: 11,
+        cache_write_input_tokens: 30,
         hidden_output_tokens: 6,
         usage_source: "sdk_response",
         provider_response_id: "msg_123"
       )
+      expect(events.first.dig(:cost, :cache_write_input_cost)).to eq(0.000135)
     end
   end
 
@@ -529,7 +535,11 @@ RSpec.describe LlmCostTracker::Integrations do
                                       input_tokens: 120,
                                       output_tokens: 1,
                                       cache_read_input_tokens: 40,
-                                      cache_creation_input_tokens: 8
+                                      cache_creation_input_tokens: 30,
+                                      cache_creation: {
+                                        ephemeral_5m_input_tokens: 20,
+                                        ephemeral_1h_input_tokens: 10
+                                      }
                                     }
                                   }
                                 ),
@@ -554,9 +564,9 @@ RSpec.describe LlmCostTracker::Integrations do
         model: "claude-sonnet-4-6",
         input_tokens: 120,
         output_tokens: 64,
-        total_tokens: 232,
+        total_tokens: 254,
         cache_read_input_tokens: 40,
-        cache_write_input_tokens: 8,
+        cache_write_input_tokens: 30,
         stream: true,
         usage_source: "stream_final",
         provider_response_id: "msg_456"

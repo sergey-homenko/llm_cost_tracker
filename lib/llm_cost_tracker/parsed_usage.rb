@@ -11,6 +11,7 @@ module LlmCostTracker
     :total_tokens,
     :cache_read_input_tokens,
     :cache_write_input_tokens,
+    :cache_write_1h_input_tokens,
     :hidden_output_tokens,
     :stream,
     :usage_source,
@@ -39,6 +40,7 @@ module LlmCostTracker
         total_tokens: attributes.fetch(:total_tokens, usage_breakdown(attributes).total_tokens).to_i,
         cache_read_input_tokens: attributes[:cache_read_input_tokens],
         cache_write_input_tokens: attributes[:cache_write_input_tokens],
+        cache_write_1h_input_tokens: attributes[:cache_write_1h_input_tokens],
         hidden_output_tokens: attributes[:hidden_output_tokens],
         stream: attributes[:stream] || false,
         usage_source: attributes[:usage_source],
@@ -60,6 +62,7 @@ module LlmCostTracker
         output_tokens: attributes.fetch(:output_tokens),
         cache_read_input_tokens: attributes[:cache_read_input_tokens],
         cache_write_input_tokens: attributes[:cache_write_input_tokens],
+        cache_write_1h_input_tokens: attributes[:cache_write_1h_input_tokens],
         hidden_output_tokens: attributes[:hidden_output_tokens]
       )
     end

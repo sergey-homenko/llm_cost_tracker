@@ -191,6 +191,54 @@ RSpec.describe LlmCostTracker::Pricing do
       )
     end
 
+    it "prices 1-hour cache writes with their own rate when usage exposes the split" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "anthropic/demo-cache-ttl" => {
+            input: 3.0,
+            output: 15.0,
+            cache_write_input: 3.75,
+            cache_write_1h_input: 6.0
+          }
+        }
+      end
+
+      result = described_class.cost_for(
+        provider: "anthropic",
+        model: "demo-cache-ttl",
+        input_tokens: 0,
+        cache_write_input_tokens: 300_000,
+        cache_write_1h_input_tokens: 100_000,
+        output_tokens: 0
+      )
+
+      expect(result.cache_write_input_cost).to eq(1.35)
+      expect(result.total_cost).to eq(1.35)
+    end
+
+    it "treats 1-hour cache writes as unknown pricing when the 1-hour rate is missing" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "anthropic/demo-cache-ttl" => {
+            input: 3.0,
+            output: 15.0,
+            cache_write_input: 3.75
+          }
+        }
+      end
+
+      result = described_class.cost_for(
+        provider: "anthropic",
+        model: "demo-cache-ttl",
+        input_tokens: 0,
+        cache_write_input_tokens: 100_000,
+        cache_write_1h_input_tokens: 100_000,
+        output_tokens: 0
+      )
+
+      expect(result).to be_nil
+    end
+
     it "uses pricing overrides when configured" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
@@ -542,6 +590,14 @@ RSpec.describe LlmCostTracker::Pricing do
 
         expected_ratio = model_id.end_with?("/claude-haiku-3") ? 0.12 : 0.1
         expect(fields[:cache_read_input]).to be_within(0.0001).of(fields[:input] * expected_ratio)
+      end
+    end
+
+    it "holds the Anthropic 1-hour cache-write pricing ratios" do
+      bundled.each do |model_id, fields|
+        next unless model_id.split("/").last.start_with?("claude-")
+
+        expect(fields[:cache_write_1h_input]).to be_within(0.0001).of(fields[:input] * 2.0)
       end
     end
 

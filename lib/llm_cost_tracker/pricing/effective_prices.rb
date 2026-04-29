@@ -2,12 +2,13 @@
 
 module LlmCostTracker
   module Pricing
-    EffectivePriceSet = Data.define(:input, :cache_read_input, :cache_write_input, :output) do
+    EffectivePriceSet = Data.define(:input, :cache_read_input, :cache_write_input, :cache_write_1h_input, :output) do
       def to_h
         {
           input: input,
           cache_read_input: cache_read_input,
           cache_write_input: cache_write_input,
+          cache_write_1h_input: cache_write_1h_input,
           output: output
         }
       end
@@ -33,9 +34,15 @@ module LlmCostTracker
               pricing_mode
             ),
             cache_write_input: price_for_cache_usage(
-              usage.cache_write_input_tokens,
+              usage.standard_cache_write_input_tokens,
               prices,
               :cache_write_input,
+              pricing_mode
+            ),
+            cache_write_1h_input: price_for_usage(
+              usage.cache_write_1h_input_tokens,
+              prices,
+              :cache_write_1h_input,
               pricing_mode
             ),
             output: price_for_usage(usage.output_tokens, prices, :output, pricing_mode)

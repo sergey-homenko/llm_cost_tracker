@@ -31,7 +31,11 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
           input_tokens: 200,
           output_tokens: 80,
           cache_read_input_tokens: 50,
-          cache_creation_input_tokens: 10
+          cache_creation_input_tokens: 30,
+          cache_creation: {
+            ephemeral_5m_input_tokens: 20,
+            ephemeral_1h_input_tokens: 10
+          }
         }
       }.to_json
     end
@@ -54,9 +58,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.model).to eq("claude-sonnet-4-6")
       expect(result.input_tokens).to eq(200)
       expect(result.output_tokens).to eq(80)
-      expect(result.total_tokens).to eq(340)
+      expect(result.total_tokens).to eq(360)
       expect(result.cache_read_input_tokens).to eq(50)
-      expect(result.cache_write_input_tokens).to eq(10)
+      expect(result.cache_write_input_tokens).to eq(30)
+      expect(result.cache_write_1h_input_tokens).to eq(10)
       expect(result.stream).to be false
       expect(result.usage_source).to eq(:response)
       expect(result.provider_response_id).to be_nil
@@ -91,7 +96,16 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
           "message" => {
             "id" => "msg_456",
             "model" => "claude-sonnet-4-6",
-            "usage" => { "input_tokens" => 120, "output_tokens" => 1, "cache_read_input_tokens" => 40 }
+            "usage" => {
+              "input_tokens" => 120,
+              "output_tokens" => 1,
+              "cache_read_input_tokens" => 40,
+              "cache_creation_input_tokens" => 30,
+              "cache_creation" => {
+                "ephemeral_5m_input_tokens" => 20,
+                "ephemeral_1h_input_tokens" => 10
+              }
+            }
           }
         } },
         { event: "message_delta", data: {
@@ -111,8 +125,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.model).to eq("claude-sonnet-4-6")
       expect(result.input_tokens).to eq(120)
       expect(result.output_tokens).to eq(64)
-      expect(result.total_tokens).to eq(120 + 64 + 40)
+      expect(result.total_tokens).to eq(120 + 64 + 40 + 30)
       expect(result.cache_read_input_tokens).to eq(40)
+      expect(result.cache_write_input_tokens).to eq(30)
+      expect(result.cache_write_1h_input_tokens).to eq(10)
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)
       expect(result.provider_response_id).to eq("msg_456")

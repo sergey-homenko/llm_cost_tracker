@@ -32,7 +32,7 @@ This is the normal path from an application LLM call to stored ledger data.
 `Tracker.record` performs the central normalization step:
 
 1. Blank model identifiers become `unknown`.
-2. Input, output, cache-read, cache-write, hidden-output, and pricing-mode values are extracted from metadata.
+2. Input, output, cache-read, cache-write, cache-write duration, hidden-output, and pricing-mode values are extracted from metadata.
 3. `Pricing.cost_for` calculates a `Cost` object or returns `nil` for unknown pricing.
 4. Tags are merged from `with_tags`, `default_tags`, middleware tags, and explicit metadata.
 5. An `Event` is created and emitted through `ActiveSupport::Notifications`.
