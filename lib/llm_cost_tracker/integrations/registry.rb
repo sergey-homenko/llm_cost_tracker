@@ -67,7 +67,5 @@ module LlmCostTracker
     end
 
     def self.register(name, integration) = Registry.register(name, integration)
-    def self.install! = Registry.install!
-    def self.checks = Registry.checks
   end
 end

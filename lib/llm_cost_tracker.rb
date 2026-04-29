@@ -69,7 +69,7 @@ module LlmCostTracker
         @configuration_generation = @configuration_generation.to_i + 1
         current
       end
-      Integrations.install!
+      Integrations::Registry.install!
       warn_for_configuration!(config)
     end
 

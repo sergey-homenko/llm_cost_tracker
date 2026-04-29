@@ -10,7 +10,7 @@ RSpec.describe "LlmCostTracker::Engine assets" do
   include_context "with mounted llm cost tracker engine"
 
   it "serves the fingerprinted stylesheet with immutable caching" do
-    response = get("/llm-costs/assets/#{LlmCostTracker::Assets.stylesheet_filename}")
+    response = get("/llm-costs/assets/#{LlmCostTracker::Assets::STYLESHEET_FILENAME}")
     cache_control = response.headers["cache-control"].to_s
 
     expect(response.status).to eq(200)

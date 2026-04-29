@@ -36,6 +36,23 @@ RSpec.describe LlmCostTracker::CaptureVerifier do
     expect(check).to have_attributes(status: :error, message: include("custom_storage"))
   end
 
+  it "reports enabled SDK integration checks" do
+    integration = Class.new do
+      def self.install = nil
+
+      def self.status
+        LlmCostTracker::Integrations::Base::Result.new(:custom_sdk, :ok, "custom_sdk integration installed")
+      end
+    end
+
+    LlmCostTracker::Integrations.register(:custom_sdk, integration)
+    LlmCostTracker.configure { |config| config.instrument :custom_sdk }
+
+    expect(described_class.call).to include(
+      have_attributes(status: :ok, name: "sdk integration custom_sdk", message: "custom_sdk integration installed")
+    )
+  end
+
   context "with ActiveRecord storage" do
     include_context "with mounted llm cost tracker engine"
 

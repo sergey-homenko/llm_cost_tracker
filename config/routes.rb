@@ -8,6 +8,6 @@ LlmCostTracker::Engine.routes.draw do
   get "tags/:key", to: "tags#show",   as: :tag, format: false
   get "data_quality", to: "data_quality#index", as: :data_quality
 
-  get "assets/#{LlmCostTracker::Assets.stylesheet_filename}",
+  get "assets/#{LlmCostTracker::Assets::STYLESHEET_FILENAME}",
       to: "assets#stylesheet", as: :stylesheet
 end

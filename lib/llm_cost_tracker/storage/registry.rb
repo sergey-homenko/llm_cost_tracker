@@ -55,9 +55,5 @@ module LlmCostTracker
     def self.register(name, backend)
       Registry.register(name, backend)
     end
-
-    def self.backends
-      Registry.names
-    end
   end
 end

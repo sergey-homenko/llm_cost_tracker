@@ -40,7 +40,7 @@ module LlmCostTracker
     def checks
       [
         configuration_check,
-        capture_check,
+        CaptureCheck.call(Check),
         *integration_checks,
         active_record_check,
         table_check,
@@ -59,10 +59,8 @@ module LlmCostTracker
       Check.new(:ok, "configuration", "storage_backend=#{config.storage_backend.inspect}, enabled=#{config.enabled}")
     end
 
-    def capture_check = CaptureCheck.call(Check)
-
     def integration_checks
-      LlmCostTracker::Integrations.checks.map do |check|
+      LlmCostTracker::Integrations::Registry.checks.map do |check|
         Check.new(check.status, check.name.to_s, check.message)
       end
     end

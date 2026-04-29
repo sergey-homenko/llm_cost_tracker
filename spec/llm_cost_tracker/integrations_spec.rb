@@ -802,7 +802,7 @@ RSpec.describe LlmCostTracker::Integrations do
     )
     install_openai_fakes(response)
     configure_integration(:openai)
-    LlmCostTracker::Integrations.install!
+    LlmCostTracker::Integrations::Registry.install!
 
     capture_events do |events|
       OpenAI::Resources::Responses.new.create(model: "gpt-4o")
