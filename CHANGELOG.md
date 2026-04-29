@@ -4,6 +4,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-04-29
+
+### Fixed
+
+- Exclude repository documentation from the published gem package.
+
 ## [0.6.0] - 2026-04-29
 
 ### Added
