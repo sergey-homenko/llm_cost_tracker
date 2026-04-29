@@ -16,7 +16,8 @@ module LlmCostTracker
       def initialize(scope:, limit:)
         @scope = scope
         @connection = LlmCostTracker::LlmApiCall.connection
-        @limit = normalized_limit(limit)
+        limit = limit.to_i
+        @limit = limit.positive? ? [limit, DEFAULT_LIMIT].min : DEFAULT_LIMIT
       end
 
       def rows
@@ -81,11 +82,6 @@ module LlmCostTracker
           ORDER BY calls_count DESC
           LIMIT #{limit}
         SQL
-      end
-
-      def normalized_limit(value)
-        value = value.to_i
-        value.positive? ? [value, DEFAULT_LIMIT].min : DEFAULT_LIMIT
       end
     end
   end

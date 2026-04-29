@@ -2,6 +2,8 @@
 
 require "time"
 
+require_relative "../inbox"
+
 module LlmCostTracker
   class Doctor
     class IngestionCheck
@@ -16,7 +18,7 @@ module LlmCostTracker
       end
 
       def call
-        return unless llm_api_calls_table?
+        return unless table_exists?("llm_api_calls")
 
         missing = missing_parts
         if missing.empty?
@@ -26,11 +28,12 @@ module LlmCostTracker
           end
 
           pending = pending_snapshot
-          if stale_pending?(pending)
+          pending_age = pending.fetch(:oldest_at) && (Time.now.utc - pending.fetch(:oldest_at))
+          if pending.fetch(:count).positive? && pending_age && pending_age >= PENDING_AGE_WARNING_SECONDS
             return check_class.new(
               :warn,
               "durable ingestion",
-              "#{pending.fetch(:count)} inbox events pending; oldest pending age #{pending_age(pending).round}s"
+              "#{pending.fetch(:count)} inbox events pending; oldest pending age #{pending_age.round}s"
             )
           end
 
@@ -49,22 +52,19 @@ module LlmCostTracker
       attr_reader :check_class
 
       def missing_parts
+        columns = LlmCostTracker::LlmApiCall.connection.columns("llm_api_calls").map(&:name)
         [
-          column_names("llm_api_calls").include?("event_id") ? nil : "llm_api_calls.event_id",
+          columns.include?("event_id") ? nil : "llm_api_calls.event_id",
           table_exists?("llm_cost_tracker_inbox_events") ? nil : "llm_cost_tracker_inbox_events",
           table_exists?("llm_cost_tracker_ingestor_leases") ? nil : "llm_cost_tracker_ingestor_leases"
         ].compact
       end
-
-      def llm_api_calls_table? = table_exists?("llm_api_calls")
 
       def table_exists?(name)
         LlmCostTracker::LlmApiCall.connection.data_source_exists?(name)
       rescue StandardError
         false
       end
-
-      def column_names(table) = LlmCostTracker::LlmApiCall.connection.columns(table).map(&:name)
 
       def quarantined_count
         return 0 unless table_exists?("llm_cost_tracker_inbox_events")
@@ -76,7 +76,7 @@ module LlmCostTracker
 
       def quarantined_sql
         table = LlmCostTracker::LlmApiCall.connection.quote_table_name("llm_cost_tracker_inbox_events")
-        "SELECT COUNT(*) FROM #{table} WHERE attempts >= #{max_attempts}"
+        "SELECT COUNT(*) FROM #{table} WHERE attempts >= #{LlmCostTracker::Inbox::MAX_ATTEMPTS}"
       end
 
       def pending_snapshot
@@ -92,23 +92,7 @@ module LlmCostTracker
       def pending_sql
         table = LlmCostTracker::LlmApiCall.connection.quote_table_name("llm_cost_tracker_inbox_events")
         "SELECT COUNT(*) AS pending_count, MIN(created_at) AS oldest_created_at " \
-          "FROM #{table} WHERE attempts < #{max_attempts}"
-      end
-
-      def stale_pending?(pending)
-        pending.fetch(:count).positive? &&
-          pending.fetch(:oldest_at) &&
-          pending_age(pending) >= PENDING_AGE_WARNING_SECONDS
-      end
-
-      def pending_age(pending) = Time.now.utc - pending.fetch(:oldest_at)
-
-      def max_attempts
-        if defined?(LlmCostTracker::Storage::ActiveRecordInbox::MAX_ATTEMPTS)
-          LlmCostTracker::Storage::ActiveRecordInbox::MAX_ATTEMPTS
-        else
-          5
-        end
+          "FROM #{table} WHERE attempts < #{LlmCostTracker::Inbox::MAX_ATTEMPTS}"
       end
     end
   end

@@ -36,14 +36,14 @@ RSpec.describe LlmCostTracker::Retention do
       add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
     end
     LlmCostTracker::LlmApiCall.reset_column_information
-    LlmCostTracker::PeriodTotal.reset_column_information if defined?(LlmCostTracker::PeriodTotal)
-    LlmCostTracker::Storage::ActiveRecordStore.reset! if defined?(LlmCostTracker::Storage::ActiveRecordStore)
+    LlmCostTracker::PeriodTotal.reset_column_information
+    LlmCostTracker::LedgerStore.reset!
   end
 
   after do
     disconnect_database!
     LlmCostTracker::LlmApiCall.reset_column_information
-    LlmCostTracker::Storage::ActiveRecordStore.reset! if defined?(LlmCostTracker::Storage::ActiveRecordStore)
+    LlmCostTracker::LedgerStore.reset!
   end
 
   def create_call(tracked_at:, total_cost: nil)
@@ -54,12 +54,6 @@ RSpec.describe LlmCostTracker::Retention do
       tags: tags_for_database({}),
       tracked_at: tracked_at
     )
-  end
-
-  def period_total_model
-    require "llm_cost_tracker/period_total" unless defined?(LlmCostTracker::PeriodTotal)
-
-    LlmCostTracker::PeriodTotal
   end
 
   it "deletes rows older than the given duration and keeps newer ones" do
@@ -96,15 +90,15 @@ RSpec.describe LlmCostTracker::Retention do
     now = Time.utc(2026, 4, 20, 12, 0, 0)
     create_call(tracked_at: Time.utc(2026, 4, 20, 8, 0, 0), total_cost: 2.0)
     create_call(tracked_at: Time.utc(2026, 4, 20, 11, 0, 0), total_cost: 3.0)
-    period_total_model.create!(period: "day", period_start: Date.new(2026, 4, 20), total_cost: 5.0)
-    period_total_model.create!(period: "month", period_start: Date.new(2026, 4, 1), total_cost: 5.0)
+    LlmCostTracker::PeriodTotal.create!(period: "day", period_start: Date.new(2026, 4, 20), total_cost: 5.0)
+    LlmCostTracker::PeriodTotal.create!(period: "month", period_start: Date.new(2026, 4, 1), total_cost: 5.0)
 
     deleted = described_class.prune(older_than: Time.utc(2026, 4, 20, 10, 0, 0), now: now)
 
     expect(deleted).to eq(1)
     expect(LlmCostTracker::LlmApiCall.count).to eq(1)
-    expect(period_total_model.find_by!(period: "day").total_cost.to_f).to eq(3.0)
-    expect(period_total_model.find_by!(period: "month").total_cost.to_f).to eq(3.0)
+    expect(LlmCostTracker::PeriodTotal.find_by!(period: "day").total_cost.to_f).to eq(3.0)
+    expect(LlmCostTracker::PeriodTotal.find_by!(period: "month").total_cost.to_f).to eq(3.0)
   end
 
   it "raises on unsupported older_than type" do

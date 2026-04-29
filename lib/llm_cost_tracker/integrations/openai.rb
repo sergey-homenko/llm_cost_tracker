@@ -9,11 +9,17 @@ module LlmCostTracker
       extend Base
 
       class << self
-        def integration_name = :openai
+        def integration_name
+          :openai
+        end
 
-        def minimum_version = "0.59.0"
+        def minimum_version
+          "0.59.0"
+        end
 
-        def version_constant = "OpenAI::VERSION"
+        def version_constant
+          "OpenAI::VERSION"
+        end
 
         def patch_targets
           [

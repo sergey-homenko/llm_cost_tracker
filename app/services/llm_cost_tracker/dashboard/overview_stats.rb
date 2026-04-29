@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "llm_cost_tracker/storage/active_record_store"
+require "llm_cost_tracker/ledger_store"
 
 module LlmCostTracker
   module Dashboard
@@ -79,7 +79,7 @@ module LlmCostTracker
           now = Time.now.utc
           month_start = now.beginning_of_month
           month_end = now.end_of_month
-          spent = LlmCostTracker::Storage::ActiveRecordStore.monthly_total(time: now)
+          spent = LlmCostTracker::LedgerStore.monthly_total(time: now)
           elapsed_seconds = now - month_start
           total_seconds = month_end - month_start
           projected_spent = if spent.zero? || !elapsed_seconds.positive?

@@ -48,24 +48,12 @@ RSpec.describe "ActiveRecord storage integration" do
       add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
     end
 
-    LlmCostTracker::LlmApiCall.reset_column_information if defined?(LlmCostTracker::LlmApiCall)
-    LlmCostTracker::PeriodTotal.reset_column_information if defined?(LlmCostTracker::PeriodTotal)
+    LlmCostTracker::LlmApiCall.reset_column_information
+    LlmCostTracker::PeriodTotal.reset_column_information
   end
 
   after do
     disconnect_database!
-  end
-
-  def llm_api_call_model
-    require "llm_cost_tracker/llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
-
-    LlmCostTracker::LlmApiCall
-  end
-
-  def period_total_model
-    require "llm_cost_tracker/period_total" unless defined?(LlmCostTracker::PeriodTotal)
-
-    LlmCostTracker::PeriodTotal
   end
 
   it "lazy-loads the ActiveRecord store and persists events" do
@@ -79,9 +67,9 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "chat"
     )
 
-    expect(llm_api_call_model.count).to eq(1)
+    expect(LlmCostTracker::LlmApiCall.count).to eq(1)
 
-    call = llm_api_call_model.first
+    call = LlmCostTracker::LlmApiCall.first
     expect(call.provider).to eq("openai")
     expect(call.model).to eq("gpt-4o")
     expect(call.total_cost.to_f).to eq(0.0075)
@@ -99,7 +87,7 @@ RSpec.describe "ActiveRecord storage integration" do
       hidden_output_tokens: 20
     )
 
-    call = llm_api_call_model.first
+    call = LlmCostTracker::LlmApiCall.first
     expect(call.input_tokens).to eq(900)
     expect(call.cache_read_input_tokens).to eq(100)
     expect(call.cache_write_input_tokens).to eq(0)
@@ -130,18 +118,18 @@ RSpec.describe "ActiveRecord storage integration" do
       pricing_mode: :batch
     )
 
-    call = llm_api_call_model.first
+    call = LlmCostTracker::LlmApiCall.first
     expect(call.pricing_mode).to eq("batch")
     expect(call.total_cost.to_f).to eq(1.5)
   end
 
   it "refreshes optional column capability checks after reset_column_information" do
-    expect(llm_api_call_model.pricing_mode_column?).to be true
+    expect(LlmCostTracker::LlmApiCall.pricing_mode_column?).to be true
 
     ActiveRecord::Base.connection.remove_column(:llm_api_calls, :pricing_mode)
-    llm_api_call_model.reset_column_information
+    LlmCostTracker::LlmApiCall.reset_column_information
 
-    expect(llm_api_call_model.pricing_mode_column?).to be false
+    expect(LlmCostTracker::LlmApiCall.pricing_mode_column?).to be false
   end
 
   it "keeps persisted historical costs when the price file changes for later requests" do
@@ -183,7 +171,7 @@ RSpec.describe "ActiveRecord storage integration" do
           output_tokens: 1_000_000
         )
 
-        calls = llm_api_call_model.order(:id).to_a
+        calls = LlmCostTracker::LlmApiCall.order(:id).to_a
 
         expect(calls.size).to eq(2)
         expect(calls.first.input_cost.to_f).to eq(1.0)
@@ -192,7 +180,7 @@ RSpec.describe "ActiveRecord storage integration" do
         expect(calls.second.input_cost.to_f).to eq(3.0)
         expect(calls.second.output_cost.to_f).to eq(4.0)
         expect(calls.second.total_cost.to_f).to eq(7.0)
-        expect(llm_api_call_model.sum(:total_cost).to_f).to eq(10.0)
+        expect(LlmCostTracker::LlmApiCall.sum(:total_cost).to_f).to eq(10.0)
       end
     end
   end
@@ -211,18 +199,18 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    month_total = period_total_model.find_by!(period: "month", period_start: Date.current.beginning_of_month)
+    month_total = LlmCostTracker::PeriodTotal.find_by!(period: "month", period_start: Date.current.beginning_of_month)
 
-    expect(period_total_model.where(period: "month").count).to eq(1)
+    expect(LlmCostTracker::PeriodTotal.where(period: "month").count).to eq(1)
     expect(month_total.total_cost.to_f).to eq(0.00265)
-    expect(LlmCostTracker::Storage::ActiveRecordStore.monthly_total).to eq(0.00265)
+    expect(LlmCostTracker::LedgerStore.monthly_total).to eq(0.00265)
   end
 
   it "updates daily and monthly period rollups in one bulk write" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
     received_rows = nil
 
-    allow(period_total_model).to receive(:upsert_all).and_wrap_original do |method, rows, **options|
+    allow(LlmCostTracker::PeriodTotal).to receive(:upsert_all).and_wrap_original do |method, rows, **options|
       received_rows = rows
       method.call(rows, **options)
     end
@@ -234,7 +222,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    expect(period_total_model).to have_received(:upsert_all).once
+    expect(LlmCostTracker::PeriodTotal).to have_received(:upsert_all).once
     expect(received_rows.map { |row| row[:period] }).to contain_exactly("month", "day")
   end
 
@@ -246,7 +234,7 @@ RSpec.describe "ActiveRecord storage integration" do
       quoted_table_name: %("llm_cost_tracker_period_totals")
     )
 
-    sql = LlmCostTracker::Storage::ActiveRecordRollupUpsertSql.call(model).to_s
+    sql = LlmCostTracker::RollupUpsertSql.call(model).to_s
 
     expect(sql).to include(%("total_cost" = "llm_cost_tracker_period_totals"."total_cost" + excluded."total_cost"))
     expect(sql).to include(%("updated_at" = excluded."updated_at"))
@@ -260,7 +248,7 @@ RSpec.describe "ActiveRecord storage integration" do
         table_name: "llm_cost_tracker_period_totals"
       )
 
-      sql = LlmCostTracker::Storage::ActiveRecordRollupUpsertSql.call(model).to_s
+      sql = LlmCostTracker::RollupUpsertSql.call(model).to_s
 
       expect(sql).to include("VALUES(total_cost)")
       expect(sql).not_to include("excluded")
@@ -283,11 +271,11 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    day_total = period_total_model.find_by!(period: "day", period_start: Date.new(2026, 4, 18))
+    day_total = LlmCostTracker::PeriodTotal.find_by!(period: "day", period_start: Date.new(2026, 4, 18))
 
-    expect(period_total_model.where(period: "day").count).to eq(1)
+    expect(LlmCostTracker::PeriodTotal.where(period: "day").count).to eq(1)
     expect(day_total.total_cost.to_f).to eq(0.00265)
-    expect(LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.00265)
+    expect(LlmCostTracker::LedgerStore.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.00265)
   end
 
   it "falls back to llm_api_calls sums when period rollups are unavailable" do
@@ -301,8 +289,8 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    expect(LlmCostTracker::Storage::ActiveRecordStore.monthly_total).to eq(0.0025)
-    expect(LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.0025)
+    expect(LlmCostTracker::LedgerStore.monthly_total).to eq(0.0025)
+    expect(LlmCostTracker::LedgerStore.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.0025)
   end
 
   it "reads daily and monthly period totals together" do
@@ -315,7 +303,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    totals = LlmCostTracker::Storage::ActiveRecordStore.period_totals(
+    totals = LlmCostTracker::LedgerStore.period_totals(
       %i[daily monthly],
       time: Time.utc(2026, 4, 18, 23)
     )
@@ -332,7 +320,7 @@ RSpec.describe "ActiveRecord storage integration" do
       latency_ms: 123
     )
 
-    expect(llm_api_call_model.first.parsed_tags).not_to have_key("latency_ms")
+    expect(LlmCostTracker::LlmApiCall.first.parsed_tags).not_to have_key("latency_ms")
   end
 
   it "persists provider_response_id without treating it as a tag" do
@@ -344,7 +332,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider_response_id: "chatcmpl_123"
     )
 
-    call = llm_api_call_model.first
+    call = LlmCostTracker::LlmApiCall.first
 
     expect(call.provider_response_id).to eq("chatcmpl_123")
     expect(call.parsed_tags).not_to have_key("provider_response_id")
@@ -359,7 +347,7 @@ RSpec.describe "ActiveRecord storage integration" do
       user_id: 42
     )
 
-    expect(llm_api_call_model.by_tag("user_id", "42").count).to eq(1)
+    expect(LlmCostTracker::LlmApiCall.by_tag("user_id", "42").count).to eq(1)
   end
 
   it "filters by multiple tags through by_tags" do
@@ -380,7 +368,7 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "summarizer"
     )
 
-    matching_calls = llm_api_call_model.by_tags(user_id: 42, feature: "chat")
+    matching_calls = LlmCostTracker::LlmApiCall.by_tags(user_id: 42, feature: "chat")
 
     expect(matching_calls.count).to eq(1)
     expect(matching_calls.first.parsed_tags["feature"]).to eq("chat")
@@ -408,7 +396,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    expect(llm_api_call_model.this_month.cost_by_tag("feature")).to eq(
+    expect(LlmCostTracker::LlmApiCall.this_month.cost_by_tag("feature")).to eq(
       "chat" => 0.0025,
       "summarizer" => 0.00015,
       "(untagged)" => 0.00015
@@ -431,20 +419,20 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "summarizer"
     )
 
-    tag_sql = llm_api_call_model.group_by_tag("feature").to_sql
-    if LlmCostTracker::ActiveRecordAdapter.postgresql?(llm_api_call_model.connection)
+    tag_sql = LlmCostTracker::LlmApiCall.group_by_tag("feature").to_sql
+    if LlmCostTracker::ActiveRecordAdapter.postgresql?(LlmCostTracker::LlmApiCall.connection)
       expect(tag_sql).to include("->>")
     else
       expect(tag_sql).to include("JSON_EXTRACT")
     end
-    expect(llm_api_call_model.group_by_tag("feature").sum(:total_cost).transform_values(&:to_f)).to eq(
+    expect(LlmCostTracker::LlmApiCall.group_by_tag("feature").sum(:total_cost).transform_values(&:to_f)).to eq(
       "chat" => 0.0025,
       "summarizer" => 0.001
     )
   end
 
   it "groups costs by day on the SQL side" do
-    llm_api_call_model.create!(
+    LlmCostTracker::LlmApiCall.create!(
       provider: "openai",
       model: "gpt-4o",
       input_tokens: 10,
@@ -454,7 +442,7 @@ RSpec.describe "ActiveRecord storage integration" do
       tags: tags_for_database({}),
       tracked_at: Time.utc(2026, 4, 18, 10, 30)
     )
-    llm_api_call_model.create!(
+    LlmCostTracker::LlmApiCall.create!(
       provider: "openai",
       model: "gpt-4o-mini",
       input_tokens: 10,
@@ -464,7 +452,7 @@ RSpec.describe "ActiveRecord storage integration" do
       tags: tags_for_database({}),
       tracked_at: Time.utc(2026, 4, 18, 23, 59)
     )
-    llm_api_call_model.create!(
+    LlmCostTracker::LlmApiCall.create!(
       provider: "anthropic",
       model: "claude-haiku-4-5",
       input_tokens: 10,
@@ -475,20 +463,20 @@ RSpec.describe "ActiveRecord storage integration" do
       tracked_at: Time.utc(2026, 4, 19, 0, 1)
     )
 
-    period_sql = llm_api_call_model.group_by_period(:day).to_sql
-    if LlmCostTracker::ActiveRecordAdapter.postgresql?(llm_api_call_model.connection)
+    period_sql = LlmCostTracker::LlmApiCall.group_by_period(:day).to_sql
+    if LlmCostTracker::ActiveRecordAdapter.postgresql?(LlmCostTracker::LlmApiCall.connection)
       expect(period_sql).to include("DATE_TRUNC")
     else
       expect(period_sql).to include("DATE_FORMAT")
     end
-    expect(llm_api_call_model.group_by_period(:day).sum(:total_cost).transform_values(&:to_f)).to eq(
+    expect(LlmCostTracker::LlmApiCall.group_by_period(:day).sum(:total_cost).transform_values(&:to_f)).to eq(
       "2026-04-18" => 4.0,
       "2026-04-19" => 3.5
     )
   end
 
   it "groups costs by month on the SQL side" do
-    llm_api_call_model.create!(
+    LlmCostTracker::LlmApiCall.create!(
       provider: "openai",
       model: "gpt-4o",
       input_tokens: 10,
@@ -498,7 +486,7 @@ RSpec.describe "ActiveRecord storage integration" do
       tags: tags_for_database({}),
       tracked_at: Time.utc(2026, 4, 18)
     )
-    llm_api_call_model.create!(
+    LlmCostTracker::LlmApiCall.create!(
       provider: "anthropic",
       model: "claude-haiku-4-5",
       input_tokens: 10,
@@ -509,14 +497,14 @@ RSpec.describe "ActiveRecord storage integration" do
       tracked_at: Time.utc(2026, 5, 1)
     )
 
-    expect(llm_api_call_model.group_by_period(:month).sum(:total_cost).transform_values(&:to_f)).to eq(
+    expect(LlmCostTracker::LlmApiCall.group_by_period(:month).sum(:total_cost).transform_values(&:to_f)).to eq(
       "2026-04" => 1.25,
       "2026-05" => 3.5
     )
   end
 
   it "groups by a whitelisted custom timestamp column" do
-    llm_api_call_model.create!(
+    LlmCostTracker::LlmApiCall.create!(
       provider: "openai",
       model: "gpt-4o",
       input_tokens: 10,
@@ -530,15 +518,15 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     expect(
-      llm_api_call_model.group_by_period(:day, column: :created_at).sum(:total_cost).transform_values(&:to_f)
+      LlmCostTracker::LlmApiCall.group_by_period(:day, column: :created_at).sum(:total_cost).transform_values(&:to_f)
     ).to eq("2026-05-02" => 1.25)
   end
 
   it "builds PostgreSQL period grouping SQL" do
-    allow(llm_api_call_model.connection).to receive(:adapter_name).and_return("PostgreSQL")
+    allow(LlmCostTracker::LlmApiCall.connection).to receive(:adapter_name).and_return("PostgreSQL")
 
-    day_sql = llm_api_call_model.group_by_period(:day).to_sql
-    month_sql = llm_api_call_model.group_by_period(:month).to_sql
+    day_sql = LlmCostTracker::LlmApiCall.group_by_period(:day).to_sql
+    month_sql = LlmCostTracker::LlmApiCall.group_by_period(:month).to_sql
 
     expect(day_sql).to include("TO_CHAR(DATE_TRUNC('day'")
     expect(day_sql).to include("'YYYY-MM-DD'")
@@ -548,13 +536,13 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "builds MySQL-family period grouping SQL" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-      connection = llm_api_call_model.connection
+      connection = LlmCostTracker::LlmApiCall.connection
       allow(connection).to receive(:adapter_name).and_return(adapter_name)
       allow(LlmCostTracker::ActiveRecordAdapter).to receive(:postgresql?).with(connection).and_return(false)
       allow(LlmCostTracker::ActiveRecordAdapter).to receive(:mysql?).with(connection).and_return(true)
 
-      day_sql = llm_api_call_model.group_by_period(:day).to_sql
-      month_sql = llm_api_call_model.group_by_period(:month).to_sql
+      day_sql = LlmCostTracker::LlmApiCall.group_by_period(:day).to_sql
+      month_sql = LlmCostTracker::LlmApiCall.group_by_period(:month).to_sql
 
       expect(day_sql).to include("DATE_FORMAT")
       expect(day_sql).to include("'%Y-%m-%d'")
@@ -566,7 +554,7 @@ RSpec.describe "ActiveRecord storage integration" do
   it "composes period grouping with other scopes" do
     tracked_at = Time.now.utc
 
-    llm_api_call_model.create!(
+    LlmCostTracker::LlmApiCall.create!(
       provider: "openai",
       model: "gpt-4o",
       input_tokens: 10,
@@ -576,7 +564,7 @@ RSpec.describe "ActiveRecord storage integration" do
       tags: tags_for_database({}),
       tracked_at: tracked_at
     )
-    llm_api_call_model.create!(
+    LlmCostTracker::LlmApiCall.create!(
       provider: "anthropic",
       model: "claude-haiku-4-5",
       input_tokens: 10,
@@ -587,20 +575,20 @@ RSpec.describe "ActiveRecord storage integration" do
       tracked_at: tracked_at
     )
 
-    result = llm_api_call_model.this_month.where(provider: "openai").group_by_period(:day).sum(:total_cost)
+    result = LlmCostTracker::LlmApiCall.this_month.where(provider: "openai").group_by_period(:day).sum(:total_cost)
 
     expect(result.transform_values(&:to_f)).to eq(tracked_at.strftime("%Y-%m-%d") => 1.25)
   end
 
   it "rejects invalid periods before building SQL" do
     expect do
-      llm_api_call_model.group_by_period("day; DROP TABLE llm_api_calls")
+      LlmCostTracker::LlmApiCall.group_by_period("day; DROP TABLE llm_api_calls")
     end.to raise_error(ArgumentError, /invalid period/)
   end
 
   it "rejects invalid period columns before building SQL" do
     expect do
-      llm_api_call_model.group_by_period(:day, column: "tracked_at; DROP TABLE llm_api_calls")
+      LlmCostTracker::LlmApiCall.group_by_period(:day, column: "tracked_at; DROP TABLE llm_api_calls")
     end.to raise_error(ArgumentError, /invalid period column/)
   end
 
@@ -620,7 +608,7 @@ RSpec.describe "ActiveRecord storage integration" do
       "feature.name" => "summarizer"
     )
 
-    expect(llm_api_call_model.cost_by_tag("feature.name")).to eq(
+    expect(LlmCostTracker::LlmApiCall.cost_by_tag("feature.name")).to eq(
       "chat" => 0.0025,
       "summarizer" => 0.00015
     )
@@ -642,14 +630,14 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "chat"
     )
 
-    result = llm_api_call_model.this_month.where(provider: "openai").group_by_tag("feature").sum(:total_cost)
+    result = LlmCostTracker::LlmApiCall.this_month.where(provider: "openai").group_by_tag("feature").sum(:total_cost)
 
     expect(result.transform_values(&:to_f)).to eq("chat" => 0.0025)
   end
 
   it "rejects invalid tag keys before building SQL" do
     expect do
-      llm_api_call_model.group_by_tag("feature; DROP TABLE llm_api_calls")
+      LlmCostTracker::LlmApiCall.group_by_tag("feature; DROP TABLE llm_api_calls")
     end.to raise_error(ArgumentError, /invalid tag key/)
   end
 
@@ -663,9 +651,9 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "chat"
     )
 
-    expect(llm_api_call_model.by_tag("user_id", 42).count).to eq(1)
-    expect(llm_api_call_model.by_tag("feature", "chat").count).to eq(1)
-    expect(llm_api_call_model.by_tag("feature", "summarizer").count).to eq(0)
+    expect(LlmCostTracker::LlmApiCall.by_tag("user_id", 42).count).to eq(1)
+    expect(LlmCostTracker::LlmApiCall.by_tag("feature", "chat").count).to eq(1)
+    expect(LlmCostTracker::LlmApiCall.by_tag("feature", "summarizer").count).to eq(0)
   end
 
   it "escapes text tag queries so wildcard values do not over-match" do
@@ -684,7 +672,7 @@ RSpec.describe "ActiveRecord storage integration" do
       feature: "1000"
     )
 
-    expect(llm_api_call_model.by_tag("feature", "100%").count).to eq(1)
+    expect(LlmCostTracker::LlmApiCall.by_tag("feature", "100%").count).to eq(1)
   end
 
   it "filters calls with and without known pricing" do
@@ -705,9 +693,9 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5
     )
 
-    expect(llm_api_call_model.with_cost.count).to eq(1)
-    expect(llm_api_call_model.without_cost.count).to eq(1)
-    expect(llm_api_call_model.unknown_pricing.first.model).to eq("unknown-chat-model")
+    expect(LlmCostTracker::LlmApiCall.with_cost.count).to eq(1)
+    expect(LlmCostTracker::LlmApiCall.without_cost.count).to eq(1)
+    expect(LlmCostTracker::LlmApiCall.unknown_pricing.first.model).to eq("unknown-chat-model")
   end
 
   it "aggregates latency by model and provider" do
@@ -726,15 +714,15 @@ RSpec.describe "ActiveRecord storage integration" do
       latency_ms: 300
     )
 
-    expect(llm_api_call_model.with_latency.count).to eq(2)
-    expect(llm_api_call_model.average_latency_ms).to eq(200.0)
-    expect(llm_api_call_model.latency_by_model).to eq("gpt-4o" => 200.0)
-    expect(llm_api_call_model.latency_by_provider).to eq("openai" => 200.0)
+    expect(LlmCostTracker::LlmApiCall.with_latency.count).to eq(2)
+    expect(LlmCostTracker::LlmApiCall.average_latency_ms).to eq(200.0)
+    expect(LlmCostTracker::LlmApiCall.latency_by_model).to eq("gpt-4o" => 200.0)
+    expect(LlmCostTracker::LlmApiCall.latency_by_provider).to eq("openai" => 200.0)
   end
 
   it "does not write latency when an older schema has no latency column" do
     ActiveRecord::Base.connection.remove_column(:llm_api_calls, :latency_ms)
-    llm_api_call_model.reset_column_information
+    LlmCostTracker::LlmApiCall.reset_column_information
 
     expect do
       LlmCostTracker.track(
@@ -745,13 +733,13 @@ RSpec.describe "ActiveRecord storage integration" do
         latency_ms: 123
       )
     end.not_to raise_error
-    expect(llm_api_call_model.first.attributes).not_to have_key("latency_ms")
+    expect(LlmCostTracker::LlmApiCall.first.attributes).not_to have_key("latency_ms")
   end
 
   it "raises when ActiveRecord storage fails" do
-    require "llm_cost_tracker/storage/active_record_store"
+    require "llm_cost_tracker/ledger_store"
 
-    allow(LlmCostTracker::Storage::ActiveRecordStore).to receive(:save)
+    allow(LlmCostTracker::LedgerStore).to receive(:save)
       .and_raise(ActiveRecord::StatementInvalid, "database down")
 
     expect do
@@ -772,39 +760,39 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5
     )
 
-    expect(llm_api_call_model.daily_costs.keys).to all(be_a(String))
+    expect(LlmCostTracker::LlmApiCall.daily_costs.keys).to all(be_a(String))
   end
 
   it "detects PostgreSQL JSONB tag columns" do
-    expect(llm_api_call_model.tags_json_column?).to be true
-    expect(llm_api_call_model.tags_jsonb_column?).to be true
+    expect(LlmCostTracker::LlmApiCall.tags_json_column?).to be true
+    expect(LlmCostTracker::LlmApiCall.tags_jsonb_column?).to be true
   end
 
   it "detects Trilogy JSON tag columns as MySQL JSON" do
     column = double(type: :json, sql_type: "json")
 
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-      capabilities = llm_api_call_model.send(:build_lct_schema_capabilities, { "tags" => column }, adapter_name)
+      capabilities = LlmCostTracker::LlmApiCall.send(:build_lct_schema_capabilities, { "tags" => column }, adapter_name)
 
       expect(capabilities.fetch(:tags_mysql_json)).to be true
     end
   end
 
   it "builds a JSONB containment query for PostgreSQL JSONB tag columns" do
-    allow(llm_api_call_model).to receive_messages(tags_json_column?: true, tags_jsonb_column?: true,
-                                                  tags_mysql_json_column?: false)
+    allow(LlmCostTracker::LlmApiCall).to receive_messages(tags_json_column?: true, tags_jsonb_column?: true,
+                                                          tags_mysql_json_column?: false)
 
-    sql = llm_api_call_model.by_tags(user_id: 42, feature: "chat").to_sql
+    sql = LlmCostTracker::LlmApiCall.by_tags(user_id: 42, feature: "chat").to_sql
 
     expect(sql).to include("tags @>")
     expect(sql).to include('{"user_id":"42","feature":"chat"}')
   end
 
   it "builds a JSON_CONTAINS query for MySQL JSON tag columns" do
-    allow(llm_api_call_model).to receive_messages(tags_json_column?: true, tags_jsonb_column?: false,
-                                                  tags_mysql_json_column?: true)
+    allow(LlmCostTracker::LlmApiCall).to receive_messages(tags_json_column?: true, tags_jsonb_column?: false,
+                                                          tags_mysql_json_column?: true)
 
-    sql = llm_api_call_model.by_tags(user_id: 42, feature: "chat").to_sql
+    sql = LlmCostTracker::LlmApiCall.by_tags(user_id: 42, feature: "chat").to_sql
 
     expect(sql).to include("JSON_CONTAINS(tags,")
     expect(sql).to include('{"user_id":"42","feature":"chat"}')
@@ -812,13 +800,13 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "builds MySQL-family tag value SQL" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-      connection = llm_api_call_model.connection
+      connection = LlmCostTracker::LlmApiCall.connection
       allow(connection).to receive(:adapter_name).and_return(adapter_name)
       allow(LlmCostTracker::ActiveRecordAdapter).to receive(:postgresql?).with(connection).and_return(false)
       allow(LlmCostTracker::ActiveRecordAdapter).to receive(:mysql?).with(connection).and_return(true)
-      allow(llm_api_call_model).to receive(:tags_jsonb_column?).and_return(false)
+      allow(LlmCostTracker::LlmApiCall).to receive(:tags_jsonb_column?).and_return(false)
 
-      sql = llm_api_call_model.tag_value_expression("user_id")
+      sql = LlmCostTracker::LlmApiCall.tag_value_expression("user_id")
 
       expect(sql).to include("JSON_UNQUOTE(JSON_EXTRACT")
       expect(sql).to include(%('$."user_id"'))
@@ -840,7 +828,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    expect(llm_api_call_model.total_cost).to eq(0.0025)
+    expect(LlmCostTracker::LlmApiCall.total_cost).to eq(0.0025)
     expect(budget_data[:monthly_total]).to eq(0.0025)
   end
 
@@ -934,7 +922,7 @@ RSpec.describe "ActiveRecord storage integration" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 17, 12))
     LlmCostTracker.track(provider: :openai, model: "gpt-4o", input_tokens: 1_000, output_tokens: 0)
 
-    total = LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.utc(2026, 4, 18, 23))
+    total = LlmCostTracker::LedgerStore.daily_total(time: Time.utc(2026, 4, 18, 23))
 
     expect(total).to eq(0.0025)
   end

@@ -20,7 +20,9 @@ module LlmCostTrackerIntegrationSpecTypes
   Details = Struct.new(:cached_tokens, :reasoning_tokens, keyword_init: true)
   Response = Struct.new(:id, :model, :usage, keyword_init: true)
   BrokenStreamEvent = Class.new do
-    def to_h = raise "boom"
+    def to_h
+      raise "boom"
+    end
   end
   StreamEvent = Struct.new(:type, :id, :model, :usage, :response, :message, keyword_init: true) do
     def to_h
@@ -123,7 +125,7 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   def configure_integration(name)
-    allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true)
+    allow(LlmCostTracker::Ledger).to receive(:save).and_return(true)
     LlmCostTracker.configure do |config|
       config.unknown_pricing_behavior = :ignore
       config.instrument name

@@ -13,14 +13,14 @@ module LlmCostTracker
 
       class << self
         def call(provider:, model:)
-          provider_name = provider.to_s
+          provider_name = provider.to_s.presence
           model_name = model.to_s
           generation = LlmCostTracker.configuration_generation
           cache_key = [generation, provider_name, model_name]
           cached = cached_lookup(cache_key)
           return cached unless cached.equal?(CACHE_MISS)
 
-          provider_model = provider_name.empty? ? model_name : "#{provider_name}/#{model_name}"
+          provider_model = provider_name ? "#{provider_name}/#{model_name}" : model_name
           normalized_model = normalize_model_name(model_name)
           current = current_price_tables(generation)
 

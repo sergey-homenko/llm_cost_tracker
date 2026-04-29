@@ -98,16 +98,16 @@ Responsibilities:
 
 Pricing refresh must not perform boot-time or request-time network work. Runtime pricing uses bundled prices, local files, and in-memory caches.
 
-## Storage
+## Ledger
 
 Primary files:
 
 - `lib/llm_cost_tracker/llm_api_call.rb`
 - `lib/llm_cost_tracker/period_total.rb`
 - `lib/llm_cost_tracker/llm_api_call_metrics.rb`
-- `lib/llm_cost_tracker/storage/active_record_backend.rb`
-- `lib/llm_cost_tracker/storage/active_record_store.rb`
-- `lib/llm_cost_tracker/storage/active_record_rollups.rb`
+- `lib/llm_cost_tracker/ledger.rb`
+- `lib/llm_cost_tracker/ledger_store.rb`
+- `lib/llm_cost_tracker/rollups.rb`
 - `lib/llm_cost_tracker/tags_column.rb`
 - `lib/llm_cost_tracker/tag_key.rb`
 - `lib/llm_cost_tracker/tag_sql.rb`
@@ -130,7 +130,7 @@ Primary files:
 
 - `lib/llm_cost_tracker/budget.rb`
 - `lib/llm_cost_tracker/retention.rb`
-- `lib/llm_cost_tracker/storage/active_record_rollups.rb`
+- `lib/llm_cost_tracker/rollups.rb`
 
 Responsibilities:
 

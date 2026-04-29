@@ -36,7 +36,7 @@ module LlmCostTrackerDatabaseSpecHelpers
     ].each do |table|
       connection.drop_table(table, if_exists: true)
     end
-    LlmCostTracker::Storage::ActiveRecordRollups.reset! if defined?(LlmCostTracker::Storage::ActiveRecordRollups)
-    LlmCostTracker::Storage::ActiveRecordInbox.reset! if defined?(LlmCostTracker::Storage::ActiveRecordInbox)
+    LlmCostTracker::Rollups.reset!
+    LlmCostTracker::Inbox.reset!
   end
 end

@@ -1,13 +1,15 @@
 # frozen_string_literal: true
 
-require_relative "storage/active_record_backend"
+require_relative "ledger"
 
 module LlmCostTracker
   class CaptureVerifier
     Check = Data.define(:status, :name, :message)
 
     class << self
-      def call = new.checks
+      def call
+        new.checks
+      end
 
       def report(checks = call)
         (["LLM Cost Tracker capture verification"] + checks.map { |check| format_check(check) }).join("\n")
@@ -54,7 +56,7 @@ module LlmCostTracker
     end
 
     def storage_checks
-      LlmCostTracker::Storage::ActiveRecordBackend.verify.map do |check|
+      LlmCostTracker::Ledger.verify.map do |check|
         Check.new(check.status, check.name, check.message)
       end
     rescue LlmCostTracker::Error => e

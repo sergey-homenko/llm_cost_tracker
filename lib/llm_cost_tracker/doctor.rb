@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "price_freshness"
+require_relative "llm_api_call"
 require_relative "doctor/capture_check"
 require_relative "doctor/ingestion_check"
 
@@ -20,7 +21,9 @@ module LlmCostTracker
     }.freeze
 
     class << self
-      def call = new.checks
+      def call
+        new.checks
+      end
 
       def report(checks = call)
         (["LLM Cost Tracker doctor"] + checks.map { |check| format_check(check) }).join("\n")
@@ -85,17 +88,19 @@ module LlmCostTracker
     def column_check
       return unless llm_api_calls_table?
 
-      columns = column_names("llm_api_calls")
+      columns = LlmCostTracker::LlmApiCall.connection.columns("llm_api_calls").map(&:name)
       missing_core = CORE_COLUMNS - columns
       missing_features = FEATURE_COLUMNS.keys - columns
       if missing_core.any?
         return Check.new(:error, "llm_api_calls columns", "missing core columns: #{missing_core.join(', ')}")
       end
+
       if missing_features.any?
+        generators = missing_features.map { |column| FEATURE_COLUMNS.fetch(column) }.uniq
         return Check.new(
           :warn,
           "llm_api_calls columns",
-          "missing optional columns; run #{feature_generators(missing_features).join(' && ')}"
+          "missing optional columns; run #{generators.join(' && ')}"
         )
       end
 
@@ -140,7 +145,6 @@ module LlmCostTracker
     end
 
     def active_record_available?
-      require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
       LlmCostTracker::LlmApiCall.connection
       true
     rescue LoadError, StandardError
@@ -156,10 +160,6 @@ module LlmCostTracker
     rescue StandardError
       false
     end
-
-    def column_names(table) = LlmCostTracker::LlmApiCall.connection.columns(table).map(&:name)
-
-    def feature_generators(columns) = columns.map { |column| FEATURE_COLUMNS.fetch(column) }.uniq
 
     def builtin_prices_updated_at
       LlmCostTracker::PriceRegistry.metadata.fetch("updated_at", "unknown")

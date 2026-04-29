@@ -25,11 +25,17 @@ module LlmCostTracker
       @monitor = Monitor.new
     end
 
-    def model = @monitor.synchronize { @model }
+    def model
+      @monitor.synchronize { @model }
+    end
 
-    def metadata = @monitor.synchronize { ValueHelpers.deep_dup(@metadata) }
+    def metadata
+      @monitor.synchronize { ValueHelpers.deep_dup(@metadata) }
+    end
 
-    def provider_response_id = @monitor.synchronize { @provider_response_id }
+    def provider_response_id
+      @monitor.synchronize { @provider_response_id }
+    end
 
     def model=(value)
       @monitor.synchronize do
@@ -90,12 +96,13 @@ module LlmCostTracker
         model: parsed.model,
         input_tokens: parsed.input_tokens,
         output_tokens: parsed.output_tokens,
-        latency_ms: snapshot[:latency_ms] || elapsed_ms,
+        latency_ms: snapshot[:latency_ms] ||
+          ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at) * 1000).round,
         stream: true,
         usage_source: parsed.usage_source,
         provider_response_id: parsed.provider_response_id || snapshot[:provider_response_id],
         pricing_mode: snapshot[:pricing_mode],
-        metadata: error_metadata(errored).merge(snapshot[:metadata]).merge(parsed.metadata)
+        metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]).merge(parsed.metadata)
       )
     end
 
@@ -127,8 +134,8 @@ module LlmCostTracker
     def present_model(value)
       return nil if value.nil?
 
-      string = value.to_s
-      return nil if string.empty? || string == "unknown"
+      string = value.to_s.presence
+      return nil if string.nil? || string == "unknown"
 
       string
     end
@@ -191,9 +198,5 @@ module LlmCostTracker
         value.to_s.bytesize + 2
       end
     end
-
-    def error_metadata(errored) = errored ? { stream_errored: true } : {}
-
-    def elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at) * 1000).round
   end
 end

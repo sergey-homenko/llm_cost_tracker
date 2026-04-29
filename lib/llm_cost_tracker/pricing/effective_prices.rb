@@ -55,19 +55,11 @@ module LlmCostTracker
         end
 
         def price_for(prices, key, pricing_mode)
-          mode = normalized_pricing_mode(pricing_mode)
+          mode = pricing_mode.to_s.strip.presence
+          mode = nil if mode == "standard"
           return prices[key] unless mode
 
           prices[:"#{mode}_#{key}"] || prices[key]
-        end
-
-        def normalized_pricing_mode(value)
-          return nil if value.nil?
-
-          mode = value.to_s.strip
-          return nil if mode.empty? || mode == "standard"
-
-          mode
         end
       end
     end

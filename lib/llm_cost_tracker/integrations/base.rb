@@ -64,11 +64,17 @@ module LlmCostTracker
         end
       end
 
-      def minimum_version = nil
+      def minimum_version
+        nil
+      end
 
-      def version_constant = nil
+      def version_constant
+        nil
+      end
 
-      def patch_targets = []
+      def patch_targets
+        []
+      end
 
       def patch_target(constant_name, with:, methods:, optional: false)
         PatchTarget.new(constant_name, with, Array(methods), optional)

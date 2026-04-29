@@ -18,12 +18,5 @@ module LlmCostTracker
     rake_tasks do
       load File.expand_path("../tasks/llm_cost_tracker.rake", __dir__)
     end
-
-    initializer "llm_cost_tracker.configure" do
-      ActiveSupport.on_load(:active_record) do
-        require_relative "llm_api_call"
-        require_relative "storage/active_record_store"
-      end
-    end
   end
 end

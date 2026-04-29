@@ -5,7 +5,7 @@ require "stringio"
 
 RSpec.describe LlmCostTracker::Tracker do
   describe ".record" do
-    before { allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true) }
+    before { allow(LlmCostTracker::Ledger).to receive(:save).and_return(true) }
 
     it "emits an ActiveSupport::Notifications event" do
       events = []
@@ -46,7 +46,7 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     it "raises storage errors from the ActiveRecord backend" do
-      allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_raise("storage down")
+      allow(LlmCostTracker::Ledger).to receive(:save).and_raise("storage down")
 
       expect do
         described_class.record(
@@ -232,7 +232,7 @@ RSpec.describe LlmCostTracker::Tracker do
         c.monthly_budget = 0.0001 # very small budget
         c.on_budget_exceeded = ->(data) { budget_data = data }
       end
-      allow(LlmCostTracker::Storage::ActiveRecordStore).to receive(:period_totals).and_return(monthly: 12.5)
+      allow(LlmCostTracker::LedgerStore).to receive(:period_totals).and_return(monthly: 12.5)
 
       described_class.record(
         provider: "openai",
@@ -274,7 +274,7 @@ RSpec.describe LlmCostTracker::Tracker do
         c.monthly_budget = 0.0001
         c.budget_exceeded_behavior = :raise
       end
-      allow(LlmCostTracker::Storage::ActiveRecordStore).to receive(:period_totals).and_return(monthly: 12.5)
+      allow(LlmCostTracker::LedgerStore).to receive(:period_totals).and_return(monthly: 12.5)
 
       expect do
         described_class.record(

@@ -47,8 +47,7 @@ module LlmCostTracker
     end
 
     def clean_dashboard_string(string)
-      stripped = string.strip
-      stripped.empty? ? nil : stripped
+      string.strip.presence
     end
   end
 end

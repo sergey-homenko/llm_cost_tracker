@@ -27,7 +27,7 @@ RSpec.describe LlmCostTracker::Report do
       end
     end
 
-    LlmCostTracker::LlmApiCall.reset_column_information if defined?(LlmCostTracker::LlmApiCall)
+    LlmCostTracker::LlmApiCall.reset_column_information
 
     LlmCostTracker.configure do |config|
       config.report_tag_breakdowns = %w[feature]
@@ -39,8 +39,6 @@ RSpec.describe LlmCostTracker::Report do
   end
 
   def create_report_call(model:, total_cost:, tags: {}, provider: "openai", tracked_at: Time.now.utc)
-    require "llm_cost_tracker/llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
-
     LlmCostTracker::LlmApiCall.create!(
       provider: provider,
       model: model,

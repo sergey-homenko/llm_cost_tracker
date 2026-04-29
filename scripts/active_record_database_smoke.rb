@@ -62,9 +62,9 @@ def reset_models!
     LlmCostTracker::IngestorLease,
     LlmCostTracker::PeriodTotal
   ].each(&:reset_column_information)
-  LlmCostTracker::Storage::ActiveRecordInbox.reset!
-  LlmCostTracker::Storage::ActiveRecordStore.reset!
-  LlmCostTracker::Storage::ActiveRecordIngestor.reset!
+  LlmCostTracker::Inbox.reset!
+  LlmCostTracker::LedgerStore.reset!
+  LlmCostTracker::Ingestor.reset!
 end
 
 def create_schema!
@@ -212,7 +212,7 @@ end
 def quarantined_row_count
   LlmCostTracker::InboxEvent.where(
     "attempts >= ?",
-    LlmCostTracker::Storage::ActiveRecordInbox::MAX_ATTEMPTS
+    LlmCostTracker::Inbox::MAX_ATTEMPTS
   ).count
 end
 
@@ -240,7 +240,7 @@ begin
     }
   end
 
-  assert("inbox is not enabled on #{adapter} schema") { LlmCostTracker::Storage::ActiveRecordInbox.enabled? }
+  assert("inbox is not enabled on #{adapter} schema") { LlmCostTracker::Inbox.enabled? }
 
   rollback_event = nil
   LlmCostTracker::LlmApiCall.transaction do
@@ -257,7 +257,7 @@ begin
   end
 
   pending_event = track!(provider_response_id: "pending", feature: "pending")
-  pending_total = LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.now.utc)
+  pending_total = LlmCostTracker::LedgerStore.daily_total(time: Time.now.utc)
   assert("daily total did not include pending or persisted inbox event") do
     pending_total >= pending_event.cost.total_cost.to_f
   end
@@ -265,10 +265,10 @@ begin
 
   duplicate_event = track!(provider_response_id: "duplicate", feature: "duplicate")
   flush!
-  before_duplicate_total = LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.now.utc)
-  LlmCostTracker::Storage::ActiveRecordInbox.save(duplicate_event)
+  before_duplicate_total = LlmCostTracker::LedgerStore.daily_total(time: Time.now.utc)
+  LlmCostTracker::Inbox.save(duplicate_event)
   flush!
-  after_duplicate_total = LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.now.utc)
+  after_duplicate_total = LlmCostTracker::LedgerStore.daily_total(time: Time.now.utc)
   assert("duplicate inbox row changed rollup total") do
     BigDecimal(after_duplicate_total.to_s) == BigDecimal(before_duplicate_total.to_s)
   end
@@ -282,7 +282,7 @@ begin
     total_cost: 1,
     tracked_at: now,
     payload: "{bad-json",
-    attempts: LlmCostTracker::Storage::ActiveRecordInbox::MAX_ATTEMPTS - 1,
+    attempts: LlmCostTracker::Inbox::MAX_ATTEMPTS - 1,
     created_at: now,
     updated_at: now
   )
@@ -295,11 +295,11 @@ begin
     LlmCostTracker::InboxEvent.where(
       "payload = ? AND attempts >= ?",
       "{bad-json",
-      LlmCostTracker::Storage::ActiveRecordInbox::MAX_ATTEMPTS
+      LlmCostTracker::Inbox::MAX_ATTEMPTS
     ).exists?
   end
 
-  LlmCostTracker::Storage::ActiveRecordIngestor.shutdown!(drain: false)
+  LlmCostTracker::Ingestor.shutdown!(drain: false)
   before_count = LlmCostTracker::LlmApiCall.count
   thread_count = 8
   per_thread = 10
@@ -323,7 +323,7 @@ begin
     LlmCostTracker::LlmApiCall.count == expected
   end
   assert("retryable inbox rows remain after flush") do
-    !LlmCostTracker::InboxEvent.where("attempts < ?", LlmCostTracker::Storage::ActiveRecordInbox::MAX_ATTEMPTS).exists?
+    !LlmCostTracker::InboxEvent.where("attempts < ?", LlmCostTracker::Inbox::MAX_ATTEMPTS).exists?
   end
 
   puts "#{adapter} smoke passed"
@@ -331,7 +331,7 @@ begin
   puts "adapter=#{ActiveRecord::Base.connection.class.name}"
   puts "ledger_rows=#{LlmCostTracker::LlmApiCall.count}"
   puts "quarantined_rows=#{quarantined_row_count}"
-  puts "daily_total=#{LlmCostTracker::Storage::ActiveRecordStore.daily_total(time: Time.now.utc)}"
+  puts "daily_total=#{LlmCostTracker::LedgerStore.daily_total(time: Time.now.utc)}"
 ensure
   begin
     LlmCostTracker.shutdown!(drain: false) if defined?(LlmCostTracker)

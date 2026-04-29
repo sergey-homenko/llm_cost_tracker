@@ -6,21 +6,16 @@ module LlmCostTracker
 
     class << self
       def prune(older_than:, batch_size: DEFAULT_BATCH_SIZE, now: Time.now.utc)
-        batch_size = normalized_batch_size(batch_size)
-        cutoff = resolve_cutoff(older_than, now)
-        require_relative "storage/active_record_backend"
+        batch_size = batch_size.to_i
+        raise ArgumentError, "batch_size must be positive: #{batch_size.inspect}" unless batch_size.positive?
 
-        Storage::ActiveRecordBackend.prune(cutoff: cutoff, batch_size: batch_size)
+        cutoff = resolve_cutoff(older_than, now)
+        require_relative "ledger"
+
+        Ledger.prune(cutoff: cutoff, batch_size: batch_size)
       end
 
       private
-
-      def normalized_batch_size(value)
-        value = value.to_i
-        raise ArgumentError, "batch_size must be positive: #{value.inspect}" unless value.positive?
-
-        value
-      end
 
       def resolve_cutoff(older_than, now)
         cutoff = case older_than

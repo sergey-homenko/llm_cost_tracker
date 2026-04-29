@@ -27,9 +27,8 @@ RSpec.describe LlmCostTracker::ActiveRecordAdapter do
   end
 
   it "allows only PostgreSQL and MySQL-family adapters" do
-    expect(described_class.supported?("PostgreSQL")).to be true
-    expect(described_class.supported?("Trilogy")).to be true
-    expect(described_class.supported?("SQLite3")).to be false
+    expect { described_class.ensure_supported!("PostgreSQL") }.not_to raise_error
+    expect { described_class.ensure_supported!("Trilogy") }.not_to raise_error
     expect { described_class.ensure_supported!("SQLite3") }
       .to raise_error(LlmCostTracker::Error, /Use PostgreSQL or MySQL/)
   end

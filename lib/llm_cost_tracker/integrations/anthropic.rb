@@ -9,11 +9,17 @@ module LlmCostTracker
       extend Base
 
       class << self
-        def integration_name = :anthropic
+        def integration_name
+          :anthropic
+        end
 
-        def minimum_version = "1.36.0"
+        def minimum_version
+          "1.36.0"
+        end
 
-        def version_constant = "Anthropic::VERSION"
+        def version_constant
+          "Anthropic::VERSION"
+        end
 
         def patch_targets
           [

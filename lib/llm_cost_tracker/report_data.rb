@@ -2,6 +2,8 @@
 
 require "active_support/core_ext/integer/time"
 
+require_relative "llm_api_call"
+
 module LlmCostTracker
   TopCall = Data.define(:provider, :model, :total_cost)
 
@@ -24,10 +26,12 @@ module LlmCostTracker
     TOP_LIMIT = 5
 
     def self.build(days: DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil, breakdown_limit: nil)
-      require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
-
-      days = normalized_days(days)
-      breakdown_limit = normalized_limit(breakdown_limit)
+      days = days.to_i
+      days = DEFAULT_DAYS unless days.positive?
+      unless breakdown_limit.nil?
+        breakdown_limit = breakdown_limit.to_i
+        breakdown_limit = nil unless breakdown_limit.positive?
+      end
       from = now - days.days
       scope = LlmApiCall.where(tracked_at: from..now)
       tag_breakdowns ||= LlmCostTracker.configuration.report_tag_breakdowns || []
@@ -45,18 +49,6 @@ module LlmCostTracker
         cost_by_tags: cost_by_tags(scope, tag_breakdowns, limit: breakdown_limit),
         top_calls: top_calls(scope)
       )
-    end
-
-    def self.normalized_days(days)
-      days = days.to_i
-      days.positive? ? days : DEFAULT_DAYS
-    end
-
-    def self.normalized_limit(limit)
-      return nil if limit.nil?
-
-      limit = limit.to_i
-      limit.positive? ? limit : nil
     end
 
     def self.average_latency_ms(scope)
@@ -89,6 +81,6 @@ module LlmCostTracker
         .map { |call| TopCall.new(provider: call.provider, model: call.model, total_cost: call.total_cost.to_f) }
     end
 
-    private_class_method :normalized_days, :normalized_limit, :average_latency_ms, :cost_by, :cost_by_tags, :top_calls
+    private_class_method :average_latency_ms, :cost_by, :cost_by_tags, :top_calls
   end
 end

@@ -16,16 +16,16 @@ module LlmCostTracker
     POSTGRESQL_PATTERN = /postgres/i
 
     class << self
-      def mysql?(value) = adapter_instance?(value, MYSQL_ADAPTERS) || adapter_name(value).match?(MYSQL_PATTERN)
+      def mysql?(value)
+        adapter_instance?(value, MYSQL_ADAPTERS) || adapter_name(value).match?(MYSQL_PATTERN)
+      end
 
       def postgresql?(value)
         adapter_instance?(value, POSTGRESQL_ADAPTERS) || adapter_name(value).match?(POSTGRESQL_PATTERN)
       end
 
-      def supported?(value) = mysql?(value) || postgresql?(value)
-
       def ensure_supported!(value)
-        return if supported?(value)
+        return if mysql?(value) || postgresql?(value)
 
         raise Error, "Unsupported database adapter: #{adapter_name(value)}. Use PostgreSQL or MySQL."
       end

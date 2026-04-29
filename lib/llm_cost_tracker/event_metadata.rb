@@ -27,7 +27,10 @@ module LlmCostTracker
           hidden_output_tokens: hidden_output
         )
 
-        breakdown.to_h.merge(pricing_mode: normalized_pricing_mode(metadata[:pricing_mode])).compact
+        pricing_mode = metadata[:pricing_mode].to_s.strip.presence
+        pricing_mode = nil if pricing_mode == "standard"
+
+        breakdown.to_h.merge(pricing_mode: pricing_mode).compact
       end
 
       def tags(metadata)
@@ -39,13 +42,6 @@ module LlmCostTracker
       def first_integer(metadata, *keys)
         keys.each { |key| return metadata[key].to_i unless metadata[key].nil? }
         0
-      end
-
-      def normalized_pricing_mode(value)
-        return nil if value.nil?
-
-        mode = value.to_s.strip
-        mode.empty? || mode == "standard" ? nil : mode
       end
     end
   end

@@ -98,8 +98,7 @@ module LlmCostTracker
       def normalized_string(value)
         return nil if value.nil?
 
-        value = value.to_s.strip
-        value.empty? ? nil : value
+        value.to_s.strip.presence
       end
     end
   end

@@ -8,11 +8,17 @@ module LlmCostTracker
       extend Base
 
       class << self
-        def integration_name = :ruby_llm
+        def integration_name
+          :ruby_llm
+        end
 
-        def minimum_version = "1.14.1"
+        def minimum_version
+          "1.14.1"
+        end
 
-        def version_constant = "RubyLLM::VERSION"
+        def version_constant
+          "RubyLLM::VERSION"
+        end
 
         def patch_targets
           [

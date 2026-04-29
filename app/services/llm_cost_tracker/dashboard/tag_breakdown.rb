@@ -16,7 +16,9 @@ module LlmCostTracker
       :distinct_values,
       :limit
     ) do
-      def limited? = distinct_values > rows.size
+      def limited?
+        distinct_values > rows.size
+      end
     end
 
     class TagBreakdown
@@ -31,7 +33,8 @@ module LlmCostTracker
       def initialize(scope:, key:, limit:)
         @scope = scope
         @key = LlmCostTracker::TagKey.validate!(key, error_class: LlmCostTracker::InvalidFilterError)
-        @limit = normalized_limit(limit)
+        limit = limit.to_i
+        @limit = limit.positive? ? [limit, DEFAULT_LIMIT].min : DEFAULT_LIMIT
         @connection = LlmCostTracker::LlmApiCall.connection
       end
 
@@ -101,11 +104,6 @@ module LlmCostTracker
 
       def tag_expression
         @tag_expression ||= LlmCostTracker::LlmApiCall.tag_value_expression(key, table_name: "sub")
-      end
-
-      def normalized_limit(value)
-        value = value.to_i
-        value.positive? ? [value, DEFAULT_LIMIT].min : DEFAULT_LIMIT
       end
     end
   end

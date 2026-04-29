@@ -104,7 +104,9 @@ module LlmCostTracker
       self
     end
 
-    def finalized? = @finalized
+    def finalized?
+      @finalized
+    end
 
     def dup_for_configuration
       copy = dup

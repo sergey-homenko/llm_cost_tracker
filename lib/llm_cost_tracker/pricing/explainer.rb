@@ -15,9 +15,13 @@ module LlmCostTracker
       :effective_prices,
       :missing_price_keys
     ) do
-      def matched? = !prices.nil?
+      def matched?
+        !prices.nil?
+      end
 
-      def complete? = matched? && missing_price_keys.empty?
+      def complete?
+        matched? && missing_price_keys.empty?
+      end
 
       def message
         return "No price entry matched #{provider}/#{model}" unless matched?
@@ -46,6 +50,8 @@ module LlmCostTracker
 
         def explanation(provider, model, pricing_mode, match, usage)
           prices = match&.prices
+          pricing_mode = pricing_mode.to_s.strip.presence
+          pricing_mode = nil if pricing_mode == "standard"
           effective = if prices && usage
                         EffectivePrices.call(usage: usage, prices: prices, pricing_mode: pricing_mode)
                       end
@@ -53,7 +59,7 @@ module LlmCostTracker
           Explanation.new(
             provider.to_s,
             model.to_s,
-            normalized_pricing_mode(pricing_mode),
+            pricing_mode,
             match&.source,
             match&.key,
             match&.matched_by,
@@ -61,15 +67,6 @@ module LlmCostTracker
             effective ? effective.to_h : {},
             effective ? effective.missing_keys : []
           )
-        end
-
-        def normalized_pricing_mode(value)
-          return nil if value.nil?
-
-          mode = value.to_s.strip
-          return nil if mode.empty? || mode == "standard"
-
-          mode
         end
       end
     end

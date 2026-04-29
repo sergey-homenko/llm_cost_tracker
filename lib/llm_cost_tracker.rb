@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "active_support"
+require "active_support/core_ext/object/blank"
 require "active_support/notifications"
 require "monitor"
 
@@ -38,6 +39,11 @@ require_relative "llm_cost_tracker/tag_sql"
 require_relative "llm_cost_tracker/tag_query"
 require_relative "llm_cost_tracker/tag_accessors"
 require_relative "llm_cost_tracker/llm_api_call_metrics"
+require_relative "llm_cost_tracker/llm_api_call"
+require_relative "llm_cost_tracker/inbox_event"
+require_relative "llm_cost_tracker/ingestor_lease"
+require_relative "llm_cost_tracker/period_total"
+require_relative "llm_cost_tracker/ledger"
 require_relative "llm_cost_tracker/tracker"
 require_relative "llm_cost_tracker/retention"
 require_relative "llm_cost_tracker/report_data"
@@ -74,36 +80,32 @@ module LlmCostTracker
     end
 
     def reset_configuration!
-      Storage::ActiveRecordInbox.reset! if defined?(Storage::ActiveRecordInbox)
-      Storage::ActiveRecordIngestor.shutdown!(drain: false) if defined?(Storage::ActiveRecordIngestor)
+      Inbox.reset!
+      Ingestor.shutdown!(drain: false)
       CONFIGURATION_MUTEX.synchronize do
         @configuration = Configuration.new
         @configuration_generation = @configuration_generation.to_i + 1
       end
-      UnknownPricing.reset! if defined?(UnknownPricing)
-      Storage::ActiveRecordStore.reset! if defined?(Storage::ActiveRecordStore)
-      Storage::ActiveRecordInbox.reset! if defined?(Storage::ActiveRecordInbox)
-      Storage::ActiveRecordIngestor.reset! if defined?(Storage::ActiveRecordIngestor)
-      TagContext.clear! if defined?(TagContext)
+      UnknownPricing.reset!
+      LedgerStore.reset!
+      Inbox.reset!
+      Ingestor.reset!
+      TagContext.clear!
     end
 
     def flush!(timeout: nil)
-      return true unless defined?(Storage::ActiveRecordIngestor)
-
       if timeout
-        Storage::ActiveRecordIngestor.flush!(timeout: timeout)
+        Ingestor.flush!(timeout: timeout)
       else
-        Storage::ActiveRecordIngestor.flush!
+        Ingestor.flush!
       end
     end
 
     def shutdown!(timeout: nil, drain: true)
-      return true unless defined?(Storage::ActiveRecordIngestor)
-
       if timeout
-        Storage::ActiveRecordIngestor.shutdown!(timeout: timeout, drain: drain)
+        Ingestor.shutdown!(timeout: timeout, drain: drain)
       else
-        Storage::ActiveRecordIngestor.shutdown!(drain: drain)
+        Ingestor.shutdown!(drain: drain)
       end
     end
 
@@ -162,4 +164,4 @@ if defined?(Faraday)
   )
 end
 
-at_exit { LlmCostTracker.shutdown!(drain: false) if defined?(LlmCostTracker) }
+at_exit { LlmCostTracker.shutdown!(drain: false) }

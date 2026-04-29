@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "logging"
+require_relative "ledger_store"
 
 module LlmCostTracker
   class Budget
@@ -12,7 +13,7 @@ module LlmCostTracker
         budgets = enforce_period_budgets(config)
         return if budgets.empty?
 
-        totals = active_record_totals(budgets.keys, time: Time.now.utc)
+        totals = ledger_totals(budgets.keys, time: Time.now.utc)
 
         budgets.each do |period, budget|
           total = totals.fetch(period)
@@ -65,16 +66,11 @@ module LlmCostTracker
       def totals_for_check(event, budgets)
         return {} if budgets.empty?
 
-        active_record_totals(budgets.keys, time: event.tracked_at)
+        ledger_totals(budgets.keys, time: event.tracked_at)
       end
 
-      def active_record_totals(periods, time:)
-        require_relative "llm_api_call" unless defined?(LlmCostTracker::LlmApiCall)
-        require_relative "storage/active_record_store" unless defined?(LlmCostTracker::Storage::ActiveRecordStore)
-
-        LlmCostTracker::Storage::ActiveRecordStore.period_totals(periods, time: time)
-      rescue LoadError => e
-        raise Error, "ActiveRecord storage requires the active_record gem: #{e.message}"
+      def ledger_totals(periods, time:)
+        LlmCostTracker::LedgerStore.period_totals(periods, time: time)
       end
 
       def handle_exceeded(budget_type:, total:, budget:, last_event: nil)

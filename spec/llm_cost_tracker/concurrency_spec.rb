@@ -5,7 +5,7 @@ require "llm_cost_tracker/stream_collector"
 
 RSpec.describe "concurrency", :aggregate_failures do
   describe LlmCostTracker::StreamCollector do
-    before { allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true) }
+    before { allow(LlmCostTracker::Ledger).to receive(:save).and_return(true) }
 
     it "records exactly one event when finish! races across many threads" do
       recorded = []
@@ -257,7 +257,7 @@ RSpec.describe "concurrency", :aggregate_failures do
   end
 
   describe LlmCostTracker::TagContext do
-    before { allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true) }
+    before { allow(LlmCostTracker::Ledger).to receive(:save).and_return(true) }
 
     it "keeps scoped tags isolated across threads" do
       recorded = Queue.new
@@ -284,7 +284,7 @@ RSpec.describe "concurrency", :aggregate_failures do
   end
 
   describe "opt-in budget preflight" do
-    before { allow(LlmCostTracker::Storage::ActiveRecordBackend).to receive(:save).and_return(true) }
+    before { allow(LlmCostTracker::Ledger).to receive(:save).and_return(true) }
 
     it "raises before tracking when track opts in" do
       allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(

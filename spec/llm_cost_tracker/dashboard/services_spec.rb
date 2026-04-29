@@ -20,7 +20,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     end
 
     LlmCostTracker::LlmApiCall.reset_column_information
-    LlmCostTracker::Storage::ActiveRecordRollups.reset!
+    LlmCostTracker::Rollups.reset!
   end
 
   def create_call(**overrides)
@@ -413,12 +413,12 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "reads monthly budget status from maintained storage totals" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
-      allow(LlmCostTracker::Storage::ActiveRecordStore).to receive(:monthly_total).and_return(7.5)
+      allow(LlmCostTracker::LedgerStore).to receive(:monthly_total).and_return(7.5)
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
 
       stats = described_class.call
 
-      expect(LlmCostTracker::Storage::ActiveRecordStore).to have_received(:monthly_total).with(time: now)
+      expect(LlmCostTracker::LedgerStore).to have_received(:monthly_total).with(time: now)
       expect(stats.monthly_budget_status).to include(spent: 7.5, percent_used: 75.0)
     end
 

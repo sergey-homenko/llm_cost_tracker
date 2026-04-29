@@ -2,7 +2,7 @@
 
 require "securerandom"
 
-require_relative "storage/active_record_backend"
+require_relative "ledger"
 
 module LlmCostTracker
   class Tracker
@@ -21,9 +21,18 @@ module LlmCostTracker
                  usage_source: nil, provider_response_id: nil, pricing_mode: nil, metadata: {})
         return unless LlmCostTracker.configuration.enabled
 
-        model = normalize_model(model)
-        usage = usage_data(input_tokens, output_tokens, metadata, pricing_mode)
-        cost_data = cost_for_usage(provider, model, usage)
+        model = model.to_s.strip.then { |normalized| normalized.empty? ? ParsedUsage::UNKNOWN_MODEL : normalized }
+        metadata = metadata.merge(pricing_mode: pricing_mode) unless pricing_mode.nil?
+        usage = EventMetadata.usage_data(input_tokens, output_tokens, metadata)
+        cost_data = Pricing.cost_for(
+          provider: provider,
+          model: model,
+          input_tokens: usage[:input_tokens],
+          output_tokens: usage[:output_tokens],
+          cache_read_input_tokens: usage[:cache_read_input_tokens],
+          cache_write_input_tokens: usage[:cache_write_input_tokens],
+          pricing_mode: usage[:pricing_mode]
+        )
 
         UnknownPricing.handle!(model) unless cost_data
 
@@ -41,7 +50,7 @@ module LlmCostTracker
 
         ActiveSupport::Notifications.instrument(EVENT_NAME, event.to_h)
 
-        Storage::ActiveRecordBackend.save(event)
+        Ledger.save(event)
         Budget.check!(event)
 
         event
@@ -49,32 +58,14 @@ module LlmCostTracker
 
       private
 
-      def usage_data(input_tokens, output_tokens, metadata, pricing_mode)
-        metadata = metadata.merge(pricing_mode: pricing_mode) unless pricing_mode.nil?
-
-        EventMetadata.usage_data(
-          input_tokens,
-          output_tokens,
-          metadata
-        )
-      end
-
-      def cost_for_usage(provider, model, usage)
-        Pricing.cost_for(
-          provider: provider,
-          model: model,
-          input_tokens: usage[:input_tokens],
-          output_tokens: usage[:output_tokens],
-          cache_read_input_tokens: usage[:cache_read_input_tokens],
-          cache_write_input_tokens: usage[:cache_write_input_tokens],
-          pricing_mode: usage[:pricing_mode]
-        )
-      end
-
-      def normalize_model(value) = value.to_s.strip.then { |model| model.empty? ? ParsedUsage::UNKNOWN_MODEL : model }
-
       def build_event(provider:, model:, usage:, cost_data:, metadata:, latency_ms:, stream:, usage_source:,
                       provider_response_id:)
+        usage_source = if usage_source.nil?
+                         nil
+                       else
+                         symbol = usage_source.to_sym
+                         USAGE_SOURCES.include?(symbol) ? symbol.to_s : nil
+                       end
         Event.new(
           event_id: SecureRandom.uuid,
           provider: provider,
@@ -87,29 +78,16 @@ module LlmCostTracker
           hidden_output_tokens: usage[:hidden_output_tokens],
           pricing_mode: usage[:pricing_mode],
           cost: cost_data,
-          tags: sanitized_tags(metadata).freeze,
-          latency_ms: normalized_latency_ms(latency_ms),
+          tags: LlmCostTracker::TagSanitizer.call(
+            LlmCostTracker::TagContext.tags.merge(EventMetadata.tags(metadata))
+          ).freeze,
+          latency_ms: latency_ms.nil? ? nil : [latency_ms.to_i, 0].max,
           stream: stream ? true : false,
-          usage_source: normalized_usage_source(usage_source),
-          provider_response_id: normalized_provider_response_id(provider_response_id),
+          usage_source: usage_source,
+          provider_response_id: provider_response_id.to_s.presence,
           tracked_at: Time.now.utc
         )
       end
-
-      def normalized_latency_ms(latency_ms) = latency_ms.nil? ? nil : [latency_ms.to_i, 0].max
-
-      def sanitized_tags(metadata)
-        LlmCostTracker::TagSanitizer.call(LlmCostTracker::TagContext.tags.merge(EventMetadata.tags(metadata)))
-      end
-
-      def normalized_usage_source(value)
-        return nil if value.nil?
-
-        symbol = value.to_sym
-        USAGE_SOURCES.include?(symbol) ? symbol.to_s : nil
-      end
-
-      def normalized_provider_response_id(value) = value.nil? || value.to_s.empty? ? nil : value.to_s
     end
   end
 end

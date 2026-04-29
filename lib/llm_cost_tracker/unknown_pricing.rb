@@ -10,7 +10,7 @@ module LlmCostTracker
 
     class << self
       def handle!(model)
-        model = normalized_model_name(model)
+        model = model.to_s.presence || "unknown"
 
         case behavior
         when :ignore
@@ -27,10 +27,6 @@ module LlmCostTracker
       end
 
       private
-
-      def normalized_model_name(model)
-        model.to_s.empty? ? "unknown" : model.to_s
-      end
 
       def warn_missing(model)
         should_warn = MUTEX.synchronize do

@@ -13,8 +13,8 @@ module LlmCostTracker
       end
 
       def self.parse(params, key)
-        value = LlmCostTracker::ParameterHash.with_indifferent_access(params)[key].to_s.strip
-        return nil if value.empty?
+        value = LlmCostTracker::ParameterHash.with_indifferent_access(params)[key].to_s.strip.presence
+        return nil unless value
 
         Date.iso8601(value)
       rescue ArgumentError
