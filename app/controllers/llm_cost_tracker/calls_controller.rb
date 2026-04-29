@@ -55,35 +55,34 @@ module LlmCostTracker
     end
 
     def render_csv(relation)
-      latency = LlmApiCall.latency_column?
-      provider_response_id = LlmApiCall.provider_response_id_column?
-      columns = %i[tracked_at provider model input_tokens output_tokens total_tokens total_cost]
-      columns << :latency_ms if latency
-      columns << :provider_response_id if provider_response_id
-      columns << :tags
+      fields = csv_fields
       CSV.generate do |csv|
-        headers = %w[tracked_at provider model input_tokens output_tokens total_tokens total_cost]
-        headers << "latency_ms" if latency
-        headers << "provider_response_id" if provider_response_id
-        headers << "tags"
-        csv << headers
+        csv << fields.map(&:to_s)
 
-        relation.pluck(*columns).each do |values|
-          row_data = columns.zip(values).to_h
-          row = [
-            row_data[:tracked_at]&.utc&.iso8601,
-            csv_safe(row_data[:provider]),
-            csv_safe(row_data[:model]),
-            row_data[:input_tokens],
-            row_data[:output_tokens],
-            row_data[:total_tokens],
-            row_data[:total_cost]
-          ]
-          row << row_data[:latency_ms] if latency
-          row << csv_safe(row_data[:provider_response_id]) if provider_response_id
-          row << csv_safe(csv_tags(row_data[:tags]))
-          csv << row
+        relation.pluck(*fields).each do |values|
+          csv << fields.zip(values).map { |field, value| csv_value(field, value) }
         end
+      end
+    end
+
+    def csv_fields
+      fields = %i[tracked_at provider model input_tokens output_tokens total_tokens total_cost]
+      fields << :latency_ms if LlmApiCall.latency_column?
+      fields << :provider_response_id if LlmApiCall.provider_response_id_column?
+      fields << :tags
+      fields
+    end
+
+    def csv_value(field, value)
+      case field
+      when :tracked_at
+        value&.utc&.iso8601
+      when :provider, :model, :provider_response_id
+        csv_safe(value)
+      when :tags
+        csv_safe(csv_tags(value))
+      else
+        value
       end
     end
 
