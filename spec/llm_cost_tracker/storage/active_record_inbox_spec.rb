@@ -398,6 +398,20 @@ RSpec.describe "ActiveRecord durable inbox" do
     inbox_event_model.delete_all
   end
 
+  it "does not start or flush the ingestor when durable inbox is disabled" do
+    ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    allow(ingestor).to receive(:ensure_started).and_wrap_original(&:call)
+    allow(LlmCostTracker::Storage::ActiveRecordInbox).to receive(:enabled?).and_return(false)
+
+    ingestor.ensure_started
+
+    expect(ingestor.instance_variable_get(:@thread)).to be_nil
+    expect(ingestor.flush!(timeout: 0.001)).to be true
+    expect(ingestor.ingest_once).to eq(0)
+  ensure
+    ingestor.instance_variable_set(:@thread, nil)
+  end
+
   it "starts and stops the ingestor thread lazily" do
     allow(LlmCostTracker::Storage::ActiveRecordIngestor).to receive(:ensure_started).and_wrap_original(&:call)
     llm_api_call_model
@@ -435,6 +449,23 @@ RSpec.describe "ActiveRecord durable inbox" do
 
     expect(ingestor).not_to have_received(:claimable_events?)
     expect(ingestor).not_to have_received(:ingest_once)
+  end
+
+  it "keeps ingestor identity when resetting inside the same process" do
+    ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    thread = instance_double(Thread)
+    ingestor.instance_variable_set(:@pid, Process.pid)
+    ingestor.instance_variable_set(:@thread, thread)
+    ingestor.instance_variable_set(:@identity, "worker")
+
+    ingestor.send(:reset_after_fork!)
+
+    expect(ingestor.instance_variable_get(:@thread)).to eq(thread)
+    expect(ingestor.instance_variable_get(:@identity)).to eq("worker")
+  ensure
+    ingestor.instance_variable_set(:@thread, nil)
+    ingestor.instance_variable_set(:@pid, nil)
+    ingestor.instance_variable_set(:@identity, nil)
   end
 
   it "verifies and cleans up capture through the durable inbox" do
@@ -639,6 +670,21 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(executor).to have_received(:wrap)
   end
 
+  it "runs background ingestion work without a Rails executor" do
+    ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
+    rails = double("rails")
+    application = double("application")
+    stub_const("Rails", rails)
+    allow(rails).to receive(:respond_to?).with(:application).and_return(true)
+    allow(rails).to receive(:application).and_return(application)
+    allow(application).to receive(:respond_to?).with(:executor).and_return(false)
+    yielded = false
+
+    ingestor.send(:executor_wrap) { yielded = true }
+
+    expect(yielded).to be true
+  end
+
   it "keeps running when Rails executor lookup fails" do
     ingestor = LlmCostTracker::Storage::ActiveRecordIngestor
     rails = double("rails")
@@ -650,6 +696,15 @@ RSpec.describe "ActiveRecord durable inbox" do
     ingestor.send(:executor_wrap) { yielded = true }
 
     expect(yielded).to be true
+  end
+
+  it "suppresses ingestor warnings when storage errors are ignored" do
+    LlmCostTracker.configure { |config| config.storage_error_behavior = :ignore }
+    allow(LlmCostTracker::Logging).to receive(:warn)
+
+    LlmCostTracker::Storage::ActiveRecordIngestor.send(:handle_error, RuntimeError.new("boom"))
+
+    expect(LlmCostTracker::Logging).not_to have_received(:warn)
   end
 
   it "ignores wakeup races for threads that already stopped" do
