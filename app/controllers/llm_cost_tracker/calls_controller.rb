@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "csv"
+require "json"
 
 module LlmCostTracker
   class CallsController < ApplicationController
@@ -55,29 +56,43 @@ module LlmCostTracker
 
     def render_csv(relation)
       latency = LlmApiCall.latency_column?
+      provider_response_id = LlmApiCall.provider_response_id_column?
+      columns = %i[tracked_at provider model input_tokens output_tokens total_tokens total_cost]
+      columns << :latency_ms if latency
+      columns << :provider_response_id if provider_response_id
+      columns << :tags
       CSV.generate do |csv|
         headers = %w[tracked_at provider model input_tokens output_tokens total_tokens total_cost]
         headers << "latency_ms" if latency
-        headers << "provider_response_id" if LlmApiCall.provider_response_id_column?
+        headers << "provider_response_id" if provider_response_id
         headers << "tags"
         csv << headers
 
-        relation.each do |call|
+        relation.pluck(*columns).each do |values|
+          row_data = columns.zip(values).to_h
           row = [
-            call.tracked_at&.utc&.iso8601,
-            csv_safe(call.provider),
-            csv_safe(call.model),
-            call.input_tokens,
-            call.output_tokens,
-            call.total_tokens,
-            call.total_cost
+            row_data[:tracked_at]&.utc&.iso8601,
+            csv_safe(row_data[:provider]),
+            csv_safe(row_data[:model]),
+            row_data[:input_tokens],
+            row_data[:output_tokens],
+            row_data[:total_tokens],
+            row_data[:total_cost]
           ]
-          row << call.latency_ms if latency
-          row << csv_safe(call.provider_response_id) if LlmApiCall.provider_response_id_column?
-          row << csv_safe(call.parsed_tags.to_json)
+          row << row_data[:latency_ms] if latency
+          row << csv_safe(row_data[:provider_response_id]) if provider_response_id
+          row << csv_safe(csv_tags(row_data[:tags]))
           csv << row
         end
       end
+    end
+
+    def csv_tags(value)
+      return value.transform_keys(&:to_s).to_json if value.is_a?(Hash)
+
+      JSON.parse(value || "{}").to_json
+    rescue JSON::ParserError
+      "{}"
     end
 
     def csv_safe(value)

@@ -54,6 +54,10 @@ module LlmCostTracker
       CONFIGURATION_MUTEX.synchronize { @configuration ||= Configuration.new }
     end
 
+    def configuration_generation
+      CONFIGURATION_MUTEX.synchronize { @configuration_generation ||= 0 }
+    end
+
     def configure
       config = CONFIGURATION_MUTEX.synchronize do
         current = @configuration || Configuration.new
@@ -62,6 +66,7 @@ module LlmCostTracker
         yield(current)
         current.openai_compatible_providers = current.openai_compatible_providers.dup
         current.finalize!
+        @configuration_generation = @configuration_generation.to_i + 1
         current
       end
       Integrations.install!
@@ -71,7 +76,10 @@ module LlmCostTracker
     def reset_configuration!
       Storage::ActiveRecordInbox.reset! if defined?(Storage::ActiveRecordInbox)
       Storage::ActiveRecordIngestor.shutdown!(drain: false) if defined?(Storage::ActiveRecordIngestor)
-      CONFIGURATION_MUTEX.synchronize { @configuration = Configuration.new }
+      CONFIGURATION_MUTEX.synchronize do
+        @configuration = Configuration.new
+        @configuration_generation = @configuration_generation.to_i + 1
+      end
       UnknownPricing.reset! if defined?(UnknownPricing)
       Storage::ActiveRecordStore.reset! if defined?(Storage::ActiveRecordStore)
       Storage::ActiveRecordInbox.reset! if defined?(Storage::ActiveRecordInbox)

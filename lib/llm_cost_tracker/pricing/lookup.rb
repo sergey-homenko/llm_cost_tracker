@@ -7,38 +7,71 @@ module LlmCostTracker
     module Lookup
       Match = Data.define(:source, :key, :prices, :matched_by)
       MUTEX = Monitor.new
+      CACHE_MISS = Object.new.freeze
+      NO_MATCH = Object.new.freeze
+      MAX_LOOKUP_CACHE_ENTRIES = 512
 
       class << self
         def call(provider:, model:)
           provider_name = provider.to_s
           model_name = model.to_s
+          generation = LlmCostTracker.configuration_generation
+          cache_key = [generation, provider_name, model_name]
+          cached = cached_lookup(cache_key)
+          return cached unless cached.equal?(CACHE_MISS)
+
           provider_model = provider_name.empty? ? model_name : "#{provider_name}/#{model_name}"
           normalized_model = normalize_model_name(model_name)
-          current = current_price_tables
+          current = current_price_tables(generation)
 
-          explain_table(current.fetch(:pricing_overrides), :pricing_overrides, provider_model, model_name,
-                        normalized_model) ||
+          match =
+            explain_table(current.fetch(:pricing_overrides), :pricing_overrides, provider_model, model_name,
+                          normalized_model) ||
             explain_table(current.fetch(:file_prices), :prices_file, provider_model, model_name, normalized_model) ||
             explain_table(Pricing::PRICES, :bundled, provider_model, model_name, normalized_model)
+          cache_lookup(cache_key, match)
+          match
         end
 
         private
 
-        def current_price_tables
-          file_prices = PriceRegistry.file_prices(LlmCostTracker.configuration.prices_file)
-          overrides = PriceRegistry.normalize_price_table(LlmCostTracker.configuration.pricing_overrides)
-          cache_key = [file_prices.object_id, LlmCostTracker.configuration.pricing_overrides.hash]
-
+        def current_price_tables(generation)
           cached = @prices_cache
-          return cached[:value] if cached && cached[:key] == cache_key
+          return cached[:value] if cached && cached[:generation] == generation
 
           MUTEX.synchronize do
             cached = @prices_cache
-            return cached[:value] if cached && cached[:key] == cache_key
+            return cached[:value] if cached && cached[:generation] == generation
 
+            config = LlmCostTracker.configuration
+            file_prices = PriceRegistry.file_prices(config.prices_file)
+            overrides = PriceRegistry.normalize_price_table(config.pricing_overrides)
             value = { pricing_overrides: overrides, file_prices: file_prices }.freeze
-            @prices_cache = { key: cache_key, value: value }.freeze
+            @prices_cache = { generation: generation, value: value }.freeze
             value
+          end
+        end
+
+        def cached_lookup(cache_key)
+          cached = @lookup_cache
+          return CACHE_MISS unless cached && cached[:generation] == cache_key.first
+          return CACHE_MISS unless cached[:values].key?(cache_key)
+
+          match = cached[:values].fetch(cache_key)
+          match.equal?(NO_MATCH) ? nil : match
+        end
+
+        def cache_lookup(cache_key, match)
+          MUTEX.synchronize do
+            cached = @lookup_cache
+            values = if cached && cached[:generation] == cache_key.first
+                       cached[:values].dup
+                     else
+                       {}
+                     end
+            values.clear if values.size >= MAX_LOOKUP_CACHE_ENTRIES
+            values[cache_key] = match || NO_MATCH
+            @lookup_cache = { generation: cache_key.first, values: values.freeze }.freeze
           end
         end
 

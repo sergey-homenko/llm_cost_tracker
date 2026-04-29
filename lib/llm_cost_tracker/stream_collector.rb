@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "json"
 require "monitor"
 
 require_relative "stream_capture"
@@ -164,10 +163,9 @@ module LlmCostTracker
     end
 
     def capture_event(data, type:)
-      copied = ValueHelpers.deep_dup(data)
-      size = event_bytes(copied, type)
+      size = event_bytes(data, type)
       if @captured_bytes + size <= StreamCapture::LIMIT_BYTES
-        @events << { event: type, data: copied }
+        @events << { event: type, data: ValueHelpers.deep_dup(data) }
         @captured_bytes += size
       else
         @overflowed = true
@@ -176,9 +174,22 @@ module LlmCostTracker
     end
 
     def event_bytes(data, type)
-      JSON.generate(event: type, data: data).bytesize
-    rescue JSON::GeneratorError, TypeError
-      type.to_s.bytesize + data.to_s.bytesize
+      type.to_s.bytesize + estimated_bytes(data) + 32
+    end
+
+    def estimated_bytes(value)
+      case value
+      when Hash
+        value.sum { |key, nested| estimated_bytes(key) + estimated_bytes(nested) + 4 }
+      when Array
+        value.sum { |nested| estimated_bytes(nested) + 2 }
+      when String
+        value.bytesize + 2
+      when Numeric, true, false, nil
+        value.to_s.bytesize
+      else
+        value.to_s.bytesize + 2
+      end
     end
 
     def error_metadata(errored) = errored ? { stream_errored: true } : {}

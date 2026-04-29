@@ -420,6 +420,40 @@ RSpec.describe LlmCostTracker::Pricing do
 
       expect(results).to all(eq(%w[gpt-4o gpt-4]))
     end
+
+    it "invalidates cached matches when pricing configuration changes" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "custom/cached-model" => { input: 1.0, output: 2.0 }
+        }
+      end
+
+      expect(described_class.lookup(provider: "custom", model: "cached-model")).to include(input: 1.0)
+
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "custom/cached-model" => { input: 3.0, output: 4.0 }
+        }
+      end
+
+      expect(described_class.lookup(provider: "custom", model: "cached-model")).to include(input: 3.0)
+    end
+
+    it "loads configured price files once per configuration generation" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(JSON.generate("models" => {
+                                   "cached-file-model" => { "input" => 9.0, "output" => 10.0 }
+                                 }))
+        file.close
+
+        LlmCostTracker.configure { |c| c.prices_file = file.path }
+        allow(LlmCostTracker::PriceRegistry).to receive(:file_prices).and_call_original
+
+        2.times { described_class.lookup(provider: "custom", model: "cached-file-model") }
+
+        expect(LlmCostTracker::PriceRegistry).to have_received(:file_prices).once
+      end
+    end
   end
 
   describe ".explain" do
