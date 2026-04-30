@@ -30,7 +30,7 @@ module LlmCostTracker
         usage    = response["usageMetadata"]
         return nil unless usage
 
-        build_parsed_usage(
+        build_usage_capture(
           request_url,
           usage,
           usage_source: :response,
@@ -46,7 +46,7 @@ module LlmCostTracker
         response_id = stream_response_id(events)
 
         if usage
-          build_parsed_usage(
+          build_usage_capture(
             request_url,
             usage,
             stream: true,
@@ -64,10 +64,10 @@ module LlmCostTracker
 
       private
 
-      def build_parsed_usage(request_url, usage, usage_source:, stream: false, provider_response_id: nil)
+      def build_usage_capture(request_url, usage, usage_source:, stream: false, provider_response_id: nil)
         cache_read = usage["cachedContentTokenCount"].to_i
 
-        ParsedUsage.build(
+        UsageCapture.build(
           provider: "gemini",
           model: extract_model_from_url(request_url),
           token_usage: TokenUsage.build(

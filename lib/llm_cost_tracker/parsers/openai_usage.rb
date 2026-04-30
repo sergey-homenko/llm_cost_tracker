@@ -15,7 +15,7 @@ module LlmCostTracker
         request = safe_json_parse(request_body)
         cache_read = cache_read_input_tokens(usage)
 
-        ParsedUsage.build(
+        UsageCapture.build(
           provider: provider_for(request_url),
           provider_response_id: response["id"],
           model: response["model"] || request["model"],
@@ -35,7 +35,7 @@ module LlmCostTracker
 
         if usage
           cache_read = cache_read_input_tokens(usage)
-          ParsedUsage.build(
+          UsageCapture.build(
             provider: provider_for(request_url),
             provider_response_id: response_id,
             model: model,

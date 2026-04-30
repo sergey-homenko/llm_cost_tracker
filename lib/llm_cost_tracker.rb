@@ -17,7 +17,7 @@ require_relative "llm_cost_tracker/parameter_hash"
 require_relative "llm_cost_tracker/cost"
 require_relative "llm_cost_tracker/token_usage"
 require_relative "llm_cost_tracker/event"
-require_relative "llm_cost_tracker/parsed_usage"
+require_relative "llm_cost_tracker/usage_capture"
 require_relative "llm_cost_tracker/price_registry"
 require_relative "llm_cost_tracker/price_sync"
 require_relative "llm_cost_tracker/pricing"
@@ -116,13 +116,15 @@ module LlmCostTracker
       token_usage = TokenUsage.from_hash(metadata.merge(input_tokens: input_tokens, output_tokens: output_tokens))
 
       Tracker.record(
-        provider: provider.to_s,
-        model: model,
-        token_usage: token_usage,
+        capture: UsageCapture.build(
+          provider: provider,
+          model: model,
+          token_usage: token_usage,
+          stream: stream,
+          usage_source: usage_source,
+          provider_response_id: provider_response_id
+        ),
         latency_ms: latency_ms,
-        stream: stream,
-        usage_source: usage_source,
-        provider_response_id: provider_response_id,
         pricing_mode: pricing_mode,
         metadata: metadata
       )

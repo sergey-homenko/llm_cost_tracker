@@ -3,7 +3,7 @@
 require "active_support/core_ext/object/blank"
 
 module LlmCostTracker
-  ParsedUsage = Data.define(
+  UsageCapture = Data.define(
     :provider,
     :model,
     :token_usage,
@@ -12,12 +12,12 @@ module LlmCostTracker
     :provider_response_id
   )
 
-  class ParsedUsage
+  class UsageCapture
     UNKNOWN_MODEL = "unknown"
 
     def self.build(**attributes)
       new(
-        provider: attributes.fetch(:provider),
+        provider: attributes.fetch(:provider).to_s,
         model: attributes.fetch(:model).to_s.strip.presence || UNKNOWN_MODEL,
         token_usage: attributes.fetch(:token_usage),
         stream: attributes[:stream] || false,
@@ -27,9 +27,7 @@ module LlmCostTracker
     end
 
     def to_h
-      values = super.compact
-      usage = values.delete(:token_usage)
-      values.merge(usage.to_h)
+      super.compact
     end
   end
 end

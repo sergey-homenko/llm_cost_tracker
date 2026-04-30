@@ -37,44 +37,47 @@ module LlmCostTracker
           return unless active?
 
           record_safely do
-            usage = ObjectReader.first(message, :usage)
+            usage = object_value(message, :usage)
             next unless usage
 
-            input_tokens = ObjectReader.first(usage, :input_tokens)
-            output_tokens = ObjectReader.first(usage, :output_tokens)
+            input_tokens = object_value(usage, :input_tokens)
+            output_tokens = object_value(usage, :output_tokens)
             next if input_tokens.nil? && output_tokens.nil?
 
             LlmCostTracker::Tracker.record(
-              provider: "anthropic",
-              model: ObjectReader.first(message, :model) || request[:model],
-              token_usage: token_usage(usage, input_tokens, output_tokens),
-              latency_ms: latency_ms,
-              usage_source: :sdk_response,
-              provider_response_id: ObjectReader.first(message, :id)
+              capture: UsageCapture.build(
+                provider: "anthropic",
+                model: object_value(message, :model) || request[:model],
+                token_usage: token_usage(usage, input_tokens, output_tokens),
+                usage_source: :sdk_response,
+                provider_response_id: object_value(message, :id)
+              ),
+              latency_ms: latency_ms
             )
           end
         end
 
         def token_usage(usage, input_tokens, output_tokens)
-          cache_write_1h = ObjectReader.nested(usage, :cache_creation, :ephemeral_1h_input_tokens)
-          cache_write = ObjectReader.first(usage, :cache_creation_input_tokens)
-          cache_write_5m = ObjectReader.nested(usage, :cache_creation, :ephemeral_5m_input_tokens)
-          cache_write ||= ObjectReader.integer(cache_write_5m) + ObjectReader.integer(cache_write_1h)
+          cache_write_1h = object_dig(usage, :cache_creation, :ephemeral_1h_input_tokens).to_i
+          cache_write_5m = object_dig(usage, :cache_creation, :ephemeral_5m_input_tokens)
+          cache_write = if cache_write_5m.nil?
+                          total_cache_write = object_value(usage, :cache_creation_input_tokens)
+                          [total_cache_write.to_i - cache_write_1h, 0].max
+                        else
+                          cache_write_5m.to_i
+                        end
+          hidden_output = (
+            object_value(usage, :thinking_tokens, :thinking_output_tokens) ||
+            object_dig(usage, :output_tokens_details, :reasoning_tokens)
+          ).to_i
 
           TokenUsage.build(
-            input_tokens: ObjectReader.integer(input_tokens),
-            output_tokens: ObjectReader.integer(output_tokens),
-            cache_read_input_tokens: ObjectReader.integer(ObjectReader.first(usage, :cache_read_input_tokens)),
-            cache_write_input_tokens: ObjectReader.integer(cache_write),
-            cache_write_1h_input_tokens: ObjectReader.integer(cache_write_1h),
-            hidden_output_tokens: hidden_output_tokens(usage)
-          )
-        end
-
-        def hidden_output_tokens(usage)
-          ObjectReader.integer(
-            ObjectReader.first(usage, :thinking_tokens, :thinking_output_tokens) ||
-            ObjectReader.nested(usage, :output_tokens_details, :reasoning_tokens)
+            input_tokens: input_tokens.to_i,
+            output_tokens: output_tokens.to_i,
+            cache_read_input_tokens: object_value(usage, :cache_read_input_tokens).to_i,
+            cache_write_input_tokens: cache_write,
+            cache_write_1h_input_tokens: cache_write_1h,
+            hidden_output_tokens: hidden_output
           )
         end
 

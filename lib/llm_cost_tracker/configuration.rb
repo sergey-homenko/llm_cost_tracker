@@ -2,7 +2,6 @@
 
 require_relative "errors"
 require_relative "tag_key"
-require_relative "value_helpers"
 require_relative "configuration/instrumentation"
 
 module LlmCostTracker
@@ -94,12 +93,12 @@ module LlmCostTracker
     end
 
     def finalize!
-      @default_tags = ValueHelpers.deep_freeze(@default_tags || {})
-      @pricing_overrides = ValueHelpers.deep_freeze(@pricing_overrides || {})
-      @instrumented_integrations = ValueHelpers.deep_freeze(@instrumented_integrations || [])
-      @report_tag_breakdowns = ValueHelpers.deep_freeze(Array(@report_tag_breakdowns))
-      @redacted_tag_keys = ValueHelpers.deep_freeze(Array(@redacted_tag_keys))
-      @openai_compatible_providers = ValueHelpers.deep_freeze(@openai_compatible_providers || {})
+      @default_tags = deep_freeze(@default_tags || {})
+      @pricing_overrides = deep_freeze(@pricing_overrides || {})
+      @instrumented_integrations = deep_freeze(@instrumented_integrations || [])
+      @report_tag_breakdowns = deep_freeze(Array(@report_tag_breakdowns))
+      @redacted_tag_keys = deep_freeze(Array(@redacted_tag_keys))
+      @openai_compatible_providers = deep_freeze(@openai_compatible_providers || {})
       @finalized = true
       self
     end
@@ -128,6 +127,24 @@ module LlmCostTracker
       return unless finalized?
 
       raise FrozenError, "can't modify frozen LlmCostTracker::Configuration"
+    end
+
+    def deep_freeze(value)
+      case value
+      when Hash
+        value.each do |key, nested_value|
+          deep_freeze(key)
+          deep_freeze(nested_value)
+        end
+        value.frozen? ? value : value.freeze
+      when Array
+        value.each { |nested_value| deep_freeze(nested_value) }
+        value.frozen? ? value : value.freeze
+      when String
+        value.frozen? ? value : value.freeze
+      else
+        value
+      end
     end
   end
 end

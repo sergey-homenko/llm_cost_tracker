@@ -3,7 +3,7 @@
 <% token_segments = [
   { label: "Input", value: token_usage.input_tokens, formatted_value: format_tokens(token_usage.input_tokens), css_class: "lct-stack-fill-input" },
   { label: "Cache read", value: token_usage.cache_read_input_tokens, formatted_value: format_tokens(token_usage.cache_read_input_tokens), css_class: "lct-stack-fill-cache-read" },
-  { label: "Cache write", value: token_usage.standard_cache_write_input_tokens, formatted_value: format_tokens(token_usage.standard_cache_write_input_tokens), css_class: "lct-stack-fill-cache-write" },
+  { label: "Cache write", value: token_usage.cache_write_input_tokens, formatted_value: format_tokens(token_usage.cache_write_input_tokens), css_class: "lct-stack-fill-cache-write" },
   { label: "1h cache write", value: token_usage.cache_write_1h_input_tokens, formatted_value: format_tokens(token_usage.cache_write_1h_input_tokens), css_class: "lct-stack-fill-cache-write-1h" },
   { label: "Output", value: token_usage.output_tokens, formatted_value: format_tokens(token_usage.output_tokens), css_class: "lct-stack-fill-output" }
 ] %>
@@ -106,7 +106,7 @@
         <dd><%= format_tokens(token_usage.cache_read_input_tokens) %></dd>
 
         <dt>Cache Write Tokens</dt>
-        <dd><%= format_tokens(token_usage.standard_cache_write_input_tokens) %></dd>
+        <dd><%= format_tokens(token_usage.cache_write_input_tokens) %></dd>
 
         <dt>1h Cache Write Tokens</dt>
         <dd><%= format_tokens(token_usage.cache_write_1h_input_tokens) %></dd>

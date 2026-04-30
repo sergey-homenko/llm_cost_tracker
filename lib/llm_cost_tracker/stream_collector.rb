@@ -88,16 +88,14 @@ module LlmCostTracker
         }
       end
 
-      parsed = build_parsed_usage(snapshot)
+      capture = build_usage_capture(snapshot)
+      provider_response_id = capture.provider_response_id || snapshot[:provider_response_id]
+      capture = capture.with(provider_response_id: provider_response_id)
+
       Tracker.record(
-        provider: parsed.provider,
-        model: parsed.model,
-        token_usage: parsed.token_usage,
+        capture: capture,
         latency_ms: snapshot[:latency_ms] ||
           ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at) * 1000).round,
-        stream: true,
-        usage_source: parsed.usage_source,
-        provider_response_id: parsed.provider_response_id || snapshot[:provider_response_id],
         pricing_mode: snapshot[:pricing_mode],
         metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata])
       )
@@ -111,21 +109,17 @@ module LlmCostTracker
       raise FrozenError, "can't modify finished LlmCostTracker::StreamCollector"
     end
 
-    def build_parsed_usage(snapshot)
+    def build_usage_capture(snapshot)
       return build_from_explicit_usage(snapshot) if snapshot[:explicit_usage]
       return build_unknown_usage(snapshot) if snapshot[:overflowed]
 
-      parsed = Parsers::Lookup.find_for_provider(@provider)&.parse_stream(nil, nil, 200, snapshot[:events])
-      return finalize(parsed, snapshot) if parsed
+      capture = Parsers::Lookup.find_for_provider(@provider)&.parse_stream(nil, nil, 200, snapshot[:events])
+      if capture
+        model = present_model(capture.model) || present_model(snapshot[:model]) || UsageCapture::UNKNOWN_MODEL
+        return capture.with(provider: @provider, model: model)
+      end
 
       build_unknown_usage(snapshot)
-    end
-
-    def finalize(parsed, snapshot)
-      parsed.with(
-        provider: @provider,
-        model: present_model(parsed.model) || present_model(snapshot[:model]) || ParsedUsage::UNKNOWN_MODEL
-      )
     end
 
     def present_model(value)
@@ -138,9 +132,9 @@ module LlmCostTracker
     end
 
     def build_from_explicit_usage(snapshot)
-      ParsedUsage.build(
+      UsageCapture.build(
         provider: @provider,
-        model: snapshot[:model] || ParsedUsage::UNKNOWN_MODEL,
+        model: snapshot[:model] || UsageCapture::UNKNOWN_MODEL,
         token_usage: snapshot[:explicit_usage],
         stream: true,
         usage_source: :manual
@@ -148,9 +142,9 @@ module LlmCostTracker
     end
 
     def build_unknown_usage(snapshot)
-      ParsedUsage.build(
+      UsageCapture.build(
         provider: @provider,
-        model: snapshot[:model] || ParsedUsage::UNKNOWN_MODEL,
+        model: snapshot[:model] || UsageCapture::UNKNOWN_MODEL,
         token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
         stream: true,
         usage_source: :unknown

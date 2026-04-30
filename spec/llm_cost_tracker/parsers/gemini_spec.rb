@@ -171,7 +171,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.token_usage.total_tokens).to eq(130)
     end
 
-    it "returns an unknown-usage ParsedUsage when no usage metadata is seen" do
+    it "returns an unknown-usage UsageCapture when no usage metadata is seen" do
       result = parser.parse_stream(
         url,
         nil,

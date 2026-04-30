@@ -8,7 +8,7 @@ This is the normal path from an application LLM call to stored ledger data.
 2. `LlmCostTracker::Middleware::Faraday` checks whether a parser matches the request URL.
 3. For non-streaming responses, the middleware passes request and response data to the parser.
 4. For streaming responses, the middleware tees `on_data`, collects stream events, and parses final usage when the stream completes.
-5. The parser returns `ParsedUsage` with canonical `TokenUsage`.
+5. The parser returns `UsageCapture` with canonical `TokenUsage`.
 6. `Tracker.record` prices and persists the event.
 
 ## SDK Integrations
@@ -17,13 +17,13 @@ This is the normal path from an application LLM call to stored ledger data.
 2. `LlmCostTracker::Integrations` checks the SDK version, target classes, and target methods once at install time.
 3. `LlmCostTracker::Integrations` prepends a narrow wrapper to supported SDK resource methods.
 4. The host app keeps calling the provider SDK normally.
-5. The wrapper measures latency, extracts usage from the SDK response object, and sends `TokenUsage` to `Tracker.record`.
+5. The wrapper measures latency, extracts usage from the SDK response object, and sends `UsageCapture` to `Tracker.record`.
 6. If an explicitly enabled SDK is not loaded or does not satisfy the install contract, boot raises before the app silently misses usage.
 
 ## Explicit Tracking
 
 1. The host app calls `LlmCostTracker.track` with known usage totals, or `LlmCostTracker.track_stream` with stream events.
-2. `track` normalizes manual totals into `TokenUsage` and sends it to `Tracker.record`.
+2. `track` normalizes manual totals into `UsageCapture` with `TokenUsage` and sends it to `Tracker.record`.
 3. `track_stream` uses `StreamCollector`, then parser lookup by provider when events need parsing.
 4. `Tracker.record` prices and persists the event.
 
@@ -32,7 +32,7 @@ This is the normal path from an application LLM call to stored ledger data.
 `Tracker.record` performs the central normalization step:
 
 1. Blank model identifiers become `unknown`.
-2. `TokenUsage` carries input, output, cache-read, cache-write, cache-write duration, total, and hidden-output counts.
+2. `UsageCapture` carries provider identity, model identity, stream metadata, response identity, and `TokenUsage`.
 3. `Pricing.cost_for` prices the `TokenUsage` and returns a matching `Cost` object or `nil` for unknown pricing.
 4. Tags are merged from `with_tags`, `default_tags`, middleware tags, and explicit metadata.
 5. An `Event` is created around `TokenUsage` and emitted through `ActiveSupport::Notifications`.

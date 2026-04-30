@@ -16,10 +16,8 @@ module LlmCostTracker
     :tracked_at
   ) do
     def to_h
-      values = super
-      usage = values.delete(:token_usage)
-      values.merge(
-        usage.to_h,
+      super.merge(
+        token_usage: token_usage.to_h,
         cost: cost&.to_h,
         tags: tags ? tags.to_h : {}
       )

@@ -2,9 +2,9 @@
 
 require "faraday"
 require "json"
+require "uri"
 
 require_relative "../logging"
-require_relative "../request_url"
 require_relative "../stream_capture"
 
 module LlmCostTracker
@@ -56,13 +56,8 @@ module LlmCostTracker
         return unless parsed
 
         Tracker.record(
-          provider: parsed.provider,
-          model: parsed.model,
-          token_usage: parsed.token_usage,
+          capture: parsed,
           latency_ms: latency_ms,
-          stream: parsed.stream,
-          usage_source: parsed.usage_source,
-          provider_response_id: parsed.provider_response_id,
           metadata: resolved_tags(request_env)
         )
       rescue LlmCostTracker::Error
@@ -75,7 +70,7 @@ module LlmCostTracker
         response_body = read_body(response_env.body)
         unless response_body
           Logging.warn(
-            "Unable to read response body for #{RequestUrl.label(request_url)}; " \
+            "Unable to read response body for #{request_url_label(request_url)}; " \
             "known streaming responses are captured automatically, or via LlmCostTracker.track_stream " \
             "for custom clients."
           )
@@ -154,12 +149,23 @@ module LlmCostTracker
 
       def capture_warning(request_url, stream_buffer)
         unless stream_buffer&.dig(:overflowed)
-          return "Unable to capture streaming response for #{RequestUrl.label(request_url)}; " \
+          return "Unable to capture streaming response for #{request_url_label(request_url)}; " \
                  "recording usage_source=unknown. Use LlmCostTracker.track_stream for manual capture."
         end
 
-        "Streaming response for #{RequestUrl.label(request_url)} exceeded #{StreamCapture::LIMIT_BYTES} bytes; " \
+        "Streaming response for #{request_url_label(request_url)} exceeded #{StreamCapture::LIMIT_BYTES} bytes; " \
           "recording usage_source=unknown. Use LlmCostTracker.track_stream for manual capture."
+      end
+
+      def request_url_label(value)
+        uri = URI.parse(value.to_s)
+        uri.query = nil
+        uri.fragment = nil
+        uri.try(:user=, nil)
+        uri.try(:password=, nil)
+        uri.to_s
+      rescue URI::InvalidURIError
+        value.to_s.split("?", 2).first
       end
     end
   end

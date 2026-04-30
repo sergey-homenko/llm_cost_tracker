@@ -46,6 +46,9 @@ Base fields:
 - `cache_write_input`
 - `cache_write_1h_input`
 
+`cache_write_input` is the standard cache-write bucket. `cache_write_1h_input`
+is priced separately when provider usage exposes that longer retention bucket.
+
 Mode-prefixed fields use the same base terms:
 
 - `batch_input`

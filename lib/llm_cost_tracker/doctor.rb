@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require_relative "price_freshness"
 require_relative "cost"
 require_relative "llm_api_call"
 require_relative "token_usage"
 require_relative "doctor/capture_check"
 require_relative "doctor/ingestion_check"
+require_relative "doctor/price_check"
 
 module LlmCostTracker
   class Doctor
@@ -48,7 +48,7 @@ module LlmCostTracker
         column_check,
         period_totals_check,
         IngestionCheck.call(Check),
-        prices_check,
+        PriceCheck.call(Check),
         calls_check
       ].compact
     end
@@ -112,25 +112,6 @@ module LlmCostTracker
       end
 
       Check.new(:warn, "period totals", "missing; budget preflight falls back to llm_api_calls sums")
-    end
-
-    def prices_check
-      path = LlmCostTracker.configuration.prices_file
-      unless path
-        return Check.new(
-          :warn,
-          "prices",
-          "using bundled prices updated_at=#{LlmCostTracker::PriceRegistry.metadata.fetch('updated_at', 'unknown')}; " \
-          "configure prices_file for production"
-        )
-      end
-
-      count = LlmCostTracker::PriceRegistry.file_prices(path).size
-      metadata = LlmCostTracker::PriceRegistry.file_metadata(path)
-      status, freshness = LlmCostTracker::PriceFreshness.call(metadata)
-      Check.new(status, "prices", "loaded #{count} models from #{path}; #{freshness}")
-    rescue LlmCostTracker::Error => e
-      Check.new(:error, "prices", e.message)
     end
 
     def calls_check

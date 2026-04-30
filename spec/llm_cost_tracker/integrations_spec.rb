@@ -118,7 +118,7 @@ RSpec.describe LlmCostTracker::Integrations do
   def capture_events
     events = []
     subscription = ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
-      events << payload
+      events << payload.merge(payload.fetch(:token_usage, {}))
     end
     yield events
   ensure
@@ -515,7 +515,8 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 120,
         output_tokens: 35,
         cache_read_input_tokens: 50,
-        cache_write_input_tokens: 30,
+        cache_write_input_tokens: 20,
+        cache_write_1h_input_tokens: 10,
         hidden_output_tokens: 6,
         usage_source: "sdk_response",
         provider_response_id: "msg_123"
@@ -567,7 +568,8 @@ RSpec.describe LlmCostTracker::Integrations do
         output_tokens: 64,
         total_tokens: 254,
         cache_read_input_tokens: 40,
-        cache_write_input_tokens: 30,
+        cache_write_input_tokens: 20,
+        cache_write_1h_input_tokens: 10,
         stream: true,
         usage_source: "stream_final",
         provider_response_id: "msg_456"

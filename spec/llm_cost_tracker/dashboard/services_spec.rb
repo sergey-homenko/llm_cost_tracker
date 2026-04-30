@@ -105,6 +105,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     attrs.fetch(:input_tokens) +
       attrs.fetch(:cache_read_input_tokens) +
       attrs.fetch(:cache_write_input_tokens) +
+      attrs.fetch(:cache_write_1h_input_tokens) +
       attrs.fetch(:output_tokens)
   end
 

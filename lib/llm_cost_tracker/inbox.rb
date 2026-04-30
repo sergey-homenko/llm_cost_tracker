@@ -47,12 +47,13 @@ module LlmCostTracker
       def event_from_row(row)
         payload = JSON.parse(row.payload)
         cost = payload["cost"] && LlmCostTracker::Cost.from_hash(payload["cost"])
+        token_usage = payload["token_usage"] || payload
 
         LlmCostTracker::Event.new(
           event_id: payload.fetch("event_id"),
           provider: payload.fetch("provider"),
           model: payload.fetch("model"),
-          token_usage: TokenUsage.from_hash(payload),
+          token_usage: TokenUsage.from_hash(token_usage),
           pricing_mode: payload["pricing_mode"],
           cost: cost,
           tags: payload.fetch("tags"),

@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe LlmCostTracker::ParsedUsage do
+RSpec.describe LlmCostTracker::UsageCapture do
   it "normalizes missing model identifiers to unknown" do
     usage = described_class.build(
       provider: "custom",

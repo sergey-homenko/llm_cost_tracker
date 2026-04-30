@@ -51,8 +51,8 @@ RSpec.describe LlmCostTracker do
 
       expect(collected.size).to eq(1)
       expect(collected.first[:provider]).to eq("openai")
-      expect(collected.first[:input_tokens]).to eq(12)
-      expect(collected.first[:output_tokens]).to eq(3)
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(12)
+      expect(collected.first.dig(:token_usage, :output_tokens)).to eq(3)
       expect(collected.first[:stream]).to be true
       expect(collected.first[:usage_source]).to eq("stream_final")
     end
@@ -91,8 +91,8 @@ RSpec.describe LlmCostTracker do
       expect(collected.size).to eq(1)
       expect(collected.first[:provider]).to eq("openrouter")
       expect(collected.first[:model]).to eq("gpt-4o")
-      expect(collected.first[:input_tokens]).to eq(12)
-      expect(collected.first[:output_tokens]).to eq(3)
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(12)
+      expect(collected.first.dig(:token_usage, :output_tokens)).to eq(3)
       expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
@@ -115,8 +115,8 @@ RSpec.describe LlmCostTracker do
       expect(collected.size).to eq(1)
       expect(collected.first[:provider]).to eq("internal_gateway")
       expect(collected.first[:model]).to eq("custom-chat")
-      expect(collected.first[:input_tokens]).to eq(9)
-      expect(collected.first[:output_tokens]).to eq(2)
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(9)
+      expect(collected.first.dig(:token_usage, :output_tokens)).to eq(2)
       expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
@@ -127,8 +127,8 @@ RSpec.describe LlmCostTracker do
         stream.usage(input_tokens: 50, output_tokens: 20, provider_response_id: "custom_resp_123")
       end
 
-      expect(collected.first[:input_tokens]).to eq(50)
-      expect(collected.first[:output_tokens]).to eq(20)
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(50)
+      expect(collected.first.dig(:token_usage, :output_tokens)).to eq(20)
       expect(collected.first[:usage_source]).to eq("manual")
       expect(collected.first[:provider_response_id]).to eq("custom_resp_123")
       expect(collected.first[:stream]).to be true
@@ -141,8 +141,8 @@ RSpec.describe LlmCostTracker do
         stream.event({ "anything" => true })
       end
 
-      expect(collected.first[:input_tokens]).to eq(0)
-      expect(collected.first[:output_tokens]).to eq(0)
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(0)
+      expect(collected.first.dig(:token_usage, :output_tokens)).to eq(0)
       expect(collected.first[:usage_source]).to eq("unknown")
       expect(collected.first[:stream]).to be true
     end
@@ -155,8 +155,8 @@ RSpec.describe LlmCostTracker do
         stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
       end
 
-      expect(collected.first[:input_tokens]).to eq(0)
-      expect(collected.first[:output_tokens]).to eq(0)
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(0)
+      expect(collected.first.dig(:token_usage, :output_tokens)).to eq(0)
       expect(collected.first[:usage_source]).to eq("unknown")
     end
 
@@ -169,8 +169,8 @@ RSpec.describe LlmCostTracker do
         stream.usage(input_tokens: 7, output_tokens: 4)
       end
 
-      expect(collected.first[:input_tokens]).to eq(7)
-      expect(collected.first[:output_tokens]).to eq(4)
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(7)
+      expect(collected.first.dig(:token_usage, :output_tokens)).to eq(4)
       expect(collected.first[:usage_source]).to eq("manual")
     end
 

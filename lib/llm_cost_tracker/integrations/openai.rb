@@ -40,46 +40,48 @@ module LlmCostTracker
           return unless active?
 
           record_safely do
-            usage = ObjectReader.first(response, :usage)
+            usage = object_value(response, :usage)
             next unless usage
 
-            input_tokens = ObjectReader.first(usage, :input_tokens, :prompt_tokens)
-            output_tokens = ObjectReader.first(usage, :output_tokens, :completion_tokens)
+            input_tokens = object_value(usage, :input_tokens, :prompt_tokens)
+            output_tokens = object_value(usage, :output_tokens, :completion_tokens)
             next if input_tokens.nil? && output_tokens.nil?
 
             cache_read = cache_read_input_tokens(usage)
             LlmCostTracker::Tracker.record(
-              provider: "openai",
-              model: ObjectReader.first(response, :model) || request[:model],
-              token_usage: TokenUsage.build(
-                input_tokens: regular_input_tokens(input_tokens, cache_read),
-                output_tokens: ObjectReader.integer(output_tokens),
-                cache_read_input_tokens: cache_read,
-                hidden_output_tokens: hidden_output_tokens(usage)
+              capture: UsageCapture.build(
+                provider: "openai",
+                model: object_value(response, :model) || request[:model],
+                token_usage: TokenUsage.build(
+                  input_tokens: regular_input_tokens(input_tokens, cache_read),
+                  output_tokens: output_tokens.to_i,
+                  cache_read_input_tokens: cache_read,
+                  hidden_output_tokens: hidden_output_tokens(usage)
+                ),
+                usage_source: :sdk_response,
+                provider_response_id: object_value(response, :id)
               ),
-              latency_ms: latency_ms,
-              usage_source: :sdk_response,
-              provider_response_id: ObjectReader.first(response, :id)
+              latency_ms: latency_ms
             )
           end
         end
 
         def cache_read_input_tokens(usage)
-          ObjectReader.integer(
-            ObjectReader.nested(usage, :input_tokens_details, :cached_tokens) ||
-            ObjectReader.nested(usage, :prompt_tokens_details, :cached_tokens)
-          )
+          (
+            object_dig(usage, :input_tokens_details, :cached_tokens) ||
+            object_dig(usage, :prompt_tokens_details, :cached_tokens)
+          ).to_i
         end
 
         def hidden_output_tokens(usage)
-          ObjectReader.integer(
-            ObjectReader.nested(usage, :output_tokens_details, :reasoning_tokens) ||
-            ObjectReader.nested(usage, :completion_tokens_details, :reasoning_tokens)
-          )
+          (
+            object_dig(usage, :output_tokens_details, :reasoning_tokens) ||
+            object_dig(usage, :completion_tokens_details, :reasoning_tokens)
+          ).to_i
         end
 
         def regular_input_tokens(input_tokens, cache_read)
-          [ObjectReader.integer(input_tokens) - cache_read.to_i, 0].max
+          [input_tokens.to_i - cache_read.to_i, 0].max
         end
 
         def track_stream(stream, collector:)

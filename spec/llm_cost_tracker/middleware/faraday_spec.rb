@@ -41,8 +41,8 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.size).to eq(1)
     expect(events.first[:provider]).to eq("openai")
     expect(events.first[:model]).to eq("gpt-4o")
-    expect(events.first[:input_tokens]).to eq(10)
-    expect(events.first[:output_tokens]).to eq(5)
+    expect(events.first.dig(:token_usage, :input_tokens)).to eq(10)
+    expect(events.first.dig(:token_usage, :output_tokens)).to eq(5)
     expect(events.first[:cost]).not_to be_nil
     expect(events.first[:latency_ms]).to be_a(Integer)
     expect(events.first[:latency_ms]).to be >= 0
@@ -250,8 +250,8 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end
 
     expect(events.size).to eq(1)
-    expect(events.first[:input_tokens]).to eq(7)
-    expect(events.first[:output_tokens]).to eq(2)
+    expect(events.first.dig(:token_usage, :input_tokens)).to eq(7)
+    expect(events.first.dig(:token_usage, :output_tokens)).to eq(2)
     expect(events.first[:stream]).to be true
     expect(events.first[:usage_source]).to eq("stream_final")
     expect(events.first[:provider_response_id]).to eq("chatcmpl_stream_123")
@@ -290,8 +290,8 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.size).to eq(1)
     expect(events.first[:stream]).to be true
     expect(events.first[:usage_source]).to eq("unknown")
-    expect(events.first[:input_tokens]).to eq(0)
-    expect(events.first[:output_tokens]).to eq(0)
+    expect(events.first.dig(:token_usage, :input_tokens)).to eq(0)
+    expect(events.first.dig(:token_usage, :output_tokens)).to eq(0)
   end
 
   it "falls back to reading the response body when the caller set no on_data" do
@@ -315,7 +315,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json)
 
     expect(events.size).to eq(1)
-    expect(events.first[:input_tokens]).to eq(4)
+    expect(events.first.dig(:token_usage, :input_tokens)).to eq(4)
     expect(events.first[:stream]).to be true
   end
 
@@ -341,7 +341,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
     expect(events.first[:stream]).to be true
     expect(events.first[:usage_source]).to eq("unknown")
-    expect(events.first[:input_tokens]).to eq(0)
+    expect(events.first.dig(:token_usage, :input_tokens)).to eq(0)
   end
 
   it "can block LLM requests before they hit the adapter" do

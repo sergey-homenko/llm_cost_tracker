@@ -641,10 +641,19 @@ RSpec.describe "ActiveRecord durable inbox" do
   end
 
   it "ignores connection cleanup failures" do
+    ingestor = LlmCostTracker::Ingestor
+    generation = 1
+    ingestor.instance_variable_set(:@generation, generation)
+    allow(ingestor).to receive(:sleep)
+    allow(ingestor).to receive(:ingest_once) do
+      ingestor.instance_variable_set(:@stop_requested, true)
+      0
+    end
     allow(ActiveRecord::Base.connection_handler).to receive(:clear_active_connections!).and_raise("cleanup failed")
 
     expect do
-      LlmCostTracker::ConnectionCleanup.release!
+      ingestor.instance_variable_set(:@stop_requested, false)
+      ingestor.send(:run, generation)
     end.not_to raise_error
   end
 

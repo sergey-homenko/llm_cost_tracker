@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/kernel/reporting"
 require "securerandom"
 
-require_relative "connection_cleanup"
 require_relative "inbox"
 require_relative "inbox_batch"
 require_relative "inbox_event"
@@ -108,7 +108,7 @@ module LlmCostTracker
           break if mutex.synchronize { @stop_requested || generation != @generation }
 
           processed = executor_wrap { ingest_once }
-          ConnectionCleanup.release!
+          release_connection!
           if processed.zero?
             sleep(idle_interval)
             idle_interval = [idle_interval * 2, MAX_IDLE_INTERVAL_SECONDS].min
@@ -117,11 +117,11 @@ module LlmCostTracker
           end
         rescue StandardError => e
           handle_error(e)
-          ConnectionCleanup.release!
+          release_connection!
           sleep(idle_interval)
         end
       ensure
-        ConnectionCleanup.release!
+        release_connection!
         mutex.synchronize { @thread = nil if @thread.equal?(Thread.current) }
       end
 
@@ -158,6 +158,10 @@ module LlmCostTracker
 
       def handle_error(error)
         Logging.warn("ActiveRecord ingestor failed: #{error.class}: #{error.message}")
+      end
+
+      def release_connection!
+        suppress(StandardError) { ActiveRecord::Base.connection_handler.clear_active_connections! }
       end
     end
   end

@@ -101,10 +101,10 @@ module LlmCostTracker
       end
 
       def build_unknown_stream_usage(provider:, model:, provider_response_id:)
-        ParsedUsage.build(
+        UsageCapture.build(
           provider: provider,
           provider_response_id: provider_response_id,
-          model: model || ParsedUsage::UNKNOWN_MODEL,
+          model: model || UsageCapture::UNKNOWN_MODEL,
           token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
           usage_source: :unknown

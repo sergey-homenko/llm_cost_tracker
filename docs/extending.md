@@ -25,7 +25,7 @@ Until this page is expanded, use:
 ## Provider Boundary
 
 Built-in parsers match supported request URLs, translate known provider response
-shapes into `ParsedUsage` with `TokenUsage`, and return `nil` when the response
+shapes into `UsageCapture` with `TokenUsage`, and return `nil` when the response
 is outside their contract.
 
 Keep provider-specific translation outside storage, dashboard, and pricing. Use

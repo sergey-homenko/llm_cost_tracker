@@ -24,13 +24,12 @@ module LlmCostTracker
 
         request = safe_json_parse(request_body)
         cache_read = usage["cache_read_input_tokens"].to_i
-        cache_write = cache_write_input_tokens(usage).to_i
 
-        ParsedUsage.build(
+        UsageCapture.build(
           provider: "anthropic",
           provider_response_id: response["id"],
           model: response["model"] || request["model"],
-          token_usage: token_usage(usage, cache_read, cache_write),
+          token_usage: token_usage(usage, cache_read),
           usage_source: :response
         )
       end
@@ -73,47 +72,37 @@ module LlmCostTracker
 
       def build_stream_result(model, usage, response_id)
         cache_read = usage["cache_read_input_tokens"].to_i
-        cache_write = cache_write_input_tokens(usage).to_i
 
-        ParsedUsage.build(
+        UsageCapture.build(
           provider: "anthropic",
           provider_response_id: response_id,
           model: model,
-          token_usage: token_usage(usage, cache_read, cache_write),
+          token_usage: token_usage(usage, cache_read),
           stream: true,
           usage_source: :stream_final
         )
       end
 
-      def token_usage(usage, cache_read, cache_write)
+      def token_usage(usage, cache_read)
         input = usage["input_tokens"].to_i
         output = usage["output_tokens"].to_i
+        cache_creation = usage["cache_creation"]
+        if cache_creation.is_a?(Hash)
+          cache_write = cache_creation["ephemeral_5m_input_tokens"].to_i
+          cache_write_1h = cache_creation["ephemeral_1h_input_tokens"].to_i
+        else
+          cache_write = usage["cache_creation_input_tokens"].to_i
+          cache_write_1h = 0
+        end
 
         TokenUsage.build(
           input_tokens: input,
           output_tokens: output,
-          total_tokens: input + output + cache_read + cache_write,
+          total_tokens: input + output + cache_read + cache_write + cache_write_1h,
           cache_read_input_tokens: usage["cache_read_input_tokens"],
           cache_write_input_tokens: cache_write,
-          cache_write_1h_input_tokens: cache_write_1h_input_tokens(usage)
+          cache_write_1h_input_tokens: cache_write_1h
         )
-      end
-
-      def cache_write_input_tokens(usage)
-        value = usage["cache_creation_input_tokens"]
-        return value unless value.nil?
-
-        cache_creation = usage["cache_creation"]
-        return nil unless cache_creation.is_a?(Hash)
-
-        cache_creation["ephemeral_5m_input_tokens"].to_i + cache_creation["ephemeral_1h_input_tokens"].to_i
-      end
-
-      def cache_write_1h_input_tokens(usage)
-        cache_creation = usage["cache_creation"]
-        return nil unless cache_creation.is_a?(Hash)
-
-        cache_creation["ephemeral_1h_input_tokens"]
       end
     end
   end

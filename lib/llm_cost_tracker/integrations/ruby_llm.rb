@@ -69,55 +69,56 @@ module LlmCostTracker
           return unless active?
 
           record_safely do
-            input_tokens = ObjectReader.first(response, :input_tokens)
-            output_tokens = ObjectReader.first(response, :output_tokens) if output_tokens.nil?
+            input_tokens = object_value(response, :input_tokens)
+            output_tokens = object_value(response, :output_tokens) if output_tokens.nil?
             next if input_tokens.nil? && output_tokens.nil?
 
-            cache_read = ObjectReader.integer(ObjectReader.first(response, :cached_tokens))
+            cache_read = object_value(response, :cached_tokens).to_i
+            hidden_output = object_value(response, :thinking_tokens, :reasoning_tokens).to_i
 
             LlmCostTracker::Tracker.record(
-              provider: provider,
-              model: model,
-              token_usage: TokenUsage.build(
-                input_tokens: regular_input_tokens(input_tokens, cache_read),
-                output_tokens: ObjectReader.integer(output_tokens),
-                cache_read_input_tokens: cache_read,
-                cache_write_input_tokens: ObjectReader.integer(ObjectReader.first(response, :cache_creation_tokens)),
-                hidden_output_tokens: ObjectReader.integer(
-                  ObjectReader.first(response, :thinking_tokens, :reasoning_tokens)
-                )
+              capture: UsageCapture.build(
+                provider: provider,
+                model: model,
+                token_usage: TokenUsage.build(
+                  input_tokens: regular_input_tokens(input_tokens, cache_read),
+                  output_tokens: output_tokens.to_i,
+                  cache_read_input_tokens: cache_read,
+                  cache_write_input_tokens: object_value(response, :cache_creation_tokens).to_i,
+                  hidden_output_tokens: hidden_output
+                ),
+                stream: stream,
+                usage_source: :ruby_llm,
+                provider_response_id: provider_response_id(response)
               ),
-              latency_ms: latency_ms,
-              stream: stream,
-              usage_source: :ruby_llm,
-              provider_response_id: provider_response_id(response)
+              latency_ms: latency_ms
             )
           end
         end
 
         def regular_input_tokens(input_tokens, cache_read)
-          [ObjectReader.integer(input_tokens) - cache_read.to_i, 0].max
+          [input_tokens.to_i - cache_read.to_i, 0].max
         end
 
         def provider_slug(provider)
-          ObjectReader.first(provider, :slug).to_s
+          object_value(provider, :slug).to_s
         end
 
         def model_id(object)
           return nil if object.nil?
 
-          value = ObjectReader.first(object, :id, :model_id, :model)
+          value = object_value(object, :id, :model_id, :model)
           value ||= object if object.is_a?(String) || object.is_a?(Symbol)
           value&.to_s
         end
 
         def response_model_id(object)
-          value = ObjectReader.first(object, :model_id, :model)
+          value = object_value(object, :model_id, :model)
           value&.to_s
         end
 
         def provider_response_id(response)
-          ObjectReader.first(response, :id, :provider_response_id) || ObjectReader.nested(response, :raw, :id)
+          object_value(response, :id, :provider_response_id) || object_dig(response, :raw, :id)
         end
       end
 

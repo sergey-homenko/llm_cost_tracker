@@ -72,7 +72,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         }.to_json
       )
 
-      expect(result).to be_a(LlmCostTracker::ParsedUsage)
+      expect(result).to be_a(LlmCostTracker::UsageCapture)
       expect(result.provider).to eq("openai")
       expect(result.model).to eq("gpt-4o")
       expect(result.token_usage.input_tokens).to eq(150)
@@ -299,7 +299,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.model).to eq("gpt-5-mini")
     end
 
-    it "returns an unknown-usage ParsedUsage when no usage chunk arrives" do
+    it "returns an unknown-usage UsageCapture when no usage chunk arrives" do
       events = [
         { event: nil, data: { "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] } }
       ]

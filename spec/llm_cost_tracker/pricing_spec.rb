@@ -232,9 +232,9 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result.cache_write_input_cost).to eq(0.75)
+      expect(result.cache_write_input_cost).to eq(1.125)
       expect(result.cache_write_1h_input_cost).to eq(0.6)
-      expect(result.total_cost).to eq(1.35)
+      expect(result.total_cost).to eq(1.725)
     end
 
     it "treats 1-hour cache writes as unknown pricing when the 1-hour rate is missing" do

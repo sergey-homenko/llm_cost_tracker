@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/hash/indifferent_access"
+require "active_support/core_ext/object/try"
 require "active_support/core_ext/string/inflections"
 
 require_relative "../logging"
-require_relative "object_reader"
 
 module LlmCostTracker
   module Integrations
@@ -61,23 +61,66 @@ module LlmCostTracker
         params.merge(kwargs).with_indifferent_access
       end
 
-      def minimum_version
+      def object_value(object, *keys)
+        keys.each do |key|
+          value = read_object_value(object, key)
+          return value unless value.nil?
+        end
         nil
       end
 
-      def version_constant
-        nil
+      def object_dig(object, *path)
+        if object.respond_to?(:dig)
+          begin
+            value = object.dig(*path)
+            return value unless value.nil?
+          rescue NameError, TypeError
+            nil
+          end
+        end
+
+        path.reduce(object) do |current, key|
+          return nil if current.nil?
+
+          read_object_value(current, key)
+        end
       end
 
-      def patch_targets
-        []
-      end
+      def minimum_version = nil
+
+      def version_constant = nil
+
+      def patch_targets = []
 
       def patch_target(constant_name, with:, methods:, optional: false)
         PatchTarget.new(constant_name, with, Array(methods), optional)
       end
 
+      module_function :object_value, :object_dig
+
       private
+
+      def read_object_value(object, key)
+        return nil if object.nil?
+        return object[key] if object.try(:key?, key)
+
+        string_key = key.to_s
+        return object[string_key] if object.try(:key?, string_key)
+
+        value = object.try(key)
+        return value unless value.nil?
+
+        indexed_object_value(object, key)
+      end
+
+      def indexed_object_value(object, key)
+        object.try(:[], key)
+      rescue IndexError, NameError, TypeError
+        nil
+      end
+
+      module_function :read_object_value, :indexed_object_value
+      private_class_method :read_object_value, :indexed_object_value
 
       def validate_contract!
         problems = version_problems + target_problems

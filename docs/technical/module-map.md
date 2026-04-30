@@ -10,6 +10,7 @@ Primary files:
 - `lib/llm_cost_tracker/configuration.rb`
 - `lib/llm_cost_tracker/tag_context.rb`
 - `lib/llm_cost_tracker/doctor.rb`
+- `lib/llm_cost_tracker/doctor/*`
 - `lib/llm_cost_tracker/logging.rb`
 - `lib/llm_cost_tracker/errors.rb`
 
@@ -43,18 +44,17 @@ Primary files:
 
 - `lib/llm_cost_tracker/middleware/faraday.rb`
 - `lib/llm_cost_tracker/stream_collector.rb`
-- `lib/llm_cost_tracker/parsed_usage.rb`
-- `lib/llm_cost_tracker/request_url.rb`
+- `lib/llm_cost_tracker/usage_capture.rb`
 - `lib/llm_cost_tracker/parsers/*`
 
 Responsibilities:
 
 - Detect supported LLM HTTP requests.
-- Parse provider responses and stream events into `ParsedUsage`.
+- Parse provider responses and stream events into `UsageCapture`.
 - Translate provider-specific fields into canonical usage fields.
 - Preserve app streaming behavior while teeing events for tracking.
 
-Provider-specific code belongs here. The output boundary is `ParsedUsage`, not raw provider JSON.
+Provider-specific code belongs here. The output boundary is `UsageCapture`, not raw provider JSON.
 
 ## Canonical Ledger
 
@@ -82,7 +82,6 @@ Primary files:
 
 - `lib/llm_cost_tracker/pricing.rb`
 - `lib/llm_cost_tracker/price_registry.rb`
-- `lib/llm_cost_tracker/price_freshness.rb`
 - `lib/llm_cost_tracker/prices.json`
 - `lib/llm_cost_tracker/price_sync/*`
 - `lib/tasks/llm_cost_tracker.rake`

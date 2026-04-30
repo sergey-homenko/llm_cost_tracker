@@ -62,6 +62,7 @@ module LlmCostTrackerEngineContext
     attrs[:total_tokens] = attrs.fetch(:input_tokens) +
                            attrs.fetch(:cache_read_input_tokens) +
                            attrs.fetch(:cache_write_input_tokens) +
+                           attrs.fetch(:cache_write_1h_input_tokens) +
                            attrs.fetch(:output_tokens)
     attrs[:tags] = tags_for_database(attrs.fetch(:tags))
 

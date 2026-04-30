@@ -10,6 +10,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - BREAKING: Removed custom SDK integration and parser registration extension points.
 - BREAKING: Replaced `UsageBreakdown` internals, `add_usage_breakdown`, and direct `Pricing` token arguments with `TokenUsage`.
 - BREAKING: Split 1-hour cache-write costs into `cache_write_1h_input_cost`.
+- BREAKING: `Tracker.record` now accepts `UsageCapture`, and notification payloads nest `token_usage`.
+- BREAKING: `cache_write_input_tokens` now stores only the standard cache-write bucket.
 - Anthropic pricing now uses response cache-write TTL usage to price 1-hour cache writes separately.
 
 ## [0.7.0] - 2026-04-29

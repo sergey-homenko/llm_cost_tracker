@@ -3,8 +3,8 @@
 <% streaming_missing_usage = @stats.streaming_missing_usage_count %>
 <% calls_with_provider_response_id = @stats.provider_response_id_column_present ? total - @stats.missing_provider_response_id_count : nil %>
 <% cache_write_1h_tokens = @stats.cache_write_1h_input_tokens.to_i %>
-<% cache_write_standard_tokens = [@stats.cache_write_input_tokens.to_i - cache_write_1h_tokens, 0].max %>
-<% billable_tokens = @stats.input_tokens + @stats.output_tokens + @stats.cache_read_input_tokens.to_i + @stats.cache_write_input_tokens.to_i %>
+<% cache_write_tokens = @stats.cache_write_input_tokens.to_i %>
+<% billable_tokens = @stats.input_tokens + @stats.output_tokens + @stats.cache_read_input_tokens.to_i + cache_write_tokens + cache_write_1h_tokens %>
 <% hidden_output_share = coverage_percent(@stats.hidden_output_tokens.to_i, @stats.output_tokens) %>
 
 <section class="lct-panel lct-toolbar">
@@ -288,8 +288,8 @@
             </tr>
             <tr>
               <td>Cache write input</td>
-              <td class="lct-num"><%= number(cache_write_standard_tokens) %></td>
-              <td class="lct-num"><%= percent(coverage_percent(cache_write_standard_tokens, billable_tokens)) %></td>
+              <td class="lct-num"><%= number(cache_write_tokens) %></td>
+              <td class="lct-num"><%= percent(coverage_percent(cache_write_tokens, billable_tokens)) %></td>
               <td class="lct-num<%= ' lct-num-muted' if @stats.cache_write_input_cost.nil? %>"><%= optional_money(@stats.cache_write_input_cost) %></td>
             </tr>
             <tr>

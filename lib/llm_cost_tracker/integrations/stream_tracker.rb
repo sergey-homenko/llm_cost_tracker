@@ -5,7 +5,7 @@ require "active_support/core_ext/object/try"
 
 require_relative "../logging"
 require_relative "../stream_collector"
-require_relative "object_reader"
+require_relative "base"
 
 module LlmCostTracker
   module Integrations
@@ -90,13 +90,13 @@ module LlmCostTracker
 
       def event_attributes(event)
         %i[type id model usage response message].each_with_object({}) do |key, attributes|
-          value = ObjectReader.read(event, key)
+          value = Base.object_value(event, key)
           attributes[key] = value unless value.nil?
         end
       end
 
       def event_type(event, payload)
-        value = ObjectReader.first(event, :type) || payload["type"]
+        value = Base.object_value(event, :type) || payload["type"]
         value&.to_s
       end
 

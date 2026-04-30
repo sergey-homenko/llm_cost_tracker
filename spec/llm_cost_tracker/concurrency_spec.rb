@@ -47,8 +47,8 @@ RSpec.describe "concurrency", :aggregate_failures do
       (writers + [finisher]).each(&:join)
 
       expect(recorded.size).to eq(1)
-      expect(recorded.first[:input_tokens]).to eq(7)
-      expect(recorded.first[:output_tokens]).to eq(3)
+      expect(recorded.first.dig(:token_usage, :input_tokens)).to eq(7)
+      expect(recorded.first.dig(:token_usage, :output_tokens)).to eq(3)
       errors = []
       errors << write_errors.pop until write_errors.empty?
       expect(errors).to all(be_a(FrozenError))
@@ -187,9 +187,11 @@ RSpec.describe "concurrency", :aggregate_failures do
         Thread.new do
           LlmCostTracker.with_tags(request_id: "req_#{i}") do
             event = LlmCostTracker::Tracker.record(
-              provider: "openai",
-              model: "gpt-4o",
-              token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+              capture: LlmCostTracker::UsageCapture.build(
+                provider: "openai",
+                model: "gpt-4o",
+                token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+              )
             )
             recorded << event.tags[:request_id]
           end

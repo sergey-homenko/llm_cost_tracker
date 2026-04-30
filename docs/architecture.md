@@ -8,11 +8,14 @@ Core vocabulary belongs in provider-neutral terms:
 - `cache_read_input_tokens`
 - `cache_write_input_tokens`
 - `cache_write_1h_input_tokens`
+- `cache_write_input_cost`
 - `cache_write_1h_input_cost`
 - `output_tokens`
 - `hidden_output_tokens`
 - `pricing_mode`
 - `provider_response_id`
+
+`cache_write_input_tokens` and `cache_write_input_cost` mean the standard cache-write bucket only. Longer cache-write retention windows use their own token and cost fields.
 
 Provider-specific names belong only at ingestion boundaries: parsers and stream adapters. Those adapters translate raw fields into the canonical ledger vocabulary before data reaches `Tracker`, `Pricing`, storage, dashboard services, or reports.
 

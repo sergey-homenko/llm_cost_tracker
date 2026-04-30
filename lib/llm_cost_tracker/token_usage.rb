@@ -20,8 +20,7 @@ module LlmCostTracker
       cache_read = cache_read_input_tokens.to_i
       cache_write = cache_write_input_tokens.to_i
       cache_write_1h = cache_write_1h_input_tokens.to_i
-      cache_write = cache_write_1h if cache_write < cache_write_1h
-      total = total_tokens.nil? ? input + cache_read + cache_write + output : total_tokens.to_i
+      total = total_tokens.nil? ? input + cache_read + cache_write + cache_write_1h + output : total_tokens.to_i
 
       new(
         input_tokens: input,
@@ -47,15 +46,11 @@ module LlmCostTracker
       )
     end
 
-    def standard_cache_write_input_tokens
-      [cache_write_input_tokens - cache_write_1h_input_tokens, 0].max
-    end
-
     def price_quantities
       {
         input: input_tokens,
         cache_read_input: cache_read_input_tokens,
-        cache_write_input: standard_cache_write_input_tokens,
+        cache_write_input: cache_write_input_tokens,
         cache_write_1h_input: cache_write_1h_input_tokens,
         output: output_tokens
       }
