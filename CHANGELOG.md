@@ -4,31 +4,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-04-30
+
 ### Changed
 
 - BREAKING: ActiveRecord ledger write failures now raise directly; removed `storage_error_behavior` and `StorageError`.
-- BREAKING: Removed custom SDK integration and parser registration extension points.
-- BREAKING: Replaced `UsageBreakdown` internals, `add_usage_breakdown`, and direct `Pricing` token arguments with `TokenUsage`.
-- BREAKING: Split 1-hour cache-write costs into `cache_write_1h_input_cost`.
+- BREAKING: Removed custom parser and SDK integration registration APIs; use built-in capture or explicit `track` / `track_stream`.
+- BREAKING: Usage and pricing APIs now use `TokenUsage`; removed `UsageBreakdown`, `add_usage_breakdown`, direct `Pricing` token arguments, and `Pricing::Cost`.
 - BREAKING: `Tracker.record` now accepts `UsageCapture`, and notification payloads nest `token_usage`.
-- BREAKING: `cache_write_input_tokens` now stores only the standard cache-write bucket.
 - BREAKING: Moved price registry and refresh APIs under `LlmCostTracker::Pricing`.
-- BREAKING: Reorganized internal ledger, tags, capture, doctor, and report constants under their owning namespaces.
-- BREAKING: Moved built-in parser routing onto `LlmCostTracker::Parsers`.
-- BREAKING: Removed `LlmCostTracker::Pricing::Cost`; pricing now returns cost attribute hashes from `TokenUsage` billing components.
-- BREAKING: Current ActiveRecord ledger schema is required; doctor and dashboard setup now fail on missing canonical columns.
-- BREAKING: Period total rollups and their unique index are required; doctor, dashboard setup, and flush fail on stale projection schema.
-- Durable ingestion now runs as its own subsystem while ledger code owns persisted call and rollup rows.
-- ActiveRecord models now live under the Rails engine `app/models` autoload paths.
-- Ledger period totals and schema code now live under explicit `Ledger::Period` and `Ledger::Schema` namespaces.
-- Tag filtering and dashboard tag coverage now use adapter-specific JSON SQL while doctor validates the required tag column type.
-- Removed unused rollup total read paths and tag JSON schema predicates.
-- Model and data-quality dashboards now read canonical `TokenUsage` totals instead of view-local token mini-schemas.
-- Anthropic pricing now uses response cache-write TTL usage to price 1-hour cache writes separately.
-- Batch pricing now derives stackable cache rates and refuses unknown positive-token mode rates instead of falling back to standard prices.
+- BREAKING: ActiveRecord installs must run the current ledger and period-total migrations; doctor, dashboard setup, and flush now fail on stale schema.
+- BREAKING: `cache_write_input_tokens` now stores only standard cache writes; 1-hour cache writes use `cache_write_1h_input_tokens` and `cache_write_1h_input_cost`.
+- Dashboard model and data-quality pages now use canonical `TokenUsage` totals.
 - OpenAI, Anthropic, and RubyLLM capture now populate `pricing_mode` from provider tier data.
-- Gemini pricing now treats context cache reads separately and no longer exposes token-only cache-write prices.
-- Pricing now applies long-context rate tiers from `TokenUsage` input-side totals.
+- Pricing now handles Anthropic 1-hour cache-write TTLs, Gemini context-cache reads, stackable batch cache rates, and long-context tiers.
+- Missing positive-token pricing-mode rates now return unknown pricing instead of falling back to standard prices.
 
 ## [0.7.0] - 2026-04-29
 

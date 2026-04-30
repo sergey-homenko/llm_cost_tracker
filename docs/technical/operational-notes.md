@@ -34,7 +34,7 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets should read `llm_cost_tracker_period_totals` when the table exists and add pending `llm_cost_tracker_inbox_events` totals. Falling back to summing `llm_api_calls` is an upgrade compatibility path, not the preferred production path.
+Monthly and daily budgets read `llm_cost_tracker_period_totals` and add pending `llm_cost_tracker_inbox_events` totals. The period totals table and its unique `(period, period_start)` index are required current schema.
 
 The stored period total and pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 

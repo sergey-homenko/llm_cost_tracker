@@ -65,8 +65,13 @@ the calculator uses the matching `above_context_input`,
 
 ## Pricing Modes
 
-Pass `pricing_mode: :batch` when usage came from a provider batch job or another
-discounted mode:
+`pricing_mode` is the canonical field for alternate provider pricing tiers.
+OpenAI, Anthropic, and RubyLLM capture populate it from provider tier data when
+the response exposes that field. Standard aliases such as `standard`, `default`,
+`auto`, and `standard_only` are treated as normal pricing.
+
+Pass `pricing_mode: :batch` when usage came from a batch job, a gateway, or
+another path where the provider response does not expose the tier:
 
 ```ruby
 LlmCostTracker.track(

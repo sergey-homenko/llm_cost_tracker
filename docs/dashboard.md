@@ -17,6 +17,10 @@ Until this page is expanded, use:
 
 ## Mounting
 
+The dashboard is optional. A ledger-only install can omit `--dashboard`; capture,
+pricing, budgets, doctor, reports, and queries keep working without mounting the
+engine.
+
 ```ruby
 mount LlmCostTracker::Engine => "/llm-costs"
 ```

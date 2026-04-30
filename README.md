@@ -90,7 +90,7 @@ LlmCostTracker.with_tags(feature: "support_chat") do
 end
 ```
 
-Captures usage, model, latency, response ID, cache tokens, Anthropic cache-write TTLs, and reasoning tokens whenever the SDK exposes them. Provider SDKs are not added as gem dependencies — you install whichever you actually use.
+Captures usage, model, latency, response ID, pricing mode, cache tokens, Anthropic cache-write TTLs, and reasoning tokens whenever the SDK exposes them. Provider SDKs are not added as gem dependencies — you install whichever you actually use.
 
 Enabled integrations are checked at boot: the client gem must be loaded, meet the minimum supported version, and expose the expected classes and methods. If the contract check fails, boot raises instead of silently missing spend.
 
@@ -134,7 +134,7 @@ For streaming the same way, `track_stream` accepts a block, parses provider even
 
 ## Tags: who burned this money
 
-Tags answer the only question that matters in attribution: which feature, which user, which job, which tenant. They're free-form strings, indexed (JSONB on Postgres, fallback elsewhere), and queryable from both Ruby and the dashboard.
+Tags answer the only question that matters in attribution: which feature, which user, which job, which tenant. They're free-form strings, stored as JSONB on PostgreSQL or JSON on MySQL, and queryable from both Ruby and the dashboard.
 
 ```ruby
 LlmCostTracker.with_tags(user_id: current_user.id, feature: "support_chat", trace_id: request.uuid) do
@@ -172,7 +172,9 @@ Explain why a model is priced or unknown:
 PROVIDER=openai MODEL=gpt-4o bin/rails llm_cost_tracker:prices:explain
 ```
 
-Precedence is `pricing_overrides` → `prices_file` → bundled. Provider-qualified keys like `openai/gpt-4o-mini` win over model-only keys. Full pricing reference: [`docs/pricing.md`](docs/pricing.md).
+Precedence is `pricing_overrides` → `prices_file` → bundled. Provider-qualified keys like `openai/gpt-4o-mini` win over model-only keys.
+
+`pricing_mode` selects mode-prefixed rates such as `batch_input` or `priority_output`. Built-in capture fills it from provider tier fields when available; explicit `track` calls can pass it directly for batch jobs or gateway-specific modes. Full pricing reference: [`docs/pricing.md`](docs/pricing.md).
 
 ## Budgets
 

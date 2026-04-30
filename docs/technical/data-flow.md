@@ -8,7 +8,7 @@ This is the normal path from an application LLM call to stored ledger data.
 2. `LlmCostTracker::Middleware::Faraday` checks whether a parser matches the request URL.
 3. For non-streaming responses, the middleware passes request and response data to the parser.
 4. For streaming responses, the middleware tees `on_data`, collects stream events, and parses final usage when the stream completes.
-5. The parser returns `UsageCapture` with canonical `TokenUsage`.
+5. The parser returns `UsageCapture` with canonical `TokenUsage` and `pricing_mode` when provider tier data is present.
 6. `Tracker.record` prices and persists the event.
 
 ## SDK Integrations
@@ -18,7 +18,7 @@ This is the normal path from an application LLM call to stored ledger data.
 3. `LlmCostTracker::Integrations` prepends a narrow wrapper to supported SDK resource methods.
 4. The host app keeps calling the provider SDK normally.
 5. For streaming SDK calls, the wrapper passes the SDK stream through `Capture::StreamTracker` so the app still consumes the same stream object.
-6. The wrapper measures latency, extracts usage from the SDK response object or collected stream events, and sends `UsageCapture` to `Tracker.record`.
+6. The wrapper measures latency, extracts usage and provider tier data from the SDK response object or collected stream events, and sends `UsageCapture` to `Tracker.record`.
 7. If an explicitly enabled SDK is not loaded or does not satisfy the install contract, boot raises before the app silently misses usage.
 
 ## Explicit Tracking
@@ -33,8 +33,8 @@ This is the normal path from an application LLM call to stored ledger data.
 `Tracker.record` performs the central normalization step:
 
 1. Blank model identifiers become `unknown`.
-2. `UsageCapture` carries provider identity, model identity, stream metadata, response identity, and `TokenUsage`.
-3. `Pricing.cost_for` prices the `TokenUsage` and returns cost attributes or `nil` for unknown pricing.
+2. `UsageCapture` carries provider identity, model identity, stream metadata, response identity, `pricing_mode`, and `TokenUsage`.
+3. `Pricing.cost_for` prices the `TokenUsage` with the normalized `pricing_mode` and returns cost attributes or `nil` for unknown pricing.
 4. Tags are merged from `with_tags`, `default_tags`, middleware tags, and explicit metadata.
 5. An `Event` is created around `TokenUsage` and emitted through `ActiveSupport::Notifications`.
 6. The durable ingestion inbox receives the event.
