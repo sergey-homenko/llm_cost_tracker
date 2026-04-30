@@ -42,7 +42,22 @@ module LlmCostTrackerEngineContext
         t.timestamps
       end
     end
+    create_period_totals_table
     create_ingestion_tables
+  end
+
+  def create_period_totals_table
+    ActiveRecord::Schema.define do
+      create_table :llm_cost_tracker_period_totals, force: true do |t|
+        t.string :period, null: false
+        t.date :period_start, null: false
+        t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
+
+        t.timestamps
+      end
+
+      add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
+    end
   end
 
   def create_ingestion_tables
@@ -96,7 +111,9 @@ module LlmCostTrackerEngineContext
                            attrs.fetch(:output_tokens)
     attrs[:tags] = tags_for_database(attrs.fetch(:tags))
 
-    LlmCostTracker::Ledger::Call.create!(attrs)
+    call = LlmCostTracker::Ledger::Call.create!(attrs)
+    LlmCostTracker::Ledger::Rollups.increment!(call)
+    call
   end
 end
 
@@ -113,6 +130,7 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
     establish_database_connection!
     create_llm_api_calls_table
     LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
   end

@@ -35,6 +35,5 @@ module LlmCostTrackerDatabaseSpecHelpers
     ].each do |table|
       connection.drop_table(table, if_exists: true)
     end
-    LlmCostTracker::Ledger::Rollups.reset!
   end
 end

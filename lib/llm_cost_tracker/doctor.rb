@@ -15,7 +15,7 @@ module LlmCostTracker
       "usage_source" => "bin/rails generate llm_cost_tracker:add_streaming",
       "provider_response_id" => "bin/rails generate llm_cost_tracker:add_provider_response_id"
     }.merge(
-      (TokenUsage::OPTIONAL_STORED_KEYS + TokenUsage::OPTIONAL_COST_KEYS + %i[pricing_mode]).to_h do |column|
+      (TokenUsage::UPGRADE_STORED_KEYS + TokenUsage::UPGRADE_COST_KEYS + %i[pricing_mode]).to_h do |column|
         [column.to_s, "bin/rails generate llm_cost_tracker:add_token_usage"]
       end
     ).freeze
@@ -118,11 +118,16 @@ module LlmCostTracker
 
     def period_totals_check
       return unless llm_api_calls_table?
-      if table_exists?("llm_cost_tracker_period_totals")
-        return Check.new(:ok, "period totals", "llm_cost_tracker_period_totals exists")
-      end
 
-      Check.new(:warn, "period totals", "missing; budget preflight falls back to llm_api_calls sums")
+      errors = LlmCostTracker::Ledger::Schema::PeriodTotals.current_schema_errors
+      return Check.new(:ok, "period totals", "llm_cost_tracker_period_totals exists") if errors.empty?
+
+      Check.new(
+        :error,
+        "period totals",
+        "current schema required; #{errors.join('; ')}; " \
+        "run bin/rails generate llm_cost_tracker:add_period_totals && bin/rails db:migrate"
+      )
     end
 
     def calls_check

@@ -6,11 +6,6 @@
 <% streaming_missing_usage = @stats.streaming_missing_usage_count&.to_i %>
 <% missing_provider_response_id_count = @stats.missing_provider_response_id_count&.to_i %>
 <% calls_with_provider_response_id = total - missing_provider_response_id_count %>
-<% usage_components = token_usage_quality_components %>
-<% billable_tokens = usage_components.sum { |component| component.fetch(:cost_key) ? @stats[component.fetch(:token_key)].to_i : 0 } %>
-<% hidden_output_tokens = @stats.hidden_output_tokens.to_i %>
-<% output_tokens = @stats.output_tokens.to_i %>
-<% hidden_output_share = coverage_percent(hidden_output_tokens, output_tokens) %>
 
 <section class="lct-panel lct-toolbar">
   <div class="lct-toolbar-head">
@@ -120,11 +115,11 @@
           <p class="lct-stat-sub"><%= percent(coverage_percent(calls_with_provider_response_id, total)) %> of calls</p>
         </article>
 
-        <% if output_tokens.positive? %>
+        <% if @hidden_output_summary %>
           <article class="lct-stat">
             <p class="lct-stat-label">Hidden output share</p>
-            <p class="lct-stat-value"><%= percent(hidden_output_share) %></p>
-            <p class="lct-stat-sub"><%= number(hidden_output_tokens) %> of <%= number(output_tokens) %> output tokens</p>
+            <p class="lct-stat-value"><%= percent(@hidden_output_summary.fetch(:share_percent)) %></p>
+            <p class="lct-stat-sub"><%= number(@hidden_output_summary.fetch(:hidden_output_tokens)) %> of <%= number(@hidden_output_summary.fetch(:output_tokens)) %> output tokens</p>
           </article>
         <% end %>
       </div>
@@ -264,17 +259,17 @@
           </tr>
         </thead>
         <tbody>
-          <% usage_components.each do |component| %>
-            <% token_value = @stats[component.fetch(:token_key)] %>
-            <% cost_key = component.fetch(:cost_key) %>
-            <% cost_value = cost_key && @stats[cost_key] %>
+          <% @usage_rows.each do |row| %>
+            <% token_key = row.fetch(:token_key) %>
+            <% cost_key = row.fetch(:cost_key) %>
+            <% cost_value = row.fetch(:cost_value) %>
             <tr>
-              <td><%= component.fetch(:label) %></td>
-              <td class="lct-num"><%= number(token_value) %></td>
-              <% if component.fetch(:token_key) == :hidden_output_tokens %>
-                <td class="lct-num"><%= percent(hidden_output_share) %> of output</td>
+              <td><%= token_usage_quality_label(token_key) %></td>
+              <td class="lct-num"><%= number(row.fetch(:token_value)) %></td>
+              <% if row.fetch(:share_basis) == :output %>
+                <td class="lct-num"><%= percent(row.fetch(:share_percent)) %> of output</td>
               <% else %>
-                <td class="lct-num"><%= percent(coverage_percent(token_value, billable_tokens)) %></td>
+                <td class="lct-num"><%= percent(row.fetch(:share_percent)) %></td>
               <% end %>
               <td class="lct-num<%= ' lct-num-muted' if cost_key.nil? || cost_value.nil? %>">
                 <%= cost_key ? optional_money(cost_value) : "n/a" %>

@@ -37,13 +37,11 @@ RSpec.describe LlmCostTracker::Retention do
     end
     LlmCostTracker::Ledger::Call.reset_column_information
     LlmCostTracker::Ledger::Period::Total.reset_column_information
-    LlmCostTracker::Ledger::Rollups.reset!
   end
 
   after do
     disconnect_database!
     LlmCostTracker::Ledger::Call.reset_column_information
-    LlmCostTracker::Ledger::Rollups.reset!
   end
 
   def create_call(tracked_at:, total_cost: nil)

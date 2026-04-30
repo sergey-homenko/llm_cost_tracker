@@ -34,6 +34,8 @@ module LlmCostTracker
         end
 
         def flush!(timeout: FLUSH_TIMEOUT_SECONDS, require_lease: false)
+          Ingestion.ensure_current_schema!
+
           deadline = Time.now.utc + timeout
           loop do
             return true unless Ingestion::Batch.new(identity: identity).pending?

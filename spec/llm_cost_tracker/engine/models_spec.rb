@@ -19,9 +19,9 @@ RSpec.describe "LlmCostTracker::Engine models" do
 
   it "renders models aggregated by provider and model, sorted by total cost" do
     create_call(provider: "openai", model: "gpt-4o",
-                input_tokens: 100, output_tokens: 50, total_cost: 1.5, latency_ms: 200)
+                input_tokens: 100, cache_read_input_tokens: 25, output_tokens: 50, total_cost: 1.5, latency_ms: 200)
     create_call(provider: "openai", model: "gpt-4o",
-                input_tokens: 200, output_tokens: 100, total_cost: 2.5, latency_ms: 300)
+                input_tokens: 200, cache_write_input_tokens: 25, output_tokens: 100, total_cost: 2.5, latency_ms: 300)
     create_call(provider: "anthropic", model: "claude-haiku-4-5",
                 input_tokens: 10, output_tokens: 5, total_cost: 0.5, latency_ms: 100)
 
@@ -37,6 +37,9 @@ RSpec.describe "LlmCostTracker::Engine models" do
     expect(response.body).to include("$2.00")
     expect(response.body).to include("$0.50")
     expect(response.body).to include("250ms")
+    expect(response.body).to include("Total tokens")
+    expect(response.body).to include("Regular input")
+    expect(response.body).to include("500")
     expect(response.body).to include("300")
     expect(response.body).to include("150")
     expect(response.body).to include("/llm-costs/calls?model=gpt-4o&amp;provider=openai")

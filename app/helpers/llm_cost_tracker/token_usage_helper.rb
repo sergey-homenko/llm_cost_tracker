@@ -30,8 +30,8 @@ module LlmCostTracker
       end
     end
 
-    def token_usage_quality_components
-      token_usage_display_components(labels: QUALITY_LABELS)
+    def token_usage_quality_label(token_key)
+      QUALITY_LABELS.fetch(token_key.to_sym)
     end
 
     private

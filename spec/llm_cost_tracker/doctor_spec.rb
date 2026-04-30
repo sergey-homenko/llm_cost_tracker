@@ -71,8 +71,8 @@ RSpec.describe LlmCostTracker::Doctor do
 
   it "maps token usage and cost columns to the token usage generator" do
     columns = [
-      *LlmCostTracker::TokenUsage::OPTIONAL_STORED_KEYS,
-      *LlmCostTracker::TokenUsage::OPTIONAL_COST_KEYS,
+      *LlmCostTracker::TokenUsage::UPGRADE_STORED_KEYS,
+      *LlmCostTracker::TokenUsage::UPGRADE_COST_KEYS,
       :pricing_mode
     ].map(&:to_s)
 
@@ -90,9 +90,30 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(checks).to include(
         have_attributes(status: :ok, name: "llm_api_calls"),
         have_attributes(status: :ok, name: "llm_api_calls columns"),
-        have_attributes(status: :warn, name: "period totals"),
+        have_attributes(status: :ok, name: "period totals"),
         have_attributes(status: :warn, name: "tracked calls")
       )
+    end
+
+    it "fails when period totals are missing" do
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_period_totals)
+
+      check = described_class.call.find { |item| item.name == "period totals" }
+
+      expect(check).to have_attributes(status: :error)
+      expect(check.message).to include("current schema required")
+      expect(check.message).to include("llm_cost_tracker_period_totals table is missing")
+      expect(check.message).to include("llm_cost_tracker:add_period_totals")
+    end
+
+    it "fails when period totals lack the current unique index" do
+      ActiveRecord::Base.connection.remove_index(:llm_cost_tracker_period_totals, %i[period period_start])
+
+      check = described_class.call.find { |item| item.name == "period totals" }
+
+      expect(check).to have_attributes(status: :error)
+      expect(check.message).to include("missing unique index: period, period_start")
+      expect(check.message).to include("llm_cost_tracker:add_period_totals")
     end
 
     it "fails when the ledger table does not match the current schema" do

@@ -3,6 +3,7 @@
 require "securerandom"
 
 require_relative "doctor/check"
+require_relative "errors"
 require_relative "ledger"
 require_relative "ingestion/lease_claim"
 require_relative "ingestion/inbox"
@@ -14,6 +15,24 @@ module LlmCostTracker
     VERIFY_TAG = "llm_cost_tracker_verify"
 
     class << self
+      def ensure_current_schema!
+        unless Ledger::Call.table_exists?
+          raise Error, "llm_api_calls table is missing; run install generator and migrate"
+        end
+
+        schema_errors = Ledger::Call.current_schema_errors
+        message = "llm_api_calls table is not on the current schema: #{schema_errors.join('; ')}"
+        raise Error, message if schema_errors.any?
+
+        period_total_errors = Ledger::Schema::PeriodTotals.current_schema_errors
+        return if period_total_errors.empty?
+
+        message = "llm_cost_tracker_period_totals table is not on the current schema: " \
+                  "#{period_total_errors.join('; ')}; " \
+                  "run bin/rails generate llm_cost_tracker:add_period_totals && bin/rails db:migrate"
+        raise Error, message
+      end
+
       def verify
         unless LlmCostTracker::Ledger::Call.table_exists?
           return [

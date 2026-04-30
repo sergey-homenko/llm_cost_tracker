@@ -10,13 +10,8 @@ module LlmCostTracker
   module Ledger
     class Rollups
       class << self
-        def reset!
-          remove_instance_variable(:@period_totals_enabled) if instance_variable_defined?(:@period_totals_enabled)
-        end
-
         def increment!(event)
           return unless event.total_cost
-          return unless period_totals_enabled?
 
           Period::Total.upsert_all(
             period_rows(event),
@@ -29,7 +24,6 @@ module LlmCostTracker
         def increment_many!(events)
           events = Array(events).select(&:total_cost)
           return if events.empty?
-          return unless period_totals_enabled?
 
           Period::Total.upsert_all(
             Ledger::Rollups::Batch.rows(events),
@@ -40,8 +34,6 @@ module LlmCostTracker
         end
 
         def decrement!(call_rows)
-          return unless period_totals_enabled?
-
           totals = period_decrement_totals(call_rows)
           return if totals.empty?
 
@@ -82,13 +74,6 @@ module LlmCostTracker
             row.update_columns(total_cost: [BigDecimal(row.total_cost.to_s) - amount, BigDecimal("0")].max,
                                updated_at: now)
           end
-        end
-
-        def period_totals_enabled?
-          return @period_totals_enabled unless @period_totals_enabled.nil?
-
-          @period_totals_enabled =
-            LlmCostTracker::Ledger::Call.connection.data_source_exists?("llm_cost_tracker_period_totals")
         end
 
         def unique_by(model, column)

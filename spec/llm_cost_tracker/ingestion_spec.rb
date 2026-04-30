@@ -77,7 +77,6 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
-    LlmCostTracker::Ledger::Rollups.reset!
 
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end

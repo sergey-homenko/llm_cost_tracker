@@ -31,6 +31,14 @@ RSpec.describe LlmCostTracker::Report do
         t.timestamps
       end
 
+      create_table :llm_cost_tracker_period_totals, force: true do |t|
+        t.string :period, null: false
+        t.date :period_start, null: false
+        t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
+
+        t.timestamps
+      end
+
       create_table :llm_cost_tracker_inbox_events, force: true do |t|
         t.string :event_id, null: false
         t.decimal :total_cost, precision: 20, scale: 8
@@ -52,11 +60,13 @@ RSpec.describe LlmCostTracker::Report do
         t.timestamps
       end
 
+      add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
       add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
       add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
     end
 
     LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)

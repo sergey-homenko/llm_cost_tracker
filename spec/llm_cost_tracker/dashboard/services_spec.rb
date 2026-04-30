@@ -25,12 +25,27 @@ RSpec.describe "LlmCostTracker dashboard services" do
         table.timestamps
       end
     end
+    create_period_totals_table
     create_ingestion_tables
 
     LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
-    LlmCostTracker::Ledger::Rollups.reset!
+  end
+
+  def create_period_totals_table
+    ActiveRecord::Schema.define do
+      create_table :llm_cost_tracker_period_totals, force: true do |table|
+        table.string :period, null: false
+        table.date :period_start, null: false
+        table.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
+
+        table.timestamps
+      end
+
+      add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
+    end
   end
 
   def create_ingestion_tables
@@ -66,7 +81,9 @@ RSpec.describe "LlmCostTracker dashboard services" do
     attrs[:total_tokens] = total_tokens_for(attrs)
     attrs[:tags] = tags_for_database(attrs.fetch(:tags))
 
-    LlmCostTracker::Ledger::Call.create!(attrs)
+    call = LlmCostTracker::Ledger::Call.create!(attrs)
+    LlmCostTracker::Ledger::Rollups.increment!(call)
+    call
   end
 
   def add_usage_columns(table)
@@ -558,6 +575,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(rows.map(&:model)).to eq(["gpt-4o", "claude-haiku-4-5"])
       expect(rows.first.total_cost).to eq(5.0)
       expect(rows.first.calls).to eq(2)
+      expect(rows.first.total_tokens).to eq(45)
       expect(rows.first.input_tokens).to eq(30)
       expect(rows.first.output_tokens).to eq(15)
       expect(rows.first.average_cost_per_call).to eq(2.5)
@@ -677,6 +695,22 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.cache_write_input_cost.to_f).to eq(0.03)
       expect(stats.cache_write_1h_input_cost.to_f).to eq(0.09)
       expect(stats.output_cost.to_f).to eq(0.6)
+      expect(stats.billable_tokens.to_i).to eq(492)
+      expect(stats.hidden_output_share.to_f).to eq(15.0)
+
+      rows = described_class.usage_rows(stats)
+      regular_input = rows.find { |row| row.fetch(:token_key) == :input_tokens }
+      hidden_output = rows.find { |row| row.fetch(:token_key) == :hidden_output_tokens }
+
+      expect(regular_input).to include(token_value: 300, cost_value: stats.input_cost)
+      expect(regular_input.fetch(:share_percent)).to be_within(0.1).of(60.97)
+      expect(hidden_output).to include(token_value: 15, cost_value: nil, share_basis: :output)
+      expect(hidden_output.fetch(:share_percent)).to eq(15.0)
+      expect(described_class.hidden_output_summary(stats)).to eq(
+        hidden_output_tokens: 15,
+        output_tokens: 100,
+        share_percent: 15.0
+      )
     end
 
     it "reads aggregate counters and sums without count fan-out" do

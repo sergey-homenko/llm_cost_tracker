@@ -4,7 +4,7 @@ module LlmCostTracker
   class ApplicationController < ActionController::Base
     layout "llm_cost_tracker/application"
 
-    before_action :ensure_llm_api_calls_table
+    before_action :ensure_current_schema
 
     rescue_from ActiveRecord::ConnectionNotEstablished, with: :render_database_error
     rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
@@ -13,7 +13,7 @@ module LlmCostTracker
 
     private
 
-    def ensure_llm_api_calls_table
+    def ensure_current_schema
       model = LlmCostTracker::Ledger::Call
       unless model.table_exists?
         @setup_message = "The llm_api_calls table is not available yet."
@@ -21,10 +21,20 @@ module LlmCostTracker
       end
 
       schema_errors = model.current_schema_errors
-      return if schema_errors.empty?
+      if schema_errors.any?
+        @setup_message = "The llm_api_calls table does not match the current LLM Cost Tracker schema."
+        @setup_details = schema_errors
+        render template: "llm_cost_tracker/shared/setup_required"
+        return
+      end
 
-      @setup_message = "The llm_api_calls table does not match the current LLM Cost Tracker schema."
-      @setup_details = schema_errors
+      period_total_errors = LlmCostTracker::Ledger::Schema::PeriodTotals.current_schema_errors
+      return if period_total_errors.empty?
+
+      @setup_message = "The llm_cost_tracker_period_totals table does not match the current LLM Cost Tracker schema."
+      @setup_details = period_total_errors + [
+        "run bin/rails generate llm_cost_tracker:add_period_totals && bin/rails db:migrate"
+      ]
       render template: "llm_cost_tracker/shared/setup_required"
     end
 

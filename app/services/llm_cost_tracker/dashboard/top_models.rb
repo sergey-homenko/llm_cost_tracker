@@ -51,6 +51,7 @@ module LlmCostTracker
           "COUNT(*) AS calls",
           "COALESCE(SUM(total_cost), 0) AS total_cost",
           "COALESCE(SUM(total_cost), 0) / NULLIF(COUNT(*), 0) AS average_cost_per_call",
+          "COALESCE(SUM(total_tokens), 0) AS total_tokens",
           "COALESCE(SUM(input_tokens), 0) AS input_tokens",
           "COALESCE(SUM(output_tokens), 0) AS output_tokens",
           "AVG(latency_ms) AS average_latency_ms"

@@ -71,7 +71,8 @@
             <th>Provider</th>
             <th>Model</th>
             <th class="lct-num">Calls</th>
-            <th class="lct-num">Input</th>
+            <th class="lct-num">Total tokens</th>
+            <th class="lct-num">Regular input</th>
             <th class="lct-num">Output</th>
             <th class="lct-num">Total cost</th>
             <th class="lct-num">Avg cost / call</th>
@@ -85,6 +86,7 @@
               <td><%= row.provider %></td>
               <td><code class="lct-code"><%= row.model %></code></td>
               <td class="lct-num"><%= number(row.calls) %></td>
+              <td class="lct-num"><%= format_tokens(row.total_tokens) %></td>
               <td class="lct-num"><%= format_tokens(row.input_tokens) %></td>
               <td class="lct-num"><%= format_tokens(row.output_tokens) %></td>
               <td class="lct-num"><%= money(row.total_cost) %></td>

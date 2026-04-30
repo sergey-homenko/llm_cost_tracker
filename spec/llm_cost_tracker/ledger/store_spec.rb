@@ -336,23 +336,18 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(total).to eq(0.00265)
   end
 
-  it "falls back to llm_api_calls sums when period rollups are unavailable" do
+  it "raises when period rollups are unavailable" do
     ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_period_totals)
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
-    track_and_flush(
-      provider: :openai,
-      model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0
-    )
-
-    monthly_total = LlmCostTracker::Ledger::Period::Totals.call(%i[monthly], time: Time.now.utc).fetch(:monthly)
-    daily_total = LlmCostTracker::Ledger::Period::Totals
-                  .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
-                  .fetch(:daily)
-    expect(monthly_total).to eq(0.0025)
-    expect(daily_total).to eq(0.0025)
+    expect do
+      track_and_flush(
+        provider: :openai,
+        model: "gpt-4o",
+        input_tokens: 1_000,
+        output_tokens: 0
+      )
+    end.to raise_error(LlmCostTracker::Error, /llm_cost_tracker_period_totals/)
   end
 
   it "reads daily and monthly period totals together" do

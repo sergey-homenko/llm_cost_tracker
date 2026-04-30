@@ -20,6 +20,42 @@ module LlmCostTracker
                .limit(10)
         end
 
+        def usage_rows(stats)
+          billable_tokens = stats.billable_tokens.to_f
+
+          TokenUsage::COMPONENTS.map do |component|
+            token_key = component.fetch(:token_key)
+            cost_key = component.fetch(:cost_key)
+            token_value = stats[token_key].to_i
+            hidden_output = token_key == :hidden_output_tokens
+            share_percent = if hidden_output
+                              stats.hidden_output_share.to_f
+                            elsif billable_tokens.positive?
+                              (token_value.to_f / billable_tokens) * 100.0
+                            else
+                              0.0
+                            end
+
+            component.merge(
+              token_value: token_value,
+              cost_value: cost_key && stats[cost_key],
+              share_percent: share_percent,
+              share_basis: hidden_output ? :output : nil
+            )
+          end
+        end
+
+        def hidden_output_summary(stats)
+          output_tokens = stats.output_tokens.to_i
+          return unless output_tokens.positive?
+
+          {
+            hidden_output_tokens: stats.hidden_output_tokens.to_i,
+            output_tokens: output_tokens,
+            share_percent: stats.hidden_output_share.to_f
+          }
+        end
+
         private
 
         def aggregate_selects(scope, model:)
@@ -35,8 +71,11 @@ module LlmCostTracker
           ]
 
           usage_sum_columns.each do |column|
-            selects << "COALESCE(SUM(#{scope.connection.quote_column_name(column)}), 0) AS #{column}"
+            selects << "#{column_sum(scope, column)} AS #{column}"
           end
+
+          selects << "#{billable_tokens_select(scope)} AS billable_tokens"
+          selects << "#{hidden_output_share_select(scope)} AS hidden_output_share"
 
           selects.join(", ")
         end
@@ -44,6 +83,23 @@ module LlmCostTracker
         def usage_sum_columns
           TokenUsage::COMPONENTS.map { |component| component.fetch(:token_key) } +
             TokenUsage::PRICED_COMPONENTS.map { |component| component.fetch(:cost_key) }
+        end
+
+        def billable_tokens_select(scope)
+          TokenUsage::PRICED_COMPONENTS
+            .map { |component| column_sum(scope, component.fetch(:token_key)) }
+            .join(" + ")
+        end
+
+        def hidden_output_share_select(scope)
+          hidden_output = column_sum(scope, :hidden_output_tokens)
+          output = column_sum(scope, :output_tokens)
+
+          "CASE WHEN #{output} > 0 THEN #{hidden_output} * 100.0 / #{output} ELSE 0 END"
+        end
+
+        def column_sum(scope, column)
+          "COALESCE(SUM(#{scope.connection.quote_column_name(column)}), 0)"
         end
 
         def conditional_count_sql(predicate)
