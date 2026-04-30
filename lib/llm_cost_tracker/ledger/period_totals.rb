@@ -1,11 +1,10 @@
 # frozen_string_literal: true
 
-require_relative "../ingestion/event"
 require_relative "periods"
 require_relative "rollups"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     class PeriodTotals
       def self.call(periods, time:)
         new(periods, time: time).totals

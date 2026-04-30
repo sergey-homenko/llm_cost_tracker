@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require_relative "database_adapter"
-require_relative "../token_usage"
+require "llm_cost_tracker/ledger/database_adapter"
+require "llm_cost_tracker/token_usage"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     module SchemaCapabilities
       CURRENT_SCHEMA_COLUMNS = (
         %i[event_id provider model latency_ms stream usage_source provider_response_id pricing_mode tags tracked_at] +

@@ -3,7 +3,7 @@
 require "active_record"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     class PeriodTotal < ActiveRecord::Base
       self.table_name = "llm_cost_tracker_period_totals"
     end

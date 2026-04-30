@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require_relative "database_adapter"
+require "llm_cost_tracker/ledger/database_adapter"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     module PeriodGrouping
       PERIOD_FORMATS = {
         day: {

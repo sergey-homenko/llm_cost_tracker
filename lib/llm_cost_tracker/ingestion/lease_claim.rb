@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "lease"
-
 module LlmCostTracker
   module Ingestion
     class LeaseClaim

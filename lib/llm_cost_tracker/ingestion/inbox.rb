@@ -4,7 +4,6 @@ require "json"
 require "time"
 
 require_relative "../event"
-require_relative "event"
 
 module LlmCostTracker
   module Ingestion

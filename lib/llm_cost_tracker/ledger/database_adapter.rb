@@ -3,7 +3,7 @@
 require_relative "../errors"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     module DatabaseAdapter
       MYSQL_ADAPTERS = %w[
         ActiveRecord::ConnectionAdapters::AbstractMysqlAdapter

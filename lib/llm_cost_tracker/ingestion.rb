@@ -4,8 +4,6 @@ require "securerandom"
 
 require_relative "doctor/check"
 require_relative "ledger"
-require_relative "ingestion/event"
-require_relative "ingestion/lease"
 require_relative "ingestion/lease_claim"
 require_relative "ingestion/inbox"
 require_relative "ingestion/batch"

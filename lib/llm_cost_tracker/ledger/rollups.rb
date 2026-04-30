@@ -2,13 +2,12 @@
 
 require "bigdecimal"
 
-require_relative "period_total"
 require_relative "periods"
 require_relative "rollups/batch"
 require_relative "rollups/upsert_sql"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     class Rollups
       class << self
         def reset!

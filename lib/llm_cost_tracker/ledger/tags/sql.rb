@@ -6,7 +6,7 @@ require_relative "../database_adapter"
 require_relative "../../tags/key"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     module Tags
       module Sql
         class << self

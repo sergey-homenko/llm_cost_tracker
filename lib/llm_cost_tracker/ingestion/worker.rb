@@ -5,7 +5,6 @@ require "securerandom"
 
 require_relative "inbox"
 require_relative "batch"
-require_relative "event"
 require_relative "lease_claim"
 require_relative "../logging"
 

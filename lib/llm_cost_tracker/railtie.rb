@@ -2,6 +2,12 @@
 
 module LlmCostTracker
   class Railtie < Rails::Railtie
+    initializer "llm_cost_tracker.app_models_autoload_paths", before: :set_autoload_paths do |app|
+      models_path = File.expand_path("../../app/models", __dir__)
+      app.config.autoload_paths << models_path unless app.config.autoload_paths.include?(models_path)
+      app.config.eager_load_paths << models_path unless app.config.eager_load_paths.include?(models_path)
+    end
+
     generators do
       require_relative "generators/llm_cost_tracker/add_ingestion_generator"
       require_relative "generators/llm_cost_tracker/add_period_totals_generator"

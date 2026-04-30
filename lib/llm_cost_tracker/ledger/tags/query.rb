@@ -3,7 +3,7 @@
 require "json"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     module Tags
       module Query
         class << self

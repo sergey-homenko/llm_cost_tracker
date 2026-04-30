@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "inbox"
-require_relative "event"
 require_relative "../ledger/store"
 
 module LlmCostTracker

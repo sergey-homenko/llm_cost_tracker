@@ -32,6 +32,14 @@ end
 
 require "webmock/rspec"
 require "llm_cost_tracker"
+require_relative "../app/models/llm_cost_tracker/ledger/call_metrics"
+require_relative "../app/models/llm_cost_tracker/ledger/period_grouping"
+require_relative "../app/models/llm_cost_tracker/ledger/schema_capabilities"
+require_relative "../app/models/llm_cost_tracker/ledger/tags/accessors"
+require_relative "../app/models/llm_cost_tracker/ledger/call"
+require_relative "../app/models/llm_cost_tracker/ledger/period_total"
+require_relative "../app/models/llm_cost_tracker/ingestion/event"
+require_relative "../app/models/llm_cost_tracker/ingestion/lease"
 
 $LOAD_PATH.unshift File.expand_path("../scripts", __dir__)
 

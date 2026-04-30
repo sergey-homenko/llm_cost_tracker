@@ -3,7 +3,7 @@
 require_relative "rollups"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     class Store
       class << self
         def insert_many(events)

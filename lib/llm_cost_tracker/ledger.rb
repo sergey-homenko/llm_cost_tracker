@@ -1,15 +1,9 @@
 # frozen_string_literal: true
 
 require_relative "ledger/database_adapter"
-require_relative "ledger/schema_capabilities"
-require_relative "ledger/period_grouping"
-require_relative "ledger/tags/accessors"
 require_relative "ledger/tags/query"
 require_relative "ledger/tags/sql"
-require_relative "ledger/call_metrics"
-require_relative "ledger/call"
 require_relative "ledger/periods"
-require_relative "ledger/period_total"
 require_relative "ledger/rollups/batch"
 require_relative "ledger/rollups/upsert_sql"
 require_relative "ledger/rollups"

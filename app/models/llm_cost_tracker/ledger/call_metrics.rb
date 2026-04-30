@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require_relative "tags/sql"
+require "llm_cost_tracker/ledger/tags/sql"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     module CallMetrics
       def total_cost
         sum(:total_cost).to_f

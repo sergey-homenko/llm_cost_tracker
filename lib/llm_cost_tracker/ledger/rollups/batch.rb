@@ -5,7 +5,7 @@ require "bigdecimal"
 require_relative "../periods"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     class Rollups
       class Batch
         def self.rows(events)

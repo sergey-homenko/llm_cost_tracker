@@ -3,7 +3,7 @@
 require_relative "../database_adapter"
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     class Rollups
       class UpsertSql
         def self.call(model)

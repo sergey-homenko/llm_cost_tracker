@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module LlmCostTracker
-  class Ledger
+  module Ledger
     module Periods
       PERIODS = {
         monthly: "month",

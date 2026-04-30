@@ -2,14 +2,8 @@
 
 require "active_record"
 
-require_relative "call_metrics"
-require_relative "period_grouping"
-require_relative "tags/accessors"
-require_relative "tags/query"
-require_relative "schema_capabilities"
-
 module LlmCostTracker
-  class Ledger
+  module Ledger
     class Call < ActiveRecord::Base
       extend Ledger::PeriodGrouping
       extend Ledger::SchemaCapabilities
