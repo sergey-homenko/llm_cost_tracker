@@ -35,7 +35,7 @@ Drop this into `config/initializers/llm_cost_tracker.rb`:
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.default_tags    = -> { { environment: Rails.env } }
+  config.default_tags = -> { { environment: Rails.env } }
   config.instrument :openai
 end
 ```
@@ -78,7 +78,7 @@ Drop-in for RubyLLM and the official `openai` and `anthropic` gems. `config.inst
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.instrument :openai      # or :anthropic / :ruby_llm
+  config.instrument :openai # or :anthropic / :ruby_llm
 end
 
 LlmCostTracker.with_tags(feature: "support_chat") do
@@ -137,7 +137,7 @@ For streaming the same way, `track_stream` accepts a block, parses provider even
 Tags answer the only question that matters in attribution: which feature, which user, which job, which tenant. They're free-form strings, stored as JSONB on PostgreSQL or JSON on MySQL, and queryable from both Ruby and the dashboard.
 
 ```ruby
-LlmCostTracker.with_tags(user_id: current_user.id, feature: "support_chat", trace_id: request.uuid) do
+LlmCostTracker.with_tags(user_id: current_user.id, feature: "support_chat") do
   client.chat(parameters: { model: "gpt-4o", messages: [...] })
 end
 ```
@@ -184,7 +184,7 @@ Budgets are guardrails, not transactional caps:
 config.monthly_budget           = 500.00
 config.daily_budget             = 50.00
 config.per_call_budget          = 2.00
-config.budget_exceeded_behavior = :block_requests   # or :notify, :raise
+config.budget_exceeded_behavior = :block_requests # or :notify, :raise
 config.on_budget_exceeded       = ->(data) { SlackNotifier.notify("#alerts", "...") }
 ```
 
@@ -275,10 +275,10 @@ is still brief.
 
 ```bash
 bundle install
-bin/check       # rubocop + rspec + coverage gate
+bin/check # rubocop + rspec + coverage gate
 ```
 
-Architecture rules and conventions for contributions live in [`AGENTS.md`](AGENTS.md) and [`docs/architecture.md`](docs/architecture.md).
+Architecture rules and conventions for contributions live in [`docs/architecture.md`](docs/architecture.md).
 
 ## License
 
