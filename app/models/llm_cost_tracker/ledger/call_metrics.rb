@@ -47,10 +47,6 @@ module LlmCostTracker
         group(:provider).average(:latency_ms).transform_values(&:to_f)
       end
 
-      def tag_value_label(value)
-        Ledger::Tags::Sql.value_label(value)
-      end
-
       def tag_value_expression(key, table_name: quoted_table_name)
         Ledger::Tags::Sql.value_expression(self, key, table_name: table_name)
       end

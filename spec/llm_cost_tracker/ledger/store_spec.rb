@@ -159,15 +159,15 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.total_cost.to_f).to eq(1.5)
   end
 
-  it "refreshes current schema capability checks after reset_column_information" do
-    expect(LlmCostTracker::Ledger::Call.current_schema?).to be true
+  it "refreshes current schema checks after reset_column_information" do
+    expect(LlmCostTracker::Ledger::Schema::Calls.current_schema?).to be true
 
     ActiveRecord::Base.connection.remove_column(:llm_api_calls, :pricing_mode)
     LlmCostTracker::Ledger::Call.reset_column_information
 
-    expect(LlmCostTracker::Ledger::Call.current_schema?).to be false
-    expect(LlmCostTracker::Ledger::Call.missing_current_schema_columns).to include("pricing_mode")
-    expect(LlmCostTracker::Ledger::Call.current_schema_errors.join).to include("missing columns: pricing_mode")
+    expect(LlmCostTracker::Ledger::Schema::Calls.current_schema?).to be false
+    expect(LlmCostTracker::Ledger::Schema::Calls.missing_current_schema_columns).to include("pricing_mode")
+    expect(LlmCostTracker::Ledger::Schema::Calls.current_schema_errors.join).to include("missing columns: pricing_mode")
   end
 
   it "reports adapter-specific tag column type errors" do
@@ -175,8 +175,11 @@ RSpec.describe "ActiveRecord storage integration" do
       ["PostgreSQL", double(type: :json, sql_type: "json"), "tags column must use jsonb"],
       ["Mysql2", double(type: :text, sql_type: "text"), "tags column must use json"]
     ].each do |adapter_name, column, message|
-      capabilities = LlmCostTracker::Ledger::Call.send(:build_lct_schema_capabilities, { "tags" => column },
-                                                       adapter_name)
+      capabilities = LlmCostTracker::Ledger::Schema::Calls.send(
+        :build_schema_capabilities,
+        { "tags" => column },
+        adapter_name
+      )
 
       expect(capabilities.fetch(:current_schema_errors)).to include(message)
     end
@@ -789,9 +792,9 @@ RSpec.describe "ActiveRecord storage integration" do
     ActiveRecord::Base.connection.remove_column(:llm_api_calls, :latency_ms)
     LlmCostTracker::Ledger::Call.reset_column_information
 
-    expect(LlmCostTracker::Ledger::Call.current_schema?).to be false
-    expect(LlmCostTracker::Ledger::Call.missing_current_schema_columns).to include("latency_ms")
-    expect(LlmCostTracker::Ledger::Call.current_schema_errors.join).to include("missing columns: latency_ms")
+    expect(LlmCostTracker::Ledger::Schema::Calls.current_schema?).to be false
+    expect(LlmCostTracker::Ledger::Schema::Calls.missing_current_schema_columns).to include("latency_ms")
+    expect(LlmCostTracker::Ledger::Schema::Calls.current_schema_errors.join).to include("missing columns: latency_ms")
   end
 
   it "raises when ActiveRecord storage fails" do

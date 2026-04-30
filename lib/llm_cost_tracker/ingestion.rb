@@ -20,7 +20,7 @@ module LlmCostTracker
           raise Error, "llm_api_calls table is missing; run install generator and migrate"
         end
 
-        schema_errors = Ledger::Call.current_schema_errors
+        schema_errors = Ledger::Schema::Calls.current_schema_errors
         message = "llm_api_calls table is not on the current schema: #{schema_errors.join('; ')}"
         raise Error, message if schema_errors.any?
 

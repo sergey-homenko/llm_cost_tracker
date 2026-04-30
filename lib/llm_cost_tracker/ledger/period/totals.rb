@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "periods"
+require_relative "../period"
 
 module LlmCostTracker
   module Ledger
@@ -11,7 +11,7 @@ module LlmCostTracker
         end
 
         def initialize(periods, time:)
-          @periods = Periods.valid_keys(periods)
+          @periods = Period.valid_keys(periods)
           @time = time
         end
 
@@ -35,7 +35,7 @@ module LlmCostTracker
         end
 
         def snapshot_select(period)
-          start = Periods.range_start(period, time)
+          start = Period.range_start(period, time)
           "SELECT #{connection.quote(period.to_s)} AS period_key, " \
             "(#{rollup_total_sql(period)}) + (#{pending_total_sql(start)}) AS total_cost"
         end
@@ -43,8 +43,8 @@ module LlmCostTracker
         def rollup_total_sql(period)
           table = connection.quote_table_name("llm_cost_tracker_period_totals")
           "COALESCE((SELECT total_cost FROM #{table} " \
-            "WHERE period = #{connection.quote(Periods::PERIODS.fetch(period))} " \
-            "AND period_start = #{connection.quote(Periods.bucket(period, time))} LIMIT 1), 0)"
+            "WHERE period = #{connection.quote(Period::PERIODS.fetch(period))} " \
+            "AND period_start = #{connection.quote(Period.bucket(period, time))} LIMIT 1), 0)"
         end
 
         def pending_total_sql(start)

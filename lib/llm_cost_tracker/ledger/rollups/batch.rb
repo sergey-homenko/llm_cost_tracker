@@ -2,7 +2,7 @@
 
 require "bigdecimal"
 
-require_relative "../period/periods"
+require_relative "../period"
 
 module LlmCostTracker
   module Ledger
@@ -32,8 +32,8 @@ module LlmCostTracker
 
         def totals
           events.each_with_object(Hash.new { |hash, key| hash[key] = BigDecimal("0") }) do |event, rows|
-            Period::Periods::PERIODS.each do |period, name|
-              rows[[name, Period::Periods.bucket(period, event.tracked_at)]] += BigDecimal(event.total_cost.to_s)
+            Period::PERIODS.each do |period, name|
+              rows[[name, Period.bucket(period, event.tracked_at)]] += BigDecimal(event.total_cost.to_s)
             end
           end
         end

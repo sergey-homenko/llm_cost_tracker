@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "active_support/core_ext/object/blank"
-
 require_relative "../schema/adapter"
 require_relative "../../tags/key"
 
@@ -21,10 +19,6 @@ module LlmCostTracker
             else
               Ledger::Schema::Adapter.ensure_supported!(model.connection)
             end
-          end
-
-          def value_label(value)
-            value.to_s.presence || "(untagged)"
           end
 
           private

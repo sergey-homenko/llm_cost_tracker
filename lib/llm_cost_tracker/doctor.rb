@@ -105,10 +105,10 @@ module LlmCostTracker
     def column_check
       return unless llm_api_calls_table?
 
-      errors = LlmCostTracker::Ledger::Call.current_schema_errors
+      errors = LlmCostTracker::Ledger::Schema::Calls.current_schema_errors
       return Check.new(:ok, "llm_api_calls columns", "current") if errors.empty?
 
-      missing = LlmCostTracker::Ledger::Call.missing_current_schema_columns
+      missing = LlmCostTracker::Ledger::Schema::Calls.missing_current_schema_columns
       generators = missing.filter_map { |column| COLUMN_GENERATORS[column] }.uniq
       message = "current schema required; #{errors.join('; ')}"
       message = "#{message}; run #{generators.join(' && ')} && bin/rails db:migrate" if generators.any?
