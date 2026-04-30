@@ -34,7 +34,7 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets should read `llm_cost_tracker_period_totals` when the table exists and add pending `llm_cost_tracker_inbox_events` totals while durable ingestion is enabled. Falling back to summing `llm_api_calls` is an upgrade compatibility path, not the preferred production path.
+Monthly and daily budgets should read `llm_cost_tracker_period_totals` when the table exists and add pending `llm_cost_tracker_inbox_events` totals. Falling back to summing `llm_api_calls` is an upgrade compatibility path, not the preferred production path.
 
 The stored period total and pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 
@@ -42,7 +42,7 @@ Per-call budgets are checked from the current event only.
 
 ## Durable Ingestion
 
-Ledger::Ingestion::Inbox writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should fail honestly instead of writing into the caller transaction and pretending the event is durable.
+Ingestion::Inbox writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should fail honestly instead of writing into the caller transaction and pretending the event is durable.
 
 The ingestor is database-leased and database-polled, with an opportunistic local wake after a successful inbox insert. The wake only reduces freshness latency in the process that wrote the row; correctness still comes from the shared database lease, retryable row locks, and adaptive polling across Puma, Sidekiq, Unicorn, deploy restarts, and multi-process hosts.
 
@@ -60,11 +60,9 @@ Process shutdown should stop the local ingestor thread without forcing every exi
 
 Retention may delete old `llm_api_calls`. Period rollups are the durable budget aggregate. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change.
 
-## Optional Columns
+## Required Schema
 
-The gem supports upgrade paths where older apps may not have every column yet. Optional column checks must be memoized and refreshed when ActiveRecord column information is reset.
-
-Do not put table or column checks directly in loops that run for every event without caching.
+Runtime tracking assumes the current ledger and ingestion schema. Missing schema belongs in doctor/setup failures, not per-event branching.
 
 ## Dashboard Queries
 

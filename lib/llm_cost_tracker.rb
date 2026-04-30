@@ -34,6 +34,7 @@ require_relative "llm_cost_tracker/integrations"
 require_relative "llm_cost_tracker/budget"
 require_relative "llm_cost_tracker/pricing/unknown"
 require_relative "llm_cost_tracker/ledger"
+require_relative "llm_cost_tracker/ingestion"
 require_relative "llm_cost_tracker/tracker"
 require_relative "llm_cost_tracker/retention"
 require_relative "llm_cost_tracker/report"
@@ -59,30 +60,28 @@ module LlmCostTracker
     end
 
     def reset_configuration!
-      Ledger::Ingestion::Inbox.reset!
-      Ledger::Ingestion::Worker.shutdown!(drain: false)
+      Ingestion::Worker.shutdown!(drain: false)
       @configuration = Configuration.new
       Pricing::Lookup.reset!
       Pricing::Unknown.reset!
       Ledger::Store.reset!
-      Ledger::Ingestion::Inbox.reset!
-      Ledger::Ingestion::Worker.reset!
+      Ingestion::Worker.reset!
       Tags::Context.clear!
     end
 
     def flush!(timeout: nil)
       if timeout
-        Ledger::Ingestion::Worker.flush!(timeout: timeout)
+        Ingestion::Worker.flush!(timeout: timeout)
       else
-        Ledger::Ingestion::Worker.flush!
+        Ingestion::Worker.flush!
       end
     end
 
     def shutdown!(timeout: nil, drain: true)
       if timeout
-        Ledger::Ingestion::Worker.shutdown!(timeout: timeout, drain: drain)
+        Ingestion::Worker.shutdown!(timeout: timeout, drain: drain)
       else
-        Ledger::Ingestion::Worker.shutdown!(drain: drain)
+        Ingestion::Worker.shutdown!(drain: drain)
       end
     end
 

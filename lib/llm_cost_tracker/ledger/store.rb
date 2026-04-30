@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "ingestion/inbox"
 require_relative "period_totals"
 require_relative "rollups"
 

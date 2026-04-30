@@ -42,6 +42,35 @@ module LlmCostTrackerEngineContext
         t.timestamps
       end
     end
+    create_ingestion_tables
+  end
+
+  def create_ingestion_tables
+    ActiveRecord::Schema.define do
+      create_table :llm_cost_tracker_inbox_events, force: true do |t|
+        t.string :event_id, null: false
+        t.decimal :total_cost, precision: 20, scale: 8
+        t.datetime :tracked_at, null: false
+        t.text :payload, null: false
+        t.datetime :locked_at
+        t.string :locked_by
+        t.integer :attempts, null: false, default: 0
+        t.text :last_error
+
+        t.timestamps
+      end
+
+      create_table :llm_cost_tracker_ingestor_leases, force: true do |t|
+        t.string :name, null: false
+        t.string :locked_by
+        t.datetime :locked_until
+
+        t.timestamps
+      end
+
+      add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
+      add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
+    end
   end
 
   def create_call(**overrides)
@@ -84,6 +113,8 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
     establish_database_connection!
     create_llm_api_calls_table
     LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ingestion::Event.reset_column_information
+    LlmCostTracker::Ingestion::Lease.reset_column_information
   end
 
   after do

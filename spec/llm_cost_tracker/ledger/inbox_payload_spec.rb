@@ -3,7 +3,7 @@
 require "spec_helper"
 require "json"
 
-RSpec.describe LlmCostTracker::Ledger::Ingestion::Inbox do
+RSpec.describe LlmCostTracker::Ingestion::Inbox do
   let(:row_class) { Struct.new(:payload) }
 
   def event

@@ -5,7 +5,7 @@ require "stringio"
 
 RSpec.describe LlmCostTracker::Tracker do
   describe ".record" do
-    before { allow(LlmCostTracker::Ledger).to receive(:save).and_return(true) }
+    before { allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true) }
 
     def token_usage(input_tokens:, output_tokens:, **metadata)
       metadata = metadata.to_h.symbolize_keys
@@ -71,7 +71,7 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     it "raises storage errors from the ActiveRecord backend" do
-      allow(LlmCostTracker::Ledger).to receive(:save).and_raise("storage down")
+      allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_raise("storage down")
 
       expect do
         record(

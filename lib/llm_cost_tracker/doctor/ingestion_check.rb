@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../ledger"
+require_relative "../ingestion"
 
 module LlmCostTracker
   class Doctor
@@ -41,7 +41,7 @@ module LlmCostTracker
         end
 
         check_class.new(
-          :warn,
+          :error,
           "durable ingestion",
           "missing #{missing.join(', ')}; run bin/rails generate llm_cost_tracker:add_ingestion && bin/rails db:migrate"
         )
@@ -52,9 +52,7 @@ module LlmCostTracker
       attr_reader :check_class
 
       def missing_parts
-        columns = LlmCostTracker::Ledger::Call.connection.columns("llm_api_calls").map(&:name)
         [
-          columns.include?("event_id") ? nil : "llm_api_calls.event_id",
           table_exists?("llm_cost_tracker_inbox_events") ? nil : "llm_cost_tracker_inbox_events",
           table_exists?("llm_cost_tracker_ingestor_leases") ? nil : "llm_cost_tracker_ingestor_leases"
         ].compact
@@ -69,16 +67,16 @@ module LlmCostTracker
       def quarantined_count
         return 0 unless table_exists?("llm_cost_tracker_inbox_events")
 
-        LlmCostTracker::Ledger::Ingestion::Event
-          .where("attempts >= ?", LlmCostTracker::Ledger::Ingestion::Inbox::MAX_ATTEMPTS)
+        LlmCostTracker::Ingestion::Event
+          .where("attempts >= ?", LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS)
           .count
       rescue StandardError
         0
       end
 
       def pending_snapshot
-        LlmCostTracker::Ledger::Ingestion::Event
-          .where("attempts < ?", LlmCostTracker::Ledger::Ingestion::Inbox::MAX_ATTEMPTS)
+        LlmCostTracker::Ingestion::Event
+          .where("attempts < ?", LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS)
           .select("COUNT(*) AS pending_count, MIN(created_at) AS oldest_created_at")
           .take
       rescue StandardError

@@ -21,7 +21,7 @@ Until this page is expanded, use:
 
 This page is scoped to:
 
-- ActiveRecord capture into `llm_api_calls`, with a durable inbox when the ingestion migration is present
+- ActiveRecord capture into the durable ingestion inbox and `llm_api_calls`
 - PostgreSQL and MySQL database adapters
 - `default_tags`: static tags and per-request callable tags
 - `instrument`: RubyLLM and official SDK integrations

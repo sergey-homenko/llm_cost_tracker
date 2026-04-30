@@ -30,9 +30,36 @@ RSpec.describe LlmCostTracker::Report do
 
         t.timestamps
       end
+
+      create_table :llm_cost_tracker_inbox_events, force: true do |t|
+        t.string :event_id, null: false
+        t.decimal :total_cost, precision: 20, scale: 8
+        t.datetime :tracked_at, null: false
+        t.text :payload, null: false
+        t.datetime :locked_at
+        t.string :locked_by
+        t.integer :attempts, null: false, default: 0
+        t.text :last_error
+
+        t.timestamps
+      end
+
+      create_table :llm_cost_tracker_ingestor_leases, force: true do |t|
+        t.string :name, null: false
+        t.string :locked_by
+        t.datetime :locked_until
+
+        t.timestamps
+      end
+
+      add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
+      add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
     end
 
     LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ingestion::Event.reset_column_information
+    LlmCostTracker::Ingestion::Lease.reset_column_information
+    allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
 
     LlmCostTracker.configure do |config|
       config.report_tag_breakdowns = %w[feature]
@@ -68,8 +95,14 @@ RSpec.describe LlmCostTracker::Report do
     end
   end
 
+  def track_and_flush(**kwargs)
+    event = LlmCostTracker.track(**kwargs)
+    LlmCostTracker.flush!
+    event
+  end
+
   it "renders a text cost report from ActiveRecord storage" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
@@ -77,7 +110,7 @@ RSpec.describe LlmCostTracker::Report do
       latency_ms: 100,
       feature: "chat"
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
@@ -98,7 +131,7 @@ RSpec.describe LlmCostTracker::Report do
   end
 
   it "exposes report data separately from text formatting" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,

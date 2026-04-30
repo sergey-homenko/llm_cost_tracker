@@ -37,6 +37,5 @@ module LlmCostTrackerDatabaseSpecHelpers
       connection.drop_table(table, if_exists: true)
     end
     LlmCostTracker::Ledger::Rollups.reset!
-    LlmCostTracker::Ledger::Ingestion::Inbox.reset!
   end
 end

@@ -110,7 +110,6 @@ Primary files:
 - `lib/llm_cost_tracker/ledger/period_totals.rb`
 - `lib/llm_cost_tracker/ledger/rollups.rb`
 - `lib/llm_cost_tracker/ledger/rollups/*`
-- `lib/llm_cost_tracker/ledger/ingestion/*`
 - `lib/llm_cost_tracker/ledger/tags/*`
 - `lib/llm_cost_tracker/ledger/database_adapter.rb`
 - `lib/llm_cost_tracker/ledger/schema_capabilities.rb`
@@ -123,6 +122,19 @@ Responsibilities:
 - Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
 
 Storage can know about database adapters and the required current schema. It should not parse provider responses or fetch price data.
+
+## Ingestion
+
+Primary files:
+
+- `lib/llm_cost_tracker/ingestion.rb`
+- `lib/llm_cost_tracker/ingestion/*`
+
+Responsibilities:
+
+- Stage captured events durably before ledger writes.
+- Run background ingestion, leases, retries, and flush/shutdown lifecycle.
+- Verify the durable capture path.
 
 ## Budgets and Retention
 

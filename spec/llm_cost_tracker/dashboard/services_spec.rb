@@ -25,9 +25,40 @@ RSpec.describe "LlmCostTracker dashboard services" do
         table.timestamps
       end
     end
+    create_ingestion_tables
 
     LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ingestion::Event.reset_column_information
+    LlmCostTracker::Ingestion::Lease.reset_column_information
     LlmCostTracker::Ledger::Rollups.reset!
+  end
+
+  def create_ingestion_tables
+    ActiveRecord::Schema.define do
+      create_table :llm_cost_tracker_inbox_events, force: true do |table|
+        table.string :event_id, null: false
+        table.decimal :total_cost, precision: 20, scale: 8
+        table.datetime :tracked_at, null: false
+        table.text :payload, null: false
+        table.datetime :locked_at
+        table.string :locked_by
+        table.integer :attempts, null: false, default: 0
+        table.text :last_error
+
+        table.timestamps
+      end
+
+      create_table :llm_cost_tracker_ingestor_leases, force: true do |table|
+        table.string :name, null: false
+        table.string :locked_by
+        table.datetime :locked_until
+
+        table.timestamps
+      end
+
+      add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
+      add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
+    end
   end
 
   def create_call(**overrides)

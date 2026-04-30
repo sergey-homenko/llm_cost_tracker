@@ -55,13 +55,12 @@ end
 def reset_models!
   [
     LlmCostTracker::Ledger::Call,
-    LlmCostTracker::Ledger::Ingestion::Event,
-    LlmCostTracker::Ledger::Ingestion::Lease,
+    LlmCostTracker::Ingestion::Event,
+    LlmCostTracker::Ingestion::Lease,
     LlmCostTracker::Ledger::PeriodTotal
   ].each(&:reset_column_information)
-  LlmCostTracker::Ledger::Ingestion::Inbox.reset!
   LlmCostTracker::Ledger::Store.reset!
-  LlmCostTracker::Ledger::Ingestion::Worker.reset!
+  LlmCostTracker::Ingestion::Worker.reset!
 end
 
 def create_schema!
@@ -204,9 +203,9 @@ def flush!
 end
 
 def quarantined_row_count
-  LlmCostTracker::Ledger::Ingestion::Event.where(
+  LlmCostTracker::Ingestion::Event.where(
     "attempts >= ?",
-    LlmCostTracker::Ledger::Ingestion::Inbox::MAX_ATTEMPTS
+    LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS
   ).count
 end
 
@@ -234,15 +233,13 @@ begin
     }
   end
 
-  assert("inbox is not enabled on #{adapter} schema") { LlmCostTracker::Ledger::Ingestion::Inbox.enabled? }
-
   rollback_event = nil
   LlmCostTracker::Ledger::Call.transaction do
     rollback_event = track!(provider_response_id: "rollback", feature: "rollback")
     raise ActiveRecord::Rollback
   end
   sleep 0.1
-  durable_rows = LlmCostTracker::Ledger::Ingestion::Event.where(event_id: rollback_event.event_id).count +
+  durable_rows = LlmCostTracker::Ingestion::Event.where(event_id: rollback_event.event_id).count +
                  LlmCostTracker::Ledger::Call.where(event_id: rollback_event.event_id).count
   assert("event was lost across caller rollback") { durable_rows == 1 }
   flush!
@@ -260,7 +257,7 @@ begin
   duplicate_event = track!(provider_response_id: "duplicate", feature: "duplicate")
   flush!
   before_duplicate_total = LlmCostTracker::Ledger::Store.daily_total(time: Time.now.utc)
-  LlmCostTracker::Ledger::Ingestion::Inbox.save(duplicate_event)
+  LlmCostTracker::Ingestion::Inbox.save(duplicate_event)
   flush!
   after_duplicate_total = LlmCostTracker::Ledger::Store.daily_total(time: Time.now.utc)
   assert("duplicate inbox row changed rollup total") do
@@ -271,12 +268,12 @@ begin
   end
 
   now = Time.now.utc
-  LlmCostTracker::Ledger::Ingestion::Event.create!(
+  LlmCostTracker::Ingestion::Event.create!(
     event_id: "poison-#{SecureRandom.hex(4)}",
     total_cost: 1,
     tracked_at: now,
     payload: "{bad-json",
-    attempts: LlmCostTracker::Ledger::Ingestion::Inbox::MAX_ATTEMPTS - 1,
+    attempts: LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS - 1,
     created_at: now,
     updated_at: now
   )
@@ -286,14 +283,14 @@ begin
     LlmCostTracker::Ledger::Call.where(event_id: good_event.event_id).exists?
   end
   assert("poison row was not quarantined at max attempts") do
-    LlmCostTracker::Ledger::Ingestion::Event.where(
+    LlmCostTracker::Ingestion::Event.where(
       "payload = ? AND attempts >= ?",
       "{bad-json",
-      LlmCostTracker::Ledger::Ingestion::Inbox::MAX_ATTEMPTS
+      LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS
     ).exists?
   end
 
-  LlmCostTracker::Ledger::Ingestion::Worker.shutdown!(drain: false)
+  LlmCostTracker::Ingestion::Worker.shutdown!(drain: false)
   before_count = LlmCostTracker::Ledger::Call.count
   thread_count = 8
   per_thread = 10
@@ -317,7 +314,7 @@ begin
     LlmCostTracker::Ledger::Call.count == expected
   end
   assert("retryable inbox rows remain after flush") do
-    !LlmCostTracker::Ledger::Ingestion::Event.where("attempts < ?", LlmCostTracker::Ledger::Ingestion::Inbox::MAX_ATTEMPTS).exists?
+    !LlmCostTracker::Ingestion::Event.where("attempts < ?", LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS).exists?
   end
 
   puts "#{adapter} smoke passed"

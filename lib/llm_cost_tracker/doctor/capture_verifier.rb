@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../ledger"
+require_relative "../ingestion"
 
 module LlmCostTracker
   class Doctor
@@ -53,7 +53,7 @@ module LlmCostTracker
       end
 
       def storage_checks
-        LlmCostTracker::Ledger.verify.map do |check|
+        LlmCostTracker::Ingestion.verify.map do |check|
           Check.new(check.status, check.name, check.message)
         end
       rescue LlmCostTracker::Error => e

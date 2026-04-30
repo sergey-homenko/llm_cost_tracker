@@ -48,19 +48,51 @@ RSpec.describe "ActiveRecord storage integration" do
         t.timestamps
       end
 
+      create_table :llm_cost_tracker_inbox_events, force: true do |t|
+        t.string :event_id, null: false
+        t.decimal :total_cost, precision: 20, scale: 8
+        t.datetime :tracked_at, null: false
+        t.text :payload, null: false
+        t.datetime :locked_at
+        t.string :locked_by
+        t.integer :attempts, null: false, default: 0
+        t.text :last_error
+
+        t.timestamps
+      end
+
+      create_table :llm_cost_tracker_ingestor_leases, force: true do |t|
+        t.string :name, null: false
+        t.string :locked_by
+        t.datetime :locked_until
+
+        t.timestamps
+      end
+
       add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
+      add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
+      add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
     end
 
     LlmCostTracker::Ledger::Call.reset_column_information
     LlmCostTracker::Ledger::PeriodTotal.reset_column_information
+    LlmCostTracker::Ingestion::Event.reset_column_information
+    LlmCostTracker::Ingestion::Lease.reset_column_information
+    allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end
 
   after do
     disconnect_database!
   end
 
+  def track_and_flush(**kwargs)
+    event = LlmCostTracker.track(**kwargs)
+    LlmCostTracker.flush!
+    event
+  end
+
   it "lazy-loads the ActiveRecord store and persists events" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
@@ -81,7 +113,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "persists canonical usage and cost breakdowns" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 900,
@@ -114,7 +146,7 @@ RSpec.describe "ActiveRecord storage integration" do
       }
     end
 
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :custom,
       model: "batchable-model",
       input_tokens: 1_000_000,
@@ -159,7 +191,7 @@ RSpec.describe "ActiveRecord storage integration" do
           config.prices_file = old_file.path
         end
 
-        LlmCostTracker.track(
+        track_and_flush(
           provider: :openai,
           model: "snapshot-model",
           input_tokens: 1_000_000,
@@ -171,7 +203,7 @@ RSpec.describe "ActiveRecord storage integration" do
           config.prices_file = new_file.path
         end
 
-        LlmCostTracker.track(
+        track_and_flush(
           provider: :openai,
           model: "snapshot-model",
           input_tokens: 1_000_000,
@@ -193,13 +225,13 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "keeps monthly budget rollups in sync" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
@@ -223,7 +255,7 @@ RSpec.describe "ActiveRecord storage integration" do
       method.call(rows, **options)
     end
 
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
@@ -266,13 +298,13 @@ RSpec.describe "ActiveRecord storage integration" do
   it "keeps daily budget rollups in sync" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
@@ -290,7 +322,7 @@ RSpec.describe "ActiveRecord storage integration" do
     ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_period_totals)
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
@@ -304,7 +336,7 @@ RSpec.describe "ActiveRecord storage integration" do
   it "reads daily and monthly period totals together" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
@@ -320,7 +352,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "does not treat latency as a tag" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
@@ -332,7 +364,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "persists provider_response_id without treating it as a tag" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
@@ -347,7 +379,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "finds stringified numeric tags through by_tag" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
@@ -359,7 +391,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "filters by multiple tags through by_tags" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
@@ -367,7 +399,7 @@ RSpec.describe "ActiveRecord storage integration" do
       user_id: 42,
       feature: "chat"
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
@@ -383,21 +415,21 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "aggregates cost by any tag key" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0,
       feature: "chat"
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
       output_tokens: 0,
       feature: "summarizer"
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
@@ -416,14 +448,14 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "groups by tag keys on the SQL side" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0,
       feature: "chat"
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :anthropic,
       model: "claude-haiku-4-5",
       input_tokens: 1_000,
@@ -605,14 +637,14 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "supports safe tag keys with dots and dashes" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0,
       "feature.name" => "chat"
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
@@ -631,14 +663,14 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "composes tag grouping with other scopes" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0,
       feature: "chat"
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :anthropic,
       model: "claude-haiku-4-5",
       input_tokens: 1_000,
@@ -658,7 +690,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "filters by tag convenience scopes" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
@@ -673,14 +705,14 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "escapes text tag queries so wildcard values do not over-match" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5,
       feature: "100%"
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
@@ -696,13 +728,13 @@ RSpec.describe "ActiveRecord storage integration" do
       config.unknown_pricing_behavior = :ignore
     end
 
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "unknown-chat-model",
       input_tokens: 10,
@@ -715,14 +747,14 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "aggregates latency by model and provider" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5,
       latency_ms: 100
     )
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
@@ -748,11 +780,11 @@ RSpec.describe "ActiveRecord storage integration" do
   it "raises when ActiveRecord storage fails" do
     require "llm_cost_tracker/ledger"
 
-    allow(LlmCostTracker::Ledger::Store).to receive(:save)
+    allow(LlmCostTracker::Ingestion::Inbox).to receive(:save)
       .and_raise(ActiveRecord::StatementInvalid, "database down")
 
     expect do
-      LlmCostTracker.track(
+      track_and_flush(
         provider: :openai,
         model: "gpt-4o",
         input_tokens: 10,
@@ -762,7 +794,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "returns daily cost keys as strings across adapters" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
@@ -831,7 +863,7 @@ RSpec.describe "ActiveRecord storage integration" do
       config.on_budget_exceeded = ->(data) { budget_data = data }
     end
 
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
@@ -851,7 +883,7 @@ RSpec.describe "ActiveRecord storage integration" do
     end
 
     3.times do
-      LlmCostTracker.track(
+      track_and_flush(
         provider: :openai,
         model: "gpt-4o",
         input_tokens: 1_000,
@@ -871,7 +903,7 @@ RSpec.describe "ActiveRecord storage integration" do
     end
 
     3.times do
-      LlmCostTracker.track(
+      track_and_flush(
         provider: :openai,
         model: "gpt-4o",
         input_tokens: 1_000,
@@ -883,7 +915,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "blocks before a request when the ActiveRecord monthly budget is exhausted" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
@@ -904,7 +936,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "blocks before a request when the ActiveRecord daily budget is exhausted" do
-    LlmCostTracker.track(
+    track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
@@ -927,10 +959,10 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "calculates daily totals for the requested day" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
-    LlmCostTracker.track(provider: :openai, model: "gpt-4o", input_tokens: 1_000, output_tokens: 0)
+    track_and_flush(provider: :openai, model: "gpt-4o", input_tokens: 1_000, output_tokens: 0)
 
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 17, 12))
-    LlmCostTracker.track(provider: :openai, model: "gpt-4o", input_tokens: 1_000, output_tokens: 0)
+    track_and_flush(provider: :openai, model: "gpt-4o", input_tokens: 1_000, output_tokens: 0)
 
     total = LlmCostTracker::Ledger::Store.daily_total(time: Time.utc(2026, 4, 18, 23))
 

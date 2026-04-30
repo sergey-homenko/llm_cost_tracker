@@ -3,6 +3,7 @@
 require "active_support/core_ext/object/blank"
 require "securerandom"
 
+require_relative "ingestion"
 require_relative "ledger"
 
 module LlmCostTracker
@@ -43,7 +44,7 @@ module LlmCostTracker
 
         ActiveSupport::Notifications.instrument(EVENT_NAME, event.to_h)
 
-        Ledger.save(event)
+        Ingestion::Inbox.save(event)
         Budget.check!(event)
 
         event
