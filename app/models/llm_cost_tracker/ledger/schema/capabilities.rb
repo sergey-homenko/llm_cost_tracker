@@ -1,17 +1,36 @@
 # frozen_string_literal: true
 
 require "llm_cost_tracker/ledger/schema/adapter"
-require "llm_cost_tracker/token_usage"
 
 module LlmCostTracker
   module Ledger
     module Schema
       module Capabilities
-        CURRENT_SCHEMA_COLUMNS = (
-          %i[event_id provider model latency_ms stream usage_source provider_response_id pricing_mode tags tracked_at] +
-          TokenUsage::STORED_KEYS +
-          TokenUsage::STORED_COST_KEYS
-        ).map(&:to_s).freeze
+        CURRENT_SCHEMA_COLUMNS = %w[
+          event_id
+          provider
+          model
+          input_tokens
+          output_tokens
+          total_tokens
+          cache_read_input_tokens
+          cache_write_input_tokens
+          cache_write_1h_input_tokens
+          hidden_output_tokens
+          input_cost
+          output_cost
+          total_cost
+          cache_read_input_cost
+          cache_write_input_cost
+          cache_write_1h_input_cost
+          latency_ms
+          stream
+          usage_source
+          provider_response_id
+          pricing_mode
+          tags
+          tracked_at
+        ].freeze
 
         def reset_column_information
           remove_instance_variable(:@lct_schema_capabilities) if instance_variable_defined?(:@lct_schema_capabilities)

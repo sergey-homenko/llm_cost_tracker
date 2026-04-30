@@ -67,7 +67,6 @@ def reset_models!
     LlmCostTracker::Ingestion::Lease,
     LlmCostTracker::Ledger::Period::Total
   ].each(&:reset_column_information)
-  LlmCostTracker::Ledger::Rollups.reset!
   LlmCostTracker::Ingestion::Worker.reset!
 end
 

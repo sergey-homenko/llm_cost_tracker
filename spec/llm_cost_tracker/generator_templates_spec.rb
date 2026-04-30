@@ -8,6 +8,7 @@ require "yaml"
 
 require "llm_cost_tracker/pricing/registry"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_ingestion_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/add_token_usage_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 
 RSpec.describe "generator templates" do

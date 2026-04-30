@@ -1,11 +1,11 @@
 class AddTokenUsageToLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
   def up
-<% LlmCostTracker::TokenUsage::UPGRADE_STORED_KEYS.each do |column| -%>
+<% LlmCostTracker::Generators::AddTokenUsageGenerator::TOKEN_COLUMNS.each do |column| -%>
     unless column_exists?(:llm_api_calls, :<%= column %>)
       add_column :llm_api_calls, :<%= column %>, :integer, null: false, default: 0
     end
 <% end -%>
-<% LlmCostTracker::TokenUsage::UPGRADE_COST_KEYS.each do |column| -%>
+<% LlmCostTracker::Generators::AddTokenUsageGenerator::COST_COLUMNS.each do |column| -%>
     unless column_exists?(:llm_api_calls, :<%= column %>)
       add_column :llm_api_calls, :<%= column %>, :decimal, precision: 20, scale: 8
     end
@@ -15,7 +15,7 @@ class AddTokenUsageToLlmApiCalls < ActiveRecord::Migration<%= migration_version 
 
   def down
     remove_column :llm_api_calls, :pricing_mode if column_exists?(:llm_api_calls, :pricing_mode)
-<% (LlmCostTracker::TokenUsage::UPGRADE_COST_KEYS + LlmCostTracker::TokenUsage::UPGRADE_STORED_KEYS).reverse.each do |column| -%>
+<% (LlmCostTracker::Generators::AddTokenUsageGenerator::COST_COLUMNS + LlmCostTracker::Generators::AddTokenUsageGenerator::TOKEN_COLUMNS).reverse.each do |column| -%>
     remove_column :llm_api_calls, :<%= column %> if column_exists?(:llm_api_calls, :<%= column %>)
 <% end -%>
   end

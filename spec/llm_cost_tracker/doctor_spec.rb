@@ -70,11 +70,7 @@ RSpec.describe LlmCostTracker::Doctor do
   end
 
   it "maps token usage and cost columns to the token usage generator" do
-    columns = [
-      *LlmCostTracker::TokenUsage::UPGRADE_STORED_KEYS,
-      *LlmCostTracker::TokenUsage::UPGRADE_COST_KEYS,
-      :pricing_mode
-    ].map(&:to_s)
+    columns = LlmCostTracker::Generators::AddTokenUsageGenerator::COLUMN_NAMES
 
     expect(columns.map { |column| described_class::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
       ["bin/rails generate llm_cost_tracker:add_token_usage"]

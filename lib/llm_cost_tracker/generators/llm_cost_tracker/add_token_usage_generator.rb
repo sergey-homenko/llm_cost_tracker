@@ -2,12 +2,24 @@
 
 require "rails/generators"
 require "rails/generators/active_record"
-require "llm_cost_tracker/token_usage"
 
 module LlmCostTracker
   module Generators
     class AddTokenUsageGenerator < Rails::Generators::Base
       include ActiveRecord::Generators::Migration
+
+      TOKEN_COLUMNS = %w[
+        cache_read_input_tokens
+        cache_write_input_tokens
+        cache_write_1h_input_tokens
+        hidden_output_tokens
+      ].freeze
+      COST_COLUMNS = %w[
+        cache_read_input_cost
+        cache_write_input_cost
+        cache_write_1h_input_cost
+      ].freeze
+      COLUMN_NAMES = (TOKEN_COLUMNS + COST_COLUMNS + %w[pricing_mode]).freeze
 
       source_root File.expand_path("templates", __dir__)
 

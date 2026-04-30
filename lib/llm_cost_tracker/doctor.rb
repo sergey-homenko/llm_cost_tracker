@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require_relative "ledger"
-require_relative "token_usage"
 require_relative "doctor/check"
 require_relative "doctor/ingestion_check"
 require_relative "doctor/price_check"
+require_relative "generators/llm_cost_tracker/add_token_usage_generator"
 
 module LlmCostTracker
   class Doctor
@@ -15,8 +15,8 @@ module LlmCostTracker
       "usage_source" => "bin/rails generate llm_cost_tracker:add_streaming",
       "provider_response_id" => "bin/rails generate llm_cost_tracker:add_provider_response_id"
     }.merge(
-      (TokenUsage::UPGRADE_STORED_KEYS + TokenUsage::UPGRADE_COST_KEYS + %i[pricing_mode]).to_h do |column|
-        [column.to_s, "bin/rails generate llm_cost_tracker:add_token_usage"]
+      Generators::AddTokenUsageGenerator::COLUMN_NAMES.to_h do |column|
+        [column, "bin/rails generate llm_cost_tracker:add_token_usage"]
       end
     ).freeze
 
