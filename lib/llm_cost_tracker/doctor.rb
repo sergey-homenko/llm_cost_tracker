@@ -3,7 +3,6 @@
 require_relative "ledger"
 require_relative "token_usage"
 require_relative "doctor/check"
-require_relative "doctor/capture_check"
 require_relative "doctor/ingestion_check"
 require_relative "doctor/price_check"
 
@@ -40,14 +39,14 @@ module LlmCostTracker
     def checks
       [
         configuration_check,
-        CaptureCheck.call(Check),
+        capture_check,
         *integration_checks,
         active_record_check,
         table_check,
         column_check,
         period_totals_check,
-        IngestionCheck.call(Check),
-        PriceCheck.call(Check),
+        IngestionCheck.new.call,
+        PriceCheck.new.call,
         calls_check
       ].compact
     end
@@ -57,6 +56,27 @@ module LlmCostTracker
     def configuration_check
       config = LlmCostTracker.configuration
       Check.new(:ok, "configuration", "active_record ledger enabled=#{config.enabled}")
+    end
+
+    def capture_check
+      config = LlmCostTracker.configuration
+      unless config.enabled
+        return Check.new(:warn, "capture", "tracking is disabled; set config.enabled = true to record calls")
+      end
+
+      if config.instrumented_integrations.any?
+        return Check.new(
+          :ok,
+          "capture",
+          "SDK integrations enabled: #{config.instrumented_integrations.join(', ')}"
+        )
+      end
+
+      Check.new(
+        :ok,
+        "capture",
+        "no SDK integrations enabled; Faraday middleware and manual capture remain available"
+      )
     end
 
     def integration_checks

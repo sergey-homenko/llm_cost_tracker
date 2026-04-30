@@ -1,19 +1,12 @@
 # frozen_string_literal: true
 
+require_relative "check"
 require_relative "../ingestion"
 
 module LlmCostTracker
   class Doctor
     class IngestionCheck
       PENDING_AGE_WARNING_SECONDS = 60
-
-      def self.call(check_class)
-        new(check_class).call
-      end
-
-      def initialize(check_class)
-        @check_class = check_class
-      end
 
       def call
         return unless table_exists?("llm_api_calls")
@@ -22,7 +15,7 @@ module LlmCostTracker
         if missing.empty?
           quarantined = quarantined_count
           if quarantined.positive?
-            return check_class.new(:warn, "durable ingestion", "#{quarantined} inbox events quarantined after retries")
+            return Check.new(:warn, "durable ingestion", "#{quarantined} inbox events quarantined after retries")
           end
 
           pending = pending_snapshot
@@ -30,17 +23,17 @@ module LlmCostTracker
           oldest_pending_at = pending.try(:oldest_created_at)&.to_time&.utc
           pending_age = oldest_pending_at && (Time.now.utc - oldest_pending_at)
           if pending_count.positive? && pending_age && pending_age >= PENDING_AGE_WARNING_SECONDS
-            return check_class.new(
+            return Check.new(
               :warn,
               "durable ingestion",
               "#{pending_count} inbox events pending; oldest pending age #{pending_age.round}s"
             )
           end
 
-          return check_class.new(:ok, "durable ingestion", "inbox and ingestor lease tables available")
+          return Check.new(:ok, "durable ingestion", "inbox and ingestor lease tables available")
         end
 
-        check_class.new(
+        Check.new(
           :error,
           "durable ingestion",
           "missing #{missing.join(', ')}; run bin/rails generate llm_cost_tracker:add_ingestion && bin/rails db:migrate"
@@ -48,8 +41,6 @@ module LlmCostTracker
       end
 
       private
-
-      attr_reader :check_class
 
       def missing_parts
         [

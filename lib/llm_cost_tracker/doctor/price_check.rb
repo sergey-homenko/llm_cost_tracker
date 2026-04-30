@@ -2,19 +2,13 @@
 
 require "date"
 
+require_relative "check"
+
 module LlmCostTracker
   class Doctor
     class PriceCheck
       STALE_AFTER_DAYS = 30
       REFRESH_COMMAND = "run bin/rails llm_cost_tracker:prices:refresh"
-
-      def self.call(check_class)
-        new(check_class).call
-      end
-
-      def initialize(check_class)
-        @check_class = check_class
-      end
 
       def call
         path = LlmCostTracker.configuration.prices_file
@@ -44,16 +38,14 @@ module LlmCostTracker
           "metadata.updated_at=#{updated_at.inspect} is invalid; #{REFRESH_COMMAND}"
         )
       rescue LlmCostTracker::Error => e
-        check_class.new(:error, "prices", e.message)
+        Check.new(:error, "prices", e.message)
       end
 
       private
 
-      attr_reader :check_class
-
       def bundled_check
         updated_at = LlmCostTracker::Pricing::Registry.metadata.fetch("updated_at", "unknown")
-        check_class.new(
+        Check.new(
           :warn,
           "prices",
           "using bundled prices updated_at=#{updated_at}; configure prices_file for production"
@@ -61,7 +53,7 @@ module LlmCostTracker
       end
 
       def configured_check(status, path, count, freshness)
-        check_class.new(status, "prices", "loaded #{count} models from #{path}; #{freshness}")
+        Check.new(status, "prices", "loaded #{count} models from #{path}; #{freshness}")
       end
     end
   end
