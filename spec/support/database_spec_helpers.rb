@@ -21,9 +21,8 @@ module LlmCostTrackerDatabaseSpecHelpers
     end
   end
 
-  def tags_for_database(tags, model: LlmCostTracker::Ledger::Call)
-    normalized = tags.transform_keys(&:to_s).transform_values(&:to_s)
-    model.tags_json_column? ? normalized : normalized.to_json
+  def tags_for_database(tags)
+    tags.transform_keys(&:to_s).transform_values(&:to_s)
   end
 
   def drop_lct_tables!

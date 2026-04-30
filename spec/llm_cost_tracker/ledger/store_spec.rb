@@ -170,6 +170,18 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Ledger::Call.current_schema_errors.join).to include("missing columns: pricing_mode")
   end
 
+  it "reports adapter-specific tag column type errors" do
+    [
+      ["PostgreSQL", double(type: :json, sql_type: "json"), "tags column must use jsonb"],
+      ["Mysql2", double(type: :text, sql_type: "text"), "tags column must use json"]
+    ].each do |adapter_name, column, message|
+      capabilities = LlmCostTracker::Ledger::Call.send(:build_lct_schema_capabilities, { "tags" => column },
+                                                       adapter_name)
+
+      expect(capabilities.fetch(:current_schema_errors)).to include(message)
+    end
+  end
+
   it "keeps persisted historical costs when the price file changes for later requests" do
     Tempfile.create(["llm-prices-old", ".json"]) do |old_file|
       Tempfile.create(["llm-prices-new", ".json"]) do |new_file|
@@ -814,25 +826,9 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Ledger::Call.daily_costs.keys).to all(be_a(String))
   end
 
-  it "detects PostgreSQL JSONB tag columns" do
-    expect(LlmCostTracker::Ledger::Call.tags_json_column?).to be true
-    expect(LlmCostTracker::Ledger::Call.tags_jsonb_column?).to be true
-  end
-
-  it "detects Trilogy JSON tag columns as MySQL JSON" do
-    column = double(type: :json, sql_type: "json")
-
-    %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-      capabilities = LlmCostTracker::Ledger::Call.send(:build_lct_schema_capabilities, { "tags" => column },
-                                                       adapter_name)
-
-      expect(capabilities.fetch(:tags_mysql_json)).to be true
-    end
-  end
-
   it "builds a JSONB containment query for PostgreSQL JSONB tag columns" do
-    allow(LlmCostTracker::Ledger::Call).to receive_messages(tags_json_column?: true, tags_jsonb_column?: true,
-                                                            tags_mysql_json_column?: false)
+    connection = LlmCostTracker::Ledger::Call.connection
+    allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(true)
 
     sql = LlmCostTracker::Ledger::Call.by_tags(user_id: 42, feature: "chat").to_sql
 
@@ -841,8 +837,8 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "builds a JSON_CONTAINS query for MySQL JSON tag columns" do
-    allow(LlmCostTracker::Ledger::Call).to receive_messages(tags_json_column?: true, tags_jsonb_column?: false,
-                                                            tags_mysql_json_column?: true)
+    connection = LlmCostTracker::Ledger::Call.connection
+    allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(false)
 
     sql = LlmCostTracker::Ledger::Call.by_tags(user_id: 42, feature: "chat").to_sql
 
@@ -856,7 +852,6 @@ RSpec.describe "ActiveRecord storage integration" do
       allow(connection).to receive(:adapter_name).and_return(adapter_name)
       allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(false)
       allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:mysql?).with(connection).and_return(true)
-      allow(LlmCostTracker::Ledger::Call).to receive(:tags_jsonb_column?).and_return(false)
 
       sql = LlmCostTracker::Ledger::Call.tag_value_expression("user_id")
 

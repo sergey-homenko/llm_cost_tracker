@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "llm_cost_tracker/token_usage"
+require "llm_cost_tracker/ledger/schema/adapter"
 
 module LlmCostTracker
   module Dashboard
@@ -63,7 +64,7 @@ module LlmCostTracker
           table = model.quoted_table_name
           column = "#{table}.#{model.connection.quote_column_name('tags')}"
 
-          if model.tags_jsonb_column?
+          if Ledger::Schema::Adapter.postgresql?(model.connection)
             "COALESCE(SUM(CASE WHEN #{column} <> '{}'::jsonb THEN 1 ELSE 0 END), 0)"
           else
             "COALESCE(SUM(CASE WHEN JSON_LENGTH(#{column}) > 0 THEN 1 ELSE 0 END), 0)"

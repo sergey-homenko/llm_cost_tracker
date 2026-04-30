@@ -19,20 +19,6 @@ module LlmCostTracker
           super
         end
 
-        def tags_json_column?
-          capabilities = lct_schema_capabilities
-
-          capabilities.fetch(:tags_jsonb) || capabilities.fetch(:tags_mysql_json)
-        end
-
-        def tags_jsonb_column?
-          lct_schema_capabilities.fetch(:tags_jsonb)
-        end
-
-        def tags_mysql_json_column?
-          lct_schema_capabilities.fetch(:tags_mysql_json)
-        end
-
         def current_schema?
           current_schema_errors.empty?
         end
@@ -63,30 +49,29 @@ module LlmCostTracker
         def build_lct_schema_capabilities(columns, adapter_name)
           Ledger::Schema::Adapter.ensure_supported!(adapter_name)
 
-          tag_column = columns["tags"]
-          tags_jsonb = tag_column && (tag_column.type == :jsonb || tag_column.sql_type.to_s.downcase == "jsonb")
-          tags_mysql_json =
-            tag_column &&
-            !tags_jsonb &&
-            tag_column.type == :json &&
-            Ledger::Schema::Adapter.mysql?(adapter_name)
-
           {
-            tags_jsonb: tags_jsonb ? true : false,
-            tags_mysql_json: tags_mysql_json ? true : false,
             missing_current_schema_columns: missing_columns_for(columns),
-            current_schema_errors: schema_errors_for(columns, tags_jsonb, tags_mysql_json, adapter_name)
+            current_schema_errors: schema_errors_for(columns, adapter_name)
           }
         end
 
-        def schema_errors_for(columns, tags_jsonb, tags_mysql_json, adapter_name)
+        def schema_errors_for(columns, adapter_name)
           errors = []
           missing = missing_columns_for(columns)
           errors << "missing columns: #{missing.join(', ')}" if missing.any?
 
-          if columns.key?("tags") && !tags_jsonb && !tags_mysql_json
-            expected_type = Ledger::Schema::Adapter.postgresql?(adapter_name) ? "jsonb" : "json"
-            errors << "tags column must use #{expected_type}"
+          tag_column = columns["tags"]
+          if tag_column
+            postgresql = Ledger::Schema::Adapter.postgresql?(adapter_name)
+            expected_type = postgresql ? "jsonb" : "json"
+            valid_type =
+              if postgresql
+                tag_column.type == :jsonb || tag_column.sql_type.to_s.downcase == "jsonb"
+              else
+                tag_column.type == :json
+              end
+
+            errors << "tags column must use #{expected_type}" unless valid_type
           end
 
           errors

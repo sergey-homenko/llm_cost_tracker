@@ -17,6 +17,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - BREAKING: Moved built-in parser routing onto `LlmCostTracker::Parsers`.
 - BREAKING: Removed `LlmCostTracker::Pricing::Cost`; pricing now returns cost attribute hashes from `TokenUsage` billing components.
 - BREAKING: Current ActiveRecord ledger schema is required; doctor and dashboard setup now fail on missing canonical columns.
+- Durable ingestion now runs as its own subsystem while ledger code owns persisted call and rollup rows.
+- ActiveRecord models now live under the Rails engine `app/models` autoload paths.
+- Ledger period totals and schema code now live under explicit `Ledger::Period` and `Ledger::Schema` namespaces.
+- Tag filtering and dashboard tag coverage now use adapter-specific JSON SQL while doctor validates the required tag column type.
+- Removed unused rollup total read paths and tag JSON schema predicates.
 - Anthropic pricing now uses response cache-write TTL usage to price 1-hour cache writes separately.
 - Batch pricing now derives stackable cache rates and refuses unknown positive-token mode rates instead of falling back to standard prices.
 - Gemini pricing now treats context cache reads separately and no longer exposes token-only cache-write prices.

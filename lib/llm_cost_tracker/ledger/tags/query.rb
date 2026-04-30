@@ -2,6 +2,8 @@
 
 require "json"
 
+require_relative "../schema/adapter"
+
 module LlmCostTracker
   module Ledger
     module Tags
@@ -11,9 +13,14 @@ module LlmCostTracker
             normalized_tags = (tags || {}).to_h.transform_keys(&:to_s).transform_values(&:to_s)
             return model.all if normalized_tags.empty?
 
-            return model.where("tags @> ?::jsonb", normalized_tags.to_json) if model.tags_jsonb_column?
+            connection = model.connection
+            json = normalized_tags.to_json
 
-            model.where("JSON_CONTAINS(tags, ?)", normalized_tags.to_json)
+            if Schema::Adapter.postgresql?(connection)
+              model.where("tags @> ?::jsonb", json)
+            else
+              model.where("JSON_CONTAINS(tags, ?)", json)
+            end
           end
         end
       end

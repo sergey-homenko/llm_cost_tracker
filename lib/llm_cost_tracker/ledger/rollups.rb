@@ -48,17 +48,6 @@ module LlmCostTracker
           apply_decrements(totals)
         end
 
-        def period_totals(periods, time: Time.now.utc)
-          periods = Period::Periods.valid_keys(periods)
-          return {} if periods.empty?
-
-          if period_totals_enabled?
-            rollup_period_totals(periods, time)
-          else
-            periods.to_h { |period| [period, fallback_period_total(period, time)] }
-          end
-        end
-
         private
 
         def period_rows(event)
@@ -93,30 +82,6 @@ module LlmCostTracker
             row.update_columns(total_cost: [BigDecimal(row.total_cost.to_s) - amount, BigDecimal("0")].max,
                                updated_at: now)
           end
-        end
-
-        def rollup_period_totals(periods, time)
-          buckets = periods.to_h { |period| [period, Period::Periods.bucket(period, time)] }
-          index = buckets.to_h { |period, bucket| [[Period::Periods::PERIODS.fetch(period), bucket], period] }
-          totals = periods.to_h { |period| [period, 0.0] }
-
-          Period::Total
-            .where(period: periods.map { |period| Period::Periods::PERIODS.fetch(period) },
-                   period_start: buckets.values)
-            .select(:period, :period_start, :total_cost)
-            .each do |row|
-              period = index[[row.period, row.period_start.to_date]]
-              totals[period] = row.total_cost.to_f if period
-            end
-
-          totals
-        end
-
-        def fallback_period_total(period, time)
-          LlmCostTracker::Ledger::Call
-            .where(tracked_at: Period::Periods.range_start(period, time)..time)
-            .sum(:total_cost)
-            .to_f
         end
 
         def period_totals_enabled?
