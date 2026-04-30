@@ -103,6 +103,29 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.token_usage.output_tokens).to eq(25)
       expect(result.token_usage.total_tokens).to eq(125)
     end
+
+    it "counts tool-use prompt tokens as billable input tokens" do
+      result = parser.parse(
+        generate_content_url,
+        nil,
+        200,
+        {
+          usageMetadata: {
+            promptTokenCount: 100,
+            cachedContentTokenCount: 25,
+            toolUsePromptTokenCount: 15,
+            candidatesTokenCount: 20,
+            thoughtsTokenCount: 5,
+            totalTokenCount: 125
+          }
+        }.to_json
+      )
+
+      expect(result.token_usage.input_tokens).to eq(90)
+      expect(result.token_usage.cache_read_input_tokens).to eq(25)
+      expect(result.token_usage.output_tokens).to eq(25)
+      expect(result.token_usage.total_tokens).to eq(140)
+    end
   end
 
   describe "#streaming_request?" do

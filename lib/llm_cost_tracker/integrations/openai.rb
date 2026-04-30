@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require_relative "../capture/stream_collector"
 require_relative "../capture/stream_tracker"
 
 module LlmCostTracker

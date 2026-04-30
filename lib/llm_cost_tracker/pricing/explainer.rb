@@ -59,8 +59,8 @@ module LlmCostTracker
             match&.key,
             match&.matched_by,
             prices,
-            effective ? effective.to_h : {},
-            effective ? effective.missing_keys : []
+            effective || {},
+            effective ? effective.filter_map { |key, value| key if value.nil? } : []
           )
         end
       end

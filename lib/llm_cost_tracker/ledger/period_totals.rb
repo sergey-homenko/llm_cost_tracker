@@ -29,8 +29,9 @@ module LlmCostTracker
 
       def snapshot_totals
         values = periods.to_h { |period| [period, 0.0] }
-        connection.select_all(periods.map { |period| snapshot_select(period) }.join(" UNION ALL ")).each do |row|
-          values[row.fetch("period_key").to_sym] = row.fetch("total_cost").to_f
+        sql = periods.map { |period| snapshot_select(period) }.join(" UNION ALL ")
+        LlmCostTracker::Ledger::Call.find_by_sql(sql).each do |row|
+          values[row.period_key.to_sym] = row.total_cost.to_f
         end
         values
       end

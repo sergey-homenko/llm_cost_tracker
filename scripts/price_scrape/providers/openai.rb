@@ -5,6 +5,10 @@ require "json"
 require "nokogiri"
 require "time"
 
+require_relative "../price_fields_validator"
+require_relative "openai/model_ids"
+require_relative "openai/rendered_long_context_prices"
+
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
@@ -12,30 +16,9 @@ module LlmCostTracker
         SOURCE_URL = "https://developers.openai.com/api/docs/pricing"
         MIN_MODELS_EXPECTED = 25
         MAX_PRICE_PER_MTOK = 1000.0
-
-        MODEL_ID_BY_DISPLAY_NAME = {
-          "chatgpt-4o-latest" => "chatgpt-4o-latest", "codex-mini-latest" => "codex-mini-latest",
-          "gpt-3.5-turbo" => "gpt-3.5-turbo", "gpt-4" => "gpt-4", "gpt-4-0613" => "gpt-4",
-          "gpt-4-turbo" => "gpt-4-turbo", "gpt-4-turbo-2024-04-09" => "gpt-4-turbo",
-          "gpt-4.1" => "gpt-4.1", "gpt-4.1-mini" => "gpt-4.1-mini",
-          "gpt-4.1-nano" => "gpt-4.1-nano", "gpt-4o" => "gpt-4o",
-          "gpt-4o-2024-05-13" => "gpt-4o-2024-05-13", "gpt-4o-mini" => "gpt-4o-mini",
-          "gpt-5" => "gpt-5", "gpt-5-chat-latest" => "gpt-5-chat-latest",
-          "gpt-5-codex" => "gpt-5-codex", "gpt-5-mini" => "gpt-5-mini",
-          "gpt-5-nano" => "gpt-5-nano", "gpt-5-pro" => "gpt-5-pro",
-          "gpt-5.1" => "gpt-5.1", "gpt-5.1-chat-latest" => "gpt-5.1-chat-latest",
-          "gpt-5.1-codex" => "gpt-5.1-codex", "gpt-5.1-codex-max" => "gpt-5.1-codex-max",
-          "gpt-5.1-codex-mini" => "gpt-5.1-codex-mini", "gpt-5.2" => "gpt-5.2",
-          "gpt-5.2-chat-latest" => "gpt-5.2-chat-latest", "gpt-5.2-codex" => "gpt-5.2-codex",
-          "gpt-5.2-pro" => "gpt-5.2-pro", "gpt-5.3-chat-latest" => "gpt-5.3-chat-latest",
-          "gpt-5.3-codex" => "gpt-5.3-codex", "gpt-5.4" => "gpt-5.4",
-          "gpt-5.4 (<272K context length)" => "gpt-5.4", "gpt-5.4-mini" => "gpt-5.4-mini",
-          "gpt-5.4-nano" => "gpt-5.4-nano", "gpt-5.4-pro" => "gpt-5.4-pro",
-          "gpt-5.4-pro (<272K context length)" => "gpt-5.4-pro", "gpt-5.5" => "gpt-5.5",
-          "gpt-5.5 (<272K context length)" => "gpt-5.5", "gpt-5.5-pro" => "gpt-5.5-pro",
-          "gpt-5.5-pro (<272K context length)" => "gpt-5.5-pro", "o1" => "o1", "o1-mini" => "o1-mini",
-          "o1-pro" => "o1-pro", "o3" => "o3", "o3-mini" => "o3-mini", "o3-pro" => "o3-pro",
-          "o4-mini" => "o4-mini"
+        STANDARD_FIELDS = { input: "input", cache_read_input: "cache_read_input", output: "output" }.freeze
+        BATCH_FIELDS = {
+          input: "batch_input", cache_read_input: "batch_cache_read_input", output: "batch_output"
         }.freeze
 
         Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models)
@@ -44,10 +27,23 @@ module LlmCostTracker
 
         def call(html:, source_url: SOURCE_URL, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
-          models = merge_model_fields(extract_standard_models(doc), extract_specialized_models(doc, tier: "standard"))
-          models = merge_model_fields(models, extract_batch_models(doc))
+          models = merge_model_fields(
+            extract_tier_models(doc, tier: "standard", fields: STANDARD_FIELDS),
+            extract_specialized_models(doc, tier: "standard")
+          )
+          models = merge_model_fields(
+            models,
+            rendered_long_context_prices(doc, tier: "standard", fields: STANDARD_FIELDS)
+          )
+          models = merge_model_fields(models, extract_tier_models(doc, tier: "batch", fields: BATCH_FIELDS))
+          models = merge_model_fields(models, rendered_long_context_prices(doc, tier: "batch", fields: BATCH_FIELDS))
           models = merge_model_fields(models, extract_specialized_models(doc, tier: "batch"))
-          validate!(models)
+          PriceFieldsValidator.call(
+            models,
+            minimum: MIN_MODELS_EXPECTED,
+            maximum: MAX_PRICE_PER_MTOK,
+            error_class: Error
+          )
           Result.new(
             source_url: source_url,
             scraped_at: scraped_at,
@@ -57,14 +53,6 @@ module LlmCostTracker
         end
 
         private
-
-        def extract_standard_models(doc)
-          extract_tier_models(doc, tier: "standard", fields: standard_fields)
-        end
-
-        def extract_batch_models(doc)
-          extract_tier_models(doc, tier: "batch", fields: batch_fields)
-        end
 
         def extract_tier_models(doc, tier:, fields:)
           props = pricing_props(doc).find { |candidate| unwrap(candidate["tier"]) == tier }
@@ -83,7 +71,11 @@ module LlmCostTracker
           props = pricing_props(pane).find { |candidate| candidate.key?("groups") }
           return {} unless props
 
-          extract_rows(group_rows_from(props), fields: tier == "batch" ? batch_fields : standard_fields)
+          extract_rows(group_rows_from(props), fields: tier == "batch" ? BATCH_FIELDS : STANDARD_FIELDS)
+        end
+
+        def rendered_long_context_prices(doc, tier:, fields:)
+          RenderedLongContextPrices.new(doc, tier: tier, fields: fields, model_ids: MODEL_ID_BY_DISPLAY_NAME).models
         end
 
         def pricing_props(node)
@@ -139,6 +131,18 @@ module LlmCostTracker
           }
           cache_read_input = parse_optional_price(unwrap(cells[2]))
           prices[fields.fetch(:cache_read_input)] = cache_read_input if cache_read_input
+
+          if cells.size >= 7
+            long_input = parse_optional_price(unwrap(cells[4]))
+            long_cache_read = parse_optional_price(unwrap(cells[5]))
+            long_output = parse_optional_price(unwrap(cells[6]))
+            if long_input && long_output
+              prices["_context_price_threshold_tokens"] = 272_000
+              prices["above_context_#{fields.fetch(:input)}"] = long_input
+              prices["above_context_#{fields.fetch(:output)}"] = long_output
+              prices["above_context_#{fields.fetch(:cache_read_input)}"] = long_cache_read if long_cache_read
+            end
+          end
           prices
         end
 
@@ -151,14 +155,6 @@ module LlmCostTracker
 
             existing.merge(incoming)
           end
-        end
-
-        def standard_fields
-          { input: "input", cache_read_input: "cache_read_input", output: "output" }
-        end
-
-        def batch_fields
-          { input: "batch_input", cache_read_input: "batch_cache_read_input", output: "batch_output" }
         end
 
         def normalize_model_id(display_name)
@@ -189,20 +185,6 @@ module LlmCostTracker
           return unwrap(value[1]) if value.is_a?(Array) && value.size == 2 && value[0].is_a?(Integer)
 
           value
-        end
-
-        def validate!(models)
-          if models.size < MIN_MODELS_EXPECTED
-            raise Error, "expected at least #{MIN_MODELS_EXPECTED} models, parsed #{models.size}"
-          end
-
-          models.each do |model_id, fields|
-            fields.each do |field, value|
-              next if value.is_a?(Float) && value.positive? && value < MAX_PRICE_PER_MTOK
-
-              raise Error, "invalid price for #{model_id}.#{field}: #{value.inspect}"
-            end
-          end
         end
       end
     end

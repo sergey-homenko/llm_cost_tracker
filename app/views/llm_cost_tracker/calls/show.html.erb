@@ -1,13 +1,53 @@
-<% token_usage = LlmCostTracker::TokenUsage.from_hash(@call.attributes) %>
-<% cost = @call.total_cost.nil? ? nil : LlmCostTracker::Pricing::Cost.from_hash(@call.attributes) %>
-<% token_segments = LlmCostTracker::TokenUsage::PRICED_COMPONENTS.map do |component|
-  value = token_usage.public_send(component.token_key)
-  { label: component.label, value: value, formatted_value: format_tokens(value), css_class: component.css_class }
+<% priced_components = [
+  {
+    token_key: :input_tokens,
+    cost_key: :input_cost,
+    label: "Input",
+    css_class: "lct-stack-fill-input",
+    stored: :base
+  },
+  {
+    token_key: :cache_read_input_tokens,
+    cost_key: :cache_read_input_cost,
+    label: "Cache read",
+    css_class: "lct-stack-fill-cache-read",
+    stored: :optional
+  },
+  {
+    token_key: :cache_write_input_tokens,
+    cost_key: :cache_write_input_cost,
+    label: "Cache write",
+    css_class: "lct-stack-fill-cache-write",
+    stored: :optional
+  },
+  {
+    token_key: :cache_write_1h_input_tokens,
+    cost_key: :cache_write_1h_input_cost,
+    label: "1h cache write",
+    css_class: "lct-stack-fill-cache-write-1h",
+    stored: :optional
+  },
+  {
+    token_key: :output_tokens,
+    cost_key: :output_cost,
+    label: "Output",
+    css_class: "lct-stack-fill-output",
+    stored: :base
+  }
+] %>
+<% token_segments = priced_components.map do |component|
+  token_key = component.fetch(:token_key)
+  value = @call.has_attribute?(token_key) ? @call[token_key] : 0
+  { label: component.fetch(:label), value: value, formatted_value: format_tokens(value), css_class: component.fetch(:css_class) }
 end %>
-<% cost_segments = cost ? LlmCostTracker::TokenUsage::PRICED_COMPONENTS.map do |component|
-  value = cost.public_send(component.cost_key)
-  { label: component.label, value: value, formatted_value: optional_money(value), css_class: component.css_class }
-end : [] %>
+<% cost_segments = [] %>
+<% unless @call.total_cost.nil? %>
+  <% cost_segments = priced_components.map do |component|
+    cost_key = component.fetch(:cost_key)
+    value = @call.has_attribute?(cost_key) ? @call[cost_key] : nil
+    { label: component.fetch(:label), value: value, formatted_value: optional_money(value), css_class: component.fetch(:css_class) }
+  end %>
+<% end %>
 
 <section class="lct-panel">
   <p class="lct-muted"><%= link_to "Back to calls", calls_path %></p>
@@ -92,19 +132,19 @@ end : [] %>
     </dl>
 
     <dl class="lct-dl">
-      <% LlmCostTracker::TokenUsage::PRICED_COMPONENTS.each do |component| %>
-        <% next if component.stored == :optional && !LlmCostTracker::Ledger::Call.token_usage_columns? %>
-        <dt><%= component.label.titleize %> Tokens</dt>
-        <dd><%= format_tokens(token_usage.public_send(component.token_key)) %></dd>
+      <% priced_components.each do |component| %>
+        <% next if component.fetch(:stored) == :optional && !LlmCostTracker::Ledger::Call.token_usage_columns? %>
+        <dt><%= component.fetch(:label).titleize %> Tokens</dt>
+        <dd><%= format_tokens(@call[component.fetch(:token_key)]) %></dd>
       <% end %>
 
       <dt>Total Tokens</dt>
       <dd><%= format_tokens(@call.total_tokens) %></dd>
 
-      <% LlmCostTracker::TokenUsage::PRICED_COMPONENTS.each do |component| %>
-        <% next if component.stored == :optional && !LlmCostTracker::Ledger::Call.token_usage_cost_columns? %>
-        <dt><%= component.label.titleize %> Cost</dt>
-        <dd><%= optional_money(cost&.public_send(component.cost_key)) %></dd>
+      <% priced_components.each do |component| %>
+        <% next if component.fetch(:stored) == :optional && !LlmCostTracker::Ledger::Call.token_usage_cost_columns? %>
+        <dt><%= component.fetch(:label).titleize %> Cost</dt>
+        <dd><%= optional_money(@call[component.fetch(:cost_key)]) %></dd>
       <% end %>
 
       <dt>Total Cost</dt>

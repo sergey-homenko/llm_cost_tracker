@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "time"
-
 require_relative "../ledger"
 
 module LlmCostTracker
@@ -28,12 +26,14 @@ module LlmCostTracker
           end
 
           pending = pending_snapshot
-          pending_age = pending.fetch(:oldest_at) && (Time.now.utc - pending.fetch(:oldest_at))
-          if pending.fetch(:count).positive? && pending_age && pending_age >= PENDING_AGE_WARNING_SECONDS
+          pending_count = pending.try(:pending_count).to_i
+          oldest_pending_at = pending.try(:oldest_created_at)&.to_time&.utc
+          pending_age = oldest_pending_at && (Time.now.utc - oldest_pending_at)
+          if pending_count.positive? && pending_age && pending_age >= PENDING_AGE_WARNING_SECONDS
             return check_class.new(
               :warn,
               "durable ingestion",
-              "#{pending.fetch(:count)} inbox events pending; oldest pending age #{pending_age.round}s"
+              "#{pending_count} inbox events pending; oldest pending age #{pending_age.round}s"
             )
           end
 
@@ -69,30 +69,20 @@ module LlmCostTracker
       def quarantined_count
         return 0 unless table_exists?("llm_cost_tracker_inbox_events")
 
-        LlmCostTracker::Ledger::Call.connection.select_value(quarantined_sql).to_i
+        LlmCostTracker::Ledger::Ingestion::Event
+          .where("attempts >= ?", LlmCostTracker::Ledger::Ingestion::Inbox::MAX_ATTEMPTS)
+          .count
       rescue StandardError
         0
       end
 
-      def quarantined_sql
-        table = LlmCostTracker::Ledger::Call.connection.quote_table_name("llm_cost_tracker_inbox_events")
-        "SELECT COUNT(*) FROM #{table} WHERE attempts >= #{LlmCostTracker::Ledger::Ingestion::Inbox::MAX_ATTEMPTS}"
-      end
-
       def pending_snapshot
-        row = LlmCostTracker::Ledger::Call.connection.select_one(pending_sql) || {}
-        {
-          count: row.fetch("pending_count").to_i,
-          oldest_at: row["oldest_created_at"] && Time.parse(row.fetch("oldest_created_at").to_s).utc
-        }
+        LlmCostTracker::Ledger::Ingestion::Event
+          .where("attempts < ?", LlmCostTracker::Ledger::Ingestion::Inbox::MAX_ATTEMPTS)
+          .select("COUNT(*) AS pending_count, MIN(created_at) AS oldest_created_at")
+          .take
       rescue StandardError
-        { count: 0, oldest_at: nil }
-      end
-
-      def pending_sql
-        table = LlmCostTracker::Ledger::Call.connection.quote_table_name("llm_cost_tracker_inbox_events")
-        "SELECT COUNT(*) AS pending_count, MIN(created_at) AS oldest_created_at " \
-          "FROM #{table} WHERE attempts < #{LlmCostTracker::Ledger::Ingestion::Inbox::MAX_ATTEMPTS}"
+        nil
       end
     end
   end

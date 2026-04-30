@@ -24,7 +24,7 @@ module LlmCostTracker
 
       def check!(event)
         config = LlmCostTracker.configuration
-        return unless event.cost
+        return unless event.total_cost
 
         check_per_call_budget(event, config)
         budgets = check_period_budgets(config)
@@ -43,7 +43,7 @@ module LlmCostTracker
         budget = config.per_call_budget
         return unless budget
 
-        call_cost = event.cost.total_cost
+        call_cost = event.total_cost
         return unless call_cost >= budget
 
         handle_exceeded(budget_type: :per_call, total: call_cost, budget: budget, last_event: event)
@@ -100,10 +100,10 @@ module LlmCostTracker
       def notify_exceeded?(config, budget_type:, total:, budget:, last_event:)
         return false unless config.on_budget_exceeded
         return true unless config.budget_exceeded_behavior == :notify
-        return true unless last_event&.cost
+        return true unless last_event&.total_cost
         return true if budget_type == :per_call
 
-        total - last_event.cost.total_cost < budget
+        total - last_event.total_cost < budget
       end
     end
   end

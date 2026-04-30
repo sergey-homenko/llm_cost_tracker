@@ -391,11 +391,11 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "returns zero values for an empty scope" do
       stats = described_class.call
 
-      expect(stats.total_cost).to eq(0.0)
-      expect(stats.total_calls).to eq(0)
-      expect(stats.average_cost_per_call).to eq(0.0)
+      expect(stats.total_cost.to_f).to eq(0.0)
+      expect(stats.total_calls.to_i).to eq(0)
+      expect(stats.average_cost_per_call.to_f).to eq(0.0)
       expect(stats.average_latency_ms).to be_nil
-      expect(stats.monthly_budget_status).to be_nil
+      expect(described_class.monthly_budget_status).to be_nil
     end
 
     it "aggregates total cost, calls, average cost, latency, and budget status" do
@@ -406,15 +406,17 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       stats = described_class.call
 
-      expect(stats.total_cost).to eq(6.0)
-      expect(stats.total_calls).to eq(2)
-      expect(stats.average_cost_per_call).to eq(3.0)
-      expect(stats.average_latency_ms).to eq(200.0)
-      expect(stats.monthly_budget_status).to include(budget: 10.0, spent: 6.0, percent_used: 60.0)
-      expect(stats.monthly_budget_status[:projected_spent]).to be_within(0.01).of(12.0)
-      expect(stats.monthly_budget_status[:projected_percent_used]).to be_within(0.01).of(120.0)
-      expect(stats.monthly_budget_status[:projected_delta]).to be_within(0.01).of(2.0)
-      expect(stats.monthly_budget_status[:projection_end_label]).to eq("Apr 30")
+      expect(stats.total_cost.to_f).to eq(6.0)
+      expect(stats.total_calls.to_i).to eq(2)
+      expect(stats.average_cost_per_call.to_f).to eq(3.0)
+      expect(stats.average_latency_ms.to_f).to eq(200.0)
+      budget = described_class.monthly_budget_status
+
+      expect(budget).to include(budget: 10.0, spent: 6.0, percent_used: 60.0)
+      expect(budget[:projected_spent]).to be_within(0.01).of(12.0)
+      expect(budget[:projected_percent_used]).to be_within(0.01).of(120.0)
+      expect(budget[:projected_delta]).to be_within(0.01).of(2.0)
+      expect(budget[:projection_end_label]).to eq("Apr 30")
     end
 
     it "reads monthly budget status from maintained storage totals" do
@@ -423,10 +425,10 @@ RSpec.describe "LlmCostTracker dashboard services" do
       allow(LlmCostTracker::Ledger::Store).to receive(:monthly_total).and_return(7.5)
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
 
-      stats = described_class.call
+      budget = described_class.monthly_budget_status
 
       expect(LlmCostTracker::Ledger::Store).to have_received(:monthly_total).with(time: now)
-      expect(stats.monthly_budget_status).to include(spent: 7.5, percent_used: 75.0)
+      expect(budget).to include(spent: 7.5, percent_used: 75.0)
     end
 
     it "omits average latency when the column is unavailable" do
@@ -457,10 +459,10 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       stats = described_class.call(scope: current, previous_scope: previous)
 
-      expect(stats.total_cost).to eq(6.0)
-      expect(stats.previous_total_cost).to eq(2.0)
-      expect(stats.cost_delta_percent).to eq(200.0)
-      expect(stats.calls_delta_percent).to eq(0.0)
+      expect(stats.total_cost.to_f).to eq(6.0)
+      expect(stats.previous_total_cost.to_f).to eq(2.0)
+      expect(stats.cost_delta_percent.to_f).to eq(200.0)
+      expect(stats.calls_delta_percent.to_f).to eq(0.0)
     end
 
     it "returns nil delta when previous period has zero cost" do
@@ -502,12 +504,12 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       alert = described_class.call(from: Date.new(2026, 4, 13), to: Date.new(2026, 4, 20))
 
-      expect(alert.provider).to eq("openai")
-      expect(alert.model).to eq("gpt-4o")
-      expect(alert.day).to eq(Date.new(2026, 4, 20))
-      expect(alert.latest_spend).to eq(12.0)
-      expect(alert.baseline_mean).to eq(1.0)
-      expect(alert.ratio).to eq(12.0)
+      expect(alert.fetch(:provider)).to eq("openai")
+      expect(alert.fetch(:model)).to eq("gpt-4o")
+      expect(alert.fetch(:day)).to eq(Date.new(2026, 4, 20))
+      expect(alert.fetch(:latest_spend)).to eq(12.0)
+      expect(alert.fetch(:baseline_mean)).to eq(1.0)
+      expect(alert.fetch(:ratio)).to eq(12.0)
     end
 
     it "aggregates the anomaly window in SQL" do
@@ -615,10 +617,10 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "returns zeros for empty dataset" do
       stats = described_class.call
 
-      expect(stats.total_calls).to eq(0)
-      expect(stats.unknown_pricing_count).to eq(0)
-      expect(stats.untagged_calls_count).to eq(0)
-      expect(stats.unknown_pricing_by_model).to be_empty
+      expect(stats.total_calls.to_i).to eq(0)
+      expect(stats.unknown_pricing_count.to_i).to eq(0)
+      expect(stats.untagged_calls_count.to_i).to eq(0)
+      expect(described_class.unknown_pricing_by_model(LlmCostTracker::Ledger::Call.all)).to be_empty
     end
 
     it "counts unknown pricing and untagged calls correctly" do
@@ -628,9 +630,9 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       stats = described_class.call
 
-      expect(stats.total_calls).to eq(3)
-      expect(stats.unknown_pricing_count).to eq(2)
-      expect(stats.untagged_calls_count).to eq(1)
+      expect(stats.total_calls.to_i).to eq(3)
+      expect(stats.unknown_pricing_count.to_i).to eq(2)
+      expect(stats.untagged_calls_count.to_i).to eq(1)
     end
 
     it "reports missing latency count when column is present" do
@@ -639,8 +641,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       stats = described_class.call
 
-      expect(stats.latency_column_present).to be true
-      expect(stats.missing_latency_count).to eq(1)
+      expect(LlmCostTracker::Ledger::Call.latency_column?).to be true
+      expect(stats.missing_latency_count.to_i).to eq(1)
     end
 
     it "groups unknown pricing by model" do
@@ -648,10 +650,11 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(model: "unknown-x", total_cost: nil)
       create_call(model: "unknown-y", total_cost: nil)
 
-      stats = described_class.call
+      rows = described_class.unknown_pricing_by_model(LlmCostTracker::Ledger::Call.all)
+      counts = rows.index_by(&:model)
 
-      expect(stats.unknown_pricing_by_model["unknown-x"]).to eq(2)
-      expect(stats.unknown_pricing_by_model["unknown-y"]).to eq(1)
+      expect(counts.fetch("unknown-x").calls.to_i).to eq(2)
+      expect(counts.fetch("unknown-y").calls.to_i).to eq(1)
     end
 
     it "sums usage and cost breakdown columns when present" do
@@ -682,18 +685,18 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       stats = described_class.call
 
-      expect(stats.token_usage_columns_present).to be true
-      expect(stats.input_tokens).to eq(300)
-      expect(stats.cache_read_input_tokens).to eq(60)
-      expect(stats.cache_write_input_tokens).to eq(25)
-      expect(stats.cache_write_1h_input_tokens).to eq(7)
-      expect(stats.output_tokens).to eq(100)
-      expect(stats.hidden_output_tokens).to eq(15)
-      expect(stats.input_cost).to eq(0.4)
-      expect(stats.cache_read_input_cost).to eq(0.03)
-      expect(stats.cache_write_input_cost).to eq(0.03)
-      expect(stats.cache_write_1h_input_cost).to eq(0.09)
-      expect(stats.output_cost).to eq(0.6)
+      expect(LlmCostTracker::Ledger::Call.token_usage_columns?).to be true
+      expect(stats.input_tokens.to_i).to eq(300)
+      expect(stats.cache_read_input_tokens.to_i).to eq(60)
+      expect(stats.cache_write_input_tokens.to_i).to eq(25)
+      expect(stats.cache_write_1h_input_tokens.to_i).to eq(7)
+      expect(stats.output_tokens.to_i).to eq(100)
+      expect(stats.hidden_output_tokens.to_i).to eq(15)
+      expect(stats.input_cost.to_f).to eq(0.4)
+      expect(stats.cache_read_input_cost.to_f).to eq(0.03)
+      expect(stats.cache_write_input_cost.to_f).to eq(0.03)
+      expect(stats.cache_write_1h_input_cost.to_f).to eq(0.09)
+      expect(stats.output_cost.to_f).to eq(0.6)
     end
 
     it "reads aggregate counters and sums without count fan-out" do
@@ -708,7 +711,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       statements = capture_llm_api_call_selects { described_class.call }
 
-      expect(statements.size).to eq(2)
+      expect(statements.size).to eq(1)
     end
 
     it "reports token usage absence when the schema lacks canonical token columns" do
@@ -718,8 +721,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       stats = described_class.call
 
-      expect(stats.token_usage_columns_present).to be false
-      expect(stats.input_tokens).to eq(100)
+      expect(LlmCostTracker::Ledger::Call.token_usage_columns?).to be false
+      expect(stats.input_tokens.to_i).to eq(100)
       expect(stats.cache_read_input_tokens).to be_nil
       expect(stats.cache_write_1h_input_tokens).to be_nil
       expect(stats.hidden_output_tokens).to be_nil
@@ -728,11 +731,11 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "reports stream column absence when the schema lacks it" do
       stats = described_class.call
 
-      expect(stats.stream_column_present).to be false
+      expect(LlmCostTracker::Ledger::Call.stream_column?).to be false
       expect(stats.streaming_count).to be_nil
       expect(stats.streaming_missing_usage_count).to be_nil
-      expect(stats.provider_response_id_column_present).to be true
-      expect(stats.missing_provider_response_id_count).to eq(0)
+      expect(LlmCostTracker::Ledger::Call.provider_response_id_column?).to be true
+      expect(stats.missing_provider_response_id_count.to_i).to eq(0)
     end
 
     context "with stream and usage_source columns" do
@@ -748,11 +751,11 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
         stats = described_class.call
 
-        expect(stats.stream_column_present).to be true
-        expect(stats.streaming_count).to eq(2)
-        expect(stats.streaming_missing_usage_count).to eq(1)
-        expect(stats.provider_response_id_column_present).to be true
-        expect(stats.missing_provider_response_id_count).to eq(1)
+        expect(LlmCostTracker::Ledger::Call.stream_column?).to be true
+        expect(stats.streaming_count.to_i).to eq(2)
+        expect(stats.streaming_missing_usage_count.to_i).to eq(1)
+        expect(LlmCostTracker::Ledger::Call.provider_response_id_column?).to be true
+        expect(stats.missing_provider_response_id_count.to_i).to eq(1)
       end
     end
   end
@@ -764,24 +767,24 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(total_cost: 1.0, tags: { feature: "search" })
       create_call(total_cost: 9.0, tags: { other: "missing" })
 
-      result = described_class.call(key: "feature", limit: 2)
+      breakdown = described_class.call(key: "feature", limit: 2)
 
-      expect(result.rows.map(&:value)).to eq(%w[chat batch])
-      expect(result.total_calls).to eq(4)
-      expect(result.tagged_calls).to eq(3)
-      expect(result.distinct_values).to eq(3)
-      expect(result).to be_limited
+      expect(breakdown.rows.map(&:value)).to eq(%w[chat batch])
+      expect(breakdown.total_calls).to eq(4)
+      expect(breakdown.tagged_calls).to eq(3)
+      expect(breakdown.distinct_values).to eq(3)
+      expect(breakdown.distinct_values > breakdown.rows.size).to be true
     end
 
     it "returns empty rows when no calls carry the tag key" do
       create_call(tags: { other: "missing" })
 
-      result = described_class.call(key: "feature")
+      breakdown = described_class.call(key: "feature")
 
-      expect(result.rows).to eq([])
-      expect(result.total_calls).to eq(1)
-      expect(result.tagged_calls).to eq(0)
-      expect(result.distinct_values).to eq(0)
+      expect(breakdown.rows).to eq([])
+      expect(breakdown.total_calls).to eq(1)
+      expect(breakdown.tagged_calls).to eq(0)
+      expect(breakdown.distinct_values).to eq(0)
     end
   end
 
@@ -811,7 +814,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(tags: { env: "prod" })
 
       rows = described_class.call
-      env_row = rows.find { |r| r.key == "env" }
+      env_row = rows.find { |row| row.key == "env" }
 
       expect(env_row.calls_count).to eq(3)
       expect(env_row.distinct_values).to eq(2)
@@ -847,12 +850,12 @@ RSpec.describe "LlmCostTracker dashboard services" do
         allow(connection).to receive(:adapter_name).and_return(adapter_name)
         allow(LlmCostTracker::Ledger::DatabaseAdapter).to receive(:postgresql?).with(connection).and_return(false)
         allow(LlmCostTracker::Ledger::DatabaseAdapter).to receive(:mysql?).with(connection).and_return(true)
-        allow(connection).to receive(:select_all) do |sql|
+        allow(LlmCostTracker::Ledger::Call).to receive(:find_by_sql) do |sql|
           captured_sql = sql
-          ActiveRecord::Result.new(
-            %w[key calls_count distinct_values],
-            [["env", 2, 2], ["service", 1, 1]]
-          )
+          [
+            LlmCostTracker::Ledger::Call.instantiate("key" => "env", "calls_count" => 2, "distinct_values" => 2),
+            LlmCostTracker::Ledger::Call.instantiate("key" => "service", "calls_count" => 1, "distinct_values" => 1)
+          ]
         end
 
         rows = described_class.call

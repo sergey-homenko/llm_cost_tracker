@@ -2,8 +2,6 @@
 
 module LlmCostTracker
   module Dashboard
-    ProviderRow = Data.define(:provider, :calls, :total_cost, :share_percent)
-
     class ProviderBreakdown
       def self.call(scope: LlmCostTracker::Ledger::Call.all)
         new(scope: scope).rows
@@ -14,28 +12,28 @@ module LlmCostTracker
       end
 
       def rows
-        grouped = scope
-                  .group(:provider)
-                  .select("provider, COUNT(*) AS calls_count, COALESCE(SUM(total_cost), 0) AS total_cost_sum")
-                  .order(Arel.sql("total_cost_sum DESC, calls_count DESC"))
-                  .to_a
-
-        total_cost = grouped.sum { |row| row.total_cost_sum.to_f }
-
-        grouped.map do |row|
-          cost = row.total_cost_sum.to_f
-          ProviderRow.new(
-            provider: row.provider,
-            calls: row.calls_count.to_i,
-            total_cost: cost,
-            share_percent: total_cost.positive? ? (cost / total_cost) * 100.0 : 0.0
-          )
-        end
+        scope
+          .group(:provider)
+          .select(selects)
+          .order(Arel.sql("total_cost DESC, calls DESC"))
       end
 
       private
 
       attr_reader :scope
+
+      def selects
+        <<~SQL.squish
+          provider,
+          COUNT(*) AS calls,
+          COALESCE(SUM(total_cost), 0) AS total_cost,
+          CASE
+            WHEN SUM(COALESCE(SUM(total_cost), 0)) OVER () > 0
+              THEN COALESCE(SUM(total_cost), 0) / SUM(COALESCE(SUM(total_cost), 0)) OVER () * 100.0
+            ELSE 0
+          END AS share_percent
+        SQL
+      end
     end
   end
 end

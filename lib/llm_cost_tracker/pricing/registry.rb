@@ -11,8 +11,11 @@ module LlmCostTracker
     module Registry
       DEFAULT_PRICES_PATH = File.expand_path("../prices.json", __dir__)
       EMPTY_PRICES = {}.freeze
-      PRICE_KEYS = TokenUsage::PRICE_KEYS.map(&:to_s).freeze
-      METADATA_KEYS = %w[_source _source_version _fetched_at _updated _notes _validator_override].freeze
+      PRICE_KEYS = TokenUsage::PRICED_COMPONENTS.map { |component| component.fetch(:price_key).to_s }.freeze
+      METADATA_KEYS = %w[
+        _source _source_version _fetched_at _updated _notes _validator_override
+        _context_price_threshold_tokens
+      ].freeze
       MAX_FILE_BYTES = 2_097_152
       MUTEX = Mutex.new
 
@@ -83,7 +86,11 @@ module LlmCostTracker
         def normalize_price_entry(price)
           price.each_with_object({}) do |(key, value), normalized|
             key = key.to_s
-            normalized[key.to_sym] = Float(value) if price_key?(key)
+            if price_key?(key)
+              normalized[key.to_sym] = Float(value)
+            elsif key == "_context_price_threshold_tokens"
+              normalized[key.to_sym] = Integer(value)
+            end
           end
         end
 

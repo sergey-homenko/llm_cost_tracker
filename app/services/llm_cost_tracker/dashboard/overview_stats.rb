@@ -4,71 +4,13 @@ require "llm_cost_tracker/ledger"
 
 module LlmCostTracker
   module Dashboard
-    OverviewStatsData = Data.define(
-      :total_cost,
-      :total_calls,
-      :average_cost_per_call,
-      :average_latency_ms,
-      :unknown_pricing_count,
-      :previous_total_cost,
-      :previous_total_calls,
-      :cost_delta_percent,
-      :calls_delta_percent,
-      :monthly_budget_status
-    )
-
     class OverviewStats
       class << self
         def call(scope: LlmCostTracker::Ledger::Call.all, previous_scope: nil)
-          current = scope.select(aggregate_selects(scope)).take
-          total_calls = current.calls_count.to_i
-          total_cost = current.total_cost_sum.to_f
-
-          previous = previous_scope&.select(aggregate_selects(previous_scope))&.take
-          prev_cost = previous&.total_cost_sum.to_f
-          prev_calls = previous&.calls_count.to_i
-
-          OverviewStatsData.new(
-            total_cost: total_cost,
-            total_calls: total_calls,
-            average_cost_per_call: total_calls.positive? ? total_cost / total_calls : 0.0,
-            average_latency_ms: latency_value(current, scope),
-            unknown_pricing_count: current.unknown_pricing_count.to_i,
-            previous_total_cost: previous ? prev_cost : nil,
-            previous_total_calls: previous ? prev_calls : nil,
-            cost_delta_percent: previous ? delta_percent(total_cost, prev_cost) : nil,
-            calls_delta_percent: previous ? delta_percent(total_calls, prev_calls) : nil,
-            monthly_budget_status: budget_status
-          )
+          scope.select(aggregate_selects(scope, previous_scope: previous_scope)).take
         end
 
-        private
-
-        def aggregate_selects(scope)
-          selects = [
-            "COUNT(*) AS calls_count",
-            "COALESCE(SUM(total_cost), 0) AS total_cost_sum",
-            "SUM(CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END) AS unknown_pricing_count"
-          ]
-          selects << "AVG(latency_ms) AS average_latency" if scope.klass.latency_column?
-          selects.join(", ")
-        end
-
-        def latency_value(row, scope)
-          return nil unless scope.klass.latency_column?
-
-          row.average_latency&.to_f
-        end
-
-        def delta_percent(current, previous)
-          current = current.to_f
-          previous = previous.to_f
-          return nil if previous.zero?
-
-          ((current - previous) / previous) * 100.0
-        end
-
-        def budget_status
+        def monthly_budget_status
           budget = LlmCostTracker.configuration.monthly_budget
           return nil unless budget
 
@@ -93,6 +35,63 @@ module LlmCostTracker
             projected_delta: projected_spent - budget.to_f,
             projection_end_label: month_end.strftime("%b %-d")
           }
+        end
+
+        private
+
+        def aggregate_selects(scope, previous_scope:)
+          average_cost_sql = <<~SQL.squish
+            CASE WHEN COUNT(*) > 0
+            THEN COALESCE(SUM(total_cost), 0) * 1.0 / COUNT(*)
+            ELSE 0 END
+          SQL
+          selects = [
+            "COUNT(*) AS total_calls",
+            "COALESCE(SUM(total_cost), 0) AS total_cost",
+            "#{average_cost_sql} AS average_cost_per_call",
+            "SUM(CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END) AS unknown_pricing_count"
+          ]
+          selects << if scope.klass.latency_column?
+                       "AVG(latency_ms) AS average_latency_ms"
+                     else
+                       "NULL AS average_latency_ms"
+                     end
+          selects.concat(previous_selects(previous_scope))
+          selects.join(", ")
+        end
+
+        def previous_selects(previous_scope)
+          unless previous_scope
+            return [
+              "NULL AS previous_total_cost",
+              "NULL AS previous_total_calls",
+              "NULL AS cost_delta_percent",
+              "NULL AS calls_delta_percent"
+            ]
+          end
+
+          previous_cost_sql = aggregate_subquery(previous_scope, "COALESCE(SUM(total_cost), 0)")
+          previous_calls_sql = aggregate_subquery(previous_scope, "COUNT(*)")
+          cost_delta_sql = <<~SQL.squish
+            CASE WHEN (#{previous_cost_sql}) = 0 THEN NULL
+            ELSE ((COALESCE(SUM(total_cost), 0) - (#{previous_cost_sql})) * 100.0 / (#{previous_cost_sql}))
+            END
+          SQL
+          calls_delta_sql = <<~SQL.squish
+            CASE WHEN (#{previous_calls_sql}) = 0 THEN NULL
+            ELSE ((COUNT(*) - (#{previous_calls_sql})) * 100.0 / (#{previous_calls_sql}))
+            END
+          SQL
+          [
+            "(#{previous_cost_sql}) AS previous_total_cost",
+            "(#{previous_calls_sql}) AS previous_total_calls",
+            "#{cost_delta_sql} AS cost_delta_percent",
+            "#{calls_delta_sql} AS calls_delta_percent"
+          ]
+        end
+
+        def aggregate_subquery(scope, expression)
+          scope.unscope(:select, :order).select(expression).to_sql
         end
       end
     end

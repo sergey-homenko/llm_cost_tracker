@@ -56,8 +56,8 @@ module LlmCostTracker
           add_stored_attributes(
             attributes,
             columns,
-            event.cost&.stored_attributes || {},
-            Pricing::Cost::BASE_STORED_KEYS
+            TokenUsage.stored_cost_attributes(event.cost || {}),
+            TokenUsage::BASE_COST_KEYS
           )
 
           {

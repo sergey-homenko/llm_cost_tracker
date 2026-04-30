@@ -9,7 +9,6 @@ require_relative "../logging"
 module LlmCostTracker
   module Integrations
     module Base
-      PatchTarget = Data.define(:constant_name, :patch, :method_names, :optional)
       Result = Data.define(:name, :status, :message)
 
       def active?
@@ -19,8 +18,8 @@ module LlmCostTracker
       def install
         validate_contract!
         patch_targets.each do |target|
-          target_class = target.constant_name.to_s.safe_constantize
-          install_patch(target_class, target.patch) if target_class
+          target_class = target.fetch(:constant_name).to_s.safe_constantize
+          install_patch(target_class, target.fetch(:patch)) if target_class
         end
       end
 
@@ -31,9 +30,9 @@ module LlmCostTracker
           return Result.new(name, :warn, "#{name} integration cannot be installed: #{problems.join('; ')}")
         end
 
-        required_targets = patch_targets.reject(&:optional)
+        required_targets = patch_targets.reject { |target| target.fetch(:optional) }
         installed = required_targets.count do |target|
-          target.constant_name.to_s.safe_constantize&.ancestors&.include?(target.patch)
+          target.fetch(:constant_name).to_s.safe_constantize&.ancestors&.include?(target.fetch(:patch))
         end
         return Result.new(name, :ok, "#{name} integration installed") if installed == required_targets.count
 
@@ -93,7 +92,12 @@ module LlmCostTracker
       def patch_targets = []
 
       def patch_target(constant_name, with:, methods:, optional: false)
-        PatchTarget.new(constant_name, with, Array(methods), optional)
+        {
+          constant_name: constant_name,
+          patch: with,
+          method_names: Array(methods),
+          optional: optional
+        }
       end
 
       module_function :object_value, :object_dig
@@ -151,19 +155,20 @@ module LlmCostTracker
 
       def target_problems
         patch_targets.flat_map do |target|
-          target_class = target.constant_name.to_s.safe_constantize
-          next [] if target_class.nil? && target.optional
-          next ["#{target.constant_name} is not loaded"] unless target_class
+          constant_name = target.fetch(:constant_name)
+          target_class = constant_name.to_s.safe_constantize
+          next [] if target_class.nil? && target.fetch(:optional)
+          next ["#{constant_name} is not loaded"] unless target_class
 
           missing_methods(target_class, target)
         end
       end
 
       def missing_methods(target_class, target)
-        target.method_names.filter_map do |method_name|
+        target.fetch(:method_names).filter_map do |method_name|
           next if target_class.method_defined?(method_name) || target_class.private_method_defined?(method_name)
 
-          "#{target.constant_name}##{method_name} is not available"
+          "#{target.fetch(:constant_name)}##{method_name} is not available"
         end
       end
 

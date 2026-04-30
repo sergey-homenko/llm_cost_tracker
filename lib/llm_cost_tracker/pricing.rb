@@ -18,14 +18,10 @@ module LlmCostTracker
         return nil unless costs
 
         values = TokenUsage::PRICED_COMPONENTS.to_h do |component|
-          [component.cost_key, costs.fetch(component.price_key).round(8)]
+          [component.fetch(:cost_key), costs.fetch(component.fetch(:price_key)).round(8)]
         end
 
-        Cost.new(
-          **values,
-          total_cost: costs.values.sum.round(8),
-          currency: "USD"
-        )
+        values.merge(total_cost: costs.values.sum.round(8))
       end
 
       def lookup(provider:, model:)
@@ -45,11 +41,10 @@ module LlmCostTracker
 
       def calculate_costs(usage, prices, pricing_mode:)
         effective = EffectivePrices.call(usage: usage, prices: prices, pricing_mode: pricing_mode)
-        return nil unless effective.complete?
+        return nil if effective.value?(nil)
 
-        prices = effective.to_h
         usage.price_quantities.to_h do |key, tokens|
-          [key, token_cost(tokens, prices.fetch(key))]
+          [key, token_cost(tokens, effective.fetch(key))]
         end
       end
 

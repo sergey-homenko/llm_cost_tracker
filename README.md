@@ -266,6 +266,7 @@ is still brief.
 
 - `:block_requests` is best-effort under concurrency, not a transactional cap.
 - Streaming usage capture relies on the provider emitting a final-usage event. Missing events are stored with `usage_source: "unknown"` so they appear on the data-quality page rather than vanishing.
+- Non-token line items such as Gemini explicit-cache storage duration, provider tool calls, and modality-specific surcharges are not folded into token cost.
 - `provider_response_id` is stored only when the provider exposes a stable ID. Gemini is best-effort and varies by endpoint.
 
 ## Development

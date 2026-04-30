@@ -3,7 +3,9 @@
 module LlmCostTracker
   class DataQualityController < ApplicationController
     def index
-      @stats = Dashboard::DataQuality.call(scope: Dashboard::Filter.call(params: params))
+      scope = Dashboard::Filter.call(params: params)
+      @stats = Dashboard::DataQuality.call(scope: scope)
+      @unknown_pricing_by_model = Dashboard::DataQuality.unknown_pricing_by_model(scope)
     end
   end
 end

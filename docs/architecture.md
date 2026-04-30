@@ -21,6 +21,10 @@ Provider-specific names belong only at ingestion boundaries: parsers and stream 
 
 Pricing logic should prefer generic mechanisms over provider branches. Use provider/model price entries only for lookup and rate selection. Use `pricing_mode` plus mode-prefixed price keys for alternate billing modes, and separate cache-write duration buckets when provider usage exposes them, instead of adding model-specific conditionals.
 
+When a positive-token bucket has no exact price, the event should remain unknown pricing instead of guessing from a nearby bucket. The exception is a documented pricing-mode multiplier such as batch discount stacking, where deriving a cache bucket from the input discount preserves the provider's published rate structure.
+
+Long-context price tiers are selected from `TokenUsage` input-side totals with `_context_price_threshold_tokens` and `above_context_*` price keys. Provider parsers should keep emitting canonical token buckets; they should not decide pricing tiers themselves.
+
 Tags remain the extension point for app-specific attribution such as tenant, user, feature, trace, job, workflow, or agent session. Do not promote those dimensions into first-class columns unless the ledger itself needs them for provider-agnostic billing behavior.
 
 Hot-path guardrails must not aggregate over the growing call ledger. ActiveRecord period budgets should read maintained rows in `llm_cost_tracker_period_totals`; dashboard analytics may run grouped queries because they are user-initiated reporting paths. Do not add dashboard-only aggregate tables until bounded indexed reads from `llm_api_calls` are no longer enough for the supported date range.

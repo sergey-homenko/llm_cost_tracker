@@ -20,7 +20,8 @@ module LlmCostTracker
       cache_read = cache_read_input_tokens.to_i
       cache_write = cache_write_input_tokens.to_i
       cache_write_1h = cache_write_1h_input_tokens.to_i
-      total = total_tokens.nil? ? input + cache_read + cache_write + cache_write_1h + output : total_tokens.to_i
+      calculated_total = input + cache_read + cache_write + cache_write_1h + output
+      total = total_tokens.nil? ? calculated_total : [total_tokens.to_i, calculated_total].max
 
       new(
         input_tokens: input,
@@ -36,7 +37,8 @@ module LlmCostTracker
     def self.from_hash(attributes)
       attributes = attributes.to_h.symbolize_keys
       values = TokenUsage::COMPONENTS.to_h do |component|
-        [component.token_key, attributes[component.token_key]]
+        token_key = component.fetch(:token_key)
+        [token_key, attributes[token_key]]
       end
       build(
         **values,
@@ -45,13 +47,21 @@ module LlmCostTracker
     end
 
     def price_quantities
-      self.class::PRICED_COMPONENTS.to_h do |component|
-        [component.price_key, public_send(component.token_key)]
-      end
+      {
+        input: input_tokens,
+        cache_read_input: cache_read_input_tokens,
+        cache_write_input: cache_write_input_tokens,
+        cache_write_1h_input: cache_write_1h_input_tokens,
+        output: output_tokens
+      }
     end
 
     def stored_attributes
-      to_h.slice(*STORED_KEYS)
+      to_h.slice(*self.class::STORED_KEYS)
+    end
+
+    def self.stored_cost_attributes(attributes)
+      attributes.to_h.symbolize_keys.slice(*TokenUsage::STORED_COST_KEYS).compact
     end
 
     def to_h
@@ -59,49 +69,53 @@ module LlmCostTracker
     end
   end
 
-  TokenUsage::Component = Data.define(
-    :price_key, :token_key, :cost_key, :label, :dashboard_label, :css_class, :stored, :fallback_price_key
-  )
-
   TokenUsage::COMPONENTS = [
-    [:input, :input_tokens, :input_cost, "Input", "Regular input", "lct-stack-fill-input", :base, nil],
-    [
-      :cache_read_input, :cache_read_input_tokens, :cache_read_input_cost, "Cache read", "Cache read input",
-      "lct-stack-fill-cache-read", :optional, :input
-    ],
-    [
-      :cache_write_input, :cache_write_input_tokens, :cache_write_input_cost, "Cache write", "Cache write input",
-      "lct-stack-fill-cache-write", :optional, :input
-    ],
-    [
-      :cache_write_1h_input, :cache_write_1h_input_tokens, :cache_write_1h_input_cost, "1h cache write",
-      "1h cache write input", "lct-stack-fill-cache-write-1h", :optional, nil
-    ],
-    [:output, :output_tokens, :output_cost, "Output", "Output", "lct-stack-fill-output", :base, nil],
-    [nil, :hidden_output_tokens, nil, "Hidden output", "Hidden output", "lct-stack-fill-output", :optional, nil]
-  ].map { |attributes| TokenUsage::Component.new(*attributes) }.freeze
+    { price_key: :input, token_key: :input_tokens, cost_key: :input_cost, stored: :base },
+    {
+      price_key: :cache_read_input,
+      token_key: :cache_read_input_tokens,
+      cost_key: :cache_read_input_cost,
+      stored: :optional
+    },
+    {
+      price_key: :cache_write_input,
+      token_key: :cache_write_input_tokens,
+      cost_key: :cache_write_input_cost,
+      stored: :optional
+    },
+    {
+      price_key: :cache_write_1h_input,
+      token_key: :cache_write_1h_input_tokens,
+      cost_key: :cache_write_1h_input_cost,
+      stored: :optional
+    },
+    { price_key: :output, token_key: :output_tokens, cost_key: :output_cost, stored: :base },
+    { price_key: nil, token_key: :hidden_output_tokens, cost_key: nil, stored: :optional }
+  ].map(&:freeze).freeze
 
-  TokenUsage::PRICED_COMPONENTS = TokenUsage::COMPONENTS.select(&:price_key).freeze
-  TokenUsage::BASE_COMPONENTS = TokenUsage::COMPONENTS.select { |component| component.stored == :base }.freeze
-  TokenUsage::OPTIONAL_COMPONENTS = TokenUsage::COMPONENTS.select { |component| component.stored == :optional }.freeze
+  TokenUsage::PRICED_COMPONENTS = TokenUsage::COMPONENTS.select { |component| component.fetch(:price_key) }.freeze
+  TokenUsage::BASE_COMPONENTS = TokenUsage::COMPONENTS.select { |component| component.fetch(:stored) == :base }.freeze
+  TokenUsage::OPTIONAL_COMPONENTS =
+    TokenUsage::COMPONENTS.select { |component| component.fetch(:stored) == :optional }.freeze
   TokenUsage::BASE_PRICED_COMPONENTS =
-    TokenUsage::PRICED_COMPONENTS.select { |component| component.stored == :base }.freeze
+    TokenUsage::PRICED_COMPONENTS.select { |component| component.fetch(:stored) == :base }.freeze
   TokenUsage::OPTIONAL_PRICED_COMPONENTS =
-    TokenUsage::PRICED_COMPONENTS.select { |component| component.stored == :optional }.freeze
+    TokenUsage::PRICED_COMPONENTS.select { |component| component.fetch(:stored) == :optional }.freeze
 
-  TokenUsage::COUNTER_KEYS = (TokenUsage::PRICED_COMPONENTS.map(&:token_key) + %i[
+  TokenUsage::COUNTER_KEYS = (TokenUsage::PRICED_COMPONENTS.map { |component| component.fetch(:token_key) } + %i[
     total_tokens
     hidden_output_tokens
   ]).freeze
 
-  TokenUsage::BASE_STORED_KEYS = (TokenUsage::BASE_COMPONENTS.map(&:token_key) + [:total_tokens]).freeze
-  TokenUsage::OPTIONAL_STORED_KEYS = TokenUsage::OPTIONAL_COMPONENTS.map(&:token_key).freeze
+  TokenUsage::BASE_STORED_KEYS = (TokenUsage::BASE_COMPONENTS.map { |component| component.fetch(:token_key) } +
+    [:total_tokens]).freeze
+  TokenUsage::OPTIONAL_STORED_KEYS =
+    TokenUsage::OPTIONAL_COMPONENTS.map { |component| component.fetch(:token_key) }.freeze
   TokenUsage::STORED_KEYS = (TokenUsage::BASE_STORED_KEYS + TokenUsage::OPTIONAL_STORED_KEYS).freeze
 
-  TokenUsage::BASE_DASHBOARD_SUM_KEYS = TokenUsage::BASE_COMPONENTS.map(&:token_key).freeze
-  TokenUsage::OPTIONAL_DASHBOARD_SUM_KEYS = TokenUsage::OPTIONAL_COMPONENTS.map(&:token_key).freeze
-  TokenUsage::DASHBOARD_SUM_KEYS =
-    (TokenUsage::BASE_DASHBOARD_SUM_KEYS + TokenUsage::OPTIONAL_DASHBOARD_SUM_KEYS).freeze
-
-  TokenUsage::PRICE_KEYS = TokenUsage::PRICED_COMPONENTS.map(&:price_key).freeze
+  TokenUsage::BASE_COST_KEYS = (TokenUsage::BASE_PRICED_COMPONENTS.map { |component| component.fetch(:cost_key) } +
+    [:total_cost]).freeze
+  TokenUsage::OPTIONAL_COST_KEYS =
+    TokenUsage::OPTIONAL_PRICED_COMPONENTS.map { |component| component.fetch(:cost_key) }.freeze
+  TokenUsage::STORED_COST_KEYS = (TokenUsage::BASE_COST_KEYS + TokenUsage::OPTIONAL_COST_KEYS).freeze
 end

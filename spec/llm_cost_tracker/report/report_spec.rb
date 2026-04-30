@@ -105,7 +105,7 @@ RSpec.describe LlmCostTracker::Report do
 
     expect(data).to be_a(LlmCostTracker::Report::Data)
     expect(data.total_cost).to eq(0.0025)
-    expect(data.cost_by_tags.fetch("feature")).to eq([["chat", 0.0025]])
+    expect(data.cost_by_tags.fetch("feature").map { |row| [row.name, row.total_cost.to_f] }).to eq([["chat", 0.0025]])
     expect(data.top_calls.first.model).to eq("gpt-4o")
   end
 
@@ -115,11 +115,11 @@ RSpec.describe LlmCostTracker::Report do
 
     data = described_class.data(days: 30, now: now)
 
-    expect(data.cost_by_provider.map(&:first)).to eq(
+    expect(data.cost_by_provider.map(&:name)).to eq(
       %w[provider-5 provider-4 provider-3 provider-2 provider-1 provider-0]
     )
-    expect(data.cost_by_model.map(&:first)).to eq(%w[model-5 model-4 model-3 model-2 model-1 model-0])
-    expect(data.cost_by_tags.fetch("feature").map(&:first)).to eq(
+    expect(data.cost_by_model.map(&:name)).to eq(%w[model-5 model-4 model-3 model-2 model-1 model-0])
+    expect(data.cost_by_tags.fetch("feature").map(&:name)).to eq(
       %w[value-5 value-4 value-3 value-2 value-1 value-0]
     )
   end

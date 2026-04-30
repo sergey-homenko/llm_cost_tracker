@@ -103,7 +103,7 @@ def add_call_usage_columns(table)
 end
 
 def add_call_cost_columns(table)
-  LlmCostTracker::Pricing::Cost::STORED_KEYS.each do |column|
+  LlmCostTracker::TokenUsage::STORED_COST_KEYS.each do |column|
     table.decimal column, precision: 20, scale: 8
   end
 end
@@ -253,7 +253,7 @@ begin
   pending_event = track!(provider_response_id: "pending", feature: "pending")
   pending_total = LlmCostTracker::Ledger::Store.daily_total(time: Time.now.utc)
   assert("daily total did not include pending or persisted inbox event") do
-    pending_total >= pending_event.cost.total_cost.to_f
+    pending_total >= pending_event.total_cost.to_f
   end
   flush!
 

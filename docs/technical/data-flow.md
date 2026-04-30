@@ -34,7 +34,7 @@ This is the normal path from an application LLM call to stored ledger data.
 
 1. Blank model identifiers become `unknown`.
 2. `UsageCapture` carries provider identity, model identity, stream metadata, response identity, and `TokenUsage`.
-3. `Pricing.cost_for` prices the `TokenUsage` and returns a matching `Cost` object or `nil` for unknown pricing.
+3. `Pricing.cost_for` prices the `TokenUsage` and returns cost attributes or `nil` for unknown pricing.
 4. Tags are merged from `with_tags`, `default_tags`, middleware tags, and explicit metadata.
 5. An `Event` is created around `TokenUsage` and emitted through `ActiveSupport::Notifications`.
 6. The ActiveRecord ledger receives the event.

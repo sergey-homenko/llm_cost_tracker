@@ -1,14 +1,14 @@
-<% share_base = @tagged_calls.positive? ? @tagged_calls.to_f : 1.0 %>
+<% share_base = @breakdown.tagged_calls.positive? ? @breakdown.tagged_calls.to_f : 1.0 %>
 
 <section class="lct-panel lct-toolbar">
   <div class="lct-toolbar-head">
     <div>
       <p class="lct-muted"><%= link_to "← All tag keys", tags_path(current_query) %></p>
-      <h2 class="lct-section-title">Tag: <code class="lct-code"><%= @tag_key %></code></h2>
+      <h2 class="lct-section-title">Tag: <code class="lct-code"><%= params[:key] %></code></h2>
     </div>
   </div>
 
-  <form class="lct-filters" action="<%= tag_path(@tag_key) %>" method="get">
+  <form class="lct-filters" action="<%= tag_path(params[:key]) %>" method="get">
     <div class="lct-filter-row lct-filter-row-basic">
       <div class="lct-field">
         <label for="lct-tag-show-from">From</label>
@@ -38,49 +38,49 @@
 
       <div class="lct-filter-actions">
         <button class="lct-button" type="submit">Apply</button>
-        <%= link_to("Reset", tag_path(@tag_key), class: "lct-button lct-button-secondary") if any_filter_applied? %>
+        <%= link_to("Reset", tag_path(params[:key]), class: "lct-button lct-button-secondary") if any_filter_applied? %>
       </div>
     </div>
   </form>
 
-  <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: tag_path(@tag_key) %>
+  <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: tag_path(params[:key]) %>
 
   <p class="lct-summary-row">
-    <span><strong><%= number(@tagged_calls) %></strong> tagged calls</span>
-    <span><strong><%= percent(coverage_percent(@tagged_calls, @total_calls)) %></strong> coverage</span>
-    <span><strong><%= number(@distinct_values) %></strong> distinct values</span>
+    <span><strong><%= number(@breakdown.tagged_calls) %></strong> tagged calls</span>
+    <span><strong><%= percent(coverage_percent(@breakdown.tagged_calls, @breakdown.total_calls)) %></strong> coverage</span>
+    <span><strong><%= number(@breakdown.distinct_values) %></strong> distinct values</span>
   </p>
 
-  <% if @tag_values_limited %>
-    <p class="lct-toolbar-note">Showing top <%= number(@tag_value_limit) %> values by spend.</p>
+  <% if @breakdown.distinct_values > @breakdown.rows.size %>
+    <p class="lct-toolbar-note">Showing top <%= number(@breakdown.limit) %> values by spend.</p>
   <% end %>
 </section>
 
-<% if @rows.empty? %>
+<% if @breakdown.rows.empty? %>
   <section class="lct-panel lct-empty">
-    <h2 class="lct-state-title">No calls tagged with <%= @tag_key %></h2>
+    <h2 class="lct-state-title">No calls tagged with <%= params[:key] %></h2>
     <p class="lct-state-copy">Values for this key will appear here once matching calls carry the tag in the current slice.</p>
     <div class="lct-state-actions">
-      <%= link_to "Clear filters", tag_path(@tag_key), class: "lct-button lct-button-secondary" %>
+      <%= link_to "Clear filters", tag_path(params[:key]), class: "lct-button lct-button-secondary" %>
     </div>
   </section>
 <% else %>
   <section class="lct-stat-grid lct-stat-grid-spaced">
     <article class="lct-stat">
       <p class="lct-stat-label">Tagged calls</p>
-      <p class="lct-stat-value"><%= number(@tagged_calls) %></p>
-      <p class="lct-stat-copy">Rows that include <code class="lct-code"><%= @tag_key %></code></p>
+      <p class="lct-stat-value"><%= number(@breakdown.tagged_calls) %></p>
+      <p class="lct-stat-copy">Rows that include <code class="lct-code"><%= params[:key] %></code></p>
     </article>
 
     <article class="lct-stat">
       <p class="lct-stat-label">Coverage</p>
-      <p class="lct-stat-value"><%= percent(coverage_percent(@tagged_calls, @total_calls)) %></p>
-      <p class="lct-stat-copy"><%= number(@total_calls) %> total calls in this slice</p>
+      <p class="lct-stat-value"><%= percent(coverage_percent(@breakdown.tagged_calls, @breakdown.total_calls)) %></p>
+      <p class="lct-stat-copy"><%= number(@breakdown.total_calls) %> total calls in this slice</p>
     </article>
 
     <article class="lct-stat">
       <p class="lct-stat-label">Distinct values</p>
-      <p class="lct-stat-value"><%= number(@distinct_values) %></p>
+      <p class="lct-stat-value"><%= number(@breakdown.distinct_values) %></p>
       <p class="lct-stat-copy">Unique values currently visible</p>
     </article>
   </section>
@@ -99,7 +99,7 @@
           </tr>
         </thead>
         <tbody>
-          <% @rows.each do |row| %>
+          <% @breakdown.rows.each do |row| %>
             <tr>
               <td><code class="lct-code"><%= row.value %></code></td>
               <td class="lct-num"><%= number(row.calls) %></td>
@@ -110,7 +110,7 @@
                 <% if row.value == "(untagged)" %>
                   <span class="lct-muted">n/a</span>
                 <% else %>
-                  <%= link_to "Calls", calls_path(calls_query_for_tag(key: @tag_key, value: row.value)), class: "lct-button lct-button-secondary lct-button-compact" %>
+                  <%= link_to "Calls", calls_path(calls_query_for_tag(key: params[:key], value: row.value)), class: "lct-button lct-button-secondary lct-button-compact" %>
                 <% end %>
               </td>
             </tr>

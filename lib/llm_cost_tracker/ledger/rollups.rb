@@ -16,7 +16,7 @@ module LlmCostTracker
         end
 
         def increment!(event)
-          return unless event.cost&.total_cost
+          return unless event.total_cost
           return unless period_totals_enabled?
 
           LlmCostTracker::Ledger::PeriodTotal.upsert_all(
@@ -28,7 +28,7 @@ module LlmCostTracker
         end
 
         def increment_many!(events)
-          events = Array(events).select { |event| event.cost&.total_cost }
+          events = Array(events).select(&:total_cost)
           return if events.empty?
           return unless period_totals_enabled?
 
@@ -67,7 +67,7 @@ module LlmCostTracker
             {
               period: name,
               period_start: Ledger::Periods.bucket(period, event.tracked_at),
-              total_cost: event.cost.total_cost
+              total_cost: event.total_cost
             }
           end
         end
@@ -104,10 +104,10 @@ module LlmCostTracker
           LlmCostTracker::Ledger::PeriodTotal
             .where(period: periods.map { |period| Ledger::Periods::PERIODS.fetch(period) },
                    period_start: buckets.values)
-            .pluck(:period, :period_start, :total_cost)
-            .each do |name, start, total|
-              period = index[[name, start.to_date]]
-              totals[period] = total.to_f if period
+            .select(:period, :period_start, :total_cost)
+            .each do |row|
+              period = index[[row.period, row.period_start.to_date]]
+              totals[period] = row.total_cost.to_f if period
             end
 
           totals

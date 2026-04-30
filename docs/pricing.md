@@ -57,6 +57,12 @@ Mode-prefixed fields use the same base terms:
 - `batch_cache_read_input`
 - `priority_cache_write_1h_input`
 
+Long-context entries may also include `_context_price_threshold_tokens` and
+`above_context_*` fields. When the effective input side is above the threshold,
+the calculator uses the matching `above_context_input`,
+`above_context_output`, `above_context_cache_read_input`, or
+`above_context_batch_*` rate for the whole priced event.
+
 ## Pricing Modes
 
 Pass `pricing_mode: :batch` when usage came from a provider batch job or another
@@ -74,8 +80,10 @@ LlmCostTracker.track(
 ```
 
 The calculator uses `batch_input`, `batch_output`, and other matching
-mode-prefixed fields when present, then falls back to the base field for missing
-mode-specific rates.
+mode-prefixed fields when present. Missing positive-token mode rates make the
+event unknown instead of silently using standard pricing. For batch mode, cache
+rates can be derived from the input discount when the provider documents that
+modifiers stack.
 
 ## Price Explain
 

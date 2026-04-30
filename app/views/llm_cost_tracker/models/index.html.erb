@@ -92,7 +92,8 @@
               <td class="lct-num"><%= money(row.total_cost) %></td>
               <td class="lct-num"><%= money(row.average_cost_per_call) %></td>
               <% if @latency_available %>
-                <td class="lct-num<%= ' lct-num-muted' if row.average_latency_ms.nil? %>"><%= row.average_latency_ms ? "#{number(row.average_latency_ms.round)}ms" : "n/a" %></td>
+                <% average_latency_ms = row.average_latency_ms %>
+                <td class="lct-num<%= ' lct-num-muted' if average_latency_ms.nil? %>"><%= average_latency_ms ? "#{number(average_latency_ms.round)}ms" : "n/a" %></td>
               <% end %>
               <td><%= link_to "Calls", calls_path(calls_query_for_model(provider: row.provider, model: row.model)), class: "lct-button lct-button-secondary lct-button-compact" %></td>
             </tr>

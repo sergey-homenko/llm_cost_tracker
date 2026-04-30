@@ -72,7 +72,7 @@ RSpec.describe LlmCostTracker::Doctor do
   it "maps token usage and cost columns to the token usage generator" do
     columns = [
       *LlmCostTracker::TokenUsage::OPTIONAL_STORED_KEYS,
-      *LlmCostTracker::Pricing::Cost::OPTIONAL_STORED_KEYS,
+      *LlmCostTracker::TokenUsage::OPTIONAL_COST_KEYS,
       :pricing_mode
     ].map(&:to_s)
 

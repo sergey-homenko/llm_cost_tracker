@@ -2,89 +2,58 @@
 
 module LlmCostTracker
   module Dashboard
-    TagBreakdownRow = Data.define(
-      :value,
-      :calls,
-      :total_cost,
-      :average_cost_per_call
-    )
-
-    TagBreakdownResult = Data.define(
-      :rows,
-      :total_calls,
-      :tagged_calls,
-      :distinct_values,
-      :limit
-    ) do
-      def limited?
-        distinct_values > rows.size
-      end
-    end
-
     class TagBreakdown
       DEFAULT_LIMIT = 100
 
       class << self
         def call(key:, scope: LlmCostTracker::Ledger::Call.all, limit: DEFAULT_LIMIT)
-          new(scope: scope, key: key, limit: limit).result
+          new(scope: scope, key: key, limit: limit)
         end
       end
+
+      attr_reader :limit
 
       def initialize(scope:, key:, limit:)
         @scope = scope
         @key = LlmCostTracker::Tags::Key.validate!(key, error_class: LlmCostTracker::InvalidFilterError)
         limit = limit.to_i
         @limit = limit.positive? ? [limit, DEFAULT_LIMIT].min : DEFAULT_LIMIT
-        @connection = LlmCostTracker::Ledger::Call.connection
       end
 
-      def result
-        counts = summary_counts
+      def rows
+        @rows ||= scope.klass.find_by_sql(rows_sql)
+      end
 
-        TagBreakdownResult.new(
-          rows: rows,
-          total_calls: counts.fetch(:total_calls),
-          tagged_calls: counts.fetch(:tagged_calls),
-          distinct_values: counts.fetch(:distinct_values),
-          limit: limit
-        )
+      def total_calls
+        summary_counts.total_calls.to_i
+      end
+
+      def tagged_calls
+        summary_counts.tagged_calls.to_i
+      end
+
+      def distinct_values
+        summary_counts.distinct_values.to_i
       end
 
       private
 
-      attr_reader :scope, :key, :limit, :connection
-
-      def rows
-        connection.select_all(rows_sql).map do |row|
-          calls = row["calls_count"].to_i
-          total_cost = row["total_cost_sum"].to_f
-          TagBreakdownRow.new(
-            value: LlmCostTracker::Ledger::Call.tag_value_label(row["tag_value"]),
-            calls: calls,
-            total_cost: total_cost,
-            average_cost_per_call: calls.positive? ? total_cost / calls : 0.0
-          )
-        end
-      end
+      attr_reader :scope, :key
 
       def summary_counts
-        row = connection.select_one(summary_sql) || {}
-        {
-          total_calls: row["total_calls"].to_i,
-          tagged_calls: row["tagged_calls"].to_i,
-          distinct_values: row["distinct_values"].to_i
-        }
+        @summary_counts ||= scope.klass.find_by_sql(summary_sql).first
       end
 
       def rows_sql
         <<~SQL.squish
-          SELECT #{tag_expression} AS tag_value,
-                 COUNT(*) AS calls_count,
-                 COALESCE(SUM(sub.total_cost), 0) AS total_cost_sum
+          SELECT #{tag_expression} AS value,
+                 COUNT(*) AS calls,
+                 COALESCE(SUM(sub.total_cost), 0) AS total_cost,
+                 COALESCE(SUM(sub.total_cost), 0) / NULLIF(COUNT(*), 0) AS average_cost_per_call
           FROM (#{scope.to_sql}) AS sub
           WHERE #{tag_present_predicate}
           GROUP BY #{tag_expression}
-          ORDER BY total_cost_sum DESC, calls_count DESC, tag_value ASC
+          ORDER BY total_cost DESC, calls DESC, value ASC
           LIMIT #{limit}
         SQL
       end

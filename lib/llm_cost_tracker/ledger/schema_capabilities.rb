@@ -1,14 +1,13 @@
 # frozen_string_literal: true
 
 require_relative "database_adapter"
-require_relative "../pricing/cost"
 require_relative "../token_usage"
 
 module LlmCostTracker
   class Ledger
     module SchemaCapabilities
       TOKEN_USAGE_COLUMNS = TokenUsage::OPTIONAL_STORED_KEYS.map(&:to_s).freeze
-      TOKEN_USAGE_COST_COLUMNS = Pricing::Cost::OPTIONAL_STORED_KEYS.map(&:to_s).freeze
+      TOKEN_USAGE_COST_COLUMNS = TokenUsage::OPTIONAL_COST_KEYS.map(&:to_s).freeze
 
       def reset_column_information
         remove_instance_variable(:@lct_schema_capabilities) if instance_variable_defined?(:@lct_schema_capabilities)

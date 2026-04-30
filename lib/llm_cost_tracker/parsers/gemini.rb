@@ -66,14 +66,15 @@ module LlmCostTracker
 
       def build_usage_capture(request_url, usage, usage_source:, stream: false, provider_response_id: nil)
         cache_read = usage["cachedContentTokenCount"].to_i
+        tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
 
         UsageCapture.build(
           provider: "gemini",
           model: extract_model_from_url(request_url),
           token_usage: TokenUsage.build(
-            input_tokens: [usage["promptTokenCount"].to_i - cache_read, 0].max,
+            input_tokens: [usage["promptTokenCount"].to_i - cache_read, 0].max + tool_use_prompt,
             output_tokens: output_tokens(usage),
-            total_tokens: total_tokens(usage, cache_read),
+            total_tokens: total_tokens(usage, cache_read, tool_use_prompt),
             cache_read_input_tokens: usage["cachedContentTokenCount"],
             hidden_output_tokens: usage["thoughtsTokenCount"]
           ),
@@ -94,11 +95,11 @@ module LlmCostTracker
         usage["candidatesTokenCount"].to_i + usage["thoughtsTokenCount"].to_i
       end
 
-      def total_tokens(usage, cache_read)
+      def total_tokens(usage, cache_read, tool_use_prompt)
         total = usage["totalTokenCount"]
         return total.to_i unless total.nil?
 
-        [usage["promptTokenCount"].to_i - cache_read, 0].max + cache_read + output_tokens(usage)
+        [usage["promptTokenCount"].to_i - cache_read, 0].max + cache_read + tool_use_prompt + output_tokens(usage)
       end
 
       def stream_response_id(events)

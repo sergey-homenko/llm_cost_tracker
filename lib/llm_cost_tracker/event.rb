@@ -15,6 +15,10 @@ module LlmCostTracker
     :provider_response_id,
     :tracked_at
   ) do
+    def total_cost
+      cost&.fetch(:total_cost, nil)
+    end
+
     def to_h
       super.merge(
         token_usage: token_usage.to_h,

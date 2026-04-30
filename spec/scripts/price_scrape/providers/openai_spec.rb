@@ -50,7 +50,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "output" => 30.0,
         "batch_input" => 2.5,
         "batch_cache_read_input" => 0.25,
-        "batch_output" => 15.0
+        "batch_output" => 15.0,
+        "_context_price_threshold_tokens" => 272_000,
+        "above_context_input" => 10.0,
+        "above_context_cache_read_input" => 1.0,
+        "above_context_output" => 45.0,
+        "above_context_batch_input" => 5.0,
+        "above_context_batch_cache_read_input" => 0.5,
+        "above_context_batch_output" => 22.5
       )
       expect(result.models.fetch("gpt-5.4-mini")).to eq(
         "input" => 0.75,
@@ -78,7 +85,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "batch_output" => 40.0
       )
       expect(result.models.fetch("gpt-5.5-pro").keys).to contain_exactly(
-        "input", "output", "batch_input", "batch_output"
+        "input", "output", "batch_input", "batch_output", "_context_price_threshold_tokens",
+        "above_context_input", "above_context_output"
       )
     end
 

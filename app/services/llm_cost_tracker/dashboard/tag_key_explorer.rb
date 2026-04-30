@@ -2,8 +2,6 @@
 
 module LlmCostTracker
   module Dashboard
-    TagKeyRow = Data.define(:key, :calls_count, :distinct_values)
-
     class TagKeyExplorer
       DEFAULT_LIMIT = 100
 
@@ -21,14 +19,7 @@ module LlmCostTracker
       end
 
       def rows
-        results = @connection.select_all(build_sql).to_a
-        results.map do |row|
-          TagKeyRow.new(
-            key: row["key"].to_s,
-            calls_count: row["calls_count"].to_i,
-            distinct_values: row["distinct_values"].to_i
-          )
-        end
+        scope.klass.find_by_sql(build_sql)
       rescue StandardError => e
         LlmCostTracker::Logging.warn("Tag key discovery failed (#{connection.adapter_name}): #{e.class}: #{e.message}")
         []

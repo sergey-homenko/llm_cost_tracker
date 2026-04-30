@@ -15,8 +15,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - BREAKING: Moved price registry and refresh APIs under `LlmCostTracker::Pricing`.
 - BREAKING: Reorganized internal ledger, tags, capture, doctor, and report constants under their owning namespaces.
 - BREAKING: Moved built-in parser routing onto `LlmCostTracker::Parsers`.
-- BREAKING: Moved pricing cost data to `LlmCostTracker::Pricing::Cost`.
+- BREAKING: Removed `LlmCostTracker::Pricing::Cost`; pricing now returns cost attribute hashes from `TokenUsage` billing components.
 - Anthropic pricing now uses response cache-write TTL usage to price 1-hour cache writes separately.
+- Batch pricing now derives stackable cache rates and refuses unknown positive-token mode rates instead of falling back to standard prices.
+- Gemini pricing now treats context cache reads separately and no longer exposes token-only cache-write prices.
+- Pricing now applies long-context rate tiers from `TokenUsage` input-side totals.
 
 ## [0.7.0] - 2026-04-29
 

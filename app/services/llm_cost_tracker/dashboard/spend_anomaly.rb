@@ -2,15 +2,6 @@
 
 module LlmCostTracker
   module Dashboard
-    SpendAnomalyData = Data.define(
-      :provider,
-      :model,
-      :day,
-      :latest_spend,
-      :baseline_mean,
-      :ratio
-    )
-
     class SpendAnomaly
       WINDOW_DAYS = 7
 
@@ -29,7 +20,7 @@ module LlmCostTracker
       def alert
         return nil if from > (to - WINDOW_DAYS)
 
-        alerts.max_by { |item| [item.ratio || 0.0, item.latest_spend] }
+        alerts.max_by { |item| [item.fetch(:ratio) || 0.0, item.fetch(:latest_spend)] }
       end
 
       private
@@ -47,14 +38,14 @@ module LlmCostTracker
           threshold = mean + (2 * Math.sqrt(variance))
           next unless latest_spend > threshold
 
-          rows << SpendAnomalyData.new(
+          rows << {
             provider: provider,
             model: model,
             day: to,
             latest_spend: latest_spend,
             baseline_mean: mean,
             ratio: mean.positive? ? (latest_spend / mean) : nil
-          )
+          }
         end
       end
 

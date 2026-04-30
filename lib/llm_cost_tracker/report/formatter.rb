@@ -35,8 +35,8 @@ module LlmCostTracker
         lines << "#{title}:"
         return lines << "  none" if rows.empty?
 
-        rows.first(TOP_LIMIT).each do |name, cost|
-          lines << "  #{name.to_s.ljust(NAME_COLUMN_WIDTH)} #{money(cost)}"
+        rows.first(TOP_LIMIT).each do |row|
+          lines << "  #{row.name.to_s.ljust(NAME_COLUMN_WIDTH)} #{money(row.total_cost)}"
         end
       end
 

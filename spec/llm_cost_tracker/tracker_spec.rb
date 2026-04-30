@@ -212,7 +212,7 @@ RSpec.describe LlmCostTracker::Tracker do
       )
 
       expect(event.pricing_mode).to eq("batch")
-      expect(event.cost.total_cost).to eq(1.5)
+      expect(event.total_cost).to eq(1.5)
       expect(event.tags).to eq(feature: "bulk")
     end
 
@@ -236,7 +236,7 @@ RSpec.describe LlmCostTracker::Tracker do
       )
 
       expect(event.pricing_mode).to be_nil
-      expect(event.cost.total_cost).to eq(3.0)
+      expect(event.total_cost).to eq(3.0)
       expect(event.tags).to eq(feature: "bulk")
     end
 
@@ -275,8 +275,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
       expect(budget_data).to include(
         budget_type: :per_call,
-        call_cost: event.cost.total_cost,
-        total: event.cost.total_cost,
+        call_cost: event.total_cost,
+        total: event.total_cost,
         budget: 0.0001,
         last_event: event
       )

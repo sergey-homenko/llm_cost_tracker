@@ -33,7 +33,7 @@ module LlmCostTracker
         def totals
           events.each_with_object(Hash.new { |hash, key| hash[key] = BigDecimal("0") }) do |event, rows|
             Ledger::Periods::PERIODS.each do |period, name|
-              rows[[name, Ledger::Periods.bucket(period, event.tracked_at)]] += BigDecimal(event.cost.total_cost.to_s)
+              rows[[name, Ledger::Periods.bucket(period, event.tracked_at)]] += BigDecimal(event.total_cost.to_s)
             end
           end
         end

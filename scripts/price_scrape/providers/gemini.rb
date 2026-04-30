@@ -3,6 +3,8 @@
 require "nokogiri"
 require "time"
 
+require_relative "../price_fields_validator"
+
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
@@ -18,7 +20,12 @@ module LlmCostTracker
         def call(html:, source_url: SOURCE_URL, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
           models = extract_models(doc)
-          validate!(models)
+          PriceFieldsValidator.call(
+            models,
+            minimum: MIN_MODELS_EXPECTED,
+            maximum: MAX_PRICE_PER_MTOK,
+            error_class: Error
+          )
           Result.new(
             source_url: source_url,
             scraped_at: scraped_at,
@@ -71,23 +78,39 @@ module LlmCostTracker
         end
 
         def extract_text_pricing(table)
-          extract_pricing(table, input: "input", output: "output")
+          extract_pricing(table, input: "input", output: "output", cache_read_input: "cache_read_input")
         end
 
         def extract_batch_pricing(table)
-          extract_pricing(table, input: "batch_input", output: "batch_output")
+          extract_pricing(table, input: "batch_input", output: "batch_output",
+                          cache_read_input: "batch_cache_read_input")
         end
 
-        def extract_pricing(table, input:, output:)
+        def extract_pricing(table, input:, output:, cache_read_input:)
           rows = parse_table(table)
           input_key = rows.keys.find { |k| k.start_with?("Input price") }
           output_key = rows.keys.find { |k| k.start_with?("Output price") }
           raise Error, "Gemini text pricing rows not found" unless input_key && output_key
 
-          {
+          prices = {
             input => parse_price(rows[input_key]),
             output => parse_price(rows[output_key])
           }
+          input_tiers = parse_prompt_tier_prices(rows[input_key])
+          output_tiers = parse_prompt_tier_prices(rows[output_key])
+          if input_tiers && output_tiers
+            prices["_context_price_threshold_tokens"] = 200_000
+            prices["above_context_#{input}"] = input_tiers.fetch(1)
+            prices["above_context_#{output}"] = output_tiers.fetch(1)
+          end
+
+          context_cache_key = rows.keys.find { |k| k.start_with?("Context caching price") }
+          if context_cache_key && rows[context_cache_key].to_s.match?(/\$\s*\d/)
+            prices[cache_read_input] = parse_price(rows[context_cache_key])
+            context_cache_tiers = parse_prompt_tier_prices(rows[context_cache_key])
+            prices["above_context_#{cache_read_input}"] = context_cache_tiers.fetch(1) if context_cache_tiers
+          end
+          prices
         end
 
         def parse_table(table)
@@ -116,18 +139,11 @@ module LlmCostTracker
           Float(match[1])
         end
 
-        def validate!(models)
-          if models.size < MIN_MODELS_EXPECTED
-            raise Error, "expected at least #{MIN_MODELS_EXPECTED} models, parsed #{models.size}"
-          end
+        def parse_prompt_tier_prices(text)
+          return nil unless text.to_s.match?(/prompts?\s*>/i)
 
-          models.each do |model_id, fields|
-            fields.each do |field, value|
-              next if value.is_a?(Float) && value.positive? && value < MAX_PRICE_PER_MTOK
-
-              raise Error, "invalid price for #{model_id}.#{field}: #{value.inspect}"
-            end
-          end
+          prices = text.to_s.scan(/\$\s*(\d+(?:\.\d+)?)/).flatten.map { |price| Float(price) }
+          prices.size >= 2 ? prices.first(2) : nil
         end
       end
     end

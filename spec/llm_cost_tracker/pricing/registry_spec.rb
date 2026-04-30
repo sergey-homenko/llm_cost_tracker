@@ -117,6 +117,9 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
               output: 2.0,
               batch_input: 0.5,
               batch_output: 1.0,
+              _context_price_threshold_tokens: 200_000,
+              above_context_input: 2.0,
+              above_context_output: 3.0,
               priority_cache_read_input: 0.25,
               priority_cache_write_1h_input: 1.5
             }
@@ -131,6 +134,9 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
               output: 2.0,
               batch_input: 0.5,
               batch_output: 1.0,
+              _context_price_threshold_tokens: 200_000,
+              above_context_input: 2.0,
+              above_context_output: 3.0,
               priority_cache_read_input: 0.25,
               priority_cache_write_1h_input: 1.5
             }

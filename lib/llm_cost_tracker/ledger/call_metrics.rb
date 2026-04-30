@@ -13,12 +13,12 @@ module LlmCostTracker
         sum(:total_tokens).to_i
       end
 
-      def cost_by_model
-        group(:model).sum(:total_cost)
+      def cost_by_model(limit: nil)
+        cost_by_column(:model, limit: limit)
       end
 
-      def cost_by_provider
-        group(:provider).sum(:total_cost)
+      def cost_by_provider(limit: nil)
+        cost_by_column(:provider, limit: limit)
       end
 
       def group_by_tag(key)
@@ -26,13 +26,13 @@ module LlmCostTracker
       end
 
       def cost_by_tag(key, limit: nil)
-        relation = group_by_tag(key).order(Arel.sql("COALESCE(SUM(total_cost), 0) DESC"))
+        expression = tag_value_expression(key)
+        label_expression = "COALESCE(NULLIF(#{expression}, ''), #{connection.quote('(untagged)')})"
+        relation = select("#{label_expression} AS name, COALESCE(SUM(total_cost), 0) AS total_cost")
+                   .group(Arel.sql(label_expression))
+                   .order(Arel.sql("COALESCE(SUM(total_cost), 0) DESC"))
         relation = relation.limit(limit) if limit
-
-        costs = relation.sum(:total_cost).each_with_object(Hash.new(0.0)) do |(tag_value, cost), grouped|
-          grouped[tag_value_label(tag_value)] += cost.to_f
-        end
-        costs.sort_by { |_label, cost| -cost }.to_h
+        relation
       end
 
       def average_latency_ms
@@ -59,6 +59,17 @@ module LlmCostTracker
 
       def tag_value_expression(key, table_name: quoted_table_name)
         Ledger::Tags::Sql.value_expression(self, key, table_name: table_name)
+      end
+
+      private
+
+      def cost_by_column(column, limit:)
+        quoted_column = "#{quoted_table_name}.#{connection.quote_column_name(column)}"
+        relation = select("#{quoted_column} AS name, COALESCE(SUM(total_cost), 0) AS total_cost")
+                   .group(column)
+                   .order(Arel.sql("COALESCE(SUM(total_cost), 0) DESC"))
+        relation = relation.limit(limit) if limit
+        relation
       end
     end
   end

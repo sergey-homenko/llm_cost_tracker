@@ -41,8 +41,12 @@ Supported canonical keys:
 - `batch_input`
 - `batch_output`
 - mode-prefixed keys such as `priority_input` or `batch_cache_read_input`
+- `_context_price_threshold_tokens` with `above_context_*` rates for providers
+  that publish a whole-session long-context tier
 
 Provider-specific pricing details must be translated before they reach runtime pricing.
+Do not rely on standard rates for missing alternate-mode prices; add explicit
+mode-prefixed prices unless the provider documents a simple stackable multiplier.
 
 ## Tags
 

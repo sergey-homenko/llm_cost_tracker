@@ -147,8 +147,8 @@ RSpec.describe "ActiveRecord durable inbox" do
       payload: "{}"
     )
     sqls = []
-    allow(LlmCostTracker::Ledger::Call.connection)
-      .to receive(:select_all)
+    allow(LlmCostTracker::Ledger::Call)
+      .to receive(:find_by_sql)
       .and_wrap_original do |method, *args, **kwargs|
       sql_text = args.first.to_s
       sqls << sql_text if sql_text.include?("llm_cost_tracker_inbox_events")

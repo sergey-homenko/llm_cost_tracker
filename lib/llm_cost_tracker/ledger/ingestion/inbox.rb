@@ -4,7 +4,6 @@ require "json"
 require "time"
 
 require_relative "../../event"
-require_relative "../../pricing/cost"
 require_relative "event"
 require_relative "../periods"
 
@@ -54,7 +53,7 @@ module LlmCostTracker
               raise LlmCostTracker::Error, "unsupported ledger inbox payload schema version #{schema_version.inspect}"
             end
 
-            cost = payload["cost"] && LlmCostTracker::Pricing::Cost.from_hash(payload["cost"])
+            cost = payload["cost"] && TokenUsage.stored_cost_attributes(payload["cost"])
             token_usage = payload["token_usage"] || payload
 
             LlmCostTracker::Event.new(
@@ -79,7 +78,7 @@ module LlmCostTracker
             now = Time.now.utc
             {
               event_id: event.event_id,
-              total_cost: event.cost&.total_cost,
+              total_cost: event.total_cost,
               tracked_at: event.tracked_at,
               payload: JSON.generate(payload_for(event)),
               attempts: 0,

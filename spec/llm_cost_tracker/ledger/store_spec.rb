@@ -401,10 +401,14 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    expect(LlmCostTracker::Ledger::Call.this_month.cost_by_tag("feature")).to eq(
-      "chat" => 0.0025,
-      "summarizer" => 0.00015,
-      "(untagged)" => 0.00015
+    rows = LlmCostTracker::Ledger::Call.this_month.cost_by_tag("feature")
+
+    expect(rows.map { |row| [row.name, row.total_cost.to_f] }).to eq(
+      [
+        ["chat", 0.0025],
+        ["summarizer", 0.00015],
+        ["(untagged)", 0.00015]
+      ]
     )
   end
 
@@ -613,9 +617,13 @@ RSpec.describe "ActiveRecord storage integration" do
       "feature.name" => "summarizer"
     )
 
-    expect(LlmCostTracker::Ledger::Call.cost_by_tag("feature.name")).to eq(
-      "chat" => 0.0025,
-      "summarizer" => 0.00015
+    rows = LlmCostTracker::Ledger::Call.cost_by_tag("feature.name")
+
+    expect(rows.map { |row| [row.name, row.total_cost.to_f] }).to eq(
+      [
+        ["chat", 0.0025],
+        ["summarizer", 0.00015]
+      ]
     )
   end
 
