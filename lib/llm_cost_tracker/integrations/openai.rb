@@ -47,25 +47,21 @@ module LlmCostTracker
             output_tokens = ObjectReader.first(usage, :output_tokens, :completion_tokens)
             next if input_tokens.nil? && output_tokens.nil?
 
-            metadata = usage_metadata(usage)
+            cache_read = cache_read_input_tokens(usage)
             LlmCostTracker::Tracker.record(
               provider: "openai",
               model: ObjectReader.first(response, :model) || request[:model],
-              input_tokens: regular_input_tokens(input_tokens, metadata[:cache_read_input_tokens]),
-              output_tokens: ObjectReader.integer(output_tokens),
+              token_usage: TokenUsage.build(
+                input_tokens: regular_input_tokens(input_tokens, cache_read),
+                output_tokens: ObjectReader.integer(output_tokens),
+                cache_read_input_tokens: cache_read,
+                hidden_output_tokens: hidden_output_tokens(usage)
+              ),
               latency_ms: latency_ms,
               usage_source: :sdk_response,
-              provider_response_id: ObjectReader.first(response, :id),
-              metadata: metadata
+              provider_response_id: ObjectReader.first(response, :id)
             )
           end
-        end
-
-        def usage_metadata(usage)
-          {
-            cache_read_input_tokens: cache_read_input_tokens(usage),
-            hidden_output_tokens: hidden_output_tokens(usage)
-          }
         end
 
         def cache_read_input_tokens(usage)

@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 require_relative "price_freshness"
+require_relative "cost"
 require_relative "llm_api_call"
+require_relative "token_usage"
 require_relative "doctor/capture_check"
 require_relative "doctor/ingestion_check"
 
@@ -13,12 +15,12 @@ module LlmCostTracker
       "latency_ms" => "bin/rails generate llm_cost_tracker:add_latency_ms",
       "stream" => "bin/rails generate llm_cost_tracker:add_streaming",
       "usage_source" => "bin/rails generate llm_cost_tracker:add_streaming",
-      "provider_response_id" => "bin/rails generate llm_cost_tracker:add_provider_response_id",
-      "cache_read_input_tokens" => "bin/rails generate llm_cost_tracker:add_usage_breakdown",
-      "cache_write_input_tokens" => "bin/rails generate llm_cost_tracker:add_usage_breakdown",
-      "hidden_output_tokens" => "bin/rails generate llm_cost_tracker:add_usage_breakdown",
-      "pricing_mode" => "bin/rails generate llm_cost_tracker:add_usage_breakdown"
-    }.freeze
+      "provider_response_id" => "bin/rails generate llm_cost_tracker:add_provider_response_id"
+    }.merge(
+      (TokenUsage::OPTIONAL_STORED_KEYS + Cost::OPTIONAL_STORED_KEYS + %i[pricing_mode]).to_h do |column|
+        [column.to_s, "bin/rails generate llm_cost_tracker:add_token_usage"]
+      end
+    ).freeze
 
     class << self
       def call

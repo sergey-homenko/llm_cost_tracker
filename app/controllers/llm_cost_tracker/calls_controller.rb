@@ -66,7 +66,10 @@ module LlmCostTracker
     end
 
     def csv_fields
-      fields = %i[tracked_at provider model input_tokens output_tokens total_tokens total_cost]
+      fields = %i[tracked_at provider model] + TokenUsage::BASE_STORED_KEYS
+      fields += TokenUsage::OPTIONAL_STORED_KEYS if LlmApiCall.token_usage_columns?
+      fields += Cost::BASE_STORED_KEYS
+      fields += Cost::OPTIONAL_STORED_KEYS if LlmApiCall.token_usage_cost_columns?
       fields << :latency_ms if LlmApiCall.latency_column?
       fields << :provider_response_id if LlmApiCall.provider_response_id_column?
       fields << :tags

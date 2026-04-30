@@ -58,13 +58,12 @@ module LlmCostTracker
         Tracker.record(
           provider: parsed.provider,
           model: parsed.model,
-          input_tokens: parsed.input_tokens,
-          output_tokens: parsed.output_tokens,
+          token_usage: parsed.token_usage,
           latency_ms: latency_ms,
           stream: parsed.stream,
           usage_source: parsed.usage_source,
           provider_response_id: parsed.provider_response_id,
-          metadata: resolved_tags(request_env).merge(parsed.metadata)
+          metadata: resolved_tags(request_env)
         )
       rescue LlmCostTracker::Error
         raise

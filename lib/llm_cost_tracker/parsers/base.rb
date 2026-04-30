@@ -105,9 +105,7 @@ module LlmCostTracker
           provider: provider,
           provider_response_id: provider_response_id,
           model: model || ParsedUsage::UNKNOWN_MODEL,
-          input_tokens: 0,
-          output_tokens: 0,
-          total_tokens: 0,
+          token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
           usage_source: :unknown
         )

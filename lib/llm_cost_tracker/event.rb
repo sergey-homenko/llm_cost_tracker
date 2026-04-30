@@ -5,12 +5,7 @@ module LlmCostTracker
     :event_id,
     :provider,
     :model,
-    :input_tokens,
-    :output_tokens,
-    :total_tokens,
-    :cache_read_input_tokens,
-    :cache_write_input_tokens,
-    :hidden_output_tokens,
+    :token_usage,
     :pricing_mode,
     :cost,
     :tags,
@@ -21,7 +16,10 @@ module LlmCostTracker
     :tracked_at
   ) do
     def to_h
-      super.merge(
+      values = super
+      usage = values.delete(:token_usage)
+      values.merge(
+        usage.to_h,
         cost: cost&.to_h,
         tags: tags ? tags.to_h : {}
       )

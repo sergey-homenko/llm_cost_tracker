@@ -1,11 +1,19 @@
+<% token_usage = LlmCostTracker::TokenUsage.from_hash(@call.attributes) %>
+<% cost = @call.total_cost.nil? ? nil : LlmCostTracker::Cost.from_hash(@call.attributes) %>
 <% token_segments = [
-  { label: "Input", value: @call.input_tokens, formatted_value: format_tokens(@call.input_tokens), css_class: "lct-stack-fill-input" },
-  { label: "Output", value: @call.output_tokens, formatted_value: format_tokens(@call.output_tokens), css_class: "lct-stack-fill-output" }
+  { label: "Input", value: token_usage.input_tokens, formatted_value: format_tokens(token_usage.input_tokens), css_class: "lct-stack-fill-input" },
+  { label: "Cache read", value: token_usage.cache_read_input_tokens, formatted_value: format_tokens(token_usage.cache_read_input_tokens), css_class: "lct-stack-fill-cache-read" },
+  { label: "Cache write", value: token_usage.standard_cache_write_input_tokens, formatted_value: format_tokens(token_usage.standard_cache_write_input_tokens), css_class: "lct-stack-fill-cache-write" },
+  { label: "1h cache write", value: token_usage.cache_write_1h_input_tokens, formatted_value: format_tokens(token_usage.cache_write_1h_input_tokens), css_class: "lct-stack-fill-cache-write-1h" },
+  { label: "Output", value: token_usage.output_tokens, formatted_value: format_tokens(token_usage.output_tokens), css_class: "lct-stack-fill-output" }
 ] %>
-<% cost_segments = [
-  { label: "Input", value: @call.input_cost, formatted_value: optional_money(@call.input_cost), css_class: "lct-stack-fill-input" },
-  { label: "Output", value: @call.output_cost, formatted_value: optional_money(@call.output_cost), css_class: "lct-stack-fill-output" }
-] %>
+<% cost_segments = cost ? [
+  { label: "Input", value: cost.input_cost, formatted_value: optional_money(cost.input_cost), css_class: "lct-stack-fill-input" },
+  { label: "Cache read", value: cost.cache_read_input_cost, formatted_value: optional_money(cost.cache_read_input_cost), css_class: "lct-stack-fill-cache-read" },
+  { label: "Cache write", value: cost.cache_write_input_cost, formatted_value: optional_money(cost.cache_write_input_cost), css_class: "lct-stack-fill-cache-write" },
+  { label: "1h cache write", value: cost.cache_write_1h_input_cost, formatted_value: optional_money(cost.cache_write_1h_input_cost), css_class: "lct-stack-fill-cache-write-1h" },
+  { label: "Output", value: cost.output_cost, formatted_value: optional_money(cost.output_cost), css_class: "lct-stack-fill-output" }
+] : [] %>
 
 <section class="lct-panel">
   <p class="lct-muted"><%= link_to "Back to calls", calls_path %></p>
@@ -93,6 +101,17 @@
       <dt>Input Tokens</dt>
       <dd><%= format_tokens(@call.input_tokens) %></dd>
 
+      <% if LlmCostTracker::LlmApiCall.token_usage_columns? %>
+        <dt>Cache Read Tokens</dt>
+        <dd><%= format_tokens(token_usage.cache_read_input_tokens) %></dd>
+
+        <dt>Cache Write Tokens</dt>
+        <dd><%= format_tokens(token_usage.standard_cache_write_input_tokens) %></dd>
+
+        <dt>1h Cache Write Tokens</dt>
+        <dd><%= format_tokens(token_usage.cache_write_1h_input_tokens) %></dd>
+      <% end %>
+
       <dt>Output Tokens</dt>
       <dd><%= format_tokens(@call.output_tokens) %></dd>
 
@@ -101,6 +120,17 @@
 
       <dt>Input Cost</dt>
       <dd><%= optional_money(@call.input_cost) %></dd>
+
+      <% if LlmCostTracker::LlmApiCall.token_usage_cost_columns? %>
+        <dt>Cache Read Cost</dt>
+        <dd><%= optional_money(cost&.cache_read_input_cost) %></dd>
+
+        <dt>Cache Write Cost</dt>
+        <dd><%= optional_money(cost&.cache_write_input_cost) %></dd>
+
+        <dt>1h Cache Write Cost</dt>
+        <dd><%= optional_money(cost&.cache_write_1h_input_cost) %></dd>
+      <% end %>
 
       <dt>Output Cost</dt>
       <dd><%= optional_money(@call.output_cost) %></dd>

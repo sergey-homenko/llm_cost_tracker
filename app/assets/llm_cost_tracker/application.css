@@ -302,6 +302,9 @@
   .lct-budget-fill--warn { background: linear-gradient(90deg, #f59e0b, #d97706); }
   .lct-budget-fill--over { background: linear-gradient(90deg, #ef4444, #b91c1c); }
   .lct-stack-fill-input  { background: var(--lct-accent); }
+  .lct-stack-fill-cache-read { background: #22c55e; }
+  .lct-stack-fill-cache-write { background: #f59e0b; }
+  .lct-stack-fill-cache-write-1h { background: #a855f7; }
   .lct-stack-fill-output { background: #0ea5e9; }
 
   .lct-budget { display: grid; gap: 10px; }

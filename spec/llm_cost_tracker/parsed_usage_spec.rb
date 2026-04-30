@@ -7,8 +7,7 @@ RSpec.describe LlmCostTracker::ParsedUsage do
     usage = described_class.build(
       provider: "custom",
       model: nil,
-      input_tokens: 1,
-      output_tokens: 2
+      token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 2)
     )
 
     expect(usage.model).to eq("unknown")
@@ -18,8 +17,7 @@ RSpec.describe LlmCostTracker::ParsedUsage do
     usage = described_class.build(
       provider: "custom",
       model: " ",
-      input_tokens: 1,
-      output_tokens: 2
+      token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 2)
     )
 
     expect(usage.model).to eq("unknown")

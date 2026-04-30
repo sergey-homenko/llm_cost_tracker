@@ -58,15 +58,15 @@ module LlmCostTracker
       end
       self
     end
-    alias chunk event
 
     def usage(input_tokens:, output_tokens:, **extra)
       @mutex.synchronize do
         ensure_open!
-        @explicit_usage = extra.merge(
-          input_tokens: input_tokens.to_i,
-          output_tokens: output_tokens.to_i
-        ).deep_dup
+        @provider_response_id = extra.delete(:provider_response_id) || @provider_response_id
+        @explicit_usage = TokenUsage.from_hash(extra.merge(
+                                                 input_tokens: input_tokens.to_i,
+                                                 output_tokens: output_tokens.to_i
+                                               ))
       end
       self
     end
@@ -79,7 +79,7 @@ module LlmCostTracker
         {
           events: @events.dup,
           overflowed: @overflowed,
-          explicit_usage: @explicit_usage.deep_dup,
+          explicit_usage: @explicit_usage,
           model: @model,
           latency_ms: @latency_ms,
           provider_response_id: @provider_response_id,
@@ -92,15 +92,14 @@ module LlmCostTracker
       Tracker.record(
         provider: parsed.provider,
         model: parsed.model,
-        input_tokens: parsed.input_tokens,
-        output_tokens: parsed.output_tokens,
+        token_usage: parsed.token_usage,
         latency_ms: snapshot[:latency_ms] ||
           ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at) * 1000).round,
         stream: true,
         usage_source: parsed.usage_source,
         provider_response_id: parsed.provider_response_id || snapshot[:provider_response_id],
         pricing_mode: snapshot[:pricing_mode],
-        metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]).merge(parsed.metadata)
+        metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata])
       )
     end
 
@@ -139,19 +138,12 @@ module LlmCostTracker
     end
 
     def build_from_explicit_usage(snapshot)
-      explicit = snapshot[:explicit_usage]
-      input = explicit[:input_tokens]
-      output = explicit[:output_tokens]
-      extras = explicit.except(:input_tokens, :output_tokens)
-
       ParsedUsage.build(
         provider: @provider,
         model: snapshot[:model] || ParsedUsage::UNKNOWN_MODEL,
-        input_tokens: input,
-        output_tokens: output,
+        token_usage: snapshot[:explicit_usage],
         stream: true,
-        usage_source: :manual,
-        **extras
+        usage_source: :manual
       )
     end
 
@@ -159,9 +151,7 @@ module LlmCostTracker
       ParsedUsage.build(
         provider: @provider,
         model: snapshot[:model] || ParsedUsage::UNKNOWN_MODEL,
-        input_tokens: 0,
-        output_tokens: 0,
-        total_tokens: 0,
+        token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
         stream: true,
         usage_source: :unknown
       )

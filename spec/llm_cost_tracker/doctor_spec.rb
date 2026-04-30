@@ -69,6 +69,18 @@ RSpec.describe LlmCostTracker::Doctor do
     end
   end
 
+  it "maps token usage and cost columns to the token usage generator" do
+    columns = [
+      *LlmCostTracker::TokenUsage::OPTIONAL_STORED_KEYS,
+      *LlmCostTracker::Cost::OPTIONAL_STORED_KEYS,
+      :pricing_mode
+    ].map(&:to_s)
+
+    expect(columns.map { |column| described_class::FEATURE_COLUMNS.fetch(column) }.uniq).to eq(
+      ["bin/rails generate llm_cost_tracker:add_token_usage"]
+    )
+  end
+
   context "with ActiveRecord storage" do
     include_context "with mounted llm cost tracker engine"
 

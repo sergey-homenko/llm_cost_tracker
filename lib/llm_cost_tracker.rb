@@ -15,7 +15,7 @@ require_relative "llm_cost_tracker/errors"
 require_relative "llm_cost_tracker/logging"
 require_relative "llm_cost_tracker/parameter_hash"
 require_relative "llm_cost_tracker/cost"
-require_relative "llm_cost_tracker/usage_breakdown"
+require_relative "llm_cost_tracker/token_usage"
 require_relative "llm_cost_tracker/event"
 require_relative "llm_cost_tracker/parsed_usage"
 require_relative "llm_cost_tracker/price_registry"
@@ -33,7 +33,6 @@ require_relative "llm_cost_tracker/middleware/faraday"
 require_relative "llm_cost_tracker/integrations"
 require_relative "llm_cost_tracker/budget"
 require_relative "llm_cost_tracker/unknown_pricing"
-require_relative "llm_cost_tracker/event_metadata"
 require_relative "llm_cost_tracker/tag_context"
 require_relative "llm_cost_tracker/tag_sanitizer"
 require_relative "llm_cost_tracker/active_record_adapter"
@@ -114,11 +113,12 @@ module LlmCostTracker
     def track(provider:, input_tokens:, output_tokens:, model: nil, latency_ms: nil, stream: false,
               usage_source: :manual, enforce_budget: false, provider_response_id: nil, pricing_mode: nil, **metadata)
       enforce_budget! if enforce_budget
+      token_usage = TokenUsage.from_hash(metadata.merge(input_tokens: input_tokens, output_tokens: output_tokens))
+
       Tracker.record(
         provider: provider.to_s,
         model: model,
-        input_tokens: input_tokens,
-        output_tokens: output_tokens,
+        token_usage: token_usage,
         latency_ms: latency_ms,
         stream: stream,
         usage_source: usage_source,

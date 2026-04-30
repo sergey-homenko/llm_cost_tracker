@@ -22,10 +22,12 @@ module LlmCostTrackerEngineContext
         t.integer :total_tokens, null: false, default: 0
         t.integer :cache_read_input_tokens, null: false, default: 0
         t.integer :cache_write_input_tokens, null: false, default: 0
+        t.integer :cache_write_1h_input_tokens, null: false, default: 0
         t.integer :hidden_output_tokens, null: false, default: 0
         t.decimal :input_cost, precision: 20, scale: 8
         t.decimal :cache_read_input_cost, precision: 20, scale: 8
         t.decimal :cache_write_input_cost, precision: 20, scale: 8
+        t.decimal :cache_write_1h_input_cost, precision: 20, scale: 8
         t.decimal :output_cost, precision: 20, scale: 8
         t.decimal :total_cost, precision: 20, scale: 8
         t.integer :latency_ms
@@ -49,6 +51,7 @@ module LlmCostTrackerEngineContext
       output_tokens: 5,
       cache_read_input_tokens: 0,
       cache_write_input_tokens: 0,
+      cache_write_1h_input_tokens: 0,
       hidden_output_tokens: 0,
       total_cost: 1.0,
       latency_ms: 100,

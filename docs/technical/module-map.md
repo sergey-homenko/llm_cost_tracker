@@ -62,8 +62,7 @@ Primary files:
 
 - `lib/llm_cost_tracker/tracker.rb`
 - `lib/llm_cost_tracker/event.rb`
-- `lib/llm_cost_tracker/event_metadata.rb`
-- `lib/llm_cost_tracker/usage_breakdown.rb`
+- `lib/llm_cost_tracker/token_usage.rb`
 - `lib/llm_cost_tracker/cost.rb`
 - `lib/llm_cost_tracker/unknown_pricing.rb`
 

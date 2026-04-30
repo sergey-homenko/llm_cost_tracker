@@ -1,19 +1,13 @@
 # frozen_string_literal: true
 
 require_relative "active_record_adapter"
+require_relative "cost"
+require_relative "token_usage"
 
 module LlmCostTracker
   module TagsColumn
-    USAGE_BREAKDOWN_COLUMNS = %w[
-      cache_read_input_tokens
-      cache_write_input_tokens
-      hidden_output_tokens
-    ].freeze
-
-    USAGE_BREAKDOWN_COST_COLUMNS = %w[
-      cache_read_input_cost
-      cache_write_input_cost
-    ].freeze
+    TOKEN_USAGE_COLUMNS = TokenUsage::OPTIONAL_STORED_KEYS.map(&:to_s).freeze
+    TOKEN_USAGE_COST_COLUMNS = Cost::OPTIONAL_STORED_KEYS.map(&:to_s).freeze
 
     def reset_column_information
       remove_instance_variable(:@lct_schema_capabilities) if instance_variable_defined?(:@lct_schema_capabilities)
@@ -55,12 +49,12 @@ module LlmCostTracker
       lct_schema_capabilities.fetch(:pricing_mode)
     end
 
-    def usage_breakdown_columns?
-      lct_schema_capabilities.fetch(:usage_breakdown)
+    def token_usage_columns?
+      lct_schema_capabilities.fetch(:token_usage)
     end
 
-    def usage_breakdown_cost_columns?
-      lct_schema_capabilities.fetch(:usage_breakdown_cost)
+    def token_usage_cost_columns?
+      lct_schema_capabilities.fetch(:token_usage_cost)
     end
 
     private
@@ -97,8 +91,8 @@ module LlmCostTracker
         usage_source: columns.key?("usage_source"),
         provider_response_id: columns.key?("provider_response_id"),
         pricing_mode: columns.key?("pricing_mode"),
-        usage_breakdown: USAGE_BREAKDOWN_COLUMNS.all? { |column| columns.key?(column) },
-        usage_breakdown_cost: USAGE_BREAKDOWN_COST_COLUMNS.all? { |column| columns.key?(column) }
+        token_usage: TOKEN_USAGE_COLUMNS.all? { |column| columns.key?(column) },
+        token_usage_cost: TOKEN_USAGE_COST_COLUMNS.all? { |column| columns.key?(column) }
       }
     end
   end

@@ -5,9 +5,28 @@ require "spec_helper"
 require "tempfile"
 
 RSpec.describe LlmCostTracker::Pricing do
+  def cost_for(provider:, model:, pricing_mode: nil, **usage)
+    described_class.cost_for(
+      provider: provider,
+      model: model,
+      pricing_mode: pricing_mode,
+      token_usage: LlmCostTracker::TokenUsage.build(**usage)
+    )
+  end
+
+  def explain(provider:, model:, pricing_mode: nil, **usage)
+    usage = { input_tokens: 1, output_tokens: 1 }.merge(usage)
+    described_class.explain(
+      provider: provider,
+      model: model,
+      pricing_mode: pricing_mode,
+      token_usage: LlmCostTracker::TokenUsage.build(**usage)
+    )
+  end
+
   describe ".cost_for" do
     it "calculates cost for a known model" do
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "openai",
         model: "gpt-4o",
         input_tokens: 1_000,
@@ -22,7 +41,7 @@ RSpec.describe LlmCostTracker::Pricing do
     end
 
     it "returns nil for unknown models" do
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "openai",
         model: "totally-unknown-model",
         input_tokens: 100,
@@ -37,7 +56,7 @@ RSpec.describe LlmCostTracker::Pricing do
         c.pricing_overrides = { "demo-base" => { input: 1.0, output: 2.0 } }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "custom",
         model: "demo-base-2026-01-01",
         input_tokens: 1_000_000,
@@ -52,7 +71,7 @@ RSpec.describe LlmCostTracker::Pricing do
         c.pricing_overrides = { "demo-mini" => { input: 0.1, output: 0.4 } }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "demogateway",
         model: "demo/demo-mini",
         input_tokens: 1_000_000,
@@ -67,7 +86,7 @@ RSpec.describe LlmCostTracker::Pricing do
         c.pricing_overrides = { "upstream/demo-mini" => { input: 0.1, output: 0.4 } }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "gateway",
         model: "demo-mini",
         input_tokens: 1_000_000,
@@ -85,7 +104,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "gateway",
         model: "demo-mini",
         input_tokens: 1_000_000,
@@ -103,7 +122,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "custom",
         model: "demo-family-mini-2026-01-01",
         input_tokens: 1_000_000,
@@ -119,7 +138,7 @@ RSpec.describe LlmCostTracker::Pricing do
       end
 
       expect(
-        described_class.cost_for(provider: "custom", model: "demo-2.0", input_tokens: 1_000_000, output_tokens: 0)
+        cost_for(provider: "custom", model: "demo-2.0", input_tokens: 1_000_000, output_tokens: 0)
       ).to be_nil
     end
 
@@ -130,7 +149,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "custom",
         model: "base-model-pro",
         input_tokens: 1_000_000,
@@ -147,7 +166,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "custom",
         model: "demo-cached",
         input_tokens: 600_000,
@@ -172,7 +191,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "custom",
         model: "demo-cache-rw",
         input_tokens: 100_000,
@@ -184,10 +203,11 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.input_cost).to eq(0.3)
       expect(result.cache_read_input_cost).to eq(0.06)
       expect(result.cache_write_input_cost).to eq(1.125)
+      expect(result.cache_write_1h_input_cost).to eq(0.0)
       expect(result.output_cost).to eq(0.15)
       expect(result.total_cost).to be_within(0.0001).of(
         result.input_cost + result.cache_read_input_cost +
-          result.cache_write_input_cost + result.output_cost
+          result.cache_write_input_cost + result.cache_write_1h_input_cost + result.output_cost
       )
     end
 
@@ -203,7 +223,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "anthropic",
         model: "demo-cache-ttl",
         input_tokens: 0,
@@ -212,7 +232,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result.cache_write_input_cost).to eq(1.35)
+      expect(result.cache_write_input_cost).to eq(0.75)
+      expect(result.cache_write_1h_input_cost).to eq(0.6)
       expect(result.total_cost).to eq(1.35)
     end
 
@@ -227,7 +248,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "anthropic",
         model: "demo-cache-ttl",
         input_tokens: 0,
@@ -246,7 +267,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "custom",
         model: "my-custom-model",
         input_tokens: 1_000_000,
@@ -264,7 +285,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "custom",
         model: "input-only-model",
         input_tokens: 1_000_000,
@@ -281,7 +302,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "custom",
         model: "input-only-model",
         input_tokens: 1_000_000,
@@ -305,7 +326,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "custom",
         model: "batchable-model",
         input_tokens: 1_000_000,
@@ -329,7 +350,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "custom",
         model: "mixed-mode-model",
         input_tokens: 1_000_000,
@@ -353,7 +374,7 @@ RSpec.describe LlmCostTracker::Pricing do
           c.prices_file = file.path
         end
 
-        result = described_class.cost_for(
+        result = cost_for(
           provider: "openai",
           model: "gpt-4o",
           input_tokens: 1_000_000,
@@ -378,7 +399,7 @@ RSpec.describe LlmCostTracker::Pricing do
           }
         end
 
-        result = described_class.cost_for(
+        result = cost_for(
           provider: "custom",
           model: "my-custom-model",
           input_tokens: 1_000_000,
@@ -404,7 +425,7 @@ RSpec.describe LlmCostTracker::Pricing do
           c.prices_file = file.path
         end
 
-        result = described_class.cost_for(
+        result = cost_for(
           provider: "custom",
           model: "yaml-model",
           input_tokens: 1_000_000,
@@ -426,7 +447,7 @@ RSpec.describe LlmCostTracker::Pricing do
         end
 
         expect do
-          described_class.cost_for(provider: "openai", model: "gpt-4o", input_tokens: 1, output_tokens: 1)
+          cost_for(provider: "openai", model: "gpt-4o", input_tokens: 1, output_tokens: 1)
         end.to raise_error(LlmCostTracker::Error, /Unable to load prices_file/)
       end
     end
@@ -439,7 +460,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.cost_for(
+      result = cost_for(
         provider: "deepseek",
         model: "deepseek-chat",
         input_tokens: 1_000_000,
@@ -513,7 +534,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.explain(
+      result = explain(
         provider: "custom",
         model: "explained-model",
         pricing_mode: :batch
@@ -537,7 +558,7 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      result = described_class.explain(
+      result = explain(
         provider: "custom",
         model: "input-only-model",
         input_tokens: 1,
@@ -551,7 +572,7 @@ RSpec.describe LlmCostTracker::Pricing do
     end
 
     it "explains unknown models" do
-      result = described_class.explain(provider: "custom", model: "missing-model")
+      result = explain(provider: "custom", model: "missing-model")
 
       expect(result.matched?).to be false
       expect(result.complete?).to be false

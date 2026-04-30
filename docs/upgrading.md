@@ -23,7 +23,7 @@ bin/rails generate llm_cost_tracker:add_period_totals
 bin/rails generate llm_cost_tracker:add_ingestion
 bin/rails generate llm_cost_tracker:add_streaming
 bin/rails generate llm_cost_tracker:add_provider_response_id
-bin/rails generate llm_cost_tracker:add_usage_breakdown
+bin/rails generate llm_cost_tracker:add_token_usage
 bin/rails generate llm_cost_tracker:upgrade_tags_to_jsonb
 bin/rails generate llm_cost_tracker:upgrade_cost_precision
 bin/rails generate llm_cost_tracker:add_latency_ms

@@ -74,10 +74,10 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
       expect(result.provider).to eq("gemini")
       expect(result.model).to eq("gemini-2.5-flash")
-      expect(result.input_tokens).to eq(100)
-      expect(result.output_tokens).to eq(75)
-      expect(result.hidden_output_tokens).to eq(50)
-      expect(result.total_tokens).to eq(175)
+      expect(result.token_usage.input_tokens).to eq(100)
+      expect(result.token_usage.output_tokens).to eq(75)
+      expect(result.token_usage.hidden_output_tokens).to eq(50)
+      expect(result.token_usage.total_tokens).to eq(175)
       expect(result.stream).to be false
       expect(result.usage_source).to eq(:response)
       expect(result.provider_response_id).to eq("gemini-resp-123")
@@ -98,10 +98,10 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         }.to_json
       )
 
-      expect(result.input_tokens).to eq(75)
-      expect(result.cache_read_input_tokens).to eq(25)
-      expect(result.output_tokens).to eq(25)
-      expect(result.total_tokens).to eq(125)
+      expect(result.token_usage.input_tokens).to eq(75)
+      expect(result.token_usage.cache_read_input_tokens).to eq(25)
+      expect(result.token_usage.output_tokens).to eq(25)
+      expect(result.token_usage.total_tokens).to eq(125)
     end
   end
 
@@ -142,10 +142,10 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
       expect(result.provider).to eq("gemini")
       expect(result.model).to eq("gemini-2.5-flash")
-      expect(result.input_tokens).to eq(80)
-      expect(result.output_tokens).to eq(52)
-      expect(result.hidden_output_tokens).to eq(10)
-      expect(result.total_tokens).to eq(132)
+      expect(result.token_usage.input_tokens).to eq(80)
+      expect(result.token_usage.output_tokens).to eq(52)
+      expect(result.token_usage.hidden_output_tokens).to eq(10)
+      expect(result.token_usage.total_tokens).to eq(132)
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)
       expect(result.provider_response_id).to eq("gemini-resp-456")
@@ -165,10 +165,10 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
       result = parser.parse_stream(url, nil, 200, events)
 
-      expect(result.input_tokens).to eq(70)
-      expect(result.cache_read_input_tokens).to eq(10)
-      expect(result.output_tokens).to eq(50)
-      expect(result.total_tokens).to eq(130)
+      expect(result.token_usage.input_tokens).to eq(70)
+      expect(result.token_usage.cache_read_input_tokens).to eq(10)
+      expect(result.token_usage.output_tokens).to eq(50)
+      expect(result.token_usage.total_tokens).to eq(130)
     end
 
     it "returns an unknown-usage ParsedUsage when no usage metadata is seen" do

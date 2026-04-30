@@ -46,18 +46,13 @@ module LlmCostTracker
 
       def event_from_row(row)
         payload = JSON.parse(row.payload)
-        cost = payload["cost"] && LlmCostTracker::Cost.new(**payload["cost"].transform_keys(&:to_sym))
+        cost = payload["cost"] && LlmCostTracker::Cost.from_hash(payload["cost"])
 
         LlmCostTracker::Event.new(
           event_id: payload.fetch("event_id"),
           provider: payload.fetch("provider"),
           model: payload.fetch("model"),
-          input_tokens: payload.fetch("input_tokens"),
-          output_tokens: payload.fetch("output_tokens"),
-          total_tokens: payload.fetch("total_tokens"),
-          cache_read_input_tokens: payload.fetch("cache_read_input_tokens"),
-          cache_write_input_tokens: payload.fetch("cache_write_input_tokens"),
-          hidden_output_tokens: payload.fetch("hidden_output_tokens"),
+          token_usage: TokenUsage.from_hash(payload),
           pricing_mode: payload["pricing_mode"],
           cost: cost,
           tags: payload.fetch("tags"),
@@ -85,25 +80,12 @@ module LlmCostTracker
       end
 
       def payload_for(event)
-        {
+        event.to_h.merge(
           event_id: event.event_id,
           provider: event.provider,
           model: event.model,
-          input_tokens: event.input_tokens,
-          output_tokens: event.output_tokens,
-          total_tokens: event.total_tokens,
-          cache_read_input_tokens: event.cache_read_input_tokens,
-          cache_write_input_tokens: event.cache_write_input_tokens,
-          hidden_output_tokens: event.hidden_output_tokens,
-          pricing_mode: event.pricing_mode,
-          cost: event.cost&.to_h,
-          tags: event.tags || {},
-          latency_ms: event.latency_ms,
-          stream: event.stream,
-          usage_source: event.usage_source,
-          provider_response_id: event.provider_response_id,
           tracked_at: event.tracked_at.iso8601(6)
-        }
+        )
       end
 
       def insert_row(row)

@@ -19,11 +19,7 @@ module LlmCostTracker
           provider: provider_for(request_url),
           provider_response_id: response["id"],
           model: response["model"] || request["model"],
-          input_tokens: regular_input_tokens(usage, cache_read),
-          output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
-          total_tokens: total_tokens(usage, cache_read),
-          cache_read_input_tokens: cache_read,
-          hidden_output_tokens: hidden_output_tokens(usage),
+          token_usage: token_usage(usage, cache_read),
           usage_source: :response
         )
       end
@@ -43,11 +39,7 @@ module LlmCostTracker
             provider: provider_for(request_url),
             provider_response_id: response_id,
             model: model,
-            input_tokens: regular_input_tokens(usage, cache_read),
-            output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
-            total_tokens: total_tokens(usage, cache_read),
-            cache_read_input_tokens: cache_read,
-            hidden_output_tokens: hidden_output_tokens(usage),
+            token_usage: token_usage(usage, cache_read),
             stream: true,
             usage_source: :stream_final
           )
@@ -65,6 +57,16 @@ module LlmCostTracker
           usage = data["usage"] || data.dig("response", "usage")
           usage if usage.is_a?(Hash)
         end
+      end
+
+      def token_usage(usage, cache_read)
+        TokenUsage.build(
+          input_tokens: regular_input_tokens(usage, cache_read),
+          output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
+          total_tokens: total_tokens(usage, cache_read),
+          cache_read_input_tokens: cache_read,
+          hidden_output_tokens: hidden_output_tokens(usage)
+        )
       end
 
       def regular_input_tokens(usage, cache_read)

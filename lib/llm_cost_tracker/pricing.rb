@@ -9,25 +9,18 @@ module LlmCostTracker
     PRICES = PriceRegistry.builtin_prices
 
     class << self
-      def cost_for(provider:, model:, input_tokens:, output_tokens:, cache_read_input_tokens: 0,
-                   cache_write_input_tokens: 0, cache_write_1h_input_tokens: 0, pricing_mode: nil)
+      def cost_for(provider:, model:, token_usage:, pricing_mode: nil)
         prices = lookup(provider: provider, model: model)
         return nil unless prices
 
-        usage = UsageBreakdown.build(
-          input_tokens: input_tokens,
-          output_tokens: output_tokens,
-          cache_read_input_tokens: cache_read_input_tokens,
-          cache_write_input_tokens: cache_write_input_tokens,
-          cache_write_1h_input_tokens: cache_write_1h_input_tokens
-        )
-        costs = calculate_costs(usage, prices, pricing_mode: pricing_mode)
+        costs = calculate_costs(token_usage, prices, pricing_mode: pricing_mode)
         return nil unless costs
 
         Cost.new(
           input_cost: costs[:input].round(8),
           cache_read_input_cost: costs[:cache_read_input].round(8),
           cache_write_input_cost: costs[:cache_write_input].round(8),
+          cache_write_1h_input_cost: costs[:cache_write_1h_input].round(8),
           output_cost: costs[:output].round(8),
           total_cost: costs.values.sum.round(8),
           currency: "USD"
@@ -38,16 +31,11 @@ module LlmCostTracker
         Lookup.call(provider: provider, model: model)&.prices
       end
 
-      def explain(provider:, model:, input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0,
-                  cache_write_input_tokens: 0, cache_write_1h_input_tokens: 0, pricing_mode: nil)
+      def explain(provider:, model:, token_usage:, pricing_mode: nil)
         Explainer.call(
           provider: provider,
           model: model,
-          input_tokens: input_tokens,
-          output_tokens: output_tokens,
-          cache_read_input_tokens: cache_read_input_tokens,
-          cache_write_input_tokens: cache_write_input_tokens,
-          cache_write_1h_input_tokens: cache_write_1h_input_tokens,
+          token_usage: token_usage,
           pricing_mode: pricing_mode
         )
       end
@@ -58,13 +46,10 @@ module LlmCostTracker
         effective = EffectivePrices.call(usage: usage, prices: prices, pricing_mode: pricing_mode)
         return nil unless effective.complete?
 
-        {
-          input: token_cost(usage.input_tokens, effective.input),
-          cache_read_input: token_cost(usage.cache_read_input_tokens, effective.cache_read_input),
-          cache_write_input: token_cost(usage.standard_cache_write_input_tokens, effective.cache_write_input) +
-            token_cost(usage.cache_write_1h_input_tokens, effective.cache_write_1h_input),
-          output: token_cost(usage.output_tokens, effective.output)
-        }
+        prices = effective.to_h
+        usage.price_quantities.to_h do |key, tokens|
+          [key, token_cost(tokens, prices.fetch(key))]
+        end
       end
 
       def token_cost(tokens, per_million_price)

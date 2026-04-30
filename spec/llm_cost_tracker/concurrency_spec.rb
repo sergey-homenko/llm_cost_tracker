@@ -189,8 +189,7 @@ RSpec.describe "concurrency", :aggregate_failures do
             event = LlmCostTracker::Tracker.record(
               provider: "openai",
               model: "gpt-4o",
-              input_tokens: 1,
-              output_tokens: 1
+              token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
             )
             recorded << event.tags[:request_id]
           end

@@ -78,25 +78,21 @@ module LlmCostTracker
             LlmCostTracker::Tracker.record(
               provider: provider,
               model: model,
-              input_tokens: regular_input_tokens(input_tokens, cache_read),
-              output_tokens: ObjectReader.integer(output_tokens),
+              token_usage: TokenUsage.build(
+                input_tokens: regular_input_tokens(input_tokens, cache_read),
+                output_tokens: ObjectReader.integer(output_tokens),
+                cache_read_input_tokens: cache_read,
+                cache_write_input_tokens: ObjectReader.integer(ObjectReader.first(response, :cache_creation_tokens)),
+                hidden_output_tokens: ObjectReader.integer(
+                  ObjectReader.first(response, :thinking_tokens, :reasoning_tokens)
+                )
+              ),
               latency_ms: latency_ms,
               stream: stream,
               usage_source: :ruby_llm,
-              provider_response_id: provider_response_id(response),
-              metadata: usage_metadata(response, cache_read)
+              provider_response_id: provider_response_id(response)
             )
           end
-        end
-
-        def usage_metadata(response, cache_read)
-          {
-            cache_read_input_tokens: cache_read,
-            cache_write_input_tokens: ObjectReader.integer(ObjectReader.first(response, :cache_creation_tokens)),
-            hidden_output_tokens: ObjectReader.integer(
-              ObjectReader.first(response, :thinking_tokens, :reasoning_tokens)
-            )
-          }
         end
 
         def regular_input_tokens(input_tokens, cache_read)

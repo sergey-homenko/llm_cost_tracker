@@ -30,12 +30,7 @@ module LlmCostTracker
           provider: "anthropic",
           provider_response_id: response["id"],
           model: response["model"] || request["model"],
-          input_tokens: usage["input_tokens"].to_i,
-          output_tokens: usage["output_tokens"].to_i,
-          total_tokens: usage["input_tokens"].to_i + usage["output_tokens"].to_i + cache_read + cache_write,
-          cache_read_input_tokens: usage["cache_read_input_tokens"],
-          cache_write_input_tokens: cache_write,
-          cache_write_1h_input_tokens: cache_write_1h_input_tokens(usage),
+          token_usage: token_usage(usage, cache_read, cache_write),
           usage_source: :response
         )
       end
@@ -77,8 +72,6 @@ module LlmCostTracker
       end
 
       def build_stream_result(model, usage, response_id)
-        input = usage["input_tokens"].to_i
-        output = usage["output_tokens"].to_i
         cache_read = usage["cache_read_input_tokens"].to_i
         cache_write = cache_write_input_tokens(usage).to_i
 
@@ -86,14 +79,23 @@ module LlmCostTracker
           provider: "anthropic",
           provider_response_id: response_id,
           model: model,
+          token_usage: token_usage(usage, cache_read, cache_write),
+          stream: true,
+          usage_source: :stream_final
+        )
+      end
+
+      def token_usage(usage, cache_read, cache_write)
+        input = usage["input_tokens"].to_i
+        output = usage["output_tokens"].to_i
+
+        TokenUsage.build(
           input_tokens: input,
           output_tokens: output,
           total_tokens: input + output + cache_read + cache_write,
           cache_read_input_tokens: usage["cache_read_input_tokens"],
           cache_write_input_tokens: cache_write,
-          cache_write_1h_input_tokens: cache_write_1h_input_tokens(usage),
-          stream: true,
-          usage_source: :stream_final
+          cache_write_1h_input_tokens: cache_write_1h_input_tokens(usage)
         )
       end
 

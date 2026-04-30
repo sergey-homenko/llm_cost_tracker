@@ -15,8 +15,8 @@ module LlmCostTracker
         private
 
         def aggregate_expressions(scope, model:)
-          usage_breakdown_present = model.usage_breakdown_columns?
-          usage_breakdown_cost_present = model.usage_breakdown_cost_columns?
+          token_usage_present = model.token_usage_columns?
+          token_usage_cost_present = model.token_usage_cost_columns?
 
           expressions = {
             total_calls: Arel.sql("COUNT(*)"),
@@ -37,19 +37,17 @@ module LlmCostTracker
               conditional_count_expression("provider_response_id IS NULL OR provider_response_id = ''")
           end
 
-          usage_sum_columns(usage_breakdown_present, usage_breakdown_cost_present).each do |column|
+          usage_sum_columns(token_usage_present, token_usage_cost_present).each do |column|
             expressions[column] = Arel.sql("COALESCE(SUM(#{scope.connection.quote_column_name(column)}), 0)")
           end
 
           expressions
         end
 
-        def usage_sum_columns(usage_breakdown_present, usage_breakdown_cost_present)
-          columns = %i[input_tokens output_tokens input_cost output_cost]
-          if usage_breakdown_present
-            columns += %i[cache_read_input_tokens cache_write_input_tokens hidden_output_tokens]
-          end
-          columns += %i[cache_read_input_cost cache_write_input_cost] if usage_breakdown_cost_present
+        def usage_sum_columns(token_usage_present, token_usage_cost_present)
+          columns = TokenUsage::BASE_DASHBOARD_SUM_KEYS + Cost::BASE_DASHBOARD_SUM_KEYS
+          columns += TokenUsage::OPTIONAL_DASHBOARD_SUM_KEYS if token_usage_present
+          columns += Cost::OPTIONAL_DASHBOARD_SUM_KEYS if token_usage_cost_present
           columns
         end
 

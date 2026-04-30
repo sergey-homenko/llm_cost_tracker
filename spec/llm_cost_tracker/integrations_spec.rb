@@ -520,7 +520,8 @@ RSpec.describe LlmCostTracker::Integrations do
         usage_source: "sdk_response",
         provider_response_id: "msg_123"
       )
-      expect(events.first.dig(:cost, :cache_write_input_cost)).to eq(0.000135)
+      expect(events.first.dig(:cost, :cache_write_input_cost)).to eq(0.000075)
+      expect(events.first.dig(:cost, :cache_write_1h_input_cost)).to eq(0.00006)
     end
   end
 

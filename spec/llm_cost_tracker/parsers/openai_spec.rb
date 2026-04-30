@@ -75,8 +75,8 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result).to be_a(LlmCostTracker::ParsedUsage)
       expect(result.provider).to eq("openai")
       expect(result.model).to eq("gpt-4o")
-      expect(result.input_tokens).to eq(150)
-      expect(result.output_tokens).to eq(42)
+      expect(result.token_usage.input_tokens).to eq(150)
+      expect(result.token_usage.output_tokens).to eq(42)
       expect(result.provider_response_id).to eq("chatcmpl_123")
     end
 
@@ -102,10 +102,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
       expect(result.provider).to eq("openai")
       expect(result.model).to eq("gpt-5-mini")
-      expect(result.input_tokens).to eq(50)
-      expect(result.output_tokens).to eq(42)
-      expect(result.cache_read_input_tokens).to eq(100)
-      expect(result.hidden_output_tokens).to eq(20)
+      expect(result.token_usage.input_tokens).to eq(50)
+      expect(result.token_usage.output_tokens).to eq(42)
+      expect(result.token_usage.cache_read_input_tokens).to eq(100)
+      expect(result.token_usage.hidden_output_tokens).to eq(20)
       expect(result.provider_response_id).to eq("resp_123")
     end
 
@@ -136,10 +136,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         }.to_json
       )
 
-      expect(result.input_tokens).to eq(50)
-      expect(result.cache_read_input_tokens).to eq(100)
-      expect(result.output_tokens).to eq(42)
-      expect(result.total_tokens).to eq(192)
+      expect(result.token_usage.input_tokens).to eq(50)
+      expect(result.token_usage.cache_read_input_tokens).to eq(100)
+      expect(result.token_usage.output_tokens).to eq(42)
+      expect(result.token_usage.total_tokens).to eq(192)
     end
 
     it "uses unknown when neither response nor request carries a model" do
@@ -197,9 +197,9 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
       expect(result.provider).to eq("openai")
       expect(result.model).to eq("gpt-4o")
-      expect(result.input_tokens).to eq(12)
-      expect(result.output_tokens).to eq(3)
-      expect(result.total_tokens).to eq(15)
+      expect(result.token_usage.input_tokens).to eq(12)
+      expect(result.token_usage.output_tokens).to eq(3)
+      expect(result.token_usage.total_tokens).to eq(15)
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)
       expect(result.provider_response_id).to be_nil
@@ -273,9 +273,9 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         events
       )
 
-      expect(result.input_tokens).to eq(50)
-      expect(result.output_tokens).to eq(7)
-      expect(result.total_tokens).to eq(57)
+      expect(result.token_usage.input_tokens).to eq(50)
+      expect(result.token_usage.output_tokens).to eq(7)
+      expect(result.token_usage.total_tokens).to eq(57)
       expect(result.usage_source).to eq(:stream_final)
       expect(result.provider_response_id).to eq("resp_456")
     end
@@ -313,8 +313,8 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:unknown)
-      expect(result.input_tokens).to eq(0)
-      expect(result.output_tokens).to eq(0)
+      expect(result.token_usage.input_tokens).to eq(0)
+      expect(result.token_usage.output_tokens).to eq(0)
       expect(result.provider_response_id).to be_nil
     end
 
@@ -343,10 +343,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         events
       )
 
-      expect(result.input_tokens).to eq(5)
-      expect(result.cache_read_input_tokens).to eq(7)
-      expect(result.output_tokens).to eq(3)
-      expect(result.total_tokens).to eq(15)
+      expect(result.token_usage.input_tokens).to eq(5)
+      expect(result.token_usage.cache_read_input_tokens).to eq(7)
+      expect(result.token_usage.output_tokens).to eq(3)
+      expect(result.token_usage.total_tokens).to eq(15)
     end
 
     it "returns nil on non-200 responses" do

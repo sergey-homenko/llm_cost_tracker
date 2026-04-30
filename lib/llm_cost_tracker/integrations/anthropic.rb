@@ -47,28 +47,28 @@ module LlmCostTracker
             LlmCostTracker::Tracker.record(
               provider: "anthropic",
               model: ObjectReader.first(message, :model) || request[:model],
-              input_tokens: ObjectReader.integer(input_tokens),
-              output_tokens: ObjectReader.integer(output_tokens),
+              token_usage: token_usage(usage, input_tokens, output_tokens),
               latency_ms: latency_ms,
               usage_source: :sdk_response,
-              provider_response_id: ObjectReader.first(message, :id),
-              metadata: usage_metadata(usage)
+              provider_response_id: ObjectReader.first(message, :id)
             )
           end
         end
 
-        def usage_metadata(usage)
+        def token_usage(usage, input_tokens, output_tokens)
           cache_write_1h = ObjectReader.nested(usage, :cache_creation, :ephemeral_1h_input_tokens)
           cache_write = ObjectReader.first(usage, :cache_creation_input_tokens)
           cache_write_5m = ObjectReader.nested(usage, :cache_creation, :ephemeral_5m_input_tokens)
           cache_write ||= ObjectReader.integer(cache_write_5m) + ObjectReader.integer(cache_write_1h)
 
-          {
+          TokenUsage.build(
+            input_tokens: ObjectReader.integer(input_tokens),
+            output_tokens: ObjectReader.integer(output_tokens),
             cache_read_input_tokens: ObjectReader.integer(ObjectReader.first(usage, :cache_read_input_tokens)),
             cache_write_input_tokens: ObjectReader.integer(cache_write),
             cache_write_1h_input_tokens: ObjectReader.integer(cache_write_1h),
             hidden_output_tokens: hidden_output_tokens(usage)
-          }
+          )
         end
 
         def hidden_output_tokens(usage)

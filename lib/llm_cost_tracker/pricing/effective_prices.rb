@@ -1,18 +1,10 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/object/blank"
+
 module LlmCostTracker
   module Pricing
-    EffectivePriceSet = Data.define(:input, :cache_read_input, :cache_write_input, :cache_write_1h_input, :output) do
-      def to_h
-        {
-          input: input,
-          cache_read_input: cache_read_input,
-          cache_write_input: cache_write_input,
-          cache_write_1h_input: cache_write_1h_input,
-          output: output
-        }
-      end
-
+    EffectivePriceSet = Data.define(*TokenUsage::PRICE_KEYS) do
       def complete?
         missing_keys.empty?
       end
@@ -25,27 +17,29 @@ module LlmCostTracker
     module EffectivePrices
       class << self
         def call(usage:, prices:, pricing_mode:)
+          quantities = usage.price_quantities
+
           EffectivePriceSet.new(
-            input: price_for_usage(usage.input_tokens, prices, :input, pricing_mode),
+            input: price_for_usage(quantities.fetch(:input), prices, :input, pricing_mode),
             cache_read_input: price_for_cache_usage(
-              usage.cache_read_input_tokens,
+              quantities.fetch(:cache_read_input),
               prices,
               :cache_read_input,
               pricing_mode
             ),
             cache_write_input: price_for_cache_usage(
-              usage.standard_cache_write_input_tokens,
+              quantities.fetch(:cache_write_input),
               prices,
               :cache_write_input,
               pricing_mode
             ),
             cache_write_1h_input: price_for_usage(
-              usage.cache_write_1h_input_tokens,
+              quantities.fetch(:cache_write_1h_input),
               prices,
               :cache_write_1h_input,
               pricing_mode
             ),
-            output: price_for_usage(usage.output_tokens, prices, :output, pricing_mode)
+            output: price_for_usage(quantities.fetch(:output), prices, :output, pricing_mode)
           )
         end
 

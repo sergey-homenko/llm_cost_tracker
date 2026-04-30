@@ -10,11 +10,11 @@ ENV["RAILS_ENV"] ||= "test"
 require_relative "../../dummy/config/environment"
 
 RSpec.describe "LlmCostTracker dashboard services" do
-  def reset_database!(latency: true, streaming: false, usage_breakdown: true)
+  def reset_database!(latency: true, streaming: false, token_usage: true)
     establish_database_connection!
 
     ActiveRecord::Schema.verbose = false
-    table_definition = llm_api_calls_table_definition(latency:, streaming:, usage_breakdown:)
+    table_definition = llm_api_calls_table_definition(latency:, streaming:, token_usage:)
     ActiveRecord::Schema.define do
       create_table :llm_api_calls, force: true, &table_definition
     end
@@ -32,44 +32,46 @@ RSpec.describe "LlmCostTracker dashboard services" do
     LlmCostTracker::LlmApiCall.create!(attrs)
   end
 
-  def llm_api_calls_table_definition(latency:, streaming:, usage_breakdown:)
+  def llm_api_calls_table_definition(latency:, streaming:, token_usage:)
     proc do |t|
-      add_usage_columns(t, usage_breakdown:)
-      add_cost_columns(t, usage_breakdown:)
-      add_tracking_columns(t, latency:, streaming:, usage_breakdown:)
+      add_usage_columns(t, token_usage:)
+      add_cost_columns(t, token_usage:)
+      add_tracking_columns(t, latency:, streaming:, token_usage:)
       t.timestamps
     end
   end
 
-  def add_usage_columns(table, usage_breakdown:)
+  def add_usage_columns(table, token_usage:)
     table.string :provider, null: false
     table.string :model, null: false
     table.integer :input_tokens, null: false, default: 0
     table.integer :output_tokens, null: false, default: 0
     table.integer :total_tokens, null: false, default: 0
-    return unless usage_breakdown
+    return unless token_usage
 
     table.integer :cache_read_input_tokens, null: false, default: 0
     table.integer :cache_write_input_tokens, null: false, default: 0
+    table.integer :cache_write_1h_input_tokens, null: false, default: 0
     table.integer :hidden_output_tokens, null: false, default: 0
   end
 
-  def add_cost_columns(table, usage_breakdown:)
+  def add_cost_columns(table, token_usage:)
     table.decimal :input_cost, precision: 20, scale: 8
-    table.decimal :cache_read_input_cost, precision: 20, scale: 8 if usage_breakdown
-    table.decimal :cache_write_input_cost, precision: 20, scale: 8 if usage_breakdown
+    table.decimal :cache_read_input_cost, precision: 20, scale: 8 if token_usage
+    table.decimal :cache_write_input_cost, precision: 20, scale: 8 if token_usage
+    table.decimal :cache_write_1h_input_cost, precision: 20, scale: 8 if token_usage
     table.decimal :output_cost, precision: 20, scale: 8
     table.decimal :total_cost, precision: 20, scale: 8
   end
 
-  def add_tracking_columns(table, latency:, streaming:, usage_breakdown:)
+  def add_tracking_columns(table, latency:, streaming:, token_usage:)
     table.integer :latency_ms if latency
     if streaming
       table.boolean :stream, null: false, default: false
       table.string  :usage_source
     end
     table.string :provider_response_id
-    table.string :pricing_mode if usage_breakdown
+    table.string :pricing_mode if token_usage
     add_tags_column(table)
     table.datetime :tracked_at, null: false
   end
@@ -82,11 +84,13 @@ RSpec.describe "LlmCostTracker dashboard services" do
       output_tokens: 5,
       cache_read_input_tokens: 0,
       cache_write_input_tokens: 0,
+      cache_write_1h_input_tokens: 0,
       hidden_output_tokens: 0,
       input_cost: 0.1,
       output_cost: 0.2,
       cache_read_input_cost: 0.0,
       cache_write_input_cost: 0.0,
+      cache_write_1h_input_cost: 0.0,
       total_cost: 1.0,
       latency_ms: 100,
       stream: false,
@@ -109,14 +113,16 @@ RSpec.describe "LlmCostTracker dashboard services" do
     attrs.delete(:stream) unless LlmCostTracker::LlmApiCall.stream_column?
     attrs.delete(:usage_source) unless LlmCostTracker::LlmApiCall.usage_source_column?
     attrs.delete(:provider_response_id) unless LlmCostTracker::LlmApiCall.provider_response_id_column?
-    unless LlmCostTracker::LlmApiCall.usage_breakdown_columns?
+    unless LlmCostTracker::LlmApiCall.token_usage_columns?
       attrs.delete(:cache_read_input_tokens)
       attrs.delete(:cache_write_input_tokens)
+      attrs.delete(:cache_write_1h_input_tokens)
       attrs.delete(:hidden_output_tokens)
     end
-    unless LlmCostTracker::LlmApiCall.usage_breakdown_cost_columns?
+    unless LlmCostTracker::LlmApiCall.token_usage_cost_columns?
       attrs.delete(:cache_read_input_cost)
       attrs.delete(:cache_write_input_cost)
+      attrs.delete(:cache_write_1h_input_cost)
     end
     attrs.delete(:pricing_mode) unless LlmCostTracker::LlmApiCall.pricing_mode_column?
   end
@@ -651,34 +657,40 @@ RSpec.describe "LlmCostTracker dashboard services" do
         input_tokens: 100,
         cache_read_input_tokens: 50,
         cache_write_input_tokens: 25,
+        cache_write_1h_input_tokens: 5,
         output_tokens: 40,
         hidden_output_tokens: 10,
         input_cost: 0.10,
         cache_read_input_cost: 0.02,
         cache_write_input_cost: 0.03,
+        cache_write_1h_input_cost: 0.04,
         output_cost: 0.20
       )
       create_call(
         input_tokens: 200,
         cache_read_input_tokens: 10,
+        cache_write_1h_input_tokens: 2,
         output_tokens: 60,
         hidden_output_tokens: 5,
         input_cost: 0.30,
         cache_read_input_cost: 0.01,
+        cache_write_1h_input_cost: 0.05,
         output_cost: 0.40
       )
 
       stats = described_class.call
 
-      expect(stats.usage_breakdown_column_present).to be true
+      expect(stats.token_usage_columns_present).to be true
       expect(stats.input_tokens).to eq(300)
       expect(stats.cache_read_input_tokens).to eq(60)
       expect(stats.cache_write_input_tokens).to eq(25)
+      expect(stats.cache_write_1h_input_tokens).to eq(7)
       expect(stats.output_tokens).to eq(100)
       expect(stats.hidden_output_tokens).to eq(15)
       expect(stats.input_cost).to eq(0.4)
       expect(stats.cache_read_input_cost).to eq(0.03)
       expect(stats.cache_write_input_cost).to eq(0.03)
+      expect(stats.cache_write_1h_input_cost).to eq(0.09)
       expect(stats.output_cost).to eq(0.6)
     end
 
@@ -689,24 +701,25 @@ RSpec.describe "LlmCostTracker dashboard services" do
       LlmCostTracker::LlmApiCall.latency_column?
       LlmCostTracker::LlmApiCall.stream_column?
       LlmCostTracker::LlmApiCall.provider_response_id_column?
-      LlmCostTracker::LlmApiCall.usage_breakdown_columns?
-      LlmCostTracker::LlmApiCall.usage_breakdown_cost_columns?
+      LlmCostTracker::LlmApiCall.token_usage_columns?
+      LlmCostTracker::LlmApiCall.token_usage_cost_columns?
 
       statements = capture_llm_api_call_selects { described_class.call }
 
       expect(statements.size).to eq(2)
     end
 
-    it "reports usage breakdown absence when the schema lacks canonical breakdown columns" do
+    it "reports token usage absence when the schema lacks canonical token columns" do
       ActiveRecord::Base.connection.disconnect!
-      reset_database!(usage_breakdown: false)
+      reset_database!(token_usage: false)
       create_call(input_tokens: 100, output_tokens: 50)
 
       stats = described_class.call
 
-      expect(stats.usage_breakdown_column_present).to be false
+      expect(stats.token_usage_columns_present).to be false
       expect(stats.input_tokens).to eq(100)
       expect(stats.cache_read_input_tokens).to be_nil
+      expect(stats.cache_write_1h_input_tokens).to be_nil
       expect(stats.hidden_output_tokens).to be_nil
     end
 

@@ -28,7 +28,7 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
     expect(response.body).to include("Coverage summary")
     expect(response.body).to include("Cost (pricing known)")
     expect(response.body).to include("Tags (at least one tag)")
-    expect(response.body).to include("Usage breakdown")
+    expect(response.body).to include("Token usage")
     expect(response.body).to include("Regular input")
     expect(response.body).to include("Data Quality")
   end

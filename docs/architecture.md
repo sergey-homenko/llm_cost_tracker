@@ -8,6 +8,7 @@ Core vocabulary belongs in provider-neutral terms:
 - `cache_read_input_tokens`
 - `cache_write_input_tokens`
 - `cache_write_1h_input_tokens`
+- `cache_write_1h_input_cost`
 - `output_tokens`
 - `hidden_output_tokens`
 - `pricing_mode`

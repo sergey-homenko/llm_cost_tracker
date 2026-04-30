@@ -20,22 +20,18 @@ module LlmCostTracker
 
     def clean_dashboard_query(value)
       if value.is_a?(Hash) || value.try(:to_unsafe_h).is_a?(Hash)
-        return clean_dashboard_hash(LlmCostTracker::ParameterHash.to_hash(value))
+        return LlmCostTracker::ParameterHash.to_hash(value).each_with_object({}) do |(key, nested), cleaned|
+          nested = clean_dashboard_query(nested)
+          next if nested.nil? || nested == {} || nested == []
+
+          cleaned[key] = nested
+        end
       end
 
       return value.filter_map { |item| clean_dashboard_query(item) }.presence if value.is_a?(Array)
       return value.strip.presence if value.is_a?(String)
 
       value
-    end
-
-    def clean_dashboard_hash(hash)
-      hash.each_with_object({}) do |(key, nested), cleaned|
-        nested = clean_dashboard_query(nested)
-        next if nested.nil? || nested == {} || nested == []
-
-        cleaned[key] = nested
-      end
     end
   end
 end

@@ -13,16 +13,9 @@ module LlmCostTracker
       :stream_column_present,
       :missing_provider_response_id_count,
       :provider_response_id_column_present,
-      :usage_breakdown_column_present,
-      :input_tokens,
-      :cache_read_input_tokens,
-      :cache_write_input_tokens,
-      :output_tokens,
-      :hidden_output_tokens,
-      :input_cost,
-      :cache_read_input_cost,
-      :cache_write_input_cost,
-      :output_cost,
+      :token_usage_columns_present,
+      *TokenUsage::DASHBOARD_SUM_KEYS,
+      *Cost::DASHBOARD_SUM_KEYS,
       :unknown_pricing_by_model
     )
 
@@ -85,27 +78,21 @@ module LlmCostTracker
         end
 
         def usage_stats(aggregates, model:)
-          usage_breakdown_present = model.usage_breakdown_columns?
-          usage_breakdown_cost_present = model.usage_breakdown_cost_columns?
-          cache_read_input_cost = nil
-          cache_write_input_cost = nil
-          if usage_breakdown_cost_present
-            cache_read_input_cost = decimal_sum(aggregates.fetch(:cache_read_input_cost))
-            cache_write_input_cost = decimal_sum(aggregates.fetch(:cache_write_input_cost))
-          end
+          token_usage_present = model.token_usage_columns?
+          token_usage_cost_present = model.token_usage_cost_columns?
 
-          {
-            usage_breakdown_column_present: usage_breakdown_present,
-            input_tokens: aggregates.fetch(:input_tokens).to_i,
-            cache_read_input_tokens: usage_breakdown_present ? aggregates.fetch(:cache_read_input_tokens).to_i : nil,
-            cache_write_input_tokens: usage_breakdown_present ? aggregates.fetch(:cache_write_input_tokens).to_i : nil,
-            output_tokens: aggregates.fetch(:output_tokens).to_i,
-            hidden_output_tokens: usage_breakdown_present ? aggregates.fetch(:hidden_output_tokens).to_i : nil,
-            input_cost: decimal_sum(aggregates.fetch(:input_cost)),
-            cache_read_input_cost: cache_read_input_cost,
-            cache_write_input_cost: cache_write_input_cost,
-            output_cost: decimal_sum(aggregates.fetch(:output_cost))
-          }
+          values = { token_usage_columns_present: token_usage_present }
+          TokenUsage::DASHBOARD_SUM_KEYS.each do |key|
+            values[key] = if TokenUsage::BASE_DASHBOARD_SUM_KEYS.include?(key) || token_usage_present
+                            aggregates.fetch(key).to_i
+                          end
+          end
+          Cost::DASHBOARD_SUM_KEYS.each do |key|
+            values[key] = if Cost::BASE_DASHBOARD_SUM_KEYS.include?(key) || token_usage_cost_present
+                            decimal_sum(aggregates.fetch(key))
+                          end
+          end
+          values
         end
 
         def unknown_pricing_by_model(scope)

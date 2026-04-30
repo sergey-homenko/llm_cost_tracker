@@ -31,6 +31,7 @@ RSpec.describe "generator templates" do
     expect(migration).to include("t.integer :hidden_output_tokens")
     expect(migration).to include("t.decimal :cache_read_input_cost")
     expect(migration).to include("t.decimal :cache_write_input_cost")
+    expect(migration).to include("t.decimal :cache_write_1h_input_cost")
     expect(migration).to include("t.boolean :stream")
     expect(migration).to include("t.string  :usage_source")
     expect(migration).to include("t.string  :provider_response_id")
@@ -159,15 +160,17 @@ RSpec.describe "generator templates" do
     expect(migration).to include("remove_column :llm_api_calls, :provider_response_id")
   end
 
-  it "provides a usage breakdown upgrade migration" do
-    migration = template("add_usage_breakdown_to_llm_api_calls.rb.erb")
+  it "provides a token usage upgrade migration" do
+    migration = template("add_token_usage_to_llm_api_calls.rb.erb")
 
-    expect(migration).to include("class AddUsageBreakdownToLlmApiCalls")
+    expect(migration).to include("class AddTokenUsageToLlmApiCalls")
     expect(migration).to include("add_column :llm_api_calls, :cache_read_input_tokens, :integer")
     expect(migration).to include("add_column :llm_api_calls, :cache_write_input_tokens, :integer")
+    expect(migration).to include("add_column :llm_api_calls, :cache_write_1h_input_tokens, :integer")
     expect(migration).to include("add_column :llm_api_calls, :hidden_output_tokens, :integer")
     expect(migration).to include("add_column :llm_api_calls, :cache_read_input_cost, :decimal")
     expect(migration).to include("add_column :llm_api_calls, :cache_write_input_cost, :decimal")
+    expect(migration).to include("add_column :llm_api_calls, :cache_write_1h_input_cost, :decimal")
     expect(migration).to include("add_column :llm_api_calls, :pricing_mode, :string")
     expect(migration).to include("remove_column :llm_api_calls, :cache_read_input_tokens")
   end

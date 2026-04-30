@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/hash/except"
+
 require_relative "inbox"
 require_relative "period_totals"
 require_relative "rollups"
@@ -40,27 +42,20 @@ module LlmCostTracker
       def attributes_for(event, model = LlmCostTracker::LlmApiCall)
         tags = (event.tags || {}).transform_keys(&:to_s).transform_values { |value| stringify_tag_value(value) }
         columns = model.columns_hash
+        usage = event.token_usage.stored_attributes
 
         attributes = {
-          provider:      event.provider,
-          model:         event.model,
-          input_tokens:  event.input_tokens,
-          output_tokens: event.output_tokens,
-          total_tokens:  event.total_tokens,
-          input_cost:    event.cost&.input_cost,
-          output_cost:   event.cost&.output_cost,
-          total_cost:    event.cost&.total_cost,
-          tags:          model.tags_json_column? ? tags : tags.to_json,
-          tracked_at:    event.tracked_at
+          provider: event.provider,
+          model: event.model,
+          tags: model.tags_json_column? ? tags : tags.to_json,
+          tracked_at: event.tracked_at
         }
+
+        add_stored_attributes(attributes, columns, usage, TokenUsage::BASE_STORED_KEYS)
+        add_stored_attributes(attributes, columns, event.cost&.stored_attributes || {}, Cost::BASE_STORED_KEYS)
 
         {
           event_id: event.event_id,
-          cache_read_input_tokens: event.cache_read_input_tokens,
-          cache_write_input_tokens: event.cache_write_input_tokens,
-          hidden_output_tokens: event.hidden_output_tokens,
-          cache_read_input_cost: event.cost&.cache_read_input_cost,
-          cache_write_input_cost: event.cost&.cache_write_input_cost,
           pricing_mode: event.pricing_mode,
           latency_ms: event.latency_ms,
           stream: event.stream,
@@ -124,6 +119,12 @@ module LlmCostTracker
         return value.transform_values { |nested| stringify_tag_value(nested) } if value.is_a?(Hash)
 
         value.to_s
+      end
+
+      def add_stored_attributes(attributes, columns, values, required)
+        values.each do |name, value|
+          attributes[name] = value if required.include?(name) || columns.key?(name.to_s)
+        end
       end
     end
   end
