@@ -51,8 +51,6 @@ module LlmCostTracker
       end
 
       def self.average_latency_ms(scope)
-        return nil unless Ledger::Call.latency_column?
-
         scope.average(:latency_ms)&.to_f
       end
 

@@ -7,7 +7,7 @@ module LlmCostTracker
     class OverviewStats
       class << self
         def call(scope: LlmCostTracker::Ledger::Call.all, previous_scope: nil)
-          scope.select(aggregate_selects(scope, previous_scope: previous_scope)).take
+          scope.select(aggregate_selects(previous_scope: previous_scope)).take
         end
 
         def monthly_budget_status
@@ -39,7 +39,7 @@ module LlmCostTracker
 
         private
 
-        def aggregate_selects(scope, previous_scope:)
+        def aggregate_selects(previous_scope:)
           average_cost_sql = <<~SQL.squish
             CASE WHEN COUNT(*) > 0
             THEN COALESCE(SUM(total_cost), 0) * 1.0 / COUNT(*)
@@ -49,13 +49,9 @@ module LlmCostTracker
             "COUNT(*) AS total_calls",
             "COALESCE(SUM(total_cost), 0) AS total_cost",
             "#{average_cost_sql} AS average_cost_per_call",
-            "SUM(CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END) AS unknown_pricing_count"
+            "SUM(CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END) AS unknown_pricing_count",
+            "AVG(latency_ms) AS average_latency_ms"
           ]
-          selects << if scope.klass.latency_column?
-                       "AVG(latency_ms) AS average_latency_ms"
-                     else
-                       "NULL AS average_latency_ms"
-                     end
           selects.concat(previous_selects(previous_scope))
           selects.join(", ")
         end

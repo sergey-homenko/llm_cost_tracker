@@ -17,6 +17,18 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.body).to include("No LLM calls yet")
   end
 
+  it "renders setup when the ledger table is not on the current schema" do
+    ActiveRecord::Base.connection.remove_column(:llm_api_calls, :pricing_mode)
+    LlmCostTracker::Ledger::Call.reset_column_information
+
+    response = get("/llm-costs")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Setup required")
+    expect(response.body).to include("does not match the current LLM Cost Tracker schema")
+    expect(response.body).to include("missing columns: pricing_mode")
+  end
+
   it "renders overview stats, daily spend, top models, and budget status" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 16, 0, 0, 0))
 

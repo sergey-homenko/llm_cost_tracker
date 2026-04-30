@@ -34,15 +34,13 @@
                        id: "lct-model" %>
       </div>
 
-      <% if LlmCostTracker::Ledger::Call.stream_column? %>
-        <div class="lct-field">
-          <label for="lct-stream">Stream</label>
-          <%= select_tag :stream,
-                         options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
-                         include_blank: "All calls",
-                         id: "lct-stream" %>
-        </div>
-      <% end %>
+      <div class="lct-field">
+        <label for="lct-stream">Stream</label>
+        <%= select_tag :stream,
+                       options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
+                       include_blank: "All calls",
+                       id: "lct-stream" %>
+      </div>
 
       <div class="lct-field">
         <label for="lct-sort">Sort</label>
@@ -51,9 +49,9 @@
                          [["Recent first", ""],
                           ["Most expensive", "expensive"],
                           ["Largest input", "input"],
-                          ["Largest output", "output"]] +
-                         (@latency_available ? [["Slowest", "slow"]] : []) +
-                         [["Unknown pricing only", "unknown_pricing"]],
+                          ["Largest output", "output"],
+                          ["Slowest", "slow"],
+                          ["Unknown pricing only", "unknown_pricing"]],
                          @sort
                        ),
                        id: "lct-sort" %>
@@ -104,9 +102,7 @@
             <th class="lct-num">Output</th>
             <th class="lct-num">Total</th>
             <th class="lct-num">Cost</th>
-            <% if @latency_available %>
-              <th class="lct-num">Latency</th>
-            <% end %>
+            <th class="lct-num">Latency</th>
             <th>Tags</th>
             <th></th>
           </tr>
@@ -121,9 +117,7 @@
               <td class="lct-num"><%= format_tokens(call.output_tokens) %></td>
               <td class="lct-num"><%= format_tokens(call.total_tokens) %></td>
               <td class="lct-num<%= ' lct-num-muted' if call.total_cost.nil? %>"><%= optional_money(call.total_cost) %></td>
-              <% if @latency_available %>
-                <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
-              <% end %>
+              <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
               <td><%= render "llm_cost_tracker/shared/tag_chips", tags: call.parsed_tags %></td>
               <td><%= link_to "Details", call_path(call), class: "lct-button lct-button-secondary lct-button-compact" %></td>
             </tr>

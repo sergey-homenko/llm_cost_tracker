@@ -76,7 +76,7 @@ RSpec.describe LlmCostTracker::Doctor do
       :pricing_mode
     ].map(&:to_s)
 
-    expect(columns.map { |column| described_class::FEATURE_COLUMNS.fetch(column) }.uniq).to eq(
+    expect(columns.map { |column| described_class::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
       ["bin/rails generate llm_cost_tracker:add_token_usage"]
     )
   end
@@ -93,6 +93,19 @@ RSpec.describe LlmCostTracker::Doctor do
         have_attributes(status: :warn, name: "period totals"),
         have_attributes(status: :warn, name: "tracked calls")
       )
+    end
+
+    it "fails when the ledger table does not match the current schema" do
+      ActiveRecord::Base.connection.remove_column(:llm_api_calls, :pricing_mode)
+      LlmCostTracker::Ledger::Call.reset_column_information
+
+      check = described_class.call.find { |item| item.name == "llm_api_calls columns" }
+
+      expect(check.status).to eq(:error)
+      expect(check.message).to include("current schema required")
+      expect(check.message).to include("missing columns: pricing_mode")
+      expect(check.message).to include("bin/rails generate llm_cost_tracker:add_token_usage")
+      expect(check.message).to include("bin/rails db:migrate")
     end
 
     it "reports recorded calls" do

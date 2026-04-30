@@ -9,8 +9,8 @@ require_relative "doctor/price_check"
 module LlmCostTracker
   class Doctor
     Check = Data.define(:status, :name, :message)
-    CORE_COLUMNS = %w[provider model input_tokens output_tokens total_tokens total_cost tags tracked_at].freeze
-    FEATURE_COLUMNS = {
+    COLUMN_GENERATORS = {
+      "event_id" => "bin/rails generate llm_cost_tracker:add_ingestion",
       "latency_ms" => "bin/rails generate llm_cost_tracker:add_latency_ms",
       "stream" => "bin/rails generate llm_cost_tracker:add_streaming",
       "usage_source" => "bin/rails generate llm_cost_tracker:add_streaming",
@@ -85,23 +85,15 @@ module LlmCostTracker
     def column_check
       return unless llm_api_calls_table?
 
-      columns = LlmCostTracker::Ledger::Call.connection.columns("llm_api_calls").map(&:name)
-      missing_core = CORE_COLUMNS - columns
-      missing_features = FEATURE_COLUMNS.keys - columns
-      if missing_core.any?
-        return Check.new(:error, "llm_api_calls columns", "missing core columns: #{missing_core.join(', ')}")
-      end
+      errors = LlmCostTracker::Ledger::Call.current_schema_errors
+      return Check.new(:ok, "llm_api_calls columns", "current") if errors.empty?
 
-      if missing_features.any?
-        generators = missing_features.map { |column| FEATURE_COLUMNS.fetch(column) }.uniq
-        return Check.new(
-          :warn,
-          "llm_api_calls columns",
-          "missing optional columns; run #{generators.join(' && ')}"
-        )
-      end
+      missing = LlmCostTracker::Ledger::Call.missing_current_schema_columns
+      generators = missing.filter_map { |column| COLUMN_GENERATORS[column] }.uniq
+      message = "current schema required; #{errors.join('; ')}"
+      message = "#{message}; run #{generators.join(' && ')} && bin/rails db:migrate" if generators.any?
 
-      Check.new(:ok, "llm_api_calls columns", "current")
+      Check.new(:error, "llm_api_calls columns", message)
     end
 
     def period_totals_check

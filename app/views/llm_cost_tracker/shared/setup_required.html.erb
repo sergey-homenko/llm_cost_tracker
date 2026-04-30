@@ -1,7 +1,18 @@
 <section class="lct-panel lct-empty">
   <h2 class="lct-state-title">Setup required</h2>
   <p class="lct-state-copy">
-    The <span class="lct-code">llm_api_calls</span> table is not available yet.
-    Run <span class="lct-code">rails generate llm_cost_tracker:install</span> and migrate your database.
+    <%= @setup_message || "The llm_api_calls table is not available yet." %>
+    <% if @setup_details.present? %>
+      Run <span class="lct-code">bin/rails llm_cost_tracker:doctor</span>, apply the listed migrations, and migrate your database.
+    <% else %>
+      Run <span class="lct-code">rails generate llm_cost_tracker:install</span> and migrate your database.
+    <% end %>
   </p>
+  <% if @setup_details.present? %>
+    <ul class="lct-state-copy">
+      <% @setup_details.each do |detail| %>
+        <li><code class="lct-code"><%= detail %></code></li>
+      <% end %>
+    </ul>
+  <% end %>
 </section>

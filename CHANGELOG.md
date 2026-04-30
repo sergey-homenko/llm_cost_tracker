@@ -16,6 +16,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - BREAKING: Reorganized internal ledger, tags, capture, doctor, and report constants under their owning namespaces.
 - BREAKING: Moved built-in parser routing onto `LlmCostTracker::Parsers`.
 - BREAKING: Removed `LlmCostTracker::Pricing::Cost`; pricing now returns cost attribute hashes from `TokenUsage` billing components.
+- BREAKING: Current ActiveRecord ledger schema is required; doctor and dashboard setup now fail on missing canonical columns.
 - Anthropic pricing now uses response cache-write TTL usage to price 1-hour cache writes separately.
 - Batch pricing now derives stackable cache rates and refuses unknown positive-token mode rates instead of falling back to standard prices.
 - Gemini pricing now treats context cache reads separately and no longer exposes token-only cache-write prices.

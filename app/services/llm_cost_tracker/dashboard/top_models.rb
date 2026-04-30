@@ -20,20 +20,16 @@ module LlmCostTracker
       end
 
       def rows
-        grouped_rows
-      end
-
-      private
-
-      attr_reader :scope, :limit, :sort
-
-      def grouped_rows
         scope
           .group(:provider, :model)
           .select(selects)
           .order(Arel.sql(order_sql))
           .then { |r| limit ? r.limit(limit) : r }
       end
+
+      private
+
+      attr_reader :scope, :limit, :sort
 
       def order_sql
         case sort
@@ -42,8 +38,6 @@ module LlmCostTracker
         when "avg_cost"
           "COALESCE(SUM(total_cost), 0) / NULLIF(COUNT(*), 0) DESC"
         when "latency"
-          return "COALESCE(SUM(total_cost), 0) DESC" unless scope.klass.latency_column?
-
           "CASE WHEN AVG(latency_ms) IS NULL THEN 1 ELSE 0 END ASC, AVG(latency_ms) DESC"
         else
           "COALESCE(SUM(total_cost), 0) DESC"
@@ -58,9 +52,9 @@ module LlmCostTracker
           "COALESCE(SUM(total_cost), 0) AS total_cost",
           "COALESCE(SUM(total_cost), 0) / NULLIF(COUNT(*), 0) AS average_cost_per_call",
           "COALESCE(SUM(input_tokens), 0) AS input_tokens",
-          "COALESCE(SUM(output_tokens), 0) AS output_tokens"
+          "COALESCE(SUM(output_tokens), 0) AS output_tokens",
+          "AVG(latency_ms) AS average_latency_ms"
         ]
-        columns << "AVG(latency_ms) AS average_latency_ms" if scope.klass.latency_column?
         columns.join(", ")
       end
     end

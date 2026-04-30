@@ -122,7 +122,7 @@ Responsibilities:
 - Maintain period rollups for hot-path budget reads.
 - Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
 
-Storage can know about database adapters and optional columns. It should not parse provider responses or fetch price data.
+Storage can know about database adapters and the required current schema. It should not parse provider responses or fetch price data.
 
 ## Budgets and Retention
 

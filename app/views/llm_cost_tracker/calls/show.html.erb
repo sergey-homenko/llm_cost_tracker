@@ -1,40 +1,4 @@
-<% priced_components = [
-  {
-    token_key: :input_tokens,
-    cost_key: :input_cost,
-    label: "Input",
-    css_class: "lct-stack-fill-input",
-    stored: :base
-  },
-  {
-    token_key: :cache_read_input_tokens,
-    cost_key: :cache_read_input_cost,
-    label: "Cache read",
-    css_class: "lct-stack-fill-cache-read",
-    stored: :optional
-  },
-  {
-    token_key: :cache_write_input_tokens,
-    cost_key: :cache_write_input_cost,
-    label: "Cache write",
-    css_class: "lct-stack-fill-cache-write",
-    stored: :optional
-  },
-  {
-    token_key: :cache_write_1h_input_tokens,
-    cost_key: :cache_write_1h_input_cost,
-    label: "1h cache write",
-    css_class: "lct-stack-fill-cache-write-1h",
-    stored: :optional
-  },
-  {
-    token_key: :output_tokens,
-    cost_key: :output_cost,
-    label: "Output",
-    css_class: "lct-stack-fill-output",
-    stored: :base
-  }
-] %>
+<% priced_components = token_usage_stack_components %>
 <% token_segments = priced_components.map do |component|
   token_key = component.fetch(:token_key)
   value = @call.has_attribute?(token_key) ? @call[token_key] : 0
@@ -76,12 +40,10 @@ end %>
         <span class="lct-call-summary-label">Total tokens</span>
         <strong><%= format_tokens(@call.total_tokens) %></strong>
       </div>
-      <% if @latency_available %>
-        <div class="lct-call-summary-item">
-          <span class="lct-call-summary-label">Latency</span>
-          <strong><%= @call.latency_ms ? "#{optional_number(@call.latency_ms)}ms" : "n/a" %></strong>
-        </div>
-      <% end %>
+      <div class="lct-call-summary-item">
+        <span class="lct-call-summary-label">Latency</span>
+        <strong><%= @call.latency_ms ? "#{optional_number(@call.latency_ms)}ms" : "n/a" %></strong>
+      </div>
     </div>
   </div>
 
@@ -115,10 +77,8 @@ end %>
       <dt>Pricing Status</dt>
       <dd><%= pricing_status(@call) %></dd>
 
-      <% if LlmCostTracker::Ledger::Call.provider_response_id_column? %>
-        <dt>Provider Response ID</dt>
-        <dd><%= @call.provider_response_id.presence || "n/a" %></dd>
-      <% end %>
+      <dt>Provider Response ID</dt>
+      <dd><%= @call.provider_response_id.presence || "n/a" %></dd>
 
       <% if @call.has_attribute?("created_at") %>
         <dt>Created At</dt>
@@ -133,7 +93,6 @@ end %>
 
     <dl class="lct-dl">
       <% priced_components.each do |component| %>
-        <% next if component.fetch(:stored) == :optional && !LlmCostTracker::Ledger::Call.token_usage_columns? %>
         <dt><%= component.fetch(:label).titleize %> Tokens</dt>
         <dd><%= format_tokens(@call[component.fetch(:token_key)]) %></dd>
       <% end %>
@@ -142,7 +101,6 @@ end %>
       <dd><%= format_tokens(@call.total_tokens) %></dd>
 
       <% priced_components.each do |component| %>
-        <% next if component.fetch(:stored) == :optional && !LlmCostTracker::Ledger::Call.token_usage_cost_columns? %>
         <dt><%= component.fetch(:label).titleize %> Cost</dt>
         <dd><%= optional_money(@call[component.fetch(:cost_key)]) %></dd>
       <% end %>
@@ -150,10 +108,8 @@ end %>
       <dt>Total Cost</dt>
       <dd><%= optional_money(@call.total_cost) %></dd>
 
-      <% if @latency_available %>
-        <dt>Latency</dt>
-        <dd><%= @call.latency_ms ? "#{optional_number(@call.latency_ms)}ms" : "n/a" %></dd>
-      <% end %>
+      <dt>Latency</dt>
+      <dd><%= @call.latency_ms ? "#{optional_number(@call.latency_ms)}ms" : "n/a" %></dd>
     </dl>
   </div>
 </section>

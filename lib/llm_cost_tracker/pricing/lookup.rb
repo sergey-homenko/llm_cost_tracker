@@ -25,7 +25,7 @@ module LlmCostTracker
             explain_table(current.fetch(:pricing_overrides), :pricing_overrides, provider_model, model_name,
                           normalized_model) ||
             explain_table(current.fetch(:file_prices), :prices_file, provider_model, model_name, normalized_model) ||
-            explain_table(Pricing::PRICES, :bundled, provider_model, model_name, normalized_model)
+            explain_table(Registry.builtin_prices, :bundled, provider_model, model_name, normalized_model)
           cache_lookup(cache_key, match)
           match
         end

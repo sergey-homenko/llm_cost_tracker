@@ -1,8 +1,8 @@
 # Upgrading
 
 LLM Cost Tracker is still moving quickly, so upgrades should be explicit:
-inspect the changelog, run doctor, and apply only the generators your schema is
-missing.
+inspect the changelog, run doctor, and bring the ledger tables to the current
+schema before deploying the new gem version.
 
 The version-by-version upgrade guide is moving here from the README.
 
@@ -16,7 +16,7 @@ Until this page is expanded, use:
 
 ## Schema Generators
 
-Existing installs can add newer optional columns through focused generators:
+Existing installs can add missing current-schema pieces through focused generators:
 
 ```bash
 bin/rails generate llm_cost_tracker:add_period_totals
@@ -43,5 +43,6 @@ Run:
 bin/rails llm_cost_tracker:doctor
 ```
 
-Doctor tells you which optional columns and production-hardening pieces are still
-missing.
+Doctor tells you which current-schema and production-hardening pieces are still
+missing. Missing current ledger columns are errors; apply the listed generators
+and migrate before serving dashboard or tracking traffic on the upgraded version.

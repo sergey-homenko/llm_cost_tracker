@@ -6,8 +6,11 @@ require_relative "../token_usage"
 module LlmCostTracker
   class Ledger
     module SchemaCapabilities
-      TOKEN_USAGE_COLUMNS = TokenUsage::OPTIONAL_STORED_KEYS.map(&:to_s).freeze
-      TOKEN_USAGE_COST_COLUMNS = TokenUsage::OPTIONAL_COST_KEYS.map(&:to_s).freeze
+      CURRENT_SCHEMA_COLUMNS = (
+        %i[event_id provider model latency_ms stream usage_source provider_response_id pricing_mode tags tracked_at] +
+        TokenUsage::STORED_KEYS +
+        TokenUsage::STORED_COST_KEYS
+      ).map(&:to_s).freeze
 
       def reset_column_information
         remove_instance_variable(:@lct_schema_capabilities) if instance_variable_defined?(:@lct_schema_capabilities)
@@ -29,32 +32,16 @@ module LlmCostTracker
         lct_schema_capabilities.fetch(:tags_mysql_json)
       end
 
-      def latency_column?
-        lct_schema_capabilities.fetch(:latency)
+      def current_schema?
+        current_schema_errors.empty?
       end
 
-      def stream_column?
-        lct_schema_capabilities.fetch(:stream)
+      def current_schema_errors
+        lct_schema_capabilities.fetch(:current_schema_errors)
       end
 
-      def usage_source_column?
-        lct_schema_capabilities.fetch(:usage_source)
-      end
-
-      def provider_response_id_column?
-        lct_schema_capabilities.fetch(:provider_response_id)
-      end
-
-      def pricing_mode_column?
-        lct_schema_capabilities.fetch(:pricing_mode)
-      end
-
-      def token_usage_columns?
-        lct_schema_capabilities.fetch(:token_usage)
-      end
-
-      def token_usage_cost_columns?
-        lct_schema_capabilities.fetch(:token_usage_cost)
+      def missing_current_schema_columns
+        lct_schema_capabilities.fetch(:missing_current_schema_columns)
       end
 
       private
@@ -86,14 +73,26 @@ module LlmCostTracker
         {
           tags_jsonb: tags_jsonb ? true : false,
           tags_mysql_json: tags_mysql_json ? true : false,
-          latency: columns.key?("latency_ms"),
-          stream: columns.key?("stream"),
-          usage_source: columns.key?("usage_source"),
-          provider_response_id: columns.key?("provider_response_id"),
-          pricing_mode: columns.key?("pricing_mode"),
-          token_usage: TOKEN_USAGE_COLUMNS.all? { |column| columns.key?(column) },
-          token_usage_cost: TOKEN_USAGE_COST_COLUMNS.all? { |column| columns.key?(column) }
+          missing_current_schema_columns: missing_columns_for(columns),
+          current_schema_errors: schema_errors_for(columns, tags_jsonb, tags_mysql_json, adapter_name)
         }
+      end
+
+      def schema_errors_for(columns, tags_jsonb, tags_mysql_json, adapter_name)
+        errors = []
+        missing = missing_columns_for(columns)
+        errors << "missing columns: #{missing.join(', ')}" if missing.any?
+
+        if columns.key?("tags") && !tags_jsonb && !tags_mysql_json
+          expected_type = Ledger::DatabaseAdapter.postgresql?(adapter_name) ? "jsonb" : "json"
+          errors << "tags column must use #{expected_type}"
+        end
+
+        errors
+      end
+
+      def missing_columns_for(columns)
+        CURRENT_SCHEMA_COLUMNS - columns.keys
       end
     end
   end

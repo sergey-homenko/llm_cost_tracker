@@ -59,7 +59,6 @@ module LlmCostTracker
       def apply_stream_filter(relation)
         value = normalized_string(params[:stream])
         return relation if value.nil?
-        return relation unless relation.klass.stream_column?
 
         case value.downcase
         when "yes", "true", "1" then relation.where(stream: true)
@@ -71,7 +70,6 @@ module LlmCostTracker
       def apply_usage_source_filter(relation)
         value = normalized_string(params[:usage_source])
         return relation if value.nil?
-        return relation unless relation.klass.usage_source_column?
 
         relation.where(usage_source: value)
       end

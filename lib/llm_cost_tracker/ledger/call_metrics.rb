@@ -36,20 +36,14 @@ module LlmCostTracker
       end
 
       def average_latency_ms
-        return nil unless latency_column?
-
         average(:latency_ms)&.to_f
       end
 
       def latency_by_model
-        return {} unless latency_column?
-
         group(:model).average(:latency_ms).transform_values(&:to_f)
       end
 
       def latency_by_provider
-        return {} unless latency_column?
-
         group(:provider).average(:latency_ms).transform_values(&:to_f)
       end
 

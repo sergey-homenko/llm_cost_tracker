@@ -14,7 +14,6 @@ module LlmCostTracker
       scope = Dashboard::Filter.call(params: params)
       scope = scope.unknown_pricing if @sort == "unknown_pricing"
       ordered_scope = scope.order(Arel.sql(calls_order(@sort)))
-      @latency_available = Ledger::Call.latency_column?
 
       respond_to do |format|
         format.html do
@@ -32,7 +31,6 @@ module LlmCostTracker
 
     def show
       @call = Ledger::Call.find(params[:id])
-      @latency_available = Ledger::Call.latency_column?
     end
 
     private
@@ -46,8 +44,6 @@ module LlmCostTracker
       when "output"
         "output_tokens DESC, #{DEFAULT_ORDER}"
       when "slow"
-        return DEFAULT_ORDER unless Ledger::Call.latency_column?
-
         "CASE WHEN latency_ms IS NULL THEN 1 ELSE 0 END ASC, latency_ms DESC, #{DEFAULT_ORDER}"
       else
         DEFAULT_ORDER
@@ -66,14 +62,10 @@ module LlmCostTracker
     end
 
     def csv_fields
-      fields = %i[tracked_at provider model] + TokenUsage::BASE_STORED_KEYS
-      fields += TokenUsage::OPTIONAL_STORED_KEYS if Ledger::Call.token_usage_columns?
-      fields += TokenUsage::BASE_COST_KEYS
-      fields += TokenUsage::OPTIONAL_COST_KEYS if Ledger::Call.token_usage_cost_columns?
-      fields << :latency_ms if Ledger::Call.latency_column?
-      fields << :provider_response_id if Ledger::Call.provider_response_id_column?
-      fields << :tags
-      fields
+      %i[tracked_at provider model] +
+        TokenUsage::STORED_KEYS +
+        TokenUsage::STORED_COST_KEYS +
+        %i[latency_ms provider_response_id tags]
     end
 
     def csv_value(field, value)

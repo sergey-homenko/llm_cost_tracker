@@ -29,15 +29,13 @@
                        id: "lct-overview-model" %>
       </div>
 
-      <% if LlmCostTracker::Ledger::Call.stream_column? %>
-        <div class="lct-field">
-          <label for="lct-overview-stream">Stream</label>
-          <%= select_tag :stream,
-                         options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
-                         include_blank: "All calls",
-                         id: "lct-overview-stream" %>
-        </div>
-      <% end %>
+      <div class="lct-field">
+        <label for="lct-overview-stream">Stream</label>
+        <%= select_tag :stream,
+                       options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
+                       include_blank: "All calls",
+                       id: "lct-overview-stream" %>
+      </div>
 
       <div class="lct-filter-actions">
         <button class="lct-button" type="submit">Apply</button>

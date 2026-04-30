@@ -9,7 +9,6 @@ module LlmCostTracker
         limit: nil,
         sort: @sort
       )
-      @latency_available = Ledger::Call.latency_column?
     end
   end
 end

@@ -37,8 +37,8 @@
                        options_for_select(
                          [["Total spend", "cost"],
                           ["Call volume", "calls"],
-                          ["Avg cost / call", "avg_cost"]] +
-                         (@latency_available ? [["Avg latency", "latency"]] : []),
+                          ["Avg cost / call", "avg_cost"],
+                          ["Avg latency", "latency"]],
                          @sort.presence || "cost"
                        ),
                        id: "lct-models-sort" %>
@@ -75,9 +75,7 @@
             <th class="lct-num">Output</th>
             <th class="lct-num">Total cost</th>
             <th class="lct-num">Avg cost / call</th>
-            <% if @latency_available %>
-              <th class="lct-num">Avg latency</th>
-            <% end %>
+            <th class="lct-num">Avg latency</th>
             <th></th>
           </tr>
         </thead>
@@ -91,10 +89,8 @@
               <td class="lct-num"><%= format_tokens(row.output_tokens) %></td>
               <td class="lct-num"><%= money(row.total_cost) %></td>
               <td class="lct-num"><%= money(row.average_cost_per_call) %></td>
-              <% if @latency_available %>
-                <% average_latency_ms = row.average_latency_ms %>
-                <td class="lct-num<%= ' lct-num-muted' if average_latency_ms.nil? %>"><%= average_latency_ms ? "#{number(average_latency_ms.round)}ms" : "n/a" %></td>
-              <% end %>
+              <% average_latency_ms = row.average_latency_ms %>
+              <td class="lct-num<%= ' lct-num-muted' if average_latency_ms.nil? %>"><%= average_latency_ms ? "#{number(average_latency_ms.round)}ms" : "n/a" %></td>
               <td><%= link_to "Calls", calls_path(calls_query_for_model(provider: row.provider, model: row.model)), class: "lct-button lct-button-secondary lct-button-compact" %></td>
             </tr>
           <% end %>

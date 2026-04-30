@@ -245,7 +245,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("req_123")
   end
 
-  it "includes provider_response_id in CSV exports when the column exists" do
+  it "includes provider_response_id in CSV exports" do
     create_call(provider_response_id: "chatcmpl_csv_123")
 
     response = get("/llm-costs/calls.csv")

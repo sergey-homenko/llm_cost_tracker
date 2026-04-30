@@ -13,6 +13,7 @@ RSpec.describe "ActiveRecord storage integration" do
     tags_column = method(:add_tags_column)
     ActiveRecord::Schema.define do
       create_table :llm_api_calls, force: true do |t|
+        t.string :event_id
         t.string :provider, null: false
         t.string :model, null: false
         t.integer :input_tokens, null: false, default: 0
@@ -79,7 +80,7 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.parsed_tags).to include("user_id" => "42", "feature" => "chat")
   end
 
-  it "persists canonical usage and cost breakdowns when columns are present" do
+  it "persists canonical usage and cost breakdowns" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
@@ -101,7 +102,7 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.total_cost.to_f).to eq(0.007375)
   end
 
-  it "persists pricing_mode when the column is present" do
+  it "persists pricing_mode" do
     LlmCostTracker.configure do |config|
       config.pricing_overrides = {
         "batchable-model" => {
@@ -126,13 +127,15 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.total_cost.to_f).to eq(1.5)
   end
 
-  it "refreshes optional column capability checks after reset_column_information" do
-    expect(LlmCostTracker::Ledger::Call.pricing_mode_column?).to be true
+  it "refreshes current schema capability checks after reset_column_information" do
+    expect(LlmCostTracker::Ledger::Call.current_schema?).to be true
 
     ActiveRecord::Base.connection.remove_column(:llm_api_calls, :pricing_mode)
     LlmCostTracker::Ledger::Call.reset_column_information
 
-    expect(LlmCostTracker::Ledger::Call.pricing_mode_column?).to be false
+    expect(LlmCostTracker::Ledger::Call.current_schema?).to be false
+    expect(LlmCostTracker::Ledger::Call.missing_current_schema_columns).to include("pricing_mode")
+    expect(LlmCostTracker::Ledger::Call.current_schema_errors.join).to include("missing columns: pricing_mode")
   end
 
   it "keeps persisted historical costs when the price file changes for later requests" do
@@ -733,20 +736,13 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Ledger::Call.latency_by_provider).to eq("openai" => 200.0)
   end
 
-  it "does not write latency when an older schema has no latency column" do
+  it "reports missing latency as a current schema error" do
     ActiveRecord::Base.connection.remove_column(:llm_api_calls, :latency_ms)
     LlmCostTracker::Ledger::Call.reset_column_information
 
-    expect do
-      LlmCostTracker.track(
-        provider: :openai,
-        model: "gpt-4o",
-        input_tokens: 10,
-        output_tokens: 5,
-        latency_ms: 123
-      )
-    end.not_to raise_error
-    expect(LlmCostTracker::Ledger::Call.first.attributes).not_to have_key("latency_ms")
+    expect(LlmCostTracker::Ledger::Call.current_schema?).to be false
+    expect(LlmCostTracker::Ledger::Call.missing_current_schema_columns).to include("latency_ms")
+    expect(LlmCostTracker::Ledger::Call.current_schema_errors.join).to include("missing columns: latency_ms")
   end
 
   it "raises when ActiveRecord storage fails" do

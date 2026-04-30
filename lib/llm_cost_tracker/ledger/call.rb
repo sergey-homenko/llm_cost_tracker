@@ -21,28 +21,18 @@ module LlmCostTracker
       scope :with_cost, -> { where.not(total_cost: nil) }
       scope :without_cost, -> { where(total_cost: nil) }
       scope :unknown_pricing, -> { without_cost }
-      scope :with_latency, -> { latency_column? ? where.not(latency_ms: nil) : none }
-      scope :streaming,     -> { stream_column? ? where(stream: true) : none }
-      scope :non_streaming, -> { stream_column? ? where(stream: [false, nil]) : all }
-      scope :by_usage_source, ->(source) { usage_source_column? ? where(usage_source: source.to_s) : none }
-      scope :with_provider_response_id, lambda {
-        provider_response_id_column? ? where.not(provider_response_id: [nil, ""]) : none
-      }
-      scope :missing_provider_response_id, lambda {
-        provider_response_id_column? ? where(provider_response_id: [nil, ""]) : none
-      }
+      scope :with_latency, -> { where.not(latency_ms: nil) }
+      scope :streaming,     -> { where(stream: true) }
+      scope :non_streaming, -> { where(stream: [false, nil]) }
+      scope :by_usage_source, ->(source) { where(usage_source: source.to_s) }
+      scope :with_provider_response_id, -> { where.not(provider_response_id: [nil, ""]) }
+      scope :missing_provider_response_id, -> { where(provider_response_id: [nil, ""]) }
       scope :streaming_missing_usage, lambda {
-        return none unless stream_column? && usage_source_column?
-
         where(stream: true).where(usage_source: ["unknown", nil])
       }
 
       scope :with_json_tags, lambda {
-        if tags_json_column?
-          where.not(tags: {})
-        else
-          where.not(tags: [nil, "", "{}"])
-        end
+        where.not(tags: {})
       }
 
       scope :today,       -> { where(tracked_at: Time.now.utc.beginning_of_day..) }

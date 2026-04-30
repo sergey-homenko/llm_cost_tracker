@@ -14,8 +14,17 @@ module LlmCostTracker
     private
 
     def ensure_llm_api_calls_table
-      return if LlmCostTracker::Ledger::Call.table_exists?
+      model = LlmCostTracker::Ledger::Call
+      unless model.table_exists?
+        @setup_message = "The llm_api_calls table is not available yet."
+        return render template: "llm_cost_tracker/shared/setup_required"
+      end
 
+      schema_errors = model.current_schema_errors
+      return if schema_errors.empty?
+
+      @setup_message = "The llm_api_calls table does not match the current LLM Cost Tracker schema."
+      @setup_details = schema_errors
       render template: "llm_cost_tracker/shared/setup_required"
     end
 

@@ -15,8 +15,7 @@ module LlmCostTracker
             column = "#{table_name}.#{model.connection.quote_column_name('tags')}"
 
             if Ledger::DatabaseAdapter.postgresql?(model.connection)
-              json_column = model.tags_jsonb_column? ? column : "(#{column})::jsonb"
-              "#{json_column}->>#{model.connection.quote(key)}"
+              "#{column}->>#{model.connection.quote(key)}"
             elsif Ledger::DatabaseAdapter.mysql?(model.connection)
               "JSON_UNQUOTE(JSON_EXTRACT(#{column}, #{model.connection.quote(json_path(key))}))"
             else

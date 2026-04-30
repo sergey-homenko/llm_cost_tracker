@@ -15,6 +15,7 @@ module LlmCostTrackerEngineContext
     ActiveRecord::Schema.verbose = false
     ActiveRecord::Schema.define do
       create_table :llm_api_calls, force: true do |t|
+        t.string :event_id
         t.string :provider, null: false
         t.string :model, null: false
         t.integer :input_tokens, null: false, default: 0

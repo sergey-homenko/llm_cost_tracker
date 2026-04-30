@@ -11,15 +11,20 @@ RSpec.describe LlmCostTracker::Report do
     tags_column = method(:add_tags_column)
     ActiveRecord::Schema.define do
       create_table :llm_api_calls, force: true do |t|
+        t.string :event_id
         t.string :provider, null: false
         t.string :model, null: false
-        t.integer :input_tokens, null: false, default: 0
-        t.integer :output_tokens, null: false, default: 0
-        t.integer :total_tokens, null: false, default: 0
-        t.decimal :input_cost, precision: 20, scale: 8
-        t.decimal :output_cost, precision: 20, scale: 8
-        t.decimal :total_cost, precision: 20, scale: 8
+        LlmCostTracker::TokenUsage::STORED_KEYS.each do |column|
+          t.integer column, null: false, default: 0
+        end
+        LlmCostTracker::TokenUsage::STORED_COST_KEYS.each do |column|
+          t.decimal column, precision: 20, scale: 8
+        end
         t.integer :latency_ms
+        t.boolean :stream, null: false, default: false
+        t.string :usage_source
+        t.string :provider_response_id
+        t.string :pricing_mode
         tags_column.call(t)
         t.datetime :tracked_at, null: false
 

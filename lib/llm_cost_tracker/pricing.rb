@@ -7,8 +7,6 @@ require_relative "pricing/explainer"
 
 module LlmCostTracker
   module Pricing
-    PRICES = Registry.builtin_prices
-
     class << self
       def cost_for(provider:, model:, token_usage:, pricing_mode: nil)
         prices = lookup(provider: provider, model: model)

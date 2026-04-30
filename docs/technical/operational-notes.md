@@ -16,7 +16,7 @@ Hot-path code includes:
 Hot-path code must avoid:
 
 - network calls
-- per-event schema discovery beyond memoized checks
+- schema discovery; runtime tracking assumes the current ledger schema
 - full ledger aggregation
 - unbounded stream buffers
 - N+1 queries

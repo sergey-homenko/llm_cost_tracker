@@ -10,13 +10,20 @@ ENV["RAILS_ENV"] ||= "test"
 require_relative "../../dummy/config/environment"
 
 RSpec.describe "LlmCostTracker dashboard services" do
-  def reset_database!(latency: true, streaming: false, token_usage: true)
+  def reset_database!
     establish_database_connection!
 
     ActiveRecord::Schema.verbose = false
-    table_definition = llm_api_calls_table_definition(latency:, streaming:, token_usage:)
+    usage_columns = method(:add_usage_columns)
+    cost_columns = method(:add_cost_columns)
+    tracking_columns = method(:add_tracking_columns)
     ActiveRecord::Schema.define do
-      create_table :llm_api_calls, force: true, &table_definition
+      create_table :llm_api_calls, force: true do |table|
+        usage_columns.call(table)
+        cost_columns.call(table)
+        tracking_columns.call(table)
+        table.timestamps
+      end
     end
 
     LlmCostTracker::Ledger::Call.reset_column_information
@@ -27,51 +34,38 @@ RSpec.describe "LlmCostTracker dashboard services" do
     attrs = call_defaults.merge(overrides)
     attrs[:total_tokens] = total_tokens_for(attrs)
     attrs[:tags] = tags_for_database(attrs.fetch(:tags))
-    normalize_call_columns!(attrs)
 
     LlmCostTracker::Ledger::Call.create!(attrs)
   end
 
-  def llm_api_calls_table_definition(latency:, streaming:, token_usage:)
-    proc do |t|
-      add_usage_columns(t, token_usage:)
-      add_cost_columns(t, token_usage:)
-      add_tracking_columns(t, latency:, streaming:, token_usage:)
-      t.timestamps
-    end
-  end
-
-  def add_usage_columns(table, token_usage:)
+  def add_usage_columns(table)
     table.string :provider, null: false
     table.string :model, null: false
     table.integer :input_tokens, null: false, default: 0
     table.integer :output_tokens, null: false, default: 0
     table.integer :total_tokens, null: false, default: 0
-    return unless token_usage
-
     table.integer :cache_read_input_tokens, null: false, default: 0
     table.integer :cache_write_input_tokens, null: false, default: 0
     table.integer :cache_write_1h_input_tokens, null: false, default: 0
     table.integer :hidden_output_tokens, null: false, default: 0
   end
 
-  def add_cost_columns(table, token_usage:)
+  def add_cost_columns(table)
     table.decimal :input_cost, precision: 20, scale: 8
-    table.decimal :cache_read_input_cost, precision: 20, scale: 8 if token_usage
-    table.decimal :cache_write_input_cost, precision: 20, scale: 8 if token_usage
-    table.decimal :cache_write_1h_input_cost, precision: 20, scale: 8 if token_usage
+    table.decimal :cache_read_input_cost, precision: 20, scale: 8
+    table.decimal :cache_write_input_cost, precision: 20, scale: 8
+    table.decimal :cache_write_1h_input_cost, precision: 20, scale: 8
     table.decimal :output_cost, precision: 20, scale: 8
     table.decimal :total_cost, precision: 20, scale: 8
   end
 
-  def add_tracking_columns(table, latency:, streaming:, token_usage:)
-    table.integer :latency_ms if latency
-    if streaming
-      table.boolean :stream, null: false, default: false
-      table.string  :usage_source
-    end
+  def add_tracking_columns(table)
+    table.string :event_id
+    table.integer :latency_ms
+    table.boolean :stream, null: false, default: false
+    table.string  :usage_source
     table.string :provider_response_id
-    table.string :pricing_mode if token_usage
+    table.string :pricing_mode
     add_tags_column(table)
     table.datetime :tracked_at, null: false
   end
@@ -96,6 +90,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
       stream: false,
       usage_source: nil,
       provider_response_id: nil,
+      pricing_mode: nil,
+      event_id: nil,
       tags: {},
       tracked_at: Time.utc(2026, 4, 18, 12)
     }
@@ -107,25 +103,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
       attrs.fetch(:cache_write_input_tokens) +
       attrs.fetch(:cache_write_1h_input_tokens) +
       attrs.fetch(:output_tokens)
-  end
-
-  def normalize_call_columns!(attrs)
-    attrs.delete(:latency_ms) unless LlmCostTracker::Ledger::Call.latency_column?
-    attrs.delete(:stream) unless LlmCostTracker::Ledger::Call.stream_column?
-    attrs.delete(:usage_source) unless LlmCostTracker::Ledger::Call.usage_source_column?
-    attrs.delete(:provider_response_id) unless LlmCostTracker::Ledger::Call.provider_response_id_column?
-    unless LlmCostTracker::Ledger::Call.token_usage_columns?
-      attrs.delete(:cache_read_input_tokens)
-      attrs.delete(:cache_write_input_tokens)
-      attrs.delete(:cache_write_1h_input_tokens)
-      attrs.delete(:hidden_output_tokens)
-    end
-    unless LlmCostTracker::Ledger::Call.token_usage_cost_columns?
-      attrs.delete(:cache_read_input_cost)
-      attrs.delete(:cache_write_input_cost)
-      attrs.delete(:cache_write_1h_input_cost)
-    end
-    attrs.delete(:pricing_mode) unless LlmCostTracker::Ledger::Call.pricing_mode_column?
   end
 
   def capture_llm_api_call_selects
@@ -317,39 +294,32 @@ RSpec.describe "LlmCostTracker dashboard services" do
       end.to raise_error(LlmCostTracker::InvalidFilterError, /invalid tag key/)
     end
 
-    context "with stream and usage_source columns" do
-      before do
-        ActiveRecord::Base.connection.disconnect!
-        reset_database!(streaming: true)
-      end
+    it "narrows to streaming calls when stream=yes" do
+      create_call(model: "stream-model", stream: true, usage_source: "stream_final")
+      create_call(model: "sync-model",   stream: false, usage_source: "response")
 
-      it "narrows to streaming calls when stream=yes" do
-        create_call(model: "stream-model", stream: true, usage_source: "stream_final")
-        create_call(model: "sync-model",   stream: false, usage_source: "response")
+      relation = described_class.call(params: { stream: "yes" })
 
-        relation = described_class.call(params: { stream: "yes" })
+      expect(relation.pluck(:model)).to eq(["stream-model"])
+    end
 
-        expect(relation.pluck(:model)).to eq(["stream-model"])
-      end
+    it "narrows to non-streaming calls when stream=no" do
+      create_call(model: "stream-model", stream: true)
+      create_call(model: "sync-model",   stream: false)
 
-      it "narrows to non-streaming calls when stream=no" do
-        create_call(model: "stream-model", stream: true)
-        create_call(model: "sync-model",   stream: false)
+      relation = described_class.call(params: { stream: "no" })
 
-        relation = described_class.call(params: { stream: "no" })
+      expect(relation.pluck(:model)).to eq(["sync-model"])
+    end
 
-        expect(relation.pluck(:model)).to eq(["sync-model"])
-      end
+    it "filters by usage_source value" do
+      create_call(model: "a", stream: true,  usage_source: "stream_final")
+      create_call(model: "b", stream: true,  usage_source: "unknown")
+      create_call(model: "c", stream: false, usage_source: "response")
 
-      it "filters by usage_source value" do
-        create_call(model: "a", stream: true,  usage_source: "stream_final")
-        create_call(model: "b", stream: true,  usage_source: "unknown")
-        create_call(model: "c", stream: false, usage_source: "response")
+      relation = described_class.call(params: { usage_source: "unknown" })
 
-        relation = described_class.call(params: { usage_source: "unknown" })
-
-        expect(relation.pluck(:model)).to eq(["b"])
-      end
+      expect(relation.pluck(:model)).to eq(["b"])
     end
   end
 
@@ -429,14 +399,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       expect(LlmCostTracker::Ledger::Store).to have_received(:monthly_total).with(time: now)
       expect(budget).to include(spent: 7.5, percent_used: 75.0)
-    end
-
-    it "omits average latency when the column is unavailable" do
-      ActiveRecord::Base.connection.disconnect!
-      reset_database!(latency: false)
-      create_call(total_cost: 2.0)
-
-      expect(described_class.call.average_latency_ms).to be_nil
     end
 
     it "returns nil deltas when no previous scope is given" do
@@ -600,17 +562,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       expect(rows.map(&:model)).to eq(%w[slow fast unknown])
     end
-
-    it "falls back to cost sort when sort: latency but column absent" do
-      ActiveRecord::Base.connection.disconnect!
-      reset_database!(latency: false)
-      create_call(model: "a", total_cost: 1.0)
-      create_call(model: "b", total_cost: 5.0)
-
-      rows = described_class.call(sort: "latency")
-
-      expect(rows.first.model).to eq("b")
-    end
   end
 
   describe LlmCostTracker::Dashboard::DataQuality do
@@ -635,13 +586,12 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.untagged_calls_count.to_i).to eq(1)
     end
 
-    it "reports missing latency count when column is present" do
+    it "reports missing latency count" do
       create_call(latency_ms: 100)
       create_call(latency_ms: nil)
 
       stats = described_class.call
 
-      expect(LlmCostTracker::Ledger::Call.latency_column?).to be true
       expect(stats.missing_latency_count.to_i).to eq(1)
     end
 
@@ -657,7 +607,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(counts.fetch("unknown-y").calls.to_i).to eq(1)
     end
 
-    it "sums usage and cost breakdown columns when present" do
+    it "sums usage and cost breakdown columns" do
       create_call(
         input_tokens: 100,
         cache_read_input_tokens: 50,
@@ -685,7 +635,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       stats = described_class.call
 
-      expect(LlmCostTracker::Ledger::Call.token_usage_columns?).to be true
       expect(stats.input_tokens.to_i).to eq(300)
       expect(stats.cache_read_input_tokens.to_i).to eq(60)
       expect(stats.cache_write_input_tokens.to_i).to eq(25)
@@ -703,60 +652,21 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(total_cost: 1.0, tags: { env: "prod" }, latency_ms: 100)
       create_call(total_cost: nil, tags: {})
 
-      LlmCostTracker::Ledger::Call.latency_column?
-      LlmCostTracker::Ledger::Call.stream_column?
-      LlmCostTracker::Ledger::Call.provider_response_id_column?
-      LlmCostTracker::Ledger::Call.token_usage_columns?
-      LlmCostTracker::Ledger::Call.token_usage_cost_columns?
-
       statements = capture_llm_api_call_selects { described_class.call }
 
       expect(statements.size).to eq(1)
     end
 
-    it "reports token usage absence when the schema lacks canonical token columns" do
-      ActiveRecord::Base.connection.disconnect!
-      reset_database!(token_usage: false)
-      create_call(input_tokens: 100, output_tokens: 50)
+    it "counts streaming calls and streams missing usage" do
+      create_call(stream: true,  usage_source: "stream_final", provider_response_id: "resp_1")
+      create_call(stream: true,  usage_source: "unknown")
+      create_call(stream: false, usage_source: "response", provider_response_id: "resp_2")
 
       stats = described_class.call
 
-      expect(LlmCostTracker::Ledger::Call.token_usage_columns?).to be false
-      expect(stats.input_tokens.to_i).to eq(100)
-      expect(stats.cache_read_input_tokens).to be_nil
-      expect(stats.cache_write_1h_input_tokens).to be_nil
-      expect(stats.hidden_output_tokens).to be_nil
-    end
-
-    it "reports stream column absence when the schema lacks it" do
-      stats = described_class.call
-
-      expect(LlmCostTracker::Ledger::Call.stream_column?).to be false
-      expect(stats.streaming_count).to be_nil
-      expect(stats.streaming_missing_usage_count).to be_nil
-      expect(LlmCostTracker::Ledger::Call.provider_response_id_column?).to be true
-      expect(stats.missing_provider_response_id_count.to_i).to eq(0)
-    end
-
-    context "with stream and usage_source columns" do
-      before do
-        ActiveRecord::Base.connection.disconnect!
-        reset_database!(streaming: true)
-      end
-
-      it "counts streaming calls and streams missing usage" do
-        create_call(stream: true,  usage_source: "stream_final", provider_response_id: "resp_1")
-        create_call(stream: true,  usage_source: "unknown")
-        create_call(stream: false, usage_source: "response", provider_response_id: "resp_2")
-
-        stats = described_class.call
-
-        expect(LlmCostTracker::Ledger::Call.stream_column?).to be true
-        expect(stats.streaming_count.to_i).to eq(2)
-        expect(stats.streaming_missing_usage_count.to_i).to eq(1)
-        expect(LlmCostTracker::Ledger::Call.provider_response_id_column?).to be true
-        expect(stats.missing_provider_response_id_count.to_i).to eq(1)
-      end
+      expect(stats.streaming_count.to_i).to eq(2)
+      expect(stats.streaming_missing_usage_count.to_i).to eq(1)
+      expect(stats.missing_provider_response_id_count.to_i).to eq(1)
     end
   end
 
