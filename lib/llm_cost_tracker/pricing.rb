@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/hash/keys"
+
+require_relative "pricing/components"
 require_relative "pricing/registry"
 require_relative "pricing/lookup"
 require_relative "pricing/effective_prices"
@@ -15,8 +18,8 @@ module LlmCostTracker
         costs = calculate_costs(token_usage, prices, pricing_mode: pricing_mode)
         return nil unless costs
 
-        values = TokenUsage::PRICED_COMPONENTS.to_h do |component|
-          [component.fetch(:cost_key), costs.fetch(component.fetch(:price_key)).round(8)]
+        values = COMPONENTS.to_h do |component|
+          [component.cost_key, costs.fetch(component.price_key).round(8)]
         end
 
         values.merge(total_cost: costs.values.sum.round(8))
@@ -33,6 +36,10 @@ module LlmCostTracker
           token_usage: token_usage,
           pricing_mode: pricing_mode
         )
+      end
+
+      def stored_cost_attributes(attributes)
+        attributes.to_h.symbolize_keys.slice(*COST_KEYS).compact
       end
 
       private

@@ -24,6 +24,29 @@ RSpec.describe LlmCostTracker::Pricing do
     )
   end
 
+  describe ".stored_cost_attributes" do
+    it "returns persisted cost columns" do
+      attributes = {
+        input_cost: 0.01,
+        cache_read_input_cost: 0.02,
+        cache_write_input_cost: 0.03,
+        cache_write_1h_input_cost: 0.04,
+        output_cost: 0.05,
+        total_cost: 0.15,
+        currency: "USD"
+      }
+
+      expect(described_class.stored_cost_attributes(attributes)).to eq(
+        input_cost: 0.01,
+        output_cost: 0.05,
+        total_cost: 0.15,
+        cache_read_input_cost: 0.02,
+        cache_write_input_cost: 0.03,
+        cache_write_1h_input_cost: 0.04
+      )
+    end
+  end
+
   describe ".cost_for" do
     it "calculates cost for a known model" do
       result = cost_for(

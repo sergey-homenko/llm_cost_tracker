@@ -17,7 +17,7 @@ RSpec.describe LlmCostTracker::Report do
         LlmCostTracker::TokenUsage::STORED_KEYS.each do |column|
           t.integer column, null: false, default: 0
         end
-        LlmCostTracker::TokenUsage::STORED_COST_KEYS.each do |column|
+        LlmCostTracker::Pricing::COST_KEYS.each do |column|
           t.decimal column, precision: 20, scale: 8
         end
         t.integer :latency_ms

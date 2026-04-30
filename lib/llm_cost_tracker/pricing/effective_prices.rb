@@ -2,6 +2,8 @@
 
 require "active_support/core_ext/object/blank"
 
+require_relative "components"
+
 module LlmCostTracker
   module Pricing
     module EffectivePrices
@@ -10,8 +12,8 @@ module LlmCostTracker
           quantities = usage.price_quantities
           context_tier = context_tier?(usage, prices)
 
-          TokenUsage::PRICED_COMPONENTS.to_h do |component|
-            price_key = component.fetch(:price_key)
+          Pricing::COMPONENTS.to_h do |component|
+            price_key = component.price_key
             tokens = quantities.fetch(price_key)
             price = tokens.positive? ? price_for(prices, price_key, pricing_mode, context_tier) : 0.0
             [price_key, price]

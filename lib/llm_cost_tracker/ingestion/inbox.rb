@@ -4,6 +4,7 @@ require "json"
 require "time"
 
 require_relative "../event"
+require_relative "../pricing"
 
 module LlmCostTracker
   module Ingestion
@@ -24,7 +25,7 @@ module LlmCostTracker
             raise LlmCostTracker::Error, "unsupported ledger inbox payload schema version #{schema_version.inspect}"
           end
 
-          cost = payload["cost"] && TokenUsage.stored_cost_attributes(payload["cost"])
+          cost = payload["cost"] && Pricing.stored_cost_attributes(payload["cost"])
           token_usage = payload["token_usage"] || payload
 
           LlmCostTracker::Event.new(

@@ -11,7 +11,7 @@ module LlmCostTracker
     EVENT_NAME = "llm_request.llm_cost_tracker"
 
     USAGE_SOURCES = %i[response stream_final sdk_response ruby_llm manual unknown].freeze
-    TRACKING_METADATA_KEYS = (TokenUsage::COUNTER_KEYS.map(&:to_s) + %w[pricing_mode provider_response_id]).freeze
+    TRACKING_METADATA_KEYS = (TokenUsage.members.map(&:to_s) + %w[pricing_mode provider_response_id]).freeze
 
     class << self
       def enforce_budget!

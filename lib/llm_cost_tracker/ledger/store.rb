@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../pricing"
 require_relative "rollups"
 
 module LlmCostTracker
@@ -40,7 +41,7 @@ module LlmCostTracker
             provider_response_id: event.provider_response_id
           }
 
-          attributes.merge(usage).merge(TokenUsage.stored_cost_attributes(event.cost || {}))
+          attributes.merge(usage).merge(Pricing.stored_cost_attributes(event.cost || {}))
         end
 
         def new_events(model, events)

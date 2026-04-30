@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "llm_cost_tracker/token_usage"
+require "llm_cost_tracker/pricing"
 require "llm_cost_tracker/ledger/schema/adapter"
 
 module LlmCostTracker
@@ -23,26 +23,38 @@ module LlmCostTracker
         def usage_rows(stats)
           billable_tokens = stats.billable_tokens.to_f
 
-          TokenUsage::COMPONENTS.map do |component|
-            token_key = component.fetch(:token_key)
-            cost_key = component.fetch(:cost_key)
+          rows = Pricing::COMPONENTS.map do |component|
+            token_key = component.token_key
+            cost_key = component.cost_key
             token_value = stats[token_key].to_i
-            hidden_output = token_key == :hidden_output_tokens
-            share_percent = if hidden_output
-                              stats.hidden_output_share.to_f
-                            elsif billable_tokens.positive?
+            share_percent = if billable_tokens.positive?
                               (token_value.to_f / billable_tokens) * 100.0
                             else
                               0.0
                             end
 
-            component.merge(
+            {
+              price_key: component.price_key,
+              token_key: token_key,
+              cost_key: cost_key,
               token_value: token_value,
-              cost_value: cost_key && stats[cost_key],
+              cost_value: stats[cost_key],
               share_percent: share_percent,
-              share_basis: hidden_output ? :output : nil
-            )
+              share_basis: nil
+            }
           end
+
+          rows + [
+            {
+              price_key: nil,
+              token_key: :hidden_output_tokens,
+              cost_key: nil,
+              token_value: stats.hidden_output_tokens.to_i,
+              cost_value: nil,
+              share_percent: stats.hidden_output_share.to_f,
+              share_basis: :output
+            }
+          ]
         end
 
         def hidden_output_summary(stats)
@@ -81,13 +93,12 @@ module LlmCostTracker
         end
 
         def usage_sum_columns
-          TokenUsage::COMPONENTS.map { |component| component.fetch(:token_key) } +
-            TokenUsage::PRICED_COMPONENTS.map { |component| component.fetch(:cost_key) }
+          Pricing::COMPONENTS.map(&:token_key) + [:hidden_output_tokens] + Pricing::COMPONENTS.map(&:cost_key)
         end
 
         def billable_tokens_select(scope)
-          TokenUsage::PRICED_COMPONENTS
-            .map { |component| column_sum(scope, component.fetch(:token_key)) }
+          Pricing::COMPONENTS
+            .map { |component| column_sum(scope, component.token_key) }
             .join(" + ")
         end
 

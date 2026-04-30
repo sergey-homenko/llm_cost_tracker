@@ -108,7 +108,7 @@ def add_call_usage_columns(table)
 end
 
 def add_call_cost_columns(table)
-  LlmCostTracker::TokenUsage::STORED_COST_KEYS.each do |column|
+  LlmCostTracker::Pricing::COST_KEYS.each do |column|
     table.decimal column, precision: 20, scale: 8
   end
 end

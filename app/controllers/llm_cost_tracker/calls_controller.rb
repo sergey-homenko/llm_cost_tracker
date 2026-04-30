@@ -64,7 +64,7 @@ module LlmCostTracker
     def csv_fields
       %i[tracked_at provider model] +
         TokenUsage::STORED_KEYS +
-        TokenUsage::STORED_COST_KEYS +
+        Pricing::COST_KEYS +
         %i[latency_ms provider_response_id tags]
     end
 

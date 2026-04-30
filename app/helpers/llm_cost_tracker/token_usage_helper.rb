@@ -37,13 +37,22 @@ module LlmCostTracker
     private
 
     def token_usage_display_components(labels:)
-      LlmCostTracker::TokenUsage::COMPONENTS.map do |component|
-        token_key = component.fetch(:token_key)
-        component.merge(
+      LlmCostTracker::Pricing::COMPONENTS.map do |component|
+        token_key = component.token_key
+        {
+          token_key: token_key,
+          cost_key: component.cost_key,
           label: labels.fetch(token_key),
           css_class: STACK_CLASSES[token_key]
-        )
-      end
+        }
+      end + [
+        {
+          token_key: :hidden_output_tokens,
+          cost_key: nil,
+          label: labels.fetch(:hidden_output_tokens),
+          css_class: nil
+        }
+      ]
     end
   end
 end

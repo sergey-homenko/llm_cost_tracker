@@ -3,15 +3,15 @@
 require "json"
 require "yaml"
 
+require_relative "components"
 require_relative "../logging"
-require_relative "../token_usage"
 
 module LlmCostTracker
   module Pricing
     module Registry
       DEFAULT_PRICES_PATH = File.expand_path("../prices.json", __dir__)
       EMPTY_PRICES = {}.freeze
-      PRICE_KEYS = TokenUsage::PRICED_COMPONENTS.map { |component| component.fetch(:price_key).to_s }.freeze
+      PRICE_KEYS = Pricing::COMPONENTS.map { |component| component.price_key.to_s }.freeze
       METADATA_KEYS = %w[
         _source _source_version _fetched_at _updated _notes _validator_override
         _context_price_threshold_tokens
