@@ -20,7 +20,8 @@ RSpec.describe LlmCostTracker::Tracker do
       )
     end
 
-    def record(provider:, model:, token_usage:, stream: false, usage_source: nil, provider_response_id: nil, **options)
+    def record(provider:, model:, token_usage:, stream: false, usage_source: nil, provider_response_id: nil,
+               capture_pricing_mode: nil, **options)
       described_class.record(
         capture: LlmCostTracker::UsageCapture.build(
           provider: provider,
@@ -28,7 +29,8 @@ RSpec.describe LlmCostTracker::Tracker do
           token_usage: token_usage,
           stream: stream,
           usage_source: usage_source,
-          provider_response_id: provider_response_id
+          provider_response_id: provider_response_id,
+          pricing_mode: capture_pricing_mode
         ),
         **options
       )
@@ -214,6 +216,55 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.pricing_mode).to eq("batch")
       expect(event.total_cost).to eq(1.5)
       expect(event.tags).to eq(feature: "bulk")
+    end
+
+    it "uses captured provider pricing mode when the caller did not set one" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "priority-model" => {
+            input: 1.0,
+            output: 2.0,
+            priority_input: 3.0,
+            priority_output: 4.0
+          }
+        }
+      end
+
+      event = record(
+        provider: "custom",
+        model: "priority-model",
+        token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 1_000_000),
+        capture_pricing_mode: :priority
+      )
+
+      expect(event.pricing_mode).to eq("priority")
+      expect(event.total_cost).to eq(7.0)
+    end
+
+    it "keeps explicit pricing_mode ahead of captured provider mode" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "multi-mode-model" => {
+            input: 1.0,
+            output: 2.0,
+            batch_input: 0.5,
+            batch_output: 1.0,
+            priority_input: 3.0,
+            priority_output: 4.0
+          }
+        }
+      end
+
+      event = record(
+        provider: "custom",
+        model: "multi-mode-model",
+        token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 1_000_000),
+        capture_pricing_mode: :priority,
+        pricing_mode: :batch
+      )
+
+      expect(event.pricing_mode).to eq("batch")
+      expect(event.total_cost).to eq(1.5)
     end
 
     it "keeps pricing_mode metadata out of tags" do

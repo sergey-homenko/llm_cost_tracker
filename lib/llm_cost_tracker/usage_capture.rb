@@ -2,6 +2,8 @@
 
 require "active_support/core_ext/object/blank"
 
+require_relative "pricing"
+
 module LlmCostTracker
   UsageCapture = Data.define(
     :provider,
@@ -9,7 +11,8 @@ module LlmCostTracker
     :token_usage,
     :stream,
     :usage_source,
-    :provider_response_id
+    :provider_response_id,
+    :pricing_mode
   )
 
   class UsageCapture
@@ -22,7 +25,8 @@ module LlmCostTracker
         token_usage: attributes.fetch(:token_usage),
         stream: attributes[:stream] || false,
         usage_source: attributes[:usage_source],
-        provider_response_id: attributes[:provider_response_id]
+        provider_response_id: attributes[:provider_response_id],
+        pricing_mode: Pricing.normalize_mode(attributes[:pricing_mode])
       )
     end
 

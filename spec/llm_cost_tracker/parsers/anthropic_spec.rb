@@ -84,6 +84,25 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
 
       expect(result.provider_response_id).to eq("msg_123")
     end
+
+    it "captures usage service tiers as pricing modes" do
+      result = parser.parse(
+        anthropic_messages_url,
+        request_body,
+        200,
+        {
+          id: "msg_123",
+          model: "claude-sonnet-4-6",
+          usage: {
+            input_tokens: 200,
+            output_tokens: 80,
+            service_tier: "priority"
+          }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to eq("priority")
+    end
   end
 
   describe "#parse_stream" do
@@ -132,6 +151,36 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)
       expect(result.provider_response_id).to eq("msg_456")
+    end
+
+    it "captures stream usage service tiers as pricing modes" do
+      events = [
+        { event: "message_start", data: {
+          "type" => "message_start",
+          "message" => {
+            "id" => "msg_456",
+            "model" => "claude-sonnet-4-6",
+            "usage" => {
+              "input_tokens" => 120,
+              "output_tokens" => 1,
+              "service_tier" => "priority"
+            }
+          }
+        } },
+        { event: "message_delta", data: {
+          "type" => "message_delta",
+          "usage" => { "output_tokens" => 64 }
+        } }
+      ]
+
+      result = parser.parse_stream(
+        anthropic_messages_url,
+        request_body,
+        200,
+        events
+      )
+
+      expect(result.pricing_mode).to eq("priority")
     end
 
     it "returns unknown usage when no message events are present" do

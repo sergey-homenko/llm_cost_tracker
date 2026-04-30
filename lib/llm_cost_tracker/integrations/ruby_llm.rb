@@ -80,6 +80,7 @@ module LlmCostTracker
               capture: UsageCapture.build(
                 provider: provider,
                 model: model,
+                pricing_mode: pricing_mode(response),
                 token_usage: TokenUsage.build(
                   input_tokens: regular_input_tokens(input_tokens, cache_read),
                   output_tokens: output_tokens.to_i,
@@ -119,6 +120,12 @@ module LlmCostTracker
 
         def provider_response_id(response)
           object_value(response, :id, :provider_response_id) || object_dig(response, :raw, :id)
+        end
+
+        def pricing_mode(response)
+          object_value(response, :pricing_mode, :service_tier) ||
+            object_dig(response, :raw, :pricing_mode) ||
+            object_dig(response, :raw, :service_tier)
         end
       end
 

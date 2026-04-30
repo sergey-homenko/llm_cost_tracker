@@ -26,6 +26,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Model and data-quality dashboards now read canonical `TokenUsage` totals instead of view-local token mini-schemas.
 - Anthropic pricing now uses response cache-write TTL usage to price 1-hour cache writes separately.
 - Batch pricing now derives stackable cache rates and refuses unknown positive-token mode rates instead of falling back to standard prices.
+- OpenAI, Anthropic, and RubyLLM capture now populate `pricing_mode` from provider tier data.
 - Gemini pricing now treats context cache reads separately and no longer exposes token-only cache-write prices.
 - Pricing now applies long-context rate tiers from `TokenUsage` input-side totals.
 

@@ -24,6 +24,20 @@ RSpec.describe LlmCostTracker::Pricing do
     )
   end
 
+  describe ".normalize_mode" do
+    it "treats standard provider aliases as default pricing" do
+      expect(described_class.normalize_mode("standard")).to be_nil
+      expect(described_class.normalize_mode("default")).to be_nil
+      expect(described_class.normalize_mode("auto")).to be_nil
+      expect(described_class.normalize_mode("standard_only")).to be_nil
+    end
+
+    it "keeps non-standard pricing modes" do
+      expect(described_class.normalize_mode("priority")).to eq("priority")
+      expect(described_class.normalize_mode("data-residency")).to eq("data_residency")
+    end
+  end
+
   describe ".stored_cost_attributes" do
     it "returns persisted cost columns" do
       attributes = {

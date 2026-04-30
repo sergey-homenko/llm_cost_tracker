@@ -5,6 +5,7 @@ require "securerandom"
 
 require_relative "ingestion"
 require_relative "ledger"
+require_relative "pricing"
 
 module LlmCostTracker
   class Tracker
@@ -23,8 +24,7 @@ module LlmCostTracker
       def record(capture:, latency_ms: nil, pricing_mode: nil, metadata: {})
         return unless LlmCostTracker.configuration.enabled
 
-        pricing_mode = pricing_mode.to_s.strip.presence
-        pricing_mode = nil if pricing_mode == "standard"
+        pricing_mode = Pricing.normalize_mode(pricing_mode) || capture.pricing_mode
         cost_data = Pricing.cost_for(
           provider: capture.provider,
           model: capture.model,

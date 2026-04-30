@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "active_support/core_ext/object/blank"
-
 require_relative "effective_prices"
 
 module LlmCostTracker
@@ -45,8 +43,7 @@ module LlmCostTracker
 
         def explanation(provider, model, pricing_mode, match, usage)
           prices = match&.prices
-          pricing_mode = pricing_mode.to_s.strip.presence
-          pricing_mode = nil if pricing_mode == "standard"
+          pricing_mode = Pricing.normalize_mode(pricing_mode)
           effective = if prices && usage
                         EffectivePrices.call(usage: usage, prices: prices, pricing_mode: pricing_mode)
                       end

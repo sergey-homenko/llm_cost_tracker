@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "active_support/core_ext/object/blank"
-
 require_relative "components"
 
 module LlmCostTracker
@@ -23,8 +21,7 @@ module LlmCostTracker
         private
 
         def price_for(prices, key, pricing_mode, context_tier)
-          mode = pricing_mode.to_s.strip.presence
-          mode = nil if mode == "standard"
+          mode = Pricing.normalize_mode(pricing_mode)
           return contextual_price(prices, key, context_tier) unless mode
 
           contextual_price(prices, :"#{mode}_#{key}", context_tier) ||

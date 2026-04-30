@@ -28,6 +28,7 @@ module LlmCostTracker
         UsageCapture.build(
           provider: "anthropic",
           provider_response_id: response["id"],
+          pricing_mode: pricing_mode(request, response, usage),
           model: response["model"] || request["model"],
           token_usage: token_usage(usage, cache_read),
           usage_source: :response
@@ -43,12 +44,13 @@ module LlmCostTracker
         response_id = find_event_value(events) { |data| data.dig("message", "id") || data["id"] }
 
         if usage
-          build_stream_result(model, usage, response_id)
+          build_stream_result(model, usage, response_id, pricing_mode(request, nil, usage))
         else
           build_unknown_stream_usage(
             provider: "anthropic",
             model: model,
-            provider_response_id: response_id
+            provider_response_id: response_id,
+            pricing_mode: pricing_mode(request, nil, usage)
           )
         end
       end
@@ -70,12 +72,13 @@ module LlmCostTracker
         end
       end
 
-      def build_stream_result(model, usage, response_id)
+      def build_stream_result(model, usage, response_id, pricing_mode)
         cache_read = usage["cache_read_input_tokens"].to_i
 
         UsageCapture.build(
           provider: "anthropic",
           provider_response_id: response_id,
+          pricing_mode: pricing_mode,
           model: model,
           token_usage: token_usage(usage, cache_read),
           stream: true,
@@ -103,6 +106,12 @@ module LlmCostTracker
           cache_write_input_tokens: cache_write,
           cache_write_1h_input_tokens: cache_write_1h
         )
+      end
+
+      def pricing_mode(request, response, usage)
+        usage&.fetch("service_tier", nil) ||
+          response&.fetch("service_tier", nil) ||
+          request["service_tier"]
       end
     end
   end

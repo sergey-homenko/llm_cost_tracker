@@ -53,6 +53,7 @@ module LlmCostTracker
               capture: UsageCapture.build(
                 provider: "openai",
                 model: object_value(response, :model) || request[:model],
+                pricing_mode: object_value(response, :service_tier) || request[:service_tier],
                 token_usage: TokenUsage.build(
                   input_tokens: regular_input_tokens(input_tokens, cache_read),
                   output_tokens: output_tokens.to_i,

@@ -18,6 +18,7 @@ module LlmCostTracker
         UsageCapture.build(
           provider: provider_for(request_url),
           provider_response_id: response["id"],
+          pricing_mode: response["service_tier"] || request["service_tier"],
           model: response["model"] || request["model"],
           token_usage: token_usage(usage, cache_read),
           usage_source: :response
@@ -32,12 +33,14 @@ module LlmCostTracker
           find_event_value(events) { |data| data["model"] || data.dig("response", "model") } || request["model"]
         usage = detect_stream_usage(events)
         response_id = find_event_value(events) { |data| data["id"] || data.dig("response", "id") }
+        pricing_mode = stream_pricing_mode(events) || request["service_tier"]
 
         if usage
           cache_read = cache_read_input_tokens(usage)
           UsageCapture.build(
             provider: provider_for(request_url),
             provider_response_id: response_id,
+            pricing_mode: pricing_mode,
             model: model,
             token_usage: token_usage(usage, cache_read),
             stream: true,
@@ -47,7 +50,8 @@ module LlmCostTracker
           build_unknown_stream_usage(
             provider: provider_for(request_url),
             model: model,
-            provider_response_id: response_id
+            provider_response_id: response_id,
+            pricing_mode: pricing_mode
           )
         end
       end
@@ -56,6 +60,12 @@ module LlmCostTracker
         find_event_value(events, reverse: true) do |data|
           usage = data["usage"] || data.dig("response", "usage")
           usage if usage.is_a?(Hash)
+        end
+      end
+
+      def stream_pricing_mode(events)
+        find_event_value(events, reverse: true) do |data|
+          data["service_tier"] || data.dig("response", "service_tier")
         end
       end
 

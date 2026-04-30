@@ -80,6 +80,25 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.provider_response_id).to eq("chatcmpl_123")
     end
 
+    it "captures non-standard service tiers as pricing modes" do
+      result = parser.parse(
+        chat_completions_url,
+        request_body,
+        200,
+        {
+          model: "gpt-4o",
+          service_tier: "priority",
+          usage: {
+            prompt_tokens: 150,
+            completion_tokens: 42,
+            total_tokens: 192
+          }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to eq("priority")
+    end
+
     it "extracts token usage from a Responses API response" do
       response_body = {
         id: "resp_123",
@@ -241,6 +260,36 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       )
 
       expect(result.provider_response_id).to eq("resp_456")
+    end
+
+    it "captures service tiers from Responses API stream events" do
+      events = [
+        {
+          event: nil,
+          data: {
+            "type" => "response.completed",
+            "response" => {
+              "id" => "resp_456",
+              "model" => "gpt-5-mini",
+              "service_tier" => "priority",
+              "usage" => {
+                "input_tokens" => 12,
+                "output_tokens" => 3,
+                "total_tokens" => 15
+              }
+            }
+          }
+        }
+      ]
+
+      result = parser.parse_stream(
+        responses_url,
+        { model: "gpt-5-mini", stream: true }.to_json,
+        200,
+        events
+      )
+
+      expect(result.pricing_mode).to eq("priority")
     end
 
     it "extracts usage from Responses API completed events" do

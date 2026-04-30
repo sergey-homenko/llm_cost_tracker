@@ -49,6 +49,8 @@ module LlmCostTracker
               capture: UsageCapture.build(
                 provider: "anthropic",
                 model: object_value(message, :model) || request[:model],
+                pricing_mode: object_value(usage, :service_tier) || object_value(message, :service_tier) ||
+                  request[:service_tier],
                 token_usage: token_usage(usage, input_tokens, output_tokens),
                 usage_source: :sdk_response,
                 provider_response_id: object_value(message, :id)

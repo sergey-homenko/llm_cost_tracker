@@ -16,10 +16,11 @@ module LlmCostTrackerIntegrationSpecTypes
     :cache_creation_input_tokens,
     :cache_creation,
     :thinking_tokens,
+    :service_tier,
     keyword_init: true
   )
   Details = Struct.new(:cached_tokens, :reasoning_tokens, keyword_init: true)
-  Response = Struct.new(:id, :model, :usage, keyword_init: true)
+  Response = Struct.new(:id, :model, :usage, :service_tier, keyword_init: true)
   BrokenStreamEvent = Class.new do
     def to_h
       raise "boom"
@@ -100,6 +101,8 @@ module LlmCostTrackerIntegrationSpecTypes
     :cache_creation_tokens,
     :thinking_tokens,
     :reasoning_tokens,
+    :service_tier,
+    :pricing_mode,
     :provider_response_id,
     :raw,
     keyword_init: true
@@ -231,6 +234,24 @@ RSpec.describe LlmCostTracker::Integrations do
         provider_response_id: "resp_123"
       )
       expect(events.first[:latency_ms]).to be >= 0
+    end
+  end
+
+  it "captures official OpenAI response service tiers" do
+    response = response_class.new(
+      id: "resp_123",
+      model: "gpt-4o",
+      service_tier: "priority",
+      usage: usage_class.new(input_tokens: 100, output_tokens: 50)
+    )
+    install_openai_fakes(response)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Responses.new.create(model: "gpt-4o")
+
+      expect(events.size).to eq(1)
+      expect(events.first[:pricing_mode]).to eq("priority")
     end
   end
 
@@ -523,6 +544,27 @@ RSpec.describe LlmCostTracker::Integrations do
       )
       expect(events.first.dig(:cost, :cache_write_input_cost)).to eq(0.000075)
       expect(events.first.dig(:cost, :cache_write_1h_input_cost)).to eq(0.00006)
+    end
+  end
+
+  it "captures official Anthropic usage service tiers" do
+    message = response_class.new(
+      id: "msg_123",
+      model: "claude-sonnet-4-6",
+      usage: usage_class.new(
+        input_tokens: 120,
+        output_tokens: 35,
+        service_tier: "priority"
+      )
+    )
+    install_anthropic_fakes(message)
+    configure_integration(:anthropic)
+
+    capture_events do |events|
+      Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-6")
+
+      expect(events.size).to eq(1)
+      expect(events.first[:pricing_mode]).to eq("priority")
     end
   end
 
