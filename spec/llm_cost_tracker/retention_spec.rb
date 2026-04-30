@@ -36,7 +36,7 @@ RSpec.describe LlmCostTracker::Retention do
       add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
     end
     LlmCostTracker::Ledger::Call.reset_column_information
-    LlmCostTracker::Ledger::PeriodTotal.reset_column_information
+    LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ledger::Rollups.reset!
   end
 
@@ -90,15 +90,15 @@ RSpec.describe LlmCostTracker::Retention do
     now = Time.utc(2026, 4, 20, 12, 0, 0)
     create_call(tracked_at: Time.utc(2026, 4, 20, 8, 0, 0), total_cost: 2.0)
     create_call(tracked_at: Time.utc(2026, 4, 20, 11, 0, 0), total_cost: 3.0)
-    LlmCostTracker::Ledger::PeriodTotal.create!(period: "day", period_start: Date.new(2026, 4, 20), total_cost: 5.0)
-    LlmCostTracker::Ledger::PeriodTotal.create!(period: "month", period_start: Date.new(2026, 4, 1), total_cost: 5.0)
+    LlmCostTracker::Ledger::Period::Total.create!(period: "day", period_start: Date.new(2026, 4, 20), total_cost: 5.0)
+    LlmCostTracker::Ledger::Period::Total.create!(period: "month", period_start: Date.new(2026, 4, 1), total_cost: 5.0)
 
     deleted = described_class.prune(older_than: Time.utc(2026, 4, 20, 10, 0, 0), now: now)
 
     expect(deleted).to eq(1)
     expect(LlmCostTracker::Ledger::Call.count).to eq(1)
-    expect(LlmCostTracker::Ledger::PeriodTotal.find_by!(period: "day").total_cost.to_f).to eq(3.0)
-    expect(LlmCostTracker::Ledger::PeriodTotal.find_by!(period: "month").total_cost.to_f).to eq(3.0)
+    expect(LlmCostTracker::Ledger::Period::Total.find_by!(period: "day").total_cost.to_f).to eq(3.0)
+    expect(LlmCostTracker::Ledger::Period::Total.find_by!(period: "month").total_cost.to_f).to eq(3.0)
   end
 
   it "raises on unsupported older_than type" do

@@ -75,7 +75,7 @@ RSpec.describe "ActiveRecord storage integration" do
     end
 
     LlmCostTracker::Ledger::Call.reset_column_information
-    LlmCostTracker::Ledger::PeriodTotal.reset_column_information
+    LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
@@ -238,12 +238,14 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    month_total = LlmCostTracker::Ledger::PeriodTotal.find_by!(period: "month",
-                                                               period_start: Date.current.beginning_of_month)
+    month_total = LlmCostTracker::Ledger::Period::Total.find_by!(
+      period: "month",
+      period_start: Date.current.beginning_of_month
+    )
 
-    expect(LlmCostTracker::Ledger::PeriodTotal.where(period: "month").count).to eq(1)
+    expect(LlmCostTracker::Ledger::Period::Total.where(period: "month").count).to eq(1)
     expect(month_total.total_cost.to_f).to eq(0.00265)
-    total = LlmCostTracker::Ledger::PeriodTotals.call(%i[monthly], time: Time.now.utc).fetch(:monthly)
+    total = LlmCostTracker::Ledger::Period::Totals.call(%i[monthly], time: Time.now.utc).fetch(:monthly)
     expect(total).to eq(0.00265)
   end
 
@@ -251,7 +253,7 @@ RSpec.describe "ActiveRecord storage integration" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
     received_rows = nil
 
-    allow(LlmCostTracker::Ledger::PeriodTotal).to receive(:upsert_all).and_wrap_original do |method, rows, **options|
+    allow(LlmCostTracker::Ledger::Period::Total).to receive(:upsert_all).and_wrap_original do |method, rows, **options|
       received_rows = rows
       method.call(rows, **options)
     end
@@ -263,7 +265,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    expect(LlmCostTracker::Ledger::PeriodTotal).to have_received(:upsert_all).once
+    expect(LlmCostTracker::Ledger::Period::Total).to have_received(:upsert_all).once
     expect(received_rows.map { |row| row[:period] }).to contain_exactly("month", "day")
   end
 
@@ -312,11 +314,11 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    day_total = LlmCostTracker::Ledger::PeriodTotal.find_by!(period: "day", period_start: Date.new(2026, 4, 18))
+    day_total = LlmCostTracker::Ledger::Period::Total.find_by!(period: "day", period_start: Date.new(2026, 4, 18))
 
-    expect(LlmCostTracker::Ledger::PeriodTotal.where(period: "day").count).to eq(1)
+    expect(LlmCostTracker::Ledger::Period::Total.where(period: "day").count).to eq(1)
     expect(day_total.total_cost.to_f).to eq(0.00265)
-    total = LlmCostTracker::Ledger::PeriodTotals
+    total = LlmCostTracker::Ledger::Period::Totals
             .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
             .fetch(:daily)
     expect(total).to eq(0.00265)
@@ -333,8 +335,8 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    monthly_total = LlmCostTracker::Ledger::PeriodTotals.call(%i[monthly], time: Time.now.utc).fetch(:monthly)
-    daily_total = LlmCostTracker::Ledger::PeriodTotals
+    monthly_total = LlmCostTracker::Ledger::Period::Totals.call(%i[monthly], time: Time.now.utc).fetch(:monthly)
+    daily_total = LlmCostTracker::Ledger::Period::Totals
                   .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
                   .fetch(:daily)
     expect(monthly_total).to eq(0.0025)
@@ -351,7 +353,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    totals = LlmCostTracker::Ledger::PeriodTotals.call(
+    totals = LlmCostTracker::Ledger::Period::Totals.call(
       %i[daily monthly],
       time: Time.utc(2026, 4, 18, 23)
     )
@@ -472,7 +474,7 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     tag_sql = LlmCostTracker::Ledger::Call.group_by_tag("feature").to_sql
-    if LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(LlmCostTracker::Ledger::Call.connection)
+    if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(LlmCostTracker::Ledger::Call.connection)
       expect(tag_sql).to include("->>")
     else
       expect(tag_sql).to include("JSON_EXTRACT")
@@ -516,7 +518,7 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     period_sql = LlmCostTracker::Ledger::Call.group_by_period(:day).to_sql
-    if LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(LlmCostTracker::Ledger::Call.connection)
+    if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(LlmCostTracker::Ledger::Call.connection)
       expect(period_sql).to include("DATE_TRUNC")
     else
       expect(period_sql).to include("DATE_FORMAT")
@@ -590,8 +592,8 @@ RSpec.describe "ActiveRecord storage integration" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
       connection = LlmCostTracker::Ledger::Call.connection
       allow(connection).to receive(:adapter_name).and_return(adapter_name)
-      allow(LlmCostTracker::Ledger::DatabaseAdapter).to receive(:postgresql?).with(connection).and_return(false)
-      allow(LlmCostTracker::Ledger::DatabaseAdapter).to receive(:mysql?).with(connection).and_return(true)
+      allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(false)
+      allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:mysql?).with(connection).and_return(true)
 
       day_sql = LlmCostTracker::Ledger::Call.group_by_period(:day).to_sql
       month_sql = LlmCostTracker::Ledger::Call.group_by_period(:month).to_sql
@@ -852,8 +854,8 @@ RSpec.describe "ActiveRecord storage integration" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
       connection = LlmCostTracker::Ledger::Call.connection
       allow(connection).to receive(:adapter_name).and_return(adapter_name)
-      allow(LlmCostTracker::Ledger::DatabaseAdapter).to receive(:postgresql?).with(connection).and_return(false)
-      allow(LlmCostTracker::Ledger::DatabaseAdapter).to receive(:mysql?).with(connection).and_return(true)
+      allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(false)
+      allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:mysql?).with(connection).and_return(true)
       allow(LlmCostTracker::Ledger::Call).to receive(:tags_jsonb_column?).and_return(false)
 
       sql = LlmCostTracker::Ledger::Call.tag_value_expression("user_id")
@@ -972,7 +974,7 @@ RSpec.describe "ActiveRecord storage integration" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 17, 12))
     track_and_flush(provider: :openai, model: "gpt-4o", input_tokens: 1_000, output_tokens: 0)
 
-    total = LlmCostTracker::Ledger::PeriodTotals
+    total = LlmCostTracker::Ledger::Period::Totals
             .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
             .fetch(:daily)
 

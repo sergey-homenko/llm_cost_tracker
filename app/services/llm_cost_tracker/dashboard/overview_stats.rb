@@ -17,7 +17,7 @@ module LlmCostTracker
           now = Time.now.utc
           month_start = now.beginning_of_month
           month_end = now.end_of_month
-          spent = LlmCostTracker::Ledger::PeriodTotals.call(%i[monthly], time: now).fetch(:monthly)
+          spent = LlmCostTracker::Ledger::Period::Totals.call(%i[monthly], time: now).fetch(:monthly)
           elapsed_seconds = now - month_start
           total_seconds = month_end - month_start
           projected_spent = if spent.zero? || !elapsed_seconds.positive?

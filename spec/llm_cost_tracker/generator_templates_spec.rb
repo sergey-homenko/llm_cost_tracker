@@ -31,7 +31,7 @@ RSpec.describe "generator templates" do
   it "creates JSONB tags and a GIN index for PostgreSQL installs" do
     migration = render_migration_template("create_llm_api_calls.rb.erb")
 
-    expect(migration).to include("require \"llm_cost_tracker/ledger/database_adapter\"")
+    expect(migration).to include("require \"llm_cost_tracker/ledger/schema/adapter\"")
     expect(migration).to include("t.string  :event_id")
     expect(migration).to include("precision: 20, scale: 8")
     expect(migration).to include("t.integer :latency_ms")
@@ -64,8 +64,8 @@ RSpec.describe "generator templates" do
     expect(migration).not_to match(/add_index :llm_api_calls, :model$/)
     expect(migration).to include("t.json :tags")
     expect(migration).to include("LLM Cost Tracker supports PostgreSQL and MySQL only")
-    expect(migration).to include("LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)")
-    expect(migration).to include("LlmCostTracker::Ledger::DatabaseAdapter.mysql?(connection)")
+    expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)")
+    expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)")
   end
 
   it "provides a complete initializer template" do
@@ -117,9 +117,9 @@ RSpec.describe "generator templates" do
     expect(migration).to include("SUM(total_cost)")
     expect(migration).to include("DATE_TRUNC('day', tracked_at)::date")
     expect(migration).to include("DATE_TRUNC('month', tracked_at)::date")
-    expect(migration).to include("require \"llm_cost_tracker/ledger/database_adapter\"")
-    expect(migration).to include("LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)")
-    expect(migration).to include("LlmCostTracker::Ledger::DatabaseAdapter.mysql?(connection)")
+    expect(migration).to include("require \"llm_cost_tracker/ledger/schema/adapter\"")
+    expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)")
+    expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)")
     expect(migration).to include("DATE(tracked_at)")
     expect(migration).to include("DATE_FORMAT(tracked_at, '%Y-%m-01')")
     expect(migration).to include("LLM Cost Tracker supports PostgreSQL and MySQL only")
@@ -200,7 +200,7 @@ RSpec.describe "generator templates" do
     expect(migration).to include("using: \"CASE WHEN tags IS NULL")
     expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin")
     expect(migration).to include("rewrites the table on PostgreSQL")
-    expect(migration).to include("LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)")
+    expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)")
   end
 
   it "generates a local prices snapshot from bundled prices" do

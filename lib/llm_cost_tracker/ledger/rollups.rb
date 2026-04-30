@@ -2,7 +2,7 @@
 
 require "bigdecimal"
 
-require_relative "periods"
+require_relative "period/periods"
 require_relative "rollups/batch"
 require_relative "rollups/upsert_sql"
 
@@ -18,11 +18,11 @@ module LlmCostTracker
           return unless event.total_cost
           return unless period_totals_enabled?
 
-          LlmCostTracker::Ledger::PeriodTotal.upsert_all(
+          Period::Total.upsert_all(
             period_rows(event),
-            on_duplicate: Ledger::Rollups::UpsertSql.call(LlmCostTracker::Ledger::PeriodTotal),
+            on_duplicate: Ledger::Rollups::UpsertSql.call(Period::Total),
             record_timestamps: true,
-            unique_by: unique_by(LlmCostTracker::Ledger::PeriodTotal, %i[period period_start])
+            unique_by: unique_by(Period::Total, %i[period period_start])
           )
         end
 
@@ -31,11 +31,11 @@ module LlmCostTracker
           return if events.empty?
           return unless period_totals_enabled?
 
-          LlmCostTracker::Ledger::PeriodTotal.upsert_all(
+          Period::Total.upsert_all(
             Ledger::Rollups::Batch.rows(events),
-            on_duplicate: Ledger::Rollups::UpsertSql.call(LlmCostTracker::Ledger::PeriodTotal),
+            on_duplicate: Ledger::Rollups::UpsertSql.call(Period::Total),
             record_timestamps: true,
-            unique_by: unique_by(LlmCostTracker::Ledger::PeriodTotal, %i[period period_start])
+            unique_by: unique_by(Period::Total, %i[period period_start])
           )
         end
 
@@ -49,7 +49,7 @@ module LlmCostTracker
         end
 
         def period_totals(periods, time: Time.now.utc)
-          periods = Ledger::Periods.valid_keys(periods)
+          periods = Period::Periods.valid_keys(periods)
           return {} if periods.empty?
 
           if period_totals_enabled?
@@ -62,10 +62,10 @@ module LlmCostTracker
         private
 
         def period_rows(event)
-          Ledger::Periods::PERIODS.map do |period, name|
+          Period::Periods::PERIODS.map do |period, name|
             {
               period: name,
-              period_start: Ledger::Periods.bucket(period, event.tracked_at),
+              period_start: Period::Periods.bucket(period, event.tracked_at),
               total_cost: event.total_cost
             }
           end
@@ -76,8 +76,8 @@ module LlmCostTracker
             _id, tracked_at, total_cost = row
             next unless total_cost
 
-            Ledger::Periods::PERIODS.each_key do |period|
-              totals[[period, Ledger::Periods.bucket(period, tracked_at)]] += BigDecimal(total_cost.to_s)
+            Period::Periods::PERIODS.each_key do |period|
+              totals[[period, Period::Periods.bucket(period, tracked_at)]] += BigDecimal(total_cost.to_s)
             end
           end
         end
@@ -86,8 +86,8 @@ module LlmCostTracker
           now = Time.now.utc
 
           totals.each do |(period, period_start), amount|
-            row = LlmCostTracker::Ledger::PeriodTotal.lock.find_by(period: Ledger::Periods::PERIODS.fetch(period),
-                                                                   period_start: period_start)
+            row = Period::Total.lock.find_by(period: Period::Periods::PERIODS.fetch(period),
+                                             period_start: period_start)
             next unless row
 
             row.update_columns(total_cost: [BigDecimal(row.total_cost.to_s) - amount, BigDecimal("0")].max,
@@ -96,12 +96,12 @@ module LlmCostTracker
         end
 
         def rollup_period_totals(periods, time)
-          buckets = periods.to_h { |period| [period, Ledger::Periods.bucket(period, time)] }
-          index = buckets.to_h { |period, bucket| [[Ledger::Periods::PERIODS.fetch(period), bucket], period] }
+          buckets = periods.to_h { |period| [period, Period::Periods.bucket(period, time)] }
+          index = buckets.to_h { |period, bucket| [[Period::Periods::PERIODS.fetch(period), bucket], period] }
           totals = periods.to_h { |period| [period, 0.0] }
 
-          LlmCostTracker::Ledger::PeriodTotal
-            .where(period: periods.map { |period| Ledger::Periods::PERIODS.fetch(period) },
+          Period::Total
+            .where(period: periods.map { |period| Period::Periods::PERIODS.fetch(period) },
                    period_start: buckets.values)
             .select(:period, :period_start, :total_cost)
             .each do |row|
@@ -114,7 +114,7 @@ module LlmCostTracker
 
         def fallback_period_total(period, time)
           LlmCostTracker::Ledger::Call
-            .where(tracked_at: Ledger::Periods.range_start(period, time)..time)
+            .where(tracked_at: Period::Periods.range_start(period, time)..time)
             .sum(:total_cost)
             .to_f
         end

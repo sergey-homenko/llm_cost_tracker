@@ -3,7 +3,7 @@
 require "spec_helper"
 require "active_record"
 
-RSpec.describe LlmCostTracker::Ledger::DatabaseAdapter do
+RSpec.describe LlmCostTracker::Ledger::Schema::Adapter do
   it "detects known database families from adapter class ancestry" do
     mysql_adapter = Class.new
     postgresql_adapter = Class.new

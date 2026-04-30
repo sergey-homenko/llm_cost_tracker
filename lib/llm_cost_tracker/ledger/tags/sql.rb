@@ -2,7 +2,7 @@
 
 require "active_support/core_ext/object/blank"
 
-require_relative "../database_adapter"
+require_relative "../schema/adapter"
 require_relative "../../tags/key"
 
 module LlmCostTracker
@@ -14,12 +14,12 @@ module LlmCostTracker
             key = LlmCostTracker::Tags::Key.validate!(key)
             column = "#{table_name}.#{model.connection.quote_column_name('tags')}"
 
-            if Ledger::DatabaseAdapter.postgresql?(model.connection)
+            if Ledger::Schema::Adapter.postgresql?(model.connection)
               "#{column}->>#{model.connection.quote(key)}"
-            elsif Ledger::DatabaseAdapter.mysql?(model.connection)
+            elsif Ledger::Schema::Adapter.mysql?(model.connection)
               "JSON_UNQUOTE(JSON_EXTRACT(#{column}, #{model.connection.quote(json_path(key))}))"
             else
-              Ledger::DatabaseAdapter.ensure_supported!(model.connection)
+              Ledger::Schema::Adapter.ensure_supported!(model.connection)
             end
           end
 

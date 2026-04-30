@@ -423,12 +423,12 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "reads monthly budget status from maintained storage totals" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
-      allow(LlmCostTracker::Ledger::PeriodTotals).to receive(:call).and_return(monthly: 7.5)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 7.5)
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
 
       budget = described_class.monthly_budget_status
 
-      expect(LlmCostTracker::Ledger::PeriodTotals).to have_received(:call).with(%i[monthly], time: now)
+      expect(LlmCostTracker::Ledger::Period::Totals).to have_received(:call).with(%i[monthly], time: now)
       expect(budget).to include(spent: 7.5, percent_used: 75.0)
     end
 
@@ -789,8 +789,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
         captured_sql = nil
 
         allow(connection).to receive(:adapter_name).and_return(adapter_name)
-        allow(LlmCostTracker::Ledger::DatabaseAdapter).to receive(:postgresql?).with(connection).and_return(false)
-        allow(LlmCostTracker::Ledger::DatabaseAdapter).to receive(:mysql?).with(connection).and_return(true)
+        allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(false)
+        allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:mysql?).with(connection).and_return(true)
         allow(LlmCostTracker::Ledger::Call).to receive(:find_by_sql) do |sql|
           captured_sql = sql
           [

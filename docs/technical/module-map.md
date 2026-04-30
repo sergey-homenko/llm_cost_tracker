@@ -104,15 +104,17 @@ Pricing refresh must not perform boot-time or request-time network work. Runtime
 Primary files:
 
 - `lib/llm_cost_tracker/ledger.rb`
-- `lib/llm_cost_tracker/ledger/call.rb`
+- `app/models/llm_cost_tracker/ledger/call.rb`
+- `app/models/llm_cost_tracker/ledger/period/grouping.rb`
+- `app/models/llm_cost_tracker/ledger/period/total.rb`
+- `app/models/llm_cost_tracker/ledger/schema/capabilities.rb`
 - `lib/llm_cost_tracker/ledger/store.rb`
-- `lib/llm_cost_tracker/ledger/period_total.rb`
-- `lib/llm_cost_tracker/ledger/period_totals.rb`
+- `lib/llm_cost_tracker/ledger/period/periods.rb`
+- `lib/llm_cost_tracker/ledger/period/totals.rb`
 - `lib/llm_cost_tracker/ledger/rollups.rb`
 - `lib/llm_cost_tracker/ledger/rollups/*`
 - `lib/llm_cost_tracker/ledger/tags/*`
-- `lib/llm_cost_tracker/ledger/database_adapter.rb`
-- `lib/llm_cost_tracker/ledger/schema_capabilities.rb`
+- `lib/llm_cost_tracker/ledger/schema/adapter.rb`
 
 Responsibilities:
 

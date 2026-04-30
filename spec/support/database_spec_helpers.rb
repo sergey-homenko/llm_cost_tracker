@@ -12,12 +12,12 @@ module LlmCostTrackerDatabaseSpecHelpers
 
   def add_tags_column(table)
     connection = ActiveRecord::Base.connection
-    if LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)
+    if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
       table.jsonb :tags, null: false, default: {}
-    elsif LlmCostTracker::Ledger::DatabaseAdapter.mysql?(connection)
+    elsif LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)
       table.json :tags, null: false
     else
-      LlmCostTracker::Ledger::DatabaseAdapter.ensure_supported!(connection)
+      LlmCostTracker::Ledger::Schema::Adapter.ensure_supported!(connection)
     end
   end
 

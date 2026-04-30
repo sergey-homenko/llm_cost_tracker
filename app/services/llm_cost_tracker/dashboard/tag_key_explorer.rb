@@ -34,10 +34,10 @@ module LlmCostTracker
       end
 
       def build_sql
-        return postgresql_sql if Ledger::DatabaseAdapter.postgresql?(connection)
-        return mysql_sql if Ledger::DatabaseAdapter.mysql?(connection)
+        return postgresql_sql if Ledger::Schema::Adapter.postgresql?(connection)
+        return mysql_sql if Ledger::Schema::Adapter.mysql?(connection)
 
-        Ledger::DatabaseAdapter.ensure_supported!(connection)
+        Ledger::Schema::Adapter.ensure_supported!(connection)
       end
 
       def mysql_sql

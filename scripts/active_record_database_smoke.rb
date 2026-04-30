@@ -21,11 +21,11 @@ end
 require "llm_cost_tracker"
 require "llm_cost_tracker/ledger"
 require_relative "../app/models/llm_cost_tracker/ledger/call_metrics"
-require_relative "../app/models/llm_cost_tracker/ledger/period_grouping"
-require_relative "../app/models/llm_cost_tracker/ledger/schema_capabilities"
+require_relative "../app/models/llm_cost_tracker/ledger/period/grouping"
+require_relative "../app/models/llm_cost_tracker/ledger/schema/capabilities"
 require_relative "../app/models/llm_cost_tracker/ledger/tags/accessors"
 require_relative "../app/models/llm_cost_tracker/ledger/call"
-require_relative "../app/models/llm_cost_tracker/ledger/period_total"
+require_relative "../app/models/llm_cost_tracker/ledger/period/total"
 require_relative "../app/models/llm_cost_tracker/ingestion/event"
 require_relative "../app/models/llm_cost_tracker/ingestion/lease"
 
@@ -65,7 +65,7 @@ def reset_models!
     LlmCostTracker::Ledger::Call,
     LlmCostTracker::Ingestion::Event,
     LlmCostTracker::Ingestion::Lease,
-    LlmCostTracker::Ledger::PeriodTotal
+    LlmCostTracker::Ledger::Period::Total
   ].each(&:reset_column_information)
   LlmCostTracker::Ledger::Rollups.reset!
   LlmCostTracker::Ingestion::Worker.reset!
@@ -116,12 +116,12 @@ def add_call_cost_columns(table)
 end
 
 def add_call_tags_column(table, database_connection)
-  if LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(database_connection)
+  if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
     table.jsonb :tags, null: false, default: {}
-  elsif LlmCostTracker::Ledger::DatabaseAdapter.mysql?(database_connection)
+  elsif LlmCostTracker::Ledger::Schema::Adapter.mysql?(database_connection)
     table.json :tags, null: false
   else
-    LlmCostTracker::Ledger::DatabaseAdapter.ensure_supported!(database_connection)
+    LlmCostTracker::Ledger::Schema::Adapter.ensure_supported!(database_connection)
   end
 end
 
@@ -163,7 +163,7 @@ def add_schema_indexes!(database_connection)
   add_index :llm_api_calls, %i[provider tracked_at]
   add_index :llm_api_calls, %i[model tracked_at]
   add_index :llm_api_calls, :provider_response_id
-  if LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(database_connection)
+  if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
     add_index :llm_api_calls, :tags, using: :gin
   end
   add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
@@ -224,10 +224,10 @@ begin
   reset_models!
 
   assert("PostgreSQL adapter family was not detected") do
-    adapter != "postgresql" || LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(ActiveRecord::Base.connection)
+    adapter != "postgresql" || LlmCostTracker::Ledger::Schema::Adapter.postgresql?(ActiveRecord::Base.connection)
   end
   assert("MySQL-family adapter was not detected") do
-    adapter != "trilogy" || LlmCostTracker::Ledger::DatabaseAdapter.mysql?(ActiveRecord::Base.connection)
+    adapter != "trilogy" || LlmCostTracker::Ledger::Schema::Adapter.mysql?(ActiveRecord::Base.connection)
   end
 
   LlmCostTracker.reset_configuration!
@@ -256,7 +256,7 @@ begin
   end
 
   pending_event = track!(provider_response_id: "pending", feature: "pending")
-  pending_total = LlmCostTracker::Ledger::PeriodTotals
+  pending_total = LlmCostTracker::Ledger::Period::Totals
                   .call(%i[daily], time: Time.now.utc)
                   .fetch(:daily)
   assert("daily total did not include pending or persisted inbox event") do
@@ -266,12 +266,12 @@ begin
 
   duplicate_event = track!(provider_response_id: "duplicate", feature: "duplicate")
   flush!
-  before_duplicate_total = LlmCostTracker::Ledger::PeriodTotals
+  before_duplicate_total = LlmCostTracker::Ledger::Period::Totals
                            .call(%i[daily], time: Time.now.utc)
                            .fetch(:daily)
   LlmCostTracker::Ingestion::Inbox.save(duplicate_event)
   flush!
-  after_duplicate_total = LlmCostTracker::Ledger::PeriodTotals
+  after_duplicate_total = LlmCostTracker::Ledger::Period::Totals
                           .call(%i[daily], time: Time.now.utc)
                           .fetch(:daily)
   assert("duplicate inbox row changed rollup total") do
@@ -331,7 +331,7 @@ begin
     !LlmCostTracker::Ingestion::Event.where("attempts < ?", LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS).exists?
   end
 
-  daily_total = LlmCostTracker::Ledger::PeriodTotals
+  daily_total = LlmCostTracker::Ledger::Period::Totals
                 .call(%i[daily], time: Time.now.utc)
                 .fetch(:daily)
 

@@ -1,4 +1,4 @@
-require "llm_cost_tracker/ledger/database_adapter"
+require "llm_cost_tracker/ledger/schema/adapter"
 
 class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
   def change
@@ -74,10 +74,10 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
   private
 
   def postgresql?
-    LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)
+    LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
   end
 
   def mysql?
-    LlmCostTracker::Ledger::DatabaseAdapter.mysql?(connection)
+    LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)
   end
 end

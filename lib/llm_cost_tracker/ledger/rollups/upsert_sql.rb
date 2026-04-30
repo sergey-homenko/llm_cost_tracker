@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../database_adapter"
+require_relative "../schema/adapter"
 
 module LlmCostTracker
   module Ledger
@@ -15,10 +15,10 @@ module LlmCostTracker
         end
 
         def call
-          return Arel.sql(mysql_sql) if Ledger::DatabaseAdapter.mysql?(connection)
-          return Arel.sql(postgres_sql) if Ledger::DatabaseAdapter.postgresql?(connection)
+          return Arel.sql(mysql_sql) if Ledger::Schema::Adapter.mysql?(connection)
+          return Arel.sql(postgres_sql) if Ledger::Schema::Adapter.postgresql?(connection)
 
-          Ledger::DatabaseAdapter.ensure_supported!(connection)
+          Ledger::Schema::Adapter.ensure_supported!(connection)
         end
 
         private

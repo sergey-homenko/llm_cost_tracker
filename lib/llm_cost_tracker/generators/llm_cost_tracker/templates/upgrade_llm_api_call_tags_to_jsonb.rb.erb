@@ -1,4 +1,4 @@
-require "llm_cost_tracker/ledger/database_adapter"
+require "llm_cost_tracker/ledger/schema/adapter"
 
 class UpgradeLlmApiCallTagsToJsonb < ActiveRecord::Migration<%= migration_version %>
   def up
@@ -34,7 +34,7 @@ class UpgradeLlmApiCallTagsToJsonb < ActiveRecord::Migration<%= migration_versio
   private
 
   def postgresql?
-    LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)
+    LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
   end
 
   def tags_jsonb?
