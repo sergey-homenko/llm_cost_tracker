@@ -2,6 +2,7 @@
 
 require "securerandom"
 
+require_relative "doctor/check"
 require_relative "ledger"
 require_relative "ingestion/event"
 require_relative "ingestion/lease"
@@ -12,14 +13,13 @@ require_relative "ingestion/worker"
 
 module LlmCostTracker
   module Ingestion
-    VerificationResult = Data.define(:status, :name, :message)
     VERIFY_TAG = "llm_cost_tracker_verify"
 
     class << self
       def verify
         unless LlmCostTracker::Ledger::Call.table_exists?
           return [
-            VerificationResult.new(
+            LlmCostTracker::Doctor::Check.new(
               :error,
               "active_record",
               "llm_api_calls table is missing; run install generator and migrate"
@@ -29,7 +29,7 @@ module LlmCostTracker
 
         [capture_check]
       rescue StandardError => e
-        [VerificationResult.new(:error, "active_record", "#{e.class}: #{e.message}")]
+        [LlmCostTracker::Doctor::Check.new(:error, "active_record", "#{e.class}: #{e.message}")]
       end
 
       private
@@ -53,13 +53,17 @@ module LlmCostTracker
 
         return capture_success if persisted && notifications.any?
 
-        VerificationResult.new(:error, "active_record capture", capture_failure_message(persisted, notifications))
+        LlmCostTracker::Doctor::Check.new(
+          :error,
+          "active_record capture",
+          capture_failure_message(persisted, notifications)
+        )
       rescue LlmCostTracker::BudgetExceededError => e
-        VerificationResult.new(:error, "active_record capture", "blocked by budget guardrail: #{e.message}")
+        LlmCostTracker::Doctor::Check.new(:error, "active_record capture", "blocked by budget guardrail: #{e.message}")
       rescue LlmCostTracker::Error => e
-        VerificationResult.new(:error, "active_record capture", e.message)
+        LlmCostTracker::Doctor::Check.new(:error, "active_record capture", e.message)
       rescue StandardError => e
-        VerificationResult.new(:error, "active_record capture", "#{e.class}: #{e.message}")
+        LlmCostTracker::Doctor::Check.new(:error, "active_record capture", "#{e.class}: #{e.message}")
       ensure
         cleanup_verification_call(response_id) if response_id
         LlmCostTracker::Ingestion::Event.where(event_id: event.event_id).delete_all if event
@@ -73,7 +77,7 @@ module LlmCostTracker
       end
 
       def capture_success
-        VerificationResult.new(
+        LlmCostTracker::Doctor::Check.new(
           :ok,
           "active_record capture",
           "manual event emitted and persisted through durable inbox"

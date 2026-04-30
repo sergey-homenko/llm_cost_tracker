@@ -1,12 +1,11 @@
 # frozen_string_literal: true
 
+require_relative "check"
 require_relative "../ingestion"
 
 module LlmCostTracker
   class Doctor
     class CaptureVerifier
-      Check = Data.define(:status, :name, :message)
-
       class << self
         def call
           new.checks
@@ -53,9 +52,7 @@ module LlmCostTracker
       end
 
       def storage_checks
-        LlmCostTracker::Ingestion.verify.map do |check|
-          Check.new(check.status, check.name, check.message)
-        end
+        LlmCostTracker::Ingestion.verify
       rescue LlmCostTracker::Error => e
         [Check.new(:error, "storage", e.message)]
       end

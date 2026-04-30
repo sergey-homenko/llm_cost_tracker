@@ -13,7 +13,7 @@ module LlmCostTracker
         budgets = enforce_period_budgets(config)
         return if budgets.empty?
 
-        totals = LlmCostTracker::Ledger::Store.period_totals(budgets.keys, time: Time.now.utc)
+        totals = LlmCostTracker::Ledger::PeriodTotals.call(budgets.keys, time: Time.now.utc)
 
         budgets.each do |period, budget|
           total = totals.fetch(period)
@@ -66,7 +66,7 @@ module LlmCostTracker
       def totals_for_check(event, budgets)
         return {} if budgets.empty?
 
-        LlmCostTracker::Ledger::Store.period_totals(budgets.keys, time: event.tracked_at)
+        LlmCostTracker::Ledger::PeriodTotals.call(budgets.keys, time: event.tracked_at)
       end
 
       def handle_exceeded(budget_type:, total:, budget:, last_event: nil)

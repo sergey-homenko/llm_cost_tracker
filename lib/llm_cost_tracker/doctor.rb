@@ -2,13 +2,13 @@
 
 require_relative "ledger"
 require_relative "token_usage"
+require_relative "doctor/check"
 require_relative "doctor/capture_check"
 require_relative "doctor/ingestion_check"
 require_relative "doctor/price_check"
 
 module LlmCostTracker
   class Doctor
-    Check = Data.define(:status, :name, :message)
     COLUMN_GENERATORS = {
       "event_id" => "bin/rails generate llm_cost_tracker:add_ingestion",
       "latency_ms" => "bin/rails generate llm_cost_tracker:add_latency_ms",

@@ -243,7 +243,8 @@ RSpec.describe "ActiveRecord storage integration" do
 
     expect(LlmCostTracker::Ledger::PeriodTotal.where(period: "month").count).to eq(1)
     expect(month_total.total_cost.to_f).to eq(0.00265)
-    expect(LlmCostTracker::Ledger::Store.monthly_total).to eq(0.00265)
+    total = LlmCostTracker::Ledger::PeriodTotals.call(%i[monthly], time: Time.now.utc).fetch(:monthly)
+    expect(total).to eq(0.00265)
   end
 
   it "updates daily and monthly period rollups in one bulk write" do
@@ -315,7 +316,10 @@ RSpec.describe "ActiveRecord storage integration" do
 
     expect(LlmCostTracker::Ledger::PeriodTotal.where(period: "day").count).to eq(1)
     expect(day_total.total_cost.to_f).to eq(0.00265)
-    expect(LlmCostTracker::Ledger::Store.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.00265)
+    total = LlmCostTracker::Ledger::PeriodTotals
+            .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
+            .fetch(:daily)
+    expect(total).to eq(0.00265)
   end
 
   it "falls back to llm_api_calls sums when period rollups are unavailable" do
@@ -329,8 +333,12 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    expect(LlmCostTracker::Ledger::Store.monthly_total).to eq(0.0025)
-    expect(LlmCostTracker::Ledger::Store.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.0025)
+    monthly_total = LlmCostTracker::Ledger::PeriodTotals.call(%i[monthly], time: Time.now.utc).fetch(:monthly)
+    daily_total = LlmCostTracker::Ledger::PeriodTotals
+                  .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
+                  .fetch(:daily)
+    expect(monthly_total).to eq(0.0025)
+    expect(daily_total).to eq(0.0025)
   end
 
   it "reads daily and monthly period totals together" do
@@ -343,7 +351,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0
     )
 
-    totals = LlmCostTracker::Ledger::Store.period_totals(
+    totals = LlmCostTracker::Ledger::PeriodTotals.call(
       %i[daily monthly],
       time: Time.utc(2026, 4, 18, 23)
     )
@@ -964,7 +972,9 @@ RSpec.describe "ActiveRecord storage integration" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 17, 12))
     track_and_flush(provider: :openai, model: "gpt-4o", input_tokens: 1_000, output_tokens: 0)
 
-    total = LlmCostTracker::Ledger::Store.daily_total(time: Time.utc(2026, 4, 18, 23))
+    total = LlmCostTracker::Ledger::PeriodTotals
+            .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
+            .fetch(:daily)
 
     expect(total).to eq(0.0025)
   end

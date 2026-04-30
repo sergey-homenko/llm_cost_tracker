@@ -64,7 +64,7 @@ module LlmCostTracker
       @configuration = Configuration.new
       Pricing::Lookup.reset!
       Pricing::Unknown.reset!
-      Ledger::Store.reset!
+      Ledger::Rollups.reset!
       Ingestion::Worker.reset!
       Tags::Context.clear!
     end

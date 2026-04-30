@@ -59,7 +59,7 @@ def reset_models!
     LlmCostTracker::Ingestion::Lease,
     LlmCostTracker::Ledger::PeriodTotal
   ].each(&:reset_column_information)
-  LlmCostTracker::Ledger::Store.reset!
+  LlmCostTracker::Ledger::Rollups.reset!
   LlmCostTracker::Ingestion::Worker.reset!
 end
 
@@ -205,7 +205,7 @@ end
 def quarantined_row_count
   LlmCostTracker::Ingestion::Event.where(
     "attempts >= ?",
-    LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS
+    LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS
   ).count
 end
 
@@ -248,7 +248,9 @@ begin
   end
 
   pending_event = track!(provider_response_id: "pending", feature: "pending")
-  pending_total = LlmCostTracker::Ledger::Store.daily_total(time: Time.now.utc)
+  pending_total = LlmCostTracker::Ledger::PeriodTotals
+                  .call(%i[daily], time: Time.now.utc)
+                  .fetch(:daily)
   assert("daily total did not include pending or persisted inbox event") do
     pending_total >= pending_event.total_cost.to_f
   end
@@ -256,10 +258,14 @@ begin
 
   duplicate_event = track!(provider_response_id: "duplicate", feature: "duplicate")
   flush!
-  before_duplicate_total = LlmCostTracker::Ledger::Store.daily_total(time: Time.now.utc)
+  before_duplicate_total = LlmCostTracker::Ledger::PeriodTotals
+                           .call(%i[daily], time: Time.now.utc)
+                           .fetch(:daily)
   LlmCostTracker::Ingestion::Inbox.save(duplicate_event)
   flush!
-  after_duplicate_total = LlmCostTracker::Ledger::Store.daily_total(time: Time.now.utc)
+  after_duplicate_total = LlmCostTracker::Ledger::PeriodTotals
+                          .call(%i[daily], time: Time.now.utc)
+                          .fetch(:daily)
   assert("duplicate inbox row changed rollup total") do
     BigDecimal(after_duplicate_total.to_s) == BigDecimal(before_duplicate_total.to_s)
   end
@@ -273,7 +279,7 @@ begin
     total_cost: 1,
     tracked_at: now,
     payload: "{bad-json",
-    attempts: LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS - 1,
+    attempts: LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS - 1,
     created_at: now,
     updated_at: now
   )
@@ -286,7 +292,7 @@ begin
     LlmCostTracker::Ingestion::Event.where(
       "payload = ? AND attempts >= ?",
       "{bad-json",
-      LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS
+      LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS
     ).exists?
   end
 
@@ -314,15 +320,19 @@ begin
     LlmCostTracker::Ledger::Call.count == expected
   end
   assert("retryable inbox rows remain after flush") do
-    !LlmCostTracker::Ingestion::Event.where("attempts < ?", LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS).exists?
+    !LlmCostTracker::Ingestion::Event.where("attempts < ?", LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS).exists?
   end
+
+  daily_total = LlmCostTracker::Ledger::PeriodTotals
+                .call(%i[daily], time: Time.now.utc)
+                .fetch(:daily)
 
   puts "#{adapter} smoke passed"
   puts "database=#{database}"
   puts "adapter=#{ActiveRecord::Base.connection.class.name}"
   puts "ledger_rows=#{LlmCostTracker::Ledger::Call.count}"
   puts "quarantined_rows=#{quarantined_row_count}"
-  puts "daily_total=#{LlmCostTracker::Ledger::Store.daily_total(time: Time.now.utc)}"
+  puts "daily_total=#{daily_total}"
 ensure
   begin
     LlmCostTracker.shutdown!(drain: false) if defined?(LlmCostTracker)

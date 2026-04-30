@@ -423,12 +423,12 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "reads monthly budget status from maintained storage totals" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
-      allow(LlmCostTracker::Ledger::Store).to receive(:monthly_total).and_return(7.5)
+      allow(LlmCostTracker::Ledger::PeriodTotals).to receive(:call).and_return(monthly: 7.5)
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
 
       budget = described_class.monthly_budget_status
 
-      expect(LlmCostTracker::Ledger::Store).to have_received(:monthly_total).with(time: now)
+      expect(LlmCostTracker::Ledger::PeriodTotals).to have_received(:call).with(%i[monthly], time: now)
       expect(budget).to include(spent: 7.5, percent_used: 75.0)
     end
 

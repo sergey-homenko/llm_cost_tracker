@@ -12,7 +12,13 @@ module LlmCostTracker
         cutoff = resolve_cutoff(older_than, now)
         require_relative "ledger"
 
-        Ledger::Store.prune(cutoff: cutoff, batch_size: batch_size)
+        deleted = 0
+        loop do
+          batch = prune_batch(cutoff, batch_size)
+          deleted += batch
+          break if batch < batch_size
+        end
+        deleted
       end
 
       private
@@ -40,6 +46,22 @@ module LlmCostTracker
         raise ArgumentError, "older_than days must be positive: #{days.inspect}" unless days.positive?
 
         now - (days * 86_400)
+      end
+
+      def prune_batch(cutoff, batch_size)
+        LlmCostTracker::Ledger::Call.transaction do
+          rows = LlmCostTracker::Ledger::Call
+                 .where(tracked_at: ...cutoff)
+                 .order(:id)
+                 .limit(batch_size)
+                 .lock
+                 .pluck(:id, :tracked_at, :total_cost)
+          next 0 if rows.empty?
+
+          deleted = LlmCostTracker::Ledger::Call.where(id: rows.map(&:first)).delete_all
+          LlmCostTracker::Ledger::Rollups.decrement!(rows) if deleted.positive?
+          deleted
+        end
       end
     end
   end

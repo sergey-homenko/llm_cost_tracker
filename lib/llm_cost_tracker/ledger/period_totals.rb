@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../ingestion/inbox"
+require_relative "../ingestion/event"
 require_relative "periods"
 require_relative "rollups"
 
@@ -65,12 +65,12 @@ module LlmCostTracker
       end
 
       def pending_total_sql(start)
-        table = connection.quote_table_name(Ingestion::Inbox::TABLE_NAME)
+        table = connection.quote_table_name(Ingestion::Event.table_name)
         total_cost = connection.quote_column_name("total_cost")
         tracked_at = connection.quote_column_name("tracked_at")
         attempts = connection.quote_column_name("attempts")
         "COALESCE((SELECT SUM(#{total_cost}) FROM #{table} " \
-          "WHERE #{attempts} < #{Ingestion::Inbox::MAX_ATTEMPTS} " \
+          "WHERE #{attempts} < #{Ingestion::Event::MAX_ATTEMPTS} " \
           "AND #{tracked_at} BETWEEN #{connection.quote(start)} AND #{connection.quote(time)}), 0)"
       end
 

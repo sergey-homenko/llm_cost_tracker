@@ -9,8 +9,6 @@ require_relative "event"
 module LlmCostTracker
   module Ingestion
     class Inbox
-      TABLE_NAME = "llm_cost_tracker_inbox_events"
-      MAX_ATTEMPTS = 5
       PAYLOAD_SCHEMA_VERSION = 1
 
       class << self
@@ -97,7 +95,7 @@ module LlmCostTracker
           columns = row.keys
           quoted_columns = columns.map { |column| connection.quote_column_name(column) }.join(", ")
           quoted_values = columns.map { |column| connection.quote(row.fetch(column)) }.join(", ")
-          table = connection.quote_table_name(TABLE_NAME)
+          table = connection.quote_table_name(Event.table_name)
 
           connection.execute("INSERT INTO #{table} (#{quoted_columns}) VALUES (#{quoted_values})")
         end

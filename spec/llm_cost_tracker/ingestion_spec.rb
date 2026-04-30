@@ -77,7 +77,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker::Ledger::PeriodTotal.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
-    LlmCostTracker::Ledger::Store.reset!
+    LlmCostTracker::Ledger::Rollups.reset!
 
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end
@@ -120,8 +120,14 @@ RSpec.describe "ActiveRecord durable inbox" do
     )
 
     expect(LlmCostTracker::Ledger::PeriodTotal.count).to eq(0)
-    expect(LlmCostTracker::Ledger::Store.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.0025)
-    expect(LlmCostTracker::Ledger::Store.monthly_total(time: Time.utc(2026, 4, 30, 23))).to eq(0.0025)
+    daily_total = LlmCostTracker::Ledger::PeriodTotals
+                  .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
+                  .fetch(:daily)
+    monthly_total = LlmCostTracker::Ledger::PeriodTotals
+                    .call(%i[monthly], time: Time.utc(2026, 4, 30, 23))
+                    .fetch(:monthly)
+    expect(daily_total).to eq(0.0025)
+    expect(monthly_total).to eq(0.0025)
 
     LlmCostTracker.flush!
 
@@ -129,7 +135,10 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(LlmCostTracker::Ledger::PeriodTotal.find_by!(period: "day",
                                                         period_start: Date.new(2026, 4, 18)).total_cost.to_f)
       .to eq(0.0025)
-    expect(LlmCostTracker::Ledger::Store.daily_total(time: Time.utc(2026, 4, 18, 23))).to eq(0.0025)
+    daily_total = LlmCostTracker::Ledger::PeriodTotals
+                  .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
+                  .fetch(:daily)
+    expect(daily_total).to eq(0.0025)
   end
 
   it "reads stored and pending budget totals in one database statement" do
@@ -154,7 +163,8 @@ RSpec.describe "ActiveRecord durable inbox" do
       method.call(*args, **kwargs)
     end
 
-    expect(LlmCostTracker::Ledger::Store.daily_total(time: time)).to eq(3.75)
+    total = LlmCostTracker::Ledger::PeriodTotals.call(%i[daily], time: time).fetch(:daily)
+    expect(total).to eq(3.75)
     expect(sqls.size).to eq(1)
     expect(sqls.first).to include("llm_cost_tracker_period_totals")
     expect(sqls.first).to include("llm_cost_tracker_inbox_events")
@@ -173,7 +183,8 @@ RSpec.describe "ActiveRecord durable inbox" do
     )
 
     expect(LlmCostTracker::Ingestion::Event.first.total_cost).to be_nil
-    expect(LlmCostTracker::Ledger::Store.daily_total(time: event.tracked_at)).to eq(0.0)
+    total = LlmCostTracker::Ledger::PeriodTotals.call(%i[daily], time: event.tracked_at).fetch(:daily)
+    expect(total).to eq(0.0)
 
     LlmCostTracker.flush!
 
@@ -282,7 +293,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       total_cost: 1.0,
       tracked_at: now,
       payload: "{",
-      attempts: LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS - 1
+      attempts: LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS - 1
     )
     event = LlmCostTracker.track(
       provider: :openai,
@@ -294,7 +305,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(2)
 
     bad_row = LlmCostTracker::Ingestion::Event.find_by!(event_id: "bad-event")
-    expect(bad_row.attempts).to eq(LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS)
+    expect(bad_row.attempts).to eq(LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS)
     expect(bad_row.last_error).to include("JSON")
     expect(LlmCostTracker::Ledger::Call.find_by!(event_id: event.event_id)).to be_present
     expect(LlmCostTracker.flush!(timeout: 0.01)).to be true
@@ -310,10 +321,11 @@ RSpec.describe "ActiveRecord durable inbox" do
       total_cost: 1.0,
       tracked_at: time,
       payload: "{",
-      attempts: LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS
+      attempts: LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS
     )
 
-    expect(LlmCostTracker::Ledger::Store.daily_total(time: time)).to eq(0.0)
+    total = LlmCostTracker::Ledger::PeriodTotals.call(%i[daily], time: time).fetch(:daily)
+    expect(total).to eq(0.0)
   end
 
   it "reports quarantined inbox rows in doctor output" do
@@ -322,7 +334,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       total_cost: 1.0,
       tracked_at: Time.utc(2026, 4, 18, 12),
       payload: "{",
-      attempts: LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS
+      attempts: LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS
     )
 
     check = LlmCostTracker::Doctor.call.find { |item| item.name == "durable ingestion" }

@@ -68,7 +68,7 @@ module LlmCostTracker
         return 0 unless table_exists?("llm_cost_tracker_inbox_events")
 
         LlmCostTracker::Ingestion::Event
-          .where("attempts >= ?", LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS)
+          .where("attempts >= ?", LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS)
           .count
       rescue StandardError
         0
@@ -76,7 +76,7 @@ module LlmCostTracker
 
       def pending_snapshot
         LlmCostTracker::Ingestion::Event
-          .where("attempts < ?", LlmCostTracker::Ingestion::Inbox::MAX_ATTEMPTS)
+          .where("attempts < ?", LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS)
           .select("COUNT(*) AS pending_count, MIN(created_at) AS oldest_created_at")
           .take
       rescue StandardError
