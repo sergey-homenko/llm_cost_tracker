@@ -1,28 +1,28 @@
 # frozen_string_literal: true
 
-require_relative "report_data"
-require_relative "report_formatter"
+require_relative "report/data"
+require_relative "report/formatter"
 
 module LlmCostTracker
   class Report
     class << self
-      def generate(days: ReportData::DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
-        report_data = ReportData.build(
+      def generate(days: Data::DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
+        report_data = Data.build(
           days: days,
           now: now,
           tag_breakdowns: tag_breakdowns,
-          breakdown_limit: ReportFormatter::TOP_LIMIT
+          breakdown_limit: Formatter::TOP_LIMIT
         )
 
-        ReportFormatter.new(report_data).to_s
+        Formatter.new(report_data).to_s
       rescue LoadError => e
         "Unable to build LLM cost report: ActiveRecord storage is unavailable (#{e.message})"
       rescue StandardError => e
         "Unable to build LLM cost report: #{e.class}: #{e.message}"
       end
 
-      def data(days: ReportData::DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
-        ReportData.build(days: days, now: now, tag_breakdowns: tag_breakdowns)
+      def data(days: Data::DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
+        Data.build(days: days, now: now, tag_breakdowns: tag_breakdowns)
       end
     end
   end

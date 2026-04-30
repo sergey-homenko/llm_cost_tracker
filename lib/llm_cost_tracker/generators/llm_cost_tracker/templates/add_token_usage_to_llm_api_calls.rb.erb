@@ -1,37 +1,22 @@
 class AddTokenUsageToLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
   def up
-    unless column_exists?(:llm_api_calls, :cache_read_input_tokens)
-      add_column :llm_api_calls, :cache_read_input_tokens, :integer, null: false, default: 0
+<% LlmCostTracker::TokenUsage::OPTIONAL_STORED_KEYS.each do |column| -%>
+    unless column_exists?(:llm_api_calls, :<%= column %>)
+      add_column :llm_api_calls, :<%= column %>, :integer, null: false, default: 0
     end
-    unless column_exists?(:llm_api_calls, :cache_write_input_tokens)
-      add_column :llm_api_calls, :cache_write_input_tokens, :integer, null: false, default: 0
+<% end -%>
+<% LlmCostTracker::Pricing::Cost::OPTIONAL_STORED_KEYS.each do |column| -%>
+    unless column_exists?(:llm_api_calls, :<%= column %>)
+      add_column :llm_api_calls, :<%= column %>, :decimal, precision: 20, scale: 8
     end
-    unless column_exists?(:llm_api_calls, :cache_write_1h_input_tokens)
-      add_column :llm_api_calls, :cache_write_1h_input_tokens, :integer, null: false, default: 0
-    end
-    unless column_exists?(:llm_api_calls, :hidden_output_tokens)
-      add_column :llm_api_calls, :hidden_output_tokens, :integer, null: false, default: 0
-    end
-    unless column_exists?(:llm_api_calls, :cache_read_input_cost)
-      add_column :llm_api_calls, :cache_read_input_cost, :decimal, precision: 20, scale: 8
-    end
-    unless column_exists?(:llm_api_calls, :cache_write_input_cost)
-      add_column :llm_api_calls, :cache_write_input_cost, :decimal, precision: 20, scale: 8
-    end
-    unless column_exists?(:llm_api_calls, :cache_write_1h_input_cost)
-      add_column :llm_api_calls, :cache_write_1h_input_cost, :decimal, precision: 20, scale: 8
-    end
+<% end -%>
     add_column :llm_api_calls, :pricing_mode, :string unless column_exists?(:llm_api_calls, :pricing_mode)
   end
 
   def down
     remove_column :llm_api_calls, :pricing_mode if column_exists?(:llm_api_calls, :pricing_mode)
-    remove_column :llm_api_calls, :cache_write_1h_input_cost if column_exists?(:llm_api_calls, :cache_write_1h_input_cost)
-    remove_column :llm_api_calls, :cache_write_input_cost if column_exists?(:llm_api_calls, :cache_write_input_cost)
-    remove_column :llm_api_calls, :cache_read_input_cost if column_exists?(:llm_api_calls, :cache_read_input_cost)
-    remove_column :llm_api_calls, :hidden_output_tokens if column_exists?(:llm_api_calls, :hidden_output_tokens)
-    remove_column :llm_api_calls, :cache_write_1h_input_tokens if column_exists?(:llm_api_calls, :cache_write_1h_input_tokens)
-    remove_column :llm_api_calls, :cache_write_input_tokens if column_exists?(:llm_api_calls, :cache_write_input_tokens)
-    remove_column :llm_api_calls, :cache_read_input_tokens if column_exists?(:llm_api_calls, :cache_read_input_tokens)
+<% (LlmCostTracker::Pricing::Cost::OPTIONAL_STORED_KEYS + LlmCostTracker::TokenUsage::OPTIONAL_STORED_KEYS).reverse.each do |column| -%>
+    remove_column :llm_api_calls, :<%= column %> if column_exists?(:llm_api_calls, :<%= column %>)
+<% end -%>
   end
 end

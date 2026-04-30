@@ -3,7 +3,7 @@
 require "spec_helper"
 require "price_scrape/providers/gemini"
 
-RSpec.describe LlmCostTracker::PriceScrape::Providers::Gemini do
+RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
   let(:fixture_path) { File.expand_path("../../../fixtures/scrape/gemini_pricing.html", __dir__) }
   let(:html) { File.read(fixture_path, encoding: "utf-8") }
 

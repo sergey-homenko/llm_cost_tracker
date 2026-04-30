@@ -7,7 +7,7 @@ require "time"
 require "uri"
 
 module LlmCostTracker
-  module PriceScrape
+  module Pricing::Scrape
     class Fetcher
       DEFAULT_USER_AGENT = "llm_cost_tracker price scrape (+https://github.com/sergey-homenko/llm_cost_tracker)"
       OPEN_TIMEOUT = 5

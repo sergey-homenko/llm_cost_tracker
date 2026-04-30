@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "llm_cost_tracker/stream_collector"
+require "llm_cost_tracker/capture/stream_collector"
 
 RSpec.describe "concurrency", :aggregate_failures do
-  describe LlmCostTracker::StreamCollector do
+  describe LlmCostTracker::Capture::StreamCollector do
     before { allow(LlmCostTracker::Ledger).to receive(:save).and_return(true) }
 
     it "records exactly one event when finish! races across many threads" do
@@ -177,7 +177,7 @@ RSpec.describe "concurrency", :aggregate_failures do
     end
   end
 
-  describe LlmCostTracker::TagContext do
+  describe LlmCostTracker::Tags::Context do
     before { allow(LlmCostTracker::Ledger).to receive(:save).and_return(true) }
 
     it "keeps scoped tags isolated across threads" do

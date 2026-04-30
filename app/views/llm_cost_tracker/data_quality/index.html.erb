@@ -2,9 +2,7 @@
 <% streaming_count = @stats.streaming_count %>
 <% streaming_missing_usage = @stats.streaming_missing_usage_count %>
 <% calls_with_provider_response_id = @stats.provider_response_id_column_present ? total - @stats.missing_provider_response_id_count : nil %>
-<% cache_write_1h_tokens = @stats.cache_write_1h_input_tokens.to_i %>
-<% cache_write_tokens = @stats.cache_write_input_tokens.to_i %>
-<% billable_tokens = @stats.input_tokens + @stats.output_tokens + @stats.cache_read_input_tokens.to_i + cache_write_tokens + cache_write_1h_tokens %>
+<% billable_tokens = LlmCostTracker::TokenUsage::PRICED_COMPONENTS.sum { |component| @stats.public_send(component.token_key).to_i } %>
 <% hidden_output_share = coverage_percent(@stats.hidden_output_tokens.to_i, @stats.output_tokens) %>
 
 <section class="lct-panel lct-toolbar">
@@ -40,7 +38,7 @@
                        id: "lct-quality-model" %>
       </div>
 
-      <% if LlmCostTracker::LlmApiCall.stream_column? %>
+      <% if LlmCostTracker::Ledger::Call.stream_column? %>
         <div class="lct-field">
           <label for="lct-quality-stream">Stream</label>
           <%= select_tag :stream,
@@ -274,42 +272,22 @@
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>Regular input</td>
-              <td class="lct-num"><%= number(@stats.input_tokens) %></td>
-              <td class="lct-num"><%= percent(coverage_percent(@stats.input_tokens, billable_tokens)) %></td>
-              <td class="lct-num"><%= money(@stats.input_cost) %></td>
-            </tr>
-            <tr>
-              <td>Cache read input</td>
-              <td class="lct-num"><%= number(@stats.cache_read_input_tokens) %></td>
-              <td class="lct-num"><%= percent(coverage_percent(@stats.cache_read_input_tokens, billable_tokens)) %></td>
-              <td class="lct-num<%= ' lct-num-muted' if @stats.cache_read_input_cost.nil? %>"><%= optional_money(@stats.cache_read_input_cost) %></td>
-            </tr>
-            <tr>
-              <td>Cache write input</td>
-              <td class="lct-num"><%= number(cache_write_tokens) %></td>
-              <td class="lct-num"><%= percent(coverage_percent(cache_write_tokens, billable_tokens)) %></td>
-              <td class="lct-num<%= ' lct-num-muted' if @stats.cache_write_input_cost.nil? %>"><%= optional_money(@stats.cache_write_input_cost) %></td>
-            </tr>
-            <tr>
-              <td>1h cache write input</td>
-              <td class="lct-num"><%= number(cache_write_1h_tokens) %></td>
-              <td class="lct-num"><%= percent(coverage_percent(cache_write_1h_tokens, billable_tokens)) %></td>
-              <td class="lct-num<%= ' lct-num-muted' if @stats.cache_write_1h_input_cost.nil? %>"><%= optional_money(@stats.cache_write_1h_input_cost) %></td>
-            </tr>
-            <tr>
-              <td>Output</td>
-              <td class="lct-num"><%= number(@stats.output_tokens) %></td>
-              <td class="lct-num"><%= percent(coverage_percent(@stats.output_tokens, billable_tokens)) %></td>
-              <td class="lct-num"><%= money(@stats.output_cost) %></td>
-            </tr>
-            <tr>
-              <td>Hidden output</td>
-              <td class="lct-num"><%= number(@stats.hidden_output_tokens) %></td>
-              <td class="lct-num"><%= percent(hidden_output_share) %> of output</td>
-              <td class="lct-num lct-num-muted">n/a</td>
-            </tr>
+            <% LlmCostTracker::TokenUsage::COMPONENTS.each do |component| %>
+              <% token_value = @stats.public_send(component.token_key) %>
+              <% cost_value = component.cost_key && @stats.public_send(component.cost_key) %>
+              <tr>
+                <td><%= component.dashboard_label %></td>
+                <td class="lct-num"><%= number(token_value) %></td>
+                <% if component.token_key == :hidden_output_tokens %>
+                  <td class="lct-num"><%= percent(hidden_output_share) %> of output</td>
+                <% else %>
+                  <td class="lct-num"><%= percent(coverage_percent(token_value, billable_tokens)) %></td>
+                <% end %>
+                <td class="lct-num<%= ' lct-num-muted' if component.cost_key.nil? || cost_value.nil? %>">
+                  <%= component.cost_key ? optional_money(cost_value) : "n/a" %>
+                </td>
+              </tr>
+            <% end %>
           </tbody>
         </table>
       </div>

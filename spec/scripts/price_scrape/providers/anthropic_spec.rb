@@ -3,7 +3,7 @@
 require "spec_helper"
 require "price_scrape/providers/anthropic"
 
-RSpec.describe LlmCostTracker::PriceScrape::Providers::Anthropic do
+RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
   let(:fixture_path) { File.expand_path("../../../fixtures/scrape/anthropic_pricing.html", __dir__) }
   let(:html) { File.read(fixture_path, encoding: "utf-8") }
 

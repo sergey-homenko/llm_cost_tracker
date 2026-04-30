@@ -15,13 +15,13 @@ module LlmCostTracker
       :provider_response_id_column_present,
       :token_usage_columns_present,
       *TokenUsage::DASHBOARD_SUM_KEYS,
-      *Cost::DASHBOARD_SUM_KEYS,
+      *Pricing::Cost::DASHBOARD_SUM_KEYS,
       :unknown_pricing_by_model
     )
 
     class DataQuality
       class << self
-        def call(scope: LlmCostTracker::LlmApiCall.all)
+        def call(scope: LlmCostTracker::Ledger::Call.all)
           model = scope.klass
           aggregates = DataQualityAggregate.call(scope: scope)
           total = aggregates.fetch(:total_calls).to_i
@@ -87,8 +87,8 @@ module LlmCostTracker
                             aggregates.fetch(key).to_i
                           end
           end
-          Cost::DASHBOARD_SUM_KEYS.each do |key|
-            values[key] = if Cost::BASE_DASHBOARD_SUM_KEYS.include?(key) || token_usage_cost_present
+          Pricing::Cost::DASHBOARD_SUM_KEYS.each do |key|
+            values[key] = if Pricing::Cost::BASE_DASHBOARD_SUM_KEYS.include?(key) || token_usage_cost_present
                             decimal_sum(aggregates.fetch(key))
                           end
           end

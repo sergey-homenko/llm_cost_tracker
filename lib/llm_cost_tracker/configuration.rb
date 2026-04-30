@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "errors"
-require_relative "tag_key"
+require_relative "tags/key"
 require_relative "configuration/instrumentation"
 
 module LlmCostTracker
@@ -70,7 +70,7 @@ module LlmCostTracker
 
     def report_tag_breakdowns=(value)
       ensure_shared_configuration_mutable!
-      @report_tag_breakdowns = Array(value).map { |key| TagKey.validate!(key, error_class: Error) }
+      @report_tag_breakdowns = Array(value).map { |key| Tags::Key.validate!(key, error_class: Error) }
     end
 
     def redacted_tag_keys=(value)

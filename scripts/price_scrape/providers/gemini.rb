@@ -4,7 +4,7 @@ require "nokogiri"
 require "time"
 
 module LlmCostTracker
-  module PriceScrape
+  module Pricing::Scrape
     module Providers
       class Gemini
         SOURCE_URL = "https://ai.google.dev/gemini-api/docs/pricing"

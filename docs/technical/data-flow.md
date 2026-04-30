@@ -17,14 +17,15 @@ This is the normal path from an application LLM call to stored ledger data.
 2. `LlmCostTracker::Integrations` checks the SDK version, target classes, and target methods once at install time.
 3. `LlmCostTracker::Integrations` prepends a narrow wrapper to supported SDK resource methods.
 4. The host app keeps calling the provider SDK normally.
-5. The wrapper measures latency, extracts usage from the SDK response object, and sends `UsageCapture` to `Tracker.record`.
-6. If an explicitly enabled SDK is not loaded or does not satisfy the install contract, boot raises before the app silently misses usage.
+5. For streaming SDK calls, the wrapper passes the SDK stream through `Capture::StreamTracker` so the app still consumes the same stream object.
+6. The wrapper measures latency, extracts usage from the SDK response object or collected stream events, and sends `UsageCapture` to `Tracker.record`.
+7. If an explicitly enabled SDK is not loaded or does not satisfy the install contract, boot raises before the app silently misses usage.
 
 ## Explicit Tracking
 
 1. The host app calls `LlmCostTracker.track` with known usage totals, or `LlmCostTracker.track_stream` with stream events.
 2. `track` normalizes manual totals into `UsageCapture` with `TokenUsage` and sends it to `Tracker.record`.
-3. `track_stream` uses `StreamCollector`, then parser lookup by provider when events need parsing.
+3. `track_stream` uses `Capture::StreamCollector`, then `Parsers.find_for_provider` when events need parsing.
 4. `Tracker.record` prices and persists the event.
 
 ## Canonical Event Build
@@ -41,18 +42,18 @@ This is the normal path from an application LLM call to stored ledger data.
 
 ## Ledger Storage
 
-1. `Inbox.save` writes a compact durable event row when the ingestion tables are present.
-2. `Ingestor` claims retryable inbox rows through a database lease and writes batches into `llm_api_calls`.
-3. `LedgerStore.insert_many` converts tags for PostgreSQL JSONB or MySQL JSON storage and writes optional fields only when their columns exist.
+1. `Ledger::Ingestion::Inbox.save` writes a compact durable event row when the ingestion tables are present.
+2. `Ledger::Ingestion::Worker` claims retryable inbox rows through a database lease and writes batches into `llm_api_calls`.
+3. `Ledger::Store.insert_many` converts tags for PostgreSQL JSONB or MySQL JSON storage and writes optional fields only when their columns exist.
 4. The call rows, period rollup updates, and inbox deletes happen in one transaction.
-5. `Rollups.increment_many!` updates daily and monthly totals only for rows inserted by the batch.
+5. `Ledger::Rollups.increment_many!` updates daily and monthly totals only for rows inserted by the batch.
 6. Budget reads use period totals plus pending inbox totals when available.
 
 The inbox write is the durability boundary. Ledger freshness is eventually consistent unless the caller explicitly waits with `LlmCostTracker.flush!`.
 
 ## Dashboard Reads
 
-1. Controllers build a filtered `LlmApiCall` scope.
+1. Controllers build a filtered `Ledger::Call` scope.
 2. Dashboard services run targeted aggregate queries.
 3. Helpers render filters, charts, pagination, CSV links, and numeric formatting.
 4. Views render plain ERB with the engine CSS asset.
@@ -62,8 +63,8 @@ Dashboard reads do not mutate ledger state. They can be heavier than request-tim
 ## Pricing Refresh
 
 1. `llm_cost_tracker:prices:refresh` chooses `ENV["OUTPUT"]`, then `config.prices_file`, then `config/llm_cost_tracker_prices.yml`.
-2. `PriceSync::Fetcher` fetches the maintained LLM Cost Tracker price snapshot.
-3. `PriceSync` validates schema compatibility, gem-version compatibility, and model price shape.
+2. `Pricing::Sync::Fetcher` fetches the maintained LLM Cost Tracker price snapshot.
+3. `Pricing::Sync` validates schema compatibility, gem-version compatibility, and model price shape.
 4. `RegistryWriter` writes a local JSON or YAML registry.
 5. Runtime pricing reloads the local file when its mtime changes.
 

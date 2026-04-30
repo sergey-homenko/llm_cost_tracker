@@ -6,7 +6,7 @@ require "stringio"
 require "tempfile"
 require "price_scrape/runner"
 
-RSpec.describe LlmCostTracker::PriceScrape::Runner do
+RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   let(:io) { StringIO.new }
   let(:html) { File.read("spec/fixtures/scrape/anthropic_pricing.html", encoding: "utf-8") }
 
@@ -18,7 +18,7 @@ RSpec.describe LlmCostTracker::PriceScrape::Runner do
   end
 
   before do
-    stub_request(:get, LlmCostTracker::PriceScrape::Providers::Anthropic::SOURCE_URL)
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic::SOURCE_URL)
       .to_return(status: 200, body: html, headers: { "Content-Type" => "text/html; charset=utf-8" })
   end
 
@@ -68,7 +68,7 @@ RSpec.describe LlmCostTracker::PriceScrape::Runner do
   end
 
   it "marks a provider run as failed and raises after the loop when its parser breaks" do
-    stub_request(:get, LlmCostTracker::PriceScrape::Providers::Anthropic::SOURCE_URL)
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic::SOURCE_URL)
       .to_return(status: 200, body: "<html><body></body></html>",
                  headers: { "Content-Type" => "text/html; charset=utf-8" })
 
@@ -86,7 +86,7 @@ RSpec.describe LlmCostTracker::PriceScrape::Runner do
   end
 
   it "continues running remaining providers when one fails" do
-    stub_request(:get, LlmCostTracker::PriceScrape::Providers::Gemini::SOURCE_URL)
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini::SOURCE_URL)
       .to_return(status: 200, body: "<html><body></body></html>",
                  headers: { "Content-Type" => "text/html; charset=utf-8" })
 

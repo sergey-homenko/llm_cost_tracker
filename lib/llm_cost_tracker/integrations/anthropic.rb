@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "stream_tracker"
+require_relative "../capture/stream_tracker"
 
 module LlmCostTracker
   module Integrations
@@ -84,16 +84,16 @@ module LlmCostTracker
         def track_stream(stream, collector:)
           return stream unless active?
 
-          StreamTracker.wrap(
+          LlmCostTracker::Capture::StreamTracker.new(
             stream,
-            collector: collector,
-            active: -> { active? },
-            finish: ->(errored:) { finish_stream(collector, errored: errored) }
-          )
+            collector,
+            -> { active? },
+            ->(errored:) { finish_stream(collector, errored: errored) }
+          ).wrap
         end
 
         def stream_collector(request)
-          LlmCostTracker::StreamCollector.new(
+          LlmCostTracker::Capture::StreamCollector.new(
             provider: "anthropic",
             model: request[:model]
           )

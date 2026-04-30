@@ -19,7 +19,7 @@ module LlmCostTracker
       DEFAULT_SORT = "cost"
 
       class << self
-        def call(scope: LlmCostTracker::LlmApiCall.all, limit: DEFAULT_LIMIT, sort: DEFAULT_SORT)
+        def call(scope: LlmCostTracker::Ledger::Call.all, limit: DEFAULT_LIMIT, sort: DEFAULT_SORT)
           new(scope: scope, limit: limit, sort: sort).rows
         end
       end

@@ -33,7 +33,7 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 500
       )
 
-      expect(result).to be_a(LlmCostTracker::Cost)
+      expect(result).to be_a(LlmCostTracker::Pricing::Cost)
       expect(result.input_cost).to be > 0
       expect(result.output_cost).to be > 0
       expect(result.total_cost).to eq(result.input_cost + result.output_cost)
@@ -517,11 +517,11 @@ RSpec.describe LlmCostTracker::Pricing do
         file.close
 
         LlmCostTracker.configure { |c| c.prices_file = file.path }
-        allow(LlmCostTracker::PriceRegistry).to receive(:file_prices).and_call_original
+        allow(LlmCostTracker::Pricing::Registry).to receive(:file_prices).and_call_original
 
         2.times { described_class.lookup(provider: "custom", model: "cached-file-model") }
 
-        expect(LlmCostTracker::PriceRegistry).to have_received(:file_prices).once
+        expect(LlmCostTracker::Pricing::Registry).to have_received(:file_prices).once
       end
     end
   end
@@ -581,7 +581,7 @@ RSpec.describe LlmCostTracker::Pricing do
   end
 
   describe "bundled price snapshot" do
-    let(:bundled) { LlmCostTracker::PriceRegistry.builtin_prices }
+    let(:bundled) { LlmCostTracker::Pricing::Registry.builtin_prices }
 
     it "ships at least one model" do
       expect(bundled.size).to be > 0
@@ -595,7 +595,7 @@ RSpec.describe LlmCostTracker::Pricing do
       bundled.each do |model_id, fields|
         fields.each do |field, value|
           field_name = field.to_s
-          next unless LlmCostTracker::PriceRegistry::PRICE_KEYS.include?(field_name) ||
+          next unless LlmCostTracker::Pricing::Registry::PRICE_KEYS.include?(field_name) ||
                       field_name.match?(/_(input|output)\z/)
 
           expect(value).to be_a(Numeric), "#{model_id}.#{field} expected Numeric, got #{value.inspect}"

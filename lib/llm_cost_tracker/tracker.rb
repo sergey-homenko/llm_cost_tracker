@@ -31,7 +31,7 @@ module LlmCostTracker
           pricing_mode: pricing_mode
         )
 
-        UnknownPricing.handle!(capture.model) unless cost_data
+        Pricing::Unknown.handle!(capture.model) unless cost_data
 
         event = build_event(
           capture: capture,
@@ -67,8 +67,8 @@ module LlmCostTracker
           token_usage: capture.token_usage,
           pricing_mode: pricing_mode,
           cost: cost_data,
-          tags: LlmCostTracker::TagSanitizer.call(
-            LlmCostTracker::TagContext.tags.merge(tags)
+          tags: LlmCostTracker::Tags::Sanitizer.call(
+            LlmCostTracker::Tags::Context.tags.merge(tags)
           ).freeze,
           latency_ms: latency_ms.nil? ? nil : [latency_ms.to_i, 0].max,
           stream: capture.stream ? true : false,

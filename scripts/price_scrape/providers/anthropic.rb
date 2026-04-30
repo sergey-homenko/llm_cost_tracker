@@ -4,7 +4,7 @@ require "nokogiri"
 require "time"
 
 module LlmCostTracker
-  module PriceScrape
+  module Pricing::Scrape
     module Providers
       class Anthropic
         SOURCE_URL = "https://platform.claude.com/docs/en/about-claude/pricing"

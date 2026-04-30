@@ -6,7 +6,7 @@ require "date"
 require "json"
 
 module LlmCostTracker
-  module PriceScrape
+  module Pricing::Scrape
     class Orchestrator
       Result = Data.define(:added, :removed, :updated, :unchanged, :written) do
         def changed?
@@ -16,7 +16,7 @@ module LlmCostTracker
 
       class Error < StandardError; end
 
-      def initialize(writer: LlmCostTracker::PriceSync::RegistryWriter.new, today: Date.today, dry_run: false)
+      def initialize(writer: LlmCostTracker::Pricing::Sync::RegistryWriter.new, today: Date.today, dry_run: false)
         @writer = writer
         @today = today
         @dry_run = dry_run
@@ -41,8 +41,8 @@ module LlmCostTracker
       private
 
       def read_registry(path)
-        if File.size(path) > LlmCostTracker::PriceRegistry::MAX_FILE_BYTES
-          raise Error, "registry exceeds #{LlmCostTracker::PriceRegistry::MAX_FILE_BYTES} bytes at #{path}"
+        if File.size(path) > LlmCostTracker::Pricing::Registry::MAX_FILE_BYTES
+          raise Error, "registry exceeds #{LlmCostTracker::Pricing::Registry::MAX_FILE_BYTES} bytes at #{path}"
         end
 
         contents = File.read(path)

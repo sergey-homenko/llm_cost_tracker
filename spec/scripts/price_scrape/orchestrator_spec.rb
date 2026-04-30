@@ -5,7 +5,7 @@ require "json"
 require "tempfile"
 require "price_scrape/orchestrator"
 
-RSpec.describe LlmCostTracker::PriceScrape::Orchestrator do
+RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
   let(:provider_result_class) do
     Data.define(:source_url, :scraped_at, :models, :deprecated_models)
   end
@@ -205,7 +205,7 @@ RSpec.describe LlmCostTracker::PriceScrape::Orchestrator do
   end
 
   it "rejects oversized registries before reading them" do
-    stub_const("LlmCostTracker::PriceRegistry::MAX_FILE_BYTES", 10)
+    stub_const("LlmCostTracker::Pricing::Registry::MAX_FILE_BYTES", 10)
     provider_result = build_result(models: { "claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } })
 
     Tempfile.create(["registry", ".json"]) do |file|

@@ -66,14 +66,14 @@ module LlmCostTrackerEngineContext
                            attrs.fetch(:output_tokens)
     attrs[:tags] = tags_for_database(attrs.fetch(:tags))
 
-    LlmCostTracker::LlmApiCall.create!(attrs)
+    LlmCostTracker::Ledger::Call.create!(attrs)
   end
 end
 
 RSpec.shared_context "with mounted llm cost tracker engine" do
   require "active_record"
   require "json"
-  require "llm_cost_tracker/llm_api_call"
+  require "llm_cost_tracker/ledger"
   require "rack/mock"
 
   include LlmCostTrackerEngineContext
@@ -82,7 +82,7 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
     Rails.logger = Logger.new(nil)
     establish_database_connection!
     create_llm_api_calls_table
-    LlmCostTracker::LlmApiCall.reset_column_information
+    LlmCostTracker::Ledger::Call.reset_column_information
   end
 
   after do

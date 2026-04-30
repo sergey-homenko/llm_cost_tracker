@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
+require_relative "pricing/registry"
 require_relative "pricing/lookup"
 require_relative "pricing/effective_prices"
 require_relative "pricing/explainer"
 
 module LlmCostTracker
   module Pricing
-    PRICES = PriceRegistry.builtin_prices
+    PRICES = Registry.builtin_prices
 
     class << self
       def cost_for(provider:, model:, token_usage:, pricing_mode: nil)
@@ -16,12 +17,12 @@ module LlmCostTracker
         costs = calculate_costs(token_usage, prices, pricing_mode: pricing_mode)
         return nil unless costs
 
+        values = TokenUsage::PRICED_COMPONENTS.to_h do |component|
+          [component.cost_key, costs.fetch(component.price_key).round(8)]
+        end
+
         Cost.new(
-          input_cost: costs[:input].round(8),
-          cache_read_input_cost: costs[:cache_read_input].round(8),
-          cache_write_input_cost: costs[:cache_write_input].round(8),
-          cache_write_1h_input_cost: costs[:cache_write_1h_input].round(8),
-          output_cost: costs[:output].round(8),
+          **values,
           total_cost: costs.values.sum.round(8),
           currency: "USD"
         )

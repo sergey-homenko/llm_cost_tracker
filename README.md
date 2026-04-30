@@ -195,10 +195,10 @@ Full behavior, error class, and preflight details: [`docs/budgets.md`](docs/budg
 When you want to slice spend from a console, scheduled job, or your own admin page:
 
 ```ruby
-LlmCostTracker::LlmApiCall.this_month.cost_by_model
-LlmCostTracker::LlmApiCall.this_month.cost_by_tag("feature")
-LlmCostTracker::LlmApiCall.daily_costs(days: 7)
-LlmCostTracker::LlmApiCall.by_tags(user_id: 42, feature: "chat").this_month.total_cost
+LlmCostTracker::Ledger::Call.this_month.cost_by_model
+LlmCostTracker::Ledger::Call.this_month.cost_by_tag("feature")
+LlmCostTracker::Ledger::Call.daily_costs(days: 7)
+LlmCostTracker::Ledger::Call.by_tags(user_id: 42, feature: "chat").this_month.total_cost
 ```
 
 A text report is also one rake task away:

@@ -15,7 +15,7 @@ module LlmCostTracker
     private
 
     def filter_options_for(column, filter_params:)
-      source = LlmCostTracker::ParameterHash.to_hash(filter_params)
+      source = LlmCostTracker::Dashboard::Params.to_hash(filter_params)
       scope_params = source.stringify_keys.merge(
         column.to_s => nil, "format" => nil, "page" => nil, "per" => nil, "sort" => nil
       )

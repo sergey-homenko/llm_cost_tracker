@@ -3,7 +3,7 @@
 require "spec_helper"
 require "price_scrape/fetcher"
 
-RSpec.describe LlmCostTracker::PriceScrape::Fetcher do
+RSpec.describe LlmCostTracker::Pricing::Scrape::Fetcher do
   let(:url) { "https://example.com/page" }
   let(:fetcher) { described_class.new(sleep: ->(_seconds) {}) }
 

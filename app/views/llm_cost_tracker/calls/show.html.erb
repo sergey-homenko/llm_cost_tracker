@@ -1,19 +1,13 @@
 <% token_usage = LlmCostTracker::TokenUsage.from_hash(@call.attributes) %>
-<% cost = @call.total_cost.nil? ? nil : LlmCostTracker::Cost.from_hash(@call.attributes) %>
-<% token_segments = [
-  { label: "Input", value: token_usage.input_tokens, formatted_value: format_tokens(token_usage.input_tokens), css_class: "lct-stack-fill-input" },
-  { label: "Cache read", value: token_usage.cache_read_input_tokens, formatted_value: format_tokens(token_usage.cache_read_input_tokens), css_class: "lct-stack-fill-cache-read" },
-  { label: "Cache write", value: token_usage.cache_write_input_tokens, formatted_value: format_tokens(token_usage.cache_write_input_tokens), css_class: "lct-stack-fill-cache-write" },
-  { label: "1h cache write", value: token_usage.cache_write_1h_input_tokens, formatted_value: format_tokens(token_usage.cache_write_1h_input_tokens), css_class: "lct-stack-fill-cache-write-1h" },
-  { label: "Output", value: token_usage.output_tokens, formatted_value: format_tokens(token_usage.output_tokens), css_class: "lct-stack-fill-output" }
-] %>
-<% cost_segments = cost ? [
-  { label: "Input", value: cost.input_cost, formatted_value: optional_money(cost.input_cost), css_class: "lct-stack-fill-input" },
-  { label: "Cache read", value: cost.cache_read_input_cost, formatted_value: optional_money(cost.cache_read_input_cost), css_class: "lct-stack-fill-cache-read" },
-  { label: "Cache write", value: cost.cache_write_input_cost, formatted_value: optional_money(cost.cache_write_input_cost), css_class: "lct-stack-fill-cache-write" },
-  { label: "1h cache write", value: cost.cache_write_1h_input_cost, formatted_value: optional_money(cost.cache_write_1h_input_cost), css_class: "lct-stack-fill-cache-write-1h" },
-  { label: "Output", value: cost.output_cost, formatted_value: optional_money(cost.output_cost), css_class: "lct-stack-fill-output" }
-] : [] %>
+<% cost = @call.total_cost.nil? ? nil : LlmCostTracker::Pricing::Cost.from_hash(@call.attributes) %>
+<% token_segments = LlmCostTracker::TokenUsage::PRICED_COMPONENTS.map do |component|
+  value = token_usage.public_send(component.token_key)
+  { label: component.label, value: value, formatted_value: format_tokens(value), css_class: component.css_class }
+end %>
+<% cost_segments = cost ? LlmCostTracker::TokenUsage::PRICED_COMPONENTS.map do |component|
+  value = cost.public_send(component.cost_key)
+  { label: component.label, value: value, formatted_value: optional_money(value), css_class: component.css_class }
+end : [] %>
 
 <section class="lct-panel">
   <p class="lct-muted"><%= link_to "Back to calls", calls_path %></p>
@@ -81,7 +75,7 @@
       <dt>Pricing Status</dt>
       <dd><%= pricing_status(@call) %></dd>
 
-      <% if LlmCostTracker::LlmApiCall.provider_response_id_column? %>
+      <% if LlmCostTracker::Ledger::Call.provider_response_id_column? %>
         <dt>Provider Response ID</dt>
         <dd><%= @call.provider_response_id.presence || "n/a" %></dd>
       <% end %>
@@ -98,42 +92,20 @@
     </dl>
 
     <dl class="lct-dl">
-      <dt>Input Tokens</dt>
-      <dd><%= format_tokens(@call.input_tokens) %></dd>
-
-      <% if LlmCostTracker::LlmApiCall.token_usage_columns? %>
-        <dt>Cache Read Tokens</dt>
-        <dd><%= format_tokens(token_usage.cache_read_input_tokens) %></dd>
-
-        <dt>Cache Write Tokens</dt>
-        <dd><%= format_tokens(token_usage.cache_write_input_tokens) %></dd>
-
-        <dt>1h Cache Write Tokens</dt>
-        <dd><%= format_tokens(token_usage.cache_write_1h_input_tokens) %></dd>
+      <% LlmCostTracker::TokenUsage::PRICED_COMPONENTS.each do |component| %>
+        <% next if component.stored == :optional && !LlmCostTracker::Ledger::Call.token_usage_columns? %>
+        <dt><%= component.label.titleize %> Tokens</dt>
+        <dd><%= format_tokens(token_usage.public_send(component.token_key)) %></dd>
       <% end %>
-
-      <dt>Output Tokens</dt>
-      <dd><%= format_tokens(@call.output_tokens) %></dd>
 
       <dt>Total Tokens</dt>
       <dd><%= format_tokens(@call.total_tokens) %></dd>
 
-      <dt>Input Cost</dt>
-      <dd><%= optional_money(@call.input_cost) %></dd>
-
-      <% if LlmCostTracker::LlmApiCall.token_usage_cost_columns? %>
-        <dt>Cache Read Cost</dt>
-        <dd><%= optional_money(cost&.cache_read_input_cost) %></dd>
-
-        <dt>Cache Write Cost</dt>
-        <dd><%= optional_money(cost&.cache_write_input_cost) %></dd>
-
-        <dt>1h Cache Write Cost</dt>
-        <dd><%= optional_money(cost&.cache_write_1h_input_cost) %></dd>
+      <% LlmCostTracker::TokenUsage::PRICED_COMPONENTS.each do |component| %>
+        <% next if component.stored == :optional && !LlmCostTracker::Ledger::Call.token_usage_cost_columns? %>
+        <dt><%= component.label.titleize %> Cost</dt>
+        <dd><%= optional_money(cost&.public_send(component.cost_key)) %></dd>
       <% end %>
-
-      <dt>Output Cost</dt>
-      <dd><%= optional_money(@call.output_cost) %></dd>
 
       <dt>Total Cost</dt>
       <dd><%= optional_money(@call.total_cost) %></dd>

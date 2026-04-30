@@ -12,16 +12,16 @@ module LlmCostTrackerDatabaseSpecHelpers
 
   def add_tags_column(table)
     connection = ActiveRecord::Base.connection
-    if LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)
+    if LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)
       table.jsonb :tags, null: false, default: {}
-    elsif LlmCostTracker::ActiveRecordAdapter.mysql?(connection)
+    elsif LlmCostTracker::Ledger::DatabaseAdapter.mysql?(connection)
       table.json :tags, null: false
     else
-      LlmCostTracker::ActiveRecordAdapter.ensure_supported!(connection)
+      LlmCostTracker::Ledger::DatabaseAdapter.ensure_supported!(connection)
     end
   end
 
-  def tags_for_database(tags, model: LlmCostTracker::LlmApiCall)
+  def tags_for_database(tags, model: LlmCostTracker::Ledger::Call)
     normalized = tags.transform_keys(&:to_s).transform_values(&:to_s)
     model.tags_json_column? ? normalized : normalized.to_json
   end
@@ -36,7 +36,7 @@ module LlmCostTrackerDatabaseSpecHelpers
     ].each do |table|
       connection.drop_table(table, if_exists: true)
     end
-    LlmCostTracker::Rollups.reset!
-    LlmCostTracker::Inbox.reset!
+    LlmCostTracker::Ledger::Rollups.reset!
+    LlmCostTracker::Ledger::Ingestion::Inbox.reset!
   end
 end

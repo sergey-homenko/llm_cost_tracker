@@ -17,12 +17,12 @@ Until this page is expanded, use:
 ## Common Queries
 
 ```ruby
-LlmCostTracker::LlmApiCall.today.total_cost
-LlmCostTracker::LlmApiCall.this_month.cost_by_model
-LlmCostTracker::LlmApiCall.this_month.cost_by_provider
-LlmCostTracker::LlmApiCall.this_month.cost_by_tag("feature")
-LlmCostTracker::LlmApiCall.by_tags(user_id: 42, feature: "chat").this_month.total_cost
-LlmCostTracker::LlmApiCall.daily_costs(days: 7)
+LlmCostTracker::Ledger::Call.today.total_cost
+LlmCostTracker::Ledger::Call.this_month.cost_by_model
+LlmCostTracker::Ledger::Call.this_month.cost_by_provider
+LlmCostTracker::Ledger::Call.this_month.cost_by_tag("feature")
+LlmCostTracker::Ledger::Call.by_tags(user_id: 42, feature: "chat").this_month.total_cost
+LlmCostTracker::Ledger::Call.daily_costs(days: 7)
 ```
 
 ## Report Task

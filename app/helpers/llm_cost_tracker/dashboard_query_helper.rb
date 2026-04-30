@@ -11,7 +11,7 @@ module LlmCostTracker
 
     def calls_query_for_tag(key:, value:)
       query = current_query(page: nil, per: nil, format: nil)
-      tags = LlmCostTracker::ParameterHash.to_hash(query[:tag]).transform_keys(&:to_s).transform_values(&:to_s)
+      tags = LlmCostTracker::Dashboard::Params.to_hash(query[:tag]).transform_keys(&:to_s).transform_values(&:to_s)
       query[:tag] = tags.merge(key.to_s => value.to_s)
       query
     end
@@ -20,7 +20,7 @@ module LlmCostTracker
 
     def clean_dashboard_query(value)
       if value.is_a?(Hash) || value.try(:to_unsafe_h).is_a?(Hash)
-        return LlmCostTracker::ParameterHash.to_hash(value).each_with_object({}) do |(key, nested), cleaned|
+        return LlmCostTracker::Dashboard::Params.to_hash(value).each_with_object({}) do |(key, nested), cleaned|
           nested = clean_dashboard_query(nested)
           next if nested.nil? || nested == {} || nested == []
 

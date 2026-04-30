@@ -5,7 +5,7 @@ require "json"
 require "spec_helper"
 require "price_scrape/providers/openai"
 
-RSpec.describe LlmCostTracker::PriceScrape::Providers::Openai do
+RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
   let(:fixture_path) { File.expand_path("../../../fixtures/scrape/openai_pricing.html", __dir__) }
   let(:html) { File.read(fixture_path, encoding: "utf-8") }
 

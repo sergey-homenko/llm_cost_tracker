@@ -10,9 +10,9 @@ module LlmCostTracker
         raise ArgumentError, "batch_size must be positive: #{batch_size.inspect}" unless batch_size.positive?
 
         cutoff = resolve_cutoff(older_than, now)
-        require_relative "ledger_store"
+        require_relative "ledger"
 
-        LedgerStore.prune(cutoff: cutoff, batch_size: batch_size)
+        Ledger::Store.prune(cutoff: cutoff, batch_size: batch_size)
       end
 
       private

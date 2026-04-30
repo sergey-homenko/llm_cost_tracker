@@ -5,7 +5,7 @@ module LlmCostTracker
     ProviderRow = Data.define(:provider, :calls, :total_cost, :share_percent)
 
     class ProviderBreakdown
-      def self.call(scope: LlmCostTracker::LlmApiCall.all)
+      def self.call(scope: LlmCostTracker::Ledger::Call.all)
         new(scope: scope).rows
       end
 

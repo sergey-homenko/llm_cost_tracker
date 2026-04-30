@@ -8,14 +8,14 @@ module LlmCostTracker
       DEFAULT_LIMIT = 100
 
       class << self
-        def call(scope: LlmCostTracker::LlmApiCall.all, limit: DEFAULT_LIMIT)
+        def call(scope: LlmCostTracker::Ledger::Call.all, limit: DEFAULT_LIMIT)
           new(scope: scope, limit: limit).rows
         end
       end
 
       def initialize(scope:, limit:)
         @scope = scope
-        @connection = LlmCostTracker::LlmApiCall.connection
+        @connection = LlmCostTracker::Ledger::Call.connection
         limit = limit.to_i
         @limit = limit.positive? ? [limit, DEFAULT_LIMIT].min : DEFAULT_LIMIT
       end
@@ -43,10 +43,10 @@ module LlmCostTracker
       end
 
       def build_sql
-        return postgresql_sql if ActiveRecordAdapter.postgresql?(connection)
-        return mysql_sql if ActiveRecordAdapter.mysql?(connection)
+        return postgresql_sql if Ledger::DatabaseAdapter.postgresql?(connection)
+        return mysql_sql if Ledger::DatabaseAdapter.mysql?(connection)
 
-        ActiveRecordAdapter.ensure_supported!(connection)
+        Ledger::DatabaseAdapter.ensure_supported!(connection)
       end
 
       def mysql_sql

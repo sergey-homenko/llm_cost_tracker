@@ -29,7 +29,7 @@
                        id: "lct-overview-model" %>
       </div>
 
-      <% if LlmCostTracker::LlmApiCall.stream_column? %>
+      <% if LlmCostTracker::Ledger::Call.stream_column? %>
         <div class="lct-field">
           <label for="lct-overview-stream">Stream</label>
           <%= select_tag :stream,

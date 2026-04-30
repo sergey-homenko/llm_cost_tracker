@@ -3,7 +3,7 @@
 require "spec_helper"
 require "active_record"
 require "active_support/notifications"
-require "llm_cost_tracker/llm_api_call"
+require "llm_cost_tracker/ledger"
 
 ENV["RAILS_ENV"] ||= "test"
 
@@ -19,8 +19,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_table :llm_api_calls, force: true, &table_definition
     end
 
-    LlmCostTracker::LlmApiCall.reset_column_information
-    LlmCostTracker::Rollups.reset!
+    LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ledger::Rollups.reset!
   end
 
   def create_call(**overrides)
@@ -29,7 +29,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     attrs[:tags] = tags_for_database(attrs.fetch(:tags))
     normalize_call_columns!(attrs)
 
-    LlmCostTracker::LlmApiCall.create!(attrs)
+    LlmCostTracker::Ledger::Call.create!(attrs)
   end
 
   def llm_api_calls_table_definition(latency:, streaming:, token_usage:)
@@ -110,22 +110,22 @@ RSpec.describe "LlmCostTracker dashboard services" do
   end
 
   def normalize_call_columns!(attrs)
-    attrs.delete(:latency_ms) unless LlmCostTracker::LlmApiCall.latency_column?
-    attrs.delete(:stream) unless LlmCostTracker::LlmApiCall.stream_column?
-    attrs.delete(:usage_source) unless LlmCostTracker::LlmApiCall.usage_source_column?
-    attrs.delete(:provider_response_id) unless LlmCostTracker::LlmApiCall.provider_response_id_column?
-    unless LlmCostTracker::LlmApiCall.token_usage_columns?
+    attrs.delete(:latency_ms) unless LlmCostTracker::Ledger::Call.latency_column?
+    attrs.delete(:stream) unless LlmCostTracker::Ledger::Call.stream_column?
+    attrs.delete(:usage_source) unless LlmCostTracker::Ledger::Call.usage_source_column?
+    attrs.delete(:provider_response_id) unless LlmCostTracker::Ledger::Call.provider_response_id_column?
+    unless LlmCostTracker::Ledger::Call.token_usage_columns?
       attrs.delete(:cache_read_input_tokens)
       attrs.delete(:cache_write_input_tokens)
       attrs.delete(:cache_write_1h_input_tokens)
       attrs.delete(:hidden_output_tokens)
     end
-    unless LlmCostTracker::LlmApiCall.token_usage_cost_columns?
+    unless LlmCostTracker::Ledger::Call.token_usage_cost_columns?
       attrs.delete(:cache_read_input_cost)
       attrs.delete(:cache_write_input_cost)
       attrs.delete(:cache_write_1h_input_cost)
     end
-    attrs.delete(:pricing_mode) unless LlmCostTracker::LlmApiCall.pricing_mode_column?
+    attrs.delete(:pricing_mode) unless LlmCostTracker::Ledger::Call.pricing_mode_column?
   end
 
   def capture_llm_api_call_selects
@@ -153,7 +153,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     disconnect_database!
   end
 
-  describe LlmCostTracker::Pagination do
+  describe LlmCostTracker::Dashboard::Pagination do
     it "uses defaults for nil params" do
       page = described_class.call(nil)
 
@@ -420,12 +420,12 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "reads monthly budget status from maintained storage totals" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
-      allow(LlmCostTracker::LedgerStore).to receive(:monthly_total).and_return(7.5)
+      allow(LlmCostTracker::Ledger::Store).to receive(:monthly_total).and_return(7.5)
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
 
       stats = described_class.call
 
-      expect(LlmCostTracker::LedgerStore).to have_received(:monthly_total).with(time: now)
+      expect(LlmCostTracker::Ledger::Store).to have_received(:monthly_total).with(time: now)
       expect(stats.monthly_budget_status).to include(spent: 7.5, percent_used: 75.0)
     end
 
@@ -451,8 +451,9 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(total_cost: 2.0, tracked_at: Time.utc(2026, 4, 15, 12))
       create_call(total_cost: 6.0, tracked_at: Time.utc(2026, 4, 18, 12))
 
-      current = LlmCostTracker::LlmApiCall.where(tracked_at: Time.utc(2026, 4, 18)..Time.utc(2026, 4, 18, 23, 59, 59))
-      previous = LlmCostTracker::LlmApiCall.where(tracked_at: Time.utc(2026, 4, 15)..Time.utc(2026, 4, 15, 23, 59, 59))
+      current = LlmCostTracker::Ledger::Call.where(tracked_at: Time.utc(2026, 4, 18)..Time.utc(2026, 4, 18, 23, 59, 59))
+      previous = LlmCostTracker::Ledger::Call.where(tracked_at: Time.utc(2026, 4,
+                                                                         15)..Time.utc(2026, 4, 15, 23, 59, 59))
 
       stats = described_class.call(scope: current, previous_scope: previous)
 
@@ -465,8 +466,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "returns nil delta when previous period has zero cost" do
       create_call(total_cost: 2.0, tracked_at: Time.utc(2026, 4, 18, 12))
 
-      current = LlmCostTracker::LlmApiCall.where(tracked_at: Time.utc(2026, 4, 18).all_day)
-      previous = LlmCostTracker::LlmApiCall.where(tracked_at: Time.utc(2026, 4, 15).all_day)
+      current = LlmCostTracker::Ledger::Call.where(tracked_at: Time.utc(2026, 4, 18).all_day)
+      previous = LlmCostTracker::Ledger::Call.where(tracked_at: Time.utc(2026, 4, 15).all_day)
 
       stats = described_class.call(scope: current, previous_scope: previous)
 
@@ -699,11 +700,11 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(total_cost: 1.0, tags: { env: "prod" }, latency_ms: 100)
       create_call(total_cost: nil, tags: {})
 
-      LlmCostTracker::LlmApiCall.latency_column?
-      LlmCostTracker::LlmApiCall.stream_column?
-      LlmCostTracker::LlmApiCall.provider_response_id_column?
-      LlmCostTracker::LlmApiCall.token_usage_columns?
-      LlmCostTracker::LlmApiCall.token_usage_cost_columns?
+      LlmCostTracker::Ledger::Call.latency_column?
+      LlmCostTracker::Ledger::Call.stream_column?
+      LlmCostTracker::Ledger::Call.provider_response_id_column?
+      LlmCostTracker::Ledger::Call.token_usage_columns?
+      LlmCostTracker::Ledger::Call.token_usage_cost_columns?
 
       statements = capture_llm_api_call_selects { described_class.call }
 
@@ -840,12 +841,12 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(tags: { env: "staging" })
 
       %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-        connection = LlmCostTracker::LlmApiCall.connection
+        connection = LlmCostTracker::Ledger::Call.connection
         captured_sql = nil
 
         allow(connection).to receive(:adapter_name).and_return(adapter_name)
-        allow(LlmCostTracker::ActiveRecordAdapter).to receive(:postgresql?).with(connection).and_return(false)
-        allow(LlmCostTracker::ActiveRecordAdapter).to receive(:mysql?).with(connection).and_return(true)
+        allow(LlmCostTracker::Ledger::DatabaseAdapter).to receive(:postgresql?).with(connection).and_return(false)
+        allow(LlmCostTracker::Ledger::DatabaseAdapter).to receive(:mysql?).with(connection).and_return(true)
         allow(connection).to receive(:select_all) do |sql|
           captured_sql = sql
           ActiveRecord::Result.new(

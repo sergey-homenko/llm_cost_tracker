@@ -8,7 +8,7 @@ Primary files:
 
 - `lib/llm_cost_tracker.rb`
 - `lib/llm_cost_tracker/configuration.rb`
-- `lib/llm_cost_tracker/tag_context.rb`
+- `lib/llm_cost_tracker/tags/*`
 - `lib/llm_cost_tracker/doctor.rb`
 - `lib/llm_cost_tracker/doctor/*`
 - `lib/llm_cost_tracker/logging.rb`
@@ -43,7 +43,8 @@ Integrations are for Ruby SDK object shapes. Parsers are for HTTP and stream pay
 Primary files:
 
 - `lib/llm_cost_tracker/middleware/faraday.rb`
-- `lib/llm_cost_tracker/stream_collector.rb`
+- `lib/llm_cost_tracker/capture/stream_tracker.rb`
+- `lib/llm_cost_tracker/capture/stream_collector.rb`
 - `lib/llm_cost_tracker/usage_capture.rb`
 - `lib/llm_cost_tracker/parsers/*`
 
@@ -63,8 +64,8 @@ Primary files:
 - `lib/llm_cost_tracker/tracker.rb`
 - `lib/llm_cost_tracker/event.rb`
 - `lib/llm_cost_tracker/token_usage.rb`
-- `lib/llm_cost_tracker/cost.rb`
-- `lib/llm_cost_tracker/unknown_pricing.rb`
+- `lib/llm_cost_tracker/pricing/cost.rb`
+- `lib/llm_cost_tracker/pricing/unknown.rb`
 
 Responsibilities:
 
@@ -81,9 +82,11 @@ This module must remain provider-agnostic. It should never branch on a specific 
 Primary files:
 
 - `lib/llm_cost_tracker/pricing.rb`
-- `lib/llm_cost_tracker/price_registry.rb`
+- `lib/llm_cost_tracker/pricing/registry.rb`
 - `lib/llm_cost_tracker/prices.json`
-- `lib/llm_cost_tracker/price_sync/*`
+- `lib/llm_cost_tracker/pricing/sync.rb`
+- `lib/llm_cost_tracker/pricing/sync/*`
+- `scripts/price_scrape/*`
 - `lib/tasks/llm_cost_tracker.rake`
 
 Responsibilities:
@@ -100,18 +103,17 @@ Pricing refresh must not perform boot-time or request-time network work. Runtime
 
 Primary files:
 
-- `lib/llm_cost_tracker/llm_api_call.rb`
-- `lib/llm_cost_tracker/period_total.rb`
-- `lib/llm_cost_tracker/llm_api_call_metrics.rb`
 - `lib/llm_cost_tracker/ledger.rb`
-- `lib/llm_cost_tracker/ledger_store.rb`
-- `lib/llm_cost_tracker/rollups.rb`
-- `lib/llm_cost_tracker/tags_column.rb`
-- `lib/llm_cost_tracker/tag_key.rb`
-- `lib/llm_cost_tracker/tag_sql.rb`
-- `lib/llm_cost_tracker/tag_query.rb`
-- `lib/llm_cost_tracker/tag_accessors.rb`
-- `lib/llm_cost_tracker/period_grouping.rb`
+- `lib/llm_cost_tracker/ledger/call.rb`
+- `lib/llm_cost_tracker/ledger/store.rb`
+- `lib/llm_cost_tracker/ledger/period_total.rb`
+- `lib/llm_cost_tracker/ledger/period_totals.rb`
+- `lib/llm_cost_tracker/ledger/rollups.rb`
+- `lib/llm_cost_tracker/ledger/rollups/*`
+- `lib/llm_cost_tracker/ledger/ingestion/*`
+- `lib/llm_cost_tracker/ledger/tags/*`
+- `lib/llm_cost_tracker/ledger/database_adapter.rb`
+- `lib/llm_cost_tracker/ledger/schema_capabilities.rb`
 
 Responsibilities:
 
@@ -128,7 +130,7 @@ Primary files:
 
 - `lib/llm_cost_tracker/budget.rb`
 - `lib/llm_cost_tracker/retention.rb`
-- `lib/llm_cost_tracker/rollups.rb`
+- `lib/llm_cost_tracker/ledger/rollups.rb`
 
 Responsibilities:
 
@@ -143,7 +145,8 @@ Budget behavior is part of the hot path. Any change here must be measured agains
 
 Primary files:
 
-- `lib/llm_cost_tracker/report*.rb`
+- `lib/llm_cost_tracker/report.rb`
+- `lib/llm_cost_tracker/report/*`
 - `app/controllers/llm_cost_tracker/*`
 - `app/services/llm_cost_tracker/dashboard/*`
 - `app/helpers/llm_cost_tracker/*`

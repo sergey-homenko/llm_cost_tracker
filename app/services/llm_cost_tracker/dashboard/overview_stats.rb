@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "llm_cost_tracker/ledger_store"
+require "llm_cost_tracker/ledger"
 
 module LlmCostTracker
   module Dashboard
@@ -19,7 +19,7 @@ module LlmCostTracker
 
     class OverviewStats
       class << self
-        def call(scope: LlmCostTracker::LlmApiCall.all, previous_scope: nil)
+        def call(scope: LlmCostTracker::Ledger::Call.all, previous_scope: nil)
           current = scope.select(aggregate_selects(scope)).take
           total_calls = current.calls_count.to_i
           total_cost = current.total_cost_sum.to_f
@@ -75,7 +75,7 @@ module LlmCostTracker
           now = Time.now.utc
           month_start = now.beginning_of_month
           month_end = now.end_of_month
-          spent = LlmCostTracker::LedgerStore.monthly_total(time: now)
+          spent = LlmCostTracker::Ledger::Store.monthly_total(time: now)
           elapsed_seconds = now - month_start
           total_seconds = month_end - month_start
           projected_spent = if spent.zero? || !elapsed_seconds.positive?

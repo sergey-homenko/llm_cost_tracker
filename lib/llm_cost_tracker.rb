@@ -13,14 +13,15 @@ require_relative "llm_cost_tracker/version"
 require_relative "llm_cost_tracker/configuration"
 require_relative "llm_cost_tracker/errors"
 require_relative "llm_cost_tracker/logging"
-require_relative "llm_cost_tracker/parameter_hash"
-require_relative "llm_cost_tracker/cost"
+require_relative "llm_cost_tracker/tags/key"
+require_relative "llm_cost_tracker/tags/context"
+require_relative "llm_cost_tracker/tags/sanitizer"
 require_relative "llm_cost_tracker/token_usage"
 require_relative "llm_cost_tracker/event"
 require_relative "llm_cost_tracker/usage_capture"
-require_relative "llm_cost_tracker/price_registry"
-require_relative "llm_cost_tracker/price_sync"
+require_relative "llm_cost_tracker/pricing/cost"
 require_relative "llm_cost_tracker/pricing"
+require_relative "llm_cost_tracker/pricing/sync"
 require_relative "llm_cost_tracker/parsers/base"
 require_relative "llm_cost_tracker/parsers/openai_usage"
 require_relative "llm_cost_tracker/parsers/openai"
@@ -28,32 +29,17 @@ require_relative "llm_cost_tracker/parsers/openai_compatible"
 require_relative "llm_cost_tracker/parsers/anthropic"
 require_relative "llm_cost_tracker/parsers/gemini"
 require_relative "llm_cost_tracker/parsers/sse"
-require_relative "llm_cost_tracker/parsers/lookup"
+require_relative "llm_cost_tracker/parsers"
 require_relative "llm_cost_tracker/middleware/faraday"
 require_relative "llm_cost_tracker/integrations"
 require_relative "llm_cost_tracker/budget"
-require_relative "llm_cost_tracker/unknown_pricing"
-require_relative "llm_cost_tracker/tag_context"
-require_relative "llm_cost_tracker/tag_sanitizer"
-require_relative "llm_cost_tracker/active_record_adapter"
-require_relative "llm_cost_tracker/tags_column"
-require_relative "llm_cost_tracker/tag_key"
-require_relative "llm_cost_tracker/tag_sql"
-require_relative "llm_cost_tracker/tag_query"
-require_relative "llm_cost_tracker/tag_accessors"
-require_relative "llm_cost_tracker/llm_api_call_metrics"
-require_relative "llm_cost_tracker/llm_api_call"
-require_relative "llm_cost_tracker/inbox_event"
-require_relative "llm_cost_tracker/ingestor_lease"
-require_relative "llm_cost_tracker/period_total"
+require_relative "llm_cost_tracker/pricing/unknown"
 require_relative "llm_cost_tracker/ledger"
 require_relative "llm_cost_tracker/tracker"
 require_relative "llm_cost_tracker/retention"
-require_relative "llm_cost_tracker/report_data"
-require_relative "llm_cost_tracker/report_formatter"
 require_relative "llm_cost_tracker/report"
 require_relative "llm_cost_tracker/doctor"
-require_relative "llm_cost_tracker/capture_verifier"
+require_relative "llm_cost_tracker/doctor/capture_verifier"
 
 module LlmCostTracker
   @configuration = Configuration.new
@@ -74,30 +60,30 @@ module LlmCostTracker
     end
 
     def reset_configuration!
-      Inbox.reset!
-      Ingestor.shutdown!(drain: false)
+      Ledger::Ingestion::Inbox.reset!
+      Ledger::Ingestion::Worker.shutdown!(drain: false)
       @configuration = Configuration.new
       Pricing::Lookup.reset!
-      UnknownPricing.reset!
-      LedgerStore.reset!
-      Inbox.reset!
-      Ingestor.reset!
-      TagContext.clear!
+      Pricing::Unknown.reset!
+      Ledger::Store.reset!
+      Ledger::Ingestion::Inbox.reset!
+      Ledger::Ingestion::Worker.reset!
+      Tags::Context.clear!
     end
 
     def flush!(timeout: nil)
       if timeout
-        Ingestor.flush!(timeout: timeout)
+        Ledger::Ingestion::Worker.flush!(timeout: timeout)
       else
-        Ingestor.flush!
+        Ledger::Ingestion::Worker.flush!
       end
     end
 
     def shutdown!(timeout: nil, drain: true)
       if timeout
-        Ingestor.shutdown!(timeout: timeout, drain: drain)
+        Ledger::Ingestion::Worker.shutdown!(timeout: timeout, drain: drain)
       else
-        Ingestor.shutdown!(drain: drain)
+        Ledger::Ingestion::Worker.shutdown!(drain: drain)
       end
     end
 
@@ -107,7 +93,7 @@ module LlmCostTracker
 
     def with_tags(tags = nil, **kwargs, &)
       merged = (tags || {}).to_h.merge(kwargs)
-      TagContext.with(merged, &)
+      Tags::Context.with(merged, &)
     end
 
     def track(provider:, input_tokens:, output_tokens:, model: nil, latency_ms: nil, stream: false,
@@ -132,9 +118,9 @@ module LlmCostTracker
 
     def track_stream(provider:, model: nil, latency_ms: nil, enforce_budget: false, provider_response_id: nil,
                      pricing_mode: nil, **metadata)
-      require_relative "llm_cost_tracker/stream_collector"
+      require_relative "llm_cost_tracker/capture/stream_collector"
       enforce_budget! if enforce_budget
-      collector = StreamCollector.new(
+      collector = Capture::StreamCollector.new(
         provider: provider.to_s,
         model: model,
         latency_ms: latency_ms,

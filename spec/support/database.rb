@@ -7,7 +7,7 @@ module LlmCostTrackerDatabase
     def establish!
       ensure_database!
       ActiveRecord::Base.establish_connection(config)
-      LlmCostTracker::ActiveRecordAdapter.ensure_supported!(ActiveRecord::Base.connection)
+      LlmCostTracker::Ledger::DatabaseAdapter.ensure_supported!(ActiveRecord::Base.connection)
     end
 
     def disconnect!

@@ -50,7 +50,7 @@ RSpec.describe "LlmCostTracker::Engine tag key explorer" do
 
   it "renders a setup state when the ledger table is missing" do
     ActiveRecord::Base.connection.drop_table(:llm_api_calls)
-    LlmCostTracker::LlmApiCall.reset_column_information
+    LlmCostTracker::Ledger::Call.reset_column_information
 
     response = get("/llm-costs/tags")
 

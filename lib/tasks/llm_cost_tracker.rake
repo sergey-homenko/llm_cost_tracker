@@ -17,14 +17,16 @@ namespace :llm_cost_tracker do
   task :verify_capture do
     Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
     require_relative "../llm_cost_tracker"
-    checks = LlmCostTracker::CaptureVerifier.call
-    puts LlmCostTracker::CaptureVerifier.report(checks)
-    abort("llm_cost_tracker: capture verification failed") unless LlmCostTracker::CaptureVerifier.healthy?(checks)
+    checks = LlmCostTracker::Doctor::CaptureVerifier.call
+    puts LlmCostTracker::Doctor::CaptureVerifier.report(checks)
+    unless LlmCostTracker::Doctor::CaptureVerifier.healthy?(checks)
+      abort("llm_cost_tracker: capture verification failed")
+    end
   end
 
   desc "Print an LLM cost report from ActiveRecord storage"
   task report: :environment do
-    days = (ENV["DAYS"] || LlmCostTracker::ReportData::DEFAULT_DAYS).to_i
+    days = (ENV["DAYS"] || LlmCostTracker::Report::Data::DEFAULT_DAYS).to_i
     puts LlmCostTracker::Report.generate(days: days)
   end
 
@@ -46,9 +48,9 @@ namespace :llm_cost_tracker do
       require_relative "../llm_cost_tracker"
 
       output_path = price_refresh_output_path
-      source_url = LlmCostTracker::PriceSync.configured_remote_url
+      source_url = LlmCostTracker::Pricing::Sync.configured_remote_url
       preview = ENV["PREVIEW"] == "1"
-      result = LlmCostTracker::PriceSync.refresh(
+      result = LlmCostTracker::Pricing::Sync.refresh(
         path: output_path,
         url: source_url,
         preview: preview
@@ -74,8 +76,8 @@ namespace :llm_cost_tracker do
       require_relative "../llm_cost_tracker"
 
       output_path = price_refresh_output_path
-      source_url = LlmCostTracker::PriceSync.configured_remote_url
-      result = LlmCostTracker::PriceSync.check(path: output_path, url: source_url)
+      source_url = LlmCostTracker::Pricing::Sync.configured_remote_url
+      result = LlmCostTracker::Pricing::Sync.check(path: output_path, url: source_url)
 
       puts "llm_cost_tracker: checked pricing file #{result.path}"
       puts "  source: #{result.source_url}"
@@ -112,7 +114,7 @@ def print_changes(changes)
 end
 
 def price_refresh_output_path
-  path = LlmCostTracker::PriceSync.configured_output_path
+  path = LlmCostTracker::Pricing::Sync.configured_output_path
   FileUtils.mkdir_p(File.dirname(path))
   path
 end

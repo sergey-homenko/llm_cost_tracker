@@ -7,7 +7,7 @@ module LlmCostTracker
       @from_date = range.from
       @to_date = range.to
       prev_from, prev_to = previous_range
-      filter_params = LlmCostTracker::ParameterHash.to_hash(params)
+      filter_params = LlmCostTracker::Dashboard::Params.to_hash(params)
       scope = Dashboard::Filter.call(
         params: filter_params.merge("from" => @from_date.iso8601, "to" => @to_date.iso8601)
       )

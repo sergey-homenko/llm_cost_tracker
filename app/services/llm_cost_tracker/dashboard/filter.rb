@@ -6,14 +6,14 @@ module LlmCostTracker
   module Dashboard
     class Filter
       class << self
-        def call(scope: LlmCostTracker::LlmApiCall.all, params: {})
+        def call(scope: LlmCostTracker::Ledger::Call.all, params: {})
           new(scope: scope, params: params).relation
         end
       end
 
       def initialize(scope:, params:)
         @scope = scope
-        @params = LlmCostTracker::ParameterHash.with_indifferent_access(params)
+        @params = LlmCostTracker::Dashboard::Params.with_indifferent_access(params)
       end
 
       def relation
@@ -77,13 +77,13 @@ module LlmCostTracker
       end
 
       def tag_params
-        tags = LlmCostTracker::ParameterHash.to_hash(params[:tag])
+        tags = LlmCostTracker::Dashboard::Params.to_hash(params[:tag])
 
         tags.each_with_object({}) do |(key, value), normalized|
           value = normalized_string(value)
           next if value.nil?
 
-          normalized[LlmCostTracker::TagKey.validate!(key, error_class: LlmCostTracker::InvalidFilterError)] = value
+          normalized[LlmCostTracker::Tags::Key.validate!(key, error_class: LlmCostTracker::InvalidFilterError)] = value
         end
       end
 

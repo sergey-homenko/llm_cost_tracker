@@ -19,41 +19,21 @@ module LlmCostTracker
         def call(usage:, prices:, pricing_mode:)
           quantities = usage.price_quantities
 
-          EffectivePriceSet.new(
-            input: price_for_usage(quantities.fetch(:input), prices, :input, pricing_mode),
-            cache_read_input: price_for_cache_usage(
-              quantities.fetch(:cache_read_input),
-              prices,
-              :cache_read_input,
-              pricing_mode
-            ),
-            cache_write_input: price_for_cache_usage(
-              quantities.fetch(:cache_write_input),
-              prices,
-              :cache_write_input,
-              pricing_mode
-            ),
-            cache_write_1h_input: price_for_usage(
-              quantities.fetch(:cache_write_1h_input),
-              prices,
-              :cache_write_1h_input,
-              pricing_mode
-            ),
-            output: price_for_usage(quantities.fetch(:output), prices, :output, pricing_mode)
-          )
+          values = TokenUsage::PRICED_COMPONENTS.to_h do |component|
+            tokens = quantities.fetch(component.price_key)
+            price = if tokens.positive?
+                      price_for(prices, component.price_key, pricing_mode) ||
+                        (component.fallback_price_key && price_for(prices, component.fallback_price_key, pricing_mode))
+                    else
+                      0.0
+                    end
+            [component.price_key, price]
+          end
+
+          EffectivePriceSet.new(**values)
         end
 
         private
-
-        def price_for_cache_usage(tokens, prices, key, pricing_mode)
-          return 0.0 unless tokens.positive?
-
-          price_for(prices, key, pricing_mode) || price_for(prices, :input, pricing_mode)
-        end
-
-        def price_for_usage(tokens, prices, key, pricing_mode)
-          tokens.positive? ? price_for(prices, key, pricing_mode) : 0.0
-        end
 
         def price_for(prices, key, pricing_mode)
           mode = pricing_mode.to_s.strip.presence

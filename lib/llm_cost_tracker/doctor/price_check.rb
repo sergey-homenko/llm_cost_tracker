@@ -20,8 +20,8 @@ module LlmCostTracker
         path = LlmCostTracker.configuration.prices_file
         return bundled_check unless path
 
-        count = LlmCostTracker::PriceRegistry.file_prices(path).size
-        metadata = LlmCostTracker::PriceRegistry.file_metadata(path)
+        count = LlmCostTracker::Pricing::Registry.file_prices(path).size
+        metadata = LlmCostTracker::Pricing::Registry.file_metadata(path)
         updated_at = metadata["updated_at"] || metadata[:updated_at]
         return configured_check(:warn, path, count, "metadata.updated_at missing; #{REFRESH_COMMAND}") unless updated_at
 
@@ -52,7 +52,7 @@ module LlmCostTracker
       attr_reader :check_class
 
       def bundled_check
-        updated_at = LlmCostTracker::PriceRegistry.metadata.fetch("updated_at", "unknown")
+        updated_at = LlmCostTracker::Pricing::Registry.metadata.fetch("updated_at", "unknown")
         check_class.new(
           :warn,
           "prices",

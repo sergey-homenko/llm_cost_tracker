@@ -5,7 +5,7 @@ require "json"
 require "uri"
 
 require_relative "../logging"
-require_relative "../stream_capture"
+require_relative "../capture/stream"
 
 module LlmCostTracker
   module Middleware
@@ -20,7 +20,7 @@ module LlmCostTracker
 
         request_url  = request_env.url.to_s
         request_body = read_body(request_env.body) || ""
-        parser       = Parsers::Lookup.find_for(request_url)
+        parser       = Parsers.find_for(request_url)
         streaming    = parser&.streaming_request?(request_url, request_body)
         stream_buffer = install_stream_tap(request_env) if streaming
 
@@ -109,7 +109,7 @@ module LlmCostTracker
         request.on_data = proc do |chunk, size, env|
           chunk = chunk.to_s
           unless state[:overflowed]
-            if state[:bytes] + chunk.bytesize <= StreamCapture::LIMIT_BYTES
+            if state[:bytes] + chunk.bytesize <= Capture::Stream::LIMIT_BYTES
               state[:buffer] << chunk
               state[:bytes] += chunk.bytesize
             else
@@ -153,7 +153,7 @@ module LlmCostTracker
                  "recording usage_source=unknown. Use LlmCostTracker.track_stream for manual capture."
         end
 
-        "Streaming response for #{request_url_label(request_url)} exceeded #{StreamCapture::LIMIT_BYTES} bytes; " \
+        "Streaming response for #{request_url_label(request_url)} exceeded #{Capture::Stream::LIMIT_BYTES} bytes; " \
           "recording usage_source=unknown. Use LlmCostTracker.track_stream for manual capture."
       end
 

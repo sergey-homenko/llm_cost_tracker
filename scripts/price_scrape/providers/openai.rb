@@ -6,7 +6,7 @@ require "nokogiri"
 require "time"
 
 module LlmCostTracker
-  module PriceScrape
+  module Pricing::Scrape
     module Providers
       class Openai
         SOURCE_URL = "https://developers.openai.com/api/docs/pricing"

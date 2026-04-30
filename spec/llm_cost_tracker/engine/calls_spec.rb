@@ -34,7 +34,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("feature=chat")
     expect(response.body).to include("user_id=42")
     expect(response.body).to include("Details")
-    expect(response.body).to include("/llm-costs/calls/#{LlmCostTracker::LlmApiCall.first.id}")
+    expect(response.body).to include("/llm-costs/calls/#{LlmCostTracker::Ledger::Call.first.id}")
   end
 
   it "truncates long tag values in call list chips" do
@@ -233,7 +233,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
 
   it "renders optional metadata on call details when the column exists" do
     ActiveRecord::Base.connection.add_column :llm_api_calls, :metadata, :text
-    LlmCostTracker::LlmApiCall.reset_column_information
+    LlmCostTracker::Ledger::Call.reset_column_information
     call = create_call
     call.update!(metadata: { request_id: "req_123" }.to_json)
 
@@ -271,7 +271,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
 
   it "renders a calls setup state when the ledger table is missing" do
     ActiveRecord::Base.connection.drop_table(:llm_api_calls)
-    LlmCostTracker::LlmApiCall.reset_column_information
+    LlmCostTracker::Ledger::Call.reset_column_information
 
     response = get("/llm-costs/calls")
 
@@ -281,7 +281,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
   end
 
   it "renders a database error when the database is unavailable" do
-    allow(LlmCostTracker::LlmApiCall).to receive(:table_exists?)
+    allow(LlmCostTracker::Ledger::Call).to receive(:table_exists?)
       .and_raise(ActiveRecord::ConnectionNotEstablished, "database unavailable")
 
     response = get("/llm-costs/calls")
@@ -292,7 +292,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
 
   it "renders a call details setup state when the ledger table is missing" do
     ActiveRecord::Base.connection.drop_table(:llm_api_calls)
-    LlmCostTracker::LlmApiCall.reset_column_information
+    LlmCostTracker::Ledger::Call.reset_column_information
 
     response = get("/llm-costs/calls/1")
 

@@ -14,7 +14,7 @@ module LlmCostTracker
     private
 
     def ensure_llm_api_calls_table
-      return if LlmCostTracker::LlmApiCall.table_exists?
+      return if LlmCostTracker::Ledger::Call.table_exists?
 
       render template: "llm_cost_tracker/shared/setup_required"
     end

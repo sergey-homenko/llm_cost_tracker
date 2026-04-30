@@ -49,8 +49,8 @@ module LlmCostTracker
             return cached if cached
 
             config = LlmCostTracker.configuration
-            file_prices = PriceRegistry.file_prices(config.prices_file)
-            overrides = PriceRegistry.normalize_price_table(config.pricing_overrides)
+            file_prices = Registry.file_prices(config.prices_file)
+            overrides = Registry.normalize_price_table(config.pricing_overrides)
             value = { pricing_overrides: overrides, file_prices: file_prices }.freeze
             @prices_cache = value
             value

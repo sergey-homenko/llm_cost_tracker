@@ -188,7 +188,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       config.monthly_budget = 0.000001
       config.budget_exceeded_behavior = :raise
     end
-    allow(LlmCostTracker::LedgerStore).to receive(:period_totals).and_return(monthly: 0.000075)
+    allow(LlmCostTracker::Ledger::Store).to receive(:period_totals).and_return(monthly: 0.000075)
 
     expect do
       connection.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
@@ -258,7 +258,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   it "records an unknown-usage event for oversized streaming responses" do
-    stub_const("LlmCostTracker::StreamCapture::LIMIT_BYTES", 32)
+    stub_const("LlmCostTracker::Capture::Stream::LIMIT_BYTES", 32)
 
     sse_body = "data: " \
                "{\"id\":\"chatcmpl_stream_oversized\",\"model\":\"gpt-4o\"," \

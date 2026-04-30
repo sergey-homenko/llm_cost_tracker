@@ -1,4 +1,4 @@
-require "llm_cost_tracker/active_record_adapter"
+require "llm_cost_tracker/ledger/database_adapter"
 
 class AddPeriodTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_version %>
   def up
@@ -95,10 +95,10 @@ class AddPeriodTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_ver
   end
 
   def postgresql?
-    LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)
+    LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)
   end
 
   def mysql?
-    LlmCostTracker::ActiveRecordAdapter.mysql?(connection)
+    LlmCostTracker::Ledger::DatabaseAdapter.mysql?(connection)
   end
 end

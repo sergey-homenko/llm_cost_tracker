@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "erb"
 require "json"
 require "tmpdir"
 require "yaml"
 
-require "llm_cost_tracker/price_registry"
+require "llm_cost_tracker/pricing/registry"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 
@@ -19,10 +20,18 @@ RSpec.describe "generator templates" do
     File.read(path)
   end
 
-  it "creates JSONB tags and a GIN index for PostgreSQL installs" do
-    migration = template("create_llm_api_calls.rb.erb")
+  def render_migration_template(name)
+    ERB.new(template(name), trim_mode: "-").result(binding)
+  end
 
-    expect(migration).to include("require \"llm_cost_tracker/active_record_adapter\"")
+  def migration_version
+    "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]"
+  end
+
+  it "creates JSONB tags and a GIN index for PostgreSQL installs" do
+    migration = render_migration_template("create_llm_api_calls.rb.erb")
+
+    expect(migration).to include("require \"llm_cost_tracker/ledger/database_adapter\"")
     expect(migration).to include("t.string  :event_id")
     expect(migration).to include("precision: 20, scale: 8")
     expect(migration).to include("t.integer :latency_ms")
@@ -55,8 +64,8 @@ RSpec.describe "generator templates" do
     expect(migration).not_to match(/add_index :llm_api_calls, :model$/)
     expect(migration).to include("t.json :tags")
     expect(migration).to include("LLM Cost Tracker supports PostgreSQL and MySQL only")
-    expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)")
-    expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.mysql?(connection)")
+    expect(migration).to include("LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)")
+    expect(migration).to include("LlmCostTracker::Ledger::DatabaseAdapter.mysql?(connection)")
   end
 
   it "provides a complete initializer template" do
@@ -108,9 +117,9 @@ RSpec.describe "generator templates" do
     expect(migration).to include("SUM(total_cost)")
     expect(migration).to include("DATE_TRUNC('day', tracked_at)::date")
     expect(migration).to include("DATE_TRUNC('month', tracked_at)::date")
-    expect(migration).to include("require \"llm_cost_tracker/active_record_adapter\"")
-    expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)")
-    expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.mysql?(connection)")
+    expect(migration).to include("require \"llm_cost_tracker/ledger/database_adapter\"")
+    expect(migration).to include("LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)")
+    expect(migration).to include("LlmCostTracker::Ledger::DatabaseAdapter.mysql?(connection)")
     expect(migration).to include("DATE(tracked_at)")
     expect(migration).to include("DATE_FORMAT(tracked_at, '%Y-%m-01')")
     expect(migration).to include("LLM Cost Tracker supports PostgreSQL and MySQL only")
@@ -161,7 +170,7 @@ RSpec.describe "generator templates" do
   end
 
   it "provides a token usage upgrade migration" do
-    migration = template("add_token_usage_to_llm_api_calls.rb.erb")
+    migration = render_migration_template("add_token_usage_to_llm_api_calls.rb.erb")
 
     expect(migration).to include("class AddTokenUsageToLlmApiCalls")
     expect(migration).to include("add_column :llm_api_calls, :cache_read_input_tokens, :integer")
@@ -191,11 +200,11 @@ RSpec.describe "generator templates" do
     expect(migration).to include("using: \"CASE WHEN tags IS NULL")
     expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin")
     expect(migration).to include("rewrites the table on PostgreSQL")
-    expect(migration).to include("LlmCostTracker::ActiveRecordAdapter.postgresql?(connection)")
+    expect(migration).to include("LlmCostTracker::Ledger::DatabaseAdapter.postgresql?(connection)")
   end
 
   it "generates a local prices snapshot from bundled prices" do
-    expected = JSON.parse(File.read(LlmCostTracker::PriceRegistry::DEFAULT_PRICES_PATH))
+    expected = JSON.parse(File.read(LlmCostTracker::Pricing::Registry::DEFAULT_PRICES_PATH))
 
     Dir.mktmpdir do |dir|
       LlmCostTracker::Generators::PricesGenerator.start([], destination_root: dir)

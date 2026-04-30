@@ -8,7 +8,7 @@ require_relative "providers/openai"
 require_relative "orchestrator"
 
 module LlmCostTracker
-  module PriceScrape
+  module Pricing::Scrape
     class Runner
       PROVIDERS = {
         "anthropic" => Providers::Anthropic,
@@ -103,5 +103,5 @@ end
 if $PROGRAM_NAME == __FILE__
   providers = (ENV["PROVIDERS"] || "anthropic").split(",").map(&:strip).select(&:present?)
   dry_run = ENV["DRY_RUN"] == "1"
-  LlmCostTracker::PriceScrape::Runner.new.call(providers: providers, dry_run: dry_run)
+  LlmCostTracker::Pricing::Scrape::Runner.new.call(providers: providers, dry_run: dry_run)
 end

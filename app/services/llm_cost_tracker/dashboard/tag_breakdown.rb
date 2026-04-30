@@ -25,17 +25,17 @@ module LlmCostTracker
       DEFAULT_LIMIT = 100
 
       class << self
-        def call(key:, scope: LlmCostTracker::LlmApiCall.all, limit: DEFAULT_LIMIT)
+        def call(key:, scope: LlmCostTracker::Ledger::Call.all, limit: DEFAULT_LIMIT)
           new(scope: scope, key: key, limit: limit).result
         end
       end
 
       def initialize(scope:, key:, limit:)
         @scope = scope
-        @key = LlmCostTracker::TagKey.validate!(key, error_class: LlmCostTracker::InvalidFilterError)
+        @key = LlmCostTracker::Tags::Key.validate!(key, error_class: LlmCostTracker::InvalidFilterError)
         limit = limit.to_i
         @limit = limit.positive? ? [limit, DEFAULT_LIMIT].min : DEFAULT_LIMIT
-        @connection = LlmCostTracker::LlmApiCall.connection
+        @connection = LlmCostTracker::Ledger::Call.connection
       end
 
       def result
@@ -59,7 +59,7 @@ module LlmCostTracker
           calls = row["calls_count"].to_i
           total_cost = row["total_cost_sum"].to_f
           TagBreakdownRow.new(
-            value: LlmCostTracker::LlmApiCall.tag_value_label(row["tag_value"]),
+            value: LlmCostTracker::Ledger::Call.tag_value_label(row["tag_value"]),
             calls: calls,
             total_cost: total_cost,
             average_cost_per_call: calls.positive? ? total_cost / calls : 0.0
@@ -103,7 +103,7 @@ module LlmCostTracker
       end
 
       def tag_expression
-        @tag_expression ||= LlmCostTracker::LlmApiCall.tag_value_expression(key, table_name: "sub")
+        @tag_expression ||= LlmCostTracker::Ledger::Call.tag_value_expression(key, table_name: "sub")
       end
     end
   end

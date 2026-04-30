@@ -45,9 +45,9 @@ module LlmCostTracker
         end
 
         def usage_sum_columns(token_usage_present, token_usage_cost_present)
-          columns = TokenUsage::BASE_DASHBOARD_SUM_KEYS + Cost::BASE_DASHBOARD_SUM_KEYS
+          columns = TokenUsage::BASE_DASHBOARD_SUM_KEYS + Pricing::Cost::BASE_DASHBOARD_SUM_KEYS
           columns += TokenUsage::OPTIONAL_DASHBOARD_SUM_KEYS if token_usage_present
-          columns += Cost::OPTIONAL_DASHBOARD_SUM_KEYS if token_usage_cost_present
+          columns += Pricing::Cost::OPTIONAL_DASHBOARD_SUM_KEYS if token_usage_cost_present
           columns
         end
 
