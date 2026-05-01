@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-05-01
+
 ### Added
 
 - Groq auto-detection, price scraping, and bundled production text model prices.
