@@ -1,18 +1,24 @@
 # LLM Cost Tracker
 
-A Rails-native ledger for what your LLM calls actually cost.
+A Rails-native ledger for estimating LLM API spend.
 
 [![Gem Version](https://img.shields.io/gem/v/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker)
 [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions)
 [![codecov](https://codecov.io/gh/sergey-homenko/llm_cost_tracker/branch/main/graph/badge.svg)](https://codecov.io/gh/sergey-homenko/llm_cost_tracker)
 
-If you have OpenAI, Anthropic, or Gemini in production and someone keeps asking "where did that bill come from?", this gem records every call into your own database, prices it locally, and gives you a dashboard you can mount in five minutes. No proxy, no SaaS account, no extra service to deploy.
+If someone keeps asking "where did that LLM bill come from?", this gem records provider-reported usage into your own database, prices it locally, and gives you a dashboard you can mount in five minutes. No proxy, no SaaS account, no extra service to deploy.
 
 It is not Langfuse, Helicone, or LiteLLM. It does not capture prompts, score completions, or replay traces. It does one thing: tells you which provider, which model, which feature, and which user burned how much money. That's the entire pitch.
 
 Requires Ruby 3.3+, Rails 7.1+, PostgreSQL or MySQL, and Faraday 2.0+.
 
 ![Dashboard overview](docs/dashboard-overview.png)
+
+## Accuracy model
+
+LLM Cost Tracker estimates spend from the usage metadata providers return and the price snapshots configured in your app. For plain text request/response flows where the provider exposes token counts, it should be close enough to explain spend by provider, model, and your own tags.
+
+It is not invoice-grade billing. Provider invoices can differ because of negotiated rates, provider-side price changes, batch or flex modifiers, multimodal pricing, tool-call surcharges, hidden tokens, or anything else the provider bills but does not expose in response usage. The ledger stores `provider_response_id`, `usage_source`, token breakdowns, and `pricing_mode` so you have a join point for reconciliation when provider exports are available.
 
 ## Quickstart
 
