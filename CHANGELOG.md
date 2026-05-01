@@ -4,6 +4,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed
+
+- Bundled prices refreshed from official provider pricing as of 2026-05-01.
+- Bundled prices now include OpenAI Flex/Priority/regional processing, Gemini Flex/Priority, and Anthropic fast/data residency rates.
+
 ### Fixed
 
 - Streaming capture now snapshots tags when the stream starts.
