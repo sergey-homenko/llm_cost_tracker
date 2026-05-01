@@ -100,7 +100,7 @@ module LlmCostTracker
       end
 
       def output_tokens(usage)
-        usage["candidatesTokenCount"].to_i + usage["thoughtsTokenCount"].to_i
+        usage["candidatesTokenCount"].to_i
       end
 
       def total_tokens(usage:, cache_read:, tool_use_prompt:)

@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+
+- Gemini API thinking tokens no longer get added to output tokens twice.
+
 ## [0.7.2] - 2026-05-01
 
 ### Added

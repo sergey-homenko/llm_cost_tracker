@@ -13,67 +13,12 @@ RSpec.describe "LlmCostTracker dashboard services" do
   def reset_database!
     establish_database_connection!
 
-    ActiveRecord::Schema.verbose = false
-    usage_columns = method(:add_usage_columns)
-    cost_columns = method(:add_cost_columns)
-    tracking_columns = method(:add_tracking_columns)
-    ActiveRecord::Schema.define do
-      create_table :llm_api_calls, force: true do |table|
-        usage_columns.call(table)
-        cost_columns.call(table)
-        tracking_columns.call(table)
-        table.timestamps
-      end
-    end
-    create_period_totals_table
-    create_ingestion_tables
+    create_lct_tables!
 
     LlmCostTracker::Ledger::Call.reset_column_information
     LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
-  end
-
-  def create_period_totals_table
-    ActiveRecord::Schema.define do
-      create_table :llm_cost_tracker_period_totals, force: true do |table|
-        table.string :period, null: false
-        table.date :period_start, null: false
-        table.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
-
-        table.timestamps
-      end
-
-      add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
-    end
-  end
-
-  def create_ingestion_tables
-    ActiveRecord::Schema.define do
-      create_table :llm_cost_tracker_inbox_events, force: true do |table|
-        table.string :event_id, null: false
-        table.decimal :total_cost, precision: 20, scale: 8
-        table.datetime :tracked_at, null: false
-        table.text :payload, null: false
-        table.datetime :locked_at
-        table.string :locked_by
-        table.integer :attempts, null: false, default: 0
-        table.text :last_error
-
-        table.timestamps
-      end
-
-      create_table :llm_cost_tracker_ingestor_leases, force: true do |table|
-        table.string :name, null: false
-        table.string :locked_by
-        table.datetime :locked_until
-
-        table.timestamps
-      end
-
-      add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
-      add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
-    end
   end
 
   def create_call(**overrides)
@@ -84,38 +29,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
     call = LlmCostTracker::Ledger::Call.create!(attrs)
     LlmCostTracker::Ledger::Rollups.increment!(call)
     call
-  end
-
-  def add_usage_columns(table)
-    table.string :provider, null: false
-    table.string :model, null: false
-    table.integer :input_tokens, null: false, default: 0
-    table.integer :output_tokens, null: false, default: 0
-    table.integer :total_tokens, null: false, default: 0
-    table.integer :cache_read_input_tokens, null: false, default: 0
-    table.integer :cache_write_input_tokens, null: false, default: 0
-    table.integer :cache_write_1h_input_tokens, null: false, default: 0
-    table.integer :hidden_output_tokens, null: false, default: 0
-  end
-
-  def add_cost_columns(table)
-    table.decimal :input_cost, precision: 20, scale: 8
-    table.decimal :cache_read_input_cost, precision: 20, scale: 8
-    table.decimal :cache_write_input_cost, precision: 20, scale: 8
-    table.decimal :cache_write_1h_input_cost, precision: 20, scale: 8
-    table.decimal :output_cost, precision: 20, scale: 8
-    table.decimal :total_cost, precision: 20, scale: 8
-  end
-
-  def add_tracking_columns(table)
-    table.string :event_id
-    table.integer :latency_ms
-    table.boolean :stream, null: false, default: false
-    table.string  :usage_source
-    table.string :provider_response_id
-    table.string :pricing_mode
-    add_tags_column(table)
-    table.datetime :tracked_at, null: false
   end
 
   def call_defaults

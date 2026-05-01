@@ -7,6 +7,7 @@ AllCops:
     - "tmp/**/*"
     - "vendor/**/*"
     - "pkg/**/*"
+    - "spec/**/*"
 
 Style/Documentation:
   Enabled: false
@@ -25,7 +26,6 @@ Style/OneClassPerFile:
 Metrics/BlockLength:
   Exclude:
     - "*.gemspec"
-    - "spec/**/*.rb"
 
 Metrics/MethodLength:
   Max: 32

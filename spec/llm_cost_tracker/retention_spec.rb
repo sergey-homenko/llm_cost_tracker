@@ -7,34 +7,7 @@ require "llm_cost_tracker/ledger"
 RSpec.describe LlmCostTracker::Retention do
   before do
     establish_database_connection!
-    ActiveRecord::Schema.verbose = false
-    tags_column = method(:add_tags_column)
-    ActiveRecord::Schema.define do
-      create_table :llm_api_calls, force: true do |t|
-        t.string :provider, null: false
-        t.string :model, null: false
-        t.integer :input_tokens, null: false, default: 0
-        t.integer :output_tokens, null: false, default: 0
-        t.integer :total_tokens, null: false, default: 0
-        t.decimal :input_cost, precision: 20, scale: 8
-        t.decimal :output_cost, precision: 20, scale: 8
-        t.decimal :total_cost, precision: 20, scale: 8
-        t.integer :latency_ms
-        tags_column.call(t)
-        t.datetime :tracked_at, null: false
-        t.timestamps
-      end
-
-      create_table :llm_cost_tracker_period_totals, force: true do |t|
-        t.string :period, null: false
-        t.date :period_start, null: false
-        t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
-
-        t.timestamps
-      end
-
-      add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
-    end
+    create_lct_tables!
     LlmCostTracker::Ledger::Call.reset_column_information
     LlmCostTracker::Ledger::Period::Total.reset_column_information
   end
