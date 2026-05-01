@@ -21,7 +21,7 @@ module LlmCostTracker
         Budget.enforce!
       end
 
-      def record(capture:, latency_ms: nil, pricing_mode: nil, metadata: {})
+      def record(capture:, latency_ms: nil, pricing_mode: nil, metadata: {}, context_tags: nil)
         return unless LlmCostTracker.configuration.enabled
 
         pricing_mode = Pricing.normalize_mode(pricing_mode) || capture.pricing_mode
@@ -39,7 +39,8 @@ module LlmCostTracker
           pricing_mode: pricing_mode,
           cost_data: cost_data,
           metadata: metadata,
-          latency_ms: latency_ms
+          latency_ms: latency_ms,
+          context_tags: context_tags
         )
 
         ActiveSupport::Notifications.instrument(EVENT_NAME, event.to_h)
@@ -52,7 +53,7 @@ module LlmCostTracker
 
       private
 
-      def build_event(capture:, pricing_mode:, cost_data:, metadata:, latency_ms:)
+      def build_event(capture:, pricing_mode:, cost_data:, metadata:, latency_ms:, context_tags:)
         usage_source = if capture.usage_source.nil?
                          nil
                        else
@@ -60,6 +61,7 @@ module LlmCostTracker
                          USAGE_SOURCES.include?(symbol) ? symbol.to_s : nil
                        end
         tags = metadata.to_h.reject { |key, _value| TRACKING_METADATA_KEYS.include?(key.to_s) }
+        context_tags = context_tags.nil? ? LlmCostTracker::Tags::Context.tags : context_tags.to_h
 
         Event.new(
           event_id: SecureRandom.uuid,
@@ -69,7 +71,7 @@ module LlmCostTracker
           pricing_mode: pricing_mode,
           cost: cost_data,
           tags: LlmCostTracker::Tags::Sanitizer.call(
-            LlmCostTracker::Tags::Context.tags.merge(tags)
+            context_tags.merge(tags)
           ).freeze,
           latency_ms: latency_ms.nil? ? nil : [latency_ms.to_i, 0].max,
           stream: capture.stream ? true : false,

@@ -10,13 +10,15 @@ module LlmCostTracker
     class StreamCollector
       attr_reader :provider
 
-      def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, pricing_mode: nil, metadata: {})
+      def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, pricing_mode: nil, metadata: {},
+                     context_tags: nil)
         @provider = provider.to_s
         @model = model
         @latency_ms = latency_ms
         @provider_response_id = provider_response_id
         @pricing_mode = pricing_mode
         @metadata = (metadata || {}).deep_dup
+        @context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).deep_dup
         @events = []
         @captured_bytes = 0
         @overflowed = false
@@ -85,7 +87,8 @@ module LlmCostTracker
             latency_ms: @latency_ms,
             provider_response_id: @provider_response_id,
             pricing_mode: @pricing_mode,
-            metadata: @metadata.deep_dup
+            metadata: @metadata.deep_dup,
+            context_tags: @context_tags.deep_dup
           }
         end
 
@@ -98,7 +101,8 @@ module LlmCostTracker
           latency_ms: snapshot[:latency_ms] ||
             ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at) * 1000).round,
           pricing_mode: snapshot[:pricing_mode],
-          metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata])
+          metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
+          context_tags: snapshot[:context_tags]
         )
       end
 

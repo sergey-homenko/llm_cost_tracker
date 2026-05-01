@@ -144,6 +144,8 @@ end
 
 `with_tags` is thread- and fiber-isolated, so concurrent requests in Puma or jobs in Sidekiq don't bleed into each other. A `default_tags` callable on configuration runs on every event for things you always want — `environment`, `region`, deployment SHA. Explicit tags passed to `track` win over scoped tags, scoped tags win over defaults.
 
+Streaming capture snapshots tags when the stream starts, so attribution survives delayed or cross-thread stream consumption.
+
 What you put in tags is **your** input — they're queryable strings. Don't put prompts, completions, emails, or secrets there. Use IDs.
 
 ## Pricing

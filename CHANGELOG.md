@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+
+- Streaming capture now snapshots tags when the stream starts.
+
 ## [0.7.1] - 2026-04-30
 
 ### Changed

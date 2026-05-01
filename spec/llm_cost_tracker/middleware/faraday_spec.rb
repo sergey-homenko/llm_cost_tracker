@@ -103,6 +103,51 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:tags]).to include(feature: "chat", user_id: 42)
   end
 
+  it "snapshots callable tags before the response completes" do
+    current_user_id = 42
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker, tags: -> { { user_id: current_user_id } }
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          current_user_id = 99
+          [200, { "Content-Type" => "application/json" }, openai_response_body]
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+
+    expect(events.first[:tags]).to include(user_id: 42)
+  end
+
+  it "does not break requests when tag snapshot fails" do
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker, tags: -> { raise "missing request context" }
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          [200, { "Content-Type" => "application/json" }, openai_response_body]
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    expect do
+      response = conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+      expect(response.status).to eq(200)
+    end.to output(/Error resolving request tags: RuntimeError: missing request context/).to_stderr
+
+    expect(events.first[:tags]).to eq({})
+  end
+
   it "passes the Faraday request env to callable tags when accepted" do
     conn = Faraday.new(url: "https://api.openai.com") do |f|
       f.use :llm_cost_tracker, tags: ->(env) { { path: env.url.path } }

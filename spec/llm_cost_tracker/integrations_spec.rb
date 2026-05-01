@@ -329,6 +329,33 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "keeps scoped tags for official OpenAI streams consumed after the call returns" do
+    stream = stream_class.new([
+                                stream_event_class.new(
+                                  type: :"response.completed",
+                                  response: {
+                                    id: "resp_tagged",
+                                    model: "gpt-5-mini",
+                                    usage: { input_tokens: 12, output_tokens: 8 }
+                                  }
+                                )
+                              ])
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      sdk_stream = LlmCostTracker.with_tags(user_id: 42, feature: "chat") do
+        OpenAI::Resources::Responses.new.stream(model: "gpt-5-mini")
+      end
+
+      LlmCostTracker.with_tags(user_id: 99, feature: "other") do
+        sdk_stream.each { |_event| nil }
+      end
+
+      expect(events.first[:tags]).to include(user_id: 42, feature: "chat")
+    end
+  end
+
   it "tracks official OpenAI chat.completions.stream_raw calls" do
     stream = stream_class.new([
                                 stream_event_class.new(id: "chatcmpl_456", model: "gpt-4o"),

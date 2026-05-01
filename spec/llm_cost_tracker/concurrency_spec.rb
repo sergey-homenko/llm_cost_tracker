@@ -65,6 +65,27 @@ RSpec.describe "concurrency", :aggregate_failures do
       expect { collector.usage(input_tokens: 2, output_tokens: 2) }.to raise_error(FrozenError)
       expect { collector.model = "gpt-4.1" }.to raise_error(FrozenError)
     end
+
+    it "keeps stream-start tags when finish! runs in another thread" do
+      recorded = Queue.new
+      subscription = ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+        recorded << payload
+      end
+
+      collector = LlmCostTracker.with_tags(request_id: "req_123") do
+        described_class.new(provider: "openai", model: "gpt-4o").tap do |stream|
+          stream.usage(input_tokens: 1, output_tokens: 1)
+        end
+      end
+
+      Thread.new do
+        LlmCostTracker.with_tags(request_id: "wrong") { collector.finish! }
+      end.join
+
+      expect(recorded.pop[:tags]).to include(request_id: "req_123")
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscription) if subscription
+    end
   end
 
   describe LlmCostTracker::Configuration do

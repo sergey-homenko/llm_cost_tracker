@@ -36,6 +36,9 @@ Official OpenAI and Anthropic SDK streams are captured when `config.instrument`
 is enabled for the provider. The returned stream object is preserved, and usage
 is recorded after the stream is consumed.
 
+Tags are snapshotted when the stream starts, so delayed or cross-thread
+consumption keeps the original request/user attribution.
+
 ```ruby
 config.instrument :openai
 config.instrument :anthropic

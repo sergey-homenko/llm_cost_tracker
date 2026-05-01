@@ -134,6 +134,21 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:stream]).to be true
     end
 
+    it "keeps scoped tags from when the stream started" do
+      collected = events
+      collector = LlmCostTracker.with_tags(user_id: 42, feature: "chat") do
+        LlmCostTracker::Capture::StreamCollector.new(provider: "custom", model: "local-7b").tap do |stream|
+          stream.usage(input_tokens: 50, output_tokens: 20)
+        end
+      end
+
+      LlmCostTracker.with_tags(user_id: 99, feature: "other") do
+        collector.finish!
+      end
+
+      expect(collected.first[:tags]).to include(user_id: 42, feature: "chat")
+    end
+
     it "records an unknown-usage event when no parser can extract totals" do
       collected = events
 

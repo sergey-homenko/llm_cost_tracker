@@ -25,26 +25,28 @@ module LlmCostTracker
         stream_buffer = install_stream_tap(request_env) if streaming
 
         Tracker.enforce_budget! if parser
+        context_tags, metadata = tag_snapshot(request_env) if parser
         started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
         @app.call(request_env).on_complete do |response_env|
           process(
             parser: parser,
-            request_env: request_env,
             request_url: request_url,
             request_body: request_body,
             response_env: response_env,
             latency_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round,
             streaming: streaming,
-            stream_buffer: stream_buffer
+            stream_buffer: stream_buffer,
+            context_tags: context_tags,
+            metadata: metadata
           )
         end
       end
 
       private
 
-      def process(parser:, request_env:, request_url:, request_body:, response_env:,
-                  latency_ms:, streaming:, stream_buffer:)
+      def process(parser:, request_url:, request_body:, response_env:,
+                  latency_ms:, streaming:, stream_buffer:, context_tags:, metadata:)
         return unless parser
 
         parsed =
@@ -58,7 +60,8 @@ module LlmCostTracker
         Tracker.record(
           capture: parsed,
           latency_ms: latency_ms,
-          metadata: resolved_tags(request_env)
+          metadata: metadata,
+          context_tags: context_tags
         )
       rescue LlmCostTracker::Error
         raise
@@ -145,6 +148,13 @@ module LlmCostTracker
         return {} if tags.nil?
 
         tags.to_h
+      end
+
+      def tag_snapshot(request_env)
+        [LlmCostTracker::Tags::Context.tags, resolved_tags(request_env)]
+      rescue StandardError => e
+        Logging.warn("Error resolving request tags: #{e.class}: #{e.message}")
+        [{}, {}]
       end
 
       def capture_warning(request_url, stream_buffer)
