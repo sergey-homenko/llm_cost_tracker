@@ -16,6 +16,58 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
     }.merge(overrides)
   end
 
+  def minimal_models_table(span_ids: true)
+    model_cell = lambda do |label, id|
+      span_ids ? "#{label}<span class=\"font-mono\">#{id}</span>" : "#{label} #{id}"
+    end
+
+    <<~HTML
+      <table>
+        <thead>
+          <tr>
+            <th>MODEL ID</th>
+            <th>PRICE PER 1M TOKENS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>#{model_cell.call('Llama 3.1 8B', 'llama-3.1-8b-instant')}</td>
+            <td>$0.05 input $0.08 output</td>
+          </tr>
+          <tr>
+            <td>#{model_cell.call('Llama 3.3 70B', 'llama-3.3-70b-versatile')}</td>
+            <td>$0.59 input $0.79 output</td>
+          </tr>
+          <tr>
+            <td>#{model_cell.call('GPT OSS 120B', 'openai/gpt-oss-120b')}</td>
+            <td>$0.15 input $0.60 output</td>
+          </tr>
+          <tr>
+            <td>#{model_cell.call('GPT OSS 20B', 'openai/gpt-oss-20b')}</td>
+            <td>$0.075 input $0.30 output</td>
+          </tr>
+        </tbody>
+      </table>
+    HTML
+  end
+
+  def combined_html
+    <<~HTML
+      <html>
+        <body>
+          <h2>Production Models</h2>
+          #{minimal_models_table(span_ids: false)}
+          <h2>Supported Models</h2>
+          <p><code>openai/gpt-oss-20b</code></p>
+          <p><code>openai/gpt-oss-120b</code></p>
+          <h2>Pricing</h2>
+          <p>Prompt caching has a 50% discount for cached input tokens.</p>
+          <p>Flex has the same pricing as on-demand processing. Pricing matches the on-demand tier.</p>
+        </body>
+      </html>
+    HTML
+  end
+
   describe "#call" do
     it "extracts production text model prices and derived Groq mode rates" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-05-01T00:00:00Z")
@@ -44,6 +96,27 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       expect(result.models).not_to include("whisper-large-v3", "groq/compound", "openai/gpt-oss-safeguard-20b")
     end
 
+    it "extracts prices from a single HTML document with text model identifiers" do
+      result = described_class.new.call(html: combined_html)
+
+      expect(result.models.fetch("openai/gpt-oss-20b")).to include(
+        "input" => 0.075,
+        "cache_read_input" => 0.0375,
+        "output" => 0.3
+      )
+    end
+
+    it "finds the production table by headers when the heading is absent" do
+      result = described_class.new.call(
+        html: html_pages(described_class::SOURCE_URL => "<html><body>#{minimal_models_table}</body></html>")
+      )
+
+      expect(result.models.fetch("llama-3.1-8b-instant")).to include(
+        "input" => 0.05,
+        "output" => 0.08
+      )
+    end
+
     it "returns at least the minimum expected number of models" do
       result = described_class.new.call(html: html_pages)
       expect(result.models.size).to be >= described_class::MIN_MODELS_EXPECTED
@@ -57,6 +130,22 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
     it "raises when the production models table is missing" do
       expect do
         described_class.new.call(html: html_pages(described_class::SOURCE_URL => "<html><body></body></html>"))
+      end.to raise_error(described_class::Error, /production models pricing table not found/)
+    end
+
+    it "raises when another section starts before the production table" do
+      models_html = <<~HTML
+        <html>
+          <body>
+            <h2 id="production-models">Production Models</h2>
+            <h2>Preview Models</h2>
+            #{minimal_models_table}
+          </body>
+        </html>
+      HTML
+
+      expect do
+        described_class.new.call(html: html_pages(described_class::SOURCE_URL => models_html))
       end.to raise_error(described_class::Error, /production models pricing table not found/)
     end
 
