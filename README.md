@@ -16,9 +16,7 @@ Requires Ruby 3.3+, Rails 7.1+, PostgreSQL or MySQL, and Faraday 2.0+.
 
 ## Accuracy model
 
-LLM Cost Tracker estimates spend from the usage metadata providers return and the price snapshots configured in your app. For plain text request/response flows where the provider exposes token counts, it should be close enough to explain spend by provider, model, and your own tags.
-
-It is not invoice-grade billing. Provider invoices can differ because of negotiated rates, provider-side price changes, batch or flex modifiers, multimodal pricing, tool-call surcharges, hidden tokens, or anything else the provider bills but does not expose in response usage. The ledger stores `provider_response_id`, `usage_source`, token breakdowns, and `pricing_mode` so you have a join point for reconciliation when provider exports are available.
+LLM Cost Tracker estimates spend from provider-reported usage and configured prices. It is useful for explaining spend by provider, model, and tags, but it is not invoice-grade billing. For reconciliation, each call keeps `provider_response_id`, `usage_source`, token breakdowns, and `pricing_mode`.
 
 ## Quickstart
 
