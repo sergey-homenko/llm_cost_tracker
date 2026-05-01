@@ -113,9 +113,9 @@ class LcovReport
     abort "Missing coverage report: #{path}" unless File.exist?(path)
 
     @files = Hash.new { |hash, key| hash[key] = {} }
-    @covered_lines = 0
-    @total_lines = 0
+    @branches = Hash.new { |hash, key| hash[key] = Hash.new { |line_hash, line| line_hash[line] = [] } }
     parse(path)
+    calculate_totals
   end
 
   def percent
@@ -133,7 +133,7 @@ class LcovReport
   end
 
   def covered?(path, line)
-    @files[path][line].positive?
+    @files[path][line].positive? && !partial?(path, line)
   end
 
   private
@@ -145,6 +145,7 @@ class LcovReport
       line = raw_line.strip
       current_file = source_file(line) if line.start_with?("SF:")
       parse_line_data(current_file, line) if current_file && line.start_with?("DA:")
+      parse_branch_data(current_file, line) if current_file && line.start_with?("BRDA:")
     end
   end
 
@@ -155,8 +156,29 @@ class LcovReport
   def parse_line_data(current_file, line)
     line_number, hits = line.split(":", 2).last.split(",", 2)
     @files[current_file][line_number.to_i] = hits.to_i
-    @total_lines += 1
-    @covered_lines += 1 if hits.to_i.positive?
+  end
+
+  def parse_branch_data(current_file, line)
+    line_number, _block, _branch, hits = line.split(":", 2).last.split(",", 4)
+    @branches[current_file][line_number.to_i] << (hits == "-" ? 0 : hits.to_i)
+  end
+
+  def calculate_totals
+    @covered_lines = 0
+    @total_lines = 0
+
+    @files.each do |path, lines|
+      lines.each_key do |line|
+        @total_lines += 1
+        @covered_lines += 1 if covered?(path, line)
+      end
+    end
+  end
+
+  def partial?(path, line)
+    return false unless @branches[path].key?(line)
+
+    @branches[path][line].any?(&:zero?)
   end
 end
 
@@ -291,12 +313,8 @@ end
 
 class Git
   def self.coverage_base
-    upstream = capture("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}", allow_failure: true).strip
-    return "HEAD" if upstream.empty?
-
-    merge_base = capture("merge-base", upstream, "HEAD").strip
-    head = capture("rev-parse", "HEAD").strip
-    merge_base == head ? "HEAD" : merge_base
+    parent = capture("rev-parse", "--verify", "HEAD^", allow_failure: true).strip
+    parent.empty? ? "HEAD" : parent
   end
 
   def self.capture(*, allow_failure: false)
@@ -308,4 +326,4 @@ class Git
   end
 end
 
-CoverageGate.call
+CoverageGate.call if $PROGRAM_NAME == __FILE__

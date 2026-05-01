@@ -126,6 +126,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(page.prev_page?).to be true
       expect(page.next_page?(151)).to be true
       expect(page.next_page?(150)).to be false
+      expect(page.total_pages(151)).to eq(4)
+      expect(page.total_pages(0)).to eq(1)
     end
   end
 
@@ -362,6 +364,18 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       expect(LlmCostTracker::Ledger::Period::Totals).to have_received(:call).with(%i[monthly], time: now)
       expect(budget).to include(spent: 7.5, percent_used: 75.0)
+    end
+
+    it "keeps budget percentages at zero for a zero budget" do
+      now = Time.utc(2026, 4, 16, 0, 0, 0)
+      allow(Time).to receive(:now).and_return(now)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 7.5)
+      LlmCostTracker.configure { |config| config.monthly_budget = 0.0 }
+
+      budget = described_class.monthly_budget_status
+
+      expect(budget).to include(spent: 7.5, percent_used: 0.0, projected_percent_used: 0.0)
+      expect(budget[:projected_delta]).to be > 0
     end
 
     it "returns nil deltas when no previous scope is given" do
