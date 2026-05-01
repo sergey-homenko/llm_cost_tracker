@@ -100,7 +100,7 @@ module LlmCostTracker
         nil
       end
 
-      def build_unknown_stream_usage(provider:, model:, provider_response_id:, pricing_mode: nil)
+      def build_unknown_stream_usage(provider:, model:, provider_response_id:, pricing_mode: nil, service_charges: nil)
         UsageCapture.build(
           provider: provider,
           provider_response_id: provider_response_id,
@@ -108,7 +108,8 @@ module LlmCostTracker
           model: model || UsageCapture::UNKNOWN_MODEL,
           token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
-          usage_source: :unknown
+          usage_source: :unknown,
+          service_charges: service_charges
         )
       end
     end

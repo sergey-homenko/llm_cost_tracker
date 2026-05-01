@@ -231,6 +231,29 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("Pricing not available for this call.")
   end
 
+  it "renders free and partial pricing status states on call details" do
+    free_call = create_call(
+      model: "free-call",
+      total_cost: 0,
+      cost_status: LlmCostTracker::Billing::CostStatus::FREE
+    )
+    partial_call = create_call(
+      model: "partial-call",
+      total_cost: 0.25,
+      cost_status: LlmCostTracker::Billing::CostStatus::PARTIAL
+    )
+
+    free_response = get("/llm-costs/calls/#{free_call.id}")
+    partial_response = get("/llm-costs/calls/#{partial_call.id}")
+
+    expect(free_response.status).to eq(200)
+    expect(free_response.body).to include("Free")
+    expect(free_response.body).to include("free")
+    expect(partial_response.status).to eq(200)
+    expect(partial_response.body).to include("Partial pricing")
+    expect(partial_response.body).to include("partial")
+  end
+
   it "renders optional metadata on call details when the column exists" do
     ActiveRecord::Base.connection.add_column :llm_api_calls, :metadata, :text
     LlmCostTracker::Ledger::Call.reset_column_information

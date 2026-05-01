@@ -3,6 +3,8 @@
 require_relative "ledger"
 require_relative "doctor/check"
 require_relative "doctor/ingestion_check"
+require_relative "doctor/legacy_audit_check"
+require_relative "doctor/legacy_billing_status_check"
 require_relative "doctor/price_check"
 require_relative "doctor/service_charges_check"
 require_relative "generators/llm_cost_tracker/add_billing_generator"
@@ -51,7 +53,8 @@ module LlmCostTracker
         table_check,
         column_check,
         ServiceChargesCheck.new.call,
-        legacy_billing_status_check,
+        LegacyBillingStatusCheck.new.call,
+        LegacyAuditCheck.new.call,
         period_totals_check,
         IngestionCheck.new.call,
         PriceCheck.new.call,
@@ -138,25 +141,18 @@ module LlmCostTracker
       )
     end
 
-    def legacy_billing_status_check
-      return unless llm_api_calls_table?
-      return unless LlmCostTracker::Ledger::Call.column_names.include?("cost_status")
-
-      count = LlmCostTracker::Ledger::Call.where(cost_status: nil).limit(1).count
-      return if count.zero?
-
-      Check.new(:warn, "billing status", "legacy rows without cost_status remain; new rows will populate it")
-    rescue StandardError
-      nil
-    end
-
     def calls_check
       return unless llm_api_calls_table?
 
-      count = LlmCostTracker::Ledger::Call.count
+      snapshot = LlmCostTracker::Ledger::Call
+                 .select("COUNT(*) AS tracked_call_count, MAX(tracked_at) AS latest_tracked_at")
+                 .take
+      count = snapshot.tracked_call_count.to_i
       return Check.new(:warn, "tracked calls", "none recorded yet") if count.zero?
 
-      latest = LlmCostTracker::Ledger::Call.maximum(:tracked_at)&.utc&.iso8601
+      latest_at = snapshot.latest_tracked_at
+      latest_at = latest_at.to_time if latest_at.respond_to?(:to_time)
+      latest = latest_at&.utc&.iso8601
       Check.new(:ok, "tracked calls", "#{count} recorded; latest #{latest}")
     end
 

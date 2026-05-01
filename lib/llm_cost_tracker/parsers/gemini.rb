@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../billing/service_charge"
 require_relative "base"
 
 module LlmCostTracker
@@ -36,7 +37,8 @@ module LlmCostTracker
           usage: usage,
           usage_source: :response,
           provider_response_id: response["responseId"],
-          pricing_mode: pricing_mode(request: request, response_headers: response_headers)
+          pricing_mode: pricing_mode(request: request, response_headers: response_headers),
+          service_charges: grounding_service_charges_for_response(response)
         )
       end
 
@@ -48,6 +50,7 @@ module LlmCostTracker
         model = extract_model_from_url(request_url)
         response_id = stream_response_id(events)
         mode = pricing_mode(request: request, response_headers: response_headers)
+        service_charges = grounding_service_charges_for_stream(events)
 
         if usage
           build_usage_capture(
@@ -56,14 +59,16 @@ module LlmCostTracker
             stream: true,
             usage_source: :stream_final,
             provider_response_id: response_id,
-            pricing_mode: mode
+            pricing_mode: mode,
+            service_charges: service_charges
           )
         else
           build_unknown_stream_usage(
             provider: "gemini",
             model: model,
             provider_response_id: response_id,
-            pricing_mode: mode
+            pricing_mode: mode,
+            service_charges: service_charges
           )
         end
       end
@@ -71,7 +76,7 @@ module LlmCostTracker
       private
 
       def build_usage_capture(request_url:, usage:, usage_source:, stream: false, provider_response_id: nil,
-                              pricing_mode: nil)
+                              pricing_mode: nil, service_charges: nil)
         cache_read = usage["cachedContentTokenCount"].to_i
         tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
 
@@ -88,7 +93,8 @@ module LlmCostTracker
           ),
           stream: stream,
           usage_source: usage_source,
-          provider_response_id: provider_response_id
+          provider_response_id: provider_response_id,
+          service_charges: service_charges
         )
       end
 
@@ -138,6 +144,42 @@ module LlmCostTracker
 
       def response_header(headers, name)
         headers.to_h.find { |key, _value| key.to_s.downcase == name }&.last
+      end
+
+      def grounding_service_charges_for_response(response)
+        grounding_service_charges(grounding_request_count(response["candidates"]))
+      end
+
+      def grounding_service_charges_for_stream(events)
+        quantity = find_event_value(events, reverse: true) do |data|
+          count = grounding_request_count(data["candidates"])
+          count if count.positive?
+        end
+        grounding_service_charges(quantity || 0)
+      end
+
+      def grounding_request_count(candidates)
+        Array(candidates).sum do |candidate|
+          next 0 unless candidate.is_a?(Hash)
+
+          metadata = candidate["groundingMetadata"] || candidate["grounding_metadata"] || {}
+          queries = metadata["webSearchQueries"] || metadata["web_search_queries"] || []
+          Array(queries).size
+        end
+      end
+
+      def grounding_service_charges(quantity)
+        return [] unless quantity.positive?
+
+        [
+          Billing::ServiceCharge.build(
+            component: "grounding_request",
+            quantity: quantity,
+            cost_status: Billing::CostStatus::UNKNOWN,
+            pricing_basis: Billing::ServiceCharge::PROVIDER_USAGE_BASIS,
+            source_key: "response.candidates.groundingMetadata.webSearchQueries"
+          )
+        ]
       end
     end
   end

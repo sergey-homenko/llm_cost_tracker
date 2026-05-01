@@ -169,6 +169,63 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.provider_response_id).to eq("resp_123")
     end
 
+    it "captures Responses API hosted tool output items as unknown-cost service charges" do
+      response_body = {
+        id: "resp_123",
+        model: "gpt-5-mini",
+        output: [
+          {
+            type: "web_search_call",
+            id: "ws_123",
+            status: "completed",
+            action: { type: "search" }
+          },
+          {
+            type: "file_search_call",
+            id: "fs_123",
+            status: "completed"
+          },
+          {
+            type: "code_interpreter_call",
+            id: "ci_123",
+            status: "completed",
+            container_id: "cntr_123"
+          },
+          {
+            type: "code_interpreter_call",
+            id: "ci_124",
+            status: "completed",
+            container_id: "cntr_123"
+          }
+        ],
+        usage: {
+          input_tokens: 150,
+          output_tokens: 42,
+          total_tokens: 192
+        }
+      }.to_json
+
+      result = parser.parse(
+        request_url: responses_url,
+        request_body: { model: "gpt-5-mini" }.to_json,
+        response_status: 200,
+        response_body: response_body
+      )
+
+      expect(result.service_charges.map(&:component)).to eq(
+        %w[web_search_request file_search_call container_session]
+      )
+      expect(result.service_charges.map(&:cost_status)).to all(
+        eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+      )
+      expect(result.service_charges.map(&:pricing_basis)).to all(
+        eq(LlmCostTracker::Billing::ServiceCharge::PROVIDER_USAGE_BASIS)
+      )
+      expect(result.service_charges.map(&:provider_item_id)).to eq(%w[ws_123 fs_123 cntr_123])
+      expect(result.service_charges.first.details).to include("action_type" => "search", "status" => "completed")
+      expect(result.service_charges.last.details).to include("container_id" => "cntr_123")
+    end
+
     it "tags non-streaming usage with a :response source" do
       result = parser.parse(
         request_url: chat_completions_url,
@@ -368,6 +425,61 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.token_usage.total_tokens).to eq(57)
       expect(result.usage_source).to eq(:stream_final)
       expect(result.provider_response_id).to eq("resp_456")
+    end
+
+    it "captures Responses API streamed hosted tool output items once" do
+      events = [
+        {
+          event: "response.output_item.done",
+          data: {
+            "type" => "response.output_item.done",
+            "item" => {
+              "type" => "web_search_call",
+              "id" => "ws_456",
+              "status" => "completed",
+              "action" => { "type" => "search" }
+            }
+          }
+        },
+        {
+          event: "response.completed",
+          data: {
+            "type" => "response.completed",
+            "response" => {
+              "id" => "resp_456",
+              "model" => "gpt-5-mini",
+              "output" => [
+                {
+                  "type" => "web_search_call",
+                  "id" => "ws_456",
+                  "status" => "completed",
+                  "action" => { "type" => "search" }
+                },
+                {
+                  "type" => "file_search_call",
+                  "id" => "fs_456",
+                  "status" => "completed"
+                }
+              ],
+              "usage" => {
+                "input_tokens" => 50,
+                "output_tokens" => 7,
+                "total_tokens" => 57
+              }
+            }
+          }
+        }
+      ]
+
+      result = parser.parse_stream(
+        request_url: responses_url,
+        request_body: { model: "gpt-5-mini", stream: true }.to_json,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.service_charges.map(&:component)).to eq(%w[web_search_request file_search_call])
+      expect(result.service_charges.map(&:provider_item_id)).to eq(%w[ws_456 fs_456])
     end
 
     it "extracts model identifiers from Responses API stream events" do

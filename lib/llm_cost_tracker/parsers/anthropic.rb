@@ -99,12 +99,12 @@ module LlmCostTracker
 
         [
           service_charge(
-            component: :web_search_request,
+            component: "web_search_request",
             quantity: server_tool_use["web_search_requests"],
             source_key: "usage.server_tool_use.web_search_requests"
           ),
           service_charge(
-            component: :code_execution_request,
+            component: "code_execution_request",
             quantity: server_tool_use["code_execution_requests"],
             source_key: "usage.server_tool_use.code_execution_requests"
           )

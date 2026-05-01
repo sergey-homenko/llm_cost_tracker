@@ -153,5 +153,33 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.status).to eq(:ok)
       expect(check.message).to include("1 recorded")
     end
+
+    it "warns when legacy rows without cost status remain" do
+      create_call(model: "legacy-status", cost_status: nil)
+
+      check = described_class.call.find { |item| item.name == "billing status" }
+
+      expect(check).to have_attributes(status: :warn)
+      expect(check.message).to include("legacy rows without cost_status remain")
+    end
+
+    it "warns when legacy rows without pricing snapshots exceed the audit threshold" do
+      2.times { |index| create_call(model: "legacy-#{index}", pricing_snapshot: nil) }
+      9.times { |index| create_call(model: "current-#{index}") }
+
+      check = described_class.call.find { |item| item.name == "pricing snapshot audit" }
+
+      expect(check).to have_attributes(status: :warn)
+      expect(check.message).to include("2/11 tracked calls")
+    end
+
+    it "does not warn when pricing snapshot legacy rows stay at the audit threshold" do
+      create_call(model: "legacy-snapshot", pricing_snapshot: nil)
+      9.times { |index| create_call(model: "current-#{index}") }
+
+      check = described_class.call.find { |item| item.name == "pricing snapshot audit" }
+
+      expect(check).to be_nil
+    end
   end
 end

@@ -1,8 +1,12 @@
 # frozen_string_literal: true
 
+require_relative "openai_service_charges"
+
 module LlmCostTracker
   module Parsers
     module OpenaiUsage
+      include OpenaiServiceCharges
+
       private
 
       def parse_openai_usage(request_url:, request_body:, response_status:, response_body:)
@@ -27,7 +31,8 @@ module LlmCostTracker
           ),
           model: model,
           token_usage: token_usage(usage: usage, cache_read: cache_read),
-          usage_source: :response
+          usage_source: :response,
+          service_charges: openai_service_charges(response)
         )
       end
 
@@ -35,8 +40,7 @@ module LlmCostTracker
         return nil unless response_status == 200
 
         request = safe_json_parse(request_body)
-        model =
-          find_event_value(events) { |data| data["model"] || data.dig("response", "model") } || request["model"]
+        model = find_event_value(events) { |data| data["model"] || data.dig("response", "model") } || request["model"]
         usage = detect_stream_usage(events)
         response_id = find_event_value(events) { |data| data["id"] || data.dig("response", "id") }
         pricing_mode = pricing_mode(
@@ -44,6 +48,7 @@ module LlmCostTracker
           model: model,
           service_tier: stream_pricing_mode(events) || request["service_tier"]
         )
+        service_charges = openai_stream_service_charges(events)
 
         if usage
           cache_read = cache_read_input_tokens(usage)
@@ -54,14 +59,16 @@ module LlmCostTracker
             model: model,
             token_usage: token_usage(usage: usage, cache_read: cache_read),
             stream: true,
-            usage_source: :stream_final
+            usage_source: :stream_final,
+            service_charges: service_charges
           )
         else
           build_unknown_stream_usage(
             provider: provider_for(request_url),
             model: model,
             provider_response_id: response_id,
-            pricing_mode: pricing_mode
+            pricing_mode: pricing_mode,
+            service_charges: service_charges
           )
         end
       end

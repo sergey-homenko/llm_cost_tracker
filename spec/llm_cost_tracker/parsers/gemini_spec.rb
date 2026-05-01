@@ -179,6 +179,32 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
       expect(result.pricing_mode).to be_nil
     end
+
+    it "captures Google Search grounding queries as unknown-cost service charges" do
+      result = parser.parse(
+        request_url: generate_content_url,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
+          candidates: [
+            { groundingMetadata: { webSearchQueries: ["weather kyiv", "kyiv forecast"] } }
+          ],
+          usageMetadata: {
+            promptTokenCount: 100,
+            candidatesTokenCount: 20,
+            totalTokenCount: 120
+          }
+        }.to_json
+      )
+
+      expect(result.service_charges.size).to eq(1)
+      expect(result.service_charges.first.component).to eq("grounding_request")
+      expect(result.service_charges.first.quantity).to eq(2)
+      expect(result.service_charges.first.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+      expect(result.service_charges.first.pricing_basis).to eq(
+        LlmCostTracker::Billing::ServiceCharge::PROVIDER_USAGE_BASIS
+      )
+    end
   end
 
   describe "#streaming_request?" do
@@ -253,6 +279,36 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.token_usage.cache_read_input_tokens).to eq(10)
       expect(result.token_usage.output_tokens).to eq(42)
       expect(result.token_usage.total_tokens).to eq(122)
+    end
+
+    it "captures streamed Google Search grounding queries from the latest grounded candidate" do
+      events = [
+        { event: nil, data: {
+          "candidates" => [
+            { "groundingMetadata" => { "webSearchQueries" => ["first query"] } }
+          ]
+        } },
+        { event: nil, data: {
+          "candidates" => [
+            { "groundingMetadata" => { "webSearchQueries" => ["latest one", "latest two"] } }
+          ],
+          "usageMetadata" => {
+            "promptTokenCount" => 80,
+            "candidatesTokenCount" => 42,
+            "totalTokenCount" => 122
+          }
+        } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: url,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.service_charges.size).to eq(1)
+      expect(result.service_charges.first.component).to eq("grounding_request")
+      expect(result.service_charges.first.quantity).to eq(2)
     end
 
     it "returns an unknown-usage UsageCapture when no usage metadata is seen" do
