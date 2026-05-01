@@ -10,6 +10,8 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
   let(:openrouter_models_url) { URI::HTTPS.build(host: "openrouter.ai", path: "/api/v1/models").to_s }
   let(:deepseek_v1_chat_url) { URI::HTTPS.build(host: "api.deepseek.com", path: "/v1/chat/completions").to_s }
   let(:deepseek_chat_url) { URI::HTTPS.build(host: "api.deepseek.com", path: "/chat/completions").to_s }
+  let(:groq_chat_url) { URI::HTTPS.build(host: "api.groq.com", path: "/openai/v1/chat/completions").to_s }
+  let(:groq_responses_url) { URI::HTTPS.build(host: "api.groq.com", path: "/openai/v1/responses").to_s }
   let(:configured_responses_url) { URI::HTTPS.build(host: "llm.example.com", path: "/v1/responses").to_s }
   let(:configured_chat_url) { URI::HTTPS.build(host: "llm.example.com", path: "/v1/chat/completions").to_s }
 
@@ -26,6 +28,11 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
 
     it "matches DeepSeek chat completions URLs" do
       expect(parser.match?(deepseek_v1_chat_url)).to be true
+    end
+
+    it "matches Groq OpenAI-compatible URLs" do
+      expect(parser.match?(groq_chat_url)).to be true
+      expect(parser.match?(groq_responses_url)).to be true
     end
 
     it "matches configured OpenAI-compatible hosts" do
@@ -111,6 +118,40 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
       expect(result.model).to eq("deepseek-chat")
       expect(result.token_usage.input_tokens).to eq(300)
       expect(result.token_usage.output_tokens).to eq(80)
+    end
+
+    it "extracts Groq usage, cached input, reasoning tokens, and service tier" do
+      result = parser.parse(
+        request_url: groq_chat_url,
+        request_body: { model: "openai/gpt-oss-20b", service_tier: "flex" }.to_json,
+        response_status: 200,
+        response_body: {
+          id: "chatcmpl-groq",
+          model: "openai/gpt-oss-20b",
+          service_tier: "flex",
+          usage: {
+            prompt_tokens: 4_641,
+            completion_tokens: 1_817,
+            total_tokens: 6_458,
+            prompt_tokens_details: {
+              cached_tokens: 4_608
+            },
+            completion_tokens_details: {
+              reasoning_tokens: 128
+            }
+          }
+        }.to_json
+      )
+
+      expect(result.provider).to eq("groq")
+      expect(result.provider_response_id).to eq("chatcmpl-groq")
+      expect(result.pricing_mode).to eq("flex")
+      expect(result.model).to eq("openai/gpt-oss-20b")
+      expect(result.token_usage.input_tokens).to eq(33)
+      expect(result.token_usage.cache_read_input_tokens).to eq(4_608)
+      expect(result.token_usage.output_tokens).to eq(1_817)
+      expect(result.token_usage.hidden_output_tokens).to eq(128)
+      expect(result.token_usage.total_tokens).to eq(6_458)
     end
 
     it "uses the configured provider name for custom compatible hosts" do

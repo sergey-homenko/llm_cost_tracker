@@ -6,7 +6,11 @@
     "source_urls": [
       "https://developers.openai.com/api/docs/pricing",
       "https://platform.claude.com/docs/en/about-claude/pricing",
-      "https://ai.google.dev/gemini-api/docs/pricing"
+      "https://ai.google.dev/gemini-api/docs/pricing",
+      "https://console.groq.com/docs/models",
+      "https://console.groq.com/docs/prompt-caching",
+      "https://console.groq.com/docs/flex-processing",
+      "https://console.groq.com/docs/service-tiers"
     ],
     "schema_version": 1,
     "min_gem_version": "0.4.0"
@@ -192,6 +196,44 @@
       "above_context_priority_output": 27.0,
       "priority_cache_read_input": 0.225,
       "above_context_priority_cache_read_input": 0.45
+    },
+    "groq/llama-3.1-8b-instant": {
+      "input": 0.05,
+      "output": 0.08,
+      "on_demand_input": 0.05,
+      "on_demand_output": 0.08,
+      "flex_input": 0.05,
+      "flex_output": 0.08
+    },
+    "groq/llama-3.3-70b-versatile": {
+      "input": 0.59,
+      "output": 0.79,
+      "on_demand_input": 0.59,
+      "on_demand_output": 0.79,
+      "flex_input": 0.59,
+      "flex_output": 0.79
+    },
+    "groq/openai/gpt-oss-120b": {
+      "input": 0.15,
+      "cache_read_input": 0.075,
+      "output": 0.6,
+      "on_demand_input": 0.15,
+      "on_demand_cache_read_input": 0.075,
+      "on_demand_output": 0.6,
+      "flex_input": 0.15,
+      "flex_cache_read_input": 0.075,
+      "flex_output": 0.6
+    },
+    "groq/openai/gpt-oss-20b": {
+      "input": 0.075,
+      "cache_read_input": 0.0375,
+      "output": 0.3,
+      "on_demand_input": 0.075,
+      "on_demand_cache_read_input": 0.0375,
+      "on_demand_output": 0.3,
+      "flex_input": 0.075,
+      "flex_cache_read_input": 0.0375,
+      "flex_output": 0.3
     },
     "openai/gpt-3.5-turbo": {
       "input": 0.5,

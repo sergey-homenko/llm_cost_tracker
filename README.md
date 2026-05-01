@@ -98,7 +98,7 @@ This patches **only** RubyLLM and the official Ruby SDKs. `ruby-openai` (alexrud
 
 ### 2. Faraday middleware
 
-For `ruby-openai`, the Gemini REST API, custom Faraday clients, or anything OpenAI-compatible (OpenRouter, DeepSeek, LiteLLM proxies):
+For `ruby-openai`, the Gemini REST API, custom Faraday clients, or anything OpenAI-compatible (OpenRouter, DeepSeek, Groq, LiteLLM proxies):
 
 ```ruby
 conn = Faraday.new(url: "https://api.openai.com") do |f|
@@ -235,6 +235,7 @@ Auth is your job. Examples for basic auth and Devise: [`docs/dashboard.md`](docs
 | Google Gemini | Yes | Gemini 2.5 Pro/Flash/Flash-Lite, 2.0 Flash/Flash-Lite |
 | OpenRouter | Yes | OpenAI-compatible usage; provider-prefixed model IDs are normalized |
 | DeepSeek | Yes | OpenAI-compatible usage; add `pricing_overrides` for DeepSeek-specific rates |
+| Groq | Yes | OpenAI-compatible usage with bundled prices for production text models |
 | Other OpenAI-compatible hosts | Configurable | Register the host via `config.openai_compatible_providers` |
 | Anything else | Manual | Use `LlmCostTracker.track` / `track_stream` |
 

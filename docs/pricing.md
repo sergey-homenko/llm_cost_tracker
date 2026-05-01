@@ -66,17 +66,18 @@ the calculator uses the matching `above_context_input`,
 ## Pricing Modes
 
 `pricing_mode` is the canonical field for alternate provider pricing tiers.
-OpenAI, Anthropic, Gemini, and RubyLLM capture populate it from provider tier
-data when the response exposes that field. Standard aliases such as `standard`,
-`default`, `auto`, and `standard_only` are treated as normal pricing.
+OpenAI, OpenAI-compatible, Anthropic, Gemini, and RubyLLM capture populate it
+from provider tier data when the response exposes that field. Standard aliases
+such as `standard`, `default`, `auto`, and `standard_only` are treated as normal
+pricing.
 
 Bundled prices include OpenAI `flex`, `priority`, and regional processing
-`data_residency` rates, Gemini `flex` and `priority`, and Anthropic `fast` and
-`data_residency` rates where the official provider pages publish them. OpenAI
-regional processing is captured from supported regional API hosts for the model
-families whose uplift is published. Gemini Priority can downgrade server-side,
-so Faraday capture trusts the `x-gemini-service-tier` response header instead of
-assuming the requested tier was honored.
+`data_residency` rates, Gemini `flex` and `priority`, Groq `flex`, and
+Anthropic `fast` and `data_residency` rates where the official provider pages
+publish them. OpenAI regional processing is captured from supported regional API
+hosts for the model families whose uplift is published. Gemini Priority can
+downgrade server-side, so Faraday capture trusts the `x-gemini-service-tier`
+response header instead of assuming the requested tier was honored.
 
 Pass `pricing_mode: :batch` when usage came from a batch job, a gateway, or
 another path where the provider response does not expose the tier:

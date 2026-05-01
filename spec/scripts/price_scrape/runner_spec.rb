@@ -9,6 +9,9 @@ require "price_scrape/runner"
 RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   let(:io) { StringIO.new }
   let(:html) { File.read("spec/fixtures/scrape/anthropic_pricing.html", encoding: "utf-8") }
+  let(:groq_models_html) { File.read("spec/fixtures/scrape/groq_models.html", encoding: "utf-8") }
+  let(:groq_prompt_caching_html) { File.read("spec/fixtures/scrape/groq_prompt_caching.html", encoding: "utf-8") }
+  let(:groq_flex_processing_html) { File.read("spec/fixtures/scrape/groq_flex_processing.html", encoding: "utf-8") }
 
   def build_registry(haiku_entry:)
     {
@@ -58,6 +61,35 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
       expect(runs.first.orchestrator.changed?).to be(true)
       expect(runs.first.orchestrator.written).to be(false)
       expect(File.read(file.path)).to eq(original)
+    end
+  end
+
+  it "fetches all configured source pages for Groq" do
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Groq::SOURCE_URL)
+      .to_return(status: 200, body: groq_models_html, headers: { "Content-Type" => "text/html; charset=utf-8" })
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Groq::PROMPT_CACHING_SOURCE_URL)
+      .to_return(status: 200, body: groq_prompt_caching_html,
+                 headers: { "Content-Type" => "text/html; charset=utf-8" })
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Groq::FLEX_PROCESSING_SOURCE_URL)
+      .to_return(status: 200, body: groq_flex_processing_html,
+                 headers: { "Content-Type" => "text/html; charset=utf-8" })
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.pretty_generate("metadata" => { "schema_version" => 1, "updated_at" => "2026-04-01" },
+                                      "models" => {}))
+      file.close
+
+      runs = described_class.new(io: io).call(providers: ["groq"], registry_path: file.path, dry_run: true)
+
+      expect(runs.first.scraped.models).to include("openai/gpt-oss-20b")
+      expect(runs.first.orchestrator.added).to include("groq/openai/gpt-oss-20b")
+      expect(io.string).to include("[groq] fetching #{LlmCostTracker::Pricing::Scrape::Providers::Groq::SOURCE_URL}")
+      expect(io.string).to include(
+        "[groq] fetching #{LlmCostTracker::Pricing::Scrape::Providers::Groq::PROMPT_CACHING_SOURCE_URL}"
+      )
+      expect(io.string).to include(
+        "[groq] fetching #{LlmCostTracker::Pricing::Scrape::Providers::Groq::FLEX_PROCESSING_SOURCE_URL}"
+      )
     end
   end
 

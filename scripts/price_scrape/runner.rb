@@ -4,6 +4,7 @@ require_relative "../../lib/llm_cost_tracker"
 require_relative "fetcher"
 require_relative "providers/anthropic"
 require_relative "providers/gemini"
+require_relative "providers/groq"
 require_relative "providers/openai"
 require_relative "orchestrator"
 
@@ -13,6 +14,7 @@ module LlmCostTracker
       PROVIDERS = {
         "anthropic" => Providers::Anthropic,
         "gemini" => Providers::Gemini,
+        "groq" => Providers::Groq,
         "openai" => Providers::Openai
       }.freeze
 
@@ -49,14 +51,13 @@ module LlmCostTracker
       def run_provider(name:, registry_path:, dry_run:)
         provider_class = PROVIDERS.fetch(name)
 
-        @io.puts "[#{name}] fetching #{provider_class::SOURCE_URL}"
-        response = @fetcher.get(provider_class::SOURCE_URL)
-        @io.puts "[#{name}] HTTP #{response.status} (#{response.body.bytesize} bytes, #{response.elapsed_ms}ms)"
+        responses = fetch_provider_responses(name, provider_class)
+        primary_response = responses.fetch(provider_class::SOURCE_URL)
 
         scraped = provider_class.new.call(
-          html: response.body,
-          source_url: response.url,
-          scraped_at: response.fetched_at
+          html: provider_html(responses),
+          source_url: primary_response.url,
+          scraped_at: primary_response.fetched_at
         )
         @io.puts "[#{name}] parsed #{scraped.models.size} models (deprecated: #{scraped.deprecated_models.size})"
 
@@ -72,6 +73,27 @@ module LlmCostTracker
         @io.puts "[#{name}] FAILED: #{e.class}: #{e.message}"
         e.backtrace.first(5).each { |line| @io.puts "[#{name}]   #{line}" }
         ProviderRun.new(name: name, scraped: nil, orchestrator: nil, error: e)
+      end
+
+      def fetch_provider_responses(name, provider_class)
+        source_urls(provider_class).each_with_object({}) do |url, responses|
+          @io.puts "[#{name}] fetching #{url}"
+          response = @fetcher.get(url)
+          @io.puts "[#{name}] HTTP #{response.status} (#{response.body.bytesize} bytes, #{response.elapsed_ms}ms)"
+          responses[url] = response
+        end
+      end
+
+      def provider_html(responses)
+        return responses.values.first.body if responses.size == 1
+
+        responses.transform_values(&:body)
+      end
+
+      def source_urls(provider_class)
+        return provider_class::SOURCE_URLS if provider_class.const_defined?(:SOURCE_URLS)
+
+        [provider_class::SOURCE_URL]
       end
 
       def log_provider_result(name, result, dry_run:)

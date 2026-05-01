@@ -76,6 +76,47 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:total_cost)).to eq(result.fetch(:input_cost) + result.fetch(:output_cost))
     end
 
+    it "calculates Groq GPT OSS cached token costs" do
+      result = cost_for(
+        provider: "groq",
+        model: "openai/gpt-oss-20b",
+        input_tokens: 1_000_000,
+        cache_read_input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+
+      expect(result.fetch(:input_cost)).to eq(0.075)
+      expect(result.fetch(:cache_read_input_cost)).to eq(0.0375)
+      expect(result.fetch(:output_cost)).to eq(0.3)
+      expect(result.fetch(:total_cost)).to eq(0.4125)
+    end
+
+    it "calculates Groq flex costs at on-demand token rates" do
+      result = cost_for(
+        provider: "groq",
+        model: "llama-3.3-70b-versatile",
+        pricing_mode: "flex",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+
+      expect(result.fetch(:input_cost)).to eq(0.59)
+      expect(result.fetch(:output_cost)).to eq(0.79)
+      expect(result.fetch(:total_cost)).to eq(1.38)
+    end
+
+    it "keeps Groq provisioned performance pricing unknown" do
+      result = cost_for(
+        provider: "groq",
+        model: "openai/gpt-oss-120b",
+        pricing_mode: "performance",
+        input_tokens: 1_000,
+        output_tokens: 1_000
+      )
+
+      expect(result).to be_nil
+    end
+
     it "returns nil for unknown models" do
       result = cost_for(
         provider: "openai",
@@ -930,6 +971,28 @@ RSpec.describe LlmCostTracker::Pricing do
         expect(fields[:_context_price_threshold_tokens]).to eq(272_000)
         expect(fields[:above_context_input]).to eq(input)
         expect(fields[:above_context_output]).to eq(output)
+      end
+    end
+
+    it "keeps Groq prompt cache reads at 50% of input pricing" do
+      bundled.each do |model_id, fields|
+        next unless model_id.start_with?("groq/")
+        next unless fields[:cache_read_input]
+
+        expect(fields[:cache_read_input]).to be_within(0.0001).of(fields[:input] * 0.5)
+      end
+    end
+
+    it "keeps Groq flex token pricing equal to on-demand pricing" do
+      bundled.each do |model_id, fields|
+        next unless model_id.start_with?("groq/")
+        next unless fields[:flex_input]
+
+        expect(fields[:flex_input]).to eq(fields[:on_demand_input])
+        expect(fields[:flex_output]).to eq(fields[:on_demand_output])
+        if fields[:flex_cache_read_input]
+          expect(fields[:flex_cache_read_input]).to eq(fields[:on_demand_cache_read_input])
+        end
       end
     end
 

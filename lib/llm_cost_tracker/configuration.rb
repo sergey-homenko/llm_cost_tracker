@@ -8,7 +8,11 @@ module LlmCostTracker
   class Configuration
     include ConfigurationInstrumentation
 
-    OPENAI_COMPATIBLE_PROVIDERS = { "openrouter.ai" => "openrouter", "api.deepseek.com" => "deepseek" }.freeze
+    OPENAI_COMPATIBLE_PROVIDERS = {
+      "openrouter.ai" => "openrouter",
+      "api.deepseek.com" => "deepseek",
+      "api.groq.com" => "groq"
+    }.freeze
 
     BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze

@@ -8,6 +8,7 @@ Short integration recipes for common Ruby clients. Prefer SDK integrations or mi
 | Official `openai` gem | `config.instrument :openai` | The integration wraps SDK resource methods without changing call sites. |
 | Official `anthropic` gem | `config.instrument :anthropic` | The integration records returned message usage without changing call sites. |
 | `ruby-openai` | Faraday middleware | The client is built on Faraday and accepts middleware via the constructor block. |
+| Groq | Faraday middleware | Groq's official SDKs are Python and JavaScript/TypeScript; Ruby uses the OpenAI-compatible HTTP path. |
 | OpenAI-compatible proxy | Faraday middleware | Use `ruby-openai` or a direct Faraday client against the proxy host. |
 | Custom Faraday client | Faraday middleware | The middleware can parse known provider responses automatically. |
 | Other clients | Adapter first, fallback helpers second | Add a stable integration instead of scattering per-call ledger code. |
@@ -121,6 +122,27 @@ client.chat(
 ```
 
 Use the constructor block on every client you build, or wrap client creation in your own factory.
+
+## Groq
+
+Groq is auto-detected on `api.groq.com`. Use a Faraday client or an OpenAI-compatible Ruby client pointed at Groq's base URL.
+
+```ruby
+client = OpenAI::Client.new(
+  access_token: ENV["GROQ_API_KEY"],
+  uri_base: "https://api.groq.com/openai/v1"
+) do |f|
+  f.use :llm_cost_tracker, tags: { feature: "chat" }
+end
+
+client.chat(
+  parameters: {
+    model: "openai/gpt-oss-20b",
+    messages: [{ role: "user", content: "Hello" }],
+    service_tier: "on_demand"
+  }
+)
+```
 
 ## Azure OpenAI
 
