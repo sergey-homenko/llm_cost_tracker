@@ -64,24 +64,24 @@ module LlmCostTracker
     def csv_fields
       %i[tracked_at provider model] +
         TokenUsage::STORED_KEYS +
-        Pricing::COST_KEYS +
-        %i[latency_ms provider_response_id tags]
+        Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost] +
+        %i[cost_status pricing_snapshot latency_ms provider_response_id tags]
     end
 
     def csv_value(field, value)
       case field
       when :tracked_at
         value&.utc&.iso8601
-      when :provider, :model, :provider_response_id
+      when :provider, :model, :provider_response_id, :cost_status
         csv_safe(value)
-      when :tags
-        csv_safe(csv_tags(value))
+      when :tags, :pricing_snapshot
+        csv_safe(csv_json(value))
       else
         value
       end
     end
 
-    def csv_tags(value)
+    def csv_json(value)
       return value.transform_keys(&:to_s).to_json if value.is_a?(Hash)
 
       JSON.parse(value || "{}").to_json

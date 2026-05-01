@@ -2,6 +2,8 @@
 
 require "rails/generators"
 require "rails/generators/active_record"
+require "llm_cost_tracker/billing/components"
+require "llm_cost_tracker/billing/cost_status"
 require "llm_cost_tracker/pricing"
 require "llm_cost_tracker/token_usage"
 

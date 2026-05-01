@@ -17,6 +17,9 @@ require_relative "llm_cost_tracker/tags/key"
 require_relative "llm_cost_tracker/tags/context"
 require_relative "llm_cost_tracker/tags/sanitizer"
 require_relative "llm_cost_tracker/token_usage"
+require_relative "llm_cost_tracker/billing/components"
+require_relative "llm_cost_tracker/billing/service_charge"
+require_relative "llm_cost_tracker/billing/cost_status"
 require_relative "llm_cost_tracker/event"
 require_relative "llm_cost_tracker/pricing"
 require_relative "llm_cost_tracker/usage_capture"
@@ -94,7 +97,8 @@ module LlmCostTracker
     end
 
     def track(provider:, input_tokens:, output_tokens:, model: nil, latency_ms: nil, stream: false,
-              usage_source: :manual, enforce_budget: false, provider_response_id: nil, pricing_mode: nil, **metadata)
+              usage_source: :manual, enforce_budget: false, provider_response_id: nil, pricing_mode: nil,
+              service_charges: [], **metadata)
       enforce_budget! if enforce_budget
       token_usage = TokenUsage.from_hash(metadata.merge(input_tokens: input_tokens, output_tokens: output_tokens))
 
@@ -105,7 +109,8 @@ module LlmCostTracker
           token_usage: token_usage,
           stream: stream,
           usage_source: usage_source,
-          provider_response_id: provider_response_id
+          provider_response_id: provider_response_id,
+          service_charges: service_charges
         ),
         latency_ms: latency_ms,
         pricing_mode: pricing_mode,

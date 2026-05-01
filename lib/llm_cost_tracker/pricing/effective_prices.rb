@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "components"
+require_relative "../billing/components"
 
 module LlmCostTracker
   module Pricing
@@ -10,8 +10,8 @@ module LlmCostTracker
           quantities = usage.price_quantities
           context_tier = context_tier?(usage: usage, prices: prices)
 
-          Pricing::COMPONENTS.to_h do |component|
-            price_key = component.price_key
+          Billing::Components::TOKEN_PRICED.to_h do |component|
+            price_key = component.key
             tokens = quantities.fetch(price_key)
             price = if tokens.positive?
                       price_for(

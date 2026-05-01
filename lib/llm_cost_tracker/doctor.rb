@@ -4,6 +4,8 @@ require_relative "ledger"
 require_relative "doctor/check"
 require_relative "doctor/ingestion_check"
 require_relative "doctor/price_check"
+require_relative "doctor/service_charges_check"
+require_relative "generators/llm_cost_tracker/add_billing_generator"
 require_relative "generators/llm_cost_tracker/add_token_usage_generator"
 
 module LlmCostTracker
@@ -15,6 +17,10 @@ module LlmCostTracker
       "usage_source" => "bin/rails generate llm_cost_tracker:add_streaming",
       "provider_response_id" => "bin/rails generate llm_cost_tracker:add_provider_response_id"
     }.merge(
+      Generators::AddBillingGenerator::COLUMN_NAMES.to_h do |column|
+        [column, "bin/rails generate llm_cost_tracker:add_billing"]
+      end
+    ).merge(
       Generators::AddTokenUsageGenerator::COLUMN_NAMES.to_h do |column|
         [column, "bin/rails generate llm_cost_tracker:add_token_usage"]
       end
@@ -44,6 +50,8 @@ module LlmCostTracker
         active_record_check,
         table_check,
         column_check,
+        ServiceChargesCheck.new.call,
+        legacy_billing_status_check,
         period_totals_check,
         IngestionCheck.new.call,
         PriceCheck.new.call,
@@ -128,6 +136,18 @@ module LlmCostTracker
         "current schema required; #{errors.join('; ')}; " \
         "run bin/rails generate llm_cost_tracker:add_period_totals && bin/rails db:migrate"
       )
+    end
+
+    def legacy_billing_status_check
+      return unless llm_api_calls_table?
+      return unless LlmCostTracker::Ledger::Call.column_names.include?("cost_status")
+
+      count = LlmCostTracker::Ledger::Call.where(cost_status: nil).limit(1).count
+      return if count.zero?
+
+      Check.new(:warn, "billing status", "legacy rows without cost_status remain; new rows will populate it")
+    rescue StandardError
+      nil
     end
 
     def calls_check

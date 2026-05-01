@@ -20,6 +20,7 @@ module LlmCostTrackerEngineContext
       cache_write_1h_input_tokens: 0,
       hidden_output_tokens: 0,
       total_cost: 1.0,
+      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       latency_ms: 100,
       provider_response_id: nil,
       tags: {},
@@ -51,6 +52,7 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
     establish_database_connection!
     create_lct_tables!
     LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ledger::ServiceCharge.reset_column_information
     LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information

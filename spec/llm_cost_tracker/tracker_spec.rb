@@ -21,7 +21,7 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     def record(provider:, model:, token_usage:, stream: false, usage_source: nil, provider_response_id: nil,
-               capture_pricing_mode: nil, **options)
+               capture_pricing_mode: nil, service_charges: [], **options)
       described_class.record(
         capture: LlmCostTracker::UsageCapture.build(
           provider: provider,
@@ -30,7 +30,8 @@ RSpec.describe LlmCostTracker::Tracker do
           stream: stream,
           usage_source: usage_source,
           provider_response_id: provider_response_id,
-          pricing_mode: capture_pricing_mode
+          pricing_mode: capture_pricing_mode,
+          service_charges: service_charges
         ),
         **options
       )
@@ -57,6 +58,8 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.dig(:token_usage, :output_tokens)).to eq(50)
       expect(event.dig(:token_usage, :total_tokens)).to eq(150)
       expect(event[:cost][:total_cost]).to be > 0
+      expect(event[:cost_status]).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+      expect(event.dig(:pricing_snapshot, :rates, :input, :quantity)).to eq(1_000_000)
       expect(event[:tags]).to include(feature: "chat", user_id: 42)
       expect(event[:tracked_at]).to be_a(Time)
     end
@@ -216,6 +219,45 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.pricing_mode).to eq("batch")
       expect(event.total_cost).to eq(1.5)
       expect(event.tags).to eq(feature: "bulk")
+      expect(event.pricing_snapshot.fetch(:rates).fetch(:input).fetch(:amount)).to eq(0.5)
+    end
+
+    it "marks known token costs with unknown service charges as partial" do
+      event = record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: token_usage(input_tokens: 1_000, output_tokens: 0),
+        service_charges: [
+          {
+            component: :web_search_request,
+            quantity: 1,
+            cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+          }
+        ]
+      )
+
+      expect(event.total_cost).to eq(0.0025)
+      expect(event.cost_status).to eq(LlmCostTracker::Billing::CostStatus::PARTIAL)
+      expect(event.service_charges.first.component).to eq("web_search_request")
+    end
+
+    it "keeps service-only unknown charges unknown without inventing total cost" do
+      event = record(
+        provider: "custom",
+        model: "unknown-tool-model",
+        token_usage: token_usage(input_tokens: 0, output_tokens: 0),
+        service_charges: [
+          {
+            component: :web_search_request,
+            quantity: 1,
+            cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+          }
+        ]
+      )
+
+      expect(event.total_cost).to be_nil
+      expect(event.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+      expect(event.cost).to be_nil
     end
 
     it "uses captured provider pricing mode when the caller did not set one" do

@@ -3,6 +3,7 @@
 require "active_support/core_ext/object/blank"
 
 require_relative "pricing"
+require_relative "billing/service_charge"
 
 module LlmCostTracker
   UsageCapture = Data.define(
@@ -12,7 +13,8 @@ module LlmCostTracker
     :stream,
     :usage_source,
     :provider_response_id,
-    :pricing_mode
+    :pricing_mode,
+    :service_charges
   )
 
   class UsageCapture
@@ -26,7 +28,8 @@ module LlmCostTracker
         stream: attributes[:stream] || false,
         usage_source: attributes[:usage_source],
         provider_response_id: attributes[:provider_response_id],
-        pricing_mode: Pricing.normalize_mode(attributes[:pricing_mode])
+        pricing_mode: Pricing.normalize_mode(attributes[:pricing_mode]),
+        service_charges: Billing::ServiceCharge.build_many(attributes[:service_charges])
       )
     end
 

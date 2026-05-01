@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "llm_cost_tracker/pricing"
+require "llm_cost_tracker/billing/components"
 require "llm_cost_tracker/ledger/schema/adapter"
 
 module LlmCostTracker
@@ -22,7 +22,7 @@ module LlmCostTracker
         def usage_rows(stats)
           billable_tokens = stats.billable_tokens.to_f
 
-          rows = Pricing::COMPONENTS.map do |component|
+          rows = Billing::Components::TOKEN_PRICED.map do |component|
             token_key = component.token_key
             cost_key = component.cost_key
             token_value = stats[token_key].to_i
@@ -33,7 +33,7 @@ module LlmCostTracker
                             end
 
             {
-              price_key: component.price_key,
+              price_key: component.key,
               token_key: token_key,
               cost_key: cost_key,
               token_value: token_value,
@@ -72,7 +72,7 @@ module LlmCostTracker
         def aggregate_selects(scope)
           selects = [
             "COUNT(*) AS total_calls",
-            "#{conditional_count_sql('total_cost IS NULL')} AS unknown_pricing_count",
+            "#{conditional_count_sql(unknown_pricing_predicate(scope))} AS unknown_pricing_count",
             "#{tagged_calls_sql(scope)} AS tagged_calls_count",
             "COUNT(*) - #{tagged_calls_sql(scope)} AS untagged_calls_count",
             "#{conditional_count_sql('latency_ms IS NULL')} AS missing_latency_count",
@@ -92,11 +92,12 @@ module LlmCostTracker
         end
 
         def usage_sum_columns
-          Pricing::COMPONENTS.map(&:token_key) + [:hidden_output_tokens] + Pricing::COMPONENTS.map(&:cost_key)
+          Billing::Components::TOKEN_PRICED.map(&:token_key) + [:hidden_output_tokens] +
+            Billing::Components::TOKEN_PRICED.map(&:cost_key)
         end
 
         def billable_tokens_select(scope)
-          Pricing::COMPONENTS
+          Billing::Components::TOKEN_PRICED
             .map { |component| column_sum(scope, component.token_key) }
             .join(" + ")
         end
@@ -106,6 +107,15 @@ module LlmCostTracker
           output = column_sum(scope, :output_tokens)
 
           "CASE WHEN #{output} > 0 THEN #{hidden_output} * 100.0 / #{output} ELSE 0 END"
+        end
+
+        def unknown_pricing_predicate(scope)
+          values = [
+            LlmCostTracker::Billing::CostStatus::UNKNOWN,
+            LlmCostTracker::Billing::CostStatus::PARTIAL
+          ].map { |value| scope.connection.quote(value) }
+
+          "total_cost IS NULL OR cost_status IN (#{values.join(', ')})"
         end
 
         def column_sum(scope, column)

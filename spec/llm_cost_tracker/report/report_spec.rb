@@ -10,6 +10,7 @@ RSpec.describe LlmCostTracker::Report do
     create_lct_tables!
 
     LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ledger::ServiceCharge.reset_column_information
     LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
@@ -32,6 +33,7 @@ RSpec.describe LlmCostTracker::Report do
       output_tokens: 0,
       total_tokens: 0,
       total_cost: total_cost,
+      cost_status: total_cost.nil? ? LlmCostTracker::Billing::CostStatus::UNKNOWN : LlmCostTracker::Billing::CostStatus::COMPLETE,
       tags: tags_for_database(tags),
       tracked_at: tracked_at
     )

@@ -1,3 +1,5 @@
+require "llm_cost_tracker/billing/components"
+require "llm_cost_tracker/billing/cost_status"
 require "llm_cost_tracker/ledger/schema/adapter"
 
 class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
@@ -9,7 +11,7 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
 <% LlmCostTracker::TokenUsage::STORED_KEYS.each do |column| -%>
       t.integer :<%= column %>, null: false, default: 0
 <% end -%>
-<% LlmCostTracker::Pricing::COST_KEYS.each do |column| -%>
+<% (LlmCostTracker::Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost]).each do |column| -%>
       t.decimal :<%= column %>, precision: 20, scale: 8
 <% end -%>
       t.integer :latency_ms
@@ -17,14 +19,45 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
       t.string  :usage_source
       t.string  :provider_response_id
       t.string  :pricing_mode
+      t.string  :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
       if postgresql?
+        t.jsonb :pricing_snapshot
         t.jsonb :tags, null: false, default: {}
       elsif mysql?
+        t.json :pricing_snapshot
         t.json :tags, null: false
       else
         raise "LLM Cost Tracker supports PostgreSQL and MySQL only"
       end
       t.datetime :tracked_at,   null: false
+
+      t.timestamps
+    end
+
+    create_table :llm_cost_tracker_service_charges do |t|
+      t.references :llm_api_call, null: false, index: false
+      t.string :charge_id, null: false
+      t.string :component, null: false
+      t.string :unit, null: false
+      t.decimal :quantity, precision: 30, scale: 10, null: false
+      t.decimal :rate_amount, precision: 20, scale: 8
+      t.decimal :rate_quantity, precision: 30, scale: 10, null: false, default: 1
+      t.decimal :cost, precision: 20, scale: 8
+      t.string :currency, null: false, default: "USD"
+      t.string :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
+      t.string :pricing_basis
+      t.string :price_key
+      t.string :price_source
+      t.string :price_source_version
+      t.string :source_key
+      t.string :provider_item_id
+      if postgresql?
+        t.jsonb :details, null: false, default: {}
+      elsif mysql?
+        t.json :details, null: false
+      else
+        raise "LLM Cost Tracker supports PostgreSQL and MySQL only"
+      end
 
       t.timestamps
     end
@@ -62,8 +95,12 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
     add_index :llm_api_calls, :tracked_at
     add_index :llm_api_calls, [:provider, :tracked_at]
     add_index :llm_api_calls, [:model, :tracked_at]
+    add_index :llm_api_calls, :cost_status
     add_index :llm_api_calls, :provider_response_id
     add_index :llm_api_calls, :tags, using: :gin if postgresql?
+    add_index :llm_cost_tracker_service_charges, :llm_api_call_id
+    add_index :llm_cost_tracker_service_charges, :charge_id, unique: true
+    add_index :llm_cost_tracker_service_charges, :component
     add_index :llm_cost_tracker_period_totals, [:period, :period_start], unique: true
     add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
     add_index :llm_cost_tracker_inbox_events, :tracked_at

@@ -37,7 +37,7 @@ module LlmCostTracker
     private
 
     def token_usage_display_components(labels:)
-      LlmCostTracker::Pricing::COMPONENTS.map do |component|
+      LlmCostTracker::Billing::Components::TOKEN_PRICED.map do |component|
         token_key = component.token_key
         {
           token_key: token_key,

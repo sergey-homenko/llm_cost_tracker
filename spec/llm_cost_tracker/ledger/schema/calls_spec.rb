@@ -15,6 +15,8 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
         usage_source
         provider_response_id
         pricing_mode
+        cost_status
+        pricing_snapshot
         tags
         tracked_at
       ]
@@ -29,7 +31,8 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
     end
 
     it "includes every Pricing cost column" do
-      missing = LlmCostTracker::Pricing::COST_KEYS.map(&:to_s) - schema_columns
+      cost_keys = LlmCostTracker::Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost]
+      missing = cost_keys.map(&:to_s) - schema_columns
       message = "Pricing cost keys not declared in schema: #{missing.join(', ')}; " \
                 "add migration and update CURRENT_SCHEMA_COLUMNS"
 
@@ -39,7 +42,7 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
     it "does not contain unknown data columns" do
       known_columns = fixed_schema_columns +
                       LlmCostTracker::TokenUsage.members.map(&:to_s) +
-                      LlmCostTracker::Pricing::COST_KEYS.map(&:to_s)
+                      (LlmCostTracker::Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost]).map(&:to_s)
       unknown = schema_columns - known_columns
 
       expect(unknown).to be_empty, "Unknown schema columns: #{unknown.join(', ')}"

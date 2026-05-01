@@ -77,6 +77,9 @@ end %>
       <dt>Pricing Status</dt>
       <dd><%= pricing_status(@call) %></dd>
 
+      <dt>Cost Status</dt>
+      <dd><%= @call.cost_status.presence || "n/a" %></dd>
+
       <dt>Provider Response ID</dt>
       <dd><%= @call.provider_response_id.presence || "n/a" %></dd>
 
@@ -113,6 +116,46 @@ end %>
     </dl>
   </div>
 </section>
+
+<% service_charges = @call.service_charges.to_a %>
+<% if service_charges.any? %>
+  <section class="lct-panel">
+    <h2 class="lct-section-title">Service Charges</h2>
+    <div class="lct-table-wrap">
+      <table class="lct-table lct-table-compact">
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Unit</th>
+            <th class="lct-num">Quantity</th>
+            <th class="lct-num">Rate</th>
+            <th class="lct-num">Cost</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% service_charges.each do |charge| %>
+            <tr>
+              <td><code class="lct-code"><%= charge.component %></code></td>
+              <td><%= charge.unit %></td>
+              <td class="lct-num"><%= charge.quantity %></td>
+              <td class="lct-num"><%= charge.rate_amount ? "#{optional_money(charge.rate_amount)} / #{charge.rate_quantity}" : "n/a" %></td>
+              <td class="lct-num<%= ' lct-num-muted' if charge.cost.nil? %>"><%= optional_money(charge.cost) %></td>
+              <td><%= charge.cost_status %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<% end %>
+
+<% if @call.pricing_snapshot.present? %>
+  <section class="lct-panel">
+    <h2 class="lct-section-title">Pricing Snapshot</h2>
+    <pre class="lct-pre"><%= safe_json(@call.pricing_snapshot) %></pre>
+  </section>
+<% end %>
 
 <section class="lct-panel">
   <h2 class="lct-section-title">Tags</h2>

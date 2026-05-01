@@ -16,6 +16,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     create_lct_tables!
 
     LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ledger::ServiceCharge.reset_column_information
     LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
@@ -47,6 +48,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       cache_write_input_cost: 0.0,
       cache_write_1h_input_cost: 0.0,
       total_cost: 1.0,
+      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       latency_ms: 100,
       stream: false,
       usage_source: nil,

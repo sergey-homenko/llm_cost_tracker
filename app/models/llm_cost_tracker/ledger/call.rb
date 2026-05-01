@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "active_record"
+require "llm_cost_tracker/billing/cost_status"
 
 module LlmCostTracker
   module Ledger
@@ -13,7 +14,11 @@ module LlmCostTracker
 
       scope :with_cost, -> { where.not(total_cost: nil) }
       scope :without_cost, -> { where(total_cost: nil) }
-      scope :unknown_pricing, -> { without_cost }
+      scope :unknown_pricing, lambda {
+        where(total_cost: nil).or(
+          where(cost_status: [Billing::CostStatus::UNKNOWN, Billing::CostStatus::PARTIAL])
+        )
+      }
       scope :with_latency, -> { where.not(latency_ms: nil) }
       scope :streaming,     -> { where(stream: true) }
       scope :non_streaming, -> { where(stream: [false, nil]) }
@@ -23,6 +28,12 @@ module LlmCostTracker
       scope :streaming_missing_usage, lambda {
         where(stream: true).where(usage_source: ["unknown", nil])
       }
+
+      has_many :service_charges,
+               class_name: "LlmCostTracker::Ledger::ServiceCharge",
+               foreign_key: :llm_api_call_id,
+               inverse_of: :call,
+               dependent: :delete_all
 
       scope :with_json_tags, lambda {
         where.not(tags: {})

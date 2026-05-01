@@ -5,11 +5,14 @@ require "time"
 
 require_relative "../event"
 require_relative "../pricing"
+require_relative "../billing/cost_status"
+require_relative "../billing/service_charge"
 
 module LlmCostTracker
   module Ingestion
     class Inbox
-      PAYLOAD_SCHEMA_VERSION = 1
+      PAYLOAD_SCHEMA_VERSION = 2
+      SUPPORTED_PAYLOAD_SCHEMA_VERSIONS = [0, 1, 2].freeze
 
       class << self
         def save(event)
@@ -21,18 +24,25 @@ module LlmCostTracker
         def event_from_row(row)
           payload = JSON.parse(row.payload)
           schema_version = payload.fetch("schema_version", 0)
-          unless [0, PAYLOAD_SCHEMA_VERSION].include?(schema_version)
+          unless SUPPORTED_PAYLOAD_SCHEMA_VERSIONS.include?(schema_version)
             raise LlmCostTracker::Error, "unsupported ledger inbox payload schema version #{schema_version.inspect}"
           end
 
-          cost = payload["cost"] && Pricing.stored_cost_attributes(payload["cost"])
-          token_usage = payload["token_usage"] || payload
+          LlmCostTracker::Event.new(**event_attributes_from(payload))
+        end
 
-          LlmCostTracker::Event.new(
+        private
+
+        def event_attributes_from(payload)
+          cost = payload["cost"] && Pricing.stored_cost_attributes(payload["cost"])
+          token_usage = TokenUsage.from_hash(payload["token_usage"] || payload)
+          service_charges = Billing::ServiceCharge.build_many(payload["service_charges"])
+
+          {
             event_id: payload.fetch("event_id"),
             provider: payload.fetch("provider"),
             model: payload.fetch("model"),
-            token_usage: TokenUsage.from_hash(token_usage),
+            token_usage: token_usage,
             pricing_mode: payload["pricing_mode"],
             cost: cost,
             tags: payload.fetch("tags"),
@@ -40,11 +50,22 @@ module LlmCostTracker
             stream: payload.fetch("stream"),
             usage_source: payload["usage_source"],
             provider_response_id: payload["provider_response_id"],
-            tracked_at: Time.iso8601(payload.fetch("tracked_at"))
-          )
+            tracked_at: Time.iso8601(payload.fetch("tracked_at")),
+            cost_status: cost_status_for(payload, token_usage, cost, service_charges),
+            pricing_snapshot: payload["pricing_snapshot"],
+            service_charges: service_charges
+          }
         end
 
-        private
+        def cost_status_for(payload, token_usage, cost, service_charges)
+          payload["cost_status"] || Billing::CostStatus.call(
+            token_usage: token_usage,
+            usage_source: payload["usage_source"],
+            token_cost: cost,
+            service_charges: service_charges,
+            total_cost: cost&.fetch(:total_cost, nil)
+          )
+        end
 
         def row_for(event)
           now = Time.now.utc

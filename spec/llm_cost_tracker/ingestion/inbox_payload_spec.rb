@@ -23,7 +23,23 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       stream: false,
       usage_source: "manual",
       provider_response_id: "resp_payload_1",
-      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
+      tracked_at: Time.utc(2026, 4, 18, 12, 0, 0),
+      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      pricing_snapshot: {
+        schema_version: 1,
+        source: "bundled",
+        currency: "USD",
+        rates: {
+          input: { amount: 2.5, quantity: 1_000_000 }
+        }
+      },
+      service_charges: [
+        LlmCostTracker::Billing::ServiceCharge.build(
+          component: :web_search_request,
+          quantity: 1,
+          cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+        )
+      ]
     )
   end
 
@@ -42,6 +58,9 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.token_usage.input_tokens).to eq(100)
     expect(restored.total_cost.to_f).to eq(0.3)
     expect(restored.tags).to eq("feature" => "chat")
+    expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+    expect(restored.pricing_snapshot.fetch("schema_version")).to eq(1)
+    expect(restored.service_charges.first.component).to eq("web_search_request")
   end
 
   it "reads legacy flat payload rows without a schema version" do
@@ -67,6 +86,41 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.token_usage.output_tokens).to eq(5)
     expect(restored.total_cost.to_f).to eq(0.03)
     expect(restored.tags).to eq("feature" => "legacy")
+    expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+    expect(restored.pricing_snapshot).to be_nil
+    expect(restored.service_charges).to eq([])
+  end
+
+  it "reads v1 payload rows without service charges" do
+    row = described_class.send(:row_for, event)
+    payload = JSON.parse(row.fetch(:payload)).merge("schema_version" => 1).except("service_charges")
+
+    restored = described_class.event_from_row(row_class.new(JSON.generate(payload)))
+
+    expect(restored.service_charges).to eq([])
+    expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+  end
+
+  it "marks legacy unknown-usage payloads as unknown when cost_status is absent" do
+    payload = {
+      event_id: "evt_legacy_unknown_1",
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      cost: nil,
+      tags: {},
+      latency_ms: nil,
+      stream: true,
+      usage_source: "unknown",
+      provider_response_id: nil,
+      tracked_at: "2026-04-18T12:00:00Z"
+    }
+
+    restored = described_class.event_from_row(row_class.new(JSON.generate(payload)))
+
+    expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
   end
 
   it "rejects unsupported future payload versions" do

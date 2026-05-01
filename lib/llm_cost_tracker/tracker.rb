@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/object/blank"
+require "bigdecimal"
 require "securerandom"
 
 require_relative "ingestion"
 require_relative "ledger"
 require_relative "pricing"
+require_relative "billing/cost_status"
 
 module LlmCostTracker
   class Tracker
@@ -31,6 +33,12 @@ module LlmCostTracker
           token_usage: capture.token_usage,
           pricing_mode: pricing_mode
         )
+        pricing_snapshot = Pricing.snapshot_for(
+          provider: capture.provider,
+          model: capture.model,
+          token_usage: capture.token_usage,
+          pricing_mode: pricing_mode
+        )
 
         Pricing::Unknown.handle!(capture.model) unless cost_data
 
@@ -38,6 +46,7 @@ module LlmCostTracker
           capture: capture,
           pricing_mode: pricing_mode,
           cost_data: cost_data,
+          pricing_snapshot: pricing_snapshot,
           metadata: metadata,
           latency_ms: latency_ms,
           context_tags: context_tags
@@ -53,15 +62,11 @@ module LlmCostTracker
 
       private
 
-      def build_event(capture:, pricing_mode:, cost_data:, metadata:, latency_ms:, context_tags:)
-        usage_source = if capture.usage_source.nil?
-                         nil
-                       else
-                         symbol = capture.usage_source.to_sym
-                         USAGE_SOURCES.include?(symbol) ? symbol.to_s : nil
-                       end
+      def build_event(capture:, pricing_mode:, cost_data:, pricing_snapshot:, metadata:, latency_ms:, context_tags:)
+        usage_source = usage_source_for(capture.usage_source)
         tags = metadata.to_h.reject { |key, _value| TRACKING_METADATA_KEYS.include?(key.to_s) }
         context_tags = context_tags.nil? ? LlmCostTracker::Tags::Context.tags : context_tags.to_h
+        cost = cost_with_service_charges(cost_data, capture.service_charges)
 
         Event.new(
           event_id: SecureRandom.uuid,
@@ -69,7 +74,7 @@ module LlmCostTracker
           model: capture.model,
           token_usage: capture.token_usage,
           pricing_mode: pricing_mode,
-          cost: cost_data,
+          cost: cost,
           tags: LlmCostTracker::Tags::Sanitizer.call(
             context_tags.merge(tags)
           ).freeze,
@@ -77,8 +82,38 @@ module LlmCostTracker
           stream: capture.stream ? true : false,
           usage_source: usage_source,
           provider_response_id: capture.provider_response_id.to_s.presence,
-          tracked_at: Time.now.utc
+          tracked_at: Time.now.utc,
+          cost_status: cost_status_for(capture, usage_source, cost_data, cost),
+          pricing_snapshot: pricing_snapshot,
+          service_charges: capture.service_charges
         )
+      end
+
+      def usage_source_for(value)
+        return nil if value.nil?
+
+        symbol = value.to_sym
+        USAGE_SOURCES.include?(symbol) ? symbol.to_s : nil
+      end
+
+      def cost_status_for(capture, usage_source, cost_data, cost)
+        Billing::CostStatus.call(
+          token_usage: capture.token_usage,
+          usage_source: usage_source,
+          token_cost: cost_data,
+          service_charges: capture.service_charges,
+          total_cost: cost&.fetch(:total_cost, nil)
+        )
+      end
+
+      def cost_with_service_charges(cost_data, service_charges)
+        service_total = service_charges.sum(&:cost_value)
+        return cost_data if service_total.zero? && service_charges.none?(&:priced?)
+
+        cost = cost_data ? cost_data.dup : {}
+        total_cost = BigDecimal(cost.fetch(:total_cost, 0).to_s) + service_total
+        cost[:total_cost] = total_cost.round(8).to_f
+        cost
       end
     end
   end

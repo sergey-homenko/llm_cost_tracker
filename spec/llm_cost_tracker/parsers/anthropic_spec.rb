@@ -123,6 +123,30 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
 
       expect(result.pricing_mode).to eq("fast_data_residency")
     end
+
+    it "extracts provider-reported server tool usage as service charges" do
+      result = parser.parse(
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: {
+          id: "msg_123",
+          model: "claude-sonnet-4-6",
+          usage: {
+            input_tokens: 200,
+            output_tokens: 80,
+            server_tool_use: {
+              web_search_requests: 2,
+              code_execution_requests: 1
+            }
+          }
+        }.to_json
+      )
+
+      expect(result.service_charges.map(&:component)).to eq(%w[web_search_request code_execution_request])
+      expect(result.service_charges.map(&:quantity).map(&:to_i)).to eq([2, 1])
+      expect(result.service_charges.map(&:cost_status).uniq).to eq([LlmCostTracker::Billing::CostStatus::UNKNOWN])
+    end
   end
 
   describe "#parse_stream" do

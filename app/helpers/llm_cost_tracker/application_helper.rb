@@ -48,7 +48,14 @@ module LlmCostTracker
     end
 
     def pricing_status(call)
-      call.total_cost.nil? ? "Unknown pricing" : "Estimated"
+      return "Unknown pricing" if call.total_cost.nil?
+      return "Estimated" unless call.has_attribute?(:cost_status)
+
+      {
+        LlmCostTracker::Billing::CostStatus::COMPLETE => "Estimated",
+        LlmCostTracker::Billing::CostStatus::FREE => "Free",
+        LlmCostTracker::Billing::CostStatus::PARTIAL => "Partial pricing"
+      }.fetch(call.cost_status, "Unknown pricing")
     end
 
     def percent(value)

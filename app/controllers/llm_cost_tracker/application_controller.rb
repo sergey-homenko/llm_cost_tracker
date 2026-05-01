@@ -28,11 +28,21 @@ module LlmCostTracker
       end
 
       period_total_errors = LlmCostTracker::Ledger::Schema::PeriodTotals.current_schema_errors
-      return if period_total_errors.empty?
+      if period_total_errors.any?
+        @setup_message = "The llm_cost_tracker_period_totals table does not match the current LLM Cost Tracker schema."
+        @setup_details = period_total_errors + [
+          "run bin/rails generate llm_cost_tracker:add_period_totals && bin/rails db:migrate"
+        ]
+        render template: "llm_cost_tracker/shared/setup_required"
+        return
+      end
 
-      @setup_message = "The llm_cost_tracker_period_totals table does not match the current LLM Cost Tracker schema."
-      @setup_details = period_total_errors + [
-        "run bin/rails generate llm_cost_tracker:add_period_totals && bin/rails db:migrate"
+      service_charge_errors = LlmCostTracker::Ledger::Schema::ServiceCharges.current_schema_errors
+      return if service_charge_errors.empty?
+
+      @setup_message = "The llm_cost_tracker_service_charges table does not match the current LLM Cost Tracker schema."
+      @setup_details = service_charge_errors + [
+        "run bin/rails generate llm_cost_tracker:add_billing && bin/rails db:migrate"
       ]
       render template: "llm_cost_tracker/shared/setup_required"
     end

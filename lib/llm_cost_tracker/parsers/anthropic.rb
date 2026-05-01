@@ -31,7 +31,8 @@ module LlmCostTracker
           pricing_mode: pricing_mode(request: request, response: response, usage: usage),
           model: response["model"] || request["model"],
           token_usage: token_usage(usage: usage, cache_read: cache_read),
-          usage_source: :response
+          usage_source: :response,
+          service_charges: service_charges(usage)
         )
       end
 
@@ -87,7 +88,39 @@ module LlmCostTracker
           model: model,
           token_usage: token_usage(usage: usage, cache_read: cache_read),
           stream: true,
-          usage_source: :stream_final
+          usage_source: :stream_final,
+          service_charges: service_charges(usage)
+        )
+      end
+
+      def service_charges(usage)
+        server_tool_use = usage["server_tool_use"]
+        return [] unless server_tool_use.is_a?(Hash)
+
+        [
+          service_charge(
+            component: :web_search_request,
+            quantity: server_tool_use["web_search_requests"],
+            source_key: "usage.server_tool_use.web_search_requests"
+          ),
+          service_charge(
+            component: :code_execution_request,
+            quantity: server_tool_use["code_execution_requests"],
+            source_key: "usage.server_tool_use.code_execution_requests"
+          )
+        ].compact
+      end
+
+      def service_charge(component:, quantity:, source_key:)
+        quantity = quantity.to_i
+        return if quantity.zero?
+
+        Billing::ServiceCharge.build(
+          component: component,
+          quantity: quantity,
+          cost_status: Billing::CostStatus::UNKNOWN,
+          pricing_basis: Billing::ServiceCharge::PROVIDER_USAGE_BASIS,
+          source_key: source_key
         )
       end
 

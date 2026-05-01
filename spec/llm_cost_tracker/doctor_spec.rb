@@ -77,6 +77,14 @@ RSpec.describe LlmCostTracker::Doctor do
     )
   end
 
+  it "maps billing audit columns to the billing generator" do
+    columns = LlmCostTracker::Generators::AddBillingGenerator::COLUMN_NAMES
+
+    expect(columns.map { |column| described_class::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
+      ["bin/rails generate llm_cost_tracker:add_billing"]
+    )
+  end
+
   context "with ActiveRecord storage" do
     include_context "with mounted llm cost tracker engine"
 
@@ -86,6 +94,7 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(checks).to include(
         have_attributes(status: :ok, name: "llm_api_calls"),
         have_attributes(status: :ok, name: "llm_api_calls columns"),
+        have_attributes(status: :ok, name: "service charges"),
         have_attributes(status: :ok, name: "period totals"),
         have_attributes(status: :warn, name: "tracked calls")
       )
@@ -123,6 +132,17 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("missing columns: pricing_mode")
       expect(check.message).to include("bin/rails generate llm_cost_tracker:add_token_usage")
       expect(check.message).to include("bin/rails db:migrate")
+    end
+
+    it "fails when service charges are missing" do
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_service_charges)
+      LlmCostTracker::Ledger::ServiceCharge.reset_column_information
+
+      check = described_class.call.find { |item| item.name == "service charges" }
+
+      expect(check).to have_attributes(status: :error)
+      expect(check.message).to include("llm_cost_tracker_service_charges table is missing")
+      expect(check.message).to include("llm_cost_tracker:add_billing")
     end
 
     it "reports recorded calls" do

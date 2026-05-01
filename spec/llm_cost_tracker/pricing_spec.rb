@@ -61,6 +61,27 @@ RSpec.describe LlmCostTracker::Pricing do
     end
   end
 
+  describe ".snapshot_for" do
+    it "captures the applied token rates and source metadata" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = { "snapshot-model" => { input: 1.0, output: 2.0, batch_input: 0.5, batch_output: 1.0 } }
+      end
+
+      snapshot = described_class.snapshot_for(
+        provider: "custom",
+        model: "snapshot-model",
+        pricing_mode: :batch,
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 500)
+      )
+
+      expect(snapshot.fetch(:schema_version)).to eq(1)
+      expect(snapshot.fetch(:source)).to eq("pricing_overrides")
+      expect(snapshot.fetch(:source_version)).to eq("configuration")
+      expect(snapshot.dig(:rates, :input)).to eq(amount: 0.5, quantity: 1_000_000)
+      expect(snapshot.dig(:rates, :output)).to eq(amount: 1.0, quantity: 1_000_000)
+    end
+  end
+
   describe ".cost_for" do
     it "calculates cost for a known model" do
       result = cost_for(

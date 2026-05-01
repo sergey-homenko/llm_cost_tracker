@@ -58,6 +58,7 @@ module LlmCostTracker
                  .pluck(:id, :tracked_at, :total_cost)
           next 0 if rows.empty?
 
+          LlmCostTracker::Ledger::ServiceCharge.where(llm_api_call_id: rows.map(&:first)).delete_all
           deleted = LlmCostTracker::Ledger::Call.where(id: rows.map(&:first)).delete_all
           LlmCostTracker::Ledger::Rollups.decrement!(rows) if deleted.positive?
           deleted

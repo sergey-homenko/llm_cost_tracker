@@ -13,7 +13,10 @@ module LlmCostTracker
     :stream,
     :usage_source,
     :provider_response_id,
-    :tracked_at
+    :tracked_at,
+    :cost_status,
+    :pricing_snapshot,
+    :service_charges
   ) do
     def total_cost
       cost&.fetch(:total_cost, nil)
@@ -23,7 +26,8 @@ module LlmCostTracker
       super.merge(
         token_usage: token_usage.to_h,
         cost: cost&.to_h,
-        tags: tags ? tags.to_h : {}
+        tags: tags ? tags.to_h : {},
+        service_charges: service_charges.map(&:to_h)
       )
     end
   end

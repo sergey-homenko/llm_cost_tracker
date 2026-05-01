@@ -12,6 +12,7 @@ RSpec.describe "ActiveRecord storage integration" do
     create_lct_tables!
 
     LlmCostTracker::Ledger::Call.reset_column_information
+    LlmCostTracker::Ledger::ServiceCharge.reset_column_information
     LlmCostTracker::Ledger::Period::Total.reset_column_information
     LlmCostTracker::Ingestion::Event.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
@@ -48,7 +49,10 @@ RSpec.describe "ActiveRecord storage integration" do
       stream: false,
       usage_source: "manual",
       provider_response_id: nil,
-      tracked_at: tracked_at
+      tracked_at: tracked_at,
+      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      pricing_snapshot: nil,
+      service_charges: []
     )
   end
 
@@ -93,6 +97,57 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.cache_write_input_cost.to_f).to eq(0.0)
     expect(call.cache_write_1h_input_cost.to_f).to eq(0.0)
     expect(call.total_cost.to_f).to eq(0.007375)
+    expect(call.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+    expect(call.pricing_snapshot.fetch("rates").keys).to include("input", "cache_read_input", "output")
+  end
+
+  it "stores service charges atomically with the parent call" do
+    track_and_flush(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0,
+      service_charges: [
+        {
+          component: :web_search_request,
+          quantity: 1,
+          rate_amount: 10,
+          rate_quantity: 1_000,
+          cost: 0.01,
+          pricing_basis: LlmCostTracker::Billing::ServiceCharge::PROVIDER_USAGE_BASIS
+        }
+      ]
+    )
+
+    call = LlmCostTracker::Ledger::Call.first
+    charge = LlmCostTracker::Ledger::ServiceCharge.first
+
+    expect(call.total_cost.to_f).to eq(0.0125)
+    expect(call.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+    expect(charge.llm_api_call_id).to eq(call.id)
+    expect(charge.component).to eq("web_search_request")
+    expect(charge.cost.to_f).to eq(0.01)
+  end
+
+  it "marks calls with unknown service charges as partial when token pricing is known" do
+    track_and_flush(
+      provider: :openai,
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 0,
+      service_charges: [
+        {
+          component: :web_search_request,
+          quantity: 1,
+          cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+        }
+      ]
+    )
+
+    call = LlmCostTracker::Ledger::Call.first
+
+    expect(call.total_cost.to_f).to eq(0.0025)
+    expect(call.cost_status).to eq(LlmCostTracker::Billing::CostStatus::PARTIAL)
   end
 
   it "persists pricing_mode" do

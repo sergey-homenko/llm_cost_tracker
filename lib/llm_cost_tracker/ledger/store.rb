@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../pricing"
+require_relative "../billing/service_charge"
 require_relative "rollups"
 
 module LlmCostTracker
@@ -14,9 +15,12 @@ module LlmCostTracker
           insertable = insertable_events(events)
 
           if insertable.any?
-            rows = insertable.map { |event| attributes_for(event) }
-            Ledger::Call.insert_all!(rows, record_timestamps: true, returning: false)
-            Ledger::Rollups.increment_many!(insertable)
+            Ledger::Call.transaction do
+              rows = insertable.map { |event| attributes_for(event) }
+              Ledger::Call.insert_all!(rows, record_timestamps: true, returning: false)
+              insert_service_charges(insertable)
+              Ledger::Rollups.increment_many!(insertable)
+            end
           end
           events
         end
@@ -34,12 +38,62 @@ module LlmCostTracker
             latency_ms: event.latency_ms,
             stream: event.stream,
             usage_source: event.usage_source,
-            provider_response_id: event.provider_response_id
+            provider_response_id: event.provider_response_id,
+            cost_status: event.cost_status,
+            pricing_snapshot: event.pricing_snapshot
           }
 
           attributes
             .merge(event.token_usage.stored_attributes)
             .merge(Pricing.stored_cost_attributes(event.cost || {}))
+        end
+
+        def insert_service_charges(events)
+          events_with_charges = events.select { |event| event.service_charges.any? }
+          return if events_with_charges.empty?
+
+          call_ids = Ledger::Call
+                     .where(event_id: events_with_charges.map(&:event_id))
+                     .pluck(:event_id, :id)
+                     .to_h
+          rows = events_with_charges.flat_map do |event|
+            event.service_charges.each_with_index.map do |charge, index|
+              service_charge_attributes(
+                call_id: call_ids.fetch(event.event_id),
+                event_id: event.event_id,
+                charge: charge,
+                index: index
+              )
+            end
+          end
+
+          Ledger::ServiceCharge.insert_all!(rows, record_timestamps: true, returning: false) if rows.any?
+        end
+
+        def service_charge_attributes(call_id:, event_id:, charge:, index:)
+          {
+            llm_api_call_id: call_id,
+            charge_id: charge.charge_id || "#{event_id}:#{index}",
+            component: charge.component,
+            unit: charge.unit,
+            quantity: charge.quantity,
+            rate_amount: charge.rate_amount,
+            rate_quantity: charge.rate_quantity,
+            cost: charge.cost,
+            currency: charge.currency,
+            cost_status: charge.cost_status,
+            pricing_basis: charge.pricing_basis,
+            price_key: charge.price_key,
+            price_source: charge.price_source,
+            price_source_version: charge.price_source_version,
+            source_key: charge.source_key,
+            provider_item_id: charge.provider_item_id,
+            details: stored_details(charge.details)
+          }
+        end
+
+        def stored_details(details)
+          (details || {}).transform_keys(&:to_s).transform_values { |value| stored_tag_value(value) }
         end
 
         def insertable_events(events)

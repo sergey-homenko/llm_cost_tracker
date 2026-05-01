@@ -4,6 +4,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- Billing component registry, cost status, pricing snapshots, and service charge ledger rows.
+- Anthropic server tool usage is captured as unknown-cost service charges.
+- `llm_cost_tracker:add_billing` upgrades existing ledgers with billing audit columns and service charge storage.
+- Doctor checks now report missing billing audit columns and service charge schema.
+
+### Changed
+
+- Pricing components now derive directly from the billing component registry.
+- Durable inbox payloads now use schema version 2 while reading legacy v0/v1 payloads.
+- Removed the `Pricing::COMPONENTS` compatibility surface.
+
 ## [0.7.3] - 2026-05-01
 
 ### Fixed

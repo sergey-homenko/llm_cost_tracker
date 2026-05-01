@@ -28,6 +28,8 @@ module LlmCostTracker
           usage_source
           provider_response_id
           pricing_mode
+          cost_status
+          pricing_snapshot
           tags
           tracked_at
         ].freeze
@@ -73,22 +75,26 @@ module LlmCostTracker
             errors = []
             missing = missing_columns_for(columns)
             errors << "missing columns: #{missing.join(', ')}" if missing.any?
-
-            tag_column = columns["tags"]
-            if tag_column
-              postgresql = Ledger::Schema::Adapter.postgresql?(adapter_name)
-              expected_type = postgresql ? "jsonb" : "json"
-              valid_type =
-                if postgresql
-                  tag_column.type == :jsonb || tag_column.sql_type.to_s.downcase == "jsonb"
-                else
-                  tag_column.type == :json
-                end
-
-              errors << "tags column must use #{expected_type}" unless valid_type
-            end
-
+            errors.concat(json_column_errors(columns, adapter_name, "tags"))
+            errors.concat(json_column_errors(columns, adapter_name, "pricing_snapshot"))
             errors
+          end
+
+          def json_column_errors(columns, adapter_name, name)
+            column = columns[name]
+            return [] unless column
+
+            expected_type = Ledger::Schema::Adapter.postgresql?(adapter_name) ? "jsonb" : "json"
+            valid_type = json_column_type?(column, adapter_name)
+            valid_type ? [] : ["#{name} column must use #{expected_type}"]
+          end
+
+          def json_column_type?(column, adapter_name)
+            if Ledger::Schema::Adapter.postgresql?(adapter_name)
+              column.type == :jsonb || column.sql_type.to_s.downcase == "jsonb"
+            else
+              column.type == :json
+            end
           end
 
           def missing_columns_for(columns)
