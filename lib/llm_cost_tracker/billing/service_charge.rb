@@ -90,7 +90,7 @@ module LlmCostTracker
 
       def self.cost_status_for(attributes, cost)
         status = attributes[:cost_status]&.to_s || status_for(cost)
-        unless CostStatus::STATUSES.include?(status) && status != CostStatus::PARTIAL
+        unless CostStatus::SERVICE_CHARGE_STATUSES.include?(status)
           raise Error, "Invalid service charge cost_status: #{status.inspect}"
         end
 

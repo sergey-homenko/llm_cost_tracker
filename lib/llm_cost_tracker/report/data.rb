@@ -34,15 +34,16 @@ module LlmCostTracker
         from = now - days.days
         scope = Ledger::Call.where(tracked_at: from..now)
         tag_breakdowns ||= LlmCostTracker.configuration.report_tag_breakdowns || []
+        aggregate = totals(scope)
 
         new(
           days: days,
           from_time: from,
           to_time: now,
-          total_cost: scope.sum(:total_cost).to_f,
-          requests_count: scope.count,
-          average_latency_ms: average_latency_ms(scope),
-          unknown_pricing_count: scope.where(total_cost: nil).count,
+          total_cost: aggregate.total_cost.to_f,
+          requests_count: aggregate.requests_count.to_i,
+          average_latency_ms: aggregate.average_latency_ms&.to_f,
+          unknown_pricing_count: aggregate.unknown_pricing_count.to_i,
           cost_by_provider: scope.cost_by_provider(limit: breakdown_limit).to_a,
           cost_by_model: scope.cost_by_model(limit: breakdown_limit).to_a,
           cost_by_tags: cost_by_tags(scope, tag_breakdowns, limit: breakdown_limit),
@@ -50,8 +51,15 @@ module LlmCostTracker
         )
       end
 
-      def self.average_latency_ms(scope)
-        scope.average(:latency_ms)&.to_f
+      def self.totals(scope)
+        scope
+          .select(
+            "COALESCE(SUM(total_cost), 0) AS total_cost, " \
+            "COUNT(*) AS requests_count, " \
+            "AVG(latency_ms) AS average_latency_ms, " \
+            "COALESCE(SUM(CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END), 0) AS unknown_pricing_count"
+          )
+          .take
       end
 
       def self.cost_by_tags(scope, keys, limit:)
@@ -66,7 +74,7 @@ module LlmCostTracker
           .to_a
       end
 
-      private_class_method :average_latency_ms, :cost_by_tags, :top_calls
+      private_class_method :cost_by_tags, :top_calls, :totals
     end
   end
 end

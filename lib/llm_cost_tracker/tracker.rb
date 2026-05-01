@@ -107,6 +107,8 @@ module LlmCostTracker
       end
 
       def cost_with_service_charges(cost_data, service_charges)
+        return cost_data if service_charges.empty?
+
         service_total = service_charges.sum(&:cost_value)
         return cost_data if service_total.zero? && service_charges.none?(&:priced?)
 

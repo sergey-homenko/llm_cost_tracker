@@ -46,13 +46,15 @@ module LlmCostTracker
       end
 
       def next_page?(total_count)
-        offset + per < total_count.to_i
+        total_count = total_count.to_i
+        offset + per < total_count
       end
 
       def total_pages(total_count)
-        return MIN_PAGE if total_count.to_i <= 0
+        total_count = total_count.to_i
+        return MIN_PAGE unless total_count.positive?
 
-        [(total_count.to_f / per).ceil, MIN_PAGE].max
+        ((total_count + per - 1) / per)
       end
     end
   end

@@ -29,10 +29,6 @@ module LlmCostTracker
 
       attr_reader :scope, :connection, :limit
 
-      def subquery
-        scope.to_sql
-      end
-
       def build_sql
         return postgresql_sql if Ledger::Schema::Adapter.postgresql?(connection)
         return mysql_sql if Ledger::Schema::Adapter.mysql?(connection)
@@ -45,7 +41,7 @@ module LlmCostTracker
           SELECT jt.key AS key,
                  COUNT(*) AS calls_count,
                  COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(sub.tags, CONCAT('$.', JSON_QUOTE(jt.key))))) AS distinct_values
-          FROM (#{subquery}) AS sub
+          FROM (#{scope.to_sql}) AS sub
           JOIN JSON_TABLE(
             COALESCE(JSON_KEYS(sub.tags), JSON_ARRAY()),
             '$[*]' COLUMNS(
@@ -65,7 +61,7 @@ module LlmCostTracker
           SELECT key,
                  COUNT(*) AS calls_count,
                  COUNT(DISTINCT (sub.tags::jsonb)->>key) AS distinct_values
-          FROM (#{subquery}) AS sub,
+          FROM (#{scope.to_sql}) AS sub,
                jsonb_object_keys(sub.tags::jsonb) AS key
           WHERE sub.tags IS NOT NULL
             AND sub.tags::jsonb <> '{}'::jsonb

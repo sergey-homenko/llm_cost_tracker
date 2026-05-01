@@ -28,13 +28,14 @@ module LlmCostTracker
       attr_reader :scope, :from, :to
 
       def alerts
+        window_days = WINDOW_DAYS.to_f
         daily_spend_by_model.each_with_object([]) do |((provider, model), daily_costs), rows|
           latest_spend = daily_costs.fetch(to, 0.0)
           next unless latest_spend.positive?
 
           baseline_days = ((to - WINDOW_DAYS)...to).map { |day| daily_costs.fetch(day, 0.0) }
-          mean = baseline_days.sum / WINDOW_DAYS.to_f
-          variance = baseline_days.sum { |value| (value - mean)**2 } / WINDOW_DAYS.to_f
+          mean = baseline_days.sum / window_days
+          variance = baseline_days.sum { |value| (value - mean)**2 } / window_days
           threshold = mean + (2 * Math.sqrt(variance))
           next unless latest_spend > threshold
 
