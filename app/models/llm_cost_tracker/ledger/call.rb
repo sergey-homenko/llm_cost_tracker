@@ -38,7 +38,7 @@ module LlmCostTracker
       end
 
       def self.by_tags(tags)
-        Ledger::Tags::Query.apply(self, tags)
+        Ledger::Tags::Query.apply(tags)
       end
     end
   end

@@ -8,8 +8,7 @@ module LlmCostTracker
     class DataQuality
       class << self
         def call(scope: LlmCostTracker::Ledger::Call.all)
-          model = scope.klass
-          scope.unscope(:order).select(aggregate_selects(scope, model:)).take
+          scope.unscope(:order).select(aggregate_selects(scope)).take
         end
 
         def unknown_pricing_by_model(scope)
@@ -70,12 +69,12 @@ module LlmCostTracker
 
         private
 
-        def aggregate_selects(scope, model:)
+        def aggregate_selects(scope)
           selects = [
             "COUNT(*) AS total_calls",
             "#{conditional_count_sql('total_cost IS NULL')} AS unknown_pricing_count",
-            "#{tagged_calls_sql(model)} AS tagged_calls_count",
-            "COUNT(*) - #{tagged_calls_sql(model)} AS untagged_calls_count",
+            "#{tagged_calls_sql(scope)} AS tagged_calls_count",
+            "COUNT(*) - #{tagged_calls_sql(scope)} AS untagged_calls_count",
             "#{conditional_count_sql('latency_ms IS NULL')} AS missing_latency_count",
             "#{conditional_count_sql('stream')} AS streaming_count",
             "#{streaming_missing_usage_select} AS streaming_missing_usage_count",
@@ -127,11 +126,12 @@ module LlmCostTracker
           conditional_count_sql(predicate)
         end
 
-        def tagged_calls_sql(model)
-          table = model.quoted_table_name
-          column = "#{table}.#{model.connection.quote_column_name('tags')}"
+        def tagged_calls_sql(scope)
+          table = scope.klass.quoted_table_name
+          connection = scope.connection
+          column = "#{table}.#{connection.quote_column_name('tags')}"
 
-          if Ledger::Schema::Adapter.postgresql?(model.connection)
+          if Ledger::Schema::Adapter.postgresql?(connection)
             "COALESCE(SUM(CASE WHEN #{column} <> '{}'::jsonb THEN 1 ELSE 0 END), 0)"
           else
             "COALESCE(SUM(CASE WHEN JSON_LENGTH(#{column}) > 0 THEN 1 ELSE 0 END), 0)"

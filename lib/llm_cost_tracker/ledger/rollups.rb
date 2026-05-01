@@ -15,9 +15,9 @@ module LlmCostTracker
 
           Period::Total.upsert_all(
             period_rows(event),
-            on_duplicate: Ledger::Rollups::UpsertSql.call(Period::Total),
+            on_duplicate: Ledger::Rollups::UpsertSql.call,
             record_timestamps: true,
-            unique_by: unique_by(Period::Total, %i[period period_start])
+            unique_by: period_totals_unique_by
           )
         end
 
@@ -27,9 +27,9 @@ module LlmCostTracker
 
           Period::Total.upsert_all(
             Ledger::Rollups::Batch.rows(events),
-            on_duplicate: Ledger::Rollups::UpsertSql.call(Period::Total),
+            on_duplicate: Ledger::Rollups::UpsertSql.call,
             record_timestamps: true,
-            unique_by: unique_by(Period::Total, %i[period period_start])
+            unique_by: period_totals_unique_by
           )
         end
 
@@ -76,10 +76,10 @@ module LlmCostTracker
           end
         end
 
-        def unique_by(model, column)
-          return unless model.connection.supports_insert_conflict_target?
+        def period_totals_unique_by
+          return unless Period::Total.connection.supports_insert_conflict_target?
 
-          column
+          %i[period period_start]
         end
       end
     end

@@ -6,12 +6,8 @@ module LlmCostTracker
   module Ledger
     class Rollups
       class UpsertSql
-        def self.call(model)
-          new(model).call
-        end
-
-        def initialize(model)
-          @model = model
+        def self.call
+          new.call
         end
 
         def call
@@ -23,13 +19,11 @@ module LlmCostTracker
 
         private
 
-        attr_reader :model
-
         def postgres_sql
           total_cost = connection.quote_column_name("total_cost")
           updated_at = connection.quote_column_name("updated_at")
 
-          "#{total_cost} = #{model.quoted_table_name}.#{total_cost} + excluded.#{total_cost}, " \
+          "#{total_cost} = #{Period::Total.quoted_table_name}.#{total_cost} + excluded.#{total_cost}, " \
             "#{updated_at} = excluded.#{updated_at}"
         end
 
@@ -38,7 +32,7 @@ module LlmCostTracker
         end
 
         def connection
-          model.connection
+          Period::Total.connection
         end
       end
     end

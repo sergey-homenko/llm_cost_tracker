@@ -91,6 +91,30 @@ RSpec.describe "ActiveRecord storage integration" do
     event
   end
 
+  def build_event(event_id:, total_cost: 0.0025, tracked_at: Time.now.utc, tags: {})
+    LlmCostTracker::Event.new(
+      event_id: event_id,
+      provider: "openai",
+      model: "gpt-4o",
+      token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
+      pricing_mode: nil,
+      cost: {
+        input_cost: total_cost,
+        cache_read_input_cost: 0,
+        cache_write_input_cost: 0,
+        cache_write_1h_input_cost: 0,
+        output_cost: 0,
+        total_cost: total_cost
+      },
+      tags: tags,
+      latency_ms: nil,
+      stream: false,
+      usage_source: "manual",
+      provider_response_id: nil,
+      tracked_at: tracked_at
+    )
+  end
+
   it "lazy-loads the ActiveRecord store and persists events" do
     track_and_flush(
       provider: :openai,
@@ -284,15 +308,37 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(received_rows.map { |row| row[:period] }).to contain_exactly("month", "day")
   end
 
+  it "skips duplicate event ids within one insert batch before incrementing rollups" do
+    event = build_event(event_id: "duplicate-event")
+
+    LlmCostTracker::Ledger::Store.insert_many([event, event])
+
+    expect(LlmCostTracker::Ledger::Call.where(event_id: "duplicate-event").count).to eq(1)
+    expect(LlmCostTracker::Ledger::Period::Totals.call(%i[daily monthly], time: event.tracked_at)).to eq(
+      daily: 0.0025,
+      monthly: 0.0025
+    )
+  end
+
+  it "stringifies nested tag keys and values before storing" do
+    event = build_event(event_id: "nested-tags", tags: { metadata: { user_id: 42, active: true } })
+
+    LlmCostTracker::Ledger::Store.insert_many([event])
+
+    expect(LlmCostTracker::Ledger::Call.first.parsed_tags).to eq(
+      "metadata" => { "user_id" => "42", "active" => "true" }
+    )
+  end
+
   it "qualifies PostgreSQL rollup upsert totals" do
     connection = double(adapter_name: "PostgreSQL")
     allow(connection).to receive(:quote_column_name) { |name| %("#{name}") }
-    model = double(
-      connection: connection,
-      quoted_table_name: %("llm_cost_tracker_period_totals")
-    )
+    allow(LlmCostTracker::Ledger::Period::Total).to receive(:connection).and_return(connection)
+    allow(LlmCostTracker::Ledger::Period::Total)
+      .to receive(:quoted_table_name)
+      .and_return(%("llm_cost_tracker_period_totals"))
 
-    sql = LlmCostTracker::Ledger::Rollups::UpsertSql.call(model).to_s
+    sql = LlmCostTracker::Ledger::Rollups::UpsertSql.call.to_s
 
     expect(sql).to include(%("total_cost" = "llm_cost_tracker_period_totals"."total_cost" + excluded."total_cost"))
     expect(sql).to include(%("updated_at" = excluded."updated_at"))
@@ -301,12 +347,9 @@ RSpec.describe "ActiveRecord storage integration" do
   it "treats MySQL-family adapters consistently for rollup upserts" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
       connection = double(adapter_name: adapter_name)
-      model = double(
-        connection: connection,
-        table_name: "llm_cost_tracker_period_totals"
-      )
+      allow(LlmCostTracker::Ledger::Period::Total).to receive(:connection).and_return(connection)
 
-      sql = LlmCostTracker::Ledger::Rollups::UpsertSql.call(model).to_s
+      sql = LlmCostTracker::Ledger::Rollups::UpsertSql.call.to_s
 
       expect(sql).to include("VALUES(total_cost)")
       expect(sql).not_to include("excluded")

@@ -11,12 +11,11 @@ module LlmCostTracker
           events = Array(events)
           return [] if events.empty?
 
-          model = LlmCostTracker::Ledger::Call
-          insertable = new_events(model, events)
+          insertable = insertable_events(events)
 
           if insertable.any?
             rows = insertable.map { |event| attributes_for(event) }
-            model.insert_all!(rows, record_timestamps: true, returning: false)
+            Ledger::Call.insert_all!(rows, record_timestamps: true, returning: false)
             Ledger::Rollups.increment_many!(insertable)
           end
           events
@@ -25,14 +24,11 @@ module LlmCostTracker
         private
 
         def attributes_for(event)
-          tags = (event.tags || {}).transform_keys(&:to_s).transform_values { |value| stringify_tag_value(value) }
-          usage = event.token_usage.stored_attributes
-
           attributes = {
             event_id: event.event_id,
             provider: event.provider,
             model: event.model,
-            tags: tags,
+            tags: stored_tags(event.tags),
             tracked_at: event.tracked_at,
             pricing_mode: event.pricing_mode,
             latency_ms: event.latency_ms,
@@ -41,16 +37,29 @@ module LlmCostTracker
             provider_response_id: event.provider_response_id
           }
 
-          attributes.merge(usage).merge(Pricing.stored_cost_attributes(event.cost || {}))
+          attributes
+            .merge(event.token_usage.stored_attributes)
+            .merge(Pricing.stored_cost_attributes(event.cost || {}))
         end
 
-        def new_events(model, events)
-          existing_ids = model.where(event_id: events.map(&:event_id)).pluck(:event_id).to_set
-          events.reject { |event| existing_ids.include?(event.event_id) }
+        def insertable_events(events)
+          existing_ids = Ledger::Call.where(event_id: events.map(&:event_id)).pluck(:event_id).to_set
+          seen_ids = Set.new
+
+          events.select do |event|
+            event_id = event.event_id
+            !existing_ids.include?(event_id) && seen_ids.add?(event_id)
+          end
         end
 
-        def stringify_tag_value(value)
-          return value.transform_values { |nested| stringify_tag_value(nested) } if value.is_a?(Hash)
+        def stored_tags(tags)
+          (tags || {}).transform_keys(&:to_s).transform_values { |value| stored_tag_value(value) }
+        end
+
+        def stored_tag_value(value)
+          if value.is_a?(Hash)
+            return value.transform_keys(&:to_s).transform_values { |nested| stored_tag_value(nested) }
+          end
 
           value.to_s
         end

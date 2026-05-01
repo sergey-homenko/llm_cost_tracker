@@ -8,16 +8,17 @@ module LlmCostTracker
     module Tags
       module Sql
         class << self
-          def value_expression(model, key, table_name:)
+          def value_expression(key, table_name:)
             key = LlmCostTracker::Tags::Key.validate!(key)
-            column = "#{table_name}.#{model.connection.quote_column_name('tags')}"
+            connection = Ledger::Call.connection
+            column = "#{table_name}.#{connection.quote_column_name('tags')}"
 
-            if Ledger::Schema::Adapter.postgresql?(model.connection)
-              "#{column}->>#{model.connection.quote(key)}"
-            elsif Ledger::Schema::Adapter.mysql?(model.connection)
-              "JSON_UNQUOTE(JSON_EXTRACT(#{column}, #{model.connection.quote(json_path(key))}))"
+            if Ledger::Schema::Adapter.postgresql?(connection)
+              "#{column}->>#{connection.quote(key)}"
+            elsif Ledger::Schema::Adapter.mysql?(connection)
+              "JSON_UNQUOTE(JSON_EXTRACT(#{column}, #{connection.quote(json_path(key))}))"
             else
-              Ledger::Schema::Adapter.ensure_supported!(model.connection)
+              Ledger::Schema::Adapter.ensure_supported!(connection)
             end
           end
 

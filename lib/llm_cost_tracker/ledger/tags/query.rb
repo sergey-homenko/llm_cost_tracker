@@ -9,17 +9,17 @@ module LlmCostTracker
     module Tags
       module Query
         class << self
-          def apply(model, tags)
+          def apply(tags)
             normalized_tags = (tags || {}).to_h.transform_keys(&:to_s).transform_values(&:to_s)
-            return model.all if normalized_tags.empty?
+            return Ledger::Call.all if normalized_tags.empty?
 
-            connection = model.connection
+            connection = Ledger::Call.connection
             json = normalized_tags.to_json
 
             if Schema::Adapter.postgresql?(connection)
-              model.where("tags @> ?::jsonb", json)
+              Ledger::Call.where("tags @> ?::jsonb", json)
             else
-              model.where("JSON_CONTAINS(tags, ?)", json)
+              Ledger::Call.where("JSON_CONTAINS(tags, ?)", json)
             end
           end
         end

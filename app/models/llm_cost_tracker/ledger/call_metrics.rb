@@ -48,7 +48,7 @@ module LlmCostTracker
       end
 
       def tag_value_expression(key, table_name: quoted_table_name)
-        Ledger::Tags::Sql.value_expression(self, key, table_name: table_name)
+        Ledger::Tags::Sql.value_expression(key, table_name: table_name)
       end
 
       private
