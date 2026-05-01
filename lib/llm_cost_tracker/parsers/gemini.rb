@@ -23,27 +23,31 @@ module LlmCostTracker
         super
       end
 
-      def parse(request_url, _request_body, response_status, response_body)
+      def parse(request_url, request_body, response_status, response_body, response_headers = nil)
         return nil unless response_status == 200
 
         response = safe_json_parse(response_body)
         usage    = response["usageMetadata"]
         return nil unless usage
 
+        request = safe_json_parse(request_body)
         build_usage_capture(
           request_url,
           usage,
           usage_source: :response,
-          provider_response_id: response["responseId"]
+          provider_response_id: response["responseId"],
+          pricing_mode: pricing_mode(request, response_headers)
         )
       end
 
-      def parse_stream(request_url, _request_body, response_status, events)
+      def parse_stream(request_url, request_body, response_status, events, response_headers = nil)
         return nil unless response_status == 200
 
+        request = safe_json_parse(request_body)
         usage = merged_stream_usage(events)
         model = extract_model_from_url(request_url)
         response_id = stream_response_id(events)
+        mode = pricing_mode(request, response_headers)
 
         if usage
           build_usage_capture(
@@ -51,26 +55,30 @@ module LlmCostTracker
             usage,
             stream: true,
             usage_source: :stream_final,
-            provider_response_id: response_id
+            provider_response_id: response_id,
+            pricing_mode: mode
           )
         else
           build_unknown_stream_usage(
             provider: "gemini",
             model: model,
-            provider_response_id: response_id
+            provider_response_id: response_id,
+            pricing_mode: mode
           )
         end
       end
 
       private
 
-      def build_usage_capture(request_url, usage, usage_source:, stream: false, provider_response_id: nil)
+      def build_usage_capture(request_url, usage, usage_source:, stream: false, provider_response_id: nil,
+                              pricing_mode: nil)
         cache_read = usage["cachedContentTokenCount"].to_i
         tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
 
         UsageCapture.build(
           provider: "gemini",
           model: extract_model_from_url(request_url),
+          pricing_mode: pricing_mode,
           token_usage: TokenUsage.build(
             input_tokens: [usage["promptTokenCount"].to_i - cache_read, 0].max + tool_use_prompt,
             output_tokens: output_tokens(usage),
@@ -112,6 +120,24 @@ module LlmCostTracker
 
         match = uri.path.match(%r{/models/([^/:]+)})
         match && match[1]
+      end
+
+      def pricing_mode(request, response_headers)
+        response_tier = response_header(response_headers, "x-gemini-service-tier")
+        response_mode = Pricing.normalize_mode(response_tier)
+        return response_mode if response_mode
+
+        request_mode = Pricing.normalize_mode(
+          request["service_tier"] ||
+          request["serviceTier"] ||
+          request.dig("config", "service_tier") ||
+          request.dig("config", "serviceTier")
+        )
+        request_mode == "flex" ? request_mode : nil
+      end
+
+      def response_header(headers, name)
+        headers.to_h.find { |key, _value| key.to_s.downcase == name }&.last
       end
     end
   end

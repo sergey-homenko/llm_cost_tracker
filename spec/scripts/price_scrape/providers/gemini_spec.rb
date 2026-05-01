@@ -26,7 +26,19 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "above_context_cache_read_input" => 0.25,
         "above_context_batch_input" => 1.25,
         "above_context_batch_output" => 7.5,
-        "above_context_batch_cache_read_input" => 0.25
+        "above_context_batch_cache_read_input" => 0.25,
+        "flex_input" => 0.625,
+        "flex_output" => 5.0,
+        "flex_cache_read_input" => 0.125,
+        "above_context_flex_input" => 1.25,
+        "above_context_flex_output" => 7.5,
+        "above_context_flex_cache_read_input" => 0.25,
+        "priority_input" => 2.25,
+        "priority_output" => 18.0,
+        "priority_cache_read_input" => 0.225,
+        "above_context_priority_input" => 4.5,
+        "above_context_priority_output" => 27.0,
+        "above_context_priority_cache_read_input" => 0.45
       )
       expect(result.models.fetch("gemini-2.5-flash")).to eq(
         "input" => 0.30,
@@ -34,7 +46,13 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "cache_read_input" => 0.03,
         "batch_input" => 0.15,
         "batch_output" => 1.25,
-        "batch_cache_read_input" => 0.03
+        "batch_cache_read_input" => 0.03,
+        "flex_input" => 0.15,
+        "flex_output" => 1.25,
+        "flex_cache_read_input" => 0.03,
+        "priority_input" => 0.54,
+        "priority_output" => 4.5,
+        "priority_cache_read_input" => 0.054
       )
       expect(result.models.fetch("gemini-2.0-flash")).to eq(
         "input" => 0.10,

@@ -6,6 +6,7 @@ require "nokogiri"
 require "time"
 
 require_relative "../price_fields_validator"
+require_relative "openai/data_residency_prices"
 require_relative "openai/model_ids"
 require_relative "openai/rendered_long_context_prices"
 
@@ -20,6 +21,18 @@ module LlmCostTracker
         BATCH_FIELDS = {
           input: "batch_input", cache_read_input: "batch_cache_read_input", output: "batch_output"
         }.freeze
+        FLEX_FIELDS = {
+          input: "flex_input", cache_read_input: "flex_cache_read_input", output: "flex_output"
+        }.freeze
+        PRIORITY_FIELDS = {
+          input: "priority_input", cache_read_input: "priority_cache_read_input", output: "priority_output"
+        }.freeze
+        TIER_FIELDS = {
+          "standard" => STANDARD_FIELDS,
+          "batch" => BATCH_FIELDS,
+          "flex" => FLEX_FIELDS,
+          "priority" => PRIORITY_FIELDS
+        }.freeze
 
         Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models)
 
@@ -27,17 +40,13 @@ module LlmCostTracker
 
         def call(html:, source_url: SOURCE_URL, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
-          models = merge_model_fields(
-            extract_tier_models(doc, tier: "standard", fields: STANDARD_FIELDS),
-            extract_specialized_models(doc, tier: "standard")
-          )
-          models = merge_model_fields(
-            models,
-            rendered_long_context_prices(doc, tier: "standard", fields: STANDARD_FIELDS)
-          )
-          models = merge_model_fields(models, extract_tier_models(doc, tier: "batch", fields: BATCH_FIELDS))
-          models = merge_model_fields(models, rendered_long_context_prices(doc, tier: "batch", fields: BATCH_FIELDS))
-          models = merge_model_fields(models, extract_specialized_models(doc, tier: "batch"))
+          models = TIER_FIELDS.each_with_object({}) do |(tier, fields), collected|
+            tier_models = extract_tier_models(doc, tier: tier, fields: fields)
+            tier_models = merge_model_fields(tier_models, rendered_long_context_prices(doc, tier: tier, fields: fields))
+            tier_models = merge_model_fields(tier_models, extract_specialized_models(doc, tier: tier))
+            collected.replace(merge_model_fields(collected, tier_models))
+          end
+          models = DataResidencyPrices.call(models)
           PriceFieldsValidator.call(
             models,
             minimum: MIN_MODELS_EXPECTED,
@@ -71,7 +80,7 @@ module LlmCostTracker
           props = pricing_props(pane).find { |candidate| candidate.key?("groups") }
           return {} unless props
 
-          extract_rows(group_rows_from(props), fields: tier == "batch" ? BATCH_FIELDS : STANDARD_FIELDS)
+          extract_rows(group_rows_from(props), fields: TIER_FIELDS.fetch(tier))
         end
 
         def rendered_long_context_prices(doc, tier:, fields:)

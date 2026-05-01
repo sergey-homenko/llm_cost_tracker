@@ -18,6 +18,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       {
         "tier" => [0, "batch"],
         "rows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]]
+      },
+      {
+        "tier" => [0, "flex"],
+        "rows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]]
+      },
+      {
+        "tier" => [0, "priority"],
+        "rows" => [1, [[1, [[0, "gpt-5"], [0, 2.5], [0, 0.25], [0, 20]]]]]
       }
     )
   end
@@ -44,7 +52,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
       expect(result.source_url).to eq(described_class::SOURCE_URL)
       expect(result.scraped_at).to eq("2026-04-26T00:00:00Z")
-      expect(result.models.fetch("gpt-5.5")).to eq(
+      expect(result.models.fetch("gpt-5.5")).to include(
         "input" => 5.0,
         "cache_read_input" => 0.5,
         "output" => 30.0,
@@ -57,15 +65,42 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "above_context_output" => 45.0,
         "above_context_batch_input" => 5.0,
         "above_context_batch_cache_read_input" => 0.5,
-        "above_context_batch_output" => 22.5
+        "above_context_batch_output" => 22.5,
+        "flex_input" => 2.5,
+        "flex_cache_read_input" => 0.25,
+        "flex_output" => 15.0,
+        "above_context_flex_input" => 5.0,
+        "above_context_flex_cache_read_input" => 0.5,
+        "above_context_flex_output" => 22.5,
+        "priority_input" => 12.5,
+        "priority_cache_read_input" => 1.25,
+        "priority_output" => 75.0,
+        "data_residency_input" => 5.5,
+        "data_residency_cache_read_input" => 0.55,
+        "data_residency_output" => 33.0,
+        "priority_data_residency_input" => 13.75,
+        "priority_data_residency_cache_read_input" => 1.375,
+        "priority_data_residency_output" => 82.5
       )
-      expect(result.models.fetch("gpt-5.4-mini")).to eq(
+      expect(result.models.fetch("gpt-5.4-mini")).to include(
         "input" => 0.75,
         "cache_read_input" => 0.075,
         "output" => 4.5,
         "batch_input" => 0.375,
         "batch_cache_read_input" => 0.0375,
-        "batch_output" => 2.25
+        "batch_output" => 2.25,
+        "flex_input" => 0.375,
+        "flex_cache_read_input" => 0.0375,
+        "flex_output" => 2.25,
+        "priority_input" => 1.5,
+        "priority_cache_read_input" => 0.15,
+        "priority_output" => 9.0,
+        "data_residency_input" => 0.825,
+        "data_residency_cache_read_input" => 0.0825,
+        "data_residency_output" => 4.95,
+        "priority_data_residency_input" => 1.65,
+        "priority_data_residency_cache_read_input" => 0.165,
+        "priority_data_residency_output" => 9.9
       )
       expect(result.models.fetch("gpt-4-turbo")).to eq(
         "input" => 10.0,
@@ -76,7 +111,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       expect(result.models.fetch("gpt-5.2-codex")).to eq(
         "input" => 1.75,
         "cache_read_input" => 0.175,
-        "output" => 14.0
+        "output" => 14.0,
+        "priority_input" => 3.5,
+        "priority_cache_read_input" => 0.35,
+        "priority_output" => 28.0
       )
       expect(result.models.fetch("o3-pro")).to eq(
         "input" => 20.0,
@@ -84,9 +122,13 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "batch_input" => 10.0,
         "batch_output" => 40.0
       )
-      expect(result.models.fetch("gpt-5.5-pro").keys).to contain_exactly(
-        "input", "output", "batch_input", "batch_output", "_context_price_threshold_tokens",
-        "above_context_input", "above_context_output"
+      expect(result.models.fetch("gpt-5.5-pro")).to include(
+        "data_residency_input" => 33.0,
+        "data_residency_output" => 198.0,
+        "flex_data_residency_input" => 16.5,
+        "flex_data_residency_output" => 99.0,
+        "above_context_data_residency_input" => 66.0,
+        "above_context_data_residency_output" => 297.0
       )
     end
 

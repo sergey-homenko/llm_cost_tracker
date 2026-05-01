@@ -8,7 +8,19 @@ module LlmCostTracker
     class Openai < Base
       include OpenaiUsage
 
-      HOSTS = %w[api.openai.com].freeze
+      HOSTS = %w[
+        api.openai.com
+        us.api.openai.com
+        eu.api.openai.com
+        au.api.openai.com
+        ca.api.openai.com
+        jp.api.openai.com
+        in.api.openai.com
+        sg.api.openai.com
+        kr.api.openai.com
+        gb.api.openai.com
+        ae.api.openai.com
+      ].freeze
       TRACKED_PATHS = %w[/v1/chat/completions /v1/completions /v1/embeddings /v1/responses].freeze
 
       def match?(url)
@@ -19,11 +31,11 @@ module LlmCostTracker
         %w[openai]
       end
 
-      def parse(request_url, request_body, response_status, response_body)
+      def parse(request_url, request_body, response_status, response_body, _response_headers = nil)
         parse_openai_usage(request_url, request_body, response_status, response_body)
       end
 
-      def parse_stream(request_url, request_body, response_status, events)
+      def parse_stream(request_url, request_body, response_status, events, _response_headers = nil)
         parse_openai_stream_usage(request_url, request_body, response_status, events)
       end
 

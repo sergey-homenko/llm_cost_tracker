@@ -103,6 +103,26 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
 
       expect(result.pricing_mode).to eq("priority")
     end
+
+    it "captures fast US inference as a combined pricing mode" do
+      result = parser.parse(
+        anthropic_messages_url,
+        { model: "claude-opus-4-6", speed: "fast", inference_geo: "us" }.to_json,
+        200,
+        {
+          id: "msg_123",
+          model: "claude-opus-4-6",
+          usage: {
+            input_tokens: 200,
+            output_tokens: 80,
+            speed: "fast",
+            inference_geo: "us"
+          }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to eq("fast_data_residency")
+    end
   end
 
   describe "#parse_stream" do
@@ -181,6 +201,37 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       )
 
       expect(result.pricing_mode).to eq("priority")
+    end
+
+    it "captures stream usage speed and inference geo pricing modes" do
+      events = [
+        { event: "message_start", data: {
+          "type" => "message_start",
+          "message" => {
+            "id" => "msg_456",
+            "model" => "claude-opus-4-6",
+            "usage" => {
+              "input_tokens" => 120,
+              "output_tokens" => 1,
+              "speed" => "fast",
+              "inference_geo" => "us"
+            }
+          }
+        } },
+        { event: "message_delta", data: {
+          "type" => "message_delta",
+          "usage" => { "output_tokens" => 64 }
+        } }
+      ]
+
+      result = parser.parse_stream(
+        anthropic_messages_url,
+        request_body,
+        200,
+        events
+      )
+
+      expect(result.pricing_mode).to eq("fast_data_residency")
     end
 
     it "returns unknown usage when no message events are present" do

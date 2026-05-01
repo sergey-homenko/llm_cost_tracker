@@ -25,7 +25,7 @@ module LlmCostTracker
           return contextual_price(prices, key, context_tier) unless mode
 
           contextual_price(prices, :"#{mode}_#{key}", context_tier) ||
-            derived_batch_price(prices, key, mode, context_tier)
+            derived_mode_price(prices, key, mode, context_tier)
         end
 
         def contextual_price(prices, key, context_tier)
@@ -34,19 +34,16 @@ module LlmCostTracker
           prices[:"above_context_#{key}"]
         end
 
-        def derived_batch_price(prices, key, mode, context_tier)
-          return nil unless mode == "batch"
-
+        def derived_mode_price(prices, key, mode, context_tier)
           standard_price = contextual_price(prices, key, context_tier)
           return nil unless standard_price
 
           base_key = key == :output ? :output : :input
-          batch_key = key == :output ? :batch_output : :batch_input
           base_price = contextual_price(prices, base_key, context_tier)
-          batch_price = contextual_price(prices, batch_key, context_tier)
-          return nil unless base_price && batch_price
+          mode_base_price = contextual_price(prices, :"#{mode}_#{base_key}", context_tier)
+          return nil unless base_price && mode_base_price
 
-          standard_price * (batch_price.to_f / base_price)
+          standard_price * (mode_base_price.to_f / base_price)
         end
 
         def context_tier?(usage, prices)

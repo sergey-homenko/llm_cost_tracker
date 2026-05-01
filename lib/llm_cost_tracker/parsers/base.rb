@@ -7,7 +7,7 @@ require "uri"
 module LlmCostTracker
   module Parsers
     class Base
-      def parse(request_url, request_body, response_status, response_body)
+      def parse(request_url, request_body, response_status, response_body, response_headers = nil)
         raise NotImplementedError
       end
 
@@ -28,7 +28,7 @@ module LlmCostTracker
         request.is_a?(Hash) && request["stream"] == true
       end
 
-      def parse_stream(_request_url, _request_body, _response_status, _events)
+      def parse_stream(_request_url, _request_body, _response_status, _events, _response_headers = nil)
         nil
       end
 

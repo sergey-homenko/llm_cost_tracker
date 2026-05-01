@@ -15,7 +15,7 @@ module LlmCostTracker
         %w[anthropic]
       end
 
-      def parse(_request_url, request_body, response_status, response_body)
+      def parse(_request_url, request_body, response_status, response_body, _response_headers = nil)
         return nil unless response_status == 200
 
         response = safe_json_parse(response_body)
@@ -35,7 +35,7 @@ module LlmCostTracker
         )
       end
 
-      def parse_stream(_request_url, request_body, response_status, events)
+      def parse_stream(_request_url, request_body, response_status, events, _response_headers = nil)
         return nil unless response_status == 200
 
         request = safe_json_parse(request_body)
@@ -109,9 +109,26 @@ module LlmCostTracker
       end
 
       def pricing_mode(request, response, usage)
-        usage&.fetch("service_tier", nil) ||
-          response&.fetch("service_tier", nil) ||
-          request["service_tier"]
+        modes = []
+        speed = usage&.fetch("speed", nil) || response&.fetch("speed", nil) || request["speed"]
+        service_tier = usage&.fetch("service_tier", nil) ||
+                       response&.fetch("service_tier", nil) ||
+                       request["service_tier"]
+
+        modes << Pricing.normalize_mode(speed)
+        modes << Pricing.normalize_mode(service_tier)
+        modes << "data_residency" if inference_geo(request, response, usage) == "us"
+
+        modes = modes.compact.uniq
+        modes.empty? ? nil : modes.join("_")
+      end
+
+      def inference_geo(request, response, usage)
+        (
+          usage&.fetch("inference_geo", nil) ||
+          response&.fetch("inference_geo", nil) ||
+          request["inference_geo"]
+        ).to_s
       end
     end
   end

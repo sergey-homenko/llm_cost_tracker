@@ -15,11 +15,13 @@ module LlmCostTracker
         request = safe_json_parse(request_body)
         cache_read = cache_read_input_tokens(usage)
 
+        model = response["model"] || request["model"]
+
         UsageCapture.build(
           provider: provider_for(request_url),
           provider_response_id: response["id"],
-          pricing_mode: response["service_tier"] || request["service_tier"],
-          model: response["model"] || request["model"],
+          pricing_mode: pricing_mode(request_url, model, response["service_tier"] || request["service_tier"]),
+          model: model,
           token_usage: token_usage(usage, cache_read),
           usage_source: :response
         )
@@ -33,7 +35,7 @@ module LlmCostTracker
           find_event_value(events) { |data| data["model"] || data.dig("response", "model") } || request["model"]
         usage = detect_stream_usage(events)
         response_id = find_event_value(events) { |data| data["id"] || data.dig("response", "id") }
-        pricing_mode = stream_pricing_mode(events) || request["service_tier"]
+        pricing_mode = pricing_mode(request_url, model, stream_pricing_mode(events) || request["service_tier"])
 
         if usage
           cache_read = cache_read_input_tokens(usage)
@@ -67,6 +69,24 @@ module LlmCostTracker
         find_event_value(events, reverse: true) do |data|
           data["service_tier"] || data.dig("response", "service_tier")
         end
+      end
+
+      def pricing_mode(request_url, model, service_tier)
+        modes = [Pricing.normalize_mode(service_tier)]
+        modes << "data_residency" if openai_regional_processing?(request_url, model)
+        modes = modes.compact.uniq
+        modes.empty? ? nil : modes.join("_")
+      end
+
+      def openai_regional_processing?(request_url, model)
+        uri = parsed_uri(request_url)
+        return false unless %w[us.api.openai.com eu.api.openai.com].include?(uri&.host.to_s.downcase)
+
+        openai_data_residency_model?(model)
+      end
+
+      def openai_data_residency_model?(model)
+        model.to_s.match?(/\Agpt-5\.(?:4|5)(?:-(?:mini|nano|pro))?(?:-\d{4}-\d{2}-\d{2})?\z/)
       end
 
       def token_usage(usage, cache_read)

@@ -23,7 +23,7 @@ module LlmCostTracker
           base = extract_base_pricing(base_table)
           batch = extract_batch_pricing(doc)
           deprecated = extract_deprecated_models(base_table)
-          models = merge(base, batch)
+          models = add_fast_mode_pricing(add_data_residency_pricing(merge(base, batch)))
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -106,6 +106,52 @@ module LlmCostTracker
           base_pricing.each_with_object({}) do |(model_id, fields), result|
             result[model_id] = fields.merge(batch_pricing.fetch(model_id, {}))
           end
+        end
+
+        def add_data_residency_pricing(models)
+          models.each_with_object({}) do |(model_id, fields), priced|
+            priced[model_id] = if data_residency_model?(model_id)
+                                 fields.merge(mode_prices(fields, "data_residency", 1.1))
+                               else
+                                 fields
+                               end
+          end
+        end
+
+        def add_fast_mode_pricing(models)
+          fields = models["claude-opus-4-6"]
+          return models unless fields
+
+          models.merge(
+            "claude-opus-4-6" => fields.merge(
+              mode_prices(fields, "fast", 6.0, include_batch: false),
+              mode_prices(fields, "fast_data_residency", 6.6, include_batch: false)
+            )
+          )
+        end
+
+        def mode_prices(fields, mode, multiplier, include_batch: true)
+          fields.each_with_object({}) do |(field, value), prices|
+            next unless mode_price_field?(field, include_batch: include_batch)
+
+            prices["#{mode}_#{field}"] = (value * multiplier).round(6)
+          end
+        end
+
+        def mode_price_field?(field, include_batch:)
+          pattern = include_batch ? /\A(?:batch_)?/ : /\A/
+          field.to_s.match?(
+            /#{pattern.source}(?:input|output|cache_read_input|cache_write_input|cache_write_1h_input)\z/
+          )
+        end
+
+        def data_residency_model?(model_id)
+          match = model_id.match(/\Aclaude-(?:opus|sonnet|haiku)-(\d+)-(\d+)\z/)
+          return false unless match
+
+          major = match[1].to_i
+          minor = match[2].to_i
+          major > 4 || (major == 4 && minor >= 6)
         end
 
         def normalize_model_id(display_name)

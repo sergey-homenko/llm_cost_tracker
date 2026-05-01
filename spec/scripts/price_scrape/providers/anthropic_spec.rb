@@ -20,7 +20,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "cache_read_input" => 0.5,
         "output" => 25.0,
         "batch_input" => 2.5,
-        "batch_output" => 12.5
+        "batch_output" => 12.5,
+        "data_residency_input" => 5.5,
+        "data_residency_cache_write_input" => 6.875,
+        "data_residency_cache_write_1h_input" => 11.0,
+        "data_residency_cache_read_input" => 0.55,
+        "data_residency_output" => 27.5,
+        "data_residency_batch_input" => 2.75,
+        "data_residency_batch_output" => 13.75
       )
       expect(result.models.fetch("claude-sonnet-4-6")).to eq(
         "input" => 3.0,
@@ -29,7 +36,23 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "cache_read_input" => 0.30,
         "output" => 15.0,
         "batch_input" => 1.5,
-        "batch_output" => 7.5
+        "batch_output" => 7.5,
+        "data_residency_input" => 3.3,
+        "data_residency_cache_write_input" => 4.125,
+        "data_residency_cache_write_1h_input" => 6.6,
+        "data_residency_cache_read_input" => 0.33,
+        "data_residency_output" => 16.5,
+        "data_residency_batch_input" => 1.65,
+        "data_residency_batch_output" => 8.25
+      )
+      expect(result.models.fetch("claude-opus-4-6")).to include(
+        "fast_input" => 30.0,
+        "fast_output" => 150.0,
+        "fast_cache_read_input" => 3.0,
+        "fast_cache_write_input" => 37.5,
+        "fast_cache_write_1h_input" => 60.0,
+        "fast_data_residency_input" => 33.0,
+        "fast_data_residency_output" => 165.0
       )
       expect(result.models.fetch("claude-haiku-4-5")).to include(
         "input" => 1.0,

@@ -49,7 +49,10 @@ module LlmCostTracker
             batch_table = find_batch_table(tabs)
             raise Error, "Gemini batch pricing table not found for #{model_id}" unless batch_table
 
-            models[model_id] = extract_text_pricing(standard_table).merge(extract_batch_pricing(batch_table))
+            models[model_id] = extract_text_pricing(standard_table)
+            models[model_id] = models.fetch(model_id).merge(extract_batch_pricing(batch_table))
+            models[model_id] = models.fetch(model_id).merge(extract_flex_pricing(tabs))
+            models[model_id] = models.fetch(model_id).merge(extract_priority_pricing(tabs))
           end
         end
 
@@ -70,11 +73,15 @@ module LlmCostTracker
         end
 
         def find_standard_table(tabs)
-          tabs.css("section").find { |sec| sec.at_css("h3")&.text&.strip == "Standard" }&.at_css("table")
+          find_table(tabs, "Standard")
         end
 
         def find_batch_table(tabs)
-          tabs.css("section").find { |sec| sec.at_css("h3")&.text&.strip == "Batch" }&.at_css("table")
+          find_table(tabs, "Batch")
+        end
+
+        def find_table(tabs, heading)
+          tabs.css("section").find { |sec| sec.at_css("h3")&.text&.strip == heading }&.at_css("table")
         end
 
         def extract_text_pricing(table)
@@ -84,6 +91,22 @@ module LlmCostTracker
         def extract_batch_pricing(table)
           extract_pricing(table, input: "batch_input", output: "batch_output",
                           cache_read_input: "batch_cache_read_input")
+        end
+
+        def extract_flex_pricing(tabs)
+          table = find_table(tabs, "Flex")
+          return {} unless table
+
+          extract_pricing(table, input: "flex_input", output: "flex_output",
+                          cache_read_input: "flex_cache_read_input")
+        end
+
+        def extract_priority_pricing(tabs)
+          table = find_table(tabs, "Priority")
+          return {} unless table
+
+          extract_pricing(table, input: "priority_input", output: "priority_output",
+                          cache_read_input: "priority_cache_read_input")
         end
 
         def extract_pricing(table, input:, output:, cache_read_input:)

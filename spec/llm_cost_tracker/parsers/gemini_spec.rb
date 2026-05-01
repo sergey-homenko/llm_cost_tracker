@@ -126,6 +126,59 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.token_usage.output_tokens).to eq(25)
       expect(result.token_usage.total_tokens).to eq(140)
     end
+
+    it "captures Flex pricing from the request body" do
+      result = parser.parse(
+        generate_content_url,
+        { service_tier: "flex" }.to_json,
+        200,
+        {
+          usageMetadata: {
+            promptTokenCount: 100,
+            candidatesTokenCount: 20,
+            totalTokenCount: 120
+          }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to eq("flex")
+    end
+
+    it "uses Gemini service tier response headers for Priority pricing" do
+      result = parser.parse(
+        generate_content_url,
+        { service_tier: "priority" }.to_json,
+        200,
+        {
+          usageMetadata: {
+            promptTokenCount: 100,
+            candidatesTokenCount: 20,
+            totalTokenCount: 120
+          }
+        }.to_json,
+        { "x-gemini-service-tier" => "priority" }
+      )
+
+      expect(result.pricing_mode).to eq("priority")
+    end
+
+    it "does not assume Priority pricing when Gemini reports a standard-tier downgrade" do
+      result = parser.parse(
+        generate_content_url,
+        { service_tier: "priority" }.to_json,
+        200,
+        {
+          usageMetadata: {
+            promptTokenCount: 100,
+            candidatesTokenCount: 20,
+            totalTokenCount: 120
+          }
+        }.to_json,
+        { "x-gemini-service-tier" => "standard" }
+      )
+
+      expect(result.pricing_mode).to be_nil
+    end
   end
 
   describe "#streaming_request?" do
@@ -206,6 +259,26 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.usage_source).to eq(:unknown)
       expect(result.model).to eq("gemini-2.5-flash")
       expect(result.provider_response_id).to eq("gemini-resp-789")
+    end
+
+    it "captures stream pricing modes from Gemini service tier headers" do
+      result = parser.parse_stream(
+        url,
+        { service_tier: "priority" }.to_json,
+        200,
+        [
+          { event: nil, data: {
+            "usageMetadata" => {
+              "promptTokenCount" => 80,
+              "candidatesTokenCount" => 42,
+              "totalTokenCount" => 122
+            }
+          } }
+        ],
+        { "X-Gemini-Service-Tier" => "priority" }
+      )
+
+      expect(result.pricing_mode).to eq("priority")
     end
 
     it "returns unknown when the streaming URL has no model identifier" do

@@ -17,6 +17,8 @@ module LlmCostTrackerIntegrationSpecTypes
     :cache_creation,
     :thinking_tokens,
     :service_tier,
+    :speed,
+    :inference_geo,
     keyword_init: true
   )
   Details = Struct.new(:cached_tokens, :reasoning_tokens, keyword_init: true)
@@ -592,6 +594,30 @@ RSpec.describe LlmCostTracker::Integrations do
 
       expect(events.size).to eq(1)
       expect(events.first[:pricing_mode]).to eq("priority")
+    end
+  end
+
+  it "captures official Anthropic fast data residency pricing modes" do
+    message = response_class.new(
+      id: "msg_123",
+      model: "claude-opus-4-6",
+      usage: usage_class.new(
+        input_tokens: 120,
+        output_tokens: 35,
+        speed: "fast",
+        inference_geo: "us"
+      )
+    )
+    install_anthropic_fakes(message)
+    configure_integration(:anthropic)
+
+    capture_events do |events|
+      Anthropic::Resources::Messages.new.create(model: "claude-opus-4-6", speed: "fast", inference_geo: "us")
+
+      expect(events.size).to eq(1)
+      expect(events.first[:pricing_mode]).to eq("fast_data_residency")
+      expect(events.first.dig(:cost, :input_cost)).to eq(0.00396)
+      expect(events.first.dig(:cost, :output_cost)).to eq(0.005775)
     end
   end
 

@@ -9,6 +9,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
   let(:chat_completions_url) { URI::HTTPS.build(host: "api.openai.com", path: "/v1/chat/completions").to_s }
   let(:embeddings_url) { URI::HTTPS.build(host: "api.openai.com", path: "/v1/embeddings").to_s }
   let(:responses_url) { URI::HTTPS.build(host: "api.openai.com", path: "/v1/responses").to_s }
+  let(:regional_responses_url) { URI::HTTPS.build(host: "us.api.openai.com", path: "/v1/responses").to_s }
   let(:response_retrieval_url) { URI::HTTPS.build(host: "api.openai.com", path: "/v1/responses/resp_123").to_s }
   let(:anthropic_messages_url) { URI::HTTPS.build(host: "api.anthropic.com", path: "/v1/messages").to_s }
 
@@ -25,6 +26,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "matches OpenAI Responses URL" do
       expect(parser.match?(responses_url)).to be true
+    end
+
+    it "matches OpenAI regional processing URLs" do
+      expect(parser.match?(regional_responses_url)).to be true
     end
 
     it "does not match OpenAI response retrieval URLs" do
@@ -97,6 +102,42 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       )
 
       expect(result.pricing_mode).to eq("priority")
+    end
+
+    it "captures OpenAI regional processing for eligible models" do
+      result = parser.parse(
+        regional_responses_url,
+        { model: "gpt-5.5", service_tier: "priority" }.to_json,
+        200,
+        {
+          model: "gpt-5.5",
+          usage: {
+            input_tokens: 150,
+            output_tokens: 42,
+            total_tokens: 192
+          }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to eq("priority_data_residency")
+    end
+
+    it "does not mark non-uplift OpenAI regional models as data residency pricing" do
+      result = parser.parse(
+        regional_responses_url,
+        { model: "gpt-5.2" }.to_json,
+        200,
+        {
+          model: "gpt-5.2",
+          usage: {
+            input_tokens: 150,
+            output_tokens: 42,
+            total_tokens: 192
+          }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to be_nil
     end
 
     it "extracts token usage from a Responses API response" do

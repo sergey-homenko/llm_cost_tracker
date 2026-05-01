@@ -307,6 +307,37 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:total_cost)).to eq(1.4025)
     end
 
+    it "derives cache rates for any mode with a documented input multiplier" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "anthropic/demo-data-residency" => {
+            input: 3.0,
+            output: 15.0,
+            cache_read_input: 0.3,
+            cache_write_input: 3.75,
+            data_residency_input: 3.3,
+            data_residency_output: 16.5
+          }
+        }
+      end
+
+      result = cost_for(
+        provider: "anthropic",
+        model: "demo-data-residency",
+        input_tokens: 100_000,
+        cache_read_input_tokens: 100_000,
+        cache_write_input_tokens: 100_000,
+        output_tokens: 100_000,
+        pricing_mode: :data_residency
+      )
+
+      expect(result.fetch(:input_cost)).to eq(0.33)
+      expect(result.fetch(:cache_read_input_cost)).to eq(0.033)
+      expect(result.fetch(:cache_write_input_cost)).to eq(0.4125)
+      expect(result.fetch(:output_cost)).to eq(1.65)
+      expect(result.fetch(:total_cost)).to eq(2.4255)
+    end
+
     it "treats 1-hour cache writes as unknown pricing when the 1-hour rate is missing" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
@@ -429,6 +460,48 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:input_cost)).to eq(0.5)
       expect(result.fetch(:output_cost)).to eq(1.0)
       expect(result.fetch(:total_cost)).to eq(1.5)
+    end
+
+    it "prices OpenAI Priority mode from bundled rates" do
+      result = cost_for(
+        provider: "openai",
+        model: "gpt-5.5",
+        input_tokens: 100_000,
+        output_tokens: 100_000,
+        pricing_mode: :priority
+      )
+
+      expect(result.fetch(:input_cost)).to eq(1.25)
+      expect(result.fetch(:output_cost)).to eq(7.5)
+      expect(result.fetch(:total_cost)).to eq(8.75)
+    end
+
+    it "prices OpenAI regional Priority mode from bundled rates" do
+      result = cost_for(
+        provider: "openai",
+        model: "gpt-5.5",
+        input_tokens: 100_000,
+        output_tokens: 100_000,
+        pricing_mode: :priority_data_residency
+      )
+
+      expect(result.fetch(:input_cost)).to eq(1.375)
+      expect(result.fetch(:output_cost)).to eq(8.25)
+      expect(result.fetch(:total_cost)).to eq(9.625)
+    end
+
+    it "prices Anthropic fast data residency mode from bundled rates" do
+      result = cost_for(
+        provider: "anthropic",
+        model: "claude-opus-4-6",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        pricing_mode: :fast_data_residency
+      )
+
+      expect(result.fetch(:input_cost)).to eq(33.0)
+      expect(result.fetch(:output_cost)).to eq(165.0)
+      expect(result.fetch(:total_cost)).to eq(198.0)
     end
 
     it "returns nil when a positive-token pricing mode is missing a required rate" do

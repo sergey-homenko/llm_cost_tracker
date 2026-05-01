@@ -1,12 +1,12 @@
 {
   "metadata": {
-    "updated_at": "2026-04-27",
+    "updated_at": "2026-05-01",
     "currency": "USD",
     "unit": "1M tokens",
     "source_urls": [
       "https://developers.openai.com/api/docs/pricing",
       "https://platform.claude.com/docs/en/about-claude/pricing",
-      "https://ai.google.dev/pricing"
+      "https://ai.google.dev/gemini-api/docs/pricing"
     ],
     "schema_version": 1,
     "min_gem_version": "0.4.0"
@@ -55,7 +55,24 @@
       "cache_write_input": 6.25,
       "cache_write_1h_input": 10.0,
       "batch_input": 2.5,
-      "batch_output": 12.5
+      "batch_output": 12.5,
+      "data_residency_input": 5.5,
+      "data_residency_cache_write_input": 6.875,
+      "data_residency_cache_write_1h_input": 11.0,
+      "data_residency_cache_read_input": 0.55,
+      "data_residency_output": 27.5,
+      "data_residency_batch_input": 2.75,
+      "data_residency_batch_output": 13.75,
+      "fast_input": 30.0,
+      "fast_cache_write_input": 37.5,
+      "fast_cache_write_1h_input": 60.0,
+      "fast_cache_read_input": 3.0,
+      "fast_output": 150.0,
+      "fast_data_residency_input": 33.0,
+      "fast_data_residency_cache_write_input": 41.25,
+      "fast_data_residency_cache_write_1h_input": 66.0,
+      "fast_data_residency_cache_read_input": 3.3,
+      "fast_data_residency_output": 165.0
     },
     "anthropic/claude-opus-4-7": {
       "input": 5.0,
@@ -64,7 +81,14 @@
       "cache_write_input": 6.25,
       "cache_write_1h_input": 10.0,
       "batch_input": 2.5,
-      "batch_output": 12.5
+      "batch_output": 12.5,
+      "data_residency_input": 5.5,
+      "data_residency_cache_write_input": 6.875,
+      "data_residency_cache_write_1h_input": 11.0,
+      "data_residency_cache_read_input": 0.55,
+      "data_residency_output": 27.5,
+      "data_residency_batch_input": 2.75,
+      "data_residency_batch_output": 13.75
     },
     "anthropic/claude-sonnet-4": {
       "input": 3.0,
@@ -91,7 +115,14 @@
       "cache_write_input": 3.75,
       "cache_write_1h_input": 6.0,
       "batch_input": 1.5,
-      "batch_output": 7.5
+      "batch_output": 7.5,
+      "data_residency_input": 3.3,
+      "data_residency_cache_write_input": 4.125,
+      "data_residency_cache_write_1h_input": 6.6,
+      "data_residency_cache_read_input": 0.33,
+      "data_residency_output": 16.5,
+      "data_residency_batch_input": 1.65,
+      "data_residency_batch_output": 8.25
     },
     "gemini/gemini-2.0-flash": {
       "input": 0.1,
@@ -113,7 +144,13 @@
       "cache_read_input": 0.03,
       "batch_input": 0.15,
       "batch_output": 1.25,
-      "batch_cache_read_input": 0.03
+      "batch_cache_read_input": 0.03,
+      "flex_input": 0.15,
+      "flex_output": 1.25,
+      "flex_cache_read_input": 0.03,
+      "priority_input": 0.54,
+      "priority_output": 4.5,
+      "priority_cache_read_input": 0.054
     },
     "gemini/gemini-2.5-flash-lite": {
       "input": 0.1,
@@ -121,7 +158,13 @@
       "cache_read_input": 0.01,
       "batch_input": 0.05,
       "batch_output": 0.2,
-      "batch_cache_read_input": 0.01
+      "batch_cache_read_input": 0.01,
+      "flex_input": 0.05,
+      "flex_output": 0.2,
+      "flex_cache_read_input": 0.01,
+      "priority_input": 0.18,
+      "priority_output": 0.72,
+      "priority_cache_read_input": 0.018
     },
     "gemini/gemini-2.5-pro": {
       "input": 1.25,
@@ -136,7 +179,19 @@
       "above_context_cache_read_input": 0.25,
       "above_context_batch_input": 1.25,
       "above_context_batch_output": 7.5,
-      "above_context_batch_cache_read_input": 0.25
+      "above_context_batch_cache_read_input": 0.25,
+      "flex_input": 0.625,
+      "flex_output": 5.0,
+      "above_context_flex_input": 1.25,
+      "above_context_flex_output": 7.5,
+      "flex_cache_read_input": 0.125,
+      "above_context_flex_cache_read_input": 0.25,
+      "priority_input": 2.25,
+      "priority_output": 18.0,
+      "above_context_priority_input": 4.5,
+      "above_context_priority_output": 27.0,
+      "priority_cache_read_input": 0.225,
+      "above_context_priority_cache_read_input": 0.45
     },
     "openai/gpt-3.5-turbo": {
       "input": 0.5,
@@ -159,41 +214,58 @@
       "output": 8.0,
       "cache_read_input": 0.5,
       "batch_input": 1.0,
-      "batch_output": 4.0
+      "batch_output": 4.0,
+      "priority_input": 3.5,
+      "priority_output": 14.0,
+      "priority_cache_read_input": 0.875
     },
     "openai/gpt-4.1-mini": {
       "input": 0.4,
       "output": 1.6,
       "cache_read_input": 0.1,
       "batch_input": 0.2,
-      "batch_output": 0.8
+      "batch_output": 0.8,
+      "priority_input": 0.7,
+      "priority_output": 2.8,
+      "priority_cache_read_input": 0.175
     },
     "openai/gpt-4.1-nano": {
       "input": 0.1,
       "output": 0.4,
       "cache_read_input": 0.025,
       "batch_input": 0.05,
-      "batch_output": 0.2
+      "batch_output": 0.2,
+      "priority_input": 0.2,
+      "priority_output": 0.8,
+      "priority_cache_read_input": 0.05
     },
     "openai/gpt-4o": {
       "input": 2.5,
       "output": 10.0,
       "cache_read_input": 1.25,
       "batch_input": 1.25,
-      "batch_output": 5.0
+      "batch_output": 5.0,
+      "priority_input": 4.25,
+      "priority_output": 17.0,
+      "priority_cache_read_input": 2.125
     },
     "openai/gpt-4o-2024-05-13": {
       "input": 5.0,
       "output": 15.0,
       "batch_input": 2.5,
-      "batch_output": 7.5
+      "batch_output": 7.5,
+      "priority_input": 8.75,
+      "priority_output": 26.25
     },
     "openai/gpt-4o-mini": {
       "input": 0.15,
       "output": 0.6,
       "cache_read_input": 0.075,
       "batch_input": 0.075,
-      "batch_output": 0.3
+      "batch_output": 0.3,
+      "priority_input": 0.25,
+      "priority_output": 1.0,
+      "priority_cache_read_input": 0.125
     },
     "openai/gpt-5": {
       "input": 1.25,
@@ -201,7 +273,13 @@
       "cache_read_input": 0.125,
       "batch_input": 0.625,
       "batch_output": 5.0,
-      "batch_cache_read_input": 0.0625
+      "batch_cache_read_input": 0.0625,
+      "flex_input": 0.625,
+      "flex_output": 5.0,
+      "flex_cache_read_input": 0.0625,
+      "priority_input": 2.5,
+      "priority_output": 20.0,
+      "priority_cache_read_input": 0.25
     },
     "openai/gpt-5-chat-latest": {
       "input": 1.25,
@@ -211,7 +289,10 @@
     "openai/gpt-5-codex": {
       "input": 1.25,
       "output": 10.0,
-      "cache_read_input": 0.125
+      "cache_read_input": 0.125,
+      "priority_input": 2.5,
+      "priority_output": 20.0,
+      "priority_cache_read_input": 0.25
     },
     "openai/gpt-5-mini": {
       "input": 0.25,
@@ -219,7 +300,13 @@
       "cache_read_input": 0.025,
       "batch_input": 0.125,
       "batch_output": 1.0,
-      "batch_cache_read_input": 0.0125
+      "batch_cache_read_input": 0.0125,
+      "flex_input": 0.125,
+      "flex_output": 1.0,
+      "flex_cache_read_input": 0.0125,
+      "priority_input": 0.45,
+      "priority_output": 3.6,
+      "priority_cache_read_input": 0.045
     },
     "openai/gpt-5-nano": {
       "input": 0.05,
@@ -227,7 +314,10 @@
       "cache_read_input": 0.005,
       "batch_input": 0.025,
       "batch_output": 0.2,
-      "batch_cache_read_input": 0.0025
+      "batch_cache_read_input": 0.0025,
+      "flex_input": 0.025,
+      "flex_output": 0.2,
+      "flex_cache_read_input": 0.0025
     },
     "openai/gpt-5-pro": {
       "input": 15.0,
@@ -241,7 +331,13 @@
       "cache_read_input": 0.125,
       "batch_input": 0.625,
       "batch_output": 5.0,
-      "batch_cache_read_input": 0.0625
+      "batch_cache_read_input": 0.0625,
+      "flex_input": 0.625,
+      "flex_output": 5.0,
+      "flex_cache_read_input": 0.0625,
+      "priority_input": 2.5,
+      "priority_output": 20.0,
+      "priority_cache_read_input": 0.25
     },
     "openai/gpt-5.1-chat-latest": {
       "input": 1.25,
@@ -251,12 +347,18 @@
     "openai/gpt-5.1-codex": {
       "input": 1.25,
       "output": 10.0,
-      "cache_read_input": 0.125
+      "cache_read_input": 0.125,
+      "priority_input": 2.5,
+      "priority_output": 20.0,
+      "priority_cache_read_input": 0.25
     },
     "openai/gpt-5.1-codex-max": {
       "input": 1.25,
       "output": 10.0,
-      "cache_read_input": 0.125
+      "cache_read_input": 0.125,
+      "priority_input": 2.5,
+      "priority_output": 20.0,
+      "priority_cache_read_input": 0.25
     },
     "openai/gpt-5.1-codex-mini": {
       "input": 0.25,
@@ -269,7 +371,13 @@
       "cache_read_input": 0.175,
       "batch_input": 0.875,
       "batch_output": 7.0,
-      "batch_cache_read_input": 0.0875
+      "batch_cache_read_input": 0.0875,
+      "flex_input": 0.875,
+      "flex_output": 7.0,
+      "flex_cache_read_input": 0.0875,
+      "priority_input": 3.5,
+      "priority_output": 28.0,
+      "priority_cache_read_input": 0.35
     },
     "openai/gpt-5.2-chat-latest": {
       "input": 1.75,
@@ -279,7 +387,10 @@
     "openai/gpt-5.2-codex": {
       "input": 1.75,
       "output": 14.0,
-      "cache_read_input": 0.175
+      "cache_read_input": 0.175,
+      "priority_input": 3.5,
+      "priority_output": 28.0,
+      "priority_cache_read_input": 0.35
     },
     "openai/gpt-5.2-pro": {
       "input": 21.0,
@@ -300,7 +411,37 @@
       "above_context_cache_read_input": 0.5,
       "above_context_batch_input": 2.5,
       "above_context_batch_output": 11.25,
-      "above_context_batch_cache_read_input": 0.25
+      "above_context_batch_cache_read_input": 0.25,
+      "flex_input": 1.25,
+      "flex_output": 7.5,
+      "flex_cache_read_input": 0.13,
+      "above_context_flex_input": 2.5,
+      "above_context_flex_output": 11.25,
+      "above_context_flex_cache_read_input": 0.25,
+      "priority_input": 5.0,
+      "priority_output": 30.0,
+      "priority_cache_read_input": 0.5,
+      "data_residency_input": 2.75,
+      "data_residency_output": 16.5,
+      "data_residency_cache_read_input": 0.275,
+      "above_context_data_residency_input": 5.5,
+      "above_context_data_residency_output": 24.75,
+      "above_context_data_residency_cache_read_input": 0.55,
+      "batch_data_residency_input": 1.375,
+      "batch_data_residency_output": 8.25,
+      "batch_data_residency_cache_read_input": 0.143,
+      "above_context_batch_data_residency_input": 2.75,
+      "above_context_batch_data_residency_output": 12.375,
+      "above_context_batch_data_residency_cache_read_input": 0.275,
+      "flex_data_residency_input": 1.375,
+      "flex_data_residency_output": 8.25,
+      "flex_data_residency_cache_read_input": 0.143,
+      "above_context_flex_data_residency_input": 2.75,
+      "above_context_flex_data_residency_output": 12.375,
+      "above_context_flex_data_residency_cache_read_input": 0.275,
+      "priority_data_residency_input": 5.5,
+      "priority_data_residency_output": 33.0,
+      "priority_data_residency_cache_read_input": 0.55
     },
     "openai/gpt-5.4-mini": {
       "input": 0.75,
@@ -308,7 +449,25 @@
       "cache_read_input": 0.075,
       "batch_input": 0.375,
       "batch_output": 2.25,
-      "batch_cache_read_input": 0.0375
+      "batch_cache_read_input": 0.0375,
+      "flex_input": 0.375,
+      "flex_output": 2.25,
+      "flex_cache_read_input": 0.0375,
+      "priority_input": 1.5,
+      "priority_output": 9.0,
+      "priority_cache_read_input": 0.15,
+      "data_residency_input": 0.825,
+      "data_residency_output": 4.95,
+      "data_residency_cache_read_input": 0.0825,
+      "batch_data_residency_input": 0.4125,
+      "batch_data_residency_output": 2.475,
+      "batch_data_residency_cache_read_input": 0.04125,
+      "flex_data_residency_input": 0.4125,
+      "flex_data_residency_output": 2.475,
+      "flex_data_residency_cache_read_input": 0.04125,
+      "priority_data_residency_input": 1.65,
+      "priority_data_residency_output": 9.9,
+      "priority_data_residency_cache_read_input": 0.165
     },
     "openai/gpt-5.4-nano": {
       "input": 0.2,
@@ -316,7 +475,19 @@
       "cache_read_input": 0.02,
       "batch_input": 0.1,
       "batch_output": 0.625,
-      "batch_cache_read_input": 0.01
+      "batch_cache_read_input": 0.01,
+      "flex_input": 0.1,
+      "flex_output": 0.625,
+      "flex_cache_read_input": 0.01,
+      "data_residency_input": 0.22,
+      "data_residency_output": 1.375,
+      "data_residency_cache_read_input": 0.022,
+      "batch_data_residency_input": 0.11,
+      "batch_data_residency_output": 0.6875,
+      "batch_data_residency_cache_read_input": 0.011,
+      "flex_data_residency_input": 0.11,
+      "flex_data_residency_output": 0.6875,
+      "flex_data_residency_cache_read_input": 0.011
     },
     "openai/gpt-5.4-pro": {
       "input": 30.0,
@@ -327,7 +498,23 @@
       "above_context_input": 60.0,
       "above_context_output": 270.0,
       "above_context_batch_input": 30.0,
-      "above_context_batch_output": 135.0
+      "above_context_batch_output": 135.0,
+      "flex_input": 15.0,
+      "flex_output": 90.0,
+      "above_context_flex_input": 30.0,
+      "above_context_flex_output": 135.0,
+      "data_residency_input": 33.0,
+      "data_residency_output": 198.0,
+      "above_context_data_residency_input": 66.0,
+      "above_context_data_residency_output": 297.0,
+      "batch_data_residency_input": 16.5,
+      "batch_data_residency_output": 99.0,
+      "above_context_batch_data_residency_input": 33.0,
+      "above_context_batch_data_residency_output": 148.5,
+      "flex_data_residency_input": 16.5,
+      "flex_data_residency_output": 99.0,
+      "above_context_flex_data_residency_input": 33.0,
+      "above_context_flex_data_residency_output": 148.5
     },
     "openai/gpt-5.5": {
       "input": 5.0,
@@ -342,7 +529,37 @@
       "above_context_cache_read_input": 1.0,
       "above_context_batch_input": 5.0,
       "above_context_batch_output": 22.5,
-      "above_context_batch_cache_read_input": 0.5
+      "above_context_batch_cache_read_input": 0.5,
+      "flex_input": 2.5,
+      "flex_output": 15.0,
+      "flex_cache_read_input": 0.25,
+      "above_context_flex_input": 5.0,
+      "above_context_flex_output": 22.5,
+      "above_context_flex_cache_read_input": 0.5,
+      "priority_input": 12.5,
+      "priority_output": 75.0,
+      "priority_cache_read_input": 1.25,
+      "data_residency_input": 5.5,
+      "data_residency_output": 33.0,
+      "data_residency_cache_read_input": 0.55,
+      "above_context_data_residency_input": 11.0,
+      "above_context_data_residency_output": 49.5,
+      "above_context_data_residency_cache_read_input": 1.1,
+      "batch_data_residency_input": 2.75,
+      "batch_data_residency_output": 16.5,
+      "batch_data_residency_cache_read_input": 0.275,
+      "above_context_batch_data_residency_input": 5.5,
+      "above_context_batch_data_residency_output": 24.75,
+      "above_context_batch_data_residency_cache_read_input": 0.55,
+      "flex_data_residency_input": 2.75,
+      "flex_data_residency_output": 16.5,
+      "flex_data_residency_cache_read_input": 0.275,
+      "above_context_flex_data_residency_input": 5.5,
+      "above_context_flex_data_residency_output": 24.75,
+      "above_context_flex_data_residency_cache_read_input": 0.55,
+      "priority_data_residency_input": 13.75,
+      "priority_data_residency_output": 82.5,
+      "priority_data_residency_cache_read_input": 1.375
     },
     "openai/gpt-5.5-pro": {
       "input": 30.0,
@@ -351,7 +568,17 @@
       "batch_output": 90.0,
       "_context_price_threshold_tokens": 272000,
       "above_context_input": 60.0,
-      "above_context_output": 270.0
+      "above_context_output": 270.0,
+      "flex_input": 15.0,
+      "flex_output": 90.0,
+      "data_residency_input": 33.0,
+      "data_residency_output": 198.0,
+      "above_context_data_residency_input": 66.0,
+      "above_context_data_residency_output": 297.0,
+      "batch_data_residency_input": 16.5,
+      "batch_data_residency_output": 99.0,
+      "flex_data_residency_input": 16.5,
+      "flex_data_residency_output": 99.0
     },
     "openai/o1": {
       "input": 15.0,
@@ -372,7 +599,13 @@
       "output": 8.0,
       "cache_read_input": 0.5,
       "batch_input": 1.0,
-      "batch_output": 4.0
+      "batch_output": 4.0,
+      "flex_input": 1.0,
+      "flex_output": 4.0,
+      "flex_cache_read_input": 0.25,
+      "priority_input": 3.5,
+      "priority_output": 14.0,
+      "priority_cache_read_input": 0.875
     },
     "openai/o3-mini": {
       "input": 1.1,
@@ -386,7 +619,13 @@
       "output": 4.4,
       "cache_read_input": 0.275,
       "batch_input": 0.55,
-      "batch_output": 2.2
+      "batch_output": 2.2,
+      "flex_input": 0.55,
+      "flex_output": 2.2,
+      "flex_cache_read_input": 0.138,
+      "priority_input": 2.0,
+      "priority_output": 8.0,
+      "priority_cache_read_input": 0.5
     },
     "anthropic/claude-haiku-3-5": {
       "input": 0.8,
@@ -430,7 +669,10 @@
     "openai/gpt-5.3-codex": {
       "input": 1.75,
       "output": 14.0,
-      "cache_read_input": 0.175
+      "cache_read_input": 0.175,
+      "priority_input": 3.5,
+      "priority_output": 28.0,
+      "priority_cache_read_input": 0.35
     },
     "openai/codex-mini-latest": {
       "input": 1.5,

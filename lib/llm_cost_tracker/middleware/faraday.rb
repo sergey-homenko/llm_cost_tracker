@@ -80,13 +80,13 @@ module LlmCostTracker
           return nil
         end
 
-        parser.parse(request_url, request_body, response_env.status, response_body)
+        parser.parse(request_url, request_body, response_env.status, response_body, response_env.response_headers)
       end
 
       def parse_stream(parser, request_url, request_body, response_env, stream_buffer)
         if stream_buffer&.dig(:overflowed)
           Logging.warn(capture_warning(request_url, stream_buffer))
-          return parser.parse_stream(request_url, request_body, response_env.status, [])
+          return parser.parse_stream(request_url, request_body, response_env.status, [], response_env.response_headers)
         end
 
         body = stream_buffer&.dig(:buffer)&.string
@@ -94,11 +94,11 @@ module LlmCostTracker
 
         if body.blank?
           Logging.warn(capture_warning(request_url, stream_buffer))
-          return parser.parse_stream(request_url, request_body, response_env.status, [])
+          return parser.parse_stream(request_url, request_body, response_env.status, [], response_env.response_headers)
         end
 
         events = Parsers::SSE.parse(body)
-        parser.parse_stream(request_url, request_body, response_env.status, events)
+        parser.parse_stream(request_url, request_body, response_env.status, events, response_env.response_headers)
       end
 
       def install_stream_tap(request_env)
