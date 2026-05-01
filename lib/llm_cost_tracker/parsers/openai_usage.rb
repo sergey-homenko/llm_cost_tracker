@@ -5,7 +5,7 @@ module LlmCostTracker
     module OpenaiUsage
       private
 
-      def parse_openai_usage(request_url, request_body, response_status, response_body)
+      def parse_openai_usage(request_url:, request_body:, response_status:, response_body:)
         return nil unless response_status == 200
 
         response = safe_json_parse(response_body)
@@ -20,14 +20,18 @@ module LlmCostTracker
         UsageCapture.build(
           provider: provider_for(request_url),
           provider_response_id: response["id"],
-          pricing_mode: pricing_mode(request_url, model, response["service_tier"] || request["service_tier"]),
+          pricing_mode: pricing_mode(
+            request_url: request_url,
+            model: model,
+            service_tier: response["service_tier"] || request["service_tier"]
+          ),
           model: model,
-          token_usage: token_usage(usage, cache_read),
+          token_usage: token_usage(usage: usage, cache_read: cache_read),
           usage_source: :response
         )
       end
 
-      def parse_openai_stream_usage(request_url, request_body, response_status, events)
+      def parse_openai_stream_usage(response_status:, request_url: nil, request_body: nil, events: [])
         return nil unless response_status == 200
 
         request = safe_json_parse(request_body)
@@ -35,7 +39,11 @@ module LlmCostTracker
           find_event_value(events) { |data| data["model"] || data.dig("response", "model") } || request["model"]
         usage = detect_stream_usage(events)
         response_id = find_event_value(events) { |data| data["id"] || data.dig("response", "id") }
-        pricing_mode = pricing_mode(request_url, model, stream_pricing_mode(events) || request["service_tier"])
+        pricing_mode = pricing_mode(
+          request_url: request_url,
+          model: model,
+          service_tier: stream_pricing_mode(events) || request["service_tier"]
+        )
 
         if usage
           cache_read = cache_read_input_tokens(usage)
@@ -44,7 +52,7 @@ module LlmCostTracker
             provider_response_id: response_id,
             pricing_mode: pricing_mode,
             model: model,
-            token_usage: token_usage(usage, cache_read),
+            token_usage: token_usage(usage: usage, cache_read: cache_read),
             stream: true,
             usage_source: :stream_final
           )
@@ -71,14 +79,14 @@ module LlmCostTracker
         end
       end
 
-      def pricing_mode(request_url, model, service_tier)
+      def pricing_mode(request_url:, model:, service_tier:)
         modes = [Pricing.normalize_mode(service_tier)]
-        modes << "data_residency" if openai_regional_processing?(request_url, model)
+        modes << "data_residency" if openai_regional_processing?(request_url: request_url, model: model)
         modes = modes.compact.uniq
         modes.empty? ? nil : modes.join("_")
       end
 
-      def openai_regional_processing?(request_url, model)
+      def openai_regional_processing?(request_url:, model:)
         uri = parsed_uri(request_url)
         return false unless %w[us.api.openai.com eu.api.openai.com].include?(uri&.host.to_s.downcase)
 
@@ -89,17 +97,17 @@ module LlmCostTracker
         model.to_s.match?(/\Agpt-5\.(?:4|5)(?:-(?:mini|nano|pro))?(?:-\d{4}-\d{2}-\d{2})?\z/)
       end
 
-      def token_usage(usage, cache_read)
+      def token_usage(usage:, cache_read:)
         TokenUsage.build(
-          input_tokens: regular_input_tokens(usage, cache_read),
+          input_tokens: regular_input_tokens(usage: usage, cache_read: cache_read),
           output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
-          total_tokens: total_tokens(usage, cache_read),
+          total_tokens: total_tokens(usage: usage, cache_read: cache_read),
           cache_read_input_tokens: cache_read,
           hidden_output_tokens: hidden_output_tokens(usage)
         )
       end
 
-      def regular_input_tokens(usage, cache_read)
+      def regular_input_tokens(usage:, cache_read:)
         [(usage["prompt_tokens"] || usage["input_tokens"]).to_i - cache_read.to_i, 0].max
       end
 
@@ -113,11 +121,11 @@ module LlmCostTracker
         details["reasoning_tokens"]
       end
 
-      def total_tokens(usage, cache_read)
+      def total_tokens(usage:, cache_read:)
         total = usage["total_tokens"]
         return total.to_i unless total.nil?
 
-        regular_input_tokens(usage, cache_read) +
+        regular_input_tokens(usage: usage, cache_read: cache_read) +
           cache_read.to_i +
           (usage["completion_tokens"] || usage["output_tokens"]).to_i
       end

@@ -21,12 +21,22 @@ module LlmCostTracker
         ].uniq.freeze
       end
 
-      def parse(request_url, request_body, response_status, response_body, _response_headers = nil)
-        parse_openai_usage(request_url, request_body, response_status, response_body)
+      def parse(request_url:, request_body:, response_status:, response_body:, **)
+        parse_openai_usage(
+          request_url: request_url,
+          request_body: request_body,
+          response_status: response_status,
+          response_body: response_body
+        )
       end
 
-      def parse_stream(request_url, request_body, response_status, events, _response_headers = nil)
-        parse_openai_stream_usage(request_url, request_body, response_status, events)
+      def parse_stream(response_status:, request_url: nil, request_body: nil, events: [], **)
+        parse_openai_stream_usage(
+          request_url: request_url,
+          request_body: request_body,
+          response_status: response_status,
+          events: events
+        )
       end
 
       private

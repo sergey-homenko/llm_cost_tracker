@@ -23,7 +23,7 @@ module LlmCostTracker
         super
       end
 
-      def parse(request_url, request_body, response_status, response_body, response_headers = nil)
+      def parse(request_url:, request_body:, response_status:, response_body:, response_headers: nil)
         return nil unless response_status == 200
 
         response = safe_json_parse(response_body)
@@ -32,27 +32,27 @@ module LlmCostTracker
 
         request = safe_json_parse(request_body)
         build_usage_capture(
-          request_url,
-          usage,
+          request_url: request_url,
+          usage: usage,
           usage_source: :response,
           provider_response_id: response["responseId"],
-          pricing_mode: pricing_mode(request, response_headers)
+          pricing_mode: pricing_mode(request: request, response_headers: response_headers)
         )
       end
 
-      def parse_stream(request_url, request_body, response_status, events, response_headers = nil)
+      def parse_stream(response_status:, request_url: nil, request_body: nil, events: [], response_headers: nil)
         return nil unless response_status == 200
 
         request = safe_json_parse(request_body)
         usage = merged_stream_usage(events)
         model = extract_model_from_url(request_url)
         response_id = stream_response_id(events)
-        mode = pricing_mode(request, response_headers)
+        mode = pricing_mode(request: request, response_headers: response_headers)
 
         if usage
           build_usage_capture(
-            request_url,
-            usage,
+            request_url: request_url,
+            usage: usage,
             stream: true,
             usage_source: :stream_final,
             provider_response_id: response_id,
@@ -70,7 +70,7 @@ module LlmCostTracker
 
       private
 
-      def build_usage_capture(request_url, usage, usage_source:, stream: false, provider_response_id: nil,
+      def build_usage_capture(request_url:, usage:, usage_source:, stream: false, provider_response_id: nil,
                               pricing_mode: nil)
         cache_read = usage["cachedContentTokenCount"].to_i
         tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
@@ -82,7 +82,7 @@ module LlmCostTracker
           token_usage: TokenUsage.build(
             input_tokens: [usage["promptTokenCount"].to_i - cache_read, 0].max + tool_use_prompt,
             output_tokens: output_tokens(usage),
-            total_tokens: total_tokens(usage, cache_read, tool_use_prompt),
+            total_tokens: total_tokens(usage: usage, cache_read: cache_read, tool_use_prompt: tool_use_prompt),
             cache_read_input_tokens: usage["cachedContentTokenCount"],
             hidden_output_tokens: usage["thoughtsTokenCount"]
           ),
@@ -103,7 +103,7 @@ module LlmCostTracker
         usage["candidatesTokenCount"].to_i + usage["thoughtsTokenCount"].to_i
       end
 
-      def total_tokens(usage, cache_read, tool_use_prompt)
+      def total_tokens(usage:, cache_read:, tool_use_prompt:)
         total = usage["totalTokenCount"]
         return total.to_i unless total.nil?
 
@@ -122,7 +122,7 @@ module LlmCostTracker
         match && match[1]
       end
 
-      def pricing_mode(request, response_headers)
+      def pricing_mode(request:, response_headers:)
         response_tier = response_header(response_headers, "x-gemini-service-tier")
         response_mode = Pricing.normalize_mode(response_tier)
         return response_mode if response_mode

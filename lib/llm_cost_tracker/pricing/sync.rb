@@ -43,12 +43,28 @@ module LlmCostTracker
           response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
 
           if response.not_modified
-            return refresh_result(path, url, response, current, current, written: false, not_modified: true)
+            return refresh_result(
+              path: path,
+              url: url,
+              response: response,
+              current: current,
+              remote: current,
+              written: false,
+              not_modified: true
+            )
           end
 
           remote = normalize_remote_registry(response.body, url: url, response: response, today: today)
           RegistryWriter.new.call(path: path, registry: remote) unless preview
-          refresh_result(path, url, response, current, remote, written: !preview, not_modified: false)
+          refresh_result(
+            path: path,
+            url: url,
+            response: response,
+            current: current,
+            remote: remote,
+            written: !preview,
+            not_modified: false
+          )
         end
 
         def check(path: DEFAULT_OUTPUT_PATH, url: DEFAULT_REMOTE_URL, fetcher: Fetcher.new, today: Date.today)
@@ -127,7 +143,7 @@ module LlmCostTracker
           raise Error, "Unable to parse remote pricing snapshot: #{e.message}"
         end
 
-        def refresh_result(path, url, response, current, remote, written:, not_modified:)
+        def refresh_result(path:, url:, response:, current:, remote:, written:, not_modified:)
           RefreshResult.new(
             path: path,
             source_url: url,

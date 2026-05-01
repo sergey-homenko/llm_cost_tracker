@@ -48,10 +48,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
 
     it "extracts token usage including cache tokens" do
       result = parser.parse(
-        anthropic_messages_url,
-        request_body,
-        200,
-        response_body
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: response_body
       )
 
       expect(result.provider).to eq("anthropic")
@@ -69,10 +69,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
 
     it "extracts the provider message id from a successful response" do
       result = parser.parse(
-        anthropic_messages_url,
-        request_body,
-        200,
-        {
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: {
           id: "msg_123",
           model: "claude-sonnet-4-6",
           usage: {
@@ -87,10 +87,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
 
     it "captures usage service tiers as pricing modes" do
       result = parser.parse(
-        anthropic_messages_url,
-        request_body,
-        200,
-        {
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: {
           id: "msg_123",
           model: "claude-sonnet-4-6",
           usage: {
@@ -106,10 +106,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
 
     it "captures fast US inference as a combined pricing mode" do
       result = parser.parse(
-        anthropic_messages_url,
-        { model: "claude-opus-4-6", speed: "fast", inference_geo: "us" }.to_json,
-        200,
-        {
+        request_url: anthropic_messages_url,
+        request_body: { model: "claude-opus-4-6", speed: "fast", inference_geo: "us" }.to_json,
+        response_status: 200,
+        response_body: {
           id: "msg_123",
           model: "claude-opus-4-6",
           usage: {
@@ -154,10 +154,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       ]
 
       result = parser.parse_stream(
-        anthropic_messages_url,
-        request_body,
-        200,
-        events
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
       )
 
       expect(result.provider).to eq("anthropic")
@@ -194,10 +194,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       ]
 
       result = parser.parse_stream(
-        anthropic_messages_url,
-        request_body,
-        200,
-        events
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
       )
 
       expect(result.pricing_mode).to eq("priority")
@@ -225,10 +225,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       ]
 
       result = parser.parse_stream(
-        anthropic_messages_url,
-        request_body,
-        200,
-        events
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
       )
 
       expect(result.pricing_mode).to eq("fast_data_residency")
@@ -236,10 +236,9 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
 
     it "returns unknown usage when no message events are present" do
       result = parser.parse_stream(
-        anthropic_messages_url,
-        request_body,
-        200,
-        []
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200
       )
 
       expect(result.stream).to be true

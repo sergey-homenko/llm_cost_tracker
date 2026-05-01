@@ -36,12 +36,18 @@ module LlmCostTracker
         def call(provider:, model:, token_usage:, pricing_mode: nil)
           match = Lookup.call(provider: provider, model: model)
 
-          explanation(provider, model, pricing_mode, match, token_usage)
+          explanation(
+            provider: provider,
+            model: model,
+            pricing_mode: pricing_mode,
+            match: match,
+            usage: token_usage
+          )
         end
 
         private
 
-        def explanation(provider, model, pricing_mode, match, usage)
+        def explanation(provider:, model:, pricing_mode:, match:, usage:)
           prices = match&.prices
           pricing_mode = Pricing.normalize_mode(pricing_mode)
           effective = if prices && usage
@@ -49,15 +55,15 @@ module LlmCostTracker
                       end
 
           Explanation.new(
-            provider.to_s,
-            model.to_s,
-            pricing_mode,
-            match&.source,
-            match&.key,
-            match&.matched_by,
-            prices,
-            effective || {},
-            effective ? effective.filter_map { |key, value| key if value.nil? } : []
+            provider: provider.to_s,
+            model: model.to_s,
+            pricing_mode: pricing_mode,
+            source: match&.source,
+            matched_key: match&.key,
+            matched_by: match&.matched_by,
+            prices: prices,
+            effective_prices: effective || {},
+            missing_price_keys: effective ? effective.filter_map { |key, value| key if value.nil? } : []
           )
         end
       end

@@ -118,7 +118,10 @@ module LlmCostTracker
         return build_from_explicit_usage(snapshot) if snapshot[:explicit_usage]
         return build_unknown_usage(snapshot) if snapshot[:overflowed]
 
-        capture = Parsers.find_for_provider(@provider)&.parse_stream(nil, nil, 200, snapshot[:events])
+        capture = Parsers.find_for_provider(@provider)&.parse_stream(
+          response_status: 200,
+          events: snapshot[:events]
+        )
         if capture
           model = present_model(capture.model) || present_model(snapshot[:model]) || UsageCapture::UNKNOWN_MODEL
           return capture.with(provider: @provider, model: model)

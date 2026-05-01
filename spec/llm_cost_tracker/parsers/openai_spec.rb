@@ -63,10 +63,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "extracts token usage from a successful response" do
       result = parser.parse(
-        chat_completions_url,
-        request_body,
-        200,
-        {
+        request_url: chat_completions_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: {
           id: "chatcmpl_123",
           model: "gpt-4o",
           usage: {
@@ -87,10 +87,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "captures non-standard service tiers as pricing modes" do
       result = parser.parse(
-        chat_completions_url,
-        request_body,
-        200,
-        {
+        request_url: chat_completions_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: {
           model: "gpt-4o",
           service_tier: "priority",
           usage: {
@@ -106,10 +106,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "captures OpenAI regional processing for eligible models" do
       result = parser.parse(
-        regional_responses_url,
-        { model: "gpt-5.5", service_tier: "priority" }.to_json,
-        200,
-        {
+        request_url: regional_responses_url,
+        request_body: { model: "gpt-5.5", service_tier: "priority" }.to_json,
+        response_status: 200,
+        response_body: {
           model: "gpt-5.5",
           usage: {
             input_tokens: 150,
@@ -124,10 +124,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "does not mark non-uplift OpenAI regional models as data residency pricing" do
       result = parser.parse(
-        regional_responses_url,
-        { model: "gpt-5.2" }.to_json,
-        200,
-        {
+        request_url: regional_responses_url,
+        request_body: { model: "gpt-5.2" }.to_json,
+        response_status: 200,
+        response_body: {
           model: "gpt-5.2",
           usage: {
             input_tokens: 150,
@@ -154,10 +154,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       }.to_json
 
       result = parser.parse(
-        responses_url,
-        { model: "gpt-5-mini" }.to_json,
-        200,
-        response_body
+        request_url: responses_url,
+        request_body: { model: "gpt-5-mini" }.to_json,
+        response_status: 200,
+        response_body: response_body
       )
 
       expect(result.provider).to eq("openai")
@@ -171,10 +171,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "tags non-streaming usage with a :response source" do
       result = parser.parse(
-        chat_completions_url,
-        request_body,
-        200,
-        response_body
+        request_url: chat_completions_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: response_body
       )
 
       expect(result.stream).to be false
@@ -183,10 +183,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "computes total tokens when the provider omits total_tokens" do
       result = parser.parse(
-        responses_url,
-        { model: "gpt-5-mini" }.to_json,
-        200,
-        {
+        request_url: responses_url,
+        request_body: { model: "gpt-5-mini" }.to_json,
+        response_status: 200,
+        response_body: {
           model: "gpt-5-mini",
           usage: {
             input_tokens: 150,
@@ -204,10 +204,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
 
     it "uses unknown when neither response nor request carries a model" do
       result = parser.parse(
-        chat_completions_url,
-        {}.to_json,
-        200,
-        {
+        request_url: chat_completions_url,
+        request_body: {}.to_json,
+        response_status: 200,
+        response_body: {
           usage: {
             prompt_tokens: 150,
             completion_tokens: 42,
@@ -249,10 +249,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        chat_completions_url,
-        request_body,
-        200,
-        events
+        request_url: chat_completions_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
       )
 
       expect(result.provider).to eq("openai")
@@ -275,10 +275,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        chat_completions_url,
-        request_body,
-        200,
-        events
+        request_url: chat_completions_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
       )
 
       expect(result.provider_response_id).to eq("chatcmpl_456")
@@ -294,10 +294,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        responses_url,
-        { model: "gpt-5-mini", stream: true }.to_json,
-        200,
-        events
+        request_url: responses_url,
+        request_body: { model: "gpt-5-mini", stream: true }.to_json,
+        response_status: 200,
+        events: events
       )
 
       expect(result.provider_response_id).to eq("resp_456")
@@ -324,10 +324,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        responses_url,
-        { model: "gpt-5-mini", stream: true }.to_json,
-        200,
-        events
+        request_url: responses_url,
+        request_body: { model: "gpt-5-mini", stream: true }.to_json,
+        response_status: 200,
+        events: events
       )
 
       expect(result.pricing_mode).to eq("priority")
@@ -357,10 +357,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        responses_url,
-        { model: "gpt-5-mini", stream: true }.to_json,
-        200,
-        events
+        request_url: responses_url,
+        request_body: { model: "gpt-5-mini", stream: true }.to_json,
+        response_status: 200,
+        events: events
       )
 
       expect(result.token_usage.input_tokens).to eq(50)
@@ -380,10 +380,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        responses_url,
-        {}.to_json,
-        200,
-        events
+        request_url: responses_url,
+        request_body: {}.to_json,
+        response_status: 200,
+        events: events
       )
 
       expect(result.model).to eq("gpt-5-mini")
@@ -395,10 +395,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        chat_completions_url,
-        request_body,
-        200,
-        events
+        request_url: chat_completions_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
       )
 
       expect(result.stream).to be true
@@ -427,10 +427,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       ]
 
       result = parser.parse_stream(
-        responses_url,
-        { model: "gpt-5-mini", stream: true }.to_json,
-        200,
-        events
+        request_url: responses_url,
+        request_body: { model: "gpt-5-mini", stream: true }.to_json,
+        response_status: 200,
+        events: events
       )
 
       expect(result.token_usage.input_tokens).to eq(5)
@@ -440,7 +440,13 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
     end
 
     it "returns nil on non-200 responses" do
-      expect(parser.parse_stream(chat_completions_url, request_body, 500, [])).to be_nil
+      result = parser.parse_stream(
+        request_url: chat_completions_url,
+        request_body: request_body,
+        response_status: 500
+      )
+
+      expect(result).to be_nil
     end
   end
 end

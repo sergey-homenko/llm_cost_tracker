@@ -15,7 +15,7 @@ module LlmCostTracker
         %w[anthropic]
       end
 
-      def parse(_request_url, request_body, response_status, response_body, _response_headers = nil)
+      def parse(request_body:, response_status:, response_body:, **)
         return nil unless response_status == 200
 
         response = safe_json_parse(response_body)
@@ -28,14 +28,14 @@ module LlmCostTracker
         UsageCapture.build(
           provider: "anthropic",
           provider_response_id: response["id"],
-          pricing_mode: pricing_mode(request, response, usage),
+          pricing_mode: pricing_mode(request: request, response: response, usage: usage),
           model: response["model"] || request["model"],
-          token_usage: token_usage(usage, cache_read),
+          token_usage: token_usage(usage: usage, cache_read: cache_read),
           usage_source: :response
         )
       end
 
-      def parse_stream(_request_url, request_body, response_status, events, _response_headers = nil)
+      def parse_stream(response_status:, request_body: nil, events: [], **)
         return nil unless response_status == 200
 
         request = safe_json_parse(request_body)
@@ -44,13 +44,18 @@ module LlmCostTracker
         response_id = find_event_value(events) { |data| data.dig("message", "id") || data["id"] }
 
         if usage
-          build_stream_result(model, usage, response_id, pricing_mode(request, nil, usage))
+          build_stream_result(
+            model: model,
+            usage: usage,
+            response_id: response_id,
+            pricing_mode: pricing_mode(request: request, response: nil, usage: usage)
+          )
         else
           build_unknown_stream_usage(
             provider: "anthropic",
             model: model,
             provider_response_id: response_id,
-            pricing_mode: pricing_mode(request, nil, usage)
+            pricing_mode: pricing_mode(request: request, response: nil, usage: usage)
           )
         end
       end
@@ -72,7 +77,7 @@ module LlmCostTracker
         end
       end
 
-      def build_stream_result(model, usage, response_id, pricing_mode)
+      def build_stream_result(model:, usage:, response_id:, pricing_mode:)
         cache_read = usage["cache_read_input_tokens"].to_i
 
         UsageCapture.build(
@@ -80,13 +85,13 @@ module LlmCostTracker
           provider_response_id: response_id,
           pricing_mode: pricing_mode,
           model: model,
-          token_usage: token_usage(usage, cache_read),
+          token_usage: token_usage(usage: usage, cache_read: cache_read),
           stream: true,
           usage_source: :stream_final
         )
       end
 
-      def token_usage(usage, cache_read)
+      def token_usage(usage:, cache_read:)
         input = usage["input_tokens"].to_i
         output = usage["output_tokens"].to_i
         cache_creation = usage["cache_creation"]
@@ -108,7 +113,7 @@ module LlmCostTracker
         )
       end
 
-      def pricing_mode(request, response, usage)
+      def pricing_mode(request:, response:, usage:)
         modes = []
         speed = usage&.fetch("speed", nil) || response&.fetch("speed", nil) || request["speed"]
         service_tier = usage&.fetch("service_tier", nil) ||
@@ -117,13 +122,13 @@ module LlmCostTracker
 
         modes << Pricing.normalize_mode(speed)
         modes << Pricing.normalize_mode(service_tier)
-        modes << "data_residency" if inference_geo(request, response, usage) == "us"
+        modes << "data_residency" if inference_geo(request: request, response: response, usage: usage) == "us"
 
         modes = modes.compact.uniq
         modes.empty? ? nil : modes.join("_")
       end
 
-      def inference_geo(request, response, usage)
+      def inference_geo(request:, response:, usage:)
         (
           usage&.fetch("inference_geo", nil) ||
           response&.fetch("inference_geo", nil) ||

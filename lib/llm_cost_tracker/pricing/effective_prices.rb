@@ -8,45 +8,54 @@ module LlmCostTracker
       class << self
         def call(usage:, prices:, pricing_mode:)
           quantities = usage.price_quantities
-          context_tier = context_tier?(usage, prices)
+          context_tier = context_tier?(usage: usage, prices: prices)
 
           Pricing::COMPONENTS.to_h do |component|
             price_key = component.price_key
             tokens = quantities.fetch(price_key)
-            price = tokens.positive? ? price_for(prices, price_key, pricing_mode, context_tier) : 0.0
+            price = if tokens.positive?
+                      price_for(
+                        prices: prices,
+                        key: price_key,
+                        pricing_mode: pricing_mode,
+                        context_tier: context_tier
+                      )
+                    else
+                      0.0
+                    end
             [price_key, price]
           end
         end
 
         private
 
-        def price_for(prices, key, pricing_mode, context_tier)
+        def price_for(prices:, key:, pricing_mode:, context_tier:)
           mode = Pricing.normalize_mode(pricing_mode)
-          return contextual_price(prices, key, context_tier) unless mode
+          return contextual_price(prices: prices, key: key, context_tier: context_tier) unless mode
 
-          contextual_price(prices, :"#{mode}_#{key}", context_tier) ||
-            derived_mode_price(prices, key, mode, context_tier)
+          contextual_price(prices: prices, key: :"#{mode}_#{key}", context_tier: context_tier) ||
+            derived_mode_price(prices: prices, key: key, mode: mode, context_tier: context_tier)
         end
 
-        def contextual_price(prices, key, context_tier)
+        def contextual_price(prices:, key:, context_tier:)
           return prices[key] unless context_tier
 
           prices[:"above_context_#{key}"]
         end
 
-        def derived_mode_price(prices, key, mode, context_tier)
-          standard_price = contextual_price(prices, key, context_tier)
+        def derived_mode_price(prices:, key:, mode:, context_tier:)
+          standard_price = contextual_price(prices: prices, key: key, context_tier: context_tier)
           return nil unless standard_price
 
           base_key = key == :output ? :output : :input
-          base_price = contextual_price(prices, base_key, context_tier)
-          mode_base_price = contextual_price(prices, :"#{mode}_#{base_key}", context_tier)
+          base_price = contextual_price(prices: prices, key: base_key, context_tier: context_tier)
+          mode_base_price = contextual_price(prices: prices, key: :"#{mode}_#{base_key}", context_tier: context_tier)
           return nil unless base_price && mode_base_price
 
           standard_price * (mode_base_price.to_f / base_price)
         end
 
-        def context_tier?(usage, prices)
+        def context_tier?(usage:, prices:)
           threshold = prices[:_context_price_threshold_tokens]
           return false unless threshold
 

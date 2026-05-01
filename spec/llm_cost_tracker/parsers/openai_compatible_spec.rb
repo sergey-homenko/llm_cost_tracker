@@ -72,10 +72,10 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
 
     it "extracts OpenRouter usage and provider name" do
       result = parser.parse(
-        openrouter_chat_url,
-        { model: "openai/gpt-4o-mini" }.to_json,
-        200,
-        {
+        request_url: openrouter_chat_url,
+        request_body: { model: "openai/gpt-4o-mini" }.to_json,
+        response_status: 200,
+        response_body: {
           model: "openai/gpt-4o-mini",
           usage: {
             prompt_tokens: 25,
@@ -94,10 +94,10 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
 
     it "extracts DeepSeek usage and provider name" do
       result = parser.parse(
-        deepseek_chat_url,
-        { model: "deepseek-chat" }.to_json,
-        200,
-        {
+        request_url: deepseek_chat_url,
+        request_body: { model: "deepseek-chat" }.to_json,
+        response_status: 200,
+        response_body: {
           model: "deepseek-chat",
           usage: {
             prompt_tokens: 300,
@@ -119,10 +119,10 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
       end
 
       result = parser.parse(
-        configured_responses_url,
-        { model: "custom-chat" }.to_json,
-        200,
-        {
+        request_url: configured_responses_url,
+        request_body: { model: "custom-chat" }.to_json,
+        response_status: 200,
+        response_body: {
           model: "custom-chat",
           usage: {
             input_tokens: 150,

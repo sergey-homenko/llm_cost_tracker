@@ -22,10 +22,27 @@ module LlmCostTracker
           current = current_price_tables
 
           match =
-            explain_table(current.fetch(:pricing_overrides), :pricing_overrides, provider_model, model_name,
-                          normalized_model) ||
-            explain_table(current.fetch(:file_prices), :prices_file, provider_model, model_name, normalized_model) ||
-            explain_table(Registry.builtin_prices, :bundled, provider_model, model_name, normalized_model)
+            explain_table(
+              table: current.fetch(:pricing_overrides),
+              source: :pricing_overrides,
+              provider_model: provider_model,
+              model_name: model_name,
+              normalized_model: normalized_model
+            ) ||
+            explain_table(
+              table: current.fetch(:file_prices),
+              source: :prices_file,
+              provider_model: provider_model,
+              model_name: model_name,
+              normalized_model: normalized_model
+            ) ||
+            explain_table(
+              table: Registry.builtin_prices,
+              source: :bundled,
+              provider_model: provider_model,
+              model_name: model_name,
+              normalized_model: normalized_model
+            )
           cache_lookup(cache_key, match)
           match
         end
@@ -74,46 +91,51 @@ module LlmCostTracker
           end
         end
 
-        def explain_table(table, source, provider_model, model_name, normalized_model)
+        def explain_table(table:, source:, provider_model:, model_name:, normalized_model:)
           return nil if table.empty?
 
-          direct_match(table, source, provider_model, :provider_model) ||
-            direct_match(table, source, model_name, :model) ||
-            direct_match(table, source, normalized_model, :normalized_model) ||
-            unique_providerless_lookup(normalized_model, table, source) ||
-            fuzzy_match(provider_model, normalized_model, table, source) ||
-            unique_providerless_fuzzy_match(normalized_model, table, source)
+          direct_match(table: table, source: source, key: provider_model, matched_by: :provider_model) ||
+            direct_match(table: table, source: source, key: model_name, matched_by: :model) ||
+            direct_match(table: table, source: source, key: normalized_model, matched_by: :normalized_model) ||
+            unique_providerless_lookup(model: normalized_model, table: table, source: source) ||
+            fuzzy_match(model: provider_model, normalized_model: normalized_model, table: table, source: source) ||
+            unique_providerless_fuzzy_match(model: normalized_model, table: table, source: source)
         end
 
         def normalize_model_name(model)
           model.to_s.split("/").last
         end
 
-        def unique_providerless_lookup(model, table, source)
+        def unique_providerless_lookup(model:, table:, source:)
           matches = sorted_price_keys(table).select { |key| normalize_model_name(key) == model }
-          match(table, source, matches.first, :unique_providerless_model) if matches.one?
+          return unless matches.one?
+
+          match(table: table, source: source, key: matches.first, matched_by: :unique_providerless_model)
         end
 
-        def fuzzy_match(model, normalized_model, table, source)
+        def fuzzy_match(model:, normalized_model:, table:, source:)
           sorted_price_keys(table).each do |key|
-            return match(table, source, key, :dated_snapshot) if snapshot_variant?(model, key) ||
-                                                                 snapshot_variant?(normalized_model, key)
+            if snapshot_variant?(model, key) || snapshot_variant?(normalized_model, key)
+              return match(table: table, source: source, key: key, matched_by: :dated_snapshot)
+            end
           end
 
           nil
         end
 
-        def unique_providerless_fuzzy_match(model, table, source)
+        def unique_providerless_fuzzy_match(model:, table:, source:)
           matches = sorted_price_keys(table).select { |key| snapshot_variant?(model, normalize_model_name(key)) }
-          match(table, source, matches.first, :unique_providerless_dated_snapshot) if matches.one?
+          return unless matches.one?
+
+          match(table: table, source: source, key: matches.first, matched_by: :unique_providerless_dated_snapshot)
         end
 
-        def direct_match(table, source, key, matched_by)
-          match(table, source, key, matched_by) if table.key?(key)
+        def direct_match(table:, source:, key:, matched_by:)
+          match(table: table, source: source, key: key, matched_by: matched_by) if table.key?(key)
         end
 
-        def match(table, source, key, matched_by)
-          Match.new(source.to_s, key, table[key], matched_by.to_s)
+        def match(table:, source:, key:, matched_by:)
+          Match.new(source: source.to_s, key: key, prices: table[key], matched_by: matched_by.to_s)
         end
 
         def snapshot_variant?(model, key)

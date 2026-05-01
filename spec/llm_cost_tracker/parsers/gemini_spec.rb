@@ -58,10 +58,10 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
     it "counts thinking tokens as output tokens" do
       result = parser.parse(
-        generate_content_url,
-        nil,
-        200,
-        {
+        request_url: generate_content_url,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
           responseId: "gemini-resp-123",
           usageMetadata: {
             promptTokenCount: 100,
@@ -85,10 +85,10 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
     it "computes total tokens when Gemini omits totalTokenCount" do
       result = parser.parse(
-        generate_content_url,
-        nil,
-        200,
-        {
+        request_url: generate_content_url,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
           usageMetadata: {
             promptTokenCount: 100,
             cachedContentTokenCount: 25,
@@ -106,10 +106,10 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
     it "counts tool-use prompt tokens as billable input tokens" do
       result = parser.parse(
-        generate_content_url,
-        nil,
-        200,
-        {
+        request_url: generate_content_url,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
           usageMetadata: {
             promptTokenCount: 100,
             cachedContentTokenCount: 25,
@@ -129,10 +129,10 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
     it "captures Flex pricing from the request body" do
       result = parser.parse(
-        generate_content_url,
-        { service_tier: "flex" }.to_json,
-        200,
-        {
+        request_url: generate_content_url,
+        request_body: { service_tier: "flex" }.to_json,
+        response_status: 200,
+        response_body: {
           usageMetadata: {
             promptTokenCount: 100,
             candidatesTokenCount: 20,
@@ -146,17 +146,17 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
     it "uses Gemini service tier response headers for Priority pricing" do
       result = parser.parse(
-        generate_content_url,
-        { service_tier: "priority" }.to_json,
-        200,
-        {
+        request_url: generate_content_url,
+        request_body: { service_tier: "priority" }.to_json,
+        response_status: 200,
+        response_body: {
           usageMetadata: {
             promptTokenCount: 100,
             candidatesTokenCount: 20,
             totalTokenCount: 120
           }
         }.to_json,
-        { "x-gemini-service-tier" => "priority" }
+        response_headers: { "x-gemini-service-tier" => "priority" }
       )
 
       expect(result.pricing_mode).to eq("priority")
@@ -164,17 +164,17 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
     it "does not assume Priority pricing when Gemini reports a standard-tier downgrade" do
       result = parser.parse(
-        generate_content_url,
-        { service_tier: "priority" }.to_json,
-        200,
-        {
+        request_url: generate_content_url,
+        request_body: { service_tier: "priority" }.to_json,
+        response_status: 200,
+        response_body: {
           usageMetadata: {
             promptTokenCount: 100,
             candidatesTokenCount: 20,
             totalTokenCount: 120
           }
         }.to_json,
-        { "x-gemini-service-tier" => "standard" }
+        response_headers: { "x-gemini-service-tier" => "standard" }
       )
 
       expect(result.pricing_mode).to be_nil
@@ -214,7 +214,11 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         } }
       ]
 
-      result = parser.parse_stream(url, nil, 200, events)
+      result = parser.parse_stream(
+        request_url: url,
+        response_status: 200,
+        events: events
+      )
 
       expect(result.provider).to eq("gemini")
       expect(result.model).to eq("gemini-2.5-flash")
@@ -239,7 +243,11 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         } }
       ]
 
-      result = parser.parse_stream(url, nil, 200, events)
+      result = parser.parse_stream(
+        request_url: url,
+        response_status: 200,
+        events: events
+      )
 
       expect(result.token_usage.input_tokens).to eq(70)
       expect(result.token_usage.cache_read_input_tokens).to eq(10)
@@ -249,10 +257,9 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
     it "returns an unknown-usage UsageCapture when no usage metadata is seen" do
       result = parser.parse_stream(
-        url,
-        nil,
-        200,
-        [{ event: nil, data: { "text" => "hi", "responseId" => "gemini-resp-789" } }]
+        request_url: url,
+        response_status: 200,
+        events: [{ event: nil, data: { "text" => "hi", "responseId" => "gemini-resp-789" } }]
       )
 
       expect(result.stream).to be true
@@ -263,10 +270,10 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
     it "captures stream pricing modes from Gemini service tier headers" do
       result = parser.parse_stream(
-        url,
-        { service_tier: "priority" }.to_json,
-        200,
-        [
+        request_url: url,
+        request_body: { service_tier: "priority" }.to_json,
+        response_status: 200,
+        events: [
           { event: nil, data: {
             "usageMetadata" => {
               "promptTokenCount" => 80,
@@ -275,7 +282,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
             }
           } }
         ],
-        { "X-Gemini-Service-Tier" => "priority" }
+        response_headers: { "X-Gemini-Service-Tier" => "priority" }
       )
 
       expect(result.pricing_mode).to eq("priority")
@@ -283,10 +290,9 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
     it "returns unknown when the streaming URL has no model identifier" do
       result = parser.parse_stream(
-        model_less_stream_url,
-        nil,
-        200,
-        [{ event: nil, data: { "text" => "hi" } }]
+        request_url: model_less_stream_url,
+        response_status: 200,
+        events: [{ event: nil, data: { "text" => "hi" } }]
       )
 
       expect(result.stream).to be true

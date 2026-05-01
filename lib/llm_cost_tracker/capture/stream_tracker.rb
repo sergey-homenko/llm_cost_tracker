@@ -8,7 +8,7 @@ require_relative "../logging"
 module LlmCostTracker
   module Capture
     class StreamTracker
-      def initialize(stream, collector, active, finish)
+      def initialize(stream:, collector:, active:, finish: nil)
         @stream = stream
         @collector = collector
         @active = active

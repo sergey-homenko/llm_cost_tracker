@@ -90,10 +90,10 @@ module LlmCostTracker
           return stream unless active?
 
           LlmCostTracker::Capture::StreamTracker.new(
-            stream,
-            collector,
-            -> { active? },
-            ->(errored:) { finish_stream(collector, errored: errored) }
+            stream: stream,
+            collector: collector,
+            active: -> { active? },
+            finish: ->(errored:) { finish_stream(collector, errored: errored) }
           ).wrap
         end
 
