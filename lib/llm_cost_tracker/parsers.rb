@@ -13,7 +13,7 @@ module LlmCostTracker
     def find_for_provider(provider)
       provider_name = provider.to_s.downcase
       BUILT_INS.find do |parser|
-        Array(parser.provider_names).map { |name| name.to_s.downcase }.include?(provider_name)
+        parser.provider_names.include?(provider_name)
       end
     end
   end

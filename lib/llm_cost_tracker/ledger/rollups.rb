@@ -13,24 +13,14 @@ module LlmCostTracker
         def increment!(event)
           return unless event.total_cost
 
-          Period::Total.upsert_all(
-            period_rows(event),
-            on_duplicate: Ledger::Rollups::UpsertSql.call,
-            record_timestamps: true,
-            unique_by: period_totals_unique_by
-          )
+          upsert_period_totals(period_rows(event))
         end
 
         def increment_many!(events)
           events = Array(events).select(&:total_cost)
           return if events.empty?
 
-          Period::Total.upsert_all(
-            Ledger::Rollups::Batch.rows(events),
-            on_duplicate: Ledger::Rollups::UpsertSql.call,
-            record_timestamps: true,
-            unique_by: period_totals_unique_by
-          )
+          upsert_period_totals(Ledger::Rollups::Batch.rows(events))
         end
 
         def decrement!(call_rows)
@@ -58,7 +48,7 @@ module LlmCostTracker
             next unless total_cost
 
             Period::PERIODS.each_key do |period|
-              totals[[period, Period.bucket(period, tracked_at)]] += BigDecimal(total_cost.to_s)
+              totals[[period, Period.bucket(period, tracked_at)]] += total_cost
             end
           end
         end
@@ -71,9 +61,18 @@ module LlmCostTracker
                                              period_start: period_start)
             next unless row
 
-            row.update_columns(total_cost: [BigDecimal(row.total_cost.to_s) - amount, BigDecimal("0")].max,
+            row.update_columns(total_cost: [row.total_cost - amount, BigDecimal("0")].max,
                                updated_at: now)
           end
+        end
+
+        def upsert_period_totals(rows)
+          Period::Total.upsert_all(
+            rows,
+            on_duplicate: Ledger::Rollups::UpsertSql.call,
+            record_timestamps: true,
+            unique_by: period_totals_unique_by
+          )
         end
 
         def period_totals_unique_by

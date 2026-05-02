@@ -15,10 +15,18 @@ module LlmCostTracker
       end
 
       def provider_names
-        [
+        providers = LlmCostTracker.configuration.openai_compatible_providers
+        cached = @provider_names
+        return cached if cached && @provider_names_providers.equal?(providers)
+
+        names = [
           "openai_compatible",
-          *LlmCostTracker.configuration.openai_compatible_providers.each_value.map(&:to_s)
+          *providers.each_value.map { |provider| provider.to_s.downcase }
         ].uniq.freeze
+        return names unless providers.frozen?
+
+        @provider_names_providers = providers
+        @provider_names = names
       end
 
       def parse(request_url:, request_body:, response_status:, response_body:, **)

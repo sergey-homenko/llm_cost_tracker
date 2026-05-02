@@ -21,8 +21,32 @@ RSpec.describe LlmCostTracker::Parsers do
       expect(parser).to be_a(LlmCostTracker::Parsers::OpenaiCompatible)
     end
 
+    it "finds default OpenAI-compatible providers before configuration is finalized" do
+      expect(described_class.find_for_provider("openrouter")).to be_a(LlmCostTracker::Parsers::OpenaiCompatible)
+    end
+
     it "matches provider names case-insensitively" do
       expect(described_class.find_for_provider("OPENAI")).to be_a(LlmCostTracker::Parsers::Openai)
+    end
+
+    it "uses provider names from the current configuration" do
+      LlmCostTracker.configure do |config|
+        config.openai_compatible_providers["llm.example.com"] = "internal_gateway"
+      end
+
+      expect(described_class.find_for_provider("internal_gateway"))
+        .to be_a(LlmCostTracker::Parsers::OpenaiCompatible)
+      expect(described_class.find_for_provider("INTERNAL_GATEWAY"))
+        .to be_a(LlmCostTracker::Parsers::OpenaiCompatible)
+
+      LlmCostTracker.reset_configuration!
+      LlmCostTracker.configure do |config|
+        config.openai_compatible_providers["llm.example.com"] = "other_gateway"
+      end
+
+      expect(described_class.find_for_provider("internal_gateway")).to be_nil
+      expect(described_class.find_for_provider("OTHER_GATEWAY"))
+        .to be_a(LlmCostTracker::Parsers::OpenaiCompatible)
     end
   end
 end
