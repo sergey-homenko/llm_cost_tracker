@@ -7,18 +7,6 @@ RSpec.describe LlmCostTracker::Tracker do
   describe ".record" do
     before { allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true) }
 
-    def token_usage(input_tokens:, output_tokens:, **metadata)
-      LlmCostTracker::TokenUsage.build(
-        input_tokens: input_tokens,
-        output_tokens: output_tokens,
-        total_tokens: metadata[:total_tokens],
-        cache_read_input_tokens: metadata[:cache_read_input_tokens],
-        cache_write_input_tokens: metadata[:cache_write_input_tokens],
-        cache_write_1h_input_tokens: metadata[:cache_write_1h_input_tokens],
-        hidden_output_tokens: metadata[:hidden_output_tokens]
-      )
-    end
-
     def record(provider:, model:, token_usage:, stream: false, usage_source: nil, provider_response_id: nil,
                capture_pricing_mode: nil, service_charges: [], **options)
       described_class.record(
@@ -45,7 +33,7 @@ RSpec.describe LlmCostTracker::Tracker do
       record(
         provider: "openai",
         model: "gpt-4o",
-        token_usage: token_usage(input_tokens: 100, output_tokens: 50),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50),
         metadata: { feature: "chat", user_id: 42 }
       )
 
@@ -67,7 +55,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "openai",
         model: "gpt-4o",
-        token_usage: token_usage(input_tokens: 100, output_tokens: 50),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50),
         latency_ms: 123
       )
 
@@ -81,7 +69,7 @@ RSpec.describe LlmCostTracker::Tracker do
         record(
           provider: "openai",
           model: "gpt-4o",
-          token_usage: token_usage(input_tokens: 100, output_tokens: 50)
+          token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50)
         )
       end.to raise_error(RuntimeError, "storage down")
     end
@@ -99,7 +87,7 @@ RSpec.describe LlmCostTracker::Tracker do
       record(
         provider: "anthropic",
         model: "claude-sonnet-4-6",
-        token_usage: token_usage(input_tokens: 200, output_tokens: 80),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 200, output_tokens: 80),
         metadata: { feature: "summarize" }
       )
 
@@ -118,13 +106,13 @@ RSpec.describe LlmCostTracker::Tracker do
       first = record(
         provider: "openai",
         model: "gpt-4o",
-        token_usage: token_usage(input_tokens: 1, output_tokens: 1)
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
       )
       value = "second"
       second = record(
         provider: "openai",
         model: "gpt-4o",
-        token_usage: token_usage(input_tokens: 1, output_tokens: 1)
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
       )
 
       expect(first.tags).to include(request_id: "first")
@@ -140,7 +128,7 @@ RSpec.describe LlmCostTracker::Tracker do
         record(
           provider: "openai",
           model: "gpt-4o",
-          token_usage: token_usage(input_tokens: 1, output_tokens: 1),
+          token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1),
           metadata: { feature: "summary", user_id: 42 }
         )
       end
@@ -152,7 +140,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "custom",
         model: nil,
-        token_usage: token_usage(input_tokens: 1, output_tokens: 1)
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
       )
 
       expect(event.model).to eq("unknown")
@@ -164,13 +152,13 @@ RSpec.describe LlmCostTracker::Tracker do
         record(
           provider: "openai",
           model: "gpt-4o",
-          token_usage: token_usage(input_tokens: 1, output_tokens: 1)
+          token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
         )
       end
       outside = record(
         provider: "openai",
         model: "gpt-4o",
-        token_usage: token_usage(input_tokens: 1, output_tokens: 1)
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
       )
 
       expect(inside.tags).to include(request_id: "req_123")
@@ -187,7 +175,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "anthropic",
         model: "claude-sonnet-4-6",
-        token_usage: token_usage(input_tokens: 100, output_tokens: 50, **tags),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50, **tags),
         metadata: tags.merge(feature: "summarize")
       )
 
@@ -210,7 +198,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "custom",
         model: "batchable-model",
-        token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 1_000_000),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000),
         pricing_mode: :batch,
         metadata: { feature: "bulk" }
       )
@@ -225,7 +213,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "openai",
         model: "gpt-4o",
-        token_usage: token_usage(input_tokens: 1_000, output_tokens: 0),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
         service_charges: [
           {
             component: :grounding_request,
@@ -244,7 +232,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "anthropic",
         model: "claude-sonnet-4-6",
-        token_usage: token_usage(input_tokens: 1_000, output_tokens: 0),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
         service_charges: [
           {
             component: :web_search_request,
@@ -272,7 +260,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "custom",
         model: "unknown-tool-model",
-        token_usage: token_usage(input_tokens: 0, output_tokens: 0),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 0, output_tokens: 0),
         service_charges: [
           {
             component: :web_search_request,
@@ -302,7 +290,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "custom",
         model: "priority-model",
-        token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 1_000_000),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000),
         capture_pricing_mode: :priority
       )
 
@@ -327,7 +315,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "custom",
         model: "multi-mode-model",
-        token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 1_000_000),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000),
         capture_pricing_mode: :priority,
         pricing_mode: :batch
       )
@@ -351,7 +339,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "custom",
         model: "metadata-mode-model",
-        token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 1_000_000),
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000),
         metadata: { pricing_mode: :batch, feature: "bulk" }
       )
 
@@ -372,7 +360,7 @@ RSpec.describe LlmCostTracker::Tracker do
       record(
         provider: "openai",
         model: "gpt-4o",
-        token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 1_000_000)
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000)
       )
 
       expect(budget_data).not_to be_nil
@@ -390,7 +378,7 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "openai",
         model: "gpt-4o",
-        token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 0)
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 0)
       )
 
       expect(budget_data).to include(
@@ -413,7 +401,7 @@ RSpec.describe LlmCostTracker::Tracker do
         record(
           provider: "openai",
           model: "gpt-4o",
-          token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 1_000_000)
+          token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000)
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
         expect(error.monthly_total).to be > error.budget
@@ -433,7 +421,7 @@ RSpec.describe LlmCostTracker::Tracker do
         record(
           provider: "openai",
           model: "gpt-4o",
-          token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 1_000_000)
+          token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000)
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
         expect(error.budget_type).to eq(:daily)
@@ -477,7 +465,7 @@ RSpec.describe LlmCostTracker::Tracker do
         record(
           provider: "openai",
           model: "gpt-4o",
-          token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 0)
+          token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 0)
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
         expect(error.budget_type).to eq(:per_call)
@@ -500,7 +488,7 @@ RSpec.describe LlmCostTracker::Tracker do
         event = record(
           provider: "openai",
           model: "unknown-chat-model",
-          token_usage: token_usage(input_tokens: 100, output_tokens: 50)
+          token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50)
         )
       end.to output(/No pricing configured for model "unknown-chat-model"/).to_stderr
 
@@ -517,7 +505,7 @@ RSpec.describe LlmCostTracker::Tracker do
           record(
             provider: "openai",
             model: "unknown-model-dedup",
-            token_usage: token_usage(input_tokens: 100, output_tokens: 50)
+            token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50)
           )
         end
       ensure
@@ -536,7 +524,7 @@ RSpec.describe LlmCostTracker::Tracker do
         record(
           provider: "openai",
           model: "unknown-chat-model",
-          token_usage: token_usage(input_tokens: 100, output_tokens: 50)
+          token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50)
         )
       end.to raise_error(LlmCostTracker::UnknownPricingError) { |error|
         expect(error.model).to eq("unknown-chat-model")

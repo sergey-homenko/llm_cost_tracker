@@ -5,6 +5,8 @@ require "active_support/core_ext/hash/except"
 require "date"
 require "yaml"
 
+require_relative "../../lib/llm_cost_tracker/pricing/registry"
+
 module LlmCostTracker
   module Pricing::Scrape
     class Orchestrator
@@ -78,8 +80,11 @@ module LlmCostTracker
           next unless current_models.key?(key)
 
           existing = current_models.fetch(key)
-          field_diff = scraped_fields.each_with_object({}) do |(field, value), diff|
-            diff[field] = { "from" => existing[field], "to" => value } if existing[field] != value
+          existing_fields = provider_model_fields(existing)
+          field_diff = (existing_fields.keys | scraped_fields.keys).sort.each_with_object({}) do |field, diff|
+            from = existing_fields[field]
+            to = scraped_fields[field]
+            diff[field] = { "from" => from, "to" => to } if from != to
           end
           updates[key] = field_diff if field_diff.any?
         end
@@ -93,24 +98,42 @@ module LlmCostTracker
           key = registry_key(provider, id)
           existing = next_models[key] || current_models[id] || {}
           next_models.delete(id)
-          next_models[key] = existing.merge(scraped_fields)
+          next_models[key] = preserved_model_fields(existing).merge(scraped_fields)
         end
         next_models
       end
 
       def compute_service_charge_updates(provider, provider_result, current_service_charges)
         existing = current_service_charges.fetch(provider, {})
-        provider_result.service_charges.each_with_object({}) do |(key, value), updates|
-          updates[key] = { "from" => existing[key], "to" => value } if existing[key] != value
+        scraped = provider_result.service_charges
+        (existing.keys | scraped.keys).sort.each_with_object({}) do |key, updates|
+          from = existing[key]
+          to = scraped[key]
+          updates[key] = { "from" => from, "to" => to } if from != to
         end
       end
 
       def apply_service_charges(provider, current_service_charges, provider_result)
-        return current_service_charges if provider_result.service_charges.empty?
+        next_service_charges = current_service_charges.dup
+        if provider_result.service_charges.empty?
+          next_service_charges.delete(provider)
+        else
+          next_service_charges[provider] = provider_result.service_charges
+        end
 
-        current_service_charges.merge(
-          provider => current_service_charges.fetch(provider, {}).merge(provider_result.service_charges)
-        )
+        next_service_charges
+      end
+
+      def provider_model_fields(entry)
+        entry.reject { |field, _value| preserved_model_field?(field) }
+      end
+
+      def preserved_model_fields(entry)
+        entry.select { |field, _value| preserved_model_field?(field) }
+      end
+
+      def preserved_model_field?(field)
+        field.start_with?("_") && field != LlmCostTracker::Pricing::Registry::CONTEXT_THRESHOLD_KEY.name
       end
 
       def registry_key(provider, model_id)

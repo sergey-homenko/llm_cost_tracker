@@ -4,6 +4,7 @@ module LlmCostTracker
   module Dashboard
     class TagBreakdown
       DEFAULT_LIMIT = 100
+      Row = Data.define(:value, :calls, :total_cost, :average_cost_per_call, :share_percent)
 
       class << self
         def call(key:, scope: LlmCostTracker::Ledger::Call.all, limit: DEFAULT_LIMIT)
@@ -21,7 +22,19 @@ module LlmCostTracker
       end
 
       def rows
-        @rows ||= scope.klass.find_by_sql(rows_sql)
+        @rows ||= begin
+          total = tagged_calls
+          scope.klass.find_by_sql(rows_sql).map do |row|
+            calls = row.calls.to_i
+            Row.new(
+              value: row.value,
+              calls: calls,
+              total_cost: row.total_cost,
+              average_cost_per_call: row.average_cost_per_call,
+              share_percent: percentage(calls, total)
+            )
+          end
+        end
       end
 
       def total_calls
@@ -73,6 +86,12 @@ module LlmCostTracker
 
       def tag_expression
         @tag_expression ||= LlmCostTracker::Ledger::Tags::Sql.value_expression(key, table_name: "sub")
+      end
+
+      def percentage(numerator, denominator)
+        return 0.0 unless denominator.positive?
+
+        (numerator / denominator.to_f) * 100.0
       end
     end
   end

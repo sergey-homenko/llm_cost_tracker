@@ -63,7 +63,7 @@ module LlmCostTracker
         def file_prices(path)
           return EMPTY_PRICES unless path
 
-          cache_key = [path, File.mtime(path).to_f]
+          cache_key = [path, File.mtime(path)]
           cached = @file_prices_cache
           return cached[:value] if cached && cached[:key] == cache_key
 

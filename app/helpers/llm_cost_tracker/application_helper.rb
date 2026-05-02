@@ -15,7 +15,8 @@ module LlmCostTracker
     include TokenUsageHelper
 
     def coverage_percent(numerator, denominator)
-      return 0.0 unless denominator.to_i.positive?
+      denominator = denominator.to_f
+      return 0.0 unless denominator.positive?
 
       (numerator.to_f / denominator) * 100.0
     end
@@ -118,14 +119,6 @@ module LlmCostTracker
       truncate_text(safe_json(tags), TAG_TOOLTIP_BYTES)
     end
 
-    def budget_fill_modifier(percent)
-      percent = percent.to_f
-      return "lct-budget-fill--over" if percent >= 100.0
-      return "lct-budget-fill--warn" if percent >= 80.0
-
-      ""
-    end
-
     def current_query(overrides = {})
       request.query_parameters.symbolize_keys.merge(overrides)
     end
@@ -158,7 +151,7 @@ module LlmCostTracker
     def truncate_text(string, limit)
       return string if string.bytesize <= limit
 
-      "#{string.byteslice(0, limit).to_s.encode('UTF-8', invalid: :replace, undef: :replace)}..."
+      "#{string.byteslice(0, limit).encode('UTF-8', invalid: :replace, undef: :replace)}..."
     end
   end
 end

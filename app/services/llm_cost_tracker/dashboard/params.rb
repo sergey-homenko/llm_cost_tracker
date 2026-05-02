@@ -16,6 +16,16 @@ module LlmCostTracker
         rescue ArgumentError, TypeError
           {}
         end
+
+        def tag_query(value)
+          to_hash(value).each_with_object({}) do |(key, tag_value), tags|
+            key = key.to_s
+            tag_value = tag_value.to_s
+            next if key.blank? || tag_value.blank?
+
+            tags[key] = tag_value
+          end
+        end
       end
     end
   end

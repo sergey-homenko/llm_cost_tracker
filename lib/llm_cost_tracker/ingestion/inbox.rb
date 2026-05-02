@@ -38,16 +38,7 @@ module LlmCostTracker
           cost = payload[:cost] && Pricing.stored_cost_attributes(payload[:cost])
           token_usage_attributes = payload[:token_usage] || payload
           token_usage = TokenUsage.build(**token_usage_attributes.slice(*TokenUsage.members))
-          service_charges = Billing::ServiceCharge.build_many(
-            Array(payload[:service_charges]).map do |charge|
-              charge.merge(
-                component: charge[:component]&.to_sym,
-                unit: charge[:unit]&.to_sym,
-                pricing_basis: charge[:pricing_basis]&.to_sym,
-                price_source: charge[:price_source]&.to_sym
-              )
-            end
-          )
+          service_charges = service_charges_from(payload)
           usage_source = payload[:usage_source]&.to_sym
 
           {
@@ -63,13 +54,19 @@ module LlmCostTracker
             usage_source: usage_source,
             provider_response_id: payload[:provider_response_id],
             tracked_at: Time.iso8601(payload.fetch(:tracked_at)),
-            cost_status: cost_status_for(payload, token_usage, cost, service_charges, usage_source),
+            cost_status: cost_status_for(
+              payload: payload,
+              token_usage: token_usage,
+              cost: cost,
+              service_charges: service_charges,
+              usage_source: usage_source
+            ),
             pricing_snapshot: payload[:pricing_snapshot],
             service_charges: service_charges
           }
         end
 
-        def cost_status_for(payload, token_usage, cost, service_charges, usage_source)
+        def cost_status_for(payload:, token_usage:, cost:, service_charges:, usage_source:)
           payload[:cost_status] || Billing::CostStatus.call(
             token_usage: token_usage,
             usage_source: usage_source,
@@ -77,6 +74,19 @@ module LlmCostTracker
             service_charges: service_charges,
             total_cost: cost&.fetch(:total_cost, nil)
           )
+        end
+
+        def service_charges_from(payload)
+          charges = Array(payload[:service_charges]).map do |charge|
+            charge.merge(
+              component: charge[:component]&.to_sym,
+              unit: charge[:unit]&.to_sym,
+              pricing_basis: charge[:pricing_basis]&.to_sym,
+              price_source: charge[:price_source]&.to_sym
+            )
+          end
+
+          Billing::ServiceCharge.build_many(charges)
         end
 
         def row_for(event)

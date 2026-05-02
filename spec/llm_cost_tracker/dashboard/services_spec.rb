@@ -137,6 +137,14 @@ RSpec.describe "LlmCostTracker dashboard services" do
     end
   end
 
+  describe LlmCostTracker::Dashboard::Params do
+    it "normalizes tag query params and drops blank tag pairs" do
+      tags = described_class.tag_query("feature" => "chat", "" => "missing", "team" => "")
+
+      expect(tags).to eq("feature" => "chat")
+    end
+  end
+
   describe LlmCostTracker::Dashboard::DateRange do
     it "defaults to the latest thirty days" do
       range = described_class.call(params: {}, today: Date.new(2026, 4, 20))
@@ -382,6 +390,25 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       expect(budget).to include(spent: 7.5, percent_used: 0.0, projected_percent_used: 0.0)
       expect(budget[:projected_delta]).to be > 0
+    end
+
+    it "builds under-budget projection state when monthly spend is zero" do
+      now = Time.utc(2026, 4, 16, 0, 0, 0)
+      allow(Time).to receive(:now).and_return(now)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 0.0)
+      LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
+
+      budget = described_class.monthly_budget_status
+
+      expect(budget).to include(
+        projected_spent: 0.0,
+        projected_delta_amount: 10.0,
+        projected_delta_direction: "under",
+        projected_delta_status_class: "lct-budget-projection-status--under",
+        fill_modifier: "",
+        progress_percent: 0.0,
+        projected_marker_percent: 0.0
+      )
     end
 
     it "returns nil deltas when no previous scope is given" do

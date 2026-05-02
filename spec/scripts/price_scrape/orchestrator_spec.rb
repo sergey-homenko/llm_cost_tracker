@@ -110,11 +110,12 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     end
   end
 
-  it "updates only changed price fields and preserves unrelated metadata fields" do
+  it "replaces provider-owned price fields and preserves unrelated metadata fields" do
     registry = build_registry(models: {
                                 "anthropic/claude-opus-4-7" => {
                                   "input" => 5.0,
                                   "output" => 25.0,
+                                  "batch_cache_read_input" => 0.5,
                                   "_source" => "manual"
                                 }
                               })
@@ -135,6 +136,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
       expect(result.updated).to eq(
         "anthropic/claude-opus-4-7" => {
           "batch_input" => { "from" => nil, "to" => 2.5 },
+          "batch_cache_read_input" => { "from" => 0.5, "to" => nil },
           "batch_output" => { "from" => nil, "to" => 12.5 }
         }
       )
@@ -206,7 +208,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     end
   end
 
-  it "updates provider service charge rates without touching other providers" do
+  it "replaces provider service charge rates without touching other providers" do
     registry = build_registry(
       models: { "openai/gpt-5" => { "input" => 1.25, "output" => 10.0 } },
       service_charges: {
@@ -231,6 +233,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
 
       expect(result.service_charges_updated).to eq(
         "web_search_request" => { "from" => 8.0, "to" => 10.0 },
+        "priority_web_search_request" => { "from" => 12.0, "to" => nil },
         "file_search_call" => { "from" => nil, "to" => 2.5 }
       )
 
@@ -238,9 +241,34 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
       expect(service_charges.fetch("anthropic")).to eq("web_search_request" => 10.0)
       expect(service_charges.fetch("openai")).to eq(
         "web_search_request" => 10.0,
-        "priority_web_search_request" => 12.0,
         "file_search_call" => 2.5
       )
+    end
+  end
+
+  it "removes provider service charge rates when the scraper no longer returns any" do
+    registry = build_registry(
+      models: { "gemini/gemini-2.5-flash" => { "input" => 0.3, "output" => 2.5 } },
+      service_charges: {
+        "gemini" => { "grounding_request" => 35.0 },
+        "openai" => { "web_search_request" => 10.0 }
+      }
+    )
+    provider_result = build_result(
+      models: { "gemini-2.5-flash" => { "input" => 0.3, "output" => 2.5 } },
+      service_charges: {}
+    )
+
+    with_registry(registry) do |path|
+      result = described_class.new.call(provider: "gemini", provider_result: provider_result, registry_path: path)
+
+      expect(result.service_charges_updated).to eq(
+        "grounding_request" => { "from" => 35.0, "to" => nil }
+      )
+
+      service_charges = JSON.parse(File.read(path)).fetch("service_charges")
+      expect(service_charges).not_to have_key("gemini")
+      expect(service_charges.fetch("openai")).to eq("web_search_request" => 10.0)
     end
   end
 

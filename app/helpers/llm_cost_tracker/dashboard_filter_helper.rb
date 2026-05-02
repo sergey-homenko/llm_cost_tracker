@@ -14,15 +14,13 @@ module LlmCostTracker
     end
 
     def active_tag_filters
-      tag_params = LlmCostTracker::Dashboard::Params.to_hash(params[:tag]).transform_keys(&:to_s).transform_values(&:to_s)
+      tag_params = LlmCostTracker::Dashboard::Params.tag_query(params[:tag])
 
       tag_params.filter_map do |key, value|
-        next if key.blank? || value.blank?
-
         {
           label: "Tag",
           value: "#{key}=#{value}",
-          path: dashboard_filter_path(current_query(tag: tag_params.except(key.to_s).presence, page: nil))
+          path: dashboard_filter_path(current_query(tag: tag_params.except(key).presence, page: nil))
         }
       end
     end

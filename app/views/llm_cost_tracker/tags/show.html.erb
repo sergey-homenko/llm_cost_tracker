@@ -1,5 +1,3 @@
-<% share_base = @breakdown.tagged_calls.positive? ? @breakdown.tagged_calls.to_f : 1.0 %>
-
 <section class="lct-panel lct-toolbar">
   <div class="lct-toolbar-head">
     <div>
@@ -103,7 +101,7 @@
             <tr>
               <td><code class="lct-code"><%= row.value %></code></td>
               <td class="lct-num"><%= number(row.calls) %></td>
-              <td class="lct-num"><%= percent((row.calls / share_base) * 100.0) %></td>
+              <td class="lct-num"><%= percent(row.share_percent) %></td>
               <td class="lct-num"><%= money(row.total_cost) %></td>
               <td class="lct-num"><%= money(row.average_cost_per_call) %></td>
               <td>

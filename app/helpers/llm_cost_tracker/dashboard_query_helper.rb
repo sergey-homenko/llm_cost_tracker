@@ -11,7 +11,7 @@ module LlmCostTracker
 
     def calls_query_for_tag(key:, value:)
       query = current_query(page: nil, per: nil, format: nil)
-      tags = LlmCostTracker::Dashboard::Params.to_hash(query[:tag]).transform_keys(&:to_s).transform_values(&:to_s)
+      tags = LlmCostTracker::Dashboard::Params.tag_query(query[:tag])
       query[:tag] = tags.merge(key.to_s => value.to_s)
       query
     end

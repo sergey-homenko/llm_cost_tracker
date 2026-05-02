@@ -125,9 +125,6 @@
 
       <% if @monthly_budget_status %>
         <% budget = @monthly_budget_status %>
-        <% fill_mod = budget_fill_modifier(budget[:percent_used]) %>
-        <% projected_marker = [[budget[:projected_percent_used].to_f, 0.0].max, 100.0].min %>
-        <% projected_delta = budget[:projected_delta].to_f %>
         <section class="lct-panel lct-panel-tight">
           <div class="lct-section-head">
             <div>
@@ -143,16 +140,16 @@
               </span>
               <span class="lct-budget-percent"><%= percent(budget[:percent_used]) %></span>
             </div>
-            <div class="lct-budget-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= [budget[:percent_used].to_f, 100.0].min.round %>">
-              <div class="lct-budget-fill <%= fill_mod %>" style="width: <%= [budget[:percent_used].to_f, 100.0].min %>%"></div>
+            <div class="lct-budget-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= budget[:progress_percent].round %>">
+              <div class="lct-budget-fill <%= budget[:fill_modifier] %>" style="width: <%= budget[:progress_percent] %>%"></div>
               <% if budget[:projected_spent].positive? %>
-                <span class="lct-budget-marker" aria-hidden="true" style="left: calc(<%= projected_marker %>% - 1px)"></span>
+                <span class="lct-budget-marker" aria-hidden="true" style="left: calc(<%= budget[:projected_marker_percent] %>% - 1px)"></span>
               <% end %>
             </div>
             <p class="lct-budget-projection">
               <span>Projected <strong><%= money(budget[:projected_spent]) %></strong> by <%= budget[:projection_end_label] %></span>
-              <span class="lct-budget-projection-status <%= projected_delta.positive? ? "lct-budget-projection-status--over" : "lct-budget-projection-status--under" %>">
-                <%= money(projected_delta.abs) %> <%= projected_delta.positive? ? "over" : "under" %> budget
+              <span class="lct-budget-projection-status <%= budget[:projected_delta_status_class] %>">
+                <%= money(budget[:projected_delta_amount]) %> <%= budget[:projected_delta_direction] %> budget
               </span>
             </p>
             <p class="lct-budget-meta">Soft limit: blocking is not atomic under concurrency.</p>
