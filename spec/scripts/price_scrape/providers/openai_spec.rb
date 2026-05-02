@@ -51,6 +51,11 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
       expect(result.source_url).to eq(described_class::SOURCE_URL)
       expect(result.scraped_at).to eq("2026-04-26T00:00:00Z")
+      expect(result.service_charges).to eq(
+        "web_search_request" => 10.0,
+        "file_search_call" => 2.5,
+        "container_session" => 0.03
+      )
       expect(result.models.fetch("gpt-5.5")).to include(
         "input" => 5.0,
         "cache_read_input" => 0.5,

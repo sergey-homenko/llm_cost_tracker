@@ -18,6 +18,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - Provider price refresh now covers Groq and Gemini audio input rates.
+- Provider price refresh now updates service charge rates.
+- Data quality now summarizes captured service charges.
 - Pricing components now derive directly from the billing component registry.
 - Durable inbox payloads now use schema version 2 while reading legacy v0/v1 payloads.
 - Removed the `Pricing::COMPONENTS` compatibility surface.

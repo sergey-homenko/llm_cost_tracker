@@ -682,6 +682,51 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.streaming_missing_usage_count.to_i).to eq(1)
       expect(stats.missing_provider_response_id_count.to_i).to eq(1)
     end
+
+    it "groups service charges by provider, component, and status" do
+      openai_call = create_call(provider: "openai")
+      anthropic_call = create_call(provider: "anthropic")
+      LlmCostTracker::Ledger::ServiceCharge.create!(
+        llm_api_call_id: openai_call.id,
+        charge_id: "openai-1",
+        component: "web_search_request",
+        unit: "request",
+        quantity: 2,
+        rate_quantity: 1000,
+        cost: 0.02,
+        currency: "USD",
+        cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
+      )
+      LlmCostTracker::Ledger::ServiceCharge.create!(
+        llm_api_call_id: openai_call.id,
+        charge_id: "openai-2",
+        component: "web_search_request",
+        unit: "request",
+        quantity: 1,
+        rate_quantity: 1,
+        currency: "USD",
+        cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+      )
+      LlmCostTracker::Ledger::ServiceCharge.create!(
+        llm_api_call_id: anthropic_call.id,
+        charge_id: "anthropic-1",
+        component: "code_execution_hour",
+        unit: "hour",
+        quantity: 1,
+        rate_quantity: 1,
+        cost: 0.05,
+        currency: "USD",
+        cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
+      )
+
+      rows = described_class.service_charge_rows(LlmCostTracker::Ledger::Call.where(provider: "openai"))
+      row_by_status = rows.index_by(&:cost_status)
+
+      expect(row_by_status.fetch("complete").provider).to eq("openai")
+      expect(row_by_status.fetch("complete").component).to eq("web_search_request")
+      expect(row_by_status.fetch("complete").quantity).to eq(2)
+      expect(row_by_status.fetch("unknown").quantity).to eq(1)
+    end
   end
 
   describe LlmCostTracker::Dashboard::TagBreakdown do

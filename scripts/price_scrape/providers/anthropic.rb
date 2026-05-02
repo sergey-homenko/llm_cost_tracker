@@ -6,12 +6,17 @@ require "time"
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
+      # rubocop:disable Metrics/ClassLength
       class Anthropic
         SOURCE_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
         MIN_MODELS_EXPECTED = 10
         MAX_PRICE_PER_MTOK = 1000.0
+        SERVICE_CHARGE_PATTERNS = {
+          "web_search_request" => /Web search is available.*?\$\s*(\d+(?:\.\d+)?)\s+per 1,000 searches/i,
+          "code_execution_hour" => /Additional usage beyond .*? billed at \$\s*(\d+(?:\.\d+)?)\s+per hour/i
+        }.freeze
 
-        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models)
+        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
 
         class Error < StandardError; end
 
@@ -29,11 +34,24 @@ module LlmCostTracker
             source_url: source_url,
             scraped_at: scraped_at,
             models: models,
-            deprecated_models: deprecated
+            deprecated_models: deprecated,
+            service_charges: extract_service_charges(doc)
           )
         end
 
         private
+
+        def extract_service_charges(doc)
+          text = doc.text.gsub(/\s+/, " ")
+          SERVICE_CHARGE_PATTERNS.to_h { |component, pattern| [component, text_price(text, pattern)] }
+        end
+
+        def text_price(text, pattern)
+          match = text.match(pattern)
+          raise Error, "Anthropic service charge price not found" unless match
+
+          Float(match[1])
+        end
 
         def extract_base_pricing(table)
           parse_table(table) do |cells, headers|
@@ -185,6 +203,7 @@ module LlmCostTracker
           end
         end
       end
+      # rubocop:enable Metrics/ClassLength
     end
   end
 end

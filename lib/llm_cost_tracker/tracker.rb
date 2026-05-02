@@ -27,13 +27,7 @@ module LlmCostTracker
         return unless LlmCostTracker.configuration.enabled
 
         pricing_mode = Pricing.normalize_mode(pricing_mode) || capture.pricing_mode
-        cost_data = Pricing.cost_for(
-          provider: capture.provider,
-          model: capture.model,
-          token_usage: capture.token_usage,
-          pricing_mode: pricing_mode
-        )
-        pricing_snapshot = Pricing.snapshot_for(
+        cost_data, pricing_snapshot = Pricing.cost_and_snapshot_for(
           provider: capture.provider,
           model: capture.model,
           token_usage: capture.token_usage,

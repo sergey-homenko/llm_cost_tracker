@@ -8,9 +8,9 @@ require "yaml"
 module LlmCostTracker
   module Pricing::Scrape
     class Orchestrator
-      Result = Data.define(:added, :removed, :updated, :unchanged, :written) do
+      Result = Data.define(:added, :removed, :updated, :service_charges_updated, :unchanged, :written) do
         def changed?
-          added.any? || removed.any? || updated.any?
+          added.any? || removed.any? || updated.any? || service_charges_updated.any?
         end
       end
 
@@ -26,14 +26,17 @@ module LlmCostTracker
         provider = normalize_provider(provider)
         registry = read_registry(registry_path)
         current_models = registry.fetch("models", {})
+        current_service_charges = registry.fetch("service_charges", {})
 
-        plan = build_plan(provider, provider_result, current_models)
+        plan = build_plan(provider, provider_result, current_models, current_service_charges)
         return plan unless plan.changed? && !@dry_run
 
         new_registry = registry.merge(
           "metadata" => registry.fetch("metadata", {}).merge("updated_at" => @today.iso8601),
           "models" => apply_changes(provider, current_models, provider_result, plan.removed)
         )
+        service_charges = apply_service_charges(provider, current_service_charges, provider_result)
+        new_registry["service_charges"] = service_charges if registry.key?("service_charges") || service_charges.any?
         @writer.call(path: registry_path, registry: new_registry)
         plan.with(written: true)
       end
@@ -46,7 +49,7 @@ module LlmCostTracker
         raise Error, "#{e.message} at #{path}"
       end
 
-      def build_plan(provider, provider_result, current_models)
+      def build_plan(provider, provider_result, current_models, current_service_charges)
         deprecated = provider_result.deprecated_models
         active = provider_result.models.except(*deprecated)
         active_keys = active.keys.map { |id| registry_key(provider, id) }
@@ -57,8 +60,16 @@ module LlmCostTracker
         added = active_keys.reject { |id| current_models.key?(id) }
         updated = compute_updates(provider, active, current_models)
         unchanged = active_keys.select { |id| current_models.key?(id) } - updated.keys
+        service_charges_updated = compute_service_charge_updates(provider, provider_result, current_service_charges)
 
-        Result.new(added: added, removed: removed, updated: updated, unchanged: unchanged, written: false)
+        Result.new(
+          added: added,
+          removed: removed,
+          updated: updated,
+          service_charges_updated: service_charges_updated,
+          unchanged: unchanged,
+          written: false
+        )
       end
 
       def compute_updates(provider, active, current_models)
@@ -85,6 +96,21 @@ module LlmCostTracker
           next_models[key] = existing.merge(scraped_fields)
         end
         next_models
+      end
+
+      def compute_service_charge_updates(provider, provider_result, current_service_charges)
+        existing = current_service_charges.fetch(provider, {})
+        provider_result.service_charges.each_with_object({}) do |(key, value), updates|
+          updates[key] = { "from" => existing[key], "to" => value } if existing[key] != value
+        end
+      end
+
+      def apply_service_charges(provider, current_service_charges, provider_result)
+        return current_service_charges if provider_result.service_charges.empty?
+
+        current_service_charges.merge(
+          provider => current_service_charges.fetch(provider, {}).merge(provider_result.service_charges)
+        )
       end
 
       def registry_key(provider, model_id)

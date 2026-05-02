@@ -7,21 +7,23 @@ require "price_scrape/orchestrator"
 
 RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
   let(:provider_result_class) do
-    Data.define(:source_url, :scraped_at, :models, :deprecated_models)
+    Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
   end
 
-  def build_result(models:, deprecated_models: [])
+  def build_result(models:, deprecated_models: [], service_charges: {})
     provider_result_class.new(
       source_url: "https://example.com/pricing",
       scraped_at: "2026-04-26T00:00:00Z",
       models: models,
-      deprecated_models: deprecated_models
+      deprecated_models: deprecated_models,
+      service_charges: service_charges
     )
   end
 
-  def build_registry(models:, metadata: {})
+  def build_registry(models:, metadata: {}, service_charges: {})
     {
       "metadata" => { "schema_version" => 1, "updated_at" => "2026-04-01" }.merge(metadata),
+      "service_charges" => service_charges,
       "models" => models
     }
   end
@@ -201,6 +203,44 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
       expect(result.changed?).to be(true)
       expect(result.written).to be(false)
       expect(File.read(path)).to eq(original)
+    end
+  end
+
+  it "updates provider service charge rates without touching other providers" do
+    registry = build_registry(
+      models: { "openai/gpt-5" => { "input" => 1.25, "output" => 10.0 } },
+      service_charges: {
+        "anthropic" => { "web_search_request" => 10.0 },
+        "openai" => { "web_search_request" => 8.0, "priority_web_search_request" => 12.0 }
+      }
+    )
+    provider_result = build_result(
+      models: { "gpt-5" => { "input" => 1.25, "output" => 10.0 } },
+      service_charges: {
+        "web_search_request" => 10.0,
+        "file_search_call" => 2.5
+      }
+    )
+
+    with_registry(registry) do |path|
+      result = described_class.new(today: Date.new(2026, 4, 26)).call(
+        provider: "openai",
+        provider_result: provider_result,
+        registry_path: path
+      )
+
+      expect(result.service_charges_updated).to eq(
+        "web_search_request" => { "from" => 8.0, "to" => 10.0 },
+        "file_search_call" => { "from" => nil, "to" => 2.5 }
+      )
+
+      service_charges = JSON.parse(File.read(path)).fetch("service_charges")
+      expect(service_charges.fetch("anthropic")).to eq("web_search_request" => 10.0)
+      expect(service_charges.fetch("openai")).to eq(
+        "web_search_request" => 10.0,
+        "priority_web_search_request" => 12.0,
+        "file_search_call" => 2.5
+      )
     end
   end
 

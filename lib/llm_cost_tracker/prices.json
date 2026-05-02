@@ -17,7 +17,8 @@
   },
   "service_charges": {
     "anthropic": {
-      "web_search_request": 10.0
+      "web_search_request": 10.0,
+      "code_execution_hour": 0.05
     },
     "openai": {
       "web_search_request": 10.0,

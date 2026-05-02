@@ -8,6 +8,7 @@ module LlmCostTracker
       @usage_rows = Dashboard::DataQuality.usage_rows(@stats)
       @hidden_output_summary = Dashboard::DataQuality.hidden_output_summary(@stats)
       @unknown_pricing_by_model = Dashboard::DataQuality.unknown_pricing_by_model(scope)
+      @service_charge_rows = Dashboard::DataQuality.service_charge_rows(scope).to_a
     end
   end
 end

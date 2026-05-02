@@ -36,7 +36,7 @@ module LlmCostTracker
           "priority" => PRIORITY_FIELDS
         }.freeze
 
-        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models)
+        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
 
         class Error < StandardError; end
 
@@ -59,11 +59,38 @@ module LlmCostTracker
             source_url: source_url,
             scraped_at: scraped_at,
             models: models,
-            deprecated_models: []
+            deprecated_models: [],
+            service_charges: extract_service_charges(doc)
           )
         end
 
         private
+
+        def extract_service_charges(doc)
+          table = doc.css("table").find { |candidate| candidate.text.include?("ToolDetailsPricing") }
+          raise Error, "OpenAI tool pricing table not found" unless table
+
+          rows = table.css("tbody tr").map { |tr| tr.css("td").map { |td| td.text.gsub(/\s+/, " ").strip } }
+          {
+            "web_search_request" => tool_price(rows, "Web search"),
+            "file_search_call" => tool_price(rows, "Tool call"),
+            "container_session" => tool_price(rows, "Containers")
+          }
+        end
+
+        def tool_price(rows, label)
+          row = rows.find { |cells| cells.first == label }
+          raise Error, "OpenAI tool price #{label.inspect} not found" unless row
+
+          parse_service_charge_price(row.last)
+        end
+
+        def parse_service_charge_price(text)
+          match = text.match(/\$\s*(\d+(?:\.\d+)?)/)
+          raise Error, "unable to parse service charge price #{text.inspect}" unless match
+
+          Float(match[1])
+        end
 
         def extract_tier_models(doc, tier:, fields:)
           props = pricing_props(doc).find { |candidate| unwrap(candidate["tier"]) == tier }

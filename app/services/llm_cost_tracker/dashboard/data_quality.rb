@@ -19,6 +19,27 @@ module LlmCostTracker
                .limit(10)
         end
 
+        def service_charge_rows(scope)
+          call_table = LlmCostTracker::Ledger::Call.quoted_table_name
+          charge_table = LlmCostTracker::Ledger::ServiceCharge.quoted_table_name
+          relation = LlmCostTracker::Ledger::ServiceCharge
+                     .joins(:call)
+                     .merge(scope.unscope(:select, :order))
+
+          relation
+            .group("#{call_table}.provider", "#{charge_table}.component", "#{charge_table}.cost_status")
+            .order(Arel.sql("COALESCE(SUM(#{charge_table}.cost), 0) DESC"), Arel.sql("COUNT(*) DESC"))
+            .select(
+              "#{call_table}.provider AS provider",
+              "#{charge_table}.component AS component",
+              "#{charge_table}.cost_status AS cost_status",
+              "COUNT(*) AS charges_count",
+              "COALESCE(SUM(#{charge_table}.quantity), 0) AS quantity",
+              "COALESCE(SUM(#{charge_table}.cost), 0) AS total_cost"
+            )
+            .limit(10)
+        end
+
         def usage_rows(stats)
           billable_tokens = stats.billable_tokens.to_f
 

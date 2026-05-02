@@ -23,7 +23,7 @@ module LlmCostTrackerEngineContext
       hidden_output_tokens: 0,
       total_cost: 1.0,
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
-      pricing_snapshot: { "schema" => 1, "source" => "test", "rates" => {} },
+      pricing_snapshot: { "schema_version" => 1, "source" => "test", "rates" => {} },
       latency_ms: 100,
       provider_response_id: nil,
       tags: {},

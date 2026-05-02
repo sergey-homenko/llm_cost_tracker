@@ -38,15 +38,23 @@ module LlmCostTracker
         )
         return nil unless calculation
 
-        values = Billing::Components::TOKEN_PRICED.to_h do |component|
-          [component.cost_key, calculation.fetch(:costs).fetch(component.key).round(8)]
-        end
-
-        values.merge(total_cost: calculation.fetch(:costs).values.sum.round(8))
+        cost_from(calculation)
       end
 
       def lookup(provider:, model:)
         Lookup.call(provider: provider, model: model)&.prices
+      end
+
+      def cost_and_snapshot_for(provider:, model:, token_usage:, pricing_mode: nil)
+        calculation = calculation_for(
+          provider: provider,
+          model: model,
+          token_usage: token_usage,
+          pricing_mode: pricing_mode
+        )
+        return [nil, nil] unless calculation
+
+        [cost_from(calculation), snapshot_from(calculation, token_usage)]
       end
 
       def snapshot_for(provider:, model:, token_usage:, pricing_mode: nil)
@@ -58,28 +66,7 @@ module LlmCostTracker
         )
         return nil unless calculation
 
-        match = calculation.fetch(:match)
-        effective = calculation.fetch(:effective)
-        quantities = token_usage.price_quantities
-        rates = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, values|
-          quantity = quantities.fetch(component.key)
-          next unless quantity.positive?
-
-          values[component.key] = {
-            amount: effective.fetch(component.key),
-            quantity: RATE_DENOMINATOR_TOKENS
-          }
-        end
-
-        {
-          schema_version: 1,
-          source: match.source,
-          source_key: match.key,
-          source_version: source_version_for(match.source),
-          matched_by: match.matched_by,
-          currency: "USD",
-          rates: rates
-        }
+        snapshot_from(calculation, token_usage)
       end
 
       def explain(provider:, model:, token_usage:, pricing_mode: nil)
@@ -98,6 +85,40 @@ module LlmCostTracker
 
       private
 
+      def cost_from(calculation)
+        costs = calculation[:costs]
+        values = Billing::Components::TOKEN_PRICED.to_h do |component|
+          [component.cost_key, costs[component.key].round(8)]
+        end
+
+        values.merge(total_cost: costs.values.sum.round(8))
+      end
+
+      def snapshot_from(calculation, token_usage)
+        match = calculation[:match]
+        effective = calculation[:effective]
+        quantities = token_usage.price_quantities
+        rates = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, values|
+          quantity = quantities[component.key]
+          next unless quantity.positive?
+
+          values[component.key] = {
+            amount: effective[component.key],
+            quantity: RATE_DENOMINATOR_TOKENS
+          }
+        end
+
+        {
+          schema_version: 1,
+          source: match.source,
+          source_key: match.key,
+          source_version: source_version_for(match.source),
+          matched_by: match.matched_by,
+          currency: "USD",
+          rates: rates
+        }
+      end
+
       def calculation_for(provider:, model:, token_usage:, pricing_mode:)
         match = Lookup.call(provider: provider, model: model)
         return nil unless match
@@ -114,7 +135,7 @@ module LlmCostTracker
 
       def costs_for(usage, effective)
         usage.price_quantities.to_h do |key, tokens|
-          [key, token_cost(tokens, effective.fetch(key))]
+          [key, token_cost(tokens, effective[key])]
         end
       end
 
@@ -133,10 +154,10 @@ module LlmCostTracker
       end
 
       def token_cost(tokens, per_million_price)
-        return 0.0 if tokens.to_i.zero?
+        return 0.0 if tokens.zero?
         return nil if per_million_price.nil?
 
-        (tokens.to_f / RATE_DENOMINATOR_TOKENS) * per_million_price
+        (tokens * per_million_price) / RATE_DENOMINATOR_TOKENS
       end
     end
   end

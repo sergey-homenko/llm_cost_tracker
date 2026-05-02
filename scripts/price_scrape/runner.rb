@@ -104,7 +104,8 @@ module LlmCostTracker
         end
 
         @io.puts "#{prefix} added=#{result.added.size} removed=#{result.removed.size} updated=#{result.updated.size} " \
-                 "written=#{result.written} dry_run=#{dry_run}"
+                 "service_charges_updated=#{result.service_charges_updated.size} written=#{result.written} " \
+                 "dry_run=#{dry_run}"
       end
 
       def log_summary(runs, dry_run:)
@@ -112,10 +113,12 @@ module LlmCostTracker
         added = successes.sum { |run| run.orchestrator.added.size }
         removed = successes.sum { |run| run.orchestrator.removed.size }
         updated = successes.sum { |run| run.orchestrator.updated.size }
+        service_charges_updated = successes.sum { |run| run.orchestrator.service_charges_updated.size }
         wrote = successes.count { |run| run.orchestrator.written }
         @io.puts(
           "[summary] providers=#{runs.size} ok=#{successes.size} failed=#{failures.size} " \
-          "wrote=#{wrote} added=#{added} removed=#{removed} updated=#{updated} dry_run=#{dry_run}"
+          "wrote=#{wrote} added=#{added} removed=#{removed} updated=#{updated} " \
+          "service_charges_updated=#{service_charges_updated} dry_run=#{dry_run}"
         )
       end
     end

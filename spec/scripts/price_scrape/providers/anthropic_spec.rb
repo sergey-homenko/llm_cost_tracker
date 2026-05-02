@@ -13,6 +13,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
 
       expect(result.source_url).to eq(described_class::SOURCE_URL)
       expect(result.scraped_at).to eq("2026-04-26T00:00:00Z")
+      expect(result.service_charges).to eq(
+        "web_search_request" => 10.0,
+        "code_execution_hour" => 0.05
+      )
       expect(result.models.fetch("claude-opus-4-7")).to eq(
         "input" => 5.0,
         "cache_write_input" => 6.25,

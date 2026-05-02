@@ -44,6 +44,28 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
     expect(response.body).to include("25.0%")
   end
 
+  it "shows service charge coverage rows" do
+    call = create_call(provider: "openai")
+    LlmCostTracker::Ledger::ServiceCharge.create!(
+      llm_api_call_id: call.id,
+      charge_id: "charge-1",
+      component: "web_search_request",
+      unit: "request",
+      quantity: 2,
+      rate_quantity: 1000,
+      cost: 0.02,
+      currency: "USD",
+      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
+    )
+
+    response = get("/llm-costs/data_quality")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Service charges")
+    expect(response.body).to include("web_search_request")
+    expect(response.body).to include("complete")
+  end
+
   it "links to unknown pricing calls" do
     create_call(total_cost: nil)
     response = get("/llm-costs/data_quality")

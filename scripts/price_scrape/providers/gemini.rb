@@ -14,7 +14,7 @@ module LlmCostTracker
         MIN_MODELS_EXPECTED = 5
         MAX_PRICE_PER_MTOK = 1000.0
 
-        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models)
+        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
 
         class Error < StandardError; end
 
@@ -31,7 +31,8 @@ module LlmCostTracker
             source_url: source_url,
             scraped_at: scraped_at,
             models: models,
-            deprecated_models: []
+            deprecated_models: [],
+            service_charges: {}
           )
         end
 
