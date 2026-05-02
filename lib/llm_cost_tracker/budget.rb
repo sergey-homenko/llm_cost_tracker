@@ -10,7 +10,7 @@ module LlmCostTracker
         config = LlmCostTracker.configuration
         return unless config.budget_exceeded_behavior == :block_requests
 
-        budgets = enforce_period_budgets(config)
+        budgets = { monthly: config.monthly_budget, daily: config.daily_budget }.compact
         return if budgets.empty?
 
         totals = LlmCostTracker::Ledger::Period::Totals.call(budgets.keys, time: Time.now.utc)
@@ -27,7 +27,7 @@ module LlmCostTracker
         return unless event.total_cost
 
         check_per_call_budget(event, config)
-        budgets = check_period_budgets(config)
+        budgets = { daily: config.daily_budget, monthly: config.monthly_budget }.compact
         totals = totals_for_check(event, budgets)
 
         budgets.each do |period, budget|
@@ -47,20 +47,6 @@ module LlmCostTracker
         return unless call_cost >= budget
 
         handle_exceeded(budget_type: :per_call, total: call_cost, budget: budget, last_event: event)
-      end
-
-      def enforce_period_budgets(config)
-        {
-          monthly: config.monthly_budget,
-          daily: config.daily_budget
-        }.compact
-      end
-
-      def check_period_budgets(config)
-        {
-          daily: config.daily_budget,
-          monthly: config.monthly_budget
-        }.compact
       end
 
       def totals_for_check(event, budgets)

@@ -421,6 +421,52 @@ RSpec.describe LlmCostTracker::Tracker do
       }
     end
 
+    it "checks the daily budget before the monthly budget after recording" do
+      LlmCostTracker.configure do |c|
+        c.daily_budget = 0.0001
+        c.monthly_budget = 0.0001
+        c.budget_exceeded_behavior = :raise
+      end
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(daily: 12.5, monthly: 12.5)
+
+      expect do
+        record(
+          provider: "openai",
+          model: "gpt-4o",
+          token_usage: token_usage(input_tokens: 1_000_000, output_tokens: 1_000_000)
+        )
+      end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error.budget_type).to eq(:daily)
+        expect(error.daily_total).to eq(12.5)
+      }
+    end
+
+    it "checks the monthly budget before the daily budget before recording" do
+      LlmCostTracker.configure do |c|
+        c.daily_budget = 0.0001
+        c.monthly_budget = 0.0001
+        c.budget_exceeded_behavior = :block_requests
+      end
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 12.5, daily: 12.5)
+
+      expect do
+        described_class.enforce_budget!
+      end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error.budget_type).to eq(:monthly)
+        expect(error.monthly_total).to eq(12.5)
+      }
+    end
+
+    it "skips preflight totals when no period budget is configured" do
+      LlmCostTracker.configure do |c|
+        c.budget_exceeded_behavior = :block_requests
+      end
+
+      expect(LlmCostTracker::Ledger::Period::Totals).not_to receive(:call)
+
+      described_class.enforce_budget!
+    end
+
     it "raises a per-call budget error when configured to raise" do
       LlmCostTracker.configure do |c|
         c.per_call_budget = 0.0001
