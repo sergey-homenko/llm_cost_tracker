@@ -150,6 +150,57 @@ RSpec.describe LlmCostTracker::Pricing do
       end
     end
 
+    it "falls back from combined pricing modes to component tier rates" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(
+          {
+            service_charges: {
+              openai: {
+                web_search_request: 10.0,
+                batch_web_search_request: 8.0
+              }
+            },
+            models: {}
+          }.to_json
+        )
+        file.close
+        LlmCostTracker.configure { |config| config.prices_file = file.path }
+
+        rate = described_class.charge_rate(provider: "openai", component: :web_search_request,
+                                           tier: :batch_data_residency)
+
+        expect(rate).to include(
+          amount: BigDecimal("8.0"),
+          source_key: "service_charges.openai.batch_web_search_request"
+        )
+      end
+    end
+
+    it "falls back from combined pricing modes to the default component rate" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(
+          {
+            service_charges: {
+              openai: {
+                web_search_request: 10.0
+              }
+            },
+            models: {}
+          }.to_json
+        )
+        file.close
+        LlmCostTracker.configure { |config| config.prices_file = file.path }
+
+        rate = described_class.charge_rate(provider: "openai", component: :web_search_request,
+                                           tier: :batch_data_residency)
+
+        expect(rate).to include(
+          amount: BigDecimal("10.0"),
+          source_key: "service_charges.openai.web_search_request"
+        )
+      end
+    end
+
     it "falls back to bundled service charge rates" do
       allow(LlmCostTracker::Pricing::ServiceCharges).to receive(:builtin_rates).and_return(
         "anthropic" => {

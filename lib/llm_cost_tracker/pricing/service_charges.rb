@@ -64,11 +64,7 @@ module LlmCostTracker
               source_key: key
             }
             component_rates = rates[component.key] ||= { tiers: {} }
-            if tier
-              component_rates[:tiers][tier] = rate
-            else
-              component_rates[:default] = rate
-            end
+            (tier ? component_rates[:tiers] : component_rates)[tier || :default] = rate
           end
         end
 
@@ -90,9 +86,8 @@ module LlmCostTracker
 
         def amount_for(key, amount, context:)
           value = BigDecimal(amount.to_s)
-          if value.negative?
-            raise ArgumentError, "service charge price amount for #{key.inspect} in #{context} must be non-negative"
-          end
+          message = "service charge price amount for #{key.inspect} in #{context} must be non-negative"
+          raise ArgumentError, message if value.negative?
 
           value
         end
@@ -124,11 +119,10 @@ module LlmCostTracker
         return nil unless provider_name
 
         component_key = charge_component_key(component)
-        tier_name = normalize_mode(tier)
 
         table = ServiceCharges.file_rates(LlmCostTracker.configuration.prices_file)
         provider_table = table.fetch(provider_name, EMPTY_RATES)
-        rate = rate_for(provider_table, component_key: component_key, tier_name: tier_name)
+        rate = rate_for(provider_table, component_key: component_key, tier: tier)
         if rate
           return {
             source: :prices_file,
@@ -139,22 +133,37 @@ module LlmCostTracker
 
         table = ServiceCharges.builtin_rates
         provider_table = table.fetch(provider_name, EMPTY_RATES)
-        rate = rate_for(provider_table, component_key: component_key, tier_name: tier_name)
-        if rate
-          return {
-            source: :bundled,
-            key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
-            rate: rate
-          }
-        end
+        rate = rate_for(provider_table, component_key: component_key, tier: tier)
+        return unless rate
 
-        nil
+        {
+          source: :bundled,
+          key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
+          rate: rate
+        }
       end
 
-      def rate_for(provider_table, component_key:, tier_name:)
+      def rate_for(provider_table, component_key:, tier:)
         component_rates = provider_table.fetch(component_key, EMPTY_RATES)
-        tier_rate = component_rates.fetch(:tiers, EMPTY_RATES)[tier_name] if tier_name
-        tier_rate || component_rates[:default]
+        tier_rates = component_rates.fetch(:tiers, EMPTY_RATES)
+        tier_name = normalize_mode(tier)
+        if tier_name
+          rate = tier_rates[tier_name]
+          return rate if rate
+
+          name = tier_name.name
+          tier_rates.each do |candidate, candidate_rate|
+            return candidate_rate if tier_includes?(name, candidate.name)
+          end
+        end
+        component_rates[:default]
+      end
+
+      def tier_includes?(tier_name, candidate_name)
+        tier_name == candidate_name ||
+          tier_name.start_with?("#{candidate_name}_") ||
+          tier_name.end_with?("_#{candidate_name}") ||
+          tier_name.include?("_#{candidate_name}_")
       end
 
       def charge_component_key(component)

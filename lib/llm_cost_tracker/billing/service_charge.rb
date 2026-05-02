@@ -125,6 +125,22 @@ module LlmCostTracker
         cost || BigDecimal("0")
       end
 
+      def apply_rate(rate)
+        rate_amount = rate.fetch(:amount)
+        rate_quantity = rate.fetch(:quantity)
+        applied_cost = (quantity / rate_quantity) * rate_amount
+        with(
+          rate_amount: rate_amount,
+          rate_quantity: rate_quantity,
+          cost: applied_cost,
+          currency: rate.fetch(:currency),
+          cost_status: applied_cost.zero? ? CostStatus::FREE : CostStatus::COMPLETE,
+          price_key: rate.fetch(:source_key),
+          price_source: rate.fetch(:source),
+          price_source_version: rate.fetch(:source_version)
+        )
+      end
+
       def to_h
         super.transform_values do |value|
           value.is_a?(BigDecimal) ? value.to_s("F") : value

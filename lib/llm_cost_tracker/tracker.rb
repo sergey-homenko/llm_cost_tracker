@@ -105,22 +105,7 @@ module LlmCostTracker
         service_charges = service_charges.map do |charge|
           if charge.unpriced? && charge.billable?
             rate = Pricing.charge_rate(provider: provider, component: charge.component, tier: tier)
-            if rate
-              rate_amount = rate.fetch(:amount)
-              rate_quantity = rate.fetch(:quantity)
-              charge = Billing::ServiceCharge.build(
-                charge.deconstruct_keys(nil).merge(
-                  rate_amount: rate_amount,
-                  rate_quantity: rate_quantity,
-                  cost: (charge.quantity / rate_quantity) * rate_amount,
-                  currency: rate.fetch(:currency),
-                  cost_status: nil,
-                  price_key: rate.fetch(:source_key),
-                  price_source: rate.fetch(:source),
-                  price_source_version: rate.fetch(:source_version)
-                )
-              )
-            end
+            charge = charge.apply_rate(rate) if rate
           end
           service_total += charge.cost_value
           priced ||= charge.priced?
