@@ -945,7 +945,7 @@ RSpec.describe LlmCostTracker::Pricing do
     end
   end
 
-  describe ".lookup" do
+  describe "lookup cache" do
     it "returns consistent sorted keys under concurrent lookup" do
       if LlmCostTracker::Pricing::Lookup.instance_variable_defined?(:@sorted_price_keys_cache)
         LlmCostTracker::Pricing::Lookup.remove_instance_variable(:@sorted_price_keys_cache)
@@ -970,7 +970,9 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      expect(described_class.lookup(provider: "custom", model: "cached-model")).to include(input: 1.0)
+      expect(
+        cost_for(provider: "custom", model: "cached-model", input_tokens: 1_000_000, output_tokens: 0)
+      ).to include(input_cost: 1.0)
 
       LlmCostTracker.reset_configuration!
       LlmCostTracker.configure do |c|
@@ -979,7 +981,9 @@ RSpec.describe LlmCostTracker::Pricing do
         }
       end
 
-      expect(described_class.lookup(provider: "custom", model: "cached-model")).to include(input: 3.0)
+      expect(
+        cost_for(provider: "custom", model: "cached-model", input_tokens: 1_000_000, output_tokens: 0)
+      ).to include(input_cost: 3.0)
     end
 
     it "caches configured price files between lookups" do
@@ -992,7 +996,7 @@ RSpec.describe LlmCostTracker::Pricing do
         LlmCostTracker.configure { |c| c.prices_file = file.path }
         allow(LlmCostTracker::Pricing::Registry).to receive(:file_prices).and_call_original
 
-        2.times { described_class.lookup(provider: "custom", model: "cached-file-model") }
+        2.times { cost_for(provider: "custom", model: "cached-file-model", input_tokens: 1, output_tokens: 1) }
 
         expect(LlmCostTracker::Pricing::Registry).to have_received(:file_prices).once
       end

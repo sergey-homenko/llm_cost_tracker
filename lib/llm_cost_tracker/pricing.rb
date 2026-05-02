@@ -41,10 +41,6 @@ module LlmCostTracker
         cost_from(calculation)
       end
 
-      def lookup(provider:, model:)
-        Lookup.call(provider: provider, model: model)&.prices
-      end
-
       def cost_and_snapshot_for(provider:, model:, token_usage:, pricing_mode: nil)
         calculation = calculation_for(
           provider: provider,
