@@ -16,8 +16,9 @@ module LlmCostTracker
 
     BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
-    SHARED_SCALAR_ATTRIBUTES = %i[enabled on_budget_exceeded monthly_budget daily_budget per_call_budget log_level
-                                  prices_file max_tag_count max_tag_value_bytesize].freeze
+    SHARED_SCALAR_ATTRIBUTES = %i[enabled default_tags on_budget_exceeded monthly_budget daily_budget per_call_budget
+                                  log_level prices_file max_tag_count max_tag_value_bytesize
+                                  pricing_overrides].freeze
     SHARED_ENUM_ATTRIBUTES = {
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
       unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn]
@@ -27,8 +28,6 @@ module LlmCostTracker
     attr_reader(
       *SHARED_SCALAR_ATTRIBUTES,
       :budget_exceeded_behavior,
-      :default_tags,
-      :pricing_overrides,
       :instrumented_integrations,
       :report_tag_breakdowns,
       :redacted_tag_keys,
@@ -57,19 +56,9 @@ module LlmCostTracker
       @finalized = false
     end
 
-    def default_tags=(value)
-      ensure_shared_configuration_mutable!
-      @default_tags = value
-    end
-
     def openai_compatible_providers=(providers)
       ensure_shared_configuration_mutable!
       @openai_compatible_providers = normalize_openai_compatible_providers(providers)
-    end
-
-    def pricing_overrides=(value)
-      ensure_shared_configuration_mutable!
-      @pricing_overrides = value
     end
 
     def report_tag_breakdowns=(value)

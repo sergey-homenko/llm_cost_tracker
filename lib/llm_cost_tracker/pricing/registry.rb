@@ -23,16 +23,24 @@ module LlmCostTracker
           cached = @builtin_prices
           return cached if cached
 
-          value = normalize_price_table(raw_registry.fetch("models", {})).freeze
-          MUTEX.synchronize { @builtin_prices ||= value }
+          MUTEX.synchronize do
+            @builtin_prices ||= begin
+              registry = @raw_registry ||= load_raw_registry
+              normalize_price_table(registry.fetch("models", {})).freeze
+            end
+          end
         end
 
         def metadata
           cached = @metadata
           return cached if cached
 
-          value = raw_registry.fetch("metadata", {}).freeze
-          MUTEX.synchronize { @metadata ||= value }
+          MUTEX.synchronize do
+            @metadata ||= begin
+              registry = @raw_registry ||= load_raw_registry
+              registry.fetch("metadata", {}).freeze
+            end
+          end
         end
 
         def file_metadata(path)
@@ -78,9 +86,11 @@ module LlmCostTracker
           cached = @raw_registry
           return cached if cached
 
-          MUTEX.synchronize do
-            @raw_registry ||= YAML.safe_load_file(DEFAULT_PRICES_PATH, aliases: false).freeze
-          end
+          MUTEX.synchronize { @raw_registry ||= load_raw_registry }
+        end
+
+        def load_raw_registry
+          YAML.safe_load_file(DEFAULT_PRICES_PATH, aliases: false).freeze
         end
 
         def normalize_price_entry(price)

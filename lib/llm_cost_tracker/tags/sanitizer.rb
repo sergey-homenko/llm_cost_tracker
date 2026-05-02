@@ -24,7 +24,7 @@ module LlmCostTracker
           limit = [config.max_tag_value_bytesize.to_i, 0].max
           return value if string.bytesize <= limit
 
-          string.byteslice(0, limit).to_s.encode("UTF-8", invalid: :replace, undef: :replace)
+          string.byteslice(0, limit).encode("UTF-8", invalid: :replace, undef: :replace)
         end
 
         def redacted_key?(key, config)
