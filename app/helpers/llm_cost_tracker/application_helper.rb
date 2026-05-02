@@ -103,15 +103,6 @@ module LlmCostTracker
       value.to_s
     end
 
-    def tags_summary(tags, limit: 3)
-      tags = normalized_tags(tags)
-      return "(untagged)" if tags.empty?
-
-      summary = tags.first(limit).map { |key, value| "#{key}=#{tag_value_summary(value)}" }
-      summary << "+#{tags.size - limit}" if tags.size > limit
-      summary.join(", ")
-    end
-
     def tag_chip_entries(tags, limit: 3)
       normalized = normalized_tags(tags)
       return [] if normalized.empty?

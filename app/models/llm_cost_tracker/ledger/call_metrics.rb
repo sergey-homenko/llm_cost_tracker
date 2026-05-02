@@ -22,11 +22,11 @@ module LlmCostTracker
       end
 
       def group_by_tag(key)
-        group(Arel.sql(tag_value_expression(key)))
+        group(Arel.sql(Ledger::Tags::Sql.value_expression(key, table_name: quoted_table_name)))
       end
 
       def cost_by_tag(key, limit: nil)
-        expression = tag_value_expression(key)
+        expression = Ledger::Tags::Sql.value_expression(key, table_name: quoted_table_name)
         label_expression = "COALESCE(NULLIF(#{expression}, ''), #{connection.quote('(untagged)')})"
         relation = select("#{label_expression} AS name, COALESCE(SUM(total_cost), 0) AS total_cost")
                    .group(Arel.sql(label_expression))
@@ -45,10 +45,6 @@ module LlmCostTracker
 
       def latency_by_provider
         group(:provider).average(:latency_ms).transform_values(&:to_f)
-      end
-
-      def tag_value_expression(key, table_name: quoted_table_name)
-        Ledger::Tags::Sql.value_expression(key, table_name: table_name)
       end
 
       private

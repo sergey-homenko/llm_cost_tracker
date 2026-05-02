@@ -16,10 +16,6 @@ module LlmCostTracker
         rescue ArgumentError, TypeError
           {}
         end
-
-        def with_indifferent_access(value)
-          to_hash(value).with_indifferent_access
-        end
       end
     end
   end

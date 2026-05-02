@@ -9,7 +9,6 @@ module LlmCostTracker
       FREE = "free"
       PARTIAL = "partial"
       UNKNOWN = "unknown"
-      STATUSES = [COMPLETE, FREE, PARTIAL, UNKNOWN].freeze
       SERVICE_CHARGE_STATUSES = [COMPLETE, FREE, UNKNOWN].freeze
 
       class << self

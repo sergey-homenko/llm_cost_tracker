@@ -72,7 +72,7 @@ module LlmCostTracker
       end
 
       def tag_expression
-        @tag_expression ||= LlmCostTracker::Ledger::Call.tag_value_expression(key, table_name: "sub")
+        @tag_expression ||= LlmCostTracker::Ledger::Tags::Sql.value_expression(key, table_name: "sub")
       end
     end
   end

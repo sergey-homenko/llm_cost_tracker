@@ -13,7 +13,7 @@ module LlmCostTracker
       end
 
       def self.parse(params, key)
-        value = LlmCostTracker::Dashboard::Params.with_indifferent_access(params)[key].to_s.strip.presence
+        value = LlmCostTracker::Dashboard::Params.to_hash(params).symbolize_keys[key].to_s.strip.presence
         return nil unless value
 
         Date.iso8601(value)

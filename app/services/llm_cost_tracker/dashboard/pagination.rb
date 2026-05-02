@@ -10,7 +10,7 @@ module LlmCostTracker
       attr_reader :page, :per
 
       def self.call(params)
-        params = Params.with_indifferent_access(params)
+        params = Params.to_hash(params).symbolize_keys
         new(
           page: integer_param(params, :page, default: MIN_PAGE, min: MIN_PAGE),
           per: integer_param(params, :per, default: DEFAULT_PER, min: 1, max: MAX_PER)

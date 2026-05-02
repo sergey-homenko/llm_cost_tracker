@@ -26,21 +26,5 @@ module LlmCostTracker
         }
       end
     end
-
-    def dashboard_date_range_label(from, to)
-      from_label = short_date_label(from) || "Any time"
-      to_label = short_date_label(to) || "Now"
-      "#{from_label} - #{to_label}"
-    end
-
-    private
-
-    def short_date_label(value)
-      return nil if value.blank?
-
-      Date.iso8601(value.to_s).strftime("%b %-d, %Y")
-    rescue ArgumentError
-      value.to_s
-    end
   end
 end

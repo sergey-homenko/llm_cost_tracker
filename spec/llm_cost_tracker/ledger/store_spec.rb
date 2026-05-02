@@ -886,7 +886,7 @@ RSpec.describe "ActiveRecord storage integration" do
       allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(false)
       allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:mysql?).with(connection).and_return(true)
 
-      sql = LlmCostTracker::Ledger::Call.tag_value_expression("user_id")
+      sql = LlmCostTracker::Ledger::Tags::Sql.value_expression("user_id", table_name: "llm_api_calls")
 
       expect(sql).to include("JSON_UNQUOTE(JSON_EXTRACT")
       expect(sql).to include(%('$."user_id"'))

@@ -13,7 +13,7 @@ module LlmCostTracker
 
       def initialize(scope:, params:)
         @scope = scope
-        @params = LlmCostTracker::Dashboard::Params.with_indifferent_access(params)
+        @params = LlmCostTracker::Dashboard::Params.to_hash(params).symbolize_keys
       end
 
       def relation

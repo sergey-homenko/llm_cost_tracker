@@ -59,10 +59,6 @@ module LlmCostTrackerIntegrationSpecTypes
       end
     end
 
-    def until_done
-      each { |_event| nil }
-      self
-    end
   end
   FailingStream = Class.new do
     include Enumerable
