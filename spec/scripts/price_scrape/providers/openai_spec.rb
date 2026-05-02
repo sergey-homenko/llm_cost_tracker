@@ -8,8 +8,7 @@ require "price_scrape/providers/openai"
 RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
   let(:fixture_path) { File.expand_path("../../../fixtures/scrape/openai_pricing.html", __dir__) }
   let(:html) { File.read(fixture_path, encoding: "utf-8") }
-
-  def sparse_html
+  let(:sparse_html) do
     pricing_html(
       {
         "tier" => [0, "standard"],
@@ -30,7 +29,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     )
   end
 
-  def standard_only_html
+  let(:standard_only_html) do
     props = {
       "tier" => [0, "standard"],
       "rows" => [1, [[1, [[0, "gpt-5"], [0, 1.25], [0, 0.125], [0, 10]]]]]

@@ -32,7 +32,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     call
   end
 
-  def call_defaults
+  let(:call_defaults) do
     {
       provider: "openai",
       model: "gpt-4o",

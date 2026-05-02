@@ -5,8 +5,7 @@ require "json"
 
 RSpec.describe LlmCostTracker::Ingestion::Inbox do
   let(:row_class) { Struct.new(:payload) }
-
-  def event
+  let(:event) do
     LlmCostTracker::Event.new(
       event_id: "evt_payload_1",
       provider: "openai",

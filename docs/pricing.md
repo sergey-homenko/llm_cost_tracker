@@ -119,3 +119,17 @@ rates, and any missing rate needed to price the event.
 
 Provider-specific pricing pages belong in scrapers and snapshots. Runtime
 pricing should stay in canonical billing terms.
+
+## Service Charges
+
+`service_charges` store provider-reported tool or runtime usage that affects
+billing context but does not yet have stable canonical pricing. Current parsers
+use them for Anthropic server tool usage, OpenAI hosted tool output items, and
+Gemini grounding requests. Unknown-cost service charges can make an event
+`partial` when token pricing is known, or `unknown` when they are the only
+billable usage.
+
+These rows are audit context, not invoice-grade pricing. They preserve the
+provider item id, source key, quantity, component, and status so downstream
+reconciliation can join them back to provider records without the gem inventing
+free tiers or private rates.

@@ -3,9 +3,7 @@
 require "spec_helper"
 
 RSpec.describe LlmCostTracker::Billing::CostStatus do
-  def token_usage(input_tokens: 0, output_tokens: 0)
-    LlmCostTracker::TokenUsage.build(input_tokens: input_tokens, output_tokens: output_tokens)
-  end
+  let(:token_usage) { LlmCostTracker::TokenUsage.build(input_tokens: 0, output_tokens: 0) }
 
   def service_charge(component: :web_search_request, quantity: 1, cost: nil, cost_status: nil)
     LlmCostTracker::Billing::ServiceCharge.build(

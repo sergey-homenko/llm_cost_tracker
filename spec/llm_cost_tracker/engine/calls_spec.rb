@@ -201,6 +201,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("openai")
     expect(response.body).to include("gpt-4o")
     expect(response.body).to include("Estimated")
+    expect(response.body).to include("complete")
     expect(response.body).to include("Provider Response ID")
     expect(response.body).to include("chatcmpl_show_123")
     expect(response.body).to include("1,200")
@@ -221,12 +222,16 @@ RSpec.describe "LlmCostTracker::Engine calls" do
   end
 
   it "marks call details with nil total cost as unknown pricing" do
-    call = create_call(total_cost: nil)
+    call = create_call(
+      total_cost: nil,
+      cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+    )
 
     response = get("/llm-costs/calls/#{call.id}")
 
     expect(response.status).to eq(200)
     expect(response.body).to include("Unknown pricing")
+    expect(response.body).to include("unknown")
     expect(response.body).to include("n/a")
     expect(response.body).to include("Pricing not available for this call.")
   end

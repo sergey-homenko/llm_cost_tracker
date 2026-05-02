@@ -7,6 +7,22 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
   let(:models_html) { File.read("spec/fixtures/scrape/groq_models.html", encoding: "utf-8") }
   let(:prompt_caching_html) { File.read("spec/fixtures/scrape/groq_prompt_caching.html", encoding: "utf-8") }
   let(:flex_processing_html) { File.read("spec/fixtures/scrape/groq_flex_processing.html", encoding: "utf-8") }
+  let(:combined_html) do
+    <<~HTML
+      <html>
+        <body>
+          <h2>Production Models</h2>
+          #{minimal_models_table(span_ids: false)}
+          <h2>Supported Models</h2>
+          <p><code>openai/gpt-oss-20b</code></p>
+          <p><code>openai/gpt-oss-120b</code></p>
+          <h2>Pricing</h2>
+          <p>Prompt caching has a 50% discount for cached input tokens.</p>
+          <p>Flex has the same pricing as on-demand processing. Pricing matches the on-demand tier.</p>
+        </body>
+      </html>
+    HTML
+  end
 
   def html_pages(overrides = {})
     {
@@ -48,23 +64,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
           </tr>
         </tbody>
       </table>
-    HTML
-  end
-
-  def combined_html
-    <<~HTML
-      <html>
-        <body>
-          <h2>Production Models</h2>
-          #{minimal_models_table(span_ids: false)}
-          <h2>Supported Models</h2>
-          <p><code>openai/gpt-oss-20b</code></p>
-          <p><code>openai/gpt-oss-120b</code></p>
-          <h2>Pricing</h2>
-          <p>Prompt caching has a 50% discount for cached input tokens.</p>
-          <p>Flex has the same pricing as on-demand processing. Pricing matches the on-demand tier.</p>
-        </body>
-      </html>
     HTML
   end
 

@@ -13,6 +13,8 @@ require "llm_cost_tracker/generators/llm_cost_tracker/add_token_usage_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 
 RSpec.describe "generator templates" do
+  let(:migration_version) { "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]" }
+
   def template(name)
     path = File.expand_path(
       "../../lib/llm_cost_tracker/generators/llm_cost_tracker/templates/#{name}",
@@ -24,10 +26,6 @@ RSpec.describe "generator templates" do
 
   def render_migration_template(name)
     ERB.new(template(name), trim_mode: "-").result(binding)
-  end
-
-  def migration_version
-    "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]"
   end
 
   it "creates JSONB tags and a GIN index for PostgreSQL installs" do
