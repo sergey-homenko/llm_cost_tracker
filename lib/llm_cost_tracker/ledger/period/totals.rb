@@ -27,10 +27,10 @@ module LlmCostTracker
 
         def snapshot_totals
           values = periods.to_h { |period| [period, 0.0] }
+          period_by_name = periods.to_h { |period| [period.name, period] }
           sql = periods.map { |period| snapshot_select(period) }.join(" UNION ALL ")
           LlmCostTracker::Ledger::Call.find_by_sql(sql).each do |row|
-            period = periods.find { |candidate| candidate.name == row.period_key }
-            values.fetch(period)
+            period = period_by_name.fetch(row.period_key)
             values[period] = row.total_cost.to_f
           end
           values
