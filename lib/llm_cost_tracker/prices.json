@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "updated_at": "2026-05-01",
+    "updated_at": "2026-05-02",
     "currency": "USD",
     "unit": "1M tokens",
     "source_urls": [
@@ -144,7 +144,9 @@
       "output": 0.4,
       "batch_input": 0.05,
       "batch_output": 0.2,
-      "batch_cache_read_input": 0.025
+      "batch_cache_read_input": 0.025,
+      "audio_input": 0.7,
+      "batch_audio_input": 0.35
     },
     "gemini/gemini-2.0-flash-lite": {
       "input": 0.075,
@@ -164,7 +166,11 @@
       "flex_cache_read_input": 0.03,
       "priority_input": 0.54,
       "priority_output": 4.5,
-      "priority_cache_read_input": 0.054
+      "priority_cache_read_input": 0.054,
+      "audio_input": 1.0,
+      "batch_audio_input": 0.5,
+      "flex_audio_input": 0.5,
+      "priority_audio_input": 1.8
     },
     "gemini/gemini-2.5-flash-lite": {
       "input": 0.1,
@@ -178,7 +184,11 @@
       "flex_cache_read_input": 0.01,
       "priority_input": 0.18,
       "priority_output": 0.72,
-      "priority_cache_read_input": 0.018
+      "priority_cache_read_input": 0.018,
+      "audio_input": 0.3,
+      "batch_audio_input": 0.15,
+      "flex_audio_input": 0.15,
+      "priority_audio_input": 0.54
     },
     "gemini/gemini-2.5-pro": {
       "input": 1.25,

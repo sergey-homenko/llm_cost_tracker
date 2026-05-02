@@ -8,6 +8,7 @@ require_relative "../price_fields_validator"
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
+      # rubocop:disable Metrics/ClassLength
       class Gemini
         SOURCE_URL = "https://ai.google.dev/gemini-api/docs/pricing"
         MIN_MODELS_EXPECTED = 5
@@ -115,30 +116,47 @@ module LlmCostTracker
           output_key = rows.keys.find { |k| k.start_with?("Output price") }
           raise Error, "Gemini text pricing rows not found" unless input_key && output_key
 
+          prices = token_prices(rows, input_key: input_key, output_key: output_key, input: input, output: output)
+          add_context_tier_prices(prices, rows, input_key: input_key, output_key: output_key, input: input,
+                                  output: output)
+          add_cache_read_prices(prices, rows, cache_read_input: cache_read_input)
+          prices
+        end
+
+        def token_prices(rows, input_key:, output_key:, input:, output:)
           prices = {
             input => parse_price(rows[input_key]),
             output => parse_price(rows[output_key])
           }
+          audio_input = parse_modality_price(rows[input_key], "audio")
+          prices[audio_price_key(input)] = audio_input if audio_input
+          audio_output = parse_modality_price(rows[output_key], "audio")
+          prices[audio_price_key(output)] = audio_output if audio_output
+          prices
+        end
+
+        def add_context_tier_prices(prices, rows, input_key:, output_key:, input:, output:)
           input_tiers = parse_prompt_tier_prices(rows[input_key])
           output_tiers = parse_prompt_tier_prices(rows[output_key])
-          if input_tiers && output_tiers
-            prices["_context_price_threshold_tokens"] = 200_000
-            prices["above_context_#{input}"] = input_tiers.fetch(1)
-            prices["above_context_#{output}"] = output_tiers.fetch(1)
-          end
+          return unless input_tiers && output_tiers
 
+          prices["_context_price_threshold_tokens"] = 200_000
+          prices["above_context_#{input}"] = input_tiers.fetch(1)
+          prices["above_context_#{output}"] = output_tiers.fetch(1)
+        end
+
+        def add_cache_read_prices(prices, rows, cache_read_input:)
           context_cache_key = rows.keys.find { |k| k.start_with?("Context caching price") }
-          if context_cache_key && rows[context_cache_key].to_s.match?(/\$\s*\d/)
-            prices[cache_read_input] = parse_price(rows[context_cache_key])
-            context_cache_tiers = parse_prompt_tier_prices(rows[context_cache_key])
-            prices["above_context_#{cache_read_input}"] = context_cache_tiers.fetch(1) if context_cache_tiers
-          end
-          prices
+          return unless context_cache_key && rows[context_cache_key].match?(/\$\s*\d/)
+
+          prices[cache_read_input] = parse_price(rows[context_cache_key])
+          context_cache_tiers = parse_prompt_tier_prices(rows[context_cache_key])
+          prices["above_context_#{cache_read_input}"] = context_cache_tiers.fetch(1) if context_cache_tiers
         end
 
         def parse_table(table)
           table.css("tbody tr").each_with_object({}) do |tr, acc|
-            cells = tr.css("td").map { |td| td.text.strip }
+            cells = tr.css("td").map { |td| cell_text(td) }
             next if cells.size < 3
 
             acc[cells[0]] = cells[2]
@@ -155,11 +173,28 @@ module LlmCostTracker
           id
         end
 
+        def audio_price_key(field)
+          field.sub(/(?:input|output)\z/) { |direction| "audio_#{direction}" }
+        end
+
+        def cell_text(cell)
+          html = cell.inner_html.gsub(%r{<br\s*/?>}i, "\n")
+          Nokogiri::HTML.fragment(html).text.strip
+        end
+
         def parse_price(text)
           match = text.to_s.match(/\$\s*(\d+(?:\.\d+)?)/)
           raise Error, "unable to parse price #{text.inspect}" unless match
 
           Float(match[1])
+        end
+
+        def parse_modality_price(text, modality)
+          pattern = /\([^)]*\b#{Regexp.escape(modality)}\b[^)]*\)/i
+          line = text.lines.find { |candidate| candidate.match?(pattern) }
+          return nil unless line
+
+          parse_price(line)
         end
 
         def parse_prompt_tier_prices(text)
@@ -169,6 +204,7 @@ module LlmCostTracker
           prices.size >= 2 ? prices.first(2) : nil
         end
       end
+      # rubocop:enable Metrics/ClassLength
     end
   end
 end

@@ -43,23 +43,35 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
       expect(result.models.fetch("gemini-2.5-flash")).to eq(
         "input" => 0.30,
         "output" => 2.50,
+        "audio_input" => 1.0,
         "cache_read_input" => 0.03,
         "batch_input" => 0.15,
         "batch_output" => 1.25,
+        "batch_audio_input" => 0.5,
         "batch_cache_read_input" => 0.03,
         "flex_input" => 0.15,
         "flex_output" => 1.25,
+        "flex_audio_input" => 0.5,
         "flex_cache_read_input" => 0.03,
         "priority_input" => 0.54,
         "priority_output" => 4.5,
+        "priority_audio_input" => 1.8,
         "priority_cache_read_input" => 0.054
+      )
+      expect(result.models.fetch("gemini-2.5-flash-lite")).to include(
+        "audio_input" => 0.30,
+        "batch_audio_input" => 0.15,
+        "flex_audio_input" => 0.15,
+        "priority_audio_input" => 0.54
       )
       expect(result.models.fetch("gemini-2.0-flash")).to eq(
         "input" => 0.10,
         "output" => 0.40,
+        "audio_input" => 0.70,
         "cache_read_input" => 0.025,
         "batch_input" => 0.05,
         "batch_output" => 0.20,
+        "batch_audio_input" => 0.35,
         "batch_cache_read_input" => 0.025
       )
       expect(result.models.fetch("gemini-2.0-flash-lite")).to eq(
