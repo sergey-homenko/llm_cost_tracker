@@ -117,8 +117,11 @@ module LlmCostTracker
             raise Error, "remote pricing snapshot requires llm_cost_tracker >= #{min_gem_version}"
           end
 
-          models = registry.fetch("models", {})
-          Registry.normalize_price_table(models)
+          raw_models = registry.fetch("models", {})
+          models = Registry.normalize_price_table(raw_models).each_with_object({}) do |(model, prices), normalized|
+            metadata = (raw_models[model] || {}).slice(*Registry::METADATA_KEYS)
+            normalized[model] = metadata.merge(prices.to_h { |key, value| [key.name, value] })
+          end
           service_charges = registry["service_charges"]
 
           normalized = {

@@ -31,7 +31,12 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       },
       "models" => {
         "gpt-4o" => { "input" => 2.5, "cache_read_input" => 1.25, "output" => 10.0 },
-        "gpt-5-mini" => { "input" => 0.25, "cache_read_input" => 0.025, "output" => 2.0 }
+        "gpt-5-mini" => {
+          "input" => 0.25,
+          "cache_read_input" => 0.025,
+          "output" => "2.0",
+          "_source" => "remote"
+        }
       },
       "service_charges" => {
         "openai" => {
@@ -114,6 +119,7 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
         expect(written.dig("metadata", "source_url")).to eq(source_url)
         expect(written.dig("metadata", "source_version")).to eq("snapshot-v1")
         expect(written.dig("models", "gpt-5-mini", "output")).to eq(2.0)
+        expect(written.dig("models", "gpt-5-mini", "_source")).to eq("remote")
         expect(written.dig("service_charges", "openai", "web_search_request")).to eq(10.0)
       end
     end
