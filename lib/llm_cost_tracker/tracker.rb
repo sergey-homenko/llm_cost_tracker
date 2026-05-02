@@ -66,7 +66,12 @@ module LlmCostTracker
         usage_source = usage_source_for(capture.usage_source)
         tags = metadata.to_h.reject { |key, _value| TRACKING_METADATA_KEYS.include?(key.to_s) }
         context_tags = context_tags.nil? ? LlmCostTracker::Tags::Context.tags : context_tags.to_h
-        cost = cost_with_service_charges(cost_data, capture.service_charges)
+        cost, service_charges = cost_with_service_charges(
+          cost_data,
+          provider: capture.provider,
+          tier: pricing_mode,
+          service_charges: capture.service_charges
+        )
 
         Event.new(
           event_id: SecureRandom.uuid,
@@ -83,9 +88,9 @@ module LlmCostTracker
           usage_source: usage_source,
           provider_response_id: capture.provider_response_id.to_s.presence,
           tracked_at: Time.now.utc,
-          cost_status: cost_status_for(capture, usage_source, cost_data, cost),
+          cost_status: cost_status_for(capture, usage_source, cost_data, cost, service_charges),
           pricing_snapshot: pricing_snapshot,
-          service_charges: capture.service_charges
+          service_charges: service_charges
         )
       end
 
@@ -96,26 +101,51 @@ module LlmCostTracker
         USAGE_SOURCES.include?(symbol) ? symbol.to_s : nil
       end
 
-      def cost_status_for(capture, usage_source, cost_data, cost)
+      def cost_status_for(capture, usage_source, cost_data, cost, service_charges)
         Billing::CostStatus.call(
           token_usage: capture.token_usage,
           usage_source: usage_source,
           token_cost: cost_data,
-          service_charges: capture.service_charges,
+          service_charges: service_charges,
           total_cost: cost&.fetch(:total_cost, nil)
         )
       end
 
-      def cost_with_service_charges(cost_data, service_charges)
-        return cost_data if service_charges.empty?
+      def cost_with_service_charges(cost_data, provider:, tier:, service_charges:)
+        return [cost_data, service_charges] if service_charges.empty?
 
-        service_total = service_charges.sum(&:cost_value)
-        return cost_data if service_total.zero? && service_charges.none?(&:priced?)
+        service_total = BigDecimal("0")
+        priced = false
+        service_charges = service_charges.map do |charge|
+          if charge.unpriced? && charge.billable?
+            rate = Pricing.charge_rate(provider: provider, component: charge.component, tier: tier)
+            if rate
+              rate_amount = rate.fetch(:amount)
+              rate_quantity = rate.fetch(:quantity)
+              charge = Billing::ServiceCharge.build(
+                charge.to_h.merge(
+                  rate_amount: rate_amount,
+                  rate_quantity: rate_quantity,
+                  cost: (charge.quantity / rate_quantity) * rate_amount,
+                  currency: rate.fetch(:currency),
+                  cost_status: nil,
+                  price_key: rate.fetch(:source_key),
+                  price_source: rate.fetch(:source),
+                  price_source_version: rate.fetch(:source_version)
+                )
+              )
+            end
+          end
+          service_total += charge.cost_value
+          priced ||= charge.priced?
+          charge
+        end
+        return [cost_data, service_charges] if service_total.zero? && !priced
 
         cost = cost_data ? cost_data.dup : {}
         total_cost = BigDecimal(cost.fetch(:total_cost, 0).to_s) + service_total
         cost[:total_cost] = total_cost.round(8).to_f
-        cost
+        [cost, service_charges]
       end
     end
   end

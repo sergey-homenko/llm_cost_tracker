@@ -26,7 +26,10 @@ class AddIngestionToLlmCostTracker < ActiveRecord::Migration<%= migration_versio
     end unless table_exists?(:llm_cost_tracker_ingestor_leases)
 
     add_index :llm_cost_tracker_inbox_events, :event_id, unique: true unless index_exists?(:llm_cost_tracker_inbox_events, :event_id)
-    add_index :llm_cost_tracker_inbox_events, :tracked_at unless index_exists?(:llm_cost_tracker_inbox_events, :tracked_at)
+    unless index_exists?(:llm_cost_tracker_inbox_events, [:tracked_at, :attempts])
+      add_index :llm_cost_tracker_inbox_events, [:tracked_at, :attempts]
+    end
+    remove_index :llm_cost_tracker_inbox_events, :tracked_at if index_exists?(:llm_cost_tracker_inbox_events, :tracked_at)
     add_index :llm_cost_tracker_inbox_events, [:locked_at, :id] unless index_exists?(:llm_cost_tracker_inbox_events, [:locked_at, :id])
     add_index :llm_cost_tracker_ingestor_leases, :name, unique: true unless index_exists?(:llm_cost_tracker_ingestor_leases, :name)
   end

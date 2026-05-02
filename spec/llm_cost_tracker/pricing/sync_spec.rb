@@ -32,6 +32,11 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       "models" => {
         "gpt-4o" => { "input" => 2.5, "cache_read_input" => 1.25, "output" => 10.0 },
         "gpt-5-mini" => { "input" => 0.25, "cache_read_input" => 0.025, "output" => 2.0 }
+      },
+      "service_charges" => {
+        "openai" => {
+          "web_search_request" => 10.0
+        }
       }
     }
   end
@@ -86,7 +91,8 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
         file.write(
           {
             "metadata" => { "source_version" => "old-snapshot" },
-            "models" => { "gpt-4o" => { "input" => 5.0, "output" => 15.0 } }
+            "models" => { "gpt-4o" => { "input" => 5.0, "output" => 15.0 } },
+            "service_charges" => { "openai" => { "web_search_request" => 8.0 } }
           }.to_yaml
         )
         file.close
@@ -108,6 +114,7 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
         expect(written.dig("metadata", "source_url")).to eq(source_url)
         expect(written.dig("metadata", "source_version")).to eq("snapshot-v1")
         expect(written.dig("models", "gpt-5-mini", "output")).to eq(2.0)
+        expect(written.dig("service_charges", "openai", "web_search_request")).to eq(10.0)
       end
     end
 
@@ -129,6 +136,23 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       end
     end
 
+    it "writes remote snapshots without service charge sections" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(JSON.generate("metadata" => {}, "models" => {}))
+        file.close
+        registry = remote_registry.reject { |key, _value| key == "service_charges" }
+
+        described_class.refresh(
+          path: file.path,
+          url: source_url,
+          fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(registry)))
+        )
+        written = YAML.safe_load_file(file.path, aliases: false)
+
+        expect(written).not_to have_key("service_charges")
+      end
+    end
+
     it "uses the existing source version as the conditional request etag" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write(JSON.generate("metadata" => { "source_version" => "snapshot-v1" }, "models" => {}))
@@ -143,20 +167,20 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       end
     end
 
-    it "rejects oversized local registries before refreshing" do
-      stub_const("LlmCostTracker::Pricing::Registry::MAX_FILE_BYTES", 10)
-
+    it "leaves the existing file untouched when remote JSON is malformed" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
-        file.write(JSON.generate("metadata" => {}, "models" => {}))
+        original = JSON.generate("metadata" => {}, "models" => {})
+        file.write(original)
         file.close
 
         expect do
           described_class.refresh(
             path: file.path,
             url: source_url,
-            fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
+            fetcher: CuratedPriceFetcher.new(response(body: "{"))
           )
-        end.to raise_error(LlmCostTracker::Error, /pricing registry exceeds/)
+        end.to raise_error(LlmCostTracker::Error, /Unable to parse remote pricing snapshot/)
+        expect(File.read(file.path)).to eq(original)
       end
     end
 
@@ -218,6 +242,21 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
   end
 
   describe ".check" do
+    it "wraps invalid local registry files" do
+      Tempfile.create(["llm-prices", ".yml"]) do |file|
+        file.write("metadata: [")
+        file.close
+
+        expect do
+          described_class.check(
+            path: file.path,
+            url: source_url,
+            fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
+          )
+        end.to raise_error(LlmCostTracker::Error, /Unable to load pricing registry/)
+      end
+    end
+
     it "reports drift without writing" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         original = JSON.generate(

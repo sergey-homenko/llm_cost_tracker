@@ -229,7 +229,7 @@ RSpec.describe LlmCostTracker::Tracker do
         token_usage: token_usage(input_tokens: 1_000, output_tokens: 0),
         service_charges: [
           {
-            component: :web_search_request,
+            component: :grounding_request,
             quantity: 1,
             cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
           }
@@ -238,7 +238,35 @@ RSpec.describe LlmCostTracker::Tracker do
 
       expect(event.total_cost).to eq(0.0025)
       expect(event.cost_status).to eq(LlmCostTracker::Billing::CostStatus::PARTIAL)
-      expect(event.service_charges.first.component).to eq("web_search_request")
+      expect(event.service_charges.first.component).to eq("grounding_request")
+    end
+
+    it "prices Anthropic web search service charges from provider tool rates" do
+      event = record(
+        provider: "anthropic",
+        model: "claude-sonnet-4-6",
+        token_usage: token_usage(input_tokens: 1_000, output_tokens: 0),
+        service_charges: [
+          {
+            component: :web_search_request,
+            quantity: 2,
+            cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN,
+            pricing_basis: LlmCostTracker::Billing::ServiceCharge::PROVIDER_USAGE_BASIS,
+            source_key: "usage.server_tool_use.web_search_requests"
+          }
+        ]
+      )
+
+      charge = event.service_charges.first
+      expect(event.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+      expect(event.total_cost).to eq(0.023)
+      expect(charge.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+      expect(charge.cost).to eq(BigDecimal("0.02"))
+      expect(charge.rate_amount).to eq(BigDecimal("10.0"))
+      expect(charge.rate_quantity).to eq(BigDecimal("1000"))
+      expect(charge.price_key).to eq("service_charges.anthropic.web_search_request")
+      expect(charge.price_source).to eq("bundled")
+      expect(charge.source_key).to eq("usage.server_tool_use.web_search_requests")
     end
 
     it "keeps service-only unknown charges unknown without inventing total cost" do

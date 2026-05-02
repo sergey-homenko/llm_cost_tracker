@@ -214,7 +214,7 @@ def add_schema_indexes!(database_connection)
   add_index :llm_cost_tracker_service_charges, :component
   add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
   add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
-  add_index :llm_cost_tracker_inbox_events, :tracked_at
+  add_index :llm_cost_tracker_inbox_events, %i[tracked_at attempts]
   add_index :llm_cost_tracker_inbox_events, %i[locked_at id]
   add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
 end

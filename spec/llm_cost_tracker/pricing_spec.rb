@@ -82,6 +82,89 @@ RSpec.describe LlmCostTracker::Pricing do
     end
   end
 
+  describe ".charge_rate" do
+    it "returns nil when no service charge rate exists" do
+      expect(described_class.charge_rate(provider: "gemini", component: :grounding_request, tier: nil)).to be_nil
+    end
+
+    it "loads provider service charge rates from the configured prices file" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(
+          {
+            service_charges: {
+              openai: {
+                web_search_request: 10.0
+              }
+            },
+            models: {}
+          }.to_json
+        )
+        file.close
+        LlmCostTracker.configure { |config| config.prices_file = file.path }
+
+        rate = described_class.charge_rate(provider: "openai", component: :web_search_request, tier: nil)
+
+        expect(rate).to include(
+          amount: BigDecimal("10.0"),
+          quantity: BigDecimal("1000"),
+          currency: "USD",
+          source: "prices_file",
+          source_key: "service_charges.openai.web_search_request"
+        )
+        expect(rate.fetch(:source_version)).to be_a(String)
+      end
+    end
+
+    it "uses tier-specific provider service charge rates" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(
+          {
+            service_charges: {
+              openai: {
+                web_search_request: 10.0,
+                priority_web_search_request: 12.0
+              }
+            },
+            models: {}
+          }.to_json
+        )
+        file.close
+        LlmCostTracker.configure { |config| config.prices_file = file.path }
+
+        rate = described_class.charge_rate(provider: "openai", component: "web_search_request", tier: :priority)
+
+        expect(rate).to include(
+          amount: BigDecimal("12.0"),
+          source_key: "service_charges.openai.priority_web_search_request"
+        )
+      end
+    end
+
+    it "falls back to bundled service charge rates" do
+      allow(LlmCostTracker::Pricing::ServiceCharges).to receive(:builtin_rates).and_return(
+        "anthropic" => {
+          "web_search_request" => { amount: BigDecimal("5.0"), quantity: BigDecimal("1000"), currency: "USD" }
+        }
+      )
+
+      rate = described_class.charge_rate(provider: "anthropic", component: :web_search_request, tier: nil)
+
+      expect(rate).to include(
+        amount: BigDecimal("5.0"),
+        quantity: BigDecimal("1000"),
+        source: "bundled",
+        source_key: "service_charges.anthropic.web_search_request",
+        source_version: LlmCostTracker::VERSION
+      )
+    end
+
+    it "rejects unknown billing components" do
+      expect do
+        described_class.charge_rate(provider: "openai", component: :unknown_tool, tier: nil)
+      end.to raise_error(LlmCostTracker::Error, /Unknown billing component/)
+    end
+  end
+
   describe ".cost_for" do
     it "calculates cost for a known model" do
       result = cost_for(

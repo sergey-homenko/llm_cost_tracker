@@ -6,6 +6,7 @@ require "json"
 require "rubygems"
 
 require_relative "registry"
+require_relative "service_charges"
 require_relative "sync/fetcher"
 require_relative "sync/registry_diff"
 require_relative "sync/registry_loader"
@@ -39,7 +40,7 @@ module LlmCostTracker
 
         def refresh(path: DEFAULT_OUTPUT_PATH, url: DEFAULT_REMOTE_URL, preview: false, fetcher: Fetcher.new,
                     today: Date.today)
-          current = RegistryLoader.new.call(path: path, seed_path: Registry::DEFAULT_PRICES_PATH)
+          current = RegistryLoader.call(path)
           response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
 
           if response.not_modified
@@ -68,7 +69,7 @@ module LlmCostTracker
         end
 
         def check(path: DEFAULT_OUTPUT_PATH, url: DEFAULT_REMOTE_URL, fetcher: Fetcher.new, today: Date.today)
-          current = RegistryLoader.new.call(path: path, seed_path: Registry::DEFAULT_PRICES_PATH)
+          current = RegistryLoader.call(path)
           response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
 
           if response.not_modified
@@ -120,8 +121,9 @@ module LlmCostTracker
 
           models = registry.fetch("models", {})
           Registry.normalize_price_table(models)
+          service_charges = registry["service_charges"]
 
-          registry.merge(
+          normalized = {
             "metadata" => metadata.merge(
               "schema_version" => schema_version,
               "updated_at" => metadata["updated_at"] || today.iso8601,
@@ -129,7 +131,9 @@ module LlmCostTracker
               "source_version" => response.source_version
             ),
             "models" => models
-          )
+          }
+          normalized["service_charges"] = service_charges if service_charges.present?
+          normalized
         rescue ArgumentError, TypeError => e
           raise Error, "Unable to load remote pricing snapshot: #{e.message}"
         end

@@ -137,7 +137,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 0,
       service_charges: [
         {
-          component: :web_search_request,
+          component: :grounding_request,
           quantity: 1,
           cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
         }

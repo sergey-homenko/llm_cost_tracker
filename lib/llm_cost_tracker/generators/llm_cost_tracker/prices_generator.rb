@@ -12,13 +12,9 @@ module LlmCostTracker
       desc "Creates a local LLM Cost Tracker price snapshot"
 
       def create_prices_file
-        registry = LlmCostTracker::Pricing::Sync::RegistryLoader.new.call(
-          path: LlmCostTracker::Pricing::Registry::DEFAULT_PRICES_PATH,
-          seed_path: LlmCostTracker::Pricing::Registry::DEFAULT_PRICES_PATH
-        )
         LlmCostTracker::Pricing::Sync::RegistryWriter.new.call(
           path: File.join(destination_root, "config/llm_cost_tracker_prices.yml"),
-          registry: registry
+          registry: LlmCostTracker::Pricing::Sync::RegistryLoader.call
         )
       end
     end

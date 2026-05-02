@@ -3,7 +3,7 @@
 require "active_support/core_ext/object/blank"
 require "active_support/core_ext/hash/except"
 require "date"
-require "json"
+require "yaml"
 
 module LlmCostTracker
   module Pricing::Scrape
@@ -41,15 +41,9 @@ module LlmCostTracker
       private
 
       def read_registry(path)
-        if File.size(path) > LlmCostTracker::Pricing::Registry::MAX_FILE_BYTES
-          raise Error, "registry exceeds #{LlmCostTracker::Pricing::Registry::MAX_FILE_BYTES} bytes at #{path}"
-        end
-
-        contents = File.read(path)
-        registry = JSON.parse(contents)
-        raise Error, "registry must be a JSON object at #{path}" unless registry.is_a?(Hash)
-
-        registry
+        YAML.safe_load_file(path, aliases: false) || {}
+      rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
+        raise Error, "#{e.message} at #{path}"
       end
 
       def build_plan(provider, provider_result, current_models)

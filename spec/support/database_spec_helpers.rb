@@ -146,7 +146,7 @@ module LlmCostTrackerDatabaseSpecHelpers
     connection.add_index :llm_cost_tracker_service_charges, :component
     connection.add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
     connection.add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
-    connection.add_index :llm_cost_tracker_inbox_events, :tracked_at
+    connection.add_index :llm_cost_tracker_inbox_events, %i[tracked_at attempts]
     connection.add_index :llm_cost_tracker_inbox_events, %i[locked_at id]
     connection.add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
   end

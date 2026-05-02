@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "json"
 require "yaml"
 
 require_relative "../billing/components"
@@ -16,7 +15,6 @@ module LlmCostTracker
         _source _source_version _fetched_at _updated _notes _validator_override
         _context_price_threshold_tokens
       ].freeze
-      MAX_FILE_BYTES = 2_097_152
       MUTEX = Mutex.new
 
       class << self
@@ -39,14 +37,13 @@ module LlmCostTracker
         def file_metadata(path)
           return {} unless path
 
-          registry = load_price_file(path.to_s)
-          raise ArgumentError, "prices_file must be a hash" unless registry.is_a?(Hash)
+          registry = YAML.safe_load_file(path.to_s, aliases: false) || {}
 
           metadata = registry.fetch("metadata", {})
           raise ArgumentError, "prices_file metadata must be a hash" unless metadata.is_a?(Hash)
 
           metadata
-        rescue Errno::ENOENT, JSON::ParserError, Psych::Exception, ArgumentError, TypeError => e
+        rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
           raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
         end
 
@@ -66,11 +63,12 @@ module LlmCostTracker
             cached = @file_prices_cache
             return cached[:value] if cached && cached[:key] == cache_key
 
-            value = normalize_price_entries(price_file_models(load_price_file(path)), context: path).freeze
+            registry = YAML.safe_load_file(path, aliases: false) || {}
+            value = normalize_price_entries(registry.fetch("models", registry), context: path).freeze
             @file_prices_cache = { key: cache_key, value: value }.freeze
             value
           end
-        rescue Errno::ENOENT, JSON::ParserError, Psych::Exception, ArgumentError, TypeError => e
+        rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
           raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
         end
 
@@ -80,7 +78,9 @@ module LlmCostTracker
           cached = @raw_registry
           return cached if cached
 
-          MUTEX.synchronize { @raw_registry ||= JSON.parse(File.read(DEFAULT_PRICES_PATH)).freeze }
+          MUTEX.synchronize do
+            @raw_registry ||= YAML.safe_load_file(DEFAULT_PRICES_PATH, aliases: false).freeze
+          end
         end
 
         def normalize_price_entry(price)
@@ -123,25 +123,6 @@ module LlmCostTracker
           PRICE_KEYS.any? do |base_key|
             key.end_with?("_#{base_key}") && key.delete_suffix("_#{base_key}") != ""
           end
-        end
-
-        def load_price_file(path)
-          raise ArgumentError, "prices_file exceeds #{MAX_FILE_BYTES} bytes" if File.size(path) > MAX_FILE_BYTES
-
-          contents = File.read(path)
-          return YAML.safe_load(contents, aliases: false) || {} if yaml_file?(path)
-
-          JSON.parse(contents)
-        end
-
-        def yaml_file?(path)
-          %w[.yaml .yml].include?(File.extname(path).downcase)
-        end
-
-        def price_file_models(registry)
-          raise ArgumentError, "prices_file must be a hash" unless registry.is_a?(Hash)
-
-          registry.fetch("models", registry)
         end
 
         def validate_price_entry(price, model:, context:)

@@ -5,12 +5,6 @@ require "stringio"
 require "tempfile"
 
 RSpec.describe LlmCostTracker::Pricing::Registry do
-  def clear_file_price_cache
-    return unless described_class.instance_variable_defined?(:@file_prices_cache)
-
-    described_class.remove_instance_variable(:@file_prices_cache)
-  end
-
   def capture_stderr
     original_stderr = $stderr
     fake_stderr = StringIO.new
@@ -22,7 +16,9 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
   end
 
   before do
-    clear_file_price_cache
+    if described_class.instance_variable_defined?(:@file_prices_cache)
+      described_class.remove_instance_variable(:@file_prices_cache)
+    end
   end
 
   describe ".file_metadata" do
@@ -144,19 +140,6 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         end
 
         expect(output).to be_empty
-      end
-    end
-
-    it "rejects oversized local price files before parsing" do
-      stub_const("LlmCostTracker::Pricing::Registry::MAX_FILE_BYTES", 10)
-
-      Tempfile.create(["llm-prices", ".json"]) do |file|
-        file.write({ models: { "custom-model" => { input: 1.0, output: 2.0 } } }.to_json)
-        file.close
-
-        expect do
-          described_class.file_prices(file.path)
-        end.to raise_error(LlmCostTracker::Error, /prices_file exceeds/)
       end
     end
 

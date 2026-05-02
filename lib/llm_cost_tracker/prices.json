@@ -15,6 +15,16 @@
     "schema_version": 1,
     "min_gem_version": "0.4.0"
   },
+  "service_charges": {
+    "anthropic": {
+      "web_search_request": 10.0
+    },
+    "openai": {
+      "web_search_request": 10.0,
+      "file_search_call": 2.5,
+      "container_session": 0.03
+    }
+  },
   "models": {
     "anthropic/claude-haiku-4-5": {
       "input": 1.0,

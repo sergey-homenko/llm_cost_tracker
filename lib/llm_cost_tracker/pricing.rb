@@ -10,9 +10,12 @@ require_relative "pricing/registry"
 require_relative "pricing/lookup"
 require_relative "pricing/effective_prices"
 require_relative "pricing/explainer"
+require_relative "pricing/service_charges"
 
 module LlmCostTracker
   module Pricing
+    extend ServiceCharges
+
     STANDARD_MODE_VALUES = %w[auto default standard standard_only].freeze
     RATE_DENOMINATOR_TOKENS = 1_000_000
     private_constant :STANDARD_MODE_VALUES, :RATE_DENOMINATOR_TOKENS
