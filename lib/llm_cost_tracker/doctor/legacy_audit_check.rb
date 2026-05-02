@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "check"
+require_relative "probe"
 require_relative "../ledger"
 
 module LlmCostTracker
@@ -9,7 +10,7 @@ module LlmCostTracker
       WARNING_PERCENT = 10
 
       def call
-        return unless table_exists?("llm_api_calls")
+        return unless Probe.table_exists?("llm_api_calls")
         return unless LlmCostTracker::Ledger::Call.column_names.include?("pricing_snapshot")
 
         counts = LlmCostTracker::Ledger::Call
@@ -29,14 +30,6 @@ module LlmCostTracker
         Check.new(:warn, "pricing snapshot audit", message)
       rescue StandardError
         nil
-      end
-
-      private
-
-      def table_exists?(name)
-        LlmCostTracker::Ledger::Call.connection.data_source_exists?(name)
-      rescue StandardError
-        false
       end
     end
   end

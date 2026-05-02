@@ -96,14 +96,22 @@ module LlmCostTracker
       Tags::Context.with(merged, &)
     end
 
-    def track(provider:, input_tokens:, output_tokens:, model: nil, latency_ms: nil, stream: false,
-              usage_source: :manual, enforce_budget: false, provider_response_id: nil, pricing_mode: nil,
-              service_charges: [], **metadata)
+    def track(provider:, input_tokens:, output_tokens:, model: nil, cache_read_input_tokens: 0,
+              cache_write_input_tokens: 0, cache_write_1h_input_tokens: 0, audio_input_tokens: 0,
+              audio_output_tokens: 0, total_tokens: nil, hidden_output_tokens: 0, tags: {},
+              latency_ms: nil, stream: false, usage_source: :manual, enforce_budget: false,
+              provider_response_id: nil, pricing_mode: nil, service_charges: [])
       enforce_budget! if enforce_budget
       token_usage = TokenUsage.build(
-        **metadata.slice(*TokenUsage.members),
         input_tokens: input_tokens,
-        output_tokens: output_tokens
+        output_tokens: output_tokens,
+        cache_read_input_tokens: cache_read_input_tokens,
+        cache_write_input_tokens: cache_write_input_tokens,
+        cache_write_1h_input_tokens: cache_write_1h_input_tokens,
+        audio_input_tokens: audio_input_tokens,
+        audio_output_tokens: audio_output_tokens,
+        total_tokens: total_tokens,
+        hidden_output_tokens: hidden_output_tokens
       )
 
       Tracker.record(
@@ -118,12 +126,12 @@ module LlmCostTracker
         ),
         latency_ms: latency_ms,
         pricing_mode: pricing_mode,
-        metadata: metadata
+        metadata: tags
       )
     end
 
-    def track_stream(provider:, model: nil, latency_ms: nil, enforce_budget: false, provider_response_id: nil,
-                     pricing_mode: nil, **metadata)
+    def track_stream(provider:, model: nil, tags: {}, latency_ms: nil, enforce_budget: false,
+                     provider_response_id: nil, pricing_mode: nil)
       require_relative "llm_cost_tracker/capture/stream_collector"
       enforce_budget! if enforce_budget
       collector = Capture::StreamCollector.new(
@@ -132,7 +140,7 @@ module LlmCostTracker
         latency_ms: latency_ms,
         provider_response_id: provider_response_id,
         pricing_mode: pricing_mode,
-        metadata: metadata
+        metadata: tags
       )
       yield collector
       collector.finish!

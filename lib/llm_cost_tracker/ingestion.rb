@@ -63,7 +63,7 @@ module LlmCostTracker
           input_tokens: 1,
           output_tokens: 1,
           provider_response_id: response_id,
-          feature: VERIFY_TAG
+          tags: { feature: VERIFY_TAG }
         )
         LlmCostTracker.flush!
         persisted = LlmCostTracker::Ledger::Call.where(provider_response_id: response_id).exists?
@@ -83,7 +83,7 @@ module LlmCostTracker
         LlmCostTracker::Doctor::Check.new(:error, "active_record capture", "#{e.class}: #{e.message}")
       ensure
         cleanup_verification_call(response_id) if response_id
-        LlmCostTracker::Ingestion::Event.where(event_id: event.event_id).delete_all if event
+        LlmCostTracker::Ingestion::InboxRow.where(event_id: event.event_id).delete_all if event
         ActiveSupport::Notifications.unsubscribe(subscription) if subscription
       end
 

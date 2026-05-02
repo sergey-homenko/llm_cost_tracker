@@ -60,7 +60,7 @@ Tags are the extension point for application attribution:
 - workflow
 - agent session
 
-Use `config.default_tags`, middleware `tags:`, explicit metadata, and `LlmCostTracker.with_tags`. Do not add first-class columns for app dimensions unless the ledger needs that field for provider-agnostic billing behavior.
+Use `config.default_tags`, middleware `tags:`, explicit `tags:`, and `LlmCostTracker.with_tags`. Do not add first-class columns for app dimensions unless the ledger needs that field for provider-agnostic billing behavior.
 
 ## Storage
 

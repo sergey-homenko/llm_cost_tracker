@@ -26,7 +26,7 @@ require_relative "../app/models/llm_cost_tracker/ledger/tags/accessors"
 require_relative "../app/models/llm_cost_tracker/ledger/call"
 require_relative "../app/models/llm_cost_tracker/ledger/service_charge"
 require_relative "../app/models/llm_cost_tracker/ledger/period/total"
-require_relative "../app/models/llm_cost_tracker/ingestion/event"
+require_relative "../app/models/llm_cost_tracker/ingestion/inbox_row"
 require_relative "../app/models/llm_cost_tracker/ingestion/lease"
 
 admin = {
@@ -64,7 +64,7 @@ def reset_models!
   [
     LlmCostTracker::Ledger::Call,
     LlmCostTracker::Ledger::ServiceCharge,
-    LlmCostTracker::Ingestion::Event,
+    LlmCostTracker::Ingestion::InboxRow,
     LlmCostTracker::Ingestion::Lease,
     LlmCostTracker::Ledger::Period::Total
   ].each(&:reset_column_information)
@@ -248,7 +248,7 @@ def track!(provider_response_id:, input_tokens: 100, output_tokens: 200, **tags)
     output_tokens: output_tokens,
     provider_response_id: provider_response_id,
     latency_ms: 12,
-    **tags
+    tags: tags
   )
 end
 
@@ -257,9 +257,9 @@ def flush!
 end
 
 def quarantined_row_count
-  LlmCostTracker::Ingestion::Event.where(
+  LlmCostTracker::Ingestion::InboxRow.where(
     "attempts >= ?",
-    LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS
+    LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE
   ).count
 end
 
@@ -293,7 +293,7 @@ begin
     raise ActiveRecord::Rollback
   end
   sleep 0.1
-  durable_rows = LlmCostTracker::Ingestion::Event.where(event_id: rollback_event.event_id).count +
+  durable_rows = LlmCostTracker::Ingestion::InboxRow.where(event_id: rollback_event.event_id).count +
                  LlmCostTracker::Ledger::Call.where(event_id: rollback_event.event_id).count
   assert("event was lost across caller rollback") { durable_rows == 1 }
   flush!
@@ -328,12 +328,12 @@ begin
   end
 
   now = Time.now.utc
-  LlmCostTracker::Ingestion::Event.create!(
+  LlmCostTracker::Ingestion::InboxRow.create!(
     event_id: "poison-#{SecureRandom.hex(4)}",
     total_cost: 1,
     tracked_at: now,
     payload: "{bad-json",
-    attempts: LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS - 1,
+    attempts: LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE - 1,
     created_at: now,
     updated_at: now
   )
@@ -343,10 +343,10 @@ begin
     LlmCostTracker::Ledger::Call.where(event_id: good_event.event_id).exists?
   end
   assert("poison row was not quarantined at max attempts") do
-    LlmCostTracker::Ingestion::Event.where(
+    LlmCostTracker::Ingestion::InboxRow.where(
       "payload = ? AND attempts >= ?",
       "{bad-json",
-      LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS
+      LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE
     ).exists?
   end
 
@@ -374,7 +374,7 @@ begin
     LlmCostTracker::Ledger::Call.count == expected
   end
   assert("retryable inbox rows remain after flush") do
-    !LlmCostTracker::Ingestion::Event.where("attempts < ?", LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS).exists?
+    !LlmCostTracker::Ingestion::InboxRow.where("attempts < ?", LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE).exists?
   end
 
   daily_total = LlmCostTracker::Ledger::Period::Totals

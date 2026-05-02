@@ -163,6 +163,12 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
       expect(described_class.rates_from_registry({ "models" => {} })).to eq({})
     end
 
+    it "rejects non-hash service charge sections" do
+      expect do
+        described_class.rates_from_registry({ "service_charges" => [] })
+      end.to raise_error(ArgumentError, /service_charges must be a hash/)
+    end
+
     it "rejects non-hash provider sections" do
       expect do
         described_class.rates_from_registry({ "service_charges" => { "openai" => [] } })

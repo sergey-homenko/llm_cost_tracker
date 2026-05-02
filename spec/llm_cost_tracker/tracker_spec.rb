@@ -177,8 +177,8 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(outside.tags).not_to include(:request_id)
     end
 
-    it "keeps internal usage metadata out of tags" do
-      usage_metadata = {
+    it "keeps explicit token-like metadata as tags" do
+      tags = {
         cache_read_input_tokens: 25,
         cache_write_input_tokens: 10,
         hidden_output_tokens: 5
@@ -187,12 +187,12 @@ RSpec.describe LlmCostTracker::Tracker do
       event = record(
         provider: "anthropic",
         model: "claude-sonnet-4-6",
-        token_usage: token_usage(input_tokens: 100, output_tokens: 50, **usage_metadata),
-        metadata: usage_metadata.merge(feature: "summarize")
+        token_usage: token_usage(input_tokens: 100, output_tokens: 50, **tags),
+        metadata: tags.merge(feature: "summarize")
       )
 
       expect(event.token_usage.total_tokens).to eq(185)
-      expect(event.tags).to eq(feature: "summarize")
+      expect(event.tags).to eq(tags.merge(feature: "summarize"))
     end
 
     it "uses pricing_mode without storing it as a tag" do
@@ -336,7 +336,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.total_cost).to eq(1.5)
     end
 
-    it "keeps pricing_mode metadata out of tags" do
+    it "keeps explicit pricing_mode metadata as a tag" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "metadata-mode-model" => {
@@ -357,7 +357,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
       expect(event.pricing_mode).to be_nil
       expect(event.total_cost).to eq(3.0)
-      expect(event.tags).to eq(feature: "bulk")
+      expect(event.tags).to eq(pricing_mode: :batch, feature: "bulk")
     end
 
     it "triggers budget callback when exceeded" do

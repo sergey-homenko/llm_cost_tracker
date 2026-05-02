@@ -58,7 +58,7 @@ stream_options: { include_usage: true }
 ## Manual Path
 
 ```ruby
-LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o", tags: { feature: "chat" }) do |stream|
   my_client.stream(...) { |event| stream.event(event.to_h) }
 end
 ```

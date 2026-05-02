@@ -122,6 +122,7 @@ module LlmCostTracker
         match = Lookup.call(provider: provider, model: model)
         return nil unless match
 
+        pricing_mode = normalize_mode(pricing_mode)
         effective = EffectivePrices.call(usage: token_usage, prices: match.prices, pricing_mode: pricing_mode)
         return nil if effective.value?(nil)
 

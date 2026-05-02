@@ -12,7 +12,7 @@ RSpec.describe LlmCostTracker::Report do
     LlmCostTracker::Ledger::Call.reset_column_information
     LlmCostTracker::Ledger::ServiceCharge.reset_column_information
     LlmCostTracker::Ledger::Period::Total.reset_column_information
-    LlmCostTracker::Ingestion::Event.reset_column_information
+    LlmCostTracker::Ingestion::InboxRow.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
 
@@ -64,7 +64,7 @@ RSpec.describe LlmCostTracker::Report do
       input_tokens: 1_000,
       output_tokens: 0,
       latency_ms: 100,
-      feature: "chat"
+      tags: { feature: "chat" }
     )
     track_and_flush(
       provider: :openai,
@@ -72,7 +72,7 @@ RSpec.describe LlmCostTracker::Report do
       input_tokens: 1_000,
       output_tokens: 0,
       latency_ms: 300,
-      feature: "summarizer"
+      tags: { feature: "summarizer" }
     )
 
     report = described_class.generate(days: 30, now: Time.now.utc)
@@ -92,7 +92,7 @@ RSpec.describe LlmCostTracker::Report do
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0,
-      feature: "chat"
+      tags: { feature: "chat" }
     )
 
     data = described_class.data(days: 30, now: Time.now.utc)

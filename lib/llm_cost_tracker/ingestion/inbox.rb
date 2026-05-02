@@ -128,7 +128,7 @@ module LlmCostTracker
           columns = row.keys
           quoted_columns = columns.map { |column| connection.quote_column_name(column) }.join(", ")
           quoted_values = columns.map { |column| connection.quote(row.fetch(column)) }.join(", ")
-          table = connection.quote_table_name(Event.table_name)
+          table = connection.quote_table_name(InboxRow.table_name)
 
           connection.execute("INSERT INTO #{table} (#{quoted_columns}) VALUES (#{quoted_values})")
         end

@@ -2,6 +2,7 @@
 
 require_relative "ledger"
 require_relative "doctor/check"
+require_relative "doctor/probe"
 require_relative "doctor/ingestion_check"
 require_relative "doctor/legacy_audit_check"
 require_relative "doctor/legacy_billing_status_check"
@@ -164,13 +165,7 @@ module LlmCostTracker
     end
 
     def llm_api_calls_table?
-      active_record_available? && table_exists?("llm_api_calls")
-    end
-
-    def table_exists?(name)
-      LlmCostTracker::Ledger::Call.connection.data_source_exists?(name)
-    rescue StandardError
-      false
+      active_record_available? && Probe.table_exists?("llm_api_calls")
     end
   end
 end

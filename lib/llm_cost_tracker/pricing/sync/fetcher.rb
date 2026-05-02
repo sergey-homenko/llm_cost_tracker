@@ -7,6 +7,8 @@ require "openssl"
 require "time"
 require "uri"
 
+require_relative "../../version"
+
 module LlmCostTracker
   module Pricing
     module Sync
@@ -17,7 +19,7 @@ module LlmCostTracker
           end
         end
 
-        USER_AGENT = "llm_cost_tracker price refresh"
+        USER_AGENT = "llm_cost_tracker/#{LlmCostTracker::VERSION} price refresh".freeze
         MAX_REDIRECTS = 5
         MAX_BODY_BYTES = 2_097_152
         OPEN_TIMEOUT = 5

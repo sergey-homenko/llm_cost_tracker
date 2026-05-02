@@ -44,7 +44,7 @@ RSpec.describe LlmCostTracker do
     it "parses OpenAI-shaped chunks via the matching provider parser" do
       collected = events
 
-      described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+      described_class.track_stream(provider: "openai", model: "gpt-4o", tags: { feature: "stream" }) do |stream|
         stream.event({ "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] })
         stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
       end
@@ -55,6 +55,7 @@ RSpec.describe LlmCostTracker do
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(3)
       expect(collected.first[:stream]).to be true
       expect(collected.first[:usage_source]).to eq(:stream_final)
+      expect(collected.first[:tags]).to include(feature: "stream")
     end
 
     it "infers the model from stream events when no model is passed" do

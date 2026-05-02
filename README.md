@@ -129,8 +129,10 @@ LlmCostTracker.track(
   model: "claude-sonnet-4-6",
   input_tokens: 1500,
   output_tokens: 320,
-  feature: "summarizer",
-  user_id: current_user.id
+  tags: {
+    feature: "summarizer",
+    user_id: current_user.id
+  }
 )
 ```
 

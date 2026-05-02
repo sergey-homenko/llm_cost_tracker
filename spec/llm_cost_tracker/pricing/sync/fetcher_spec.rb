@@ -24,6 +24,25 @@ RSpec.describe LlmCostTracker::Pricing::Sync::Fetcher do
       described_class.new.get("https://example.com/prices.json")
     end
 
+    it "sends a versioned user agent" do
+      response = Net::HTTPOK.new("1.1", "200", "OK")
+      allow(response).to receive(:read_body).and_yield("{}")
+      allow(response).to receive(:[]).with("etag").and_return(nil)
+      allow(response).to receive(:[]).with("last-modified").and_return(nil)
+      http = instance_double(Net::HTTP)
+      request = nil
+      allow(http).to receive(:request) do |incoming_request, &block|
+        request = incoming_request
+        block.call(response)
+        response
+      end
+      allow(Net::HTTP).to receive(:start).and_yield(http)
+
+      described_class.new.get("https://example.com/prices.json")
+
+      expect(request["User-Agent"]).to eq("llm_cost_tracker/#{LlmCostTracker::VERSION} price refresh")
+    end
+
     it "wraps SSL failures as price refresh errors" do
       allow(Net::HTTP).to receive(:start).and_raise(OpenSSL::SSL::SSLError, "certificate verify failed")
 

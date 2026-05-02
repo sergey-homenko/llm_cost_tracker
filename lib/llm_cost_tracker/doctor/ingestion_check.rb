@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "check"
+require_relative "probe"
 require_relative "../ingestion"
 
 module LlmCostTracker
@@ -9,7 +10,7 @@ module LlmCostTracker
       PENDING_AGE_WARNING_SECONDS = 60
 
       def call
-        return unless table_exists?("llm_api_calls")
+        return unless Probe.table_exists?("llm_api_calls")
 
         missing = missing_parts
         if missing.empty?
@@ -44,25 +45,20 @@ module LlmCostTracker
 
       def missing_parts
         [
-          table_exists?("llm_cost_tracker_inbox_events") ? nil : "llm_cost_tracker_inbox_events",
-          table_exists?("llm_cost_tracker_ingestor_leases") ? nil : "llm_cost_tracker_ingestor_leases"
+          Probe.table_exists?("llm_cost_tracker_inbox_events") ? nil : "llm_cost_tracker_inbox_events",
+          Probe.table_exists?("llm_cost_tracker_ingestor_leases") ? nil : "llm_cost_tracker_ingestor_leases"
         ].compact
       end
 
-      def table_exists?(name)
-        LlmCostTracker::Ledger::Call.connection.data_source_exists?(name)
-      rescue StandardError
-        false
-      end
-
       def inbox_snapshot
-        LlmCostTracker::Ingestion::Event
+        max_attempts = LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE
+        LlmCostTracker::Ingestion::InboxRow
           .select(
-            "COALESCE(SUM(CASE WHEN attempts >= #{LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS} " \
+            "COALESCE(SUM(CASE WHEN attempts >= #{max_attempts} " \
             "THEN 1 ELSE 0 END), 0) AS quarantined_count, " \
-            "COALESCE(SUM(CASE WHEN attempts < #{LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS} " \
+            "COALESCE(SUM(CASE WHEN attempts < #{max_attempts} " \
             "THEN 1 ELSE 0 END), 0) AS pending_count, " \
-            "MIN(CASE WHEN attempts < #{LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS} " \
+            "MIN(CASE WHEN attempts < #{max_attempts} " \
             "THEN created_at ELSE NULL END) AS oldest_pending_at"
           )
           .take

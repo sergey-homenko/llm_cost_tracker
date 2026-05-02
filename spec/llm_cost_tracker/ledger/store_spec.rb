@@ -14,7 +14,7 @@ RSpec.describe "ActiveRecord storage integration" do
     LlmCostTracker::Ledger::Call.reset_column_information
     LlmCostTracker::Ledger::ServiceCharge.reset_column_information
     LlmCostTracker::Ledger::Period::Total.reset_column_information
-    LlmCostTracker::Ingestion::Event.reset_column_information
+    LlmCostTracker::Ingestion::InboxRow.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end
@@ -63,8 +63,10 @@ RSpec.describe "ActiveRecord storage integration" do
       input_tokens: 1_000,
       output_tokens: 500,
       latency_ms: 250,
-      user_id: 42,
-      feature: "chat"
+      tags: {
+        user_id: 42,
+        feature: "chat"
+      }
     )
 
     expect(LlmCostTracker::Ledger::Call.count).to eq(1)
@@ -226,7 +228,7 @@ RSpec.describe "ActiveRecord storage integration" do
           provider: :openai,
           model: "snapshot-model",
           input_tokens: 1_000_000,
-          output_tokens: 1_000_000
+          output_tokens: 1_000_000,
         )
 
         LlmCostTracker.reset_configuration!
@@ -238,7 +240,7 @@ RSpec.describe "ActiveRecord storage integration" do
           provider: :openai,
           model: "snapshot-model",
           input_tokens: 1_000_000,
-          output_tokens: 1_000_000
+          output_tokens: 1_000_000,
         )
 
         calls = LlmCostTracker::Ledger::Call.order(:id).to_a
@@ -260,13 +262,13 @@ RSpec.describe "ActiveRecord storage integration" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
     track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
     month_total = LlmCostTracker::Ledger::Period::Total.find_by!(
@@ -293,7 +295,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
     expect(LlmCostTracker::Ledger::Period::Total).to have_received(:upsert_all).once
@@ -355,13 +357,13 @@ RSpec.describe "ActiveRecord storage integration" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
     track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
     day_total = LlmCostTracker::Ledger::Period::Total.find_by!(period: "day", period_start: Date.new(2026, 4, 18))
@@ -383,7 +385,7 @@ RSpec.describe "ActiveRecord storage integration" do
         provider: :openai,
         model: "gpt-4o",
         input_tokens: 1_000,
-        output_tokens: 0
+        output_tokens: 0,
       )
     end.to raise_error(LlmCostTracker::Error, /llm_cost_tracker_period_totals/)
   end
@@ -395,7 +397,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
     totals = LlmCostTracker::Ledger::Period::Totals.call(
@@ -439,7 +441,7 @@ RSpec.describe "ActiveRecord storage integration" do
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5,
-      user_id: 42
+      tags: { user_id: 42 }
     )
 
     expect(LlmCostTracker::Ledger::Call.by_tag("user_id", "42").count).to eq(1)
@@ -451,16 +453,20 @@ RSpec.describe "ActiveRecord storage integration" do
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5,
-      user_id: 42,
-      feature: "chat"
+      tags: {
+        user_id: 42,
+        feature: "chat"
+      }
     )
     track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5,
-      user_id: 42,
-      feature: "summarizer"
+      tags: {
+        user_id: 42,
+        feature: "summarizer"
+      }
     )
 
     matching_calls = LlmCostTracker::Ledger::Call.by_tags(user_id: 42, feature: "chat")
@@ -475,20 +481,20 @@ RSpec.describe "ActiveRecord storage integration" do
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0,
-      feature: "chat"
+      tags: { feature: "chat" }
     )
     track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
       output_tokens: 0,
-      feature: "summarizer"
+      tags: { feature: "summarizer" }
     )
     track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
     rows = LlmCostTracker::Ledger::Call.this_month.cost_by_tag("feature")
@@ -508,14 +514,14 @@ RSpec.describe "ActiveRecord storage integration" do
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0,
-      feature: "chat"
+      tags: { feature: "chat" }
     )
     track_and_flush(
       provider: :anthropic,
       model: "claude-haiku-4-5",
       input_tokens: 1_000,
       output_tokens: 0,
-      feature: "summarizer"
+      tags: { feature: "summarizer" }
     )
 
     tag_sql = LlmCostTracker::Ledger::Call.group_by_tag("feature").to_sql
@@ -697,14 +703,14 @@ RSpec.describe "ActiveRecord storage integration" do
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0,
-      "feature.name" => "chat"
+      tags: { "feature.name" => "chat" }
     )
     track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
       input_tokens: 1_000,
       output_tokens: 0,
-      "feature.name" => "summarizer"
+      tags: { "feature.name" => "summarizer" }
     )
 
     rows = LlmCostTracker::Ledger::Call.cost_by_tag("feature.name")
@@ -723,14 +729,14 @@ RSpec.describe "ActiveRecord storage integration" do
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0,
-      feature: "chat"
+      tags: { feature: "chat" }
     )
     track_and_flush(
       provider: :anthropic,
       model: "claude-haiku-4-5",
       input_tokens: 1_000,
       output_tokens: 0,
-      feature: "chat"
+      tags: { feature: "chat" }
     )
 
     result = LlmCostTracker::Ledger::Call.this_month.where(provider: "openai").group_by_tag("feature").sum(:total_cost)
@@ -750,8 +756,10 @@ RSpec.describe "ActiveRecord storage integration" do
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5,
-      user_id: 42,
-      feature: "chat"
+      tags: {
+        user_id: 42,
+        feature: "chat"
+      }
     )
 
     expect(LlmCostTracker::Ledger::Call.by_tag("user_id", 42).count).to eq(1)
@@ -765,14 +773,14 @@ RSpec.describe "ActiveRecord storage integration" do
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5,
-      feature: "100%"
+      tags: { feature: "100%" }
     )
     track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5,
-      feature: "1000"
+      tags: { feature: "1000" }
     )
 
     expect(LlmCostTracker::Ledger::Call.by_tag("feature", "100%").count).to eq(1)
@@ -787,13 +795,13 @@ RSpec.describe "ActiveRecord storage integration" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
-      output_tokens: 5
+      output_tokens: 5,
     )
     track_and_flush(
       provider: :openai,
       model: "unknown-chat-model",
       input_tokens: 10,
-      output_tokens: 5
+      output_tokens: 5,
     )
 
     expect(LlmCostTracker::Ledger::Call.with_cost.count).to eq(1)
@@ -843,7 +851,7 @@ RSpec.describe "ActiveRecord storage integration" do
         provider: :openai,
         model: "gpt-4o",
         input_tokens: 10,
-        output_tokens: 5
+        output_tokens: 5,
       )
     end.to raise_error(ActiveRecord::StatementInvalid, /database down/)
   end
@@ -853,7 +861,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 10,
-      output_tokens: 5
+      output_tokens: 5,
     )
 
     expect(LlmCostTracker::Ledger::Call.daily_costs.keys).to all(be_a(String))
@@ -905,7 +913,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
     expect(LlmCostTracker::Ledger::Call.total_cost).to eq(0.0025)
@@ -925,7 +933,7 @@ RSpec.describe "ActiveRecord storage integration" do
         provider: :openai,
         model: "gpt-4o",
         input_tokens: 1_000,
-        output_tokens: 0
+        output_tokens: 0,
       )
     end
 
@@ -945,7 +953,7 @@ RSpec.describe "ActiveRecord storage integration" do
         provider: :openai,
         model: "gpt-4o",
         input_tokens: 1_000,
-        output_tokens: 0
+        output_tokens: 0,
       )
     end
 
@@ -957,7 +965,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
     LlmCostTracker.configure do |config|
@@ -978,7 +986,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
     LlmCostTracker.configure do |config|

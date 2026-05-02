@@ -23,6 +23,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Pricing components now derive directly from the billing component registry.
 - Durable inbox payloads now use schema version 2 while reading legacy v0/v1 payloads.
 - Removed the `Pricing::COMPONENTS` compatibility surface.
+- RubyLLM captured calls now use `sdk_response` as their usage source.
+- BREAKING: Manual `LlmCostTracker.track` keeps token counters as top-level arguments and manual APIs use explicit `tags:`.
 
 ## [0.7.3] - 2026-05-01
 

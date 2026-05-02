@@ -89,7 +89,7 @@ module LlmCostTracker
                   hidden_output_tokens: hidden_output
                 ),
                 stream: stream,
-                usage_source: :ruby_llm,
+                usage_source: :sdk_response,
                 provider_response_id: provider_response_id(response)
               ),
               latency_ms: latency_ms

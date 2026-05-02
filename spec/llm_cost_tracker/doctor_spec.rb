@@ -85,6 +85,21 @@ RSpec.describe LlmCostTracker::Doctor do
     )
   end
 
+  it "treats table probe errors as absent tables" do
+    allow(LlmCostTracker::Ledger::Call).to receive(:connection).and_raise("database unavailable")
+
+    expect(described_class::Probe.table_exists?("llm_api_calls")).to be false
+  end
+
+  it "skips isolated checks when the ledger table is missing" do
+    allow(described_class::Probe).to receive(:table_exists?).with("llm_api_calls").and_return(false)
+
+    expect(described_class::IngestionCheck.new.call).to be_nil
+    expect(described_class::LegacyAuditCheck.new.call).to be_nil
+    expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil
+    expect(described_class::ServiceChargesCheck.new.call).to be_nil
+  end
+
   context "with ActiveRecord storage" do
     include_context "with mounted llm cost tracker engine"
 
@@ -109,6 +124,18 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("current schema required")
       expect(check.message).to include("llm_cost_tracker_period_totals table is missing")
       expect(check.message).to include("llm_cost_tracker:add_period_totals")
+    end
+
+    it "fails when durable ingestion tables are missing" do
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_inbox_events)
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_ingestor_leases)
+
+      check = described_class.call.find { |item| item.name == "durable ingestion" }
+
+      expect(check).to have_attributes(status: :error)
+      expect(check.message).to include("llm_cost_tracker_inbox_events")
+      expect(check.message).to include("llm_cost_tracker_ingestor_leases")
+      expect(check.message).to include("llm_cost_tracker:add_ingestion")
     end
 
     it "fails when period totals lack the current unique index" do
@@ -161,6 +188,20 @@ RSpec.describe LlmCostTracker::Doctor do
 
       expect(check).to have_attributes(status: :warn)
       expect(check.message).to include("legacy rows without cost_status remain")
+    end
+
+    it "skips legacy checks when schema lookup fails" do
+      allow(LlmCostTracker::Ledger::Call).to receive(:column_names).and_raise("schema unavailable")
+
+      expect(described_class::LegacyAuditCheck.new.call).to be_nil
+      expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil
+    end
+
+    it "skips legacy checks before billing audit columns exist" do
+      allow(LlmCostTracker::Ledger::Call).to receive(:column_names).and_return([])
+
+      expect(described_class::LegacyAuditCheck.new.call).to be_nil
+      expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil
     end
 
     it "warns when legacy rows without pricing snapshots exceed the audit threshold" do

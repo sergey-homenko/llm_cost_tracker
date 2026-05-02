@@ -91,7 +91,7 @@ LlmCostTracker.track(
   input_tokens: 1_000_000,
   output_tokens: 250_000,
   pricing_mode: :batch,
-  feature: "offline_eval"
+  tags: { feature: "offline_eval" }
 )
 ```
 

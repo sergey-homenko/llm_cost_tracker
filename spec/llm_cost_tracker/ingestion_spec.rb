@@ -12,7 +12,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker::Ledger::Call.reset_column_information
     LlmCostTracker::Ledger::ServiceCharge.reset_column_information
     LlmCostTracker::Ledger::Period::Total.reset_column_information
-    LlmCostTracker::Ingestion::Event.reset_column_information
+    LlmCostTracker::Ingestion::InboxRow.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
 
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
@@ -29,17 +29,17 @@ RSpec.describe "ActiveRecord durable inbox" do
       model: "gpt-4o",
       input_tokens: 1_000,
       output_tokens: 0,
-      feature: "chat"
+      tags: { feature: "chat" }
     )
 
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(1)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(1)
     expect(LlmCostTracker::Ledger::Call.count).to eq(0)
-    expect(LlmCostTracker::Ingestion::Event.first.event_id).to eq(event.event_id)
+    expect(LlmCostTracker::Ingestion::InboxRow.first.event_id).to eq(event.event_id)
 
     expect(LlmCostTracker.flush!).to be true
 
     call = LlmCostTracker::Ledger::Call.first
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(0)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(0)
     expect(call.event_id).to eq(event.event_id)
     expect(call.total_cost.to_f).to eq(0.0025)
     expect(call.parsed_tags).to include("feature" => "chat")
@@ -52,7 +52,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
     expect(LlmCostTracker::Ledger::Period::Total.count).to eq(0)
@@ -67,7 +67,7 @@ RSpec.describe "ActiveRecord durable inbox" do
 
     LlmCostTracker.flush!
 
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(0)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(0)
     expect(LlmCostTracker::Ledger::Period::Total.find_by!(
       period: "day",
       period_start: Date.new(2026, 4, 18)
@@ -86,7 +86,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       period_start: Date.new(2026, 4, 18),
       total_cost: 1.25
     )
-    LlmCostTracker::Ingestion::Event.create!(
+    LlmCostTracker::Ingestion::InboxRow.create!(
       event_id: "pending-event",
       total_cost: 2.5,
       tracked_at: time,
@@ -117,10 +117,10 @@ RSpec.describe "ActiveRecord durable inbox" do
       provider: :openai,
       model: "unknown-model",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
-    expect(LlmCostTracker::Ingestion::Event.first.total_cost).to be_nil
+    expect(LlmCostTracker::Ingestion::InboxRow.first.total_cost).to be_nil
     total = LlmCostTracker::Ledger::Period::Totals.call(%i[daily], time: event.tracked_at).fetch(:daily)
     expect(total).to eq(0.0)
 
@@ -134,9 +134,9 @@ RSpec.describe "ActiveRecord durable inbox" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
-    row = LlmCostTracker::Ingestion::Event.first
+    row = LlmCostTracker::Ingestion::InboxRow.first
     parsed = LlmCostTracker::Ingestion::Inbox.event_from_row(row)
 
     LlmCostTracker::Ledger::Call.transaction do
@@ -149,7 +149,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       period: "day",
       period_start: Date.current
     ).total_cost.to_f).to eq(0.0025)
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(0)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(0)
   end
 
   it "does not increment rollups when a concurrent duplicate insert wins the race" do
@@ -157,9 +157,9 @@ RSpec.describe "ActiveRecord durable inbox" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
-    row = LlmCostTracker::Ingestion::Event.first
+    row = LlmCostTracker::Ingestion::InboxRow.first
     parsed = LlmCostTracker::Ingestion::Inbox.event_from_row(row)
     allow(LlmCostTracker::Ledger::Call).to receive(:insert_all!).and_raise(ActiveRecord::RecordNotUnique)
 
@@ -168,7 +168,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     end.to raise_error(ActiveRecord::RecordNotUnique)
     expect(LlmCostTracker::Ledger::Period::Total.count).to eq(0)
 
-    LlmCostTracker::Ingestion::Event.delete_all
+    LlmCostTracker::Ingestion::InboxRow.delete_all
   end
 
   it "allows one ingestor lease holder until the lease expires" do
@@ -189,7 +189,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
     LlmCostTracker::Ingestion::Lease.create!(
       name: "default",
@@ -198,12 +198,12 @@ RSpec.describe "ActiveRecord durable inbox" do
     )
 
     expect(LlmCostTracker::Ingestion::Worker.ingest_once).to eq(0)
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(1)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(1)
 
     LlmCostTracker::Ingestion::Lease.find_by!(name: "default").update!(locked_until: Time.now.utc - 1)
 
     expect(LlmCostTracker::Ingestion::Worker.ingest_once).to eq(1)
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(0)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(0)
   end
 
   it "marks failed batches for retry" do
@@ -211,57 +211,57 @@ RSpec.describe "ActiveRecord durable inbox" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
     allow(LlmCostTracker::Ledger::Store).to receive(:insert_many).and_raise("write failed")
     allow(LlmCostTracker::Logging).to receive(:warn)
 
     expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(0)
 
-    row = LlmCostTracker::Ingestion::Event.first
+    row = LlmCostTracker::Ingestion::InboxRow.first
     expect(row.locked_at).not_to be_nil
     expect(row.locked_by).to be_nil
     expect(row.last_error).to include("write failed")
 
-    LlmCostTracker::Ingestion::Event.delete_all
+    LlmCostTracker::Ingestion::InboxRow.delete_all
   end
 
   it "quarantines invalid inbox rows without blocking valid rows behind them" do
     now = Time.utc(2026, 4, 18, 12)
-    LlmCostTracker::Ingestion::Event.create!(
+    LlmCostTracker::Ingestion::InboxRow.create!(
       event_id: "bad-event",
       total_cost: 1.0,
       tracked_at: now,
       payload: "{",
-      attempts: LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS - 1
+      attempts: LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE - 1
     )
     event = LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
     expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(2)
 
-    bad_row = LlmCostTracker::Ingestion::Event.find_by!(event_id: "bad-event")
-    expect(bad_row.attempts).to eq(LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS)
+    bad_row = LlmCostTracker::Ingestion::InboxRow.find_by!(event_id: "bad-event")
+    expect(bad_row.attempts).to eq(LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE)
     expect(bad_row.last_error).to include("JSON")
     expect(LlmCostTracker::Ledger::Call.find_by!(event_id: event.event_id)).to be_present
     expect(LlmCostTracker.flush!(timeout: 0.01)).to be true
-    expect(LlmCostTracker::Ingestion::Event.where(event_id: "bad-event")).to exist
+    expect(LlmCostTracker::Ingestion::InboxRow.where(event_id: "bad-event")).to exist
 
-    LlmCostTracker::Ingestion::Event.delete_all
+    LlmCostTracker::Ingestion::InboxRow.delete_all
   end
 
   it "excludes quarantined inbox rows from pending budget totals" do
     time = Time.utc(2026, 4, 18, 12)
-    LlmCostTracker::Ingestion::Event.create!(
+    LlmCostTracker::Ingestion::InboxRow.create!(
       event_id: "bad-event",
       total_cost: 1.0,
       tracked_at: time,
       payload: "{",
-      attempts: LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS
+      attempts: LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE
     )
 
     total = LlmCostTracker::Ledger::Period::Totals.call(%i[daily], time: time).fetch(:daily)
@@ -269,12 +269,12 @@ RSpec.describe "ActiveRecord durable inbox" do
   end
 
   it "reports quarantined inbox rows in doctor output" do
-    LlmCostTracker::Ingestion::Event.create!(
+    LlmCostTracker::Ingestion::InboxRow.create!(
       event_id: "bad-event",
       total_cost: 1.0,
       tracked_at: Time.utc(2026, 4, 18, 12),
       payload: "{",
-      attempts: LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS
+      attempts: LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE
     )
 
     check = LlmCostTracker::Doctor.call.find { |item| item.name == "durable ingestion" }
@@ -284,7 +284,7 @@ RSpec.describe "ActiveRecord durable inbox" do
 
   it "reports stale pending inbox rows in doctor output" do
     time = Time.now.utc - 120
-    LlmCostTracker::Ingestion::Event.create!(
+    LlmCostTracker::Ingestion::InboxRow.create!(
       event_id: "pending-event",
       total_cost: 1.0,
       tracked_at: time,
@@ -303,13 +303,13 @@ RSpec.describe "ActiveRecord durable inbox" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
-    LlmCostTracker::Ingestion::Event.update_all(locked_at: Time.now.utc, locked_by: "worker-a")
+    LlmCostTracker::Ingestion::InboxRow.update_all(locked_at: Time.now.utc, locked_by: "worker-a")
 
     expect(LlmCostTracker.flush!(timeout: 0.01)).to be false
 
-    LlmCostTracker::Ingestion::Event.delete_all
+    LlmCostTracker::Ingestion::InboxRow.delete_all
   end
 
   it "returns false when flush reaches the timeout during an ingest attempt" do
@@ -318,7 +318,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
     allow(ingestor).to receive(:ingest_once) do
       sleep 0.02
@@ -327,7 +327,7 @@ RSpec.describe "ActiveRecord durable inbox" do
 
     expect(ingestor.flush!(timeout: 0.001)).to be false
   ensure
-    LlmCostTracker::Ingestion::Event.delete_all
+    LlmCostTracker::Ingestion::InboxRow.delete_all
   end
 
   it "keeps flushing after a processed inbox batch" do
@@ -422,7 +422,7 @@ RSpec.describe "ActiveRecord durable inbox" do
 
     expect(check).to have_attributes(status: :ok, message: include("durable inbox"))
     expect(LlmCostTracker::Ledger::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(0)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(0)
     expect(LlmCostTracker::Ledger::Period::Total.sum(:total_cost).to_f).to eq(0.0)
   end
 
@@ -433,7 +433,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     check = checks.find { |item| item.name == "active_record capture" }
 
     expect(check).to have_attributes(status: :error, message: include("persisted row"))
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(0)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(0)
   end
 
   it "reports a missing ActiveRecord table during verification" do
@@ -458,13 +458,13 @@ RSpec.describe "ActiveRecord durable inbox" do
         provider: :openai,
         model: "gpt-4o",
         input_tokens: 1_000,
-        output_tokens: 0
+        output_tokens: 0,
       )
       raise ActiveRecord::Rollback
     end
 
     expect(LlmCostTracker::Ledger::Call.count).to eq(0)
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(1)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(1)
   end
 
   it "can capture through a separate connection when the caller has an open transaction" do
@@ -475,10 +475,10 @@ RSpec.describe "ActiveRecord durable inbox" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
 
-    expect(LlmCostTracker::Ingestion::Event.find_by!(event_id: event.event_id)).to be_present
+    expect(LlmCostTracker::Ingestion::InboxRow.find_by!(event_id: event.event_id)).to be_present
   end
 
   it "fails honestly when no separate connection is available inside a caller transaction" do
@@ -493,11 +493,11 @@ RSpec.describe "ActiveRecord durable inbox" do
         provider: :openai,
         model: "gpt-4o",
         input_tokens: 1_000,
-        output_tokens: 0
+        output_tokens: 0,
       )
     end.to raise_error(LlmCostTracker::Error, /could not checkout/)
 
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(0)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(0)
   end
 
   it "returns false when shutdown cannot flush cleanly" do
@@ -522,14 +522,14 @@ RSpec.describe "ActiveRecord durable inbox" do
       provider: :openai,
       model: "gpt-4o",
       input_tokens: 1_000,
-      output_tokens: 0
+      output_tokens: 0,
     )
     flush_calls = 0
     allow(LlmCostTracker::Ingestion::Worker).to receive(:flush!) { flush_calls += 1 }
 
     expect(LlmCostTracker::Ingestion::Worker.shutdown!(timeout: 0.01, drain: false)).to be true
     expect(flush_calls).to eq(0)
-    expect(LlmCostTracker::Ingestion::Event.count).to eq(1)
+    expect(LlmCostTracker::Ingestion::InboxRow.count).to eq(1)
   end
 
   it "uses the leader lease when shutdown drains" do
@@ -675,12 +675,12 @@ RSpec.describe "ActiveRecord durable inbox" do
   end
 
   it "ignores failures while marking failed rows" do
-    allow(LlmCostTracker::Ingestion::Event).to receive(:where).and_raise("write failed")
+    allow(LlmCostTracker::Ingestion::InboxRow).to receive(:where).and_raise("write failed")
     batch = LlmCostTracker::Ingestion::Batch.new(identity: "test")
 
     expect do
       batch.mark_failed(
-        [instance_double(LlmCostTracker::Ingestion::Event, id: 1)],
+        [instance_double(LlmCostTracker::Ingestion::InboxRow, id: 1)],
         RuntimeError.new("boom")
       )
     end.not_to raise_error

@@ -74,5 +74,16 @@ RSpec.describe LlmCostTracker::Doctor::CaptureVerifier do
       )
       expect(LlmCostTracker::Ledger::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
     end
+
+    it "handles absent verification subscriptions without cleanup errors" do
+      allow(LlmCostTracker::Ingestion).to receive(:subscribe_to_verification).and_return(nil)
+
+      checks = described_class.call
+
+      expect(checks).to include(
+        have_attributes(status: :error, name: "active_record capture", message: include("notification"))
+      )
+      expect(LlmCostTracker::Ledger::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
+    end
   end
 end

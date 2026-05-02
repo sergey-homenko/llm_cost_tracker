@@ -743,7 +743,7 @@ RSpec.describe LlmCostTracker::Integrations do
         cache_write_input_tokens: 5,
         hidden_output_tokens: 8,
         stream: true,
-        usage_source: :ruby_llm,
+        usage_source: :sdk_response,
         provider_response_id: "msg_123"
       )
     end
@@ -767,7 +767,7 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 42,
         output_tokens: 0,
         stream: false,
-        usage_source: :ruby_llm
+        usage_source: :sdk_response
       )
     end
   end
@@ -794,7 +794,7 @@ RSpec.describe LlmCostTracker::Integrations do
         output_tokens: 3,
         hidden_output_tokens: 2,
         stream: false,
-        usage_source: :ruby_llm,
+        usage_source: :sdk_response,
         provider_response_id: "audio_resp_123"
       )
     end
@@ -815,7 +815,7 @@ RSpec.describe LlmCostTracker::Integrations do
       expect(events.first).to include(
         model: "gpt-4o",
         stream: true,
-        usage_source: :ruby_llm
+        usage_source: :sdk_response
       )
     end
   end

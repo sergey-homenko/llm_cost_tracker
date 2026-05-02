@@ -276,7 +276,7 @@ RSpec.describe "concurrency", :aggregate_failures do
         provider: "openai",
         model: "gpt-4o",
         input_tokens: 1,
-        output_tokens: 1
+        output_tokens: 1,
       )
     end
 

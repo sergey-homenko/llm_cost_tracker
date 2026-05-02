@@ -50,12 +50,12 @@ module LlmCostTracker
         end
 
         def pending_total_sql(start)
-          table = connection.quote_table_name(Ingestion::Event.table_name)
+          table = connection.quote_table_name(Ingestion::InboxRow.table_name)
           total_cost = connection.quote_column_name("total_cost")
           tracked_at = connection.quote_column_name("tracked_at")
           attempts = connection.quote_column_name("attempts")
           "COALESCE((SELECT SUM(#{total_cost}) FROM #{table} " \
-            "WHERE #{attempts} < #{Ingestion::Event::MAX_ATTEMPTS} " \
+            "WHERE #{attempts} < #{Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE} " \
             "AND #{tracked_at} BETWEEN #{connection.quote(start)} AND #{connection.quote(time)}), 0)"
         end
 

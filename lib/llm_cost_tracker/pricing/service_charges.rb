@@ -2,6 +2,7 @@
 
 require "active_support/core_ext/object/blank"
 require "bigdecimal"
+require "time"
 require "yaml"
 
 require_relative "../billing/components"
@@ -9,96 +10,47 @@ require_relative "registry"
 
 module LlmCostTracker
   module Pricing
+    # rubocop:disable Metrics/ModuleLength
     module ServiceCharges
       DEFAULT_CURRENCY = "USD"
       EMPTY_RATES = {}.freeze
 
-      class << self
-        def builtin_rates
-          cached = @builtin_rates
-          return cached if cached
+      def builtin_rates
+        cached = @builtin_rates
+        return cached if cached
 
-          registry = YAML.safe_load_file(Registry::DEFAULT_PRICES_PATH, aliases: false) || {}
-          @builtin_rates = rates_from_registry(registry).freeze
-        end
+        registry = YAML.safe_load_file(Registry::DEFAULT_PRICES_PATH, aliases: false) || {}
+        @builtin_rates = rates_from_registry(registry).freeze
+      end
 
-        def file_rates(path)
-          return EMPTY_RATES unless path
+      def file_rates(path)
+        return EMPTY_RATES unless path
 
-          cache_key = [path, File.mtime(path)]
-          cached = @file_rates_cache
-          return cached[:value] if cached && cached[:key] == cache_key
+        cache_key = [path, File.mtime(path)]
+        cached = @file_rates_cache
+        return cached[:value] if cached && cached[:key] == cache_key
 
-          registry = YAML.safe_load_file(path, aliases: false) || {}
-          value = rates_from_registry(registry, context: path).freeze
-          @file_rates_cache = { key: cache_key, value: value }.freeze
-          value
-        rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
-          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
-        end
+        registry = YAML.safe_load_file(path, aliases: false) || {}
+        value = rates_from_registry(registry, context: path).freeze
+        @file_rates_cache = { key: cache_key, value: value }.freeze
+        value
+      rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
+        raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+      end
 
-        def rates_from_registry(registry, context: "price registry")
-          data = registry.fetch("service_charges", EMPTY_RATES)
-          raise ArgumentError, "#{context} service_charges must be a hash" unless data.is_a?(Hash)
+      def rates_from_registry(registry, context: "price registry")
+        data = registry.fetch("service_charges", EMPTY_RATES)
+        raise ArgumentError, "#{context} service_charges must be a hash" unless data.is_a?(Hash)
 
-          data.each_with_object({}) do |(provider, entries), rates|
-            section_context = "#{context} service_charges.#{provider}"
-            rates[provider] = rates_from_section(entries, context: section_context)
-          end
-        end
-
-        private
-
-        def rates_from_section(entries, context:)
-          raise ArgumentError, "#{context} must be a hash" unless entries.is_a?(Hash)
-
-          entries.each_with_object({}) do |(key, amount), rates|
-            key = key.name if key.is_a?(Symbol)
-            component, tier = component_and_tier_for(key, context: context)
-            amount = amount_for(key, amount, context: context)
-
-            rate = {
-              amount: amount,
-              quantity: rate_quantity(component),
-              currency: DEFAULT_CURRENCY,
-              source_key: key
-            }
-            component_rates = rates[component.key] ||= { tiers: {} }
-            (tier ? component_rates[:tiers] : component_rates)[tier || :default] = rate
-          end
-        end
-
-        def component_and_tier_for(key, context:)
-          Billing::Components::REGISTRY.each do |component|
-            next if component.token_key
-
-            return [component, nil] if key == component.key.name
-
-            suffix = "_#{component.key.name}"
-            next unless key.end_with?(suffix)
-
-            tier = key.delete_suffix(suffix)
-            return [component, :"#{tier}"] unless tier.empty?
-          end
-
-          raise ArgumentError, "service charge price key #{key.inspect} in #{context} uses unknown billing component"
-        end
-
-        def amount_for(key, amount, context:)
-          value = BigDecimal(amount.to_s)
-          message = "service charge price amount for #{key.inspect} in #{context} must be non-negative"
-          raise ArgumentError, message if value.negative?
-
-          value
-        end
-
-        def rate_quantity(component)
-          component.unit == :request ? BigDecimal("1000") : BigDecimal("1")
+        data.each_with_object({}) do |(provider, entries), rates|
+          section_context = "#{context} service_charges.#{provider}"
+          rates[provider] = rates_from_section(entries, context: section_context)
         end
       end
 
-      def charge_rate(provider:, component:, tier:)
-        match = charge_rate_match(provider: provider, component: component, tier: tier)
+      def charge_rate(provider:, component:, pricing_mode:)
+        pricing_mode = Pricing.normalize_mode(pricing_mode)
+        match = charge_rate_match(provider: provider, component: component, pricing_mode: pricing_mode)
         return nil unless match
 
         rate = match.fetch(:rate)
@@ -108,13 +60,60 @@ module LlmCostTracker
           currency: rate.fetch(:currency),
           source: match.fetch(:source),
           source_key: match.fetch(:key),
-          source_version: source_version_for(match.fetch(:source))
+          source_version: rate_source_version_for(match.fetch(:source))
         }
       end
 
       private
 
-      def charge_rate_match(provider:, component:, tier:)
+      def rates_from_section(entries, context:)
+        raise ArgumentError, "#{context} must be a hash" unless entries.is_a?(Hash)
+
+        entries.each_with_object({}) do |(key, amount), rates|
+          key = key.name if key.is_a?(Symbol)
+          component, tier = component_and_tier_for(key, context: context)
+          amount = amount_for(key, amount, context: context)
+
+          rate = {
+            amount: amount,
+            quantity: rate_quantity(component),
+            currency: DEFAULT_CURRENCY,
+            source_key: key
+          }
+          component_rates = rates[component.key] ||= { tiers: {} }
+          (tier ? component_rates[:tiers] : component_rates)[tier || :default] = rate
+        end
+      end
+
+      def component_and_tier_for(key, context:)
+        Billing::Components::REGISTRY.each do |component|
+          next if component.token_key
+
+          return [component, nil] if key == component.key.name
+
+          suffix = "_#{component.key.name}"
+          next unless key.end_with?(suffix)
+
+          tier = key.delete_suffix(suffix)
+          return [component, :"#{tier}"] unless tier.empty?
+        end
+
+        raise ArgumentError, "service charge price key #{key.inspect} in #{context} uses unknown billing component"
+      end
+
+      def amount_for(key, amount, context:)
+        value = BigDecimal(amount.to_s)
+        message = "service charge price amount for #{key.inspect} in #{context} must be non-negative"
+        raise ArgumentError, message if value.negative?
+
+        value
+      end
+
+      def rate_quantity(component)
+        component.unit == :request ? BigDecimal("1000") : BigDecimal("1")
+      end
+
+      def charge_rate_match(provider:, component:, pricing_mode:)
         provider_name = provider.is_a?(Symbol) ? provider.name : provider.presence
         return nil unless provider_name
 
@@ -122,7 +121,7 @@ module LlmCostTracker
 
         table = ServiceCharges.file_rates(LlmCostTracker.configuration.prices_file)
         provider_table = table.fetch(provider_name, EMPTY_RATES)
-        rate = rate_for(provider_table, component_key: component_key, tier: tier)
+        rate = rate_for(provider_table, component_key: component_key, pricing_mode: pricing_mode)
         if rate
           return {
             source: :prices_file,
@@ -133,7 +132,7 @@ module LlmCostTracker
 
         table = ServiceCharges.builtin_rates
         provider_table = table.fetch(provider_name, EMPTY_RATES)
-        rate = rate_for(provider_table, component_key: component_key, tier: tier)
+        rate = rate_for(provider_table, component_key: component_key, pricing_mode: pricing_mode)
         return unless rate
 
         {
@@ -143,15 +142,14 @@ module LlmCostTracker
         }
       end
 
-      def rate_for(provider_table, component_key:, tier:)
+      def rate_for(provider_table, component_key:, pricing_mode:)
         component_rates = provider_table.fetch(component_key, EMPTY_RATES)
         tier_rates = component_rates.fetch(:tiers, EMPTY_RATES)
-        tier_name = normalize_mode(tier)
-        if tier_name
-          rate = tier_rates[tier_name]
+        if pricing_mode
+          rate = tier_rates[pricing_mode]
           return rate if rate
 
-          name = tier_name.name
+          name = pricing_mode.name
           tier_rates.each do |candidate, candidate_rate|
             return candidate_rate if tier_includes?(name, candidate.name)
           end
@@ -172,6 +170,39 @@ module LlmCostTracker
 
         raise Error, "Unknown billing component: #{component.inspect}"
       end
+
+      def rate_source_version_for(source)
+        if source == :bundled
+          LlmCostTracker::VERSION
+        else
+          File.mtime(LlmCostTracker.configuration.prices_file).utc.iso8601
+        end
+      end
+
+      module_function :builtin_rates,
+                      :file_rates,
+                      :rates_from_registry,
+                      :charge_rate,
+                      :rates_from_section,
+                      :component_and_tier_for,
+                      :amount_for,
+                      :rate_quantity,
+                      :charge_rate_match,
+                      :rate_for,
+                      :tier_includes?,
+                      :charge_component_key,
+                      :rate_source_version_for
+      public :charge_rate
+      private_class_method :rates_from_section,
+                           :component_and_tier_for,
+                           :amount_for,
+                           :rate_quantity,
+                           :charge_rate_match,
+                           :rate_for,
+                           :tier_includes?,
+                           :charge_component_key,
+                           :rate_source_version_for
     end
+    # rubocop:enable Metrics/ModuleLength
   end
 end

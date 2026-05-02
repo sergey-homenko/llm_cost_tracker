@@ -29,11 +29,10 @@ module LlmCostTracker
         private
 
         def price_for(prices:, key:, pricing_mode:, context_tier:)
-          mode = Pricing.normalize_mode(pricing_mode)
-          return contextual_price(prices: prices, key: key, context_tier: context_tier) unless mode
+          return contextual_price(prices: prices, key: key, context_tier: context_tier) unless pricing_mode
 
-          contextual_price(prices: prices, key: :"#{mode}_#{key}", context_tier: context_tier) ||
-            derived_mode_price(prices: prices, key: key, mode: mode, context_tier: context_tier)
+          contextual_price(prices: prices, key: :"#{pricing_mode}_#{key}", context_tier: context_tier) ||
+            derived_mode_price(prices: prices, key: key, mode: pricing_mode, context_tier: context_tier)
         end
 
         def contextual_price(prices:, key:, context_tier:)
