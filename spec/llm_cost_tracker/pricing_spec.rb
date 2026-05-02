@@ -357,6 +357,38 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:total_cost)).to eq(116.4)
     end
 
+    it "prices OpenAI audio model tokens separately from text tokens" do
+      result = cost_for(
+        provider: "openai",
+        model: "gpt-audio-1.5",
+        input_tokens: 1_000_000,
+        audio_input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        audio_output_tokens: 1_000_000
+      )
+
+      expect(result.fetch(:input_cost)).to eq(2.5)
+      expect(result.fetch(:audio_input_cost)).to eq(32.0)
+      expect(result.fetch(:output_cost)).to eq(10.0)
+      expect(result.fetch(:audio_output_cost)).to eq(64.0)
+      expect(result.fetch(:total_cost)).to eq(108.5)
+    end
+
+    it "prices Gemini audio input tokens separately from text tokens" do
+      result = cost_for(
+        provider: "gemini",
+        model: "gemini-2.5-flash",
+        input_tokens: 1_000_000,
+        audio_input_tokens: 1_000_000,
+        output_tokens: 1_000_000
+      )
+
+      expect(result.fetch(:input_cost)).to eq(0.3)
+      expect(result.fetch(:audio_input_cost)).to eq(1.0)
+      expect(result.fetch(:output_cost)).to eq(2.5)
+      expect(result.fetch(:total_cost)).to eq(3.8)
+    end
+
     it "calculates Groq flex costs at on-demand token rates" do
       result = cost_for(
         provider: "groq",

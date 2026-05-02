@@ -365,6 +365,36 @@
       "output": 2.4,
       "audio_output": 20.0
     },
+    "openai/gpt-audio-1.5": {
+      "input": 2.5,
+      "audio_input": 32.0,
+      "output": 10.0,
+      "audio_output": 64.0
+    },
+    "openai/gpt-audio-mini": {
+      "input": 0.6,
+      "audio_input": 10.0,
+      "output": 2.4,
+      "audio_output": 20.0
+    },
+    "openai/gpt-audio": {
+      "input": 2.5,
+      "audio_input": 32.0,
+      "output": 10.0,
+      "audio_output": 64.0
+    },
+    "openai/gpt-4o-audio-preview": {
+      "input": 2.5,
+      "audio_input": 40.0,
+      "output": 10.0,
+      "audio_output": 80.0
+    },
+    "openai/gpt-4o-mini-audio-preview": {
+      "input": 0.15,
+      "audio_input": 10.0,
+      "output": 0.6,
+      "audio_output": 20.0
+    },
     "openai/gpt-5": {
       "input": 1.25,
       "output": 10.0,

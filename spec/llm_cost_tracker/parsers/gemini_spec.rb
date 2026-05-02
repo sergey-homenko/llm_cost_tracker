@@ -127,6 +127,40 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.token_usage.total_tokens).to eq(135)
     end
 
+    it "separates Gemini audio token details from regular text tokens" do
+      result = parser.parse(
+        request_url: generate_content_url,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
+          usageMetadata: {
+            promptTokenCount: 120,
+            cachedContentTokenCount: 20,
+            candidatesTokenCount: 50,
+            totalTokenCount: 170,
+            promptTokensDetails: [
+              { modality: "TEXT", tokenCount: 80 },
+              { modality: "AUDIO", tokenCount: 40 }
+            ],
+            cacheTokensDetails: [
+              { modality: "AUDIO", tokenCount: 10 }
+            ],
+            candidatesTokensDetails: [
+              { modality: "TEXT", tokenCount: 30 },
+              { modality: "AUDIO", tokenCount: 20 }
+            ]
+          }
+        }.to_json
+      )
+
+      expect(result.token_usage.input_tokens).to eq(70)
+      expect(result.token_usage.cache_read_input_tokens).to eq(20)
+      expect(result.token_usage.audio_input_tokens).to eq(30)
+      expect(result.token_usage.output_tokens).to eq(30)
+      expect(result.token_usage.audio_output_tokens).to eq(20)
+      expect(result.token_usage.total_tokens).to eq(170)
+    end
+
     it "captures Flex pricing from the request body" do
       result = parser.parse(
         request_url: generate_content_url,
@@ -279,6 +313,35 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.token_usage.cache_read_input_tokens).to eq(10)
       expect(result.token_usage.output_tokens).to eq(42)
       expect(result.token_usage.total_tokens).to eq(122)
+    end
+
+    it "separates streamed Gemini Live audio response token details" do
+      events = [
+        { event: nil, data: {
+          "usageMetadata" => {
+            "promptTokenCount" => 100,
+            "responseTokenCount" => 60,
+            "promptTokensDetails" => [
+              { "modality" => "AUDIO", "tokenCount" => 25 }
+            ],
+            "responseTokensDetails" => [
+              { "modality" => "AUDIO", "tokenCount" => 60 }
+            ]
+          }
+        } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: url,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.token_usage.input_tokens).to eq(75)
+      expect(result.token_usage.audio_input_tokens).to eq(25)
+      expect(result.token_usage.output_tokens).to eq(0)
+      expect(result.token_usage.audio_output_tokens).to eq(60)
+      expect(result.token_usage.total_tokens).to eq(160)
     end
 
     it "captures streamed Google Search grounding queries from the latest grounded candidate" do

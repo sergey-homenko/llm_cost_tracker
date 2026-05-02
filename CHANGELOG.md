@@ -10,6 +10,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Anthropic server tool usage is captured as service charges.
 - OpenAI hosted tool and Gemini grounding usage are captured as service charges.
 - OpenAI audio token details now populate audio input/output token and cost columns.
+- Gemini modality token details now populate audio input/output token and cost columns.
 - Provider tool rates can price service charges through `Pricing.charge_rate`.
 - `llm_cost_tracker:add_billing` upgrades existing ledgers with billing audit columns and service charge storage.
 - Doctor checks now report missing billing audit columns and service charge schema.
@@ -18,6 +19,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - Provider price refresh now covers Groq and Gemini audio input rates.
+- Provider price refresh now covers OpenAI audio model rates.
 - Provider price refresh now updates service charge rates.
 - Data quality now summarizes captured service charges.
 - Pricing components now derive directly from the billing component registry.

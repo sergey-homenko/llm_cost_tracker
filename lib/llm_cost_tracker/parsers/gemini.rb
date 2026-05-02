@@ -79,16 +79,21 @@ module LlmCostTracker
                               pricing_mode: nil, service_charges: nil)
         cache_read = usage["cachedContentTokenCount"].to_i
         tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
+        audio_input = audio_input_tokens(usage)
+        audio_output = audio_output_tokens(usage)
 
         UsageCapture.build(
           provider: "gemini",
           model: extract_model_from_url(request_url),
           pricing_mode: pricing_mode,
           token_usage: TokenUsage.build(
-            input_tokens: [usage["promptTokenCount"].to_i - cache_read, 0].max + tool_use_prompt,
-            output_tokens: output_tokens(usage),
-            total_tokens: total_tokens(usage: usage, cache_read: cache_read, tool_use_prompt: tool_use_prompt),
+            input_tokens: regular_input_tokens(usage: usage, cache_read: cache_read, audio_input: audio_input) +
+                          tool_use_prompt,
+            output_tokens: regular_output_tokens(usage: usage, audio_output: audio_output),
+            total_tokens: usage["totalTokenCount"],
             cache_read_input_tokens: cache_read,
+            audio_input_tokens: audio_input,
+            audio_output_tokens: audio_output,
             hidden_output_tokens: usage["thoughtsTokenCount"]
           ),
           stream: stream,
@@ -106,14 +111,41 @@ module LlmCostTracker
       end
 
       def output_tokens(usage)
-        usage["candidatesTokenCount"].to_i
+        (usage["candidatesTokenCount"] || usage["responseTokenCount"]).to_i
       end
 
-      def total_tokens(usage:, cache_read:, tool_use_prompt:)
-        total = usage["totalTokenCount"]
-        return total.to_i unless total.nil?
+      def regular_input_tokens(usage:, cache_read:, audio_input:)
+        [usage["promptTokenCount"].to_i - cache_read - audio_input, 0].max
+      end
 
-        [usage["promptTokenCount"].to_i - cache_read, 0].max + cache_read + tool_use_prompt + output_tokens(usage)
+      def regular_output_tokens(usage:, audio_output:)
+        [output_tokens(usage) - audio_output, 0].max
+      end
+
+      def audio_input_tokens(usage)
+        prompt_audio = modality_tokens(usage["promptTokensDetails"] || usage["prompt_tokens_details"], "AUDIO")
+        cache_audio = modality_tokens(usage["cacheTokensDetails"] || usage["cache_tokens_details"], "AUDIO")
+        [prompt_audio - cache_audio, 0].max
+      end
+
+      def audio_output_tokens(usage)
+        modality_tokens(
+          usage["candidatesTokensDetails"] ||
+            usage["candidates_tokens_details"] ||
+            usage["responseTokensDetails"] ||
+            usage["response_tokens_details"],
+          "AUDIO"
+        )
+      end
+
+      def modality_tokens(details, modality)
+        Array(details).sum do |detail|
+          next 0 unless detail.is_a?(Hash)
+
+          next 0 unless detail["modality"] == modality
+
+          (detail["tokenCount"] || detail["token_count"]).to_i
+        end
       end
 
       def stream_response_id(events)

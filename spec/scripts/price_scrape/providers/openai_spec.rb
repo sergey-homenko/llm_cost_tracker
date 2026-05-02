@@ -148,6 +148,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "audio_input" => 10.0,
         "audio_output" => 20.0
       )
+      expect(result.models.fetch("gpt-audio-1.5")).to eq(
+        "input" => 2.5,
+        "output" => 10.0,
+        "audio_input" => 32.0,
+        "audio_output" => 64.0
+      )
+      expect(result.models.fetch("gpt-4o-mini-audio-preview")).to eq(
+        "input" => 0.15,
+        "output" => 0.6,
+        "audio_input" => 10.0,
+        "audio_output" => 20.0
+      )
     end
 
     it "returns at least the minimum expected number of models" do
