@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/hash/indifferent_access"
-require "active_support/core_ext/object/try"
 require "active_support/core_ext/string/inflections"
 
 require_relative "../logging"
@@ -68,15 +67,6 @@ module LlmCostTracker
       end
 
       def object_dig(object, *path)
-        if object.respond_to?(:dig)
-          begin
-            value = object.dig(*path)
-            return value unless value.nil?
-          rescue NameError, TypeError
-            nil
-          end
-        end
-
         path.reduce(object) do |current, key|
           return nil if current.nil?
 
@@ -105,25 +95,17 @@ module LlmCostTracker
 
       def read_object_value(object, key)
         return nil if object.nil?
-        return object[key] if object.try(:key?, key)
 
-        string_key = key.to_s
-        return object[string_key] if object.try(:key?, string_key)
+        if object.is_a?(Hash)
+          return object[key] if object.key?(key)
+          return object[key.name] if key.is_a?(Symbol) && object.key?(key.name)
+        end
 
-        value = object.try(key)
-        return value unless value.nil?
-
-        indexed_object_value(object, key)
+        object.public_send(key) if object.respond_to?(key)
       end
 
-      def indexed_object_value(object, key)
-        object.try(:[], key)
-      rescue IndexError, NameError, TypeError
-        nil
-      end
-
-      module_function :read_object_value, :indexed_object_value
-      private_class_method :read_object_value, :indexed_object_value
+      module_function :read_object_value
+      private_class_method :read_object_value
 
       def validate_contract!
         problems = version_problems + target_problems

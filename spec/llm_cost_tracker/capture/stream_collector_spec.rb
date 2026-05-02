@@ -175,6 +175,34 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:usage_source]).to eq(:unknown)
     end
 
+    it "keeps a stream event that fits the JSON byte cap exactly" do
+      collected = events
+      data = { "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } }
+      stub_const("LlmCostTracker::Capture::Stream::LIMIT_BYTES", JSON.generate(event: nil, data: data).bytesize)
+
+      described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+        stream.event(data)
+      end
+
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(12)
+      expect(collected.first.dig(:token_usage, :output_tokens)).to eq(3)
+      expect(collected.first[:usage_source]).to eq(:stream_final)
+    end
+
+    it "falls back to unknown usage when a stream event cannot be serialized" do
+      collected = events
+      data = []
+      data << data
+
+      described_class.track_stream(provider: "custom", model: "local-7b") do |stream|
+        stream.event(data)
+      end
+
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(0)
+      expect(collected.first.dig(:token_usage, :output_tokens)).to eq(0)
+      expect(collected.first[:usage_source]).to eq(:unknown)
+    end
+
     it "uses explicit usage when provided after the capture cap is exceeded" do
       collected = events
       stub_const("LlmCostTracker::Capture::Stream::LIMIT_BYTES", 10)

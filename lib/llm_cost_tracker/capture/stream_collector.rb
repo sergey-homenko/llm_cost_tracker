@@ -2,6 +2,7 @@
 
 require "active_support/core_ext/object/blank"
 require "active_support/core_ext/object/deep_dup"
+require "json"
 
 require_relative "stream"
 
@@ -161,29 +162,18 @@ module LlmCostTracker
       end
 
       def capture_event(data, type:)
-        size = type.to_s.bytesize + estimated_bytes(data) + 32
+        event = { event: type, data: data }
+        size = JSON.generate(event).bytesize
         if @captured_bytes + size <= Capture::Stream::LIMIT_BYTES
-          @events << { event: type, data: data.deep_dup }
+          @events << event.deep_dup
           @captured_bytes += size
         else
           @overflowed = true
           @events.clear
         end
-      end
-
-      def estimated_bytes(value)
-        case value
-        when Hash
-          value.sum { |key, nested| estimated_bytes(key) + estimated_bytes(nested) + 4 }
-        when Array
-          value.sum { |nested| estimated_bytes(nested) + 2 }
-        when String
-          value.bytesize + 2
-        when Numeric, true, false, nil
-          value.to_s.bytesize
-        else
-          value.to_s.bytesize + 2
-        end
+      rescue JSON::JSONError, TypeError
+        @overflowed = true
+        @events.clear
       end
     end
   end
