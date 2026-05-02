@@ -45,15 +45,19 @@ RSpec.describe LlmCostTracker::Pricing do
         cache_read_input_cost: 0.02,
         cache_write_input_cost: 0.03,
         cache_write_1h_input_cost: 0.04,
+        audio_input_cost: 0.06,
         output_cost: 0.05,
-        total_cost: 0.15,
+        audio_output_cost: 0.07,
+        total_cost: 0.27,
         currency: "USD"
       }
 
       expect(described_class.stored_cost_attributes(attributes)).to eq(
         input_cost: 0.01,
+        audio_input_cost: 0.06,
         output_cost: 0.05,
-        total_cost: 0.15,
+        audio_output_cost: 0.07,
+        total_cost: 0.27,
         cache_read_input_cost: 0.02,
         cache_write_input_cost: 0.03,
         cache_write_1h_input_cost: 0.04
@@ -193,6 +197,25 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:cache_read_input_cost)).to eq(0.0375)
       expect(result.fetch(:output_cost)).to eq(0.3)
       expect(result.fetch(:total_cost)).to eq(0.4125)
+    end
+
+    it "prices OpenAI Realtime audio tokens separately from text tokens" do
+      result = cost_for(
+        provider: "openai",
+        model: "gpt-realtime-1.5",
+        input_tokens: 1_000_000,
+        cache_read_input_tokens: 1_000_000,
+        audio_input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        audio_output_tokens: 1_000_000
+      )
+
+      expect(result.fetch(:input_cost)).to eq(4.0)
+      expect(result.fetch(:cache_read_input_cost)).to eq(0.4)
+      expect(result.fetch(:audio_input_cost)).to eq(32.0)
+      expect(result.fetch(:output_cost)).to eq(16.0)
+      expect(result.fetch(:audio_output_cost)).to eq(64.0)
+      expect(result.fetch(:total_cost)).to eq(116.4)
     end
 
     it "calculates Groq flex costs at on-demand token rates" do

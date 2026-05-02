@@ -57,8 +57,8 @@ module LlmCostTracker
           category: :token,
           direction: :input,
           modality: :audio,
-          token_key: nil,
-          cost_key: nil
+          token_key: :audio_input_tokens,
+          cost_key: :audio_input_cost
         ),
         Component.new(
           key: :audio_output,
@@ -66,8 +66,8 @@ module LlmCostTracker
           category: :token,
           direction: :output,
           modality: :audio,
-          token_key: nil,
-          cost_key: nil
+          token_key: :audio_output_tokens,
+          cost_key: :audio_output_cost
         ),
         Component.new(
           key: :web_search_request,

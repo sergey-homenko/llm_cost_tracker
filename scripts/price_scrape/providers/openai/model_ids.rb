@@ -11,6 +11,8 @@ module LlmCostTracker
           "gpt-4.1" => "gpt-4.1", "gpt-4.1-mini" => "gpt-4.1-mini",
           "gpt-4.1-nano" => "gpt-4.1-nano", "gpt-4o" => "gpt-4o",
           "gpt-4o-2024-05-13" => "gpt-4o-2024-05-13", "gpt-4o-mini" => "gpt-4o-mini",
+          "gpt-4o-mini-realtime-preview" => "gpt-4o-mini-realtime-preview",
+          "gpt-4o-realtime-preview" => "gpt-4o-realtime-preview",
           "gpt-5" => "gpt-5", "gpt-5-chat-latest" => "gpt-5-chat-latest",
           "gpt-5-codex" => "gpt-5-codex", "gpt-5-mini" => "gpt-5-mini",
           "gpt-5-nano" => "gpt-5-nano", "gpt-5-pro" => "gpt-5-pro",
@@ -25,7 +27,9 @@ module LlmCostTracker
           "gpt-5.4-pro (<272K context length)" => "gpt-5.4-pro", "gpt-5.5" => "gpt-5.5",
           "gpt-5.5 (<272K context length)" => "gpt-5.5", "gpt-5.5-pro" => "gpt-5.5-pro",
           "gpt-5.5-pro (<272K context length)" => "gpt-5.5-pro", "o1" => "o1", "o1-mini" => "o1-mini",
-          "o1-pro" => "o1-pro", "o3" => "o3", "o3-mini" => "o3-mini", "o3-pro" => "o3-pro",
+          "gpt-realtime" => "gpt-realtime", "gpt-realtime-1.5" => "gpt-realtime-1.5",
+          "gpt-realtime-mini" => "gpt-realtime-mini", "o1-pro" => "o1-pro", "o3" => "o3",
+          "o3-mini" => "o3-mini", "o3-pro" => "o3-pro",
           "o4-mini" => "o4-mini"
         }.freeze
       end

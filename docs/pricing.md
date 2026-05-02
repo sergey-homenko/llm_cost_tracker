@@ -45,6 +45,8 @@ Base fields:
 - `cache_read_input`
 - `cache_write_input`
 - `cache_write_1h_input`
+- `audio_input`
+- `audio_output`
 
 `cache_write_input` is the standard cache-write bucket. `cache_write_1h_input`
 is priced separately when provider usage exposes that longer retention bucket.
@@ -111,7 +113,7 @@ PROVIDER=openai MODEL=gpt-4o PRICING_MODE=batch bin/rails llm_cost_tracker:price
 Optional token env vars let the command check the exact buckets that a call used:
 
 ```bash
-PROVIDER=custom MODEL=gateway-model INPUT_TOKENS=1000 OUTPUT_TOKENS=200 CACHE_READ_INPUT_TOKENS=50 CACHE_WRITE_1H_INPUT_TOKENS=25 bin/rails llm_cost_tracker:prices:explain
+PROVIDER=custom MODEL=gateway-model INPUT_TOKENS=1000 OUTPUT_TOKENS=200 CACHE_READ_INPUT_TOKENS=50 CACHE_WRITE_1H_INPUT_TOKENS=25 AUDIO_INPUT_TOKENS=100 bin/rails llm_cost_tracker:prices:explain
 ```
 
 The command reports the matched source, matched key, match strategy, effective

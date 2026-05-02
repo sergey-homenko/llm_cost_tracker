@@ -129,6 +129,20 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "above_context_data_residency_input" => 66.0,
         "above_context_data_residency_output" => 297.0
       )
+      expect(result.models.fetch("gpt-realtime-1.5")).to eq(
+        "input" => 4.0,
+        "cache_read_input" => 0.4,
+        "output" => 16.0,
+        "audio_input" => 32.0,
+        "audio_output" => 64.0
+      )
+      expect(result.models.fetch("gpt-realtime-mini")).to eq(
+        "input" => 0.6,
+        "cache_read_input" => 0.06,
+        "output" => 2.4,
+        "audio_input" => 10.0,
+        "audio_output" => 20.0
+      )
     end
 
     it "returns at least the minimum expected number of models" do

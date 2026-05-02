@@ -16,9 +16,13 @@ module LlmCostTracker
           cache_read_input_tokens
           cache_write_input_tokens
           cache_write_1h_input_tokens
+          audio_input_tokens
+          audio_output_tokens
           hidden_output_tokens
           input_cost
           output_cost
+          audio_input_cost
+          audio_output_cost
           total_cost
           cache_read_input_cost
           cache_write_input_cost

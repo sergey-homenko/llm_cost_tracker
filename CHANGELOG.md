@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Billing component registry, cost status, pricing snapshots, and service charge ledger rows.
 - Anthropic server tool usage is captured as service charges.
 - OpenAI hosted tool and Gemini grounding usage are captured as service charges.
+- OpenAI audio token details now populate audio input/output token and cost columns.
 - Provider tool rates can price service charges through `Pricing.charge_rate`.
 - `llm_cost_tracker:add_billing` upgrades existing ledgers with billing audit columns and service charge storage.
 - Doctor checks now report missing billing audit columns and service charge schema.

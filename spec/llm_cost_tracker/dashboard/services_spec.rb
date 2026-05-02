@@ -41,12 +41,16 @@ RSpec.describe "LlmCostTracker dashboard services" do
       cache_read_input_tokens: 0,
       cache_write_input_tokens: 0,
       cache_write_1h_input_tokens: 0,
+      audio_input_tokens: 0,
       hidden_output_tokens: 0,
+      audio_output_tokens: 0,
       input_cost: 0.1,
       output_cost: 0.2,
       cache_read_input_cost: 0.0,
       cache_write_input_cost: 0.0,
       cache_write_1h_input_cost: 0.0,
+      audio_input_cost: 0.0,
+      audio_output_cost: 0.0,
       total_cost: 1.0,
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       latency_ms: 100,
@@ -65,7 +69,9 @@ RSpec.describe "LlmCostTracker dashboard services" do
       attrs.fetch(:cache_read_input_tokens) +
       attrs.fetch(:cache_write_input_tokens) +
       attrs.fetch(:cache_write_1h_input_tokens) +
-      attrs.fetch(:output_tokens)
+      attrs.fetch(:audio_input_tokens) +
+      attrs.fetch(:output_tokens) +
+      attrs.fetch(:audio_output_tokens)
   end
 
   def capture_llm_api_call_selects
@@ -591,24 +597,32 @@ RSpec.describe "LlmCostTracker dashboard services" do
         cache_read_input_tokens: 50,
         cache_write_input_tokens: 25,
         cache_write_1h_input_tokens: 5,
+        audio_input_tokens: 12,
         output_tokens: 40,
+        audio_output_tokens: 8,
         hidden_output_tokens: 10,
         input_cost: 0.10,
         cache_read_input_cost: 0.02,
         cache_write_input_cost: 0.03,
         cache_write_1h_input_cost: 0.04,
-        output_cost: 0.20
+        audio_input_cost: 0.12,
+        output_cost: 0.20,
+        audio_output_cost: 0.16
       )
       create_call(
         input_tokens: 200,
         cache_read_input_tokens: 10,
         cache_write_1h_input_tokens: 2,
+        audio_input_tokens: 3,
         output_tokens: 60,
+        audio_output_tokens: 2,
         hidden_output_tokens: 5,
         input_cost: 0.30,
         cache_read_input_cost: 0.01,
         cache_write_1h_input_cost: 0.05,
-        output_cost: 0.40
+        audio_input_cost: 0.03,
+        output_cost: 0.40,
+        audio_output_cost: 0.04
       )
 
       stats = described_class.call
@@ -617,22 +631,28 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.cache_read_input_tokens.to_i).to eq(60)
       expect(stats.cache_write_input_tokens.to_i).to eq(25)
       expect(stats.cache_write_1h_input_tokens.to_i).to eq(7)
+      expect(stats.audio_input_tokens.to_i).to eq(15)
       expect(stats.output_tokens.to_i).to eq(100)
+      expect(stats.audio_output_tokens.to_i).to eq(10)
       expect(stats.hidden_output_tokens.to_i).to eq(15)
       expect(stats.input_cost.to_f).to eq(0.4)
       expect(stats.cache_read_input_cost.to_f).to eq(0.03)
       expect(stats.cache_write_input_cost.to_f).to eq(0.03)
       expect(stats.cache_write_1h_input_cost.to_f).to eq(0.09)
+      expect(stats.audio_input_cost.to_f).to eq(0.15)
       expect(stats.output_cost.to_f).to eq(0.6)
-      expect(stats.billable_tokens.to_i).to eq(492)
+      expect(stats.audio_output_cost.to_f).to eq(0.2)
+      expect(stats.billable_tokens.to_i).to eq(517)
       expect(stats.hidden_output_share.to_f).to eq(15.0)
 
       rows = described_class.usage_rows(stats)
       regular_input = rows.find { |row| row.fetch(:token_key) == :input_tokens }
+      audio_input = rows.find { |row| row.fetch(:token_key) == :audio_input_tokens }
       hidden_output = rows.find { |row| row.fetch(:token_key) == :hidden_output_tokens }
 
       expect(regular_input).to include(token_value: 300, cost_value: stats.input_cost)
-      expect(regular_input.fetch(:share_percent)).to be_within(0.1).of(60.97)
+      expect(regular_input.fetch(:share_percent)).to be_within(0.1).of(58.03)
+      expect(audio_input).to include(token_value: 15, cost_value: stats.audio_input_cost)
       expect(hidden_output).to include(token_value: 15, cost_value: nil, share_basis: :output)
       expect(hidden_output.fetch(:share_percent)).to eq(15.0)
       expect(described_class.hidden_output_summary(stats)).to eq(

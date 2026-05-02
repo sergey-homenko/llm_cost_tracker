@@ -105,17 +105,26 @@ module LlmCostTracker
       end
 
       def token_usage(usage:, cache_read:)
+        audio_input = audio_input_tokens(usage)
+        audio_output = audio_output_tokens(usage)
+
         TokenUsage.build(
-          input_tokens: regular_input_tokens(usage: usage, cache_read: cache_read),
-          output_tokens: (usage["completion_tokens"] || usage["output_tokens"]).to_i,
-          total_tokens: total_tokens(usage: usage, cache_read: cache_read),
+          input_tokens: regular_input_tokens(usage: usage, cache_read: cache_read, audio_input: audio_input),
+          output_tokens: regular_output_tokens(usage: usage, audio_output: audio_output),
+          total_tokens: usage["total_tokens"],
           cache_read_input_tokens: cache_read,
+          audio_input_tokens: audio_input,
+          audio_output_tokens: audio_output,
           hidden_output_tokens: hidden_output_tokens(usage)
         )
       end
 
-      def regular_input_tokens(usage:, cache_read:)
-        [(usage["prompt_tokens"] || usage["input_tokens"]).to_i - cache_read.to_i, 0].max
+      def regular_input_tokens(usage:, cache_read:, audio_input:)
+        [(usage["prompt_tokens"] || usage["input_tokens"]).to_i - cache_read.to_i - audio_input.to_i, 0].max
+      end
+
+      def regular_output_tokens(usage:, audio_output:)
+        [(usage["completion_tokens"] || usage["output_tokens"]).to_i - audio_output.to_i, 0].max
       end
 
       def cache_read_input_tokens(usage)
@@ -123,18 +132,19 @@ module LlmCostTracker
         details["cached_tokens"]
       end
 
+      def audio_input_tokens(usage)
+        details = usage["prompt_tokens_details"] || usage["input_tokens_details"] || {}
+        details["audio_tokens"]
+      end
+
       def hidden_output_tokens(usage)
         details = usage["completion_tokens_details"] || usage["output_tokens_details"] || {}
         details["reasoning_tokens"]
       end
 
-      def total_tokens(usage:, cache_read:)
-        total = usage["total_tokens"]
-        return total.to_i unless total.nil?
-
-        regular_input_tokens(usage: usage, cache_read: cache_read) +
-          cache_read.to_i +
-          (usage["completion_tokens"] || usage["output_tokens"]).to_i
+      def audio_output_tokens(usage)
+        details = usage["completion_tokens_details"] || usage["output_tokens_details"] || {}
+        details["audio_tokens"]
       end
     end
   end

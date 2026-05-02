@@ -319,6 +319,41 @@
       "priority_output": 1.0,
       "priority_cache_read_input": 0.125
     },
+    "openai/gpt-4o-realtime-preview": {
+      "input": 5.0,
+      "cache_read_input": 2.5,
+      "audio_input": 40.0,
+      "output": 20.0,
+      "audio_output": 80.0
+    },
+    "openai/gpt-4o-mini-realtime-preview": {
+      "input": 0.6,
+      "cache_read_input": 0.3,
+      "audio_input": 10.0,
+      "output": 2.4,
+      "audio_output": 20.0
+    },
+    "openai/gpt-realtime": {
+      "input": 4.0,
+      "cache_read_input": 0.4,
+      "audio_input": 32.0,
+      "output": 16.0,
+      "audio_output": 64.0
+    },
+    "openai/gpt-realtime-1.5": {
+      "input": 4.0,
+      "cache_read_input": 0.4,
+      "audio_input": 32.0,
+      "output": 16.0,
+      "audio_output": 64.0
+    },
+    "openai/gpt-realtime-mini": {
+      "input": 0.6,
+      "cache_read_input": 0.06,
+      "audio_input": 10.0,
+      "output": 2.4,
+      "audio_output": 20.0
+    },
     "openai/gpt-5": {
       "input": 1.25,
       "output": 10.0,

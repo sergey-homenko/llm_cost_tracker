@@ -12,12 +12,16 @@ module LlmCostTracker
         cache_read_input_tokens
         cache_write_input_tokens
         cache_write_1h_input_tokens
+        audio_input_tokens
+        audio_output_tokens
         hidden_output_tokens
       ].freeze
       COST_COLUMNS = %w[
         cache_read_input_cost
         cache_write_input_cost
         cache_write_1h_input_cost
+        audio_input_cost
+        audio_output_cost
       ].freeze
       COLUMN_NAMES = (TOKEN_COLUMNS + COST_COLUMNS + %w[pricing_mode]).freeze
 

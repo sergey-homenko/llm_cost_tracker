@@ -18,6 +18,8 @@ module LlmCostTrackerEngineContext
       cache_read_input_tokens: 0,
       cache_write_input_tokens: 0,
       cache_write_1h_input_tokens: 0,
+      audio_input_tokens: 0,
+      audio_output_tokens: 0,
       hidden_output_tokens: 0,
       total_cost: 1.0,
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
@@ -31,7 +33,9 @@ module LlmCostTrackerEngineContext
                            attrs.fetch(:cache_read_input_tokens) +
                            attrs.fetch(:cache_write_input_tokens) +
                            attrs.fetch(:cache_write_1h_input_tokens) +
-                           attrs.fetch(:output_tokens)
+                           attrs.fetch(:audio_input_tokens) +
+                           attrs.fetch(:output_tokens) +
+                           attrs.fetch(:audio_output_tokens)
     attrs[:tags] = tags_for_database(attrs.fetch(:tags))
 
     call = LlmCostTracker::Ledger::Call.create!(attrs)

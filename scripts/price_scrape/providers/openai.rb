@@ -13,6 +13,7 @@ require_relative "openai/rendered_long_context_prices"
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
+      # rubocop:disable Metrics/ClassLength
       class Openai
         SOURCE_URL = "https://developers.openai.com/api/docs/pricing"
         MIN_MODELS_EXPECTED = 25
@@ -27,6 +28,7 @@ module LlmCostTracker
         PRIORITY_FIELDS = {
           input: "priority_input", cache_read_input: "priority_cache_read_input", output: "priority_output"
         }.freeze
+        AUDIO_FIELDS = { input: "audio_input", output: "audio_output" }.freeze
         TIER_FIELDS = {
           "standard" => STANDARD_FIELDS,
           "batch" => BATCH_FIELDS,
@@ -71,20 +73,41 @@ module LlmCostTracker
         end
 
         def extract_specialized_models(doc, tier:)
+          fields = TIER_FIELDS.fetch(tier)
           root = doc.at_css("#content-switcher-specialized-pricing")
-          return {} unless root
+          return extract_untiered_grouped_models(doc, fields: fields) unless root
 
           pane = root.at_css(%([data-content-switcher-pane][data-value="#{tier}"]))
-          return {} unless pane
+          return extract_untiered_grouped_models(doc, fields: fields) unless pane
 
           props = pricing_props(pane).find { |candidate| candidate.key?("groups") }
-          return {} unless props
+          tiered_models = {}
+          if props
+            groups = groups_from(props)
+            tiered_models = merge_model_fields(
+              extract_rows(group_rows_from(groups), fields: fields),
+              extract_grouped_rows(groups, fields: fields)
+            )
+          end
 
-          extract_rows(group_rows_from(props), fields: TIER_FIELDS.fetch(tier))
+          return tiered_models unless tier == "standard"
+
+          merge_model_fields(tiered_models, extract_untiered_grouped_models(doc, fields: fields))
         end
 
         def rendered_long_context_prices(doc, tier:, fields:)
           RenderedLongContextPrices.new(doc, tier: tier, fields: fields, model_ids: MODEL_ID_BY_DISPLAY_NAME).models
+        end
+
+        def extract_untiered_grouped_models(doc, fields:)
+          return {} unless fields == STANDARD_FIELDS
+
+          pricing_props(doc).each_with_object({}) do |props, models|
+            next if props.key?("tier")
+
+            grouped_models = extract_grouped_rows(groups_from(props), fields: fields)
+            models.replace(merge_model_fields(models, grouped_models))
+          end
         end
 
         def pricing_props(node)
@@ -104,13 +127,15 @@ module LlmCostTracker
           rows
         end
 
-        def group_rows_from(props)
+        def groups_from(props)
           groups = unwrap(props["groups"])
-          return [] unless groups.is_a?(Array)
+          groups.is_a?(Array) ? groups : []
+        end
 
+        def group_rows_from(groups)
           groups.flat_map do |group|
-            unwrapped_group = unwrap(group)
-            rows = unwrap(unwrapped_group["rows"]) if unwrapped_group.is_a?(Hash)
+            group = unwrap(group)
+            rows = unwrap(group["rows"]) if group.is_a?(Hash)
             rows.is_a?(Array) ? rows : []
           end
         end
@@ -133,13 +158,40 @@ module LlmCostTracker
           end
         end
 
+        def extract_grouped_rows(groups, fields:)
+          groups.each_with_object({}) do |group, models|
+            group = unwrap(group)
+            next unless group.is_a?(Hash)
+
+            model_id = normalize_model_id(unwrap(group["model"]))
+            next unless model_id
+
+            rows = unwrap(group["rows"])
+            next unless rows.is_a?(Array)
+
+            price_fields = rows.each_with_object({}) do |row, values|
+              cells = unwrap(row)
+              next unless cells.is_a?(Array) && cells.size >= 4
+
+              modality = unwrap(cells[0])
+              case modality
+              when "Text"
+                values.merge!(extract_price_fields(cells, fields: fields))
+              when "Audio"
+                values.merge!(extract_price_fields(cells, fields: AUDIO_FIELDS))
+              end
+            end
+            models[model_id] = price_fields if price_fields.any?
+          end
+        end
+
         def extract_price_fields(cells, fields:)
           prices = {
             fields.fetch(:input) => parse_price(unwrap(cells[1])),
             fields.fetch(:output) => parse_price(unwrap(cells[3]))
           }
           cache_read_input = parse_optional_price(unwrap(cells[2]))
-          prices[fields.fetch(:cache_read_input)] = cache_read_input if cache_read_input
+          prices[fields.fetch(:cache_read_input)] = cache_read_input if cache_read_input && fields[:cache_read_input]
 
           if cells.size >= 7
             long_input = parse_optional_price(unwrap(cells[4]))
@@ -149,7 +201,9 @@ module LlmCostTracker
               prices["_context_price_threshold_tokens"] = 272_000
               prices["above_context_#{fields.fetch(:input)}"] = long_input
               prices["above_context_#{fields.fetch(:output)}"] = long_output
-              prices["above_context_#{fields.fetch(:cache_read_input)}"] = long_cache_read if long_cache_read
+              if long_cache_read && fields[:cache_read_input]
+                prices["above_context_#{fields.fetch(:cache_read_input)}"] = long_cache_read
+              end
             end
           end
           prices
@@ -196,6 +250,7 @@ module LlmCostTracker
           value
         end
       end
+      # rubocop:enable Metrics/ClassLength
     end
   end
 end

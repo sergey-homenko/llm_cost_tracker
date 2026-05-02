@@ -305,7 +305,9 @@
   .lct-stack-fill-cache-read { background: #22c55e; }
   .lct-stack-fill-cache-write { background: #f59e0b; }
   .lct-stack-fill-cache-write-1h { background: #a855f7; }
+  .lct-stack-fill-audio-input { background: #ec4899; }
   .lct-stack-fill-output { background: #0ea5e9; }
+  .lct-stack-fill-audio-output { background: #14b8a6; }
 
   .lct-budget { display: grid; gap: 10px; }
   .lct-budget-head { align-items: baseline; display: flex; gap: 10px; justify-content: space-between; }

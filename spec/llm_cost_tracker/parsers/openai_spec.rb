@@ -169,6 +169,34 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.provider_response_id).to eq("resp_123")
     end
 
+    it "extracts audio token details from OpenAI usage" do
+      response_body = {
+        model: "gpt-realtime-1.5",
+        usage: {
+          input_tokens: 180,
+          input_tokens_details: { cached_tokens: 30, audio_tokens: 50 },
+          output_tokens: 70,
+          output_tokens_details: { audio_tokens: 20, reasoning_tokens: 10 },
+          total_tokens: 250
+        }
+      }.to_json
+
+      result = parser.parse(
+        request_url: responses_url,
+        request_body: { model: "gpt-realtime-1.5" }.to_json,
+        response_status: 200,
+        response_body: response_body
+      )
+
+      expect(result.token_usage.input_tokens).to eq(100)
+      expect(result.token_usage.cache_read_input_tokens).to eq(30)
+      expect(result.token_usage.audio_input_tokens).to eq(50)
+      expect(result.token_usage.output_tokens).to eq(50)
+      expect(result.token_usage.audio_output_tokens).to eq(20)
+      expect(result.token_usage.hidden_output_tokens).to eq(10)
+      expect(result.token_usage.total_tokens).to eq(250)
+    end
+
     it "captures Responses API hosted tool output items as unknown-cost service charges" do
       response_body = {
         id: "resp_123",
@@ -530,9 +558,10 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
           event: nil,
           data: {
             "usage" => {
-              "input_tokens" => 12,
-              "input_tokens_details" => { "cached_tokens" => 7 },
-              "output_tokens" => 3
+              "input_tokens" => 20,
+              "input_tokens_details" => { "cached_tokens" => 7, "audio_tokens" => 5 },
+              "output_tokens" => 8,
+              "output_tokens_details" => { "audio_tokens" => 3 }
             }
           }
         }
@@ -545,10 +574,12 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         events: events
       )
 
-      expect(result.token_usage.input_tokens).to eq(5)
+      expect(result.token_usage.input_tokens).to eq(8)
       expect(result.token_usage.cache_read_input_tokens).to eq(7)
-      expect(result.token_usage.output_tokens).to eq(3)
-      expect(result.token_usage.total_tokens).to eq(15)
+      expect(result.token_usage.audio_input_tokens).to eq(5)
+      expect(result.token_usage.output_tokens).to eq(5)
+      expect(result.token_usage.audio_output_tokens).to eq(3)
+      expect(result.token_usage.total_tokens).to eq(28)
     end
 
     it "returns nil on non-200 responses" do
