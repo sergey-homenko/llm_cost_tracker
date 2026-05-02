@@ -38,7 +38,7 @@ module LlmCostTracker
 
           case response
           when Net::HTTPSuccess
-            build_response(response, body: body || limited_body(response), not_modified: false)
+            build_response(response, body: body, not_modified: false)
           when Net::HTTPNotModified
             build_response(response, body: nil, not_modified: true)
           when Net::HTTPRedirection

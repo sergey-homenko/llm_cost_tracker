@@ -18,8 +18,8 @@ module LlmCostTracker
           private
 
           def price_field_changes(current_entry, updated_entry)
-            current_price = comparable_price(current_entry)
-            updated_price = comparable_price(updated_entry)
+            current_price = current_entry || {}
+            updated_price = updated_entry || {}
 
             (current_price.keys | updated_price.keys).sort.each_with_object({}) do |field, changes|
               from = current_price[field]
@@ -30,21 +30,12 @@ module LlmCostTracker
             end
           end
 
-          def comparable_price(entry)
-            normalize_hash(entry).slice(*Registry::PRICE_KEYS)
-          end
-
           def normalize_models(models)
-            normalize_hash(models).transform_values { |entry| normalize_hash(entry) }
-          end
-
-          def normalize_hash(hash)
-            return {} if hash.nil?
-            raise Error, "pricing entries must be hashes" unless hash.is_a?(Hash)
-
-            hash.each_with_object({}) do |(key, value), normalized|
-              normalized[key.to_s] = value
+            Registry.normalize_price_table(models).transform_values do |price|
+              price.to_h { |key, value| [key.name, value] }
             end
+          rescue ArgumentError, TypeError => e
+            raise Error, e.message
           end
         end
       end
