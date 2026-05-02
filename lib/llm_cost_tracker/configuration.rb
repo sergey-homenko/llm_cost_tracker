@@ -115,7 +115,6 @@ module LlmCostTracker
 
     def normalize_enum(name, value, allowed, default:)
       value = default if value.nil?
-      value = value.to_sym
       return value if allowed.include?(value)
 
       raise Error, "Unknown #{name}: #{value.inspect}. Use one of: #{allowed.join(', ')}"

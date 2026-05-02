@@ -135,7 +135,7 @@ module LlmCostTracker
         end
 
         def match(table:, source:, key:, matched_by:)
-          Match.new(source: source.to_s, key: key, prices: table[key], matched_by: matched_by.to_s)
+          Match.new(source: source, key: key, prices: table[key], matched_by: matched_by)
         end
 
         def snapshot_variant?(model, key)

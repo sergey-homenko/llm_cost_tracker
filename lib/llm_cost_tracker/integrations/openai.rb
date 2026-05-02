@@ -83,7 +83,7 @@ module LlmCostTracker
         end
 
         def regular_input_tokens(input_tokens, cache_read)
-          [input_tokens.to_i - cache_read.to_i, 0].max
+          [input_tokens.to_i - cache_read, 0].max
         end
 
         def track_stream(stream, collector:)

@@ -34,17 +34,17 @@ module LlmCostTracker
             model: event.model,
             tags: stored_tags(event.tags),
             tracked_at: event.tracked_at,
-            pricing_mode: event.pricing_mode,
+            pricing_mode: event.pricing_mode&.name,
             latency_ms: event.latency_ms,
             stream: event.stream,
-            usage_source: event.usage_source,
+            usage_source: event.usage_source&.name,
             provider_response_id: event.provider_response_id,
             cost_status: event.cost_status,
             pricing_snapshot: event.pricing_snapshot
           }
 
           attributes
-            .merge(event.token_usage.stored_attributes)
+            .merge(event.token_usage.to_h)
             .merge(Pricing.stored_cost_attributes(event.cost || {}))
         end
 
@@ -74,17 +74,17 @@ module LlmCostTracker
           {
             llm_api_call_id: call_id,
             charge_id: charge.charge_id || "#{event_id}:#{index}",
-            component: charge.component,
-            unit: charge.unit,
+            component: charge.component.name,
+            unit: charge.unit.name,
             quantity: charge.quantity,
             rate_amount: charge.rate_amount,
             rate_quantity: charge.rate_quantity,
             cost: charge.cost,
             currency: charge.currency,
             cost_status: charge.cost_status,
-            pricing_basis: charge.pricing_basis,
+            pricing_basis: charge.pricing_basis&.name,
             price_key: charge.price_key,
-            price_source: charge.price_source,
+            price_source: charge.price_source&.name,
             price_source_version: charge.price_source_version,
             source_key: charge.source_key,
             provider_item_id: charge.provider_item_id,

@@ -43,7 +43,7 @@ module LlmCostTrackerDatabaseSpecHelpers
       table.string :event_id
       table.string :provider, null: false
       table.string :model, null: false
-      LlmCostTracker::TokenUsage::STORED_KEYS.each do |column|
+      LlmCostTracker::TokenUsage.members.each do |column|
         table.integer column, null: false, default: 0
       end
       (LlmCostTracker::Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost]).each do |column|

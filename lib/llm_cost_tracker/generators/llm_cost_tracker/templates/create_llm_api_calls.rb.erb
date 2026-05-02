@@ -8,7 +8,7 @@ class CreateLlmApiCalls < ActiveRecord::Migration<%= migration_version %>
       t.string  :event_id,      null: false
       t.string  :provider,      null: false
       t.string  :model,         null: false
-<% LlmCostTracker::TokenUsage::STORED_KEYS.each do |column| -%>
+<% LlmCostTracker::TokenUsage.members.each do |column| -%>
       t.integer :<%= column %>, null: false, default: 0
 <% end -%>
 <% (LlmCostTracker::Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost]).each do |column| -%>

@@ -101,7 +101,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq("priority")
+      expect(result.pricing_mode).to eq(:priority)
     end
 
     it "captures fast US inference as a combined pricing mode" do
@@ -121,7 +121,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq("fast_data_residency")
+      expect(result.pricing_mode).to eq(:fast_data_residency)
     end
 
     it "extracts provider-reported server tool usage as service charges" do
@@ -143,7 +143,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
         }.to_json
       )
 
-      expect(result.service_charges.map(&:component)).to eq(%w[web_search_request code_execution_request])
+      expect(result.service_charges.map(&:component)).to eq(%i[web_search_request code_execution_request])
       expect(result.service_charges.map(&:quantity).map(&:to_i)).to eq([2, 1])
       expect(result.service_charges.map(&:cost_status).uniq).to eq([LlmCostTracker::Billing::CostStatus::UNKNOWN])
     end
@@ -224,7 +224,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
         events: events
       )
 
-      expect(result.pricing_mode).to eq("priority")
+      expect(result.pricing_mode).to eq(:priority)
     end
 
     it "captures stream usage speed and inference geo pricing modes" do
@@ -255,7 +255,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
         events: events
       )
 
-      expect(result.pricing_mode).to eq("fast_data_residency")
+      expect(result.pricing_mode).to eq(:fast_data_residency)
     end
 
     it "returns unknown usage when no message events are present" do

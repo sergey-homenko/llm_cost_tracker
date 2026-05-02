@@ -30,11 +30,10 @@ module LlmCostTracker
           return Result.new(name, :warn, "#{name} integration cannot be installed: #{problems.join('; ')}")
         end
 
-        required_targets = patch_targets.reject { |target| target.fetch(:optional) }
-        installed = required_targets.count do |target|
+        installed = patch_targets.reject { |target| target.fetch(:optional) }.all? do |target|
           target.fetch(:constant_name).to_s.safe_constantize&.ancestors&.include?(target.fetch(:patch))
         end
-        return Result.new(name, :ok, "#{name} integration installed") if installed == required_targets.count
+        return Result.new(name, :ok, "#{name} integration installed") if installed
 
         Result.new(name, :warn, "#{name} integration is enabled but not installed")
       end

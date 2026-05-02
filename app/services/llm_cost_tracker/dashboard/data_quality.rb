@@ -5,18 +5,58 @@ require "llm_cost_tracker/ledger/schema/adapter"
 
 module LlmCostTracker
   module Dashboard
+    # rubocop:disable Metrics/ClassLength
     class DataQuality
+      UnknownPricingRow = ::Data.define(:model, :calls, :share_percent)
+      Summary = ::Data.define(:total, :unknown_pricing_count, :untagged_calls_count, :missing_latency_count,
+                              :streaming_count, :streaming_missing_usage, :missing_provider_response_id_count,
+                              :calls_with_pricing, :tagged_calls, :calls_with_latency, :streams_with_usage,
+                              :calls_with_provider_response_id, :unknown_pricing_share, :untagged_share,
+                              :missing_latency_share, :streaming_share, :streaming_missing_usage_share,
+                              :cost_coverage, :tag_coverage, :latency_coverage, :stream_coverage,
+                              :provider_response_id_coverage)
+
       class << self
         def call(scope: LlmCostTracker::Ledger::Call.all)
           scope.unscope(:order).select(aggregate_selects(scope)).take
         end
 
-        def unknown_pricing_by_model(scope)
+        def summary(stats)
+          total = stats.total_calls.to_i
+          unknown_pricing_count = stats.unknown_pricing_count.to_i
+          untagged_calls_count = stats.untagged_calls_count.to_i
+          missing_latency_count = stats.missing_latency_count.to_i
+          streaming_count = stats.streaming_count.to_i
+          streaming_missing_usage = stats.streaming_missing_usage_count.to_i
+          missing_provider_response_id_count = stats.missing_provider_response_id_count.to_i
+          calls_with_pricing = total - unknown_pricing_count
+          tagged_calls = total - untagged_calls_count
+          calls_with_latency = total - missing_latency_count
+          streams_with_usage = streaming_count - streaming_missing_usage
+          calls_with_provider_response_id = total - missing_provider_response_id_count
+
+          Summary.new(
+            total, unknown_pricing_count, untagged_calls_count, missing_latency_count, streaming_count,
+            streaming_missing_usage, missing_provider_response_id_count, calls_with_pricing, tagged_calls,
+            calls_with_latency, streams_with_usage, calls_with_provider_response_id,
+            percentage(unknown_pricing_count, total), percentage(untagged_calls_count, total),
+            percentage(missing_latency_count, total), percentage(streaming_count, total),
+            percentage(streaming_missing_usage, streaming_count), percentage(calls_with_pricing, total),
+            percentage(tagged_calls, total), percentage(calls_with_latency, total),
+            percentage(streams_with_usage, streaming_count), percentage(calls_with_provider_response_id, total)
+          )
+        end
+
+        def unknown_pricing_by_model(scope, total_calls:)
           scope.unknown_pricing
                .group(:model)
                .order(Arel.sql("COUNT(*) DESC"))
                .select("model, COUNT(*) AS calls")
                .limit(10)
+               .map do |row|
+                 calls = row.calls.to_i
+                 UnknownPricingRow.new(model: row.model, calls: calls, share_percent: percentage(calls, total_calls))
+               end
         end
 
         def service_charge_rows(scope)
@@ -47,11 +87,6 @@ module LlmCostTracker
             token_key = component.token_key
             cost_key = component.cost_key
             token_value = stats[token_key].to_i
-            share_percent = if billable_tokens.positive?
-                              (token_value.to_f / billable_tokens) * 100.0
-                            else
-                              0.0
-                            end
 
             {
               price_key: component.key,
@@ -59,7 +94,7 @@ module LlmCostTracker
               cost_key: cost_key,
               token_value: token_value,
               cost_value: stats[cost_key],
-              share_percent: share_percent,
+              share_percent: percentage(token_value, billable_tokens),
               share_basis: nil
             }
           end
@@ -89,6 +124,12 @@ module LlmCostTracker
         end
 
         private
+
+        def percentage(numerator, denominator)
+          return 0.0 unless denominator.positive?
+
+          (numerator.to_f / denominator) * 100.0
+        end
 
         def aggregate_selects(scope)
           selects = [
@@ -170,5 +211,6 @@ module LlmCostTracker
         end
       end
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end

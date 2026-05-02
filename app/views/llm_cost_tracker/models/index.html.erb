@@ -86,9 +86,9 @@
               <td><%= row.provider %></td>
               <td><code class="lct-code"><%= row.model %></code></td>
               <td class="lct-num"><%= number(row.calls) %></td>
-              <td class="lct-num"><%= format_tokens(row.total_tokens) %></td>
-              <td class="lct-num"><%= format_tokens(row.input_tokens) %></td>
-              <td class="lct-num"><%= format_tokens(row.output_tokens) %></td>
+              <td class="lct-num"><%= number(row.total_tokens) %></td>
+              <td class="lct-num"><%= number(row.input_tokens) %></td>
+              <td class="lct-num"><%= number(row.output_tokens) %></td>
               <td class="lct-num"><%= money(row.total_cost) %></td>
               <td class="lct-num"><%= money(row.average_cost_per_call) %></td>
               <% average_latency_ms = row.average_latency_ms %>

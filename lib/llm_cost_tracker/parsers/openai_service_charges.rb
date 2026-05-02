@@ -6,9 +6,9 @@ module LlmCostTracker
   module Parsers
     module OpenaiServiceCharges
       RESPONSE_OUTPUT_COMPONENTS = {
-        "web_search_call" => "web_search_request",
-        "file_search_call" => "file_search_call",
-        "code_interpreter_call" => "container_session"
+        "web_search_call" => :web_search_request,
+        "file_search_call" => :file_search_call,
+        "code_interpreter_call" => :container_session
       }.freeze
 
       private
@@ -34,7 +34,7 @@ module LlmCostTracker
         component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
         return unless component
 
-        key = if component == "container_session" && item["container_id"]
+        key = if component == :container_session && item["container_id"]
                 "#{component}:#{item['container_id']}"
               else
                 item["id"] || "#{item['type']}:#{output_items.length}"
@@ -47,7 +47,7 @@ module LlmCostTracker
           component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
           next unless component
 
-          provider_item_id = if component == "container_session"
+          provider_item_id = if component == :container_session
                                item["container_id"] || item["id"]
                              else
                                item["id"]

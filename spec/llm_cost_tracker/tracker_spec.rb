@@ -8,7 +8,6 @@ RSpec.describe LlmCostTracker::Tracker do
     before { allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true) }
 
     def token_usage(input_tokens:, output_tokens:, **metadata)
-      metadata = metadata.to_h.symbolize_keys
       LlmCostTracker::TokenUsage.build(
         input_tokens: input_tokens,
         output_tokens: output_tokens,
@@ -216,7 +215,7 @@ RSpec.describe LlmCostTracker::Tracker do
         metadata: { feature: "bulk" }
       )
 
-      expect(event.pricing_mode).to eq("batch")
+      expect(event.pricing_mode).to eq(:batch)
       expect(event.total_cost).to eq(1.5)
       expect(event.tags).to eq(feature: "bulk")
       expect(event.pricing_snapshot.fetch(:rates).fetch(:input).fetch(:amount)).to eq(0.5)
@@ -238,7 +237,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
       expect(event.total_cost).to eq(0.0025)
       expect(event.cost_status).to eq(LlmCostTracker::Billing::CostStatus::PARTIAL)
-      expect(event.service_charges.first.component).to eq("grounding_request")
+      expect(event.service_charges.first.component).to eq(:grounding_request)
     end
 
     it "prices Anthropic web search service charges from provider tool rates" do
@@ -265,7 +264,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(charge.rate_amount).to eq(BigDecimal("10.0"))
       expect(charge.rate_quantity).to eq(BigDecimal("1000"))
       expect(charge.price_key).to eq("service_charges.anthropic.web_search_request")
-      expect(charge.price_source).to eq("bundled")
+      expect(charge.price_source).to eq(:bundled)
       expect(charge.source_key).to eq("usage.server_tool_use.web_search_requests")
     end
 
@@ -307,7 +306,7 @@ RSpec.describe LlmCostTracker::Tracker do
         capture_pricing_mode: :priority
       )
 
-      expect(event.pricing_mode).to eq("priority")
+      expect(event.pricing_mode).to eq(:priority)
       expect(event.total_cost).to eq(7.0)
     end
 
@@ -333,7 +332,7 @@ RSpec.describe LlmCostTracker::Tracker do
         pricing_mode: :batch
       )
 
-      expect(event.pricing_mode).to eq("batch")
+      expect(event.pricing_mode).to eq(:batch)
       expect(event.total_cost).to eq(1.5)
     end
 

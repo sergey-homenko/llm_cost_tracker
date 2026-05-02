@@ -107,7 +107,7 @@ def add_call_identity_columns(table)
 end
 
 def add_call_usage_columns(table)
-  LlmCostTracker::TokenUsage::STORED_KEYS.each do |column|
+  LlmCostTracker::TokenUsage.members.each do |column|
     table.integer column, null: false, default: 0
   end
 end

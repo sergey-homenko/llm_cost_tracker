@@ -298,7 +298,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first.dig(:token_usage, :input_tokens)).to eq(7)
     expect(events.first.dig(:token_usage, :output_tokens)).to eq(2)
     expect(events.first[:stream]).to be true
-    expect(events.first[:usage_source]).to eq("stream_final")
+    expect(events.first[:usage_source]).to eq(:stream_final)
     expect(events.first[:provider_response_id]).to eq("chatcmpl_stream_123")
   end
 
@@ -334,7 +334,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
     expect(events.size).to eq(1)
     expect(events.first[:stream]).to be true
-    expect(events.first[:usage_source]).to eq("unknown")
+    expect(events.first[:usage_source]).to eq(:unknown)
     expect(events.first.dig(:token_usage, :input_tokens)).to eq(0)
     expect(events.first.dig(:token_usage, :output_tokens)).to eq(0)
   end
@@ -385,7 +385,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json)
 
     expect(events.first[:stream]).to be true
-    expect(events.first[:usage_source]).to eq("unknown")
+    expect(events.first[:usage_source]).to eq(:unknown)
     expect(events.first.dig(:token_usage, :input_tokens)).to eq(0)
   end
 

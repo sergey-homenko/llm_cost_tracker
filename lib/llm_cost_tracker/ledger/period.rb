@@ -11,7 +11,7 @@ module LlmCostTracker
       module_function
 
       def valid_keys(periods)
-        periods.map(&:to_sym).select { |period| PERIODS.key?(period) }
+        periods.select { |period| PERIODS.key?(period) }
       end
 
       def range_start(period, time)

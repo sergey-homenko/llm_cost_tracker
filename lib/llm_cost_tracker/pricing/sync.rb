@@ -6,10 +6,8 @@ require "json"
 require "rubygems"
 
 require_relative "registry"
-require_relative "service_charges"
 require_relative "sync/fetcher"
 require_relative "sync/registry_diff"
-require_relative "sync/registry_loader"
 require_relative "sync/registry_writer"
 
 module LlmCostTracker
@@ -40,7 +38,7 @@ module LlmCostTracker
 
         def refresh(path: DEFAULT_OUTPUT_PATH, url: DEFAULT_REMOTE_URL, preview: false, fetcher: Fetcher.new,
                     today: Date.today)
-          current = RegistryLoader.call(path)
+          current = load_registry(path)
           response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
 
           if response.not_modified
@@ -69,7 +67,7 @@ module LlmCostTracker
         end
 
         def check(path: DEFAULT_OUTPUT_PATH, url: DEFAULT_REMOTE_URL, fetcher: Fetcher.new, today: Date.today)
-          current = RegistryLoader.call(path)
+          current = load_registry(path)
           response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
 
           if response.not_modified
@@ -136,6 +134,12 @@ module LlmCostTracker
           normalized
         rescue ArgumentError, TypeError => e
           raise Error, "Unable to load remote pricing snapshot: #{e.message}"
+        end
+
+        def load_registry(path)
+          YAML.safe_load_file(path, aliases: false) || {}
+        rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
+          raise Error, "Unable to load pricing registry #{path.inspect}: #{e.message}"
         end
 
         def parse_registry(body)

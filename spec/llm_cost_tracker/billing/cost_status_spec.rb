@@ -17,7 +17,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
   it "ignores non-billable service charges" do
     status = described_class.call(
       token_usage: token_usage,
-      usage_source: "manual",
+      usage_source: :manual,
       token_cost: nil,
       service_charges: [
         service_charge(quantity: 0, cost_status: described_class::UNKNOWN)
@@ -31,7 +31,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
   it "stops scanning service charges after priced and unpriced usage are both known" do
     status = described_class.call(
       token_usage: token_usage,
-      usage_source: "manual",
+      usage_source: :manual,
       token_cost: nil,
       service_charges: [
         service_charge(cost: 0.01),
@@ -47,7 +47,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
   it "treats nil total cost with no billable usage as free" do
     status = described_class.call(
       token_usage: token_usage,
-      usage_source: "manual",
+      usage_source: :manual,
       token_cost: nil,
       service_charges: [],
       total_cost: nil

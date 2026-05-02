@@ -13,8 +13,7 @@ module LlmCostTracker
   class Tracker
     EVENT_NAME = "llm_request.llm_cost_tracker"
 
-    USAGE_SOURCES = %i[response stream_final sdk_response ruby_llm manual unknown].freeze
-    TRACKING_METADATA_KEYS = (TokenUsage.members.map(&:to_s) + %w[pricing_mode provider_response_id]).freeze
+    TRACKING_METADATA_KEYS = (TokenUsage.members + %i[pricing_mode provider_response_id]).freeze
 
     class << self
       def enforce_budget!
@@ -57,8 +56,8 @@ module LlmCostTracker
       private
 
       def build_event(capture:, pricing_mode:, cost_data:, pricing_snapshot:, metadata:, latency_ms:, context_tags:)
-        usage_source = usage_source_for(capture.usage_source)
-        tags = metadata.to_h.reject { |key, _value| TRACKING_METADATA_KEYS.include?(key.to_s) }
+        usage_source = capture.usage_source
+        tags = metadata.to_h.except(*TRACKING_METADATA_KEYS)
         context_tags = context_tags.nil? ? LlmCostTracker::Tags::Context.tags : context_tags.to_h
         cost, service_charges = cost_with_service_charges(
           cost_data,
@@ -88,13 +87,6 @@ module LlmCostTracker
         )
       end
 
-      def usage_source_for(value)
-        return nil if value.nil?
-
-        symbol = value.to_sym
-        USAGE_SOURCES.include?(symbol) ? symbol.to_s : nil
-      end
-
       def cost_status_for(capture, usage_source, cost_data, cost, service_charges)
         Billing::CostStatus.call(
           token_usage: capture.token_usage,
@@ -117,7 +109,7 @@ module LlmCostTracker
               rate_amount = rate.fetch(:amount)
               rate_quantity = rate.fetch(:quantity)
               charge = Billing::ServiceCharge.build(
-                charge.to_h.merge(
+                charge.deconstruct_keys(nil).merge(
                   rate_amount: rate_amount,
                   rate_quantity: rate_quantity,
                   cost: (charge.quantity / rate_quantity) * rate_amount,

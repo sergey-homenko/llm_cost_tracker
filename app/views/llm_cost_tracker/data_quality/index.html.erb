@@ -1,12 +1,3 @@
-<% total = @stats.total_calls.to_i %>
-<% unknown_pricing_count = @stats.unknown_pricing_count.to_i %>
-<% untagged_calls_count = @stats.untagged_calls_count.to_i %>
-<% missing_latency_count = @stats.missing_latency_count&.to_i %>
-<% streaming_count = @stats.streaming_count&.to_i %>
-<% streaming_missing_usage = @stats.streaming_missing_usage_count&.to_i %>
-<% missing_provider_response_id_count = @stats.missing_provider_response_id_count&.to_i %>
-<% calls_with_provider_response_id = total - missing_provider_response_id_count %>
-
 <section class="lct-panel lct-toolbar">
   <div class="lct-toolbar-head">
     <h2 class="lct-section-title">Data Quality</h2>
@@ -58,7 +49,7 @@
   <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: data_quality_path %>
 </section>
 
-<% if total.zero? %>
+<% if @summary.total.zero? %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">No data yet</h2>
     <p class="lct-state-copy">Quality metrics will appear here once calls are recorded in the current slice.</p>
@@ -71,7 +62,7 @@
     <article class="lct-panel lct-hero-primary">
       <div>
         <p class="lct-stat-label">Calls inspected</p>
-        <p class="lct-hero-value"><%= number(total) %></p>
+        <p class="lct-hero-value"><%= number(@summary.total) %></p>
       </div>
     </article>
 
@@ -79,40 +70,40 @@
       <div class="lct-stat-grid">
         <article class="lct-stat">
           <p class="lct-stat-label">Unknown pricing</p>
-          <p class="lct-stat-value"><%= number(unknown_pricing_count) %></p>
-          <p class="lct-stat-sub"><%= percent(coverage_percent(unknown_pricing_count, total)) %> of calls</p>
+          <p class="lct-stat-value"><%= number(@summary.unknown_pricing_count) %></p>
+          <p class="lct-stat-sub"><%= percent(@summary.unknown_pricing_share) %> of calls</p>
         </article>
 
         <article class="lct-stat">
           <p class="lct-stat-label">Calls without tags</p>
-          <p class="lct-stat-value"><%= number(untagged_calls_count) %></p>
-          <p class="lct-stat-sub"><%= percent(coverage_percent(untagged_calls_count, total)) %> of calls</p>
+          <p class="lct-stat-value"><%= number(@summary.untagged_calls_count) %></p>
+          <p class="lct-stat-sub"><%= percent(@summary.untagged_share) %> of calls</p>
         </article>
 
         <article class="lct-stat">
           <p class="lct-stat-label">Missing latency</p>
-          <p class="lct-stat-value"><%= number(missing_latency_count) %></p>
-          <p class="lct-stat-sub"><%= percent(coverage_percent(missing_latency_count, total)) %> of calls</p>
+          <p class="lct-stat-value"><%= number(@summary.missing_latency_count) %></p>
+          <p class="lct-stat-sub"><%= percent(@summary.missing_latency_share) %> of calls</p>
         </article>
 
         <article class="lct-stat">
           <p class="lct-stat-label">Streaming calls</p>
-          <p class="lct-stat-value"><%= number(streaming_count) %></p>
-          <p class="lct-stat-sub"><%= percent(coverage_percent(streaming_count, total)) %> of calls</p>
+          <p class="lct-stat-value"><%= number(@summary.streaming_count) %></p>
+          <p class="lct-stat-sub"><%= percent(@summary.streaming_share) %> of calls</p>
         </article>
 
-        <% if streaming_count.positive? %>
+        <% if @summary.streaming_count.positive? %>
           <article class="lct-stat">
             <p class="lct-stat-label">Streams without usage</p>
-            <p class="lct-stat-value"><%= number(streaming_missing_usage) %></p>
-            <p class="lct-stat-sub"><%= percent(coverage_percent(streaming_missing_usage, streaming_count)) %> of streams</p>
+            <p class="lct-stat-value"><%= number(@summary.streaming_missing_usage) %></p>
+            <p class="lct-stat-sub"><%= percent(@summary.streaming_missing_usage_share) %> of streams</p>
           </article>
         <% end %>
 
         <article class="lct-stat">
           <p class="lct-stat-label">Calls with provider response ID</p>
-          <p class="lct-stat-value"><%= number(calls_with_provider_response_id) %></p>
-          <p class="lct-stat-sub"><%= percent(coverage_percent(calls_with_provider_response_id, total)) %> of calls</p>
+          <p class="lct-stat-value"><%= number(@summary.calls_with_provider_response_id) %></p>
+          <p class="lct-stat-sub"><%= percent(@summary.provider_response_id_coverage) %> of calls</p>
         </article>
 
         <% if @hidden_output_summary %>
@@ -145,46 +136,41 @@
           </tr>
         </thead>
         <tbody>
-          <% cost_coverage = coverage_percent(total - unknown_pricing_count, total) %>
           <tr>
             <td>Cost (pricing known)</td>
-            <td class="lct-num"><%= percent(cost_coverage) %></td>
-            <td class="lct-num"><%= number(total - unknown_pricing_count) %></td>
-            <td><%= render "llm_cost_tracker/shared/bar", value: cost_coverage, max: 100.0 %></td>
+            <td class="lct-num"><%= percent(@summary.cost_coverage) %></td>
+            <td class="lct-num"><%= number(@summary.calls_with_pricing) %></td>
+            <td><%= render "llm_cost_tracker/shared/bar", value: @summary.cost_coverage, max: 100.0 %></td>
           </tr>
 
-          <% tag_coverage = coverage_percent(total - untagged_calls_count, total) %>
           <tr>
             <td>Tags (at least one tag)</td>
-            <td class="lct-num"><%= percent(tag_coverage) %></td>
-            <td class="lct-num"><%= number(total - untagged_calls_count) %></td>
-            <td><%= render "llm_cost_tracker/shared/bar", value: tag_coverage, max: 100.0 %></td>
+            <td class="lct-num"><%= percent(@summary.tag_coverage) %></td>
+            <td class="lct-num"><%= number(@summary.tagged_calls) %></td>
+            <td><%= render "llm_cost_tracker/shared/bar", value: @summary.tag_coverage, max: 100.0 %></td>
           </tr>
 
-          <% latency_coverage = coverage_percent(total - missing_latency_count, total) %>
           <tr>
             <td>Latency</td>
-            <td class="lct-num"><%= percent(latency_coverage) %></td>
-            <td class="lct-num"><%= number(total - missing_latency_count) %></td>
-            <td><%= render "llm_cost_tracker/shared/bar", value: latency_coverage, max: 100.0 %></td>
+            <td class="lct-num"><%= percent(@summary.latency_coverage) %></td>
+            <td class="lct-num"><%= number(@summary.calls_with_latency) %></td>
+            <td><%= render "llm_cost_tracker/shared/bar", value: @summary.latency_coverage, max: 100.0 %></td>
           </tr>
 
-          <% if streaming_count.to_i.positive? %>
-            <% stream_coverage = coverage_percent(streaming_count - streaming_missing_usage, streaming_count) %>
+          <% if @summary.streaming_count.positive? %>
             <tr>
               <td>Streaming usage captured</td>
-              <td class="lct-num"><%= percent(stream_coverage) %></td>
-              <td class="lct-num"><%= number(streaming_count - streaming_missing_usage) %> / <%= number(streaming_count) %></td>
-              <td><%= render "llm_cost_tracker/shared/bar", value: stream_coverage, max: 100.0 %></td>
+              <td class="lct-num"><%= percent(@summary.stream_coverage) %></td>
+              <td class="lct-num"><%= number(@summary.streams_with_usage) %> / <%= number(@summary.streaming_count) %></td>
+              <td><%= render "llm_cost_tracker/shared/bar", value: @summary.stream_coverage, max: 100.0 %></td>
             </tr>
           <% end %>
 
-          <% provider_response_id_coverage = coverage_percent(calls_with_provider_response_id, total) %>
           <tr>
             <td>Provider response ID</td>
-            <td class="lct-num"><%= percent(provider_response_id_coverage) %></td>
-            <td class="lct-num"><%= number(calls_with_provider_response_id) %></td>
-            <td><%= render "llm_cost_tracker/shared/bar", value: provider_response_id_coverage, max: 100.0 %></td>
+            <td class="lct-num"><%= percent(@summary.provider_response_id_coverage) %></td>
+            <td class="lct-num"><%= number(@summary.calls_with_provider_response_id) %></td>
+            <td><%= render "llm_cost_tracker/shared/bar", value: @summary.provider_response_id_coverage, max: 100.0 %></td>
           </tr>
         </tbody>
       </table>
@@ -222,14 +208,14 @@
             <td>Slow requests become harder to isolate on the calls page.</td>
             <td>Make sure latency capture is enabled on every tracked request.</td>
           </tr>
-          <% if streaming_missing_usage.to_i.positive? %>
+          <% if @summary.streaming_missing_usage.positive? %>
             <tr>
               <td>Streams without usage</td>
               <td>Token totals undercount when streaming responses drop the final usage event.</td>
               <td>Send OpenAI requests with <code class="lct-code">stream_options: { include_usage: true }</code>, or wrap custom clients with <code class="lct-code">LlmCostTracker.track_stream</code>.</td>
             </tr>
           <% end %>
-          <% if missing_provider_response_id_count.to_i.positive? %>
+          <% if @summary.missing_provider_response_id_count.positive? %>
             <tr>
               <td>Missing provider response IDs</td>
               <td>Proof of provider-issued responses is weaker when calls cannot be tied back to provider objects.</td>
@@ -264,7 +250,7 @@
             <% cost_key = row.fetch(:cost_key) %>
             <% cost_value = row.fetch(:cost_value) %>
             <tr>
-              <td><%= token_usage_quality_label(token_key) %></td>
+              <td><%= LlmCostTracker::TokenUsageHelper::QUALITY_LABELS.fetch(token_key) %></td>
               <td class="lct-num"><%= number(row.fetch(:token_value)) %></td>
               <% if row.fetch(:share_basis) == :output %>
                 <td class="lct-num"><%= percent(row.fetch(:share_percent)) %> of output</td>
@@ -342,7 +328,7 @@
               <tr>
                 <td><code class="lct-code"><%= row.model %></code></td>
                 <td class="lct-num"><%= number(row.calls) %></td>
-                <td class="lct-num"><%= percent(total.positive? ? (row.calls.to_f / total) * 100.0 : 0.0) %></td>
+                <td class="lct-num"><%= percent(row.share_percent) %></td>
               </tr>
             <% end %>
           </tbody>

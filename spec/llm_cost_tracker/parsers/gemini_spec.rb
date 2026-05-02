@@ -141,7 +141,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq("flex")
+      expect(result.pricing_mode).to eq(:flex)
     end
 
     it "uses Gemini service tier response headers for Priority pricing" do
@@ -159,7 +159,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         response_headers: { "x-gemini-service-tier" => "priority" }
       )
 
-      expect(result.pricing_mode).to eq("priority")
+      expect(result.pricing_mode).to eq(:priority)
     end
 
     it "does not assume Priority pricing when Gemini reports a standard-tier downgrade" do
@@ -198,7 +198,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       )
 
       expect(result.service_charges.size).to eq(1)
-      expect(result.service_charges.first.component).to eq("grounding_request")
+      expect(result.service_charges.first.component).to eq(:grounding_request)
       expect(result.service_charges.first.quantity).to eq(2)
       expect(result.service_charges.first.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
       expect(result.service_charges.first.pricing_basis).to eq(
@@ -307,7 +307,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       )
 
       expect(result.service_charges.size).to eq(1)
-      expect(result.service_charges.first.component).to eq("grounding_request")
+      expect(result.service_charges.first.component).to eq(:grounding_request)
       expect(result.service_charges.first.quantity).to eq(2)
     end
 
@@ -341,7 +341,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         response_headers: { "X-Gemini-Service-Tier" => "priority" }
       )
 
-      expect(result.pricing_mode).to eq("priority")
+      expect(result.pricing_mode).to eq(:priority)
     end
 
     it "returns unknown when the streaming URL has no model identifier" do

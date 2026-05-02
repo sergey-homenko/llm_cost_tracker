@@ -555,7 +555,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.total_calls.to_i).to eq(0)
       expect(stats.unknown_pricing_count.to_i).to eq(0)
       expect(stats.untagged_calls_count.to_i).to eq(0)
-      expect(described_class.unknown_pricing_by_model(LlmCostTracker::Ledger::Call.all)).to be_empty
+      expect(described_class.unknown_pricing_by_model(LlmCostTracker::Ledger::Call.all, total_calls: 0)).to be_empty
     end
 
     it "counts unknown pricing and untagged calls correctly" do
@@ -584,11 +584,19 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(model: "unknown-x", total_cost: nil)
       create_call(model: "unknown-y", total_cost: nil)
 
-      rows = described_class.unknown_pricing_by_model(LlmCostTracker::Ledger::Call.all)
+      rows = described_class.unknown_pricing_by_model(LlmCostTracker::Ledger::Call.all, total_calls: 3)
       counts = rows.index_by(&:model)
 
       expect(counts.fetch("unknown-x").calls.to_i).to eq(2)
       expect(counts.fetch("unknown-y").calls.to_i).to eq(1)
+    end
+
+    it "keeps unknown pricing shares at zero when the total is zero" do
+      create_call(model: "unknown-x", total_cost: nil)
+
+      rows = described_class.unknown_pricing_by_model(LlmCostTracker::Ledger::Call.all, total_calls: 0)
+
+      expect(rows.first.share_percent).to eq(0.0)
     end
 
     it "sums usage and cost breakdown columns" do

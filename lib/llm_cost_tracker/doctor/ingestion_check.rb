@@ -13,14 +13,14 @@ module LlmCostTracker
 
         missing = missing_parts
         if missing.empty?
-          quarantined = quarantined_count
+          inbox = inbox_snapshot
+          quarantined = inbox.try(:quarantined_count).to_i
           if quarantined.positive?
             return Check.new(:warn, "durable ingestion", "#{quarantined} inbox events quarantined after retries")
           end
 
-          pending = pending_snapshot
-          pending_count = pending.try(:pending_count).to_i
-          oldest_pending_at = pending.try(:oldest_created_at)&.to_time&.utc
+          pending_count = inbox.try(:pending_count).to_i
+          oldest_pending_at = inbox.try(:oldest_pending_at)&.to_time&.utc
           pending_age = oldest_pending_at && (Time.now.utc - oldest_pending_at)
           if pending_count.positive? && pending_age && pending_age >= PENDING_AGE_WARNING_SECONDS
             return Check.new(
@@ -55,20 +55,16 @@ module LlmCostTracker
         false
       end
 
-      def quarantined_count
-        return 0 unless table_exists?("llm_cost_tracker_inbox_events")
-
+      def inbox_snapshot
         LlmCostTracker::Ingestion::Event
-          .where("attempts >= ?", LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS)
-          .count
-      rescue StandardError
-        0
-      end
-
-      def pending_snapshot
-        LlmCostTracker::Ingestion::Event
-          .where("attempts < ?", LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS)
-          .select("COUNT(*) AS pending_count, MIN(created_at) AS oldest_created_at")
+          .select(
+            "COALESCE(SUM(CASE WHEN attempts >= #{LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS} " \
+            "THEN 1 ELSE 0 END), 0) AS quarantined_count, " \
+            "COALESCE(SUM(CASE WHEN attempts < #{LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS} " \
+            "THEN 1 ELSE 0 END), 0) AS pending_count, " \
+            "MIN(CASE WHEN attempts < #{LlmCostTracker::Ingestion::Event::MAX_ATTEMPTS} " \
+            "THEN created_at ELSE NULL END) AS oldest_pending_at"
+          )
           .take
       rescue StandardError
         nil

@@ -3,27 +3,20 @@
 require "rails/generators"
 require "rails/generators/active_record"
 
+require_relative "../../billing/components"
+require_relative "../../token_usage"
+
 module LlmCostTracker
   module Generators
     class AddTokenUsageGenerator < Rails::Generators::Base
       include ActiveRecord::Generators::Migration
 
-      TOKEN_COLUMNS = %w[
-        cache_read_input_tokens
-        cache_write_input_tokens
-        cache_write_1h_input_tokens
-        audio_input_tokens
-        audio_output_tokens
-        hidden_output_tokens
-      ].freeze
-      COST_COLUMNS = %w[
-        cache_read_input_cost
-        cache_write_input_cost
-        cache_write_1h_input_cost
-        audio_input_cost
-        audio_output_cost
-      ].freeze
+      INITIAL_TOKEN_COLUMNS = %i[input_tokens output_tokens total_tokens].freeze
+      INITIAL_COST_COLUMNS = %i[input_cost output_cost].freeze
+      TOKEN_COLUMNS = (TokenUsage.members - INITIAL_TOKEN_COLUMNS).map(&:name).freeze
+      COST_COLUMNS = (Billing::Components::TOKEN_PRICED.map(&:cost_key) - INITIAL_COST_COLUMNS).map(&:name).freeze
       COLUMN_NAMES = (TOKEN_COLUMNS + COST_COLUMNS + %w[pricing_mode]).freeze
+      private_constant :INITIAL_TOKEN_COLUMNS, :INITIAL_COST_COLUMNS
 
       source_root File.expand_path("templates", __dir__)
 

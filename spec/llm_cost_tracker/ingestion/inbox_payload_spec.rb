@@ -20,13 +20,13 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       tags: { feature: "chat" },
       latency_ms: 25,
       stream: false,
-      usage_source: "manual",
+      usage_source: :manual,
       provider_response_id: "resp_payload_1",
       tracked_at: Time.utc(2026, 4, 18, 12, 0, 0),
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       pricing_snapshot: {
         schema_version: 1,
-        source: "bundled",
+        source: :bundled,
         currency: "USD",
         rates: {
           input: { amount: 2.5, quantity: 1_000_000 }
@@ -56,10 +56,11 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.event_id).to eq("evt_payload_1")
     expect(restored.token_usage.input_tokens).to eq(100)
     expect(restored.total_cost.to_f).to eq(0.3)
-    expect(restored.tags).to eq("feature" => "chat")
+    expect(restored.tags).to eq(feature: "chat")
     expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
-    expect(restored.pricing_snapshot.fetch("schema_version")).to eq(1)
-    expect(restored.service_charges.first.component).to eq("web_search_request")
+    expect(restored.pricing_snapshot.fetch(:schema_version)).to eq(1)
+    expect(restored.usage_source).to eq(:manual)
+    expect(restored.service_charges.first.component).to eq(:web_search_request)
   end
 
   it "reads legacy flat payload rows without a schema version" do
@@ -84,7 +85,8 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.event_id).to eq("evt_legacy_1")
     expect(restored.token_usage.output_tokens).to eq(5)
     expect(restored.total_cost.to_f).to eq(0.03)
-    expect(restored.tags).to eq("feature" => "legacy")
+    expect(restored.tags).to eq(feature: "legacy")
+    expect(restored.usage_source).to eq(:stream_final)
     expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
     expect(restored.pricing_snapshot).to be_nil
     expect(restored.service_charges).to eq([])

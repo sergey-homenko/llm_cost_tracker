@@ -120,31 +120,31 @@ module LlmCostTracker
       end
 
       def regular_input_tokens(usage:, cache_read:, audio_input:)
-        [(usage["prompt_tokens"] || usage["input_tokens"]).to_i - cache_read.to_i - audio_input.to_i, 0].max
+        [(usage["prompt_tokens"] || usage["input_tokens"]).to_i - cache_read - audio_input, 0].max
       end
 
       def regular_output_tokens(usage:, audio_output:)
-        [(usage["completion_tokens"] || usage["output_tokens"]).to_i - audio_output.to_i, 0].max
+        [(usage["completion_tokens"] || usage["output_tokens"]).to_i - audio_output, 0].max
       end
 
       def cache_read_input_tokens(usage)
         details = usage["prompt_tokens_details"] || usage["input_tokens_details"] || {}
-        details["cached_tokens"]
+        details["cached_tokens"].to_i
       end
 
       def audio_input_tokens(usage)
         details = usage["prompt_tokens_details"] || usage["input_tokens_details"] || {}
-        details["audio_tokens"]
+        details["audio_tokens"].to_i
       end
 
       def hidden_output_tokens(usage)
         details = usage["completion_tokens_details"] || usage["output_tokens_details"] || {}
-        details["reasoning_tokens"]
+        details["reasoning_tokens"].to_i
       end
 
       def audio_output_tokens(usage)
         details = usage["completion_tokens_details"] || usage["output_tokens_details"] || {}
-        details["audio_tokens"]
+        details["audio_tokens"].to_i
       end
     end
   end

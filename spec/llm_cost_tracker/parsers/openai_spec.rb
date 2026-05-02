@@ -101,7 +101,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq("priority")
+      expect(result.pricing_mode).to eq(:priority)
     end
 
     it "captures OpenAI regional processing for eligible models" do
@@ -119,7 +119,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq("priority_data_residency")
+      expect(result.pricing_mode).to eq(:priority_data_residency)
     end
 
     it "does not mark non-uplift OpenAI regional models as data residency pricing" do
@@ -241,7 +241,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       )
 
       expect(result.service_charges.map(&:component)).to eq(
-        %w[web_search_request file_search_call container_session]
+        %i[web_search_request file_search_call container_session]
       )
       expect(result.service_charges.map(&:cost_status)).to all(
         eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
@@ -415,7 +415,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         events: events
       )
 
-      expect(result.pricing_mode).to eq("priority")
+      expect(result.pricing_mode).to eq(:priority)
     end
 
     it "extracts usage from Responses API completed events" do
@@ -506,7 +506,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         events: events
       )
 
-      expect(result.service_charges.map(&:component)).to eq(%w[web_search_request file_search_call])
+      expect(result.service_charges.map(&:component)).to eq(%i[web_search_request file_search_call])
       expect(result.service_charges.map(&:provider_item_id)).to eq(%w[ws_456 fs_456])
     end
 

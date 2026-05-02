@@ -99,12 +99,12 @@ module LlmCostTracker
 
         [
           service_charge(
-            component: "web_search_request",
+            component: :web_search_request,
             quantity: server_tool_use["web_search_requests"],
             source_key: "usage.server_tool_use.web_search_requests"
           ),
           service_charge(
-            component: "code_execution_request",
+            component: :code_execution_request,
             quantity: server_tool_use["code_execution_requests"],
             source_key: "usage.server_tool_use.code_execution_requests"
           )
@@ -140,7 +140,7 @@ module LlmCostTracker
           input_tokens: input,
           output_tokens: output,
           total_tokens: input + output + cache_read + cache_write + cache_write_1h,
-          cache_read_input_tokens: usage["cache_read_input_tokens"],
+          cache_read_input_tokens: cache_read,
           cache_write_input_tokens: cache_write,
           cache_write_1h_input_tokens: cache_write_1h
         )

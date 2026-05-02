@@ -15,7 +15,7 @@ RSpec.describe LlmCostTracker::TokenUsage do
       hidden_output_tokens: 6
     )
 
-    expect(usage.stored_attributes).to eq(
+    expect(usage.to_h).to eq(
       input_tokens: 10,
       cache_read_input_tokens: 2,
       cache_write_input_tokens: 3,

@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "active_support/core_ext/hash/keys"
 require "active_support/core_ext/object/blank"
 require "time"
 
@@ -16,16 +15,17 @@ module LlmCostTracker
   module Pricing
     extend ServiceCharges
 
-    STANDARD_MODE_VALUES = %w[auto default standard standard_only].freeze
+    STANDARD_MODE_VALUES = %i[auto default standard standard_only].freeze
     RATE_DENOMINATOR_TOKENS = 1_000_000
     private_constant :STANDARD_MODE_VALUES, :RATE_DENOMINATOR_TOKENS
 
     class << self
       def normalize_mode(value)
-        mode = value.to_s.strip.presence
+        return nil if value.nil?
+
+        mode = value.is_a?(Symbol) ? value : value.strip.presence&.tr("-", "_")&.to_sym
         return nil unless mode
 
-        mode = mode.tr("-", "_")
         STANDARD_MODE_VALUES.include?(mode) ? nil : mode
       end
 
@@ -80,7 +80,11 @@ module LlmCostTracker
 
       def stored_cost_attributes(attributes)
         cost_keys = Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost]
-        attributes.to_h.symbolize_keys.slice(*cost_keys).compact
+        attributes = attributes.to_h
+        cost_keys.each_with_object({}) do |key, stored|
+          value = attributes[key]
+          stored[key] = value unless value.nil?
+        end
       end
 
       private
@@ -88,7 +92,7 @@ module LlmCostTracker
       def cost_from(calculation)
         costs = calculation[:costs]
         values = Billing::Components::TOKEN_PRICED.to_h do |component|
-          [component.cost_key, costs[component.key].round(8)]
+          [component.cost_key, costs.fetch(component.key).round(8)]
         end
 
         values.merge(total_cost: costs.values.sum.round(8))
@@ -97,13 +101,12 @@ module LlmCostTracker
       def snapshot_from(calculation, token_usage)
         match = calculation[:match]
         effective = calculation[:effective]
-        quantities = token_usage.price_quantities
         rates = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, values|
-          quantity = quantities[component.key]
+          quantity = token_usage.public_send(component.token_key)
           next unless quantity.positive?
 
           values[component.key] = {
-            amount: effective[component.key],
+            amount: effective.fetch(component.key),
             quantity: RATE_DENOMINATOR_TOKENS
           }
         end
@@ -134,19 +137,20 @@ module LlmCostTracker
       end
 
       def costs_for(usage, effective)
-        usage.price_quantities.to_h do |key, tokens|
-          [key, token_cost(tokens, effective[key])]
+        Billing::Components::TOKEN_PRICED.to_h do |component|
+          tokens = usage.public_send(component.token_key)
+          [component.key, token_cost(tokens, effective[component.key])]
         end
       end
 
       def source_version_for(source)
-        case source.to_s
-        when "bundled"
+        case source
+        when :bundled
           LlmCostTracker::VERSION
-        when "prices_file"
+        when :prices_file
           path = LlmCostTracker.configuration.prices_file
           path ? File.mtime(path).utc.iso8601 : nil
-        when "pricing_overrides"
+        when :pricing_overrides
           "configuration"
         end
       rescue Errno::ENOENT

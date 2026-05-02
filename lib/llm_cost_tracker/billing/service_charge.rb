@@ -27,9 +27,9 @@ module LlmCostTracker
     )
 
     class ServiceCharge
-      PROVIDER_USAGE_BASIS = "provider_usage"
+      PROVIDER_USAGE_BASIS = :provider_usage
       USD = "USD"
-      STRING_ATTRIBUTES = %i[
+      OPTIONAL_ATTRIBUTES = %i[
         charge_id
         pricing_basis
         price_key
@@ -64,22 +64,22 @@ module LlmCostTracker
       end
 
       def self.normalized_attributes(attributes)
-        attributes = attributes.to_h.transform_keys(&:to_sym)
-        component = attributes.fetch(:component).to_sym
+        attributes = attributes.to_h
+        component = attributes.fetch(:component)
         definition = component_definition(component)
         cost = decimal_or_nil(attributes[:cost])
 
         {
-          component: component.to_s,
-          unit: (attributes[:unit] || definition.unit).to_s,
+          component: component,
+          unit: definition.unit,
           quantity: decimal_or_zero(attributes[:quantity]),
           rate_amount: decimal_or_nil(attributes[:rate_amount]),
           rate_quantity: decimal_or_nil(attributes[:rate_quantity]) || BigDecimal("1"),
           cost: cost,
-          currency: (attributes[:currency] || USD).to_s,
+          currency: attributes[:currency] || USD,
           cost_status: cost_status_for(attributes, cost),
-          details: attributes[:details].is_a?(Hash) ? attributes[:details] : {}
-        }.merge(string_attributes_for(attributes))
+          details: attributes[:details] || {}
+        }.merge(optional_attributes_for(attributes))
       end
 
       def self.component_definition(component)
@@ -89,7 +89,7 @@ module LlmCostTracker
       end
 
       def self.cost_status_for(attributes, cost)
-        status = attributes[:cost_status]&.to_s || status_for(cost)
+        status = attributes[:cost_status] || status_for(cost)
         unless CostStatus::SERVICE_CHARGE_STATUSES.include?(status)
           raise Error, "Invalid service charge cost_status: #{status.inspect}"
         end
@@ -97,12 +97,12 @@ module LlmCostTracker
         status
       end
 
-      def self.string_attributes_for(attributes)
-        STRING_ATTRIBUTES.to_h { |key| [key, attributes[key]&.to_s] }
+      def self.optional_attributes_for(attributes)
+        OPTIONAL_ATTRIBUTES.to_h { |key| [key, attributes[key]] }
       end
 
       private_class_method :component_definition, :cost_status_for, :decimal_or_nil, :decimal_or_zero,
-                           :normalized_attributes, :status_for, :string_attributes_for
+                           :normalized_attributes, :optional_attributes_for, :status_for
 
       def priced?
         case cost_status

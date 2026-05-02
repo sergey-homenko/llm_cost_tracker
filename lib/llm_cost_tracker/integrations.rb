@@ -26,11 +26,11 @@ module LlmCostTracker
     end
 
     def normalize(names)
-      Array(names).flatten.map(&:to_sym).uniq
+      Array(names).flatten.uniq
     end
 
     def fetch(name)
-      AVAILABLE.fetch(name.to_sym) do
+      AVAILABLE.fetch(name) do
         message = "Unknown integration: #{name.inspect}. Use one of: #{names.join(', ')}"
         raise LlmCostTracker::Error, message
       end

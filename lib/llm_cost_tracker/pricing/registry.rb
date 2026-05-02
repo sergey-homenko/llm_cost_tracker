@@ -10,10 +10,11 @@ module LlmCostTracker
     module Registry
       DEFAULT_PRICES_PATH = File.expand_path("../prices.json", __dir__)
       EMPTY_PRICES = {}.freeze
-      PRICE_KEYS = Billing::Components::TOKEN_PRICED.map { |component| component.key.to_s }.freeze
-      METADATA_KEYS = %w[
-        _source _source_version _fetched_at _updated _notes _validator_override
-        _context_price_threshold_tokens
+      CONTEXT_THRESHOLD_KEY = :_context_price_threshold_tokens
+      PRICE_KEYS = Billing::Components::TOKEN_PRICED.map { |component| component.key.name }.freeze
+      METADATA_KEYS = [
+        "_source", "_source_version", "_fetched_at", "_updated", "_notes", "_validator_override",
+        CONTEXT_THRESHOLD_KEY.name
       ].freeze
       MUTEX = Mutex.new
 
@@ -37,7 +38,7 @@ module LlmCostTracker
         def file_metadata(path)
           return {} unless path
 
-          registry = YAML.safe_load_file(path.to_s, aliases: false) || {}
+          registry = YAML.safe_load_file(path, aliases: false) || {}
 
           metadata = registry.fetch("metadata", {})
           raise ArgumentError, "prices_file metadata must be a hash" unless metadata.is_a?(Hash)
@@ -54,7 +55,6 @@ module LlmCostTracker
         def file_prices(path)
           return EMPTY_PRICES unless path
 
-          path = path.to_s
           cache_key = [path, File.mtime(path).to_f]
           cached = @file_prices_cache
           return cached[:value] if cached && cached[:key] == cache_key
@@ -85,11 +85,11 @@ module LlmCostTracker
 
         def normalize_price_entry(price)
           price.each_with_object({}) do |(key, value), normalized|
-            key = key.to_s
-            if price_key?(key)
-              normalized[key.to_sym] = Float(value)
-            elsif key == "_context_price_threshold_tokens"
-              normalized[key.to_sym] = Integer(value)
+            key = registry_key_for(key)
+            if key == CONTEXT_THRESHOLD_KEY
+              normalized[key] = Integer(value)
+            elsif key
+              normalized[key] = Float(value)
             end
           end
         end
@@ -106,8 +106,8 @@ module LlmCostTracker
         end
 
         def warn_unknown_keys(model, price, path)
-          unknown_keys = price.keys.map(&:to_s).reject do |key|
-            price_key?(key) || METADATA_KEYS.include?(key)
+          unknown_keys = price.keys.reject do |key|
+            registry_key_for(key) || METADATA_KEYS.include?(key)
           end
           return if unknown_keys.empty?
 
@@ -117,12 +117,25 @@ module LlmCostTracker
           )
         end
 
-        def price_key?(key)
-          return true if PRICE_KEYS.include?(key)
+        def price_key_for(key)
+          name = key.is_a?(Symbol) ? key.name : key
+          Billing::Components::TOKEN_PRICED.each do |candidate|
+            return candidate.key if candidate.key.name == name
 
-          PRICE_KEYS.any? do |base_key|
-            key.end_with?("_#{base_key}") && key.delete_suffix("_#{base_key}") != ""
+            suffix = "_#{candidate.key.name}"
+            next unless name.end_with?(suffix)
+
+            prefix = name.delete_suffix(suffix)
+            return :"#{prefix}_#{candidate.key.name}" unless prefix.empty?
           end
+
+          nil
+        end
+
+        def registry_key_for(key)
+          return CONTEXT_THRESHOLD_KEY if key == CONTEXT_THRESHOLD_KEY || key == CONTEXT_THRESHOLD_KEY.name
+
+          price_key_for(key)
         end
 
         def validate_price_entry(price, model:, context:)

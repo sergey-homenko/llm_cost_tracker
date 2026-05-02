@@ -88,7 +88,7 @@ module LlmCostTracker
             input_tokens: [usage["promptTokenCount"].to_i - cache_read, 0].max + tool_use_prompt,
             output_tokens: output_tokens(usage),
             total_tokens: total_tokens(usage: usage, cache_read: cache_read, tool_use_prompt: tool_use_prompt),
-            cache_read_input_tokens: usage["cachedContentTokenCount"],
+            cache_read_input_tokens: cache_read,
             hidden_output_tokens: usage["thoughtsTokenCount"]
           ),
           stream: stream,
@@ -139,7 +139,7 @@ module LlmCostTracker
           request.dig("config", "service_tier") ||
           request.dig("config", "serviceTier")
         )
-        request_mode == "flex" ? request_mode : nil
+        request_mode == :flex ? request_mode : nil
       end
 
       def response_header(headers, name)
@@ -173,7 +173,7 @@ module LlmCostTracker
 
         [
           Billing::ServiceCharge.build(
-            component: "grounding_request",
+            component: :grounding_request,
             quantity: quantity,
             cost_status: Billing::CostStatus::UNKNOWN,
             pricing_basis: Billing::ServiceCharge::PROVIDER_USAGE_BASIS,

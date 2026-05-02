@@ -47,14 +47,13 @@ module LlmCostTracker
 
         def postgres_period_expression(period, column, formats)
           "TO_CHAR(" \
-            "DATE_TRUNC(#{connection.quote(period.to_s)}, #{column}), " \
+            "DATE_TRUNC(#{connection.quote(period.name)}, #{column}), " \
             "#{connection.quote(formats.fetch(:postgres))}" \
             ")"
         end
 
         def validated_period(period)
-          normalized_period = period.try(:to_sym)
-          return normalized_period if PERIOD_FORMATS.key?(normalized_period)
+          return period if PERIOD_FORMATS.key?(period)
 
           raise ArgumentError, "invalid period: #{period.inspect}"
         end

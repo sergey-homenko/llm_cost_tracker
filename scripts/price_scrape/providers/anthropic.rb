@@ -3,10 +3,11 @@
 require "nokogiri"
 require "time"
 
+require_relative "../price_fields_validator"
+
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      # rubocop:disable Metrics/ClassLength
       class Anthropic
         SOURCE_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
         MIN_MODELS_EXPECTED = 10
@@ -190,20 +191,14 @@ module LlmCostTracker
         end
 
         def validate!(models)
-          if models.size < MIN_MODELS_EXPECTED
-            raise Error, "expected at least #{MIN_MODELS_EXPECTED} models, parsed #{models.size}"
-          end
-
-          models.each do |model_id, fields|
-            fields.each do |field, value|
-              next if value.is_a?(Float) && value.positive? && value < MAX_PRICE_PER_MTOK
-
-              raise Error, "invalid price for #{model_id}.#{field}: #{value.inspect}"
-            end
-          end
+          PriceFieldsValidator.call(
+            models,
+            minimum: MIN_MODELS_EXPECTED,
+            maximum: MAX_PRICE_PER_MTOK,
+            error_class: Error
+          )
         end
       end
-      # rubocop:enable Metrics/ClassLength
     end
   end
 end

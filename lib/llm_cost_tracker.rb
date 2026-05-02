@@ -100,7 +100,11 @@ module LlmCostTracker
               usage_source: :manual, enforce_budget: false, provider_response_id: nil, pricing_mode: nil,
               service_charges: [], **metadata)
       enforce_budget! if enforce_budget
-      token_usage = TokenUsage.from_hash(metadata.merge(input_tokens: input_tokens, output_tokens: output_tokens))
+      token_usage = TokenUsage.build(
+        **metadata.slice(*TokenUsage.members),
+        input_tokens: input_tokens,
+        output_tokens: output_tokens
+      )
 
       Tracker.record(
         capture: UsageCapture.build(

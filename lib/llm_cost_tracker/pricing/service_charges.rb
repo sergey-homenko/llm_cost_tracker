@@ -25,7 +25,6 @@ module LlmCostTracker
         def file_rates(path)
           return EMPTY_RATES unless path
 
-          path = path.to_s
           cache_key = [path, File.mtime(path)]
           cached = @file_rates_cache
           return cached[:value] if cached && cached[:key] == cache_key
@@ -54,26 +53,36 @@ module LlmCostTracker
           raise ArgumentError, "#{context} must be a hash" unless entries.is_a?(Hash)
 
           entries.each_with_object({}) do |(key, amount), rates|
-            component = component_for(key, context: context)
+            key = key.name if key.is_a?(Symbol)
+            component, tier = component_and_tier_for(key, context: context)
             amount = amount_for(key, amount, context: context)
 
-            rates[key] = {
+            rate = {
               amount: amount,
               quantity: rate_quantity(component),
-              currency: DEFAULT_CURRENCY
+              currency: DEFAULT_CURRENCY,
+              source_key: key
             }
+            component_rates = rates[component.key] ||= { tiers: {} }
+            if tier
+              component_rates[:tiers][tier] = rate
+            else
+              component_rates[:default] = rate
+            end
           end
         end
 
-        def component_for(key, context:)
-          name = key.to_s
-          component = Billing::Components::BY_KEY[name.to_sym]
-          return component if component && component.token_key.nil?
+        def component_and_tier_for(key, context:)
+          Billing::Components::REGISTRY.each do |component|
+            next if component.token_key
 
-          Billing::Components::BY_KEY.each_value do |candidate|
-            next unless candidate.token_key.nil?
+            return [component, nil] if key == component.key.name
 
-            return candidate if name.end_with?("_#{candidate.key}")
+            suffix = "_#{component.key.name}"
+            next unless key.end_with?(suffix)
+
+            tier = key.delete_suffix(suffix)
+            return [component, :"#{tier}"] unless tier.empty?
           end
 
           raise ArgumentError, "service charge price key #{key.inspect} in #{context} uses unknown billing component"
@@ -111,42 +120,46 @@ module LlmCostTracker
       private
 
       def charge_rate_match(provider:, component:, tier:)
-        provider_name = provider.to_s.presence
+        provider_name = provider.is_a?(Symbol) ? provider.name : provider.presence
         return nil unless provider_name
 
         component_key = charge_component_key(component)
         tier_name = normalize_mode(tier)
-        keys = tier_name ? ["#{tier_name}_#{component_key}", component_key] : [component_key]
 
         table = ServiceCharges.file_rates(LlmCostTracker.configuration.prices_file)
         provider_table = table.fetch(provider_name, EMPTY_RATES)
-        key = keys.find { |candidate| provider_table.key?(candidate) }
-        if key
+        rate = rate_for(provider_table, component_key: component_key, tier_name: tier_name)
+        if rate
           return {
-            source: "prices_file",
-            key: "service_charges.#{provider_name}.#{key}",
-            rate: provider_table.fetch(key)
+            source: :prices_file,
+            key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
+            rate: rate
           }
         end
 
         table = ServiceCharges.builtin_rates
         provider_table = table.fetch(provider_name, EMPTY_RATES)
-        key = keys.find { |candidate| provider_table.key?(candidate) }
-        if key
+        rate = rate_for(provider_table, component_key: component_key, tier_name: tier_name)
+        if rate
           return {
-            source: "bundled",
-            key: "service_charges.#{provider_name}.#{key}",
-            rate: provider_table.fetch(key)
+            source: :bundled,
+            key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
+            rate: rate
           }
         end
 
         nil
       end
 
+      def rate_for(provider_table, component_key:, tier_name:)
+        component_rates = provider_table.fetch(component_key, EMPTY_RATES)
+        tier_rate = component_rates.fetch(:tiers, EMPTY_RATES)[tier_name] if tier_name
+        tier_rate || component_rates[:default]
+      end
+
       def charge_component_key(component)
-        key = component.to_s.to_sym
-        billing_component = Billing::Components::BY_KEY[key]
-        return billing_component.key.to_s if billing_component && billing_component.token_key.nil?
+        billing_component = Billing::Components::BY_KEY[component]
+        return billing_component.key if billing_component && billing_component.token_key.nil?
 
         raise Error, "Unknown billing component: #{component.inspect}"
       end

@@ -29,14 +29,16 @@ module LlmCostTracker
           values = periods.to_h { |period| [period, 0.0] }
           sql = periods.map { |period| snapshot_select(period) }.join(" UNION ALL ")
           LlmCostTracker::Ledger::Call.find_by_sql(sql).each do |row|
-            values[row.period_key.to_sym] = row.total_cost.to_f
+            period = periods.find { |candidate| candidate.name == row.period_key }
+            values.fetch(period)
+            values[period] = row.total_cost.to_f
           end
           values
         end
 
         def snapshot_select(period)
           start = Period.range_start(period, time)
-          "SELECT #{connection.quote(period.to_s)} AS period_key, " \
+          "SELECT #{connection.quote(period.name)} AS period_key, " \
             "(#{rollup_total_sql(period)}) + (#{pending_total_sql(start)}) AS total_cost"
         end
 

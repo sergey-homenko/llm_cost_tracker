@@ -113,9 +113,9 @@
               <td class="lct-nowrap"><%= format_date(call.tracked_at) %></td>
               <td><%= call.provider %></td>
               <td><code class="lct-code"><%= call.model %></code></td>
-              <td class="lct-num"><%= format_tokens(call.input_tokens) %></td>
-              <td class="lct-num"><%= format_tokens(call.output_tokens) %></td>
-              <td class="lct-num"><%= format_tokens(call.total_tokens) %></td>
+              <td class="lct-num"><%= number(call.input_tokens) %></td>
+              <td class="lct-num"><%= number(call.output_tokens) %></td>
+              <td class="lct-num"><%= number(call.total_tokens) %></td>
               <td class="lct-num<%= ' lct-num-muted' if call.total_cost.nil? %>"><%= optional_money(call.total_cost) %></td>
               <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
               <td><%= render "llm_cost_tracker/shared/tag_chips", tags: call.parsed_tags %></td>

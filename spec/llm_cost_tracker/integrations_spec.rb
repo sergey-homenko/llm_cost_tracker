@@ -232,7 +232,7 @@ RSpec.describe LlmCostTracker::Integrations do
         total_tokens: 150,
         cache_read_input_tokens: 20,
         hidden_output_tokens: 7,
-        usage_source: "sdk_response",
+        usage_source: :sdk_response,
         provider_response_id: "resp_123"
       )
       expect(events.first[:latency_ms]).to be >= 0
@@ -253,7 +253,7 @@ RSpec.describe LlmCostTracker::Integrations do
       OpenAI::Resources::Responses.new.create(model: "gpt-4o")
 
       expect(events.size).to eq(1)
-      expect(events.first[:pricing_mode]).to eq("priority")
+      expect(events.first[:pricing_mode]).to eq(:priority)
     end
   end
 
@@ -325,7 +325,7 @@ RSpec.describe LlmCostTracker::Integrations do
         cache_read_input_tokens: 25,
         hidden_output_tokens: 9,
         stream: true,
-        usage_source: "stream_final",
+        usage_source: :stream_final,
         provider_response_id: "resp_456"
       )
     end
@@ -387,7 +387,7 @@ RSpec.describe LlmCostTracker::Integrations do
         cache_read_input_tokens: 5,
         hidden_output_tokens: 3,
         stream: true,
-        usage_source: "stream_final",
+        usage_source: :stream_final,
         provider_response_id: "chatcmpl_456"
       )
     end
@@ -417,7 +417,7 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 12,
         output_tokens: 8,
         stream: true,
-        usage_source: "stream_final",
+        usage_source: :stream_final,
         provider_response_id: "resp_789"
       )
     end
@@ -447,7 +447,7 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 9,
         output_tokens: 4,
         stream: true,
-        usage_source: "stream_final",
+        usage_source: :stream_final,
         provider_response_id: "resp_typed"
       )
     end
@@ -478,7 +478,7 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 5,
         output_tokens: 3,
         stream: true,
-        usage_source: "stream_final",
+        usage_source: :stream_final,
         provider_response_id: "resp_enum"
       )
     end
@@ -499,7 +499,7 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 0,
         output_tokens: 0,
         stream: true,
-        usage_source: "unknown"
+        usage_source: :unknown
       )
     end
   end
@@ -529,7 +529,7 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 0,
         output_tokens: 0,
         stream: true,
-        usage_source: "unknown",
+        usage_source: :unknown,
         provider_response_id: "resp_error"
       )
       expect(events.first[:tags]).to include(stream_errored: true)
@@ -568,7 +568,7 @@ RSpec.describe LlmCostTracker::Integrations do
         cache_write_input_tokens: 20,
         cache_write_1h_input_tokens: 10,
         hidden_output_tokens: 6,
-        usage_source: "sdk_response",
+        usage_source: :sdk_response,
         provider_response_id: "msg_123"
       )
       expect(events.first.dig(:cost, :cache_write_input_cost)).to eq(0.000075)
@@ -593,7 +593,7 @@ RSpec.describe LlmCostTracker::Integrations do
       Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-6")
 
       expect(events.size).to eq(1)
-      expect(events.first[:pricing_mode]).to eq("priority")
+      expect(events.first[:pricing_mode]).to eq(:priority)
     end
   end
 
@@ -615,7 +615,7 @@ RSpec.describe LlmCostTracker::Integrations do
       Anthropic::Resources::Messages.new.create(model: "claude-opus-4-6", speed: "fast", inference_geo: "us")
 
       expect(events.size).to eq(1)
-      expect(events.first[:pricing_mode]).to eq("fast_data_residency")
+      expect(events.first[:pricing_mode]).to eq(:fast_data_residency)
       expect(events.first.dig(:cost, :input_cost)).to eq(0.00396)
       expect(events.first.dig(:cost, :output_cost)).to eq(0.005775)
     end
@@ -666,7 +666,7 @@ RSpec.describe LlmCostTracker::Integrations do
         cache_write_input_tokens: 20,
         cache_write_1h_input_tokens: 10,
         stream: true,
-        usage_source: "stream_final",
+        usage_source: :stream_final,
         provider_response_id: "msg_456"
       )
     end
@@ -701,7 +701,7 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 30,
         output_tokens: 14,
         stream: true,
-        usage_source: "stream_final",
+        usage_source: :stream_final,
         provider_response_id: "msg_789"
       )
     end
@@ -747,7 +747,7 @@ RSpec.describe LlmCostTracker::Integrations do
         cache_write_input_tokens: 5,
         hidden_output_tokens: 8,
         stream: true,
-        usage_source: "ruby_llm",
+        usage_source: :ruby_llm,
         provider_response_id: "msg_123"
       )
     end
@@ -771,7 +771,7 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 42,
         output_tokens: 0,
         stream: false,
-        usage_source: "ruby_llm"
+        usage_source: :ruby_llm
       )
     end
   end
@@ -798,7 +798,7 @@ RSpec.describe LlmCostTracker::Integrations do
         output_tokens: 3,
         hidden_output_tokens: 2,
         stream: false,
-        usage_source: "ruby_llm",
+        usage_source: :ruby_llm,
         provider_response_id: "audio_resp_123"
       )
     end
@@ -819,7 +819,7 @@ RSpec.describe LlmCostTracker::Integrations do
       expect(events.first).to include(
         model: "gpt-4o",
         stream: true,
-        usage_source: "ruby_llm"
+        usage_source: :ruby_llm
       )
     end
   end
@@ -832,6 +832,15 @@ RSpec.describe LlmCostTracker::Integrations do
 
     expect(check.status).to eq(:ok)
     expect(check.message).to eq("ruby_llm integration installed")
+  end
+
+  it "reports available but uninstalled integrations" do
+    install_ruby_llm_fakes(LlmCostTrackerIntegrationSpecTypes::RubyLlmResponse.new(input_tokens: 1, output_tokens: 1))
+
+    check = LlmCostTracker::Integrations.checks([:ruby_llm]).first
+
+    expect(check.status).to eq(:warn)
+    expect(check.message).to eq("ruby_llm integration is enabled but not installed")
   end
 
   it "raises when an enabled integration cannot satisfy its install contract" do
@@ -939,6 +948,12 @@ RSpec.describe LlmCostTracker::Integrations do
   it "rejects unknown integrations" do
     expect do
       LlmCostTracker.configure { |config| config.instrument :gemini }
+    end.to raise_error(LlmCostTracker::Error, /Unknown integration: :gemini/)
+  end
+
+  it "rejects unknown integration fetches" do
+    expect do
+      LlmCostTracker::Integrations.fetch(:gemini)
     end.to raise_error(LlmCostTracker::Error, /Unknown integration: :gemini/)
   end
 end

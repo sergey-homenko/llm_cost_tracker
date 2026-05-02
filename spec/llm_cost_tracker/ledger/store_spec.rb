@@ -47,7 +47,7 @@ RSpec.describe "ActiveRecord storage integration" do
       tags: tags,
       latency_ms: nil,
       stream: false,
-      usage_source: "manual",
+      usage_source: :manual,
       provider_response_id: nil,
       tracked_at: tracked_at,
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,

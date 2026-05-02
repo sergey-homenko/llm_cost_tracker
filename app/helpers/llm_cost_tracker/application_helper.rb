@@ -39,10 +39,6 @@ module LlmCostTracker
       number_with_delimiter(value.to_i)
     end
 
-    def format_tokens(value)
-      number(value)
-    end
-
     def format_date(value)
       value.try(:strftime, "%Y-%m-%d %H:%M") || value.to_s
     end

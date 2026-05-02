@@ -8,18 +8,17 @@ module LlmCostTracker
     end
 
     def instrumented?(name)
-      @instrumented_integrations.include?(name.to_sym)
+      @instrumented_integrations.include?(name)
     end
 
     private
 
     def normalize_instrumentation_names(names)
       names.flatten.flat_map do |name|
-        key = name.to_sym
-        next Integrations.names if key == :all
+        next Integrations.names if name == :all
 
-        validate_instrumentation_name!(key)
-        key
+        validate_instrumentation_name!(name)
+        name
       end
     end
 

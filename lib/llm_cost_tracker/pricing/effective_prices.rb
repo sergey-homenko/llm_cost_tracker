@@ -7,12 +7,11 @@ module LlmCostTracker
     module EffectivePrices
       class << self
         def call(usage:, prices:, pricing_mode:)
-          quantities = usage.price_quantities
           context_tier = context_tier?(usage: usage, prices: prices)
 
           Billing::Components::TOKEN_PRICED.to_h do |component|
             price_key = component.key
-            tokens = quantities.fetch(price_key)
+            tokens = usage.public_send(component.token_key)
             price = if tokens.positive?
                       price_for(
                         prices: prices,
@@ -49,10 +48,14 @@ module LlmCostTracker
 
           base_key = key == :output ? :output : :input
           base_price = contextual_price(prices: prices, key: base_key, context_tier: context_tier)
-          mode_base_price = contextual_price(prices: prices, key: :"#{mode}_#{base_key}", context_tier: context_tier)
+          mode_base_price = contextual_price(
+            prices: prices,
+            key: :"#{mode}_#{base_key}",
+            context_tier: context_tier
+          )
           return nil unless base_price && mode_base_price
 
-          standard_price * (mode_base_price.to_f / base_price)
+          standard_price * (mode_base_price / base_price)
         end
 
         def context_tier?(usage:, prices:)
@@ -64,7 +67,7 @@ module LlmCostTracker
                          usage.cache_write_input_tokens +
                          usage.cache_write_1h_input_tokens +
                          usage.audio_input_tokens
-          input_tokens > threshold.to_i
+          input_tokens > threshold
         end
       end
     end

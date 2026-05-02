@@ -66,10 +66,11 @@ module LlmCostTracker
         @mutex.synchronize do
           ensure_open!
           @provider_response_id = extra.delete(:provider_response_id) || @provider_response_id
-          @explicit_usage = TokenUsage.from_hash(extra.merge(
-                                                   input_tokens: input_tokens.to_i,
-                                                   output_tokens: output_tokens.to_i
-                                                 ))
+          @explicit_usage = TokenUsage.build(
+            **extra.slice(*TokenUsage.members),
+            input_tokens: input_tokens,
+            output_tokens: output_tokens
+          )
         end
         self
       end

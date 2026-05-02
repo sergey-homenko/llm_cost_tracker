@@ -32,9 +32,5 @@ module LlmCostTracker
         service_charges: Billing::ServiceCharge.build_many(attributes[:service_charges])
       )
     end
-
-    def to_h
-      super.compact
-    end
   end
 end

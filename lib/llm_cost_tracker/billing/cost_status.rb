@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "components"
+
 module LlmCostTracker
   module Billing
     module CostStatus
@@ -13,9 +15,11 @@ module LlmCostTracker
       class << self
         # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def call(token_usage:, usage_source:, token_cost:, service_charges:, total_cost:)
-          return UNKNOWN if usage_source.to_s == UNKNOWN
+          return UNKNOWN if usage_source == :unknown
 
-          token_billable = token_usage.price_quantities.values.any?(&:positive?)
+          token_billable = Components::TOKEN_PRICED.any? do |component|
+            token_usage.public_send(component.token_key).positive?
+          end
           service_billable = false
           service_priced = false
           service_unpriced = false

@@ -145,7 +145,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
 
       expect(result.provider).to eq("groq")
       expect(result.provider_response_id).to eq("chatcmpl-groq")
-      expect(result.pricing_mode).to eq("flex")
+      expect(result.pricing_mode).to eq(:flex)
       expect(result.model).to eq("openai/gpt-oss-20b")
       expect(result.token_usage.input_tokens).to eq(33)
       expect(result.token_usage.cache_read_input_tokens).to eq(4_608)

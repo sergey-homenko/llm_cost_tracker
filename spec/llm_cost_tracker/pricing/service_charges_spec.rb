@@ -16,10 +16,11 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
   describe ".builtin_rates" do
     it "loads bundled service charge rates once" do
-      expect(described_class.builtin_rates.dig("anthropic", "web_search_request")).to include(
+      expect(described_class.builtin_rates.dig("anthropic", :web_search_request, :default)).to include(
         amount: BigDecimal("10.0"),
         quantity: BigDecimal("1000"),
-        currency: "USD"
+        currency: "USD",
+        source_key: "web_search_request"
       )
       expect(described_class.builtin_rates).to eq(described_class.builtin_rates)
     end
@@ -28,7 +29,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
       registry = YAML.safe_load_file(LlmCostTracker::Pricing::Registry::DEFAULT_PRICES_PATH, aliases: false)
       tool_keys = registry.fetch("service_charges").values.flat_map(&:keys)
       components = LlmCostTracker::Billing::Components::REGISTRY.filter_map do |component|
-        component.key.to_s if component.token_key.nil?
+        component.key.name if component.token_key.nil?
       end
 
       expect(tool_keys - components).to eq([])
@@ -51,15 +52,23 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
         expect(described_class.file_rates(file.path)).to eq(
           "openai" => {
-            "web_search_request" => {
-              amount: BigDecimal("10.0"),
-              quantity: BigDecimal("1000"),
-              currency: "USD"
+            web_search_request: {
+              tiers: {},
+              default: {
+                amount: BigDecimal("10.0"),
+                quantity: BigDecimal("1000"),
+                currency: "USD",
+                source_key: "web_search_request"
+              }
             },
-            "container_session" => {
-              amount: BigDecimal("0.03"),
-              quantity: BigDecimal("1"),
-              currency: "USD"
+            container_session: {
+              tiers: {},
+              default: {
+                amount: BigDecimal("0.03"),
+                quantity: BigDecimal("1"),
+                currency: "USD",
+                source_key: "container_session"
+              }
             }
           }
         )
@@ -81,10 +90,15 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
         expect(described_class.file_rates(file.path)).to eq(
           "openai" => {
-            "priority_web_search_request" => {
-              amount: BigDecimal("12.0"),
-              quantity: BigDecimal("1000"),
-              currency: "USD"
+            web_search_request: {
+              tiers: {
+                priority: {
+                  amount: BigDecimal("12.0"),
+                  quantity: BigDecimal("1000"),
+                  currency: "USD",
+                  source_key: "priority_web_search_request"
+                }
+              }
             }
           }
         )
@@ -168,13 +182,58 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         )
       ).to eq(
         "anthropic" => {
-          "web_search_request" => {
-            amount: BigDecimal("10.0"),
-            quantity: BigDecimal("1000"),
-            currency: "USD"
+          web_search_request: {
+            tiers: {},
+            default: {
+              amount: BigDecimal("10.0"),
+              quantity: BigDecimal("1000"),
+              currency: "USD",
+              source_key: "web_search_request"
+            }
           }
         }
       )
+    end
+
+    it "builds rates from symbol service charge keys" do
+      expect(
+        described_class.rates_from_registry(
+          {
+            "service_charges" => {
+              "openai" => {
+                priority_web_search_request: 12.0
+              }
+            }
+          }
+        )
+      ).to eq(
+        "openai" => {
+          web_search_request: {
+            tiers: {
+              priority: {
+                amount: BigDecimal("12.0"),
+                quantity: BigDecimal("1000"),
+                currency: "USD",
+                source_key: "priority_web_search_request"
+              }
+            }
+          }
+        }
+      )
+    end
+
+    it "rejects tier keys without tier names" do
+      expect do
+        described_class.rates_from_registry(
+          {
+            "service_charges" => {
+              "openai" => {
+                "_web_search_request" => 10.0
+              }
+            }
+          }
+        )
+      end.to raise_error(ArgumentError, /unknown billing component/)
     end
   end
 
