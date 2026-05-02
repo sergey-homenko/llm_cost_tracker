@@ -21,7 +21,7 @@ module LlmCostTrackerIntegrationSpecTypes
     :inference_geo,
     keyword_init: true
   )
-  Details = Struct.new(:cached_tokens, :reasoning_tokens, keyword_init: true)
+  Details = Struct.new(:cached_tokens, :reasoning_tokens, :audio_tokens, keyword_init: true)
   Response = Struct.new(:id, :model, :usage, :service_tier, keyword_init: true)
   BrokenStreamEvent = Class.new do
     def to_h
@@ -232,6 +232,36 @@ RSpec.describe LlmCostTracker::Integrations do
         provider_response_id: "resp_123"
       )
       expect(events.first[:latency_ms]).to be >= 0
+    end
+  end
+
+  it "tracks official OpenAI response audio tokens" do
+    response = response_class.new(
+      id: "resp_audio",
+      model: "gpt-realtime-1.5",
+      usage: usage_class.new(
+        input_tokens: 120,
+        output_tokens: 70,
+        input_tokens_details: details_class.new(cached_tokens: 20, audio_tokens: 30),
+        output_tokens_details: details_class.new(reasoning_tokens: 5, audio_tokens: 10)
+      )
+    )
+    install_openai_fakes(response)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Responses.new.create(model: "gpt-realtime-1.5")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        model: "gpt-realtime-1.5",
+        input_tokens: 70,
+        cache_read_input_tokens: 20,
+        audio_input_tokens: 30,
+        output_tokens: 60,
+        audio_output_tokens: 10,
+        hidden_output_tokens: 5
+      )
     end
   end
 

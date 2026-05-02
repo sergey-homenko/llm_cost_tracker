@@ -127,8 +127,7 @@ When you have a client that doesn't expose Faraday and isn't an official SDK —
 LlmCostTracker.track(
   provider: :anthropic,
   model: "claude-sonnet-4-6",
-  input_tokens: 1500,
-  output_tokens: 320,
+  tokens: { input: 1500, output: 320 },
   tags: {
     feature: "summarizer",
     user_id: current_user.id

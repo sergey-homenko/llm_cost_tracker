@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "billing/components"
+
 module LlmCostTracker
   TokenUsage = Data.define(
     :input_tokens,
@@ -12,6 +14,21 @@ module LlmCostTracker
     :total_tokens,
     :hidden_output_tokens
   ) do
+    def self.build_from_tokens(tokens)
+      return tokens if tokens.is_a?(self)
+
+      values = tokens.to_h
+      token_attributes = Billing::Components::TOKEN_PRICED.to_h do |component|
+        [component.token_key, values.fetch(component.key, 0)]
+      end
+
+      build(
+        **token_attributes,
+        total_tokens: values[:total],
+        hidden_output_tokens: values.fetch(:hidden_output, 0)
+      )
+    end
+
     def self.build(input_tokens:, output_tokens:, cache_read_input_tokens: 0,
                    cache_write_input_tokens: 0, cache_write_1h_input_tokens: 0,
                    audio_input_tokens: 0, audio_output_tokens: 0,

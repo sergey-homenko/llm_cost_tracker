@@ -4,6 +4,7 @@ require "active_support/core_ext/object/blank"
 require "time"
 
 require_relative "version"
+require_relative "token_usage"
 require_relative "billing/components"
 require_relative "pricing/registry"
 require_relative "pricing/lookup"
@@ -29,11 +30,11 @@ module LlmCostTracker
         STANDARD_MODE_VALUES.include?(mode) ? nil : mode
       end
 
-      def cost_for(provider:, model:, token_usage:, pricing_mode: nil)
+      def cost_for(provider:, model:, tokens:, pricing_mode: nil)
         calculation = calculation_for(
           provider: provider,
           model: model,
-          token_usage: token_usage,
+          tokens: tokens,
           pricing_mode: pricing_mode
         )
         return nil unless calculation
@@ -41,35 +42,35 @@ module LlmCostTracker
         cost_from(calculation)
       end
 
-      def cost_and_snapshot_for(provider:, model:, token_usage:, pricing_mode: nil)
+      def cost_and_snapshot_for(provider:, model:, tokens:, pricing_mode: nil)
         calculation = calculation_for(
           provider: provider,
           model: model,
-          token_usage: token_usage,
+          tokens: tokens,
           pricing_mode: pricing_mode
         )
         return [nil, nil] unless calculation
 
-        [cost_from(calculation), snapshot_from(calculation, token_usage)]
+        [cost_from(calculation), snapshot_from(calculation)]
       end
 
-      def snapshot_for(provider:, model:, token_usage:, pricing_mode: nil)
+      def snapshot_for(provider:, model:, tokens:, pricing_mode: nil)
         calculation = calculation_for(
           provider: provider,
           model: model,
-          token_usage: token_usage,
+          tokens: tokens,
           pricing_mode: pricing_mode
         )
         return nil unless calculation
 
-        snapshot_from(calculation, token_usage)
+        snapshot_from(calculation)
       end
 
-      def explain(provider:, model:, token_usage:, pricing_mode: nil)
+      def explain(provider:, model:, tokens:, pricing_mode: nil)
         Explainer.call(
           provider: provider,
           model: model,
-          token_usage: token_usage,
+          tokens: tokens,
           pricing_mode: pricing_mode
         )
       end
@@ -94,9 +95,10 @@ module LlmCostTracker
         values.merge(total_cost: costs.values.sum.round(8))
       end
 
-      def snapshot_from(calculation, token_usage)
+      def snapshot_from(calculation)
         match = calculation[:match]
         effective = calculation[:effective]
+        token_usage = calculation[:token_usage]
         rates = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, values|
           quantity = token_usage.public_send(component.token_key)
           next unless quantity.positive?
@@ -118,10 +120,11 @@ module LlmCostTracker
         }
       end
 
-      def calculation_for(provider:, model:, token_usage:, pricing_mode:)
+      def calculation_for(provider:, model:, tokens:, pricing_mode:)
         match = Lookup.call(provider: provider, model: model)
         return nil unless match
 
+        token_usage = TokenUsage.build_from_tokens(tokens)
         pricing_mode = normalize_mode(pricing_mode)
         effective = EffectivePrices.call(usage: token_usage, prices: match.prices, pricing_mode: pricing_mode)
         return nil if effective.value?(nil)
@@ -129,6 +132,7 @@ module LlmCostTracker
         {
           match: match,
           effective: effective,
+          token_usage: token_usage,
           costs: costs_for(token_usage, effective)
         }
       end

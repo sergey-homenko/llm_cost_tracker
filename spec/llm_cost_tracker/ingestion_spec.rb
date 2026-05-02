@@ -27,8 +27,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
       tags: { feature: "chat" }
     )
 
@@ -51,8 +50,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
 
     expect(LlmCostTracker::Ledger::Period::Total.count).to eq(0)
@@ -116,8 +114,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "unknown-model",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
 
     expect(LlmCostTracker::Ingestion::InboxRow.first.total_cost).to be_nil
@@ -133,8 +130,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
     row = LlmCostTracker::Ingestion::InboxRow.first
     parsed = LlmCostTracker::Ingestion::Inbox.event_from_row(row)
@@ -156,8 +152,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
     row = LlmCostTracker::Ingestion::InboxRow.first
     parsed = LlmCostTracker::Ingestion::Inbox.event_from_row(row)
@@ -188,8 +183,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
     LlmCostTracker::Ingestion::Lease.create!(
       name: "default",
@@ -210,8 +204,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
     allow(LlmCostTracker::Ledger::Store).to receive(:insert_many).and_raise("write failed")
     allow(LlmCostTracker::Logging).to receive(:warn)
@@ -238,8 +231,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
 
     expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(2)
@@ -302,8 +294,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
     LlmCostTracker::Ingestion::InboxRow.update_all(locked_at: Time.now.utc, locked_by: "worker-a")
 
@@ -317,8 +308,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
     allow(ingestor).to receive(:ingest_once) do
       sleep 0.02
@@ -457,8 +447,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       LlmCostTracker.track(
         provider: :openai,
         model: "gpt-4o",
-        input_tokens: 1_000,
-        output_tokens: 0,
+        tokens: { input: 1_000, output: 0 },
       )
       raise ActiveRecord::Rollback
     end
@@ -474,8 +463,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
 
     expect(LlmCostTracker::Ingestion::InboxRow.find_by!(event_id: event.event_id)).to be_present
@@ -492,8 +480,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       LlmCostTracker.track(
         provider: :openai,
         model: "gpt-4o",
-        input_tokens: 1_000,
-        output_tokens: 0,
+        tokens: { input: 1_000, output: 0 },
       )
     end.to raise_error(LlmCostTracker::Error, /could not checkout/)
 
@@ -521,8 +508,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      input_tokens: 1_000,
-      output_tokens: 0,
+      tokens: { input: 1_000, output: 0 },
     )
     flush_calls = 0
     allow(LlmCostTracker::Ingestion::Worker).to receive(:flush!) { flush_calls += 1 }

@@ -231,15 +231,14 @@ RSpec.describe "concurrency", :aggregate_failures do
 
     it "raises before tracking when track opts in" do
       allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(
-        LlmCostTracker::BudgetExceededError.new(monthly_total: 1.0, budget: 0.01)
+        LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 0.01)
       )
 
       expect do
         LlmCostTracker.track(
           provider: "openai",
           model: "gpt-4o",
-          input_tokens: 1,
-          output_tokens: 1,
+          tokens: { input: 1, output: 1 },
           enforce_budget: true
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError)
@@ -252,7 +251,7 @@ RSpec.describe "concurrency", :aggregate_failures do
       end
 
       allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(
-        LlmCostTracker::BudgetExceededError.new(monthly_total: 1.0, budget: 0.01)
+        LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 0.01)
       )
 
       ran = false
@@ -275,8 +274,7 @@ RSpec.describe "concurrency", :aggregate_failures do
       LlmCostTracker.track(
         provider: "openai",
         model: "gpt-4o",
-        input_tokens: 1,
-        output_tokens: 1,
+        tokens: { input: 1, output: 1 },
       )
     end
 
@@ -291,8 +289,7 @@ RSpec.describe "concurrency", :aggregate_failures do
       LlmCostTracker.track(
         provider: "openai",
         model: "gpt-4o",
-        input_tokens: 1,
-        output_tokens: 1,
+        tokens: { input: 1, output: 1 },
         enforce_budget: true
       )
 

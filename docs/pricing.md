@@ -88,8 +88,7 @@ another path where the provider response does not expose the tier:
 LlmCostTracker.track(
   provider: "openai",
   model: "gpt-4o",
-  input_tokens: 1_000_000,
-  output_tokens: 250_000,
+  tokens: { input: 1_000_000, output: 250_000 },
   pricing_mode: :batch,
   tags: { feature: "offline_eval" }
 )

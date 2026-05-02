@@ -27,7 +27,7 @@ module LlmCostTracker
         cost_data, pricing_snapshot = Pricing.cost_and_snapshot_for(
           provider: capture.provider,
           model: capture.model,
-          token_usage: capture.token_usage,
+          tokens: capture.token_usage,
           pricing_mode: pricing_mode
         )
 

@@ -96,29 +96,16 @@ module LlmCostTracker
       Tags::Context.with(merged, &)
     end
 
-    def track(provider:, input_tokens:, output_tokens:, model: nil, cache_read_input_tokens: 0,
-              cache_write_input_tokens: 0, cache_write_1h_input_tokens: 0, audio_input_tokens: 0,
-              audio_output_tokens: 0, total_tokens: nil, hidden_output_tokens: 0, tags: {},
-              latency_ms: nil, stream: false, usage_source: :manual, enforce_budget: false,
+    def track(provider:, tokens:, model: nil, tags: {}, latency_ms: nil, stream: false,
+              usage_source: :manual, enforce_budget: false,
               provider_response_id: nil, pricing_mode: nil, service_charges: [])
       enforce_budget! if enforce_budget
-      token_usage = TokenUsage.build(
-        input_tokens: input_tokens,
-        output_tokens: output_tokens,
-        cache_read_input_tokens: cache_read_input_tokens,
-        cache_write_input_tokens: cache_write_input_tokens,
-        cache_write_1h_input_tokens: cache_write_1h_input_tokens,
-        audio_input_tokens: audio_input_tokens,
-        audio_output_tokens: audio_output_tokens,
-        total_tokens: total_tokens,
-        hidden_output_tokens: hidden_output_tokens
-      )
 
       Tracker.record(
         capture: UsageCapture.build(
           provider: provider,
           model: model,
-          token_usage: token_usage,
+          token_usage: TokenUsage.build_from_tokens(tokens),
           stream: stream,
           usage_source: usage_source,
           provider_response_id: provider_response_id,

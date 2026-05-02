@@ -26,7 +26,7 @@ This is the normal path from an application LLM call to stored ledger data.
 ## Explicit Tracking
 
 1. The host app calls `LlmCostTracker.track` with known usage totals, or `LlmCostTracker.track_stream` with stream events.
-2. `track` accepts explicit token usage and tags, builds `UsageCapture`, and sends it to `Tracker.record`.
+2. `track` accepts explicit `tokens:` and `tags:`, builds `UsageCapture`, and sends it to `Tracker.record`.
 3. `track_stream` snapshots tags when the stream collector is created.
 4. `track_stream` uses `Capture::StreamCollector`, then `Parsers.find_for_provider` when events need parsing.
 5. `Tracker.record` prices and persists the event.
@@ -37,7 +37,7 @@ This is the normal path from an application LLM call to stored ledger data.
 
 1. Blank model identifiers become `unknown`.
 2. `UsageCapture` carries provider identity, model identity, stream metadata, response identity, `pricing_mode`, and `TokenUsage`.
-3. `Pricing.cost_for` prices the `TokenUsage` with the normalized `pricing_mode` and returns cost attributes or `nil` for unknown pricing.
+3. `Pricing.cost_for` prices token counters with the normalized `pricing_mode` and returns cost attributes or `nil` for unknown pricing.
 4. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
 5. An `Event` is created around `TokenUsage` and emitted through `ActiveSupport::Notifications`.
 6. The durable ingestion inbox receives the event.

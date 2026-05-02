@@ -364,7 +364,8 @@ RSpec.describe LlmCostTracker::Tracker do
       )
 
       expect(budget_data).not_to be_nil
-      expect(budget_data[:monthly_total]).to be > 0
+      expect(budget_data[:budget_type]).to eq(:monthly)
+      expect(budget_data[:total]).to be > 0
     end
 
     it "triggers per-call budget callback when one event exceeds the ceiling" do
@@ -383,11 +384,27 @@ RSpec.describe LlmCostTracker::Tracker do
 
       expect(budget_data).to include(
         budget_type: :per_call,
-        call_cost: event.total_cost,
         total: event.total_cost,
         budget: 0.0001,
         last_event: event
       )
+    end
+
+    it "does not trigger per-call budget callback when one event stays below the ceiling" do
+      budget_data = nil
+
+      LlmCostTracker.configure do |c|
+        c.per_call_budget = 100.0
+        c.on_budget_exceeded = ->(data) { budget_data = data }
+      end
+
+      record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 0)
+      )
+
+      expect(budget_data).to be_nil
     end
 
     it "raises a budget error when configured to raise" do
@@ -404,7 +421,8 @@ RSpec.describe LlmCostTracker::Tracker do
           token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000)
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
-        expect(error.monthly_total).to be > error.budget
+        expect(error.budget_type).to eq(:monthly)
+        expect(error.total).to be > error.budget
         expect(error.last_event.provider).to eq("openai")
       }
     end
@@ -425,7 +443,7 @@ RSpec.describe LlmCostTracker::Tracker do
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
         expect(error.budget_type).to eq(:daily)
-        expect(error.daily_total).to eq(12.5)
+        expect(error.total).to eq(12.5)
       }
     end
 
@@ -441,7 +459,7 @@ RSpec.describe LlmCostTracker::Tracker do
         described_class.enforce_budget!
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
         expect(error.budget_type).to eq(:monthly)
-        expect(error.monthly_total).to eq(12.5)
+        expect(error.total).to eq(12.5)
       }
     end
 
@@ -469,8 +487,7 @@ RSpec.describe LlmCostTracker::Tracker do
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
         expect(error.budget_type).to eq(:per_call)
-        expect(error.call_cost).to eq(error.total)
-        expect(error.monthly_total).to be_nil
+        expect(error.total).to be > error.budget
         expect(error.budget).to eq(0.0001)
       }
     end

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../token_usage"
 require_relative "effective_prices"
 
 module LlmCostTracker
@@ -33,7 +34,7 @@ module LlmCostTracker
 
     module Explainer
       class << self
-        def call(provider:, model:, token_usage:, pricing_mode: nil)
+        def call(provider:, model:, tokens:, pricing_mode: nil)
           match = Lookup.call(provider: provider, model: model)
 
           explanation(
@@ -41,7 +42,7 @@ module LlmCostTracker
             model: model,
             pricing_mode: pricing_mode,
             match: match,
-            usage: token_usage
+            usage: TokenUsage.build_from_tokens(tokens)
           )
         end
 

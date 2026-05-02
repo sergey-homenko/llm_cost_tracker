@@ -6,32 +6,18 @@ module LlmCostTracker
   class InvalidFilterError < Error; end
 
   class BudgetExceededError < Error
-    attr_reader :monthly_total, :daily_total, :call_cost, :total, :budget, :budget_type, :last_event
+    attr_reader :total, :budget, :budget_type, :last_event
 
-    def initialize(budget:, last_event: nil, budget_type: nil, total: nil, monthly_total: nil, daily_total: nil,
-                   call_cost: nil)
-      @monthly_total = monthly_total
-      @daily_total = daily_total
-      @call_cost = call_cost
-      @total = total || monthly_total || daily_total || call_cost
+    def initialize(budget:, budget_type:, total:, last_event: nil)
+      @total = total
       @budget = budget
-      @budget_type = budget_type || inferred_budget_type
+      @budget_type = budget_type
       @last_event = last_event
 
       super(
         "LLM #{@budget_type.to_s.tr('_', '-')} budget exceeded: " \
         "$#{format('%.6f', @total)} / $#{format('%.6f', budget)}"
       )
-    end
-
-    private
-
-    def inferred_budget_type
-      return :monthly if monthly_total
-      return :daily if daily_total
-      return :per_call if call_cost
-
-      :unknown
     end
   end
 

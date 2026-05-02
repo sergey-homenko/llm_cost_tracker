@@ -10,7 +10,7 @@ RSpec.describe LlmCostTracker::Pricing do
       provider: provider,
       model: model,
       pricing_mode: pricing_mode,
-      token_usage: LlmCostTracker::TokenUsage.build(**usage)
+      tokens: LlmCostTracker::TokenUsage.build(**usage)
     )
   end
 
@@ -20,7 +20,7 @@ RSpec.describe LlmCostTracker::Pricing do
       provider: provider,
       model: model,
       pricing_mode: pricing_mode,
-      token_usage: LlmCostTracker::TokenUsage.build(**usage)
+      tokens: LlmCostTracker::TokenUsage.build(**usage)
     )
   end
 
@@ -77,7 +77,7 @@ RSpec.describe LlmCostTracker::Pricing do
         provider: "custom",
         model: "snapshot-model",
         pricing_mode: :batch,
-        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 500)
+        tokens: { input: 1_000, output: 500 }
       )
 
       expect(snapshot.fetch(:schema_version)).to eq(1)

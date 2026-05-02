@@ -390,7 +390,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   it "can block LLM requests before they hit the adapter" do
-    error = LlmCostTracker::BudgetExceededError.new(monthly_total: 1.0, budget: 1.0)
+    error = LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 1.0)
     requests = 0
 
     allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(error)

@@ -39,7 +39,4 @@ make provider spend transactional.
 - `budget_type`
 - `total`
 - `budget`
-- `monthly_total`
-- `daily_total`
-- `call_cost`
 - `last_event`
