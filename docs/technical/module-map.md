@@ -9,7 +9,6 @@ Primary files:
 
 - `lib/llm_cost_tracker.rb`
 - `lib/llm_cost_tracker/configuration.rb`
-- `lib/llm_cost_tracker/configuration/instrumentation.rb`
 - `lib/llm_cost_tracker/tags/*`
 - `lib/llm_cost_tracker/doctor.rb`
 - `lib/llm_cost_tracker/doctor/*`

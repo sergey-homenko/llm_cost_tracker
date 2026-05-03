@@ -57,7 +57,8 @@ module LlmCostTracker
         active_keys = active.keys.map { |id| registry_key(provider, id) }
         legacy_active_keys = active.keys.select { |id| current_models.key?(id) }
         deprecated_keys = deprecated.flat_map { |id| [registry_key(provider, id), id] }
-        removed = (legacy_active_keys + deprecated_keys.select { |id| current_models.key?(id) }).uniq
+        removed = Set.new(legacy_active_keys)
+        deprecated_keys.each { |id| removed.add(id) if current_models.key?(id) }
 
         added = active_keys.reject { |id| current_models.key?(id) }
         updated = compute_updates(provider, active, current_models)
@@ -66,7 +67,7 @@ module LlmCostTracker
 
         Result.new(
           added: added,
-          removed: removed,
+          removed: removed.to_a,
           updated: updated,
           service_charges_updated: service_charges_updated,
           unchanged: unchanged,

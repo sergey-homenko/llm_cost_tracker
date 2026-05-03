@@ -317,6 +317,20 @@ RSpec.describe "ActiveRecord storage integration" do
     )
   end
 
+  it "parses raw JSON tag strings" do
+    call = LlmCostTracker::Ledger::Call.new
+    allow(call).to receive(:tags).and_return(%({"feature":"chat","user_id":"42"}))
+
+    expect(call.parsed_tags).to eq("feature" => "chat", "user_id" => "42")
+  end
+
+  it "returns empty tags for malformed raw JSON strings" do
+    call = LlmCostTracker::Ledger::Call.new
+    allow(call).to receive(:tags).and_return("{")
+
+    expect(call.parsed_tags).to eq({})
+  end
+
   it "qualifies PostgreSQL rollup upsert totals" do
     connection = double(adapter_name: "PostgreSQL")
     allow(connection).to receive(:quote_column_name) { |name| %("#{name}") }

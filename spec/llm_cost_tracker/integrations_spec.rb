@@ -969,8 +969,8 @@ RSpec.describe LlmCostTracker::Integrations do
 
     LlmCostTracker.configure { |config| config.instrument :all }
 
-    expect(LlmCostTracker.configuration.instrumented_integrations).to eq(%i[openai anthropic ruby_llm])
-    expect { LlmCostTracker.configuration.instrumented_integrations << :gemini }.to raise_error(FrozenError)
+    expect(LlmCostTracker.configuration.instrumented_integrations).to contain_exactly(:openai, :anthropic, :ruby_llm)
+    expect { LlmCostTracker.configuration.instrumented_integrations.add(:gemini) }.to raise_error(FrozenError)
   end
 
   it "rejects unknown integrations" do

@@ -80,7 +80,7 @@ module LlmCostTracker
         return Check.new(
           :ok,
           "capture",
-          "SDK integrations enabled: #{config.instrumented_integrations.join(', ')}"
+          "SDK integrations enabled: #{config.instrumented_integrations.to_a.join(', ')}"
         )
       end
 

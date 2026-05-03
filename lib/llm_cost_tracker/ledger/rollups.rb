@@ -3,7 +3,6 @@
 require "bigdecimal"
 
 require_relative "period"
-require_relative "rollups/batch"
 require_relative "rollups/upsert_sql"
 
 module LlmCostTracker
@@ -20,7 +19,7 @@ module LlmCostTracker
           events = Array(events).select(&:total_cost)
           return if events.empty?
 
-          upsert_period_totals(Ledger::Rollups::Batch.rows(events))
+          upsert_period_totals(period_rows_for_events(events))
         end
 
         def decrement!(call_rows)
@@ -39,6 +38,24 @@ module LlmCostTracker
               period_start: Period.bucket(period, event.tracked_at),
               total_cost: event.total_cost
             }
+          end
+        end
+
+        def period_rows_for_events(events)
+          period_totals(events).map do |(period, period_start), total_cost|
+            {
+              period: period,
+              period_start: period_start,
+              total_cost: total_cost
+            }
+          end
+        end
+
+        def period_totals(events)
+          events.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |event, totals|
+            Period::PERIODS.each do |period, name|
+              totals[[name, Period.bucket(period, event.tracked_at)]] += BigDecimal(event.total_cost.to_s)
+            end
           end
         end
 

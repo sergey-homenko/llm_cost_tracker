@@ -2,12 +2,9 @@
 
 require_relative "errors"
 require_relative "tags/key"
-require_relative "configuration/instrumentation"
 
 module LlmCostTracker
   class Configuration
-    include ConfigurationInstrumentation
-
     OPENAI_COMPATIBLE_PROVIDERS = {
       "openrouter.ai" => "openrouter",
       "api.deepseek.com" => "deepseek",
@@ -49,7 +46,7 @@ module LlmCostTracker
       @max_tag_count      = 50
       @max_tag_value_bytesize = 1024
       @pricing_overrides = {}
-      @instrumented_integrations = []
+      @instrumented_integrations = Set.new
       @report_tag_breakdowns = []
       @redacted_tag_keys = DEFAULT_REDACTED_TAG_KEYS.dup
       self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
@@ -71,6 +68,15 @@ module LlmCostTracker
       @redacted_tag_keys = Array(value).map(&:to_s)
     end
 
+    def instrument(*names)
+      ensure_shared_configuration_mutable!
+      @instrumented_integrations.merge(normalize_instrumentation_names(names))
+    end
+
+    def instrumented?(name)
+      @instrumented_integrations.include?(name)
+    end
+
     SHARED_SCALAR_ATTRIBUTES.each do |name|
       define_method("#{name}=") do |value|
         ensure_shared_configuration_mutable!
@@ -88,7 +94,7 @@ module LlmCostTracker
     def finalize!
       @default_tags = deep_freeze(@default_tags || {})
       @pricing_overrides = deep_freeze(@pricing_overrides || {})
-      @instrumented_integrations = deep_freeze(@instrumented_integrations || [])
+      @instrumented_integrations = deep_freeze(@instrumented_integrations || Set.new)
       @report_tag_breakdowns = deep_freeze(Array(@report_tag_breakdowns))
       @redacted_tag_keys = deep_freeze(Array(@redacted_tag_keys))
       @openai_compatible_providers = deep_freeze(@openai_compatible_providers || {})
@@ -115,6 +121,18 @@ module LlmCostTracker
       end
     end
 
+    def normalize_instrumentation_names(names)
+      names = names.flatten
+      integrations = Integrations.names
+      return integrations if names == [:all]
+
+      names.each do |name|
+        next if integrations.include?(name)
+
+        raise Error, "Unknown integration: #{name.inspect}. Use one of: #{integrations.join(', ')}"
+      end
+    end
+
     def ensure_shared_configuration_mutable!
       return unless finalized?
 
@@ -129,7 +147,7 @@ module LlmCostTracker
           deep_freeze(nested_value)
         end
         value.frozen? ? value : value.freeze
-      when Array
+      when Array, Set
         value.each { |nested_value| deep_freeze(nested_value) }
         value.frozen? ? value : value.freeze
       when String

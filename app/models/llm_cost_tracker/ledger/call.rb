@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "active_record"
+require "json"
+
 require "llm_cost_tracker/billing/cost_status"
 
 module LlmCostTracker
@@ -8,7 +10,6 @@ module LlmCostTracker
     class Call < ActiveRecord::Base
       extend Period::Grouping
       extend Ledger::CallMetrics
-      include Ledger::Tags::Accessors
 
       self.table_name = "llm_api_calls"
 
@@ -50,6 +51,14 @@ module LlmCostTracker
 
       def self.by_tags(tags)
         Ledger::Tags::Query.apply(tags)
+      end
+
+      def parsed_tags
+        return tags.transform_keys(&:to_s) if tags.is_a?(Hash)
+
+        JSON.parse(tags || "{}")
+      rescue JSON::ParserError
+        {}
       end
     end
   end
