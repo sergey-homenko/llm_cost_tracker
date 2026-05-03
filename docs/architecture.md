@@ -1,33 +1,115 @@
 # Architecture
 
-LLM Cost Tracker is a provider-agnostic billing ledger. Core code should model durable billing concepts, not the naming quirks of one provider or one model family.
+LLM Cost Tracker is a provider-neutral billing ledger. Core code models durable
+billing and observability concepts; provider-specific API fields stop at
+ingestion, integration, and price-scraper boundaries.
 
-Core vocabulary belongs in provider-neutral terms:
+## Canonical Vocabulary
 
-- `input_tokens`
-- `cache_read_input_tokens`
-- `cache_write_input_tokens`
-- `cache_write_1h_input_tokens`
-- `cache_write_input_cost`
-- `cache_write_1h_input_cost`
-- `output_tokens`
-- `hidden_output_tokens`
-- `pricing_mode`
-- `provider_response_id`
+Core vocabulary uses provider-neutral terms:
 
-`cache_write_input_tokens` and `cache_write_input_cost` mean the standard cache-write bucket only. Longer cache-write retention windows use their own token and cost fields.
+| Concept | Canonical terms |
+| --- | --- |
+| Text tokens | `input_tokens`, `output_tokens` |
+| Cache tokens | `cache_read_input_tokens`, `cache_write_input_tokens`, `cache_write_1h_input_tokens` |
+| Audio tokens | `audio_input_tokens`, `audio_output_tokens` |
+| Hidden/reasoning tokens | `hidden_output_tokens` |
+| Costs | component cost columns plus `total_cost` |
+| Pricing tier | `pricing_mode` |
+| Pricing audit | `pricing_snapshot`, `cost_status` |
+| Provider identity | `provider`, `model`, `provider_response_id` |
+| Tool/runtime usage | `service_charges` |
 
-Provider-specific names belong only at ingestion boundaries: parsers and stream adapters. Those adapters translate raw fields into the canonical ledger vocabulary before data reaches `Tracker`, `Pricing`, storage, dashboard services, or reports.
+Provider names such as `service_tier`, `prompt_tokens_details`, `server_tool_use`,
+or `groundingMetadata` may appear only while reading provider payloads. Past that
+boundary, code should use canonical terms.
 
-Pricing logic should prefer generic mechanisms over provider branches. Use provider/model price entries only for lookup and rate selection. Use `pricing_mode` plus mode-prefixed price keys for alternate billing modes, and separate cache-write duration buckets when provider usage exposes them, instead of adding model-specific conditionals.
+## Component Ownership
 
-When a positive-token bucket has no exact price, the event should remain unknown pricing instead of guessing from a nearby bucket. The exception is a documented pricing-mode multiplier such as batch discount stacking, where deriving a cache bucket from the input discount preserves the provider's published rate structure.
+`Billing::Components` is the master registry for billable components. It owns
+component keys, units, categories, directions, modalities, token keys, and cost
+keys.
 
-Long-context price tiers are selected from `TokenUsage` input-side totals with `_context_price_threshold_tokens` and `above_context_*` price keys. Provider parsers should keep emitting canonical token buckets; they should not decide pricing tiers themselves.
+Pricing, ledger schema checks, dashboards, reports, and generator templates must
+derive component knowledge from `Billing::Components` when the contract is
+shared. If a boundary must keep an explicit list, add a drift spec.
 
-Tags remain the extension point for app-specific attribution such as tenant, user, feature, trace, job, workflow, or agent session. Do not promote those dimensions into first-class columns unless the ledger itself needs them for provider-agnostic billing behavior.
+## Pricing Model
 
-Hot-path guardrails must not aggregate over the growing call ledger. ActiveRecord period budgets should read maintained rows in `llm_cost_tracker_period_totals`; dashboard analytics may run grouped queries because they are user-initiated reporting paths. Do not add dashboard-only aggregate tables until bounded indexed reads from `llm_api_calls` are no longer enough for the supported date range.
+Token pricing uses provider/model registry entries. Price keys mirror canonical
+component keys:
+
+| Component | Base price key |
+| --- | --- |
+| Input text | `input` |
+| Output text | `output` |
+| Cache read | `cache_read_input` |
+| Cache write | `cache_write_input` |
+| 1-hour cache write | `cache_write_1h_input` |
+| Audio input | `audio_input` |
+| Audio output | `audio_output` |
+
+Alternate provider modes use mode-prefixed keys such as `batch_input`,
+`priority_output`, `flex_audio_input`, or `data_residency_cache_read_input`.
+
+Long-context price tiers use `_context_price_threshold_tokens` and
+`above_context_*` keys. Parsers emit token buckets; pricing chooses the tier.
+
+When a positive-token bucket has no exact price, the event stays unknown instead
+of guessing from a nearby bucket. The exception is a documented stackable
+multiplier, such as a batch cache-rate discount derived from a published input
+discount.
+
+## Service Charges
+
+`service_charges` represent provider-reported tool/runtime usage outside token
+prices. They are captured synchronously with the call and stored with the parent
+ledger event.
+
+Known-rate charges can be priced through `Pricing.charge_rate`. Unknown-rate
+charges remain audit rows and make the parent call `partial` when token cost is
+known, or `unknown` when no reliable cost exists.
+
+Free tiers and account-level reconciliation are not modeled in the ledger.
+
+## Capture Boundaries
+
+Capture paths output `UsageCapture`:
+
+| Boundary | Input | Output |
+| --- | --- | --- |
+| Faraday middleware | HTTP request/response bodies or SSE chunks | `UsageCapture` |
+| SDK integrations | SDK response or stream objects | `UsageCapture` |
+| Explicit APIs | Host app token totals or stream events | `UsageCapture` |
+
+`Tracker.record` is the central coordinator. It combines usage capture, pricing,
+tags, cost status, notifications, durable inbox staging, and budget checks.
+
+## Storage Boundaries
+
+Storage is ActiveRecord-only. The current schema is:
+
+| Table | Responsibility |
+| --- | --- |
+| `llm_api_calls` | Parent call ledger |
+| `llm_cost_tracker_service_charges` | Provider-reported tool/runtime rows |
+| `llm_cost_tracker_period_totals` | Budget rollups |
+| `llm_cost_tracker_inbox_events` | Durable ingestion staging |
+| `llm_cost_tracker_ingestor_leases` | Shared worker lease |
+
+Runtime tracking assumes the current schema. Schema gaps belong in doctor/setup
+failures, not per-event branches.
+
+Column and index details are documented in [Data Model](data-model.md).
+
+## Dashboard and Reporting
+
+Dashboard and report code are read-only projections over the ledger. Views render
+prepared data and must not reconstruct billing formulas, token component
+semantics, or pricing decisions.
+
+Dashboard queries may aggregate because they are user-initiated, but they should
+remain bounded, indexed, and database-side.
 
 ## Technical Docs
 

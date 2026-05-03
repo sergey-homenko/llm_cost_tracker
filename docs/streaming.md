@@ -1,61 +1,59 @@
 # Streaming Capture
 
-Streaming calls should appear in the ledger instead of disappearing into a live
-callback. LLM Cost Tracker records them when the provider emits final usage or
-when the app supplies explicit totals.
+Streaming calls are recorded when the provider emits final usage, when the SDK
+wrapper can collect final usage events, or when the app supplies explicit totals.
+Missing final usage becomes an unknown-cost stream row instead of disappearing.
 
-The full streaming reference is moving here from the README: Faraday streaming,
-`track_stream`, provider response IDs, final usage events, and data-quality
-states.
+## Faraday Streaming
 
-## Canonical Sources
+The Faraday middleware tees `on_data`, keeps chunks flowing to the caller, and
+records usage after the response completes.
 
-Until this page is expanded, use:
-
-- [Capturing calls](../README.md#capturing-calls)
-- [Known limitations](../README.md#known-limitations)
-- [Cookbook](cookbook.md)
-
-## Faraday Path
-
-The middleware tees Faraday's `on_data` callback, keeps chunks flowing to the
-caller, and records usage when the response completes.
-
-OpenAI streams need final usage:
+OpenAI Chat Completions streaming needs:
 
 ```ruby
 stream_options: { include_usage: true }
 ```
 
-Anthropic and Gemini are parsed from their provider stream event shapes when
-usage is present.
+Without the final usage chunk, the event is stored with
+`usage_source: "unknown"` and appears on Data Quality.
 
-## SDK Path
+Gemini `streamGenerateContent` and Anthropic streaming responses are parsed from
+their provider event shapes when usage metadata is present.
 
-Official OpenAI and Anthropic SDK streams are captured when `config.instrument`
-is enabled for the provider. The returned stream object is preserved, and usage
-is recorded after the stream is consumed.
+OpenAI Realtime WebSocket/WebRTC sessions are not normal Faraday responses. Use
+explicit `track_stream` and pass final `response.done` events when you need
+Realtime capture.
 
-Tags are snapshotted when the stream starts, so delayed or cross-thread
-consumption keeps the original request/user attribution.
+## SDK Streaming
+
+Official OpenAI and Anthropic SDK streams are captured when the provider
+integration is enabled:
 
 ```ruby
-config.instrument :openai
-config.instrument :anthropic
+LlmCostTracker.configure do |config|
+  config.instrument :openai
+  config.instrument :anthropic
+end
 ```
 
 Captured SDK helpers:
 
-- OpenAI `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, and `chat.completions.stream_raw`.
-- Anthropic `messages.stream` and `messages.stream_raw`.
+| Provider | Helpers |
+| --- | --- |
+| OpenAI | `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, `chat.completions.stream_raw` |
+| Anthropic | `messages.stream`, `messages.stream_raw`, beta Messages stream helpers |
 
-OpenAI Chat Completions streams need final usage:
+The returned stream object is preserved. Usage is recorded after the stream is
+consumed.
 
-```ruby
-stream_options: { include_usage: true }
-```
+Tags are snapshotted when the stream starts, so delayed or cross-thread
+consumption keeps the original request/user attribution.
 
-## Manual Path
+## Explicit Streaming
+
+Use `track_stream` when the client has no built-in integration and no Faraday
+hook:
 
 ```ruby
 LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o", tags: { feature: "chat" }) do |stream|
@@ -63,11 +61,38 @@ LlmCostTracker.track_stream(provider: "openai", model: "gpt-4o", tags: { feature
 end
 ```
 
-If the client already knows totals, skip provider event parsing:
+The provider parser is selected by `provider:`. Parsed stream events can set
+model, response ID, usage source, token buckets, pricing mode, and service
+charges when the event shape exposes them.
+
+If the client already knows totals, pass explicit usage instead of provider
+events:
 
 ```ruby
-stream.usage(input_tokens: 120, output_tokens: 45)
+LlmCostTracker.track_stream(provider: "custom", model: "gateway-model") do |stream|
+  stream.usage(
+    input_tokens: 120,
+    output_tokens: 45,
+    cache_read_input_tokens: 20,
+    provider_response_id: "resp_123"
+  )
+end
 ```
 
-Missing final usage is stored with `usage_source: "unknown"` so the Data Quality
-page can surface it.
+`stream.usage` accepts token fields owned by `TokenUsage`, plus
+`provider_response_id`.
+
+## Data Quality
+
+Stream rows include:
+
+| Field | Meaning |
+| --- | --- |
+| `stream` | `true` for captured streaming calls |
+| `usage_source` | `stream_final`, `manual`, or `unknown` |
+| `provider_response_id` | Provider ID when exposed |
+| `cost_status` | `free`, `complete`, `partial`, or `unknown` |
+
+Oversized or unserializable stream buffers are recorded as unknown usage. The
+collector bounds captured event bytes so a long stream cannot grow memory
+without limit.

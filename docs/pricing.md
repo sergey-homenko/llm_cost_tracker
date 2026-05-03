@@ -4,16 +4,8 @@ LLM Cost Tracker prices calls locally from recorded usage and a versioned price
 registry. Providers usually return token counts, not a stable per-request price,
 so the gem stores the calculated cost with each ledger row.
 
-The full pricing reference is moving here from the README: registry shape,
-refresh tasks, precedence, provider-qualified keys, and mode-specific rates.
-
-## Canonical Sources
-
-Until this page is expanded, use:
-
-- [Pricing](../README.md#pricing)
-- [Supported providers](../README.md#supported-providers)
-- [Known limitations](../README.md#known-limitations)
+Pricing covers registry shape, refresh tasks, precedence, provider-qualified
+keys, pricing modes, token components, and provider-reported service charges.
 
 ## Registry Rules
 
@@ -47,6 +39,8 @@ Base fields:
 - `cache_write_1h_input`
 - `audio_input`
 - `audio_output`
+
+These keys are derived from `Billing::Components`, the master component registry.
 
 `cache_write_input` is the standard cache-write bucket. `cache_write_1h_input`
 is priced separately when provider usage exposes that longer retention bucket.
@@ -112,7 +106,7 @@ PROVIDER=openai MODEL=gpt-4o PRICING_MODE=batch bin/rails llm_cost_tracker:price
 Optional token env vars let the command check the exact buckets that a call used:
 
 ```bash
-PROVIDER=custom MODEL=gateway-model INPUT_TOKENS=1000 OUTPUT_TOKENS=200 CACHE_READ_INPUT_TOKENS=50 CACHE_WRITE_1H_INPUT_TOKENS=25 AUDIO_INPUT_TOKENS=100 bin/rails llm_cost_tracker:prices:explain
+PROVIDER=custom MODEL=gateway-model INPUT_TOKENS=1000 OUTPUT_TOKENS=200 CACHE_READ_INPUT_TOKENS=50 CACHE_WRITE_1H_INPUT_TOKENS=25 AUDIO_INPUT_TOKENS=100 AUDIO_OUTPUT_TOKENS=20 bin/rails llm_cost_tracker:prices:explain
 ```
 
 The command reports the matched source, matched key, match strategy, effective
@@ -121,29 +115,56 @@ rates, and any missing rate needed to price the event.
 Provider-specific pricing pages belong in scrapers and snapshots. Runtime
 pricing should stay in canonical billing terms.
 
+## Registry Shape
+
+Bundled and local registries use this high-level shape:
+
+```json
+{
+  "metadata": {
+    "schema_version": 1,
+    "currency": "USD",
+    "unit": "1M tokens"
+  },
+  "service_charges": {
+    "openai": {
+      "web_search_request": 10.0
+    }
+  },
+  "models": {
+    "openai/gpt-4o": {
+      "input": 2.5,
+      "output": 10.0
+    }
+  }
+}
+```
+
+Model prices are USD per 1M tokens. Service charge rates use the quantity basis
+defined by their billing component unit, such as request, session, or hour.
+
 ## Service Charges
 
 `service_charges` store provider-reported tool or runtime usage that affects
 billing context outside token prices. Current parsers use them for Anthropic
 server tool usage, OpenAI hosted tool output items, and Gemini grounding
-requests. Provider `service_charges` rates can price known charges; unknown-cost
+requests. Registry `service_charges` rates can price known charges; unknown-cost
 service charges can make an event `partial` when token pricing is known, or
 `unknown` when they are the only billable usage.
 
 These rows are audit context, not invoice-grade pricing. They preserve the
 provider item id, source key, quantity, component, applied rate, and status so
-downstream reconciliation can join them back to provider records without the gem
-inventing free tiers or private rates.
+downstream reconciliation can join them back to provider records without applying
+free tiers or private rates locally.
 
 Built-in service charge rates are bundled only when the parser has the same
-quantity basis that the provider publishes. OpenAI web-search search actions and
-file-search calls are priced when the registry has a rate. OpenAI
-Code Interpreter container sessions are captured as `container_session` audit
-rows, but the bundled registry does not price them because the provider price
-depends on container size and a fixed session window. Anthropic web-search
-request counts are priced; Anthropic code-execution request counts remain
-unknown-cost until a provider usage field exposes the hourly quantity that the
-published rate uses.
+quantity basis that the provider publishes. OpenAI hosted web search and file
+search calls are priced when the registry has a rate. OpenAI Code Interpreter
+container sessions are captured as `container_session` audit rows, but the
+bundled registry does not price them because the provider price depends on
+container size and a fixed session window. Anthropic web-search request counts
+are priced; Anthropic code-execution request counts remain unknown-cost until a
+provider usage field exposes the hourly quantity that the published rate uses.
 
 ## Usage and Pricing Coverage
 

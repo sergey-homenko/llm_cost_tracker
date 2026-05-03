@@ -1,6 +1,6 @@
 # Data Flow
 
-This is the normal path from an application LLM call to stored ledger data.
+Normal path from an application LLM call to stored ledger data:
 
 ## Faraday Requests
 
@@ -9,7 +9,7 @@ This is the normal path from an application LLM call to stored ledger data.
 3. For non-streaming responses, the middleware passes request and response data to the parser.
 4. For streaming responses, the middleware tees `on_data`, collects stream events, and parses final usage when the stream completes.
 5. Tags are snapshotted before the request enters the adapter.
-6. The parser returns `UsageCapture` with canonical `TokenUsage` and `pricing_mode` when provider tier data is present.
+6. The parser returns `UsageCapture` with canonical `TokenUsage`, `pricing_mode`, and service charges when provider data exposes them.
 7. `Tracker.record` prices and persists the event.
 
 ## SDK Integrations
@@ -69,7 +69,7 @@ Dashboard reads do not mutate ledger state. They can be heavier than request-tim
 
 1. `llm_cost_tracker:prices:refresh` chooses `ENV["OUTPUT"]`, then `config.prices_file`, then `config/llm_cost_tracker_prices.yml`.
 2. `Pricing::Sync::Fetcher` fetches the maintained LLM Cost Tracker price snapshot.
-3. `Pricing::Sync` validates schema compatibility, gem-version compatibility, and model price shape.
+3. `Pricing::Sync` validates schema compatibility, gem-version compatibility, model price shape, and service charge sections.
 4. `RegistryWriter` writes a local JSON or YAML registry.
 5. Runtime pricing reloads the local file when its mtime changes.
 

@@ -1,6 +1,7 @@
 # Module Map
 
-LLM Cost Tracker is organized around a small set of durable responsibilities. File layout does not need to mirror these modules perfectly, but new code should fit one of these boundaries.
+LLM Cost Tracker is organized around durable responsibilities. File layout does
+not need to mirror this map perfectly, but new code should fit one boundary.
 
 ## Public API and Configuration
 
@@ -8,6 +9,7 @@ Primary files:
 
 - `lib/llm_cost_tracker.rb`
 - `lib/llm_cost_tracker/configuration.rb`
+- `lib/llm_cost_tracker/configuration/instrumentation.rb`
 - `lib/llm_cost_tracker/tags/*`
 - `lib/llm_cost_tracker/doctor.rb`
 - `lib/llm_cost_tracker/doctor/*`
@@ -16,29 +18,15 @@ Primary files:
 
 Responsibilities:
 
-- Expose `configure`, `track`, `track_stream`, `with_tags`, and `enforce_budget!`.
-- Keep configuration immutable after `configure` returns.
-- Merge scoped tags and default tags without leaking state across threads.
-- Report installation and pricing health through `llm_cost_tracker:doctor`.
+- Expose `configure`, `track`, `track_stream`, `with_tags`, `flush!`, `shutdown!`, and `enforce_budget!`.
+- Keep configuration immutable after `configure`.
+- Merge scoped tags and default tags without leaking across threads or fibers.
+- Report installation, integration, pricing, ingestion, and schema health.
 
-This module should stay small. It can orchestrate other modules, but it should not contain provider parsing, SQL details, dashboard aggregation, or pricing-source logic.
+This module can orchestrate other modules, but should not contain provider
+parsing, SQL details, dashboard aggregation, or pricing-source logic.
 
-## SDK Integrations
-
-Primary files:
-
-- `lib/llm_cost_tracker/integrations/*`
-
-Responsibilities:
-
-- Add optional instrumentation for Ruby SDKs without adding provider SDK dependencies.
-- Install narrow, idempotent `Module#prepend` wrappers around stable SDK resource methods.
-- Extract SDK response objects into canonical usage fields.
-- Keep SDK-specific object handling out of `Tracker` and storage.
-
-Integrations are for Ruby SDK object shapes. Parsers are for HTTP and stream payload shapes.
-
-## Ingestion
+## Capture
 
 Primary files:
 
@@ -51,109 +39,123 @@ Primary files:
 Responsibilities:
 
 - Detect supported LLM HTTP requests.
+- Preserve streaming behavior while teeing events for tracking.
 - Parse provider responses and stream events into `UsageCapture`.
-- Translate provider-specific fields into canonical usage fields.
-- Preserve app streaming behavior while teeing events for tracking.
+- Translate provider-specific fields into canonical token usage, pricing mode, response identity, and service charges.
 
-Provider-specific code belongs here. The output boundary is `UsageCapture`, not raw provider JSON.
+Provider-specific response shape handling belongs here. The output boundary is
+`UsageCapture`, not raw provider JSON.
 
-## Canonical Ledger
+## SDK Integrations
 
 Primary files:
 
-- `lib/llm_cost_tracker/tracker.rb`
-- `lib/llm_cost_tracker/event.rb`
-- `lib/llm_cost_tracker/token_usage.rb`
-- `lib/llm_cost_tracker/pricing.rb`
-- `lib/llm_cost_tracker/pricing/unknown.rb`
+- `lib/llm_cost_tracker/integrations/*`
 
 Responsibilities:
 
-- Normalize provider, model, usage, tags, latency, streaming flags, and response IDs.
-- Price canonical usage through `Pricing`.
-- Emit `ActiveSupport::Notifications`.
-- Persist the event through the ActiveRecord ledger.
-- Run budget checks after successful storage.
+- Add optional instrumentation for Ruby SDKs without provider SDK dependencies.
+- Install narrow, idempotent `Module#prepend` wrappers.
+- Extract SDK response objects into canonical usage fields.
+- Keep SDK-specific object handling out of `Tracker`, storage, and pricing.
 
-This module must remain provider-agnostic. It should never branch on a specific provider model family.
+Integrations are for Ruby SDK object shapes. Parsers are for HTTP and stream
+payload shapes.
+
+## Billing Components
+
+Primary files:
+
+- `lib/llm_cost_tracker/billing/components.rb`
+- `lib/llm_cost_tracker/billing/cost_status.rb`
+- `lib/llm_cost_tracker/billing/service_charge.rb`
+- `lib/llm_cost_tracker/token_usage.rb`
+
+Responsibilities:
+
+- Own the billable component registry.
+- Own token usage value objects.
+- Classify costs as `free`, `complete`, `partial`, or `unknown`.
+- Represent provider-reported service charge rows before persistence.
+
+`Billing::Components` is the master source of billable component metadata.
 
 ## Pricing
 
 Primary files:
 
 - `lib/llm_cost_tracker/pricing.rb`
-- `lib/llm_cost_tracker/pricing/registry.rb`
+- `lib/llm_cost_tracker/pricing/*`
 - `lib/llm_cost_tracker/prices.json`
-- `lib/llm_cost_tracker/pricing/sync.rb`
-- `lib/llm_cost_tracker/pricing/sync/*`
-- `scripts/price_scrape/*`
 - `lib/tasks/llm_cost_tracker.rake`
+- `scripts/price_scrape/*`
 
 Responsibilities:
 
 - Load bundled prices, local price snapshots, and Ruby overrides.
-- Apply pricing precedence: `pricing_overrides`, `prices_file`, bundled prices.
-- Calculate costs from canonical usage fields.
-- Update local snapshots from the maintained LLM Cost Tracker price registry.
-- Validate snapshot schema compatibility, gem-version compatibility, and price entry shape.
+- Apply pricing precedence: overrides, local file, bundled prices.
+- Calculate token costs from canonical `TokenUsage`.
+- Price known service charges when the registry has a reliable rate.
+- Explain unknown or incomplete pricing.
+- Refresh local snapshots from the maintained LLM Cost Tracker registry.
 
-Pricing refresh must not perform boot-time or request-time network work. Runtime pricing uses bundled prices, local files, and in-memory caches.
+Pricing refresh must not run at boot or request time.
 
-## Ledger
+## Canonical Event Build
 
 Primary files:
 
-- `lib/llm_cost_tracker/ledger.rb`
-- `app/models/llm_cost_tracker/ledger/call.rb`
-- `app/models/llm_cost_tracker/ledger/period/grouping.rb`
-- `app/models/llm_cost_tracker/ledger/period/total.rb`
-- `app/models/llm_cost_tracker/ledger/schema/capabilities.rb`
-- `lib/llm_cost_tracker/ledger/store.rb`
-- `lib/llm_cost_tracker/ledger/period/periods.rb`
-- `lib/llm_cost_tracker/ledger/period/totals.rb`
-- `lib/llm_cost_tracker/ledger/rollups.rb`
-- `lib/llm_cost_tracker/ledger/rollups/*`
-- `lib/llm_cost_tracker/ledger/tags/*`
-- `lib/llm_cost_tracker/ledger/schema/adapter.rb`
+- `lib/llm_cost_tracker/tracker.rb`
+- `lib/llm_cost_tracker/event.rb`
+- `lib/llm_cost_tracker/budget.rb`
 
 Responsibilities:
 
-- Persist canonical events into ActiveRecord.
-- Hide PostgreSQL and MySQL tag storage differences.
-- Maintain period rollups for hot-path budget reads.
-- Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
+- Normalize model identity, usage source, tags, latency, stream flags, and response IDs.
+- Apply token pricing and service charge pricing.
+- Build pricing snapshot and cost status.
+- Emit `ActiveSupport::Notifications`.
+- Stage events durably.
+- Run budget checks after durable staging.
 
-Storage can know about database adapters and the required current schema. It should not parse provider responses or fetch price data.
+This module must remain provider-neutral.
 
-## Ingestion
+## Durable Ingestion and Ledger
 
 Primary files:
 
 - `lib/llm_cost_tracker/ingestion.rb`
 - `lib/llm_cost_tracker/ingestion/*`
+- `lib/llm_cost_tracker/ledger.rb`
+- `lib/llm_cost_tracker/ledger/*`
+- `app/models/llm_cost_tracker/ingestion/*`
+- `app/models/llm_cost_tracker/ledger/*`
 
 Responsibilities:
 
-- Stage captured events durably before ledger writes.
-- Run background ingestion, leases, retries, and flush/shutdown lifecycle.
-- Verify the durable capture path.
+- Stage captured events before ledger writes.
+- Claim retryable inbox rows through database leases.
+- Persist calls and service charges atomically.
+- Maintain period rollups for hot-path budget reads.
+- Hide PostgreSQL and MySQL-family JSON/tag SQL differences.
+- Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
 
-## Budgets and Retention
+Storage knows database adapters and current schema. It should not parse provider
+responses or fetch price data.
+
+## Retention
 
 Primary files:
 
-- `lib/llm_cost_tracker/budget.rb`
 - `lib/llm_cost_tracker/retention.rb`
 - `lib/llm_cost_tracker/ledger/rollups.rb`
+- `lib/llm_cost_tracker/ledger/rollups/*`
 
 Responsibilities:
 
-- Enforce monthly, daily, and per-call guardrails.
-- Support preflight blocking where ActiveRecord rollups are available.
 - Prune old ledger rows in batches.
-- Keep budget checks bounded by maintained aggregates, not by full ledger scans.
-
-Budget behavior is part of the hot path. Any change here must be measured against per-request overhead.
+- Delete dependent service charges.
+- Keep daily and monthly period totals consistent.
 
 ## Dashboard and Reporting
 
@@ -170,11 +172,12 @@ Primary files:
 Responsibilities:
 
 - Render server-side dashboard pages.
-- Aggregate spend, calls, providers, models, tags, latency, and data quality.
+- Aggregate spend, calls, providers, models, tags, latency, pricing status, and service charge coverage.
 - Export filtered calls as CSV.
-- Keep dashboard queries explicit and indexed.
+- Keep dashboard queries explicit, bounded, and indexed.
 
-Dashboard code may run grouped SQL because it is user-initiated reporting. It must stay server-rendered and must not introduce a JavaScript bundle.
+Dashboard code may run grouped SQL because it is user-initiated reporting. It
+must stay server-rendered and must not introduce a JavaScript bundle.
 
 ## Rails Integration and Generators
 
@@ -193,7 +196,7 @@ Responsibilities:
 - Generate migrations, initializer, dashboard route, and local price snapshots.
 - Serve dashboard CSS as a fingerprinted engine asset.
 
-Generator templates are public installation contracts. Treat them like API.
+Generator templates are public installation contracts.
 
 ## Test Suites
 
@@ -201,12 +204,11 @@ Primary files:
 
 - `spec/llm_cost_tracker/*`
 - `spec/llm_cost_tracker/engine/*`
-- `spec/llm_cost_tracker/dashboard/*`
-- `spec/fixtures/pricing/*`
+- `spec/scripts/*`
 - `spec/support/*`
 
 Responsibilities:
 
-- Cover canonical behavior, parser boundaries, pricing precedence, storage rollups, dashboard rendering, generators, and concurrency.
+- Cover canonical behavior, parser boundaries, pricing precedence, storage rollups, dashboard rendering, generators, price scrapers, and concurrency.
 - Keep request specs plain and stable.
 - Run through `bin/check` before release work or commits that touch code.

@@ -1,42 +1,67 @@
 # Dashboard
 
-The dashboard is a Rails Engine for humans reviewing spend, attribution, and data
-quality. It is server-rendered ERB, has no JavaScript bundle, and reads from the
-host app's `llm_api_calls` table.
-
-The detailed dashboard guide is moving here from the README: mounting, route
-constraints, authentication examples, page map, and operational notes.
-
-## Canonical Sources
-
-Until this page is expanded, use:
-
-- [Dashboard](../README.md#dashboard)
-- [Privacy](../README.md#privacy)
-- [Operations](operations.md)
+The dashboard is an optional Rails Engine for reviewing spend, attribution, and
+data quality. It is server-rendered ERB, has no JavaScript bundle, and reads
+from the host app's ActiveRecord ledger tables.
 
 ## Mounting
 
-The dashboard is optional. A ledger-only install can omit `--dashboard`; capture,
-pricing, budgets, doctor, reports, and queries keep working without mounting the
-engine.
+Install with the dashboard option:
+
+```bash
+bin/rails generate llm_cost_tracker:install --dashboard
+bin/rails db:migrate
+```
+
+Or mount manually:
 
 ```ruby
 mount LlmCostTracker::Engine => "/llm-costs"
 ```
 
-The dashboard reads from the ActiveRecord ledger installed by the generator.
+The engine does not ship authentication. Mount it behind the host app's existing
+admin/auth layer.
+
+## Tables Read
+
+The dashboard reads:
+
+| Table | Purpose |
+| --- | --- |
+| `llm_api_calls` | Calls, token buckets, costs, tags, pricing status, snapshots |
+| `llm_cost_tracker_service_charges` | Provider-reported tool/runtime usage tied to calls |
+| `llm_cost_tracker_period_totals` | Budget status and operational rollups |
+| `llm_cost_tracker_inbox_events` | Pending budget totals and ingestion health |
 
 ## Pages
 
-- Overview: spend trend, budget status, anomaly banner, provider rollup, top models
-- Models: spend and usage by provider and model
-- Calls: filterable call ledger with CSV export
-- Tags: tag keys and tag value breakdowns
-- Data Quality: unknown pricing, untagged calls, missing latency, incomplete streams
+| Page | Route | Purpose |
+| --- | --- | --- |
+| Overview | `/` | Spend trend, budget status, anomaly banner, provider rollup, top models |
+| Models | `/models` | Spend and usage by provider/model |
+| Calls | `/calls` | Filterable ledger, call details, CSV export |
+| Tags | `/tags` and `/tags/:key` | Tag key explorer and tag value breakdowns |
+| Data Quality | `/data_quality` | Unknown pricing, partial costs, missing latency, incomplete streams, service charge coverage |
 
-## Authentication
+## Filters
 
-The gem does not ship dashboard auth. Mount the engine behind the host app's
-existing authentication layer: Devise, basic auth, Cloudflare Access, or your own
-constraints.
+Dashboard pages share date/provider/model/tag filtering when the page supports
+those dimensions.
+Tag filters use the same sanitized tag keys accepted by `LlmCostTracker.with_tags`
+and `track(tags:)`.
+
+Invalid filters render a bad-request page instead of raising through the host
+app.
+
+## Security
+
+The dashboard intentionally stores and displays no prompts or completions.
+However, tags are app-controlled data and can still contain sensitive values if
+the host app passes them. Configure `redacted_tag_keys` and mount the engine only
+behind trusted admin access.
+
+## Styling Contract
+
+Dashboard UI uses the engine stylesheet served through
+`LlmCostTracker::AssetsController`. It remains plain CSS and server-rendered ERB;
+there is no JavaScript bundle to compile or deploy.

@@ -4,7 +4,12 @@ Extensions should plug into existing provider-agnostic boundaries. If a new feat
 
 ## SDK Integrations
 
-Use SDK integrations when a popular Ruby client does not expose a Faraday middleware stack but returns stable usage objects. RubyLLM and the official `openai` and `anthropic` gems qualify. Faraday-based clients that expose a middleware hook, such as `ruby-openai`'s constructor block, are covered by the Faraday middleware instead. Clients with no stable hook must use the explicit `track` / `track_stream` fallback until an integration exists.
+Use SDK integrations for Ruby clients that do not expose Faraday middleware but
+return stable usage objects. RubyLLM and the official `openai` and `anthropic`
+gems use this path. Faraday-based clients that expose a middleware hook, such as
+`ruby-openai`'s constructor block, are covered by the Faraday middleware. Clients
+with no stable hook use explicit `track` / `track_stream` calls until an
+integration exists.
 
 Expected integration contract:
 
@@ -21,7 +26,8 @@ SDK integrations belong under `LlmCostTracker::Integrations`. Do not put SDK obj
 
 Use `config.openai_compatible_providers` when a gateway speaks the OpenAI request and response shape.
 
-This is for shape compatibility, not pricing. Gateway-specific model IDs or discounts belong in `prices_file` or `pricing_overrides`.
+Host mapping controls shape compatibility, not pricing. Gateway-specific model
+IDs or discounts belong in `prices_file` or `pricing_overrides`.
 
 Providers or gateways with non-compatible response shapes should use explicit `LlmCostTracker.track` / `track_stream` calls until a built-in parser exists.
 
@@ -29,24 +35,31 @@ Providers or gateways with non-compatible response shapes should use explicit `L
 
 Use `config.prices_file` for the app's source-controlled price snapshot.
 
-Use `config.pricing_overrides` for urgent or environment-specific overrides that are easier to keep in Ruby.
+Use `config.pricing_overrides` for urgent or environment-specific Ruby-side
+overrides.
 
-Supported canonical keys:
+Supported token price keys are owned by `Billing::Components`:
 
 - `input`
 - `output`
 - `cache_read_input`
 - `cache_write_input`
 - `cache_write_1h_input`
+- `audio_input`
+- `audio_output`
 - `batch_input`
 - `batch_output`
 - mode-prefixed keys such as `priority_input` or `batch_cache_read_input`
 - `_context_price_threshold_tokens` with `above_context_*` rates for providers
   that publish a whole-session long-context tier
 
+Provider-reported tool/runtime rates live under `service_charges` by provider
+and component. Do not add a service charge rate unless parser quantity matches
+the rate basis.
+
 Provider-specific pricing details must be translated before they reach runtime pricing.
 Do not rely on standard rates for missing alternate-mode prices; add explicit
-mode-prefixed prices unless the provider documents a simple stackable multiplier.
+mode-prefixed prices unless the provider documents a stackable multiplier.
 
 ## Tags
 
@@ -58,7 +71,7 @@ Tags are the extension point for application attribution:
 - trace
 - job
 - workflow
-- agent session
+- session
 
 Use `config.default_tags`, middleware `tags:`, explicit `tags:`, and `LlmCostTracker.with_tags`. Do not add first-class columns for app dimensions unless the ledger needs that field for provider-agnostic billing behavior.
 

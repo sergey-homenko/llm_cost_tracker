@@ -11,7 +11,7 @@ Short integration recipes for common Ruby clients. Prefer SDK integrations or mi
 | Groq | Faraday middleware | Groq's official SDKs are Python and JavaScript/TypeScript; Ruby uses the OpenAI-compatible HTTP path. |
 | OpenAI-compatible proxy | Faraday middleware | Use `ruby-openai` or a direct Faraday client against the proxy host. |
 | Custom Faraday client | Faraday middleware | The middleware can parse known provider responses automatically. |
-| Other clients | Adapter first, fallback helpers second | Add a stable integration instead of scattering per-call ledger code. |
+| Other clients | Explicit tracking | Use `track` or `track_stream` when the client has no supported SDK/Faraday hook. |
 
 ## RubyLLM
 
@@ -65,6 +65,20 @@ end
 ```
 
 The OpenAI SDK integration supports `openai >= 0.59.0`. Streaming calls are recorded after the returned stream is consumed. Chat Completions streams need `stream_options: { include_usage: true }` for final usage.
+
+## OpenAI Realtime
+
+Realtime WebSocket/WebRTC sessions do not flow through the Faraday middleware.
+Capture final `response.done` events explicitly:
+
+```ruby
+LlmCostTracker.track_stream(provider: "openai", model: "gpt-realtime-1.5", tags: { feature: "voice" }) do |stream|
+  realtime_session.on(:response_done) { |event| stream.event(event.to_h, type: "response.done") }
+end
+```
+
+The OpenAI parser reads Realtime `input_token_details.audio_tokens` and
+`output_token_details.audio_tokens` from the final response usage.
 
 ## Official Anthropic SDK
 
@@ -121,7 +135,8 @@ client.chat(
 )
 ```
 
-Use the constructor block on every client you build, or wrap client creation in your own factory.
+Use the constructor block for each client, or wrap client creation in an app
+factory.
 
 ## Groq
 

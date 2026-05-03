@@ -1,6 +1,6 @@
 # Operational Notes
 
-This file describes runtime constraints that should shape implementation decisions.
+Runtime constraints shape implementation decisions.
 
 ## Hot Paths
 
@@ -10,6 +10,7 @@ Hot-path code includes:
 - stream collection
 - `Tracker.record`
 - `Pricing.cost_for`
+- `Pricing.charge_rate`
 - ActiveRecord event persistence
 - budget checks
 
@@ -42,15 +43,17 @@ Per-call budgets are checked from the current event only.
 
 ## Durable Ingestion
 
-Ingestion::Inbox writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should fail honestly instead of writing into the caller transaction and pretending the event is durable.
+Ingestion::Inbox writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should raise instead of writing into the caller transaction.
 
 The ingestor is database-leased and database-polled, with an opportunistic local wake after a successful inbox insert. The wake only reduces freshness latency in the process that wrote the row; correctness still comes from the shared database lease, retryable row locks, and adaptive polling across Puma, Sidekiq, Unicorn, deploy restarts, and multi-process hosts.
 
-Freshness and durability are separate concerns. If the writing process exits before its local ingestor drains the row, another process can pick it up on a later poll; budget reads include pending inbox totals and operators can call `LlmCostTracker.flush!` when they need the ledger drained before continuing.
+Freshness and durability are separate concerns. If the writing process exits before its local ingestor drains the row, another process can pick it up on a later poll. Budget reads include pending inbox totals, and operators can call `LlmCostTracker.flush!` when the ledger must be drained before continuing.
 
 The ingestor should check for claimable rows before acquiring the leader lease. Empty queues should not create steady lease-table writes across an idle fleet.
 
-Batch size is a conservative internal constant. Do not expose it as a configuration knob until production measurements show that a supported workload needs tuning; more knobs make installations harder to reason about.
+Batch size is a conservative internal constant. Do not expose it as a
+configuration knob until production measurements show that a supported workload
+needs tuning.
 
 Ingestors should claim only retryable rows. Rows that keep failing after the retry cap stay in `llm_cost_tracker_inbox_events` with `last_error` for operator inspection and must not block healthy rows behind them.
 
@@ -74,9 +77,12 @@ Dashboard queries can aggregate because they are user-initiated. They should sti
 - indexes that match common filters
 - single aggregate queries for related counters
 
-Avoid loading ledger rows into Ruby just to count, sum, group, or sort.
+Avoid loading ledger rows into Ruby to count, sum, group, or sort.
 
-The dashboard is not the center of the storage design. Prefer bounded ranges, existing ledger indexes, pagination, and database-side aggregates over new dashboard-specific tables. Add a summary table only when a measured supported dashboard query cannot be made acceptable with the existing ledger and period totals.
+Dashboard storage changes require measured need. Prefer bounded ranges, existing
+ledger indexes, pagination, and database-side aggregates over new
+dashboard-specific tables. Add a summary table only when a supported dashboard
+query cannot be made acceptable with the existing ledger and period totals.
 
 ## Streaming
 
