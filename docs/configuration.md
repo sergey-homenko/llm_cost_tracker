@@ -104,8 +104,6 @@ invent a total cost.
 | `on_budget_exceeded` | `nil` | Callable receiving the budget payload |
 
 Budget payloads include `budget_type`, `total`, `budget`, and `last_event`.
-Compatibility fields such as `monthly_total`, `daily_total`, and `call_cost`
-are still emitted for existing subscribers.
 
 ## Capture Verification
 

@@ -31,7 +31,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Removed the `Pricing::COMPONENTS` compatibility surface.
 - RubyLLM captured calls now use `sdk_response` as their usage source.
 - BREAKING: Manual `LlmCostTracker.track` now accepts explicit `tokens:` and `tags:` hashes.
+- Upgrading docs now include version-by-version release notes, generator history, and direct 0.8 upgrade paths.
 - Dashboard and operations docs now spell out tag privacy hygiene.
+- Operations docs now include production deployment, connection pool, Fiber, and Ractor guidance.
+- Budget docs now describe the current callback and error payload shape.
 
 ## [0.7.3] - 2026-05-01
 

@@ -224,6 +224,47 @@ RSpec.describe "concurrency", :aggregate_failures do
       values << recorded.pop until recorded.empty?
       expect(values.sort).to eq(Array.new(8) { |i| "req_#{i}" })
     end
+
+    it "keeps scoped tags isolated across fibers when Rails uses fiber isolation" do
+      original_level = ActiveSupport::IsolatedExecutionState.isolation_level
+      ActiveSupport::IsolatedExecutionState.isolation_level = :fiber
+      recorded = []
+
+      fiber_a = Fiber.new do
+        LlmCostTracker.with_tags(request_id: "fiber_a") do
+          Fiber.yield
+          event = LlmCostTracker::Tracker.record(
+            capture: LlmCostTracker::UsageCapture.build(
+              provider: "openai",
+              model: "gpt-4o",
+              token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+            )
+          )
+          recorded << event.tags[:request_id]
+        end
+      end
+
+      fiber_b = Fiber.new do
+        LlmCostTracker.with_tags(request_id: "fiber_b") do
+          event = LlmCostTracker::Tracker.record(
+            capture: LlmCostTracker::UsageCapture.build(
+              provider: "openai",
+              model: "gpt-4o",
+              token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+            )
+          )
+          recorded << event.tags[:request_id]
+        end
+      end
+
+      fiber_a.resume
+      fiber_b.resume
+      fiber_a.resume
+
+      expect(recorded).to eq(%w[fiber_b fiber_a])
+    ensure
+      ActiveSupport::IsolatedExecutionState.isolation_level = original_level
+    end
   end
 
   describe "opt-in budget preflight" do

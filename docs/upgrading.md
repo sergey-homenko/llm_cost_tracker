@@ -1,88 +1,107 @@
 # Upgrading
 
-Upgrades should be explicit: inspect the changelog, run doctor, add missing
-schema pieces, migrate, and verify capture before serving production traffic on
-the new version.
+Upgrades should be planned from the version you run today to the version you
+are deploying. The current line assumes Ruby 3.3+, Rails 7.1+, ActiveRecord
+storage, and PostgreSQL or a MySQL-family adapter.
 
-## Standard Upgrade Flow
+## Production Upgrade Flow
+
+Do generator work in a branch, commit the generated migrations, and run the
+deployment checks before serving traffic on the new code.
 
 ```bash
 bundle update llm_cost_tracker
-bin/rails llm_cost_tracker:doctor
+bin/rails generate llm_cost_tracker:add_latency_ms
+bin/rails generate llm_cost_tracker:upgrade_cost_precision
+bin/rails generate llm_cost_tracker:upgrade_tags_to_jsonb
+bin/rails generate llm_cost_tracker:add_streaming
+bin/rails generate llm_cost_tracker:add_provider_response_id
+bin/rails generate llm_cost_tracker:add_token_usage
+bin/rails generate llm_cost_tracker:add_period_totals
+bin/rails generate llm_cost_tracker:add_ingestion
+bin/rails generate llm_cost_tracker:add_billing
 bin/rails db:migrate
 bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-If doctor reports missing schema, run the focused generator it names, migrate,
-and rerun doctor.
+You do not need every generator for every upgrade. The list above is
+functionally safe for old installs because the generated migrations check
+whether columns and tables already exist, but it can still create unnecessary
+large-table migrations. For a smaller migration set, run `llm_cost_tracker:doctor`
+after updating the gem and follow the exact generator commands it reports.
+
+Do not run `llm_cost_tracker:setup` in production deploys. `setup` is an
+install-time convenience task that writes source files, runs migrations, and
+runs doctor. Production deploys should run committed migrations and checks.
+
+## Direct Upgrade To 0.8
+
+Use this table to choose the minimum current generators for a direct upgrade to
+the current 0.8 line.
+
+| Current install | Required current generators | Notes |
+| --- | --- | --- |
+| 0.1.0 or 0.1.1 | `add_latency_ms`, `upgrade_cost_precision`, `upgrade_tags_to_jsonb`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | PostgreSQL tag upgrade rewrites `llm_api_calls.tags`; run large ledgers in a maintenance window or use a host-specific two-phase migration. |
+| 0.1.2 or 0.1.3 | `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | `upgrade_cost_precision`, `upgrade_tags_to_jsonb`, and `add_latency_ms` may already be present; doctor is the source of truth. |
+| 0.1.4 or 0.2.x | `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | Update removed model/report helper calls from the 0.1.4 and 0.2.0 breaking changes. |
+| 0.3.0 | `add_provider_response_id`, `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | Streaming columns were introduced in 0.3.0. |
+| 0.3.1 or 0.3.2 | `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | `provider_response_id` was introduced in 0.3.1. |
+| 0.3.3 | `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | Do not add the historical monthly totals table for a direct 0.8 upgrade; `add_period_totals` imports legacy monthly totals when present. |
+| 0.4.x or 0.5.x | `add_token_usage`, `add_ingestion`, `add_billing` | `add_token_usage` is the current replacement for the historical `add_usage_breakdown` generator. |
+| 0.6.x | `add_token_usage`, `add_billing` | Durable ingestion exists, but 0.7.1 expanded token usage and pricing mode requirements. |
+| 0.7.0 | `add_token_usage`, `add_billing` | Also apply the 0.7.1 API changes. |
+| 0.7.1, 0.7.2, or 0.7.3 | `add_billing` | 0.8 adds billing audit columns and service charge storage. |
+
+The table assumes your app applied the required migrations for the version it
+currently runs. If an older generator was skipped, `llm_cost_tracker:doctor`
+wins over the table.
+
+If an install used the removed `:log` or `:custom` storage backends, there is no
+automatic ledger migration. Move the app to ActiveRecord storage and import any
+external historical data through app-owned tooling or explicit `track` calls.
+
+SQLite installs are not supported on the 0.7+ line. Move production data to
+PostgreSQL or a MySQL-family database before upgrading past 0.6.x.
 
 ## Current Schema Generators
 
-Existing installs can add current-schema pieces through focused generators:
-
-```bash
-bin/rails generate llm_cost_tracker:add_period_totals
-bin/rails generate llm_cost_tracker:add_ingestion
-bin/rails generate llm_cost_tracker:add_streaming
-bin/rails generate llm_cost_tracker:add_provider_response_id
-bin/rails generate llm_cost_tracker:add_token_usage
-bin/rails generate llm_cost_tracker:add_billing
-bin/rails generate llm_cost_tracker:upgrade_tags_to_jsonb
-bin/rails generate llm_cost_tracker:upgrade_cost_precision
-bin/rails generate llm_cost_tracker:add_latency_ms
-bin/rails db:migrate
-```
+| Generator | Introduced | Current purpose |
+| --- | --- | --- |
+| `llm_cost_tracker:upgrade_tags_to_jsonb` | 0.1.2 | Converts PostgreSQL `llm_api_calls.tags` from text to JSONB and adds the GIN index. MySQL installs do not use it. |
+| `llm_cost_tracker:upgrade_cost_precision` | 0.1.2 | Widens legacy cost columns to `precision: 20, scale: 8`. |
+| `llm_cost_tracker:add_latency_ms` | 0.1.2 | Adds request latency storage. |
+| `llm_cost_tracker:add_streaming` | 0.3.0 | Adds `stream` and `usage_source`. |
+| `llm_cost_tracker:add_provider_response_id` | 0.3.1 | Adds provider response object IDs for reconciliation. |
+| `llm_cost_tracker:add_period_totals` | 0.4.0 | Adds daily/monthly rollups in `llm_cost_tracker_period_totals`. Replaces the 0.3.3 `add_monthly_totals` generator. |
+| `llm_cost_tracker:add_token_usage` | 0.7.1 | Adds canonical token and token-cost columns beyond the original input/output totals, including cache, 1-hour cache write, audio, hidden output, and `pricing_mode`. Replaces the 0.4.x `add_usage_breakdown` generator. |
+| `llm_cost_tracker:add_ingestion` | 0.6.0 | Adds durable inbox, ingestor lease, and `event_id`. |
+| `llm_cost_tracker:add_billing` | 0.8.0 | Adds `cost_status`, `pricing_snapshot`, and `llm_cost_tracker_service_charges`. |
 
 Fresh installs generated by the current version already include the full current
 schema.
 
-## Billing Audit Upgrade
+## Release History And Upgrade Notes
 
-`add_billing` adds:
+### 0.8.0
 
-| Data | Storage |
-| --- | --- |
-| Cost status | `llm_api_calls.cost_status` |
-| Pricing snapshot | `llm_api_calls.pricing_snapshot` |
-| Service charges | `llm_cost_tracker_service_charges` |
+0.8.0 is the billing audit line.
 
-Legacy rows can keep nil `pricing_snapshot`; they are not recalculated. Doctor
-warns when too many legacy rows still lack billing audit data.
+Run:
 
-## Token Usage Upgrade
+```bash
+bin/rails generate llm_cost_tracker:add_billing
+bin/rails db:migrate
+bin/rails llm_cost_tracker:doctor
+bin/rails llm_cost_tracker:verify_capture
+```
 
-`add_token_usage` brings older ledgers to the current token and token-cost
-columns. The current priced components are text input/output, cache read,
-standard cache write, 1-hour cache write, audio input, and audio output. The
-token field set also includes hidden output tokens and totals.
+Breaking API changes:
 
-## Durable Ingestion Upgrade
+- Manual tracking now uses explicit `tokens:` and `tags:` hashes.
+- `Pricing::COMPONENTS` was removed; use `Billing::Components` for component metadata and `Pricing` APIs for pricing.
 
-`add_ingestion` installs durable inbox and lease tables, required by the current
-ActiveRecord capture path.
-
-During deploys, ship workers that can read the new inbox payload version before
-traffic starts writing it.
-
-## PostgreSQL Tag Upgrade
-
-On PostgreSQL, `upgrade_tags_to_jsonb` rewrites `llm_api_calls.tags` to JSONB and
-adds the GIN index used by tag queries. For large tables, run it during a
-maintenance window or replace it with a host-app-specific two-phase backfill.
-
-MySQL-family installs use native JSON and do not use the PostgreSQL JSONB
-upgrade.
-
-## Cost Precision Upgrade
-
-`upgrade_cost_precision` widens cost decimals for high-volume or high-price
-usage. Keep it if an old install predates the current `precision: 20, scale: 8`
-cost columns.
-
-## Breaking API Changes in the 0.8 Line
-
-Manual tracking now uses explicit `tokens:` and `tags:`:
+Manual tracking changed from older direct token keywords to:
 
 ```ruby
 LlmCostTracker.track(
@@ -93,7 +112,268 @@ LlmCostTracker.track(
 )
 ```
 
-Older direct `input_tokens:` / `output_tokens:` manual calls must be updated.
+Durable inbox payloads now write schema version 2. Current 0.8 code reads v0,
+v1, and v2 rows, but 0.7 workers do not read v2 rows. During rolling deploys,
+avoid leaving old 0.7 processes draining the inbox after 0.8 processes start
+writing new rows.
 
-`Pricing::COMPONENTS` was removed. Use `Billing::Components` as the component
-owner and `Pricing` APIs for runtime pricing.
+### 0.7.3
+
+Patch release. No schema or public upgrade action. Gemini thinking tokens are no
+longer double-counted as output tokens.
+
+### 0.7.2
+
+Patch release. No schema action. Groq capture/pricing and refreshed provider
+prices were added. Refresh committed local price snapshots if your app keeps one:
+
+```bash
+bin/rails llm_cost_tracker:prices:refresh
+```
+
+### 0.7.1
+
+0.7.1 is a major internal API and token-usage reshaping release.
+
+Run when upgrading from 0.7.0 or earlier:
+
+```bash
+bin/rails generate llm_cost_tracker:add_token_usage
+bin/rails db:migrate
+```
+
+Breaking changes:
+
+- ActiveRecord write failures raise directly; `storage_error_behavior` and `StorageError` were removed.
+- Custom parser and SDK integration registration APIs were removed. Use built-in capture or explicit `track` / `track_stream`.
+- Usage and pricing APIs use `TokenUsage`; `UsageBreakdown`, `add_usage_breakdown`, direct `Pricing` token arguments, and `Pricing::Cost` were removed.
+- `Tracker.record` accepts `UsageCapture`, and notification payloads nest `token_usage`.
+- Price registry and refresh APIs moved under `LlmCostTracker::Pricing`.
+- Runtime capture, dashboard setup, and flush require the current ledger and period-total schema.
+- `cache_write_input_tokens` stores standard cache writes only; 1-hour writes use `cache_write_1h_input_tokens` and `cache_write_1h_input_cost`.
+
+### 0.7.0
+
+0.7.0 made the gem a Rails/ActiveRecord-only product.
+
+Breaking changes:
+
+- ActiveRecord is the only storage path.
+- `storage_backend`, `custom_storage`, `Storage.register`, `:log`, and `:custom` were removed.
+- PostgreSQL and MySQL-family adapters are the only supported databases.
+- SQLite support was removed.
+
+If you were using SQLite, log storage, or custom storage, move the app to
+PostgreSQL or MySQL-family ActiveRecord storage before upgrading.
+
+### 0.6.1
+
+Packaging-only patch. No app upgrade action.
+
+### 0.6.0
+
+0.6.0 introduced durable ActiveRecord ingestion.
+
+Run when upgrading from 0.5.x or earlier:
+
+```bash
+bin/rails generate llm_cost_tracker:add_ingestion
+bin/rails db:migrate
+bin/rails llm_cost_tracker:doctor
+```
+
+This adds:
+
+| Data | Storage |
+| --- | --- |
+| Durable staging rows | `llm_cost_tracker_inbox_events` |
+| Worker lease | `llm_cost_tracker_ingestor_leases` |
+| Ledger deduplication identity | `llm_api_calls.event_id` |
+
+Capture writes to the durable inbox first, then a background ingestor drains to
+the ledger and period totals. Size the ActiveRecord connection pool for the host
+app plus inbox writes and the local ingestor thread.
+
+### 0.5.3
+
+No required schema action. Added SDK streaming capture, `verify_capture`,
+`prices:explain`, and extension registries that were later removed in 0.7.1.
+
+If you adopted `Storage.register` or `Integrations.register` from this release,
+replace that code before upgrading to 0.7.1+.
+
+### 0.5.2
+
+No required schema action. RubyLLM capture and tag guardrails were added.
+Review tag values before exposing the dashboard because tags are visible in
+dashboard pages and CSV exports.
+
+### 0.5.1
+
+No schema action. Price refresh APIs were renamed:
+
+| Old | New |
+| --- | --- |
+| `bin/rails llm_cost_tracker:prices:sync` | `bin/rails llm_cost_tracker:prices:refresh` |
+| `LlmCostTracker::PriceSync.sync` | `LlmCostTracker::Pricing::Sync.refresh` |
+
+Local price files became source-controlled snapshots refreshed from the
+maintained registry. Refresh before building production images; do not mutate
+one running container.
+
+### 0.5.0
+
+No required schema action. This release added official SDK integrations, scoped
+tags, doctor checks, price freshness checks, and technical docs.
+
+If you enabled `config.instrument`, make sure the official provider SDK gems are
+loaded before `LlmCostTracker.configure`. `ruby-openai` still uses the Faraday
+middleware path.
+
+### 0.4.1
+
+Patch release. No new schema action beyond the 0.4.0 generators. The
+`add_period_totals` generator learned to import legacy monthly rollups before
+adding the unique index.
+
+### 0.4.0
+
+0.4.0 introduced canonical usage buckets and period totals.
+
+Historical 0.4 upgrades used:
+
+```bash
+bin/rails generate llm_cost_tracker:add_usage_breakdown
+bin/rails generate llm_cost_tracker:add_period_totals
+bin/rails db:migrate
+```
+
+For direct upgrades to 0.8, use the current replacement:
+
+```bash
+bin/rails generate llm_cost_tracker:add_token_usage
+bin/rails generate llm_cost_tracker:add_period_totals
+bin/rails db:migrate
+```
+
+Breaking changes:
+
+- Usage and pricing terms changed from `cached_input` / `cache_creation_input` to `cache_read_input` / `cache_write_input`.
+- `Pricing.cost_for` requires `provider:` and prefers provider-specific price entries.
+- Fresh installs include cache-read, cache-write, hidden-output, and token-cost breakdown columns.
+- Budget rollups use `llm_cost_tracker_period_totals`.
+- `llm_cost_tracker:add_monthly_totals` was replaced by `llm_cost_tracker:add_period_totals`.
+
+### 0.3.3
+
+0.3.3 added monthly rollups for ActiveRecord budget checks.
+
+Historical 0.3.3 upgrades used:
+
+```bash
+bin/rails generate llm_cost_tracker:add_monthly_totals
+bin/rails db:migrate
+```
+
+For direct upgrades to 0.4+ or 0.8, use `add_period_totals` instead. It is the
+current rollup table and can import legacy monthly totals when present.
+
+### 0.3.2
+
+Repository governance and coverage release. No app upgrade action.
+
+### 0.3.1
+
+0.3.1 added provider response ID persistence.
+
+Run when upgrading from 0.3.0 or earlier:
+
+```bash
+bin/rails generate llm_cost_tracker:add_provider_response_id
+bin/rails db:migrate
+```
+
+### 0.3.0
+
+0.3.0 added streaming capture.
+
+Run when upgrading from 0.2.x or earlier:
+
+```bash
+bin/rails generate llm_cost_tracker:add_streaming
+bin/rails db:migrate
+```
+
+Breaking changes:
+
+- `LlmCostTracker.configure` finalizes shared configuration after the block.
+- Runtime mutation of shared configuration raises `FrozenError`.
+- The public `LlmCostTracker.configuration=` writer was removed.
+
+### 0.2.0.alpha1, 0.2.0.alpha2, and 0.2.0
+
+The alpha tags introduced the Rails engine shape that became 0.2.0. Treat the
+alpha tags as pre-release history; production apps should target 0.2.0 or newer.
+
+Breaking changes:
+
+- Ruby 3.3+, Rails/ActiveRecord 7.1+, and Faraday 2.0+ are required.
+- `Event`, `Cost`, and `ParsedUsage` became `Data.define` values; use method access instead of hash lookup.
+- `LlmCostTracker::InvalidFilter` was renamed to `InvalidFilterError`.
+- `LlmApiCall.by_provider` and `by_model` were removed; use `where(provider:)` and `where(model:)`.
+- Reports no longer hardcode a `feature` breakdown; configure `config.report_tag_breakdowns`.
+
+0.2.0 itself added the optional dashboard engine and dashboard CSS asset serving.
+Mount the dashboard only behind host-app authentication.
+
+### 0.1.4
+
+Breaking changes:
+
+- `LlmApiCall.by_user`, `by_feature`, `#user_id`, and `#feature` were removed.
+- `ReportData#cost_by_feature` was removed.
+
+Use generic tags:
+
+```ruby
+LlmApiCall.by_tag("user_id", id)
+LlmApiCall.by_tag("feature", name)
+LlmApiCall.by_tags("user_id" => id, "feature" => name)
+```
+
+### 0.1.3
+
+No required schema action if already on 0.1.2. This release added the local
+prices generator and report rake task.
+
+```bash
+bin/rails generate llm_cost_tracker:prices
+```
+
+### 0.1.2
+
+0.1.2 added PostgreSQL JSONB tags, wider cost precision, latency, built-in
+prices, OpenAI-compatible provider mapping, and budget error behavior.
+
+Run when upgrading from 0.1.0 or 0.1.1:
+
+```bash
+bin/rails generate llm_cost_tracker:add_latency_ms
+bin/rails generate llm_cost_tracker:upgrade_cost_precision
+bin/rails generate llm_cost_tracker:upgrade_tags_to_jsonb
+bin/rails db:migrate
+```
+
+Only PostgreSQL installs use `upgrade_tags_to_jsonb`. For large tables, run it
+during a maintenance window or replace it with an app-specific online migration.
+
+### 0.1.1
+
+Patch release after the initial 0.1.0 release. No standalone upgrade generator.
+It fixed ActiveRecord lazy loading, OpenAI Responses capture, monthly budget
+callback double-counting, cache token parsing, and tag value storage.
+
+### 0.1.0
+
+Initial public release. There is no `v0.1.0` git tag in this repository, but the
+release is documented in the changelog.

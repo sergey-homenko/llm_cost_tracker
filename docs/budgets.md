@@ -57,14 +57,6 @@ before monthly so short-term operational alerts stay prominent.
 | `budget` | Configured threshold |
 | `last_event` | Event that triggered the check when available |
 
-Compatibility keys are still present:
-
-| Budget type | Compatibility key |
-| --- | --- |
-| `:monthly` | `monthly_total` |
-| `:daily` | `daily_total` |
-| `:per_call` | `call_cost` |
-
 ## Operational Notes
 
 `llm_cost_tracker:doctor` verifies the period totals table and unique
