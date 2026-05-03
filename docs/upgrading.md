@@ -375,5 +375,4 @@ callback double-counting, cache token parsing, and tag value storage.
 
 ### 0.1.0
 
-Initial public release. There is no `v0.1.0` git tag in this repository, but the
-release is documented in the changelog.
+Initial public release.
