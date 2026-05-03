@@ -62,9 +62,17 @@ app.
 ## Security
 
 The dashboard intentionally stores and displays no prompts or completions.
-However, tags are app-controlled data and can still contain sensitive values if
-the host app passes them. Configure `redacted_tag_keys` and mount the engine only
-behind trusted admin access.
+However, tags are app-controlled data. They render in the overview, tag pages,
+call details, and CSV export, and they are visible to anyone with dashboard or
+database access.
+
+## Tags Hygiene
+
+Do not put personal data, prompt bodies, customer messages, API keys, bearer
+tokens, or long free-form text in tags. Prefer stable operational identifiers
+such as internal numeric IDs, tenant slugs, feature names, job names, or
+environment labels. Configure `redacted_tag_keys` for known secret-like keys, but
+treat it as a guardrail rather than a privacy boundary.
 
 ## Styling Contract
 

@@ -132,6 +132,7 @@ module LlmCostTracker
           cache_write = cache_creation["ephemeral_5m_input_tokens"].to_i
           cache_write_1h = cache_creation["ephemeral_1h_input_tokens"].to_i
         else
+          warn_unexpected_cache_creation(cache_creation, usage)
           cache_write = usage["cache_creation_input_tokens"].to_i
           cache_write_1h = 0
         end
@@ -144,6 +145,12 @@ module LlmCostTracker
           cache_write_input_tokens: cache_write,
           cache_write_1h_input_tokens: cache_write_1h
         )
+      end
+
+      def warn_unexpected_cache_creation(cache_creation, usage)
+        return if cache_creation.nil? || usage.key?("cache_creation_input_tokens")
+
+        Logging.warn("Anthropic usage.cache_creation has unexpected shape: #{cache_creation.class}")
       end
 
       def pricing_mode(request:, response:, usage:)

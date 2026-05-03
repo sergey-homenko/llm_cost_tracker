@@ -75,6 +75,19 @@ PostgreSQL is recommended for large tag-heavy ledgers because tag filters can us
 JSONB and GIN indexes. MySQL-family adapters are supported through native JSON
 and adapter-specific SQL.
 
+## Tags Hygiene
+
+Tags are operational attribution data, not a safe place for personal data or
+free-form request content. They are stored in `llm_api_calls`, rendered on the
+dashboard overview, call details, and tag pages, and included in CSV export.
+Anyone with dashboard or database access can see them.
+
+Use stable internal IDs, feature names, tenant slugs, job names, and environment
+labels. Avoid emails, names, prompts, completions, support conversation bodies,
+API keys, bearer tokens, or high-cardinality text. Add known sensitive keys to
+`redacted_tag_keys`, and keep `max_tag_value_bytesize` low enough to catch
+accidental payloads.
+
 ## Pricing Refresh
 
 Runtime tracking never fetches provider pricing pages. Refresh tasks are

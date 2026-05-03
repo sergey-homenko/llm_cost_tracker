@@ -27,9 +27,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Data quality now summarizes captured service charges.
 - Pricing components now derive directly from the billing component registry.
 - Durable inbox payloads now use schema version 2 while reading legacy v0/v1 payloads.
+- Anthropic parsing now warns when `usage.cache_creation` has an unexpected shape.
 - Removed the `Pricing::COMPONENTS` compatibility surface.
 - RubyLLM captured calls now use `sdk_response` as their usage source.
 - BREAKING: Manual `LlmCostTracker.track` now accepts explicit `tokens:` and `tags:` hashes.
+- Dashboard and operations docs now spell out tag privacy hygiene.
 
 ## [0.7.3] - 2026-05-01
 

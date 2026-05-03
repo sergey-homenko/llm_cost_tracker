@@ -2,6 +2,7 @@
 
 require "spec_helper"
 require "erb"
+require "fileutils"
 require "json"
 require "tmpdir"
 require "yaml"
@@ -10,6 +11,7 @@ require "llm_cost_tracker/pricing/registry"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_billing_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_token_usage_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 
 RSpec.describe "generator templates" do
@@ -159,6 +161,20 @@ RSpec.describe "generator templates" do
 
       expect(paths.size).to eq(1)
       expect(File.read(paths.first)).to include("class AddIngestionToLlmCostTracker")
+    end
+  end
+
+  it "can run the install generator twice" do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "config"))
+      File.write(File.join(dir, "config/application.rb"), %(require "rails/all"\n))
+      File.write(File.join(dir, "config/routes.rb"), "Rails.application.routes.draw do\nend\n")
+
+      2.times { LlmCostTracker::Generators::InstallGenerator.start(["--dashboard", "--prices"], destination_root: dir) }
+
+      expect(Dir[File.join(dir, "db/migrate/*create_llm_api_calls.rb")].size).to eq(1)
+      expect(File).to exist(File.join(dir, "config/llm_cost_tracker_prices.yml"))
+      expect(File.read(File.join(dir, "config/routes.rb")).scan("mount LlmCostTracker::Engine").size).to eq(1)
     end
   end
 

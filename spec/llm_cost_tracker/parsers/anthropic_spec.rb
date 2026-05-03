@@ -67,6 +67,32 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.provider_response_id).to be_nil
     end
 
+    it "warns when cache creation has an unexpected shape" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      ["unexpected", ["unexpected"]].each do |cache_creation|
+        result = parser.parse(
+          request_url: anthropic_messages_url,
+          request_body: request_body,
+          response_status: 200,
+          response_body: {
+            model: "claude-sonnet-4-6",
+            usage: {
+              input_tokens: 200,
+              output_tokens: 80,
+              cache_creation: cache_creation
+            }
+          }.to_json
+        )
+
+        expect(result.token_usage.cache_write_input_tokens).to eq(0)
+        expect(result.token_usage.cache_write_1h_input_tokens).to eq(0)
+      end
+
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(include("String"))
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(include("Array"))
+    end
+
     it "extracts the provider message id from a successful response" do
       result = parser.parse(
         request_url: anthropic_messages_url,
