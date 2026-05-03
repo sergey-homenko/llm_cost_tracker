@@ -21,6 +21,7 @@ RSpec.describe LlmCostTracker::Doctor do
       have_attributes(status: :error, name: "llm_api_calls"),
       have_attributes(status: :warn, name: "prices")
     )
+    expect(checks.find { |check| check.name == "prices" }.message).to include("commit a prices_file")
     expect(described_class.healthy?).to be false
   ensure
     disconnect_database!

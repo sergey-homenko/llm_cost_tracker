@@ -29,10 +29,11 @@ gem "openai"
 Install, migrate, and verify:
 
 ```bash
-bin/rails generate llm_cost_tracker:install --dashboard --prices
-bin/rails db:migrate
-bin/rails llm_cost_tracker:doctor
+bin/rails llm_cost_tracker:setup
 ```
+
+This runs the install generator with the dashboard and local pricing file,
+migrates the database, then runs `llm_cost_tracker:doctor`.
 
 Configure capture:
 

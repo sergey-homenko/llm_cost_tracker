@@ -1,9 +1,19 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "rails/generators"
+
+require_relative "../llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 
 # rubocop:disable Metrics/BlockLength
 namespace :llm_cost_tracker do
+  desc "Install LLM Cost Tracker with dashboard and prices, migrate, and run doctor"
+  task :setup do
+    Rails::Generators.invoke("llm_cost_tracker:install", %w[--dashboard --prices])
+    Rake::Task["db:migrate"].invoke
+    Rake::Task["llm_cost_tracker:doctor"].invoke
+  end
+
   desc "Check LLM Cost Tracker setup"
   task :doctor do
     Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")

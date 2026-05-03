@@ -78,7 +78,7 @@ and adapter-specific SQL.
 ## Pricing Refresh
 
 Runtime tracking never fetches provider pricing pages. Refresh tasks are
-operator-initiated:
+release-time or operator-initiated:
 
 ```bash
 bin/rails llm_cost_tracker:prices:refresh
@@ -87,6 +87,25 @@ bin/rails llm_cost_tracker:prices:check
 
 Refresh writes to `OUTPUT`, then `config.prices_file`, then
 `config/llm_cost_tracker_prices.yml`.
+
+## Pricing in Production
+
+Treat the pricing registry as immutable app config. Do not refresh prices from a
+running app container, a boot hook, or a release phase that mutates one live
+filesystem.
+
+Recommended production paths:
+
+- Commit `config/llm_cost_tracker_prices.yml` and update it through a reviewed
+  PR before deploy.
+- Run `llm_cost_tracker:prices:check` in CI when the committed file should stay
+  current with the maintained snapshot.
+- Skip the local file when bundled gem prices are fresh enough for your release
+  cadence.
+
+For container deploys, refresh before building the image or in an automation that
+opens a PR. Running `prices:refresh` inside one pod can leave replicas using
+different price registries until the next restart or deploy.
 
 ## Local Development Checks
 

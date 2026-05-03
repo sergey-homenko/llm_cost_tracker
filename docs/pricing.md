@@ -28,6 +28,9 @@ The refresh task reads the maintained LLM Cost Tracker snapshot and writes to
 `ENV["OUTPUT"]`, then `config.prices_file`, then
 `config/llm_cost_tracker_prices.yml`.
 
+For production containers, refresh the file before deploy and ship it with the
+release. Do not rely on a price refresh that mutates one running container.
+
 ## Price Fields
 
 Base fields:

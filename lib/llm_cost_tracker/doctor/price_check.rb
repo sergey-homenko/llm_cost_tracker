@@ -8,7 +8,7 @@ module LlmCostTracker
   class Doctor
     class PriceCheck
       STALE_AFTER_DAYS = 30
-      REFRESH_COMMAND = "run bin/rails llm_cost_tracker:prices:refresh"
+      REFRESH_COMMAND = "refresh the source-controlled prices file with bin/rails llm_cost_tracker:prices:refresh"
 
       def call
         path = LlmCostTracker.configuration.prices_file
@@ -48,7 +48,7 @@ module LlmCostTracker
         Check.new(
           :warn,
           "prices",
-          "using bundled prices updated_at=#{updated_at}; configure prices_file for production"
+          "using bundled prices updated_at=#{updated_at}; commit a prices_file for production releases"
         )
       end
 

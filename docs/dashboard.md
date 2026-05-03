@@ -6,7 +6,13 @@ from the host app's ActiveRecord ledger tables.
 
 ## Mounting
 
-Install with the dashboard option:
+Fresh installs can run setup:
+
+```bash
+bin/rails llm_cost_tracker:setup
+```
+
+For apps that are already installed, mount the dashboard with the generator:
 
 ```bash
 bin/rails generate llm_cost_tracker:install --dashboard
