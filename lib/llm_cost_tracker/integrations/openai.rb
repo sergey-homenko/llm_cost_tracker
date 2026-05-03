@@ -80,6 +80,7 @@ module LlmCostTracker
         def cache_read_input_tokens(usage)
           (
             object_dig(usage, :input_tokens_details, :cached_tokens) ||
+            object_dig(usage, :input_token_details, :cached_tokens) ||
             object_dig(usage, :prompt_tokens_details, :cached_tokens)
           ).to_i
         end
@@ -87,6 +88,7 @@ module LlmCostTracker
         def hidden_output_tokens(usage)
           (
             object_dig(usage, :output_tokens_details, :reasoning_tokens) ||
+            object_dig(usage, :output_token_details, :reasoning_tokens) ||
             object_dig(usage, :completion_tokens_details, :reasoning_tokens)
           ).to_i
         end
@@ -94,6 +96,7 @@ module LlmCostTracker
         def audio_input_tokens(usage)
           (
             object_dig(usage, :input_tokens_details, :audio_tokens) ||
+            object_dig(usage, :input_token_details, :audio_tokens) ||
             object_dig(usage, :prompt_tokens_details, :audio_tokens)
           ).to_i
         end
@@ -101,6 +104,7 @@ module LlmCostTracker
         def audio_output_tokens(usage)
           (
             object_dig(usage, :output_tokens_details, :audio_tokens) ||
+            object_dig(usage, :output_token_details, :audio_tokens) ||
             object_dig(usage, :completion_tokens_details, :audio_tokens)
           ).to_i
         end

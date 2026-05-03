@@ -128,23 +128,31 @@ module LlmCostTracker
       end
 
       def cache_read_input_tokens(usage)
-        details = usage["prompt_tokens_details"] || usage["input_tokens_details"] || {}
+        details = input_token_details(usage)
         details["cached_tokens"].to_i
       end
 
       def audio_input_tokens(usage)
-        details = usage["prompt_tokens_details"] || usage["input_tokens_details"] || {}
+        details = input_token_details(usage)
         details["audio_tokens"].to_i
       end
 
       def hidden_output_tokens(usage)
-        details = usage["completion_tokens_details"] || usage["output_tokens_details"] || {}
+        details = output_token_details(usage)
         details["reasoning_tokens"].to_i
       end
 
       def audio_output_tokens(usage)
-        details = usage["completion_tokens_details"] || usage["output_tokens_details"] || {}
+        details = output_token_details(usage)
         details["audio_tokens"].to_i
+      end
+
+      def input_token_details(usage)
+        usage["prompt_tokens_details"] || usage["input_tokens_details"] || usage["input_token_details"] || {}
+      end
+
+      def output_token_details(usage)
+        usage["completion_tokens_details"] || usage["output_tokens_details"] || usage["output_token_details"] || {}
       end
     end
   end

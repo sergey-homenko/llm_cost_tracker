@@ -106,6 +106,12 @@ jobs:
             cat refresh.log
             echo '```'
             echo
+            echo "## Price snapshot diff"
+            echo
+            echo '```diff'
+            git diff -- lib/llm_cost_tracker/prices.json
+            echo '```'
+            echo
             echo "Review the diff to confirm new models, deprecated removals, and price field changes."
           } > pr_body.md
 

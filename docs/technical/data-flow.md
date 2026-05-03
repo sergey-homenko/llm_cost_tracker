@@ -38,10 +38,12 @@ This is the normal path from an application LLM call to stored ledger data.
 1. Blank model identifiers become `unknown`.
 2. `UsageCapture` carries provider identity, model identity, stream metadata, response identity, `pricing_mode`, and `TokenUsage`.
 3. `Pricing.cost_for` prices token counters with the normalized `pricing_mode` and returns cost attributes or `nil` for unknown pricing.
-4. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
-5. An `Event` is created around `TokenUsage` and emitted through `ActiveSupport::Notifications`.
-6. The durable ingestion inbox receives the event.
-7. Budget checks run after the event is durably staged.
+4. `Pricing.charge_rate` prices provider-reported service charges only when the registry has a reliable rate for the captured quantity basis.
+5. `Billing::CostStatus` combines token pricing and service charge pricing into `free`, `complete`, `partial`, or `unknown`.
+6. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
+7. An `Event` is created around `TokenUsage` and emitted through `ActiveSupport::Notifications`.
+8. The durable ingestion inbox receives the event.
+9. Budget checks run after the event is durably staged.
 
 ## Ledger Storage
 

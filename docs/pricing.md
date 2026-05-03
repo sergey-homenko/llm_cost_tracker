@@ -134,3 +134,29 @@ These rows are audit context, not invoice-grade pricing. They preserve the
 provider item id, source key, quantity, component, applied rate, and status so
 downstream reconciliation can join them back to provider records without the gem
 inventing free tiers or private rates.
+
+Built-in service charge rates are bundled only when the parser has the same
+quantity basis that the provider publishes. OpenAI web-search search actions and
+file-search calls are priced when the registry has a rate. OpenAI
+Code Interpreter container sessions are captured as `container_session` audit
+rows, but the bundled registry does not price them because the provider price
+depends on container size and a fixed session window. Anthropic web-search
+request counts are priced; Anthropic code-execution request counts remain
+unknown-cost until a provider usage field exposes the hourly quantity that the
+published rate uses.
+
+## Usage and Pricing Coverage
+
+| Surface | Usage capture | Cost behavior |
+| --- | --- | --- |
+| OpenAI text, cache, reasoning, and audio token usage | Chat, Responses, OpenAI-compatible responses, and provider stream events | Token rates price captured buckets when the model has registry rates |
+| OpenAI Realtime `response.done` | Provider stream events passed through `track_stream`; standard Faraday middleware does not auto-capture WebSocket/WebRTC sessions | Audio input/output token rates price the call when the model has registry rates |
+| OpenAI hosted web search | `web_search_call` output items with `action.type = "search"` | Priced from `service_charges.openai.web_search_request` when present |
+| OpenAI web search page actions | `open_page` and `find_in_page` output item actions | Ignored as service charges because they are not separate billable search calls |
+| OpenAI hosted file search | `file_search_call` output items | Priced from `service_charges.openai.file_search_call` when present |
+| OpenAI Code Interpreter containers | `code_interpreter_call` output items deduplicated by container id | Stored as unknown-cost `container_session` rows unless a custom rate matches the captured quantity basis |
+| Anthropic server web search | `server_tool_use.web_search_requests` | Priced from `service_charges.anthropic.web_search_request` when present |
+| Anthropic code execution | `server_tool_use.code_execution_requests` | Stored as unknown-cost `code_execution_request` rows because the published rate is hourly |
+| Gemini modality tokens | `usageMetadata.promptTokensDetails` and response token details | Audio token rates price captured buckets when the model has registry rates |
+| Gemini grounding | `groundingMetadata.webSearchQueries` | Stored as unknown-cost `grounding_request` rows because free-tier and query reconciliation are account-level |
+| Groq OpenAI-compatible usage | Chat usage, cached input, reasoning output, and service tier headers | Token rates price captured buckets when the model has registry rates |

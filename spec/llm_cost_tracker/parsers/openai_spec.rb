@@ -254,6 +254,58 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.service_charges.last.details).to include("container_id" => "cntr_123")
     end
 
+    it "ignores non-billable OpenAI web search page actions" do
+      response_body = {
+        id: "resp_123",
+        model: "gpt-5-mini",
+        output: [
+          {
+            type: "web_search_call",
+            id: "ws_123",
+            status: "completed",
+            action: { type: "search" }
+          },
+          {
+            type: "web_search_call",
+            id: "ws_124",
+            status: "completed",
+            action: { type: "open_page" }
+          },
+          {
+            type: "web_search_call",
+            id: "ws_125",
+            status: "completed",
+            action: { type: "find_in_page" }
+          },
+          {
+            type: "web_search_call",
+            id: "ws_126",
+            status: "completed"
+          },
+          {
+            type: "message",
+            id: "msg_123",
+            status: "completed"
+          }
+        ],
+        usage: {
+          input_tokens: 150,
+          output_tokens: 42,
+          total_tokens: 192
+        }
+      }.to_json
+
+      result = parser.parse(
+        request_url: responses_url,
+        request_body: { model: "gpt-5-mini" }.to_json,
+        response_status: 200,
+        response_body: response_body
+      )
+
+      expect(result.service_charges.map(&:component)).to eq(%i[web_search_request web_search_request])
+      expect(result.service_charges.map(&:provider_item_id)).to eq(%w[ws_123 ws_126])
+    end
+
     it "tags non-streaming usage with a :response source" do
       result = parser.parse(
         request_url: chat_completions_url,
@@ -453,6 +505,42 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.token_usage.total_tokens).to eq(57)
       expect(result.usage_source).to eq(:stream_final)
       expect(result.provider_response_id).to eq("resp_456")
+    end
+
+    it "extracts Realtime response.done audio token details" do
+      events = [
+        {
+          event: "response.done",
+          data: {
+            "type" => "response.done",
+            "response" => {
+              "id" => "resp_456",
+              "model" => "gpt-realtime-1.5",
+              "usage" => {
+                "input_tokens" => 132,
+                "input_token_details" => { "cached_tokens" => 64, "audio_tokens" => 13 },
+                "output_tokens" => 121,
+                "output_token_details" => { "audio_tokens" => 91 },
+                "total_tokens" => 253
+              }
+            }
+          }
+        }
+      ]
+
+      result = parser.parse_stream(
+        request_url: responses_url,
+        request_body: { model: "gpt-realtime-1.5", stream: true }.to_json,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.token_usage.input_tokens).to eq(55)
+      expect(result.token_usage.cache_read_input_tokens).to eq(64)
+      expect(result.token_usage.audio_input_tokens).to eq(13)
+      expect(result.token_usage.output_tokens).to eq(30)
+      expect(result.token_usage.audio_output_tokens).to eq(91)
+      expect(result.token_usage.total_tokens).to eq(253)
     end
 
     it "captures Responses API streamed hosted tool output items once" do

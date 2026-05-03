@@ -30,10 +30,9 @@ module LlmCostTracker
 
       def openai_store_output_item(output_items, item)
         return unless item.is_a?(Hash)
+        return unless openai_billable_output_item?(item)
 
         component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
-        return unless component
-
         key = if component == :container_session && item["container_id"]
                 "#{component}:#{item['container_id']}"
               else
@@ -70,6 +69,15 @@ module LlmCostTracker
         details["action_type"] = item.dig("action", "type") if item.dig("action", "type")
         details["container_id"] = item["container_id"] if item["container_id"]
         details
+      end
+
+      def openai_billable_output_item?(item)
+        component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
+        return false unless component
+        return true unless component == :web_search_request
+
+        action_type = item.dig("action", "type")
+        action_type.nil? || action_type == "search"
       end
     end
   end

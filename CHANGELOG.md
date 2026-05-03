@@ -21,6 +21,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Provider price refresh now covers Groq and Gemini audio input rates.
 - Provider price refresh now covers OpenAI audio model rates.
 - Provider price refresh now updates service charge rates.
+- OpenAI Realtime stream usage now reads singular token detail keys from `response.done` events.
+- OpenAI web search service charges now ignore non-search page actions.
+- OpenAI container session rates are no longer bundled without container-size usage.
 - Data quality now summarizes captured service charges.
 - Pricing components now derive directly from the billing component registry.
 - Durable inbox payloads now use schema version 2 while reading legacy v0/v1 payloads.

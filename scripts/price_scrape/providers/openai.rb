@@ -73,8 +73,7 @@ module LlmCostTracker
           rows = table.css("tbody tr").map { |tr| tr.css("td").map { |td| td.text.gsub(/\s+/, " ").strip } }
           {
             "web_search_request" => tool_price(rows, "Web search"),
-            "file_search_call" => tool_price(rows, "Tool call"),
-            "container_session" => tool_price(rows, "Containers")
+            "file_search_call" => tool_price(rows, "Tool call")
           }
         end
 

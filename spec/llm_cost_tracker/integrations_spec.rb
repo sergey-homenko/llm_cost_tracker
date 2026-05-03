@@ -10,6 +10,8 @@ module LlmCostTrackerIntegrationSpecTypes
     :completion_tokens,
     :input_tokens_details,
     :output_tokens_details,
+    :input_token_details,
+    :output_token_details,
     :prompt_tokens_details,
     :completion_tokens_details,
     :cache_read_input_tokens,
@@ -242,8 +244,8 @@ RSpec.describe LlmCostTracker::Integrations do
       usage: usage_class.new(
         input_tokens: 120,
         output_tokens: 70,
-        input_tokens_details: details_class.new(cached_tokens: 20, audio_tokens: 30),
-        output_tokens_details: details_class.new(reasoning_tokens: 5, audio_tokens: 10)
+        input_token_details: details_class.new(cached_tokens: 20, audio_tokens: 30),
+        output_token_details: details_class.new(reasoning_tokens: 5, audio_tokens: 10)
       )
     )
     install_openai_fakes(response)
