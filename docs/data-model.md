@@ -48,6 +48,10 @@ Primary ledger table. One row represents one tracked call or completed stream.
 | `stream` | boolean, not null, default `false` | Whether the row came from stream capture |
 | `usage_source` | string | `response`, `stream_final`, `sdk_response`, `manual`, or `unknown` |
 | `provider_response_id` | string | Stable provider response id when exposed |
+| `provider_project_id` | string | Provider project/account dimension when known at capture time |
+| `provider_api_key_id` | string | Provider API key dimension when known at capture time |
+| `provider_workspace_id` | string | Provider workspace/organization dimension when known at capture time |
+| `batch` | boolean, not null, default `false` | Whether usage came from a provider batch path |
 | `pricing_mode` | string | Canonical pricing mode such as `batch`, `flex`, or `priority` |
 | `cost_status` | string, not null, default `unknown` | `free`, `complete`, `partial`, or `unknown` |
 | `pricing_snapshot` | JSONB on PostgreSQL, JSON on MySQL | Applied pricing audit snapshot |

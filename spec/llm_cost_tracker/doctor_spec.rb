@@ -86,6 +86,14 @@ RSpec.describe LlmCostTracker::Doctor do
     )
   end
 
+  it "maps capture dimension columns to the capture dimensions generator" do
+    columns = LlmCostTracker::Generators::AddCaptureDimensionsGenerator::COLUMN_NAMES
+
+    expect(columns.map { |column| described_class::SchemaGenerators::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
+      ["bin/rails generate llm_cost_tracker:add_capture_dimensions"]
+    )
+  end
+
   it "treats table probe errors as absent tables" do
     allow(LlmCostTracker::Call).to receive(:connection).and_raise("database unavailable")
 

@@ -10,6 +10,7 @@ require "yaml"
 require "llm_cost_tracker/pricing/registry"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_billing_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_call_rollups_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/add_capture_dimensions_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_token_usage_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/install_generator"
@@ -53,6 +54,10 @@ RSpec.describe "generator templates" do
     expect(migration).to include("t.boolean :stream")
     expect(migration).to include("t.string  :usage_source")
     expect(migration).to include("t.string  :provider_response_id")
+    expect(migration).to include("t.string  :provider_project_id")
+    expect(migration).to include("t.string  :provider_api_key_id")
+    expect(migration).to include("t.string  :provider_workspace_id")
+    expect(migration).to include("t.boolean :batch")
     expect(migration).to include("t.string  :pricing_mode")
     expect(migration).to include("t.string  :cost_status")
     expect(migration).to include("t.jsonb :pricing_snapshot")
@@ -157,6 +162,16 @@ RSpec.describe "generator templates" do
     expect(migration).not_to include("t.string   :model, null: false")
   end
 
+  it "provides a capture dimensions upgrade migration" do
+    migration = template("add_capture_dimensions_to_llm_cost_tracker_calls.rb.erb")
+
+    expect(migration).to include("class AddCaptureDimensionsToLlmCostTrackerCalls")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :provider_project_id, :string")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :provider_api_key_id, :string")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :provider_workspace_id, :string")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :batch, :boolean, null: false, default: false")
+  end
+
   it "generates a durable ingestion migration" do
     Dir.mktmpdir do |dir|
       LlmCostTracker::Generators::AddIngestionGenerator.start([], destination_root: dir)
@@ -164,6 +179,16 @@ RSpec.describe "generator templates" do
 
       expect(paths.size).to eq(1)
       expect(File.read(paths.first)).to include("class AddIngestionToLlmCostTracker")
+    end
+  end
+
+  it "generates a capture dimensions migration" do
+    Dir.mktmpdir do |dir|
+      LlmCostTracker::Generators::AddCaptureDimensionsGenerator.start([], destination_root: dir)
+      paths = Dir[File.join(dir, "db/migrate/*add_capture_dimensions_to_llm_cost_tracker_calls.rb")]
+
+      expect(paths.size).to eq(1)
+      expect(File.read(paths.first)).to include("class AddCaptureDimensionsToLlmCostTrackerCalls")
     end
   end
 

@@ -53,6 +53,10 @@ module LlmCostTrackerDatabaseSpecHelpers
       table.boolean :stream, null: false, default: false
       table.string :usage_source
       table.string :provider_response_id
+      table.string :provider_project_id
+      table.string :provider_api_key_id
+      table.string :provider_workspace_id
+      table.boolean :batch, null: false, default: false
       table.string :pricing_mode
       table.string :cost_status
       if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)

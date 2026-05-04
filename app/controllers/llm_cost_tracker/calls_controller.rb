@@ -65,14 +65,18 @@ module LlmCostTracker
       %i[tracked_at provider model] +
         TokenUsage.members +
         Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost] +
-        %i[cost_status pricing_snapshot latency_ms provider_response_id tags]
+        %i[
+          cost_status pricing_snapshot latency_ms provider_response_id provider_project_id
+          provider_api_key_id provider_workspace_id batch tags
+        ]
     end
 
     def csv_value(field, value)
       case field
       when :tracked_at
         value&.utc&.iso8601
-      when :provider, :model, :provider_response_id, :cost_status
+      when :provider, :model, :provider_response_id, :provider_project_id, :provider_api_key_id,
+           :provider_workspace_id, :cost_status
         csv_safe(value)
       when :tags, :pricing_snapshot
         csv_safe(csv_json(value))

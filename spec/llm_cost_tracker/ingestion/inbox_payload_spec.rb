@@ -22,6 +22,10 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       stream: false,
       usage_source: :manual,
       provider_response_id: "resp_payload_1",
+      provider_project_id: "proj_payload_1",
+      provider_api_key_id: "key_payload_1",
+      provider_workspace_id: "workspace_payload_1",
+      batch: true,
       tracked_at: Time.utc(2026, 4, 18, 12, 0, 0),
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       pricing_snapshot: {
@@ -60,6 +64,10 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
     expect(restored.pricing_snapshot.fetch(:schema_version)).to eq(1)
     expect(restored.usage_source).to eq(:manual)
+    expect(restored.provider_project_id).to eq("proj_payload_1")
+    expect(restored.provider_api_key_id).to eq("key_payload_1")
+    expect(restored.provider_workspace_id).to eq("workspace_payload_1")
+    expect(restored.batch).to eq(true)
     expect(restored.service_charges.first.component).to eq(:web_search_request)
   end
 
@@ -87,6 +95,10 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.total_cost.to_f).to eq(0.03)
     expect(restored.tags).to eq(feature: "legacy")
     expect(restored.usage_source).to eq(:stream_final)
+    expect(restored.provider_project_id).to be_nil
+    expect(restored.provider_api_key_id).to be_nil
+    expect(restored.provider_workspace_id).to be_nil
+    expect(restored.batch).to eq(false)
     expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
     expect(restored.pricing_snapshot).to be_nil
     expect(restored.service_charges).to eq([])

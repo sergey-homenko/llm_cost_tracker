@@ -13,6 +13,10 @@ module LlmCostTracker
     :stream,
     :usage_source,
     :provider_response_id,
+    :provider_project_id,
+    :provider_api_key_id,
+    :provider_workspace_id,
+    :batch,
     :pricing_mode,
     :service_charges
   )
@@ -21,6 +25,10 @@ module LlmCostTracker
     UNKNOWN_MODEL = "unknown"
 
     def self.build(**attributes)
+      pricing_mode = Pricing.normalize_mode(attributes[:pricing_mode])
+      batch = attributes[:batch]
+      batch = pricing_mode.to_s.split("_").include?("batch") if batch.nil?
+
       new(
         provider: attributes.fetch(:provider).to_s,
         model: attributes.fetch(:model).to_s.strip.presence || UNKNOWN_MODEL,
@@ -28,7 +36,11 @@ module LlmCostTracker
         stream: attributes[:stream] || false,
         usage_source: attributes[:usage_source],
         provider_response_id: attributes[:provider_response_id],
-        pricing_mode: Pricing.normalize_mode(attributes[:pricing_mode]),
+        provider_project_id: attributes[:provider_project_id].to_s.strip.presence,
+        provider_api_key_id: attributes[:provider_api_key_id].to_s.strip.presence,
+        provider_workspace_id: attributes[:provider_workspace_id].to_s.strip.presence,
+        batch: batch,
+        pricing_mode: pricing_mode,
         service_charges: Billing::ServiceCharge.build_many(attributes[:service_charges])
       )
     end

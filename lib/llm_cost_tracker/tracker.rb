@@ -53,6 +53,7 @@ module LlmCostTracker
 
       private
 
+      # rubocop:disable Metrics/MethodLength
       def build_event(capture:, pricing_mode:, cost_data:, pricing_snapshot:, metadata:, latency_ms:, context_tags:)
         tags = metadata.to_h
         context_tags = context_tags.nil? ? LlmCostTracker::Tags::Context.tags : context_tags.to_h
@@ -79,15 +80,20 @@ module LlmCostTracker
           cost: cost,
           tags: LlmCostTracker::Tags::Sanitizer.call(context_tags.merge(tags)).freeze,
           latency_ms: latency_ms.nil? ? nil : [latency_ms.to_i, 0].max,
-          stream: capture.stream ? true : false,
+          stream: capture.stream,
           usage_source: capture.usage_source,
           provider_response_id: capture.provider_response_id.to_s.presence,
+          provider_project_id: capture.provider_project_id,
+          provider_api_key_id: capture.provider_api_key_id,
+          provider_workspace_id: capture.provider_workspace_id,
+          batch: capture.batch,
           tracked_at: Time.now.utc,
           cost_status: cost_status,
           pricing_snapshot: pricing_snapshot,
           service_charges: service_charges
         )
       end
+      # rubocop:enable Metrics/MethodLength
 
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def cost_with_service_charges(cost_data, provider:, pricing_mode:, service_charges:)

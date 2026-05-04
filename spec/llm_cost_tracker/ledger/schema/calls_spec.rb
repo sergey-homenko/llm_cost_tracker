@@ -14,6 +14,10 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
         stream
         usage_source
         provider_response_id
+        provider_project_id
+        provider_api_key_id
+        provider_workspace_id
+        batch
         pricing_mode
         cost_status
         pricing_snapshot

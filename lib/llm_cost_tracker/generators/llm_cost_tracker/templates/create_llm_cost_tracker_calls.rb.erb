@@ -18,6 +18,10 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
       t.boolean :stream,        null: false, default: false
       t.string  :usage_source
       t.string  :provider_response_id
+      t.string  :provider_project_id
+      t.string  :provider_api_key_id
+      t.string  :provider_workspace_id
+      t.boolean :batch, null: false, default: false
       t.string  :pricing_mode
       t.string  :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
       if postgresql?

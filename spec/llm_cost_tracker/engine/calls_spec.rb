@@ -189,6 +189,10 @@ RSpec.describe "LlmCostTracker::Engine calls" do
       total_cost: 3.0,
       latency_ms: 250,
       provider_response_id: "chatcmpl_show_123",
+      provider_project_id: "proj_show_123",
+      provider_api_key_id: "key_show_123",
+      provider_workspace_id: "workspace_show_123",
+      batch: true,
       tags: { feature: "chat", user_id: 42 },
       tracked_at: Time.utc(2026, 4, 18, 12, 0, 0)
     )
@@ -204,6 +208,14 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("complete")
     expect(response.body).to include("Provider Response ID")
     expect(response.body).to include("chatcmpl_show_123")
+    expect(response.body).to include("Provider Project ID")
+    expect(response.body).to include("proj_show_123")
+    expect(response.body).to include("Provider API Key ID")
+    expect(response.body).to include("key_show_123")
+    expect(response.body).to include("Provider Workspace ID")
+    expect(response.body).to include("workspace_show_123")
+    expect(response.body).to include("Batch")
+    expect(response.body).to include("yes")
     expect(response.body).to include("1,200")
     expect(response.body).to include("300")
     expect(response.body).to include("1,500")
@@ -273,14 +285,27 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("req_123")
   end
 
-  it "includes provider_response_id in CSV exports" do
-    create_call(provider_response_id: "chatcmpl_csv_123")
+  it "includes provider capture dimensions in CSV exports" do
+    create_call(
+      provider_response_id: "chatcmpl_csv_123",
+      provider_project_id: "proj_csv_123",
+      provider_api_key_id: "key_csv_123",
+      provider_workspace_id: "workspace_csv_123",
+      batch: true
+    )
 
     response = get("/llm-costs/calls.csv")
 
     expect(response.status).to eq(200)
     expect(response.body).to include("provider_response_id")
     expect(response.body).to include("chatcmpl_csv_123")
+    expect(response.body).to include("provider_project_id")
+    expect(response.body).to include("proj_csv_123")
+    expect(response.body).to include("provider_api_key_id")
+    expect(response.body).to include("key_csv_123")
+    expect(response.body).to include("provider_workspace_id")
+    expect(response.body).to include("workspace_csv_123")
+    expect(response.body).to include("batch")
   end
 
   it "renders a friendly not-found page for missing call details" do

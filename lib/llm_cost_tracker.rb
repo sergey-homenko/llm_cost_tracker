@@ -102,7 +102,8 @@ module LlmCostTracker
 
     def track(provider:, tokens:, model: nil, tags: {}, latency_ms: nil, stream: false,
               usage_source: :manual, enforce_budget: false,
-              provider_response_id: nil, pricing_mode: nil, service_charges: [])
+              provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
+              provider_workspace_id: nil, batch: nil, pricing_mode: nil, service_charges: [])
       enforce_budget! if enforce_budget
 
       Tracker.record(
@@ -113,6 +114,11 @@ module LlmCostTracker
           stream: stream,
           usage_source: usage_source,
           provider_response_id: provider_response_id,
+          provider_project_id: provider_project_id,
+          provider_api_key_id: provider_api_key_id,
+          provider_workspace_id: provider_workspace_id,
+          batch: batch,
+          pricing_mode: pricing_mode,
           service_charges: service_charges
         ),
         latency_ms: latency_ms,
@@ -122,7 +128,8 @@ module LlmCostTracker
     end
 
     def track_stream(provider:, model: nil, tags: {}, latency_ms: nil, enforce_budget: false,
-                     provider_response_id: nil, pricing_mode: nil)
+                     provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
+                     provider_workspace_id: nil, batch: nil, pricing_mode: nil)
       require_relative "llm_cost_tracker/capture/stream_collector"
       enforce_budget! if enforce_budget
       collector = Capture::StreamCollector.new(
@@ -130,6 +137,10 @@ module LlmCostTracker
         model: model,
         latency_ms: latency_ms,
         provider_response_id: provider_response_id,
+        provider_project_id: provider_project_id,
+        provider_api_key_id: provider_api_key_id,
+        provider_workspace_id: provider_workspace_id,
+        batch: batch,
         pricing_mode: pricing_mode,
         metadata: tags
       )

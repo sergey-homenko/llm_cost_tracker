@@ -11,12 +11,17 @@ module LlmCostTracker
     class StreamCollector
       attr_reader :provider
 
-      def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, pricing_mode: nil, metadata: {},
-                     context_tags: nil)
+      def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, provider_project_id: nil,
+                     provider_api_key_id: nil, provider_workspace_id: nil, batch: nil, pricing_mode: nil,
+                     metadata: {}, context_tags: nil)
         @provider = provider.to_s
         @model = model
         @latency_ms = latency_ms
         @provider_response_id = provider_response_id
+        @provider_project_id = provider_project_id
+        @provider_api_key_id = provider_api_key_id
+        @provider_workspace_id = provider_workspace_id
+        @batch = batch
         @pricing_mode = pricing_mode
         @metadata = (metadata || {}).deep_dup
         @context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).deep_dup
@@ -67,6 +72,11 @@ module LlmCostTracker
         @mutex.synchronize do
           ensure_open!
           @provider_response_id = extra.delete(:provider_response_id) || @provider_response_id
+          @provider_project_id = extra.delete(:provider_project_id) || @provider_project_id
+          @provider_api_key_id = extra.delete(:provider_api_key_id) || @provider_api_key_id
+          @provider_workspace_id = extra.delete(:provider_workspace_id) || @provider_workspace_id
+          batch = extra.delete(:batch)
+          @batch = batch unless batch.nil?
           @explicit_usage = TokenUsage.build(
             **extra.slice(*TokenUsage.members),
             input_tokens: input_tokens,
@@ -76,11 +86,24 @@ module LlmCostTracker
         self
       end
 
+      # rubocop:disable Metrics/MethodLength
       def finish!(errored: false)
         snapshot = @mutex.synchronize do
           return if @finished
 
           @finished = true
+          pricing_mode = Pricing.normalize_mode(@pricing_mode)
+          dimensions = {
+            provider_project_id: @provider_project_id.to_s.strip.presence,
+            provider_api_key_id: @provider_api_key_id.to_s.strip.presence,
+            provider_workspace_id: @provider_workspace_id.to_s.strip.presence
+          }.compact
+          if @batch.nil?
+            dimensions[:batch] = true if pricing_mode.to_s.split("_").include?("batch")
+          else
+            dimensions[:batch] = @batch
+          end
+
           {
             events: @events.dup,
             overflowed: @overflowed,
@@ -88,7 +111,8 @@ module LlmCostTracker
             model: @model,
             latency_ms: @latency_ms,
             provider_response_id: @provider_response_id,
-            pricing_mode: @pricing_mode,
+            capture_dimensions: dimensions,
+            pricing_mode: pricing_mode,
             metadata: @metadata.deep_dup,
             context_tags: @context_tags.deep_dup
           }
@@ -107,6 +131,7 @@ module LlmCostTracker
           context_tags: snapshot[:context_tags]
         )
       end
+      # rubocop:enable Metrics/MethodLength
 
       private
 
@@ -126,7 +151,7 @@ module LlmCostTracker
         )
         if capture
           model = present_model(capture.model) || present_model(snapshot[:model]) || UsageCapture::UNKNOWN_MODEL
-          return capture.with(provider: @provider, model: model)
+          return capture.with(provider: @provider, model: model, **snapshot.fetch(:capture_dimensions))
         end
 
         build_unknown_usage(snapshot)
@@ -147,7 +172,9 @@ module LlmCostTracker
           model: snapshot[:model] || UsageCapture::UNKNOWN_MODEL,
           token_usage: snapshot[:explicit_usage],
           stream: true,
-          usage_source: :manual
+          usage_source: :manual,
+          pricing_mode: snapshot[:pricing_mode],
+          **snapshot.fetch(:capture_dimensions)
         )
       end
 
@@ -157,7 +184,9 @@ module LlmCostTracker
           model: snapshot[:model] || UsageCapture::UNKNOWN_MODEL,
           token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
-          usage_source: :unknown
+          usage_source: :unknown,
+          pricing_mode: snapshot[:pricing_mode],
+          **snapshot.fetch(:capture_dimensions)
         )
       end
 

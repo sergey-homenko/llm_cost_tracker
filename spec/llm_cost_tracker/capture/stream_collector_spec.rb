@@ -40,6 +40,21 @@ RSpec.describe LlmCostTracker do
       captured
     end
 
+    it "exposes stream state while open" do
+      stream = LlmCostTracker::Capture::StreamCollector.new(
+        provider: "custom",
+        model: "initial-model",
+        provider_response_id: "resp_initial",
+        metadata: { feature: "stream" }
+      )
+
+      stream.model = "updated-model"
+
+      expect(stream.model).to eq("updated-model")
+      expect(stream.provider_response_id).to eq("resp_initial")
+      expect(stream.metadata).to eq(feature: "stream")
+    end
+
     it "parses OpenAI-shaped chunks via the matching provider parser" do
       collected = events
 
@@ -132,6 +147,66 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:usage_source]).to eq(:manual)
       expect(collected.first[:provider_response_id]).to eq("custom_resp_123")
       expect(collected.first[:stream]).to be true
+    end
+
+    it "carries provider capture dimensions from explicit stream usage" do
+      collected = events
+
+      described_class.track_stream(provider: "custom", model: "local-7b", provider_project_id: "initial") do |stream|
+        stream.usage(
+          input_tokens: 50,
+          output_tokens: 20,
+          provider_project_id: " project-stream ",
+          provider_api_key_id: " key-stream ",
+          provider_workspace_id: " workspace-stream ",
+          batch: true
+        )
+      end
+
+      expect(collected.first[:provider_project_id]).to eq("project-stream")
+      expect(collected.first[:provider_api_key_id]).to eq("key-stream")
+      expect(collected.first[:provider_workspace_id]).to eq("workspace-stream")
+      expect(collected.first[:batch]).to eq(true)
+    end
+
+    it "normalizes provider capture dimensions from parsed stream usage" do
+      collected = events
+
+      described_class.track_stream(
+        provider: "openai",
+        model: "gpt-4o",
+        provider_project_id: " project-stream ",
+        provider_api_key_id: " key-stream ",
+        provider_workspace_id: " workspace-stream ",
+        pricing_mode: :batch
+      ) do |stream|
+        stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
+      end
+
+      expect(collected.first[:provider_project_id]).to eq("project-stream")
+      expect(collected.first[:provider_api_key_id]).to eq("key-stream")
+      expect(collected.first[:provider_workspace_id]).to eq("workspace-stream")
+      expect(collected.first[:batch]).to eq(true)
+    end
+
+    it "keeps provider parser batch capture when stream dimensions are not explicit" do
+      collected = events
+
+      described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+        stream.event(
+          {
+            "type" => "response.completed",
+            "response" => {
+              "model" => "gpt-4o",
+              "service_tier" => "batch",
+              "usage" => { "input_tokens" => 12, "output_tokens" => 3, "total_tokens" => 15 }
+            }
+          }
+        )
+      end
+
+      expect(collected.first[:pricing_mode]).to eq(:batch)
+      expect(collected.first[:batch]).to eq(true)
     end
 
     it "keeps scoped tags from when the stream started" do

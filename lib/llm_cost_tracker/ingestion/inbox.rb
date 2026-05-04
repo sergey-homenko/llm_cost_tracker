@@ -53,6 +53,10 @@ module LlmCostTracker
             stream: payload.fetch(:stream),
             usage_source: usage_source,
             provider_response_id: payload[:provider_response_id],
+            provider_project_id: payload[:provider_project_id],
+            provider_api_key_id: payload[:provider_api_key_id],
+            provider_workspace_id: payload[:provider_workspace_id],
+            batch: payload.fetch(:batch, false),
             tracked_at: Time.iso8601(payload.fetch(:tracked_at)),
             cost_status: cost_status_for(
               payload: payload,

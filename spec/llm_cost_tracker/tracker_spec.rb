@@ -8,6 +8,7 @@ RSpec.describe LlmCostTracker::Tracker do
     before { allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true) }
 
     def record(provider:, model:, token_usage:, stream: false, usage_source: nil, provider_response_id: nil,
+               provider_project_id: nil, provider_api_key_id: nil, provider_workspace_id: nil, batch: nil,
                capture_pricing_mode: nil, service_charges: [], **options)
       described_class.record(
         capture: LlmCostTracker::UsageCapture.build(
@@ -17,6 +18,10 @@ RSpec.describe LlmCostTracker::Tracker do
           stream: stream,
           usage_source: usage_source,
           provider_response_id: provider_response_id,
+          provider_project_id: provider_project_id,
+          provider_api_key_id: provider_api_key_id,
+          provider_workspace_id: provider_workspace_id,
+          batch: batch,
           pricing_mode: capture_pricing_mode,
           service_charges: service_charges
         ),
@@ -34,6 +39,10 @@ RSpec.describe LlmCostTracker::Tracker do
         provider: "openai",
         model: "gpt-4o",
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50),
+        provider_project_id: "proj_notify",
+        provider_api_key_id: "key_notify",
+        provider_workspace_id: "workspace_notify",
+        batch: true,
         metadata: { feature: "chat", user_id: 42 }
       )
 
@@ -46,6 +55,10 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.dig(:token_usage, :total_tokens)).to eq(150)
       expect(event[:cost][:total_cost]).to be > 0
       expect(event[:cost_status]).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+      expect(event[:provider_project_id]).to eq("proj_notify")
+      expect(event[:provider_api_key_id]).to eq("key_notify")
+      expect(event[:provider_workspace_id]).to eq("workspace_notify")
+      expect(event[:batch]).to eq(true)
       expect(event.dig(:pricing_snapshot, :rates, :input, :quantity)).to eq(1_000_000)
       expect(event[:tags]).to include(feature: "chat", user_id: 42)
       expect(event[:tracked_at]).to be_a(Time)

@@ -49,6 +49,10 @@ RSpec.describe "ActiveRecord storage integration" do
       stream: false,
       usage_source: :manual,
       provider_response_id: nil,
+      provider_project_id: nil,
+      provider_api_key_id: nil,
+      provider_workspace_id: nil,
+      batch: false,
       tracked_at: tracked_at,
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       pricing_snapshot: nil,
@@ -62,6 +66,10 @@ RSpec.describe "ActiveRecord storage integration" do
       model: "gpt-4o",
       tokens: { input: 1_000, output: 500 },
       latency_ms: 250,
+      provider_project_id: "proj_123",
+      provider_api_key_id: "key_456",
+      provider_workspace_id: "workspace_789",
+      batch: true,
       tags: {
         user_id: 42,
         feature: "chat"
@@ -75,6 +83,10 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.model).to eq("gpt-4o")
     expect(call.total_cost.to_f).to eq(0.0075)
     expect(call.latency_ms).to eq(250)
+    expect(call.provider_project_id).to eq("proj_123")
+    expect(call.provider_api_key_id).to eq("key_456")
+    expect(call.provider_workspace_id).to eq("workspace_789")
+    expect(call.batch).to eq(true)
     expect(call.parsed_tags).to include("user_id" => "42", "feature" => "chat")
   end
 
@@ -172,6 +184,7 @@ RSpec.describe "ActiveRecord storage integration" do
 
     call = LlmCostTracker::Call.first
     expect(call.pricing_mode).to eq("batch")
+    expect(call.batch).to eq(true)
     expect(call.total_cost.to_f).to eq(1.5)
   end
 
@@ -422,18 +435,32 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Call.first.parsed_tags).not_to have_key("latency_ms")
   end
 
-  it "persists provider_response_id without treating it as a tag" do
+  it "persists provider capture dimensions without treating them as tags" do
     track_and_flush(
       provider: :openai,
       model: "gpt-4o",
       tokens: { input: 10, output: 5 },
-      provider_response_id: "chatcmpl_123"
+      provider_response_id: "chatcmpl_123",
+      provider_project_id: "proj_123",
+      provider_api_key_id: "key_123",
+      provider_workspace_id: "workspace_123",
+      batch: true
     )
 
     call = LlmCostTracker::Call.first
 
     expect(call.provider_response_id).to eq("chatcmpl_123")
-    expect(call.parsed_tags).not_to have_key("provider_response_id")
+    expect(call.provider_project_id).to eq("proj_123")
+    expect(call.provider_api_key_id).to eq("key_123")
+    expect(call.provider_workspace_id).to eq("workspace_123")
+    expect(call.batch).to eq(true)
+    expect(call.parsed_tags).not_to include(
+      "provider_response_id",
+      "provider_project_id",
+      "provider_api_key_id",
+      "provider_workspace_id",
+      "batch"
+    )
   end
 
   it "finds stringified numeric tags through by_tag" do

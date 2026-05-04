@@ -74,13 +74,15 @@ LlmCostTracker.track_stream(provider: "custom", model: "gateway-model") do |stre
     input_tokens: 120,
     output_tokens: 45,
     cache_read_input_tokens: 20,
-    provider_response_id: "resp_123"
+    provider_response_id: "resp_123",
+    provider_project_id: "proj_123",
+    batch: true
   )
 end
 ```
 
 `stream.usage` accepts token fields owned by `TokenUsage`, plus
-`provider_response_id`.
+provider response and grouping dimensions.
 
 ## Data Quality
 
@@ -91,6 +93,7 @@ Stream rows include:
 | `stream` | `true` for captured streaming calls |
 | `usage_source` | `stream_final`, `manual`, or `unknown` |
 | `provider_response_id` | Provider ID when exposed |
+| `provider_project_id`, `provider_api_key_id`, `provider_workspace_id`, `batch` | Provider grouping dimensions when captured |
 | `cost_status` | `free`, `complete`, `partial`, or `unknown` |
 
 Oversized or unserializable stream buffers are recorded as unknown usage. The

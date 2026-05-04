@@ -39,16 +39,16 @@ the current 0.8 line.
 
 | Current install | Required current generators | Notes |
 | --- | --- | --- |
-| 0.1.0 or 0.1.1 | `upgrade_schema_foundation`, `add_latency_ms`, `upgrade_cost_precision`, `upgrade_tags_to_jsonb`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | PostgreSQL tag upgrade rewrites `llm_cost_tracker_calls.tags`; run large ledgers in a maintenance window or use a host-specific two-phase migration. |
-| 0.1.2 or 0.1.3 | `upgrade_schema_foundation`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | `upgrade_cost_precision`, `upgrade_tags_to_jsonb`, and `add_latency_ms` may already be present; doctor is the source of truth. |
-| 0.1.4 or 0.2.x | `upgrade_schema_foundation`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | Update removed model/report helper calls from the 0.1.4 and 0.2.0 breaking changes. |
-| 0.3.0 | `upgrade_schema_foundation`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | Streaming columns were introduced in 0.3.0. |
-| 0.3.1 or 0.3.2 | `upgrade_schema_foundation`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | `provider_response_id` was introduced in 0.3.1. |
-| 0.3.3 | `upgrade_schema_foundation`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | Do not add the historical monthly totals table for a direct 0.8 upgrade; `add_call_rollups` imports legacy monthly totals when present. |
-| 0.4.x or 0.5.x | `upgrade_schema_foundation`, `add_token_usage`, `add_ingestion`, `add_billing` | `add_token_usage` is the current replacement for the historical `add_usage_breakdown` generator. |
-| 0.6.x | `upgrade_schema_foundation`, `add_token_usage`, `add_billing` | Durable ingestion tables are renamed in 0.8, and 0.7.1 expanded token usage and pricing mode requirements. |
-| 0.7.0 | `upgrade_schema_foundation`, `add_token_usage`, `add_billing` | Also apply the 0.7.1 API changes. |
-| 0.7.1, 0.7.2, or 0.7.3 | `upgrade_schema_foundation`, `add_billing` | 0.8 renames early schema names, then adds billing audit columns and service charge storage. |
+| 0.1.0 or 0.1.1 | `upgrade_schema_foundation`, `add_latency_ms`, `upgrade_cost_precision`, `upgrade_tags_to_jsonb`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing`, `add_capture_dimensions` | PostgreSQL tag upgrade rewrites `llm_cost_tracker_calls.tags`; run large ledgers in a maintenance window or use a host-specific two-phase migration. |
+| 0.1.2 or 0.1.3 | `upgrade_schema_foundation`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing`, `add_capture_dimensions` | `upgrade_cost_precision`, `upgrade_tags_to_jsonb`, and `add_latency_ms` may already be present; doctor is the source of truth. |
+| 0.1.4 or 0.2.x | `upgrade_schema_foundation`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing`, `add_capture_dimensions` | Update removed model/report helper calls from the 0.1.4 and 0.2.0 breaking changes. |
+| 0.3.0 | `upgrade_schema_foundation`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing`, `add_capture_dimensions` | Streaming columns were introduced in 0.3.0. |
+| 0.3.1 or 0.3.2 | `upgrade_schema_foundation`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing`, `add_capture_dimensions` | `provider_response_id` was introduced in 0.3.1. |
+| 0.3.3 | `upgrade_schema_foundation`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing`, `add_capture_dimensions` | Do not add the historical monthly totals table for a direct 0.8 upgrade; `add_call_rollups` imports legacy monthly totals when present. |
+| 0.4.x or 0.5.x | `upgrade_schema_foundation`, `add_token_usage`, `add_ingestion`, `add_billing`, `add_capture_dimensions` | `add_token_usage` is the current replacement for the historical `add_usage_breakdown` generator. |
+| 0.6.x | `upgrade_schema_foundation`, `add_token_usage`, `add_billing`, `add_capture_dimensions` | Durable ingestion tables are renamed in 0.8, and 0.7.1 expanded token usage and pricing mode requirements. |
+| 0.7.0 | `upgrade_schema_foundation`, `add_token_usage`, `add_billing`, `add_capture_dimensions` | Also apply the 0.7.1 API changes. |
+| 0.7.1, 0.7.2, or 0.7.3 | `upgrade_schema_foundation`, `add_billing`, `add_capture_dimensions` | 0.8 renames early schema names, adds billing audit columns, and adds provider dimensions for future reconciliation. |
 
 The table assumes your app applied the required migrations for the version it
 currently runs. If an older generator was skipped, `llm_cost_tracker:doctor`
@@ -75,6 +75,7 @@ PostgreSQL or a MySQL-family database before upgrading past 0.6.x.
 | `llm_cost_tracker:add_ingestion` | 0.6.0 | Adds durable inbox, ingestion lease, and `event_id`. |
 | `llm_cost_tracker:upgrade_schema_foundation` | 0.8.0 | Renames the released call table, call-rollup table, service-charge call foreign key, durable ingestion tables, and 0.7.x `cache_write_1h_input_tokens` / `cache_write_1h_input_cost` columns to their current names. |
 | `llm_cost_tracker:add_billing` | 0.8.0 | Adds `cost_status`, `pricing_snapshot`, and `llm_cost_tracker_service_charges`. |
+| `llm_cost_tracker:add_capture_dimensions` | 0.8.0 | Adds provider project, API key, workspace, and batch capture dimensions for future reconciliation. |
 
 Fresh installs generated by the current version already include the full current
 schema.
@@ -100,6 +101,7 @@ Breaking API changes:
 - Early schema names are normalized by `llm_cost_tracker:upgrade_schema_foundation`: `llm_api_calls` becomes `llm_cost_tracker_calls`, `llm_cost_tracker_period_totals` becomes `llm_cost_tracker_call_rollups`, `llm_api_call_id` becomes `llm_cost_tracker_call_id`, `cache_write_1h_input_tokens` / `cache_write_1h_input_cost` become `cache_write_extended_input_tokens` / `cache_write_extended_input_cost`, and durable ingestion tables become `llm_cost_tracker_ingestion_inbox_entries` and `llm_cost_tracker_ingestion_leases`.
 - ActiveRecord model classes moved from ledger internals to product names: use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, and `LlmCostTracker::CallRollup`.
 - Manual tracking now uses explicit `tokens:` and `tags:` hashes.
+- Manual capture can store `provider_project_id:`, `provider_api_key_id:`, `provider_workspace_id:`, and `batch:` for future provider reconciliation.
 - `Pricing::COMPONENTS` was removed; use `Billing::Components` for component metadata and `Pricing` APIs for pricing.
 
 Manual tracking changed from older direct token keywords to:

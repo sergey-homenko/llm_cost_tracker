@@ -59,7 +59,10 @@ module LlmCostTracker
           )
           extra_match = block_given? ? yield(uri) : true
 
-          host_match && path_match && extra_match ? true : false
+          next false unless host_match && path_match
+          next false unless extra_match
+
+          true
         end
       end
 

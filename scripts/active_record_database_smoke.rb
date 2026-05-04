@@ -73,7 +73,7 @@ def create_schema!
     create_calls_table!(connection)
     create_service_charges_table!(connection)
     create_call_rollups_table!
-    create_inbox_events_table!
+    create_ingestion_inbox_entries_table!
     create_ingestion_leases_table!
     add_schema_indexes!(connection)
   end
@@ -88,6 +88,10 @@ def create_calls_table!(database_connection)
     t.boolean :stream, null: false, default: false
     t.string :usage_source
     t.string :provider_response_id
+    t.string :provider_project_id
+    t.string :provider_api_key_id
+    t.string :provider_workspace_id
+    t.boolean :batch, null: false, default: false
     t.string :pricing_mode
     t.string :cost_status
     add_call_pricing_snapshot_column(t, database_connection)
@@ -173,7 +177,7 @@ def create_call_rollups_table!
   end
 end
 
-def create_inbox_events_table!
+def create_ingestion_inbox_entries_table!
   create_table :llm_cost_tracker_ingestion_inbox_entries, force: true do |t|
     t.string :event_id, null: false
     t.decimal :total_cost, precision: 20, scale: 8

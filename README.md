@@ -59,8 +59,8 @@ deploying; the gem does not ship with authentication.
 ## What You Get
 
 - Local ActiveRecord ledger of calls, tokens, costs, latency, tags, response IDs,
-  usage source, cost status, pricing snapshot, and provider-reported service
-  charge rows.
+  provider grouping dimensions, usage source, cost status, pricing snapshot,
+  and provider-reported service charge rows.
 - Auto-capture for RubyLLM and the official `openai` and `anthropic` Ruby SDKs.
 - Faraday middleware for `ruby-openai`, Gemini REST, OpenAI-compatible gateways,
   and custom clients that expose Faraday.
@@ -101,8 +101,9 @@ tenant. It is not invoice-grade billing: enterprise rates, unsupported billing
 dimensions, account-level free tiers, and provider reconciliation are handled
 outside the local ledger.
 
-Provider response IDs, pricing snapshots, cost status, and service charge rows
-are stored so downstream audits can join local records back to provider data.
+Provider response IDs, capture-time provider dimensions, pricing snapshots,
+cost status, and service charge rows are stored so downstream audits can join
+local records back to provider data.
 
 ## Explicit Tracking
 
@@ -113,6 +114,8 @@ LlmCostTracker.track(
   provider: :anthropic,
   model: "claude-sonnet-4-6",
   tokens: { input: 1500, output: 320 },
+  provider_project_id: "proj_123",
+  batch: true,
   tags: { feature: "summarizer", user_id: current_user.id }
 )
 ```

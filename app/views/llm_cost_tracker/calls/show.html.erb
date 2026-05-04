@@ -83,6 +83,18 @@ end %>
       <dt>Provider Response ID</dt>
       <dd><%= @call.provider_response_id.presence || "n/a" %></dd>
 
+      <dt>Provider Project ID</dt>
+      <dd><%= @call.provider_project_id.presence || "n/a" %></dd>
+
+      <dt>Provider API Key ID</dt>
+      <dd><%= @call.provider_api_key_id.presence || "n/a" %></dd>
+
+      <dt>Provider Workspace ID</dt>
+      <dd><%= @call.provider_workspace_id.presence || "n/a" %></dd>
+
+      <dt>Batch</dt>
+      <dd><%= @call.batch? ? "yes" : "no" %></dd>
+
       <% if @call.has_attribute?("created_at") %>
         <dt>Created At</dt>
         <dd><%= format_date(@call.created_at) %></dd>

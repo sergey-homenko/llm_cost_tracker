@@ -24,4 +24,13 @@ RSpec.describe LlmCostTracker::Doctor::SchemaGenerators do
 
     expect(generators).to eq(["bin/rails generate llm_cost_tracker:upgrade_schema_foundation"])
   end
+
+  it "uses capture dimensions migration for provider grouping columns" do
+    generators = described_class.for_missing_columns(
+      %w[provider_project_id provider_api_key_id provider_workspace_id batch],
+      columns: {}
+    )
+
+    expect(generators).to eq(["bin/rails generate llm_cost_tracker:add_capture_dimensions"])
+  end
 end

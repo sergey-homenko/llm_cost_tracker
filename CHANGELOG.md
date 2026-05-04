@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Gemini modality token details now populate audio input/output token and cost columns.
 - Provider tool rates can price service charges through `Pricing.charge_rate`.
 - `llm_cost_tracker:add_billing` upgrades existing ledgers with billing audit columns and service charge storage.
+- `llm_cost_tracker:add_capture_dimensions` adds provider project, API key, workspace, and batch dimensions for future reconciliation.
 - Doctor checks now report missing billing audit columns and service charge schema.
 - Doctor warns when many legacy rows lack pricing snapshots.
 
@@ -31,6 +32,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - BREAKING: Early schema names now use `llm_cost_tracker_calls`, `llm_cost_tracker_call_rollups`, `llm_cost_tracker_call_id`, `cache_write_extended_input_tokens`, `cache_write_extended_input_cost`, `llm_cost_tracker_ingestion_inbox_entries`, and `llm_cost_tracker_ingestion_leases`; run `llm_cost_tracker:upgrade_schema_foundation`.
 - BREAKING: ActiveRecord models now use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, `LlmCostTracker::CallRollup`, `LlmCostTracker::Ingestion::InboxEntry`, and `LlmCostTracker::Ingestion::Lease`.
 - BREAKING: Manual `LlmCostTracker.track` now accepts explicit `tokens:` and `tags:` hashes.
+- Manual capture now accepts provider project, API key, workspace, and batch dimensions.
 
 ## [0.7.3] - 2026-05-01
 

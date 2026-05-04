@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../generators/llm_cost_tracker/add_billing_generator"
+require_relative "../generators/llm_cost_tracker/add_capture_dimensions_generator"
 require_relative "../generators/llm_cost_tracker/add_token_usage_generator"
 
 module LlmCostTracker
@@ -21,6 +22,10 @@ module LlmCostTracker
       }.merge(
         Generators::AddBillingGenerator::COLUMN_NAMES.to_h do |column|
           [column, "bin/rails generate llm_cost_tracker:add_billing"]
+        end
+      ).merge(
+        Generators::AddCaptureDimensionsGenerator::COLUMN_NAMES.to_h do |column|
+          [column, "bin/rails generate llm_cost_tracker:add_capture_dimensions"]
         end
       ).merge(
         Generators::AddTokenUsageGenerator::COLUMN_NAMES.to_h do |column|
