@@ -35,9 +35,9 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets read `llm_cost_tracker_period_totals` and add pending `llm_cost_tracker_ingestion_inbox_entries` totals. The period totals table and its unique `(period, period_start)` index are required current schema.
+Monthly and daily budgets read `llm_cost_tracker_call_rollups` and add pending `llm_cost_tracker_ingestion_inbox_entries` totals. The call rollups table and its unique `(period, period_start)` index are required current schema.
 
-The stored period total and pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
+The stored call rollup and pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 
 Per-call budgets are checked from the current event only.
 
@@ -61,7 +61,7 @@ Process shutdown should stop the local ingestor thread without forcing every exi
 
 ## Retention
 
-Retention may delete old `llm_cost_tracker_calls`. Period rollups are the durable budget aggregate. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change.
+Retention may delete old `llm_cost_tracker_calls`. Call rollups are the durable budget aggregate. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change.
 
 ## Required Schema
 
@@ -82,7 +82,7 @@ Avoid loading ledger rows into Ruby to count, sum, group, or sort.
 Dashboard storage changes require measured need. Prefer bounded ranges, existing
 ledger indexes, pagination, and database-side aggregates over new
 dashboard-specific tables. Add a summary table only when a supported dashboard
-query cannot be made acceptable with the existing ledger and period totals.
+query cannot be made acceptable with the existing ledger and call rollups.
 
 ## Streaming
 

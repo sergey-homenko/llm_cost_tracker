@@ -62,7 +62,7 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
       t.timestamps
     end
 
-    create_table :llm_cost_tracker_period_totals do |t|
+    create_table :llm_cost_tracker_call_rollups do |t|
       t.string :period, null: false
       t.date :period_start, null: false
       t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
@@ -101,7 +101,7 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
     add_index :llm_cost_tracker_service_charges, :llm_cost_tracker_call_id
     add_index :llm_cost_tracker_service_charges, :charge_id, unique: true
     add_index :llm_cost_tracker_service_charges, :component
-    add_index :llm_cost_tracker_period_totals, [:period, :period_start], unique: true
+    add_index :llm_cost_tracker_call_rollups, [:period, :period_start], unique: true
     add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
     add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]
     add_index :llm_cost_tracker_ingestion_inbox_entries, [:locked_at, :id]

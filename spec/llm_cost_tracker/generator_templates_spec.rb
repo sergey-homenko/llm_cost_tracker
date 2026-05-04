@@ -9,6 +9,7 @@ require "yaml"
 
 require "llm_cost_tracker/pricing/registry"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_billing_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/add_call_rollups_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_token_usage_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/install_generator"
@@ -57,11 +58,11 @@ RSpec.describe "generator templates" do
     expect(migration).to include("t.jsonb :pricing_snapshot")
     expect(migration).to include("t.jsonb :tags")
     expect(migration).to include("add_index :llm_cost_tracker_calls, :tags, using: :gin if postgresql?")
-    expect(migration).to include("create_table :llm_cost_tracker_period_totals")
+    expect(migration).to include("create_table :llm_cost_tracker_call_rollups")
     expect(migration).to include("create_table :llm_cost_tracker_service_charges")
     expect(migration).to include("create_table :llm_cost_tracker_ingestion_inbox_entries")
     expect(migration).to include("create_table :llm_cost_tracker_ingestion_leases")
-    expect(migration).to include("add_index :llm_cost_tracker_period_totals, [:period, :period_start], unique: true")
+    expect(migration).to include("add_index :llm_cost_tracker_call_rollups, [:period, :period_start], unique: true")
     expect(migration).to include("add_index :llm_cost_tracker_calls, :event_id, unique: true")
     expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true")
     expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]")
@@ -117,17 +118,17 @@ RSpec.describe "generator templates" do
     expect(migration).to include("remove_column :llm_cost_tracker_calls, :latency_ms")
   end
 
-  it "provides a period totals upgrade migration" do
-    migration = template("add_period_totals_to_llm_cost_tracker.rb.erb")
+  it "provides a call rollups upgrade migration" do
+    migration = template("add_call_rollups_to_llm_cost_tracker.rb.erb")
 
-    expect(migration).to include("class AddPeriodTotalsToLlmCostTracker")
-    expect(migration).to include("create_table :llm_cost_tracker_period_totals")
+    expect(migration).to include("class AddCallRollupsToLlmCostTracker")
+    expect(migration).to include("create_table :llm_cost_tracker_call_rollups")
     expect(migration).to include("backfill_legacy_monthly_totals if table_exists?(:llm_cost_tracker_monthly_totals)")
     expect(migration).to include("FROM llm_cost_tracker_monthly_totals legacy")
     expect(migration).to include("WHERE NOT EXISTS (")
     expect(migration).to include("FROM (")
     expect(migration).to include("aggregated.period_start")
-    expect(migration).to include("add_index :llm_cost_tracker_period_totals, [:period, :period_start]")
+    expect(migration).to include("add_index :llm_cost_tracker_call_rollups, [:period, :period_start]")
     expect(migration).to include("SUM(total_cost)")
     expect(migration).to include("DATE_TRUNC('day', tracked_at)::date")
     expect(migration).to include("DATE_TRUNC('month', tracked_at)::date")
@@ -225,6 +226,7 @@ RSpec.describe "generator templates" do
 
     expect(migration).to include("class UpgradeLlmCostTrackerSchemaFoundation")
     expect(migration).to include("llm_api_calls: :llm_cost_tracker_calls")
+    expect(migration).to include("llm_cost_tracker_period_totals: :llm_cost_tracker_call_rollups")
     expect(migration).to include(
       "llm_cost_tracker_inbox_events: :llm_cost_tracker_ingestion_inbox_entries"
     )

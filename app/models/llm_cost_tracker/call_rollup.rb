@@ -3,6 +3,6 @@
 require "active_record"
 
 module LlmCostTracker
-  class PeriodTotal < ActiveRecord::Base
+  class CallRollup < ActiveRecord::Base
   end
 end

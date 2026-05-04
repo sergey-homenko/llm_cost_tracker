@@ -25,12 +25,12 @@ budget until pricing is known.
 | --- | --- | --- |
 | `:notify` | After a priced event is durably staged | Calls `on_budget_exceeded` once for the crossed limit |
 | `:raise` | After a priced event is durably staged | Raises `LlmCostTracker::BudgetExceededError` |
-| `:block_requests` | Before supported requests and again after recording | Blocks when maintained period totals are already over budget |
+| `:block_requests` | Before supported requests and again after recording | Blocks when maintained call rollups are already over budget |
 
 `:raise` records first, then raises. The call that crossed the budget remains
 visible in the ledger.
 
-`:block_requests` uses maintained ActiveRecord period totals plus pending inbox
+`:block_requests` uses maintained ActiveRecord call rollups plus pending inbox
 totals. Under concurrency, multiple workers can pass preflight before one
 another's spend is visible. It stops the next request after overspend appears; it
 does not make provider spend transactional.
@@ -39,8 +39,8 @@ does not make provider spend transactional.
 
 | Budget | Source |
 | --- | --- |
-| Monthly | `llm_cost_tracker_period_totals` plus pending inbox totals for the current month |
-| Daily | `llm_cost_tracker_period_totals` plus pending inbox totals for the current day |
+| Monthly | `llm_cost_tracker_call_rollups` plus pending inbox totals for the current month |
+| Daily | `llm_cost_tracker_call_rollups` plus pending inbox totals for the current day |
 | Per call | The current event total cost |
 
 Monthly preflight runs before daily preflight. Post-record checks report daily
@@ -59,8 +59,8 @@ before monthly so short-term operational alerts stay prominent.
 
 ## Operational Notes
 
-`llm_cost_tracker:doctor` verifies the period totals table and unique
-`(period, period_start)` index. Without current period rollups, hot-path budget
+`llm_cost_tracker:doctor` verifies the call rollups table and unique
+`(period, period_start)` index. Without current call rollups, hot-path budget
 checks fail rather than scanning the full ledger.
 
 For strict quotas, use provider-side limits or a host-app transactional counter

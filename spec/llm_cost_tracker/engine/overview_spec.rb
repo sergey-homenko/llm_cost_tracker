@@ -29,15 +29,15 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.body).to include("missing columns: pricing_mode")
   end
 
-  it "renders setup when period totals are missing" do
-    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_period_totals)
+  it "renders setup when call rollups are missing" do
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups)
 
     response = get("/llm-costs")
 
     expect(response.status).to eq(200)
     expect(response.body).to include("Setup required")
-    expect(response.body).to include("llm_cost_tracker_period_totals")
-    expect(response.body).to include("llm_cost_tracker:add_period_totals")
+    expect(response.body).to include("llm_cost_tracker_call_rollups")
+    expect(response.body).to include("llm_cost_tracker:add_call_rollups")
   end
 
   it "renders overview stats, daily spend, top models, and budget status" do

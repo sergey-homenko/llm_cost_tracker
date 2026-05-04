@@ -22,7 +22,7 @@ require "llm_cost_tracker"
 require "llm_cost_tracker/ledger"
 require_relative "../app/models/llm_cost_tracker/call"
 require_relative "../app/models/llm_cost_tracker/service_charge"
-require_relative "../app/models/llm_cost_tracker/period_total"
+require_relative "../app/models/llm_cost_tracker/call_rollup"
 require_relative "../app/models/llm_cost_tracker/ingestion/inbox_entry"
 require_relative "../app/models/llm_cost_tracker/ingestion/lease"
 
@@ -63,7 +63,7 @@ def reset_models!
     LlmCostTracker::ServiceCharge,
     LlmCostTracker::Ingestion::InboxEntry,
     LlmCostTracker::Ingestion::Lease,
-    LlmCostTracker::PeriodTotal
+    LlmCostTracker::CallRollup
   ].each(&:reset_column_information)
   LlmCostTracker::Ingestion::Worker.reset!
 end
@@ -72,7 +72,7 @@ def create_schema!
   ActiveRecord::Schema.define do
     create_calls_table!(connection)
     create_service_charges_table!(connection)
-    create_period_totals_table!
+    create_call_rollups_table!
     create_inbox_events_table!
     create_ingestion_leases_table!
     add_schema_indexes!(connection)
@@ -164,8 +164,8 @@ def create_service_charges_table!(database_connection)
   end
 end
 
-def create_period_totals_table!
-  create_table :llm_cost_tracker_period_totals, force: true do |t|
+def create_call_rollups_table!
+  create_table :llm_cost_tracker_call_rollups, force: true do |t|
     t.string :period, null: false
     t.date :period_start, null: false
     t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
@@ -209,7 +209,7 @@ def add_schema_indexes!(database_connection)
   add_index :llm_cost_tracker_service_charges, :llm_cost_tracker_call_id
   add_index :llm_cost_tracker_service_charges, :charge_id, unique: true
   add_index :llm_cost_tracker_service_charges, :component
-  add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
+  add_index :llm_cost_tracker_call_rollups, %i[period period_start], unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
   add_index :llm_cost_tracker_ingestion_inbox_entries, %i[locked_at id]

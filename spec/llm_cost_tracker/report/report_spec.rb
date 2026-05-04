@@ -11,7 +11,7 @@ RSpec.describe LlmCostTracker::Report do
 
     LlmCostTracker::Call.reset_column_information
     LlmCostTracker::ServiceCharge.reset_column_information
-    LlmCostTracker::PeriodTotal.reset_column_information
+    LlmCostTracker::CallRollup.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)

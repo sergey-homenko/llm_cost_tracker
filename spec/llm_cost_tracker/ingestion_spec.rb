@@ -11,7 +11,7 @@ RSpec.describe "ActiveRecord durable inbox" do
 
     LlmCostTracker::Call.reset_column_information
     LlmCostTracker::ServiceCharge.reset_column_information
-    LlmCostTracker::PeriodTotal.reset_column_information
+    LlmCostTracker::CallRollup.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
 
@@ -50,7 +50,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(call.parsed_tags).to include("feature" => "chat")
   end
 
-  it "includes pending inbox costs in period totals before ingesting" do
+  it "includes pending inbox costs in call rollups before ingesting" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
     LlmCostTracker.track(
@@ -59,7 +59,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       tokens: { input: 1_000, output: 0 },
     )
 
-    expect(LlmCostTracker::PeriodTotal.count).to eq(0)
+    expect(LlmCostTracker::CallRollup.count).to eq(0)
     daily_total = LlmCostTracker::Ledger::Period::Totals
                   .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
                   .fetch(:daily)
@@ -72,7 +72,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker.flush!
 
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
-    expect(LlmCostTracker::PeriodTotal.find_by!(
+    expect(LlmCostTracker::CallRollup.find_by!(
       period: "day",
       period_start: Date.new(2026, 4, 18)
     ).total_cost.to_f)
@@ -85,7 +85,7 @@ RSpec.describe "ActiveRecord durable inbox" do
 
   it "reads stored and pending budget totals in one database statement" do
     time = Time.utc(2026, 4, 18, 12)
-    LlmCostTracker::PeriodTotal.create!(
+    LlmCostTracker::CallRollup.create!(
       period: "day",
       period_start: Date.new(2026, 4, 18),
       total_cost: 1.25
@@ -108,7 +108,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     total = LlmCostTracker::Ledger::Period::Totals.call(%i[daily], time: time).fetch(:daily)
     expect(total).to eq(3.75)
     expect(sqls.size).to eq(1)
-    expect(sqls.first).to include("llm_cost_tracker_period_totals")
+    expect(sqls.first).to include("llm_cost_tracker_call_rollups")
     expect(sqls.first).to include("llm_cost_tracker_ingestion_inbox_entries")
   end
 
@@ -147,7 +147,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker.flush!
 
     expect(LlmCostTracker::Call.where(event_id: event.event_id).count).to eq(1)
-    expect(LlmCostTracker::PeriodTotal.find_by!(
+    expect(LlmCostTracker::CallRollup.find_by!(
       period: "day",
       period_start: Date.current
     ).total_cost.to_f).to eq(0.0025)
@@ -167,7 +167,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect do
       LlmCostTracker::Ledger::Store.insert_many([parsed])
     end.to raise_error(ActiveRecord::RecordNotUnique)
-    expect(LlmCostTracker::PeriodTotal.count).to eq(0)
+    expect(LlmCostTracker::CallRollup.count).to eq(0)
 
     LlmCostTracker::Ingestion::InboxEntry.delete_all
   end
@@ -419,7 +419,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(check).to have_attributes(status: :ok, message: include("durable inbox"))
     expect(LlmCostTracker::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
-    expect(LlmCostTracker::PeriodTotal.sum(:total_cost).to_f).to eq(0.0)
+    expect(LlmCostTracker::CallRollup.sum(:total_cost).to_f).to eq(0.0)
   end
 
   it "reports a failed durable inbox verification when flush does not persist the row" do

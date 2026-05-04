@@ -114,27 +114,27 @@ RSpec.describe LlmCostTracker::Doctor do
   context "with ActiveRecord storage" do
     include_context "with mounted llm cost tracker engine"
 
-    it "reports table, column, period total, and call status" do
+    it "reports table, column, call rollup, and call status" do
       checks = described_class.call
 
       expect(checks).to include(
         have_attributes(status: :ok, name: "llm_cost_tracker_calls"),
         have_attributes(status: :ok, name: "llm_cost_tracker_calls columns"),
         have_attributes(status: :ok, name: "service charges"),
-        have_attributes(status: :ok, name: "period totals"),
+        have_attributes(status: :ok, name: "call rollups"),
         have_attributes(status: :warn, name: "tracked calls")
       )
     end
 
-    it "fails when period totals are missing" do
-      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_period_totals)
+    it "fails when call rollups are missing" do
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups)
 
-      check = described_class.call.find { |item| item.name == "period totals" }
+      check = described_class.call.find { |item| item.name == "call rollups" }
 
       expect(check).to have_attributes(status: :error)
       expect(check.message).to include("current schema required")
-      expect(check.message).to include("llm_cost_tracker_period_totals table is missing")
-      expect(check.message).to include("llm_cost_tracker:add_period_totals")
+      expect(check.message).to include("llm_cost_tracker_call_rollups table is missing")
+      expect(check.message).to include("llm_cost_tracker:add_call_rollups")
     end
 
     it "fails when durable ingestion tables are missing" do
@@ -150,14 +150,14 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("llm_cost_tracker:add_ingestion")
     end
 
-    it "fails when period totals lack the current unique index" do
-      ActiveRecord::Base.connection.remove_index(:llm_cost_tracker_period_totals, %i[period period_start])
+    it "fails when call rollups lack the current unique index" do
+      ActiveRecord::Base.connection.remove_index(:llm_cost_tracker_call_rollups, %i[period period_start])
 
-      check = described_class.call.find { |item| item.name == "period totals" }
+      check = described_class.call.find { |item| item.name == "call rollups" }
 
       expect(check).to have_attributes(status: :error)
       expect(check.message).to include("missing unique index: period, period_start")
-      expect(check.message).to include("llm_cost_tracker:add_period_totals")
+      expect(check.message).to include("llm_cost_tracker:add_call_rollups")
     end
 
     it "fails when the ledger table does not match the current schema" do

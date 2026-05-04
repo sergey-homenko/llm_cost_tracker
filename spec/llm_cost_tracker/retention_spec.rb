@@ -10,7 +10,7 @@ RSpec.describe LlmCostTracker::Retention do
     create_lct_tables!
     LlmCostTracker::Call.reset_column_information
     LlmCostTracker::ServiceCharge.reset_column_information
-    LlmCostTracker::PeriodTotal.reset_column_information
+    LlmCostTracker::CallRollup.reset_column_information
   end
 
   after do
@@ -60,19 +60,19 @@ RSpec.describe LlmCostTracker::Retention do
     expect(LlmCostTracker::Call.count).to eq(0)
   end
 
-  it "keeps active period rollups in sync when pruning inside the current window" do
+  it "keeps active call rollups in sync when pruning inside the current window" do
     now = Time.utc(2026, 4, 20, 12, 0, 0)
     create_call(tracked_at: Time.utc(2026, 4, 20, 8, 0, 0), total_cost: 2.0)
     create_call(tracked_at: Time.utc(2026, 4, 20, 11, 0, 0), total_cost: 3.0)
-    LlmCostTracker::PeriodTotal.create!(period: "day", period_start: Date.new(2026, 4, 20), total_cost: 5.0)
-    LlmCostTracker::PeriodTotal.create!(period: "month", period_start: Date.new(2026, 4, 1), total_cost: 5.0)
+    LlmCostTracker::CallRollup.create!(period: "day", period_start: Date.new(2026, 4, 20), total_cost: 5.0)
+    LlmCostTracker::CallRollup.create!(period: "month", period_start: Date.new(2026, 4, 1), total_cost: 5.0)
 
     deleted = described_class.prune(older_than: Time.utc(2026, 4, 20, 10, 0, 0), now: now)
 
     expect(deleted).to eq(1)
     expect(LlmCostTracker::Call.count).to eq(1)
-    expect(LlmCostTracker::PeriodTotal.find_by!(period: "day").total_cost.to_f).to eq(3.0)
-    expect(LlmCostTracker::PeriodTotal.find_by!(period: "month").total_cost.to_f).to eq(3.0)
+    expect(LlmCostTracker::CallRollup.find_by!(period: "day").total_cost.to_f).to eq(3.0)
+    expect(LlmCostTracker::CallRollup.find_by!(period: "month").total_cost.to_f).to eq(3.0)
   end
 
   it "deletes service charges with pruned parent calls" do

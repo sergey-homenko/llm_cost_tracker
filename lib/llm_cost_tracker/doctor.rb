@@ -39,7 +39,7 @@ module LlmCostTracker
         ServiceChargesCheck.new.call,
         LegacyBillingStatusCheck.new.call,
         LegacyAuditCheck.new.call,
-        period_totals_check,
+        call_rollups_check,
         IngestionCheck.new.call,
         PriceCheck.new.call,
         calls_check
@@ -113,17 +113,17 @@ module LlmCostTracker
       Check.new(:error, "llm_cost_tracker_calls columns", message)
     end
 
-    def period_totals_check
+    def call_rollups_check
       return unless llm_cost_tracker_calls_table?
 
-      errors = LlmCostTracker::Ledger::Schema::PeriodTotals.current_schema_errors
-      return Check.new(:ok, "period totals", "llm_cost_tracker_period_totals exists") if errors.empty?
+      errors = LlmCostTracker::Ledger::Schema::CallRollups.current_schema_errors
+      return Check.new(:ok, "call rollups", "llm_cost_tracker_call_rollups exists") if errors.empty?
 
       Check.new(
         :error,
-        "period totals",
+        "call rollups",
         "current schema required; #{errors.join('; ')}; " \
-        "run bin/rails generate llm_cost_tracker:add_period_totals && bin/rails db:migrate"
+        "run bin/rails generate llm_cost_tracker:add_call_rollups && bin/rails db:migrate"
       )
     end
 

@@ -13,7 +13,7 @@ RSpec.describe "ActiveRecord storage integration" do
 
     LlmCostTracker::Call.reset_column_information
     LlmCostTracker::ServiceCharge.reset_column_information
-    LlmCostTracker::PeriodTotal.reset_column_information
+    LlmCostTracker::CallRollup.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
@@ -265,22 +265,22 @@ RSpec.describe "ActiveRecord storage integration" do
       tokens: { input: 1_000, output: 0 },
     )
 
-    month_total = LlmCostTracker::PeriodTotal.find_by!(
+    month_total = LlmCostTracker::CallRollup.find_by!(
       period: "month",
       period_start: Date.current.beginning_of_month
     )
 
-    expect(LlmCostTracker::PeriodTotal.where(period: "month").count).to eq(1)
+    expect(LlmCostTracker::CallRollup.where(period: "month").count).to eq(1)
     expect(month_total.total_cost.to_f).to eq(0.00265)
     total = LlmCostTracker::Ledger::Period::Totals.call(%i[monthly], time: Time.now.utc).fetch(:monthly)
     expect(total).to eq(0.00265)
   end
 
-  it "updates daily and monthly period rollups in one bulk write" do
+  it "updates daily and monthly call rollups in one bulk write" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
     received_rows = nil
 
-    allow(LlmCostTracker::PeriodTotal).to receive(:upsert_all).and_wrap_original do |method, rows, **options|
+    allow(LlmCostTracker::CallRollup).to receive(:upsert_all).and_wrap_original do |method, rows, **options|
       received_rows = rows
       method.call(rows, **options)
     end
@@ -291,7 +291,7 @@ RSpec.describe "ActiveRecord storage integration" do
       tokens: { input: 1_000, output: 0 },
     )
 
-    expect(LlmCostTracker::PeriodTotal).to have_received(:upsert_all).once
+    expect(LlmCostTracker::CallRollup).to have_received(:upsert_all).once
     expect(received_rows.map { |row| row[:period] }).to contain_exactly("month", "day")
   end
 
@@ -334,21 +334,21 @@ RSpec.describe "ActiveRecord storage integration" do
   it "qualifies PostgreSQL rollup upsert totals" do
     connection = double(adapter_name: "PostgreSQL")
     allow(connection).to receive(:quote_column_name) { |name| %("#{name}") }
-    allow(LlmCostTracker::PeriodTotal).to receive(:connection).and_return(connection)
-    allow(LlmCostTracker::PeriodTotal)
+    allow(LlmCostTracker::CallRollup).to receive(:connection).and_return(connection)
+    allow(LlmCostTracker::CallRollup)
       .to receive(:quoted_table_name)
-      .and_return(%("llm_cost_tracker_period_totals"))
+      .and_return(%("llm_cost_tracker_call_rollups"))
 
     sql = LlmCostTracker::Ledger::Rollups::UpsertSql.call.to_s
 
-    expect(sql).to include(%("total_cost" = "llm_cost_tracker_period_totals"."total_cost" + excluded."total_cost"))
+    expect(sql).to include(%("total_cost" = "llm_cost_tracker_call_rollups"."total_cost" + excluded."total_cost"))
     expect(sql).to include(%("updated_at" = excluded."updated_at"))
   end
 
   it "treats MySQL-family adapters consistently for rollup upserts" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
       connection = double(adapter_name: adapter_name)
-      allow(LlmCostTracker::PeriodTotal).to receive(:connection).and_return(connection)
+      allow(LlmCostTracker::CallRollup).to receive(:connection).and_return(connection)
 
       sql = LlmCostTracker::Ledger::Rollups::UpsertSql.call.to_s
 
@@ -371,9 +371,9 @@ RSpec.describe "ActiveRecord storage integration" do
       tokens: { input: 1_000, output: 0 },
     )
 
-    day_total = LlmCostTracker::PeriodTotal.find_by!(period: "day", period_start: Date.new(2026, 4, 18))
+    day_total = LlmCostTracker::CallRollup.find_by!(period: "day", period_start: Date.new(2026, 4, 18))
 
-    expect(LlmCostTracker::PeriodTotal.where(period: "day").count).to eq(1)
+    expect(LlmCostTracker::CallRollup.where(period: "day").count).to eq(1)
     expect(day_total.total_cost.to_f).to eq(0.00265)
     total = LlmCostTracker::Ledger::Period::Totals
             .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
@@ -381,8 +381,8 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(total).to eq(0.00265)
   end
 
-  it "raises when period rollups are unavailable" do
-    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_period_totals)
+  it "raises when call rollups are unavailable" do
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups)
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
     expect do
@@ -391,10 +391,10 @@ RSpec.describe "ActiveRecord storage integration" do
         model: "gpt-4o",
         tokens: { input: 1_000, output: 0 },
       )
-    end.to raise_error(LlmCostTracker::Error, /llm_cost_tracker_period_totals/)
+    end.to raise_error(LlmCostTracker::Error, /llm_cost_tracker_call_rollups/)
   end
 
-  it "reads daily and monthly period totals together" do
+  it "reads daily and monthly call rollups together" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
     track_and_flush(

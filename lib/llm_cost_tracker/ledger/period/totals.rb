@@ -43,7 +43,7 @@ module LlmCostTracker
         end
 
         def rollup_total_sql(period)
-          table = connection.quote_table_name("llm_cost_tracker_period_totals")
+          table = connection.quote_table_name("llm_cost_tracker_call_rollups")
           "COALESCE((SELECT total_cost FROM #{table} " \
             "WHERE period = #{connection.quote(Period::PERIODS.fetch(period))} " \
             "AND period_start = #{connection.quote(Period.bucket(period, time))} LIMIT 1), 0)"

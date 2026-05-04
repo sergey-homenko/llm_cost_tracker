@@ -9,7 +9,7 @@ Supported adapters are PostgreSQL and MySQL-family adapters.
 | --- | --- |
 | `llm_cost_tracker_calls` | Parent ledger row for one tracked LLM call |
 | `llm_cost_tracker_service_charges` | Provider-reported tool/runtime usage tied to a call |
-| `llm_cost_tracker_period_totals` | Maintained daily/monthly totals for budget reads |
+| `llm_cost_tracker_call_rollups` | Maintained daily/monthly totals for budget reads |
 | `llm_cost_tracker_ingestion_inbox_entries` | Durable staging rows before ledger insertion |
 | `llm_cost_tracker_ingestion_leases` | Shared worker lease rows for durable ingestion |
 
@@ -107,7 +107,7 @@ Indexes:
 | unique `charge_id` | Idempotent service charge storage |
 | `component` | Service charge coverage and reporting |
 
-## `llm_cost_tracker_period_totals`
+## `llm_cost_tracker_call_rollups`
 
 Maintained aggregate table for budget checks. Request-time budget checks read
 this table instead of scanning `llm_cost_tracker_calls`.
@@ -185,6 +185,6 @@ Indexes:
 ## Schema Health
 
 `bin/rails llm_cost_tracker:doctor` verifies the current ledger schema, JSON
-column types, service charge table, durable ingestion tables, and period totals.
+column types, service charge table, durable ingestion tables, and call rollups.
 The dashboard renders setup guidance instead of querying when required schema is
 missing.

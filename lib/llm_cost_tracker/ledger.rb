@@ -2,7 +2,7 @@
 
 require_relative "ledger/schema/adapter"
 require_relative "ledger/schema/calls"
-require_relative "ledger/schema/period_totals"
+require_relative "ledger/schema/call_rollups"
 require_relative "ledger/schema/service_charges"
 require_relative "ledger/tags/query"
 require_relative "ledger/tags/sql"

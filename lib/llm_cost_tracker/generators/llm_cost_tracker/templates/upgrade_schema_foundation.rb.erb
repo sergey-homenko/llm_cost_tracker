@@ -1,6 +1,7 @@
 class UpgradeLlmCostTrackerSchemaFoundation < ActiveRecord::Migration<%= migration_version %>
   TABLE_RENAMES = {
     llm_api_calls: :llm_cost_tracker_calls,
+    llm_cost_tracker_period_totals: :llm_cost_tracker_call_rollups,
     llm_cost_tracker_inbox_events: :llm_cost_tracker_ingestion_inbox_entries,
     llm_cost_tracker_ingestor_leases: :llm_cost_tracker_ingestion_leases
   }.freeze

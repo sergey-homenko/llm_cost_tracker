@@ -128,14 +128,14 @@ Primary files:
 - `lib/llm_cost_tracker/ledger.rb`
 - `lib/llm_cost_tracker/ledger/*`
 - `app/models/llm_cost_tracker/ingestion/*`
-- `app/models/llm_cost_tracker/ledger/*`
+- `app/models/llm_cost_tracker/*`
 
 Responsibilities:
 
 - Stage captured events before ledger writes.
 - Claim retryable inbox entries through database leases.
 - Persist calls and service charges atomically.
-- Maintain period rollups for hot-path budget reads.
+- Maintain call rollups for hot-path budget reads.
 - Hide PostgreSQL and MySQL-family JSON/tag SQL differences.
 - Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
 
@@ -154,7 +154,7 @@ Responsibilities:
 
 - Prune old ledger rows in batches.
 - Delete dependent service charges.
-- Keep daily and monthly period totals consistent.
+- Keep daily and monthly call rollups consistent.
 
 ## Dashboard and Reporting
 

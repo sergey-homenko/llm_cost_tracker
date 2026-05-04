@@ -39,12 +39,12 @@ the current 0.8 line.
 
 | Current install | Required current generators | Notes |
 | --- | --- | --- |
-| 0.1.0 or 0.1.1 | `upgrade_schema_foundation`, `add_latency_ms`, `upgrade_cost_precision`, `upgrade_tags_to_jsonb`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | PostgreSQL tag upgrade rewrites `llm_cost_tracker_calls.tags`; run large ledgers in a maintenance window or use a host-specific two-phase migration. |
-| 0.1.2 or 0.1.3 | `upgrade_schema_foundation`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | `upgrade_cost_precision`, `upgrade_tags_to_jsonb`, and `add_latency_ms` may already be present; doctor is the source of truth. |
-| 0.1.4 or 0.2.x | `upgrade_schema_foundation`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | Update removed model/report helper calls from the 0.1.4 and 0.2.0 breaking changes. |
-| 0.3.0 | `upgrade_schema_foundation`, `add_provider_response_id`, `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | Streaming columns were introduced in 0.3.0. |
-| 0.3.1 or 0.3.2 | `upgrade_schema_foundation`, `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | `provider_response_id` was introduced in 0.3.1. |
-| 0.3.3 | `upgrade_schema_foundation`, `add_token_usage`, `add_period_totals`, `add_ingestion`, `add_billing` | Do not add the historical monthly totals table for a direct 0.8 upgrade; `add_period_totals` imports legacy monthly totals when present. |
+| 0.1.0 or 0.1.1 | `upgrade_schema_foundation`, `add_latency_ms`, `upgrade_cost_precision`, `upgrade_tags_to_jsonb`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | PostgreSQL tag upgrade rewrites `llm_cost_tracker_calls.tags`; run large ledgers in a maintenance window or use a host-specific two-phase migration. |
+| 0.1.2 or 0.1.3 | `upgrade_schema_foundation`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | `upgrade_cost_precision`, `upgrade_tags_to_jsonb`, and `add_latency_ms` may already be present; doctor is the source of truth. |
+| 0.1.4 or 0.2.x | `upgrade_schema_foundation`, `add_streaming`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | Update removed model/report helper calls from the 0.1.4 and 0.2.0 breaking changes. |
+| 0.3.0 | `upgrade_schema_foundation`, `add_provider_response_id`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | Streaming columns were introduced in 0.3.0. |
+| 0.3.1 or 0.3.2 | `upgrade_schema_foundation`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | `provider_response_id` was introduced in 0.3.1. |
+| 0.3.3 | `upgrade_schema_foundation`, `add_token_usage`, `add_call_rollups`, `add_ingestion`, `add_billing` | Do not add the historical monthly totals table for a direct 0.8 upgrade; `add_call_rollups` imports legacy monthly totals when present. |
 | 0.4.x or 0.5.x | `upgrade_schema_foundation`, `add_token_usage`, `add_ingestion`, `add_billing` | `add_token_usage` is the current replacement for the historical `add_usage_breakdown` generator. |
 | 0.6.x | `upgrade_schema_foundation`, `add_token_usage`, `add_billing` | Durable ingestion tables are renamed in 0.8, and 0.7.1 expanded token usage and pricing mode requirements. |
 | 0.7.0 | `upgrade_schema_foundation`, `add_token_usage`, `add_billing` | Also apply the 0.7.1 API changes. |
@@ -70,10 +70,10 @@ PostgreSQL or a MySQL-family database before upgrading past 0.6.x.
 | `llm_cost_tracker:add_latency_ms` | 0.1.2 | Adds request latency storage. |
 | `llm_cost_tracker:add_streaming` | 0.3.0 | Adds `stream` and `usage_source`. |
 | `llm_cost_tracker:add_provider_response_id` | 0.3.1 | Adds provider response object IDs for reconciliation. |
-| `llm_cost_tracker:add_period_totals` | 0.4.0 | Adds daily/monthly rollups in `llm_cost_tracker_period_totals`. Replaces the 0.3.3 `add_monthly_totals` generator. |
+| `llm_cost_tracker:add_call_rollups` | 0.8.0 | Adds daily/monthly call rollups in `llm_cost_tracker_call_rollups`. Replaces the historical `add_period_totals` generator. |
 | `llm_cost_tracker:add_token_usage` | 0.7.1 | Adds canonical token and token-cost columns beyond the original input/output totals, including cache, extended cache write, audio, hidden output, and `pricing_mode`. Replaces the 0.4.x `add_usage_breakdown` generator. |
 | `llm_cost_tracker:add_ingestion` | 0.6.0 | Adds durable inbox, ingestion lease, and `event_id`. |
-| `llm_cost_tracker:upgrade_schema_foundation` | 0.8.0 | Renames the released call table, service-charge call foreign key, durable ingestion tables, and 0.7.x `cache_write_1h_input_tokens` / `cache_write_1h_input_cost` columns to their current names. |
+| `llm_cost_tracker:upgrade_schema_foundation` | 0.8.0 | Renames the released call table, call-rollup table, service-charge call foreign key, durable ingestion tables, and 0.7.x `cache_write_1h_input_tokens` / `cache_write_1h_input_cost` columns to their current names. |
 | `llm_cost_tracker:add_billing` | 0.8.0 | Adds `cost_status`, `pricing_snapshot`, and `llm_cost_tracker_service_charges`. |
 
 Fresh installs generated by the current version already include the full current
@@ -97,8 +97,8 @@ bin/rails llm_cost_tracker:verify_capture
 
 Breaking API changes:
 
-- Early schema names are normalized by `llm_cost_tracker:upgrade_schema_foundation`: `llm_api_calls` becomes `llm_cost_tracker_calls`, `llm_api_call_id` becomes `llm_cost_tracker_call_id`, `cache_write_1h_input_tokens` / `cache_write_1h_input_cost` become `cache_write_extended_input_tokens` / `cache_write_extended_input_cost`, and durable ingestion tables become `llm_cost_tracker_ingestion_inbox_entries` and `llm_cost_tracker_ingestion_leases`.
-- ActiveRecord model classes moved from ledger internals to product names: use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, and `LlmCostTracker::PeriodTotal`.
+- Early schema names are normalized by `llm_cost_tracker:upgrade_schema_foundation`: `llm_api_calls` becomes `llm_cost_tracker_calls`, `llm_cost_tracker_period_totals` becomes `llm_cost_tracker_call_rollups`, `llm_api_call_id` becomes `llm_cost_tracker_call_id`, `cache_write_1h_input_tokens` / `cache_write_1h_input_cost` become `cache_write_extended_input_tokens` / `cache_write_extended_input_cost`, and durable ingestion tables become `llm_cost_tracker_ingestion_inbox_entries` and `llm_cost_tracker_ingestion_leases`.
+- ActiveRecord model classes moved from ledger internals to product names: use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, and `LlmCostTracker::CallRollup`.
 - Manual tracking now uses explicit `tokens:` and `tags:` hashes.
 - `Pricing::COMPONENTS` was removed; use `Billing::Components` for component metadata and `Pricing` APIs for pricing.
 
@@ -192,7 +192,7 @@ This adds:
 | Ledger deduplication identity | `llm_cost_tracker_calls.event_id` |
 
 Capture writes to the durable inbox first, then a background ingestor drains to
-the ledger and period totals. Size the ActiveRecord connection pool for the host
+the ledger and call rollups. Size the ActiveRecord connection pool for the host
 app plus inbox writes and the local ingestor thread.
 
 ### 0.5.3
@@ -253,7 +253,7 @@ For direct upgrades to 0.8, use the current replacement:
 
 ```bash
 bin/rails generate llm_cost_tracker:add_token_usage
-bin/rails generate llm_cost_tracker:add_period_totals
+bin/rails generate llm_cost_tracker:add_call_rollups
 bin/rails db:migrate
 ```
 
@@ -276,8 +276,8 @@ bin/rails generate llm_cost_tracker:add_monthly_totals
 bin/rails db:migrate
 ```
 
-For direct upgrades to 0.4+ or 0.8, use `add_period_totals` instead. It is the
-current rollup table and can import legacy monthly totals when present.
+For direct upgrades to 0.8, use `add_call_rollups` instead. It is the current
+rollup table and can import legacy monthly totals when present.
 
 ### 0.3.2
 

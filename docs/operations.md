@@ -36,7 +36,7 @@ rollbacks. Size pools for the host app concurrency plus those tracker paths.
 
 Capture writes a compact row to `llm_cost_tracker_ingestion_inbox_entries`; the background
 worker drains rows into `llm_cost_tracker_calls`, `llm_cost_tracker_service_charges`, and
-period rollups in database transactions.
+call rollups in database transactions.
 
 The inbox is the durability boundary. If the process exits after staging but
 before draining, another process can claim the row later through the database
@@ -76,7 +76,7 @@ bin/rails llm_cost_tracker:verify_capture
 ```
 
 `doctor` checks current schema, durable ingestion tables, service charge storage,
-period totals, stale prices, integration setup, and legacy audit columns.
+call rollups, stale prices, integration setup, and legacy audit columns.
 
 `verify_capture` records a synthetic event and verifies both notifications and
 ActiveRecord persistence.
@@ -96,7 +96,7 @@ DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 ```
 
 Pruning deletes old `llm_cost_tracker_calls`, deletes dependent service charges, and
-decrements affected daily/monthly period totals in the same batch transaction.
+decrements affected daily/monthly call rollups in the same batch transaction.
 
 ## Data Shape
 
@@ -105,7 +105,7 @@ decrements affected daily/monthly period totals in the same batch transaction.
 | Calls | `llm_cost_tracker_calls` |
 | Service charges | `llm_cost_tracker_service_charges` |
 | Tags | PostgreSQL JSONB with GIN index, or MySQL JSON |
-| Period totals | `llm_cost_tracker_period_totals` |
+| Call rollups | `llm_cost_tracker_call_rollups` |
 | Durable inbox | `llm_cost_tracker_ingestion_inbox_entries` |
 | Worker lease | `llm_cost_tracker_ingestion_leases` |
 

@@ -30,8 +30,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Removed the `Pricing::COMPONENTS` compatibility surface.
 - RubyLLM captured calls now use `sdk_response` as their usage source.
 - Upgrade migrations and doctor diagnostics now distinguish schema renames from missing legacy columns.
-- BREAKING: Early schema names now use `llm_cost_tracker_calls`, `llm_cost_tracker_call_id`, `cache_write_extended_input`, `InboxEntry`, `llm_cost_tracker_ingestion_inbox_entries`, and `llm_cost_tracker_ingestion_leases`; run `llm_cost_tracker:upgrade_schema_foundation`.
-- BREAKING: ActiveRecord models now use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, and `LlmCostTracker::PeriodTotal`.
+- BREAKING: Early schema names now use `llm_cost_tracker_calls`, `llm_cost_tracker_call_rollups`, `llm_cost_tracker_call_id`, `cache_write_extended_input`, `InboxEntry`, `llm_cost_tracker_ingestion_inbox_entries`, and `llm_cost_tracker_ingestion_leases`; run `llm_cost_tracker:upgrade_schema_foundation`.
+- BREAKING: ActiveRecord models now use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, and `LlmCostTracker::CallRollup`.
 - BREAKING: Manual `LlmCostTracker.track` now accepts explicit `tokens:` and `tags:` hashes.
 
 ## [0.7.3] - 2026-05-01

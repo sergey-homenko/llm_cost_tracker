@@ -12,14 +12,14 @@ module LlmCostTracker
         def increment!(event)
           return unless event.total_cost
 
-          upsert_period_totals(period_rows(event))
+          upsert_call_rollups(period_rows(event))
         end
 
         def increment_many!(events)
           events = Array(events).select(&:total_cost)
           return if events.empty?
 
-          upsert_period_totals(period_rows_for_events(events))
+          upsert_call_rollups(period_rows_for_events(events))
         end
 
         def decrement!(call_rows)
@@ -42,7 +42,7 @@ module LlmCostTracker
         end
 
         def period_rows_for_events(events)
-          period_totals(events).map do |(period, period_start), total_cost|
+          call_rollups(events).map do |(period, period_start), total_cost|
             {
               period: period,
               period_start: period_start,
@@ -51,7 +51,7 @@ module LlmCostTracker
           end
         end
 
-        def period_totals(events)
+        def call_rollups(events)
           events.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |event, totals|
             Period::PERIODS.each do |period, name|
               totals[[name, Period.bucket(period, event.tracked_at)]] += BigDecimal(event.total_cost.to_s)
@@ -74,7 +74,7 @@ module LlmCostTracker
           now = Time.now.utc
 
           totals.each do |(period, period_start), amount|
-            row = LlmCostTracker::PeriodTotal.lock.find_by(
+            row = LlmCostTracker::CallRollup.lock.find_by(
               period: Period::PERIODS.fetch(period),
               period_start: period_start
             )
@@ -85,17 +85,17 @@ module LlmCostTracker
           end
         end
 
-        def upsert_period_totals(rows)
-          LlmCostTracker::PeriodTotal.upsert_all(
+        def upsert_call_rollups(rows)
+          LlmCostTracker::CallRollup.upsert_all(
             rows,
             on_duplicate: Ledger::Rollups::UpsertSql.call,
             record_timestamps: true,
-            unique_by: period_totals_unique_by
+            unique_by: call_rollups_unique_by
           )
         end
 
-        def period_totals_unique_by
-          return unless LlmCostTracker::PeriodTotal.connection.supports_insert_conflict_target?
+        def call_rollups_unique_by
+          return unless LlmCostTracker::CallRollup.connection.supports_insert_conflict_target?
 
           %i[period period_start]
         end

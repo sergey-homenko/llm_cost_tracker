@@ -34,7 +34,7 @@ require "webmock/rspec"
 require "llm_cost_tracker"
 require_relative "../app/models/llm_cost_tracker/call"
 require_relative "../app/models/llm_cost_tracker/service_charge"
-require_relative "../app/models/llm_cost_tracker/period_total"
+require_relative "../app/models/llm_cost_tracker/call_rollup"
 require_relative "../app/models/llm_cost_tracker/ingestion/inbox_entry"
 require_relative "../app/models/llm_cost_tracker/ingestion/lease"
 

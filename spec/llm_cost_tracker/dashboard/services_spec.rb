@@ -17,7 +17,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
     LlmCostTracker::Call.reset_column_information
     LlmCostTracker::ServiceCharge.reset_column_information
-    LlmCostTracker::PeriodTotal.reset_column_information
+    LlmCostTracker::CallRollup.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
   end
