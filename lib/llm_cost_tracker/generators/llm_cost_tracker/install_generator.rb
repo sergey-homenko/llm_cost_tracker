@@ -20,8 +20,8 @@ module LlmCostTracker
 
       def create_migration_file
         migration_template(
-          "create_llm_api_calls.rb.erb",
-          "db/migrate/create_llm_api_calls.rb"
+          "create_llm_cost_tracker_calls.rb.erb",
+          "db/migrate/create_llm_cost_tracker_calls.rb"
         )
       end
 

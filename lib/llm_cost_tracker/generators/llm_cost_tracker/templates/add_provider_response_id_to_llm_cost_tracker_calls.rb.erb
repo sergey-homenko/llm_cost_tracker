@@ -1,0 +1,17 @@
+class AddProviderResponseIdToLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %>
+  def up
+    unless column_exists?(:llm_cost_tracker_calls, :provider_response_id)
+      add_column :llm_cost_tracker_calls, :provider_response_id, :string
+    end
+    unless index_exists?(:llm_cost_tracker_calls, :provider_response_id)
+      add_index :llm_cost_tracker_calls, :provider_response_id
+    end
+  end
+
+  def down
+    return unless column_exists?(:llm_cost_tracker_calls, :provider_response_id)
+
+    remove_index :llm_cost_tracker_calls, :provider_response_id if index_exists?(:llm_cost_tracker_calls, :provider_response_id)
+    remove_column :llm_cost_tracker_calls, :provider_response_id
+  end
+end

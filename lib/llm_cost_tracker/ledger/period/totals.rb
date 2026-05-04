@@ -29,7 +29,7 @@ module LlmCostTracker
           values = periods.to_h { |period| [period, 0.0] }
           period_by_name = periods.to_h { |period| [period.name, period] }
           sql = periods.map { |period| snapshot_select(period) }.join(" UNION ALL ")
-          LlmCostTracker::Ledger::Call.find_by_sql(sql).each do |row|
+          LlmCostTracker::Call.find_by_sql(sql).each do |row|
             period = period_by_name.fetch(row.period_key)
             values[period] = row.total_cost.to_f
           end
@@ -50,17 +50,17 @@ module LlmCostTracker
         end
 
         def pending_total_sql(start)
-          table = connection.quote_table_name(Ingestion::InboxRow.table_name)
+          table = connection.quote_table_name(Ingestion::InboxEntry.table_name)
           total_cost = connection.quote_column_name("total_cost")
           tracked_at = connection.quote_column_name("tracked_at")
           attempts = connection.quote_column_name("attempts")
           "COALESCE((SELECT SUM(#{total_cost}) FROM #{table} " \
-            "WHERE #{attempts} < #{Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE} " \
+            "WHERE #{attempts} < #{Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE} " \
             "AND #{tracked_at} BETWEEN #{connection.quote(start)} AND #{connection.quote(time)}), 0)"
         end
 
         def connection
-          LlmCostTracker::Ledger::Call.connection
+          LlmCostTracker::Call.connection
         end
       end
     end

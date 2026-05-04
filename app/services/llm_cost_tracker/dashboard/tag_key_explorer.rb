@@ -6,14 +6,14 @@ module LlmCostTracker
       DEFAULT_LIMIT = 100
 
       class << self
-        def call(scope: LlmCostTracker::Ledger::Call.all, limit: DEFAULT_LIMIT)
+        def call(scope: LlmCostTracker::Call.all, limit: DEFAULT_LIMIT)
           new(scope: scope, limit: limit).rows
         end
       end
 
       def initialize(scope:, limit:)
         @scope = scope
-        @connection = LlmCostTracker::Ledger::Call.connection
+        @connection = LlmCostTracker::Call.connection
         limit = limit.to_i
         @limit = limit.positive? ? [limit, DEFAULT_LIMIT].min : DEFAULT_LIMIT
       end

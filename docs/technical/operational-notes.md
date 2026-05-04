@@ -35,7 +35,7 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets read `llm_cost_tracker_period_totals` and add pending `llm_cost_tracker_inbox_events` totals. The period totals table and its unique `(period, period_start)` index are required current schema.
+Monthly and daily budgets read `llm_cost_tracker_period_totals` and add pending `llm_cost_tracker_ingestion_inbox_entries` totals. The period totals table and its unique `(period, period_start)` index are required current schema.
 
 The stored period total and pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 
@@ -55,13 +55,13 @@ Batch size is a conservative internal constant. Do not expose it as a
 configuration knob until production measurements show that a supported workload
 needs tuning.
 
-Ingestors should claim only retryable rows. Rows that keep failing after the retry cap stay in `llm_cost_tracker_inbox_events` with `last_error` for operator inspection and must not block healthy rows behind them.
+Ingestors should claim only retryable rows. Rows that keep failing after the retry cap stay in `llm_cost_tracker_ingestion_inbox_entries` with `last_error` for operator inspection and must not block healthy rows behind them.
 
 Process shutdown should stop the local ingestor thread without forcing every exiting process to drain the shared inbox. Operators can call `LlmCostTracker.flush!` when they intentionally want to wait for the durable inbox to drain.
 
 ## Retention
 
-Retention may delete old `llm_api_calls`. Period rollups are the durable budget aggregate. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change.
+Retention may delete old `llm_cost_tracker_calls`. Period rollups are the durable budget aggregate. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change.
 
 ## Required Schema
 

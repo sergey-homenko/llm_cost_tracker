@@ -15,10 +15,10 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
     create_lct_tables!
 
-    LlmCostTracker::Ledger::Call.reset_column_information
-    LlmCostTracker::Ledger::ServiceCharge.reset_column_information
-    LlmCostTracker::Ledger::Period::Total.reset_column_information
-    LlmCostTracker::Ingestion::InboxRow.reset_column_information
+    LlmCostTracker::Call.reset_column_information
+    LlmCostTracker::ServiceCharge.reset_column_information
+    LlmCostTracker::PeriodTotal.reset_column_information
+    LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
   end
 
@@ -27,7 +27,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     attrs[:total_tokens] = total_tokens_for(attrs)
     attrs[:tags] = tags_for_database(attrs.fetch(:tags))
 
-    call = LlmCostTracker::Ledger::Call.create!(attrs)
+    call = LlmCostTracker::Call.create!(attrs)
     LlmCostTracker::Ledger::Rollups.increment!(call)
     call
   end
@@ -40,7 +40,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       output_tokens: 5,
       cache_read_input_tokens: 0,
       cache_write_input_tokens: 0,
-      cache_write_1h_input_tokens: 0,
+      cache_write_extended_input_tokens: 0,
       audio_input_tokens: 0,
       hidden_output_tokens: 0,
       audio_output_tokens: 0,
@@ -48,7 +48,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       output_cost: 0.2,
       cache_read_input_cost: 0.0,
       cache_write_input_cost: 0.0,
-      cache_write_1h_input_cost: 0.0,
+      cache_write_extended_input_cost: 0.0,
       audio_input_cost: 0.0,
       audio_output_cost: 0.0,
       total_cost: 1.0,
@@ -68,19 +68,19 @@ RSpec.describe "LlmCostTracker dashboard services" do
     attrs.fetch(:input_tokens) +
       attrs.fetch(:cache_read_input_tokens) +
       attrs.fetch(:cache_write_input_tokens) +
-      attrs.fetch(:cache_write_1h_input_tokens) +
+      attrs.fetch(:cache_write_extended_input_tokens) +
       attrs.fetch(:audio_input_tokens) +
       attrs.fetch(:output_tokens) +
       attrs.fetch(:audio_output_tokens)
   end
 
-  def capture_llm_api_call_selects
+  def capture_llm_cost_tracker_call_selects
     statements = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
       sql = payload[:sql].to_s
       next if payload[:name] == "SCHEMA"
       next unless sql.match?(/\ASELECT/i)
-      next unless sql.include?("llm_api_calls")
+      next unless sql.include?("llm_cost_tracker_calls")
 
       statements << sql
     end
@@ -425,8 +425,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(total_cost: 2.0, tracked_at: Time.utc(2026, 4, 15, 12))
       create_call(total_cost: 6.0, tracked_at: Time.utc(2026, 4, 18, 12))
 
-      current = LlmCostTracker::Ledger::Call.where(tracked_at: Time.utc(2026, 4, 18)..Time.utc(2026, 4, 18, 23, 59, 59))
-      previous = LlmCostTracker::Ledger::Call.where(tracked_at: Time.utc(2026, 4,
+      current = LlmCostTracker::Call.where(tracked_at: Time.utc(2026, 4, 18)..Time.utc(2026, 4, 18, 23, 59, 59))
+      previous = LlmCostTracker::Call.where(tracked_at: Time.utc(2026, 4,
                                                                          15)..Time.utc(2026, 4, 15, 23, 59, 59))
 
       stats = described_class.call(scope: current, previous_scope: previous)
@@ -440,8 +440,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "returns nil delta when previous period has zero cost" do
       create_call(total_cost: 2.0, tracked_at: Time.utc(2026, 4, 18, 12))
 
-      current = LlmCostTracker::Ledger::Call.where(tracked_at: Time.utc(2026, 4, 18).all_day)
-      previous = LlmCostTracker::Ledger::Call.where(tracked_at: Time.utc(2026, 4, 15).all_day)
+      current = LlmCostTracker::Call.where(tracked_at: Time.utc(2026, 4, 18).all_day)
+      previous = LlmCostTracker::Call.where(tracked_at: Time.utc(2026, 4, 15).all_day)
 
       stats = described_class.call(scope: current, previous_scope: previous)
 
@@ -488,7 +488,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 19, 12))
       create_call(provider: "openai", model: "gpt-4o", total_cost: 12.0, tracked_at: Time.utc(2026, 4, 20, 12))
 
-      sql = capture_llm_api_call_selects do
+      sql = capture_llm_cost_tracker_call_selects do
         described_class.call(from: Date.new(2026, 4, 13), to: Date.new(2026, 4, 20))
       end.join(" ")
 
@@ -582,7 +582,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.total_calls.to_i).to eq(0)
       expect(stats.unknown_pricing_count.to_i).to eq(0)
       expect(stats.untagged_calls_count.to_i).to eq(0)
-      expect(described_class.unknown_pricing_by_model(LlmCostTracker::Ledger::Call.all, total_calls: 0)).to be_empty
+      expect(described_class.unknown_pricing_by_model(LlmCostTracker::Call.all, total_calls: 0)).to be_empty
     end
 
     it "counts unknown pricing and untagged calls correctly" do
@@ -611,7 +611,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(model: "unknown-x", total_cost: nil)
       create_call(model: "unknown-y", total_cost: nil)
 
-      rows = described_class.unknown_pricing_by_model(LlmCostTracker::Ledger::Call.all, total_calls: 3)
+      rows = described_class.unknown_pricing_by_model(LlmCostTracker::Call.all, total_calls: 3)
       counts = rows.index_by(&:model)
 
       expect(counts.fetch("unknown-x").calls.to_i).to eq(2)
@@ -621,7 +621,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "keeps unknown pricing shares at zero when the total is zero" do
       create_call(model: "unknown-x", total_cost: nil)
 
-      rows = described_class.unknown_pricing_by_model(LlmCostTracker::Ledger::Call.all, total_calls: 0)
+      rows = described_class.unknown_pricing_by_model(LlmCostTracker::Call.all, total_calls: 0)
 
       expect(rows.first.share_percent).to eq(0.0)
     end
@@ -631,7 +631,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
         input_tokens: 100,
         cache_read_input_tokens: 50,
         cache_write_input_tokens: 25,
-        cache_write_1h_input_tokens: 5,
+        cache_write_extended_input_tokens: 5,
         audio_input_tokens: 12,
         output_tokens: 40,
         audio_output_tokens: 8,
@@ -639,7 +639,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
         input_cost: 0.10,
         cache_read_input_cost: 0.02,
         cache_write_input_cost: 0.03,
-        cache_write_1h_input_cost: 0.04,
+        cache_write_extended_input_cost: 0.04,
         audio_input_cost: 0.12,
         output_cost: 0.20,
         audio_output_cost: 0.16
@@ -647,14 +647,14 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(
         input_tokens: 200,
         cache_read_input_tokens: 10,
-        cache_write_1h_input_tokens: 2,
+        cache_write_extended_input_tokens: 2,
         audio_input_tokens: 3,
         output_tokens: 60,
         audio_output_tokens: 2,
         hidden_output_tokens: 5,
         input_cost: 0.30,
         cache_read_input_cost: 0.01,
-        cache_write_1h_input_cost: 0.05,
+        cache_write_extended_input_cost: 0.05,
         audio_input_cost: 0.03,
         output_cost: 0.40,
         audio_output_cost: 0.04
@@ -665,7 +665,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.input_tokens.to_i).to eq(300)
       expect(stats.cache_read_input_tokens.to_i).to eq(60)
       expect(stats.cache_write_input_tokens.to_i).to eq(25)
-      expect(stats.cache_write_1h_input_tokens.to_i).to eq(7)
+      expect(stats.cache_write_extended_input_tokens.to_i).to eq(7)
       expect(stats.audio_input_tokens.to_i).to eq(15)
       expect(stats.output_tokens.to_i).to eq(100)
       expect(stats.audio_output_tokens.to_i).to eq(10)
@@ -673,7 +673,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.input_cost.to_f).to eq(0.4)
       expect(stats.cache_read_input_cost.to_f).to eq(0.03)
       expect(stats.cache_write_input_cost.to_f).to eq(0.03)
-      expect(stats.cache_write_1h_input_cost.to_f).to eq(0.09)
+      expect(stats.cache_write_extended_input_cost.to_f).to eq(0.09)
       expect(stats.audio_input_cost.to_f).to eq(0.15)
       expect(stats.output_cost.to_f).to eq(0.6)
       expect(stats.audio_output_cost.to_f).to eq(0.2)
@@ -701,7 +701,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(total_cost: 1.0, tags: { env: "prod" }, latency_ms: 100)
       create_call(total_cost: nil, tags: {})
 
-      statements = capture_llm_api_call_selects { described_class.call }
+      statements = capture_llm_cost_tracker_call_selects { described_class.call }
 
       expect(statements.size).to eq(1)
     end
@@ -721,8 +721,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "groups service charges by provider, component, and status" do
       openai_call = create_call(provider: "openai")
       anthropic_call = create_call(provider: "anthropic")
-      LlmCostTracker::Ledger::ServiceCharge.create!(
-        llm_api_call_id: openai_call.id,
+      LlmCostTracker::ServiceCharge.create!(
+        llm_cost_tracker_call_id: openai_call.id,
         charge_id: "openai-1",
         component: "web_search_request",
         unit: "request",
@@ -732,8 +732,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
         currency: "USD",
         cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
       )
-      LlmCostTracker::Ledger::ServiceCharge.create!(
-        llm_api_call_id: openai_call.id,
+      LlmCostTracker::ServiceCharge.create!(
+        llm_cost_tracker_call_id: openai_call.id,
         charge_id: "openai-2",
         component: "web_search_request",
         unit: "request",
@@ -742,8 +742,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
         currency: "USD",
         cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
       )
-      LlmCostTracker::Ledger::ServiceCharge.create!(
-        llm_api_call_id: anthropic_call.id,
+      LlmCostTracker::ServiceCharge.create!(
+        llm_cost_tracker_call_id: anthropic_call.id,
         charge_id: "anthropic-1",
         component: "code_execution_hour",
         unit: "hour",
@@ -754,7 +754,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
         cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
       )
 
-      rows = described_class.service_charge_rows(LlmCostTracker::Ledger::Call.where(provider: "openai"))
+      rows = described_class.service_charge_rows(LlmCostTracker::Call.where(provider: "openai"))
       row_by_status = rows.index_by(&:cost_status)
 
       expect(row_by_status.fetch("complete").provider).to eq("openai")
@@ -848,17 +848,17 @@ RSpec.describe "LlmCostTracker dashboard services" do
       create_call(tags: { env: "staging" })
 
       %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-        connection = LlmCostTracker::Ledger::Call.connection
+        connection = LlmCostTracker::Call.connection
         captured_sql = nil
 
         allow(connection).to receive(:adapter_name).and_return(adapter_name)
         allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(false)
         allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:mysql?).with(connection).and_return(true)
-        allow(LlmCostTracker::Ledger::Call).to receive(:find_by_sql) do |sql|
+        allow(LlmCostTracker::Call).to receive(:find_by_sql) do |sql|
           captured_sql = sql
           [
-            LlmCostTracker::Ledger::Call.instantiate("key" => "env", "calls_count" => 2, "distinct_values" => 2),
-            LlmCostTracker::Ledger::Call.instantiate("key" => "service", "calls_count" => 1, "distinct_values" => 1)
+            LlmCostTracker::Call.instantiate("key" => "env", "calls_count" => 2, "distinct_values" => 2),
+            LlmCostTracker::Call.instantiate("key" => "service", "calls_count" => 1, "distinct_values" => 1)
           ]
         end
 

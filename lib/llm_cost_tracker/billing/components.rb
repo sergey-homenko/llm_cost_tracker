@@ -34,13 +34,13 @@ module LlmCostTracker
           cost_key: :cache_write_input_cost
         ),
         Component.new(
-          key: :cache_write_1h_input,
+          key: :cache_write_extended_input,
           unit: :token,
           category: :token,
           direction: :input,
           modality: :text,
-          token_key: :cache_write_1h_input_tokens,
-          cost_key: :cache_write_1h_input_cost
+          token_key: :cache_write_extended_input_tokens,
+          cost_key: :cache_write_extended_input_cost
         ),
         Component.new(
           key: :output,

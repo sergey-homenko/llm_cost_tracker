@@ -25,7 +25,7 @@ class AddPeriodTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_ver
 
   def backfill_period_totals
     backfill_legacy_monthly_totals if table_exists?(:llm_cost_tracker_monthly_totals)
-    return unless table_exists?(:llm_api_calls)
+    return unless table_exists?(:llm_cost_tracker_calls)
 
     backfill_period_total("day", day_bucket_sql)
     backfill_period_total("month", month_bucket_sql)
@@ -61,7 +61,7 @@ class AddPeriodTotalsToLlmCostTracker < ActiveRecord::Migration<%= migration_ver
         SELECT #{connection.quote(period)} AS period,
                #{bucket_sql} AS period_start,
                SUM(total_cost) AS total_cost
-        FROM llm_api_calls
+        FROM llm_cost_tracker_calls
         WHERE total_cost IS NOT NULL
         GROUP BY #{bucket_sql}
       ) aggregated

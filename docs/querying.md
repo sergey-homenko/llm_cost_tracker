@@ -6,7 +6,7 @@ console, scheduled job, admin UI, or the mounted dashboard.
 ## Common Scopes
 
 ```ruby
-calls = LlmCostTracker::Ledger::Call
+calls = LlmCostTracker::Call
 
 calls.today.total_cost
 calls.this_month.total_tokens
@@ -57,7 +57,7 @@ adapters.
 Service charges are associated records:
 
 ```ruby
-call = LlmCostTracker::Ledger::Call.includes(:service_charges).first
+call = LlmCostTracker::Call.includes(:service_charges).first
 call.service_charges.map(&:component)
 ```
 

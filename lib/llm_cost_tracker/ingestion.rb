@@ -15,13 +15,17 @@ module LlmCostTracker
     VERIFY_TAG = "llm_cost_tracker_verify"
 
     class << self
+      def table_name_prefix
+        "llm_cost_tracker_ingestion_"
+      end
+
       def ensure_current_schema!
-        unless Ledger::Call.table_exists?
-          raise Error, "llm_api_calls table is missing; run install generator and migrate"
+        unless LlmCostTracker::Call.table_exists?
+          raise Error, "llm_cost_tracker_calls table is missing; run install generator and migrate"
         end
 
         schema_errors = Ledger::Schema::Calls.current_schema_errors
-        message = "llm_api_calls table is not on the current schema: #{schema_errors.join('; ')}"
+        message = "llm_cost_tracker_calls table is not on the current schema: #{schema_errors.join('; ')}"
         raise Error, message if schema_errors.any?
 
         period_total_errors = Ledger::Schema::PeriodTotals.current_schema_errors
@@ -34,12 +38,12 @@ module LlmCostTracker
       end
 
       def verify
-        unless LlmCostTracker::Ledger::Call.table_exists?
+        unless LlmCostTracker::Call.table_exists?
           return [
             LlmCostTracker::Doctor::Check.new(
               :error,
               "active_record",
-              "llm_api_calls table is missing; run install generator and migrate"
+              "llm_cost_tracker_calls table is missing; run install generator and migrate"
             )
           ]
         end
@@ -65,7 +69,7 @@ module LlmCostTracker
           tags: { feature: VERIFY_TAG }
         )
         LlmCostTracker.flush!
-        persisted = LlmCostTracker::Ledger::Call.where(provider_response_id: response_id).exists?
+        persisted = LlmCostTracker::Call.where(provider_response_id: response_id).exists?
 
         return capture_success if persisted && notifications.any?
 
@@ -82,7 +86,7 @@ module LlmCostTracker
         LlmCostTracker::Doctor::Check.new(:error, "active_record capture", "#{e.class}: #{e.message}")
       ensure
         cleanup_verification_call(response_id) if response_id
-        LlmCostTracker::Ingestion::InboxRow.where(event_id: event.event_id).delete_all if event
+        LlmCostTracker::Ingestion::InboxEntry.where(event_id: event.event_id).delete_all if event
         ActiveSupport::Notifications.unsubscribe(subscription) if subscription
       end
 
@@ -108,7 +112,7 @@ module LlmCostTracker
       end
 
       def cleanup_verification_call(response_id)
-        relation = LlmCostTracker::Ledger::Call.where(provider_response_id: response_id)
+        relation = LlmCostTracker::Call.where(provider_response_id: response_id)
         rows = relation.pluck(:id, :tracked_at, :total_cost)
         return if rows.empty?
 

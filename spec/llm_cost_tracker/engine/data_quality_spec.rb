@@ -46,8 +46,8 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
 
   it "shows service charge coverage rows" do
     call = create_call(provider: "openai")
-    LlmCostTracker::Ledger::ServiceCharge.create!(
-      llm_api_call_id: call.id,
+    LlmCostTracker::ServiceCharge.create!(
+      llm_cost_tracker_call_id: call.id,
       charge_id: "charge-1",
       component: "web_search_request",
       unit: "request",
@@ -83,13 +83,13 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
   end
 
   it "renders a setup state when the ledger table is missing" do
-    ActiveRecord::Base.connection.drop_table(:llm_api_calls)
-    LlmCostTracker::Ledger::Call.reset_column_information
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_calls)
+    LlmCostTracker::Call.reset_column_information
 
     response = get("/llm-costs/data_quality")
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("llm_api_calls")
+    expect(response.body).to include("llm_cost_tracker_calls")
   end
 
   it "surfaces streaming coverage and a streams-without-usage callout" do

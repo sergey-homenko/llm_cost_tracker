@@ -46,7 +46,7 @@ RSpec.describe LlmCostTracker::Pricing do
         input_cost: 0.01,
         cache_read_input_cost: 0.02,
         cache_write_input_cost: 0.03,
-        cache_write_1h_input_cost: 0.04,
+        cache_write_extended_input_cost: 0.04,
         audio_input_cost: 0.06,
         output_cost: 0.05,
         audio_output_cost: 0.07,
@@ -62,7 +62,7 @@ RSpec.describe LlmCostTracker::Pricing do
         total_cost: 0.27,
         cache_read_input_cost: 0.02,
         cache_write_input_cost: 0.03,
-        cache_write_1h_input_cost: 0.04
+        cache_write_extended_input_cost: 0.04
       )
     end
   end
@@ -578,22 +578,22 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:input_cost)).to eq(0.3)
       expect(result.fetch(:cache_read_input_cost)).to eq(0.06)
       expect(result.fetch(:cache_write_input_cost)).to eq(1.125)
-      expect(result.fetch(:cache_write_1h_input_cost)).to eq(0.0)
+      expect(result.fetch(:cache_write_extended_input_cost)).to eq(0.0)
       expect(result.fetch(:output_cost)).to eq(0.15)
       expect(result.fetch(:total_cost)).to be_within(0.0001).of(
         result.fetch(:input_cost) + result.fetch(:cache_read_input_cost) +
-          result.fetch(:cache_write_input_cost) + result.fetch(:cache_write_1h_input_cost) + result.fetch(:output_cost)
+          result.fetch(:cache_write_input_cost) + result.fetch(:cache_write_extended_input_cost) + result.fetch(:output_cost)
       )
     end
 
-    it "prices 1-hour cache writes with their own rate when usage exposes the split" do
+    it "prices extended cache writes with their own rate when usage exposes the split" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "anthropic/demo-cache-ttl" => {
             input: 3.0,
             output: 15.0,
             cache_write_input: 3.75,
-            cache_write_1h_input: 6.0
+            cache_write_extended_input: 6.0
           }
         }
       end
@@ -603,12 +603,12 @@ RSpec.describe LlmCostTracker::Pricing do
         model: "demo-cache-ttl",
         input_tokens: 0,
         cache_write_input_tokens: 300_000,
-        cache_write_1h_input_tokens: 100_000,
+        cache_write_extended_input_tokens: 100_000,
         output_tokens: 0
       )
 
       expect(result.fetch(:cache_write_input_cost)).to eq(1.125)
-      expect(result.fetch(:cache_write_1h_input_cost)).to eq(0.6)
+      expect(result.fetch(:cache_write_extended_input_cost)).to eq(0.6)
       expect(result.fetch(:total_cost)).to eq(1.725)
     end
 
@@ -620,7 +620,7 @@ RSpec.describe LlmCostTracker::Pricing do
             output: 15.0,
             cache_read_input: 0.3,
             cache_write_input: 3.75,
-            cache_write_1h_input: 6.0,
+            cache_write_extended_input: 6.0,
             batch_input: 1.5,
             batch_output: 7.5
           }
@@ -633,7 +633,7 @@ RSpec.describe LlmCostTracker::Pricing do
         input_tokens: 100_000,
         cache_read_input_tokens: 100_000,
         cache_write_input_tokens: 100_000,
-        cache_write_1h_input_tokens: 100_000,
+        cache_write_extended_input_tokens: 100_000,
         output_tokens: 100_000,
         pricing_mode: :batch
       )
@@ -641,7 +641,7 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:input_cost)).to eq(0.15)
       expect(result.fetch(:cache_read_input_cost)).to eq(0.015)
       expect(result.fetch(:cache_write_input_cost)).to eq(0.1875)
-      expect(result.fetch(:cache_write_1h_input_cost)).to eq(0.3)
+      expect(result.fetch(:cache_write_extended_input_cost)).to eq(0.3)
       expect(result.fetch(:output_cost)).to eq(0.75)
       expect(result.fetch(:total_cost)).to eq(1.4025)
     end
@@ -677,7 +677,7 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:total_cost)).to eq(2.4255)
     end
 
-    it "treats 1-hour cache writes as unknown pricing when the 1-hour rate is missing" do
+    it "treats extended cache writes as unknown pricing when the extended cache rate is missing" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "anthropic/demo-cache-ttl" => {
@@ -693,7 +693,7 @@ RSpec.describe LlmCostTracker::Pricing do
         model: "demo-cache-ttl",
         input_tokens: 0,
         cache_write_input_tokens: 100_000,
-        cache_write_1h_input_tokens: 100_000,
+        cache_write_extended_input_tokens: 100_000,
         output_tokens: 0
       )
 
@@ -1228,11 +1228,11 @@ RSpec.describe LlmCostTracker::Pricing do
       end
     end
 
-    it "holds the Anthropic 1-hour cache-write pricing ratios" do
+    it "holds the Anthropic extended cache-write pricing ratios" do
       bundled.each do |model_id, fields|
         next unless model_id.split("/").last.start_with?("claude-")
 
-        expect(fields[:cache_write_1h_input]).to be_within(0.0001).of(fields[:input] * 2.0)
+        expect(fields[:cache_write_extended_input]).to be_within(0.0001).of(fields[:input] * 2.0)
       end
     end
 

@@ -44,7 +44,7 @@ Supported token price keys are owned by `Billing::Components`:
 - `output`
 - `cache_read_input`
 - `cache_write_input`
-- `cache_write_1h_input`
+- `cache_write_extended_input`
 - `audio_input`
 - `audio_output`
 - `batch_input`

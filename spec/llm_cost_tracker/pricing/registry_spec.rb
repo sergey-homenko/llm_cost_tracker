@@ -118,7 +118,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
               above_context_input: 2.0,
               above_context_output: 3.0,
               priority_cache_read_input: 0.25,
-              priority_cache_write_1h_input: 1.5
+              priority_cache_write_extended_input: 1.5
             }
           }
         }.to_json)
@@ -135,7 +135,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
               above_context_input: 2.0,
               above_context_output: 3.0,
               priority_cache_read_input: 0.25,
-              priority_cache_write_1h_input: 1.5
+              priority_cache_write_extended_input: 1.5
             }
           )
         end

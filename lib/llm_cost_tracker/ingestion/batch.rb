@@ -27,7 +27,7 @@ module LlmCostTracker
       end
 
       def pending?
-        Ingestion::InboxRow.where("attempts < ?", Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE).exists?
+        Ingestion::InboxEntry.where("attempts < ?", Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE).exists?
       end
 
       def claimable?
@@ -37,7 +37,7 @@ module LlmCostTracker
       def mark_failed(rows, error)
         message = "#{error.class}: #{error.message}".byteslice(0, 1_000)
         now = Time.now.utc
-        Ingestion::InboxRow
+        Ingestion::InboxEntry
           .where(id: rows.map(&:id), locked_by: identity)
           .update_all(last_error: message, locked_at: now, locked_by: nil, updated_at: now)
       rescue StandardError
@@ -51,16 +51,16 @@ module LlmCostTracker
       def claim
         now = Time.now.utc
         cutoff = now - LOCK_TIMEOUT_SECONDS
-        Ingestion::InboxRow.transaction do
+        Ingestion::InboxEntry.transaction do
           rows = claimable_scope(cutoff).order(:id).limit(BATCH_SIZE).lock.to_a
           ids = rows.map(&:id)
           next [] if ids.empty?
 
-          updates = Ingestion::InboxRow.sanitize_sql_array(
+          updates = Ingestion::InboxEntry.sanitize_sql_array(
             ["locked_at = ?, locked_by = ?, attempts = attempts + 1, updated_at = ?", now, identity, now]
           )
-          Ingestion::InboxRow.where(id: ids).update_all(updates)
-          Ingestion::InboxRow.where(id: ids, locked_by: identity).order(:id).to_a
+          Ingestion::InboxEntry.where(id: ids).update_all(updates)
+          Ingestion::InboxEntry.where(id: ids, locked_by: identity).order(:id).to_a
         end
       end
 
@@ -77,15 +77,15 @@ module LlmCostTracker
       end
 
       def persist(rows, events)
-        LlmCostTracker::Ledger::Call.transaction do
+        LlmCostTracker::Call.transaction do
           Ledger::Store.insert_many(events)
-          Ingestion::InboxRow.where(id: rows.map(&:id), locked_by: identity).delete_all
+          Ingestion::InboxEntry.where(id: rows.map(&:id), locked_by: identity).delete_all
         end
       end
 
       def claimable_scope(cutoff)
-        Ingestion::InboxRow
-          .where("attempts < ?", Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE)
+        Ingestion::InboxEntry
+          .where("attempts < ?", Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE)
           .where("locked_at IS NULL OR locked_at < ?", cutoff)
       end
     end

@@ -10,7 +10,7 @@ module LlmCostTracker
         class << self
           def value_expression(key, table_name:)
             key = LlmCostTracker::Tags::Key.validate!(key)
-            connection = Ledger::Call.connection
+            connection = LlmCostTracker::Call.connection
             column = "#{table_name}.#{connection.quote_column_name('tags')}"
 
             if Ledger::Schema::Adapter.postgresql?(connection)

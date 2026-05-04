@@ -10,12 +10,12 @@ module LlmCostTracker
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Creates a migration to add llm_api_calls.latency_ms"
+      desc "Creates a migration to add llm_cost_tracker_calls.latency_ms"
 
       def create_migration_file
         migration_template(
-          "add_latency_ms_to_llm_api_calls.rb.erb",
-          "db/migrate/add_latency_ms_to_llm_api_calls.rb"
+          "add_latency_ms_to_llm_cost_tracker_calls.rb.erb",
+          "db/migrate/add_latency_ms_to_llm_cost_tracker_calls.rb"
         )
       end
 

@@ -11,7 +11,7 @@ Core vocabulary uses provider-neutral terms:
 | Concept | Canonical terms |
 | --- | --- |
 | Text tokens | `input_tokens`, `output_tokens` |
-| Cache tokens | `cache_read_input_tokens`, `cache_write_input_tokens`, `cache_write_1h_input_tokens` |
+| Cache tokens | `cache_read_input_tokens`, `cache_write_input_tokens`, `cache_write_extended_input_tokens` |
 | Audio tokens | `audio_input_tokens`, `audio_output_tokens` |
 | Hidden/reasoning tokens | `hidden_output_tokens` |
 | Costs | component cost columns plus `total_cost` |
@@ -45,7 +45,7 @@ component keys:
 | Output text | `output` |
 | Cache read | `cache_read_input` |
 | Cache write | `cache_write_input` |
-| 1-hour cache write | `cache_write_1h_input` |
+| Extended cache write | `cache_write_extended_input` |
 | Audio input | `audio_input` |
 | Audio output | `audio_output` |
 
@@ -91,11 +91,11 @@ Storage is ActiveRecord-only. The current schema is:
 
 | Table | Responsibility |
 | --- | --- |
-| `llm_api_calls` | Parent call ledger |
+| `llm_cost_tracker_calls` | Parent call ledger |
 | `llm_cost_tracker_service_charges` | Provider-reported tool/runtime rows |
 | `llm_cost_tracker_period_totals` | Budget rollups |
-| `llm_cost_tracker_inbox_events` | Durable ingestion staging |
-| `llm_cost_tracker_ingestor_leases` | Shared worker lease |
+| `llm_cost_tracker_ingestion_inbox_entries` | Durable ingestion staging |
+| `llm_cost_tracker_ingestion_leases` | Shared worker lease |
 
 Runtime tracking assumes the current schema. Schema gaps belong in doctor/setup
 failures, not per-event branches.

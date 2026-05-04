@@ -17,7 +17,7 @@ module LlmCostTracker
                               :provider_response_id_coverage)
 
       class << self
-        def call(scope: LlmCostTracker::Ledger::Call.all)
+        def call(scope: LlmCostTracker::Call.all)
           scope.unscope(:order).select(aggregate_selects(scope)).take
         end
 
@@ -60,9 +60,9 @@ module LlmCostTracker
         end
 
         def service_charge_rows(scope)
-          call_table = LlmCostTracker::Ledger::Call.quoted_table_name
-          charge_table = LlmCostTracker::Ledger::ServiceCharge.quoted_table_name
-          relation = LlmCostTracker::Ledger::ServiceCharge
+          call_table = LlmCostTracker::Call.quoted_table_name
+          charge_table = LlmCostTracker::ServiceCharge.quoted_table_name
+          relation = LlmCostTracker::ServiceCharge
                      .joins(:call)
                      .merge(scope.unscope(:select, :order))
 

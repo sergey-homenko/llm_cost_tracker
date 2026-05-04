@@ -30,7 +30,7 @@ module LlmCostTracker
     end
 
     def show
-      @call = Ledger::Call.find(params[:id])
+      @call = LlmCostTracker::Call.find(params[:id])
     end
 
     private

@@ -13,6 +13,7 @@ require "llm_cost_tracker/generators/llm_cost_tracker/add_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/add_token_usage_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_schema_foundation_generator"
 
 RSpec.describe "generator templates" do
   let(:migration_version) { "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]" }
@@ -31,7 +32,7 @@ RSpec.describe "generator templates" do
   end
 
   it "creates JSONB tags and a GIN index for PostgreSQL installs" do
-    migration = render_migration_template("create_llm_api_calls.rb.erb")
+    migration = render_migration_template("create_llm_cost_tracker_calls.rb.erb")
 
     expect(migration).to include("require \"llm_cost_tracker/ledger/schema/adapter\"")
     expect(migration).to include("t.string  :event_id")
@@ -39,12 +40,13 @@ RSpec.describe "generator templates" do
     expect(migration).to include("t.integer :latency_ms")
     expect(migration).to include("t.integer :cache_read_input_tokens")
     expect(migration).to include("t.integer :cache_write_input_tokens")
+    expect(migration).to include("t.integer :cache_write_extended_input_tokens")
     expect(migration).to include("t.integer :audio_input_tokens")
     expect(migration).to include("t.integer :audio_output_tokens")
     expect(migration).to include("t.integer :hidden_output_tokens")
     expect(migration).to include("t.decimal :cache_read_input_cost")
     expect(migration).to include("t.decimal :cache_write_input_cost")
-    expect(migration).to include("t.decimal :cache_write_1h_input_cost")
+    expect(migration).to include("t.decimal :cache_write_extended_input_cost")
     expect(migration).to include("t.decimal :audio_input_cost")
     expect(migration).to include("t.decimal :audio_output_cost")
     expect(migration).to include("t.boolean :stream")
@@ -54,26 +56,26 @@ RSpec.describe "generator templates" do
     expect(migration).to include("t.string  :cost_status")
     expect(migration).to include("t.jsonb :pricing_snapshot")
     expect(migration).to include("t.jsonb :tags")
-    expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin if postgresql?")
+    expect(migration).to include("add_index :llm_cost_tracker_calls, :tags, using: :gin if postgresql?")
     expect(migration).to include("create_table :llm_cost_tracker_period_totals")
     expect(migration).to include("create_table :llm_cost_tracker_service_charges")
-    expect(migration).to include("create_table :llm_cost_tracker_inbox_events")
-    expect(migration).to include("create_table :llm_cost_tracker_ingestor_leases")
+    expect(migration).to include("create_table :llm_cost_tracker_ingestion_inbox_entries")
+    expect(migration).to include("create_table :llm_cost_tracker_ingestion_leases")
     expect(migration).to include("add_index :llm_cost_tracker_period_totals, [:period, :period_start], unique: true")
-    expect(migration).to include("add_index :llm_api_calls, :event_id, unique: true")
-    expect(migration).to include("add_index :llm_cost_tracker_inbox_events, :event_id, unique: true")
-    expect(migration).to include("add_index :llm_cost_tracker_inbox_events, [:tracked_at, :attempts]")
-    expect(migration).not_to include("add_index :llm_cost_tracker_inbox_events, :tracked_at")
-    expect(migration).to include("add_index :llm_cost_tracker_ingestor_leases, :name, unique: true")
-    expect(migration).to include("add_index :llm_api_calls, :tracked_at")
-    expect(migration).to include("add_index :llm_api_calls, [:provider, :tracked_at]")
-    expect(migration).to include("add_index :llm_api_calls, [:model, :tracked_at]")
-    expect(migration).not_to include("add_index :llm_api_calls, :stream")
-    expect(migration).not_to include("add_index :llm_api_calls, :usage_source")
-    expect(migration).to include("add_index :llm_api_calls, :provider_response_id")
+    expect(migration).to include("add_index :llm_cost_tracker_calls, :event_id, unique: true")
+    expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true")
+    expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]")
+    expect(migration).not_to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :tracked_at")
+    expect(migration).to include("add_index :llm_cost_tracker_ingestion_leases, :name, unique: true")
+    expect(migration).to include("add_index :llm_cost_tracker_calls, :tracked_at")
+    expect(migration).to include("add_index :llm_cost_tracker_calls, [:provider, :tracked_at]")
+    expect(migration).to include("add_index :llm_cost_tracker_calls, [:model, :tracked_at]")
+    expect(migration).not_to include("add_index :llm_cost_tracker_calls, :stream")
+    expect(migration).not_to include("add_index :llm_cost_tracker_calls, :usage_source")
+    expect(migration).to include("add_index :llm_cost_tracker_calls, :provider_response_id")
     expect(migration).to include("add_index :llm_cost_tracker_service_charges, :charge_id, unique: true")
-    expect(migration).not_to match(/add_index :llm_api_calls, :provider$/)
-    expect(migration).not_to match(/add_index :llm_api_calls, :model$/)
+    expect(migration).not_to match(/add_index :llm_cost_tracker_calls, :provider$/)
+    expect(migration).not_to match(/add_index :llm_cost_tracker_calls, :model$/)
     expect(migration).to include("t.json :tags")
     expect(migration).to include("LLM Cost Tracker supports PostgreSQL and MySQL only")
     expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)")
@@ -108,11 +110,11 @@ RSpec.describe "generator templates" do
   end
 
   it "provides a latency upgrade migration" do
-    migration = template("add_latency_ms_to_llm_api_calls.rb.erb")
+    migration = template("add_latency_ms_to_llm_cost_tracker_calls.rb.erb")
 
-    expect(migration).to include("class AddLatencyMsToLlmApiCalls")
-    expect(migration).to include("add_column :llm_api_calls, :latency_ms, :integer")
-    expect(migration).to include("remove_column :llm_api_calls, :latency_ms")
+    expect(migration).to include("class AddLatencyMsToLlmCostTrackerCalls")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :latency_ms, :integer")
+    expect(migration).to include("remove_column :llm_cost_tracker_calls, :latency_ms")
   end
 
   it "provides a period totals upgrade migration" do
@@ -141,15 +143,15 @@ RSpec.describe "generator templates" do
     migration = template("add_ingestion_to_llm_cost_tracker.rb.erb")
 
     expect(migration).to include("class AddIngestionToLlmCostTracker")
-    expect(migration).to include("add_column :llm_api_calls, :event_id")
-    expect(migration).to include("add_index :llm_api_calls, :event_id, unique: true")
-    expect(migration).to include("create_table :llm_cost_tracker_inbox_events")
-    expect(migration).to include("create_table :llm_cost_tracker_ingestor_leases")
-    expect(migration).to include("add_index :llm_cost_tracker_inbox_events, :event_id, unique: true")
-    expect(migration).to include("add_index :llm_cost_tracker_inbox_events, [:tracked_at, :attempts]")
-    expect(migration).to include("remove_index :llm_cost_tracker_inbox_events, :tracked_at")
-    expect(migration).not_to include("add_index :llm_cost_tracker_inbox_events, :tracked_at")
-    expect(migration).to include("add_index :llm_cost_tracker_ingestor_leases, :name, unique: true")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :event_id")
+    expect(migration).to include("add_index :llm_cost_tracker_calls, :event_id, unique: true")
+    expect(migration).to include("create_table :llm_cost_tracker_ingestion_inbox_entries")
+    expect(migration).to include("create_table :llm_cost_tracker_ingestion_leases")
+    expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true")
+    expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]")
+    expect(migration).to include("remove_index :llm_cost_tracker_ingestion_inbox_entries, :tracked_at")
+    expect(migration).not_to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :tracked_at")
+    expect(migration).to include("add_index :llm_cost_tracker_ingestion_leases, :name, unique: true")
     expect(migration).not_to include("t.string   :provider, null: false")
     expect(migration).not_to include("t.string   :model, null: false")
   end
@@ -172,58 +174,94 @@ RSpec.describe "generator templates" do
 
       2.times { LlmCostTracker::Generators::InstallGenerator.start(["--dashboard", "--prices"], destination_root: dir) }
 
-      expect(Dir[File.join(dir, "db/migrate/*create_llm_api_calls.rb")].size).to eq(1)
+      expect(Dir[File.join(dir, "db/migrate/*create_llm_cost_tracker_calls.rb")].size).to eq(1)
       expect(File).to exist(File.join(dir, "config/llm_cost_tracker_prices.yml"))
       expect(File.read(File.join(dir, "config/routes.rb")).scan("mount LlmCostTracker::Engine").size).to eq(1)
     end
   end
 
   it "provides a streaming upgrade migration" do
-    migration = template("add_streaming_to_llm_api_calls.rb.erb")
+    migration = template("add_streaming_to_llm_cost_tracker_calls.rb.erb")
 
-    expect(migration).to include("class AddStreamingToLlmApiCalls")
-    expect(migration).to include("add_column :llm_api_calls, :stream, :boolean")
-    expect(migration).to include("add_column :llm_api_calls, :usage_source, :string")
+    expect(migration).to include("class AddStreamingToLlmCostTrackerCalls")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :stream, :boolean")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :usage_source, :string")
     expect(migration).not_to include("add_index")
-    expect(migration).to include("remove_column :llm_api_calls, :stream")
-    expect(migration).to include("remove_column :llm_api_calls, :usage_source")
+    expect(migration).to include("remove_column :llm_cost_tracker_calls, :stream")
+    expect(migration).to include("remove_column :llm_cost_tracker_calls, :usage_source")
   end
 
   it "provides a provider response id upgrade migration" do
-    migration = template("add_provider_response_id_to_llm_api_calls.rb.erb")
+    migration = template("add_provider_response_id_to_llm_cost_tracker_calls.rb.erb")
 
-    expect(migration).to include("class AddProviderResponseIdToLlmApiCalls")
-    expect(migration).to include("add_column :llm_api_calls, :provider_response_id, :string")
-    expect(migration).to include("add_index :llm_api_calls, :provider_response_id")
-    expect(migration).to include("remove_column :llm_api_calls, :provider_response_id")
+    expect(migration).to include("class AddProviderResponseIdToLlmCostTrackerCalls")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :provider_response_id, :string")
+    expect(migration).to include("add_index :llm_cost_tracker_calls, :provider_response_id")
+    expect(migration).to include("remove_column :llm_cost_tracker_calls, :provider_response_id")
   end
 
   it "provides a token usage upgrade migration" do
-    migration = render_migration_template("add_token_usage_to_llm_api_calls.rb.erb")
+    migration = render_migration_template("add_token_usage_to_llm_cost_tracker_calls.rb.erb")
 
-    expect(migration).to include("class AddTokenUsageToLlmApiCalls")
-    expect(migration).to include("add_column :llm_api_calls, :cache_read_input_tokens, :integer")
-    expect(migration).to include("add_column :llm_api_calls, :cache_write_input_tokens, :integer")
-    expect(migration).to include("add_column :llm_api_calls, :cache_write_1h_input_tokens, :integer")
-    expect(migration).to include("add_column :llm_api_calls, :audio_input_tokens, :integer")
-    expect(migration).to include("add_column :llm_api_calls, :audio_output_tokens, :integer")
-    expect(migration).to include("add_column :llm_api_calls, :hidden_output_tokens, :integer")
-    expect(migration).to include("add_column :llm_api_calls, :cache_read_input_cost, :decimal")
-    expect(migration).to include("add_column :llm_api_calls, :cache_write_input_cost, :decimal")
-    expect(migration).to include("add_column :llm_api_calls, :cache_write_1h_input_cost, :decimal")
-    expect(migration).to include("add_column :llm_api_calls, :audio_input_cost, :decimal")
-    expect(migration).to include("add_column :llm_api_calls, :audio_output_cost, :decimal")
-    expect(migration).to include("add_column :llm_api_calls, :pricing_mode, :string")
-    expect(migration).to include("remove_column :llm_api_calls, :cache_read_input_tokens")
+    expect(migration).to include("class AddTokenUsageToLlmCostTrackerCalls")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :cache_read_input_tokens, :integer")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :cache_write_input_tokens, :integer")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :cache_write_extended_input_tokens, :integer")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :audio_input_tokens, :integer")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :audio_output_tokens, :integer")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :hidden_output_tokens, :integer")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :cache_read_input_cost, :decimal")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :cache_write_input_cost, :decimal")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :cache_write_extended_input_cost, :decimal")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :audio_input_cost, :decimal")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :audio_output_cost, :decimal")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :pricing_mode, :string")
+    expect(migration).to include("remove_column :llm_cost_tracker_calls, :cache_read_input_tokens")
+    expect(migration).not_to include("cache_write_1h_input")
+  end
+
+  it "provides a schema foundation rename migration" do
+    migration = render_migration_template("upgrade_schema_foundation.rb.erb")
+
+    expect(migration).to include("class UpgradeLlmCostTrackerSchemaFoundation")
+    expect(migration).to include("llm_api_calls: :llm_cost_tracker_calls")
+    expect(migration).to include(
+      "llm_cost_tracker_inbox_events: :llm_cost_tracker_ingestion_inbox_entries"
+    )
+    expect(migration).to include("llm_cost_tracker_ingestor_leases: :llm_cost_tracker_ingestion_leases")
+    expect(migration).to include("llm_api_call_id: :llm_cost_tracker_call_id")
+    expect(migration).to include("cache_write_1h_input_tokens: :cache_write_extended_input_tokens")
+    expect(migration).to include("cache_write_1h_input_cost: :cache_write_extended_input_cost")
+    expect(migration).to include("rename_table old_table, new_table")
+    expect(migration).to include("Both \#{old_table} and \#{new_table} exist")
+    expect(migration).to include("rename_tables(TABLE_RENAMES.invert)")
+    expect(migration).to include("rename_service_charge_columns(SERVICE_CHARGE_COLUMN_RENAMES.invert)")
+    expect(migration).to include("rename_call_columns(CALL_COLUMN_RENAMES.invert)")
+    expect(migration).to include("rename_column :llm_cost_tracker_calls, old_column, new_column")
+    expect(migration).to include("Both llm_cost_tracker_calls.\#{old_column}")
+    expect(migration).to include(
+      "rename_column :llm_cost_tracker_service_charges, old_column, new_column"
+    )
+  end
+
+  it "generates a schema foundation migration" do
+    Dir.mktmpdir do |dir|
+      LlmCostTracker::Generators::UpgradeSchemaFoundationGenerator.start([], destination_root: dir)
+      paths = Dir[File.join(dir, "db/migrate/*upgrade_llm_cost_tracker_schema_foundation.rb")]
+
+      expect(paths.size).to eq(1)
+      expect(File.read(paths.first)).to include("class UpgradeLlmCostTrackerSchemaFoundation")
+    end
   end
 
   it "provides a billing audit upgrade migration" do
     migration = render_migration_template("add_billing_to_llm_cost_tracker.rb.erb")
 
     expect(migration).to include("class AddBillingToLlmCostTracker")
-    expect(migration).to include("add_column :llm_api_calls, :cost_status, :string")
-    expect(migration).to include("add_column :llm_api_calls, :pricing_snapshot")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :cost_status, :string")
+    expect(migration).to include("add_column :llm_cost_tracker_calls, :pricing_snapshot")
     expect(migration).to include("create_table :llm_cost_tracker_service_charges")
+    expect(migration).to include("create_service_charges_table unless table_exists?")
     expect(migration).to include("t.string :component, null: false")
     expect(migration).to include("t.decimal :quantity, precision: 30, scale: 10")
     expect(migration).to include("add_index :llm_cost_tracker_service_charges, :charge_id, unique: true")
@@ -231,20 +269,20 @@ RSpec.describe "generator templates" do
   end
 
   it "provides a cost precision upgrade migration" do
-    migration = template("upgrade_llm_api_call_cost_precision.rb.erb")
+    migration = template("upgrade_llm_cost_tracker_call_cost_precision.rb.erb")
 
-    expect(migration).to include("class UpgradeLlmApiCallCostPrecision")
+    expect(migration).to include("class UpgradeLlmCostTrackerCallCostPrecision")
     expect(migration).to include("precision: 20, scale: 8")
     expect(migration).to include("precision: 12, scale: 8")
   end
 
   it "provides a PostgreSQL JSONB upgrade migration" do
-    migration = template("upgrade_llm_api_call_tags_to_jsonb.rb.erb")
+    migration = template("upgrade_llm_cost_tracker_call_tags_to_jsonb.rb.erb")
 
-    expect(migration).to include("class UpgradeLlmApiCallTagsToJsonb")
+    expect(migration).to include("class UpgradeLlmCostTrackerCallTagsToJsonb")
     expect(migration).to include("change_column(")
     expect(migration).to include("using: \"CASE WHEN tags IS NULL")
-    expect(migration).to include("add_index :llm_api_calls, :tags, using: :gin")
+    expect(migration).to include("add_index :llm_cost_tracker_calls, :tags, using: :gin")
     expect(migration).to include("rewrites the table on PostgreSQL")
     expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)")
   end

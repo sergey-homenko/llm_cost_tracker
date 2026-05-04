@@ -61,7 +61,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.token_usage.total_tokens).to eq(360)
       expect(result.token_usage.cache_read_input_tokens).to eq(50)
       expect(result.token_usage.cache_write_input_tokens).to eq(20)
-      expect(result.token_usage.cache_write_1h_input_tokens).to eq(10)
+      expect(result.token_usage.cache_write_extended_input_tokens).to eq(10)
       expect(result.stream).to be false
       expect(result.usage_source).to eq(:response)
       expect(result.provider_response_id).to be_nil
@@ -86,7 +86,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
         )
 
         expect(result.token_usage.cache_write_input_tokens).to eq(0)
-        expect(result.token_usage.cache_write_1h_input_tokens).to eq(0)
+        expect(result.token_usage.cache_write_extended_input_tokens).to eq(0)
       end
 
       expect(LlmCostTracker::Logging).to have_received(:warn).with(include("String"))
@@ -217,7 +217,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.token_usage.total_tokens).to eq(120 + 64 + 40 + 20 + 10)
       expect(result.token_usage.cache_read_input_tokens).to eq(40)
       expect(result.token_usage.cache_write_input_tokens).to eq(20)
-      expect(result.token_usage.cache_write_1h_input_tokens).to eq(10)
+      expect(result.token_usage.cache_write_extended_input_tokens).to eq(10)
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)
       expect(result.provider_response_id).to eq("msg_456")

@@ -32,12 +32,10 @@ end
 
 require "webmock/rspec"
 require "llm_cost_tracker"
-require_relative "../app/models/llm_cost_tracker/ledger/call_metrics"
-require_relative "../app/models/llm_cost_tracker/ledger/period/grouping"
-require_relative "../app/models/llm_cost_tracker/ledger/call"
-require_relative "../app/models/llm_cost_tracker/ledger/service_charge"
-require_relative "../app/models/llm_cost_tracker/ledger/period/total"
-require_relative "../app/models/llm_cost_tracker/ingestion/inbox_row"
+require_relative "../app/models/llm_cost_tracker/call"
+require_relative "../app/models/llm_cost_tracker/service_charge"
+require_relative "../app/models/llm_cost_tracker/period_total"
+require_relative "../app/models/llm_cost_tracker/ingestion/inbox_entry"
 require_relative "../app/models/llm_cost_tracker/ingestion/lease"
 
 $LOAD_PATH.unshift File.expand_path("../scripts", __dir__)

@@ -32,7 +32,7 @@ module LlmCostTracker
           breakdown_limit = nil unless breakdown_limit.positive?
         end
         from = now - days.days
-        scope = Ledger::Call.where(tracked_at: from..now)
+        scope = LlmCostTracker::Call.where(tracked_at: from..now)
         tag_breakdowns ||= LlmCostTracker.configuration.report_tag_breakdowns || []
         aggregate = totals(scope)
 

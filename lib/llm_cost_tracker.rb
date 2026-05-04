@@ -50,6 +50,10 @@ module LlmCostTracker
   class << self
     attr_reader :configuration
 
+    def table_name_prefix
+      "llm_cost_tracker_"
+    end
+
     def configure
       config = configuration
       raise Error, "LlmCostTracker is already configured" if config.finalized?

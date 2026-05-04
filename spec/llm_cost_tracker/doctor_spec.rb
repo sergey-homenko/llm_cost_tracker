@@ -18,7 +18,7 @@ RSpec.describe LlmCostTracker::Doctor do
       have_attributes(status: :ok, name: "configuration"),
       have_attributes(status: :ok, name: "capture", message: include("Faraday middleware and manual capture")),
       have_attributes(status: :ok, name: "active_record"),
-      have_attributes(status: :error, name: "llm_api_calls"),
+      have_attributes(status: :error, name: "llm_cost_tracker_calls"),
       have_attributes(status: :warn, name: "prices")
     )
     expect(checks.find { |check| check.name == "prices" }.message).to include("commit a prices_file")
@@ -73,7 +73,7 @@ RSpec.describe LlmCostTracker::Doctor do
   it "maps token usage and cost columns to the token usage generator" do
     columns = LlmCostTracker::Generators::AddTokenUsageGenerator::COLUMN_NAMES
 
-    expect(columns.map { |column| described_class::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
+    expect(columns.map { |column| described_class::SchemaGenerators::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
       ["bin/rails generate llm_cost_tracker:add_token_usage"]
     )
   end
@@ -81,19 +81,29 @@ RSpec.describe LlmCostTracker::Doctor do
   it "maps billing audit columns to the billing generator" do
     columns = LlmCostTracker::Generators::AddBillingGenerator::COLUMN_NAMES
 
-    expect(columns.map { |column| described_class::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
+    expect(columns.map { |column| described_class::SchemaGenerators::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
       ["bin/rails generate llm_cost_tracker:add_billing"]
     )
   end
 
   it "treats table probe errors as absent tables" do
-    allow(LlmCostTracker::Ledger::Call).to receive(:connection).and_raise("database unavailable")
+    allow(LlmCostTracker::Call).to receive(:connection).and_raise("database unavailable")
 
-    expect(described_class::Probe.table_exists?("llm_api_calls")).to be false
+    expect(described_class::Probe.table_exists?("llm_cost_tracker_calls")).to be false
+  end
+
+  it "reports the foundation generator when the legacy call table exists" do
+    allow(described_class::Probe).to receive(:table_exists?).and_call_original
+    allow(described_class::Probe).to receive(:table_exists?).with("llm_cost_tracker_calls").and_return(false)
+    allow(described_class::Probe).to receive(:table_exists?).with("llm_api_calls").and_return(true)
+
+    check = described_class.call.find { |item| item.name == "llm_cost_tracker_calls" }
+
+    expect(check).to have_attributes(status: :error, message: include("upgrade_schema_foundation"))
   end
 
   it "skips isolated checks when the ledger table is missing" do
-    allow(described_class::Probe).to receive(:table_exists?).with("llm_api_calls").and_return(false)
+    allow(described_class::Probe).to receive(:table_exists?).with("llm_cost_tracker_calls").and_return(false)
 
     expect(described_class::IngestionCheck.new.call).to be_nil
     expect(described_class::LegacyAuditCheck.new.call).to be_nil
@@ -108,8 +118,8 @@ RSpec.describe LlmCostTracker::Doctor do
       checks = described_class.call
 
       expect(checks).to include(
-        have_attributes(status: :ok, name: "llm_api_calls"),
-        have_attributes(status: :ok, name: "llm_api_calls columns"),
+        have_attributes(status: :ok, name: "llm_cost_tracker_calls"),
+        have_attributes(status: :ok, name: "llm_cost_tracker_calls columns"),
         have_attributes(status: :ok, name: "service charges"),
         have_attributes(status: :ok, name: "period totals"),
         have_attributes(status: :warn, name: "tracked calls")
@@ -128,14 +138,15 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "fails when durable ingestion tables are missing" do
-      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_inbox_events)
-      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_ingestor_leases)
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_ingestion_inbox_entries)
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_ingestion_leases)
 
       check = described_class.call.find { |item| item.name == "durable ingestion" }
 
       expect(check).to have_attributes(status: :error)
-      expect(check.message).to include("llm_cost_tracker_inbox_events")
-      expect(check.message).to include("llm_cost_tracker_ingestor_leases")
+      expect(check.message).to include("llm_cost_tracker_ingestion_inbox_entries")
+      expect(check.message).to include("llm_cost_tracker_ingestion_leases")
+      expect(check.message).to include("llm_cost_tracker:upgrade_schema_foundation")
       expect(check.message).to include("llm_cost_tracker:add_ingestion")
     end
 
@@ -150,10 +161,10 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "fails when the ledger table does not match the current schema" do
-      ActiveRecord::Base.connection.remove_column(:llm_api_calls, :pricing_mode)
-      LlmCostTracker::Ledger::Call.reset_column_information
+      ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_calls, :pricing_mode)
+      LlmCostTracker::Call.reset_column_information
 
-      check = described_class.call.find { |item| item.name == "llm_api_calls columns" }
+      check = described_class.call.find { |item| item.name == "llm_cost_tracker_calls columns" }
 
       expect(check.status).to eq(:error)
       expect(check.message).to include("current schema required")
@@ -164,7 +175,7 @@ RSpec.describe LlmCostTracker::Doctor do
 
     it "fails when service charges are missing" do
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_service_charges)
-      LlmCostTracker::Ledger::ServiceCharge.reset_column_information
+      LlmCostTracker::ServiceCharge.reset_column_information
 
       check = described_class.call.find { |item| item.name == "service charges" }
 
@@ -192,14 +203,14 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "skips legacy checks when schema lookup fails" do
-      allow(LlmCostTracker::Ledger::Call).to receive(:column_names).and_raise("schema unavailable")
+      allow(LlmCostTracker::Call).to receive(:column_names).and_raise("schema unavailable")
 
       expect(described_class::LegacyAuditCheck.new.call).to be_nil
       expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil
     end
 
     it "skips legacy checks before billing audit columns exist" do
-      allow(LlmCostTracker::Ledger::Call).to receive(:column_names).and_return([])
+      allow(LlmCostTracker::Call).to receive(:column_names).and_return([])
 
       expect(described_class::LegacyAuditCheck.new.call).to be_nil
       expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil

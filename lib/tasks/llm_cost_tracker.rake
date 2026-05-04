@@ -40,7 +40,7 @@ namespace :llm_cost_tracker do
     puts LlmCostTracker::Report.generate(days: days)
   end
 
-  desc "Delete llm_api_calls older than DAYS (default: 90). Use BATCH_SIZE=N to tune."
+  desc "Delete llm_cost_tracker_calls older than DAYS (default: 90). Use BATCH_SIZE=N to tune."
   task prune: :environment do
     days = (ENV["DAYS"] || 90).to_i
     batch_size = (ENV["BATCH_SIZE"] || LlmCostTracker::Retention::DEFAULT_BATCH_SIZE).to_i
@@ -143,7 +143,7 @@ def price_explanation_from_env
       output: ENV.fetch("OUTPUT_TOKENS", 1).to_i,
       cache_read_input: ENV.fetch("CACHE_READ_INPUT_TOKENS", 0).to_i,
       cache_write_input: ENV.fetch("CACHE_WRITE_INPUT_TOKENS", 0).to_i,
-      cache_write_1h_input: ENV.fetch("CACHE_WRITE_1H_INPUT_TOKENS", 0).to_i,
+      cache_write_extended_input: ENV.fetch("CACHE_WRITE_EXTENDED_INPUT_TOKENS", 0).to_i,
       audio_input: ENV.fetch("AUDIO_INPUT_TOKENS", 0).to_i,
       audio_output: ENV.fetch("AUDIO_OUTPUT_TOKENS", 0).to_i
     }

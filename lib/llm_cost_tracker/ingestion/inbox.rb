@@ -113,7 +113,7 @@ module LlmCostTracker
         end
 
         def insert_row(row)
-          connection = LlmCostTracker::Ledger::Call.connection
+          connection = LlmCostTracker::Call.connection
           if connection.transaction_open?
             insert_with_separate_connection(row)
           else
@@ -125,7 +125,7 @@ module LlmCostTracker
         end
 
         def insert_with_separate_connection(row)
-          pool = LlmCostTracker::Ledger::Call.connection_pool
+          pool = LlmCostTracker::Call.connection_pool
           connection = pool.checkout
           begin
             connection.transaction(requires_new: true) { execute_insert(connection, row) }
@@ -138,7 +138,7 @@ module LlmCostTracker
           columns = row.keys
           quoted_columns = columns.map { |column| connection.quote_column_name(column) }.join(", ")
           quoted_values = columns.map { |column| connection.quote(row.fetch(column)) }.join(", ")
-          table = connection.quote_table_name(InboxRow.table_name)
+          table = connection.quote_table_name(InboxEntry.table_name)
 
           connection.execute("INSERT INTO #{table} (#{quoted_columns}) VALUES (#{quoted_values})")
         end

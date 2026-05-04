@@ -39,14 +39,15 @@ Base fields:
 - `output`
 - `cache_read_input`
 - `cache_write_input`
-- `cache_write_1h_input`
+- `cache_write_extended_input`
 - `audio_input`
 - `audio_output`
 
 These keys are derived from `Billing::Components`, the master component registry.
 
-`cache_write_input` is the standard cache-write bucket. `cache_write_1h_input`
-is priced separately when provider usage exposes that longer retention bucket.
+`cache_write_input` is the standard cache-write bucket. `cache_write_extended_input`
+is priced separately when provider usage exposes a longer retention bucket, such
+as Anthropic's 1-hour prompt cache writes.
 
 Mode-prefixed fields use the same base terms:
 
@@ -54,7 +55,7 @@ Mode-prefixed fields use the same base terms:
 - `batch_output`
 - `priority_input`
 - `batch_cache_read_input`
-- `priority_cache_write_1h_input`
+- `priority_cache_write_extended_input`
 
 Long-context entries may also include `_context_price_threshold_tokens` and
 `above_context_*` fields. When the effective input side is above the threshold,
@@ -109,7 +110,7 @@ PROVIDER=openai MODEL=gpt-4o PRICING_MODE=batch bin/rails llm_cost_tracker:price
 Optional token env vars let the command check the exact buckets that a call used:
 
 ```bash
-PROVIDER=custom MODEL=gateway-model INPUT_TOKENS=1000 OUTPUT_TOKENS=200 CACHE_READ_INPUT_TOKENS=50 CACHE_WRITE_1H_INPUT_TOKENS=25 AUDIO_INPUT_TOKENS=100 AUDIO_OUTPUT_TOKENS=20 bin/rails llm_cost_tracker:prices:explain
+PROVIDER=custom MODEL=gateway-model INPUT_TOKENS=1000 OUTPUT_TOKENS=200 CACHE_READ_INPUT_TOKENS=50 CACHE_WRITE_EXTENDED_INPUT_TOKENS=25 AUDIO_INPUT_TOKENS=100 AUDIO_OUTPUT_TOKENS=20 bin/rails llm_cost_tracker:prices:explain
 ```
 
 The command reports the matched source, matched key, match strategy, effective

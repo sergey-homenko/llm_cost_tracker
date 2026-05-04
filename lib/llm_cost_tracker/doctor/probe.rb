@@ -8,7 +8,7 @@ module LlmCostTracker
       module_function
 
       def table_exists?(name)
-        LlmCostTracker::Ledger::Call.connection.data_source_exists?(name)
+        LlmCostTracker::Call.connection.data_source_exists?(name)
       rescue StandardError
         false
       end

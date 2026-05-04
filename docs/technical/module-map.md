@@ -133,7 +133,7 @@ Primary files:
 Responsibilities:
 
 - Stage captured events before ledger writes.
-- Claim retryable inbox rows through database leases.
+- Claim retryable inbox entries through database leases.
 - Persist calls and service charges atomically.
 - Maintain period rollups for hot-path budget reads.
 - Hide PostgreSQL and MySQL-family JSON/tag SQL differences.

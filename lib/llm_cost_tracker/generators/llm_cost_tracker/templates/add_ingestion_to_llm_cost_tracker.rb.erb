@@ -1,10 +1,10 @@
 class AddIngestionToLlmCostTracker < ActiveRecord::Migration<%= migration_version %>
   def change
-    add_column :llm_api_calls, :event_id, :string unless column_exists?(:llm_api_calls, :event_id)
-    add_index :llm_api_calls, :event_id, unique: true if column_exists?(:llm_api_calls, :event_id) &&
-                                                         !index_exists?(:llm_api_calls, :event_id)
+    add_column :llm_cost_tracker_calls, :event_id, :string unless column_exists?(:llm_cost_tracker_calls, :event_id)
+    add_index :llm_cost_tracker_calls, :event_id, unique: true if column_exists?(:llm_cost_tracker_calls, :event_id) &&
+                                                         !index_exists?(:llm_cost_tracker_calls, :event_id)
 
-    create_table :llm_cost_tracker_inbox_events do |t|
+    create_table :llm_cost_tracker_ingestion_inbox_entries do |t|
       t.string   :event_id, null: false
       t.decimal  :total_cost, precision: 20, scale: 8
       t.datetime :tracked_at, null: false
@@ -15,22 +15,22 @@ class AddIngestionToLlmCostTracker < ActiveRecord::Migration<%= migration_versio
       t.text     :last_error
 
       t.timestamps
-    end unless table_exists?(:llm_cost_tracker_inbox_events)
+    end unless table_exists?(:llm_cost_tracker_ingestion_inbox_entries)
 
-    create_table :llm_cost_tracker_ingestor_leases do |t|
+    create_table :llm_cost_tracker_ingestion_leases do |t|
       t.string   :name, null: false
       t.string   :locked_by
       t.datetime :locked_until
 
       t.timestamps
-    end unless table_exists?(:llm_cost_tracker_ingestor_leases)
+    end unless table_exists?(:llm_cost_tracker_ingestion_leases)
 
-    add_index :llm_cost_tracker_inbox_events, :event_id, unique: true unless index_exists?(:llm_cost_tracker_inbox_events, :event_id)
-    unless index_exists?(:llm_cost_tracker_inbox_events, [:tracked_at, :attempts])
-      add_index :llm_cost_tracker_inbox_events, [:tracked_at, :attempts]
+    add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true unless index_exists?(:llm_cost_tracker_ingestion_inbox_entries, :event_id)
+    unless index_exists?(:llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts])
+      add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]
     end
-    remove_index :llm_cost_tracker_inbox_events, :tracked_at if index_exists?(:llm_cost_tracker_inbox_events, :tracked_at)
-    add_index :llm_cost_tracker_inbox_events, [:locked_at, :id] unless index_exists?(:llm_cost_tracker_inbox_events, [:locked_at, :id])
-    add_index :llm_cost_tracker_ingestor_leases, :name, unique: true unless index_exists?(:llm_cost_tracker_ingestor_leases, :name)
+    remove_index :llm_cost_tracker_ingestion_inbox_entries, :tracked_at if index_exists?(:llm_cost_tracker_ingestion_inbox_entries, :tracked_at)
+    add_index :llm_cost_tracker_ingestion_inbox_entries, [:locked_at, :id] unless index_exists?(:llm_cost_tracker_ingestion_inbox_entries, [:locked_at, :id])
+    add_index :llm_cost_tracker_ingestion_leases, :name, unique: true unless index_exists?(:llm_cost_tracker_ingestion_leases, :name)
   end
 end

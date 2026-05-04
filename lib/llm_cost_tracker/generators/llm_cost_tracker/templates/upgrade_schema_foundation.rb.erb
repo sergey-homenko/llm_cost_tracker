@@ -1,0 +1,73 @@
+class UpgradeLlmCostTrackerSchemaFoundation < ActiveRecord::Migration<%= migration_version %>
+  TABLE_RENAMES = {
+    llm_api_calls: :llm_cost_tracker_calls,
+    llm_cost_tracker_inbox_events: :llm_cost_tracker_ingestion_inbox_entries,
+    llm_cost_tracker_ingestor_leases: :llm_cost_tracker_ingestion_leases
+  }.freeze
+
+  SERVICE_CHARGE_COLUMN_RENAMES = {
+    llm_api_call_id: :llm_cost_tracker_call_id
+  }.freeze
+
+  CALL_COLUMN_RENAMES = {
+    cache_write_1h_input_tokens: :cache_write_extended_input_tokens,
+    cache_write_1h_input_cost: :cache_write_extended_input_cost
+  }.freeze
+
+  def up
+    rename_tables(TABLE_RENAMES)
+    rename_service_charge_columns(SERVICE_CHARGE_COLUMN_RENAMES)
+    rename_call_columns(CALL_COLUMN_RENAMES)
+  end
+
+  def down
+    rename_call_columns(CALL_COLUMN_RENAMES.invert)
+    rename_service_charge_columns(SERVICE_CHARGE_COLUMN_RENAMES.invert)
+    rename_tables(TABLE_RENAMES.invert)
+  end
+
+  private
+
+  def rename_tables(renames)
+    renames.each do |old_table, new_table|
+      old_exists = table_exists?(old_table)
+      new_exists = table_exists?(new_table)
+      next unless old_exists
+      raise "Both #{old_table} and #{new_table} exist; merge or remove one before running this migration" if new_exists
+
+      rename_table old_table, new_table
+    end
+  end
+
+  def rename_service_charge_columns(renames)
+    return unless table_exists?(:llm_cost_tracker_service_charges)
+
+    renames.each do |old_column, new_column|
+      old_exists = column_exists?(:llm_cost_tracker_service_charges, old_column)
+      new_exists = column_exists?(:llm_cost_tracker_service_charges, new_column)
+      next unless old_exists
+      if new_exists
+        raise "Both llm_cost_tracker_service_charges.#{old_column} and " \
+              "llm_cost_tracker_service_charges.#{new_column} exist; merge or remove one before running this migration"
+      end
+
+      rename_column :llm_cost_tracker_service_charges, old_column, new_column
+    end
+  end
+
+  def rename_call_columns(renames)
+    return unless table_exists?(:llm_cost_tracker_calls)
+
+    renames.each do |old_column, new_column|
+      old_exists = column_exists?(:llm_cost_tracker_calls, old_column)
+      new_exists = column_exists?(:llm_cost_tracker_calls, new_column)
+      next unless old_exists
+      if new_exists
+        raise "Both llm_cost_tracker_calls.#{old_column} and " \
+              "llm_cost_tracker_calls.#{new_column} exist; merge or remove one before running this migration"
+      end
+
+      rename_column :llm_cost_tracker_calls, old_column, new_column
+    end
+  end
+end

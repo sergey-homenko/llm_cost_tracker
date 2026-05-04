@@ -29,13 +29,13 @@ Before building or releasing production images:
 
 One app process can need more than its request/job connection. The local
 ingestor thread can check out a connection, and capture inside an open caller
-transaction uses a separate connection so staged inbox rows survive caller
+transaction uses a separate connection so staged inbox entries survive caller
 rollbacks. Size pools for the host app concurrency plus those tracker paths.
 
 ## Durable Ingestion
 
-Capture writes a compact row to `llm_cost_tracker_inbox_events`; the background
-worker drains rows into `llm_api_calls`, `llm_cost_tracker_service_charges`, and
+Capture writes a compact row to `llm_cost_tracker_ingestion_inbox_entries`; the background
+worker drains rows into `llm_cost_tracker_calls`, `llm_cost_tracker_service_charges`, and
 period rollups in database transactions.
 
 The inbox is the durability boundary. If the process exits after staging but
@@ -95,19 +95,19 @@ Optional batch size:
 DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 ```
 
-Pruning deletes old `llm_api_calls`, deletes dependent service charges, and
+Pruning deletes old `llm_cost_tracker_calls`, deletes dependent service charges, and
 decrements affected daily/monthly period totals in the same batch transaction.
 
 ## Data Shape
 
 | Data | Storage |
 | --- | --- |
-| Calls | `llm_api_calls` |
+| Calls | `llm_cost_tracker_calls` |
 | Service charges | `llm_cost_tracker_service_charges` |
 | Tags | PostgreSQL JSONB with GIN index, or MySQL JSON |
 | Period totals | `llm_cost_tracker_period_totals` |
-| Durable inbox | `llm_cost_tracker_inbox_events` |
-| Worker lease | `llm_cost_tracker_ingestor_leases` |
+| Durable inbox | `llm_cost_tracker_ingestion_inbox_entries` |
+| Worker lease | `llm_cost_tracker_ingestion_leases` |
 
 Column and index details are documented in [Data Model](data-model.md).
 
@@ -118,7 +118,7 @@ and adapter-specific SQL.
 ## Tags Hygiene
 
 Tags are operational attribution data, not a safe place for personal data or
-free-form request content. They are stored in `llm_api_calls`, rendered on the
+free-form request content. They are stored in `llm_cost_tracker_calls`, rendered on the
 dashboard overview, call details, and tag pages, and included in CSV export.
 Anyone with dashboard or database access can see them.
 

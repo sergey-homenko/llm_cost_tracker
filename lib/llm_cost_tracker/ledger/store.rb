@@ -15,9 +15,9 @@ module LlmCostTracker
           insertable = insertable_events(events)
 
           if insertable.any?
-            Ledger::Call.transaction do
+            LlmCostTracker::Call.transaction do
               rows = insertable.map { |event| attributes_for(event) }
-              Ledger::Call.insert_all!(rows, record_timestamps: true, returning: false)
+              LlmCostTracker::Call.insert_all!(rows, record_timestamps: true, returning: false)
               insert_service_charges(insertable)
               Ledger::Rollups.increment_many!(insertable)
             end
@@ -52,7 +52,7 @@ module LlmCostTracker
           events_with_charges = events.select { |event| event.service_charges.any? }
           return if events_with_charges.empty?
 
-          call_ids = Ledger::Call
+          call_ids = LlmCostTracker::Call
                      .where(event_id: events_with_charges.map(&:event_id))
                      .pluck(:event_id, :id)
                      .to_h
@@ -67,12 +67,12 @@ module LlmCostTracker
             end
           end
 
-          Ledger::ServiceCharge.insert_all!(rows, record_timestamps: true, returning: false) if rows.any?
+          LlmCostTracker::ServiceCharge.insert_all!(rows, record_timestamps: true, returning: false) if rows.any?
         end
 
         def service_charge_attributes(call_id:, event_id:, charge:, index:)
           {
-            llm_api_call_id: call_id,
+            llm_cost_tracker_call_id: call_id,
             charge_id: charge.charge_id || "#{event_id}:#{index}",
             component: charge.component.name,
             unit: charge.unit.name,
@@ -97,7 +97,7 @@ module LlmCostTracker
         end
 
         def insertable_events(events)
-          existing_ids = Ledger::Call.where(event_id: events.map(&:event_id)).pluck(:event_id).to_set
+          existing_ids = LlmCostTracker::Call.where(event_id: events.map(&:event_id)).pluck(:event_id).to_set
           seen_ids = Set.new
 
           events.select do |event|

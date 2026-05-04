@@ -3,24 +3,45 @@ require "llm_cost_tracker/ledger/schema/adapter"
 
 class AddBillingToLlmCostTracker < ActiveRecord::Migration<%= migration_version %>
   def up
-    add_column :llm_api_calls, :cost_status, :string unless column_exists?(:llm_api_calls, :cost_status)
+    add_column :llm_cost_tracker_calls, :cost_status, :string unless column_exists?(:llm_cost_tracker_calls, :cost_status)
 
-    unless column_exists?(:llm_api_calls, :pricing_snapshot)
+    unless column_exists?(:llm_cost_tracker_calls, :pricing_snapshot)
       if postgresql?
-        add_column :llm_api_calls, :pricing_snapshot, :jsonb
+        add_column :llm_cost_tracker_calls, :pricing_snapshot, :jsonb
       elsif mysql?
-        add_column :llm_api_calls, :pricing_snapshot, :json
+        add_column :llm_cost_tracker_calls, :pricing_snapshot, :json
       else
         raise "LLM Cost Tracker supports PostgreSQL and MySQL only"
       end
     end
 
-    add_index :llm_api_calls, :cost_status unless index_exists?(:llm_api_calls, :cost_status)
+    add_index :llm_cost_tracker_calls, :cost_status unless index_exists?(:llm_cost_tracker_calls, :cost_status)
 
-    return if table_exists?(:llm_cost_tracker_service_charges)
+    create_service_charges_table unless table_exists?(:llm_cost_tracker_service_charges)
 
+    unless index_exists?(:llm_cost_tracker_service_charges, :llm_cost_tracker_call_id)
+      add_index :llm_cost_tracker_service_charges, :llm_cost_tracker_call_id
+    end
+    unless index_exists?(:llm_cost_tracker_service_charges, :charge_id)
+      add_index :llm_cost_tracker_service_charges, :charge_id, unique: true
+    end
+    unless index_exists?(:llm_cost_tracker_service_charges, :component)
+      add_index :llm_cost_tracker_service_charges, :component
+    end
+  end
+
+  def down
+    drop_table :llm_cost_tracker_service_charges, if_exists: true
+    remove_index :llm_cost_tracker_calls, :cost_status if index_exists?(:llm_cost_tracker_calls, :cost_status)
+    remove_column :llm_cost_tracker_calls, :pricing_snapshot if column_exists?(:llm_cost_tracker_calls, :pricing_snapshot)
+    remove_column :llm_cost_tracker_calls, :cost_status if column_exists?(:llm_cost_tracker_calls, :cost_status)
+  end
+
+  private
+
+  def create_service_charges_table
     create_table :llm_cost_tracker_service_charges do |t|
-      t.references :llm_api_call, null: false, index: false
+      t.references :llm_cost_tracker_call, null: false, index: false
       t.string :charge_id, null: false
       t.string :component, null: false
       t.string :unit, null: false
@@ -46,20 +67,7 @@ class AddBillingToLlmCostTracker < ActiveRecord::Migration<%= migration_version 
 
       t.timestamps
     end
-
-    add_index :llm_cost_tracker_service_charges, :llm_api_call_id
-    add_index :llm_cost_tracker_service_charges, :charge_id, unique: true
-    add_index :llm_cost_tracker_service_charges, :component
   end
-
-  def down
-    drop_table :llm_cost_tracker_service_charges, if_exists: true
-    remove_index :llm_api_calls, :cost_status if index_exists?(:llm_api_calls, :cost_status)
-    remove_column :llm_api_calls, :pricing_snapshot if column_exists?(:llm_api_calls, :pricing_snapshot)
-    remove_column :llm_api_calls, :cost_status if column_exists?(:llm_api_calls, :cost_status)
-  end
-
-  private
 
   def postgresql?
     LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)

@@ -7,7 +7,7 @@ module LlmCostTracker
     :input_tokens,
     :cache_read_input_tokens,
     :cache_write_input_tokens,
-    :cache_write_1h_input_tokens,
+    :cache_write_extended_input_tokens,
     :audio_input_tokens,
     :output_tokens,
     :audio_output_tokens,
@@ -30,25 +30,25 @@ module LlmCostTracker
     end
 
     def self.build(input_tokens:, output_tokens:, cache_read_input_tokens: 0,
-                   cache_write_input_tokens: 0, cache_write_1h_input_tokens: 0,
+                   cache_write_input_tokens: 0, cache_write_extended_input_tokens: 0,
                    audio_input_tokens: 0, audio_output_tokens: 0,
                    total_tokens: nil, hidden_output_tokens: 0)
       input = input_tokens.to_i
       output = output_tokens.to_i
       cache_read = cache_read_input_tokens.to_i
       cache_write = cache_write_input_tokens.to_i
-      cache_write_1h = cache_write_1h_input_tokens.to_i
+      cache_write_extended = cache_write_extended_input_tokens.to_i
       audio_input = audio_input_tokens.to_i
       audio_output = audio_output_tokens.to_i
       hidden_output = hidden_output_tokens.to_i
-      calculated_total = input + cache_read + cache_write + cache_write_1h + audio_input + output + audio_output
+      calculated_total = input + cache_read + cache_write + cache_write_extended + audio_input + output + audio_output
       total = total_tokens.nil? ? calculated_total : [total_tokens.to_i, calculated_total].max
 
       new(
         input_tokens: input,
         cache_read_input_tokens: cache_read,
         cache_write_input_tokens: cache_write,
-        cache_write_1h_input_tokens: cache_write_1h,
+        cache_write_extended_input_tokens: cache_write_extended,
         audio_input_tokens: audio_input,
         output_tokens: output,
         audio_output_tokens: audio_output,

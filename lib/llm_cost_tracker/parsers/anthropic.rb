@@ -130,20 +130,20 @@ module LlmCostTracker
         cache_creation = usage["cache_creation"]
         if cache_creation.is_a?(Hash)
           cache_write = cache_creation["ephemeral_5m_input_tokens"].to_i
-          cache_write_1h = cache_creation["ephemeral_1h_input_tokens"].to_i
+          cache_write_extended = cache_creation["ephemeral_1h_input_tokens"].to_i
         else
           warn_unexpected_cache_creation(cache_creation, usage)
           cache_write = usage["cache_creation_input_tokens"].to_i
-          cache_write_1h = 0
+          cache_write_extended = 0
         end
 
         TokenUsage.build(
           input_tokens: input,
           output_tokens: output,
-          total_tokens: input + output + cache_read + cache_write + cache_write_1h,
+          total_tokens: input + output + cache_read + cache_write + cache_write_extended,
           cache_read_input_tokens: cache_read,
           cache_write_input_tokens: cache_write,
-          cache_write_1h_input_tokens: cache_write_1h
+          cache_write_extended_input_tokens: cache_write_extended
         )
       end
 

@@ -23,6 +23,8 @@ RSpec.describe "llm_cost_tracker generators" do
       "llm_cost_tracker:add_billing" => "LlmCostTracker::Generators::AddBillingGenerator",
       "llm_cost_tracker:prices" => "LlmCostTracker::Generators::PricesGenerator",
       "llm_cost_tracker:upgrade_cost_precision" => "LlmCostTracker::Generators::UpgradeCostPrecisionGenerator",
+      "llm_cost_tracker:upgrade_schema_foundation" =>
+        "LlmCostTracker::Generators::UpgradeSchemaFoundationGenerator",
       "llm_cost_tracker:upgrade_tags_to_jsonb" => "LlmCostTracker::Generators::UpgradeTagsToJsonbGenerator"
     }.each do |namespace, class_name|
       base, name = namespace.split(":", 2)

@@ -7,28 +7,11 @@ require_relative "doctor/ingestion_check"
 require_relative "doctor/legacy_audit_check"
 require_relative "doctor/legacy_billing_status_check"
 require_relative "doctor/price_check"
+require_relative "doctor/schema_generators"
 require_relative "doctor/service_charges_check"
-require_relative "generators/llm_cost_tracker/add_billing_generator"
-require_relative "generators/llm_cost_tracker/add_token_usage_generator"
 
 module LlmCostTracker
   class Doctor
-    COLUMN_GENERATORS = {
-      "event_id" => "bin/rails generate llm_cost_tracker:add_ingestion",
-      "latency_ms" => "bin/rails generate llm_cost_tracker:add_latency_ms",
-      "stream" => "bin/rails generate llm_cost_tracker:add_streaming",
-      "usage_source" => "bin/rails generate llm_cost_tracker:add_streaming",
-      "provider_response_id" => "bin/rails generate llm_cost_tracker:add_provider_response_id"
-    }.merge(
-      Generators::AddBillingGenerator::COLUMN_NAMES.to_h do |column|
-        [column, "bin/rails generate llm_cost_tracker:add_billing"]
-      end
-    ).merge(
-      Generators::AddTokenUsageGenerator::COLUMN_NAMES.to_h do |column|
-        [column, "bin/rails generate llm_cost_tracker:add_token_usage"]
-      end
-    ).freeze
-
     class << self
       def call
         new.checks
@@ -105,31 +88,33 @@ module LlmCostTracker
 
     def table_check
       return unless active_record_available?
-      return Check.new(:ok, "llm_api_calls", "table exists") if llm_api_calls_table?
+      return Check.new(:ok, "llm_cost_tracker_calls", "table exists") if llm_cost_tracker_calls_table?
 
-      Check.new(
-        :error,
-        "llm_api_calls",
-        "missing; run bin/rails generate llm_cost_tracker:install && bin/rails db:migrate"
-      )
+      message = if legacy_llm_api_calls_table?
+                  "legacy llm_api_calls table found; " \
+                    "run bin/rails generate llm_cost_tracker:upgrade_schema_foundation && bin/rails db:migrate"
+                else
+                  "missing; run bin/rails generate llm_cost_tracker:install && bin/rails db:migrate"
+                end
+      Check.new(:error, "llm_cost_tracker_calls", message)
     end
 
     def column_check
-      return unless llm_api_calls_table?
+      return unless llm_cost_tracker_calls_table?
 
       errors = LlmCostTracker::Ledger::Schema::Calls.current_schema_errors
-      return Check.new(:ok, "llm_api_calls columns", "current") if errors.empty?
+      return Check.new(:ok, "llm_cost_tracker_calls columns", "current") if errors.empty?
 
       missing = LlmCostTracker::Ledger::Schema::Calls.missing_current_schema_columns
-      generators = missing.filter_map { |column| COLUMN_GENERATORS[column] }.uniq
+      generators = generators_for_missing_columns(missing)
       message = "current schema required; #{errors.join('; ')}"
       message = "#{message}; run #{generators.join(' && ')} && bin/rails db:migrate" if generators.any?
 
-      Check.new(:error, "llm_api_calls columns", message)
+      Check.new(:error, "llm_cost_tracker_calls columns", message)
     end
 
     def period_totals_check
-      return unless llm_api_calls_table?
+      return unless llm_cost_tracker_calls_table?
 
       errors = LlmCostTracker::Ledger::Schema::PeriodTotals.current_schema_errors
       return Check.new(:ok, "period totals", "llm_cost_tracker_period_totals exists") if errors.empty?
@@ -143,9 +128,9 @@ module LlmCostTracker
     end
 
     def calls_check
-      return unless llm_api_calls_table?
+      return unless llm_cost_tracker_calls_table?
 
-      snapshot = LlmCostTracker::Ledger::Call
+      snapshot = LlmCostTracker::Call
                  .select("COUNT(*) AS tracked_call_count, MAX(tracked_at) AS latest_tracked_at")
                  .take
       count = snapshot.tracked_call_count.to_i
@@ -158,14 +143,18 @@ module LlmCostTracker
     end
 
     def active_record_available?
-      LlmCostTracker::Ledger::Call.connection
+      LlmCostTracker::Call.connection
       true
     rescue LoadError, StandardError
       false
     end
 
-    def llm_api_calls_table?
-      active_record_available? && Probe.table_exists?("llm_api_calls")
+    def llm_cost_tracker_calls_table? = active_record_available? && Probe.table_exists?("llm_cost_tracker_calls")
+
+    def legacy_llm_api_calls_table? = active_record_available? && Probe.table_exists?("llm_api_calls")
+
+    def generators_for_missing_columns(missing)
+      SchemaGenerators.for_missing_columns(missing, columns: LlmCostTracker::Call.columns_hash)
     end
   end
 end

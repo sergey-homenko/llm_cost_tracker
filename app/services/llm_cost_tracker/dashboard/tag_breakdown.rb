@@ -7,7 +7,7 @@ module LlmCostTracker
       Row = Data.define(:value, :calls, :total_cost, :average_cost_per_call, :share_percent)
 
       class << self
-        def call(key:, scope: LlmCostTracker::Ledger::Call.all, limit: DEFAULT_LIMIT)
+        def call(key:, scope: LlmCostTracker::Call.all, limit: DEFAULT_LIMIT)
           new(scope: scope, key: key, limit: limit)
         end
       end

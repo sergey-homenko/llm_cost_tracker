@@ -6,7 +6,7 @@ module LlmCostTracker
       WINDOW_DAYS = 7
 
       class << self
-        def call(from:, to:, scope: LlmCostTracker::Ledger::Call.all)
+        def call(from:, to:, scope: LlmCostTracker::Call.all)
           new(scope: scope, from: from, to: to).alert
         end
       end

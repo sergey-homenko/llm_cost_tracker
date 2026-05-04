@@ -23,7 +23,7 @@ module LlmCostTracker
           total_cost = connection.quote_column_name("total_cost")
           updated_at = connection.quote_column_name("updated_at")
 
-          "#{total_cost} = #{Period::Total.quoted_table_name}.#{total_cost} + excluded.#{total_cost}, " \
+          "#{total_cost} = #{LlmCostTracker::PeriodTotal.quoted_table_name}.#{total_cost} + excluded.#{total_cost}, " \
             "#{updated_at} = excluded.#{updated_at}"
         end
 
@@ -32,7 +32,7 @@ module LlmCostTracker
         end
 
         def connection
-          Period::Total.connection
+          LlmCostTracker::PeriodTotal.connection
         end
       end
     end

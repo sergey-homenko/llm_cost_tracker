@@ -9,10 +9,10 @@ RSpec.describe LlmCostTracker::Report do
 
     create_lct_tables!
 
-    LlmCostTracker::Ledger::Call.reset_column_information
-    LlmCostTracker::Ledger::ServiceCharge.reset_column_information
-    LlmCostTracker::Ledger::Period::Total.reset_column_information
-    LlmCostTracker::Ingestion::InboxRow.reset_column_information
+    LlmCostTracker::Call.reset_column_information
+    LlmCostTracker::ServiceCharge.reset_column_information
+    LlmCostTracker::PeriodTotal.reset_column_information
+    LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
 
@@ -26,7 +26,7 @@ RSpec.describe LlmCostTracker::Report do
   end
 
   def create_report_call(model:, total_cost:, tags: {}, provider: "openai", tracked_at: Time.now.utc)
-    LlmCostTracker::Ledger::Call.create!(
+    LlmCostTracker::Call.create!(
       provider: provider,
       model: model,
       input_tokens: 0,

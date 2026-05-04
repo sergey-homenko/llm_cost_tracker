@@ -594,13 +594,13 @@ RSpec.describe LlmCostTracker::Integrations do
         output_tokens: 35,
         cache_read_input_tokens: 50,
         cache_write_input_tokens: 20,
-        cache_write_1h_input_tokens: 10,
+        cache_write_extended_input_tokens: 10,
         hidden_output_tokens: 6,
         usage_source: :sdk_response,
         provider_response_id: "msg_123"
       )
       expect(events.first.dig(:cost, :cache_write_input_cost)).to eq(0.000075)
-      expect(events.first.dig(:cost, :cache_write_1h_input_cost)).to eq(0.00006)
+      expect(events.first.dig(:cost, :cache_write_extended_input_cost)).to eq(0.00006)
     end
   end
 
@@ -692,7 +692,7 @@ RSpec.describe LlmCostTracker::Integrations do
         total_tokens: 254,
         cache_read_input_tokens: 40,
         cache_write_input_tokens: 20,
-        cache_write_1h_input_tokens: 10,
+        cache_write_extended_input_tokens: 10,
         stream: true,
         usage_source: :stream_final,
         provider_response_id: "msg_456"

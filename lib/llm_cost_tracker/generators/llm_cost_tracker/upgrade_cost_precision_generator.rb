@@ -10,12 +10,12 @@ module LlmCostTracker
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Creates a migration to widen llm_api_calls cost decimal precision"
+      desc "Creates a migration to widen llm_cost_tracker_calls cost decimal precision"
 
       def create_migration_file
         migration_template(
-          "upgrade_llm_api_call_cost_precision.rb.erb",
-          "db/migrate/upgrade_llm_api_call_cost_precision.rb"
+          "upgrade_llm_cost_tracker_call_cost_precision.rb.erb",
+          "db/migrate/upgrade_llm_cost_tracker_call_cost_precision.rb"
         )
       end
 

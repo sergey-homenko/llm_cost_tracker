@@ -17,7 +17,7 @@ module LlmCostTrackerEngineContext
       output_tokens: 5,
       cache_read_input_tokens: 0,
       cache_write_input_tokens: 0,
-      cache_write_1h_input_tokens: 0,
+      cache_write_extended_input_tokens: 0,
       audio_input_tokens: 0,
       audio_output_tokens: 0,
       hidden_output_tokens: 0,
@@ -32,13 +32,13 @@ module LlmCostTrackerEngineContext
     attrs[:total_tokens] = attrs.fetch(:input_tokens) +
                            attrs.fetch(:cache_read_input_tokens) +
                            attrs.fetch(:cache_write_input_tokens) +
-                           attrs.fetch(:cache_write_1h_input_tokens) +
+                           attrs.fetch(:cache_write_extended_input_tokens) +
                            attrs.fetch(:audio_input_tokens) +
                            attrs.fetch(:output_tokens) +
                            attrs.fetch(:audio_output_tokens)
     attrs[:tags] = tags_for_database(attrs.fetch(:tags))
 
-    call = LlmCostTracker::Ledger::Call.create!(attrs)
+    call = LlmCostTracker::Call.create!(attrs)
     LlmCostTracker::Ledger::Rollups.increment!(call)
     call
   end
@@ -56,10 +56,10 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
     Rails.logger = Logger.new(nil)
     establish_database_connection!
     create_lct_tables!
-    LlmCostTracker::Ledger::Call.reset_column_information
-    LlmCostTracker::Ledger::ServiceCharge.reset_column_information
-    LlmCostTracker::Ledger::Period::Total.reset_column_information
-    LlmCostTracker::Ingestion::InboxRow.reset_column_information
+    LlmCostTracker::Call.reset_column_information
+    LlmCostTracker::ServiceCharge.reset_column_information
+    LlmCostTracker::PeriodTotal.reset_column_information
+    LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
   end
 

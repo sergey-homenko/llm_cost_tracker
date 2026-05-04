@@ -18,6 +18,7 @@ module LlmCostTracker
       require_relative "generators/llm_cost_tracker/install_generator"
       require_relative "generators/llm_cost_tracker/prices_generator"
       require_relative "generators/llm_cost_tracker/upgrade_cost_precision_generator"
+      require_relative "generators/llm_cost_tracker/upgrade_schema_foundation_generator"
       require_relative "generators/llm_cost_tracker/upgrade_tags_to_jsonb_generator"
     end
 

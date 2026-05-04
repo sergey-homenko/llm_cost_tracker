@@ -18,8 +18,8 @@ RSpec.describe "LlmCostTracker::Engine overview" do
   end
 
   it "renders setup when the ledger table is not on the current schema" do
-    ActiveRecord::Base.connection.remove_column(:llm_api_calls, :pricing_mode)
-    LlmCostTracker::Ledger::Call.reset_column_information
+    ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_calls, :pricing_mode)
+    LlmCostTracker::Call.reset_column_information
 
     response = get("/llm-costs")
 
@@ -198,13 +198,13 @@ RSpec.describe "LlmCostTracker::Engine overview" do
   end
 
   it "renders a setup state when the ledger table is missing" do
-    ActiveRecord::Base.connection.drop_table(:llm_api_calls)
-    LlmCostTracker::Ledger::Call.reset_column_information
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_calls)
+    LlmCostTracker::Call.reset_column_information
 
     response = get("/llm-costs")
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("llm_api_calls")
+    expect(response.body).to include("llm_cost_tracker_calls")
     expect(response.body).to include("rails generate llm_cost_tracker:install")
   end
 end

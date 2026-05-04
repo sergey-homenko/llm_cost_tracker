@@ -74,8 +74,10 @@ module LlmCostTracker
           now = Time.now.utc
 
           totals.each do |(period, period_start), amount|
-            row = Period::Total.lock.find_by(period: Period::PERIODS.fetch(period),
-                                             period_start: period_start)
+            row = LlmCostTracker::PeriodTotal.lock.find_by(
+              period: Period::PERIODS.fetch(period),
+              period_start: period_start
+            )
             next unless row
 
             row.update_columns(total_cost: [row.total_cost - amount, BigDecimal("0")].max,
@@ -84,7 +86,7 @@ module LlmCostTracker
         end
 
         def upsert_period_totals(rows)
-          Period::Total.upsert_all(
+          LlmCostTracker::PeriodTotal.upsert_all(
             rows,
             on_duplicate: Ledger::Rollups::UpsertSql.call,
             record_timestamps: true,
@@ -93,7 +95,7 @@ module LlmCostTracker
         end
 
         def period_totals_unique_by
-          return unless Period::Total.connection.supports_insert_conflict_target?
+          return unless LlmCostTracker::PeriodTotal.connection.supports_insert_conflict_target?
 
           %i[period period_start]
         end

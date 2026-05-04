@@ -6,7 +6,7 @@ module LlmCostTracker
       input_tokens: "Input",
       cache_read_input_tokens: "Cache read",
       cache_write_input_tokens: "Cache write",
-      cache_write_1h_input_tokens: "1h cache write",
+      cache_write_extended_input_tokens: "Extended cache write",
       audio_input_tokens: "Audio input",
       output_tokens: "Output",
       audio_output_tokens: "Audio output",
@@ -16,13 +16,13 @@ module LlmCostTracker
       input_tokens: "Regular input",
       cache_read_input_tokens: "Cache read input",
       cache_write_input_tokens: "Cache write input",
-      cache_write_1h_input_tokens: "1h cache write input"
+      cache_write_extended_input_tokens: "Extended cache write input"
     ).freeze
     STACK_CLASSES = {
       input_tokens: "lct-stack-fill-input",
       cache_read_input_tokens: "lct-stack-fill-cache-read",
       cache_write_input_tokens: "lct-stack-fill-cache-write",
-      cache_write_1h_input_tokens: "lct-stack-fill-cache-write-1h",
+      cache_write_extended_input_tokens: "lct-stack-fill-cache-write-extended",
       audio_input_tokens: "lct-stack-fill-audio-input",
       output_tokens: "lct-stack-fill-output",
       audio_output_tokens: "lct-stack-fill-audio-output"

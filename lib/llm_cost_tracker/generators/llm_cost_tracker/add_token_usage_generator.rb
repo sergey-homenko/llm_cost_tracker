@@ -20,12 +20,12 @@ module LlmCostTracker
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Creates a migration to add token usage and token cost columns to llm_api_calls"
+      desc "Creates a migration to add token usage and token cost columns to llm_cost_tracker_calls"
 
       def create_migration_file
         migration_template(
-          "add_token_usage_to_llm_api_calls.rb.erb",
-          "db/migrate/add_token_usage_to_llm_api_calls.rb"
+          "add_token_usage_to_llm_cost_tracker_calls.rb.erb",
+          "db/migrate/add_token_usage_to_llm_cost_tracker_calls.rb"
         )
       end
 

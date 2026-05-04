@@ -20,12 +20,10 @@ end
 
 require "llm_cost_tracker"
 require "llm_cost_tracker/ledger"
-require_relative "../app/models/llm_cost_tracker/ledger/call_metrics"
-require_relative "../app/models/llm_cost_tracker/ledger/period/grouping"
-require_relative "../app/models/llm_cost_tracker/ledger/call"
-require_relative "../app/models/llm_cost_tracker/ledger/service_charge"
-require_relative "../app/models/llm_cost_tracker/ledger/period/total"
-require_relative "../app/models/llm_cost_tracker/ingestion/inbox_row"
+require_relative "../app/models/llm_cost_tracker/call"
+require_relative "../app/models/llm_cost_tracker/service_charge"
+require_relative "../app/models/llm_cost_tracker/period_total"
+require_relative "../app/models/llm_cost_tracker/ingestion/inbox_entry"
 require_relative "../app/models/llm_cost_tracker/ingestion/lease"
 
 admin = {
@@ -61,11 +59,11 @@ end
 
 def reset_models!
   [
-    LlmCostTracker::Ledger::Call,
-    LlmCostTracker::Ledger::ServiceCharge,
-    LlmCostTracker::Ingestion::InboxRow,
+    LlmCostTracker::Call,
+    LlmCostTracker::ServiceCharge,
+    LlmCostTracker::Ingestion::InboxEntry,
     LlmCostTracker::Ingestion::Lease,
-    LlmCostTracker::Ledger::Period::Total
+    LlmCostTracker::PeriodTotal
   ].each(&:reset_column_information)
   LlmCostTracker::Ingestion::Worker.reset!
 end
@@ -76,13 +74,13 @@ def create_schema!
     create_service_charges_table!(connection)
     create_period_totals_table!
     create_inbox_events_table!
-    create_ingestor_leases_table!
+    create_ingestion_leases_table!
     add_schema_indexes!(connection)
   end
 end
 
 def create_calls_table!(database_connection)
-  create_table :llm_api_calls, force: true do |t|
+  create_table :llm_cost_tracker_calls, force: true do |t|
     add_call_identity_columns(t)
     add_call_usage_columns(t)
     add_call_cost_columns(t)
@@ -139,7 +137,7 @@ end
 
 def create_service_charges_table!(database_connection)
   create_table :llm_cost_tracker_service_charges, force: true do |t|
-    t.references :llm_api_call, null: false, index: false
+    t.references :llm_cost_tracker_call, null: false, index: false
     t.string :charge_id, null: false
     t.string :component, null: false
     t.string :unit, null: false
@@ -176,7 +174,7 @@ def create_period_totals_table!
 end
 
 def create_inbox_events_table!
-  create_table :llm_cost_tracker_inbox_events, force: true do |t|
+  create_table :llm_cost_tracker_ingestion_inbox_entries, force: true do |t|
     t.string :event_id, null: false
     t.decimal :total_cost, precision: 20, scale: 8
     t.datetime :tracked_at, null: false
@@ -189,8 +187,8 @@ def create_inbox_events_table!
   end
 end
 
-def create_ingestor_leases_table!
-  create_table :llm_cost_tracker_ingestor_leases, force: true do |t|
+def create_ingestion_leases_table!
+  create_table :llm_cost_tracker_ingestion_leases, force: true do |t|
     t.string :name, null: false
     t.string :locked_by
     t.datetime :locked_until
@@ -199,23 +197,23 @@ def create_ingestor_leases_table!
 end
 
 def add_schema_indexes!(database_connection)
-  add_index :llm_api_calls, :event_id, unique: true
-  add_index :llm_api_calls, :tracked_at
-  add_index :llm_api_calls, %i[provider tracked_at]
-  add_index :llm_api_calls, %i[model tracked_at]
-  add_index :llm_api_calls, :cost_status
-  add_index :llm_api_calls, :provider_response_id
+  add_index :llm_cost_tracker_calls, :event_id, unique: true
+  add_index :llm_cost_tracker_calls, :tracked_at
+  add_index :llm_cost_tracker_calls, %i[provider tracked_at]
+  add_index :llm_cost_tracker_calls, %i[model tracked_at]
+  add_index :llm_cost_tracker_calls, :cost_status
+  add_index :llm_cost_tracker_calls, :provider_response_id
   if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
-    add_index :llm_api_calls, :tags, using: :gin
+    add_index :llm_cost_tracker_calls, :tags, using: :gin
   end
-  add_index :llm_cost_tracker_service_charges, :llm_api_call_id
+  add_index :llm_cost_tracker_service_charges, :llm_cost_tracker_call_id
   add_index :llm_cost_tracker_service_charges, :charge_id, unique: true
   add_index :llm_cost_tracker_service_charges, :component
   add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
-  add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
-  add_index :llm_cost_tracker_inbox_events, %i[tracked_at attempts]
-  add_index :llm_cost_tracker_inbox_events, %i[locked_at id]
-  add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
+  add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
+  add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
+  add_index :llm_cost_tracker_ingestion_inbox_entries, %i[locked_at id]
+  add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
 end
 
 def create_database!(adapter, admin, database)
@@ -255,9 +253,9 @@ def flush!
 end
 
 def quarantined_row_count
-  LlmCostTracker::Ingestion::InboxRow.where(
+  LlmCostTracker::Ingestion::InboxEntry.where(
     "attempts >= ?",
-    LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE
+    LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
   ).count
 end
 
@@ -286,24 +284,24 @@ begin
   end
 
   rollback_event = nil
-  LlmCostTracker::Ledger::Call.transaction do
+  LlmCostTracker::Call.transaction do
     rollback_event = track!(provider_response_id: "rollback", feature: "rollback")
     raise ActiveRecord::Rollback
   end
   sleep 0.1
-  durable_rows = LlmCostTracker::Ingestion::InboxRow.where(event_id: rollback_event.event_id).count +
-                 LlmCostTracker::Ledger::Call.where(event_id: rollback_event.event_id).count
+  durable_rows = LlmCostTracker::Ingestion::InboxEntry.where(event_id: rollback_event.event_id).count +
+                 LlmCostTracker::Call.where(event_id: rollback_event.event_id).count
   assert("event was lost across caller rollback") { durable_rows == 1 }
   flush!
   assert("rollback event did not reach ledger") do
-    LlmCostTracker::Ledger::Call.where(event_id: rollback_event.event_id, provider_response_id: "rollback").one?
+    LlmCostTracker::Call.where(event_id: rollback_event.event_id, provider_response_id: "rollback").one?
   end
 
   pending_event = track!(provider_response_id: "pending", feature: "pending")
   pending_total = LlmCostTracker::Ledger::Period::Totals
                   .call(%i[daily], time: Time.now.utc)
                   .fetch(:daily)
-  assert("daily total did not include pending or persisted inbox event") do
+  assert("daily total did not include pending or persisted inbox entry") do
     pending_total >= pending_event.total_cost.to_f
   end
   flush!
@@ -318,38 +316,38 @@ begin
   after_duplicate_total = LlmCostTracker::Ledger::Period::Totals
                           .call(%i[daily], time: Time.now.utc)
                           .fetch(:daily)
-  assert("duplicate inbox row changed rollup total") do
+  assert("duplicate inbox entry changed rollup total") do
     BigDecimal(after_duplicate_total.to_s) == BigDecimal(before_duplicate_total.to_s)
   end
   assert("duplicate event was inserted twice") do
-    LlmCostTracker::Ledger::Call.where(event_id: duplicate_event.event_id).one?
+    LlmCostTracker::Call.where(event_id: duplicate_event.event_id).one?
   end
 
   now = Time.now.utc
-  LlmCostTracker::Ingestion::InboxRow.create!(
+  LlmCostTracker::Ingestion::InboxEntry.create!(
     event_id: "poison-#{SecureRandom.hex(4)}",
     total_cost: 1,
     tracked_at: now,
     payload: "{bad-json",
-    attempts: LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE - 1,
+    attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE - 1,
     created_at: now,
     updated_at: now
   )
   good_event = track!(provider_response_id: "after-poison", feature: "poison")
   flush!
   assert("healthy row behind poison was not persisted") do
-    LlmCostTracker::Ledger::Call.where(event_id: good_event.event_id).exists?
+    LlmCostTracker::Call.where(event_id: good_event.event_id).exists?
   end
   assert("poison row was not quarantined at max attempts") do
-    LlmCostTracker::Ingestion::InboxRow.where(
+    LlmCostTracker::Ingestion::InboxEntry.where(
       "payload = ? AND attempts >= ?",
       "{bad-json",
-      LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE
+      LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
     ).exists?
   end
 
   LlmCostTracker::Ingestion::Worker.shutdown!(drain: false)
-  before_count = LlmCostTracker::Ledger::Call.count
+  before_count = LlmCostTracker::Call.count
   thread_count = 8
   per_thread = 10
   threads = thread_count.times.map do |thread_index|
@@ -368,11 +366,11 @@ begin
   threads.each(&:join)
   flush!
   expected = before_count + (thread_count * per_thread)
-  assert("concurrent tracking count mismatch: expected #{expected}, got #{LlmCostTracker::Ledger::Call.count}") do
-    LlmCostTracker::Ledger::Call.count == expected
+  assert("concurrent tracking count mismatch: expected #{expected}, got #{LlmCostTracker::Call.count}") do
+    LlmCostTracker::Call.count == expected
   end
-  assert("retryable inbox rows remain after flush") do
-    !LlmCostTracker::Ingestion::InboxRow.where("attempts < ?", LlmCostTracker::Ingestion::InboxRow::MAX_ATTEMPTS_BEFORE_QUARANTINE).exists?
+  assert("retryable inbox entries remain after flush") do
+    !LlmCostTracker::Ingestion::InboxEntry.where("attempts < ?", LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE).exists?
   end
 
   daily_total = LlmCostTracker::Ledger::Period::Totals
@@ -382,7 +380,7 @@ begin
   puts "#{adapter} smoke passed"
   puts "database=#{database}"
   puts "adapter=#{ActiveRecord::Base.connection.class.name}"
-  puts "ledger_rows=#{LlmCostTracker::Ledger::Call.count}"
+  puts "ledger_rows=#{LlmCostTracker::Call.count}"
   puts "quarantined_rows=#{quarantined_row_count}"
   puts "daily_total=#{daily_total}"
 ensure

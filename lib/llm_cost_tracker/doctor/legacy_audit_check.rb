@@ -10,10 +10,10 @@ module LlmCostTracker
       WARNING_PERCENT = 10
 
       def call
-        return unless Probe.table_exists?("llm_api_calls")
-        return unless LlmCostTracker::Ledger::Call.column_names.include?("pricing_snapshot")
+        return unless Probe.table_exists?("llm_cost_tracker_calls")
+        return unless LlmCostTracker::Call.column_names.include?("pricing_snapshot")
 
-        counts = LlmCostTracker::Ledger::Call
+        counts = LlmCostTracker::Call
                  .select(
                    "COUNT(*) AS total_count, " \
                    "COALESCE(SUM(CASE WHEN pricing_snapshot IS NULL THEN 1 ELSE 0 END), 0) AS missing_count"

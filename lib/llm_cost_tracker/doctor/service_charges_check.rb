@@ -8,7 +8,7 @@ module LlmCostTracker
   class Doctor
     class ServiceChargesCheck
       def call
-        return unless Probe.table_exists?("llm_api_calls")
+        return unless Probe.table_exists?("llm_cost_tracker_calls")
 
         errors = LlmCostTracker::Ledger::Schema::ServiceCharges.current_schema_errors
         return Check.new(:ok, "service charges", "llm_cost_tracker_service_charges exists") if errors.empty?

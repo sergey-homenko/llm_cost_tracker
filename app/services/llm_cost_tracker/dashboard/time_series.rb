@@ -8,7 +8,7 @@ module LlmCostTracker
       DEFAULT_DAYS = 30
 
       class << self
-        def call(scope: LlmCostTracker::Ledger::Call.all, from: nil, to: Date.current)
+        def call(scope: LlmCostTracker::Call.all, from: nil, to: Date.current)
           new(scope: scope, from: from, to: to).points
         end
       end

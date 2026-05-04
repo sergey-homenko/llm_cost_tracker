@@ -20,7 +20,7 @@ RSpec.describe LlmCostTracker::Doctor::CaptureVerifier do
 
     expect(checks).to include(
       have_attributes(status: :ok, name: "tracking", message: "enabled"),
-      have_attributes(status: :error, name: "active_record", message: include("llm_api_calls table is missing"))
+      have_attributes(status: :error, name: "active_record", message: include("llm_cost_tracker_calls table is missing"))
     )
     expect(described_class.healthy?(checks)).to be false
   end
@@ -72,7 +72,7 @@ RSpec.describe LlmCostTracker::Doctor::CaptureVerifier do
       expect(checks).to include(
         have_attributes(status: :ok, name: "active_record capture", message: include("durable inbox"))
       )
-      expect(LlmCostTracker::Ledger::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
+      expect(LlmCostTracker::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
     end
 
     it "handles absent verification subscriptions without cleanup errors" do
@@ -83,7 +83,7 @@ RSpec.describe LlmCostTracker::Doctor::CaptureVerifier do
       expect(checks).to include(
         have_attributes(status: :error, name: "active_record capture", message: include("notification"))
       )
-      expect(LlmCostTracker::Ledger::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
+      expect(LlmCostTracker::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
     end
   end
 end

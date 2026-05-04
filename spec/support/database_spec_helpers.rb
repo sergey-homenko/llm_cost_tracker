@@ -26,11 +26,11 @@ module LlmCostTrackerDatabaseSpecHelpers
   def drop_lct_tables!
     connection = ActiveRecord::Base.connection
     %w[
-      llm_cost_tracker_ingestor_leases
-      llm_cost_tracker_inbox_events
+      llm_cost_tracker_ingestion_leases
+      llm_cost_tracker_ingestion_inbox_entries
       llm_cost_tracker_service_charges
       llm_cost_tracker_period_totals
-      llm_api_calls
+      llm_cost_tracker_calls
     ].each do |table|
       connection.drop_table(table, if_exists: true)
     end
@@ -39,7 +39,7 @@ module LlmCostTrackerDatabaseSpecHelpers
   private
 
   def create_calls_table(connection)
-    connection.create_table :llm_api_calls, force: true do |table|
+    connection.create_table :llm_cost_tracker_calls, force: true do |table|
       table.string :event_id
       table.string :provider, null: false
       table.string :model, null: false
@@ -72,7 +72,7 @@ module LlmCostTrackerDatabaseSpecHelpers
 
   def create_service_charges_table(connection)
     connection.create_table :llm_cost_tracker_service_charges, force: true do |table|
-      table.references :llm_api_call, null: false, index: false
+      table.references :llm_cost_tracker_call, null: false, index: false
       table.string :charge_id, null: false
       table.string :component, null: false
       table.string :unit, null: false
@@ -111,7 +111,7 @@ module LlmCostTrackerDatabaseSpecHelpers
   end
 
   def create_ingestion_tables(connection)
-    connection.create_table :llm_cost_tracker_inbox_events, force: true do |table|
+    connection.create_table :llm_cost_tracker_ingestion_inbox_entries, force: true do |table|
       table.string :event_id, null: false
       table.decimal :total_cost, precision: 20, scale: 8
       table.datetime :tracked_at, null: false
@@ -124,7 +124,7 @@ module LlmCostTrackerDatabaseSpecHelpers
       table.timestamps
     end
 
-    connection.create_table :llm_cost_tracker_ingestor_leases, force: true do |table|
+    connection.create_table :llm_cost_tracker_ingestion_leases, force: true do |table|
       table.string :name, null: false
       table.string :locked_by
       table.datetime :locked_until
@@ -134,20 +134,20 @@ module LlmCostTrackerDatabaseSpecHelpers
   end
 
   def create_lct_indexes(connection)
-    connection.add_index :llm_api_calls, :event_id, unique: true
-    connection.add_index :llm_api_calls, :tracked_at
-    connection.add_index :llm_api_calls, %i[provider tracked_at]
-    connection.add_index :llm_api_calls, %i[model tracked_at]
-    connection.add_index :llm_api_calls, :cost_status
-    connection.add_index :llm_api_calls, :provider_response_id
-    connection.add_index :llm_api_calls, :tags, using: :gin if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
-    connection.add_index :llm_cost_tracker_service_charges, :llm_api_call_id
+    connection.add_index :llm_cost_tracker_calls, :event_id, unique: true
+    connection.add_index :llm_cost_tracker_calls, :tracked_at
+    connection.add_index :llm_cost_tracker_calls, %i[provider tracked_at]
+    connection.add_index :llm_cost_tracker_calls, %i[model tracked_at]
+    connection.add_index :llm_cost_tracker_calls, :cost_status
+    connection.add_index :llm_cost_tracker_calls, :provider_response_id
+    connection.add_index :llm_cost_tracker_calls, :tags, using: :gin if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+    connection.add_index :llm_cost_tracker_service_charges, :llm_cost_tracker_call_id
     connection.add_index :llm_cost_tracker_service_charges, :charge_id, unique: true
     connection.add_index :llm_cost_tracker_service_charges, :component
     connection.add_index :llm_cost_tracker_period_totals, %i[period period_start], unique: true
-    connection.add_index :llm_cost_tracker_inbox_events, :event_id, unique: true
-    connection.add_index :llm_cost_tracker_inbox_events, %i[tracked_at attempts]
-    connection.add_index :llm_cost_tracker_inbox_events, %i[locked_at id]
-    connection.add_index :llm_cost_tracker_ingestor_leases, :name, unique: true
+    connection.add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
+    connection.add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
+    connection.add_index :llm_cost_tracker_ingestion_inbox_entries, %i[locked_at id]
+    connection.add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
   end
 end

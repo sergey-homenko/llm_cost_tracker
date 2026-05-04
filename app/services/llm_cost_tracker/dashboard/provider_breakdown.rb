@@ -3,7 +3,7 @@
 module LlmCostTracker
   module Dashboard
     class ProviderBreakdown
-      def self.call(scope: LlmCostTracker::Ledger::Call.all)
+      def self.call(scope: LlmCostTracker::Call.all)
         new(scope: scope).rows
       end
 

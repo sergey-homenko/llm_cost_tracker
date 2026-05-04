@@ -6,7 +6,7 @@ module LlmCostTracker
   module Dashboard
     class Filter
       class << self
-        def call(scope: LlmCostTracker::Ledger::Call.all, params: {})
+        def call(scope: LlmCostTracker::Call.all, params: {})
           new(scope: scope, params: params).relation
         end
       end

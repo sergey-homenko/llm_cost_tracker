@@ -60,7 +60,7 @@ Canonical token price keys are owned by `Billing::Components`:
 | Output text tokens | `output` |
 | Cache reads | `cache_read_input` |
 | Standard cache writes | `cache_write_input` |
-| 1-hour cache writes | `cache_write_1h_input` |
+| Extended cache writes | `cache_write_extended_input` |
 | Audio input tokens | `audio_input` |
 | Audio output tokens | `audio_output` |
 

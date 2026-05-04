@@ -48,7 +48,7 @@ Normal path from an application LLM call to stored ledger data:
 ## Ledger Storage
 
 1. `Ingestion::Inbox.save` writes a compact durable event row.
-2. `Ingestion::Worker` claims retryable inbox rows through a database lease and writes batches into `llm_api_calls`.
+2. `Ingestion::Worker` claims retryable inbox entries through a database lease and writes batches into `llm_cost_tracker_calls`.
 3. `Ledger::Store.insert_many` converts tags for PostgreSQL JSONB or MySQL JSON storage and writes the current ledger schema.
 4. The call rows, period rollup updates, and inbox deletes happen in one transaction.
 5. `Ledger::Rollups.increment_many!` updates daily and monthly totals only for rows inserted by the batch.
@@ -58,7 +58,7 @@ The inbox write is the durability boundary. Ledger freshness is eventually consi
 
 ## Dashboard Reads
 
-1. Controllers build a filtered `Ledger::Call` scope.
+1. Controllers build a filtered `LlmCostTracker::Call` scope.
 2. Dashboard services run targeted aggregate queries.
 3. Helpers render filters, charts, pagination, CSV links, and numeric formatting.
 4. Views render plain ERB with the engine CSS asset.

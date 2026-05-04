@@ -64,7 +64,7 @@ module LlmCostTracker
           input_tokens = usage.input_tokens +
                          usage.cache_read_input_tokens +
                          usage.cache_write_input_tokens +
-                         usage.cache_write_1h_input_tokens +
+                         usage.cache_write_extended_input_tokens +
                          usage.audio_input_tokens
           input_tokens > threshold
         end

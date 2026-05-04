@@ -34,10 +34,10 @@ The dashboard reads:
 
 | Table | Purpose |
 | --- | --- |
-| `llm_api_calls` | Calls, token buckets, costs, tags, pricing status, snapshots |
+| `llm_cost_tracker_calls` | Calls, token buckets, costs, tags, pricing status, snapshots |
 | `llm_cost_tracker_service_charges` | Provider-reported tool/runtime usage tied to calls |
 | `llm_cost_tracker_period_totals` | Budget status and operational rollups |
-| `llm_cost_tracker_inbox_events` | Pending budget totals and ingestion health |
+| `llm_cost_tracker_ingestion_inbox_entries` | Pending budget totals and ingestion health |
 
 ## Pages
 

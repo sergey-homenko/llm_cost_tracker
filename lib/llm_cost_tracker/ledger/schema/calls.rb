@@ -15,7 +15,7 @@ module LlmCostTracker
           total_tokens
           cache_read_input_tokens
           cache_write_input_tokens
-          cache_write_1h_input_tokens
+          cache_write_extended_input_tokens
           audio_input_tokens
           audio_output_tokens
           hidden_output_tokens
@@ -26,7 +26,7 @@ module LlmCostTracker
           total_cost
           cache_read_input_cost
           cache_write_input_cost
-          cache_write_1h_input_cost
+          cache_write_extended_input_cost
           latency_ms
           stream
           usage_source
@@ -54,8 +54,8 @@ module LlmCostTracker
           private
 
           def schema_capabilities
-            columns = Ledger::Call.columns_hash
-            adapter_name = Ledger::Call.connection.adapter_name
+            columns = LlmCostTracker::Call.columns_hash
+            adapter_name = LlmCostTracker::Call.connection.adapter_name
             cache = @schema_capabilities
 
             return cache.fetch(:values) if cache && cache.fetch(:columns).equal?(columns) &&
