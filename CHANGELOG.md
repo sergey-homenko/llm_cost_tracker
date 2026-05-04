@@ -18,20 +18,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed
 
-- Provider price refresh now covers Groq and Gemini audio input rates.
-- Provider price refresh now covers OpenAI audio model rates.
-- Provider price refresh now updates service charge rates.
+- Provider price refresh now updates Groq and Gemini audio input rates, OpenAI audio model rates, and service charge rates.
 - OpenAI Realtime stream usage now reads singular token detail keys from `response.done` events.
 - OpenAI web search service charges now ignore non-search page actions.
 - OpenAI container session rates are no longer bundled without container-size usage.
 - Data quality now summarizes captured service charges.
 - Durable inbox payloads now use schema version 2 while reading legacy v0/v1 payloads.
 - Anthropic parsing now warns when `usage.cache_creation` has an unexpected shape.
-- Removed the `Pricing::COMPONENTS` compatibility surface.
 - RubyLLM captured calls now use `sdk_response` as their usage source.
 - Upgrade migrations and doctor diagnostics now distinguish schema renames from missing legacy columns.
-- BREAKING: Early schema names now use `llm_cost_tracker_calls`, `llm_cost_tracker_call_rollups`, `llm_cost_tracker_call_id`, `cache_write_extended_input`, `InboxEntry`, `llm_cost_tracker_ingestion_inbox_entries`, and `llm_cost_tracker_ingestion_leases`; run `llm_cost_tracker:upgrade_schema_foundation`.
-- BREAKING: ActiveRecord models now use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, and `LlmCostTracker::CallRollup`.
+- BREAKING: Removed the `Pricing::COMPONENTS` compatibility surface.
+- BREAKING: Early schema names now use `llm_cost_tracker_calls`, `llm_cost_tracker_call_rollups`, `llm_cost_tracker_call_id`, `cache_write_extended_input_tokens`, `cache_write_extended_input_cost`, `llm_cost_tracker_ingestion_inbox_entries`, and `llm_cost_tracker_ingestion_leases`; run `llm_cost_tracker:upgrade_schema_foundation`.
+- BREAKING: ActiveRecord models now use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, `LlmCostTracker::CallRollup`, `LlmCostTracker::Ingestion::InboxEntry`, and `LlmCostTracker::Ingestion::Lease`.
 - BREAKING: Manual `LlmCostTracker.track` now accepts explicit `tokens:` and `tags:` hashes.
 
 ## [0.7.3] - 2026-05-01
