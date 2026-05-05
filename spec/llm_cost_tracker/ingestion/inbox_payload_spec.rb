@@ -71,69 +71,13 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.service_charges.first.component).to eq(:web_search_request)
   end
 
-  it "reads legacy flat payload rows without a schema version" do
-    payload = {
-      event_id: "evt_legacy_1",
-      provider: "anthropic",
-      model: "claude-haiku-4-5",
-      input_tokens: 20,
-      output_tokens: 5,
-      total_tokens: 25,
-      cost: { input_cost: 0.01, output_cost: 0.02, total_cost: 0.03 },
-      tags: { feature: "legacy" },
-      latency_ms: 15,
-      stream: true,
-      usage_source: "stream_final",
-      provider_response_id: "msg_legacy_1",
-      tracked_at: "2026-04-18T12:00:00Z"
-    }
-
-    restored = described_class.event_from_row(row_class.new(JSON.generate(payload)))
-
-    expect(restored.event_id).to eq("evt_legacy_1")
-    expect(restored.token_usage.output_tokens).to eq(5)
-    expect(restored.total_cost.to_f).to eq(0.03)
-    expect(restored.tags).to eq(feature: "legacy")
-    expect(restored.usage_source).to eq(:stream_final)
-    expect(restored.provider_project_id).to be_nil
-    expect(restored.provider_api_key_id).to be_nil
-    expect(restored.provider_workspace_id).to be_nil
-    expect(restored.batch).to eq(false)
-    expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
-    expect(restored.pricing_snapshot).to be_nil
-    expect(restored.service_charges).to eq([])
-  end
-
-  it "reads v1 payload rows without service charges" do
+  it "rejects payloads from older schema versions" do
     row = described_class.send(:row_for, event)
-    payload = JSON.parse(row.fetch(:payload)).merge("schema_version" => 1).except("service_charges")
+    payload = JSON.parse(row.fetch(:payload)).merge("schema_version" => 1)
 
-    restored = described_class.event_from_row(row_class.new(JSON.generate(payload)))
-
-    expect(restored.service_charges).to eq([])
-    expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
-  end
-
-  it "marks legacy unknown-usage payloads as unknown when cost_status is absent" do
-    payload = {
-      event_id: "evt_legacy_unknown_1",
-      provider: "openai",
-      model: "gpt-4o",
-      input_tokens: 0,
-      output_tokens: 0,
-      total_tokens: 0,
-      cost: nil,
-      tags: {},
-      latency_ms: nil,
-      stream: true,
-      usage_source: "unknown",
-      provider_response_id: nil,
-      tracked_at: "2026-04-18T12:00:00Z"
-    }
-
-    restored = described_class.event_from_row(row_class.new(JSON.generate(payload)))
-
-    expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+    expect do
+      described_class.event_from_row(row_class.new(JSON.generate(payload)))
+    end.to raise_error(LlmCostTracker::Error, /unsupported ledger inbox payload schema version/)
   end
 
   it "rejects unsupported future payload versions" do

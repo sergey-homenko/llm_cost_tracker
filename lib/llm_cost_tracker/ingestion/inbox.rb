@@ -13,7 +13,6 @@ module LlmCostTracker
   module Ingestion
     class Inbox
       PAYLOAD_SCHEMA_VERSION = 2
-      SUPPORTED_PAYLOAD_SCHEMA_VERSIONS = [0, 1, 2].freeze
 
       class << self
         def save(event)
@@ -24,8 +23,8 @@ module LlmCostTracker
 
         def event_from_row(row)
           payload = JSON.parse(row.payload, symbolize_names: true)
-          schema_version = payload.fetch(:schema_version, 0)
-          unless SUPPORTED_PAYLOAD_SCHEMA_VERSIONS.include?(schema_version)
+          schema_version = payload[:schema_version]
+          unless schema_version == PAYLOAD_SCHEMA_VERSION
             raise LlmCostTracker::Error, "unsupported ledger inbox payload schema version #{schema_version.inspect}"
           end
 
@@ -36,10 +35,8 @@ module LlmCostTracker
 
         def event_attributes_from(payload)
           cost = payload[:cost] && Pricing.stored_cost_attributes(payload[:cost])
-          token_usage_attributes = payload[:token_usage] || payload
-          token_usage = TokenUsage.build(**token_usage_attributes.slice(*TokenUsage.members))
+          token_usage = TokenUsage.build(**payload.fetch(:token_usage).slice(*TokenUsage.members))
           service_charges = service_charges_from(payload)
-          usage_source = payload[:usage_source]&.to_sym
 
           {
             event_id: payload.fetch(:event_id),
@@ -51,33 +48,17 @@ module LlmCostTracker
             tags: payload.fetch(:tags),
             latency_ms: payload[:latency_ms],
             stream: payload.fetch(:stream),
-            usage_source: usage_source,
+            usage_source: payload[:usage_source]&.to_sym,
             provider_response_id: payload[:provider_response_id],
             provider_project_id: payload[:provider_project_id],
             provider_api_key_id: payload[:provider_api_key_id],
             provider_workspace_id: payload[:provider_workspace_id],
-            batch: payload.fetch(:batch, false),
+            batch: payload.fetch(:batch),
             tracked_at: Time.iso8601(payload.fetch(:tracked_at)),
-            cost_status: cost_status_for(
-              payload: payload,
-              token_usage: token_usage,
-              cost: cost,
-              service_charges: service_charges,
-              usage_source: usage_source
-            ),
+            cost_status: payload.fetch(:cost_status),
             pricing_snapshot: payload[:pricing_snapshot],
             service_charges: service_charges
           }
-        end
-
-        def cost_status_for(payload:, token_usage:, cost:, service_charges:, usage_source:)
-          payload[:cost_status] || Billing::CostStatus.call(
-            token_usage: token_usage,
-            usage_source: usage_source,
-            token_cost: cost,
-            service_charges: service_charges,
-            total_cost: cost&.fetch(:total_cost, nil)
-          )
         end
 
         def service_charges_from(payload)
