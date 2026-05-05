@@ -96,6 +96,7 @@ Stream rows include:
 | `provider_project_id`, `provider_api_key_id`, `provider_workspace_id`, `batch` | Provider grouping dimensions when captured |
 | `cost_status` | `free`, `complete`, `partial`, or `unknown` |
 
-Oversized or unserializable stream buffers are recorded as unknown usage. The
-collector bounds captured event bytes so a long stream cannot grow memory
-without limit.
+The collector bounds captured event bytes so a long stream cannot grow memory
+without limit. When the cap is hit, already-buffered events stay available to
+the parser; the call is recorded as unknown only when no usage can be extracted
+from the retained prefix.

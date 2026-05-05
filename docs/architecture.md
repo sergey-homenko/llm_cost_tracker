@@ -93,7 +93,7 @@ Storage is ActiveRecord-only. The current schema is:
 | Table | Responsibility |
 | --- | --- |
 | `llm_cost_tracker_calls` | Parent call ledger |
-| `llm_cost_tracker_service_charges` | Provider-reported tool/runtime rows |
+| `llm_cost_tracker_service_charges` | Provider-reported tool/runtime rows; cascade-deletes with the parent call |
 | `llm_cost_tracker_call_rollups` | Maintained call aggregates |
 | `llm_cost_tracker_ingestion_inbox_entries` | Durable ingestion staging |
 | `llm_cost_tracker_ingestion_leases` | Shared worker lease |

@@ -17,7 +17,7 @@ Primary files:
 
 Responsibilities:
 
-- Expose `configure`, `track`, `track_stream`, `with_tags`, `flush!`, `shutdown!`, and `enforce_budget!`.
+- Expose `configure`, `track`, `track_stream`, and `with_tags`.
 - Keep configuration immutable after `configure`.
 - Merge scoped tags and default tags without leaking across threads or fibers.
 - Report installation, integration, pricing, ingestion, and schema health.

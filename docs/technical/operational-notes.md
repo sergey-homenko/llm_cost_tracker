@@ -88,7 +88,7 @@ query cannot be made acceptable with the existing ledger and call rollups.
 
 Streaming capture must keep the host app's stream behavior intact.
 
-The middleware should collect enough data to parse final usage while bounding memory. When usage never arrives or capture overflows, record an unknown-usage event so Data Quality can surface the gap.
+The middleware should collect enough data to parse final usage while bounding memory. When the byte cap is hit, the buffered prefix is still passed to the parser; the call falls back to unknown only when no usage can be extracted from the retained events.
 
 ## Release Checks
 

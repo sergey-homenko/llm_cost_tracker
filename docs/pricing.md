@@ -93,10 +93,11 @@ LlmCostTracker.track(
 ```
 
 The calculator uses `batch_input`, `batch_output`, and other matching
-mode-prefixed fields when present. Missing positive-token mode rates make the
-event unknown instead of silently using standard pricing. For batch mode, cache
-rates can be derived from the input discount when the provider documents that
-modifiers stack.
+mode-prefixed fields when present. When some mode-specific rates are missing,
+the event is marked `partial` and only the priced components contribute to
+total cost; with no matching rates at all it stays `unknown` instead of
+silently using standard pricing. For batch mode, cache rates can be derived
+from the input discount when the provider documents that modifiers stack.
 
 ## Price Explain
 

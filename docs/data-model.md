@@ -83,7 +83,7 @@ Child table for provider-reported tool/runtime usage outside token prices.
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | primary key | Rails default |
-| `llm_cost_tracker_call_id` | bigint, not null | Parent `llm_cost_tracker_calls` id |
+| `llm_cost_tracker_call_id` | bigint, not null | Parent `llm_cost_tracker_calls` id; cascade-delete foreign key |
 | `charge_id` | string, not null | Unique charge identity |
 | `component` | string, not null | Billing component such as `web_search_request` |
 | `unit` | string, not null | Component unit such as `request`, `session`, or `hour` |
