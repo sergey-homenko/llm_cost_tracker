@@ -12,7 +12,7 @@ module LlmCostTracker
         def parse(body)
           return [] if body.blank?
 
-          return parse_json_array(body) if body.lstrip.start_with?("[")
+          return parse_json_array(body) if body.match?(/\A\s*\[/)
 
           parse_event_stream(body)
         end
