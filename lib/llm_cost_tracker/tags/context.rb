@@ -21,9 +21,7 @@ module LlmCostTracker
           default_tags = LlmCostTracker.configuration.default_tags
           default_tags = default_tags.call.deep_dup if default_tags.respond_to?(:call)
 
-          default_tags.to_h.merge(
-            (ActiveSupport::IsolatedExecutionState[KEY] || []).reduce({}) { |merged, tags| merged.merge(tags) }
-          )
+          default_tags.to_h.merge(*Array(ActiveSupport::IsolatedExecutionState[KEY]))
         end
 
         def clear!

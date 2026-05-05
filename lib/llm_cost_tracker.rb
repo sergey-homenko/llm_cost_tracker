@@ -95,8 +95,7 @@ module LlmCostTracker
     end
 
     def with_tags(tags = nil, **kwargs, &)
-      merged = (tags || {}).to_h.merge(kwargs)
-      Tags::Context.with(merged, &)
+      Tags::Context.with((tags || {}).merge(kwargs), &)
     end
 
     def track(provider:, tokens:, model: nil, tags: {}, latency_ms: nil, stream: false,
