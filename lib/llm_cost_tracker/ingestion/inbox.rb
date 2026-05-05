@@ -4,9 +4,7 @@ require "json"
 require "time"
 
 require_relative "../event"
-require_relative "../usage_capture"
 require_relative "../pricing"
-require_relative "../billing/cost_status"
 require_relative "../billing/service_charge"
 
 module LlmCostTracker
@@ -62,16 +60,7 @@ module LlmCostTracker
         end
 
         def service_charges_from(payload)
-          charges = Array(payload[:service_charges]).map do |charge|
-            charge.merge(
-              component: charge[:component]&.to_sym,
-              unit: charge[:unit]&.to_sym,
-              pricing_basis: charge[:pricing_basis]&.to_sym,
-              price_source: charge[:price_source]&.to_sym
-            )
-          end
-
-          Billing::ServiceCharge.build_many(charges)
+          Billing::ServiceCharge.build_many(payload[:service_charges])
         end
 
         def row_for(event)

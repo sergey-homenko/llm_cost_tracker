@@ -38,6 +38,7 @@ module LlmCostTracker
         source_key
         provider_item_id
       ].freeze
+      SYMBOL_ATTRIBUTES = %i[pricing_basis price_source].freeze
 
       def self.build(attributes)
         new(**normalized_attributes(attributes))
@@ -65,7 +66,7 @@ module LlmCostTracker
 
       def self.normalized_attributes(attributes)
         attributes = attributes.to_h
-        component = attributes.fetch(:component)
+        component = attributes.fetch(:component).to_sym
         definition = component_definition(component)
         cost = decimal_or_nil(attributes[:cost])
 
@@ -98,7 +99,11 @@ module LlmCostTracker
       end
 
       def self.optional_attributes_for(attributes)
-        OPTIONAL_ATTRIBUTES.to_h { |key| [key, attributes[key]] }
+        OPTIONAL_ATTRIBUTES.to_h do |key|
+          value = attributes[key]
+          value = value.to_sym if value.is_a?(String) && SYMBOL_ATTRIBUTES.include?(key)
+          [key, value]
+        end
       end
 
       private_class_method :component_definition, :cost_status_for, :decimal_or_nil, :decimal_or_zero,
