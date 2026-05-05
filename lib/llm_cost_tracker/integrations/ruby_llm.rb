@@ -133,8 +133,8 @@ module LlmCostTracker
         def complete(*args, **kwargs, &)
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           integration.enforce_budget!
+          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           response = super
           integration.record_completion(
             self,
@@ -149,8 +149,8 @@ module LlmCostTracker
         def embed(*args, **kwargs)
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           integration.enforce_budget!
+          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           response = super
           integration.record_embedding(
             self,
@@ -164,8 +164,8 @@ module LlmCostTracker
         def transcribe(*args, **kwargs)
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           integration.enforce_budget!
+          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           response = super
           integration.record_transcription(
             self,

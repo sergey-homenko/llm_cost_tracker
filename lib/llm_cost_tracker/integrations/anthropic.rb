@@ -126,8 +126,8 @@ module LlmCostTracker
 
       module MessagesPatch
         def create(*args, **kwargs)
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           LlmCostTracker::Integrations::Anthropic.enforce_budget!
+          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           message = super
           LlmCostTracker::Integrations::Anthropic.record_message(
             message,
@@ -139,16 +139,16 @@ module LlmCostTracker
 
         def stream(*args, **kwargs)
           request = LlmCostTracker::Integrations::Anthropic.request_params(args, kwargs)
-          collector = LlmCostTracker::Integrations::Anthropic.stream_collector(request)
           LlmCostTracker::Integrations::Anthropic.enforce_budget!
+          collector = LlmCostTracker::Integrations::Anthropic.stream_collector(request)
           stream = super
           LlmCostTracker::Integrations::Anthropic.track_stream(stream, collector: collector)
         end
 
         def stream_raw(*args, **kwargs)
           request = LlmCostTracker::Integrations::Anthropic.request_params(args, kwargs)
-          collector = LlmCostTracker::Integrations::Anthropic.stream_collector(request)
           LlmCostTracker::Integrations::Anthropic.enforce_budget!
+          collector = LlmCostTracker::Integrations::Anthropic.stream_collector(request)
           stream = super
           LlmCostTracker::Integrations::Anthropic.track_stream(stream, collector: collector)
         end

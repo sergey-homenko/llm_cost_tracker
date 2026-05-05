@@ -142,8 +142,8 @@ module LlmCostTracker
 
       module ResponsesPatch
         def create(*args, **kwargs)
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           LlmCostTracker::Integrations::Openai.enforce_budget!
+          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           response = super
           LlmCostTracker::Integrations::Openai.record_response(
             response,
@@ -155,25 +155,25 @@ module LlmCostTracker
 
         def stream(*args, **kwargs)
           request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
-          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
           LlmCostTracker::Integrations::Openai.enforce_budget!
+          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
           stream = super
           LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
         end
 
         def stream_raw(*args, **kwargs)
           request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
-          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
           LlmCostTracker::Integrations::Openai.enforce_budget!
+          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
           stream = super
           LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
         end
 
         def retrieve_streaming(response_id, *args, **kwargs)
           request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
+          LlmCostTracker::Integrations::Openai.enforce_budget!
           collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
           collector.provider_response_id = response_id
-          LlmCostTracker::Integrations::Openai.enforce_budget!
           stream = super
           LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
         end
@@ -181,8 +181,8 @@ module LlmCostTracker
 
       module ChatCompletionsPatch
         def create(*args, **kwargs)
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           LlmCostTracker::Integrations::Openai.enforce_budget!
+          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           response = super
           LlmCostTracker::Integrations::Openai.record_response(
             response,
@@ -194,8 +194,8 @@ module LlmCostTracker
 
         def stream_raw(*args, **kwargs)
           request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
-          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
           LlmCostTracker::Integrations::Openai.enforce_budget!
+          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
           stream = super
           LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
         end
