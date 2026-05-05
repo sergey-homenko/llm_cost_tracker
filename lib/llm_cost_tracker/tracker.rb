@@ -63,20 +63,18 @@ module LlmCostTracker
 
       # rubocop:disable Metrics/MethodLength
       def build_event(capture:, pricing_mode:, cost_data:, pricing_snapshot:, metadata:, latency_ms:, context_tags:)
-        tags = metadata.to_h
-        context_tags = context_tags.nil? ? LlmCostTracker::Tags::Context.tags : context_tags.to_h
+        context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
         cost, service_charges = cost_with_service_charges(
           cost_data,
           provider: capture.provider,
           pricing_mode: pricing_mode,
           service_charges: capture.service_charges
         )
-        token_pricing_partial = token_pricing_partial?(token_usage: capture.token_usage, cost_data: cost_data)
         cost_status = Billing::CostStatus.call(
           token_usage: capture.token_usage,
           usage_source: capture.usage_source,
           token_cost: cost_data,
-          token_pricing_partial: token_pricing_partial,
+          token_pricing_partial: token_pricing_partial?(token_usage: capture.token_usage, cost_data: cost_data),
           service_charges: service_charges,
           total_cost: cost&.fetch(:total_cost, nil)
         )
@@ -88,11 +86,11 @@ module LlmCostTracker
           token_usage: capture.token_usage,
           pricing_mode: pricing_mode,
           cost: cost,
-          tags: LlmCostTracker::Tags::Sanitizer.call(context_tags.merge(tags)).freeze,
-          latency_ms: latency_ms.nil? ? nil : [latency_ms.to_i, 0].max,
+          tags: LlmCostTracker::Tags::Sanitizer.call(context_tags.merge(metadata.to_h)).freeze,
+          latency_ms: latency_ms&.to_i&.clamp(0..),
           stream: capture.stream,
           usage_source: capture.usage_source,
-          provider_response_id: capture.provider_response_id.to_s.presence,
+          provider_response_id: capture.provider_response_id,
           provider_project_id: capture.provider_project_id,
           provider_api_key_id: capture.provider_api_key_id,
           provider_workspace_id: capture.provider_workspace_id,

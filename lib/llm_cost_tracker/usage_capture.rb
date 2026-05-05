@@ -39,7 +39,7 @@ module LlmCostTracker
         token_usage: attributes.fetch(:token_usage),
         stream: attributes[:stream] || false,
         usage_source: attributes[:usage_source],
-        provider_response_id: attributes[:provider_response_id],
+        provider_response_id: attributes[:provider_response_id].to_s.strip.presence,
         provider_project_id: attributes[:provider_project_id].to_s.strip.presence,
         provider_api_key_id: attributes[:provider_api_key_id].to_s.strip.presence,
         provider_workspace_id: attributes[:provider_workspace_id].to_s.strip.presence,
