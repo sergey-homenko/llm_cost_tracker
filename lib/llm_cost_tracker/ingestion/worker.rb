@@ -25,8 +25,8 @@ module LlmCostTracker
               @generation = @generation.to_i + 1
               generation = @generation
               @thread = Thread.new { run(generation) }
-              @thread.name = "llm_cost_tracker_ingestor" if @thread.respond_to?(:name=)
-              @thread.report_on_exception = false if @thread.respond_to?(:report_on_exception=)
+              @thread.name = "llm_cost_tracker_ingestor"
+              @thread.report_on_exception = false
             end
             @thread
           end
