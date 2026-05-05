@@ -39,7 +39,10 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
     end
 
     create_table :llm_cost_tracker_service_charges do |t|
-      t.references :llm_cost_tracker_call, null: false, index: false
+      t.references :llm_cost_tracker_call,
+                   null: false,
+                   index: false,
+                   foreign_key: { to_table: :llm_cost_tracker_calls, on_delete: :cascade }
       t.string :charge_id, null: false
       t.string :component, null: false
       t.string :unit, null: false

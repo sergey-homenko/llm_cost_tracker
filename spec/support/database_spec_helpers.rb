@@ -76,7 +76,10 @@ module LlmCostTrackerDatabaseSpecHelpers
 
   def create_service_charges_table(connection)
     connection.create_table :llm_cost_tracker_service_charges, force: true do |table|
-      table.references :llm_cost_tracker_call, null: false, index: false
+      table.references :llm_cost_tracker_call,
+                       null: false,
+                       index: false,
+                       foreign_key: { to_table: :llm_cost_tracker_calls, on_delete: :cascade }
       table.string :charge_id, null: false
       table.string :component, null: false
       table.string :unit, null: false

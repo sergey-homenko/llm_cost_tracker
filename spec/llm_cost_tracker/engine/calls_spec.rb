@@ -323,7 +323,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
   end
 
   it "renders a calls setup state when the ledger table is missing" do
-    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_calls)
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_calls, force: :cascade)
     LlmCostTracker::Call.reset_column_information
 
     response = get("/llm-costs/calls")
@@ -344,7 +344,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
   end
 
   it "renders a call details setup state when the ledger table is missing" do
-    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_calls)
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_calls, force: :cascade)
     LlmCostTracker::Call.reset_column_information
 
     response = get("/llm-costs/calls/1")

@@ -66,7 +66,7 @@ RSpec.describe "LlmCostTracker::Engine models" do
   end
 
   it "renders a setup state when the ledger table is missing" do
-    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_calls)
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_calls, force: :cascade)
     LlmCostTracker::Call.reset_column_information
 
     response = get("/llm-costs/models")
