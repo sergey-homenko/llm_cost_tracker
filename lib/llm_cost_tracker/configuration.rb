@@ -97,7 +97,9 @@ module LlmCostTracker
       @instrumented_integrations = deep_freeze(@instrumented_integrations || Set.new)
       @report_tag_breakdowns = deep_freeze(Array(@report_tag_breakdowns))
       @redacted_tag_keys = deep_freeze(Array(@redacted_tag_keys))
-      @openai_compatible_providers = deep_freeze(@openai_compatible_providers || {})
+      @openai_compatible_providers = deep_freeze(
+        normalize_openai_compatible_providers(@openai_compatible_providers)
+      )
       @finalized = true
       self
     end

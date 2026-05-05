@@ -59,7 +59,6 @@ module LlmCostTracker
       raise Error, "LlmCostTracker is already configured" if config.finalized?
 
       yield(config)
-      config.openai_compatible_providers = config.openai_compatible_providers.dup
       config.finalize!
       Pricing::Lookup.reset!
       Integrations.install!
