@@ -3,123 +3,159 @@
 module LlmCostTracker
   module Billing
     module Components
-      Component = Data.define(:key, :unit, :category, :direction, :modality, :token_key, :cost_key)
+      Component = Data.define(
+        :key,
+        :kind,
+        :direction,
+        :modality,
+        :cache_state,
+        :unit,
+        :category,
+        :token_key,
+        :cost_key
+      )
 
       REGISTRY = [
         Component.new(
           key: :input,
-          unit: :token,
-          category: :token,
+          kind: :text_token,
           direction: :input,
           modality: :text,
+          cache_state: :none,
+          unit: :token,
+          category: :token,
           token_key: :input_tokens,
           cost_key: :input_cost
         ),
         Component.new(
           key: :cache_read_input,
-          unit: :token,
-          category: :token,
+          kind: :text_token,
           direction: :input,
           modality: :text,
+          cache_state: :read,
+          unit: :token,
+          category: :token,
           token_key: :cache_read_input_tokens,
           cost_key: :cache_read_input_cost
         ),
         Component.new(
           key: :cache_write_input,
-          unit: :token,
-          category: :token,
+          kind: :text_token,
           direction: :input,
           modality: :text,
+          cache_state: :write_5m,
+          unit: :token,
+          category: :token,
           token_key: :cache_write_input_tokens,
           cost_key: :cache_write_input_cost
         ),
         Component.new(
           key: :cache_write_extended_input,
-          unit: :token,
-          category: :token,
+          kind: :text_token,
           direction: :input,
           modality: :text,
+          cache_state: :write_1h,
+          unit: :token,
+          category: :token,
           token_key: :cache_write_extended_input_tokens,
           cost_key: :cache_write_extended_input_cost
         ),
         Component.new(
           key: :output,
-          unit: :token,
-          category: :token,
+          kind: :text_token,
           direction: :output,
           modality: :text,
+          cache_state: :none,
+          unit: :token,
+          category: :token,
           token_key: :output_tokens,
           cost_key: :output_cost
         ),
         Component.new(
           key: :audio_input,
-          unit: :token,
-          category: :token,
+          kind: :audio_token,
           direction: :input,
           modality: :audio,
+          cache_state: :none,
+          unit: :token,
+          category: :token,
           token_key: :audio_input_tokens,
           cost_key: :audio_input_cost
         ),
         Component.new(
           key: :audio_output,
-          unit: :token,
-          category: :token,
+          kind: :audio_token,
           direction: :output,
           modality: :audio,
+          cache_state: :none,
+          unit: :token,
+          category: :token,
           token_key: :audio_output_tokens,
           cost_key: :audio_output_cost
         ),
         Component.new(
           key: :web_search_request,
-          unit: :request,
-          category: :tool,
+          kind: :web_search_request,
           direction: :neither,
           modality: :text,
+          cache_state: :none,
+          unit: :request,
+          category: :tool,
           token_key: nil,
           cost_key: nil
         ),
         Component.new(
           key: :file_search_call,
-          unit: :request,
-          category: :tool,
+          kind: :file_search_call,
           direction: :neither,
           modality: :text,
+          cache_state: :none,
+          unit: :request,
+          category: :tool,
           token_key: nil,
           cost_key: nil
         ),
         Component.new(
           key: :container_session,
-          unit: :session,
-          category: :runtime,
+          kind: :container_session,
           direction: :neither,
           modality: :none,
+          cache_state: :none,
+          unit: :session,
+          category: :runtime,
           token_key: nil,
           cost_key: nil
         ),
         Component.new(
           key: :code_execution_request,
-          unit: :request,
-          category: :runtime,
+          kind: :code_execution_request,
           direction: :neither,
           modality: :none,
+          cache_state: :none,
+          unit: :request,
+          category: :runtime,
           token_key: nil,
           cost_key: nil
         ),
         Component.new(
           key: :code_execution_hour,
-          unit: :hour,
-          category: :runtime,
+          kind: :code_execution_hour,
           direction: :neither,
           modality: :none,
+          cache_state: :none,
+          unit: :hour,
+          category: :runtime,
           token_key: nil,
           cost_key: nil
         ),
         Component.new(
           key: :grounding_request,
-          unit: :request,
-          category: :tool,
+          kind: :grounding_request,
           direction: :neither,
           modality: :text,
+          cache_state: :none,
+          unit: :request,
+          category: :tool,
           token_key: nil,
           cost_key: nil
         )
