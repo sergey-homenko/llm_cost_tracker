@@ -123,12 +123,12 @@ module LlmCostTracker
       private
 
       def capture_dimensions(pricing_mode)
-        batch_override = @batch.nil? ? (UsageCapture.batch_from_pricing_mode?(pricing_mode) || nil) : @batch
+        batch = @batch.nil? ? UsageCapture.batch_from_pricing_mode?(pricing_mode).presence : @batch
         {
           provider_project_id: @provider_project_id.to_s.strip.presence,
           provider_api_key_id: @provider_api_key_id.to_s.strip.presence,
           provider_workspace_id: @provider_workspace_id.to_s.strip.presence,
-          batch: batch_override
+          batch: batch
         }.compact
       end
 
