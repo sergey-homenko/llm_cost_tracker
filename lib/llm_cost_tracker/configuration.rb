@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "errors"
+require_relative "pricing/registry"
 require_relative "tags/key"
 
 module LlmCostTracker
@@ -14,8 +15,7 @@ module LlmCostTracker
     BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
     SHARED_SCALAR_ATTRIBUTES = %i[enabled default_tags on_budget_exceeded monthly_budget daily_budget per_call_budget
-                                  log_level prices_file max_tag_count max_tag_value_bytesize
-                                  pricing_overrides].freeze
+                                  log_level prices_file max_tag_count max_tag_value_bytesize].freeze
     SHARED_ENUM_ATTRIBUTES = {
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
       unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn]
@@ -26,6 +26,7 @@ module LlmCostTracker
       *SHARED_SCALAR_ATTRIBUTES,
       :budget_exceeded_behavior,
       :instrumented_integrations,
+      :pricing_overrides,
       :report_tag_breakdowns,
       :redacted_tag_keys,
       :unknown_pricing_behavior,
@@ -45,7 +46,7 @@ module LlmCostTracker
       @prices_file        = nil
       @max_tag_count      = 50
       @max_tag_value_bytesize = 1024
-      @pricing_overrides = {}
+      self.pricing_overrides = {}
       @instrumented_integrations = Set.new
       @report_tag_breakdowns = []
       @redacted_tag_keys = DEFAULT_REDACTED_TAG_KEYS.dup
@@ -56,6 +57,13 @@ module LlmCostTracker
     def openai_compatible_providers=(providers)
       ensure_shared_configuration_mutable!
       @openai_compatible_providers = normalize_openai_compatible_providers(providers)
+    end
+
+    def pricing_overrides=(value)
+      ensure_shared_configuration_mutable!
+      @pricing_overrides = Pricing::Registry.normalize_price_table(value || {})
+    rescue ArgumentError => e
+      raise Error, "invalid pricing_overrides: #{e.message}"
     end
 
     def report_tag_breakdowns=(value)

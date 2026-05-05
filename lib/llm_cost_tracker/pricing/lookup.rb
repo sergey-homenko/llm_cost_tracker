@@ -66,8 +66,7 @@ module LlmCostTracker
 
             config = LlmCostTracker.configuration
             file_prices = Registry.file_prices(config.prices_file)
-            overrides = Registry.normalize_price_table(config.pricing_overrides)
-            value = { pricing_overrides: overrides, file_prices: file_prices }.freeze
+            value = { pricing_overrides: config.pricing_overrides, file_prices: file_prices }.freeze
             @prices_cache = value
             value
           end
