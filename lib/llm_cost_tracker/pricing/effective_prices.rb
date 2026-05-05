@@ -42,17 +42,12 @@ module LlmCostTracker
         end
 
         def derived_mode_price(prices:, key:, mode:, context_tier:)
-          standard_price = contextual_price(prices: prices, key: key, context_tier: context_tier)
-          return nil unless standard_price
+          return nil if key == :output
 
-          base_key = key == :output ? :output : :input
-          base_price = contextual_price(prices: prices, key: base_key, context_tier: context_tier)
-          mode_base_price = contextual_price(
-            prices: prices,
-            key: :"#{mode}_#{base_key}",
-            context_tier: context_tier
-          )
-          return nil unless base_price && mode_base_price
+          standard_price = contextual_price(prices: prices, key: key, context_tier: context_tier)
+          base_price = contextual_price(prices: prices, key: :input, context_tier: context_tier)
+          mode_base_price = contextual_price(prices: prices, key: :"#{mode}_input", context_tier: context_tier)
+          return nil unless standard_price && base_price && mode_base_price
 
           standard_price * (mode_base_price / base_price)
         end
