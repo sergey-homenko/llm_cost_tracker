@@ -72,16 +72,31 @@ module LlmCostTracker
 
         def apply_decrements(totals)
           now = Time.now.utc
+          buckets_by_period = totals.each_with_object({}) do |((period, period_start), amount), grouped|
+            grouped[period] ||= {}
+            grouped[period][period_start] = amount
+          end
 
-          totals.each do |(period, period_start), amount|
-            row = LlmCostTracker::CallRollup.lock.find_by(
-              period: Period::PERIODS.fetch(period),
-              period_start: period_start
+          conn = LlmCostTracker::CallRollup.connection
+          table = LlmCostTracker::CallRollup.quoted_table_name
+          period_col = conn.quote_column_name("period")
+          start_col = conn.quote_column_name("period_start")
+          total_col = conn.quote_column_name("total_cost")
+          updated_col = conn.quote_column_name("updated_at")
+
+          buckets_by_period.each do |period, by_start|
+            case_clauses = by_start.map do |period_start, amount|
+              "WHEN #{start_col} = #{conn.quote(period_start)} THEN #{conn.quote(amount)}"
+            end.join(" ")
+            starts = by_start.keys.map { |period_start| conn.quote(period_start) }.join(", ")
+
+            conn.execute(
+              "UPDATE #{table} " \
+              "SET #{total_col} = GREATEST(0, #{total_col} - CASE #{case_clauses} ELSE 0 END), " \
+              "#{updated_col} = #{conn.quote(now)} " \
+              "WHERE #{period_col} = #{conn.quote(Period::PERIODS.fetch(period))} " \
+              "AND #{start_col} IN (#{starts})"
             )
-            next unless row
-
-            row.update_columns(total_cost: [row.total_cost - amount, BigDecimal("0")].max,
-                               updated_at: now)
           end
         end
 
