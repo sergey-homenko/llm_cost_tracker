@@ -20,12 +20,9 @@ module LlmCostTracker
       def log(level, message)
         message = prefixed(message)
         logger = Rails.logger
+        return Kernel.warn(message) unless logger
 
-        if logger
-          logger.try(level, message)
-        else
-          Kernel.warn(message)
-        end
+        logger.public_send(level, message)
       end
 
       private
