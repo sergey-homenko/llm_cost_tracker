@@ -64,11 +64,11 @@ module LlmCostTracker
       end
 
       def openai_service_charge_details(item)
-        details = {}
-        details["status"] = item["status"] if item["status"]
-        details["action_type"] = item.dig("action", "type") if item.dig("action", "type")
-        details["container_id"] = item["container_id"] if item["container_id"]
-        details
+        {
+          "status" => item["status"],
+          "action_type" => item.dig("action", "type"),
+          "container_id" => item["container_id"]
+        }.compact
       end
 
       def openai_billable_output_item?(item)
