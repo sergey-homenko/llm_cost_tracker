@@ -112,19 +112,14 @@ module LlmCostTracker
 
       def limited_body(response)
         body = +""
-        if response.respond_to?(:read_body)
-          response.read_body do |chunk|
-            chunk = chunk.to_s
-            if body.bytesize + chunk.bytesize > MAX_BODY_BYTES
-              raise Error, "response body exceeds #{MAX_BODY_BYTES} bytes"
-            end
-
-            body << chunk
+        response.read_body do |chunk|
+          chunk = chunk.to_s
+          if body.bytesize + chunk.bytesize > MAX_BODY_BYTES
+            raise Error, "response body exceeds #{MAX_BODY_BYTES} bytes"
           end
-        else
-          body = response.body.to_s
+
+          body << chunk
         end
-        raise Error, "response body exceeds #{MAX_BODY_BYTES} bytes" if body.bytesize > MAX_BODY_BYTES
 
         body
       end
