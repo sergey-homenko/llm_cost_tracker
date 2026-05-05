@@ -40,6 +40,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Stream capture preserves buffered events on overflow for partial usage extraction.
 - Negative token counts are clamped to zero on capture.
 - BREAKING: Removed `LlmCostTracker.flush!`, `shutdown!`, `enforce_budget!`; call `Ingestion::Worker` and `Tracker` directly.
+- Gemini `thoughtsTokenCount` is now billed at the output rate per ai.google.dev/gemini-api/docs/thinking; previously thinking tokens were silently dropped from the cost.
 
 ## [0.7.3] - 2026-05-01
 
