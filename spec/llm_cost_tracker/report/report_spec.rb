@@ -92,7 +92,7 @@ RSpec.describe LlmCostTracker::Report do
       tags: { feature: "chat" }
     )
 
-    data = described_class.data(days: 30, now: Time.now.utc)
+    data = LlmCostTracker::Report::Data.build(days: 30, now: Time.now.utc)
 
     expect(data).to be_a(LlmCostTracker::Report::Data)
     expect(data.total_cost).to eq(0.0025)
@@ -104,7 +104,7 @@ RSpec.describe LlmCostTracker::Report do
     now = Time.utc(2026, 4, 27, 12)
     create_ranked_report_calls(now)
 
-    data = described_class.data(days: 30, now: now)
+    data = LlmCostTracker::Report::Data.build(days: 30, now: now)
 
     expect(data.cost_by_provider.map(&:name)).to eq(
       %w[provider-5 provider-4 provider-3 provider-2 provider-1 provider-0]

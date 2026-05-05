@@ -20,10 +20,6 @@ module LlmCostTracker
       rescue StandardError => e
         "Unable to build LLM cost report: #{e.class}: #{e.message}"
       end
-
-      def data(days: Data::DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
-        Data.build(days: days, now: now, tag_breakdowns: tag_breakdowns)
-      end
     end
   end
 end
