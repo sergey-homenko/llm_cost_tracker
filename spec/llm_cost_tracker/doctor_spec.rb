@@ -101,6 +101,7 @@ RSpec.describe LlmCostTracker::Doctor do
   end
 
   it "reports the foundation generator when the legacy call table exists" do
+    establish_database_connection!
     allow(described_class::Probe).to receive(:table_exists?).and_call_original
     allow(described_class::Probe).to receive(:table_exists?).with("llm_cost_tracker_calls").and_return(false)
     allow(described_class::Probe).to receive(:table_exists?).with("llm_api_calls").and_return(true)
@@ -108,6 +109,8 @@ RSpec.describe LlmCostTracker::Doctor do
     check = described_class.call.find { |item| item.name == "llm_cost_tracker_calls" }
 
     expect(check).to have_attributes(status: :error, message: include("upgrade_schema_foundation"))
+  ensure
+    disconnect_database!
   end
 
   it "skips isolated checks when the ledger table is missing" do
