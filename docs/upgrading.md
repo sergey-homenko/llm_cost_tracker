@@ -115,10 +115,10 @@ LlmCostTracker.track(
 )
 ```
 
-Durable inbox payloads now write schema version 2. Current 0.8 code reads v0,
-v1, and v2 rows, but 0.7 workers do not read v2 rows. During rolling deploys,
-avoid leaving old 0.7 processes draining the inbox after 0.8 processes start
-writing new rows.
+Durable inbox payloads now write and read schema version 2 only. Drain any
+remaining v0 or v1 inbox rows on the previous gem version before deploying 0.8.
+During rolling deploys, do not leave 0.7 processes draining the inbox once 0.8
+processes start writing new rows.
 
 ### 0.7.3
 

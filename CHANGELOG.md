@@ -24,7 +24,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - OpenAI web search service charges now ignore non-search page actions.
 - OpenAI container session rates are no longer bundled without container-size usage.
 - Data quality now summarizes captured service charges.
-- Durable inbox payloads now use schema version 2 while reading legacy v0/v1 payloads.
+- BREAKING: Durable inbox payloads must be schema version 2; drain legacy v0/v1 inbox rows before upgrading.
 - Anthropic parsing now warns when `usage.cache_creation` has an unexpected shape.
 - RubyLLM captured calls now use `sdk_response` as their usage source.
 - Upgrade migrations and doctor diagnostics now distinguish schema renames from missing legacy columns.
@@ -35,6 +35,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Manual capture now accepts provider project, API key, workspace, and batch dimensions.
 - Calls now record the cost of priced token components and mark `cost_status` as `partial` when other components lack a rate, instead of dropping the entire cost.
 - SDK integration latency no longer includes time spent in the local budget guardrail.
+- `pricing_overrides` is now validated when assigned; invalid shapes raise immediately instead of failing on the first cost lookup.
 
 ## [0.7.3] - 2026-05-01
 
