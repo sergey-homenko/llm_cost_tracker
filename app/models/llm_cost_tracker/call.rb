@@ -45,6 +45,18 @@ module LlmCostTracker
              inverse_of: :call,
              dependent: :delete_all
 
+    has_many :line_items,
+             class_name: "LlmCostTracker::CallLineItem",
+             foreign_key: :llm_cost_tracker_call_id,
+             inverse_of: :call,
+             dependent: :delete_all
+
+    has_many :tag_records,
+             class_name: "LlmCostTracker::CallTag",
+             foreign_key: :llm_cost_tracker_call_id,
+             inverse_of: :call,
+             dependent: :delete_all
+
     scope :with_json_tags, -> { where.not(tags: {}) }
 
     scope :today,       -> { where(tracked_at: Time.now.utc.beginning_of_day..) }
