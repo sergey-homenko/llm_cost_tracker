@@ -118,6 +118,8 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
         )
         expect(written.dig("metadata", "source_url")).to eq(source_url)
         expect(written.dig("metadata", "source_version")).to eq("snapshot-v1")
+        expect(written.dig("metadata", "min_gem_version")).to eq("0.0.1")
+        expect(written.dig("metadata", "currency")).to eq("USD")
         expect(written.dig("models", "gpt-5-mini", "output")).to eq(2.0)
         expect(written.dig("models", "gpt-5-mini", "_source")).to eq("remote")
         expect(written.dig("service_charges", "openai", "web_search_request")).to eq(10.0)
