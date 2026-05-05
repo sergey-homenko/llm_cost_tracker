@@ -12,6 +12,8 @@ module LlmCostTracker
   module Pricing
     # rubocop:disable Metrics/ModuleLength
     module ServiceCharges
+      extend self
+
       DEFAULT_CURRENCY = "USD"
       EMPTY_RATES = {}.freeze
 
@@ -172,36 +174,15 @@ module LlmCostTracker
       end
 
       def rate_source_version_for(source)
-        if source == :bundled
-          LlmCostTracker::VERSION
-        else
-          File.mtime(LlmCostTracker.configuration.prices_file).utc.iso8601
-        end
-      end
+        return LlmCostTracker::VERSION if source == :bundled
 
-      module_function :builtin_rates,
-                      :file_rates,
-                      :rates_from_registry,
-                      :charge_rate,
-                      :rates_from_section,
-                      :component_and_tier_for,
-                      :amount_for,
-                      :rate_quantity,
-                      :charge_rate_match,
-                      :rate_for,
-                      :tier_includes?,
-                      :charge_component_key,
-                      :rate_source_version_for
-      public :charge_rate
-      private_class_method :rates_from_section,
-                           :component_and_tier_for,
-                           :amount_for,
-                           :rate_quantity,
-                           :charge_rate_match,
-                           :rate_for,
-                           :tier_includes?,
-                           :charge_component_key,
-                           :rate_source_version_for
+        path = LlmCostTracker.configuration.prices_file
+        return nil unless path
+
+        File.mtime(path).utc.iso8601
+      rescue Errno::ENOENT
+        nil
+      end
     end
     # rubocop:enable Metrics/ModuleLength
   end
