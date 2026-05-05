@@ -144,14 +144,18 @@ module LlmCostTracker
 
         def sorted_price_keys(table)
           cached = @sorted_price_keys_cache
-          return cached[:keys] if cached && cached[:table].equal?(table)
+          existing = cached && cached[table]
+          return existing if existing
 
           MUTEX.synchronize do
             cached = @sorted_price_keys_cache
-            return cached[:keys] if cached && cached[:table].equal?(table)
+            existing = cached && cached[table]
+            return existing if existing
 
             keys = table.keys.sort_by { |key| -key.length }
-            @sorted_price_keys_cache = { table: table, keys: keys }.freeze
+            next_cache = cached ? cached.dup : Hash.new.compare_by_identity
+            next_cache[table] = keys
+            @sorted_price_keys_cache = next_cache.freeze
             keys
           end
         end
