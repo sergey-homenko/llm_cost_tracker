@@ -31,8 +31,11 @@ module LlmCostTracker
         def price_for(prices:, key:, pricing_mode:, context_tier:)
           return contextual_price(prices: prices, key: key, context_tier: context_tier) unless pricing_mode
 
-          contextual_price(prices: prices, key: :"#{pricing_mode}_#{key}", context_tier: context_tier) ||
-            derived_mode_price(prices: prices, key: key, mode: pricing_mode, context_tier: context_tier)
+          direct = contextual_price(prices: prices, key: :"#{pricing_mode}_#{key}", context_tier: context_tier)
+          return direct if direct
+          return nil if %i[input output].include?(key)
+
+          derived_mode_price(prices: prices, key: key, mode: pricing_mode, context_tier: context_tier)
         end
 
         def contextual_price(prices:, key:, context_tier:)
@@ -42,8 +45,6 @@ module LlmCostTracker
         end
 
         def derived_mode_price(prices:, key:, mode:, context_tier:)
-          return nil if key == :output
-
           standard_price = contextual_price(prices: prices, key: key, context_tier: context_tier)
           base_price = contextual_price(prices: prices, key: :input, context_tier: context_tier)
           mode_base_price = contextual_price(prices: prices, key: :"#{mode}_input", context_tier: context_tier)
