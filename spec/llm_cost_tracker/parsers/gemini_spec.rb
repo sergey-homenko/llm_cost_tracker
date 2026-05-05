@@ -56,7 +56,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
                     response_body: { error: "rate limited" }.to_json,
                     missing_usage_body: { model: "gemini-2.5-flash" }.to_json
 
-    it "keeps Gemini API thinking tokens out of output token totals" do
+    it "bills Gemini thinking tokens at the output rate per ai.google.dev/gemini-api/docs/thinking" do
       result = parser.parse(
         request_url: generate_content_url,
         request_body: nil,
@@ -67,7 +67,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
             promptTokenCount: 100,
             candidatesTokenCount: 25,
             thoughtsTokenCount: 50,
-            totalTokenCount: 125
+            totalTokenCount: 175
           }
         }.to_json
       )
@@ -75,9 +75,9 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.provider).to eq("gemini")
       expect(result.model).to eq("gemini-2.5-flash")
       expect(result.token_usage.input_tokens).to eq(100)
-      expect(result.token_usage.output_tokens).to eq(25)
+      expect(result.token_usage.output_tokens).to eq(75)
       expect(result.token_usage.hidden_output_tokens).to eq(50)
-      expect(result.token_usage.total_tokens).to eq(125)
+      expect(result.token_usage.total_tokens).to eq(175)
       expect(result.stream).to be false
       expect(result.usage_source).to eq(:response)
       expect(result.provider_response_id).to eq("gemini-resp-123")
@@ -100,8 +100,8 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
       expect(result.token_usage.input_tokens).to eq(75)
       expect(result.token_usage.cache_read_input_tokens).to eq(25)
-      expect(result.token_usage.output_tokens).to eq(20)
-      expect(result.token_usage.total_tokens).to eq(120)
+      expect(result.token_usage.output_tokens).to eq(25)
+      expect(result.token_usage.total_tokens).to eq(125)
     end
 
     it "counts tool-use prompt tokens as billable input tokens" do
@@ -123,8 +123,8 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
       expect(result.token_usage.input_tokens).to eq(90)
       expect(result.token_usage.cache_read_input_tokens).to eq(25)
-      expect(result.token_usage.output_tokens).to eq(20)
-      expect(result.token_usage.total_tokens).to eq(135)
+      expect(result.token_usage.output_tokens).to eq(25)
+      expect(result.token_usage.total_tokens).to eq(140)
     end
 
     it "separates Gemini audio token details from regular text tokens" do
@@ -269,7 +269,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
             "promptTokenCount" => 80,
             "candidatesTokenCount" => 42,
             "thoughtsTokenCount" => 10,
-            "totalTokenCount" => 122
+            "totalTokenCount" => 132
           }
         } }
       ]
@@ -283,9 +283,9 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.provider).to eq("gemini")
       expect(result.model).to eq("gemini-2.5-flash")
       expect(result.token_usage.input_tokens).to eq(80)
-      expect(result.token_usage.output_tokens).to eq(42)
+      expect(result.token_usage.output_tokens).to eq(52)
       expect(result.token_usage.hidden_output_tokens).to eq(10)
-      expect(result.token_usage.total_tokens).to eq(122)
+      expect(result.token_usage.total_tokens).to eq(132)
       expect(result.stream).to be true
       expect(result.usage_source).to eq(:stream_final)
       expect(result.provider_response_id).to eq("gemini-resp-456")
@@ -311,8 +311,8 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
       expect(result.token_usage.input_tokens).to eq(70)
       expect(result.token_usage.cache_read_input_tokens).to eq(10)
-      expect(result.token_usage.output_tokens).to eq(42)
-      expect(result.token_usage.total_tokens).to eq(122)
+      expect(result.token_usage.output_tokens).to eq(50)
+      expect(result.token_usage.total_tokens).to eq(130)
     end
 
     it "separates streamed Gemini Live audio response token details" do

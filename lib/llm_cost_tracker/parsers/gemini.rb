@@ -111,7 +111,7 @@ module LlmCostTracker
       end
 
       def output_tokens(usage)
-        (usage["candidatesTokenCount"] || usage["responseTokenCount"]).to_i
+        (usage["candidatesTokenCount"] || usage["responseTokenCount"]).to_i + usage["thoughtsTokenCount"].to_i
       end
 
       def regular_input_tokens(usage:, cache_read:, audio_input:)
