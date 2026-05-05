@@ -24,10 +24,14 @@ module LlmCostTracker
   class UsageCapture
     UNKNOWN_MODEL = "unknown"
 
+    def self.batch_from_pricing_mode?(pricing_mode)
+      pricing_mode.to_s.split("_").include?("batch")
+    end
+
     def self.build(**attributes)
       pricing_mode = Pricing.normalize_mode(attributes[:pricing_mode])
       batch = attributes[:batch]
-      batch = pricing_mode.to_s.split("_").include?("batch") if batch.nil?
+      batch = batch_from_pricing_mode?(pricing_mode) if batch.nil?
 
       new(
         provider: attributes.fetch(:provider).to_s,

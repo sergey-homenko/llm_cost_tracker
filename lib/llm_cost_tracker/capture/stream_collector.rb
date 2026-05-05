@@ -86,24 +86,12 @@ module LlmCostTracker
         self
       end
 
-      # rubocop:disable Metrics/MethodLength
       def finish!(errored: false)
         snapshot = @mutex.synchronize do
           return if @finished
 
           @finished = true
           pricing_mode = Pricing.normalize_mode(@pricing_mode)
-          dimensions = {
-            provider_project_id: @provider_project_id.to_s.strip.presence,
-            provider_api_key_id: @provider_api_key_id.to_s.strip.presence,
-            provider_workspace_id: @provider_workspace_id.to_s.strip.presence
-          }.compact
-          if @batch.nil?
-            dimensions[:batch] = true if pricing_mode.to_s.split("_").include?("batch")
-          else
-            dimensions[:batch] = @batch
-          end
-
           {
             events: @events.dup,
             overflowed: @overflowed,
@@ -111,7 +99,7 @@ module LlmCostTracker
             model: @model,
             latency_ms: @latency_ms,
             provider_response_id: @provider_response_id,
-            capture_dimensions: dimensions,
+            capture_dimensions: capture_dimensions(pricing_mode),
             pricing_mode: pricing_mode,
             metadata: @metadata.deep_dup,
             context_tags: @context_tags.deep_dup
@@ -131,9 +119,18 @@ module LlmCostTracker
           context_tags: snapshot[:context_tags]
         )
       end
-      # rubocop:enable Metrics/MethodLength
 
       private
+
+      def capture_dimensions(pricing_mode)
+        batch_override = @batch.nil? ? (UsageCapture.batch_from_pricing_mode?(pricing_mode) || nil) : @batch
+        {
+          provider_project_id: @provider_project_id.to_s.strip.presence,
+          provider_api_key_id: @provider_api_key_id.to_s.strip.presence,
+          provider_workspace_id: @provider_workspace_id.to_s.strip.presence,
+          batch: batch_override
+        }.compact
+      end
 
       def ensure_open!
         return unless @finished
