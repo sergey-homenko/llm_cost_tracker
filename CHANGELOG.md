@@ -33,6 +33,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - BREAKING: ActiveRecord models now use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, `LlmCostTracker::CallRollup`, `LlmCostTracker::Ingestion::InboxEntry`, and `LlmCostTracker::Ingestion::Lease`.
 - BREAKING: Manual `LlmCostTracker.track` now accepts explicit `tokens:` and `tags:` hashes.
 - Manual capture now accepts provider project, API key, workspace, and batch dimensions.
+- Calls now record the cost of priced token components and mark `cost_status` as `partial` when other components lack a rate, instead of dropping the entire cost.
+- SDK integration latency no longer includes time spent in the local budget guardrail.
 
 ## [0.7.3] - 2026-05-01
 
