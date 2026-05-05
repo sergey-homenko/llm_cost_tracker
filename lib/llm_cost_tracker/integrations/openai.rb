@@ -77,36 +77,39 @@ module LlmCostTracker
           )
         end
 
+        INPUT_DETAIL_KEYS = %i[input_tokens_details input_token_details prompt_tokens_details].freeze
+        OUTPUT_DETAIL_KEYS = %i[output_tokens_details output_token_details completion_tokens_details].freeze
+
         def cache_read_input_tokens(usage)
-          (
-            object_dig(usage, :input_tokens_details, :cached_tokens) ||
-            object_dig(usage, :input_token_details, :cached_tokens) ||
-            object_dig(usage, :prompt_tokens_details, :cached_tokens)
-          ).to_i
+          input_detail(usage, :cached_tokens)
         end
 
         def hidden_output_tokens(usage)
-          (
-            object_dig(usage, :output_tokens_details, :reasoning_tokens) ||
-            object_dig(usage, :output_token_details, :reasoning_tokens) ||
-            object_dig(usage, :completion_tokens_details, :reasoning_tokens)
-          ).to_i
+          output_detail(usage, :reasoning_tokens)
         end
 
         def audio_input_tokens(usage)
-          (
-            object_dig(usage, :input_tokens_details, :audio_tokens) ||
-            object_dig(usage, :input_token_details, :audio_tokens) ||
-            object_dig(usage, :prompt_tokens_details, :audio_tokens)
-          ).to_i
+          input_detail(usage, :audio_tokens)
         end
 
         def audio_output_tokens(usage)
-          (
-            object_dig(usage, :output_tokens_details, :audio_tokens) ||
-            object_dig(usage, :output_token_details, :audio_tokens) ||
-            object_dig(usage, :completion_tokens_details, :audio_tokens)
-          ).to_i
+          output_detail(usage, :audio_tokens)
+        end
+
+        def input_detail(usage, key)
+          INPUT_DETAIL_KEYS.each do |container|
+            value = object_dig(usage, container, key)
+            return value.to_i if value
+          end
+          0
+        end
+
+        def output_detail(usage, key)
+          OUTPUT_DETAIL_KEYS.each do |container|
+            value = object_dig(usage, container, key)
+            return value.to_i if value
+          end
+          0
         end
 
         def regular_input_tokens(input_tokens, cache_read, audio_input)
