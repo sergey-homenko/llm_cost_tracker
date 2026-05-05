@@ -153,7 +153,7 @@ module LlmCostTracker
             return existing if existing
 
             keys = table.keys.sort_by { |key| -key.length }
-            next_cache = cached ? cached.dup : Hash.new.compare_by_identity
+            next_cache = cached ? cached.dup : {}.compare_by_identity
             next_cache[table] = keys
             @sorted_price_keys_cache = next_cache.freeze
             keys
