@@ -29,20 +29,24 @@ module LlmCostTracker
       )
     end
 
+    def self.non_negative_int(value)
+      [value.to_i, 0].max
+    end
+
     def self.build(input_tokens:, output_tokens:, cache_read_input_tokens: 0,
                    cache_write_input_tokens: 0, cache_write_extended_input_tokens: 0,
                    audio_input_tokens: 0, audio_output_tokens: 0,
                    total_tokens: nil, hidden_output_tokens: 0)
-      input = input_tokens.to_i
-      output = output_tokens.to_i
-      cache_read = cache_read_input_tokens.to_i
-      cache_write = cache_write_input_tokens.to_i
-      cache_write_extended = cache_write_extended_input_tokens.to_i
-      audio_input = audio_input_tokens.to_i
-      audio_output = audio_output_tokens.to_i
-      hidden_output = hidden_output_tokens.to_i
+      input = non_negative_int(input_tokens)
+      output = non_negative_int(output_tokens)
+      cache_read = non_negative_int(cache_read_input_tokens)
+      cache_write = non_negative_int(cache_write_input_tokens)
+      cache_write_extended = non_negative_int(cache_write_extended_input_tokens)
+      audio_input = non_negative_int(audio_input_tokens)
+      audio_output = non_negative_int(audio_output_tokens)
+      hidden_output = non_negative_int(hidden_output_tokens)
       calculated_total = input + cache_read + cache_write + cache_write_extended + audio_input + output + audio_output
-      total = total_tokens.nil? ? calculated_total : [total_tokens.to_i, calculated_total].max
+      total = total_tokens.nil? ? calculated_total : [non_negative_int(total_tokens), calculated_total].max
 
       new(
         input_tokens: input,
