@@ -33,10 +33,10 @@ module LlmCostTracker
           wake_thread(thread)
         end
 
-        def flush!(timeout: FLUSH_TIMEOUT_SECONDS, require_lease: false)
+        def flush!(timeout: nil, require_lease: false)
           Ingestion.ensure_current_schema!
 
-          deadline = Time.now.utc + timeout
+          deadline = Time.now.utc + (timeout || FLUSH_TIMEOUT_SECONDS)
           loop do
             return true unless Ingestion::Batch.new(identity: identity).pending?
             return false if Time.now.utc >= deadline
@@ -51,7 +51,8 @@ module LlmCostTracker
           end
         end
 
-        def shutdown!(timeout: FLUSH_TIMEOUT_SECONDS, drain: true)
+        def shutdown!(timeout: nil, drain: true)
+          timeout ||= FLUSH_TIMEOUT_SECONDS
           thread = mutex.synchronize do
             @stop_requested = true
             @generation = @generation.to_i + 1

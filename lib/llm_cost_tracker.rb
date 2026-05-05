@@ -75,19 +75,11 @@ module LlmCostTracker
     end
 
     def flush!(timeout: nil)
-      if timeout
-        Ingestion::Worker.flush!(timeout: timeout)
-      else
-        Ingestion::Worker.flush!
-      end
+      Ingestion::Worker.flush!(timeout: timeout)
     end
 
     def shutdown!(timeout: nil, drain: true)
-      if timeout
-        Ingestion::Worker.shutdown!(timeout: timeout, drain: drain)
-      else
-        Ingestion::Worker.shutdown!(drain: drain)
-      end
+      Ingestion::Worker.shutdown!(timeout: timeout, drain: drain)
     end
 
     def enforce_budget!
