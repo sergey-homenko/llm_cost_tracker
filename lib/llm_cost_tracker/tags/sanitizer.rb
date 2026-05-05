@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/string/inflections"
 require "json"
 
 module LlmCostTracker
@@ -36,14 +37,7 @@ module LlmCostTracker
         end
 
         def normalized_key(key)
-          key.to_s
-             .gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2')
-             .gsub(/([a-z\d])([A-Z])/, '\1_\2')
-             .downcase
-             .gsub(/[^a-z0-9]+/, "_")
-             .gsub(/_+/, "_")
-             .delete_prefix("_")
-             .delete_suffix("_")
+          key.to_s.underscore.gsub(/[^a-z0-9]+/, "_").delete_prefix("_").delete_suffix("_")
         end
 
         def redacted_key_component?(key, candidate)
