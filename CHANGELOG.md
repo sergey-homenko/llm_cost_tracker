@@ -24,7 +24,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - OpenAI web search service charges now ignore non-search page actions.
 - OpenAI container session rates are no longer bundled without container-size usage.
 - Data quality now summarizes captured service charges.
-- BREAKING: Durable inbox payloads must be schema version 2; drain legacy v0/v1 inbox rows before upgrading.
+- BREAKING: Inbox payload schema is v2 only; drain legacy rows before upgrade.
 - Anthropic parsing now warns when `usage.cache_creation` has an unexpected shape.
 - RubyLLM captured calls now use `sdk_response` as their usage source.
 - Upgrade migrations and doctor diagnostics now distinguish schema renames from missing legacy columns.
@@ -33,13 +33,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - BREAKING: ActiveRecord models now use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, `LlmCostTracker::CallRollup`, `LlmCostTracker::Ingestion::InboxEntry`, and `LlmCostTracker::Ingestion::Lease`.
 - BREAKING: Manual `LlmCostTracker.track` now accepts explicit `tokens:` and `tags:` hashes.
 - Manual capture now accepts provider project, API key, workspace, and batch dimensions.
-- Calls now record the cost of priced token components and mark `cost_status` as `partial` when other components lack a rate, instead of dropping the entire cost.
-- SDK integration latency no longer includes time spent in the local budget guardrail.
-- `pricing_overrides` is now validated when assigned; invalid shapes raise immediately instead of failing on the first cost lookup.
-- BREAKING: Service charges now cascade-delete with their parent call via a foreign key; fresh installs and `llm_cost_tracker:add_billing` add the constraint.
-- Stream capture no longer discards earlier events after exceeding the byte cap; usage extraction continues against the buffered prefix.
-- Negative token counts are clamped to zero before recording.
-- BREAKING: Removed `LlmCostTracker.flush!`, `LlmCostTracker.shutdown!`, and `LlmCostTracker.enforce_budget!` pass-throughs; call `LlmCostTracker::Ingestion::Worker.flush!` / `shutdown!` and `LlmCostTracker::Tracker.enforce_budget!` directly.
+- Partial token pricing records priced components with `cost_status: partial` instead of dropping total cost.
+- SDK integration latency excludes budget guardrail time.
+- `pricing_overrides` is validated on assignment, not on first cost lookup.
+- BREAKING: `llm_cost_tracker_service_charges` now has a cascade-delete foreign key to `llm_cost_tracker_calls`.
+- Stream capture preserves buffered events on overflow for partial usage extraction.
+- Negative token counts are clamped to zero on capture.
+- BREAKING: Removed `LlmCostTracker.flush!`, `shutdown!`, `enforce_budget!`; call `Ingestion::Worker` and `Tracker` directly.
 
 ## [0.7.3] - 2026-05-01
 
