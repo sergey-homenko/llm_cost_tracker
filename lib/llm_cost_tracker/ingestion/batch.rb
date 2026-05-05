@@ -53,14 +53,13 @@ module LlmCostTracker
         cutoff = now - LOCK_TIMEOUT_SECONDS
         Ingestion::InboxEntry.transaction do
           rows = claimable_scope(cutoff).order(:id).limit(BATCH_SIZE).lock.to_a
-          ids = rows.map(&:id)
-          next [] if ids.empty?
+          next [] if rows.empty?
 
           updates = Ingestion::InboxEntry.sanitize_sql_array(
             ["locked_at = ?, locked_by = ?, attempts = attempts + 1, updated_at = ?", now, identity, now]
           )
-          Ingestion::InboxEntry.where(id: ids).update_all(updates)
-          Ingestion::InboxEntry.where(id: ids, locked_by: identity).order(:id).to_a
+          Ingestion::InboxEntry.where(id: rows.map(&:id)).update_all(updates)
+          rows
         end
       end
 
