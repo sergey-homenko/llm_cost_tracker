@@ -13,7 +13,7 @@ Calls still go directly to providers; no proxy or external service is required.
 It is not Langfuse, Helicone, or LiteLLM. It does not capture prompts, score
 completions, or replay traces. It records spend by provider, model, and feature.
 
-Requires Ruby 3.3+, Rails 7.1+, PostgreSQL or MySQL, and Faraday 2.0+.
+Requires Ruby 3.4+, Rails 7.1+, PostgreSQL or MySQL, and Faraday 2.0+.
 
 ![Dashboard overview](docs/dashboard-overview.png)
 

@@ -1,7 +1,7 @@
 # Upgrading
 
 Upgrades should be planned from the version you run today to the version you
-are deploying. The current line assumes Ruby 3.3+, Rails 7.1+, ActiveRecord
+are deploying. The current line assumes Ruby 3.4+, Rails 7.1+, ActiveRecord
 storage, and PostgreSQL or a MySQL-family adapter.
 
 ## Production Upgrade Flow

@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
   spec.homepage      = "https://github.com/sergey-homenko/llm_cost_tracker"
   spec.license       = "MIT"
 
-  spec.required_ruby_version = ">= 3.3.0"
+  spec.required_ruby_version = ">= 3.4.0"
 
   spec.metadata["bug_tracker_uri"] = "#{spec.homepage}/issues"
   spec.metadata["changelog_uri"]   = "#{spec.homepage}/blob/main/CHANGELOG.md"

@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby-version: ['3.3', '3.4']
+        ruby-version: ['3.4']
         gemfile:
           - gemfiles/rails_7_1.gemfile
           - gemfiles/rails_7_2.gemfile
@@ -69,7 +69,7 @@ jobs:
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: '3.3'
+        ruby-version: '3.4'
         bundler-cache: true
     - name: Run RuboCop
       run: bundle exec rubocop

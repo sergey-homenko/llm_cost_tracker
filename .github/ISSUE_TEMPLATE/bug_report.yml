@@ -20,7 +20,7 @@ body:
     id: ruby_version
     attributes:
       label: Ruby version
-      placeholder: "3.3.5"
+      placeholder: "3.4.0"
     validations:
       required: true
 

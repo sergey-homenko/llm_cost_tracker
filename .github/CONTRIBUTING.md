@@ -62,7 +62,7 @@ BUNDLE_GEMFILE=gemfiles/rails_8_0.gemfile bundle install
 BUNDLE_GEMFILE=gemfiles/rails_8_0.gemfile bundle exec rspec
 ```
 
-The CI matrix covers Ruby 3.3 / 3.4 across Rails 7.1 / 7.2 / 8.0 / 8.1.
+The CI matrix covers Ruby 3.4 across Rails 7.1 / 7.2 / 8.0 / 8.1.
 
 ### Running the linter
 
