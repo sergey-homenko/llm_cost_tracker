@@ -253,7 +253,7 @@ def track!(provider_response_id:, tokens: { input: 100, output: 200 }, **tags)
 end
 
 def flush!
-  assert("flush timed out") { LlmCostTracker.flush!(timeout: 10) }
+  assert("flush timed out") { LlmCostTracker::Ingestion::Worker.flush!(timeout: 10) }
 end
 
 def quarantined_row_count
@@ -389,7 +389,7 @@ begin
   puts "daily_total=#{daily_total}"
 ensure
   begin
-    LlmCostTracker.shutdown!(drain: false) if defined?(LlmCostTracker)
+    LlmCostTracker::Ingestion::Worker.shutdown!(drain: false) if defined?(LlmCostTracker)
   rescue StandardError
     nil
   end

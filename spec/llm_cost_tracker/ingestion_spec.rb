@@ -19,7 +19,7 @@ RSpec.describe "ActiveRecord durable inbox" do
   end
 
   after do
-    LlmCostTracker.shutdown!
+    LlmCostTracker::Ingestion::Worker.shutdown!
     disconnect_database!
   end
 
@@ -41,7 +41,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(LlmCostTracker::Call.count).to eq(0)
     expect(LlmCostTracker::Ingestion::InboxEntry.first.event_id).to eq(event.event_id)
 
-    expect(LlmCostTracker.flush!).to be true
+    expect(LlmCostTracker::Ingestion::Worker.flush!).to be true
 
     call = LlmCostTracker::Call.first
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
@@ -69,7 +69,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(daily_total).to eq(0.0025)
     expect(monthly_total).to eq(0.0025)
 
-    LlmCostTracker.flush!
+    LlmCostTracker::Ingestion::Worker.flush!
 
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
     expect(LlmCostTracker::CallRollup.find_by!(
@@ -127,7 +127,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     total = LlmCostTracker::Ledger::Period::Totals.call(%i[daily], time: event.tracked_at).fetch(:daily)
     expect(total).to eq(0.0)
 
-    LlmCostTracker.flush!
+    LlmCostTracker::Ingestion::Worker.flush!
 
     expect(LlmCostTracker::Call.find_by!(event_id: event.event_id).total_cost).to be_nil
   end
@@ -144,7 +144,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker::Call.transaction do
       LlmCostTracker::Ledger::Store.insert_many([parsed])
     end
-    LlmCostTracker.flush!
+    LlmCostTracker::Ingestion::Worker.flush!
 
     expect(LlmCostTracker::Call.where(event_id: event.event_id).count).to eq(1)
     expect(LlmCostTracker::CallRollup.find_by!(
@@ -246,7 +246,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(bad_row.attempts).to eq(LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE)
     expect(bad_row.last_error).to include("JSON")
     expect(LlmCostTracker::Call.find_by!(event_id: event.event_id)).to be_present
-    expect(LlmCostTracker.flush!(timeout: 0.01)).to be true
+    expect(LlmCostTracker::Ingestion::Worker.flush!(timeout: 0.01)).to be true
     expect(LlmCostTracker::Ingestion::InboxEntry.where(event_id: "bad-event")).to exist
 
     LlmCostTracker::Ingestion::InboxEntry.delete_all
@@ -304,7 +304,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     )
     LlmCostTracker::Ingestion::InboxEntry.update_all(locked_at: Time.now.utc, locked_by: "worker-a")
 
-    expect(LlmCostTracker.flush!(timeout: 0.01)).to be false
+    expect(LlmCostTracker::Ingestion::Worker.flush!(timeout: 0.01)).to be false
 
     LlmCostTracker::Ingestion::InboxEntry.delete_all
   end
@@ -366,7 +366,7 @@ RSpec.describe "ActiveRecord durable inbox" do
 
     thread = LlmCostTracker::Ingestion::Worker.instance_variable_get(:@thread)
     expect(thread).to be_alive
-    expect(LlmCostTracker.shutdown!).to be true
+    expect(LlmCostTracker::Ingestion::Worker.shutdown!).to be true
   end
 
   it "wakes a running ingestor thread when a new row arrives" do
@@ -423,7 +423,7 @@ RSpec.describe "ActiveRecord durable inbox" do
   end
 
   it "reports a failed durable inbox verification when flush does not persist the row" do
-    allow(LlmCostTracker).to receive(:flush!).and_return(false)
+    allow(LlmCostTracker::Ingestion::Worker).to receive(:flush!).and_return(false)
 
     checks = LlmCostTracker::Ingestion.verify
     check = checks.find { |item| item.name == "active_record capture" }
@@ -505,16 +505,6 @@ RSpec.describe "ActiveRecord durable inbox" do
     allow(LlmCostTracker::Logging).to receive(:warn)
 
     expect(LlmCostTracker::Ingestion::Worker.shutdown!(timeout: 0.01)).to be false
-  end
-
-  it "passes shutdown timeout through the public API" do
-    allow(LlmCostTracker::Ingestion::Worker).to receive(:shutdown!).and_return(true)
-    expect(LlmCostTracker::Ingestion::Worker)
-      .to receive(:shutdown!)
-      .with(timeout: 0.01, drain: true)
-      .and_return(true)
-
-    expect(LlmCostTracker.shutdown!(timeout: 0.01)).to be true
   end
 
   it "can stop the ingestor without draining durable rows" do

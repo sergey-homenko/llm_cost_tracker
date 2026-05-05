@@ -74,18 +74,6 @@ module LlmCostTracker
       Tags::Context.clear!
     end
 
-    def flush!(timeout: nil)
-      Ingestion::Worker.flush!(timeout: timeout)
-    end
-
-    def shutdown!(timeout: nil, drain: true)
-      Ingestion::Worker.shutdown!(timeout: timeout, drain: drain)
-    end
-
-    def enforce_budget!
-      Tracker.enforce_budget!
-    end
-
     def with_tags(tags = nil, **kwargs, &)
       Tags::Context.with((tags || {}).merge(kwargs), &)
     end
@@ -94,7 +82,7 @@ module LlmCostTracker
               usage_source: :manual, enforce_budget: false,
               provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
               provider_workspace_id: nil, batch: nil, pricing_mode: nil, service_charges: [])
-      enforce_budget! if enforce_budget
+      Tracker.enforce_budget! if enforce_budget
 
       Tracker.record(
         capture: UsageCapture.build(
@@ -121,7 +109,7 @@ module LlmCostTracker
                      provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
                      provider_workspace_id: nil, batch: nil, pricing_mode: nil)
       require_relative "llm_cost_tracker/capture/stream_collector"
-      enforce_budget! if enforce_budget
+      Tracker.enforce_budget! if enforce_budget
       collector = Capture::StreamCollector.new(
         provider: provider.to_s,
         model: model,
@@ -149,4 +137,4 @@ Faraday::Middleware.register_middleware(
   llm_cost_tracker: LlmCostTracker::Middleware::Faraday
 )
 
-at_exit { LlmCostTracker.shutdown!(drain: false) }
+at_exit { LlmCostTracker::Ingestion::Worker.shutdown!(drain: false) }

@@ -54,7 +54,7 @@ Normal path from an application LLM call to stored ledger data:
 5. `Ledger::Rollups.increment_many!` updates daily and monthly totals only for rows inserted by the batch.
 6. Budget reads use call rollups plus pending inbox totals.
 
-The inbox write is the durability boundary. Ledger freshness is eventually consistent unless the caller explicitly waits with `LlmCostTracker.flush!`.
+The inbox write is the durability boundary. Ledger freshness is eventually consistent unless the caller explicitly waits with `LlmCostTracker::Ingestion::Worker.flush!`.
 
 ## Dashboard Reads
 

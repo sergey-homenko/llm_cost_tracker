@@ -53,7 +53,7 @@ RSpec.describe LlmCostTracker::Report do
 
   def track_and_flush(**kwargs)
     event = LlmCostTracker.track(**kwargs)
-    LlmCostTracker.flush!
+    LlmCostTracker::Ingestion::Worker.flush!
     event
   end
 

@@ -68,7 +68,7 @@ module LlmCostTracker
           provider_response_id: response_id,
           tags: { feature: VERIFY_TAG }
         )
-        LlmCostTracker.flush!
+        LlmCostTracker::Ingestion::Worker.flush!
         persisted = LlmCostTracker::Call.where(provider_response_id: response_id).exists?
 
         return capture_success if persisted && notifications.any?

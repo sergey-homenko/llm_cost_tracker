@@ -39,6 +39,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - BREAKING: Service charges now cascade-delete with their parent call via a foreign key; fresh installs and `llm_cost_tracker:add_billing` add the constraint.
 - Stream capture no longer discards earlier events after exceeding the byte cap; usage extraction continues against the buffered prefix.
 - Negative token counts are clamped to zero before recording.
+- BREAKING: Removed `LlmCostTracker.flush!`, `LlmCostTracker.shutdown!`, and `LlmCostTracker.enforce_budget!` pass-throughs; call `LlmCostTracker::Ingestion::Worker.flush!` / `shutdown!` and `LlmCostTracker::Tracker.enforce_budget!` directly.
 
 ## [0.7.3] - 2026-05-01
 

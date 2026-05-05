@@ -47,7 +47,7 @@ Ingestion::Inbox writes inside an open caller transaction need a separate databa
 
 The ingestor is database-leased and database-polled, with an opportunistic local wake after a successful inbox insert. The wake only reduces freshness latency in the process that wrote the row; correctness still comes from the shared database lease, retryable row locks, and adaptive polling across Puma, Sidekiq, Unicorn, deploy restarts, and multi-process hosts.
 
-Freshness and durability are separate concerns. If the writing process exits before its local ingestor drains the row, another process can pick it up on a later poll. Budget reads include pending inbox totals, and operators can call `LlmCostTracker.flush!` when the ledger must be drained before continuing.
+Freshness and durability are separate concerns. If the writing process exits before its local ingestor drains the row, another process can pick it up on a later poll. Budget reads include pending inbox totals, and operators can call `LlmCostTracker::Ingestion::Worker.flush!` when the ledger must be drained before continuing.
 
 The ingestor should check for claimable rows before acquiring the leader lease. Empty queues should not create steady lease-table writes across an idle fleet.
 
@@ -57,7 +57,7 @@ needs tuning.
 
 Ingestors should claim only retryable rows. Rows that keep failing after the retry cap stay in `llm_cost_tracker_ingestion_inbox_entries` with `last_error` for operator inspection and must not block healthy rows behind them.
 
-Process shutdown should stop the local ingestor thread without forcing every exiting process to drain the shared inbox. Operators can call `LlmCostTracker.flush!` when they intentionally want to wait for the durable inbox to drain.
+Process shutdown should stop the local ingestor thread without forcing every exiting process to drain the shared inbox. Operators can call `LlmCostTracker::Ingestion::Worker.flush!` when they intentionally want to wait for the durable inbox to drain.
 
 ## Retention
 

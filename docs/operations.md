@@ -45,8 +45,8 @@ lease.
 Use these lifecycle hooks when needed:
 
 ```ruby
-LlmCostTracker.flush!(timeout: 5)
-LlmCostTracker.shutdown!(timeout: 5, drain: true)
+LlmCostTracker::Ingestion::Worker.flush!(timeout: 5)
+LlmCostTracker::Ingestion::Worker.shutdown!(timeout: 5, drain: true)
 ```
 
 The default process `at_exit` hook stops the local ingestor without forcing every
