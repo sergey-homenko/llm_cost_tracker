@@ -53,6 +53,14 @@ module LlmCostTracker
 
       private
 
+      def token_pricing_partial?(token_usage:, cost_data:)
+        return false unless cost_data
+
+        Billing::Components::TOKEN_PRICED.any? do |component|
+          token_usage.public_send(component.token_key).positive? && cost_data[component.cost_key].nil?
+        end
+      end
+
       # rubocop:disable Metrics/MethodLength
       def build_event(capture:, pricing_mode:, cost_data:, pricing_snapshot:, metadata:, latency_ms:, context_tags:)
         tags = metadata.to_h
@@ -63,10 +71,12 @@ module LlmCostTracker
           pricing_mode: pricing_mode,
           service_charges: capture.service_charges
         )
+        token_pricing_partial = token_pricing_partial?(token_usage: capture.token_usage, cost_data: cost_data)
         cost_status = Billing::CostStatus.call(
           token_usage: capture.token_usage,
           usage_source: capture.usage_source,
           token_cost: cost_data,
+          token_pricing_partial: token_pricing_partial,
           service_charges: service_charges,
           total_cost: cost&.fetch(:total_cost, nil)
         )
@@ -95,16 +105,17 @@ module LlmCostTracker
       end
       # rubocop:enable Metrics/MethodLength
 
-      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def cost_with_service_charges(cost_data, provider:, pricing_mode:, service_charges:)
         return [cost_data, service_charges] if service_charges.empty?
 
-        service_charges = service_charges.dup if service_charges.any? { |charge| charge.unpriced? && charge.billable? }
         service_total = BigDecimal("0")
+        duped = false
         service_charges.each_with_index do |charge, index|
           if charge.unpriced? && charge.billable?
             rate = Pricing.charge_rate(provider: provider, component: charge.component, pricing_mode: pricing_mode)
             if rate
+              service_charges = service_charges.dup unless duped
+              duped = true
               charge = charge.apply_rate(rate)
               service_charges[index] = charge
             end
@@ -118,7 +129,6 @@ module LlmCostTracker
         cost[:total_cost] = total_cost.round(8).to_f
         [cost, service_charges]
       end
-      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     end
   end
 end

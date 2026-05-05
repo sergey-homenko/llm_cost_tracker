@@ -13,7 +13,7 @@ module LlmCostTracker
 
       class << self
         # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-        def call(token_usage:, usage_source:, token_cost:, service_charges:, total_cost:)
+        def call(token_usage:, usage_source:, token_cost:, service_charges:, total_cost:, token_pricing_partial: false)
           return UNKNOWN if usage_source == :unknown
 
           token_billable = Components::TOKEN_PRICED.any? do |component|
@@ -32,7 +32,7 @@ module LlmCostTracker
           end
 
           priced = (token_billable && !token_cost.nil?) || service_priced || (!token_billable && !service_billable)
-          unpriced = (token_billable && token_cost.nil?) || service_unpriced
+          unpriced = (token_billable && (token_cost.nil? || token_pricing_partial)) || service_unpriced
           return UNKNOWN if unpriced && !priced
           return PARTIAL if unpriced
 

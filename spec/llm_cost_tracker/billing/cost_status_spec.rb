@@ -55,4 +55,19 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
 
     expect(status).to eq(described_class::FREE)
   end
+
+  it "marks token pricing partial when some token components were priced and others were not" do
+    billable_usage = LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 1_000)
+
+    status = described_class.call(
+      token_usage: billable_usage,
+      usage_source: :response,
+      token_cost: { input_cost: 0.01, total_cost: 0.01 },
+      token_pricing_partial: true,
+      service_charges: [],
+      total_cost: 0.01
+    )
+
+    expect(status).to eq(described_class::PARTIAL)
+  end
 end

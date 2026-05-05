@@ -86,6 +86,21 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(snapshot.dig(:rates, :input)).to eq(amount: 0.5, quantity: 1_000_000)
       expect(snapshot.dig(:rates, :output)).to eq(amount: 1.0, quantity: 1_000_000)
     end
+
+    it "omits unpriced components from the rates snapshot" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = { "partial-model" => { input: 1.0 } }
+      end
+
+      snapshot = described_class.snapshot_for(
+        provider: "custom",
+        model: "partial-model",
+        tokens: { input: 1_000, output: 500 }
+      )
+
+      expect(snapshot.dig(:rates, :input)).to eq(amount: 1.0, quantity: 1_000_000)
+      expect(snapshot.dig(:rates)).not_to have_key(:output)
+    end
   end
 
   describe ".charge_rate" do
@@ -677,7 +692,7 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:total_cost)).to eq(2.4255)
     end
 
-    it "treats extended cache writes as unknown pricing when the extended cache rate is missing" do
+    it "prices priced cache components and omits the missing extended cache rate" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "anthropic/demo-cache-ttl" => {
@@ -697,7 +712,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result).to be_nil
+      expect(result).to include(cache_write_input_cost: 0.375, total_cost: 0.375)
+      expect(result).not_to have_key(:cache_write_extended_input_cost)
     end
 
     it "treats cache writes as unknown pricing when no cache-write rate exists" do
@@ -740,7 +756,7 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:output_cost)).to eq(2.0)
     end
 
-    it "returns nil when a matched price is missing a required component" do
+    it "prices billable components when a matched price is missing a required component" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "input-only-model" => { input: 1.0 }
@@ -754,7 +770,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000_000
       )
 
-      expect(result).to be_nil
+      expect(result).to include(input_cost: 1.0, total_cost: 1.0)
+      expect(result).not_to have_key(:output_cost)
     end
 
     it "prices zero-token missing components as zero" do
@@ -843,7 +860,7 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:total_cost)).to eq(198.0)
     end
 
-    it "returns nil when a positive-token pricing mode is missing a required rate" do
+    it "prices billable components when a positive-token pricing mode is missing a required rate" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "mixed-mode-model" => {
@@ -862,7 +879,8 @@ RSpec.describe LlmCostTracker::Pricing do
         pricing_mode: :batch
       )
 
-      expect(result).to be_nil
+      expect(result).to include(input_cost: 0.5, total_cost: 0.5)
+      expect(result).not_to have_key(:output_cost)
     end
 
     it "does not price unsupported pricing modes with standard rates" do
@@ -951,7 +969,7 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.fetch(:total_cost)).to eq(0.912)
     end
 
-    it "does not use short-context rates when a crossed context tier is incomplete" do
+    it "prices the long-context input only when the long-context output rate is missing" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "incomplete-tier-model" => {
@@ -970,7 +988,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 100_000
       )
 
-      expect(result).to be_nil
+      expect(result).to include(input_cost: 0.75, total_cost: 0.75)
+      expect(result).not_to have_key(:output_cost)
     end
 
     it "loads local JSON pricing files ahead of built-in prices" do

@@ -88,11 +88,12 @@ module LlmCostTracker
 
       def cost_from(calculation)
         costs = calculation[:costs]
-        values = Billing::Components::TOKEN_PRICED.to_h do |component|
-          [component.cost_key, costs.fetch(component.key).round(8)]
+        values = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, result|
+          cost = costs[component.key]
+          result[component.cost_key] = cost.round(8) unless cost.nil?
         end
-
-        values.merge(total_cost: costs.values.sum.round(8))
+        values[:total_cost] = costs.values.compact.sum.round(8)
+        values
       end
 
       def snapshot_from(calculation)
@@ -101,10 +102,11 @@ module LlmCostTracker
         token_usage = calculation[:token_usage]
         rates = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, values|
           quantity = token_usage.public_send(component.token_key)
-          next unless quantity.positive?
+          price = effective[component.key]
+          next if quantity.zero? || price.nil?
 
           values[component.key] = {
-            amount: effective.fetch(component.key),
+            amount: price,
             quantity: RATE_DENOMINATOR_TOKENS
           }
         end
@@ -125,16 +127,16 @@ module LlmCostTracker
         return nil unless match
 
         token_usage = TokenUsage.build_from_tokens(tokens)
-        pricing_mode = normalize_mode(pricing_mode)
-        effective = EffectivePrices.call(usage: token_usage, prices: match.prices, pricing_mode: pricing_mode)
-        return nil if effective.value?(nil)
+        mode = normalize_mode(pricing_mode)
+        effective = EffectivePrices.call(usage: token_usage, prices: match.prices, pricing_mode: mode)
+        return nil unless any_billable_priced?(token_usage, effective)
 
-        {
-          match: match,
-          effective: effective,
-          token_usage: token_usage,
-          costs: costs_for(token_usage, effective)
-        }
+        { match: match, effective: effective, token_usage: token_usage, costs: costs_for(token_usage, effective) }
+      end
+
+      def any_billable_priced?(token_usage, effective)
+        billable = Billing::Components::TOKEN_PRICED.select { |c| token_usage.public_send(c.token_key).positive? }
+        billable.empty? || billable.any? { |c| effective[c.key] }
       end
 
       def costs_for(usage, effective)
