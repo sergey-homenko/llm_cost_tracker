@@ -135,7 +135,7 @@ module LlmCostTracker
       end
 
       def install_stream_tap(request_env)
-        request = request_env.try(:request)
+        request = request_env.request
         return nil unless request
 
         original = request.on_data
@@ -204,8 +204,8 @@ module LlmCostTracker
         uri = URI.parse(value.to_s)
         uri.query = nil
         uri.fragment = nil
-        uri.try(:user=, nil)
-        uri.try(:password=, nil)
+        uri.user = nil
+        uri.password = nil
         uri.to_s
       rescue URI::InvalidURIError
         value.to_s.split("?", 2).first
