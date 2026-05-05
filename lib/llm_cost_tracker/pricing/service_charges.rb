@@ -10,7 +10,6 @@ require_relative "registry"
 
 module LlmCostTracker
   module Pricing
-    # rubocop:disable Metrics/ModuleLength
     module ServiceCharges
       extend self
 
@@ -184,6 +183,5 @@ module LlmCostTracker
         nil
       end
     end
-    # rubocop:enable Metrics/ModuleLength
   end
 end

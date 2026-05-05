@@ -1,6 +1,6 @@
 AllCops:
   NewCops: enable
-  TargetRubyVersion: 3.3
+  TargetRubyVersion: 3.4
   SuggestExtensions: false
   UseCache: false
   Exclude:
@@ -39,7 +39,7 @@ Metrics/ClassLength:
     - hash
 
 Metrics/ModuleLength:
-  Max: 130
+  Max: 200
 
 Metrics/CyclomaticComplexity:
   Max: 12
