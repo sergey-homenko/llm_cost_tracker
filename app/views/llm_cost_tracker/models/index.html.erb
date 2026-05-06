@@ -3,53 +3,9 @@
     <h2 class="lct-section-title">Models</h2>
   </div>
 
-  <form class="lct-filters" action="<%= models_path %>" method="get">
-    <div class="lct-filter-row lct-filter-row-with-sort">
-      <div class="lct-field">
-        <label for="lct-models-from">From</label>
-        <input id="lct-models-from" type="date" name="from" value="<%= params[:from] %>">
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-models-to">To</label>
-        <input id="lct-models-to" type="date" name="to" value="<%= params[:to] %>">
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-models-provider">Provider</label>
-        <%= select_tag :provider,
-                       options_for_select(provider_filter_options, params[:provider]),
-                       include_blank: "All providers",
-                       id: "lct-models-provider" %>
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-models-model">Model</label>
-        <%= select_tag :model,
-                       options_for_select(model_filter_options, params[:model]),
-                       include_blank: "All models",
-                       id: "lct-models-model" %>
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-models-sort">Sort</label>
-        <%= select_tag :sort,
-                       options_for_select(
-                         [["Total spend", "cost"],
-                          ["Call volume", "calls"],
-                          ["Avg cost / call", "avg_cost"],
-                          ["Avg latency", "latency"]],
-                         @sort.presence || "cost"
-                       ),
-                       id: "lct-models-sort" %>
-      </div>
-
-      <div class="lct-filter-actions">
-        <button class="lct-button" type="submit">Apply</button>
-        <%= link_to("Reset", models_path, class: "lct-button lct-button-secondary") if any_filter_applied? %>
-      </div>
-    </div>
-  </form>
+  <%= render "llm_cost_tracker/shared/filters",
+             path: models_path,
+             fields: %i[from to provider model] %>
 
   <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: models_path %>
 </section>
@@ -64,6 +20,18 @@
   </section>
 <% else %>
   <section class="lct-panel">
+    <div class="lct-results-toolbar">
+      <%= render "llm_cost_tracker/shared/sort",
+                 current: (@sort.presence || "cost"),
+                 options: [
+                   ["Total spend", "cost"],
+                   ["Call volume", "calls"],
+                   ["Avg cost / call", "avg_cost"],
+                   ["Avg latency", "latency"]
+                 ],
+                 path_for_sort: ->(value) { models_path(current_query(sort: value)) } %>
+    </div>
+
     <div class="lct-table-wrap">
       <table class="lct-table lct-table-compact">
         <thead>

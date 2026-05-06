@@ -2,83 +2,16 @@
   <div class="lct-toolbar-head">
     <h2 class="lct-section-title">Calls</h2>
     <div class="lct-toolbar-actions">
-      <%= link_to "Export CSV", calls_path(current_query(format: :csv)), class: "lct-button lct-button-secondary" %>
+      <%= link_to "Export CSV",
+                  calls_path(current_query(format: :csv)),
+                  class: "lct-button lct-button-secondary",
+                  title: "Capped at #{number(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT)} rows per request — narrow the date range to export larger slices." %>
     </div>
   </div>
 
-  <form class="lct-filters" action="<%= calls_path %>" method="get">
-    <div class="lct-filter-row lct-filter-row-with-sort">
-      <div class="lct-field">
-        <label for="lct-from">From</label>
-        <input id="lct-from" type="date" name="from" value="<%= params[:from] %>">
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-to">To</label>
-        <input id="lct-to" type="date" name="to" value="<%= params[:to] %>">
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-provider">Provider</label>
-        <%= select_tag :provider,
-                       options_for_select(provider_filter_options, params[:provider]),
-                       include_blank: "All providers",
-                       id: "lct-provider" %>
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-model">Model</label>
-        <%= select_tag :model,
-                       options_for_select(model_filter_options, params[:model]),
-                       include_blank: "All models",
-                       id: "lct-model" %>
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-stream">Stream</label>
-        <%= select_tag :stream,
-                       options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
-                       include_blank: "All calls",
-                       id: "lct-stream" %>
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-sort">Sort</label>
-        <%= select_tag :sort,
-                       options_for_select(
-                         [["Recent first", ""],
-                          ["Most expensive", "expensive"],
-                          ["Largest input", "input"],
-                          ["Largest output", "output"],
-                          ["Slowest", "slow"],
-                          ["Unknown pricing only", "unknown_pricing"]],
-                         @sort
-                       ),
-                       id: "lct-sort" %>
-      </div>
-
-      <div class="lct-filter-actions">
-        <button class="lct-button" type="submit">Apply</button>
-        <%= link_to("Reset", calls_path, class: "lct-button lct-button-secondary") if any_filter_applied? %>
-      </div>
-    </div>
-  </form>
+  <%= render "llm_cost_tracker/shared/filters", path: calls_path %>
 
   <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: calls_path %>
-
-  <p class="lct-summary-row">
-    <span class="lct-pagination-per">
-      <span class="lct-pagination-per-label">Per page:</span>
-      <% LlmCostTracker::PaginationHelper::PER_PAGE_CHOICES.each do |choice| %>
-        <% if choice == @page.per %>
-          <span class="lct-pagination-per-option is-active" aria-current="true"><%= choice %></span>
-        <% else %>
-          <%= link_to choice, calls_path(current_query(per: choice, page: 1)), class: "lct-pagination-per-option" %>
-        <% end %>
-      <% end %>
-    </span>
-  </p>
-  <p class="lct-toolbar-note">CSV export is capped at <%= number(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT) %> rows per request — narrow the date range to export larger slices.</p>
 </section>
 
 <% if @calls_count.zero? %>
@@ -91,6 +24,31 @@
   </section>
 <% else %>
   <section class="lct-panel">
+    <div class="lct-results-toolbar">
+      <span class="lct-pagination-per">
+        <span class="lct-pagination-per-label">Per page:</span>
+        <% LlmCostTracker::PaginationHelper::PER_PAGE_CHOICES.each do |choice| %>
+          <% if choice == @page.per %>
+            <span class="lct-pagination-per-option is-active" aria-current="true"><%= choice %></span>
+          <% else %>
+            <%= link_to choice, calls_path(current_query(per: choice, page: 1)), class: "lct-pagination-per-option" %>
+          <% end %>
+        <% end %>
+      </span>
+
+      <%= render "llm_cost_tracker/shared/sort",
+                 current: @sort,
+                 options: [
+                   ["Recent", ""],
+                   ["Most expensive", "expensive"],
+                   ["Largest input", "input"],
+                   ["Largest output", "output"],
+                   ["Slowest", "slow"],
+                   ["Unknown pricing", "unknown_pricing"]
+                 ],
+                 path_for_sort: ->(value) { calls_path(current_query(sort: value.presence, page: nil)) } %>
+    </div>
+
     <div class="lct-table-wrap">
       <table class="lct-table lct-table-compact lct-calls-table">
         <thead>

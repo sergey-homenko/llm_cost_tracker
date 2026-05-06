@@ -2,7 +2,7 @@
 
 module LlmCostTracker
   module DashboardFilterHelper
-    FILTER_PARAM_KEYS = %i[from to provider model stream usage_source tag sort page per].freeze
+    FILTER_PARAM_KEYS = %i[from to provider model stream usage_source tag].freeze
 
     STREAM_FILTER_OPTIONS = [
       ["Streaming only", "yes"],

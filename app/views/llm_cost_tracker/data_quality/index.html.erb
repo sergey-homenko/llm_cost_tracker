@@ -3,48 +3,7 @@
     <h2 class="lct-section-title">Data Quality</h2>
   </div>
 
-  <form class="lct-filters" action="<%= data_quality_path %>" method="get">
-    <div class="lct-filter-row lct-filter-row-basic">
-      <div class="lct-field">
-        <label for="lct-quality-from">From</label>
-        <input id="lct-quality-from" type="date" name="from" value="<%= params[:from] %>">
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-quality-to">To</label>
-        <input id="lct-quality-to" type="date" name="to" value="<%= params[:to] %>">
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-quality-provider">Provider</label>
-        <%= select_tag :provider,
-                       options_for_select(provider_filter_options, params[:provider]),
-                       include_blank: "All providers",
-                       id: "lct-quality-provider" %>
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-quality-model">Model</label>
-        <%= select_tag :model,
-                       options_for_select(model_filter_options, params[:model]),
-                       include_blank: "All models",
-                       id: "lct-quality-model" %>
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-quality-stream">Stream</label>
-        <%= select_tag :stream,
-                       options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
-                       include_blank: "All calls",
-                       id: "lct-quality-stream" %>
-      </div>
-
-      <div class="lct-filter-actions">
-        <button class="lct-button" type="submit">Apply</button>
-        <%= link_to("Reset", data_quality_path, class: "lct-button lct-button-secondary") if any_filter_applied? %>
-      </div>
-    </div>
-  </form>
+  <%= render "llm_cost_tracker/shared/filters", path: data_quality_path %>
 
   <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: data_quality_path %>
 </section>
@@ -58,63 +17,58 @@
     </div>
   </section>
 <% else %>
-  <section class="lct-hero">
-    <article class="lct-panel lct-hero-primary">
-      <div>
-        <p class="lct-stat-label">Calls inspected</p>
-        <p class="lct-hero-value"><%= number(@summary.total) %></p>
-      </div>
+  <section class="lct-stat-grid lct-stat-grid-spaced">
+    <article class="lct-stat">
+      <p class="lct-stat-label">Calls inspected</p>
+      <p class="lct-stat-value"><%= number(@summary.total) %></p>
+      <p class="lct-stat-sub">in current slice</p>
     </article>
 
-    <div class="lct-hero-side">
-      <div class="lct-stat-grid">
-        <article class="lct-stat">
-          <p class="lct-stat-label">Unknown pricing</p>
-          <p class="lct-stat-value"><%= number(@summary.unknown_pricing_count) %></p>
-          <p class="lct-stat-sub"><%= percent(@summary.unknown_pricing_share) %> of calls</p>
-        </article>
+    <article class="lct-stat">
+      <p class="lct-stat-label">Unknown pricing</p>
+      <p class="lct-stat-value"><%= number(@summary.unknown_pricing_count) %></p>
+      <p class="lct-stat-sub"><%= percent(@summary.unknown_pricing_share) %> of calls</p>
+    </article>
 
-        <article class="lct-stat">
-          <p class="lct-stat-label">Calls without tags</p>
-          <p class="lct-stat-value"><%= number(@summary.untagged_calls_count) %></p>
-          <p class="lct-stat-sub"><%= percent(@summary.untagged_share) %> of calls</p>
-        </article>
+    <article class="lct-stat">
+      <p class="lct-stat-label">Calls without tags</p>
+      <p class="lct-stat-value"><%= number(@summary.untagged_calls_count) %></p>
+      <p class="lct-stat-sub"><%= percent(@summary.untagged_share) %> of calls</p>
+    </article>
 
-        <article class="lct-stat">
-          <p class="lct-stat-label">Missing latency</p>
-          <p class="lct-stat-value"><%= number(@summary.missing_latency_count) %></p>
-          <p class="lct-stat-sub"><%= percent(@summary.missing_latency_share) %> of calls</p>
-        </article>
+    <article class="lct-stat">
+      <p class="lct-stat-label">Missing latency</p>
+      <p class="lct-stat-value"><%= number(@summary.missing_latency_count) %></p>
+      <p class="lct-stat-sub"><%= percent(@summary.missing_latency_share) %> of calls</p>
+    </article>
 
-        <article class="lct-stat">
-          <p class="lct-stat-label">Streaming calls</p>
-          <p class="lct-stat-value"><%= number(@summary.streaming_count) %></p>
-          <p class="lct-stat-sub"><%= percent(@summary.streaming_share) %> of calls</p>
-        </article>
+    <article class="lct-stat">
+      <p class="lct-stat-label">Streaming calls</p>
+      <p class="lct-stat-value"><%= number(@summary.streaming_count) %></p>
+      <p class="lct-stat-sub"><%= percent(@summary.streaming_share) %> of calls</p>
+    </article>
 
-        <% if @summary.streaming_count.positive? %>
-          <article class="lct-stat">
-            <p class="lct-stat-label">Streams without usage</p>
-            <p class="lct-stat-value"><%= number(@summary.streaming_missing_usage) %></p>
-            <p class="lct-stat-sub"><%= percent(@summary.streaming_missing_usage_share) %> of streams</p>
-          </article>
-        <% end %>
+    <% if @summary.streaming_count.positive? %>
+      <article class="lct-stat">
+        <p class="lct-stat-label">Streams without usage</p>
+        <p class="lct-stat-value"><%= number(@summary.streaming_missing_usage) %></p>
+        <p class="lct-stat-sub"><%= percent(@summary.streaming_missing_usage_share) %> of streams</p>
+      </article>
+    <% end %>
 
-        <article class="lct-stat">
-          <p class="lct-stat-label">Calls with provider response ID</p>
-          <p class="lct-stat-value"><%= number(@summary.calls_with_provider_response_id) %></p>
-          <p class="lct-stat-sub"><%= percent(@summary.provider_response_id_coverage) %> of calls</p>
-        </article>
+    <article class="lct-stat">
+      <p class="lct-stat-label">Calls with provider response ID</p>
+      <p class="lct-stat-value"><%= number(@summary.calls_with_provider_response_id) %></p>
+      <p class="lct-stat-sub"><%= percent(@summary.provider_response_id_coverage) %> of calls</p>
+    </article>
 
-        <% if @hidden_output_summary %>
-          <article class="lct-stat">
-            <p class="lct-stat-label">Hidden output share</p>
-            <p class="lct-stat-value"><%= percent(@hidden_output_summary.fetch(:share_percent)) %></p>
-            <p class="lct-stat-sub"><%= number(@hidden_output_summary.fetch(:hidden_output_tokens)) %> of <%= number(@hidden_output_summary.fetch(:output_tokens)) %> output tokens</p>
-          </article>
-        <% end %>
-      </div>
-    </div>
+    <% if @hidden_output_summary %>
+      <article class="lct-stat">
+        <p class="lct-stat-label">Hidden output share</p>
+        <p class="lct-stat-value"><%= percent(@hidden_output_summary.fetch(:share_percent)) %></p>
+        <p class="lct-stat-sub"><%= number(@hidden_output_summary.fetch(:hidden_output_tokens)) %> of <%= number(@hidden_output_summary.fetch(:output_tokens)) %> output tokens</p>
+      </article>
+    <% end %>
   </section>
 
   <section class="lct-grid lct-two-col">

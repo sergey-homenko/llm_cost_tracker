@@ -1,0 +1,63 @@
+<%
+  fields = local_assigns.fetch(:fields, %i[from to provider model stream])
+  default_range = LlmCostTracker::Dashboard::DateRange.call(params: params)
+  defaults = {
+    from: default_range.from.iso8601,
+    to: default_range.to.iso8601
+  }.merge(local_assigns.fetch(:defaults, {}))
+  reset_path = local_assigns.fetch(:reset_path, path)
+  filter_scope = local_assigns.fetch(:filter_scope, params)
+%>
+
+<form class="lct-filters" action="<%= path %>" method="get">
+  <div class="lct-filter-row">
+    <% if fields.include?(:from) %>
+      <div class="lct-field">
+        <label for="lct-filter-from">From</label>
+        <input id="lct-filter-from" type="date" name="from" value="<%= params[:from] || defaults[:from] %>">
+      </div>
+    <% end %>
+
+    <% if fields.include?(:to) %>
+      <div class="lct-field">
+        <label for="lct-filter-to">To</label>
+        <input id="lct-filter-to" type="date" name="to" value="<%= params[:to] || defaults[:to] %>">
+      </div>
+    <% end %>
+
+    <% if fields.include?(:provider) %>
+      <div class="lct-field">
+        <label for="lct-filter-provider">Provider</label>
+        <%= select_tag :provider,
+                       options_for_select(provider_filter_options(filter_params: filter_scope), params[:provider]),
+                       include_blank: "All providers",
+                       id: "lct-filter-provider" %>
+      </div>
+    <% end %>
+
+    <% if fields.include?(:model) %>
+      <div class="lct-field">
+        <label for="lct-filter-model">Model</label>
+        <%= select_tag :model,
+                       options_for_select(model_filter_options(filter_params: filter_scope), params[:model]),
+                       include_blank: "All models",
+                       id: "lct-filter-model" %>
+      </div>
+    <% end %>
+
+    <% if fields.include?(:stream) %>
+      <div class="lct-field">
+        <label for="lct-filter-stream">Stream</label>
+        <%= select_tag :stream,
+                       options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
+                       include_blank: "All calls",
+                       id: "lct-filter-stream" %>
+      </div>
+    <% end %>
+
+    <div class="lct-filter-actions">
+      <button class="lct-button" type="submit">Apply</button>
+      <%= link_to("Reset", reset_path, class: "lct-button lct-button-secondary") if any_filter_applied? %>
+    </div>
+  </div>
+</form>

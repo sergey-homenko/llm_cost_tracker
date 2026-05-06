@@ -1,48 +1,10 @@
 <% overview_filter_scope = current_query(from: @from_date.iso8601, to: @to_date.iso8601) %>
 
 <section class="lct-panel lct-toolbar">
-  <form class="lct-filters" action="<%= root_path %>" method="get">
-    <div class="lct-filter-row lct-filter-row-basic">
-      <div class="lct-field">
-        <label for="lct-overview-from">From</label>
-        <input id="lct-overview-from" type="date" name="from" value="<%= params[:from] || @from_date.iso8601 %>">
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-overview-to">To</label>
-        <input id="lct-overview-to" type="date" name="to" value="<%= params[:to] || @to_date.iso8601 %>">
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-overview-provider">Provider</label>
-        <%= select_tag :provider,
-                       options_for_select(provider_filter_options(filter_params: overview_filter_scope), params[:provider]),
-                       include_blank: "All providers",
-                       id: "lct-overview-provider" %>
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-overview-model">Model</label>
-        <%= select_tag :model,
-                       options_for_select(model_filter_options(filter_params: overview_filter_scope), params[:model]),
-                       include_blank: "All models",
-                       id: "lct-overview-model" %>
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-overview-stream">Stream</label>
-        <%= select_tag :stream,
-                       options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, params[:stream]),
-                       include_blank: "All calls",
-                       id: "lct-overview-stream" %>
-      </div>
-
-      <div class="lct-filter-actions">
-        <button class="lct-button" type="submit">Apply</button>
-        <%= link_to("Reset", root_path, class: "lct-button lct-button-secondary") if any_filter_applied? %>
-      </div>
-    </div>
-  </form>
+  <%= render "llm_cost_tracker/shared/filters",
+             path: root_path,
+             filter_scope: overview_filter_scope,
+             defaults: { from: @from_date.iso8601, to: @to_date.iso8601 } %>
 
   <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: root_path %>
 </section>

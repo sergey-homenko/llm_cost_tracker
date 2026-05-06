@@ -129,11 +129,11 @@ RSpec.describe "LlmCostTracker::Engine overview" do
 
     response = get("/llm-costs?provider=openai")
     provider_select = response.body
-                              .match(%r{<select name="provider" id="lct-overview-provider">(.*?)</select>}m)
+                              .match(%r{<select name="provider" id="lct-filter-provider">(.*?)</select>}m)
                               &.captures
                               &.first
     model_select = response.body
-                           .match(%r{<select name="model" id="lct-overview-model">(.*?)</select>}m)
+                           .match(%r{<select name="model" id="lct-filter-model">(.*?)</select>}m)
                            &.captures
                            &.first
 
@@ -151,7 +151,7 @@ RSpec.describe "LlmCostTracker::Engine overview" do
 
     response = get("/llm-costs?model=model-104")
     model_select = response.body
-                           .match(%r{<select name="model" id="lct-overview-model">(.*?)</select>}m)
+                           .match(%r{<select name="model" id="lct-filter-model">(.*?)</select>}m)
                            &.captures
                            &.first
 

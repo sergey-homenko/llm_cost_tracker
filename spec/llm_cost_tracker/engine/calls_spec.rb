@@ -105,11 +105,11 @@ RSpec.describe "LlmCostTracker::Engine calls" do
 
     response = get("/llm-costs/calls?provider=openai")
     provider_select = response.body
-                              .match(%r{<select name="provider" id="lct-provider">(.*?)</select>}m)
+                              .match(%r{<select name="provider" id="lct-filter-provider">(.*?)</select>}m)
                               &.captures
                               &.first
     model_select = response.body
-                           .match(%r{<select name="model" id="lct-model">(.*?)</select>}m)
+                           .match(%r{<select name="model" id="lct-filter-model">(.*?)</select>}m)
                            &.captures
                            &.first
 
