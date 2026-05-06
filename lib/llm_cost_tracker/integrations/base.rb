@@ -4,6 +4,9 @@ require "active_support/core_ext/hash/indifferent_access"
 require "active_support/core_ext/string/inflections"
 
 require_relative "../logging"
+require_relative "../timing"
+require_relative "../capture/stream_collector"
+require_relative "../capture/stream_tracker"
 
 module LlmCostTracker
   module Integrations
@@ -38,7 +41,7 @@ module LlmCostTracker
       end
 
       def elapsed_ms(started_at)
-        ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round
+        Timing.elapsed_ms(started_at)
       end
 
       def enforce_budget!
@@ -56,6 +59,24 @@ module LlmCostTracker
       def request_params(args, kwargs)
         params = args.first.is_a?(Hash) ? args.first : {}
         params.merge(kwargs).with_indifferent_access
+      end
+
+      def track_stream(stream, collector:)
+        return stream unless active?
+
+        LlmCostTracker::Capture::StreamTracker.new(
+          stream: stream,
+          collector: collector,
+          active: -> { active? },
+          finish: ->(errored:) { record_safely { collector.finish!(errored: errored) } }
+        ).wrap
+      end
+
+      def stream_collector(request)
+        LlmCostTracker::Capture::StreamCollector.new(
+          provider: integration_name.to_s,
+          model: request[:model]
+        )
       end
 
       def object_value(object, *keys)

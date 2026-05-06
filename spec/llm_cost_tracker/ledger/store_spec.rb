@@ -205,16 +205,16 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "reports adapter-specific pricing_snapshot column type errors" do
     [
-      ["PostgreSQL", double(type: :json, sql_type: "json"), "pricing_snapshot column must use jsonb"],
-      ["Mysql2", double(type: :text, sql_type: "text"), "pricing_snapshot column must use json"]
-    ].each do |adapter_name, column, message|
+      ["PostgreSQL", double(type: :json, sql_type: "json"), /pricing_snapshot column must use jsonb/],
+      ["Mysql2", double(type: :text, sql_type: "text"), /pricing_snapshot column must use json/]
+    ].each do |adapter_name, column, pattern|
       capabilities = LlmCostTracker::Ledger::Schema::Calls.send(
         :build_schema_capabilities,
         { "pricing_snapshot" => column },
         adapter_name
       )
 
-      expect(capabilities.fetch(:current_schema_errors)).to include(message)
+      expect(capabilities.fetch(:current_schema_errors).join).to match(pattern)
     end
   end
 

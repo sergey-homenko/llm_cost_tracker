@@ -134,7 +134,7 @@ module LlmCostTracker
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
           integration.enforce_budget!
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           integration.record_completion(
             self,
@@ -150,7 +150,7 @@ module LlmCostTracker
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
           integration.enforce_budget!
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           integration.record_embedding(
             self,
@@ -165,7 +165,7 @@ module LlmCostTracker
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
           integration.enforce_budget!
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           integration.record_transcription(
             self,

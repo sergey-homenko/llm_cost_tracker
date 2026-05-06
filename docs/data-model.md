@@ -40,7 +40,7 @@ Header row. One per tracked call (or completed stream).
 | `total_cost` | decimal(20,8) | Total known cost; `nil` when pricing is unknown |
 | `latency_ms` | integer | Request latency when captured |
 | `stream` | boolean, default `false` | Streamed response |
-| `usage_source` | string | `response`, `stream_final`, `manual`, `unknown` |
+| `usage_source` | string | `response` (Faraday parser), `sdk_response` (SDK integration), `stream_final`, `manual`, `unknown` |
 | `provider_response_id` | string | Stable provider response id |
 | `provider_project_id` | string | Provider project/account dimension |
 | `provider_api_key_id` | string | Provider API key dimension |

@@ -6,16 +6,22 @@ require_relative "../ledger"
 
 module LlmCostTracker
   class Doctor
-    class CallTagsCheck
+    class SchemaCheck
+      def initialize(name:, schema:, table:)
+        @name = name
+        @schema = schema
+        @table = table
+      end
+
       def call
         return unless Probe.table_exists?("llm_cost_tracker_calls")
 
-        errors = LlmCostTracker::Ledger::Schema::CallTags.current_schema_errors
-        return Check.new(:ok, "call tags", "llm_cost_tracker_call_tags exists") if errors.empty?
+        errors = @schema.current_schema_errors
+        return Check.new(:ok, @name, "#{@table} exists") if errors.empty?
 
         Check.new(
           :error,
-          "call tags",
+          @name,
           "current schema required; #{errors.join('; ')}; " \
           "run bin/rails generate llm_cost_tracker:install && bin/rails db:migrate"
         )

@@ -37,12 +37,7 @@ module LlmCostTracker
 
           def metadata_type_errors(connection)
             metadata = LlmCostTracker::ProviderInvoice.columns_hash["metadata"]
-            return [] unless metadata
-
-            expected = Adapter.postgresql?(connection) ? "jsonb" : "json"
-            return [] if metadata.sql_type.to_s.start_with?(expected)
-
-            ["metadata column must be #{expected} (got #{metadata.sql_type})"]
+            Adapter.json_column_errors(metadata, connection, "metadata")
           end
 
           def index_errors(connection, table_name)

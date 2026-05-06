@@ -5,6 +5,7 @@ require "active_support/core_ext/object/deep_dup"
 require "json"
 
 require_relative "stream"
+require_relative "../timing"
 
 module LlmCostTracker
   module Capture
@@ -29,7 +30,7 @@ module LlmCostTracker
         @captured_bytes = 0
         @overflowed = false
         @explicit_usage = nil
-        @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        @started_at = LlmCostTracker::Timing.now_monotonic
         @finished = false
         @mutex = Mutex.new
       end
@@ -112,8 +113,7 @@ module LlmCostTracker
 
         Tracker.record(
           capture: capture,
-          latency_ms: snapshot[:latency_ms] ||
-            ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at) * 1000).round,
+          latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
           pricing_mode: snapshot[:pricing_mode],
           metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
           context_tags: snapshot[:context_tags]

@@ -7,9 +7,8 @@ require_relative "doctor/ingestion_check"
 require_relative "doctor/legacy_audit_check"
 require_relative "doctor/legacy_billing_status_check"
 require_relative "doctor/price_check"
-require_relative "doctor/call_line_items_check"
-require_relative "doctor/call_tags_check"
-require_relative "doctor/provider_invoices_check"
+require_relative "doctor/schema_check"
+require_relative "doctor/cost_drift_check"
 
 module LlmCostTracker
   class Doctor
@@ -37,9 +36,13 @@ module LlmCostTracker
         active_record_check,
         table_check,
         column_check,
-        CallLineItemsCheck.new.call,
-        CallTagsCheck.new.call,
-        ProviderInvoicesCheck.new.call,
+        SchemaCheck.new(name: "call line items", schema: Ledger::Schema::CallLineItems,
+                        table: "llm_cost_tracker_call_line_items").call,
+        SchemaCheck.new(name: "call tags", schema: Ledger::Schema::CallTags,
+                        table: "llm_cost_tracker_call_tags").call,
+        SchemaCheck.new(name: "provider invoices", schema: Ledger::Schema::ProviderInvoices,
+                        table: "llm_cost_tracker_provider_invoices").call,
+        CostDriftCheck.new.call,
         LegacyBillingStatusCheck.new.call,
         LegacyAuditCheck.new.call,
         call_rollups_check,

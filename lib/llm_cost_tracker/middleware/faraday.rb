@@ -6,6 +6,7 @@ require "uri"
 
 require_relative "../logging"
 require_relative "../capture/stream"
+require_relative "../timing"
 
 module LlmCostTracker
   module Middleware
@@ -26,7 +27,7 @@ module LlmCostTracker
 
         Tracker.enforce_budget! if parser
         context_tags, metadata = tag_snapshot(request_env) if parser
-        started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        started_at = LlmCostTracker::Timing.now_monotonic
 
         @app.call(request_env).on_complete do |response_env|
           process(
@@ -34,7 +35,7 @@ module LlmCostTracker
             request_url: request_url,
             request_body: request_body,
             response_env: response_env,
-            latency_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round,
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
             streaming: streaming,
             stream_buffer: stream_buffer,
             context_tags: context_tags,

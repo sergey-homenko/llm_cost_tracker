@@ -2,8 +2,7 @@
 
 require_relative "base"
 require_relative "../billing/line_item"
-require_relative "../capture/stream_collector"
-require_relative "../capture/stream_tracker"
+require_relative "../parsers/openai_service_charges"
 
 module LlmCostTracker
   module Integrations
@@ -65,11 +64,7 @@ module LlmCostTracker
           end
         end
 
-        RESPONSE_OUTPUT_COMPONENTS = {
-          "web_search_call" => :web_search_request,
-          "file_search_call" => :file_search_call,
-          "code_interpreter_call" => :container_session
-        }.freeze
+        RESPONSE_OUTPUT_COMPONENTS = LlmCostTracker::Parsers::OpenaiServiceCharges::RESPONSE_OUTPUT_COMPONENTS
 
         def service_line_items_from(response)
           output = object_value(response, :output)
@@ -183,34 +178,12 @@ module LlmCostTracker
         def regular_output_tokens(output_tokens, audio_output)
           [output_tokens.to_i - audio_output, 0].max
         end
-
-        def track_stream(stream, collector:)
-          return stream unless active?
-
-          LlmCostTracker::Capture::StreamTracker.new(
-            stream: stream,
-            collector: collector,
-            active: -> { active? },
-            finish: ->(errored:) { finish_stream(collector, errored: errored) }
-          ).wrap
-        end
-
-        def stream_collector(request)
-          LlmCostTracker::Capture::StreamCollector.new(
-            provider: "openai",
-            model: request[:model]
-          )
-        end
-
-        def finish_stream(collector, errored:)
-          record_safely { collector.finish!(errored: errored) }
-        end
       end
 
       module ResponsesPatch
         def create(*args, **kwargs)
           LlmCostTracker::Integrations::Openai.enforce_budget!
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           LlmCostTracker::Integrations::Openai.record_response(
             response,
@@ -249,7 +222,7 @@ module LlmCostTracker
       module ChatCompletionsPatch
         def create(*args, **kwargs)
           LlmCostTracker::Integrations::Openai.enforce_budget!
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           LlmCostTracker::Integrations::Openai.record_response(
             response,

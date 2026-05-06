@@ -46,12 +46,12 @@ RSpec.describe LlmCostTracker::Ledger::Schema::ProviderInvoices do
 
     it "rejects metadata columns of the wrong adapter type" do
       metadata_column = LlmCostTracker::ProviderInvoice.columns_hash["metadata"]
-      double = instance_double(metadata_column.class, sql_type: "varchar(255)")
+      double = instance_double(metadata_column.class, sql_type: "varchar(255)", type: :string)
       allow(LlmCostTracker::ProviderInvoice).to receive(:columns_hash)
         .and_return("metadata" => double)
 
       expect(described_class.current_schema_errors)
-        .to include(match(/metadata column must be (jsonb|json) \(got varchar/))
+        .to include(match(/metadata column must use (jsonb|json) \(got varchar/))
     end
   end
 end

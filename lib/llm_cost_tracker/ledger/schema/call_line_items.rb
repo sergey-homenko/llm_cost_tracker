@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "adapter"
+
 module LlmCostTracker
   module Ledger
     module Schema
@@ -30,7 +32,7 @@ module LlmCostTracker
         class << self
           def current_schema_errors
             connection = LlmCostTracker::Call.connection
-            Ledger::Schema::Adapter.ensure_supported!(connection)
+            Adapter.ensure_supported!(connection)
             table_name = LlmCostTracker::CallLineItem.table_name
             return ["#{table_name} table is missing"] unless connection.data_source_exists?(table_name)
 
@@ -38,26 +40,8 @@ module LlmCostTracker
             errors = []
             missing = REQUIRED_COLUMNS - columns.keys
             errors << "missing columns: #{missing.join(', ')}" if missing.any?
-            errors.concat(json_column_errors(columns, connection))
+            errors.concat(Adapter.json_column_errors(columns["details"], connection, "details"))
             errors
-          end
-
-          private
-
-          def json_column_errors(columns, connection)
-            column = columns["details"]
-            return [] unless column
-
-            postgresql = Ledger::Schema::Adapter.postgresql?(connection)
-            expected_type = postgresql ? "jsonb" : "json"
-            valid_type =
-              if postgresql
-                column.type == :jsonb || column.sql_type.to_s.downcase == "jsonb"
-              else
-                column.type == :json
-              end
-
-            valid_type ? [] : ["details column must use #{expected_type}"]
           end
         end
       end

@@ -82,9 +82,13 @@ RSpec.describe LlmCostTracker::Doctor do
     expect(described_class::IngestionCheck.new.call).to be_nil
     expect(described_class::LegacyAuditCheck.new.call).to be_nil
     expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil
-    expect(described_class::CallLineItemsCheck.new.call).to be_nil
-    expect(described_class::CallTagsCheck.new.call).to be_nil
-    expect(described_class::ProviderInvoicesCheck.new.call).to be_nil
+    expect(
+      described_class::SchemaCheck.new(
+        name: "call line items",
+        schema: LlmCostTracker::Ledger::Schema::CallLineItems,
+        table: "llm_cost_tracker_call_line_items"
+      ).call
+    ).to be_nil
   end
 
   context "with ActiveRecord storage" do

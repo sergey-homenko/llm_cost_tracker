@@ -75,25 +75,8 @@ module LlmCostTracker
             errors = []
             missing = missing_columns_for(columns)
             errors << "missing columns: #{missing.join(', ')}" if missing.any?
-            errors.concat(json_column_errors(columns, adapter_name, "pricing_snapshot"))
+            errors.concat(Adapter.json_column_errors(columns["pricing_snapshot"], adapter_name, "pricing_snapshot"))
             errors
-          end
-
-          def json_column_errors(columns, adapter_name, name)
-            column = columns[name]
-            return [] unless column
-
-            expected_type = Ledger::Schema::Adapter.postgresql?(adapter_name) ? "jsonb" : "json"
-            valid_type = json_column_type?(column, adapter_name)
-            valid_type ? [] : ["#{name} column must use #{expected_type}"]
-          end
-
-          def json_column_type?(column, adapter_name)
-            if Ledger::Schema::Adapter.postgresql?(adapter_name)
-              column.type == :jsonb || column.sql_type.to_s.downcase == "jsonb"
-            else
-              column.type == :json
-            end
           end
 
           def missing_columns_for(columns)

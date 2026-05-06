@@ -2,8 +2,6 @@
 
 require_relative "base"
 require_relative "../billing/line_item"
-require_relative "../capture/stream_collector"
-require_relative "../capture/stream_tracker"
 
 module LlmCostTracker
   module Integrations
@@ -127,34 +125,12 @@ module LlmCostTracker
             object_value(message, :inference_geo) ||
             request[:inference_geo]
         end
-
-        def track_stream(stream, collector:)
-          return stream unless active?
-
-          LlmCostTracker::Capture::StreamTracker.new(
-            stream: stream,
-            collector: collector,
-            active: -> { active? },
-            finish: ->(errored:) { finish_stream(collector, errored: errored) }
-          ).wrap
-        end
-
-        def stream_collector(request)
-          LlmCostTracker::Capture::StreamCollector.new(
-            provider: "anthropic",
-            model: request[:model]
-          )
-        end
-
-        def finish_stream(collector, errored:)
-          record_safely { collector.finish!(errored: errored) }
-        end
       end
 
       module MessagesPatch
         def create(*args, **kwargs)
           LlmCostTracker::Integrations::Anthropic.enforce_budget!
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          started_at = LlmCostTracker::Timing.now_monotonic
           message = super
           LlmCostTracker::Integrations::Anthropic.record_message(
             message,

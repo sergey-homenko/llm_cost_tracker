@@ -32,6 +32,23 @@ module LlmCostTracker
             raise Error, "Unsupported database adapter: #{adapter_name(value)}. Use PostgreSQL or MySQL."
           end
 
+          def json_column_errors(column, adapter_value, column_name)
+            return [] unless column
+
+            expected_type = postgresql?(adapter_value) ? "jsonb" : "json"
+            return [] if json_column_type?(column, adapter_value)
+
+            ["#{column_name} column must use #{expected_type} (got #{column.sql_type})"]
+          end
+
+          def json_column_type?(column, adapter_value)
+            if postgresql?(adapter_value)
+              column.type == :jsonb || column.sql_type.to_s.downcase == "jsonb"
+            else
+              column.type == :json
+            end
+          end
+
           private
 
           def adapter_instance?(value, class_names)
