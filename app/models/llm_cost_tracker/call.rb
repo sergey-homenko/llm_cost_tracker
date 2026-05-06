@@ -78,10 +78,15 @@ module LlmCostTracker
 
       def cost_by_tag(key, limit: nil)
         label = Ledger::Tags::Sql.label_sql(connection)
+        raw_value = Ledger::Tags::Sql.raw_value_sql(connection)
         relation = Ledger::Tags::Sql.join_relation(self, key)
                                     .select("#{label} AS name", "COALESCE(SUM(total_cost), 0) AS total_cost")
                                     .group(Arel.sql(label))
-                                    .order(Arel.sql("COALESCE(SUM(total_cost), 0) DESC"), Arel.sql("#{label} DESC"))
+                                    .order(
+                                      Arel.sql("COALESCE(SUM(total_cost), 0) DESC"),
+                                      Arel.sql("MAX(CASE WHEN #{raw_value} IS NULL THEN 1 ELSE 0 END) ASC"),
+                                      Arel.sql("#{label} DESC")
+                                    )
         relation = relation.limit(limit) if limit
         relation
       end

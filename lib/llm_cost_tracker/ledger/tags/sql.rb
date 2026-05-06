@@ -23,8 +23,11 @@ module LlmCostTracker
           end
 
           def label_sql(connection)
-            value_column = "#{call_tag_table}.#{connection.quote_column_name('value')}"
-            "COALESCE(NULLIF(#{value_column}, ''), #{connection.quote(UNTAGGED_LABEL)})"
+            "COALESCE(NULLIF(#{raw_value_sql(connection)}, ''), #{connection.quote(UNTAGGED_LABEL)})"
+          end
+
+          def raw_value_sql(connection)
+            "#{call_tag_table}.#{connection.quote_column_name('value')}"
           end
 
           private
