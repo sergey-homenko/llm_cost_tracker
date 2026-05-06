@@ -319,7 +319,7 @@ class Git
 
   def self.capture(*, allow_failure: false)
     stdout, stderr, status = Open3.capture3("git", *)
-    return stdout if status.success?
+    return stdout.force_encoding(Encoding::UTF_8) if status.success?
     return "" if allow_failure
 
     abort stderr
