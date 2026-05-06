@@ -22,6 +22,8 @@ require "llm_cost_tracker"
 require "llm_cost_tracker/ledger"
 require_relative "../app/models/llm_cost_tracker/call"
 require_relative "../app/models/llm_cost_tracker/service_charge"
+require_relative "../app/models/llm_cost_tracker/call_line_item"
+require_relative "../app/models/llm_cost_tracker/call_tag"
 require_relative "../app/models/llm_cost_tracker/call_rollup"
 require_relative "../app/models/llm_cost_tracker/ingestion/inbox_entry"
 require_relative "../app/models/llm_cost_tracker/ingestion/lease"
@@ -61,6 +63,8 @@ def reset_models!
   [
     LlmCostTracker::Call,
     LlmCostTracker::ServiceCharge,
+    LlmCostTracker::CallLineItem,
+    LlmCostTracker::CallTag,
     LlmCostTracker::Ingestion::InboxEntry,
     LlmCostTracker::Ingestion::Lease,
     LlmCostTracker::CallRollup
@@ -72,6 +76,8 @@ def create_schema!
   ActiveRecord::Schema.define do
     create_calls_table!(connection)
     create_service_charges_table!(connection)
+    create_call_line_items_table!(connection)
+    create_call_tags_table!
     create_call_rollups_table!
     create_ingestion_inbox_entries_table!
     create_ingestion_leases_table!
@@ -168,6 +174,58 @@ def create_service_charges_table!(database_connection)
   end
 end
 
+def create_call_line_items_table!(database_connection)
+  create_table :llm_cost_tracker_call_line_items, force: true do |t|
+    add_call_line_item_columns(t)
+    add_call_line_item_pricing_columns(t)
+    add_call_line_item_details_column(t, database_connection)
+    t.datetime :created_at, null: false
+  end
+end
+
+def add_call_line_item_columns(table)
+  table.references :llm_cost_tracker_call, null: false, index: false
+  table.integer :position, null: false, default: 0, limit: 2
+  table.string :kind, null: false
+  table.string :direction, null: false
+  table.string :modality, null: false
+  table.string :cache_state, null: false, default: "none"
+  table.decimal :quantity, precision: 30, scale: 10, null: false
+  table.string :unit, null: false
+end
+
+def add_call_line_item_pricing_columns(table)
+  table.decimal :rate_amount, precision: 20, scale: 8
+  table.decimal :rate_quantity, precision: 30, scale: 10, null: false, default: 1
+  table.decimal :cost, precision: 20, scale: 8
+  table.string :currency, null: false, default: "USD"
+  table.string :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
+  table.string :pricing_basis
+  table.string :price_key
+  table.string :price_source
+  table.string :price_source_version
+  table.string :provider_field
+  table.string :provider_item_id
+end
+
+def add_call_line_item_details_column(table, database_connection)
+  if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
+    table.jsonb :details, null: false, default: {}
+  elsif LlmCostTracker::Ledger::Schema::Adapter.mysql?(database_connection)
+    table.json :details, null: false
+  else
+    LlmCostTracker::Ledger::Schema::Adapter.ensure_supported!(database_connection)
+  end
+end
+
+def create_call_tags_table!
+  create_table :llm_cost_tracker_call_tags, force: true do |t|
+    t.references :llm_cost_tracker_call, null: false, index: false
+    t.string :key, null: false
+    t.string :value, null: false
+  end
+end
+
 def create_call_rollups_table!
   create_table :llm_cost_tracker_call_rollups, force: true do |t|
     t.string :period, null: false
@@ -213,6 +271,10 @@ def add_schema_indexes!(database_connection)
   add_index :llm_cost_tracker_service_charges, :llm_cost_tracker_call_id
   add_index :llm_cost_tracker_service_charges, :charge_id, unique: true
   add_index :llm_cost_tracker_service_charges, :component
+  add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
+  add_index :llm_cost_tracker_call_line_items, :kind
+  add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
+  add_index :llm_cost_tracker_call_tags, %i[key value]
   add_index :llm_cost_tracker_call_rollups, %i[period period_start], unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
