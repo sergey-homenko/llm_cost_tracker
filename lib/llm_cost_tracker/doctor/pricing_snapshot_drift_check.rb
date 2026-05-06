@@ -42,7 +42,7 @@ module LlmCostTracker
           :warn,
           "pricing snapshot drift",
           "line item cost diverges from pricing_snapshot rate in #{drifted.size} cases across " \
-          "#{sampled_ids.size} sampled calls: #{drifted.first(5).join('; ')}#{'; …' if drifted.size > 5}"
+          "#{sampled_ids.size} sampled calls: #{drifted.first(5).join('; ')}#{'; ...' if drifted.size > 5}"
         )
       end
 

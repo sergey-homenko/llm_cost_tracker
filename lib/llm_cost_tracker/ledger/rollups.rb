@@ -8,6 +8,8 @@ require_relative "rollups/upsert_sql"
 module LlmCostTracker
   module Ledger
     class Rollups
+      DEFAULT_CURRENCY = "USD"
+
       class << self
         def increment!(event)
           return unless event.total_cost
@@ -32,20 +34,23 @@ module LlmCostTracker
         private
 
         def period_rows(event)
+          currency = currency_for(event)
           Period::PERIODS.map do |period, name|
             {
               period: name,
               period_start: Period.bucket(period, event.tracked_at),
+              currency: currency,
               total_cost: event.total_cost
             }
           end
         end
 
         def period_rows_for_events(events)
-          call_rollups(events).map do |(period, period_start), total_cost|
+          call_rollups(events).map do |(period, period_start, currency), total_cost|
             {
               period: period,
               period_start: period_start,
+              currency: currency,
               total_cost: total_cost
             }
           end
@@ -53,8 +58,9 @@ module LlmCostTracker
 
         def call_rollups(events)
           events.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |event, totals|
+            currency = currency_for(event)
             Period::PERIODS.each do |period, name|
-              totals[[name, Period.bucket(period, event.tracked_at)]] += BigDecimal(event.total_cost.to_s)
+              totals[[name, Period.bucket(period, event.tracked_at), currency]] += BigDecimal(event.total_cost.to_s)
             end
           end
         end
@@ -65,26 +71,27 @@ module LlmCostTracker
             next unless total_cost
 
             Period::PERIODS.each_key do |period|
-              totals[[period, Period.bucket(period, tracked_at)]] += total_cost
+              totals[[period, Period.bucket(period, tracked_at), DEFAULT_CURRENCY]] += total_cost
             end
           end
         end
 
         def apply_decrements(totals)
           now = Time.now.utc
-          buckets_by_period = totals.each_with_object({}) do |((period, period_start), amount), grouped|
-            grouped[period] ||= {}
-            grouped[period][period_start] = amount
+          buckets_by_period = totals.each_with_object({}) do |((period, period_start, currency), amount), grouped|
+            grouped[[period, currency]] ||= {}
+            grouped[[period, currency]][period_start] = amount
           end
 
           conn = LlmCostTracker::CallRollup.connection
           table = LlmCostTracker::CallRollup.quoted_table_name
           period_col = conn.quote_column_name("period")
           start_col = conn.quote_column_name("period_start")
+          currency_col = conn.quote_column_name("currency")
           total_col = conn.quote_column_name("total_cost")
           updated_col = conn.quote_column_name("updated_at")
 
-          buckets_by_period.each do |period, by_start|
+          buckets_by_period.each do |(period, currency), by_start|
             case_clauses = by_start.map do |period_start, amount|
               "WHEN #{start_col} = #{conn.quote(period_start)} THEN #{conn.quote(amount)}"
             end.join(" ")
@@ -95,9 +102,15 @@ module LlmCostTracker
               "SET #{total_col} = GREATEST(0, #{total_col} - CASE #{case_clauses} ELSE 0 END), " \
               "#{updated_col} = #{conn.quote(now)} " \
               "WHERE #{period_col} = #{conn.quote(Period::PERIODS.fetch(period))} " \
+              "AND #{currency_col} = #{conn.quote(currency)} " \
               "AND #{start_col} IN (#{starts})"
             )
           end
+        end
+
+        def currency_for(event)
+          snapshot = event.respond_to?(:pricing_snapshot) ? event.pricing_snapshot : nil
+          (snapshot.is_a?(Hash) && (snapshot["currency"] || snapshot[:currency])) || DEFAULT_CURRENCY
         end
 
         def upsert_call_rollups(rows)
@@ -112,7 +125,7 @@ module LlmCostTracker
         def call_rollups_unique_by
           return unless LlmCostTracker::CallRollup.connection.supports_insert_conflict_target?
 
-          %i[period period_start]
+          %i[period period_start currency]
         end
       end
     end

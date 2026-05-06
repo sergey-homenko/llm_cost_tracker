@@ -46,7 +46,7 @@ module LlmCostTracker
           :warn,
           "cost drift",
           "header total_cost diverges from line items in #{drifted.size}/#{sampled.size} sampled calls: " \
-          "#{drifted.first(5).join('; ')}#{'; …' if drifted.size > 5}"
+          "#{drifted.first(5).join('; ')}#{'; ...' if drifted.size > 5}"
         )
       end
     end
