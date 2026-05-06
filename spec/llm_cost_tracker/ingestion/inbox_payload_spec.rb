@@ -36,14 +36,13 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
           input: { amount: 2.5, quantity: 1_000_000 }
         }
       },
-      service_charges: [
-        LlmCostTracker::Billing::ServiceCharge.build(
-          component: :web_search_request,
+      line_items: [
+        LlmCostTracker::Billing::LineItem.build(
+          component_key: :web_search_request,
           quantity: 1,
           cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
         )
-      ],
-      line_items: []
+      ]
     )
   end
 
@@ -69,7 +68,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.provider_api_key_id).to eq("key_payload_1")
     expect(restored.provider_workspace_id).to eq("workspace_payload_1")
     expect(restored.batch).to eq(true)
-    expect(restored.service_charges.first.component).to eq(:web_search_request)
+    expect(restored.line_items.first.kind).to eq(:web_search_request)
   end
 
   it "rejects payloads from older schema versions" do

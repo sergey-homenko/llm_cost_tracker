@@ -231,13 +231,12 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         }.to_json
       )
 
-      expect(result.service_charges.size).to eq(1)
-      expect(result.service_charges.first.component).to eq(:grounding_request)
-      expect(result.service_charges.first.quantity).to eq(2)
-      expect(result.service_charges.first.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
-      expect(result.service_charges.first.pricing_basis).to eq(
-        LlmCostTracker::Billing::ServiceCharge::PROVIDER_USAGE_BASIS
-      )
+      service_lines = result.line_items.reject { |item| item.unit == :token }
+      expect(service_lines.size).to eq(1)
+      expect(service_lines.first.kind).to eq(:grounding_request)
+      expect(service_lines.first.quantity).to eq(2)
+      expect(service_lines.first.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+      expect(service_lines.first.pricing_basis).to eq(:provider_usage)
     end
   end
 
@@ -369,9 +368,10 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         events: events
       )
 
-      expect(result.service_charges.size).to eq(1)
-      expect(result.service_charges.first.component).to eq(:grounding_request)
-      expect(result.service_charges.first.quantity).to eq(2)
+      service_lines = result.line_items.reject { |item| item.unit == :token }
+      expect(service_lines.size).to eq(1)
+      expect(service_lines.first.kind).to eq(:grounding_request)
+      expect(service_lines.first.quantity).to eq(2)
     end
 
     it "returns an unknown-usage UsageCapture when no usage metadata is seen" do

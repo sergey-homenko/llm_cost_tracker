@@ -9,7 +9,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
     def record(provider:, model:, token_usage:, stream: false, usage_source: nil, provider_response_id: nil,
                provider_project_id: nil, provider_api_key_id: nil, provider_workspace_id: nil, batch: nil,
-               capture_pricing_mode: nil, service_charges: [], **options)
+               capture_pricing_mode: nil, service_line_items: [], **options)
       described_class.record(
         capture: LlmCostTracker::UsageCapture.build(
           provider: provider,
@@ -23,7 +23,7 @@ RSpec.describe LlmCostTracker::Tracker do
           provider_workspace_id: provider_workspace_id,
           batch: batch,
           pricing_mode: capture_pricing_mode,
-          service_charges: service_charges
+          service_line_items: service_line_items
         ),
         **options
       )
@@ -227,9 +227,9 @@ RSpec.describe LlmCostTracker::Tracker do
         provider: "openai",
         model: "gpt-4o",
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
-        service_charges: [
+        service_line_items: [
           {
-            component: :grounding_request,
+            component_key: :grounding_request,
             quantity: 1,
             cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
           }
@@ -238,7 +238,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
       expect(event.total_cost).to eq(0.0025)
       expect(event.cost_status).to eq(LlmCostTracker::Billing::CostStatus::PARTIAL)
-      expect(event.service_charges.first.component).to eq(:grounding_request)
+      service_line = event.line_items.find { |item| item.kind == :grounding_request }
+      expect(service_line).not_to be_nil
     end
 
     it "prices Anthropic web search service charges from provider tool rates" do
@@ -246,27 +247,27 @@ RSpec.describe LlmCostTracker::Tracker do
         provider: "anthropic",
         model: "claude-sonnet-4-6",
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
-        service_charges: [
+        service_line_items: [
           {
-            component: :web_search_request,
+            component_key: :web_search_request,
             quantity: 2,
             cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN,
-            pricing_basis: LlmCostTracker::Billing::ServiceCharge::PROVIDER_USAGE_BASIS,
-            source_key: "usage.server_tool_use.web_search_requests"
+            pricing_basis: :provider_usage,
+            provider_field: "usage.server_tool_use.web_search_requests"
           }
         ]
       )
 
-      charge = event.service_charges.first
+      line_item = event.line_items.find { |item| item.kind == :web_search_request }
       expect(event.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
       expect(event.total_cost).to eq(0.023)
-      expect(charge.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
-      expect(charge.cost).to eq(BigDecimal("0.02"))
-      expect(charge.rate_amount).to eq(BigDecimal("10.0"))
-      expect(charge.rate_quantity).to eq(BigDecimal("1000"))
-      expect(charge.price_key).to eq("service_charges.anthropic.web_search_request")
-      expect(charge.price_source).to eq(:bundled)
-      expect(charge.source_key).to eq("usage.server_tool_use.web_search_requests")
+      expect(line_item.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+      expect(line_item.cost).to eq(BigDecimal("0.02"))
+      expect(line_item.rate_amount).to eq(BigDecimal("10.0"))
+      expect(line_item.rate_quantity).to eq(BigDecimal("1000"))
+      expect(line_item.price_key).to eq("service_charges.anthropic.web_search_request")
+      expect(line_item.price_source).to eq(:bundled)
+      expect(line_item.provider_field).to eq("usage.server_tool_use.web_search_requests")
     end
 
     it "keeps service-only unknown charges unknown without inventing total cost" do
@@ -274,9 +275,9 @@ RSpec.describe LlmCostTracker::Tracker do
         provider: "custom",
         model: "unknown-tool-model",
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 0, output_tokens: 0),
-        service_charges: [
+        service_line_items: [
           {
-            component: :web_search_request,
+            component_key: :web_search_request,
             quantity: 1,
             cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
           }

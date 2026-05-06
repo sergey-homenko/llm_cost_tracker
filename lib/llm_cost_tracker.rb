@@ -18,7 +18,7 @@ require_relative "llm_cost_tracker/tags/context"
 require_relative "llm_cost_tracker/tags/sanitizer"
 require_relative "llm_cost_tracker/token_usage"
 require_relative "llm_cost_tracker/billing/components"
-require_relative "llm_cost_tracker/billing/service_charge"
+require_relative "llm_cost_tracker/billing/line_item"
 require_relative "llm_cost_tracker/billing/cost_status"
 require_relative "llm_cost_tracker/event"
 require_relative "llm_cost_tracker/pricing"
@@ -81,7 +81,7 @@ module LlmCostTracker
     def track(provider:, tokens:, model: nil, tags: {}, latency_ms: nil, stream: false,
               usage_source: :manual, enforce_budget: false,
               provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
-              provider_workspace_id: nil, batch: nil, pricing_mode: nil, service_charges: [])
+              provider_workspace_id: nil, batch: nil, pricing_mode: nil, service_line_items: [])
       Tracker.enforce_budget! if enforce_budget
 
       Tracker.record(
@@ -97,7 +97,7 @@ module LlmCostTracker
           provider_workspace_id: provider_workspace_id,
           batch: batch,
           pricing_mode: pricing_mode,
-          service_charges: service_charges
+          service_line_items: service_line_items
         ),
         latency_ms: latency_ms,
         pricing_mode: pricing_mode,

@@ -5,9 +5,9 @@ require "spec_helper"
 RSpec.describe LlmCostTracker::Billing::CostStatus do
   let(:token_usage) { LlmCostTracker::TokenUsage.build(input_tokens: 0, output_tokens: 0) }
 
-  def service_charge(component: :web_search_request, quantity: 1, cost: nil, cost_status: nil)
-    LlmCostTracker::Billing::ServiceCharge.build(
-      component: component,
+  def service_line_item(component_key: :web_search_request, quantity: 1, cost: nil, cost_status: nil)
+    LlmCostTracker::Billing::LineItem.build(
+      component_key: component_key,
       quantity: quantity,
       cost: cost,
       cost_status: cost_status
@@ -19,8 +19,8 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
       token_usage: token_usage,
       usage_source: :manual,
       token_cost: nil,
-      service_charges: [
-        service_charge(quantity: 0, cost_status: described_class::UNKNOWN)
+      service_line_items: [
+        service_line_item(quantity: 0, cost_status: described_class::UNKNOWN)
       ],
       total_cost: nil
     )
@@ -33,10 +33,10 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
       token_usage: token_usage,
       usage_source: :manual,
       token_cost: nil,
-      service_charges: [
-        service_charge(cost: 0.01),
-        service_charge(cost_status: described_class::UNKNOWN),
-        service_charge(cost: 0.02)
+      service_line_items: [
+        service_line_item(cost: 0.01),
+        service_line_item(cost_status: described_class::UNKNOWN),
+        service_line_item(cost: 0.02)
       ],
       total_cost: 0.01
     )
@@ -49,7 +49,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
       token_usage: token_usage,
       usage_source: :manual,
       token_cost: nil,
-      service_charges: [],
+      service_line_items: [],
       total_cost: nil
     )
 
@@ -64,7 +64,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
       usage_source: :response,
       token_cost: { input_cost: 0.01, total_cost: 0.01 },
       token_pricing_partial: true,
-      service_charges: [],
+      service_line_items: [],
       total_cost: 0.01
     )
 

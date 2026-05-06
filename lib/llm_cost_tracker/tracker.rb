@@ -64,25 +64,20 @@ module LlmCostTracker
       # rubocop:disable Metrics/MethodLength
       def build_event(capture:, pricing_mode:, cost_data:, pricing_snapshot:, metadata:, latency_ms:, context_tags:)
         context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
-        cost, service_charges = cost_with_service_charges(
-          cost_data,
-          provider: capture.provider,
-          pricing_mode: pricing_mode,
-          service_charges: capture.service_charges
-        )
-        cost_status = Billing::CostStatus.call(
-          token_usage: capture.token_usage,
-          usage_source: capture.usage_source,
-          token_cost: cost_data,
-          token_pricing_partial: token_pricing_partial?(token_usage: capture.token_usage, cost_data: cost_data),
-          service_charges: service_charges,
-          total_cost: cost&.fetch(:total_cost, nil)
-        )
         line_items, = Pricing.price_line_items(
           provider: capture.provider,
           model: capture.model,
           line_items: capture.line_items,
           pricing_mode: pricing_mode
+        )
+        cost = cost_with_service_lines(cost_data, line_items)
+        cost_status = Billing::CostStatus.call(
+          token_usage: capture.token_usage,
+          usage_source: capture.usage_source,
+          token_cost: cost_data,
+          token_pricing_partial: token_pricing_partial?(token_usage: capture.token_usage, cost_data: cost_data),
+          service_line_items: line_items.reject(&:token?),
+          total_cost: cost&.fetch(:total_cost, nil)
         )
 
         Event.new(
@@ -104,35 +99,22 @@ module LlmCostTracker
           tracked_at: Time.now.utc,
           cost_status: cost_status,
           pricing_snapshot: pricing_snapshot,
-          service_charges: service_charges,
           line_items: line_items
         )
       end
       # rubocop:enable Metrics/MethodLength
 
-      def cost_with_service_charges(cost_data, provider:, pricing_mode:, service_charges:)
-        return [cost_data, service_charges] if service_charges.empty?
+      def cost_with_service_lines(cost_data, line_items)
+        service_lines = line_items.reject(&:token?)
+        return cost_data if service_lines.empty?
 
-        service_total = BigDecimal("0")
-        duped = false
-        service_charges.each_with_index do |charge, index|
-          if charge.unpriced? && charge.billable?
-            rate = Pricing.charge_rate(provider: provider, component: charge.component, pricing_mode: pricing_mode)
-            if rate
-              service_charges = service_charges.dup unless duped
-              duped = true
-              charge = charge.apply_rate(rate)
-              service_charges[index] = charge
-            end
-          end
-          service_total += charge.cost_value
-        end
-        return [cost_data, service_charges] if service_total.zero? && service_charges.none?(&:priced?)
+        service_total = service_lines.sum(BigDecimal("0"), &:cost_value)
+        return cost_data if service_total.zero? && service_lines.none?(&:priced?)
 
         cost = cost_data ? cost_data.dup : {}
-        total_cost = BigDecimal(cost.fetch(:total_cost, 0).to_s) + service_total
-        cost[:total_cost] = total_cost.round(8).to_f
-        [cost, service_charges]
+        base_total = BigDecimal(cost.fetch(:total_cost, 0).to_s)
+        cost[:total_cost] = (base_total + service_total).round(8).to_f
+        cost
       end
     end
   end

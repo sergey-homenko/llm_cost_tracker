@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../billing/service_charge"
+require_relative "../billing/line_item"
 
 module LlmCostTracker
   module Parsers
@@ -13,19 +13,19 @@ module LlmCostTracker
 
       private
 
-      def openai_service_charges(response)
+      def openai_service_line_items(response)
         output_items = {}
         Array(response["output"]).each { |item| openai_store_output_item(output_items, item) }
-        openai_output_items_to_service_charges(output_items.values)
+        openai_output_items_to_line_items(output_items.values)
       end
 
-      def openai_stream_service_charges(events)
+      def openai_stream_service_line_items(events)
         output_items = {}
         each_event_data(events) do |data|
           Array(data.dig("response", "output")).each { |item| openai_store_output_item(output_items, item) }
           openai_store_output_item(output_items, data["item"])
         end
-        openai_output_items_to_service_charges(output_items.values)
+        openai_output_items_to_line_items(output_items.values)
       end
 
       def openai_store_output_item(output_items, item)
@@ -41,29 +41,29 @@ module LlmCostTracker
         output_items[key] = item
       end
 
-      def openai_output_items_to_service_charges(output_items)
+      def openai_output_items_to_line_items(output_items)
         output_items.filter_map do |item|
-          component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
-          next unless component
+          component_key = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
+          next unless component_key
 
-          provider_item_id = if component == :container_session
+          provider_item_id = if component_key == :container_session
                                item["container_id"] || item["id"]
                              else
                                item["id"]
                              end
-          Billing::ServiceCharge.build(
-            component: component,
+          Billing::LineItem.build(
+            component_key: component_key,
             quantity: 1,
             cost_status: Billing::CostStatus::UNKNOWN,
-            pricing_basis: Billing::ServiceCharge::PROVIDER_USAGE_BASIS,
-            source_key: "response.output.#{item['type']}",
+            pricing_basis: :provider_usage,
+            provider_field: "response.output.#{item['type']}",
             provider_item_id: provider_item_id,
-            details: openai_service_charge_details(item)
+            details: openai_service_line_item_details(item)
           )
         end
       end
 
-      def openai_service_charge_details(item)
+      def openai_service_line_item_details(item)
         {
           "status" => item["status"],
           "action_type" => item.dig("action", "type"),

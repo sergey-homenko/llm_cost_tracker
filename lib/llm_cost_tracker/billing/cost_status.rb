@@ -9,11 +9,11 @@ module LlmCostTracker
       FREE = "free"
       PARTIAL = "partial"
       UNKNOWN = "unknown"
-      SERVICE_CHARGE_STATUSES = [COMPLETE, FREE, UNKNOWN].freeze
 
       class << self
         # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-        def call(token_usage:, usage_source:, token_cost:, service_charges:, total_cost:, token_pricing_partial: false)
+        def call(token_usage:, usage_source:, token_cost:, service_line_items:, total_cost:,
+                 token_pricing_partial: false)
           return UNKNOWN if usage_source == :unknown
 
           token_billable = Components::TOKEN_PRICED.any? do |component|
@@ -22,12 +22,12 @@ module LlmCostTracker
           service_billable = false
           service_priced = false
           service_unpriced = false
-          service_charges.each do |charge|
-            next unless charge.billable?
+          service_line_items.each do |line_item|
+            next unless line_item.billable?
 
             service_billable = true
-            service_priced ||= charge.priced?
-            service_unpriced ||= charge.unpriced?
+            service_priced ||= line_item.priced?
+            service_unpriced ||= line_item.unpriced?
             break if service_priced && service_unpriced
           end
 

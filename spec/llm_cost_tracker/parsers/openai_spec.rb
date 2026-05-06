@@ -240,18 +240,17 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         response_body: response_body
       )
 
-      expect(result.service_charges.map(&:component)).to eq(
+      service_lines = result.line_items.reject { |item| item.unit == :token }
+      expect(service_lines.map(&:kind)).to eq(
         %i[web_search_request file_search_call container_session]
       )
-      expect(result.service_charges.map(&:cost_status)).to all(
+      expect(service_lines.map(&:cost_status)).to all(
         eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
       )
-      expect(result.service_charges.map(&:pricing_basis)).to all(
-        eq(LlmCostTracker::Billing::ServiceCharge::PROVIDER_USAGE_BASIS)
-      )
-      expect(result.service_charges.map(&:provider_item_id)).to eq(%w[ws_123 fs_123 cntr_123])
-      expect(result.service_charges.first.details).to include("action_type" => "search", "status" => "completed")
-      expect(result.service_charges.last.details).to include("container_id" => "cntr_123")
+      expect(service_lines.map(&:pricing_basis)).to all(eq(:provider_usage))
+      expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_123 fs_123 cntr_123])
+      expect(service_lines.first.details).to include("action_type" => "search", "status" => "completed")
+      expect(service_lines.last.details).to include("container_id" => "cntr_123")
     end
 
     it "ignores non-billable OpenAI web search page actions" do
@@ -302,8 +301,9 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         response_body: response_body
       )
 
-      expect(result.service_charges.map(&:component)).to eq(%i[web_search_request web_search_request])
-      expect(result.service_charges.map(&:provider_item_id)).to eq(%w[ws_123 ws_126])
+      service_lines = result.line_items.reject { |item| item.unit == :token }
+      expect(service_lines.map(&:kind)).to eq(%i[web_search_request web_search_request])
+      expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_123 ws_126])
     end
 
     it "tags non-streaming usage with a :response source" do
@@ -594,8 +594,9 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         events: events
       )
 
-      expect(result.service_charges.map(&:component)).to eq(%i[web_search_request file_search_call])
-      expect(result.service_charges.map(&:provider_item_id)).to eq(%w[ws_456 fs_456])
+      service_lines = result.line_items.reject { |item| item.unit == :token }
+      expect(service_lines.map(&:kind)).to eq(%i[web_search_request file_search_call])
+      expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_456 fs_456])
     end
 
     it "extracts model identifiers from Responses API stream events" do

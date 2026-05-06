@@ -6,7 +6,6 @@ require "time"
 require_relative "../event"
 require_relative "../pricing"
 require_relative "../billing/line_item"
-require_relative "../billing/service_charge"
 
 module LlmCostTracker
   module Ingestion
@@ -35,8 +34,6 @@ module LlmCostTracker
         def event_attributes_from(payload)
           cost = payload[:cost] && Pricing.stored_cost_attributes(payload[:cost])
           token_usage = TokenUsage.build(**payload.fetch(:token_usage).slice(*TokenUsage.members))
-          service_charges = service_charges_from(payload)
-          line_items = line_items_from(payload)
 
           {
             event_id: payload.fetch(:event_id),
@@ -57,13 +54,8 @@ module LlmCostTracker
             tracked_at: Time.iso8601(payload.fetch(:tracked_at)),
             cost_status: payload.fetch(:cost_status),
             pricing_snapshot: payload[:pricing_snapshot],
-            service_charges: service_charges,
-            line_items: line_items
+            line_items: line_items_from(payload)
           }
-        end
-
-        def service_charges_from(payload)
-          Billing::ServiceCharge.build_many(payload[:service_charges])
         end
 
         def line_items_from(payload)

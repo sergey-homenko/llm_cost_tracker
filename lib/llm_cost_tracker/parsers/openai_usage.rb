@@ -32,7 +32,7 @@ module LlmCostTracker
           model: model,
           token_usage: token_usage(usage: usage, cache_read: cache_read),
           usage_source: :response,
-          service_charges: openai_service_charges(response)
+          service_line_items: openai_service_line_items(response)
         )
       end
 
@@ -48,7 +48,7 @@ module LlmCostTracker
           model: model,
           service_tier: stream_pricing_mode(events) || request["service_tier"]
         )
-        service_charges = openai_stream_service_charges(events)
+        service_line_items = openai_stream_service_line_items(events)
 
         if usage
           cache_read = cache_read_input_tokens(usage)
@@ -60,7 +60,7 @@ module LlmCostTracker
             token_usage: token_usage(usage: usage, cache_read: cache_read),
             stream: true,
             usage_source: :stream_final,
-            service_charges: service_charges
+            service_line_items: service_line_items
           )
         else
           build_unknown_stream_usage(
@@ -68,7 +68,7 @@ module LlmCostTracker
             model: model,
             provider_response_id: response_id,
             pricing_mode: pricing_mode,
-            service_charges: service_charges
+            service_line_items: service_line_items
           )
         end
       end
