@@ -3,13 +3,16 @@
 module LlmCostTracker
   module Ledger
     module Schema
-      module ServiceCharges
+      module CallLineItems
         REQUIRED_COLUMNS = %w[
           llm_cost_tracker_call_id
-          charge_id
-          component
-          unit
+          position
+          kind
+          direction
+          modality
+          cache_state
           quantity
+          unit
           rate_amount
           rate_quantity
           cost
@@ -19,7 +22,7 @@ module LlmCostTracker
           price_key
           price_source
           price_source_version
-          source_key
+          provider_field
           provider_item_id
           details
         ].freeze
@@ -28,19 +31,14 @@ module LlmCostTracker
           def current_schema_errors
             connection = LlmCostTracker::Call.connection
             Ledger::Schema::Adapter.ensure_supported!(connection)
-            table_name = LlmCostTracker::ServiceCharge.table_name
-            unless connection.data_source_exists?(table_name)
-              return ["llm_cost_tracker_service_charges table is missing"]
-            end
+            table_name = LlmCostTracker::CallLineItem.table_name
+            return ["#{table_name} table is missing"] unless connection.data_source_exists?(table_name)
 
-            columns = LlmCostTracker::ServiceCharge.columns_hash
+            columns = LlmCostTracker::CallLineItem.columns_hash
             errors = []
             missing = REQUIRED_COLUMNS - columns.keys
             errors << "missing columns: #{missing.join(', ')}" if missing.any?
             errors.concat(json_column_errors(columns, connection))
-            unless connection.index_exists?(table_name, :charge_id, unique: true)
-              errors << "missing unique index: charge_id"
-            end
             errors
           end
 

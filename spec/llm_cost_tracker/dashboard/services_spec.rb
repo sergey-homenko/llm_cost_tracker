@@ -16,7 +16,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
     create_lct_tables!
 
     LlmCostTracker::Call.reset_column_information
-    LlmCostTracker::ServiceCharge.reset_column_information
+    LlmCostTracker::CallLineItem.reset_column_information
+    LlmCostTracker::CallTag.reset_column_information
     LlmCostTracker::CallRollup.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
@@ -721,36 +722,34 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "groups service charges by provider, component, and status" do
       openai_call = create_call(provider: "openai")
       anthropic_call = create_call(provider: "anthropic")
-      LlmCostTracker::ServiceCharge.create!(
-        llm_cost_tracker_call_id: openai_call.id,
-        charge_id: "openai-1",
-        component: "web_search_request",
+      build_service_line_item(
+        call: openai_call,
+        position: 0,
+        kind: "web_search_request",
         unit: "request",
         quantity: 2,
         rate_quantity: 1000,
         cost: 0.02,
-        currency: "USD",
         cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
       )
-      LlmCostTracker::ServiceCharge.create!(
-        llm_cost_tracker_call_id: openai_call.id,
-        charge_id: "openai-2",
-        component: "web_search_request",
+      build_service_line_item(
+        call: openai_call,
+        position: 1,
+        kind: "web_search_request",
         unit: "request",
         quantity: 1,
         rate_quantity: 1,
-        currency: "USD",
+        cost: nil,
         cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
       )
-      LlmCostTracker::ServiceCharge.create!(
-        llm_cost_tracker_call_id: anthropic_call.id,
-        charge_id: "anthropic-1",
-        component: "code_execution_hour",
+      build_service_line_item(
+        call: anthropic_call,
+        position: 0,
+        kind: "code_execution_hour",
         unit: "hour",
         quantity: 1,
         rate_quantity: 1,
         cost: 0.05,
-        currency: "USD",
         cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
       )
 
@@ -761,6 +760,25 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(row_by_status.fetch("complete").component).to eq("web_search_request")
       expect(row_by_status.fetch("complete").quantity).to eq(2)
       expect(row_by_status.fetch("unknown").quantity).to eq(1)
+    end
+
+    def build_service_line_item(call:, position:, kind:, unit:, quantity:, rate_quantity:, cost:, cost_status:)
+      LlmCostTracker::CallLineItem.create!(
+        llm_cost_tracker_call_id: call.id,
+        position: position,
+        kind: kind,
+        direction: "neither",
+        modality: "text",
+        cache_state: "none",
+        quantity: quantity,
+        unit: unit,
+        rate_quantity: rate_quantity,
+        cost: cost,
+        currency: "USD",
+        cost_status: cost_status,
+        details: {},
+        created_at: Time.now.utc
+      )
     end
   end
 

@@ -12,7 +12,8 @@ RSpec.describe "ActiveRecord storage integration" do
     create_lct_tables!
 
     LlmCostTracker::Call.reset_column_information
-    LlmCostTracker::ServiceCharge.reset_column_information
+    LlmCostTracker::CallLineItem.reset_column_information
+    LlmCostTracker::CallTag.reset_column_information
     LlmCostTracker::CallRollup.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
@@ -135,13 +136,13 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     call = LlmCostTracker::Call.first
-    charge = LlmCostTracker::ServiceCharge.first
+    line_item = LlmCostTracker::CallLineItem.where.not(unit: "token").first
 
     expect(call.total_cost.to_f).to eq(0.0125)
     expect(call.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
-    expect(charge.llm_cost_tracker_call_id).to eq(call.id)
-    expect(charge.component).to eq("web_search_request")
-    expect(charge.cost.to_f).to eq(0.01)
+    expect(line_item.llm_cost_tracker_call_id).to eq(call.id)
+    expect(line_item.kind).to eq("web_search_request")
+    expect(line_item.cost.to_f).to eq(0.01)
   end
 
   it "marks calls with unknown service charges as partial when token pricing is known" do

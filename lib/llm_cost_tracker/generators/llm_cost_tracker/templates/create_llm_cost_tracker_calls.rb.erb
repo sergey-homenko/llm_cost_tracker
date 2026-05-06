@@ -38,37 +38,6 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
       t.timestamps
     end
 
-    create_table :llm_cost_tracker_service_charges do |t|
-      t.references :llm_cost_tracker_call,
-                   null: false,
-                   index: false,
-                   foreign_key: { to_table: :llm_cost_tracker_calls, on_delete: :cascade }
-      t.string :charge_id, null: false
-      t.string :component, null: false
-      t.string :unit, null: false
-      t.decimal :quantity, precision: 30, scale: 10, null: false
-      t.decimal :rate_amount, precision: 20, scale: 8
-      t.decimal :rate_quantity, precision: 30, scale: 10, null: false, default: 1
-      t.decimal :cost, precision: 20, scale: 8
-      t.string :currency, null: false, default: "USD"
-      t.string :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
-      t.string :pricing_basis
-      t.string :price_key
-      t.string :price_source
-      t.string :price_source_version
-      t.string :source_key
-      t.string :provider_item_id
-      if postgresql?
-        t.jsonb :details, null: false, default: {}
-      elsif mysql?
-        t.json :details, null: false
-      else
-        raise "LLM Cost Tracker supports PostgreSQL and MySQL only"
-      end
-
-      t.timestamps
-    end
-
     create_table :llm_cost_tracker_call_rollups do |t|
       t.string :period, null: false
       t.date :period_start, null: false
@@ -165,9 +134,6 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
     add_index :llm_cost_tracker_calls, :cost_status
     add_index :llm_cost_tracker_calls, :provider_response_id
     add_index :llm_cost_tracker_calls, :tags, using: :gin if postgresql?
-    add_index :llm_cost_tracker_service_charges, :llm_cost_tracker_call_id
-    add_index :llm_cost_tracker_service_charges, :charge_id, unique: true
-    add_index :llm_cost_tracker_service_charges, :component
     add_index :llm_cost_tracker_call_line_items, [:llm_cost_tracker_call_id, :position]
     add_index :llm_cost_tracker_call_line_items, :kind
     add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id

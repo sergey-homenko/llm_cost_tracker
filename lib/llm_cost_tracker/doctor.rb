@@ -8,7 +8,8 @@ require_relative "doctor/legacy_audit_check"
 require_relative "doctor/legacy_billing_status_check"
 require_relative "doctor/price_check"
 require_relative "doctor/schema_generators"
-require_relative "doctor/service_charges_check"
+require_relative "doctor/call_line_items_check"
+require_relative "doctor/call_tags_check"
 
 module LlmCostTracker
   class Doctor
@@ -36,7 +37,8 @@ module LlmCostTracker
         active_record_check,
         table_check,
         column_check,
-        ServiceChargesCheck.new.call,
+        CallLineItemsCheck.new.call,
+        CallTagsCheck.new.call,
         LegacyBillingStatusCheck.new.call,
         LegacyAuditCheck.new.call,
         call_rollups_check,

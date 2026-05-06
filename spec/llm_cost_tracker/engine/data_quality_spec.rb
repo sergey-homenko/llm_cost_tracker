@@ -46,16 +46,21 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
 
   it "shows service charge coverage rows" do
     call = create_call(provider: "openai")
-    LlmCostTracker::ServiceCharge.create!(
+    LlmCostTracker::CallLineItem.create!(
       llm_cost_tracker_call_id: call.id,
-      charge_id: "charge-1",
-      component: "web_search_request",
-      unit: "request",
+      position: 0,
+      kind: "web_search_request",
+      direction: "neither",
+      modality: "text",
+      cache_state: "none",
       quantity: 2,
+      unit: "request",
       rate_quantity: 1000,
       cost: 0.02,
       currency: "USD",
-      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
+      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      details: {},
+      created_at: Time.now.utc
     )
 
     response = get("/llm-costs/data_quality")

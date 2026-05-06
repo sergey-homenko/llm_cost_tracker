@@ -119,7 +119,8 @@ RSpec.describe LlmCostTracker::Doctor do
     expect(described_class::IngestionCheck.new.call).to be_nil
     expect(described_class::LegacyAuditCheck.new.call).to be_nil
     expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil
-    expect(described_class::ServiceChargesCheck.new.call).to be_nil
+    expect(described_class::CallLineItemsCheck.new.call).to be_nil
+    expect(described_class::CallTagsCheck.new.call).to be_nil
   end
 
   context "with ActiveRecord storage" do
@@ -131,7 +132,8 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(checks).to include(
         have_attributes(status: :ok, name: "llm_cost_tracker_calls"),
         have_attributes(status: :ok, name: "llm_cost_tracker_calls columns"),
-        have_attributes(status: :ok, name: "service charges"),
+        have_attributes(status: :ok, name: "call line items"),
+        have_attributes(status: :ok, name: "call tags"),
         have_attributes(status: :ok, name: "call rollups"),
         have_attributes(status: :warn, name: "tracked calls")
       )
@@ -184,15 +186,26 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("bin/rails db:migrate")
     end
 
-    it "fails when service charges are missing" do
-      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_service_charges)
-      LlmCostTracker::ServiceCharge.reset_column_information
+    it "fails when call line items are missing" do
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_line_items)
+      LlmCostTracker::CallLineItem.reset_column_information
 
-      check = described_class.call.find { |item| item.name == "service charges" }
+      check = described_class.call.find { |item| item.name == "call line items" }
 
       expect(check).to have_attributes(status: :error)
-      expect(check.message).to include("llm_cost_tracker_service_charges table is missing")
-      expect(check.message).to include("llm_cost_tracker:add_billing")
+      expect(check.message).to include("llm_cost_tracker_call_line_items table is missing")
+      expect(check.message).to include("llm_cost_tracker:install")
+    end
+
+    it "fails when call tags are missing" do
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_tags)
+      LlmCostTracker::CallTag.reset_column_information
+
+      check = described_class.call.find { |item| item.name == "call tags" }
+
+      expect(check).to have_attributes(status: :error)
+      expect(check.message).to include("llm_cost_tracker_call_tags table is missing")
+      expect(check.message).to include("llm_cost_tracker:install")
     end
 
     it "reports recorded calls" do

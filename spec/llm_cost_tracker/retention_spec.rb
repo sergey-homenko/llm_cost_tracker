@@ -9,14 +9,15 @@ RSpec.describe LlmCostTracker::Retention do
     establish_database_connection!
     create_lct_tables!
     LlmCostTracker::Call.reset_column_information
-    LlmCostTracker::ServiceCharge.reset_column_information
+    LlmCostTracker::CallLineItem.reset_column_information
+    LlmCostTracker::CallTag.reset_column_information
     LlmCostTracker::CallRollup.reset_column_information
   end
 
   after do
     disconnect_database!
     LlmCostTracker::Call.reset_column_information
-    LlmCostTracker::ServiceCharge.reset_column_information
+    LlmCostTracker::CallLineItem.reset_column_information
   end
 
   def create_call(tracked_at:, total_cost: nil)
@@ -75,25 +76,29 @@ RSpec.describe LlmCostTracker::Retention do
     expect(LlmCostTracker::CallRollup.find_by!(period: "month").total_cost.to_f).to eq(3.0)
   end
 
-  it "deletes service charges with pruned parent calls" do
+  it "deletes call line items with pruned parent calls" do
     now = Time.utc(2026, 4, 20, 12, 0, 0)
     old_call = create_call(tracked_at: now - 100.days, total_cost: 0.01)
     create_call(tracked_at: now - 1.day, total_cost: 0.01)
-    LlmCostTracker::ServiceCharge.create!(
+    LlmCostTracker::CallLineItem.create!(
       llm_cost_tracker_call_id: old_call.id,
-      charge_id: "old-charge",
-      component: "web_search_request",
-      unit: "request",
+      position: 0,
+      kind: "web_search_request",
+      direction: "neither",
+      modality: "text",
+      cache_state: "none",
       quantity: 1,
+      unit: "request",
       rate_quantity: 1,
       currency: "USD",
       cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN,
-      details: {}
+      details: {},
+      created_at: now - 100.days
     )
 
     described_class.prune(older_than: 90.days, now: now)
 
-    expect(LlmCostTracker::ServiceCharge.where(charge_id: "old-charge")).to be_empty
+    expect(LlmCostTracker::CallLineItem.where(llm_cost_tracker_call_id: old_call.id)).to be_empty
   end
 
   it "raises on unsupported older_than type" do

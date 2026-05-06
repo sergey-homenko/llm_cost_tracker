@@ -11,6 +11,31 @@ module LlmCostTracker
     rescue_from ActiveRecord::StatementInvalid, with: :render_database_error
     rescue_from LlmCostTracker::InvalidFilterError, with: :render_invalid_filter
 
+    SCHEMA_CHECKS = [
+      [
+        LlmCostTracker::Ledger::Schema::Calls,
+        "The llm_cost_tracker_calls table does not match the current LLM Cost Tracker schema.",
+        []
+      ],
+      [
+        LlmCostTracker::Ledger::Schema::CallRollups,
+        "The llm_cost_tracker_call_rollups table does not match the current LLM Cost Tracker schema.",
+        ["run bin/rails generate llm_cost_tracker:add_call_rollups && bin/rails db:migrate"]
+      ],
+      [
+        LlmCostTracker::Ledger::Schema::CallLineItems,
+        "The llm_cost_tracker_call_line_items table does not match the current LLM Cost Tracker schema.",
+        []
+      ],
+      [
+        LlmCostTracker::Ledger::Schema::CallTags,
+        "The llm_cost_tracker_call_tags table does not match the current LLM Cost Tracker schema.",
+        []
+      ]
+    ].freeze
+
+    private_constant :SCHEMA_CHECKS
+
     private
 
     def ensure_current_schema
@@ -19,32 +44,14 @@ module LlmCostTracker
         return render template: "llm_cost_tracker/shared/setup_required"
       end
 
-      schema_errors = LlmCostTracker::Ledger::Schema::Calls.current_schema_errors
-      if schema_errors.any?
-        @setup_message = "The llm_cost_tracker_calls table does not match the current LLM Cost Tracker schema."
-        @setup_details = schema_errors
-        render template: "llm_cost_tracker/shared/setup_required"
-        return
+      SCHEMA_CHECKS.each do |schema, message, extra_details|
+        errors = schema.current_schema_errors
+        next if errors.empty?
+
+        @setup_message = message
+        @setup_details = errors + extra_details
+        return render template: "llm_cost_tracker/shared/setup_required"
       end
-
-      call_rollup_errors = LlmCostTracker::Ledger::Schema::CallRollups.current_schema_errors
-      if call_rollup_errors.any?
-        @setup_message = "The llm_cost_tracker_call_rollups table does not match the current LLM Cost Tracker schema."
-        @setup_details = call_rollup_errors + [
-          "run bin/rails generate llm_cost_tracker:add_call_rollups && bin/rails db:migrate"
-        ]
-        render template: "llm_cost_tracker/shared/setup_required"
-        return
-      end
-
-      service_charge_errors = LlmCostTracker::Ledger::Schema::ServiceCharges.current_schema_errors
-      return if service_charge_errors.empty?
-
-      @setup_message = "The llm_cost_tracker_service_charges table does not match the current LLM Cost Tracker schema."
-      @setup_details = service_charge_errors + [
-        "run bin/rails generate llm_cost_tracker:add_billing && bin/rails db:migrate"
-      ]
-      render template: "llm_cost_tracker/shared/setup_required"
     end
 
     def render_database_error(error)

@@ -60,21 +60,22 @@ module LlmCostTracker
 
         def service_charge_rows(scope)
           call_table = LlmCostTracker::Call.quoted_table_name
-          charge_table = LlmCostTracker::ServiceCharge.quoted_table_name
-          relation = LlmCostTracker::ServiceCharge
+          line_item_table = LlmCostTracker::CallLineItem.quoted_table_name
+          relation = LlmCostTracker::CallLineItem
+                     .where.not("#{line_item_table}.unit" => "token")
                      .joins(:call)
                      .merge(scope.unscope(:select, :order))
 
           relation
-            .group("#{call_table}.provider", "#{charge_table}.component", "#{charge_table}.cost_status")
-            .order(Arel.sql("COALESCE(SUM(#{charge_table}.cost), 0) DESC"), Arel.sql("COUNT(*) DESC"))
+            .group("#{call_table}.provider", "#{line_item_table}.kind", "#{line_item_table}.cost_status")
+            .order(Arel.sql("COALESCE(SUM(#{line_item_table}.cost), 0) DESC"), Arel.sql("COUNT(*) DESC"))
             .select(
               "#{call_table}.provider AS provider",
-              "#{charge_table}.component AS component",
-              "#{charge_table}.cost_status AS cost_status",
+              "#{line_item_table}.kind AS component",
+              "#{line_item_table}.cost_status AS cost_status",
               "COUNT(*) AS charges_count",
-              "COALESCE(SUM(#{charge_table}.quantity), 0) AS quantity",
-              "COALESCE(SUM(#{charge_table}.cost), 0) AS total_cost"
+              "COALESCE(SUM(#{line_item_table}.quantity), 0) AS quantity",
+              "COALESCE(SUM(#{line_item_table}.cost), 0) AS total_cost"
             )
             .limit(10)
         end

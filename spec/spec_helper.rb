@@ -33,7 +33,6 @@ end
 require "webmock/rspec"
 require "llm_cost_tracker"
 require_relative "../app/models/llm_cost_tracker/call"
-require_relative "../app/models/llm_cost_tracker/service_charge"
 require_relative "../app/models/llm_cost_tracker/call_line_item"
 require_relative "../app/models/llm_cost_tracker/call_tag"
 require_relative "../app/models/llm_cost_tracker/call_rollup"

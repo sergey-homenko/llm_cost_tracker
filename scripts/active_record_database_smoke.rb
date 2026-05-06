@@ -21,7 +21,6 @@ end
 require "llm_cost_tracker"
 require "llm_cost_tracker/ledger"
 require_relative "../app/models/llm_cost_tracker/call"
-require_relative "../app/models/llm_cost_tracker/service_charge"
 require_relative "../app/models/llm_cost_tracker/call_line_item"
 require_relative "../app/models/llm_cost_tracker/call_tag"
 require_relative "../app/models/llm_cost_tracker/call_rollup"
@@ -62,7 +61,6 @@ end
 def reset_models!
   [
     LlmCostTracker::Call,
-    LlmCostTracker::ServiceCharge,
     LlmCostTracker::CallLineItem,
     LlmCostTracker::CallTag,
     LlmCostTracker::Ingestion::InboxEntry,
@@ -75,7 +73,6 @@ end
 def create_schema!
   ActiveRecord::Schema.define do
     create_calls_table!(connection)
-    create_service_charges_table!(connection)
     create_call_line_items_table!(connection)
     create_call_tags_table!
     create_call_rollups_table!
@@ -142,35 +139,6 @@ def add_call_tags_column(table, database_connection)
     table.json :tags, null: false
   else
     LlmCostTracker::Ledger::Schema::Adapter.ensure_supported!(database_connection)
-  end
-end
-
-def create_service_charges_table!(database_connection)
-  create_table :llm_cost_tracker_service_charges, force: true do |t|
-    t.references :llm_cost_tracker_call, null: false, index: false
-    t.string :charge_id, null: false
-    t.string :component, null: false
-    t.string :unit, null: false
-    t.decimal :quantity, precision: 30, scale: 10, null: false
-    t.decimal :rate_amount, precision: 20, scale: 8
-    t.decimal :rate_quantity, precision: 30, scale: 10, null: false, default: 1
-    t.decimal :cost, precision: 20, scale: 8
-    t.string :currency, null: false, default: "USD"
-    t.string :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
-    t.string :pricing_basis
-    t.string :price_key
-    t.string :price_source
-    t.string :price_source_version
-    t.string :source_key
-    t.string :provider_item_id
-    if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
-      t.jsonb :details, null: false, default: {}
-    elsif LlmCostTracker::Ledger::Schema::Adapter.mysql?(database_connection)
-      t.json :details, null: false
-    else
-      LlmCostTracker::Ledger::Schema::Adapter.ensure_supported!(database_connection)
-    end
-    t.timestamps
   end
 end
 
@@ -268,9 +236,6 @@ def add_schema_indexes!(database_connection)
   if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
     add_index :llm_cost_tracker_calls, :tags, using: :gin
   end
-  add_index :llm_cost_tracker_service_charges, :llm_cost_tracker_call_id
-  add_index :llm_cost_tracker_service_charges, :charge_id, unique: true
-  add_index :llm_cost_tracker_service_charges, :component
   add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
   add_index :llm_cost_tracker_call_line_items, :kind
   add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id

@@ -39,12 +39,6 @@ module LlmCostTracker
       where(stream: true).where(usage_source: ["unknown", nil])
     }
 
-    has_many :service_charges,
-             class_name: "LlmCostTracker::ServiceCharge",
-             foreign_key: :llm_cost_tracker_call_id,
-             inverse_of: :call,
-             dependent: :delete_all
-
     has_many :line_items,
              class_name: "LlmCostTracker::CallLineItem",
              foreign_key: :llm_cost_tracker_call_id,

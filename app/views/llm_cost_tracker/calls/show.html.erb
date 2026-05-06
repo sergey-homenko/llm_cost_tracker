@@ -129,8 +129,8 @@ end %>
   </div>
 </section>
 
-<% service_charges = @call.service_charges.to_a %>
-<% if service_charges.any? %>
+<% service_line_items = @call.line_items.where.not(unit: "token").order(:position).to_a %>
+<% if service_line_items.any? %>
   <section class="lct-panel">
     <h2 class="lct-section-title">Service Charges</h2>
     <div class="lct-table-wrap">
@@ -146,14 +146,14 @@ end %>
           </tr>
         </thead>
         <tbody>
-          <% service_charges.each do |charge| %>
+          <% service_line_items.each do |line_item| %>
             <tr>
-              <td><code class="lct-code"><%= charge.component %></code></td>
-              <td><%= charge.unit %></td>
-              <td class="lct-num"><%= charge.quantity %></td>
-              <td class="lct-num"><%= charge.rate_amount ? "#{optional_money(charge.rate_amount)} / #{charge.rate_quantity}" : "n/a" %></td>
-              <td class="lct-num<%= ' lct-num-muted' if charge.cost.nil? %>"><%= optional_money(charge.cost) %></td>
-              <td><%= charge.cost_status %></td>
+              <td><code class="lct-code"><%= line_item.kind %></code></td>
+              <td><%= line_item.unit %></td>
+              <td class="lct-num"><%= line_item.quantity %></td>
+              <td class="lct-num"><%= line_item.rate_amount ? "#{optional_money(line_item.rate_amount)} / #{line_item.rate_quantity}" : "n/a" %></td>
+              <td class="lct-num<%= ' lct-num-muted' if line_item.cost.nil? %>"><%= optional_money(line_item.cost) %></td>
+              <td><%= line_item.cost_status %></td>
             </tr>
           <% end %>
         </tbody>
