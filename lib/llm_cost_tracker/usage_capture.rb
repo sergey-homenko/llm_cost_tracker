@@ -3,6 +3,7 @@
 require "active_support/core_ext/object/blank"
 
 require_relative "pricing"
+require_relative "billing/line_item"
 require_relative "billing/service_charge"
 
 module LlmCostTracker
@@ -18,7 +19,8 @@ module LlmCostTracker
     :provider_workspace_id,
     :batch,
     :pricing_mode,
-    :service_charges
+    :service_charges,
+    :line_items
   )
 
   class UsageCapture
@@ -33,10 +35,16 @@ module LlmCostTracker
       batch = attributes[:batch]
       batch = batch_from_pricing_mode?(pricing_mode) if batch.nil?
 
+      token_usage = attributes.fetch(:token_usage)
+      service_charges = Billing::ServiceCharge.build_many(attributes[:service_charges])
+      line_items = attributes[:line_items] ||
+                   (Billing::LineItem.from_token_usage(token_usage) +
+                    service_charges.map { |charge| Billing::LineItem.from_service_charge(charge) })
+
       new(
         provider: attributes.fetch(:provider).to_s,
         model: attributes.fetch(:model).to_s.strip.presence || UNKNOWN_MODEL,
-        token_usage: attributes.fetch(:token_usage),
+        token_usage: token_usage,
         stream: attributes[:stream] || false,
         usage_source: attributes[:usage_source],
         provider_response_id: attributes[:provider_response_id].to_s.strip.presence,
@@ -45,7 +53,8 @@ module LlmCostTracker
         provider_workspace_id: attributes[:provider_workspace_id].to_s.strip.presence,
         batch: batch,
         pricing_mode: pricing_mode,
-        service_charges: Billing::ServiceCharge.build_many(attributes[:service_charges])
+        service_charges: service_charges,
+        line_items: line_items
       )
     end
   end

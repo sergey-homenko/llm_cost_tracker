@@ -31,10 +31,6 @@ module LlmCostTracker
     class LineItem
       USD = "USD"
       OPTIONAL_ATTRIBUTES = %i[
-        rate_amount
-        rate_quantity
-        cost
-        cost_status
         pricing_basis
         price_key
         price_source
@@ -54,14 +50,14 @@ module LlmCostTracker
 
       def self.build(attributes)
         attributes = attributes.to_h
-        component_kind = component_for(attributes)
+        component = component_for(attributes)
         normalized = {
-          kind: symbol_or_nil(attributes[:kind]) || component_kind&.kind,
-          direction: symbol_or_nil(attributes[:direction]) || component_kind&.direction,
-          modality: symbol_or_nil(attributes[:modality]) || component_kind&.modality,
-          cache_state: symbol_or_nil(attributes[:cache_state]) || component_kind&.cache_state,
+          kind: symbol_or_nil(attributes[:kind]) || component&.kind,
+          direction: symbol_or_nil(attributes[:direction]) || component&.direction,
+          modality: symbol_or_nil(attributes[:modality]) || component&.modality,
+          cache_state: symbol_or_nil(attributes[:cache_state]) || component&.cache_state,
           quantity: decimal_or_zero(attributes[:quantity]),
-          unit: symbol_or_nil(attributes[:unit]) || component_kind&.unit,
+          unit: symbol_or_nil(attributes[:unit]) || component&.unit,
           rate_amount: decimal_or_nil(attributes[:rate_amount]),
           rate_quantity: decimal_or_nil(attributes[:rate_quantity]) || BigDecimal("1"),
           cost: decimal_or_nil(attributes[:cost]),
@@ -71,6 +67,60 @@ module LlmCostTracker
         }.merge(optional_attributes_for(attributes))
 
         new(**normalized)
+      end
+
+      def self.from_token_usage(token_usage)
+        return [] unless token_usage
+
+        Components::TOKEN_PRICED.filter_map do |component|
+          quantity = token_usage.public_send(component.token_key)
+          next unless quantity.positive?
+
+          new(
+            kind: component.kind,
+            direction: component.direction,
+            modality: component.modality,
+            cache_state: component.cache_state,
+            quantity: BigDecimal(quantity.to_s),
+            unit: component.unit,
+            rate_amount: nil,
+            rate_quantity: BigDecimal("1"),
+            cost: nil,
+            currency: USD,
+            cost_status: CostStatus::UNKNOWN,
+            pricing_basis: nil,
+            price_key: nil,
+            price_source: nil,
+            price_source_version: nil,
+            provider_field: nil,
+            provider_item_id: nil,
+            details: {}
+          )
+        end
+      end
+
+      def self.from_service_charge(charge)
+        component = Components::BY_KEY.fetch(charge.component)
+        new(
+          kind: component.kind,
+          direction: component.direction,
+          modality: component.modality,
+          cache_state: :none,
+          quantity: charge.quantity,
+          unit: charge.unit,
+          rate_amount: charge.rate_amount,
+          rate_quantity: charge.rate_quantity,
+          cost: charge.cost,
+          currency: charge.currency,
+          cost_status: charge.cost_status,
+          pricing_basis: charge.pricing_basis,
+          price_key: charge.price_key,
+          price_source: charge.price_source,
+          price_source_version: charge.price_source_version,
+          provider_field: charge.source_key,
+          provider_item_id: charge.provider_item_id,
+          details: charge.details || {}
+        )
       end
 
       def self.cost_status_for(attributes)

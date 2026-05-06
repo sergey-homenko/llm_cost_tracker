@@ -8,7 +8,6 @@ require_relative "../price_fields_validator"
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      # rubocop:disable Metrics/ClassLength
       class Gemini
         SOURCE_URL = "https://ai.google.dev/gemini-api/docs/pricing"
         MIN_MODELS_EXPECTED = 5
@@ -205,7 +204,6 @@ module LlmCostTracker
           prices.size >= 2 ? prices.first(2) : nil
         end
       end
-      # rubocop:enable Metrics/ClassLength
     end
   end
 end

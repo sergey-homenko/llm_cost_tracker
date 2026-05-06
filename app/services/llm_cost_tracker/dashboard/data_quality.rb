@@ -5,7 +5,6 @@ require "llm_cost_tracker/ledger/schema/adapter"
 
 module LlmCostTracker
   module Dashboard
-    # rubocop:disable Metrics/ClassLength
     class DataQuality
       UnknownPricingRow = ::Data.define(:model, :calls, :share_percent)
       Summary = ::Data.define(:total, :unknown_pricing_count, :untagged_calls_count, :missing_latency_count,
@@ -211,6 +210,5 @@ module LlmCostTracker
         end
       end
     end
-    # rubocop:enable Metrics/ClassLength
   end
 end

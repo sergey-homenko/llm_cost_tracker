@@ -34,7 +34,7 @@ Metrics/AbcSize:
   Max: 45
 
 Metrics/ClassLength:
-  Max: 130
+  Max: 200
   CountAsOne:
     - hash
 

@@ -13,7 +13,6 @@ require_relative "openai/rendered_long_context_prices"
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      # rubocop:disable Metrics/ClassLength
       class Openai
         SOURCE_URL = "https://developers.openai.com/api/docs/pricing"
         MIN_MODELS_EXPECTED = 25
@@ -276,7 +275,6 @@ module LlmCostTracker
           value
         end
       end
-      # rubocop:enable Metrics/ClassLength
     end
   end
 end

@@ -54,6 +54,20 @@ module LlmCostTracker
         [cost_from(calculation), snapshot_from(calculation)]
       end
 
+      def price_line_items(provider:, model:, line_items:, pricing_mode: nil)
+        token_usage = TokenUsage.build_from_tokens(token_attributes_from(line_items))
+        calculation = calculation_for(provider: provider, model: model, tokens: token_usage, pricing_mode: pricing_mode)
+        snapshot = calculation && snapshot_from(calculation)
+
+        priced = line_items.map do |line_item|
+          next price_token_line_item(line_item, calculation) if line_item.unit == :token
+
+          price_service_charge_line_item(line_item, provider: provider, pricing_mode: pricing_mode)
+        end
+
+        [priced, snapshot]
+      end
+
       def snapshot_for(provider:, model:, tokens:, pricing_mode: nil)
         calculation = calculation_for(
           provider: provider,
@@ -143,6 +157,58 @@ module LlmCostTracker
         Billing::Components::TOKEN_PRICED.to_h do |component|
           tokens = usage.public_send(component.token_key)
           [component.key, token_cost(tokens, effective[component.key])]
+        end
+      end
+
+      def token_attributes_from(line_items)
+        line_items.each_with_object({}) do |line_item, totals|
+          next unless line_item.unit == :token
+
+          component = component_for_line_item(line_item)
+          next unless component
+
+          totals[component.key] = (totals[component.key] || 0) + line_item.quantity.to_i
+        end
+      end
+
+      def price_token_line_item(line_item, calculation)
+        component = component_for_line_item(line_item)
+        return line_item unless component
+        return line_item.with(cost_status: Billing::CostStatus::UNKNOWN) unless calculation
+
+        effective_price = calculation[:effective][component.key]
+        return line_item.with(cost_status: Billing::CostStatus::UNKNOWN) if effective_price.nil?
+
+        cost = (line_item.quantity * BigDecimal(effective_price.to_s)) / RATE_DENOMINATOR_TOKENS
+        match = calculation[:match]
+        line_item.with(
+          rate_amount: BigDecimal(effective_price.to_s),
+          rate_quantity: BigDecimal(RATE_DENOMINATOR_TOKENS),
+          cost: cost,
+          cost_status: cost.zero? ? Billing::CostStatus::FREE : Billing::CostStatus::COMPLETE,
+          price_key: component.key,
+          price_source: match.source,
+          price_source_version: source_version_for(match.source)
+        )
+      end
+
+      def price_service_charge_line_item(line_item, provider:, pricing_mode:)
+        return line_item if line_item.priced?
+        return line_item unless line_item.billable?
+
+        rate = charge_rate(provider: provider, component: line_item.kind, pricing_mode: pricing_mode)
+        return line_item unless rate
+
+        line_item.apply_rate(rate)
+      end
+
+      def component_for_line_item(line_item)
+        Billing::Components::REGISTRY.find do |component|
+          component.kind == line_item.kind &&
+            component.direction == line_item.direction &&
+            component.modality == line_item.modality &&
+            component.cache_state == line_item.cache_state &&
+            component.unit == line_item.unit
         end
       end
 
