@@ -21,4 +21,27 @@ RSpec.describe LlmCostTracker::Billing::Components do
 
     expect(keys).to eq(keys.uniq)
   end
+
+  it "loads identity fields from the YAML registry" do
+    grounding = described_class::BY_KEY.fetch(:grounding_request)
+
+    expect(grounding).to have_attributes(
+      kind: :grounding_request,
+      direction: :neither,
+      modality: :text,
+      cache_state: :none,
+      unit: :request,
+      category: :tool,
+      token_key: nil,
+      cost_key: nil
+    )
+  end
+
+  describe ".build" do
+    it "raises when a required field is missing in the YAML entry" do
+      expect { described_class.build(key: :broken) }
+        .to raise_error(LlmCostTracker::Error,
+                        include("components.yml entry missing kind"))
+    end
+  end
 end

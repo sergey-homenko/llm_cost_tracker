@@ -1,0 +1,117 @@
+- key: input
+  kind: text_token
+  direction: input
+  modality: text
+  cache_state: none
+  unit: token
+  category: token
+  token_key: input_tokens
+  cost_key: input_cost
+
+- key: cache_read_input
+  kind: text_token
+  direction: input
+  modality: text
+  cache_state: read
+  unit: token
+  category: token
+  token_key: cache_read_input_tokens
+  cost_key: cache_read_input_cost
+
+- key: cache_write_input
+  kind: text_token
+  direction: input
+  modality: text
+  cache_state: write_5m
+  unit: token
+  category: token
+  token_key: cache_write_input_tokens
+  cost_key: cache_write_input_cost
+
+- key: cache_write_extended_input
+  kind: text_token
+  direction: input
+  modality: text
+  cache_state: write_1h
+  unit: token
+  category: token
+  token_key: cache_write_extended_input_tokens
+  cost_key: cache_write_extended_input_cost
+
+- key: output
+  kind: text_token
+  direction: output
+  modality: text
+  cache_state: none
+  unit: token
+  category: token
+  token_key: output_tokens
+  cost_key: output_cost
+
+- key: audio_input
+  kind: audio_token
+  direction: input
+  modality: audio
+  cache_state: none
+  unit: token
+  category: token
+  token_key: audio_input_tokens
+  cost_key: audio_input_cost
+
+- key: audio_output
+  kind: audio_token
+  direction: output
+  modality: audio
+  cache_state: none
+  unit: token
+  category: token
+  token_key: audio_output_tokens
+  cost_key: audio_output_cost
+
+- key: web_search_request
+  kind: web_search_request
+  direction: neither
+  modality: text
+  cache_state: none
+  unit: request
+  category: tool
+
+- key: file_search_call
+  kind: file_search_call
+  direction: neither
+  modality: text
+  cache_state: none
+  unit: request
+  category: tool
+
+- key: container_session
+  kind: container_session
+  direction: neither
+  modality: none
+  cache_state: none
+  unit: session
+  category: runtime
+
+- key: code_execution_request
+  kind: code_execution_request
+  direction: neither
+  modality: none
+  cache_state: none
+  unit: request
+  category: runtime
+
+- key: code_execution_hour
+  kind: code_execution_hour
+  direction: neither
+  modality: none
+  cache_state: none
+  unit: hour
+  category: runtime
+
+- key: grounding_request
+  kind: grounding_request
+  direction: neither
+  modality: text
+  cache_state: none
+  unit: request
+  category: tool
