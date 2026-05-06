@@ -1,7 +1,33 @@
 # RFC 0001: Line-item billing ledger
 
-Status: Draft
+Status: Implemented (partial) in 0.8
 Target: 0.8.0
+Originally drafted: pre-0.8 design pass
+
+## Implementation notes
+
+The 0.8 release ships the core of this RFC — header + line items, normalized
+tags, unified `Billing::LineItem` covering tokens and tool/runtime charges,
+`provider_invoices` placeholder for v0.9 reconciliation. Some of the more
+ambitious moves were deferred to keep the upgrade scope manageable and
+preserve dashboard/sort ergonomics:
+
+| RFC proposal | What 0.8 shipped |
+| --- | --- |
+| `calls.id` UUID v4 | bigint `id` + string `event_id`. UUID switch deferred. |
+| Drop all token counters from `calls` | Kept on the header as denormalized counters for sort/aggregate; only the per-component cost columns were dropped. |
+| Drop `batch` and `stream` from `calls` | Kept; widely read in filters. |
+| Inbox payload v3 | Stayed at v2 (v2 was not yet released when 0.8 stabilized). |
+| `pricing_mode` as `text[]` / `jsonb` | Kept as a single string (`"batch_data_residency"`). |
+| `currency` on `calls` header | Currency lives on line items only. |
+| `TokenUsage` as derived view | Still the canonical capture shape on the way in. |
+| `provider_reconciliation_imports` table | Renamed to `provider_invoices` (MySQL 64-char identifier limit). |
+| `call_tags` PK `(call_id, key)` | Standard bigint PK; index on `(key, value)`. |
+
+Everything below is the original design as proposed. Treat it as the
+direction of travel for 0.9-0.10, not a literal description of the shipped
+schema. For the as-shipped data model see [Data model](../data-model.md) and
+[Architecture](../architecture.md).
 
 ## Summary
 
