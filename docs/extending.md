@@ -71,7 +71,8 @@ similar keys.
 Long-context tiers use `_context_price_threshold_tokens` and `above_context_*`
 fields.
 
-Provider-reported tool/runtime prices live under `service_charges`:
+Tool and runtime rates (web search, code execution, grounding, container
+sessions, file search) live under `service_charges`:
 
 ```yaml
 service_charges:
@@ -82,8 +83,8 @@ service_charges:
     web_search_request: 10.0
 ```
 
-Only add a service charge rate when the captured quantity matches the published
-or contract rate basis.
+These keys map to `Billing::Components` entries with matching names. Add a rate
+only when the captured quantity matches the published or contract basis.
 
 ## Explicit Tracking
 
@@ -113,8 +114,8 @@ belong at the translation boundary.
 
 LLM Cost Tracker emits `llm_request.llm_cost_tracker` through
 `ActiveSupport::Notifications` after event build. Subscribers receive the
-canonical event payload, including token fields, tags, pricing status, and
-service charge data.
+canonical event payload — token usage, tags, pricing status, and the priced
+line items (tokens + tool/runtime charges in one shape).
 
 ## Dashboard Extensions
 

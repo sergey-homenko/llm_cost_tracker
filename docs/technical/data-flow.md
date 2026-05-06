@@ -9,7 +9,7 @@ Normal path from an application LLM call to stored ledger data:
 3. For non-streaming responses, the middleware passes request and response data to the parser.
 4. For streaming responses, the middleware tees `on_data`, collects stream events, and parses final usage when the stream completes.
 5. Tags are snapshotted before the request enters the adapter.
-6. The parser returns `UsageCapture` with canonical `TokenUsage`, `pricing_mode`, and service charges when provider data exposes them.
+6. The parser returns `UsageCapture` with canonical `TokenUsage`, `pricing_mode`, and any service `Billing::LineItem`s the provider exposed.
 7. `Tracker.record` prices and persists the event.
 
 ## SDK Integrations
@@ -37,9 +37,9 @@ Normal path from an application LLM call to stored ledger data:
 
 1. Blank model identifiers become `unknown`.
 2. `UsageCapture` carries provider identity, model identity, stream metadata, response identity, provider grouping dimensions, `pricing_mode`, and `TokenUsage`.
-3. `Pricing.cost_for` prices token counters with the normalized `pricing_mode` and returns cost attributes or `nil` for unknown pricing.
-4. `Pricing.charge_rate` prices provider-reported service charges only when the registry has a reliable rate for the captured quantity basis.
-5. `Billing::CostStatus` combines token pricing and service charge pricing into `free`, `complete`, `partial`, or `unknown`.
+3. `Pricing.cost_and_snapshot_for` prices token counters with the normalized `pricing_mode` and returns the header total or `nil` for unknown pricing.
+4. `Pricing.price_line_items` applies the same token rates to token line items, then `Pricing.charge_rate` prices service line items when the registry has a reliable rate for the captured quantity basis.
+5. `Billing::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
 6. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
 7. An `Event` is created around `TokenUsage` and emitted through `ActiveSupport::Notifications`.
 8. The durable ingestion inbox receives the event.
@@ -49,8 +49,8 @@ Normal path from an application LLM call to stored ledger data:
 
 1. `Ingestion::Inbox.save` writes a compact durable event row.
 2. `Ingestion::Worker` claims retryable inbox entries through a database lease and writes batches into `llm_cost_tracker_calls`.
-3. `Ledger::Store.insert_many` converts tags for PostgreSQL JSONB or MySQL JSON storage and writes the current ledger schema.
-4. The call rows, call rollup updates, and inbox deletes happen in one transaction.
+3. `Ledger::Store.insert_many` writes the call header, line items, and tag rows for the batch.
+4. The call rows, line items, tag rows, call rollup updates, and inbox deletes happen in one transaction.
 5. `Ledger::Rollups.increment_many!` updates daily and monthly totals only for rows inserted by the batch.
 6. Budget reads use call rollups plus pending inbox totals.
 
@@ -69,7 +69,7 @@ Dashboard reads do not mutate ledger state. They can be heavier than request-tim
 
 1. `llm_cost_tracker:prices:refresh` chooses `ENV["OUTPUT"]`, then `config.prices_file`, then `config/llm_cost_tracker_prices.yml`.
 2. `Pricing::Sync::Fetcher` fetches the maintained LLM Cost Tracker price snapshot.
-3. `Pricing::Sync` validates schema compatibility, gem-version compatibility, model price shape, and service charge sections.
+3. `Pricing::Sync` validates schema compatibility, gem-version compatibility, model price shape, and tool/runtime charge sections.
 4. `RegistryWriter` writes a local JSON or YAML registry.
 5. Runtime pricing reloads the local file when its mtime changes.
 

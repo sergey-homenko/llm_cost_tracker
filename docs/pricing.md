@@ -5,7 +5,8 @@ registry. Providers usually return token counts, not a stable per-request price,
 so the gem stores the calculated cost with each ledger row.
 
 Pricing covers registry shape, refresh tasks, precedence, provider-qualified
-keys, pricing modes, token components, and provider-reported service charges.
+keys, pricing modes, token components, and provider-reported tool/runtime
+charges.
 
 ## Registry Rules
 
@@ -145,31 +146,31 @@ Bundled and local registries use this high-level shape:
 }
 ```
 
-Model prices are USD per 1M tokens. Service charge rates use the quantity basis
-defined by their billing component unit, such as request, session, or hour.
+Model prices are USD per 1M tokens. Tool/runtime rates use the quantity basis
+of their billing component — request, session, hour, etc.
 
-## Service Charges
+## Tool and Runtime Charges
 
-`service_charges` store provider-reported tool or runtime usage that affects
-billing context outside token prices. Current parsers use them for Anthropic
-server tool usage, OpenAI hosted tool output items, and Gemini grounding
-requests. Registry `service_charges` rates can price known charges; unknown-cost
-service charges can make an event `partial` when token pricing is known, or
-`unknown` when they are the only billable usage.
+The `service_charges` registry section prices provider tool and runtime calls
+(web search, code execution, grounding, container sessions, file search). At
+runtime they end up as line items on the parent call alongside token line
+items — same shape, same `cost_status` semantics. A line item with no rate
+match keeps the parent call `partial` when token cost is known, or `unknown`
+when the unmatched line is the only billable usage.
 
-These rows are audit context, not invoice-grade pricing. They preserve the
-provider item id, source key, quantity, component, applied rate, and status so
-downstream reconciliation can join them back to provider records without applying
-free tiers or private rates locally.
+Each line item preserves the provider item id, captured `provider_field` path,
+quantity, kind, applied rate, and status — enough for downstream reconciliation
+to join back to provider records without applying free tiers or private rates
+locally.
 
-Built-in service charge rates are bundled only when the parser has the same
-quantity basis that the provider publishes. OpenAI hosted web search and file
-search calls are priced when the registry has a rate. OpenAI Code Interpreter
-container sessions are captured as `container_session` audit rows, but the
-bundled registry does not price them because the provider price depends on
-container size and a fixed session window. Anthropic web-search request counts
-are priced; Anthropic code-execution request counts remain unknown-cost until a
-provider usage field exposes the hourly quantity that the published rate uses.
+Bundled rates ship only when the parser captures the same quantity basis the
+provider publishes. OpenAI hosted web search and file search are priced when
+the registry has a rate. OpenAI Code Interpreter container sessions are
+captured as `container_session` audit rows; they aren't priced by default
+because the provider rate depends on container size and a fixed session
+window. Anthropic web-search requests are priced; Anthropic code-execution
+requests stay `unknown` until a provider usage field exposes the hourly
+quantity the published rate uses.
 
 ## Usage and Pricing Coverage
 

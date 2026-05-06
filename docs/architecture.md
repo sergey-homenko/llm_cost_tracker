@@ -14,12 +14,12 @@ Core vocabulary uses provider-neutral terms:
 | Cache tokens | `cache_read_input_tokens`, `cache_write_input_tokens`, `cache_write_extended_input_tokens` |
 | Audio tokens | `audio_input_tokens`, `audio_output_tokens` |
 | Hidden/reasoning tokens | `hidden_output_tokens` |
-| Costs | component cost columns plus `total_cost` |
+| Header total | `total_cost` (line items hold per-component breakdown) |
 | Pricing tier | `pricing_mode` |
 | Pricing audit | `pricing_snapshot`, `cost_status` |
 | Provider identity | `provider`, `model`, `provider_response_id`, `provider_project_id`, `provider_api_key_id`, `provider_workspace_id` |
 | Provider grouping | `batch`, `pricing_mode` |
-| Tool/runtime usage | `service_charges` |
+| Per-component charges | `Billing::LineItem` (token line items + tool/runtime line items) |
 
 Provider names such as `service_tier`, `prompt_tokens_details`, `server_tool_use`,
 or `groundingMetadata` may appear only while reading provider payloads. Past that
@@ -61,15 +61,17 @@ of guessing from a nearby bucket. The exception is a documented stackable
 multiplier, such as a batch cache-rate discount derived from a published input
 discount.
 
-## Service Charges
+## Line Items
 
-`service_charges` represent provider-reported tool/runtime usage outside token
-prices. They are captured synchronously with the call and stored with the parent
-ledger event.
+Tokens and tool/runtime charges share one shape: `Billing::LineItem`. Parsers
+emit token line items from provider usage data and service line items from
+tool calls (web search, code execution, grounding, container sessions, file
+search). `Pricing.price_line_items` applies provider/model token rates to
+token line items and falls back to per-component rates from
+`Pricing.charge_rate` for the rest.
 
-Known-rate charges can be priced through `Pricing.charge_rate`. Unknown-rate
-charges remain audit rows and make the parent call `partial` when token cost is
-known, or `unknown` when no reliable cost exists.
+Line items with no matching rate stay `unknown`. They keep the parent call
+`partial` when token cost is known, or `unknown` when no reliable cost exists.
 
 Free tiers and account-level reconciliation are not modeled in the ledger.
 
@@ -92,9 +94,11 @@ Storage is ActiveRecord-only. The current schema is:
 
 | Table | Responsibility |
 | --- | --- |
-| `llm_cost_tracker_calls` | Parent call ledger |
-| `llm_cost_tracker_service_charges` | Provider-reported tool/runtime rows; cascade-deletes with the parent call |
-| `llm_cost_tracker_call_rollups` | Maintained call aggregates |
+| `llm_cost_tracker_calls` | Header ledger row per tracked call |
+| `llm_cost_tracker_call_line_items` | Per-component cost rows; cascade-deletes with the parent |
+| `llm_cost_tracker_call_tags` | Normalized tag rows; cascade-deletes with the parent |
+| `llm_cost_tracker_call_rollups` | Maintained day/month aggregates for budget reads |
+| `llm_cost_tracker_provider_invoices` | Imported provider invoice headers (reserved for v0.9) |
 | `llm_cost_tracker_ingestion_inbox_entries` | Durable ingestion staging |
 | `llm_cost_tracker_ingestion_leases` | Shared worker lease |
 

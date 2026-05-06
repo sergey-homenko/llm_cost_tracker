@@ -8,12 +8,11 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Sergii Khomenko"]
   spec.email         = ["sergey@mm.st"]
 
-  spec.summary       = "Rails-native LLM usage and cost tracking with ActiveRecord storage"
-  spec.description   = "Tracks token usage, latency, and estimated costs for RubyLLM, OpenAI, Anthropic, " \
-                       "Google Gemini, OpenRouter, DeepSeek, and OpenAI-compatible APIs. " \
-                       "Works through Rails SDK integrations, Faraday middleware, or explicit " \
-                       "track/track_stream helpers, with ActiveRecord storage, tag-based attribution, " \
-                       "price sync tasks, and budget guardrails."
+  spec.summary       = "LLM API cost tracking for Rails applications"
+  spec.description   = "Logs every call your Rails app makes to OpenAI, Anthropic, Gemini, RubyLLM, " \
+                       "or an OpenAI-compatible API: tokens, cost, latency, tags. Calls go straight " \
+                       "to the provider — no proxy. Includes price sync, budget guardrails, and a " \
+                       "mountable dashboard."
   spec.homepage      = "https://github.com/sergey-homenko/llm_cost_tracker"
   spec.license       = "MIT"
 

@@ -34,8 +34,9 @@ The dashboard reads:
 
 | Table | Purpose |
 | --- | --- |
-| `llm_cost_tracker_calls` | Calls, token buckets, costs, tags, pricing status, snapshots |
-| `llm_cost_tracker_service_charges` | Provider-reported tool/runtime usage tied to calls |
+| `llm_cost_tracker_calls` | Header rows: token totals, total cost, pricing status, snapshots |
+| `llm_cost_tracker_call_line_items` | Per-component cost breakdown (tokens + tool charges) |
+| `llm_cost_tracker_call_tags` | Tag attribution for filters and breakdowns |
 | `llm_cost_tracker_call_rollups` | Budget status and operational aggregates |
 | `llm_cost_tracker_ingestion_inbox_entries` | Pending budget totals and ingestion health |
 
@@ -47,7 +48,7 @@ The dashboard reads:
 | Models | `/models` | Spend and usage by provider/model |
 | Calls | `/calls` | Filterable ledger, call details, CSV export |
 | Tags | `/tags` and `/tags/:key` | Tag key explorer and tag value breakdowns |
-| Data Quality | `/data_quality` | Unknown pricing, partial costs, missing latency, incomplete streams, service charge coverage |
+| Data Quality | `/data_quality` | Unknown pricing, partial costs, missing latency, incomplete streams, tool/runtime charge coverage |
 
 ## Filters
 

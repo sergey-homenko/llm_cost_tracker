@@ -53,9 +53,10 @@ Supported token price keys are owned by `Billing::Components`:
 - `_context_price_threshold_tokens` with `above_context_*` rates for providers
   that publish a whole-session long-context tier
 
-Provider-reported tool/runtime rates live under `service_charges` by provider
-and component. Do not add a service charge rate unless parser quantity matches
-the rate basis.
+Tool and runtime rates live under `service_charges` keyed by provider and
+component (web search, code execution, grounding, container session, file
+search). Do not add a rate unless the parser captures the same quantity basis
+the rate uses.
 
 Provider-specific pricing details must be translated before they reach runtime pricing.
 Do not rely on standard rates for missing alternate-mode prices; add explicit

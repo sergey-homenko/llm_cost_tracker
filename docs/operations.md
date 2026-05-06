@@ -34,9 +34,10 @@ rollbacks. Size pools for the host app concurrency plus those tracker paths.
 
 ## Durable Ingestion
 
-Capture writes a compact row to `llm_cost_tracker_ingestion_inbox_entries`; the background
-worker drains rows into `llm_cost_tracker_calls`, `llm_cost_tracker_service_charges`, and
-call rollups in database transactions.
+Capture writes a compact row to `llm_cost_tracker_ingestion_inbox_entries`; the
+background worker drains rows into `llm_cost_tracker_calls`,
+`llm_cost_tracker_call_line_items`, `llm_cost_tracker_call_tags`, and the call
+rollups in one transaction per batch.
 
 The inbox is the durability boundary. If the process exits after staging but
 before draining, another process can claim the row later through the database
@@ -75,8 +76,8 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` checks current schema, durable ingestion tables, service charge storage,
-call rollups, stale prices, integration setup, and legacy audit columns.
+`doctor` checks current schema, durable ingestion tables, line item and tag
+tables, call rollups, stale prices, integration setup, and legacy audit columns.
 
 `verify_capture` records a synthetic event and verifies both notifications and
 ActiveRecord persistence.
@@ -95,31 +96,32 @@ Optional batch size:
 DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 ```
 
-Pruning deletes old `llm_cost_tracker_calls`, deletes dependent service charges, and
-decrements affected daily/monthly call rollups in the same batch transaction.
+Pruning deletes old `llm_cost_tracker_calls`. Dependent line items and tags are
+removed by the database via `on_delete: :cascade`. Affected daily/monthly call
+rollups are decremented in the same transaction.
 
 ## Data Shape
 
 | Data | Storage |
 | --- | --- |
 | Calls | `llm_cost_tracker_calls` |
-| Service charges | `llm_cost_tracker_service_charges` |
-| Tags | PostgreSQL JSONB with GIN index, or MySQL JSON |
+| Line items | `llm_cost_tracker_call_line_items` |
+| Tags | `llm_cost_tracker_call_tags` |
 | Call rollups | `llm_cost_tracker_call_rollups` |
+| Provider invoices | `llm_cost_tracker_provider_invoices` |
 | Durable inbox | `llm_cost_tracker_ingestion_inbox_entries` |
 | Worker lease | `llm_cost_tracker_ingestion_leases` |
 
 Column and index details are documented in [Data Model](data-model.md).
 
-PostgreSQL is recommended for large tag-heavy ledgers because tag filters can use
-JSONB and GIN indexes. MySQL-family adapters are supported through native JSON
-and adapter-specific SQL.
+Tag queries join through `llm_cost_tracker_call_tags`, so the same query shape
+works on PostgreSQL and MySQL.
 
 ## Tags Hygiene
 
-Tags are operational attribution data, not a safe place for personal data or
-free-form request content. They are stored in `llm_cost_tracker_calls`, rendered on the
-dashboard overview, call details, and tag pages, and included in CSV export.
+Tags are operational attribution, not a safe place for personal data or
+free-form request content. They live in `llm_cost_tracker_call_tags`, render on
+the dashboard overview, call details, and tag pages, and ship in CSV export.
 Anyone with dashboard or database access can see them.
 
 Use stable internal IDs, feature names, tenant slugs, job names, and environment

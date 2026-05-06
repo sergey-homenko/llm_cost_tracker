@@ -40,7 +40,7 @@ Responsibilities:
 - Detect supported LLM HTTP requests.
 - Preserve streaming behavior while teeing events for tracking.
 - Parse provider responses and stream events into `UsageCapture`.
-- Translate provider-specific fields into canonical token usage, pricing mode, response identity, and service charges.
+- Translate provider-specific fields into canonical token usage, pricing mode, response identity, and service line items.
 
 Provider-specific response shape handling belongs here. The output boundary is
 `UsageCapture`, not raw provider JSON.
@@ -67,7 +67,7 @@ Primary files:
 
 - `lib/llm_cost_tracker/billing/components.rb`
 - `lib/llm_cost_tracker/billing/cost_status.rb`
-- `lib/llm_cost_tracker/billing/service_charge.rb`
+- `lib/llm_cost_tracker/billing/line_item.rb`
 - `lib/llm_cost_tracker/token_usage.rb`
 
 Responsibilities:
@@ -75,7 +75,7 @@ Responsibilities:
 - Own the billable component registry.
 - Own token usage value objects.
 - Classify costs as `free`, `complete`, `partial`, or `unknown`.
-- Represent provider-reported service charge rows before persistence.
+- Represent priced and unpriced line items (tokens + tool/runtime charges) before persistence.
 
 `Billing::Components` is the master source of billable component metadata.
 
@@ -94,7 +94,7 @@ Responsibilities:
 - Load bundled prices, local price snapshots, and Ruby overrides.
 - Apply pricing precedence: overrides, local file, bundled prices.
 - Calculate token costs from canonical `TokenUsage`.
-- Price known service charges when the registry has a reliable rate.
+- Price known service line items when the registry has a reliable rate (`charge_rate`).
 - Explain unknown or incomplete pricing.
 - Refresh local snapshots from the maintained LLM Cost Tracker registry.
 
@@ -111,7 +111,7 @@ Primary files:
 Responsibilities:
 
 - Normalize model identity, usage source, tags, latency, stream flags, and response IDs.
-- Apply token pricing and service charge pricing.
+- Apply token and service line item pricing.
 - Build pricing snapshot and cost status.
 - Emit `ActiveSupport::Notifications`.
 - Stage events durably.
@@ -134,9 +134,9 @@ Responsibilities:
 
 - Stage captured events before ledger writes.
 - Claim retryable inbox entries through database leases.
-- Persist calls and service charges atomically.
+- Persist call headers, line items, and tag rows atomically.
 - Maintain call rollups for hot-path budget reads.
-- Hide PostgreSQL and MySQL-family JSON/tag SQL differences.
+- Hide PostgreSQL and MySQL-family SQL differences.
 - Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
 
 Storage knows database adapters and current schema. It should not parse provider
@@ -153,7 +153,7 @@ Primary files:
 Responsibilities:
 
 - Prune old ledger rows in batches.
-- Delete dependent service charges.
+- Let `on_delete: :cascade` clean up dependent line items and tag rows.
 - Keep daily and monthly call rollups consistent.
 
 ## Dashboard and Reporting
@@ -171,7 +171,7 @@ Primary files:
 Responsibilities:
 
 - Render server-side dashboard pages.
-- Aggregate spend, calls, providers, models, tags, latency, pricing status, and service charge coverage.
+- Aggregate spend, calls, providers, models, tags, latency, pricing status, and tool/runtime charge coverage.
 - Export filtered calls as CSV.
 - Keep dashboard queries explicit, bounded, and indexed.
 

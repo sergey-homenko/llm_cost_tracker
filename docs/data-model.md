@@ -1,194 +1,188 @@
-# Data Model
+# Data model
 
-LLM Cost Tracker stores data in the host Rails app database through ActiveRecord.
-Supported adapters are PostgreSQL and MySQL-family adapters.
+LLM Cost Tracker stores everything in your app's database through ActiveRecord.
+Supported adapters: PostgreSQL and MySQL-family.
 
 ## Tables
 
 | Table | Role |
 | --- | --- |
-| `llm_cost_tracker_calls` | Parent ledger row for one tracked LLM call |
-| `llm_cost_tracker_service_charges` | Provider-reported tool/runtime usage tied to a call |
-| `llm_cost_tracker_call_rollups` | Maintained daily/monthly totals for budget reads |
-| `llm_cost_tracker_ingestion_inbox_entries` | Durable staging rows before ledger insertion |
-| `llm_cost_tracker_ingestion_leases` | Shared worker lease rows for durable ingestion |
+| `llm_cost_tracker_calls` | One row per tracked call. Header totals, attribution dimensions, pricing snapshot. |
+| `llm_cost_tracker_call_line_items` | Per-component cost rows: text/audio/cached tokens, tool charges. |
+| `llm_cost_tracker_call_tags` | Normalized tag rows for attribution queries. |
+| `llm_cost_tracker_call_rollups` | Daily and monthly cost totals for fast budget checks. |
+| `llm_cost_tracker_provider_invoices` | Imported provider invoice headers (reserved for v0.9 reconciliation). |
+| `llm_cost_tracker_ingestion_inbox_entries` | Durable staging rows the ingestor drains into the ledger. |
+| `llm_cost_tracker_ingestion_leases` | Shared lease rows for the ingestion worker. |
 
-Fresh installs create all tables through `llm_cost_tracker:install`. Existing
-installs add missing pieces through the focused generators listed in
-[Upgrading](upgrading.md).
+`llm_cost_tracker:install` creates the lot. `llm_cost_tracker:doctor` checks
+that the schema matches the gem version.
 
 ## `llm_cost_tracker_calls`
 
-Primary ledger table. One row represents one tracked call or completed stream.
+Header row. One per tracked call (or completed stream).
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | primary key | Rails default |
-| `event_id` | string, not null | Unique event identity used by durable ingestion |
-| `provider` | string, not null | Canonical provider identity |
-| `model` | string, not null | Captured or inferred model identity |
-| `input_tokens` | integer, not null, default `0` | Text input tokens |
-| `cache_read_input_tokens` | integer, not null, default `0` | Cached input tokens read from provider cache |
-| `cache_write_input_tokens` | integer, not null, default `0` | Standard cache-write input tokens |
-| `cache_write_extended_input_tokens` | integer, not null, default `0` | Extended cache-write input tokens |
-| `audio_input_tokens` | integer, not null, default `0` | Audio input tokens |
-| `output_tokens` | integer, not null, default `0` | Text output tokens |
-| `audio_output_tokens` | integer, not null, default `0` | Audio output tokens |
-| `total_tokens` | integer, not null, default `0` | Provider total or calculated token total, whichever is larger |
-| `hidden_output_tokens` | integer, not null, default `0` | Hidden/reasoning output tokens |
-| `input_cost` | decimal, precision `20`, scale `8` | Text input cost |
-| `cache_read_input_cost` | decimal, precision `20`, scale `8` | Cached input read cost |
-| `cache_write_input_cost` | decimal, precision `20`, scale `8` | Standard cache-write cost |
-| `cache_write_extended_input_cost` | decimal, precision `20`, scale `8` | Extended cache-write cost |
-| `audio_input_cost` | decimal, precision `20`, scale `8` | Audio input cost |
-| `output_cost` | decimal, precision `20`, scale `8` | Text output cost |
-| `audio_output_cost` | decimal, precision `20`, scale `8` | Audio output cost |
-| `total_cost` | decimal, precision `20`, scale `8` | Total known cost; nil when pricing is unknown |
-| `latency_ms` | integer | Request latency in milliseconds when captured |
-| `stream` | boolean, not null, default `false` | Whether the row came from stream capture |
-| `usage_source` | string | `response`, `stream_final`, `sdk_response`, `manual`, or `unknown` |
-| `provider_response_id` | string | Stable provider response id when exposed |
-| `provider_project_id` | string | Provider project/account dimension when known at capture time |
-| `provider_api_key_id` | string | Provider API key dimension when known at capture time |
-| `provider_workspace_id` | string | Provider workspace/organization dimension when known at capture time |
-| `batch` | boolean, not null, default `false` | Whether usage came from a provider batch path |
-| `pricing_mode` | string | Canonical pricing mode such as `batch`, `flex`, or `priority` |
-| `cost_status` | string, not null, default `unknown` | `free`, `complete`, `partial`, or `unknown` |
-| `pricing_snapshot` | JSONB on PostgreSQL, JSON on MySQL | Applied pricing audit snapshot |
-| `tags` | JSONB on PostgreSQL, JSON on MySQL, not null | Sanitized attribution tags |
+| `event_id` | string, not null | Unique event identity for idempotent ingestion |
+| `provider` | string, not null | Canonical provider name |
+| `model` | string, not null | Captured or inferred model |
+| `input_tokens` | integer, default `0` | Text input tokens |
+| `output_tokens` | integer, default `0` | Text output tokens |
+| `total_tokens` | integer, default `0` | Provider total or computed |
+| `cache_read_input_tokens` | integer, default `0` | Cached input tokens read |
+| `cache_write_input_tokens` | integer, default `0` | Standard cache-write input |
+| `cache_write_extended_input_tokens` | integer, default `0` | Extended cache-write input |
+| `audio_input_tokens` | integer, default `0` | Audio input |
+| `audio_output_tokens` | integer, default `0` | Audio output |
+| `hidden_output_tokens` | integer, default `0` | Reasoning/hidden output |
+| `total_cost` | decimal(20,8) | Total known cost; `nil` when pricing is unknown |
+| `latency_ms` | integer | Request latency when captured |
+| `stream` | boolean, default `false` | Streamed response |
+| `usage_source` | string | `response`, `stream_final`, `sdk_response`, `manual`, `unknown` |
+| `provider_response_id` | string | Stable provider response id |
+| `provider_project_id` | string | Provider project/account dimension |
+| `provider_api_key_id` | string | Provider API key dimension |
+| `provider_workspace_id` | string | Provider workspace/org dimension |
+| `batch` | boolean, default `false` | Provider batch path |
+| `pricing_mode` | string | `batch`, `flex`, `priority`, etc. |
+| `cost_status` | string, default `unknown` | `free`, `complete`, `partial`, `unknown` |
+| `pricing_snapshot` | jsonb / json | Applied rate audit snapshot |
 | `tracked_at` | datetime, not null | Event timestamp |
-| `created_at` | datetime | Rails timestamp |
-| `updated_at` | datetime | Rails timestamp |
+| `created_at` / `updated_at` | datetime | Rails timestamps |
 
-PostgreSQL installs use a database default of `{}` for `tags`. MySQL-family
-installs use JSON without a database default; runtime storage writes a JSON
-object for every row.
+Per-component cost values live in `call_line_items`, not on the header. The
+header keeps only the denormalized `total_cost` for budget queries and sort
+columns.
 
 Indexes:
 
-| Index | Purpose |
-| --- | --- |
-| unique `event_id` | Idempotent durable ingestion |
-| `tracked_at` | Time-range filters and pruning |
-| `provider, tracked_at` | Provider/time dashboard filters |
-| `model, tracked_at` | Model/time dashboard filters |
-| `cost_status` | Data-quality and unknown-pricing filters |
-| `provider_response_id` | Provider reconciliation lookup |
-| PostgreSQL GIN on `tags` | JSONB tag filters |
+- unique `event_id` (idempotent ingestion)
+- `tracked_at`, `[provider, tracked_at]`, `[model, tracked_at]` (filters)
+- `cost_status` (data quality)
+- `provider_response_id` (reconciliation)
 
-## `llm_cost_tracker_service_charges`
+## `llm_cost_tracker_call_line_items`
 
-Child table for provider-reported tool/runtime usage outside token prices.
+One row per priced component on a call. Tokens and tool charges live here in
+the same shape.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | primary key | Rails default |
-| `llm_cost_tracker_call_id` | bigint, not null | Parent `llm_cost_tracker_calls` id; cascade-delete foreign key |
-| `charge_id` | string, not null | Unique charge identity |
-| `component` | string, not null | Billing component such as `web_search_request` |
-| `unit` | string, not null | Component unit such as `request`, `session`, or `hour` |
-| `quantity` | decimal, precision `30`, scale `10`, not null | Captured quantity |
-| `rate_amount` | decimal, precision `20`, scale `8` | Applied rate amount when priced |
-| `rate_quantity` | decimal, precision `30`, scale `10`, not null, default `1` | Quantity basis for `rate_amount` |
-| `cost` | decimal, precision `20`, scale `8` | Calculated charge cost when priced |
-| `currency` | string, not null, default `USD` | Charge currency |
-| `cost_status` | string, not null, default `unknown` | `free`, `complete`, or `unknown` |
-| `pricing_basis` | string | Why the charge is priced, free, ignored, or unknown |
-| `price_key` | string | Matched registry key when priced |
-| `price_source` | string | `builtin`, `file`, or configured source |
-| `price_source_version` | string | Version or timestamp for the applied source |
-| `source_key` | string | Provider source key from parser output |
-| `provider_item_id` | string | Provider item id when exposed |
-| `details` | JSONB on PostgreSQL, JSON on MySQL, not null | Provider audit details |
-| `created_at` | datetime | Rails timestamp |
-| `updated_at` | datetime | Rails timestamp |
+| `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
+| `position` | smallint, default `0` | Stable order within a call |
+| `kind` | string, not null | `text_token`, `audio_token`, `web_search_request`, `code_execution_request`, `grounding_request`, `container_session`, `file_search_call`, … |
+| `direction` | string, not null | `input`, `output`, `neither` |
+| `modality` | string, not null | `text`, `audio`, `image`, `video` |
+| `cache_state` | string, default `none` | `none`, `read`, `write_5m`, `write_1h` |
+| `quantity` | decimal(30,10) | Token count or charge count |
+| `unit` | string, not null | `token`, `request`, `session`, `hour` |
+| `rate_amount` | decimal(20,8) | Applied rate when priced |
+| `rate_quantity` | decimal(30,10), default `1` | Rate denominator (e.g. 1_000_000 for tokens) |
+| `cost` | decimal(20,8) | `quantity / rate_quantity * rate_amount` |
+| `currency` | string, default `USD` | Currency for `cost` |
+| `cost_status` | string, default `unknown` | `complete`, `free`, `unknown` |
+| `pricing_basis` | string | `provider_usage`, `bundled`, `pricing_overrides`, `prices_file` |
+| `price_key` | string | Registry key the rate matched |
+| `price_source` / `price_source_version` | string | Where the rate came from |
+| `provider_field` | string | Path in the provider response (audit) |
+| `provider_item_id` | string | Provider item id (audit) |
+| `details` | jsonb / json | Free-form provider audit blob |
+| `created_at` | datetime | Insert time |
+
+New billing components are added by registering metadata in
+`Billing::Components`; no migration needed.
 
 Indexes:
 
-| Index | Purpose |
-| --- | --- |
-| `llm_cost_tracker_call_id` | Call details and dependent pruning |
-| unique `charge_id` | Idempotent service charge storage |
-| `component` | Service charge coverage and reporting |
+- `[llm_cost_tracker_call_id, position]`
+- `kind`
+
+## `llm_cost_tracker_call_tags`
+
+Normalized attribution. One row per `key=value` pair on a call.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
+| `key` | string, not null | Tag key |
+| `value` | string, not null | Tag value (nested hashes are stored as JSON strings) |
+
+Indexes:
+
+- `llm_cost_tracker_call_id`
+- `[key, value]` (filter by tag)
 
 ## `llm_cost_tracker_call_rollups`
 
-Maintained aggregate table for budget checks. Request-time budget checks read
-this table instead of scanning `llm_cost_tracker_calls`.
+Maintained daily/monthly totals so budget checks don't scan the full ledger.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | primary key | Rails default |
 | `period` | string, not null | `day` or `month` |
-| `period_start` | date, not null | Start date for the period |
-| `total_cost` | decimal, precision `20`, scale `8`, not null, default `0` | Known cost total for the period |
-| `created_at` | datetime | Rails timestamp |
-| `updated_at` | datetime | Rails timestamp |
+| `period_start` | date, not null | Start of the period |
+| `total_cost` | decimal(20,8), default `0` | Cost total |
+| `created_at` / `updated_at` | datetime | Rails timestamps |
 
-Indexes:
+Index: unique `[period, period_start]`.
 
-| Index | Purpose |
+## `llm_cost_tracker_provider_invoices`
+
+Reserved for v0.9 invoice reconciliation. Written by the upcoming import jobs;
+not populated by the ingestor today.
+
+| Column | Type |
 | --- | --- |
-| unique `period, period_start` | Upsert target for daily/monthly totals |
+| `source` | string, not null |
+| `period_start` / `period_end` | date, not null |
+| `external_id` | string, not null (unique) |
+| `billed_amount` | decimal(20,8) |
+| `currency` | string, default `USD` |
+| `metadata` | jsonb / json |
+| `imported_at` | datetime, not null |
 
 ## `llm_cost_tracker_ingestion_inbox_entries`
 
-Durable ingestion staging table. Capture writes here first; the ingestor drains
-rows into the ledger tables in batches.
+Durable staging. Capture writes here first; the worker drains rows into the
+ledger.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | primary key | Rails default |
-| `event_id` | string, not null | Unique event identity |
-| `total_cost` | decimal, precision `20`, scale `8` | Known total cost used by pending budget reads |
-| `tracked_at` | datetime, not null | Event timestamp |
+| `event_id` | string, not null (unique) | |
+| `total_cost` | decimal(20,8) | Used by pending budget reads |
+| `tracked_at` | datetime, not null | |
 | `payload` | text, not null | Versioned JSON payload |
-| `locked_at` | datetime | Worker row lock timestamp |
-| `locked_by` | string | Worker identity |
-| `attempts` | integer, not null, default `0` | Retry count |
+| `locked_at` / `locked_by` | datetime / string | Worker row lock |
+| `attempts` | integer, default `0` | Retry count |
 | `last_error` | text | Last ingestion error |
-| `created_at` | datetime | Rails timestamp |
-| `updated_at` | datetime | Rails timestamp |
+| `created_at` / `updated_at` | datetime | |
 
-Indexes:
-
-| Index | Purpose |
-| --- | --- |
-| unique `event_id` | Idempotent staging |
-| `tracked_at, attempts` | Pending budget totals and retryable row lookup |
-| `locked_at, id` | Lease expiry and claim ordering |
+Indexes: `[tracked_at, attempts]`, `[locked_at, id]`.
 
 ## `llm_cost_tracker_ingestion_leases`
 
-Shared lease table for background ingestion.
+Shared lease for the background worker.
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | primary key | Rails default |
-| `name` | string, not null | Lease name |
-| `locked_by` | string | Worker identity |
-| `locked_until` | datetime | Lease expiry |
-| `created_at` | datetime | Rails timestamp |
-| `updated_at` | datetime | Rails timestamp |
-
-Indexes:
-
-| Index | Purpose |
+| Column | Type |
 | --- | --- |
-| unique `name` | One active holder per lease name |
+| `name` | string, not null (unique) |
+| `locked_by` | string |
+| `locked_until` | datetime |
+| `created_at` / `updated_at` | datetime |
 
-## JSON Fields
+## JSON fields
 
-| Field | Stored data |
+| Field | Stored |
 | --- | --- |
-| `llm_cost_tracker_calls.tags` | Sanitized application attribution tags |
-| `llm_cost_tracker_calls.pricing_snapshot` | Schema version, source metadata, currency, and applied token rates |
-| `llm_cost_tracker_service_charges.details` | Provider item details used for audit and reconciliation |
-| `llm_cost_tracker_ingestion_inbox_entries.payload` | Versioned event payload for durable ingestion |
+| `calls.pricing_snapshot` | Schema version, source metadata, currency, applied rates |
+| `call_line_items.details` | Provider item details for audit |
+| `provider_invoices.metadata` | Invoice metadata blob |
+| `ingestion_inbox_entries.payload` | Versioned event payload |
 
-## Schema Health
+## Schema health
 
-`bin/rails llm_cost_tracker:doctor` verifies the current ledger schema, JSON
-column types, service charge table, durable ingestion tables, and call rollups.
-The dashboard renders setup guidance instead of querying when required schema is
-missing.
+`bin/rails llm_cost_tracker:doctor` verifies the calls schema, JSON column
+types, line items, tags, call rollups, and the durable ingestion tables. When
+something is missing, the dashboard renders setup guidance instead of running
+queries.

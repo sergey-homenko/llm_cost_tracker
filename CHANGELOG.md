@@ -4,43 +4,42 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+0.8 is a storage rebuild. Tokens and tool/runtime charges share one shape
+(`Billing::LineItem`) and live in a dedicated line items table. Per-component
+cost columns and the standalone service charges table are gone. See
+[Upgrading](docs/upgrading.md) for the migration path.
+
 ### Added
 
-- Billing component registry, cost status, pricing snapshots, and service charge ledger rows.
-- Anthropic server tool usage is captured as service charges.
-- OpenAI hosted tool and Gemini grounding usage are captured as service charges.
-- OpenAI audio token details now populate audio input/output token and cost columns.
-- Gemini modality token details now populate audio input/output token and cost columns.
-- Provider tool rates can price service charges through `Pricing.charge_rate`.
-- `llm_cost_tracker:add_billing` upgrades existing ledgers with billing audit columns and service charge storage.
-- `llm_cost_tracker:add_capture_dimensions` adds provider project, API key, workspace, and batch dimensions for future reconciliation.
-- Doctor checks now report missing billing audit columns and service charge schema.
-- Doctor warns when many legacy rows lack pricing snapshots.
+- `llm_cost_tracker_call_line_items` — one row per priced component (text/audio/cached tokens, web search, code execution, grounding, container sessions, file search). Tokens and tool charges share one shape and one `cost_status` semantics.
+- `llm_cost_tracker_call_tags` — normalized attribution. Tag filters and aggregations now JOIN through this table on PostgreSQL and MySQL alike.
+- `llm_cost_tracker_provider_invoices` — placeholder table reserved for v0.9 invoice reconciliation.
+- `Billing::LineItem` value object covering both token and service charges. `LineItem.from_token_usage` and explicit `component_key:` builders price token and tool/runtime quantities through the same path.
+- `Pricing.price_line_items` — single pricing pass for token + tool/runtime line items, used by `Tracker.build_event`.
+- Doctor checks for `llm_cost_tracker_call_line_items` and `llm_cost_tracker_call_tags` schema.
+- Anthropic web search and code execution usage emitted as line items with `component_key: :web_search_request` / `:code_execution_request`.
+- OpenAI hosted web search, file search, and Code Interpreter container sessions emitted as line items.
+- Gemini grounding queries emitted as line items.
+- Bundled audio and tool rates refreshed from current provider pricing.
 
 ### Changed
 
-- Provider price refresh now updates Groq and Gemini audio input rates, OpenAI audio model rates, and service charge rates.
-- OpenAI Realtime stream usage now reads singular token detail keys from `response.done` events.
-- OpenAI web search service charges now ignore non-search page actions.
-- OpenAI container session rates are no longer bundled without container-size usage.
-- Data quality now summarizes captured service charges.
-- BREAKING: Inbox payload schema is v2 only; drain legacy rows before upgrade.
-- Anthropic parsing now warns when `usage.cache_creation` has an unexpected shape.
-- RubyLLM captured calls now use `sdk_response` as their usage source.
-- Upgrade migrations and doctor diagnostics now distinguish schema renames from missing legacy columns.
-- BREAKING: Removed the `Pricing::COMPONENTS` compatibility surface.
-- BREAKING: Early schema names now use `llm_cost_tracker_calls`, `llm_cost_tracker_call_rollups`, `llm_cost_tracker_call_id`, `cache_write_extended_input_tokens`, `cache_write_extended_input_cost`, `llm_cost_tracker_ingestion_inbox_entries`, and `llm_cost_tracker_ingestion_leases`; run `llm_cost_tracker:upgrade_schema_foundation`.
-- BREAKING: ActiveRecord models now use `LlmCostTracker::Call`, `LlmCostTracker::ServiceCharge`, `LlmCostTracker::CallRollup`, `LlmCostTracker::Ingestion::InboxEntry`, and `LlmCostTracker::Ingestion::Lease`.
-- BREAKING: Manual `LlmCostTracker.track` now accepts explicit `tokens:` and `tags:` hashes.
-- Manual capture now accepts provider project, API key, workspace, and batch dimensions.
-- Partial token pricing records priced components with `cost_status: partial` instead of dropping total cost.
-- SDK integration latency excludes budget guardrail time.
-- `pricing_overrides` is validated on assignment, not on first cost lookup.
-- BREAKING: `llm_cost_tracker_service_charges` now has a cascade-delete foreign key to `llm_cost_tracker_calls`.
-- Stream capture preserves buffered events on overflow for partial usage extraction.
-- Negative token counts are clamped to zero on capture.
-- BREAKING: Removed `LlmCostTracker.flush!`, `shutdown!`, `enforce_budget!`; call `Ingestion::Worker` and `Tracker` directly.
-- Gemini `thoughtsTokenCount` is now billed at the output rate per ai.google.dev/gemini-api/docs/thinking; previously thinking tokens were silently dropped from the cost.
+- BREAKING: Per-component cost columns removed from `llm_cost_tracker_calls` (`input_cost`, `output_cost`, `cache_read_input_cost`, `cache_write_input_cost`, `cache_write_extended_input_cost`, `audio_input_cost`, `audio_output_cost`). The header keeps `total_cost` only; per-component costs live in line items.
+- BREAKING: `llm_cost_tracker_calls.tags` JSONB column removed in favor of `llm_cost_tracker_call_tags`. `Call#parsed_tags`, `Call.by_tags`, `Call.cost_by_tag`, `Call.group_by_tag`, and the dashboard tag explorer now read the normalized table.
+- BREAKING: `llm_cost_tracker_service_charges` table removed. Tool/runtime rows are stored in `llm_cost_tracker_call_line_items` with `unit != 'token'`.
+- BREAKING: `Billing::ServiceCharge` value object and `LlmCostTracker::ServiceCharge` AR model removed. Use `Billing::LineItem` and `LlmCostTracker::CallLineItem`.
+- BREAKING: `Event#service_charges` removed. Filter `event.line_items` by `unit != :token` instead.
+- BREAKING: `Call#service_charges` association removed. Use `call.line_items.where.not(unit: "token")`.
+- BREAKING: `LlmCostTracker.track(service_charges:)` keyword renamed to `service_line_items:`. Hash keys: `component:` → `component_key:`, `source_key:` → `provider_field:`, `pricing_basis: PROVIDER_USAGE_BASIS` → `pricing_basis: :provider_usage`.
+- BREAKING: `Billing::CostStatus.call(service_charges:)` keyword renamed to `service_line_items:`.
+- BREAKING: Notification payload (`llm_request.llm_cost_tracker`) no longer carries `service_charges`. Subscribers read `line_items`.
+- BREAKING: Inbox payload version stays at v2 but no longer encodes a `service_charges` key; line items carry the equivalent.
+- BREAKING: Ruby 3.4+ required.
+- Pricing computes `total_cost` once via `Pricing.price_line_items`; the legacy double pass through `cost_with_service_charges` is gone.
+- Retention deletes rely on `on_delete: :cascade` for line items and tag rows.
+- Dashboard data-quality breakdown computes per-component cost from line items via JOIN; usage_rows accepts `component_costs:` hash.
+- CSV export pulls tag JSON from `tag_records` instead of the dropped JSONB column.
+- Anthropic `thoughtsTokenCount` already billed at the output rate (no change here, called out for clarity given the rebuild).
 
 ## [0.7.3] - 2026-05-01
 

@@ -49,20 +49,34 @@ calls.daily_costs(days: 7)
 | `latency_by_model` | Hash of model to average latency |
 | `latency_by_provider` | Hash of provider to average latency |
 
-Tag helpers use database-side JSON expressions for PostgreSQL and MySQL-family
-adapters.
+Tag aggregations join through `llm_cost_tracker_call_tags` so the same query
+shape works on PostgreSQL and MySQL.
 
-## Service Charges
+## Line items
 
-Service charges are associated records:
+Per-component cost rows hang off each call. Tokens and tool charges share the
+same shape:
 
 ```ruby
-call = LlmCostTracker::Call.includes(:service_charges).first
-call.service_charges.map(&:component)
+call = LlmCostTracker::Call.includes(:line_items).first
+call.line_items.map { |item| [item.kind, item.cost] }
+
+# Just the non-token charges (tools, runtime, etc.)
+call.line_items.where.not(unit: "token")
 ```
 
-Use them for audit and reconciliation of provider-reported tool/runtime usage.
-The parent call's `total_cost` already includes priced service charges.
+Useful scopes on `LlmCostTracker::CallLineItem`:
+
+| Scope | Returns |
+| --- | --- |
+| `tokens` | Token line items only |
+| `by_kind(kind)` | Filter by component kind |
+| `by_direction(:input)` | Input vs output |
+| `by_modality(:audio)` | Text, audio, image, video |
+| `cached` | Items with a cache state other than `none` |
+| `priced` / `unpriced` | Cost status filter |
+
+The parent call's `total_cost` already sums priced line items.
 
 ## Report Task
 
