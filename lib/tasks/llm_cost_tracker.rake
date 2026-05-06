@@ -4,6 +4,7 @@ require "fileutils"
 require "rails/generators"
 
 require_relative "../llm_cost_tracker/generators/llm_cost_tracker/install_generator"
+require_relative "../llm_cost_tracker/pricing/sync_change_printer"
 
 # rubocop:disable Metrics/BlockLength
 namespace :llm_cost_tracker do
@@ -112,15 +113,7 @@ end
 # rubocop:enable Metrics/BlockLength
 
 def print_changes(changes)
-  puts "  changed models: #{changes.size}"
-  return if changes.empty?
-
-  changes.each do |model, fields|
-    puts "    - #{model}"
-    fields.each do |field, values|
-      puts "      #{field}: #{values['from'].inspect} -> #{values['to'].inspect}"
-    end
-  end
+  LlmCostTracker::Pricing::SyncChangePrinter.call(changes)
 end
 
 def price_refresh_output_path

@@ -9,6 +9,7 @@ module LlmCostTracker
       HOSTS = %w[generativelanguage.googleapis.com].freeze
       TRACKED_PATH_PATTERN = %r{/models/[^/:]+:(?:generateContent|streamGenerateContent)\z}
       STREAM_PATH_PATTERN  = /:streamGenerateContent\z/
+      PER_QUERY_GROUNDING_MODEL_PATTERN = /\bgemini-(?:[3-9]|[1-9]\d)\b/i
 
       def match?(url)
         match_uri?(url, hosts: HOSTS, path_pattern: TRACKED_PATH_PATTERN)
@@ -32,13 +33,14 @@ module LlmCostTracker
         return nil unless usage
 
         request = safe_json_parse(request_body)
+        model = extract_model_from_url(request_url)
         build_usage_capture(
           request_url: request_url,
           usage: usage,
           usage_source: :response,
           provider_response_id: response["responseId"],
           pricing_mode: pricing_mode(request: request, response_headers: response_headers),
-          service_line_items: grounding_line_items_for_response(response)
+          service_line_items: grounding_line_items_for_response(response, model: model)
         )
       end
 
@@ -50,7 +52,7 @@ module LlmCostTracker
         model = extract_model_from_url(request_url)
         response_id = stream_response_id(events)
         mode = pricing_mode(request: request, response_headers: response_headers)
-        service_line_items = grounding_line_items_for_stream(events)
+        service_line_items = grounding_line_items_for_stream(events, model: model)
 
         if usage
           build_usage_capture(
@@ -178,16 +180,16 @@ module LlmCostTracker
         headers.to_h.find { |key, _value| key.to_s.downcase == name }&.last
       end
 
-      def grounding_line_items_for_response(response)
-        grounding_line_items(grounding_request_count(response["candidates"]))
+      def grounding_line_items_for_response(response, model:)
+        grounding_line_items(grounding_request_count(response["candidates"]), model: model)
       end
 
-      def grounding_line_items_for_stream(events)
+      def grounding_line_items_for_stream(events, model:)
         quantity = find_event_value(events, reverse: true) do |data|
           count = grounding_request_count(data["candidates"])
           count if count.positive?
         end
-        grounding_line_items(quantity || 0)
+        grounding_line_items(quantity || 0, model: model)
       end
 
       def grounding_request_count(candidates)
@@ -200,18 +202,28 @@ module LlmCostTracker
         end
       end
 
-      def grounding_line_items(quantity)
-        return [] unless quantity.positive?
+      def grounding_line_items(query_count, model:)
+        return [] unless query_count.positive?
 
+        billed_quantity = grounding_billed_quantity(query_count, model: model)
         [
           Billing::LineItem.build(
             component_key: :grounding_request,
-            quantity: quantity,
+            quantity: billed_quantity,
             cost_status: Billing::CostStatus::UNKNOWN,
             pricing_basis: :provider_usage,
-            provider_field: "response.candidates.groundingMetadata.webSearchQueries"
+            provider_field: "response.candidates.groundingMetadata.webSearchQueries",
+            details: { web_search_queries: query_count }
           )
         ]
+      end
+
+      def grounding_billed_quantity(query_count, model:)
+        per_query_billing?(model) ? query_count : 1
+      end
+
+      def per_query_billing?(model)
+        model.to_s.match?(PER_QUERY_GROUNDING_MODEL_PATTERN)
       end
     end
   end

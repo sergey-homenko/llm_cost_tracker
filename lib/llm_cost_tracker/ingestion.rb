@@ -19,21 +19,25 @@ module LlmCostTracker
         "llm_cost_tracker_ingestion_"
       end
 
+      WRITE_SCHEMA_GUARDS = [
+        ["llm_cost_tracker_calls",            Ledger::Schema::Calls],
+        ["llm_cost_tracker_call_line_items",  Ledger::Schema::CallLineItems],
+        ["llm_cost_tracker_call_tags",        Ledger::Schema::CallTags],
+        ["llm_cost_tracker_call_rollups",     Ledger::Schema::CallRollups]
+      ].freeze
+
       def ensure_current_schema!
         unless LlmCostTracker::Call.table_exists?
           raise Error, "llm_cost_tracker_calls table is missing; run install generator and migrate"
         end
 
-        schema_errors = Ledger::Schema::Calls.current_schema_errors
-        message = "llm_cost_tracker_calls table is not on the current schema: #{schema_errors.join('; ')}"
-        raise Error, message if schema_errors.any?
+        WRITE_SCHEMA_GUARDS.each do |table_name, schema_module|
+          errors = schema_module.current_schema_errors
+          next if errors.empty?
 
-        call_rollup_errors = Ledger::Schema::CallRollups.current_schema_errors
-        return if call_rollup_errors.empty?
-
-        message = "llm_cost_tracker_call_rollups table is not on the current schema: " \
-                  "#{call_rollup_errors.join('; ')}; see docs/upgrading.md"
-        raise Error, message
+          raise Error,
+                "#{table_name} table is not on the current schema: #{errors.join('; ')}; see docs/upgrading.md"
+        end
       end
 
       def verify

@@ -214,7 +214,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.pricing_mode).to be_nil
     end
 
-    it "captures Google Search grounding queries as unknown-cost service charges" do
+    it "bills grounding per prompt for Gemini 2.5 even when multiple webSearchQueries are returned" do
       result = parser.parse(
         request_url: generate_content_url,
         request_body: nil,
@@ -234,9 +234,32 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       service_lines = result.line_items.reject { |item| item.unit == :token }
       expect(service_lines.size).to eq(1)
       expect(service_lines.first.kind).to eq(:grounding_request)
-      expect(service_lines.first.quantity).to eq(2)
+      expect(service_lines.first.quantity).to eq(1)
+      expect(service_lines.first.details).to include(web_search_queries: 2)
       expect(service_lines.first.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
       expect(service_lines.first.pricing_basis).to eq(:provider_usage)
+    end
+
+    it "bills grounding per query for Gemini 3" do
+      result = parser.parse(
+        request_url: URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models/gemini-3-pro:generateContent").to_s,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
+          candidates: [
+            { groundingMetadata: { webSearchQueries: ["weather kyiv", "kyiv forecast", "kyiv events"] } }
+          ],
+          usageMetadata: {
+            promptTokenCount: 100,
+            candidatesTokenCount: 20,
+            totalTokenCount: 120
+          }
+        }.to_json
+      )
+
+      service_lines = result.line_items.reject { |item| item.unit == :token }
+      expect(service_lines.first.quantity).to eq(3)
+      expect(service_lines.first.details).to include(web_search_queries: 3)
     end
   end
 
@@ -343,7 +366,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(result.token_usage.total_tokens).to eq(160)
     end
 
-    it "captures streamed Google Search grounding queries from the latest grounded candidate" do
+    it "captures streamed Google Search grounding queries with per-prompt billing on Gemini 2.5" do
       events = [
         { event: nil, data: {
           "candidates" => [
@@ -371,7 +394,32 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       service_lines = result.line_items.reject { |item| item.unit == :token }
       expect(service_lines.size).to eq(1)
       expect(service_lines.first.kind).to eq(:grounding_request)
-      expect(service_lines.first.quantity).to eq(2)
+      expect(service_lines.first.quantity).to eq(1)
+      expect(service_lines.first.details).to include(web_search_queries: 2)
+    end
+
+    it "bills streamed Gemini 3 grounding per query" do
+      events = [
+        { event: nil, data: {
+          "candidates" => [
+            { "groundingMetadata" => { "webSearchQueries" => ["q1", "q2", "q3"] } }
+          ],
+          "usageMetadata" => {
+            "promptTokenCount" => 50,
+            "candidatesTokenCount" => 25,
+            "totalTokenCount" => 75
+          }
+        } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models/gemini-3-pro:streamGenerateContent").to_s,
+        response_status: 200,
+        events: events
+      )
+
+      service_lines = result.line_items.reject { |item| item.unit == :token }
+      expect(service_lines.first.quantity).to eq(3)
     end
 
     it "returns an unknown-usage UsageCapture when no usage metadata is seen" do

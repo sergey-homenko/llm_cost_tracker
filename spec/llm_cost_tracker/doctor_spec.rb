@@ -84,6 +84,7 @@ RSpec.describe LlmCostTracker::Doctor do
     expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil
     expect(described_class::CallLineItemsCheck.new.call).to be_nil
     expect(described_class::CallTagsCheck.new.call).to be_nil
+    expect(described_class::ProviderInvoicesCheck.new.call).to be_nil
   end
 
   context "with ActiveRecord storage" do
@@ -97,9 +98,21 @@ RSpec.describe LlmCostTracker::Doctor do
         have_attributes(status: :ok, name: "llm_cost_tracker_calls columns"),
         have_attributes(status: :ok, name: "call line items"),
         have_attributes(status: :ok, name: "call tags"),
+        have_attributes(status: :ok, name: "provider invoices"),
         have_attributes(status: :ok, name: "call rollups"),
         have_attributes(status: :warn, name: "tracked calls")
       )
+    end
+
+    it "fails when provider invoices table is missing" do
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoices)
+      LlmCostTracker::ProviderInvoice.reset_column_information
+
+      check = described_class.call.find { |item| item.name == "provider invoices" }
+
+      expect(check).to have_attributes(status: :error)
+      expect(check.message).to include("llm_cost_tracker_provider_invoices table is missing")
+      expect(check.message).to include("llm_cost_tracker:install")
     end
 
     it "fails when call rollups are missing" do

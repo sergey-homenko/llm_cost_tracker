@@ -448,6 +448,24 @@ RSpec.describe "ActiveRecord durable inbox" do
       .to raise_error(LlmCostTracker::Error, include("llm_cost_tracker_calls table is missing"))
   end
 
+  it "raises when llm_cost_tracker_call_line_items has drifted" do
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_line_items)
+    LlmCostTracker::CallLineItem.reset_column_information
+
+    expect { LlmCostTracker::Ingestion.ensure_current_schema! }
+      .to raise_error(LlmCostTracker::Error,
+                      include("llm_cost_tracker_call_line_items table is not on the current schema"))
+  end
+
+  it "raises when llm_cost_tracker_call_tags has drifted" do
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_tags)
+    LlmCostTracker::CallTag.reset_column_information
+
+    expect { LlmCostTracker::Ingestion.ensure_current_schema! }
+      .to raise_error(LlmCostTracker::Error,
+                      include("llm_cost_tracker_call_tags table is not on the current schema"))
+  end
+
   it "reports unexpected ActiveRecord verification failures" do
     allow(LlmCostTracker::Call).to receive(:table_exists?).and_raise("schema failed")
 

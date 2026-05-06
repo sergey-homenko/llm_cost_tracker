@@ -28,4 +28,5 @@ RSpec.describe "llm_cost_tracker rake tasks" do
     expect(migrate).to have_received(:invoke)
     expect(doctor).to have_received(:invoke)
   end
+
 end

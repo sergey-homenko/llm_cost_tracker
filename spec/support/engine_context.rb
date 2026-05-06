@@ -62,6 +62,7 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
     LlmCostTracker::CallLineItem.reset_column_information
     LlmCostTracker::CallTag.reset_column_information
     LlmCostTracker::CallRollup.reset_column_information
+    LlmCostTracker::ProviderInvoice.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
   end

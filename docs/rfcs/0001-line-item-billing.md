@@ -22,7 +22,7 @@ preserve dashboard/sort ergonomics:
 | `currency` on `calls` header | Currency lives on line items only. |
 | `TokenUsage` as derived view | Still the canonical capture shape on the way in. |
 | `provider_reconciliation_imports` table | Renamed to `provider_invoices` (MySQL 64-char identifier limit). |
-| `call_tags` PK `(call_id, key)` | Standard bigint PK; index on `(key, value)`. |
+| `call_tags` PK `(call_id, key)`, `value` `string`, index on `(key, value)` | Standard bigint PK; `value` is `text` (no length cap); index on `(key)` only — value-equality filters scan the per-key bucket. |
 
 Everything below is the original design as proposed. Treat it as the
 direction of travel for 0.9-0.10, not a literal description of the shipped
