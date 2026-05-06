@@ -4,7 +4,7 @@ Normal path from an application LLM call to stored ledger data:
 
 ## Faraday Requests
 
-1. The host app sends an HTTP request through Faraday.
+1. Your app sends an HTTP request through Faraday.
 2. `LlmCostTracker::Middleware::Faraday` checks whether a parser matches the request URL.
 3. For non-streaming responses, the middleware passes request and response data to the parser.
 4. For streaming responses, the middleware tees `on_data`, collects stream events, and parses final usage when the stream completes.
@@ -14,10 +14,10 @@ Normal path from an application LLM call to stored ledger data:
 
 ## SDK Integrations
 
-1. The host app enables an integration with `config.instrument`.
+1. Your app enables an integration with `config.instrument`.
 2. `LlmCostTracker::Integrations` checks the SDK version, target classes, and target methods once at install time.
 3. `LlmCostTracker::Integrations` prepends a narrow wrapper to supported SDK resource methods.
-4. The host app keeps calling the provider SDK normally.
+4. Your app keeps calling the provider SDK normally.
 5. For streaming SDK calls, the wrapper passes the SDK stream through `Capture::StreamTracker` so the app still consumes the same stream object.
 6. Streaming wrappers snapshot tags before returning the stream to the app.
 7. The wrapper measures latency, extracts usage and provider tier data from the SDK response object or collected stream events, and sends `UsageCapture` to `Tracker.record`.
@@ -25,7 +25,7 @@ Normal path from an application LLM call to stored ledger data:
 
 ## Explicit Tracking
 
-1. The host app calls `LlmCostTracker.track` with known usage totals, or `LlmCostTracker.track_stream` with stream events.
+1. Your app calls `LlmCostTracker.track` with known usage totals, or `LlmCostTracker.track_stream` with stream events.
 2. `track` accepts explicit `tokens:` and `tags:`, builds `UsageCapture`, and sends it to `Tracker.record`.
 3. `track_stream` snapshots tags when the stream collector is created.
 4. `track_stream` uses `Capture::StreamCollector`, then `Parsers.find_for_provider` when events need parsing.

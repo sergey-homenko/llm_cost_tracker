@@ -32,8 +32,7 @@ module LlmCostTracker
         return if call_rollup_errors.empty?
 
         message = "llm_cost_tracker_call_rollups table is not on the current schema: " \
-                  "#{call_rollup_errors.join('; ')}; " \
-                  "run bin/rails generate llm_cost_tracker:add_call_rollups && bin/rails db:migrate"
+                  "#{call_rollup_errors.join('; ')}; see docs/upgrading.md"
         raise Error, message
       end
 

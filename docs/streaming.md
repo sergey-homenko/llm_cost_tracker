@@ -1,8 +1,8 @@
 # Streaming Capture
 
-Streaming calls are recorded when the provider emits final usage, when the SDK
-wrapper can collect final usage events, or when the app supplies explicit totals.
-Missing final usage becomes an unknown-cost stream row instead of disappearing.
+Streams record when the provider emits final usage, when the SDK wrapper
+collects final usage events, or when the app passes explicit totals. Missing
+final usage becomes an unknown-cost stream row instead of vanishing.
 
 ## Faraday Streaming
 
@@ -63,7 +63,7 @@ end
 
 The provider parser is selected by `provider:`. Parsed stream events can set
 model, response ID, usage source, token buckets, pricing mode, and service
-charges when the event shape exposes them.
+line items when the event shape exposes them.
 
 If the client already knows totals, pass explicit usage instead of provider
 events:
@@ -96,7 +96,7 @@ Stream rows include:
 | `provider_project_id`, `provider_api_key_id`, `provider_workspace_id`, `batch` | Provider grouping dimensions when captured |
 | `cost_status` | `free`, `complete`, `partial`, or `unknown` |
 
-The collector bounds captured event bytes so a long stream cannot grow memory
-without limit. When the cap is hit, already-buffered events stay available to
-the parser; the call is recorded as unknown only when no usage can be extracted
+The collector caps captured event bytes so a long stream can't grow memory
+unbounded. When the cap hits, already-buffered events stay available to the
+parser; the call is recorded as unknown only when no usage can be extracted
 from the retained prefix.

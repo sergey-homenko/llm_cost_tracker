@@ -37,7 +37,7 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.status).to eq(200)
     expect(response.body).to include("Setup required")
     expect(response.body).to include("llm_cost_tracker_call_rollups")
-    expect(response.body).to include("llm_cost_tracker:add_call_rollups")
+    expect(response.body).to include("docs/upgrading.md")
   end
 
   it "renders overview stats, daily spend, top models, and budget status" do

@@ -5,7 +5,7 @@ paths, and current pricing snapshots.
 
 ## Production Defaults
 
-- Size the ActiveRecord connection pool for the host app plus durable inbox writes.
+- Size the ActiveRecord connection pool for your app plus durable inbox writes.
 - Keep `default_tags` callables fast and thread-safe.
 - Mount the dashboard behind existing admin authentication.
 - Run `llm_cost_tracker:doctor` after deploys that change the gem version or schema.
@@ -23,14 +23,15 @@ Before building or releasing production images:
   deploy healthy.
 - Run `llm_cost_tracker:verify_capture` in a release job or smoke job that can
   write to the production database safely.
-- Keep the dashboard mount behind host-app authentication.
+- Keep the dashboard mount behind your app's authentication.
 - Treat price files as immutable release config; refresh before image build or
   through an automation that opens a PR.
 
-One app process can need more than its request/job connection. The local
-ingestor thread can check out a connection, and capture inside an open caller
-transaction uses a separate connection so staged inbox entries survive caller
-rollbacks. Size pools for the host app concurrency plus those tracker paths.
+A single app process can need more than its request/job connection. The
+local ingestor thread checks out a connection of its own, and capture inside
+an open caller transaction uses a separate connection so staged inbox entries
+survive caller rollbacks. Size pools for your app's concurrency plus those
+tracker paths.
 
 ## Durable Ingestion
 

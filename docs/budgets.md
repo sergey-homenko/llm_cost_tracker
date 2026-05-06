@@ -1,7 +1,7 @@
 # Budgets and Guardrails
 
-Budgets are production guardrails. They are not invoice reconciliation and they
-are not a transactional quota system.
+Budgets are production guardrails — not invoice reconciliation, and not a
+transactional quota system.
 
 ## Configuration
 
@@ -15,9 +15,9 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-Budgets are evaluated only when the event has known cost. Unknown-cost events are
-stored and surfaced through Data Quality, but they cannot consume a numeric
-budget until pricing is known.
+Budgets evaluate only when an event has a known cost. Unknown-cost events
+are stored and surfaced on the Data Quality page, but they don't draw down
+a numeric budget until pricing lands.
 
 ## Behaviors
 
@@ -30,10 +30,10 @@ budget until pricing is known.
 `:raise` records first, then raises. The call that crossed the budget remains
 visible in the ledger.
 
-`:block_requests` uses maintained ActiveRecord call rollups plus pending inbox
-totals. Under concurrency, multiple workers can pass preflight before one
-another's spend is visible. It stops the next request after overspend appears; it
-does not make provider spend transactional.
+`:block_requests` reads from maintained call rollups plus pending inbox
+totals. Under concurrency, multiple workers can clear preflight before each
+other's spend is visible. It stops the next request once overspend lands —
+it doesn't make provider spend transactional.
 
 ## Budget Types
 
@@ -59,9 +59,9 @@ before monthly so short-term operational alerts stay prominent.
 
 ## Operational Notes
 
-`llm_cost_tracker:doctor` verifies the call rollups table and unique
-`(period, period_start)` index. Without current call rollups, hot-path budget
-checks fail rather than scanning the full ledger.
+`llm_cost_tracker:doctor` verifies the call rollups table and the unique
+`(period, period_start)` index. Without current rollups, hot-path budget
+checks fail outright instead of falling back to a full ledger scan.
 
-For strict quotas, use provider-side limits or a host-app transactional counter
-outside this gem.
+For strict quotas, use provider-side limits or a transactional counter in
+your own app.

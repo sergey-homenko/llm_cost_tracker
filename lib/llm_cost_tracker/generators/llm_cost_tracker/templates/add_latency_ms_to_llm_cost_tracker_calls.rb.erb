@@ -1,9 +1,0 @@
-class AddLatencyMsToLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %>
-  def up
-    add_column :llm_cost_tracker_calls, :latency_ms, :integer unless column_exists?(:llm_cost_tracker_calls, :latency_ms)
-  end
-
-  def down
-    remove_column :llm_cost_tracker_calls, :latency_ms if column_exists?(:llm_cost_tracker_calls, :latency_ms)
-  end
-end

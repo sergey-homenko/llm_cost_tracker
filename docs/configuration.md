@@ -1,7 +1,7 @@
 # Configuration
 
-Configuration is the host app contract for capture, attribution, pricing,
-budgets, and SDK instrumentation. Configure once at boot:
+Configuration is the contract between your app and the gem — capture,
+attribution, pricing, budgets, SDK instrumentation. Set it up once at boot:
 
 ```ruby
 LlmCostTracker.configure do |config|
@@ -90,8 +90,8 @@ Pricing precedence is:
 2. `prices_file`
 3. bundled `lib/llm_cost_tracker/prices.json`
 
-Unknown service charges are still stored. They affect `cost_status` but do not
-invent a total cost.
+Unknown-cost line items are still stored. They affect `cost_status` but
+won't invent a total cost out of thin air.
 
 ## Budget Options
 

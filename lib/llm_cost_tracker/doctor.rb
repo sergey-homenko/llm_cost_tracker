@@ -7,7 +7,6 @@ require_relative "doctor/ingestion_check"
 require_relative "doctor/legacy_audit_check"
 require_relative "doctor/legacy_billing_status_check"
 require_relative "doctor/price_check"
-require_relative "doctor/schema_generators"
 require_relative "doctor/call_line_items_check"
 require_relative "doctor/call_tags_check"
 
@@ -92,13 +91,11 @@ module LlmCostTracker
       return unless active_record_available?
       return Check.new(:ok, "llm_cost_tracker_calls", "table exists") if llm_cost_tracker_calls_table?
 
-      message = if legacy_llm_api_calls_table?
-                  "legacy llm_api_calls table found; " \
-                    "run bin/rails generate llm_cost_tracker:upgrade_schema_foundation && bin/rails db:migrate"
-                else
-                  "missing; run bin/rails generate llm_cost_tracker:install && bin/rails db:migrate"
-                end
-      Check.new(:error, "llm_cost_tracker_calls", message)
+      Check.new(
+        :error,
+        "llm_cost_tracker_calls",
+        "missing; run bin/rails generate llm_cost_tracker:install && bin/rails db:migrate"
+      )
     end
 
     def column_check
@@ -107,12 +104,11 @@ module LlmCostTracker
       errors = LlmCostTracker::Ledger::Schema::Calls.current_schema_errors
       return Check.new(:ok, "llm_cost_tracker_calls columns", "current") if errors.empty?
 
-      missing = LlmCostTracker::Ledger::Schema::Calls.missing_current_schema_columns
-      generators = generators_for_missing_columns(missing)
-      message = "current schema required; #{errors.join('; ')}"
-      message = "#{message}; run #{generators.join(' && ')} && bin/rails db:migrate" if generators.any?
-
-      Check.new(:error, "llm_cost_tracker_calls columns", message)
+      Check.new(
+        :error,
+        "llm_cost_tracker_calls columns",
+        "schema mismatch: #{errors.join('; ')}; see docs/upgrading.md"
+      )
     end
 
     def call_rollups_check
@@ -124,8 +120,7 @@ module LlmCostTracker
       Check.new(
         :error,
         "call rollups",
-        "current schema required; #{errors.join('; ')}; " \
-        "run bin/rails generate llm_cost_tracker:add_call_rollups && bin/rails db:migrate"
+        "schema mismatch: #{errors.join('; ')}; see docs/upgrading.md"
       )
     end
 
@@ -152,11 +147,5 @@ module LlmCostTracker
     end
 
     def llm_cost_tracker_calls_table? = active_record_available? && Probe.table_exists?("llm_cost_tracker_calls")
-
-    def legacy_llm_api_calls_table? = active_record_available? && Probe.table_exists?("llm_api_calls")
-
-    def generators_for_missing_columns(missing)
-      SchemaGenerators.for_missing_columns(missing, columns: LlmCostTracker::Call.columns_hash)
-    end
   end
 end

@@ -1,8 +1,8 @@
 # Dashboard
 
 The dashboard is an optional Rails Engine for reviewing spend, attribution, and
-data quality. It is server-rendered ERB, has no JavaScript bundle, and reads
-from the host app's ActiveRecord ledger tables.
+data quality. Server-rendered ERB, no JavaScript bundle, reads straight from
+your ledger tables.
 
 ## Mounting
 
@@ -12,7 +12,7 @@ Fresh installs can run setup:
 bin/rails llm_cost_tracker:setup
 ```
 
-For apps that are already installed, mount the dashboard with the generator:
+If the gem is already installed, add the dashboard with the generator:
 
 ```bash
 bin/rails generate llm_cost_tracker:install --dashboard
@@ -25,8 +25,8 @@ Or mount manually:
 mount LlmCostTracker::Engine => "/llm-costs"
 ```
 
-The engine does not ship authentication. Mount it behind the host app's existing
-admin/auth layer.
+The engine ships without authentication. Mount it behind your existing admin
+or auth layer.
 
 ## Tables Read
 
@@ -57,8 +57,7 @@ those dimensions.
 Tag filters use the same sanitized tag keys accepted by `LlmCostTracker.with_tags`
 and `track(tags:)`.
 
-Invalid filters render a bad-request page instead of raising through the host
-app.
+Invalid filters render a bad-request page instead of raising through your app.
 
 ## Security
 

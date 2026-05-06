@@ -14,23 +14,19 @@ module LlmCostTracker
     SCHEMA_CHECKS = [
       [
         LlmCostTracker::Ledger::Schema::Calls,
-        "The llm_cost_tracker_calls table does not match the current LLM Cost Tracker schema.",
-        []
+        "The llm_cost_tracker_calls table does not match the current LLM Cost Tracker schema."
       ],
       [
         LlmCostTracker::Ledger::Schema::CallRollups,
-        "The llm_cost_tracker_call_rollups table does not match the current LLM Cost Tracker schema.",
-        ["run bin/rails generate llm_cost_tracker:add_call_rollups && bin/rails db:migrate"]
+        "The llm_cost_tracker_call_rollups table does not match the current LLM Cost Tracker schema."
       ],
       [
         LlmCostTracker::Ledger::Schema::CallLineItems,
-        "The llm_cost_tracker_call_line_items table does not match the current LLM Cost Tracker schema.",
-        []
+        "The llm_cost_tracker_call_line_items table does not match the current LLM Cost Tracker schema."
       ],
       [
         LlmCostTracker::Ledger::Schema::CallTags,
-        "The llm_cost_tracker_call_tags table does not match the current LLM Cost Tracker schema.",
-        []
+        "The llm_cost_tracker_call_tags table does not match the current LLM Cost Tracker schema."
       ]
     ].freeze
 
@@ -44,12 +40,12 @@ module LlmCostTracker
         return render template: "llm_cost_tracker/shared/setup_required"
       end
 
-      SCHEMA_CHECKS.each do |schema, message, extra_details|
+      SCHEMA_CHECKS.each do |schema, message|
         errors = schema.current_schema_errors
         next if errors.empty?
 
         @setup_message = message
-        @setup_details = errors + extra_details
+        @setup_details = errors + ["See docs/upgrading.md for the migration path."]
         return render template: "llm_cost_tracker/shared/setup_required"
       end
     end

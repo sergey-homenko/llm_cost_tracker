@@ -1,7 +1,7 @@
 # Querying and Reports
 
-Once calls are in the ledger, the host app owns the data. Query it from a
-console, scheduled job, admin UI, or the mounted dashboard.
+Once calls land in the ledger they're yours — query from a console, a
+scheduled job, an admin UI, or the mounted dashboard.
 
 ## Common Scopes
 

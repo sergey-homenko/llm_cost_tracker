@@ -70,47 +70,10 @@ RSpec.describe LlmCostTracker::Doctor do
     end
   end
 
-  it "maps token usage and cost columns to the token usage generator" do
-    columns = LlmCostTracker::Generators::AddTokenUsageGenerator::COLUMN_NAMES
-
-    expect(columns.map { |column| described_class::SchemaGenerators::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
-      ["bin/rails generate llm_cost_tracker:add_token_usage"]
-    )
-  end
-
-  it "maps billing audit columns to the billing generator" do
-    columns = LlmCostTracker::Generators::AddBillingGenerator::COLUMN_NAMES
-
-    expect(columns.map { |column| described_class::SchemaGenerators::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
-      ["bin/rails generate llm_cost_tracker:add_billing"]
-    )
-  end
-
-  it "maps capture dimension columns to the capture dimensions generator" do
-    columns = LlmCostTracker::Generators::AddCaptureDimensionsGenerator::COLUMN_NAMES
-
-    expect(columns.map { |column| described_class::SchemaGenerators::COLUMN_GENERATORS.fetch(column) }.uniq).to eq(
-      ["bin/rails generate llm_cost_tracker:add_capture_dimensions"]
-    )
-  end
-
   it "treats table probe errors as absent tables" do
     allow(LlmCostTracker::Call).to receive(:connection).and_raise("database unavailable")
 
     expect(described_class::Probe.table_exists?("llm_cost_tracker_calls")).to be false
-  end
-
-  it "reports the foundation generator when the legacy call table exists" do
-    establish_database_connection!
-    allow(described_class::Probe).to receive(:table_exists?).and_call_original
-    allow(described_class::Probe).to receive(:table_exists?).with("llm_cost_tracker_calls").and_return(false)
-    allow(described_class::Probe).to receive(:table_exists?).with("llm_api_calls").and_return(true)
-
-    check = described_class.call.find { |item| item.name == "llm_cost_tracker_calls" }
-
-    expect(check).to have_attributes(status: :error, message: include("upgrade_schema_foundation"))
-  ensure
-    disconnect_database!
   end
 
   it "skips isolated checks when the ledger table is missing" do
@@ -145,9 +108,9 @@ RSpec.describe LlmCostTracker::Doctor do
       check = described_class.call.find { |item| item.name == "call rollups" }
 
       expect(check).to have_attributes(status: :error)
-      expect(check.message).to include("current schema required")
+      expect(check.message).to include("schema mismatch")
       expect(check.message).to include("llm_cost_tracker_call_rollups table is missing")
-      expect(check.message).to include("llm_cost_tracker:add_call_rollups")
+      expect(check.message).to include("docs/upgrading.md")
     end
 
     it "fails when durable ingestion tables are missing" do
@@ -159,8 +122,7 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check).to have_attributes(status: :error)
       expect(check.message).to include("llm_cost_tracker_ingestion_inbox_entries")
       expect(check.message).to include("llm_cost_tracker_ingestion_leases")
-      expect(check.message).to include("llm_cost_tracker:upgrade_schema_foundation")
-      expect(check.message).to include("llm_cost_tracker:add_ingestion")
+      expect(check.message).to include("llm_cost_tracker:install")
     end
 
     it "fails when call rollups lack the current unique index" do
@@ -170,7 +132,7 @@ RSpec.describe LlmCostTracker::Doctor do
 
       expect(check).to have_attributes(status: :error)
       expect(check.message).to include("missing unique index: period, period_start")
-      expect(check.message).to include("llm_cost_tracker:add_call_rollups")
+      expect(check.message).to include("docs/upgrading.md")
     end
 
     it "fails when the ledger table does not match the current schema" do
@@ -180,10 +142,9 @@ RSpec.describe LlmCostTracker::Doctor do
       check = described_class.call.find { |item| item.name == "llm_cost_tracker_calls columns" }
 
       expect(check.status).to eq(:error)
-      expect(check.message).to include("current schema required")
+      expect(check.message).to include("schema mismatch")
       expect(check.message).to include("missing columns: pricing_mode")
-      expect(check.message).to include("bin/rails generate llm_cost_tracker:add_token_usage")
-      expect(check.message).to include("bin/rails db:migrate")
+      expect(check.message).to include("docs/upgrading.md")
     end
 
     it "fails when call line items are missing" do

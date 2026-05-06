@@ -86,7 +86,7 @@ query cannot be made acceptable with the existing ledger and call rollups.
 
 ## Streaming
 
-Streaming capture must keep the host app's stream behavior intact.
+Streaming capture must keep your app's stream behavior intact.
 
 The middleware should collect enough data to parse final usage while bounding memory. When the byte cap is hit, the buffered prefix is still passed to the parser; the call falls back to unknown only when no usage can be extracted from the retained events.
 
