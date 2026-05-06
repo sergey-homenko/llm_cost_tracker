@@ -40,7 +40,7 @@ Header row. One per tracked call (or completed stream).
 | `total_cost` | decimal(20,8) | Total known cost; `nil` when pricing is unknown |
 | `latency_ms` | integer | Request latency when captured |
 | `stream` | boolean, default `false` | Streamed response |
-| `usage_source` | string | `response`, `stream_final`, `sdk_response`, `manual`, `unknown` |
+| `usage_source` | string | `response`, `stream_final`, `manual`, `unknown` |
 | `provider_response_id` | string | Stable provider response id |
 | `provider_project_id` | string | Provider project/account dimension |
 | `provider_api_key_id` | string | Provider API key dimension |
@@ -72,9 +72,9 @@ the same shape.
 | --- | --- | --- |
 | `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
 | `position` | smallint, default `0` | Stable order within a call |
-| `kind` | string, not null | `text_token`, `audio_token`, `web_search_request`, `code_execution_request`, `grounding_request`, `container_session`, `file_search_call`, … |
+| `kind` | string, not null | `text_token`, `audio_token`, `web_search_request`, `code_execution_request`, `code_execution_hour`, `grounding_request`, `container_session`, `file_search_call` |
 | `direction` | string, not null | `input`, `output`, `neither` |
-| `modality` | string, not null | `text`, `audio`, `image`, `video` |
+| `modality` | string, not null | `text`, `audio`, `none` |
 | `cache_state` | string, default `none` | `none`, `read`, `write_5m`, `write_1h` |
 | `quantity` | decimal(30,10) | Token count or charge count |
 | `unit` | string, not null | `token`, `request`, `session`, `hour` |

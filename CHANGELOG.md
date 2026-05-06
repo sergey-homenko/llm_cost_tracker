@@ -6,8 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 0.8 is a storage rebuild. Tokens and tool/runtime charges share one shape
 (`Billing::LineItem`) and live in a dedicated line items table. Per-component
-cost columns and the standalone service charges table are gone. See
-[Upgrading](docs/upgrading.md) for the migration path.
+cost columns and the standalone service charges table are gone. Several tables
+were also renamed during the cycle. See [Upgrading](docs/upgrading.md) for the
+migration path — there is no rolling-deploy upgrade.
 
 ### Added
 
@@ -16,15 +17,20 @@ cost columns and the standalone service charges table are gone. See
 - `llm_cost_tracker_provider_invoices` — placeholder table reserved for v0.9 invoice reconciliation.
 - `Billing::LineItem` value object covering both token and service charges. `LineItem.from_token_usage` and explicit `component_key:` builders price token and tool/runtime quantities through the same path.
 - `Pricing.price_line_items` — single pricing pass for token + tool/runtime line items, used by `Tracker.build_event`.
-- Doctor checks for `llm_cost_tracker_call_line_items` and `llm_cost_tracker_call_tags` schema.
-- Anthropic web search and code execution usage emitted as line items with `component_key: :web_search_request` / `:code_execution_request`.
-- OpenAI hosted web search, file search, and Code Interpreter container sessions emitted as line items.
+- Doctor checks for `llm_cost_tracker_call_line_items`, `llm_cost_tracker_call_tags`, and `llm_cost_tracker_provider_invoices` schema.
+- Anthropic web search and code execution usage emitted as line items with `component_key: :web_search_request` / `:code_execution_request`. SDK integration emits the same line items from native SDK responses, not just Faraday-wrapped ones.
+- OpenAI hosted web search, file search, and Code Interpreter container sessions emitted as line items via both Faraday and SDK integration paths.
 - Gemini grounding queries emitted as line items.
+- `provider_project_id`, `provider_api_key_id`, `provider_workspace_id`, `batch` capture dimensions on `LlmCostTracker.track` and the `Event` payload, persisted as columns on `llm_cost_tracker_calls`.
+- `Pricing::EffectivePrices` permutes compound pricing modes (e.g. `priority_batch_data_residency`) when matching rates, so combined modes resolve correctly.
+- `Pricing::Sync` registry-diff compares `service_charges` rates in addition to model rates.
+- Dashboard polish pass: shared `_filters.html.erb` and `_sort.html.erb` partials, sticky table headers, button hover/active states, spacing/shadow scales, and a full `prefers-color-scheme` dark palette.
 - Bundled audio and tool rates refreshed from current provider pricing.
 
 ### Changed
 
-- BREAKING: Per-component cost columns removed from `llm_cost_tracker_calls` (`input_cost`, `output_cost`, `cache_read_input_cost`, `cache_write_input_cost`, `cache_write_extended_input_cost`, `audio_input_cost`, `audio_output_cost`). The header keeps `total_cost` only; per-component costs live in line items.
+- BREAKING: Renamed `llm_api_calls` → `llm_cost_tracker_calls`, `llm_cost_tracker_period_totals` → `llm_cost_tracker_call_rollups`, `llm_cost_tracker_inbox_events` → `llm_cost_tracker_ingestion_inbox_entries`, `llm_cost_tracker_ingestor_leases` → `llm_cost_tracker_ingestion_leases`. Corresponding model `LlmCostTracker::PeriodTotal` renamed to `LlmCostTracker::CallRollup`; ingestion models live under `LlmCostTracker::Ingestion::InboxEntry` and `LlmCostTracker::Ingestion::Lease`.
+- BREAKING: Per-component cost columns removed from `llm_cost_tracker_calls` (`input_cost`, `output_cost`, `cache_read_input_cost`, `cache_write_input_cost`, `cache_write_extended_input_cost`, `cache_write_1h_input_cost`, `audio_input_cost`, `audio_output_cost`). The header keeps `total_cost` only; per-component costs live in line items.
 - BREAKING: `llm_cost_tracker_calls.tags` JSONB column removed in favor of `llm_cost_tracker_call_tags`. `Call#parsed_tags`, `Call.by_tags`, `Call.cost_by_tag`, `Call.group_by_tag`, and the dashboard tag explorer now read the normalized table.
 - BREAKING: `llm_cost_tracker_service_charges` table removed. Tool/runtime rows are stored in `llm_cost_tracker_call_line_items` with `unit != 'token'`.
 - BREAKING: `Billing::ServiceCharge` value object and `LlmCostTracker::ServiceCharge` AR model removed. Use `Billing::LineItem` and `LlmCostTracker::CallLineItem`.
@@ -32,14 +38,33 @@ cost columns and the standalone service charges table are gone. See
 - BREAKING: `Call#service_charges` association removed. Use `call.line_items.where.not(unit: "token")`.
 - BREAKING: `LlmCostTracker.track(service_charges:)` keyword renamed to `service_line_items:`. Hash keys: `component:` → `component_key:`, `source_key:` → `provider_field:`, `pricing_basis: PROVIDER_USAGE_BASIS` → `pricing_basis: :provider_usage`.
 - BREAKING: `Billing::CostStatus.call(service_charges:)` keyword renamed to `service_line_items:`.
+- BREAKING: `Pricing.cost_with_service_charges` public API removed; replaced internally by `Pricing.price_line_items`.
+- BREAKING: Top-level delegators `LlmCostTracker.flush!`, `LlmCostTracker.shutdown!`, `LlmCostTracker.enforce_budget!` removed. Use `LlmCostTracker::Ingestion::Worker.flush!` / `.shutdown!` directly; budget enforcement is internal.
+- BREAKING: `LlmCostTracker.track` requires explicit `tokens:` and accepts `tags:` as a hash; the previous keyword shape is no longer supported.
 - BREAKING: Notification payload (`llm_request.llm_cost_tracker`) no longer carries `service_charges`. Subscribers read `line_items`.
-- BREAKING: Inbox payload version stays at v2 but no longer encodes a `service_charges` key; line items carry the equivalent.
+- BREAKING: Inbox payload v0/v1 compatibility dropped; only v2 is accepted. Drain any pre-v2 entries on the prior gem version before bumping.
 - BREAKING: Ruby 3.4+ required.
-- Pricing computes `total_cost` once via `Pricing.price_line_items`; the legacy double pass through `cost_with_service_charges` is gone.
-- Retention deletes rely on `on_delete: :cascade` for line items and tag rows.
+- BREAKING: Legacy upgrade generators removed (`add_billing`, `add_ingestion`, `add_call_rollups`, `add_capture_dimensions`, `add_latency_ms`, `add_provider_response_id`, `add_streaming`, `add_token_usage`, `upgrade_cost_precision`, `upgrade_schema_foundation`, `upgrade_tags_to_jsonb`). Doctor no longer suggests them.
+- `llm_cost_tracker_call_tags.value` widened to TEXT (was VARCHAR), and the `[:key, :value]` composite index dropped in favor of `:key` only — value-equality filters scan the per-key bucket.
+- `Configuration#pricing_overrides` validates shape at assignment time rather than at first read.
+- Pricing computes a partial `total_cost` (with `cost_status: :partial`) when only some token components have rates; previously `total_cost` was nil whenever any component lacked a rate.
+- `TokenUsage.build` clamps negative token counts to zero so anomalous provider payloads don't poison rollups.
+- Stream collector buffer overflow keeps already-accumulated events instead of dropping them.
+- Budget guardrail preflight time is excluded from SDK call latency measurements.
 - Dashboard data-quality breakdown computes per-component cost from line items via JOIN; usage_rows accepts `component_costs:` hash.
 - CSV export pulls tag JSON from `tag_records` instead of the dropped JSONB column.
-- Anthropic `thoughtsTokenCount` already billed at the output rate (no change here, called out for clarity given the rebuild).
+- The fingerprinted dashboard stylesheet is served with `Cache-Control: no-store` in development so edits show up without a hard reload; production keeps the immutable cache.
+
+### Fixed
+
+- Railtie no longer requires removed legacy upgrade generators at boot, so installs on a clean app don't crash during eager-load.
+- `Tracker` only flags unknown pricing when token quantities are positive — service-only events with zero tokens no longer raise `Pricing::Unknown`.
+- `Billing::CostStatus.cost_status_for` coerces symbol/string status values consistently when building line items.
+- Gemini `thoughtsTokenCount` is billed at the output token rate (already present in 0.7.3, kept for clarity given the rebuild).
+
+### Removed
+
+- Dead `Billing::LineItem.from_service_charge` constructor and the unused `Call.with_json_tags` scope.
 
 ## [0.7.3] - 2026-05-01
 

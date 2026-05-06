@@ -99,6 +99,24 @@ LlmCostTracker.track(
 )
 ```
 
+To attach tool / runtime charges (web search, code execution, container
+sessions, …) alongside tokens, pass `service_line_items:` with one hash per
+component:
+
+```ruby
+LlmCostTracker.track(
+  provider: "custom",
+  model: "gateway-model",
+  tokens: { input: 1_000, output: 200 },
+  service_line_items: [
+    { component_key: :web_search_request, quantity: 3, provider_field: "tool_calls" }
+  ],
+  tags: { feature: "research" }
+)
+```
+
+`component_key` must match an entry in `Billing::Components`.
+
 For unsupported streams:
 
 ```ruby

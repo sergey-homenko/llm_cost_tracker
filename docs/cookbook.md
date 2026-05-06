@@ -93,13 +93,13 @@ client = Anthropic::Client.new(api_key: ENV["ANTHROPIC_API_KEY"])
 
 client.messages.create(
   max_tokens: 1024,
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-sonnet-4-6",
   messages: [{ role: "user", content: "Hello" }]
 )
 
 client.messages.stream(
   max_tokens: 1024,
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-sonnet-4-6",
   messages: [{ role: "user", content: "Hello" }]
 ).each do |event|
   puts event.type
@@ -107,7 +107,7 @@ end
 
 client.messages.stream_raw(
   max_tokens: 1024,
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-sonnet-4-6",
   messages: [{ role: "user", content: "Hello" }]
 ).each do |event|
   puts event.type

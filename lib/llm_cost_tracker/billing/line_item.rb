@@ -99,30 +99,6 @@ module LlmCostTracker
         end
       end
 
-      def self.from_service_charge(charge)
-        component = Components::BY_KEY.fetch(charge.component)
-        new(
-          kind: component.kind,
-          direction: component.direction,
-          modality: component.modality,
-          cache_state: :none,
-          quantity: charge.quantity,
-          unit: charge.unit,
-          rate_amount: charge.rate_amount,
-          rate_quantity: charge.rate_quantity,
-          cost: charge.cost,
-          currency: charge.currency,
-          cost_status: charge.cost_status,
-          pricing_basis: charge.pricing_basis,
-          price_key: charge.price_key,
-          price_source: charge.price_source,
-          price_source_version: charge.price_source_version,
-          provider_field: charge.source_key,
-          provider_item_id: charge.provider_item_id,
-          details: charge.details || {}
-        )
-      end
-
       def self.cost_status_for(attributes)
         explicit = attributes[:cost_status]
         return explicit.to_s if explicit

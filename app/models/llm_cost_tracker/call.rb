@@ -50,10 +50,6 @@ module LlmCostTracker
              inverse_of: :call,
              dependent: :delete_all
 
-    scope :with_json_tags, lambda {
-      where(id: LlmCostTracker::CallTag.select(:llm_cost_tracker_call_id))
-    }
-
     scope :today,       -> { where(tracked_at: Time.now.utc.beginning_of_day..) }
     scope :this_week,   -> { where(tracked_at: Time.now.utc.beginning_of_week..) }
     scope :this_month,  -> { where(tracked_at: Time.now.utc.beginning_of_month..) }
