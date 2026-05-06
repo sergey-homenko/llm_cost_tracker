@@ -20,7 +20,8 @@ module LlmCostTracker
     :tracked_at,
     :cost_status,
     :pricing_snapshot,
-    :service_charges
+    :service_charges,
+    :line_items
   ) do
     def total_cost
       cost&.fetch(:total_cost, nil)
@@ -31,7 +32,8 @@ module LlmCostTracker
         token_usage: token_usage.to_h,
         cost: cost&.to_h,
         tags: tags ? tags.to_h : {},
-        service_charges: service_charges.map(&:to_h)
+        service_charges: service_charges.map(&:to_h),
+        line_items: (line_items || []).map(&:to_h)
       )
     end
   end

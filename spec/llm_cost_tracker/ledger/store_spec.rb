@@ -56,7 +56,8 @@ RSpec.describe "ActiveRecord storage integration" do
       tracked_at: tracked_at,
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       pricing_snapshot: nil,
-      service_charges: []
+      service_charges: [],
+      line_items: []
     )
   end
 

@@ -42,7 +42,8 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
           quantity: 1,
           cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
         )
-      ]
+      ],
+      line_items: []
     )
   end
 

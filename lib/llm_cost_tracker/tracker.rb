@@ -78,6 +78,12 @@ module LlmCostTracker
           service_charges: service_charges,
           total_cost: cost&.fetch(:total_cost, nil)
         )
+        line_items, = Pricing.price_line_items(
+          provider: capture.provider,
+          model: capture.model,
+          line_items: capture.line_items,
+          pricing_mode: pricing_mode
+        )
 
         Event.new(
           event_id: SecureRandom.uuid,
@@ -98,7 +104,8 @@ module LlmCostTracker
           tracked_at: Time.now.utc,
           cost_status: cost_status,
           pricing_snapshot: pricing_snapshot,
-          service_charges: service_charges
+          service_charges: service_charges,
+          line_items: line_items
         )
       end
       # rubocop:enable Metrics/MethodLength
