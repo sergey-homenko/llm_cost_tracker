@@ -76,7 +76,7 @@ RSpec.describe "generator templates" do
     expect(migration).not_to include("add_index :llm_cost_tracker_calls, :usage_source")
     expect(migration).to include("add_index :llm_cost_tracker_calls, :provider_response_id")
     expect(migration).to include("add_index :llm_cost_tracker_call_line_items, [:llm_cost_tracker_call_id, :position]")
-    expect(migration).to include("add_index :llm_cost_tracker_call_tags, [:key, :value]")
+    expect(migration).to include("add_index :llm_cost_tracker_call_tags, :key")
     expect(migration).not_to match(/add_index :llm_cost_tracker_calls, :provider$/)
     expect(migration).not_to match(/add_index :llm_cost_tracker_calls, :model$/)
     expect(migration).not_to include("t.json :tags")

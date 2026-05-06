@@ -62,7 +62,7 @@ module LlmCostTracker
           call_table = LlmCostTracker::Call.quoted_table_name
           line_item_table = LlmCostTracker::CallLineItem.quoted_table_name
           relation = LlmCostTracker::CallLineItem
-                     .where.not("#{line_item_table}.unit" => "token")
+                     .where.not(unit: "token")
                      .joins(:call)
                      .merge(scope.unscope(:select, :order))
 
@@ -113,7 +113,7 @@ module LlmCostTracker
         def component_costs(scope)
           line_item_table = LlmCostTracker::CallLineItem.quoted_table_name
           rows = LlmCostTracker::CallLineItem
-                 .where("#{line_item_table}.unit" => "token")
+                 .where(unit: "token")
                  .joins(:call)
                  .merge(scope.unscope(:select, :order, :group))
                  .group("#{line_item_table}.kind", "#{line_item_table}.direction",

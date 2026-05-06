@@ -25,6 +25,15 @@ module LlmCostTrackerDatabaseSpecHelpers
     tags.transform_keys(&:to_s).transform_values(&:to_s)
   end
 
+  def drop_calls_table_with_dependents!
+    connection = ActiveRecord::Base.connection
+    %w[
+      llm_cost_tracker_call_tags
+      llm_cost_tracker_call_line_items
+      llm_cost_tracker_calls
+    ].each { |table| connection.drop_table(table, if_exists: true, force: :cascade) }
+  end
+
   def create_call_tag_rows(call, tags)
     return if tags.nil? || tags.empty?
 
@@ -127,7 +136,7 @@ module LlmCostTrackerDatabaseSpecHelpers
                        index: false,
                        foreign_key: { to_table: :llm_cost_tracker_calls, on_delete: :cascade }
       table.string :key, null: false
-      table.string :value, null: false
+      table.text :value, null: false
     end
   end
 
@@ -193,7 +202,7 @@ module LlmCostTrackerDatabaseSpecHelpers
     connection.add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
     connection.add_index :llm_cost_tracker_call_line_items, :kind
     connection.add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
-    connection.add_index :llm_cost_tracker_call_tags, %i[key value]
+    connection.add_index :llm_cost_tracker_call_tags, :key
     connection.add_index :llm_cost_tracker_call_rollups, %i[period period_start], unique: true
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]

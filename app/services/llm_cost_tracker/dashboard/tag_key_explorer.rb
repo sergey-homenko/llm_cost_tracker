@@ -33,7 +33,7 @@ module LlmCostTracker
         tags_table = LlmCostTracker::CallTag.quoted_table_name
 
         <<~SQL.squish
-          SELECT t.#{key_column} AS key,
+          SELECT t.#{key_column} AS #{key_column},
                  COUNT(*) AS calls_count,
                  COUNT(DISTINCT t.#{value_column}) AS distinct_values
           FROM (#{scope.to_sql}) AS sub

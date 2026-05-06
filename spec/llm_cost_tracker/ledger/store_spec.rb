@@ -531,7 +531,7 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     tag_sql = LlmCostTracker::Call.group_by_tag("feature").to_sql
-    expect(tag_sql).to include("LEFT OUTER JOIN \"llm_cost_tracker_call_tags\"")
+    expect(tag_sql).to match(/LEFT OUTER JOIN [`"]llm_cost_tracker_call_tags[`"]/)
     expect(LlmCostTracker::Call.group_by_tag("feature").sum(:total_cost).transform_values(&:to_f)).to eq(
       "chat" => 0.0025,
       "summarizer" => 0.001
@@ -860,10 +860,10 @@ RSpec.describe "ActiveRecord storage integration" do
     sql = LlmCostTracker::Call.by_tags(user_id: 42, feature: "chat").to_sql
 
     expect(sql).to include("llm_cost_tracker_call_tags")
-    expect(sql).to include("\"key\" = 'user_id'")
-    expect(sql).to include("\"value\" = '42'")
-    expect(sql).to include("\"key\" = 'feature'")
-    expect(sql).to include("\"value\" = 'chat'")
+    expect(sql).to match(/[`"]key[`"]\s*=\s*'user_id'/)
+    expect(sql).to match(/[`"]value[`"]\s*=\s*'42'/)
+    expect(sql).to match(/[`"]key[`"]\s*=\s*'feature'/)
+    expect(sql).to match(/[`"]value[`"]\s*=\s*'chat'/)
   end
 
   it "joins llm_cost_tracker_call_tags when grouping by a tag value" do
@@ -871,8 +871,8 @@ RSpec.describe "ActiveRecord storage integration" do
           .join_relation(LlmCostTracker::Call.all, "user_id")
           .to_sql
 
-    expect(sql).to include("LEFT OUTER JOIN \"llm_cost_tracker_call_tags\"")
-    expect(sql).to include("\"key\" = 'user_id'")
+    expect(sql).to match(/LEFT OUTER JOIN [`"]llm_cost_tracker_call_tags[`"]/)
+    expect(sql).to match(/[`"]key[`"]\s*=\s*'user_id'/)
   end
 
   it "does not double-count the latest event in budget callbacks" do

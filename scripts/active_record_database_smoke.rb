@@ -177,7 +177,7 @@ def create_call_tags_table!
   create_table :llm_cost_tracker_call_tags, force: true do |t|
     t.references :llm_cost_tracker_call, null: false, index: false
     t.string :key, null: false
-    t.string :value, null: false
+    t.text :value, null: false
   end
 end
 
@@ -223,7 +223,7 @@ def add_schema_indexes!(_database_connection)
   add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
   add_index :llm_cost_tracker_call_line_items, :kind
   add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
-  add_index :llm_cost_tracker_call_tags, %i[key value]
+  add_index :llm_cost_tracker_call_tags, :key
   add_index :llm_cost_tracker_call_rollups, %i[period period_start], unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
