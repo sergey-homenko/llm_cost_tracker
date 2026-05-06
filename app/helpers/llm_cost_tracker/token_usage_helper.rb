@@ -34,6 +34,16 @@ module LlmCostTracker
       end
     end
 
+    def call_line_item_costs_by_component(call)
+      call.line_items.each_with_object({}) do |line_item, accumulator|
+        component = LlmCostTracker::Billing::Components::TOKEN_PRICED.find do |item|
+          item.kind == line_item.kind && item.direction == line_item.direction &&
+            item.cache_state == line_item.cache_state
+        end
+        accumulator[component.key] = line_item.cost if component && line_item.cost
+      end
+    end
+
     private
 
     def token_usage_display_components(labels:)
@@ -42,6 +52,7 @@ module LlmCostTracker
         {
           token_key: token_key,
           cost_key: component.cost_key,
+          price_key: component.key,
           label: labels.fetch(token_key),
           css_class: STACK_CLASSES[token_key]
         }
@@ -49,6 +60,7 @@ module LlmCostTracker
         {
           token_key: :hidden_output_tokens,
           cost_key: nil,
+          price_key: nil,
           label: labels.fetch(:hidden_output_tokens),
           css_class: nil
         }

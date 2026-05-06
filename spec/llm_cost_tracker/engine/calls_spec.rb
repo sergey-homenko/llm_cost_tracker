@@ -184,8 +184,6 @@ RSpec.describe "LlmCostTracker::Engine calls" do
       model: "gpt-4o",
       input_tokens: 1_200,
       output_tokens: 300,
-      input_cost: 1.25,
-      output_cost: 1.75,
       total_cost: 3.0,
       latency_ms: 250,
       provider_response_id: "chatcmpl_show_123",
@@ -219,8 +217,6 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("1,200")
     expect(response.body).to include("300")
     expect(response.body).to include("1,500")
-    expect(response.body).to include("$1.25")
-    expect(response.body).to include("$1.75")
     expect(response.body).to include("$3.00")
     expect(response.body).to include("250ms")
     expect(response.body).to include("Token Mix")

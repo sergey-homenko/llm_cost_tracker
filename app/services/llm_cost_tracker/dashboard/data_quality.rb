@@ -80,20 +80,18 @@ module LlmCostTracker
             .limit(10)
         end
 
-        def usage_rows(stats)
+        def usage_rows(stats, component_costs: {})
           billable_tokens = stats.billable_tokens.to_f
 
           rows = Billing::Components::TOKEN_PRICED.map do |component|
-            token_key = component.token_key
-            cost_key = component.cost_key
-            token_value = stats[token_key].to_i
+            token_value = stats[component.token_key].to_i
 
             {
               price_key: component.key,
-              token_key: token_key,
-              cost_key: cost_key,
+              token_key: component.token_key,
+              cost_key: component.cost_key,
               token_value: token_value,
-              cost_value: stats[cost_key],
+              cost_value: component_costs[component.key],
               share_percent: percentage(token_value, billable_tokens),
               share_basis: nil
             }
@@ -112,6 +110,21 @@ module LlmCostTracker
           ]
         end
 
+        def component_costs(scope)
+          line_item_table = LlmCostTracker::CallLineItem.quoted_table_name
+          rows = LlmCostTracker::CallLineItem
+                 .where("#{line_item_table}.unit" => "token")
+                 .joins(:call)
+                 .merge(scope.unscope(:select, :order, :group))
+                 .group("#{line_item_table}.kind", "#{line_item_table}.direction",
+                        "#{line_item_table}.cache_state")
+                 .pluck(Arel.sql("#{line_item_table}.kind"),
+                        Arel.sql("#{line_item_table}.direction"),
+                        Arel.sql("#{line_item_table}.cache_state"),
+                        Arel.sql("COALESCE(SUM(#{line_item_table}.cost), 0)"))
+          index_costs_by_component(rows)
+        end
+
         def hidden_output_summary(stats)
           output_tokens = stats.output_tokens.to_i
           return unless output_tokens.positive?
@@ -124,6 +137,17 @@ module LlmCostTracker
         end
 
         private
+
+        def index_costs_by_component(rows)
+          rows.each_with_object({}) do |(kind, direction, cache_state, cost), accumulator|
+            component = Billing::Components::TOKEN_PRICED.find do |item|
+              item.kind.to_s == kind.to_s &&
+                item.direction.to_s == direction.to_s &&
+                item.cache_state.to_s == cache_state.to_s
+            end
+            accumulator[component.key] = cost if component
+          end
+        end
 
         def percentage(numerator, denominator)
           return 0.0 unless denominator.positive?
@@ -154,8 +178,7 @@ module LlmCostTracker
         end
 
         def usage_sum_columns
-          Billing::Components::TOKEN_PRICED.map(&:token_key) + [:hidden_output_tokens] +
-            Billing::Components::TOKEN_PRICED.map(&:cost_key)
+          Billing::Components::TOKEN_PRICED.map(&:token_key) + [:hidden_output_tokens]
         end
 
         def billable_tokens_select(scope)

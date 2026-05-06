@@ -12,11 +12,9 @@ module LlmCostTracker
       include ActiveRecord::Generators::Migration
 
       INITIAL_TOKEN_COLUMNS = %i[input_tokens output_tokens total_tokens].freeze
-      INITIAL_COST_COLUMNS = %i[input_cost output_cost].freeze
       TOKEN_COLUMNS = (TokenUsage.members - INITIAL_TOKEN_COLUMNS).map(&:name).freeze
-      COST_COLUMNS = (Billing::Components::TOKEN_PRICED.map(&:cost_key) - INITIAL_COST_COLUMNS).map(&:name).freeze
-      COLUMN_NAMES = (TOKEN_COLUMNS + COST_COLUMNS + %w[pricing_mode]).freeze
-      private_constant :INITIAL_TOKEN_COLUMNS, :INITIAL_COST_COLUMNS
+      COLUMN_NAMES = (TOKEN_COLUMNS + %w[pricing_mode]).freeze
+      private_constant :INITIAL_TOKEN_COLUMNS
 
       source_root File.expand_path("templates", __dir__)
 

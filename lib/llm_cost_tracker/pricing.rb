@@ -90,12 +90,8 @@ module LlmCostTracker
       end
 
       def stored_cost_attributes(attributes)
-        cost_keys = Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost]
-        attributes = attributes.to_h
-        cost_keys.each_with_object({}) do |key, stored|
-          value = attributes[key]
-          stored[key] = value unless value.nil?
-        end
+        value = attributes.to_h[:total_cost]
+        value.nil? ? {} : { total_cost: value }
       end
 
       private

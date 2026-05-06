@@ -109,13 +109,16 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.cache_read_input_tokens).to eq(100)
     expect(call.cache_write_input_tokens).to eq(0)
     expect(call.hidden_output_tokens).to eq(20)
-    expect(call.input_cost.to_f).to eq(0.00225)
-    expect(call.cache_read_input_cost.to_f).to eq(0.000125)
-    expect(call.cache_write_input_cost.to_f).to eq(0.0)
-    expect(call.cache_write_extended_input_cost.to_f).to eq(0.0)
     expect(call.total_cost.to_f).to eq(0.007375)
     expect(call.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
     expect(call.pricing_snapshot.fetch("rates").keys).to include("input", "cache_read_input", "output")
+
+    costs_by_signature = call.line_items.each_with_object({}) do |item, acc|
+      acc[[item.kind, item.direction, item.cache_state]] = item.cost.to_f
+    end
+    expect(costs_by_signature.fetch(%w[text_token input none])).to eq(0.00225)
+    expect(costs_by_signature.fetch(%w[text_token input read])).to eq(0.000125)
+    expect(costs_by_signature.fetch(%w[text_token output none])).to eq(0.005)
   end
 
   it "stores service charges atomically with the parent call" do
@@ -257,11 +260,7 @@ RSpec.describe "ActiveRecord storage integration" do
         calls = LlmCostTracker::Call.order(:id).to_a
 
         expect(calls.size).to eq(2)
-        expect(calls.first.input_cost.to_f).to eq(1.0)
-        expect(calls.first.output_cost.to_f).to eq(2.0)
         expect(calls.first.total_cost.to_f).to eq(3.0)
-        expect(calls.second.input_cost.to_f).to eq(3.0)
-        expect(calls.second.output_cost.to_f).to eq(4.0)
         expect(calls.second.total_cost.to_f).to eq(7.0)
         expect(LlmCostTracker::Call.sum(:total_cost).to_f).to eq(10.0)
       end

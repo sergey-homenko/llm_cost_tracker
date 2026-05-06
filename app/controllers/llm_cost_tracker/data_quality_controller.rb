@@ -6,7 +6,10 @@ module LlmCostTracker
       scope = Dashboard::Filter.call(params: params)
       @stats = Dashboard::DataQuality.call(scope: scope)
       @summary = Dashboard::DataQuality.summary(@stats)
-      @usage_rows = Dashboard::DataQuality.usage_rows(@stats)
+      @usage_rows = Dashboard::DataQuality.usage_rows(
+        @stats,
+        component_costs: Dashboard::DataQuality.component_costs(scope)
+      )
       @hidden_output_summary = Dashboard::DataQuality.hidden_output_summary(@stats)
       @unknown_pricing_by_model = Dashboard::DataQuality.unknown_pricing_by_model(
         scope,

@@ -9,8 +9,7 @@ module LlmCostTracker
     class SchemaGenerators
       FOUNDATION_GENERATOR = "bin/rails generate llm_cost_tracker:upgrade_schema_foundation"
       RENAMED_CACHE_WRITE_COLUMNS = {
-        "cache_write_extended_input_tokens" => "cache_write_1h_input_tokens",
-        "cache_write_extended_input_cost" => "cache_write_1h_input_cost"
+        "cache_write_extended_input_tokens" => "cache_write_1h_input_tokens"
       }.freeze
 
       COLUMN_GENERATORS = {

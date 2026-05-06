@@ -60,9 +60,7 @@ module LlmCostTrackerDatabaseSpecHelpers
       LlmCostTracker::TokenUsage.members.each do |column|
         table.integer column, null: false, default: 0
       end
-      (LlmCostTracker::Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost]).each do |column|
-        table.decimal column, precision: 20, scale: 8
-      end
+      table.decimal :total_cost, precision: 20, scale: 8
       table.integer :latency_ms
       table.boolean :stream, null: false, default: false
       table.string :usage_source

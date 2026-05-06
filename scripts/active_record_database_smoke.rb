@@ -116,9 +116,7 @@ def add_call_usage_columns(table)
 end
 
 def add_call_cost_columns(table)
-  (LlmCostTracker::Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost]).each do |column|
-    table.decimal column, precision: 20, scale: 8
-  end
+  table.decimal :total_cost, precision: 20, scale: 8
 end
 
 def add_call_pricing_snapshot_column(table, database_connection)

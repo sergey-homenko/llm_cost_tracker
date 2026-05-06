@@ -64,9 +64,8 @@ module LlmCostTracker
     def csv_fields
       %i[tracked_at provider model] +
         TokenUsage.members +
-        Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost] +
         %i[
-          cost_status pricing_snapshot latency_ms provider_response_id provider_project_id
+          total_cost cost_status pricing_snapshot latency_ms provider_response_id provider_project_id
           provider_api_key_id provider_workspace_id batch tags
         ]
     end

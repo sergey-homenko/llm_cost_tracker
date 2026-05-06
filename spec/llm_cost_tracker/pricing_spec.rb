@@ -41,29 +41,19 @@ RSpec.describe LlmCostTracker::Pricing do
   end
 
   describe ".stored_cost_attributes" do
-    it "returns persisted cost columns" do
+    it "returns the persisted total_cost column" do
       attributes = {
         input_cost: 0.01,
-        cache_read_input_cost: 0.02,
-        cache_write_input_cost: 0.03,
-        cache_write_extended_input_cost: 0.04,
-        audio_input_cost: 0.06,
         output_cost: 0.05,
-        audio_output_cost: 0.07,
         total_cost: 0.27,
         currency: "USD"
       }
 
-      expect(described_class.stored_cost_attributes(attributes)).to eq(
-        input_cost: 0.01,
-        audio_input_cost: 0.06,
-        output_cost: 0.05,
-        audio_output_cost: 0.07,
-        total_cost: 0.27,
-        cache_read_input_cost: 0.02,
-        cache_write_input_cost: 0.03,
-        cache_write_extended_input_cost: 0.04
-      )
+      expect(described_class.stored_cost_attributes(attributes)).to eq(total_cost: 0.27)
+    end
+
+    it "returns an empty hash when total_cost is missing" do
+      expect(described_class.stored_cost_attributes(input_cost: 0.01)).to eq({})
     end
   end
 

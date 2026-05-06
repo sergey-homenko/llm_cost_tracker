@@ -11,9 +11,7 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
 <% LlmCostTracker::TokenUsage.members.each do |column| -%>
       t.integer :<%= column %>, null: false, default: 0
 <% end -%>
-<% (LlmCostTracker::Billing::Components::TOKEN_PRICED.map(&:cost_key) + %i[total_cost]).each do |column| -%>
-      t.decimal :<%= column %>, precision: 20, scale: 8
-<% end -%>
+      t.decimal :total_cost, precision: 20, scale: 8
       t.integer :latency_ms
       t.boolean :stream,        null: false, default: false
       t.string  :usage_source
