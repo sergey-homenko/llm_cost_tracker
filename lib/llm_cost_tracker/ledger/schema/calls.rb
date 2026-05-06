@@ -38,7 +38,6 @@ module LlmCostTracker
           pricing_mode
           cost_status
           pricing_snapshot
-          tags
           tracked_at
         ].freeze
 
@@ -83,7 +82,6 @@ module LlmCostTracker
             errors = []
             missing = missing_columns_for(columns)
             errors << "missing columns: #{missing.join(', ')}" if missing.any?
-            errors.concat(json_column_errors(columns, adapter_name, "tags"))
             errors.concat(json_column_errors(columns, adapter_name, "pricing_snapshot"))
             errors
           end

@@ -33,7 +33,7 @@ RSpec.describe "generator templates" do
     ERB.new(template(name), trim_mode: "-").result(binding)
   end
 
-  it "creates JSONB tags and a GIN index for PostgreSQL installs" do
+  it "creates calls, line items, tags, and ingestion tables for PostgreSQL installs" do
     migration = render_migration_template("create_llm_cost_tracker_calls.rb.erb")
 
     expect(migration).to include("require \"llm_cost_tracker/ledger/schema/adapter\"")
@@ -61,8 +61,8 @@ RSpec.describe "generator templates" do
     expect(migration).to include("t.string  :pricing_mode")
     expect(migration).to include("t.string  :cost_status")
     expect(migration).to include("t.jsonb :pricing_snapshot")
-    expect(migration).to include("t.jsonb :tags")
-    expect(migration).to include("add_index :llm_cost_tracker_calls, :tags, using: :gin if postgresql?")
+    expect(migration).not_to include("t.jsonb :tags")
+    expect(migration).not_to include("add_index :llm_cost_tracker_calls, :tags")
     expect(migration).to include("create_table :llm_cost_tracker_call_rollups")
     expect(migration).to include("create_table :llm_cost_tracker_call_line_items")
     expect(migration).to include("create_table :llm_cost_tracker_call_tags")
@@ -85,7 +85,7 @@ RSpec.describe "generator templates" do
     expect(migration).to include("add_index :llm_cost_tracker_call_tags, [:key, :value]")
     expect(migration).not_to match(/add_index :llm_cost_tracker_calls, :provider$/)
     expect(migration).not_to match(/add_index :llm_cost_tracker_calls, :model$/)
-    expect(migration).to include("t.json :tags")
+    expect(migration).not_to include("t.json :tags")
     expect(migration).to include("LLM Cost Tracker supports PostgreSQL and MySQL only")
     expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)")
     expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)")

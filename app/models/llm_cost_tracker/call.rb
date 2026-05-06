@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "active_record"
-require "json"
 
 require "llm_cost_tracker/billing/cost_status"
 require "llm_cost_tracker/ledger/schema/adapter"
@@ -51,7 +50,9 @@ module LlmCostTracker
              inverse_of: :call,
              dependent: :delete_all
 
-    scope :with_json_tags, -> { where.not(tags: {}) }
+    scope :with_json_tags, lambda {
+      where(id: LlmCostTracker::CallTag.select(:llm_cost_tracker_call_id))
+    }
 
     scope :today,       -> { where(tracked_at: Time.now.utc.beginning_of_day..) }
     scope :this_week,   -> { where(tracked_at: Time.now.utc.beginning_of_week..) }
@@ -72,15 +73,15 @@ module LlmCostTracker
       def cost_by_provider(limit: nil) = cost_by_column(:provider, limit: limit)
 
       def group_by_tag(key)
-        group(Arel.sql(Ledger::Tags::Sql.value_expression(key, table_name: quoted_table_name)))
+        Ledger::Tags::Sql.join_relation(self, key).group(Ledger::Tags::Sql.value_arel)
       end
 
       def cost_by_tag(key, limit: nil)
-        expression = Ledger::Tags::Sql.value_expression(key, table_name: quoted_table_name)
-        label_expression = "COALESCE(NULLIF(#{expression}, ''), #{connection.quote('(untagged)')})"
-        relation = select("#{label_expression} AS name, COALESCE(SUM(total_cost), 0) AS total_cost")
-                   .group(Arel.sql(label_expression))
-                   .order(Arel.sql("COALESCE(SUM(total_cost), 0) DESC"))
+        label = Ledger::Tags::Sql.label_sql(connection)
+        relation = Ledger::Tags::Sql.join_relation(self, key)
+                                    .select("#{label} AS name", "COALESCE(SUM(total_cost), 0) AS total_cost")
+                                    .group(Arel.sql(label))
+                                    .order(Arel.sql("COALESCE(SUM(total_cost), 0) DESC"), Arel.sql("#{label} DESC"))
         relation = relation.limit(limit) if limit
         relation
       end
@@ -148,11 +149,9 @@ module LlmCostTracker
     end
 
     def parsed_tags
-      return tags.transform_keys(&:to_s) if tags.is_a?(Hash)
-
-      JSON.parse(tags || "{}")
-    rescue JSON::ParserError
-      {}
+      tag_records.to_h do |record|
+        [record.key, record.value]
+      end
     end
   end
 end

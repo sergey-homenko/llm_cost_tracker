@@ -25,6 +25,16 @@ module LlmCostTrackerDatabaseSpecHelpers
     tags.transform_keys(&:to_s).transform_values(&:to_s)
   end
 
+  def create_call_tag_rows(call, tags)
+    return if tags.nil? || tags.empty?
+
+    rows = tags.map do |key, value|
+      stored = value.is_a?(Hash) ? JSON.generate(value) : value.to_s
+      { llm_cost_tracker_call_id: call.id, key: key.to_s, value: stored }
+    end
+    LlmCostTracker::CallTag.insert_all!(rows, record_timestamps: false, returning: false)
+  end
+
   def drop_lct_tables!
     connection = ActiveRecord::Base.connection
     %w[
@@ -65,10 +75,8 @@ module LlmCostTrackerDatabaseSpecHelpers
       table.string :cost_status
       if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
         table.jsonb :pricing_snapshot
-        table.jsonb :tags, null: false, default: {}
       elsif LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)
         table.json :pricing_snapshot
-        table.json :tags, null: false
       else
         LlmCostTracker::Ledger::Schema::Adapter.ensure_supported!(connection)
       end
@@ -184,7 +192,6 @@ module LlmCostTrackerDatabaseSpecHelpers
     connection.add_index :llm_cost_tracker_calls, %i[model tracked_at]
     connection.add_index :llm_cost_tracker_calls, :cost_status
     connection.add_index :llm_cost_tracker_calls, :provider_response_id
-    connection.add_index :llm_cost_tracker_calls, :tags, using: :gin if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
     connection.add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
     connection.add_index :llm_cost_tracker_call_line_items, :kind
     connection.add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id

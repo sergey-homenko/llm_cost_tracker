@@ -59,13 +59,14 @@ module LlmCostTracker
 
       def rows_sql
         <<~SQL.squish
-          SELECT #{tag_expression} AS value,
+          SELECT #{tag_value_column} AS value,
                  COUNT(*) AS calls,
                  COALESCE(SUM(sub.total_cost), 0) AS total_cost,
                  COALESCE(SUM(sub.total_cost), 0) / NULLIF(COUNT(*), 0) AS average_cost_per_call
           FROM (#{scope.to_sql}) AS sub
+          INNER JOIN #{call_tag_table} t ON t.llm_cost_tracker_call_id = sub.id AND t.#{quote_column('key')} = #{quoted_key}
           WHERE #{tag_present_predicate}
-          GROUP BY #{tag_expression}
+          GROUP BY #{tag_value_column}
           ORDER BY total_cost DESC, calls DESC, value ASC
           LIMIT #{limit}
         SQL
@@ -74,18 +75,31 @@ module LlmCostTracker
       def summary_sql
         <<~SQL.squish
           SELECT COUNT(*) AS total_calls,
-                 COALESCE(SUM(CASE WHEN #{tag_present_predicate} THEN 1 ELSE 0 END), 0) AS tagged_calls,
-                 COUNT(DISTINCT CASE WHEN #{tag_present_predicate} THEN #{tag_expression} END) AS distinct_values
+                 COUNT(t.#{quote_column('value')}) AS tagged_calls,
+                 COUNT(DISTINCT CASE WHEN #{tag_present_predicate} THEN #{tag_value_column} END) AS distinct_values
           FROM (#{scope.to_sql}) AS sub
+          LEFT OUTER JOIN #{call_tag_table} t ON t.llm_cost_tracker_call_id = sub.id AND t.#{quote_column('key')} = #{quoted_key}
         SQL
       end
 
       def tag_present_predicate
-        "#{tag_expression} IS NOT NULL AND #{tag_expression} != ''"
+        "#{tag_value_column} IS NOT NULL AND #{tag_value_column} != ''"
       end
 
-      def tag_expression
-        @tag_expression ||= LlmCostTracker::Ledger::Tags::Sql.value_expression(key, table_name: "sub")
+      def tag_value_column
+        "t.#{quote_column('value')}"
+      end
+
+      def call_tag_table
+        LlmCostTracker::CallTag.quoted_table_name
+      end
+
+      def quote_column(name)
+        scope.connection.quote_column_name(name)
+      end
+
+      def quoted_key
+        scope.connection.quote(key)
       end
 
       def percentage(numerator, denominator)

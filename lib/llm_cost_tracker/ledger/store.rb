@@ -36,7 +36,6 @@ module LlmCostTracker
             event_id: event.event_id,
             provider: event.provider,
             model: event.model,
-            tags: stored_tags(event.tags),
             tracked_at: event.tracked_at,
             pricing_mode: event.pricing_mode&.name,
             latency_ms: event.latency_ms,
@@ -135,10 +134,6 @@ module LlmCostTracker
             event_id = event.event_id
             !existing_ids.include?(event_id) && seen_ids.add?(event_id)
           end
-        end
-
-        def stored_tags(tags)
-          (tags || {}).transform_keys(&:to_s).transform_values { |value| stored_tag_value(value) }
         end
 
         def stored_tag_value(value)

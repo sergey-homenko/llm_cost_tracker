@@ -201,14 +201,14 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Ledger::Schema::Calls.current_schema_errors.join).to include("missing columns: pricing_mode")
   end
 
-  it "reports adapter-specific tag column type errors" do
+  it "reports adapter-specific pricing_snapshot column type errors" do
     [
-      ["PostgreSQL", double(type: :json, sql_type: "json"), "tags column must use jsonb"],
-      ["Mysql2", double(type: :text, sql_type: "text"), "tags column must use json"]
+      ["PostgreSQL", double(type: :json, sql_type: "json"), "pricing_snapshot column must use jsonb"],
+      ["Mysql2", double(type: :text, sql_type: "text"), "pricing_snapshot column must use json"]
     ].each do |adapter_name, column, message|
       capabilities = LlmCostTracker::Ledger::Schema::Calls.send(
         :build_schema_capabilities,
-        { "tags" => column },
+        { "pricing_snapshot" => column },
         adapter_name
       )
 
@@ -322,28 +322,14 @@ RSpec.describe "ActiveRecord storage integration" do
     )
   end
 
-  it "stringifies nested tag keys and values before storing" do
+  it "serializes nested tag values as JSON strings in llm_cost_tracker_call_tags" do
     event = build_event(event_id: "nested-tags", tags: { metadata: { user_id: 42, active: true } })
 
     LlmCostTracker::Ledger::Store.insert_many([event])
 
     expect(LlmCostTracker::Call.first.parsed_tags).to eq(
-      "metadata" => { "user_id" => "42", "active" => "true" }
+      "metadata" => '{"user_id":"42","active":"true"}'
     )
-  end
-
-  it "parses raw JSON tag strings" do
-    call = LlmCostTracker::Call.new
-    allow(call).to receive(:tags).and_return(%({"feature":"chat","user_id":"42"}))
-
-    expect(call.parsed_tags).to eq("feature" => "chat", "user_id" => "42")
-  end
-
-  it "returns empty tags for malformed raw JSON strings" do
-    call = LlmCostTracker::Call.new
-    allow(call).to receive(:tags).and_return("{")
-
-    expect(call.parsed_tags).to eq({})
   end
 
   it "qualifies PostgreSQL rollup upsert totals" do
@@ -547,11 +533,7 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     tag_sql = LlmCostTracker::Call.group_by_tag("feature").to_sql
-    if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(LlmCostTracker::Call.connection)
-      expect(tag_sql).to include("->>")
-    else
-      expect(tag_sql).to include("JSON_EXTRACT")
-    end
+    expect(tag_sql).to include("LEFT OUTER JOIN \"llm_cost_tracker_call_tags\"")
     expect(LlmCostTracker::Call.group_by_tag("feature").sum(:total_cost).transform_values(&:to_f)).to eq(
       "chat" => 0.0025,
       "summarizer" => 0.001
@@ -566,7 +548,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 1.25,
-      tags: tags_for_database({}),
+
       tracked_at: Time.utc(2026, 4, 18, 10, 30)
     )
     LlmCostTracker::Call.create!(
@@ -576,7 +558,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 2.75,
-      tags: tags_for_database({}),
+
       tracked_at: Time.utc(2026, 4, 18, 23, 59)
     )
     LlmCostTracker::Call.create!(
@@ -586,7 +568,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 3.5,
-      tags: tags_for_database({}),
+
       tracked_at: Time.utc(2026, 4, 19, 0, 1)
     )
 
@@ -610,7 +592,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 1.25,
-      tags: tags_for_database({}),
+
       tracked_at: Time.utc(2026, 4, 18)
     )
     LlmCostTracker::Call.create!(
@@ -620,7 +602,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 3.5,
-      tags: tags_for_database({}),
+
       tracked_at: Time.utc(2026, 5, 1)
     )
 
@@ -638,7 +620,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 1.25,
-      tags: tags_for_database({}),
+
       tracked_at: Time.utc(2026, 4, 18),
       created_at: Time.utc(2026, 5, 2),
       updated_at: Time.utc(2026, 5, 2)
@@ -688,7 +670,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 1.25,
-      tags: tags_for_database({}),
+
       tracked_at: tracked_at
     )
     LlmCostTracker::Call.create!(
@@ -698,7 +680,7 @@ RSpec.describe "ActiveRecord storage integration" do
       output_tokens: 5,
       total_tokens: 15,
       total_cost: 3.5,
-      tags: tags_for_database({}),
+
       tracked_at: tracked_at
     )
 
@@ -876,38 +858,23 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Call.daily_costs.keys).to all(be_a(String))
   end
 
-  it "builds a JSONB containment query for PostgreSQL JSONB tag columns" do
-    connection = LlmCostTracker::Call.connection
-    allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(true)
-
+  it "filters by tag rows joined through llm_cost_tracker_call_tags" do
     sql = LlmCostTracker::Call.by_tags(user_id: 42, feature: "chat").to_sql
 
-    expect(sql).to include("tags @>")
-    expect(sql).to include('{"user_id":"42","feature":"chat"}')
+    expect(sql).to include("llm_cost_tracker_call_tags")
+    expect(sql).to include("\"key\" = 'user_id'")
+    expect(sql).to include("\"value\" = '42'")
+    expect(sql).to include("\"key\" = 'feature'")
+    expect(sql).to include("\"value\" = 'chat'")
   end
 
-  it "builds a JSON_CONTAINS query for MySQL JSON tag columns" do
-    connection = LlmCostTracker::Call.connection
-    allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(false)
+  it "joins llm_cost_tracker_call_tags when grouping by a tag value" do
+    sql = LlmCostTracker::Ledger::Tags::Sql
+          .join_relation(LlmCostTracker::Call.all, "user_id")
+          .to_sql
 
-    sql = LlmCostTracker::Call.by_tags(user_id: 42, feature: "chat").to_sql
-
-    expect(sql).to include("JSON_CONTAINS(tags,")
-    expect(sql).to include('{"user_id":"42","feature":"chat"}')
-  end
-
-  it "builds MySQL-family tag value SQL" do
-    %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-      connection = LlmCostTracker::Call.connection
-      allow(connection).to receive(:adapter_name).and_return(adapter_name)
-      allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(false)
-      allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:mysql?).with(connection).and_return(true)
-
-      sql = LlmCostTracker::Ledger::Tags::Sql.value_expression("user_id", table_name: "llm_cost_tracker_calls")
-
-      expect(sql).to include("JSON_UNQUOTE(JSON_EXTRACT")
-      expect(sql).to include(%('$."user_id"'))
-    end
+    expect(sql).to include("LEFT OUTER JOIN \"llm_cost_tracker_call_tags\"")
+    expect(sql).to include("\"key\" = 'user_id'")
   end
 
   it "does not double-count the latest event in budget callbacks" do

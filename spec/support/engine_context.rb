@@ -36,12 +36,14 @@ module LlmCostTrackerEngineContext
                            attrs.fetch(:audio_input_tokens) +
                            attrs.fetch(:output_tokens) +
                            attrs.fetch(:audio_output_tokens)
-    attrs[:tags] = tags_for_database(attrs.fetch(:tags))
+    raw_tags = attrs.delete(:tags)
 
     call = LlmCostTracker::Call.create!(attrs)
+    create_call_tag_rows(call, raw_tags)
     LlmCostTracker::Ledger::Rollups.increment!(call)
     call
   end
+
 end
 
 RSpec.shared_context "with mounted llm cost tracker engine" do

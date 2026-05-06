@@ -26,9 +26,10 @@ RSpec.describe "LlmCostTracker dashboard services" do
   def create_call(**overrides)
     attrs = call_defaults.merge(overrides)
     attrs[:total_tokens] = total_tokens_for(attrs)
-    attrs[:tags] = tags_for_database(attrs.fetch(:tags))
+    raw_tags = attrs.delete(:tags)
 
     call = LlmCostTracker::Call.create!(attrs)
+    create_call_tag_rows(call, raw_tags)
     LlmCostTracker::Ledger::Rollups.increment!(call)
     call
   end
@@ -861,34 +862,19 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(rows.size).to eq(1)
     end
 
-    it "uses JSON_TABLE-based discovery on MySQL-family adapters" do
+    it "joins llm_cost_tracker_call_tags to discover keys" do
       create_call(tags: { env: "prod", service: "api" })
-      create_call(tags: { env: "staging" })
 
-      %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-        connection = LlmCostTracker::Call.connection
-        captured_sql = nil
-
-        allow(connection).to receive(:adapter_name).and_return(adapter_name)
-        allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).with(connection).and_return(false)
-        allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:mysql?).with(connection).and_return(true)
-        allow(LlmCostTracker::Call).to receive(:find_by_sql) do |sql|
-          captured_sql = sql
-          [
-            LlmCostTracker::Call.instantiate("key" => "env", "calls_count" => 2, "distinct_values" => 2),
-            LlmCostTracker::Call.instantiate("key" => "service", "calls_count" => 1, "distinct_values" => 1)
-          ]
-        end
-
-        rows = described_class.call
-
-        expect(captured_sql).to include("JSON_TABLE")
-        expect(captured_sql).to include("JSON_KEYS")
-        expect(captured_sql).to include("LIMIT 100")
-        expect(rows.map(&:key)).to eq(%w[env service])
-        expect(rows.first.calls_count).to eq(2)
-        expect(rows.first.distinct_values).to eq(2)
+      captured_sql = nil
+      allow(LlmCostTracker::Call).to receive(:find_by_sql) do |sql|
+        captured_sql = sql
+        []
       end
+
+      described_class.call
+
+      expect(captured_sql).to include("llm_cost_tracker_call_tags")
+      expect(captured_sql).to include("LIMIT 100")
     end
   end
 end

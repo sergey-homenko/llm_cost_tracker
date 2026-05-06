@@ -98,7 +98,6 @@ def create_calls_table!(database_connection)
     t.string :pricing_mode
     t.string :cost_status
     add_call_pricing_snapshot_column(t, database_connection)
-    add_call_tags_column(t, database_connection)
     t.datetime :tracked_at, null: false
     t.timestamps
   end
@@ -127,16 +126,6 @@ def add_call_pricing_snapshot_column(table, database_connection)
     table.jsonb :pricing_snapshot
   elsif LlmCostTracker::Ledger::Schema::Adapter.mysql?(database_connection)
     table.json :pricing_snapshot
-  else
-    LlmCostTracker::Ledger::Schema::Adapter.ensure_supported!(database_connection)
-  end
-end
-
-def add_call_tags_column(table, database_connection)
-  if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
-    table.jsonb :tags, null: false, default: {}
-  elsif LlmCostTracker::Ledger::Schema::Adapter.mysql?(database_connection)
-    table.json :tags, null: false
   else
     LlmCostTracker::Ledger::Schema::Adapter.ensure_supported!(database_connection)
   end
@@ -226,16 +215,13 @@ def create_ingestion_leases_table!
   end
 end
 
-def add_schema_indexes!(database_connection)
+def add_schema_indexes!(_database_connection)
   add_index :llm_cost_tracker_calls, :event_id, unique: true
   add_index :llm_cost_tracker_calls, :tracked_at
   add_index :llm_cost_tracker_calls, %i[provider tracked_at]
   add_index :llm_cost_tracker_calls, %i[model tracked_at]
   add_index :llm_cost_tracker_calls, :cost_status
   add_index :llm_cost_tracker_calls, :provider_response_id
-  if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
-    add_index :llm_cost_tracker_calls, :tags, using: :gin
-  end
   add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
   add_index :llm_cost_tracker_call_line_items, :kind
   add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id

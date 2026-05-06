@@ -26,10 +26,8 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
       t.string  :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
       if postgresql?
         t.jsonb :pricing_snapshot
-        t.jsonb :tags, null: false, default: {}
       elsif mysql?
         t.json :pricing_snapshot
-        t.json :tags, null: false
       else
         raise "LLM Cost Tracker supports PostgreSQL and MySQL only"
       end
@@ -133,7 +131,6 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
     add_index :llm_cost_tracker_calls, [:model, :tracked_at]
     add_index :llm_cost_tracker_calls, :cost_status
     add_index :llm_cost_tracker_calls, :provider_response_id
-    add_index :llm_cost_tracker_calls, :tags, using: :gin if postgresql?
     add_index :llm_cost_tracker_call_line_items, [:llm_cost_tracker_call_id, :position]
     add_index :llm_cost_tracker_call_line_items, :kind
     add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id

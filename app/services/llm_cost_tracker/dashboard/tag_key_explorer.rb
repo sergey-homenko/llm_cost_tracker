@@ -30,45 +30,26 @@ module LlmCostTracker
       attr_reader :scope, :connection, :limit
 
       def build_sql
-        return postgresql_sql if Ledger::Schema::Adapter.postgresql?(connection)
-        return mysql_sql if Ledger::Schema::Adapter.mysql?(connection)
+        tags_table = LlmCostTracker::CallTag.quoted_table_name
 
-        Ledger::Schema::Adapter.ensure_supported!(connection)
-      end
-
-      def mysql_sql
         <<~SQL.squish
-          SELECT jt.key AS key,
+          SELECT t.#{key_column} AS key,
                  COUNT(*) AS calls_count,
-                 COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(sub.tags, CONCAT('$.', JSON_QUOTE(jt.key))))) AS distinct_values
+                 COUNT(DISTINCT t.#{value_column}) AS distinct_values
           FROM (#{scope.to_sql}) AS sub
-          JOIN JSON_TABLE(
-            COALESCE(JSON_KEYS(sub.tags), JSON_ARRAY()),
-            '$[*]' COLUMNS(
-              key VARCHAR(255) PATH '$'
-            )
-          ) AS jt
-          WHERE sub.tags IS NOT NULL
-            AND sub.tags != ''
-          GROUP BY jt.key
+          INNER JOIN #{tags_table} t ON t.llm_cost_tracker_call_id = sub.id
+          GROUP BY t.#{key_column}
           ORDER BY calls_count DESC
           LIMIT #{limit}
         SQL
       end
 
-      def postgresql_sql
-        <<~SQL.squish
-          SELECT key,
-                 COUNT(*) AS calls_count,
-                 COUNT(DISTINCT (sub.tags::jsonb)->>key) AS distinct_values
-          FROM (#{scope.to_sql}) AS sub,
-               jsonb_object_keys(sub.tags::jsonb) AS key
-          WHERE sub.tags IS NOT NULL
-            AND sub.tags::jsonb <> '{}'::jsonb
-          GROUP BY key
-          ORDER BY calls_count DESC
-          LIMIT #{limit}
-        SQL
+      def key_column
+        connection.quote_column_name("key")
+      end
+
+      def value_column
+        connection.quote_column_name("value")
       end
     end
   end

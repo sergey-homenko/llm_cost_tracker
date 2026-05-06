@@ -27,7 +27,7 @@ RSpec.describe LlmCostTracker::Report do
   end
 
   def create_report_call(model:, total_cost:, tags: {}, provider: "openai", tracked_at: Time.now.utc)
-    LlmCostTracker::Call.create!(
+    call = LlmCostTracker::Call.create!(
       provider: provider,
       model: model,
       input_tokens: 0,
@@ -35,9 +35,10 @@ RSpec.describe LlmCostTracker::Report do
       total_tokens: 0,
       total_cost: total_cost,
       cost_status: total_cost.nil? ? LlmCostTracker::Billing::CostStatus::UNKNOWN : LlmCostTracker::Billing::CostStatus::COMPLETE,
-      tags: tags_for_database(tags),
       tracked_at: tracked_at
     )
+    create_call_tag_rows(call, tags)
+    call
   end
 
   def create_ranked_report_calls(now)

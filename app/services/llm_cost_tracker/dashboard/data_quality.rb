@@ -199,15 +199,11 @@ module LlmCostTracker
         end
 
         def tagged_calls_sql(scope)
-          table = scope.klass.quoted_table_name
-          connection = scope.connection
-          column = "#{table}.#{connection.quote_column_name('tags')}"
+          calls_table = scope.klass.quoted_table_name
+          tags_table = LlmCostTracker::CallTag.quoted_table_name
 
-          if Ledger::Schema::Adapter.postgresql?(connection)
-            "COALESCE(SUM(CASE WHEN #{column} <> '{}'::jsonb THEN 1 ELSE 0 END), 0)"
-          else
-            "COALESCE(SUM(CASE WHEN JSON_LENGTH(#{column}) > 0 THEN 1 ELSE 0 END), 0)"
-          end
+          "COALESCE(SUM(CASE WHEN EXISTS (SELECT 1 FROM #{tags_table} " \
+            "WHERE #{tags_table}.llm_cost_tracker_call_id = #{calls_table}.id) THEN 1 ELSE 0 END), 0)"
         end
       end
     end

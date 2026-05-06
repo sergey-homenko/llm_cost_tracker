@@ -55,8 +55,8 @@ module LlmCostTracker
       CSV.generate do |csv|
         csv << fields.map(&:to_s)
 
-        relation.pluck(*fields).each do |values|
-          csv << fields.zip(values).map { |field, value| csv_value(field, value) }
+        relation.includes(:tag_records).find_each do |call|
+          csv << fields.map { |field| csv_value(field, call) }
         end
       end
     end
@@ -71,17 +71,19 @@ module LlmCostTracker
         ]
     end
 
-    def csv_value(field, value)
+    def csv_value(field, call)
       case field
       when :tracked_at
-        value&.utc&.iso8601
+        call.tracked_at&.utc&.iso8601
       when :provider, :model, :provider_response_id, :provider_project_id, :provider_api_key_id,
            :provider_workspace_id, :cost_status
-        csv_safe(value)
-      when :tags, :pricing_snapshot
-        csv_safe(csv_json(value))
+        csv_safe(call[field])
+      when :pricing_snapshot
+        csv_safe(csv_json(call.pricing_snapshot))
+      when :tags
+        csv_safe(call.parsed_tags.to_json)
       else
-        value
+        call[field]
       end
     end
 
