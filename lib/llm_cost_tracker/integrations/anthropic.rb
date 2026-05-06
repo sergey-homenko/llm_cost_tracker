@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require_relative "../billing/line_item"
 require_relative "../capture/stream_collector"
 require_relative "../capture/stream_tracker"
 
@@ -52,11 +53,37 @@ module LlmCostTracker
                 pricing_mode: pricing_mode(message: message, request: request, usage: usage),
                 token_usage: token_usage(usage: usage, input_tokens: input_tokens, output_tokens: output_tokens),
                 usage_source: :sdk_response,
-                provider_response_id: object_value(message, :id)
+                provider_response_id: object_value(message, :id),
+                service_line_items: service_line_items_from(usage)
               ),
               latency_ms: latency_ms
             )
           end
+        end
+
+        def service_line_items_from(usage)
+          server_tool_use = object_value(usage, :server_tool_use)
+          return [] unless server_tool_use
+
+          [
+            line_item_for_server_tool(server_tool_use, :web_search_request, :web_search_requests,
+                                      "usage.server_tool_use.web_search_requests"),
+            line_item_for_server_tool(server_tool_use, :code_execution_request, :code_execution_requests,
+                                      "usage.server_tool_use.code_execution_requests")
+          ].compact
+        end
+
+        def line_item_for_server_tool(server_tool_use, component_key, count_key, provider_field)
+          quantity = object_value(server_tool_use, count_key).to_i
+          return nil if quantity.zero?
+
+          Billing::LineItem.build(
+            component_key: component_key,
+            quantity: quantity,
+            cost_status: Billing::CostStatus::UNKNOWN,
+            pricing_basis: :provider_usage,
+            provider_field: provider_field
+          )
         end
 
         def token_usage(usage:, input_tokens:, output_tokens:)

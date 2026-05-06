@@ -19,6 +19,16 @@ RSpec.describe LlmCostTracker::Billing::LineItem do
       expect(line_item.modality).to eq(:text)
     end
 
+    it "normalizes symbol cost_status to string so predicates match" do
+      line_item = described_class.build(
+        component_key: :web_search_request, quantity: 1, cost_status: :unknown
+      )
+
+      expect(line_item.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+      expect(line_item).to be_unpriced
+      expect(line_item).not_to be_priced
+    end
+
     it "coerces symbol-typed attributes from strings" do
       line_item = described_class.build(
         kind: "text_token", direction: "output", modality: "text", cache_state: "none",

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require_relative "../billing/line_item"
 require_relative "../capture/stream_collector"
 require_relative "../capture/stream_tracker"
 
@@ -56,11 +57,74 @@ module LlmCostTracker
                 pricing_mode: object_value(response, :service_tier) || request[:service_tier],
                 token_usage: token_usage(usage:, input_tokens:, output_tokens:, cache_read:),
                 usage_source: :sdk_response,
-                provider_response_id: object_value(response, :id)
+                provider_response_id: object_value(response, :id),
+                service_line_items: service_line_items_from(response)
               ),
               latency_ms: latency_ms
             )
           end
+        end
+
+        RESPONSE_OUTPUT_COMPONENTS = {
+          "web_search_call" => :web_search_request,
+          "file_search_call" => :file_search_call,
+          "code_interpreter_call" => :container_session
+        }.freeze
+
+        def service_line_items_from(response)
+          output = object_value(response, :output)
+          return [] unless output.respond_to?(:each)
+
+          deduped = {}
+          output.each { |item| store_output_item(deduped, item) }
+          deduped.values.filter_map { |item| line_item_from_output(item) }
+        end
+
+        def store_output_item(deduped, item)
+          type = object_value(item, :type).to_s
+          component = RESPONSE_OUTPUT_COMPONENTS[type]
+          return unless component
+          return unless billable_output_item?(component, item)
+
+          container_id = object_value(item, :container_id)
+          key = if component == :container_session && container_id
+                  "#{component}:#{container_id}"
+                else
+                  object_value(item, :id) || "#{type}:#{deduped.length}"
+                end
+          deduped[key] = item
+        end
+
+        def billable_output_item?(component, item)
+          return true unless component == :web_search_request
+
+          action_type = object_dig(item, :action, :type).to_s
+          action_type.empty? || action_type == "search"
+        end
+
+        def line_item_from_output(item)
+          type = object_value(item, :type).to_s
+          component_key = RESPONSE_OUTPUT_COMPONENTS[type]
+          return nil unless component_key
+
+          provider_item_id = if component_key == :container_session
+                               object_value(item, :container_id) || object_value(item, :id)
+                             else
+                               object_value(item, :id)
+                             end
+          Billing::LineItem.build(
+            component_key: component_key,
+            quantity: 1,
+            cost_status: Billing::CostStatus::UNKNOWN,
+            pricing_basis: :provider_usage,
+            provider_field: "response.output.#{type}",
+            provider_item_id: provider_item_id,
+            details: {
+              "status" => object_value(item, :status),
+              "action_type" => object_dig(item, :action, :type),
+              "container_id" => object_value(item, :container_id)
+            }.compact
+          )
         end
 
         def token_usage(usage:, input_tokens:, output_tokens:, cache_read:)

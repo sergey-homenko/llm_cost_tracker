@@ -31,12 +31,46 @@ module LlmCostTracker
         def price_for(prices:, key:, pricing_mode:, context_tier:)
           return contextual_price(prices: prices, key: key, context_tier: context_tier) unless pricing_mode
 
-          direct = contextual_price(prices: prices, key: :"#{pricing_mode}_#{key}", context_tier: context_tier)
-          return direct if direct
+          mode_orderings_for(pricing_mode).each do |mode|
+            direct = contextual_price(prices: prices, key: :"#{mode}_#{key}", context_tier: context_tier)
+            return direct if direct
+          end
           return nil if %i[input output].include?(key)
 
           derived_mode_price(prices: prices, key: key, mode: pricing_mode, context_tier: context_tier)
         end
+
+        def mode_orderings_for(pricing_mode)
+          mode_string = pricing_mode.to_s
+          return [mode_string] unless mode_string.include?("_")
+
+          tokens = tokenize_mode(mode_string)
+          return [mode_string] if tokens.size <= 1
+
+          [mode_string, *tokens.permutation.map { |permutation| permutation.join("_") }].uniq
+        end
+
+        def tokenize_mode(mode_string)
+          remaining = mode_string.dup
+          tokens = []
+          loop do
+            break if remaining.empty?
+
+            compound = COMPOUND_MODE_TOKENS.find { |token| remaining == token || remaining.start_with?("#{token}_") }
+            if compound
+              tokens << compound
+              remaining = remaining.delete_prefix(compound).delete_prefix("_")
+            else
+              first, _, rest = remaining.partition("_")
+              tokens << first
+              remaining = rest
+            end
+          end
+          tokens
+        end
+
+        COMPOUND_MODE_TOKENS = %w[data_residency].freeze
+        private_constant :COMPOUND_MODE_TOKENS
 
         def contextual_price(prices:, key:, context_tier:)
           return prices[key] unless context_tier

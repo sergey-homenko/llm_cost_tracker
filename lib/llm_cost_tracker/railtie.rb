@@ -9,19 +9,8 @@ module LlmCostTracker
     end
 
     generators do
-      require_relative "generators/llm_cost_tracker/add_billing_generator"
-      require_relative "generators/llm_cost_tracker/add_ingestion_generator"
-      require_relative "generators/llm_cost_tracker/add_call_rollups_generator"
-      require_relative "generators/llm_cost_tracker/add_capture_dimensions_generator"
-      require_relative "generators/llm_cost_tracker/add_latency_ms_generator"
-      require_relative "generators/llm_cost_tracker/add_provider_response_id_generator"
-      require_relative "generators/llm_cost_tracker/add_streaming_generator"
-      require_relative "generators/llm_cost_tracker/add_token_usage_generator"
       require_relative "generators/llm_cost_tracker/install_generator"
       require_relative "generators/llm_cost_tracker/prices_generator"
-      require_relative "generators/llm_cost_tracker/upgrade_cost_precision_generator"
-      require_relative "generators/llm_cost_tracker/upgrade_schema_foundation_generator"
-      require_relative "generators/llm_cost_tracker/upgrade_tags_to_jsonb_generator"
     end
 
     rake_tasks do

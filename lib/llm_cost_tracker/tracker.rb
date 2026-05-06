@@ -31,7 +31,7 @@ module LlmCostTracker
           pricing_mode: pricing_mode
         )
 
-        Pricing::Unknown.handle!(capture.model) unless cost_data
+        Pricing::Unknown.handle!(capture.model) if cost_data.nil? && capture.token_usage.total_tokens.positive?
 
         event = build_event(
           capture: capture,

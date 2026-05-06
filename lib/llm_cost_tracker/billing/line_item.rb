@@ -125,7 +125,7 @@ module LlmCostTracker
 
       def self.cost_status_for(attributes)
         explicit = attributes[:cost_status]
-        return explicit if explicit
+        return explicit.to_s if explicit
 
         cost = decimal_or_nil(attributes[:cost])
         return CostStatus::UNKNOWN if cost.nil?

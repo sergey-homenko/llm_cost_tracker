@@ -270,6 +270,21 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(line_item.provider_field).to eq("usage.server_tool_use.web_search_requests")
     end
 
+    it "does not raise on unknown model for service-only events when behavior is :raise" do
+      LlmCostTracker.configure { |c| c.unknown_pricing_behavior = :raise }
+
+      expect do
+        record(
+          provider: "openai",
+          model: "unrecognized-model",
+          token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 0, output_tokens: 0),
+          service_line_items: [
+            { component_key: :web_search_request, quantity: 1, cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN }
+          ]
+        )
+      end.not_to raise_error
+    end
+
     it "keeps service-only unknown charges unknown without inventing total cost" do
       event = record(
         provider: "custom",

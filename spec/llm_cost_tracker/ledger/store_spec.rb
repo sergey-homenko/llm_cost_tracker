@@ -320,6 +320,27 @@ RSpec.describe "ActiveRecord storage integration" do
     )
   end
 
+  it "keeps the header total_cost in sync with the sum of priced line items" do
+    track_and_flush(
+      provider: :openai,
+      model: "gpt-4o",
+      tokens: { input: 999, output: 333, cache_read_input: 77, audio_input: 11, audio_output: 5 }
+    )
+
+    call = LlmCostTracker::Call.first
+    line_items_total = call.line_items.where(cost_status: %w[complete free])
+                          .sum { |item| item.cost.to_d }
+
+    expect(call.total_cost.to_d).to eq(line_items_total)
+  end
+
+  it "stores nil tag values as empty strings without raising on the not-null column" do
+    event = build_event(event_id: "nil-tag", tags: { "feature" => nil })
+
+    expect { LlmCostTracker::Ledger::Store.insert_many([event]) }.not_to raise_error
+    expect(LlmCostTracker::Call.first.parsed_tags).to eq("feature" => "")
+  end
+
   it "serializes nested tag values as JSON strings in llm_cost_tracker_call_tags" do
     event = build_event(event_id: "nested-tags", tags: { metadata: { user_id: 42, active: true } })
 

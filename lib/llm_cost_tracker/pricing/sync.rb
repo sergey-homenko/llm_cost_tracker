@@ -81,7 +81,7 @@ module LlmCostTracker
           end
 
           remote = normalize_remote_registry(response.body, url: url, response: response, today: today)
-          changes = RegistryDiff.call(current.fetch("models", {}), remote.fetch("models", {}))
+          changes = registry_changes(current, remote)
 
           CheckResult.new(
             path: path,
@@ -159,10 +159,36 @@ module LlmCostTracker
             path: path,
             source_url: url,
             source_version: response.source_version,
-            changes: RegistryDiff.call(current.fetch("models", {}), remote.fetch("models", {})),
+            changes: registry_changes(current, remote),
             written: written,
             not_modified: not_modified
           )
+        end
+
+        def registry_changes(current, remote)
+          model_changes = RegistryDiff.call(current.fetch("models", {}), remote.fetch("models", {}))
+          charge_changes = service_charges_diff(
+            current.fetch("service_charges", {}),
+            remote.fetch("service_charges", {})
+          )
+          return model_changes if charge_changes.empty?
+
+          model_changes.merge("service_charges" => charge_changes)
+        end
+
+        def service_charges_diff(current, remote)
+          (current.keys | remote.keys).sort.each_with_object({}) do |provider, changes|
+            current_rates = (current[provider] || {}).transform_keys(&:to_s)
+            remote_rates = (remote[provider] || {}).transform_keys(&:to_s)
+            (current_rates.keys | remote_rates.keys).sort.each_with_object(changes) do |component, _|
+              from = current_rates[component]
+              to = remote_rates[component]
+              next if from == to
+
+              changes[provider] ||= {}
+              changes[provider][component] = { "from" => from, "to" => to }
+            end
+          end
         end
       end
     end

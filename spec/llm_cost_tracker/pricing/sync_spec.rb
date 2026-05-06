@@ -116,6 +116,9 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
           "input" => { "from" => 5.0, "to" => 2.5 },
           "output" => { "from" => 15.0, "to" => 10.0 }
         )
+        expect(result.changes.fetch("service_charges")).to eq(
+          "openai" => { "web_search_request" => { "from" => 8.0, "to" => 10.0 } }
+        )
         expect(written.dig("metadata", "source_url")).to eq(source_url)
         expect(written.dig("metadata", "source_version")).to eq("snapshot-v1")
         expect(written.dig("metadata", "min_gem_version")).to eq("0.0.1")

@@ -107,12 +107,12 @@ Normalized attribution. One row per `key=value` pair on a call.
 | --- | --- | --- |
 | `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
 | `key` | string, not null | Tag key |
-| `value` | string, not null | Tag value (nested hashes are stored as JSON strings) |
+| `value` | text, not null | Tag value (nested hashes are stored as JSON strings) |
 
 Indexes:
 
 - `llm_cost_tracker_call_id`
-- `[key, value]` (filter by tag)
+- `key` (filter by tag key; value-side filtering happens row-wise after seek)
 
 ## `llm_cost_tracker_call_rollups`
 

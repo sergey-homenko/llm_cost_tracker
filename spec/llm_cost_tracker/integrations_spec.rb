@@ -21,10 +21,14 @@ module LlmCostTrackerIntegrationSpecTypes
     :service_tier,
     :speed,
     :inference_geo,
+    :server_tool_use,
     keyword_init: true
   )
+  ServerToolUse = Struct.new(:web_search_requests, :code_execution_requests, keyword_init: true)
+  OutputItem = Struct.new(:type, :id, :status, :container_id, :action, keyword_init: true)
+  OutputAction = Struct.new(:type, keyword_init: true)
   Details = Struct.new(:cached_tokens, :reasoning_tokens, :audio_tokens, keyword_init: true)
-  Response = Struct.new(:id, :model, :usage, :service_tier, keyword_init: true)
+  Response = Struct.new(:id, :model, :usage, :service_tier, :output, keyword_init: true)
   BrokenStreamEvent = Class.new do
     def to_h
       raise "boom"
@@ -622,6 +626,77 @@ RSpec.describe LlmCostTracker::Integrations do
 
       expect(events.size).to eq(1)
       expect(events.first[:pricing_mode]).to eq(:priority)
+    end
+  end
+
+  it "captures Anthropic server tool usage from the official SDK as service line items" do
+    message = response_class.new(
+      id: "msg_123",
+      model: "claude-sonnet-4-6",
+      usage: usage_class.new(
+        input_tokens: 200, output_tokens: 80,
+        server_tool_use: LlmCostTrackerIntegrationSpecTypes::ServerToolUse.new(
+          web_search_requests: 2, code_execution_requests: 1
+        )
+      )
+    )
+    install_anthropic_fakes(message)
+    configure_integration(:anthropic)
+
+    capture_events do |events|
+      Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-6")
+
+      kinds = events.first[:line_items].reject { |item| item[:unit] == :token }.map { |item| item[:kind] }
+      expect(kinds).to eq(%i[web_search_request code_execution_request])
+    end
+  end
+
+  it "captures OpenAI hosted tool output items from the official SDK as service line items" do
+    response = response_class.new(
+      id: "resp_123",
+      model: "gpt-5-mini",
+      usage: usage_class.new(prompt_tokens: 100, completion_tokens: 30),
+      output: [
+        LlmCostTrackerIntegrationSpecTypes::OutputItem.new(
+          type: "web_search_call", id: "ws_123", status: "completed",
+          action: LlmCostTrackerIntegrationSpecTypes::OutputAction.new(type: "search")
+        ),
+        LlmCostTrackerIntegrationSpecTypes::OutputItem.new(
+          type: "file_search_call", id: "fs_123", status: "completed"
+        )
+      ]
+    )
+    install_openai_fakes(response)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Responses.new.create(model: "gpt-5-mini", input: "hi")
+
+      kinds = events.first[:line_items].reject { |item| item[:unit] == :token }.map { |item| item[:kind] }
+      expect(kinds).to eq(%i[web_search_request file_search_call])
+    end
+  end
+
+  it "captures official Anthropic batch data residency pricing modes" do
+    message = response_class.new(
+      id: "msg_123",
+      model: "claude-sonnet-4-6",
+      usage: usage_class.new(
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        service_tier: "batch",
+        inference_geo: "us"
+      )
+    )
+    install_anthropic_fakes(message)
+    configure_integration(:anthropic)
+
+    capture_events do |events|
+      Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-6", service_tier: "batch", inference_geo: "us")
+
+      expect(events.size).to eq(1)
+      expect(events.first[:pricing_mode]).to eq(:batch_data_residency)
+      expect(events.first.dig(:cost, :total_cost)).to be_positive
     end
   end
 

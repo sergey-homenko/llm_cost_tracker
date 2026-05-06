@@ -70,4 +70,44 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
 
     expect(status).to eq(described_class::PARTIAL)
   end
+
+  it "marks fully-priced billable usage as complete" do
+    billable_usage = LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 500)
+
+    status = described_class.call(
+      token_usage: billable_usage,
+      usage_source: :response,
+      token_cost: { input_cost: 0.01, output_cost: 0.02, total_cost: 0.03 },
+      service_line_items: [],
+      total_cost: 0.03
+    )
+
+    expect(status).to eq(described_class::COMPLETE)
+  end
+
+  it "returns unknown when usage source is unknown" do
+    status = described_class.call(
+      token_usage: token_usage,
+      usage_source: :unknown,
+      token_cost: nil,
+      service_line_items: [],
+      total_cost: nil
+    )
+
+    expect(status).to eq(described_class::UNKNOWN)
+  end
+
+  it "returns unknown when only billable usage is unpriced and nothing else is priced" do
+    billable_usage = LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 0)
+
+    status = described_class.call(
+      token_usage: billable_usage,
+      usage_source: :response,
+      token_cost: nil,
+      service_line_items: [],
+      total_cost: nil
+    )
+
+    expect(status).to eq(described_class::UNKNOWN)
+  end
 end
