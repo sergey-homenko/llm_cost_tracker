@@ -77,6 +77,41 @@ RSpec.describe LlmCostTracker::Retention do
     expect(LlmCostTracker::CallRollup.find_by!(period: "month").total_cost.to_f).to eq(3.0)
   end
 
+  describe ".prune_invoice_imports" do
+    it "deletes completed and failed import rows past the cutoff" do
+      now = Time.utc(2026, 6, 1, 12)
+      LlmCostTracker::ProviderInvoiceImport.create!(
+        source: "openai",
+        state: "completed",
+        started_at: now - 100.days,
+        finished_at: now - 100.days
+      )
+      LlmCostTracker::ProviderInvoiceImport.create!(
+        source: "openai",
+        state: "failed",
+        started_at: now - 95.days,
+        finished_at: now - 95.days
+      )
+      LlmCostTracker::ProviderInvoiceImport.create!(
+        source: "openai",
+        state: "running",
+        started_at: now - 100.days
+      )
+      LlmCostTracker::ProviderInvoiceImport.create!(
+        source: "openai",
+        state: "completed",
+        started_at: now - 1.day,
+        finished_at: now - 1.day
+      )
+
+      deleted = described_class.prune_invoice_imports(older_than: 90, now: now)
+
+      expect(deleted).to eq(2)
+      remaining = LlmCostTracker::ProviderInvoiceImport.pluck(:state).sort
+      expect(remaining).to eq(%w[completed running])
+    end
+  end
+
   it "deletes call line items with pruned parent calls" do
     now = Time.utc(2026, 4, 20, 12, 0, 0)
     old_call = create_call(tracked_at: now - 100.days, total_cost: 0.01)

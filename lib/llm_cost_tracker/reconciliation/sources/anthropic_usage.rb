@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
-require "digest"
 require "json"
 require "time"
+
+require_relative "fingerprint"
 
 module LlmCostTracker
   module Reconciliation
@@ -41,6 +42,8 @@ module LlmCostTracker
                            starts_at: starts_at, ends_at: ends_at,
                            authority: authority, row_type: row_type)
           end
+        rescue ArgumentError
+          []
         end
 
         def row_for_result(raw, period_start:, period_end:, starts_at:, ends_at:, authority:, row_type:)
@@ -104,18 +107,17 @@ module LlmCostTracker
         end
 
         def fingerprint_for(result, starts_at:, ends_at:)
-          source_string = FINGERPRINT_KEYS.map do |key|
-            fingerprint_value(key, result, starts_at: starts_at, ends_at: ends_at).to_s
-          end.join("|")
-          Digest::SHA256.hexdigest(source_string)[0, 16]
+          attributes = result.merge(starts_at: normalized_epoch(starts_at),
+                                    ends_at: normalized_epoch(ends_at))
+          Fingerprint.compute(FINGERPRINT_KEYS, attributes)
         end
 
-        def fingerprint_value(key, result, starts_at:, ends_at:)
-          case key
-          when :starts_at then starts_at
-          when :ends_at then ends_at
-          else result[key]
-          end
+        def normalized_epoch(value)
+          return value.to_i if value.is_a?(Numeric)
+
+          Time.parse(value.to_s).utc.to_i
+        rescue ArgumentError
+          value.to_s
         end
 
         def parse_date(value)

@@ -21,6 +21,16 @@ module LlmCostTracker
         deleted
       end
 
+      def prune_invoice_imports(older_than:, now: Time.now.utc)
+        cutoff = resolve_cutoff(older_than, now)
+        require_relative "ledger"
+
+        LlmCostTracker::ProviderInvoiceImport
+          .where(state: %w[completed failed])
+          .where(finished_at: ...cutoff)
+          .delete_all
+      end
+
       private
 
       def resolve_cutoff(older_than, now)

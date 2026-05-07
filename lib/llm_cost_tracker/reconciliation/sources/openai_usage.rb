@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
-require "digest"
 require "json"
 require "time"
+
+require_relative "fingerprint"
 
 module LlmCostTracker
   module Reconciliation
@@ -30,7 +31,7 @@ module LlmCostTracker
           return [] unless start_time && end_time
 
           period_start = epoch_to_date(start_time)
-          period_end = epoch_to_date(end_time - 1)
+          period_end = epoch_to_date(end_time) - 1
 
           Array(bucket[:results]).filter_map do |raw|
             row_for_result(raw,
@@ -38,6 +39,8 @@ module LlmCostTracker
                            start_time: start_time, end_time: end_time,
                            authority: authority, row_type: row_type)
           end
+        rescue ArgumentError
+          []
         end
 
         def row_for_result(raw, period_start:, period_end:, start_time:, end_time:, authority:, row_type:)
@@ -89,22 +92,23 @@ module LlmCostTracker
         end
 
         def fingerprint_for(result, start_time:, end_time:)
-          source_string = FINGERPRINT_KEYS.map do |key|
-            fingerprint_value(key, result, start_time: start_time, end_time: end_time).to_s
-          end.join("|")
-          Digest::SHA256.hexdigest(source_string)[0, 16]
+          attributes = result.merge(start_time: normalized_epoch(start_time),
+                                    end_time: normalized_epoch(end_time))
+          Fingerprint.compute(FINGERPRINT_KEYS, attributes)
         end
 
-        def fingerprint_value(key, result, start_time:, end_time:)
-          case key
-          when :start_time then start_time
-          when :end_time then end_time
-          else result[key]
-          end
+        def normalized_epoch(value)
+          return value.to_i if value.is_a?(Numeric)
+
+          Time.parse(value.to_s).utc.to_i
+        rescue ArgumentError
+          value.to_s
         end
 
-        def epoch_to_date(seconds)
-          Time.at(Integer(seconds)).utc.to_date
+        def epoch_to_date(value)
+          return Time.at(Integer(value)).utc.to_date if value.is_a?(Numeric) || value.to_s.match?(/\A\d+\z/)
+
+          Time.parse(value.to_s).utc.to_date
         end
 
         def coerce_hash(response)

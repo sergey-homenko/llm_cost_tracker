@@ -2,15 +2,13 @@
 
 module LlmCostTracker
   class ReconciliationController < ApplicationController
-    THRESHOLD_PERCENT = 5.0
-
     def index
       @sources = LlmCostTracker::ProviderInvoice
                  .order(:source)
                  .distinct
                  .pluck(:source)
       @diffs = @sources.map { |source| diff_for(source) }.compact
-      @threshold = THRESHOLD_PERCENT
+      @threshold = LlmCostTracker::Reconciliation::DEFAULT_THRESHOLD_PERCENT
       @last_imported_at = LlmCostTracker::ProviderInvoice.maximum(:imported_at)
       @configured_importers = configured_importers
     end

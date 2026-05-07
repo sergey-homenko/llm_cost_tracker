@@ -118,6 +118,35 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::OpenaiUsage do
       expect(rows.map { |row| row[:external_id] }.uniq.size).to eq(2)
     end
 
+    it "produces consistent fingerprints across epoch and ISO timestamp shapes" do
+      iso_response = {
+        "data" => [{
+          "start_time" => bucket_start, "end_time" => bucket_end,
+          "results" => [{ "amount" => { "value" => 1.0, "currency" => "usd" }, "line_item" => "tokens" }]
+        }]
+      }
+      string_response = {
+        "data" => [{
+          "start_time" => Time.at(bucket_start).utc.iso8601,
+          "end_time" => Time.at(bucket_end).utc.iso8601,
+          "results" => [{ "amount" => { "value" => 1.0, "currency" => "usd" }, "line_item" => "tokens" }]
+        }]
+      }
+
+      expect(described_class.parse(iso_response).first[:external_id])
+        .to eq(described_class.parse(string_response).first[:external_id])
+    end
+
+    it "falls back to the raw value when a timestamp cannot be parsed" do
+      response[:data] = [{
+        "start_time" => "garbage",
+        "end_time" => "garbage",
+        "results" => [{ "amount" => { "value" => 1.0, "currency" => "usd" }, "line_item" => "tokens" }]
+      }]
+
+      expect { described_class.parse(response) }.not_to raise_error
+    end
+
     it "differentiates rows that share a line item across different models" do
       response[:data] = [{
         "start_time" => bucket_start,

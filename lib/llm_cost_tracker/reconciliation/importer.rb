@@ -24,6 +24,8 @@ module LlmCostTracker
       end
 
       def call(rows)
+        return ImportResult.empty if skippable?(rows)
+
         import_record = open_import_record
         result = perform_import(rows)
         complete_import_record(import_record, result)
@@ -36,6 +38,10 @@ module LlmCostTracker
       private
 
       attr_reader :source, :imported_at, :window, :cursor, :strict_metadata
+
+      def skippable?(rows)
+        (rows.nil? || rows.empty?) && cursor.nil?
+      end
 
       def perform_import(rows)
         return ImportResult.empty if rows.nil? || rows.empty?
@@ -65,7 +71,7 @@ module LlmCostTracker
           window_start: window&.first,
           window_end: window&.last,
           state: ProviderInvoiceImport::STATE_RUNNING,
-          started_at: imported_at
+          started_at: imported_at || Time.now.utc
         )
       end
 
@@ -148,7 +154,7 @@ module LlmCostTracker
           billed_amount: billed_amount,
           currency: (row[:currency] || Ledger::Rollups::DEFAULT_CURRENCY).to_s,
           metadata: row[:metadata],
-          imported_at: imported_at
+          imported_at: imported_at || Time.now.utc
         }
       end
 

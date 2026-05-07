@@ -15,6 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - BREAKING: `llm_cost_tracker_call_rollups` gains a `provider` column (default `""` for legacy rows). The unique index moves from `(period, period_start, currency)` to `(period, period_start, currency, provider)`. Existing installs need a migration; see [Upgrading](docs/upgrading.md).
+- BREAKING: `Ledger::Rollups.decrement!` now expects a 5-tuple `[id, tracked_at, total_cost, pricing_snapshot, provider]` instead of the prior 4-tuple. Direct callers outside the gem (the gem itself updates `Retention#pluck_prunable` and `Ingestion#cleanup_verification_call`) will silently bucket into `provider = ""` if they keep emitting the 4-tuple shape.
 - `Ledger::Rollups.increment!` / `decrement!` now record and update the provider associated with each call. Per-provider rollups unlock the rollup fast path in `Reconciliation::Diff` for aligned month-bucket diffs.
 
 ## [0.8.0] - 2026-05-07

@@ -40,7 +40,7 @@ module LlmCostTracker
         local_calls = scoped_local_calls
 
         provider_total = sum_decimal(cost_invoices.map(&:billed_amount))
-        local_total = sum_local_total
+        local_total, local_total_source = sum_local_total
 
         DiffResult.new(
           source: source,
@@ -50,6 +50,7 @@ module LlmCostTracker
           scope: scope,
           provider_total: provider_total,
           local_total: local_total,
+          local_total_source: local_total_source,
           delta_amount: local_total - provider_total,
           delta_percent: percent_for(local_total, provider_total),
           unmatched_provider_rows: unmatched_provider_rows(cost_invoices, local_calls),
@@ -100,9 +101,9 @@ module LlmCostTracker
       end
 
       def sum_local_total
-        return rollup_total if rollup_fast_path?
+        return [rollup_total, :rollups] if rollup_fast_path?
 
-        BigDecimal(scoped_line_items.sum(:cost).to_s)
+        [BigDecimal(scoped_line_items.sum(:cost).to_s), :line_items]
       end
 
       def rollup_fast_path?

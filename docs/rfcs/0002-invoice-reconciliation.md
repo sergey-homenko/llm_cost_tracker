@@ -88,6 +88,13 @@ Every importer MUST set the following keys in `metadata`:
 | `authority` | Where the row came from | `invoice`, `cost_api`, `usage_api`, `csv`, `estimated` |
 | `match_basis` | Which dimension the diff can join on | `project`, `api_key`, `workspace`, `model`, `line_item`, `period_only` |
 
+OpenAI invoice rows that carry only `provider_organization_id` (and no
+project or api_key) fall back to `match_basis: "period_only"` — the diff
+treats them as "always matched" because there is no
+`provider_organization_id` column on the local `Call` header to join
+against. Adding org-level matching is a v0.10 follow-up gated on a
+header column.
+
 Diff sums only rows where `row_type == "cost"` against local cost. The
 other row types are surfaced separately (free quota usage, credits,
 adjustments) so operators can see what's outside the invoice and why.
@@ -137,6 +144,16 @@ inserting a duplicate. The unique index on `external_id` enforces this.
   `llm_cost_tracker_call_line_items` joined to
   `llm_cost_tracker_calls` instead. Both compute via SQL `SUM(...)`,
   never by loading rows into Ruby.
+- `local_total_source` — `:rollups` when the rollup fast path was used,
+  `:line_items` otherwise. Operators reading the dashboard or rake diff
+  output should know which source produced the number, because a call
+  with header `total_cost` ≠ Σ line-item `cost` (the drift
+  `Doctor::CostDriftCheck` already surfaces) makes the two sources
+  diverge. When `local_total_source` is `:rollups` the fast path is
+  authoritative on header `total_cost`; the `:line_items` path is
+  authoritative on per-component `cost`. Treat a diff result with
+  `local_total_source: :rollups` as needing a non-aligned period to
+  cross-check if `Doctor::CostDriftCheck` reports drift.
 - `delta_amount`, `delta_percent`
 - `unmatched_provider_rows` — cost rows we can't tie to a local
   attribution dimension

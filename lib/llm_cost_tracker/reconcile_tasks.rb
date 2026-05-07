@@ -51,7 +51,8 @@ module LlmCostTracker
       output.puts "llm_cost_tracker: reconciliation diff for #{diff.source} " \
                   "#{diff.period_start}..#{diff.period_end}"
       output.puts "  provider_total: #{diff.provider_total.to_s('F')} #{diff.currency}"
-      output.puts "  local_total:    #{diff.local_total.to_s('F')} #{diff.currency}"
+      output.puts "  local_total:    #{diff.local_total.to_s('F')} #{diff.currency} " \
+                  "(from #{diff.local_total_source})"
       output.puts "  delta:          #{diff.delta_amount.to_s('F')} (#{diff.delta_percent || 'n/a'}%)"
       print_unmatched_provider_rows(diff, output)
       print_unmatched_local_calls(diff, output)
@@ -104,20 +105,8 @@ module LlmCostTracker
       end
     end
 
-    SENSITIVE_ATTRIBUTION_KEYS = %i[provider_api_key_id provider_workspace_id provider_organization_id].freeze
-
     def format_attribution(attribution)
-      return "" if attribution.nil? || attribution.empty?
-
-      attribution.map { |key, value| "#{key}=#{mask_value(key, value)}" }.join(",")
-    end
-
-    def mask_value(key, value)
-      string = value.to_s
-      return string unless SENSITIVE_ATTRIBUTION_KEYS.include?(key.to_sym)
-      return string if string.length <= 4
-
-      "***#{string[-4, 4]}"
+      Reconciliation::Masking.format_attribution(attribution, separator: ",")
     end
   end
 end

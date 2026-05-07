@@ -1,18 +1,22 @@
 # frozen_string_literal: true
 
+require_relative "reconciliation/masking"
 require_relative "reconciliation/import_result"
 require_relative "reconciliation/importer"
 require_relative "reconciliation/diff_result"
 require_relative "reconciliation/diff"
+require_relative "reconciliation/sources/fingerprint"
 require_relative "reconciliation/sources/openai_usage"
 require_relative "reconciliation/sources/anthropic_usage"
 
 module LlmCostTracker
   module Reconciliation
     SUPPORTED_SOURCES = %i[openai anthropic gemini csv].freeze
+    DEFAULT_THRESHOLD_PERCENT = 5.0
+    INVOICE_FRESHNESS_DAYS = 14
 
     class << self
-      def import(source:, rows:, imported_at: Time.now.utc, window: nil, strict_metadata: nil, cursor: nil)
+      def import(source:, rows:, imported_at: nil, window: nil, strict_metadata: nil, cursor: nil)
         Importer.new(
           source: source,
           imported_at: imported_at,

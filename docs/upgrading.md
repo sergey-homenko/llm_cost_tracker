@@ -46,6 +46,40 @@ Existing rollup rows keep `provider = ""` (legacy bucket); v0.9-tracked
 calls write rollups per-provider. Reconciliation diffs only read the
 per-provider rollups, so legacy rows do not pollute fast-path totals.
 
+If the new unique-index step fails because your install accumulated
+duplicate rollup rows under the old `(period, period_start, currency)`
+constraint, dedupe before re-running the migration:
+
+```sql
+DELETE FROM llm_cost_tracker_call_rollups
+WHERE id IN (
+  SELECT id
+  FROM (
+    SELECT id, ROW_NUMBER() OVER (
+      PARTITION BY period, period_start, currency, provider
+      ORDER BY total_cost DESC, id DESC
+    ) AS rn
+    FROM llm_cost_tracker_call_rollups
+  ) rollup_dupes
+  WHERE rn > 1
+);
+```
+
+### Re-import dashboard button
+
+`LlmCostTracker.configuration.reconciliation_importers` accepts callables
+that the dashboard exposes as a `Re-import <source>` button. **Register
+importers that enqueue work (`MyImportJob.perform_later`), not callables
+that block on the provider's API.** The button posts synchronously, so a
+slow inline importer holds the request and dies on the first proxy /
+Heroku 30-second cap.
+
+```ruby
+LlmCostTracker.configure do |config|
+  config.register_reconciliation_importer(:openai) { OpenaiCostsImportJob.perform_later }
+end
+```
+
 ## v0.7.x → v0.8
 
 **0.8 is a one-shot rebuild of the storage layer.** Per-component cost columns

@@ -6,8 +6,6 @@ module LlmCostTracker
   module ApplicationHelper
     TAG_VALUE_SUMMARY_BYTES = 80
     TAG_TOOLTIP_BYTES = 512
-    SENSITIVE_ATTRIBUTION_KEYS = %i[provider_api_key_id provider_workspace_id provider_organization_id].to_set.freeze
-    MASK_TAIL_LENGTH = 4
 
     include DashboardFilterHelper
     include DashboardFilterOptionsHelper
@@ -130,17 +128,11 @@ module LlmCostTracker
     end
 
     def attribution_summary(attribution)
-      attribution.map do |key, value|
-        masked = SENSITIVE_ATTRIBUTION_KEYS.include?(key.to_sym) ? mask_secret(value) : value
-        "#{key}=#{masked}"
-      end.join(", ")
+      Reconciliation::Masking.format_attribution(attribution)
     end
 
     def mask_secret(value)
-      string = value.to_s
-      return string if string.length <= MASK_TAIL_LENGTH
-
-      "***#{string[-MASK_TAIL_LENGTH, MASK_TAIL_LENGTH]}"
+      Reconciliation::Masking.mask_value(:provider_api_key_id, value)
     end
 
     private

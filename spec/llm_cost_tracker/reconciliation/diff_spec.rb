@@ -181,6 +181,63 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.local_total).to eq(BigDecimal("9.00"))
     end
 
+    it "sums local cost across multiple month-aligned buckets via the rollup fast path" do
+      import_invoice(
+        external_id: "may", billed_amount: "5.00",
+        period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31)
+      )
+      create_priced_call(total_cost: BigDecimal("3.00"), tracked_at: Time.utc(2026, 4, 15, 12))
+      create_priced_call(total_cost: BigDecimal("2.00"), tracked_at: Time.utc(2026, 5, 15, 12))
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai,
+        period_start: Date.new(2026, 4, 1),
+        period_end: Date.new(2026, 5, 31)
+      )
+
+      expect(result.local_total).to eq(BigDecimal("5.00"))
+      expect(result.local_total_source).to eq(:rollups)
+    end
+
+    it "agrees end-to-end with Tracker.record + Worker.flush! through the fast path" do
+      time = Time.utc(2026, 5, 15, 12)
+      allow(Time).to receive(:now).and_return(time)
+
+      LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input: 1_000, output: 0 })
+      LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input: 1_000, output: 0 })
+      expect(LlmCostTracker::Ingestion::Worker.flush!).to be true
+
+      import_invoice(
+        external_id: "may", billed_amount: BigDecimal("0.005"),
+        period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31)
+      )
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai,
+        period_start: Date.new(2026, 5, 1),
+        period_end: Date.new(2026, 5, 31)
+      )
+
+      expect(result.local_total_source).to eq(:rollups)
+      expect(result.local_total).to eq(LlmCostTracker::Call.sum(:total_cost))
+    end
+
+    it "uses the line-items path and reports it for partial-month diffs" do
+      import_invoice(
+        external_id: "partial", billed_amount: "1.00",
+        period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 15)
+      )
+      create_priced_call(total_cost: BigDecimal("1.00"))
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai,
+        period_start: Date.new(2026, 5, 1),
+        period_end: Date.new(2026, 5, 15)
+      )
+
+      expect(result.local_total_source).to eq(:line_items)
+    end
+
     it "matches a project-level invoice against calls that also carry a finer api_key dimension" do
       import_invoice(
         external_id: "project-coverage",

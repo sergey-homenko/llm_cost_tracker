@@ -9,9 +9,6 @@ require_relative "../reconciliation"
 module LlmCostTracker
   class Doctor
     class InvoiceReconciliationCheck
-      DEFAULT_THRESHOLD_PERCENT = 5.0
-      FRESHNESS_DAYS = 14
-
       def call
         return unless Probe.table_exists?("llm_cost_tracker_provider_invoices")
         return Check.new(:ok, "invoice reconciliation", "no provider invoices imported yet") if no_imports?
@@ -34,7 +31,7 @@ module LlmCostTracker
       end
 
       def threshold
-        DEFAULT_THRESHOLD_PERCENT
+        Reconciliation::DEFAULT_THRESHOLD_PERCENT
       end
 
       def latest_period_window
@@ -44,7 +41,7 @@ module LlmCostTracker
                  .limit(1)
                  .first
         return nil unless latest
-        return nil if (Date.today - latest.period_end).to_i > FRESHNESS_DAYS
+        return nil if (Date.today - latest.period_end).to_i > Reconciliation::INVOICE_FRESHNESS_DAYS
 
         latest
       end
@@ -60,10 +57,11 @@ module LlmCostTracker
       def stale_check
         latest = LlmCostTracker::ProviderInvoice.maximum(:period_end)
         days = (Date.today - latest).to_i
+        threshold = Reconciliation::INVOICE_FRESHNESS_DAYS
         Check.new(
           :warn,
           "invoice reconciliation",
-          "no invoice imported in #{days} days (threshold #{FRESHNESS_DAYS} days); run reconciliation import"
+          "no invoice imported in #{days} days (threshold #{threshold} days); run reconciliation import"
         )
       end
 

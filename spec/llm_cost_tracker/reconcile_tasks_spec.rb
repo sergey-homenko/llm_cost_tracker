@@ -120,6 +120,7 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
       diff = LlmCostTracker::Reconciliation::DiffResult.new(
         source: "openai", period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31),
         currency: "USD", scope: {}, provider_total: BigDecimal("0"), local_total: BigDecimal("0"),
+        local_total_source: :line_items,
         delta_amount: BigDecimal("0"), delta_percent: nil,
         unmatched_provider_rows: [{
           external_id: "openai:phantom",
@@ -146,6 +147,7 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
         scope: {},
         provider_total: BigDecimal("10.00"),
         local_total: BigDecimal("9.00"),
+        local_total_source: :line_items,
         delta_amount: BigDecimal("-1.00"),
         delta_percent: -10.0,
         unmatched_provider_rows: [{
