@@ -55,7 +55,7 @@ module LlmCostTracker
       CSV.generate do |csv|
         csv << fields.map(&:to_s)
 
-        relation.includes(:tag_records).find_each do |call|
+        relation.includes(:tag_records).each do |call|
           csv << fields.map { |field| csv_value(field, call) }
         end
       end

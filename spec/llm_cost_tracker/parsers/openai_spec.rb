@@ -140,6 +140,20 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.pricing_mode).to be_nil
     end
 
+    it "treats non-US/EU regional OpenAI hosts as data residency too" do
+      result = parser.parse(
+        request_url: URI::HTTPS.build(host: "au.api.openai.com", path: "/v1/responses").to_s,
+        request_body: { model: "gpt-5.5", service_tier: "priority" }.to_json,
+        response_status: 200,
+        response_body: {
+          model: "gpt-5.5",
+          usage: { input_tokens: 100, output_tokens: 25, total_tokens: 125 }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to eq(:priority_data_residency)
+    end
+
     it "extracts token usage from a Responses API response" do
       response_body = {
         id: "resp_123",

@@ -14,6 +14,10 @@ module LlmCostTracker
           :openai
         end
 
+        def stream_pricing_mode(request)
+          Pricing.normalize_mode((request || {})[:service_tier])
+        end
+
         def minimum_version
           "0.59.0"
         end

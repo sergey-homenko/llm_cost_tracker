@@ -48,4 +48,20 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
       expect(unknown).to be_empty, "Unknown schema columns: #{unknown.join(', ')}"
     end
   end
+
+  describe ".current_schema_errors event_id uniqueness" do
+    include_context "with mounted llm cost tracker engine"
+
+    it "is silent when the event_id unique index is present" do
+      expect(described_class.current_schema_errors).not_to include(match(/event_id/))
+    end
+
+    it "reports a missing unique index when it has been dropped" do
+      ActiveRecord::Base.connection.remove_index(:llm_cost_tracker_calls, :event_id)
+      LlmCostTracker::Call.reset_column_information
+      described_class.instance_variable_set(:@schema_capabilities, nil)
+
+      expect(described_class.current_schema_errors).to include("missing unique index: event_id")
+    end
+  end
 end

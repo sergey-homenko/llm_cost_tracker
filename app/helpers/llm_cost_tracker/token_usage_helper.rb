@@ -37,8 +37,9 @@ module LlmCostTracker
     def call_line_item_costs_by_component(call)
       call.line_items.each_with_object({}) do |line_item, accumulator|
         component = LlmCostTracker::Billing::Components::TOKEN_PRICED.find do |item|
-          item.kind == line_item.kind && item.direction == line_item.direction &&
-            item.cache_state == line_item.cache_state
+          item.kind.to_s == line_item.kind.to_s &&
+            item.direction.to_s == line_item.direction.to_s &&
+            item.cache_state.to_s == line_item.cache_state.to_s
         end
         accumulator[component.key] = line_item.cost if component && line_item.cost
       end

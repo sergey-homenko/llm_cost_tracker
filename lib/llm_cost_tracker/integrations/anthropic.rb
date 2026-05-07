@@ -120,6 +120,10 @@ module LlmCostTracker
           modes.empty? ? nil : modes.join("_")
         end
 
+        def stream_pricing_mode(request)
+          pricing_mode(message: nil, request: request || {}, usage: nil)
+        end
+
         def inference_geo(message:, request:, usage:)
           object_value(usage, :inference_geo) ||
             object_value(message, :inference_geo) ||

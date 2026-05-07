@@ -76,7 +76,15 @@ module LlmCostTracker
             missing = missing_columns_for(columns)
             errors << "missing columns: #{missing.join(', ')}" if missing.any?
             errors.concat(Adapter.json_column_errors(columns["pricing_snapshot"], adapter_name, "pricing_snapshot"))
+            errors << "missing unique index: event_id" unless event_id_unique_index?
             errors
+          end
+
+          def event_id_unique_index?
+            connection = LlmCostTracker::Call.connection
+            connection.index_exists?(LlmCostTracker::Call.table_name, :event_id, unique: true)
+          rescue StandardError
+            true
           end
 
           def missing_columns_for(columns)

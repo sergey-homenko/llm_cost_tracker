@@ -52,4 +52,11 @@ RSpec.describe LlmCostTracker::TokenUsage do
       hidden_output_tokens: 6
     )
   end
+
+  it "builds from string keys for JSON-style manual input" do
+    usage = described_class.build_from_tokens("input" => 100, "output" => 50)
+
+    expect(usage.input_tokens).to eq(100)
+    expect(usage.output_tokens).to eq(50)
+  end
 end

@@ -29,4 +29,25 @@ RSpec.describe LlmCostTracker::Pricing::EffectivePrices do
 
     expect(rates[:cache_read_input]).to be_nil
   end
+
+  it "returns nil for the derived rate when no permutation finds an input rate" do
+    prices = { input: 1.0, output: 2.0, cache_read_input: 0.1 }
+
+    rates = described_class.call(usage: usage, prices: prices, pricing_mode: :batch)
+
+    expect(rates[:cache_read_input]).to be_nil
+  end
+
+  it "permutes compound modes when deriving cache rates from a flipped registry key order" do
+    prices = {
+      input: 1.0,
+      output: 2.0,
+      cache_read_input: 0.1,
+      data_residency_batch_input: 0.5
+    }
+
+    rates = described_class.call(usage: usage, prices: prices, pricing_mode: :batch_data_residency)
+
+    expect(rates[:cache_read_input]).to eq(0.05)
+  end
 end

@@ -75,8 +75,13 @@ module LlmCostTracker
       def stream_collector(request)
         LlmCostTracker::Capture::StreamCollector.new(
           provider: integration_name.to_s,
-          model: request[:model]
+          model: request[:model],
+          pricing_mode: stream_pricing_mode(request)
         )
+      end
+
+      def stream_pricing_mode(_request)
+        nil
       end
 
       def object_value(object, *keys)

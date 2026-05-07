@@ -53,9 +53,6 @@ jobs:
     - name: Run release checks
       run: bin/check
 
-    - name: Publish gem
-      uses: rubygems/release-gem@v1
-
     - name: Build release notes from changelog
       run: |
         version="${GITHUB_REF_NAME#v}"
@@ -74,6 +71,9 @@ jobs:
 
           File.write(ENV.fetch("RELEASE_NOTES_PATH"), notes + "\n")
         '
+
+    - name: Publish gem
+      uses: rubygems/release-gem@v1
 
     - name: Create GitHub release
       env:

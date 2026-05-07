@@ -17,7 +17,7 @@ module LlmCostTracker
     def self.build_from_tokens(tokens)
       return tokens if tokens.is_a?(self)
 
-      values = tokens.to_h
+      values = tokens.to_h.transform_keys { |key| key.is_a?(Symbol) ? key : key.to_s.to_sym }
       token_attributes = Billing::Components::TOKEN_PRICED.to_h do |component|
         [component.token_key, values.fetch(component.key, 0)]
       end

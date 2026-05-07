@@ -315,8 +315,8 @@ begin
 
   pending_event = track!(provider_response_id: "pending", feature: "pending")
   pending_total = LlmCostTracker::Ledger::Period::Totals
-                  .call(%i[daily], time: Time.now.utc)
-                  .fetch(:daily)
+                  .call(%i[day], time: Time.now.utc)
+                  .fetch(:day)
   assert("daily total did not include pending or persisted inbox entry") do
     pending_total >= pending_event.total_cost.to_f
   end
@@ -325,13 +325,13 @@ begin
   duplicate_event = track!(provider_response_id: "duplicate", feature: "duplicate")
   flush!
   before_duplicate_total = LlmCostTracker::Ledger::Period::Totals
-                           .call(%i[daily], time: Time.now.utc)
-                           .fetch(:daily)
+                           .call(%i[day], time: Time.now.utc)
+                           .fetch(:day)
   LlmCostTracker::Ingestion::Inbox.save(duplicate_event)
   flush!
   after_duplicate_total = LlmCostTracker::Ledger::Period::Totals
-                          .call(%i[daily], time: Time.now.utc)
-                          .fetch(:daily)
+                          .call(%i[day], time: Time.now.utc)
+                          .fetch(:day)
   assert("duplicate inbox entry changed rollup total") do
     BigDecimal(after_duplicate_total.to_s) == BigDecimal(before_duplicate_total.to_s)
   end
@@ -390,8 +390,8 @@ begin
   end
 
   daily_total = LlmCostTracker::Ledger::Period::Totals
-                .call(%i[daily], time: Time.now.utc)
-                .fetch(:daily)
+                .call(%i[day], time: Time.now.utc)
+                .fetch(:day)
 
   puts "#{adapter} smoke passed"
   puts "database=#{database}"

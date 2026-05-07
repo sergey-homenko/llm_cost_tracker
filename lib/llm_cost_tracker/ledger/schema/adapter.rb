@@ -42,10 +42,11 @@ module LlmCostTracker
           end
 
           def json_column_type?(column, adapter_value)
+            sql_type = column.sql_type.to_s.downcase
             if postgresql?(adapter_value)
-              column.type == :jsonb || column.sql_type.to_s.downcase == "jsonb"
+              column.type == :jsonb || sql_type == "jsonb"
             else
-              column.type == :json
+              column.type == :json || sql_type == "json" || sql_type == "longtext"
             end
           end
 

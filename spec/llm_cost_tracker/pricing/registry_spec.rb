@@ -154,5 +154,16 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         end.to raise_error(LlmCostTracker::Error, /price entry for "custom-model".*must be a hash/)
       end
     end
+
+    it "rejects negative token rates" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write({ models: { "custom-model" => { input: -1.0 } } }.to_json)
+        file.close
+
+        expect do
+          described_class.file_prices(file.path)
+        end.to raise_error(LlmCostTracker::Error, /must be non-negative/)
+      end
+    end
   end
 end

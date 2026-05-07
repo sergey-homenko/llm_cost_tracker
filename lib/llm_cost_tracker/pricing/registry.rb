@@ -108,9 +108,16 @@ module LlmCostTracker
             if key == CONTEXT_THRESHOLD_KEY
               normalized[key] = Integer(value)
             elsif key
-              normalized[key] = Float(value)
+              normalized[key] = non_negative_float(key, value)
             end
           end
+        end
+
+        def non_negative_float(key, value)
+          rate = Float(value)
+          raise ArgumentError, "price for #{key.inspect} must be non-negative (got #{rate})" if rate.negative?
+
+          rate
         end
 
         def normalize_price_entries(table, context:)

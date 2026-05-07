@@ -7,6 +7,8 @@ module LlmCostTracker
     module OpenaiUsage
       include OpenaiServiceCharges
 
+      OPENAI_DATA_RESIDENCY_HOST_PATTERN = /\A[a-z]{2,3}\.api\.openai\.com\z/
+
       private
 
       def parse_openai_usage(request_url:, request_body:, response_status:, response_body:)
@@ -95,7 +97,7 @@ module LlmCostTracker
 
       def openai_regional_processing?(request_url:, model:)
         uri = parsed_uri(request_url)
-        return false unless %w[us.api.openai.com eu.api.openai.com].include?(uri&.host.to_s.downcase)
+        return false unless uri&.host.to_s.downcase.match?(OPENAI_DATA_RESIDENCY_HOST_PATTERN)
 
         openai_data_residency_model?(model)
       end

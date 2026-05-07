@@ -136,6 +136,10 @@ module LlmCostTracker
           cache_write = usage["cache_creation_input_tokens"].to_i
           cache_write_extended = 0
         end
+        hidden_output = (
+          usage["thinking_tokens"] || usage["thinking_output_tokens"] ||
+            usage.dig("output_tokens_details", "reasoning_tokens")
+        ).to_i
 
         TokenUsage.build(
           input_tokens: input,
@@ -143,7 +147,8 @@ module LlmCostTracker
           total_tokens: input + output + cache_read + cache_write + cache_write_extended,
           cache_read_input_tokens: cache_read,
           cache_write_input_tokens: cache_write,
-          cache_write_extended_input_tokens: cache_write_extended
+          cache_write_extended_input_tokens: cache_write_extended,
+          hidden_output_tokens: hidden_output
         )
       end
 

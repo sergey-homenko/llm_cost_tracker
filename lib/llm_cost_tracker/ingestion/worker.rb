@@ -82,6 +82,7 @@ module LlmCostTracker
         end
 
         def ingest_once(require_lease: true)
+          Ingestion.ensure_current_schema!
           batch = Ingestion::Batch.new(identity: identity)
           return 0 unless batch.claimable?
           return 0 if require_lease && !Ingestion::LeaseClaim.new(identity: identity, seconds: LEASE_SECONDS).acquire
