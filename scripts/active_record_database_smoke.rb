@@ -77,6 +77,7 @@ def create_schema!
     create_call_tags_table!
     create_call_rollups_table!
     create_provider_invoices_table!(connection)
+    create_provider_invoice_imports_table!
     create_ingestion_inbox_entries_table!
     create_ingestion_leases_table!
     add_schema_indexes!(connection)
@@ -98,6 +99,21 @@ def create_provider_invoices_table!(database_connection)
       t.json :metadata, null: false
     end
     t.datetime :imported_at, null: false
+    t.timestamps
+  end
+end
+
+def create_provider_invoice_imports_table!
+  create_table :llm_cost_tracker_provider_invoice_imports, force: true do |t|
+    t.string :source, null: false
+    t.string :cursor
+    t.date :window_start
+    t.date :window_end
+    t.string :state, null: false
+    t.text :last_error
+    t.integer :rows_imported, null: false, default: 0
+    t.datetime :started_at, null: false
+    t.datetime :finished_at
     t.timestamps
   end
 end
@@ -252,6 +268,7 @@ def add_schema_indexes!(_database_connection)
   add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
   add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
   add_index :llm_cost_tracker_provider_invoices, %i[source period_start]
+  add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at]
 end
 
 def create_database!(adapter, admin, database)

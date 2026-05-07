@@ -18,6 +18,7 @@ module LlmCostTrackerDatabaseSpecHelpers
     create_call_rollups_table(connection)
     create_ingestion_tables(connection)
     create_provider_invoices_table(connection)
+    create_provider_invoice_imports_table(connection)
     create_lct_indexes(connection)
   end
 
@@ -49,6 +50,7 @@ module LlmCostTrackerDatabaseSpecHelpers
     %w[
       llm_cost_tracker_ingestion_leases
       llm_cost_tracker_ingestion_inbox_entries
+      llm_cost_tracker_provider_invoice_imports
       llm_cost_tracker_provider_invoices
       llm_cost_tracker_call_tags
       llm_cost_tracker_call_line_items
@@ -171,6 +173,21 @@ module LlmCostTrackerDatabaseSpecHelpers
     end
   end
 
+  def create_provider_invoice_imports_table(connection)
+    connection.create_table :llm_cost_tracker_provider_invoice_imports, force: true do |table|
+      table.string :source, null: false
+      table.string :cursor
+      table.date :window_start
+      table.date :window_end
+      table.string :state, null: false
+      table.text :last_error
+      table.integer :rows_imported, null: false, default: 0
+      table.datetime :started_at, null: false
+      table.datetime :finished_at
+      table.timestamps
+    end
+  end
+
   def create_ingestion_tables(connection)
     connection.create_table :llm_cost_tracker_ingestion_inbox_entries, force: true do |table|
       table.string :event_id, null: false
@@ -212,5 +229,6 @@ module LlmCostTrackerDatabaseSpecHelpers
     connection.add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
     connection.add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
     connection.add_index :llm_cost_tracker_provider_invoices, %i[source period_start]
+    connection.add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at]
   end
 end

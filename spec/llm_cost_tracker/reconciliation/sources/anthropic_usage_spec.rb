@@ -143,6 +143,44 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
       expect(described_class.parse(response).first[:metadata]["match_basis"]).to eq("period_only")
     end
 
+    it "falls back to the default meter when the line cannot be classified" do
+      response[:data] = [{
+        "starts_at" => bucket_starts_at,
+        "ends_at" => bucket_ends_at,
+        "results" => [{ "amount" => "1.00", "description" => "unknown subscription line" }]
+      }]
+
+      expect(described_class.parse(response).first[:metadata]["meter"]).to eq("tokens")
+    end
+
+    it "tags data_residency as a pricing_mode modifier" do
+      response[:data] = [{
+        "starts_at" => bucket_starts_at,
+        "ends_at" => bucket_ends_at,
+        "results" => [{
+          "amount" => "1.00", "token_type" => "input",
+          "service_tier" => "priority", "data_residency" => true
+        }]
+      }]
+
+      expect(described_class.parse(response).first[:metadata]["pricing_mode"])
+        .to eq("data_residency_priority")
+    end
+
+    it "accepts epoch timestamps for bucket bounds" do
+      response[:data] = [{
+        "starts_at" => Time.utc(2026, 5, 1).to_i,
+        "ends_at" => Time.utc(2026, 5, 2).to_i,
+        "results" => [{ "amount" => "1.00", "token_type" => "input" }]
+      }]
+
+      expect(described_class.parse(response).first[:period_start]).to eq(Date.new(2026, 5, 1))
+    end
+
+    it "is empty when the JSON response decodes to a non-hash payload" do
+      expect(described_class.parse("[1, 2]")).to eq([])
+    end
+
     it "produces rows in the shape Reconciliation.import expects" do
       rows = described_class.parse(response)
 
