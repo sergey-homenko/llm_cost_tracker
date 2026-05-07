@@ -6,40 +6,10 @@
     </div>
   </div>
 
-  <form class="lct-filters" action="<%= tag_path(params[:key]) %>" method="get">
-    <div class="lct-filter-row lct-filter-row-basic">
-      <div class="lct-field">
-        <label for="lct-tag-show-from">From</label>
-        <input id="lct-tag-show-from" type="date" name="from" value="<%= params[:from] %>">
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-tag-show-to">To</label>
-        <input id="lct-tag-show-to" type="date" name="to" value="<%= params[:to] %>">
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-tag-show-provider">Provider</label>
-        <%= select_tag :provider,
-                       options_for_select(provider_filter_options, params[:provider]),
-                       include_blank: "All providers",
-                       id: "lct-tag-show-provider" %>
-      </div>
-
-      <div class="lct-field">
-        <label for="lct-tag-show-model">Model</label>
-        <%= select_tag :model,
-                       options_for_select(model_filter_options, params[:model]),
-                       include_blank: "All models",
-                       id: "lct-tag-show-model" %>
-      </div>
-
-      <div class="lct-filter-actions">
-        <button class="lct-button" type="submit">Apply</button>
-        <%= link_to("Reset", tag_path(params[:key]), class: "lct-button lct-button-secondary") if any_filter_applied? %>
-      </div>
-    </div>
-  </form>
+  <%= render "llm_cost_tracker/shared/filters",
+             path: tag_path(params[:key]),
+             fields: %i[from to provider model],
+             reset_path: tag_path(params[:key]) %>
 
   <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: tag_path(params[:key]) %>
 

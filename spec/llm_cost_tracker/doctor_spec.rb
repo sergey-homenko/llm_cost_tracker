@@ -198,7 +198,7 @@ RSpec.describe LlmCostTracker::Doctor do
     it "warns when legacy rows without cost status remain" do
       create_call(model: "legacy-status", cost_status: nil)
 
-      check = described_class.call.find { |item| item.name == "billing status" }
+      check = described_class.call.find { |item| item.name == "cost status" }
 
       expect(check).to have_attributes(status: :warn)
       expect(check.message).to include("legacy rows without cost_status remain")

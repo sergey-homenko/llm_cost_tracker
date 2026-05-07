@@ -122,10 +122,11 @@ Maintained daily/monthly totals so budget checks don't scan the full ledger.
 | --- | --- | --- |
 | `period` | string, not null | `day` or `month` |
 | `period_start` | date, not null | Start of the period |
+| `currency` | string, not null, default `USD` | Rolled-up currency (single-currency in 0.8) |
 | `total_cost` | decimal(20,8), default `0` | Cost total |
 | `created_at` / `updated_at` | datetime | Rails timestamps |
 
-Index: unique `[period, period_start]`.
+Index: unique `[period, period_start, currency]`.
 
 ## `llm_cost_tracker_provider_invoices`
 

@@ -11,26 +11,27 @@ module LlmCostTracker
         "code_interpreter_call" => :container_session
       }.freeze
 
-      private
+      module_function
 
-      def openai_service_line_items(response)
-        output_items = {}
-        Array(response["output"]).each { |item| openai_store_output_item(output_items, item) }
-        openai_output_items_to_line_items(output_items.values)
+      def line_items_from_output(output_items)
+        deduped = {}
+        Array(output_items).each { |item| store_output_item(deduped, item) }
+        deduped.values.filter_map { |item| build_line_item(item) }
       end
 
-      def openai_stream_service_line_items(events)
-        output_items = {}
-        each_event_data(events) do |data|
-          Array(data.dig("response", "output")).each { |item| openai_store_output_item(output_items, item) }
-          openai_store_output_item(output_items, data["item"])
-        end
-        openai_output_items_to_line_items(output_items.values)
+      def billable?(item)
+        return false unless item.is_a?(Hash)
+
+        component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
+        return false unless component
+        return true unless component == :web_search_request
+
+        action_type = item.dig("action", "type")
+        action_type.nil? || action_type == "search"
       end
 
-      def openai_store_output_item(output_items, item)
-        return unless item.is_a?(Hash)
-        return unless openai_billable_output_item?(item)
+      def store_output_item(output_items, item)
+        return unless billable?(item)
 
         component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
         key = if component == :container_session && item["container_id"]
@@ -41,29 +42,27 @@ module LlmCostTracker
         output_items[key] = item
       end
 
-      def openai_output_items_to_line_items(output_items)
-        output_items.filter_map do |item|
-          component_key = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
-          next unless component_key
+      def build_line_item(item)
+        component_key = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
+        return nil unless component_key
 
-          provider_item_id = if component_key == :container_session
-                               item["container_id"] || item["id"]
-                             else
-                               item["id"]
-                             end
-          Billing::LineItem.build(
-            component_key: component_key,
-            quantity: 1,
-            cost_status: Billing::CostStatus::UNKNOWN,
-            pricing_basis: :provider_usage,
-            provider_field: "response.output.#{item['type']}",
-            provider_item_id: provider_item_id,
-            details: openai_service_line_item_details(item)
-          )
-        end
+        provider_item_id = if component_key == :container_session
+                             item["container_id"] || item["id"]
+                           else
+                             item["id"]
+                           end
+        Billing::LineItem.build(
+          component_key: component_key,
+          quantity: 1,
+          cost_status: Billing::CostStatus::UNKNOWN,
+          pricing_basis: :provider_usage,
+          provider_field: "response.output.#{item['type']}",
+          provider_item_id: provider_item_id,
+          details: line_item_details(item)
+        )
       end
 
-      def openai_service_line_item_details(item)
+      def line_item_details(item)
         {
           "status" => item["status"],
           "action_type" => item.dig("action", "type"),
@@ -71,13 +70,17 @@ module LlmCostTracker
         }.compact
       end
 
-      def openai_billable_output_item?(item)
-        component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
-        return false unless component
-        return true unless component == :web_search_request
+      def openai_service_line_items(response)
+        line_items_from_output(response["output"])
+      end
 
-        action_type = item.dig("action", "type")
-        action_type.nil? || action_type == "search"
+      def openai_stream_service_line_items(events)
+        output_items = []
+        each_event_data(events) do |data|
+          output_items.concat(Array(data.dig("response", "output")))
+          output_items << data["item"] if data["item"]
+        end
+        line_items_from_output(output_items)
       end
     end
   end

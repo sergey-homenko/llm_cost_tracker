@@ -5,12 +5,28 @@ require "tempfile"
 require "yaml"
 
 RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
-  before do
-    if described_class.instance_variable_defined?(:@file_rates_cache)
-      described_class.remove_instance_variable(:@file_rates_cache)
+  before { described_class.reset! }
+
+  describe ".reset!" do
+    it "drops cached builtin rates so the next read reloads from disk" do
+      first = described_class.builtin_rates
+      described_class.reset!
+      expect(described_class.instance_variable_get(:@builtin_rates)).to be_nil
+      second = described_class.builtin_rates
+      expect(second).to eq(first)
+      expect(second.object_id).not_to eq(first.object_id)
     end
-    if described_class.instance_variable_defined?(:@builtin_rates)
-      described_class.remove_instance_variable(:@builtin_rates)
+
+    it "drops the file_rates cache between configurations" do
+      Tempfile.create(["lct-charges", ".yml"]) do |file|
+        file.write({ "service_charges" => { "openai" => { "web_search_request" => 25.0 } } }.to_yaml)
+        file.close
+        described_class.file_rates(file.path)
+        expect(described_class.instance_variable_get(:@file_rates_cache)).not_to be_nil
+
+        described_class.reset!
+        expect(described_class.instance_variable_get(:@file_rates_cache)).to be_nil
+      end
     end
   end
 

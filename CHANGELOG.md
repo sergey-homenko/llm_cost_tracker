@@ -17,7 +17,10 @@ migration path — there is no rolling-deploy upgrade.
 - `llm_cost_tracker_provider_invoices` — placeholder table reserved for v0.9 invoice reconciliation.
 - `Billing::LineItem` value object covering both token and service charges. `LineItem.from_token_usage` and explicit `component_key:` builders price token and tool/runtime quantities through the same path.
 - `Pricing.price_line_items` — single pricing pass for token + tool/runtime line items, used by `Tracker.build_event`.
-- Doctor checks for `llm_cost_tracker_call_line_items`, `llm_cost_tracker_call_tags`, and `llm_cost_tracker_provider_invoices` schema.
+- Doctor schema checks for `llm_cost_tracker_call_line_items`, `llm_cost_tracker_call_tags`, and `llm_cost_tracker_provider_invoices`.
+- Doctor sample-based drift checks: header `total_cost` vs `SUM(line_items.cost)` and stored line item cost vs `pricing_snapshot.rates` (RFC §Doctor).
+- `currency` column on `llm_cost_tracker_call_rollups` (default `USD`) with a `(period, period_start, currency)` unique index. v0.8 stays single-currency; the schema is in place so v0.9 multi-currency rollups don't need another migration.
+- `Billing::Components::REGISTRY` now loads from `lib/llm_cost_tracker/billing/components.yml`. Adding a billable component is one YAML row plus a price entry — no more 11-line `Component.new(...)` literals.
 - Anthropic web search and code execution usage emitted as line items with `component_key: :web_search_request` / `:code_execution_request`. SDK integration emits the same line items from native SDK responses, not just Faraday-wrapped ones.
 - OpenAI hosted web search, file search, and Code Interpreter container sessions emitted as line items via both Faraday and SDK integration paths.
 - Gemini grounding queries emitted as line items.

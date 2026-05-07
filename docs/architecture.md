@@ -97,7 +97,7 @@ Storage is ActiveRecord-only. The current schema is:
 | `llm_cost_tracker_calls` | Header ledger row per tracked call |
 | `llm_cost_tracker_call_line_items` | Per-component cost rows; cascade-deletes with the parent |
 | `llm_cost_tracker_call_tags` | Normalized tag rows; cascade-deletes with the parent |
-| `llm_cost_tracker_call_rollups` | Maintained day/month aggregates for budget reads |
+| `llm_cost_tracker_call_rollups` | Maintained day/month aggregates per currency for budget reads |
 | `llm_cost_tracker_provider_invoices` | Imported provider invoice headers (reserved for v0.9) |
 | `llm_cost_tracker_ingestion_inbox_entries` | Durable ingestion staging |
 | `llm_cost_tracker_ingestion_leases` | Shared worker lease |

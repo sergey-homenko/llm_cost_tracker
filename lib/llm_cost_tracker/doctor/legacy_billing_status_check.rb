@@ -13,7 +13,7 @@ module LlmCostTracker
 
         return unless LlmCostTracker::Call.where(cost_status: nil).exists?
 
-        Check.new(:warn, "billing status", "legacy rows without cost_status remain; new rows will populate it")
+        Check.new(:warn, "cost status", "legacy rows without cost_status remain; new rows will populate it")
       rescue StandardError
         nil
       end

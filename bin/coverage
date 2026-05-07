@@ -296,7 +296,7 @@ class ChangedLines
 
   def parse_added_line(result, current_path, next_line, line)
     return next_line unless current_path && next_line
-    return next_line if line.start_with?("\\")
+    return next_line if line.start_with?("\\") || line.start_with?("@@")
     return next_line + 1 if record_added_line?(result, current_path, next_line, line)
     return next_line if line.start_with?("-")
 

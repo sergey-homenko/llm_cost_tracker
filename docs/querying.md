@@ -72,7 +72,7 @@ Useful scopes on `LlmCostTracker::CallLineItem`:
 | `tokens` | Token line items only |
 | `by_kind(kind)` | Filter by component kind |
 | `by_direction(:input)` | Input vs output |
-| `by_modality(:audio)` | Text, audio, image, video |
+| `by_modality(:audio)` | Filter by `text`, `audio`, or `none` |
 | `cached` | Items with a cache state other than `none` |
 | `priced` / `unpriced` | Cost status filter |
 

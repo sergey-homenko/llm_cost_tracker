@@ -19,7 +19,7 @@ module LlmCostTracker
         format.html do
           @page = Dashboard::Pagination.call(params)
           @calls_count = scope.count
-          @calls = ordered_scope.limit(@page.limit).offset(@page.offset).to_a
+          @calls = ordered_scope.includes(:tag_records).limit(@page.limit).offset(@page.offset).to_a
         end
         format.csv do
           send_data render_csv(ordered_scope.limit(CSV_EXPORT_LIMIT)),

@@ -67,11 +67,12 @@ module LlmCostTracker
 
         def period_decrement_totals(call_rows)
           call_rows.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |row, totals|
-            _id, tracked_at, total_cost = row
+            _id, tracked_at, total_cost, pricing_snapshot = row
             next unless total_cost
 
+            currency = currency_from_snapshot(pricing_snapshot)
             Period::PERIODS.each_key do |period|
-              totals[[period, Period.bucket(period, tracked_at), DEFAULT_CURRENCY]] += total_cost
+              totals[[period, Period.bucket(period, tracked_at), currency]] += total_cost
             end
           end
         end
@@ -110,6 +111,10 @@ module LlmCostTracker
 
         def currency_for(event)
           snapshot = event.respond_to?(:pricing_snapshot) ? event.pricing_snapshot : nil
+          currency_from_snapshot(snapshot)
+        end
+
+        def currency_from_snapshot(snapshot)
           (snapshot.is_a?(Hash) && (snapshot["currency"] || snapshot[:currency])) || DEFAULT_CURRENCY
         end
 

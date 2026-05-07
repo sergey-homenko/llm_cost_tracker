@@ -15,13 +15,25 @@ module LlmCostTracker
 
       DEFAULT_CURRENCY = "USD"
       EMPTY_RATES = {}.freeze
+      MUTEX = Mutex.new
+
+      def reset!
+        MUTEX.synchronize do
+          @builtin_rates = nil
+          @file_rates_cache = nil
+        end
+      end
 
       def builtin_rates
         cached = @builtin_rates
         return cached if cached
 
-        registry = YAML.safe_load_file(Registry::DEFAULT_PRICES_PATH, aliases: false) || {}
-        @builtin_rates = rates_from_registry(registry).freeze
+        MUTEX.synchronize do
+          @builtin_rates ||= begin
+            registry = YAML.safe_load_file(Registry::DEFAULT_PRICES_PATH, aliases: false) || {}
+            rates_from_registry(registry).freeze
+          end
+        end
       end
 
       def file_rates(path)
@@ -31,10 +43,15 @@ module LlmCostTracker
         cached = @file_rates_cache
         return cached[:value] if cached && cached[:key] == cache_key
 
-        registry = YAML.safe_load_file(path, aliases: false) || {}
-        value = rates_from_registry(registry, context: path).freeze
-        @file_rates_cache = { key: cache_key, value: value }.freeze
-        value
+        MUTEX.synchronize do
+          cached = @file_rates_cache
+          return cached[:value] if cached && cached[:key] == cache_key
+
+          registry = YAML.safe_load_file(path, aliases: false) || {}
+          value = rates_from_registry(registry, context: path).freeze
+          @file_rates_cache = { key: cache_key, value: value }.freeze
+          value
+        end
       rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
         raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
       end

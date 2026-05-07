@@ -77,8 +77,12 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` checks current schema, durable ingestion tables, line item and tag
-tables, call rollups, stale prices, integration setup, and legacy audit columns.
+`doctor` checks current schema, durable ingestion tables, line item / tag /
+provider invoice tables, call rollups, stale prices, integration setup, legacy
+audit columns, and two sample-based drift checks: header `total_cost` vs
+`SUM(line_items.cost)` and stored line item cost vs the call's
+`pricing_snapshot.rates`. Drift surfaces as a `:warn` so transient mismatches
+during a deploy don't fail the gate.
 
 `verify_capture` records a synthetic event and verifies both notifications and
 ActiveRecord persistence.
