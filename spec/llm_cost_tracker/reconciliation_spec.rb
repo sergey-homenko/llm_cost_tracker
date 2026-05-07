@@ -10,7 +10,7 @@ RSpec.describe LlmCostTracker::Reconciliation do
   let(:rows) do
     [
       {
-        external_id: "openai-row-1",
+        external_id: "row-1",
         period_start: "2026-05-01",
         period_end: "2026-05-31",
         billed_amount: "12.34",
@@ -18,7 +18,7 @@ RSpec.describe LlmCostTracker::Reconciliation do
         metadata: { provider_project_id: "proj_a", model: "gpt-4o" }
       },
       {
-        external_id: "openai-row-2",
+        external_id: "row-2",
         period_start: Date.new(2026, 5, 1),
         period_end: Date.new(2026, 5, 31),
         billed_amount: 0.5,
@@ -37,12 +37,29 @@ RSpec.describe LlmCostTracker::Reconciliation do
       expect(result).to be_success
       expect(LlmCostTracker::ProviderInvoice.count).to eq(2)
 
-      first = LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai-row-1")
+      first = LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai:row-1")
       expect(first.source).to eq("openai")
       expect(first.billed_amount).to eq(BigDecimal("12.34"))
       expect(first.currency).to eq("USD")
       expect(first.period_start).to eq(Date.new(2026, 5, 1))
       expect(first.metadata).to include("provider_project_id" => "proj_a")
+    end
+
+    it "namespaces external_id by source so colliding ids across providers stay separate" do
+      described_class.import(source: :openai,    rows: [rows.first])
+      described_class.import(source: :anthropic, rows: [rows.first])
+
+      expect(LlmCostTracker::ProviderInvoice.pluck(:external_id))
+        .to contain_exactly("openai:row-1", "anthropic:row-1")
+    end
+
+    it "does not double-prefix when the supplied id already carries the source prefix" do
+      described_class.import(
+        source: :openai,
+        rows: [rows.first.merge(external_id: "openai:already-prefixed")]
+      )
+
+      expect(LlmCostTracker::ProviderInvoice.pluck(:external_id)).to eq(["openai:already-prefixed"])
     end
 
     it "updates existing rows when re-imported with the same external_id" do
@@ -53,7 +70,7 @@ RSpec.describe LlmCostTracker::Reconciliation do
 
       expect(result.inserted).to eq(0)
       expect(result.updated).to eq(1)
-      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai-row-1")
+      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai:row-1")
       expect(reloaded.billed_amount).to eq(BigDecimal("99.99"))
       expect(reloaded.metadata).to eq("note" => "refund")
     end
@@ -61,7 +78,7 @@ RSpec.describe LlmCostTracker::Reconciliation do
     it "defaults currency to USD when not provided" do
       described_class.import(source: :openai, rows: rows)
 
-      second = LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai-row-2")
+      second = LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai:row-2")
       expect(second.currency).to eq("USD")
     end
 
@@ -100,7 +117,7 @@ RSpec.describe LlmCostTracker::Reconciliation do
       )
 
       expect(result.inserted).to eq(1)
-      expect(LlmCostTracker::ProviderInvoice.find_by!(external_id: "string-key-row").billed_amount)
+      expect(LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai:string-key-row").billed_amount)
         .to eq(BigDecimal("1.00"))
     end
 
@@ -116,12 +133,12 @@ RSpec.describe LlmCostTracker::Reconciliation do
         }]
       )
 
-      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "string-metadata")
+      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai:string-metadata")
       expect(reloaded.metadata).to eq("provider_project_id" => "proj_b")
     end
 
-    it "falls back to empty metadata when the supplied string is not valid JSON" do
-      described_class.import(
+    it "rejects invalid metadata JSON for provider-API sources rather than silently dropping evidence" do
+      result = described_class.import(
         source: :openai,
         rows: [{
           external_id: "garbage-metadata",
@@ -132,7 +149,24 @@ RSpec.describe LlmCostTracker::Reconciliation do
         }]
       )
 
-      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "garbage-metadata")
+      expect(result.skipped).to eq(1)
+      expect(result.errors.first).to include("invalid metadata JSON")
+      expect(LlmCostTracker::ProviderInvoice.count).to eq(0)
+    end
+
+    it "is forgiving about invalid metadata JSON for the generic CSV source" do
+      described_class.import(
+        source: :csv,
+        rows: [{
+          external_id: "garbage-csv",
+          period_start: "2026-05-01",
+          period_end: "2026-05-31",
+          billed_amount: "0.5",
+          metadata: "not-json"
+        }]
+      )
+
+      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "csv:garbage-csv")
       expect(reloaded.metadata).to eq({})
     end
 

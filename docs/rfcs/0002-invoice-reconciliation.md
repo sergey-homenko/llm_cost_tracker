@@ -62,9 +62,38 @@ column: `provider_project_id`, `provider_api_key_id`,
 `provider_workspace_id`, `model`, `pricing_mode`, `line_item_kind` (token
 vs. tool), `quantity`, `unit`, `rate_basis`, raw provider payload digest.
 
-`external_id` MUST be globally unique within the table — most providers
-expose a row id; for sources that don't, the importer composes a stable
-key from `(source, period_start, period_end, dimension fingerprint)`.
+### Provider meter envelope
+
+Not every provider row is the same kind of evidence. OpenAI exposes both
+Usage API (counts, may not match financial truth) and Costs API (the
+financial truth used for invoicing). Anthropic exposes Usage and Cost
+APIs, with Priority Tier costs visible only via usage. Gemini ships free
+quota rows alongside billed rows. Mixing these without a label produces
+false totals.
+
+Every importer MUST set the following keys in `metadata`:
+
+| Key | Purpose | Values |
+| --- | --- | --- |
+| `row_type` | What kind of bookkeeping evidence this row carries | `cost`, `usage`, `credit`, `adjustment`, `free_quota`, `commitment` |
+| `meter` | Which meter the row prices | `tokens`, `web_search`, `file_search_storage`, `container_session`, `code_execution_hour`, ... |
+| `authority` | Where the row came from | `invoice`, `cost_api`, `usage_api`, `csv`, `estimated` |
+| `match_basis` | Which dimension the diff can join on | `project`, `api_key`, `workspace`, `model`, `line_item`, `period_only` |
+
+Diff sums only rows where `row_type == "cost"` against local cost. The
+other row types are surfaced separately (free quota usage, credits,
+adjustments) so operators can see what's outside the invoice and why.
+
+### `external_id` namespacing
+
+`external_id` is unique across the table — but provider IDs collide across
+providers (OpenAI and Anthropic both use prefixed strings, generic CSVs
+reuse short ids). Importers MUST prefix their row ids with `<source>:`
+(`openai:row_123`, `anthropic:msg_abc`, `csv:line_42`). For providers that
+don't expose stable row ids (bucketed Usage APIs, daily aggregates), the
+importer composes a stable fingerprint from
+`(period_start, period_end, dimension keys)` and prefixes it with the
+source.
 
 ## Public API
 
@@ -89,33 +118,55 @@ inserting a duplicate. The unique index on `external_id` enforces this.
 
 `diff` returns:
 
-- `provider_total` — sum of `billed_amount` for the period & scope
-- `local_total` — sum of `total_cost` from `llm_cost_tracker_call_rollups`
-  for the same period; falls back to a line-items SUM when the period is
-  unbounded
+- `provider_total` — SUM of `billed_amount` for the period & scope,
+  filtered to `metadata.row_type = "cost"`. Free-quota / usage / credit
+  rows are excluded from the financial total and surfaced separately.
+- `local_total` — SUM of `total_cost`. For unscoped periods that align
+  with rollup bucket boundaries this reads from
+  `llm_cost_tracker_call_rollups`; scoped or partial-bucket diffs scan
+  `llm_cost_tracker_calls` directly. Both compute via SQL `SUM(...)`,
+  never by loading rows into Ruby.
 - `delta_amount`, `delta_percent`
-- `unmatched_provider_rows` — invoice rows we can't tie to a local
+- `unmatched_provider_rows` — cost rows we can't tie to a local
   attribution dimension
 - `unmatched_local_calls` — calls in the period without any provider
   invoice row that could explain them (batch lag, missed import, etc.)
+- `non_cost_rows` — buckets of free-quota / credit / adjustment rows
+  surfaced separately so operators see "outside the invoice" evidence.
+
+Local calls are filtered by the `provider` name implied by `source`
+(`:openai → "openai"`, `:anthropic → "anthropic"`, ...) so that scoping a
+diff to OpenAI doesn't accidentally absorb Anthropic calls in the same
+period.
 
 ## Importers
 
 Each provider has its own adapter in `lib/llm_cost_tracker/reconciliation/`:
 
-- `Reconciliation::Importer` — abstract: validates `source`, normalizes
+- `Reconciliation::Importer` — generic: validates `source`, normalizes
   rows, writes to `provider_invoices`.
-- `Reconciliation::Sources::OpenaiUsage` — parses OpenAI Usage API
-  responses (organization/usage and organization/costs).
+- `Reconciliation::Sources::OpenaiUsage` — parses OpenAI Costs and Usage
+  API responses (organization-level).
 - `Reconciliation::Sources::AnthropicUsage` — Anthropic Usage / Cost API.
 - `Reconciliation::Sources::GeminiBilling` — Gemini billing export.
 - `Reconciliation::Sources::Csv` — generic CSV adapter for providers
   without an API or for users who already aggregate elsewhere.
 
-Importers MUST NOT run on the hot path. They are operational tools invoked
-through a rake task or explicit `LlmCostTracker::Reconciliation.import`
-call. Network access is allowed inside an importer, just not from
-`Tracker.record` / Faraday middleware / `Pricing.cost_for`.
+Provider-API adapters are **strict**: invalid metadata raises and is
+reported in `ImportResult.errors` rather than being silently coerced to
+`{}`. The CSV adapter is forgiving because operators may hand-edit it.
+
+Importers MUST be:
+
+- **Idempotent** — re-running the same import upserts on `external_id`,
+  never inserts duplicates.
+- **Paginated and resumable** — provider Usage/Cost APIs are bucketed and
+  cursor-driven; the import drives the cursor, persists position, and
+  retries safely.
+- **Off the hot path** — they are operational tools invoked through a
+  rake task or explicit `LlmCostTracker::Reconciliation.import` call.
+  Network access is allowed inside an importer, just not from
+  `Tracker.record` / Faraday middleware / `Pricing.cost_for`.
 
 ## Doctor surface
 

@@ -49,12 +49,48 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::OpenaiUsage do
         currency: "USD"
       )
       expect(rows.first[:metadata]).to include(
+        "row_type" => "cost",
+        "meter" => "tokens",
+        "authority" => "cost_api",
+        "match_basis" => "project",
         "line_item" => "gpt-4o tokens",
         "provider_project_id" => "proj_alpha",
         "provider_api_key_id" => "key_a",
         "provider_workspace_id" => "org_main"
       )
-      expect(rows.first[:external_id]).to start_with("openai-cost-")
+      expect(rows.first[:external_id]).to start_with("cost-")
+    end
+
+    it "tags tool meters from the line item description" do
+      response[:data] = [{
+        "start_time" => bucket_start,
+        "end_time" => bucket_end,
+        "results" => [
+          { "amount" => { "value" => 0.5, "currency" => "usd" }, "line_item" => "Web Search calls" },
+          { "amount" => { "value" => 0.1, "currency" => "usd" }, "line_item" => "Code Interpreter sessions" },
+          { "amount" => { "value" => 0.2, "currency" => "usd" }, "line_item" => "File Search storage" }
+        ]
+      }]
+
+      meters = described_class.parse(response).map { |row| row[:metadata]["meter"] }
+      expect(meters).to eq(%w[web_search container_session file_search_storage])
+    end
+
+    it "labels rows as the requested row_type and authority" do
+      rows = described_class.parse(response, row_type: "usage", authority: "usage_api")
+
+      expect(rows.first[:metadata]["row_type"]).to eq("usage")
+      expect(rows.first[:metadata]["authority"]).to eq("usage_api")
+    end
+
+    it "falls back to period_only match basis when no attribution is supplied" do
+      response[:data] = [{
+        "start_time" => bucket_start,
+        "end_time" => bucket_end,
+        "results" => [{ "amount" => { "value" => 1.0, "currency" => "usd" }, "line_item" => "tokens" }]
+      }]
+
+      expect(described_class.parse(response).first[:metadata]["match_basis"]).to eq("period_only")
     end
 
     it "produces stable external_ids so re-parsing the same response is idempotent" do

@@ -11,6 +11,13 @@ module LlmCostTracker
     class Diff
       SCOPE_KEYS = %i[provider_project_id provider_api_key_id provider_workspace_id].freeze
       ATTRIBUTION_KEYS = SCOPE_KEYS
+      COST_ROW_TYPE = "cost"
+      SOURCE_TO_PROVIDER = {
+        "openai" => "openai",
+        "anthropic" => "anthropic",
+        "gemini" => "gemini",
+        "openrouter" => "openrouter"
+      }.freeze
 
       def initialize(source:, period_start:, period_end:, scope: {}, currency: nil)
         @source = source.to_s
@@ -24,10 +31,11 @@ module LlmCostTracker
 
       def call
         invoices = scoped_invoices
+        cost_invoices = invoices.select { |invoice| cost_row?(invoice) }
         local_calls = scoped_local_calls
 
-        provider_total = sum_decimal(invoices.map(&:billed_amount))
-        local_total = sum_decimal(local_calls.map { |row| row[:total_cost] })
+        provider_total = sum_decimal(cost_invoices.map(&:billed_amount))
+        local_total = sum_local_total
 
         DiffResult.new(
           source: source,
@@ -39,8 +47,9 @@ module LlmCostTracker
           local_total: local_total,
           delta_amount: local_total - provider_total,
           delta_percent: percent_for(local_total, provider_total),
-          unmatched_provider_rows: unmatched_provider_rows(invoices, local_calls),
-          unmatched_local_calls: unmatched_local_calls(invoices, local_calls)
+          unmatched_provider_rows: unmatched_provider_rows(cost_invoices, local_calls),
+          unmatched_local_calls: unmatched_local_calls(cost_invoices, local_calls),
+          non_cost_rows: non_cost_rows(invoices)
         )
       end
 
@@ -64,16 +73,33 @@ module LlmCostTracker
         scope.all? { |key, value| metadata[key.to_s].to_s == value.to_s }
       end
 
+      def cost_row?(invoice)
+        row_type = invoice.metadata["row_type"]
+        row_type.nil? || row_type.to_s == COST_ROW_TYPE
+      end
+
       def scoped_local_calls
+        provider = SOURCE_TO_PROVIDER[source]
         relation = LlmCostTracker::Call
                    .where.not(total_cost: nil)
                    .where(tracked_at: window_start..window_end)
+        relation = relation.where(provider: provider) if provider
         scope.each { |key, value| relation = relation.where(key => value) }
         attribution_columns = [:total_cost] + ATTRIBUTION_KEYS
         relation.pluck(*attribution_columns).map do |row|
           attrs = ATTRIBUTION_KEYS.zip(row.drop(1)).to_h
           { total_cost: row.first, attribution: attrs }
         end
+      end
+
+      def sum_local_total
+        relation = LlmCostTracker::Call
+                   .where.not(total_cost: nil)
+                   .where(tracked_at: window_start..window_end)
+        provider = SOURCE_TO_PROVIDER[source]
+        relation = relation.where(provider: provider) if provider
+        scope.each { |key, value| relation = relation.where(key => value) }
+        BigDecimal(relation.sum(:total_cost).to_s)
       end
 
       def unmatched_provider_rows(invoices, local_calls)
@@ -103,6 +129,17 @@ module LlmCostTracker
           totals[attribution][:total_cost] += BigDecimal(row[:total_cost].to_s)
         end
         grouped.map { |attribution, summary| summary.merge(attribution: attribution) }
+      end
+
+      def non_cost_rows(invoices)
+        invoices.reject { |invoice| cost_row?(invoice) }.map do |invoice|
+          {
+            external_id: invoice.external_id,
+            row_type: invoice.metadata["row_type"],
+            meter: invoice.metadata["meter"],
+            billed_amount: invoice.billed_amount
+          }
+        end
       end
 
       def invoice_attribution(invoice)

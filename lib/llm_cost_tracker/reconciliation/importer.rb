@@ -11,10 +11,12 @@ module LlmCostTracker
   module Reconciliation
     class Importer
       REQUIRED_FIELDS = %i[external_id period_start period_end].freeze
+      PROVIDER_API_SOURCES = %i[openai anthropic gemini openrouter].to_set.freeze
 
-      def initialize(source:, imported_at:)
+      def initialize(source:, imported_at:, strict_metadata: nil)
         @source = source.to_s
         @imported_at = imported_at
+        @strict_metadata = strict_metadata.nil? ? PROVIDER_API_SOURCES.include?(source.to_sym) : strict_metadata
         raise ArgumentError, "source must be present" if @source.empty?
       end
 
@@ -35,7 +37,7 @@ module LlmCostTracker
 
       private
 
-      attr_reader :source, :imported_at
+      attr_reader :source, :imported_at, :strict_metadata
 
       def normalize_rows(rows)
         errors = []
@@ -47,8 +49,10 @@ module LlmCostTracker
             next
           end
           attrs.merge(
+            external_id: namespaced_external_id(attrs[:external_id]),
             period_start: parse_date(attrs[:period_start]),
-            period_end: parse_date(attrs[:period_end])
+            period_end: parse_date(attrs[:period_end]),
+            metadata: parse_metadata(attrs[:metadata])
           )
         rescue ArgumentError => e
           errors << "row #{index}: #{e.message}"
@@ -65,14 +69,20 @@ module LlmCostTracker
         billed_amount = row[:billed_amount].nil? ? nil : BigDecimal(row[:billed_amount].to_s)
         {
           source: source,
-          external_id: row[:external_id].to_s,
+          external_id: row[:external_id],
           period_start: row[:period_start],
           period_end: row[:period_end],
           billed_amount: billed_amount,
           currency: (row[:currency] || Ledger::Rollups::DEFAULT_CURRENCY).to_s,
-          metadata: serialize_metadata(row[:metadata]),
+          metadata: row[:metadata],
           imported_at: imported_at
         }
+      end
+
+      def namespaced_external_id(external_id)
+        raw = external_id.to_s
+        prefix = "#{source}:"
+        raw.start_with?(prefix) ? raw : "#{prefix}#{raw}"
       end
 
       def symbolize(row)
@@ -87,12 +97,14 @@ module LlmCostTracker
         Date.parse(value.to_s)
       end
 
-      def serialize_metadata(metadata)
+      def parse_metadata(metadata)
         return {} if metadata.nil?
         return metadata if metadata.is_a?(Hash)
 
         JSON.parse(metadata.to_s)
-      rescue JSON::ParserError
+      rescue JSON::ParserError => e
+        raise ArgumentError, "invalid metadata JSON: #{e.message}" if strict_metadata
+
         {}
       end
     end

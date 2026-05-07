@@ -9,16 +9,21 @@ module LlmCostTracker
     module Sources
       module OpenaiUsage
         FINGERPRINT_KEYS = %i[start_time end_time line_item project_id api_key_id organization_id].freeze
+        ROW_TYPE_COST = "cost"
+        AUTHORITY_COST_API = "cost_api"
+        DEFAULT_METER = "tokens"
 
         module_function
 
-        def parse(response)
+        def parse(response, authority: AUTHORITY_COST_API, row_type: ROW_TYPE_COST)
           payload = coerce_hash(response)
           buckets = Array(payload[:data])
-          buckets.flat_map { |bucket| rows_for_bucket(bucket) }.compact
+          buckets.flat_map do |bucket|
+            rows_for_bucket(bucket, authority: authority, row_type: row_type)
+          end.compact
         end
 
-        def rows_for_bucket(bucket)
+        def rows_for_bucket(bucket, authority:, row_type:)
           bucket = symbolize(bucket)
           start_time = bucket[:start_time]
           end_time = bucket[:end_time]
@@ -28,12 +33,14 @@ module LlmCostTracker
           period_end = epoch_to_date(end_time - 1)
 
           Array(bucket[:results]).filter_map do |raw|
-            row_for_result(raw, period_start: period_start, period_end: period_end,
-                                start_time: start_time, end_time: end_time)
+            row_for_result(raw,
+                           period_start: period_start, period_end: period_end,
+                           start_time: start_time, end_time: end_time,
+                           authority: authority, row_type: row_type)
           end
         end
 
-        def row_for_result(raw, period_start:, period_end:, start_time:, end_time:)
+        def row_for_result(raw, period_start:, period_end:, start_time:, end_time:, authority:, row_type:)
           result = symbolize(raw)
           amount = symbolize(result[:amount] || {})
           billed_amount = amount[:value]
@@ -41,22 +48,44 @@ module LlmCostTracker
 
           fingerprint = fingerprint_for(result, start_time: start_time, end_time: end_time)
           {
-            external_id: "openai-cost-#{fingerprint}",
+            external_id: "cost-#{fingerprint}",
             period_start: period_start,
             period_end: period_end,
             billed_amount: billed_amount,
             currency: (amount[:currency] || "USD").to_s.upcase,
-            metadata: metadata_for(result)
+            metadata: metadata_for(result, authority: authority, row_type: row_type)
           }
         end
 
-        def metadata_for(result)
+        def metadata_for(result, authority:, row_type:)
           {
+            "row_type" => row_type,
+            "meter" => meter_for(result),
+            "authority" => authority,
+            "match_basis" => match_basis_for(result),
             "line_item" => result[:line_item],
             "provider_project_id" => result[:project_id],
             "provider_api_key_id" => result[:api_key_id],
             "provider_workspace_id" => result[:organization_id]
           }.compact
+        end
+
+        def meter_for(result)
+          line_item = result[:line_item].to_s.downcase
+          case line_item
+          when /web search/, /search content/ then "web_search"
+          when /file search/ then "file_search_storage"
+          when /code interpreter/, /container/ then "container_session"
+          else DEFAULT_METER
+          end
+        end
+
+        def match_basis_for(result)
+          return "project" if result[:project_id]
+          return "api_key" if result[:api_key_id]
+          return "workspace" if result[:organization_id]
+
+          "period_only"
         end
 
         def fingerprint_for(result, start_time:, end_time:)

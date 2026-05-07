@@ -186,7 +186,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
 
       expect(result.unmatched_provider_rows.size).to eq(1)
       expect(result.unmatched_provider_rows.first).to include(
-        external_id: "phantom",
+        external_id: "openai:phantom",
         attribution: include(provider_project_id: "proj_phantom")
       )
     end
@@ -222,6 +222,58 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
 
       expect(result.unmatched_provider_rows).to be_empty
       expect(result.unmatched_local_calls).to be_empty
+    end
+
+    it "filters local calls by the provider implied by source" do
+      import_invoice(external_id: "openai-row", billed_amount: "10.00", source: "openai")
+      create_priced_call(total_cost: BigDecimal("10.00"), provider: "openai")
+      create_priced_call(total_cost: BigDecimal("99.00"), provider: "anthropic")
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end
+      )
+
+      expect(result.local_total).to eq(BigDecimal("10.00"))
+    end
+
+    it "leaves local calls unfiltered when source has no documented provider mapping" do
+      import_invoice(external_id: "csv-row", billed_amount: "20.00", source: "csv")
+      create_priced_call(total_cost: BigDecimal("12.00"), provider: "openai")
+      create_priced_call(total_cost: BigDecimal("8.00"), provider: "anthropic")
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :csv, period_start: period_start, period_end: period_end
+      )
+
+      expect(result.local_total).to eq(BigDecimal("20.00"))
+    end
+
+    it "excludes free_quota and credit rows from the financial provider total" do
+      import_invoice(
+        external_id: "billed",
+        billed_amount: "10.00",
+        metadata: { row_type: "cost" }
+      )
+      import_invoice(
+        external_id: "free-credit",
+        billed_amount: "5.00",
+        metadata: { row_type: "free_quota", meter: "tokens" }
+      )
+      import_invoice(
+        external_id: "adjustment",
+        billed_amount: "-1.00",
+        metadata: { row_type: "credit", meter: "tokens" }
+      )
+      create_priced_call(total_cost: BigDecimal("10.00"))
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end
+      )
+
+      expect(result.provider_total).to eq(BigDecimal("10.00"))
+      expect(result.local_total).to eq(BigDecimal("10.00"))
+      expect(result.non_cost_rows.size).to eq(2)
+      expect(result.non_cost_rows.map { |row| row[:row_type] }).to contain_exactly("free_quota", "credit")
     end
   end
 end
