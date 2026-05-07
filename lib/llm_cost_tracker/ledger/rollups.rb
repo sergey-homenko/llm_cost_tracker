@@ -35,22 +35,25 @@ module LlmCostTracker
 
         def period_rows(event)
           currency = currency_for(event)
+          provider = provider_for(event)
           Period::PERIODS.map do |period, name|
             {
               period: name,
               period_start: Period.bucket(period, event.tracked_at),
               currency: currency,
+              provider: provider,
               total_cost: event.total_cost
             }
           end
         end
 
         def period_rows_for_events(events)
-          call_rollups(events).map do |(period, period_start, currency), total_cost|
+          call_rollups(events).map do |(period, period_start, currency, provider), total_cost|
             {
               period: period,
               period_start: period_start,
               currency: currency,
+              provider: provider,
               total_cost: total_cost
             }
           end
@@ -59,29 +62,33 @@ module LlmCostTracker
         def call_rollups(events)
           events.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |event, totals|
             currency = currency_for(event)
+            provider = provider_for(event)
             Period::PERIODS.each do |period, name|
-              totals[[name, Period.bucket(period, event.tracked_at), currency]] += BigDecimal(event.total_cost.to_s)
+              key = [name, Period.bucket(period, event.tracked_at), currency, provider]
+              totals[key] += BigDecimal(event.total_cost.to_s)
             end
           end
         end
 
         def period_decrement_totals(call_rows)
           call_rows.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |row, totals|
-            _id, tracked_at, total_cost, pricing_snapshot = row
+            _id, tracked_at, total_cost, pricing_snapshot, provider = row
             next unless total_cost
 
             currency = currency_from_snapshot(pricing_snapshot)
+            provider_key = provider.to_s
             Period::PERIODS.each_key do |period|
-              totals[[period, Period.bucket(period, tracked_at), currency]] += total_cost
+              totals[[period, Period.bucket(period, tracked_at), currency, provider_key]] += total_cost
             end
           end
         end
 
         def apply_decrements(totals)
           now = Time.now.utc
-          buckets_by_period = totals.each_with_object({}) do |((period, period_start, currency), amount), grouped|
-            grouped[[period, currency]] ||= {}
-            grouped[[period, currency]][period_start] = amount
+          buckets_by_period = totals.each_with_object({}) do |(key, amount), grouped|
+            period, period_start, currency, provider = key
+            grouped[[period, currency, provider]] ||= {}
+            grouped[[period, currency, provider]][period_start] = amount
           end
 
           conn = LlmCostTracker::CallRollup.connection
@@ -89,10 +96,11 @@ module LlmCostTracker
           period_col = conn.quote_column_name("period")
           start_col = conn.quote_column_name("period_start")
           currency_col = conn.quote_column_name("currency")
+          provider_col = conn.quote_column_name("provider")
           total_col = conn.quote_column_name("total_cost")
           updated_col = conn.quote_column_name("updated_at")
 
-          buckets_by_period.each do |(period, currency), by_start|
+          buckets_by_period.each do |(period, currency, provider), by_start|
             case_clauses = by_start.map do |period_start, amount|
               "WHEN #{start_col} = #{conn.quote(period_start)} THEN #{conn.quote(amount)}"
             end.join(" ")
@@ -104,6 +112,7 @@ module LlmCostTracker
               "#{updated_col} = #{conn.quote(now)} " \
               "WHERE #{period_col} = #{conn.quote(Period::PERIODS.fetch(period))} " \
               "AND #{currency_col} = #{conn.quote(currency)} " \
+              "AND #{provider_col} = #{conn.quote(provider)} " \
               "AND #{start_col} IN (#{starts})"
             )
           end
@@ -118,6 +127,10 @@ module LlmCostTracker
           (snapshot.is_a?(Hash) && (snapshot["currency"] || snapshot[:currency])) || DEFAULT_CURRENCY
         end
 
+        def provider_for(event)
+          (event.respond_to?(:provider) ? event.provider : nil).to_s
+        end
+
         def upsert_call_rollups(rows)
           LlmCostTracker::CallRollup.upsert_all(
             rows,
@@ -130,7 +143,7 @@ module LlmCostTracker
         def call_rollups_unique_by
           return unless LlmCostTracker::CallRollup.connection.supports_insert_conflict_target?
 
-          %i[period period_start currency]
+          %i[period period_start currency provider]
         end
       end
     end

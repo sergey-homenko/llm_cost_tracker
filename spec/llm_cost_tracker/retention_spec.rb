@@ -64,8 +64,10 @@ RSpec.describe LlmCostTracker::Retention do
     now = Time.utc(2026, 4, 20, 12, 0, 0)
     create_call(tracked_at: Time.utc(2026, 4, 20, 8, 0, 0), total_cost: 2.0)
     create_call(tracked_at: Time.utc(2026, 4, 20, 11, 0, 0), total_cost: 3.0)
-    LlmCostTracker::CallRollup.create!(period: "day", period_start: Date.new(2026, 4, 20), total_cost: 5.0)
-    LlmCostTracker::CallRollup.create!(period: "month", period_start: Date.new(2026, 4, 1), total_cost: 5.0)
+    LlmCostTracker::CallRollup.create!(period: "day", period_start: Date.new(2026, 4, 20),
+                                       provider: "openai", total_cost: 5.0)
+    LlmCostTracker::CallRollup.create!(period: "month", period_start: Date.new(2026, 4, 1),
+                                       provider: "openai", total_cost: 5.0)
 
     deleted = described_class.prune(older_than: Time.utc(2026, 4, 20, 10, 0, 0), now: now)
 

@@ -147,6 +147,7 @@ module LlmCostTrackerDatabaseSpecHelpers
       table.string :period, null: false
       table.date :period_start, null: false
       table.string :currency, null: false, default: "USD"
+      table.string :provider, null: false, default: ""
       table.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
 
       table.timestamps
@@ -222,7 +223,7 @@ module LlmCostTrackerDatabaseSpecHelpers
     connection.add_index :llm_cost_tracker_call_line_items, :kind
     connection.add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
     connection.add_index :llm_cost_tracker_call_tags, :key
-    connection.add_index :llm_cost_tracker_call_rollups, %i[period period_start currency], unique: true
+    connection.add_index :llm_cost_tracker_call_rollups, %i[period period_start currency provider], unique: true
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, %i[locked_at id]

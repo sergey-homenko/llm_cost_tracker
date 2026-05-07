@@ -31,6 +31,7 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
   end
 
   def create_priced_call(total_cost:)
+    tracked_at = Time.utc(2026, 5, 15, 12)
     call = LlmCostTracker::Call.create!(
       provider: "openai",
       model: "gpt-4o",
@@ -39,7 +40,7 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
       total_tokens: 15,
       total_cost: total_cost,
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
-      tracked_at: Time.utc(2026, 5, 15, 12)
+      tracked_at: tracked_at
     )
     LlmCostTracker::CallLineItem.create!(
       llm_cost_tracker_call_id: call.id,
@@ -57,6 +58,10 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       pricing_basis: "rate_table",
       details: {}
+    )
+    LlmCostTracker::Ledger::Rollups.increment!(
+      Struct.new(:provider, :total_cost, :tracked_at, :pricing_snapshot)
+            .new("openai", total_cost, tracked_at, { "currency" => "USD" })
     )
   end
 

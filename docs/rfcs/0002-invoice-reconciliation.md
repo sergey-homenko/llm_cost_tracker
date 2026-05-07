@@ -129,13 +129,14 @@ inserting a duplicate. The unique index on `external_id` enforces this.
 - `provider_total` — SUM of `billed_amount` for the period & scope,
   filtered to `metadata.row_type = "cost"`. Free-quota / usage / credit
   rows are excluded from the financial total and surfaced separately.
-- `local_total` — SQL `SUM(cost)` from
+- `local_total` — SQL `SUM` of the source's local cost in the period
+  window. For unscoped diffs whose period bounds align with month
+  boundaries the diff reads `SUM(total_cost)` directly from
+  `llm_cost_tracker_call_rollups` filtered by `(provider, currency,
+  period_start)`. Scoped or partial-bucket diffs scan
   `llm_cost_tracker_call_line_items` joined to
-  `llm_cost_tracker_calls`, scoped by `currency` and the
-  source-implied `provider`. Computed via `SUM(...)`, never by loading
-  rows into Ruby. (A rollup fast path for aligned month/day periods is a
-  v0.10 follow-up; it is blocked on adding a `provider` column to
-  `llm_cost_tracker_call_rollups` so rollups can be filtered by source.)
+  `llm_cost_tracker_calls` instead. Both compute via SQL `SUM(...)`,
+  never by loading rows into Ruby.
 - `delta_amount`, `delta_percent`
 - `unmatched_provider_rows` — cost rows we can't tie to a local
   attribution dimension

@@ -1,5 +1,51 @@
 # Upgrading
 
+## v0.8.x → v0.9 (in progress)
+
+v0.9 ships invoice reconciliation. The schema changes are additive on
+`llm_cost_tracker_calls` (no migration needed there), but
+`llm_cost_tracker_call_rollups` needs a `provider` column and a new unique
+index. There is no rolling-deploy hazard — old code reads/writes rollups
+with `provider = ""` and new code reads/writes per-provider rollups; both
+coexist in the table.
+
+### Migration
+
+Generate the v0.9 install template (or hand-write the migration below) and
+run it:
+
+```ruby
+class UpgradeLlmCostTrackerToV0_9 < ActiveRecord::Migration[7.1]
+  def change
+    add_column :llm_cost_tracker_call_rollups, :provider, :string,
+               null: false, default: ""
+    remove_index :llm_cost_tracker_call_rollups,
+                 column: %i[period period_start currency], unique: true
+    add_index   :llm_cost_tracker_call_rollups,
+                %i[period period_start currency provider], unique: true
+
+    create_table :llm_cost_tracker_provider_invoice_imports do |t|
+      t.string :source, null: false
+      t.string :cursor
+      t.date :window_start
+      t.date :window_end
+      t.string :state, null: false
+      t.text :last_error
+      t.integer :rows_imported, null: false, default: 0
+      t.datetime :started_at, null: false
+      t.datetime :finished_at
+      t.timestamps
+    end
+    add_index :llm_cost_tracker_provider_invoice_imports,
+              %i[source started_at]
+  end
+end
+```
+
+Existing rollup rows keep `provider = ""` (legacy bucket); v0.9-tracked
+calls write rollups per-provider. Reconciliation diffs only read the
+per-provider rollups, so legacy rows do not pollute fast-path totals.
+
 ## v0.7.x → v0.8
 
 **0.8 is a one-shot rebuild of the storage layer.** Per-component cost columns

@@ -100,7 +100,31 @@ module LlmCostTracker
       end
 
       def sum_local_total
+        return rollup_total if rollup_fast_path?
+
         BigDecimal(scoped_line_items.sum(:cost).to_s)
+      end
+
+      def rollup_fast_path?
+        scope.empty? && SOURCE_TO_PROVIDER.key?(source) && month_aligned_period?
+      end
+
+      def month_aligned_period?
+        period_start.day == 1 && (period_end + 1).day == 1 && period_end >= period_start
+      end
+
+      def rollup_total
+        provider = SOURCE_TO_PROVIDER[source]
+        cursor = period_start
+        buckets = []
+        while cursor <= period_end
+          buckets << cursor
+          cursor = cursor.next_month
+        end
+        relation = LlmCostTracker::CallRollup
+                   .where(period: "month", currency: currency, provider: provider)
+                   .where(period_start: buckets)
+        BigDecimal(relation.sum(:total_cost).to_s)
       end
 
       def scoped_line_items

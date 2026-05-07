@@ -61,7 +61,7 @@ module LlmCostTracker
 
       def pluck_prunable(cutoff, batch_size)
         LlmCostTracker::Call.where(tracked_at: ...cutoff).order(:id).limit(batch_size).lock
-                            .pluck(:id, :tracked_at, :total_cost, :pricing_snapshot)
+                            .pluck(:id, :tracked_at, :total_cost, :pricing_snapshot, :provider)
       end
     end
   end

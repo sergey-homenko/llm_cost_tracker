@@ -64,11 +64,6 @@ the provider billed"; diff answers "where the truth diverged."
 7. **Gemini / Vertex billing export importer.** Free-quota and per-query
    grounding semantics need their own meter shape; ships once the v0.9
    meter envelope is in place.
-8. **Rollup fast path for reconciliation diff.** Add a `provider` column
-   to `llm_cost_tracker_call_rollups` so the reconciliation diff can read
-   aligned-month `local_total` from rollups instead of scanning line
-   items. Currently rollups are a global cache; once they are
-   per-provider, the diff fast path falls out for free.
 
 ## Tag conventions
 

@@ -63,7 +63,7 @@ RSpec.describe "generator templates" do
     expect(migration).to include("create_table :llm_cost_tracker_ingestion_inbox_entries")
     expect(migration).to include("create_table :llm_cost_tracker_ingestion_leases")
     expect(migration).not_to include("create_table :llm_cost_tracker_service_charges")
-    expect(migration).to include("add_index :llm_cost_tracker_call_rollups, [:period, :period_start, :currency], unique: true")
+    expect(migration).to include("add_index :llm_cost_tracker_call_rollups, [:period, :period_start, :currency, :provider], unique: true")
     expect(migration).to include("add_index :llm_cost_tracker_calls, :event_id, unique: true")
     expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true")
     expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]")

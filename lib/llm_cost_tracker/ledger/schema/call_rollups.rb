@@ -6,8 +6,8 @@ module LlmCostTracker
   module Ledger
     module Schema
       module CallRollups
-        REQUIRED_COLUMNS = %w[period period_start currency total_cost].freeze
-        UNIQUE_COLUMNS = %i[period period_start currency].freeze
+        REQUIRED_COLUMNS = %w[period period_start currency provider total_cost].freeze
+        UNIQUE_COLUMNS = %i[period period_start currency provider].freeze
 
         class << self
           def current_schema_errors
@@ -20,7 +20,7 @@ module LlmCostTracker
             missing = REQUIRED_COLUMNS - LlmCostTracker::CallRollup.columns_hash.keys
             errors << "missing columns: #{missing.join(', ')}" if missing.any?
             unless unique_period_index?(connection, table_name)
-              errors << "missing unique index: period, period_start, currency"
+              errors << "missing unique index: period, period_start, currency, provider"
             end
             errors
           end

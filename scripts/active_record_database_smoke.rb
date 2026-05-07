@@ -222,6 +222,7 @@ def create_call_rollups_table!
     t.string :period, null: false
     t.date :period_start, null: false
     t.string :currency, null: false, default: "USD"
+    t.string :provider, null: false, default: ""
     t.decimal :total_cost, precision: 20, scale: 8, null: false, default: 0
     t.timestamps
   end
@@ -261,7 +262,7 @@ def add_schema_indexes!(_database_connection)
   add_index :llm_cost_tracker_call_line_items, :kind
   add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
   add_index :llm_cost_tracker_call_tags, :key
-  add_index :llm_cost_tracker_call_rollups, %i[period period_start currency], unique: true
+  add_index :llm_cost_tracker_call_rollups, %i[period period_start currency provider], unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
   add_index :llm_cost_tracker_ingestion_inbox_entries, %i[locked_at id]

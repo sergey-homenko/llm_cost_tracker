@@ -143,12 +143,14 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "fails when call rollups lack the current unique index" do
-      ActiveRecord::Base.connection.remove_index(:llm_cost_tracker_call_rollups, %i[period period_start currency])
+      ActiveRecord::Base.connection.remove_index(
+        :llm_cost_tracker_call_rollups, %i[period period_start currency provider]
+      )
 
       check = described_class.call.find { |item| item.name == "call rollups" }
 
       expect(check).to have_attributes(status: :error)
-      expect(check.message).to include("missing unique index: period, period_start, currency")
+      expect(check.message).to include("missing unique index: period, period_start, currency, provider")
       expect(check.message).to include("docs/upgrading.md")
     end
 

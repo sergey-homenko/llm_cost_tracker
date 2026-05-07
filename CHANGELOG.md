@@ -2,6 +2,21 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Provider invoice reconciliation: `LlmCostTracker::Reconciliation.import` lands provider Cost API rows into `llm_cost_tracker_provider_invoices` idempotently; `Reconciliation.diff` compares provider totals against local cost per `(source, period_start, period_end)` with optional project / api_key / workspace scoping. Source adapters: `Sources::OpenaiUsage` (OpenAI Costs API), `Sources::AnthropicUsage` (Anthropic Cost/Usage). Rake tasks: `llm_cost_tracker:reconcile:import`, `llm_cost_tracker:reconcile:diff`. Dashboard `Reconciliation` page with per-source breakdown, drift status, unmatched rows, and non-cost evidence (free quota / credits / adjustments).
+- `Doctor::InvoiceReconciliationCheck` warns on drift past 5% or stale imports (>14 days).
+- `llm_cost_tracker_provider_invoice_imports` table tracks importer cursor / window / state for resumable runs. `Importer#call` opens, completes, and fails this row automatically.
+- `Configuration#reconciliation_importers` registers per-source callables that the dashboard can trigger via a re-import button.
+- `Reconciliation.import(window:)` filters rows whose period falls outside the supplied date range.
+
+### Changed
+
+- BREAKING: `llm_cost_tracker_call_rollups` gains a `provider` column (default `""` for legacy rows). The unique index moves from `(period, period_start, currency)` to `(period, period_start, currency, provider)`. Existing installs need a migration; see [Upgrading](docs/upgrading.md).
+- `Ledger::Rollups.increment!` / `decrement!` now record and update the provider associated with each call. Per-provider rollups unlock the rollup fast path in `Reconciliation::Diff` for aligned month-bucket diffs.
+
 ## [0.8.0] - 2026-05-07
 
 0.8 is a storage rebuild. Tokens and tool/runtime charges share one shape
