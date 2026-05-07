@@ -107,10 +107,9 @@ module LlmCostTracker
       def cost_with_service_lines(cost_data, line_items)
         service_lines = line_items.reject(&:token?)
         return cost_data if service_lines.empty?
+        return cost_data if service_lines.none?(&:priced?)
 
         service_total = service_lines.sum(BigDecimal("0"), &:cost_value)
-        return cost_data if service_total.zero? && service_lines.none?(&:priced?)
-
         cost = cost_data ? cost_data.dup : {}
         base_total = BigDecimal(cost.fetch(:total_cost, 0).to_s)
         cost[:total_cost] = (base_total + service_total).round(8).to_f

@@ -384,7 +384,7 @@ RSpec.describe LlmCostTracker::Tracker do
         c.monthly_budget = 0.0001
         c.on_budget_exceeded = ->(data) { budget_data = data }
       end
-      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 12.5)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 12.5)
 
       record(
         provider: "openai",
@@ -441,7 +441,7 @@ RSpec.describe LlmCostTracker::Tracker do
         c.monthly_budget = 0.0001
         c.budget_exceeded_behavior = :raise
       end
-      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 12.5)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 12.5)
 
       expect do
         record(
@@ -462,7 +462,7 @@ RSpec.describe LlmCostTracker::Tracker do
         c.monthly_budget = 0.0001
         c.budget_exceeded_behavior = :raise
       end
-      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(daily: 12.5, monthly: 12.5)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 12.5, month: 12.5)
 
       expect do
         record(
@@ -482,7 +482,7 @@ RSpec.describe LlmCostTracker::Tracker do
         c.monthly_budget = 0.0001
         c.budget_exceeded_behavior = :block_requests
       end
-      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 12.5, daily: 12.5)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 12.5, day: 12.5)
 
       expect do
         described_class.enforce_budget!

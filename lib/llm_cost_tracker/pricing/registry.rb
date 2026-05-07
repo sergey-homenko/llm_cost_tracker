@@ -19,6 +19,15 @@ module LlmCostTracker
       MUTEX = Mutex.new
 
       class << self
+        def reset!
+          MUTEX.synchronize do
+            @builtin_prices = nil
+            @metadata = nil
+            @raw_registry = nil
+            @file_prices_cache = nil
+          end
+        end
+
         def builtin_prices
           cached = @builtin_prices
           return cached if cached

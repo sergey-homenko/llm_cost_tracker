@@ -83,6 +83,7 @@ module LlmCostTracker
           base_price = contextual_price(prices: prices, key: :input, context_tier: context_tier)
           mode_base_price = contextual_price(prices: prices, key: :"#{mode}_input", context_tier: context_tier)
           return nil unless standard_price && base_price && mode_base_price
+          return nil if base_price.zero?
 
           standard_price * (mode_base_price / base_price)
         end

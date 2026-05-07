@@ -62,11 +62,11 @@ RSpec.describe "ActiveRecord durable inbox" do
 
     expect(LlmCostTracker::CallRollup.count).to eq(0)
     daily_total = LlmCostTracker::Ledger::Period::Totals
-                  .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
-                  .fetch(:daily)
+                  .call(%i[day], time: Time.utc(2026, 4, 18, 23))
+                  .fetch(:day)
     monthly_total = LlmCostTracker::Ledger::Period::Totals
-                    .call(%i[monthly], time: Time.utc(2026, 4, 30, 23))
-                    .fetch(:monthly)
+                    .call(%i[month], time: Time.utc(2026, 4, 30, 23))
+                    .fetch(:month)
     expect(daily_total).to eq(0.0025)
     expect(monthly_total).to eq(0.0025)
 
@@ -79,8 +79,8 @@ RSpec.describe "ActiveRecord durable inbox" do
     ).total_cost.to_f)
       .to eq(0.0025)
     daily_total = LlmCostTracker::Ledger::Period::Totals
-                  .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
-                  .fetch(:daily)
+                  .call(%i[day], time: Time.utc(2026, 4, 18, 23))
+                  .fetch(:day)
     expect(daily_total).to eq(0.0025)
   end
 
@@ -106,7 +106,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       method.call(*args, **kwargs)
     end
 
-    total = LlmCostTracker::Ledger::Period::Totals.call(%i[daily], time: time).fetch(:daily)
+    total = LlmCostTracker::Ledger::Period::Totals.call(%i[day], time: time).fetch(:day)
     expect(total).to eq(3.75)
     expect(sqls.size).to eq(1)
     expect(sqls.first).to include("llm_cost_tracker_call_rollups")
@@ -125,7 +125,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     )
 
     expect(LlmCostTracker::Ingestion::InboxEntry.first.total_cost).to be_nil
-    total = LlmCostTracker::Ledger::Period::Totals.call(%i[daily], time: event.tracked_at).fetch(:daily)
+    total = LlmCostTracker::Ledger::Period::Totals.call(%i[day], time: event.tracked_at).fetch(:day)
     expect(total).to eq(0.0)
 
     LlmCostTracker::Ingestion::Worker.flush!
@@ -263,7 +263,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
     )
 
-    total = LlmCostTracker::Ledger::Period::Totals.call(%i[daily], time: time).fetch(:daily)
+    total = LlmCostTracker::Ledger::Period::Totals.call(%i[day], time: time).fetch(:day)
     expect(total).to eq(0.0)
   end
 

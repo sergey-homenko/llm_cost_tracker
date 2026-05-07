@@ -167,6 +167,7 @@ module LlmCostTrackerDatabaseSpecHelpers
         LlmCostTracker::Ledger::Schema::Adapter.ensure_supported!(connection)
       end
       table.datetime :imported_at, null: false
+      table.timestamps
     end
   end
 

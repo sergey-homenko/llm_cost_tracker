@@ -233,7 +233,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       config.monthly_budget = 0.000001
       config.budget_exceeded_behavior = :raise
     end
-    allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 0.000075)
+    allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 0.000075)
 
     expect do
       connection.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)

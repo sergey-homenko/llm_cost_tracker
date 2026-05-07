@@ -366,19 +366,19 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "reads monthly budget status from maintained storage totals" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
-      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 7.5)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 7.5)
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
 
       budget = described_class.monthly_budget_status
 
-      expect(LlmCostTracker::Ledger::Period::Totals).to have_received(:call).with(%i[monthly], time: now)
+      expect(LlmCostTracker::Ledger::Period::Totals).to have_received(:call).with(%i[month], time: now)
       expect(budget).to include(spent: 7.5, percent_used: 75.0)
     end
 
     it "keeps budget percentages at zero for a zero budget" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
-      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 7.5)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 7.5)
       LlmCostTracker.configure { |config| config.monthly_budget = 0.0 }
 
       budget = described_class.monthly_budget_status
@@ -390,7 +390,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     it "builds under-budget projection state when monthly spend is zero" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
-      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(monthly: 0.0)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 0.0)
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
 
       budget = described_class.monthly_budget_status

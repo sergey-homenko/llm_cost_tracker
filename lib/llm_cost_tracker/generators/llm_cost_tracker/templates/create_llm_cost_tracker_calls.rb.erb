@@ -122,6 +122,8 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
         raise "LLM Cost Tracker supports PostgreSQL and MySQL only"
       end
       t.datetime :imported_at, null: false
+
+      t.timestamps
     end
 
     add_index :llm_cost_tracker_calls, :event_id, unique: true

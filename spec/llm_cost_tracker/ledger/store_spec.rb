@@ -285,7 +285,7 @@ RSpec.describe "ActiveRecord storage integration" do
 
     expect(LlmCostTracker::CallRollup.where(period: "month").count).to eq(1)
     expect(month_total.total_cost.to_f).to eq(0.00265)
-    total = LlmCostTracker::Ledger::Period::Totals.call(%i[monthly], time: Time.now.utc).fetch(:monthly)
+    total = LlmCostTracker::Ledger::Period::Totals.call(%i[month], time: Time.now.utc).fetch(:month)
     expect(total).to eq(0.00265)
   end
 
@@ -314,9 +314,9 @@ RSpec.describe "ActiveRecord storage integration" do
     LlmCostTracker::Ledger::Store.insert_many([event, event])
 
     expect(LlmCostTracker::Call.where(event_id: "duplicate-event").count).to eq(1)
-    expect(LlmCostTracker::Ledger::Period::Totals.call(%i[daily monthly], time: event.tracked_at)).to eq(
-      daily: 0.0025,
-      monthly: 0.0025
+    expect(LlmCostTracker::Ledger::Period::Totals.call(%i[day month], time: event.tracked_at)).to eq(
+      day: 0.0025,
+      month: 0.0025
     )
   end
 
@@ -396,8 +396,8 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::CallRollup.where(period: "day").count).to eq(1)
     expect(day_total.total_cost.to_f).to eq(0.00265)
     total = LlmCostTracker::Ledger::Period::Totals
-            .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
-            .fetch(:daily)
+            .call(%i[day], time: Time.utc(2026, 4, 18, 23))
+            .fetch(:day)
     expect(total).to eq(0.00265)
   end
 
@@ -424,11 +424,11 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     totals = LlmCostTracker::Ledger::Period::Totals.call(
-      %i[daily monthly],
+      %i[day month],
       time: Time.utc(2026, 4, 18, 23)
     )
 
-    expect(totals).to eq(daily: 0.0025, monthly: 0.0025)
+    expect(totals).to eq(day: 0.0025, month: 0.0025)
   end
 
   it "does not treat latency as a tag" do
@@ -1002,8 +1002,8 @@ RSpec.describe "ActiveRecord storage integration" do
     track_and_flush(provider: :openai, model: "gpt-4o", tokens: { input: 1_000, output: 0 })
 
     total = LlmCostTracker::Ledger::Period::Totals
-            .call(%i[daily], time: Time.utc(2026, 4, 18, 23))
-            .fetch(:daily)
+            .call(%i[day], time: Time.utc(2026, 4, 18, 23))
+            .fetch(:day)
 
     expect(total).to eq(0.0025)
   end

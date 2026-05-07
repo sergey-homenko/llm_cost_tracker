@@ -75,7 +75,7 @@ the same shape.
 | `kind` | string, not null | `text_token`, `audio_token`, `web_search_request`, `code_execution_request`, `code_execution_hour`, `grounding_request`, `container_session`, `file_search_call` |
 | `direction` | string, not null | `input`, `output`, `neither` |
 | `modality` | string, not null | `text`, `audio`, `none` |
-| `cache_state` | string, default `none` | `none`, `read`, `write_5m`, `write_1h` |
+| `cache_state` | string, default `none` | `none`, `read`, `write_default`, `write_extended` |
 | `quantity` | decimal(30,10) | Token count or charge count |
 | `unit` | string, not null | `token`, `request`, `session`, `hour` |
 | `rate_amount` | decimal(20,8) | Applied rate when priced |

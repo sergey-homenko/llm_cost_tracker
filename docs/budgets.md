@@ -60,8 +60,8 @@ before monthly so short-term operational alerts stay prominent.
 ## Operational Notes
 
 `llm_cost_tracker:doctor` verifies the call rollups table and the unique
-`(period, period_start)` index. Without current rollups, hot-path budget
-checks fail outright instead of falling back to a full ledger scan.
+`(period, period_start, currency)` index. Without current rollups, hot-path
+budget checks fail outright instead of falling back to a full ledger scan.
 
 For strict quotas, use provider-side limits or a transactional counter in
 your own app.

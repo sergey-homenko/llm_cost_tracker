@@ -4,8 +4,8 @@ module LlmCostTracker
   module Ledger
     module Period
       PERIODS = {
-        monthly: "month",
-        daily:   "day"
+        month: "month",
+        day:   "day"
       }.freeze
 
       module_function
@@ -18,8 +18,8 @@ module LlmCostTracker
         utc_time = time.to_time.utc
 
         case period
-        when :monthly then utc_time.beginning_of_month
-        when :daily then utc_time.beginning_of_day
+        when :month then utc_time.beginning_of_month
+        when :day then utc_time.beginning_of_day
         end
       end
 

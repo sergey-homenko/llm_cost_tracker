@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "adapter"
+
 module LlmCostTracker
   module Ledger
     module Schema
@@ -9,9 +11,10 @@ module LlmCostTracker
 
         class << self
           def current_schema_errors
-            connection = LlmCostTracker::Call.connection
+            connection = LlmCostTracker::CallRollup.connection
+            Adapter.ensure_supported!(connection)
             table_name = LlmCostTracker::CallRollup.table_name
-            return ["llm_cost_tracker_call_rollups table is missing"] unless connection.data_source_exists?(table_name)
+            return ["#{table_name} table is missing"] unless connection.data_source_exists?(table_name)
 
             errors = []
             missing = REQUIRED_COLUMNS - LlmCostTracker::CallRollup.columns_hash.keys

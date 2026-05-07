@@ -139,7 +139,7 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check).to have_attributes(status: :error)
       expect(check.message).to include("llm_cost_tracker_ingestion_inbox_entries")
       expect(check.message).to include("llm_cost_tracker_ingestion_leases")
-      expect(check.message).to include("llm_cost_tracker:install")
+      expect(check.message).to include("docs/upgrading.md")
     end
 
     it "fails when call rollups lack the current unique index" do

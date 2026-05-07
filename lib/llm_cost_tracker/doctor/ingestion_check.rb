@@ -37,8 +37,7 @@ module LlmCostTracker
         Check.new(
           :error,
           "durable ingestion",
-          "missing #{missing.join(', ')}; run bin/rails generate llm_cost_tracker:install " \
-          "&& bin/rails db:migrate"
+          "missing #{missing.join(', ')}; see docs/upgrading.md for the recovery steps"
         )
       end
 

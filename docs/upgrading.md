@@ -139,8 +139,8 @@ You'll lose pre-0.8 history. Re-attribution starts from the next captured call.
 
    PostgreSQL:
    ```sql
-   INSERT INTO llm_cost_tracker_call_tags (llm_cost_tracker_call_id, key, value, created_at, updated_at)
-   SELECT c.id, kv.key, kv.value::text, NOW(), NOW()
+   INSERT INTO llm_cost_tracker_call_tags (llm_cost_tracker_call_id, key, value)
+   SELECT c.id, kv.key, kv.value::text
    FROM llm_cost_tracker_calls c
    CROSS JOIN LATERAL jsonb_each_text(c.tags) AS kv(key, value);
    ```

@@ -8,6 +8,8 @@ require "llm_cost_tracker/ledger/tags/sql"
 
 module LlmCostTracker
   class Call < ActiveRecord::Base
+    self.table_name = "llm_cost_tracker_calls"
+
     PERIOD_FORMATS = {
       day: {
         postgres: "YYYY-MM-DD",

@@ -85,14 +85,14 @@ module LlmCostTracker
         end
 
         def token_usage(usage:, input_tokens:, output_tokens:)
-          cache_write_extended = object_dig(usage, :cache_creation, :ephemeral_1h_input_tokens).to_i
-          cache_write_5m = object_dig(usage, :cache_creation, :ephemeral_5m_input_tokens)
-          cache_write = if cache_write_5m.nil?
-                          total_cache_write = object_value(usage, :cache_creation_input_tokens)
-                          [total_cache_write.to_i - cache_write_extended, 0].max
-                        else
-                          cache_write_5m.to_i
-                        end
+          cache_creation = object_value(usage, :cache_creation)
+          if cache_creation
+            cache_write_default = object_value(cache_creation, :ephemeral_5m_input_tokens).to_i
+            cache_write_extended = object_value(cache_creation, :ephemeral_1h_input_tokens).to_i
+          else
+            cache_write_default = object_value(usage, :cache_creation_input_tokens).to_i
+            cache_write_extended = 0
+          end
           hidden_output = (
             object_value(usage, :thinking_tokens, :thinking_output_tokens) ||
             object_dig(usage, :output_tokens_details, :reasoning_tokens)
@@ -102,7 +102,7 @@ module LlmCostTracker
             input_tokens: input_tokens.to_i,
             output_tokens: output_tokens.to_i,
             cache_read_input_tokens: object_value(usage, :cache_read_input_tokens).to_i,
-            cache_write_input_tokens: cache_write,
+            cache_write_input_tokens: cache_write_default,
             cache_write_extended_input_tokens: cache_write_extended,
             hidden_output_tokens: hidden_output
           )

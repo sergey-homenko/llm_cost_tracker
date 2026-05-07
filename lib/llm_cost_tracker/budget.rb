@@ -5,6 +5,8 @@ require_relative "ledger"
 
 module LlmCostTracker
   class Budget
+    BUDGET_TYPE_TO_PERIOD = { monthly: :month, daily: :day }.freeze
+
     class << self
       def enforce!
         config = LlmCostTracker.configuration
@@ -13,12 +15,12 @@ module LlmCostTracker
         budgets = { monthly: config.monthly_budget, daily: config.daily_budget }.compact
         return if budgets.empty?
 
-        totals = LlmCostTracker::Ledger::Period::Totals.call(budgets.keys, time: Time.now.utc)
+        totals = totals_for(budgets.keys, time: Time.now.utc)
 
-        budgets.each do |period, budget|
-          total = totals.fetch(period)
+        budgets.each do |budget_type, budget|
+          total = totals.fetch(budget_type)
 
-          handle_exceeded(budget_type: period, total: total, budget: budget) if total >= budget
+          handle_exceeded(budget_type: budget_type, total: total, budget: budget) if total >= budget
         end
       end
 
@@ -28,12 +30,12 @@ module LlmCostTracker
 
         check_per_call_budget(event, config)
         budgets = { daily: config.daily_budget, monthly: config.monthly_budget }.compact
-        totals = totals_for_check(event, budgets)
+        totals = totals_for(budgets.keys, time: event.tracked_at)
 
-        budgets.each do |period, budget|
-          total = totals.fetch(period)
+        budgets.each do |budget_type, budget|
+          total = totals.fetch(budget_type)
 
-          handle_exceeded(budget_type: period, total: total, budget: budget, last_event: event) if total >= budget
+          handle_exceeded(budget_type: budget_type, total: total, budget: budget, last_event: event) if total >= budget
         end
       end
 
@@ -49,10 +51,14 @@ module LlmCostTracker
         handle_exceeded(budget_type: :per_call, total: total, budget: budget, last_event: event)
       end
 
-      def totals_for_check(event, budgets)
-        return {} if budgets.empty?
+      def totals_for(budget_types, time:)
+        return {} if budget_types.empty?
 
-        LlmCostTracker::Ledger::Period::Totals.call(budgets.keys, time: event.tracked_at)
+        periods = budget_types.map { |type| BUDGET_TYPE_TO_PERIOD.fetch(type) }
+        period_totals = LlmCostTracker::Ledger::Period::Totals.call(periods, time: time)
+        BUDGET_TYPE_TO_PERIOD.each_with_object({}) do |(budget_type, period), totals|
+          totals[budget_type] = period_totals[period] if period_totals.key?(period)
+        end
       end
 
       def handle_exceeded(budget_type:, total:, budget:, last_event: nil)

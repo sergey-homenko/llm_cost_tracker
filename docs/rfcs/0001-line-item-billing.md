@@ -118,7 +118,7 @@ Removed vs current: `event_id`, `input_tokens`, `output_tokens`,
 | `kind` | string | `text_token` / `audio_token` / `image_token` / `video_token` / `embedding_token` / `web_search_request` / `file_search_call` / `code_execution_hour` / `container_session` / `grounding_request` / `tts_character` / `stt_second` / `fine_tuning_training_token` / `fine_tuning_inference_token` / ... |
 | `direction` | string | `input` / `output` / `neither` |
 | `modality` | string | `text` / `audio` / `image` / `video` / `embedding` / `none` |
-| `cache_state` | string | `none` / `read` / `write_5m` / `write_1h` |
+| `cache_state` | string | `none` / `read` / `write_default` / `write_extended` |
 | `quantity` | decimal(30,10) | tokens, requests, hours, sessions, characters, seconds, images |
 | `unit` | string | `token` / `request` / `hour` / `session` / `character` / `second` / `image` |
 | `rate_amount` | decimal(20,8) | applied per `rate_quantity` |
@@ -229,7 +229,7 @@ Each component carries:
 - `unit` (`token`, `request`, `hour`, ...)
 - `direction` (`input`, `output`, `neither`)
 - `modality` (`text`, `audio`, `image`, `video`, `embedding`, `none`)
-- `cache_state` (only on token components: `none`/`read`/`write_5m`/`write_1h`)
+- `cache_state` (only on token components: `none`/`read`/`write_default`/`write_extended`)
 - `default_price_keys` (e.g., `text_token + input + cache_state=read` maps to
   `cache_read_input` registry key)
 

@@ -119,7 +119,10 @@ module LlmCostTracker
         end
 
         def tag_row_value(value)
-          value.is_a?(Hash) ? JSON.generate(stored_tag_value(value)) : value.to_s
+          case value
+          when Hash, Array then JSON.generate(stored_tag_value(value))
+          else value.to_s
+          end
         end
 
         def stored_details(details)
