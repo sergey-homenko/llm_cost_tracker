@@ -1,0 +1,103 @@
+# frozen_string_literal: true
+
+require "spec_helper"
+
+ENV["RAILS_ENV"] ||= "test"
+
+require_relative "../../dummy/config/environment"
+
+RSpec.describe "LlmCostTracker::Engine reconciliation" do
+  include_context "with mounted llm cost tracker engine"
+
+  def import_invoice(billed_amount:, source: :openai, external_id: "row", metadata: {})
+    LlmCostTracker::Reconciliation.import(
+      source: source,
+      rows: [{
+        external_id: external_id,
+        period_start: Date.new(2026, 5, 1),
+        period_end: Date.new(2026, 5, 31),
+        billed_amount: billed_amount,
+        currency: "USD",
+        metadata: metadata
+      }]
+    )
+  end
+
+  def create_priced_call(total_cost:, **dimensions)
+    call = create_call(total_cost: total_cost, tracked_at: Time.utc(2026, 5, 15, 12), **dimensions)
+    LlmCostTracker::CallLineItem.create!(
+      llm_cost_tracker_call_id: call.id,
+      position: 0,
+      kind: "text_token",
+      direction: "input",
+      modality: "text",
+      cache_state: "none",
+      unit: "token",
+      quantity: 10,
+      rate_amount: BigDecimal("1.0"),
+      rate_quantity: BigDecimal("1000000"),
+      cost: total_cost,
+      currency: "USD",
+      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      pricing_basis: "rate_table",
+      details: {}
+    )
+  end
+
+  it "renders an empty state when no invoices have been imported" do
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("No invoices imported yet")
+  end
+
+  it "shows aligned status for sources within the threshold" do
+    import_invoice(billed_amount: BigDecimal("100.00"))
+    create_priced_call(total_cost: BigDecimal("99.00"))
+
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("openai")
+    expect(response.body).to include("Aligned")
+  end
+
+  it "shows drift status when local total diverges past the threshold" do
+    import_invoice(billed_amount: BigDecimal("100.00"))
+    create_priced_call(total_cost: BigDecimal("75.00"))
+
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Drift")
+  end
+
+  it "surfaces unmatched provider rows with their attribution" do
+    import_invoice(
+      billed_amount: BigDecimal("12.00"),
+      external_id: "phantom",
+      metadata: { match_basis: "project", row_type: "cost", meter: "tokens",
+                  authority: "cost_api", provider_project_id: "proj_phantom" }
+    )
+
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.body).to include("Provider rows without a matching local call")
+    expect(response.body).to include("openai:phantom")
+    expect(response.body).to include("provider_project_id=proj_phantom")
+  end
+
+  it "surfaces non-cost evidence rows (free quota, credits)" do
+    import_invoice(
+      billed_amount: BigDecimal("5.00"),
+      external_id: "free-quota",
+      metadata: { row_type: "free_quota", meter: "tokens",
+                  authority: "cost_api", match_basis: "period_only" }
+    )
+
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.body).to include("Non-cost evidence")
+    expect(response.body).to include("free_quota")
+  end
+end

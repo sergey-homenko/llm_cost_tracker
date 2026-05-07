@@ -199,6 +199,44 @@ RSpec.describe LlmCostTracker::Reconciliation do
       expect(result.errors.first).to include("invalid metadata JSON")
     end
 
+    it "rejects metadata that starts using the envelope but leaves keys missing" do
+      result = described_class.import(
+        source: :openai,
+        rows: [{
+          external_id: "partial-envelope",
+          period_start: "2026-05-01",
+          period_end: "2026-05-31",
+          billed_amount: "1.00",
+          metadata: { row_type: "cost", meter: "tokens" }
+        }]
+      )
+
+      expect(result.skipped).to eq(1)
+      expect(result.errors.first).to include("metadata missing envelope keys")
+      expect(result.errors.first).to include("authority")
+      expect(result.errors.first).to include("match_basis")
+    end
+
+    it "accepts metadata with the full envelope" do
+      result = described_class.import(
+        source: :openai,
+        rows: [{
+          external_id: "full-envelope",
+          period_start: "2026-05-01",
+          period_end: "2026-05-31",
+          billed_amount: "1.00",
+          metadata: {
+            row_type: "cost",
+            meter: "tokens",
+            authority: "cost_api",
+            match_basis: "period_only"
+          }
+        }]
+      )
+
+      expect(result.inserted).to eq(1)
+    end
+
     it "stores nil billed_amount when the provider row has no charge value" do
       described_class.import(
         source: :openai,

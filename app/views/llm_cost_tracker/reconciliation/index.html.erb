@@ -1,0 +1,118 @@
+<section class="lct-panel">
+  <div class="lct-toolbar-head">
+    <h2 class="lct-section-title">Provider Invoice Reconciliation</h2>
+    <% if @last_imported_at %>
+      <p class="lct-state-copy">Last import: <%= @last_imported_at.utc.iso8601 %></p>
+    <% end %>
+  </div>
+</section>
+
+<% if @diffs.empty? %>
+  <section class="lct-panel lct-empty">
+    <h2 class="lct-state-title">No invoices imported yet</h2>
+    <p class="lct-state-copy">
+      Reconciliation compares provider-side invoices against local cost. Once you import
+      invoice rows via <code>LlmCostTracker::Reconciliation.import</code>, they appear here.
+    </p>
+  </section>
+<% else %>
+  <section class="lct-panel">
+    <h3 class="lct-section-title">Latest period per source</h3>
+    <table class="lct-table">
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th>Period</th>
+          <th class="lct-num">Provider total</th>
+          <th class="lct-num">Local total</th>
+          <th class="lct-num">Delta</th>
+          <th class="lct-num">%</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @diffs.each do |diff| %>
+          <tr>
+            <td><%= diff.source %></td>
+            <td><%= diff.period_start %> → <%= diff.period_end %></td>
+            <td class="lct-num"><%= money(diff.provider_total) %></td>
+            <td class="lct-num"><%= money(diff.local_total) %></td>
+            <td class="lct-num"><%= money(diff.delta_amount) %></td>
+            <td class="lct-num"><%= diff.delta_percent.nil? ? "—" : "#{diff.delta_percent}%" %></td>
+            <td>
+              <% if diff.aligned?(threshold_percent: @threshold) %>
+                <span class="lct-badge lct-badge-ok">Aligned</span>
+              <% else %>
+                <span class="lct-badge lct-badge-warn">Drift</span>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+
+  <% @diffs.each do |diff| %>
+    <% next if diff.unmatched_provider_rows.empty? && diff.unmatched_local_calls.empty? && diff.non_cost_rows.empty? %>
+
+    <section class="lct-panel">
+      <h3 class="lct-section-title"><%= diff.source %> — drill down</h3>
+
+      <% if diff.unmatched_provider_rows.any? %>
+        <h4 class="lct-state-title">Provider rows without a matching local call</h4>
+        <table class="lct-table">
+          <thead>
+            <tr><th>External ID</th><th>Match basis</th><th>Attribution</th><th class="lct-num">Billed</th></tr>
+          </thead>
+          <tbody>
+            <% diff.unmatched_provider_rows.each do |row| %>
+              <tr>
+                <td><%= row[:external_id] %></td>
+                <td><%= row[:match_basis] %></td>
+                <td><%= row[:attribution].map { |k, v| "#{k}=#{v}" }.join(", ") %></td>
+                <td class="lct-num"><%= money(row[:billed_amount]) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+
+      <% if diff.unmatched_local_calls.any? %>
+        <h4 class="lct-state-title">Local calls no provider invoice can explain</h4>
+        <table class="lct-table">
+          <thead>
+            <tr><th>Attribution</th><th class="lct-num">Calls</th><th class="lct-num">Total cost</th></tr>
+          </thead>
+          <tbody>
+            <% diff.unmatched_local_calls.each do |row| %>
+              <tr>
+                <td><%= row[:attribution].map { |k, v| "#{k}=#{v}" }.join(", ") %></td>
+                <td class="lct-num"><%= number(row[:count]) %></td>
+                <td class="lct-num"><%= money(row[:total_cost]) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+
+      <% if diff.non_cost_rows.any? %>
+        <h4 class="lct-state-title">Non-cost evidence (free quota, credits, adjustments)</h4>
+        <table class="lct-table">
+          <thead>
+            <tr><th>Row type</th><th>Meter</th><th>Attribution</th><th class="lct-num">Amount</th></tr>
+          </thead>
+          <tbody>
+            <% diff.non_cost_rows.each do |row| %>
+              <tr>
+                <td><%= row[:row_type] %></td>
+                <td><%= row[:meter] %></td>
+                <td><%= row[:attribution].map { |k, v| "#{k}=#{v}" }.join(", ") %></td>
+                <td class="lct-num"><%= money(row[:billed_amount]) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+    </section>
+  <% end %>
+<% end %>

@@ -12,6 +12,7 @@ module LlmCostTracker
     class Importer
       REQUIRED_FIELDS = %i[external_id period_start period_end].freeze
       FORGIVING_METADATA_SOURCES = %i[csv].to_set.freeze
+      ENVELOPE_KEYS = %w[row_type meter authority match_basis].freeze
 
       def initialize(source:, imported_at:, strict_metadata: nil)
         @source = source.to_s
@@ -98,6 +99,12 @@ module LlmCostTracker
       end
 
       def parse_metadata(metadata)
+        parsed = parse_metadata_payload(metadata)
+        validate_envelope!(parsed) if strict_metadata
+        parsed
+      end
+
+      def parse_metadata_payload(metadata)
         return {} if metadata.nil?
         return metadata if metadata.is_a?(Hash)
 
@@ -106,6 +113,16 @@ module LlmCostTracker
         raise ArgumentError, "invalid metadata JSON: #{e.message}" if strict_metadata
 
         {}
+      end
+
+      def validate_envelope!(metadata)
+        keys = metadata.keys.map(&:to_s)
+        return unless keys.intersect?(ENVELOPE_KEYS)
+
+        missing = ENVELOPE_KEYS - keys
+        return if missing.empty?
+
+        raise ArgumentError, "metadata missing envelope keys: #{missing.join(', ')}"
       end
     end
   end

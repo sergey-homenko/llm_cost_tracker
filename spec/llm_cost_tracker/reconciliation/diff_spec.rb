@@ -10,6 +10,10 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
   let(:period_start) { Date.new(2026, 5, 1) }
   let(:period_end) { Date.new(2026, 5, 31) }
 
+  def full_envelope
+    { row_type: "cost", meter: "tokens", authority: "cost_api", match_basis: "period_only" }
+  end
+
   def import_invoice(external_id:, billed_amount:, source: "openai", currency: "USD",
                      period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31), metadata: {})
     LlmCostTracker::Reconciliation.import(
@@ -162,7 +166,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       import_invoice(
         external_id: "project-coverage",
         billed_amount: "10.00",
-        metadata: { match_basis: "project", provider_project_id: "proj_x" }
+        metadata: full_envelope.merge(match_basis: "project", provider_project_id: "proj_x")
       )
       create_priced_call(
         total_cost: BigDecimal("10.00"),
@@ -182,7 +186,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       import_invoice(
         external_id: "phantom",
         billed_amount: "5.00",
-        metadata: { match_basis: "project", provider_project_id: "proj_phantom" }
+        metadata: full_envelope.merge(match_basis: "project", provider_project_id: "proj_phantom")
       )
 
       result = LlmCostTracker::Reconciliation.diff(
@@ -196,7 +200,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       import_invoice(
         external_id: "monthly-total",
         billed_amount: "10.00",
-        metadata: { match_basis: "period_only" }
+        metadata: full_envelope.merge(match_basis: "period_only")
       )
 
       result = LlmCostTracker::Reconciliation.diff(
@@ -330,17 +334,19 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       import_invoice(
         external_id: "billed",
         billed_amount: "10.00",
-        metadata: { row_type: "cost" }
+        metadata: full_envelope
       )
       import_invoice(
         external_id: "free-credit",
         billed_amount: "5.00",
-        metadata: { row_type: "free_quota", meter: "tokens" }
+        metadata: full_envelope.merge(row_type: "free_quota", match_basis: "project",
+                                      provider_project_id: "proj_x")
       )
       import_invoice(
         external_id: "adjustment",
         billed_amount: "-1.00",
-        metadata: { row_type: "credit", meter: "tokens" }
+        metadata: full_envelope.merge(row_type: "credit", match_basis: "project",
+                                      provider_project_id: "proj_x")
       )
       create_priced_call(total_cost: BigDecimal("10.00"))
 
@@ -352,6 +358,9 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.local_total).to eq(BigDecimal("10.00"))
       expect(result.non_cost_rows.size).to eq(2)
       expect(result.non_cost_rows.map { |row| row[:row_type] }).to contain_exactly("free_quota", "credit")
+      free_quota_row = result.non_cost_rows.find { |row| row[:row_type] == "free_quota" }
+      expect(free_quota_row[:attribution]).to eq(provider_project_id: "proj_x")
+      expect(free_quota_row[:match_basis]).to eq("project")
     end
   end
 end

@@ -18,15 +18,10 @@ module LlmCostTracker
         "anthropic" => "anthropic",
         "gemini" => "gemini"
       }.freeze
-      BASIS_TO_LOCAL_KEY = {
+      BASIS_DIMENSION = {
         "project" => :provider_project_id,
         "api_key" => :provider_api_key_id,
         "workspace" => :provider_workspace_id
-      }.freeze
-      BASIS_TO_METADATA_KEY = {
-        "project" => "provider_project_id",
-        "api_key" => "provider_api_key_id",
-        "workspace" => "provider_workspace_id"
       }.freeze
 
       def initialize(source:, period_start:, period_end:, scope: {}, currency: nil)
@@ -122,9 +117,9 @@ module LlmCostTracker
           basis = invoice_match_basis(invoice)
           next if basis == PERIOD_ONLY_BASIS
 
-          invoice_value = invoice.metadata[BASIS_TO_METADATA_KEY[basis]]
+          invoice_value = invoice.metadata[BASIS_DIMENSION[basis].to_s]
           next if invoice_value.nil?
-          next if local_calls.any? { |call| call[:attribution][BASIS_TO_LOCAL_KEY[basis]] == invoice_value }
+          next if local_calls.any? { |call| call[:attribution][BASIS_DIMENSION[basis]] == invoice_value }
 
           {
             external_id: invoice.external_id,
@@ -151,29 +146,29 @@ module LlmCostTracker
 
       def invoice_match_basis(invoice)
         declared = invoice.metadata["match_basis"]
-        return declared if BASIS_TO_LOCAL_KEY.key?(declared)
+        return declared if BASIS_DIMENSION.key?(declared)
         return declared if declared == PERIOD_ONLY_BASIS
 
-        BASIS_TO_METADATA_KEY.each do |basis, metadata_key|
-          return basis if invoice.metadata[metadata_key]
+        BASIS_DIMENSION.each do |basis, dimension|
+          return basis if invoice.metadata[dimension.to_s]
         end
         PERIOD_ONLY_BASIS
       end
 
       def invoice_basis_values(invoices)
-        index = BASIS_TO_LOCAL_KEY.each_key.to_h { |basis| [basis, Set.new] }
+        index = BASIS_DIMENSION.each_key.to_h { |basis| [basis, Set.new] }
         invoices.each do |invoice|
           basis = invoice_match_basis(invoice)
-          next unless BASIS_TO_LOCAL_KEY.key?(basis)
+          next unless BASIS_DIMENSION.key?(basis)
 
-          value = invoice.metadata[BASIS_TO_METADATA_KEY[basis]]
+          value = invoice.metadata[BASIS_DIMENSION[basis].to_s]
           index[basis] << value if value
         end
         index
       end
 
       def local_call_matched?(attribution, basis_values)
-        BASIS_TO_LOCAL_KEY.any? do |basis, local_key|
+        BASIS_DIMENSION.any? do |basis, local_key|
           value = attribution[local_key]
           value && basis_values[basis].include?(value)
         end
@@ -185,7 +180,9 @@ module LlmCostTracker
             external_id: invoice.external_id,
             row_type: invoice.metadata["row_type"],
             meter: invoice.metadata["meter"],
-            billed_amount: invoice.billed_amount
+            billed_amount: invoice.billed_amount,
+            attribution: invoice_attribution(invoice).compact,
+            match_basis: invoice_match_basis(invoice)
           }
         end
       end

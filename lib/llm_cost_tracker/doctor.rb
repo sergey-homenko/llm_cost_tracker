@@ -10,6 +10,7 @@ require_relative "doctor/price_check"
 require_relative "doctor/schema_check"
 require_relative "doctor/cost_drift_check"
 require_relative "doctor/pricing_snapshot_drift_check"
+require_relative "doctor/invoice_reconciliation_check"
 
 module LlmCostTracker
   class Doctor
@@ -45,6 +46,7 @@ module LlmCostTracker
                         table: "llm_cost_tracker_provider_invoices").call,
         CostDriftCheck.new.call,
         PricingSnapshotDriftCheck.new.call,
+        InvoiceReconciliationCheck.new.call,
         LegacyBillingStatusCheck.new.call,
         LegacyAuditCheck.new.call,
         call_rollups_check,
