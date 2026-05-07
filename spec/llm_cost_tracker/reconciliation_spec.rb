@@ -170,6 +170,50 @@ RSpec.describe LlmCostTracker::Reconciliation do
       expect(reloaded.metadata).to eq({})
     end
 
+    it "rejects invalid metadata JSON for novel sources by default so attribution evidence is never silently dropped" do
+      result = described_class.import(
+        source: :novel_provider,
+        rows: [{
+          external_id: "row",
+          period_start: "2026-05-01",
+          period_end: "2026-05-31",
+          metadata: "not-json"
+        }]
+      )
+
+      expect(result.skipped).to eq(1)
+      expect(result.errors.first).to include("invalid metadata JSON")
+    end
+
+    it "honours an explicit strict_metadata override over the per-source default" do
+      result = LlmCostTracker::Reconciliation::Importer.new(
+        source: :csv, imported_at: Time.now.utc, strict_metadata: true
+      ).call([{
+        external_id: "row",
+        period_start: "2026-05-01",
+        period_end: "2026-05-31",
+        metadata: "not-json"
+      }])
+
+      expect(result.skipped).to eq(1)
+      expect(result.errors.first).to include("invalid metadata JSON")
+    end
+
+    it "stores nil billed_amount when the provider row has no charge value" do
+      described_class.import(
+        source: :openai,
+        rows: [{
+          external_id: "no-amount",
+          period_start: "2026-05-01",
+          period_end: "2026-05-31",
+          billed_amount: nil
+        }]
+      )
+
+      expect(LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai:no-amount").billed_amount)
+        .to be_nil
+    end
+
     it "skips rows with unparseable dates and reports the error" do
       result = described_class.import(
         source: :openai,

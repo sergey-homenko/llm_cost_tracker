@@ -11,12 +11,12 @@ module LlmCostTracker
   module Reconciliation
     class Importer
       REQUIRED_FIELDS = %i[external_id period_start period_end].freeze
-      PROVIDER_API_SOURCES = %i[openai anthropic gemini openrouter].to_set.freeze
+      FORGIVING_METADATA_SOURCES = %i[csv].to_set.freeze
 
       def initialize(source:, imported_at:, strict_metadata: nil)
         @source = source.to_s
         @imported_at = imported_at
-        @strict_metadata = strict_metadata.nil? ? PROVIDER_API_SOURCES.include?(source.to_sym) : strict_metadata
+        @strict_metadata = strict_metadata.nil? ? !FORGIVING_METADATA_SOURCES.include?(source.to_sym) : strict_metadata
         raise ArgumentError, "source must be present" if @source.empty?
       end
 

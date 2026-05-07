@@ -158,6 +158,54 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.local_total).to eq(BigDecimal("9.00"))
     end
 
+    it "matches a project-level invoice against calls that also carry a finer api_key dimension" do
+      import_invoice(
+        external_id: "project-coverage",
+        billed_amount: "10.00",
+        metadata: { match_basis: "project", provider_project_id: "proj_x" }
+      )
+      create_priced_call(
+        total_cost: BigDecimal("10.00"),
+        provider_project_id: "proj_x",
+        provider_api_key_id: "key_specific"
+      )
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end
+      )
+
+      expect(result.unmatched_provider_rows).to be_empty
+      expect(result.unmatched_local_calls).to be_empty
+    end
+
+    it "tags unmatched provider rows with the basis the matcher used" do
+      import_invoice(
+        external_id: "phantom",
+        billed_amount: "5.00",
+        metadata: { match_basis: "project", provider_project_id: "proj_phantom" }
+      )
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end
+      )
+
+      expect(result.unmatched_provider_rows.first[:match_basis]).to eq("project")
+    end
+
+    it "treats invoices declared as period-level as always matched" do
+      import_invoice(
+        external_id: "monthly-total",
+        billed_amount: "10.00",
+        metadata: { match_basis: "period_only" }
+      )
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end
+      )
+
+      expect(result.unmatched_provider_rows).to be_empty
+    end
+
     it "is empty when no provider rows and no priced calls exist for the window" do
       result = LlmCostTracker::Reconciliation.diff(
         source: :openai, period_start: period_start, period_end: period_end

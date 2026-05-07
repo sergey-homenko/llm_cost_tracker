@@ -12,11 +12,21 @@ module LlmCostTracker
       SCOPE_KEYS = %i[provider_project_id provider_api_key_id provider_workspace_id].freeze
       ATTRIBUTION_KEYS = SCOPE_KEYS
       COST_ROW_TYPE = "cost"
+      PERIOD_ONLY_BASIS = "period_only"
       SOURCE_TO_PROVIDER = {
         "openai" => "openai",
         "anthropic" => "anthropic",
-        "gemini" => "gemini",
-        "openrouter" => "openrouter"
+        "gemini" => "gemini"
+      }.freeze
+      BASIS_TO_LOCAL_KEY = {
+        "project" => :provider_project_id,
+        "api_key" => :provider_api_key_id,
+        "workspace" => :provider_workspace_id
+      }.freeze
+      BASIS_TO_METADATA_KEY = {
+        "project" => "provider_project_id",
+        "api_key" => "provider_api_key_id",
+        "workspace" => "provider_workspace_id"
       }.freeze
 
       def initialize(source:, period_start:, period_end:, scope: {}, currency: nil)
@@ -68,8 +78,6 @@ module LlmCostTracker
       end
 
       def scope_matches?(metadata)
-        return false unless metadata.is_a?(Hash)
-
         scope.all? { |key, value| metadata[key.to_s].to_s == value.to_s }
       end
 
@@ -110,32 +118,65 @@ module LlmCostTracker
       end
 
       def unmatched_provider_rows(invoices, local_calls)
-        local_attribution = attribution_set(local_calls.map { |row| row[:attribution] })
         invoices.filter_map do |invoice|
-          attribution = invoice_attribution(invoice).compact
-          next if attribution.empty?
-          next if local_attribution.include?(attribution)
+          basis = invoice_match_basis(invoice)
+          next if basis == PERIOD_ONLY_BASIS
+
+          invoice_value = invoice.metadata[BASIS_TO_METADATA_KEY[basis]]
+          next if invoice_value.nil?
+          next if local_calls.any? { |call| call[:attribution][BASIS_TO_LOCAL_KEY[basis]] == invoice_value }
 
           {
             external_id: invoice.external_id,
             billed_amount: invoice.billed_amount,
-            attribution: attribution
+            attribution: invoice_attribution(invoice).compact,
+            match_basis: basis
           }
         end
       end
 
       def unmatched_local_calls(invoices, local_calls)
-        invoice_attribution_set = attribution_set(invoices.map { |invoice| invoice_attribution(invoice) })
+        basis_values = invoice_basis_values(invoices)
         grouped = local_calls.each_with_object({}) do |row, totals|
           attribution = row[:attribution].compact
           next if attribution.empty?
-          next if invoice_attribution_set.include?(attribution)
+          next if local_call_matched?(attribution, basis_values)
 
           totals[attribution] ||= { count: 0, total_cost: BigDecimal("0") }
           totals[attribution][:count] += 1
           totals[attribution][:total_cost] += BigDecimal(row[:total_cost].to_s)
         end
         grouped.map { |attribution, summary| summary.merge(attribution: attribution) }
+      end
+
+      def invoice_match_basis(invoice)
+        declared = invoice.metadata["match_basis"]
+        return declared if BASIS_TO_LOCAL_KEY.key?(declared)
+        return declared if declared == PERIOD_ONLY_BASIS
+
+        BASIS_TO_METADATA_KEY.each do |basis, metadata_key|
+          return basis if invoice.metadata[metadata_key]
+        end
+        PERIOD_ONLY_BASIS
+      end
+
+      def invoice_basis_values(invoices)
+        index = BASIS_TO_LOCAL_KEY.each_key.to_h { |basis| [basis, Set.new] }
+        invoices.each do |invoice|
+          basis = invoice_match_basis(invoice)
+          next unless BASIS_TO_LOCAL_KEY.key?(basis)
+
+          value = invoice.metadata[BASIS_TO_METADATA_KEY[basis]]
+          index[basis] << value if value
+        end
+        index
+      end
+
+      def local_call_matched?(attribution, basis_values)
+        BASIS_TO_LOCAL_KEY.any? do |basis, local_key|
+          value = attribution[local_key]
+          value && basis_values[basis].include?(value)
+        end
       end
 
       def non_cost_rows(invoices)
@@ -150,12 +191,7 @@ module LlmCostTracker
       end
 
       def invoice_attribution(invoice)
-        metadata = invoice.metadata.is_a?(Hash) ? invoice.metadata : {}
-        ATTRIBUTION_KEYS.to_h { |key| [key, metadata[key.to_s]] }
-      end
-
-      def attribution_set(attributions)
-        attributions.map(&:compact).reject(&:empty?).to_set
+        ATTRIBUTION_KEYS.to_h { |key| [key, invoice.metadata[key.to_s]] }
       end
 
       def window_start

@@ -8,7 +8,7 @@ require_relative "reconciliation/sources/openai_usage"
 
 module LlmCostTracker
   module Reconciliation
-    SUPPORTED_SOURCES = %i[openai anthropic gemini openrouter csv].freeze
+    SUPPORTED_SOURCES = %i[openai anthropic gemini csv].freeze
 
     class << self
       def import(source:, rows:, imported_at: Time.now.utc)

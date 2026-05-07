@@ -41,7 +41,7 @@ Already shipped in 0.8:
 ```sql
 CREATE TABLE llm_cost_tracker_provider_invoices (
   id            bigserial PRIMARY KEY,
-  source        varchar  NOT NULL, -- "openai", "anthropic", "gemini", "openrouter", ...
+  source        varchar  NOT NULL, -- "openai", "anthropic", "gemini", "csv", ...
   period_start  date     NOT NULL,
   period_end    date     NOT NULL,
   external_id   varchar  NOT NULL, -- provider's invoice / line / row id
@@ -167,6 +167,50 @@ Importers MUST be:
   rake task or explicit `LlmCostTracker::Reconciliation.import` call.
   Network access is allowed inside an importer, just not from
   `Tracker.record` / Faraday middleware / `Pricing.cost_for`.
+
+### Resume state
+
+Provider Usage/Cost APIs return data in pages or buckets driven by a
+cursor or a `since` timestamp. A long-running import can be killed,
+rate-limited, or restarted across deploys; the next run must pick up
+where the previous one stopped without re-fetching the whole window.
+
+State lives in a dedicated table, not in `provider_invoices.metadata`:
+
+```sql
+CREATE TABLE llm_cost_tracker_provider_invoice_imports (
+  id            bigserial PRIMARY KEY,
+  source        varchar  NOT NULL,
+  cursor        varchar,            -- provider's pagination token, or last successful timestamp
+  window_start  date,               -- inclusive bound the importer is currently processing
+  window_end    date,               -- exclusive bound the importer is currently processing
+  state         varchar  NOT NULL,  -- "running" | "completed" | "failed"
+  last_error    text,
+  rows_imported integer  NOT NULL DEFAULT 0,
+  started_at    timestamp NOT NULL,
+  finished_at   timestamp,
+  created_at    timestamp NOT NULL,
+  updated_at    timestamp NOT NULL
+);
+
+CREATE INDEX ON llm_cost_tracker_provider_invoice_imports (source, started_at);
+```
+
+Each importer run creates one row, advances `cursor` after each successful
+page upsert, and marks the row `completed` on success or `failed` with
+`last_error` populated. A subsequent run for the same source picks up
+the cursor from the most recent row in any state — `failed` rows are
+resumable, `completed` rows just give the natural floor for the next
+window.
+
+### Inserted/updated counts are best-effort
+
+The current 2-step `SELECT existing → UPSERT` design exposes a small
+race window: a concurrent importer can insert a row between the two
+queries. `ImportResult#inserted` / `#updated` are reported as
+best-effort and are accurate only when one importer runs at a time per
+source. `total_imported` is exact. The race never produces duplicates —
+the unique index on `external_id` enforces that.
 
 ## Doctor surface
 
