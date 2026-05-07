@@ -5,35 +5,78 @@ require "spec_helper"
 require_relative "../../dummy/config/environment"
 
 RSpec.describe LlmCostTracker::Ledger::Rollups do
-  describe ".currency_for (private)" do
-    it "reads currency from pricing_snapshot when present" do
-      event = double(pricing_snapshot: { "currency" => "EUR" })
+  include_context "with mounted llm cost tracker engine"
 
-      expect(described_class.send(:currency_for, event)).to eq("EUR")
+  def build_event(total_cost:, currency: "USD", tracked_at: Time.now.utc)
+    LlmCostTracker::Event.new(
+      event_id: SecureRandom.uuid,
+      provider: "openai",
+      model: "gpt-4o",
+      token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1),
+      pricing_mode: nil,
+      cost: { total_cost: total_cost },
+      tags: {},
+      latency_ms: nil,
+      stream: false,
+      usage_source: :response,
+      provider_response_id: nil,
+      provider_project_id: nil,
+      provider_api_key_id: nil,
+      provider_workspace_id: nil,
+      batch: false,
+      tracked_at: tracked_at,
+      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      pricing_snapshot: { "currency" => currency },
+      line_items: []
+    )
+  end
+
+  describe ".increment!" do
+    it "writes a separate rollup row per currency" do
+      time = Time.utc(2026, 5, 7, 12)
+      described_class.increment!(build_event(total_cost: 1.5, currency: "USD", tracked_at: time))
+      described_class.increment!(build_event(total_cost: 2.0, currency: "EUR", tracked_at: time))
+
+      rollups = LlmCostTracker::CallRollup.where(period: "month").order(:currency).pluck(:currency, :total_cost)
+
+      expect(rollups).to eq([["EUR", 2.0], ["USD", 1.5]])
     end
 
-    it "supports symbol keys on pricing_snapshot" do
-      event = double(pricing_snapshot: { currency: "GBP" })
+    it "falls back to USD when the pricing snapshot has no currency" do
+      time = Time.utc(2026, 5, 7, 12)
+      event = build_event(total_cost: 1.0, tracked_at: time)
+      event = event.with(pricing_snapshot: nil)
 
-      expect(described_class.send(:currency_for, event)).to eq("GBP")
+      described_class.increment!(event)
+
+      rollup = LlmCostTracker::CallRollup.find_by(period: "month")
+      expect(rollup.currency).to eq("USD")
     end
+  end
 
-    it "falls back to USD when pricing_snapshot is nil" do
-      event = double(pricing_snapshot: nil)
+  describe ".decrement!" do
+    it "scopes the deduction to the snapshot currency, leaving other currency rows untouched" do
+      time = Time.utc(2026, 5, 7, 12)
+      described_class.increment!(build_event(total_cost: 5.0, currency: "USD", tracked_at: time))
+      described_class.increment!(build_event(total_cost: 3.0, currency: "EUR", tracked_at: time))
 
-      expect(described_class.send(:currency_for, event)).to eq("USD")
+      described_class.decrement!([[1, time, BigDecimal("3.0"), { "currency" => "EUR" }]])
+
+      remaining = LlmCostTracker::CallRollup.where(period: "month").order(:currency).pluck(:currency, :total_cost)
+      expect(remaining).to eq([["EUR", 0.0], ["USD", 5.0]])
     end
+  end
 
-    it "falls back to USD when pricing_snapshot is not a hash" do
-      event = double(pricing_snapshot: "weird")
+  describe "Period::Totals integration" do
+    it "sums only the default currency, ignoring foreign-currency rollups" do
+      time = Time.utc(2026, 5, 7, 12)
+      described_class.increment!(build_event(total_cost: 4.5, currency: "USD", tracked_at: time))
+      described_class.increment!(build_event(total_cost: 99.0, currency: "EUR", tracked_at: time))
 
-      expect(described_class.send(:currency_for, event)).to eq("USD")
-    end
+      totals = LlmCostTracker::Ledger::Period::Totals.call(%i[day month], time: time)
 
-    it "falls back to USD when the event does not respond to pricing_snapshot" do
-      event = Object.new
-
-      expect(described_class.send(:currency_for, event)).to eq("USD")
+      expect(totals[:day]).to be_within(0.0001).of(4.5)
+      expect(totals[:month]).to be_within(0.0001).of(4.5)
     end
   end
 end

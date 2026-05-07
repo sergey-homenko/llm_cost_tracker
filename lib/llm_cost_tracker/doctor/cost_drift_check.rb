@@ -4,6 +4,7 @@ require "bigdecimal"
 
 require_relative "check"
 require_relative "probe"
+require_relative "../ledger/rollups"
 
 module LlmCostTracker
   class Doctor
@@ -25,6 +26,7 @@ module LlmCostTracker
 
         line_item_totals = LlmCostTracker::CallLineItem
                            .where(llm_cost_tracker_call_id: sampled.map(&:first))
+                           .where(currency: Ledger::Rollups::DEFAULT_CURRENCY)
                            .group(:llm_cost_tracker_call_id)
                            .sum(:cost)
 

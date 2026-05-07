@@ -70,6 +70,25 @@ RSpec.describe LlmCostTracker::Doctor::CostDriftCheck do
     expect(described_class.new.call).to have_attributes(status: :ok)
   end
 
+  it "ignores non-USD line items so foreign currency rows do not corrupt the comparison" do
+    create_call(
+      input_tokens: 1_000,
+      output_tokens: 500,
+      total_cost: BigDecimal("0.001500")
+    )
+    line_items_for_last_call(
+      [
+        { kind: "text_token", direction: "input", quantity: 1_000, cost: BigDecimal("0.001000") },
+        { kind: "text_token", direction: "output", quantity: 500, cost: BigDecimal("0.000500") },
+        { kind: "text_token", direction: "input", quantity: 1_000, cost: BigDecimal("99999.99"),
+          currency: "EUR" }
+      ]
+    )
+
+    expect(described_class.new.call)
+      .to have_attributes(status: :ok, message: include("matches line items"))
+  end
+
   def line_items_for_last_call(rows)
     call = LlmCostTracker::Call.order(:id).last
     rows.each.with_index do |attrs, index|
@@ -85,7 +104,7 @@ RSpec.describe LlmCostTracker::Doctor::CostDriftCheck do
         rate_amount: BigDecimal("1.0"),
         rate_quantity: BigDecimal("1000000"),
         cost: attrs.fetch(:cost),
-        currency: "USD",
+        currency: attrs.fetch(:currency, "USD"),
         cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
         pricing_basis: "rate_table",
         details: {}
