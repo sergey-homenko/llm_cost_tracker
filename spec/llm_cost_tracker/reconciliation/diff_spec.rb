@@ -26,8 +26,8 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
   end
 
   def create_priced_call(total_cost:, tracked_at: Time.utc(2026, 5, 15, 12), provider: "openai",
-                         model: "gpt-4o", **dimensions)
-    LlmCostTracker::Call.create!(
+                         model: "gpt-4o", currency: "USD", **dimensions)
+    call = LlmCostTracker::Call.create!(
       provider: provider,
       model: model,
       input_tokens: 10,
@@ -38,6 +38,24 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       tracked_at: tracked_at,
       **dimensions
     )
+    LlmCostTracker::CallLineItem.create!(
+      llm_cost_tracker_call_id: call.id,
+      position: 0,
+      kind: "text_token",
+      direction: "input",
+      modality: "text",
+      cache_state: "none",
+      unit: "token",
+      quantity: 10,
+      rate_amount: BigDecimal("1.0"),
+      rate_quantity: BigDecimal("1000000"),
+      cost: total_cost,
+      currency: currency,
+      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      pricing_basis: "rate_table",
+      details: {}
+    )
+    call
   end
 
   describe "#call" do
@@ -126,6 +144,18 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
 
       expect(result.provider_total).to eq(BigDecimal("10.00"))
       expect(result.currency).to eq("USD")
+    end
+
+    it "ignores foreign-currency local line items when summing the local total" do
+      import_invoice(external_id: "usd", billed_amount: "10.00", currency: "USD")
+      create_priced_call(total_cost: BigDecimal("9.00"), currency: "USD")
+      create_priced_call(total_cost: BigDecimal("888.00"), currency: "EUR")
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end
+      )
+
+      expect(result.local_total).to eq(BigDecimal("9.00"))
     end
 
     it "is empty when no provider rows and no priced calls exist for the window" do

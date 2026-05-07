@@ -118,6 +118,24 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::OpenaiUsage do
       expect(rows.map { |row| row[:external_id] }.uniq.size).to eq(2)
     end
 
+    it "differentiates rows that share a line item across different models" do
+      response[:data] = [{
+        "start_time" => bucket_start,
+        "end_time" => bucket_end,
+        "results" => [
+          { "amount" => { "value" => 1.0, "currency" => "usd" },
+            "line_item" => "tokens", "model" => "gpt-4o" },
+          { "amount" => { "value" => 2.0, "currency" => "usd" },
+            "line_item" => "tokens", "model" => "gpt-4o-mini" }
+        ]
+      }]
+
+      rows = described_class.parse(response)
+
+      expect(rows.map { |row| row[:external_id] }.uniq.size).to eq(2)
+      expect(rows.map { |row| row[:metadata]["model"] }).to contain_exactly("gpt-4o", "gpt-4o-mini")
+    end
+
     it "skips bucket results without a billed amount" do
       response[:data] = [{
         "start_time" => bucket_start,

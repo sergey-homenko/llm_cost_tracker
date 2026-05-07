@@ -79,27 +79,34 @@ module LlmCostTracker
       end
 
       def scoped_local_calls
-        provider = SOURCE_TO_PROVIDER[source]
-        relation = LlmCostTracker::Call
-                   .where.not(total_cost: nil)
-                   .where(tracked_at: window_start..window_end)
-        relation = relation.where(provider: provider) if provider
-        scope.each { |key, value| relation = relation.where(key => value) }
-        attribution_columns = [:total_cost] + ATTRIBUTION_KEYS
-        relation.pluck(*attribution_columns).map do |row|
-          attrs = ATTRIBUTION_KEYS.zip(row.drop(1)).to_h
-          { total_cost: row.first, attribution: attrs }
+        attribution_columns = ATTRIBUTION_KEYS.map { |key| "#{calls_table}.#{key}" }
+        call_id = "#{calls_table}.id"
+        rows = scoped_line_items
+               .group(call_id, *attribution_columns)
+               .pluck(call_id, Arel.sql("SUM(cost)"), *attribution_columns)
+        rows.map do |row|
+          _id, total_cost, *attrs = row
+          { total_cost: total_cost, attribution: ATTRIBUTION_KEYS.zip(attrs).to_h }
         end
       end
 
       def sum_local_total
-        relation = LlmCostTracker::Call
-                   .where.not(total_cost: nil)
-                   .where(tracked_at: window_start..window_end)
+        BigDecimal(scoped_line_items.sum(:cost).to_s)
+      end
+
+      def scoped_line_items
+        relation = LlmCostTracker::CallLineItem
+                   .joins(:call)
+                   .where(llm_cost_tracker_call_line_items: { currency: currency })
+                   .where("#{calls_table}.tracked_at" => window_start..window_end)
         provider = SOURCE_TO_PROVIDER[source]
-        relation = relation.where(provider: provider) if provider
-        scope.each { |key, value| relation = relation.where(key => value) }
-        BigDecimal(relation.sum(:total_cost).to_s)
+        relation = relation.where("#{calls_table}.provider" => provider) if provider
+        scope.each { |key, value| relation = relation.where("#{calls_table}.#{key}" => value) }
+        relation
+      end
+
+      def calls_table
+        LlmCostTracker::Call.quoted_table_name
       end
 
       def unmatched_provider_rows(invoices, local_calls)
