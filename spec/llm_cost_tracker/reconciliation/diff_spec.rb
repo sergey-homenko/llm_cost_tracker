@@ -67,6 +67,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.provider_total).to eq(BigDecimal("0"))
       expect(result.local_total).to eq(BigDecimal("3.00"))
       expect(result.delta_percent).to be_nil
+      expect(result).not_to be_aligned
     end
 
     it "ignores invoices and calls outside the period window" do
@@ -144,6 +145,26 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
           period_end: Date.new(2026, 5, 1)
         )
       end.to raise_error(ArgumentError, /period_end must be on or after/)
+    end
+
+    it "raises when source is blank" do
+      expect do
+        LlmCostTracker::Reconciliation.diff(
+          source: "", period_start: period_start, period_end: period_end
+        )
+      end.to raise_error(ArgumentError, /source must be present/)
+    end
+
+    it "accepts ISO date strings for the period bounds" do
+      import_invoice(external_id: "iso-strings", billed_amount: "1.00")
+      create_priced_call(total_cost: BigDecimal("1.00"))
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: "2026-05-01", period_end: "2026-05-31"
+      )
+
+      expect(result.provider_total).to eq(BigDecimal("1.00"))
+      expect(result.local_total).to eq(BigDecimal("1.00"))
     end
 
     it "lists provider rows whose attribution has no matching local call" do

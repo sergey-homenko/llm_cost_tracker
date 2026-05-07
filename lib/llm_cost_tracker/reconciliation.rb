@@ -4,6 +4,7 @@ require_relative "reconciliation/import_result"
 require_relative "reconciliation/importer"
 require_relative "reconciliation/diff_result"
 require_relative "reconciliation/diff"
+require_relative "reconciliation/sources/openai_usage"
 
 module LlmCostTracker
   module Reconciliation
