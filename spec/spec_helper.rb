@@ -24,6 +24,7 @@ if ENV["COVERAGE"] != "false"
     enable_coverage :branch
     add_filter "/spec/"
     add_filter "/gemfiles/"
+    add_filter "/lib/tasks/"
     add_group "Core", "lib/llm_cost_tracker"
     add_group "Dashboard", "app"
     add_group "Generators", "lib/llm_cost_tracker/generators"

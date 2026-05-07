@@ -109,8 +109,22 @@ namespace :llm_cost_tracker do
       abort("llm_cost_tracker: price is incomplete or unknown") unless explanation.complete?
     end
   end
+
+  namespace :reconcile do
+    desc "Import provider invoice rows from a JSON INPUT file. Use SOURCE=openai INPUT=path/to/file.json"
+    task(:import) { reconcile_run(:run_import) }
+
+    desc "Print a reconciliation diff. Use SOURCE=openai PERIOD_START=YYYY-MM-DD PERIOD_END=YYYY-MM-DD"
+    task(:diff) { reconcile_run(:run_diff) }
+  end
 end
 # rubocop:enable Metrics/BlockLength
+
+def reconcile_run(method)
+  Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
+  require_relative "../llm_cost_tracker"
+  LlmCostTracker::ReconcileTasks.public_send(method, env: ENV)
+end
 
 def print_changes(changes)
   LlmCostTracker::Pricing::SyncChangePrinter.call(changes)
