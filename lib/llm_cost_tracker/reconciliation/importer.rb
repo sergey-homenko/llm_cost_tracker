@@ -83,7 +83,6 @@ module LlmCostTracker
 
       def parse_date(value)
         return value if value.is_a?(Date)
-        return value.to_date if value.respond_to?(:to_date)
 
         Date.parse(value.to_s)
       end

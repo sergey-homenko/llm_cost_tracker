@@ -87,5 +87,69 @@ RSpec.describe LlmCostTracker::Reconciliation do
       expect { described_class.import(source: "", rows: rows) }
         .to raise_error(ArgumentError, /source must be present/)
     end
+
+    it "accepts string-keyed rows" do
+      result = described_class.import(
+        source: :openai,
+        rows: [{
+          "external_id" => "string-key-row",
+          "period_start" => "2026-05-01",
+          "period_end" => "2026-05-31",
+          "billed_amount" => "1.00"
+        }]
+      )
+
+      expect(result.inserted).to eq(1)
+      expect(LlmCostTracker::ProviderInvoice.find_by!(external_id: "string-key-row").billed_amount)
+        .to eq(BigDecimal("1.00"))
+    end
+
+    it "parses metadata supplied as a JSON string" do
+      described_class.import(
+        source: :openai,
+        rows: [{
+          external_id: "string-metadata",
+          period_start: "2026-05-01",
+          period_end: "2026-05-31",
+          billed_amount: "2.00",
+          metadata: '{"provider_project_id":"proj_b"}'
+        }]
+      )
+
+      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "string-metadata")
+      expect(reloaded.metadata).to eq("provider_project_id" => "proj_b")
+    end
+
+    it "falls back to empty metadata when the supplied string is not valid JSON" do
+      described_class.import(
+        source: :openai,
+        rows: [{
+          external_id: "garbage-metadata",
+          period_start: "2026-05-01",
+          period_end: "2026-05-31",
+          billed_amount: "0.5",
+          metadata: "not-json"
+        }]
+      )
+
+      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "garbage-metadata")
+      expect(reloaded.metadata).to eq({})
+    end
+
+    it "skips rows with unparseable dates and reports the error" do
+      result = described_class.import(
+        source: :openai,
+        rows: [{
+          external_id: "bad-date",
+          period_start: "not-a-date",
+          period_end: "2026-05-31"
+        }]
+      )
+
+      expect(result.skipped).to eq(1)
+      expect(result.errors.first).to include("row 0:")
+      expect(result).not_to be_success
+      expect(LlmCostTracker::ProviderInvoice.count).to eq(0)
+    end
   end
 end
