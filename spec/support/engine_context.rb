@@ -5,8 +5,17 @@ module LlmCostTrackerEngineContext
     Rails.application
   end
 
-  def get(path)
-    Rack::MockRequest.new(app).get(path)
+  def get(path, params: {})
+    query = params.empty? ? "" : "?#{URI.encode_www_form(params)}"
+    Rack::MockRequest.new(app).get("#{path}#{query}")
+  end
+
+  def post(path, params: {})
+    Rack::MockRequest.new(app).post(
+      path,
+      input: URI.encode_www_form(params),
+      "CONTENT_TYPE" => "application/x-www-form-urlencoded"
+    )
   end
 
   def create_call(**overrides)
@@ -53,6 +62,14 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
   require "rack/mock"
 
   include LlmCostTrackerEngineContext
+
+  around do |example|
+    previous = ActionController::Base.allow_forgery_protection
+    ActionController::Base.allow_forgery_protection = false
+    example.run
+  ensure
+    ActionController::Base.allow_forgery_protection = previous
+  end
 
   before do
     Rails.logger = Logger.new(nil)

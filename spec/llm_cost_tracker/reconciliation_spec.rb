@@ -237,6 +237,75 @@ RSpec.describe LlmCostTracker::Reconciliation do
       expect(result.inserted).to eq(1)
     end
 
+    it "drops rows whose period falls entirely outside the configured window" do
+      result = described_class.import(
+        source: :openai,
+        rows: [
+          {
+            external_id: "april", period_start: "2026-04-01", period_end: "2026-04-30",
+            billed_amount: "1.00"
+          },
+          {
+            external_id: "may", period_start: "2026-05-01", period_end: "2026-05-31",
+            billed_amount: "2.00"
+          }
+        ],
+        window: Date.new(2026, 5, 1)..Date.new(2026, 5, 31)
+      )
+
+      expect(result.inserted).to eq(1)
+      expect(LlmCostTracker::ProviderInvoice.pluck(:external_id)).to eq(["openai:may"])
+    end
+
+    it "keeps rows whose period overlaps the window even partially" do
+      result = described_class.import(
+        source: :openai,
+        rows: [{
+          external_id: "boundary", period_start: "2026-04-15", period_end: "2026-05-15",
+          billed_amount: "1.00"
+        }],
+        window: Date.new(2026, 5, 1)..Date.new(2026, 5, 31)
+      )
+
+      expect(result.inserted).to eq(1)
+    end
+
+    it "rejects a non-Range window argument" do
+      expect do
+        described_class.import(source: :openai, rows: [], window: "2026-05")
+      end.to raise_error(ArgumentError, /window must be a Range/)
+    end
+  end
+
+  describe "configuration importers" do
+    after { LlmCostTracker.configuration.reconciliation_importers = {} }
+
+    it "stores callable importers under symbolised source keys" do
+      callable = -> { :ok }
+      LlmCostTracker.configuration.reconciliation_importers = { "openai" => callable }
+
+      expect(LlmCostTracker.configuration.reconciliation_importers).to eq(openai: callable)
+    end
+
+    it "rejects importers that don't respond to call" do
+      expect do
+        LlmCostTracker.configuration.reconciliation_importers = { openai: "not callable" }
+      end.to raise_error(LlmCostTracker::Error, /must respond to call/)
+    end
+
+    it "registers a block-style importer through the helper" do
+      LlmCostTracker.configuration.register_reconciliation_importer(:anthropic) { :registered }
+
+      importer = LlmCostTracker.configuration.reconciliation_importers[:anthropic]
+      expect(importer.call).to eq(:registered)
+    end
+
+    it "raises when register_reconciliation_importer is called without a block" do
+      expect do
+        LlmCostTracker.configuration.register_reconciliation_importer(:anthropic)
+      end.to raise_error(LlmCostTracker::Error, /requires a block/)
+    end
+
     it "stores nil billed_amount when the provider row has no charge value" do
       described_class.import(
         source: :openai,

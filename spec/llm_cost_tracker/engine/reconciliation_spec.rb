@@ -87,6 +87,58 @@ RSpec.describe "LlmCostTracker::Engine reconciliation" do
     expect(response.body).to include("provider_project_id=proj_phantom")
   end
 
+  it "exposes a re-import button when an importer is configured for the source" do
+    LlmCostTracker.configuration.reconciliation_importers = {
+      openai: -> { LlmCostTracker::Reconciliation::ImportResult.empty }
+    }
+    import_invoice(billed_amount: BigDecimal("1.00"))
+
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.body).to include("Re-import openai")
+  ensure
+    LlmCostTracker.configuration.reconciliation_importers = {}
+  end
+
+  it "runs the configured importer when the trigger button is posted" do
+    invoked = 0
+    LlmCostTracker.configuration.reconciliation_importers = {
+      openai: lambda do
+        invoked += 1
+        LlmCostTracker::Reconciliation::ImportResult.new(
+          inserted: 3, updated: 0, skipped: 0, errors: []
+        )
+      end
+    }
+
+    response = post("/llm-costs/reconciliation/import", params: { source: "openai" })
+
+    expect(response.status).to eq(302)
+    expect(response.headers["Location"]).to end_with("/llm-costs/reconciliation")
+    expect(invoked).to eq(1)
+  ensure
+    LlmCostTracker.configuration.reconciliation_importers = {}
+  end
+
+  it "redirects when no importer is registered for the requested source" do
+    response = post("/llm-costs/reconciliation/import", params: { source: "anthropic" })
+
+    expect(response.status).to eq(302)
+    expect(response.headers["Location"]).to end_with("/llm-costs/reconciliation")
+  end
+
+  it "redirects with the alert when the configured importer raises" do
+    LlmCostTracker.configuration.reconciliation_importers = {
+      openai: -> { raise "boom" }
+    }
+
+    response = post("/llm-costs/reconciliation/import", params: { source: "openai" })
+
+    expect(response.status).to eq(302)
+  ensure
+    LlmCostTracker.configuration.reconciliation_importers = {}
+  end
+
   it "surfaces non-cost evidence rows (free quota, credits)" do
     import_invoice(
       billed_amount: BigDecimal("5.00"),

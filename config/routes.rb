@@ -8,6 +8,7 @@ LlmCostTracker::Engine.routes.draw do
   get "tags/:key", to: "tags#show",   as: :tag, format: false
   get "data_quality", to: "data_quality#index", as: :data_quality
   get "reconciliation", to: "reconciliation#index", as: :reconciliation
+  post "reconciliation/import", to: "reconciliation#trigger_import", as: :reconciliation_import
 
   get "assets/#{LlmCostTracker::Assets::STYLESHEET_FILENAME}",
       to: "assets#stylesheet", as: :stylesheet

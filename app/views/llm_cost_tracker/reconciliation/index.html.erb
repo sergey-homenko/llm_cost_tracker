@@ -7,6 +7,25 @@
   </div>
 </section>
 
+<% if flash[:notice] %>
+  <section class="lct-panel"><p class="lct-state-copy"><%= flash[:notice] %></p></section>
+<% end %>
+<% if flash[:alert] %>
+  <section class="lct-panel"><p class="lct-state-copy"><%= flash[:alert] %></p></section>
+<% end %>
+
+<% if @configured_importers.any? %>
+  <section class="lct-panel">
+    <h3 class="lct-section-title">Trigger import</h3>
+    <% @configured_importers.each_key do |source| %>
+      <%= button_to "Re-import #{source}",
+            reconciliation_import_path(source: source),
+            method: :post,
+            class: "lct-button lct-button-secondary" %>
+    <% end %>
+  </section>
+<% end %>
+
 <% if @diffs.empty? %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">No invoices imported yet</h2>

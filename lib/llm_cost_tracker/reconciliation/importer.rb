@@ -14,9 +14,10 @@ module LlmCostTracker
       FORGIVING_METADATA_SOURCES = %i[csv].to_set.freeze
       ENVELOPE_KEYS = %w[row_type meter authority match_basis].freeze
 
-      def initialize(source:, imported_at:, strict_metadata: nil)
+      def initialize(source:, imported_at:, window: nil, strict_metadata: nil)
         @source = source.to_s
         @imported_at = imported_at
+        @window = coerce_window(window)
         @strict_metadata = strict_metadata.nil? ? !FORGIVING_METADATA_SOURCES.include?(source.to_sym) : strict_metadata
         raise ArgumentError, "source must be present" if @source.empty?
       end
@@ -38,7 +39,7 @@ module LlmCostTracker
 
       private
 
-      attr_reader :source, :imported_at, :strict_metadata
+      attr_reader :source, :imported_at, :window, :strict_metadata
 
       def normalize_rows(rows)
         errors = []
@@ -49,10 +50,14 @@ module LlmCostTracker
             errors << "row #{index}: missing #{missing.join(', ')}"
             next
           end
+          period_start = parse_date(attrs[:period_start])
+          period_end = parse_date(attrs[:period_end])
+          next unless within_window?(period_start, period_end)
+
           attrs.merge(
             external_id: namespaced_external_id(attrs[:external_id]),
-            period_start: parse_date(attrs[:period_start]),
-            period_end: parse_date(attrs[:period_end]),
+            period_start: period_start,
+            period_end: period_end,
             metadata: parse_metadata(attrs[:metadata])
           )
         rescue ArgumentError => e
@@ -60,6 +65,19 @@ module LlmCostTracker
           nil
         end
         [normalized, errors]
+      end
+
+      def within_window?(period_start, period_end)
+        return true if window.nil?
+
+        period_start <= window.last && period_end >= window.first
+      end
+
+      def coerce_window(window)
+        return nil if window.nil?
+        raise ArgumentError, "window must be a Range of dates" unless window.is_a?(Range)
+
+        Range.new(parse_date(window.first), parse_date(window.last))
       end
 
       def existing_external_ids(external_ids)
