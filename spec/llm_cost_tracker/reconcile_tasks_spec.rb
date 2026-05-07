@@ -70,6 +70,17 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
         described_class.import_from_env(env: { "SOURCE" => "openai", "INPUT" => "/no/such/path.json" })
       end.to raise_error(ArgumentError, /INPUT file not found/)
     end
+
+    it "raises for unknown sources rather than silently falling back to a generic rows reader" do
+      Tempfile.create(["rows", ".json"]) do |file|
+        file.write({ "rows" => [{ "external_id" => "x" }] }.to_json)
+        file.flush
+
+        expect do
+          described_class.import_from_env(env: { "SOURCE" => "opnai", "INPUT" => file.path })
+        end.to raise_error(ArgumentError, /unknown SOURCE/)
+      end
+    end
   end
 
   describe ".diff_from_env" do
@@ -105,6 +116,27 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
   end
 
   describe ".print_diff" do
+    it "masks api_key and workspace ids in attribution lines" do
+      diff = LlmCostTracker::Reconciliation::DiffResult.new(
+        source: "openai", period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31),
+        currency: "USD", scope: {}, provider_total: BigDecimal("0"), local_total: BigDecimal("0"),
+        delta_amount: BigDecimal("0"), delta_percent: nil,
+        unmatched_provider_rows: [{
+          external_id: "openai:phantom",
+          billed_amount: BigDecimal("1"),
+          attribution: { provider_api_key_id: "sk-live-1234567890ABCDEF" },
+          match_basis: "api_key"
+        }],
+        unmatched_local_calls: [], non_cost_rows: []
+      )
+      output = StringIO.new
+
+      described_class.print_diff(diff, output: output)
+
+      expect(output.string).to include("provider_api_key_id=***CDEF")
+      expect(output.string).not_to include("sk-live-1234567890ABCDEF")
+    end
+
     it "renders a structured human-readable summary" do
       diff = LlmCostTracker::Reconciliation::DiffResult.new(
         source: "openai",

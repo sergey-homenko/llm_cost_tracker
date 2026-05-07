@@ -14,19 +14,37 @@ module LlmCostTracker
       FORGIVING_METADATA_SOURCES = %i[csv].to_set.freeze
       ENVELOPE_KEYS = %w[row_type meter authority match_basis].freeze
 
-      def initialize(source:, imported_at:, window: nil, strict_metadata: nil)
+      def initialize(source:, imported_at:, window: nil, strict_metadata: nil, cursor: nil)
         @source = source.to_s
         @imported_at = imported_at
         @window = coerce_window(window)
+        @cursor = cursor
         @strict_metadata = strict_metadata.nil? ? !FORGIVING_METADATA_SOURCES.include?(source.to_sym) : strict_metadata
         raise ArgumentError, "source must be present" if @source.empty?
       end
 
       def call(rows)
+        import_record = open_import_record
+        result = perform_import(rows)
+        complete_import_record(import_record, result)
+        result.with(import_id: import_record&.id)
+      rescue StandardError => e
+        fail_import_record(import_record, e)
+        raise
+      end
+
+      private
+
+      attr_reader :source, :imported_at, :window, :cursor, :strict_metadata
+
+      def perform_import(rows)
         return ImportResult.empty if rows.nil? || rows.empty?
 
         normalized, errors = normalize_rows(rows)
-        return ImportResult.new(inserted: 0, updated: 0, skipped: rows.size, errors: errors) if normalized.empty?
+        if normalized.empty?
+          return ImportResult.new(inserted: 0, updated: 0, skipped: rows.size, errors: errors,
+                                  import_id: nil)
+        end
 
         existing = existing_external_ids(normalized.map { |row| row[:external_id] })
         rows_payload = normalized.map { |row| persistable_attributes(row) }
@@ -34,12 +52,48 @@ module LlmCostTracker
 
         inserted = normalized.count { |row| !existing.include?(row[:external_id]) }
         updated = normalized.size - inserted
-        ImportResult.new(inserted: inserted, updated: updated, skipped: rows.size - normalized.size, errors: errors)
+        ImportResult.new(inserted: inserted, updated: updated, skipped: rows.size - normalized.size,
+                         errors: errors, import_id: nil)
       end
 
-      private
+      def open_import_record
+        return nil unless tracking_table_present?
 
-      attr_reader :source, :imported_at, :window, :strict_metadata
+        ProviderInvoiceImport.create!(
+          source: source,
+          cursor: cursor,
+          window_start: window&.first,
+          window_end: window&.last,
+          state: ProviderInvoiceImport::STATE_RUNNING,
+          started_at: imported_at
+        )
+      end
+
+      def complete_import_record(record, result)
+        return unless record
+
+        record.update!(
+          state: ProviderInvoiceImport::STATE_COMPLETED,
+          rows_imported: result.total_imported,
+          finished_at: Time.now.utc,
+          last_error: result.errors.first
+        )
+      end
+
+      def fail_import_record(record, error)
+        return unless record
+
+        record.update!(
+          state: ProviderInvoiceImport::STATE_FAILED,
+          last_error: "#{error.class}: #{error.message}",
+          finished_at: Time.now.utc
+        )
+      end
+
+      def tracking_table_present?
+        @tracking_table_present = ProviderInvoiceImport.table_exists? unless defined?(@tracking_table_present)
+        @tracking_table_present
+      end
 
       def normalize_rows(rows)
         errors = []

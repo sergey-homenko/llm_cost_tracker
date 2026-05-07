@@ -128,8 +128,12 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
       expect(rows.size).to eq(2)
     end
 
-    it "is empty for unparseable input" do
-      expect(described_class.parse("{ not-json")).to eq([])
+    it "raises a parse error rather than silently dropping malformed JSON" do
+      expect { described_class.parse("{ not-json") }
+        .to raise_error(ArgumentError, /Unable to parse Anthropic Usage payload/)
+    end
+
+    it "is empty for nil input" do
       expect(described_class.parse(nil)).to eq([])
     end
 
@@ -177,8 +181,9 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
       expect(described_class.parse(response).first[:period_start]).to eq(Date.new(2026, 5, 1))
     end
 
-    it "is empty when the JSON response decodes to a non-hash payload" do
-      expect(described_class.parse("[1, 2]")).to eq([])
+    it "raises when the JSON payload is not an object" do
+      expect { described_class.parse("[1, 2]") }
+        .to raise_error(ArgumentError, /must be a JSON object/)
     end
 
     it "produces rows in the shape Reconciliation.import expects" do

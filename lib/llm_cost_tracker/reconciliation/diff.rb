@@ -67,13 +67,19 @@ module LlmCostTracker
                    .where(source: source, currency: currency)
                    .where(period_start: ..period_end)
                    .where(period_end: period_start..)
-        return relation.to_a if scope.empty?
-
-        relation.select { |invoice| scope_matches?(invoice.metadata) }
+        relation = apply_metadata_scope(relation) unless scope.empty?
+        relation.to_a
       end
 
-      def scope_matches?(metadata)
-        scope.all? { |key, value| metadata[key.to_s].to_s == value.to_s }
+      def apply_metadata_scope(relation)
+        connection = ProviderInvoice.connection
+        if Ledger::Schema::Adapter.postgresql?(connection)
+          relation.where("metadata @> ?::jsonb", scope.transform_keys(&:to_s).to_json)
+        else
+          scope.inject(relation) do |chain, (key, value)|
+            chain.where("JSON_EXTRACT(metadata, ?) = ?", "$.#{key}", value.to_s)
+          end
+        end
       end
 
       def cost_row?(invoice)
@@ -113,13 +119,14 @@ module LlmCostTracker
       end
 
       def unmatched_provider_rows(invoices, local_calls)
+        local_index = local_attribution_index(local_calls)
         invoices.filter_map do |invoice|
           basis = invoice_match_basis(invoice)
           next if basis == PERIOD_ONLY_BASIS
 
           invoice_value = invoice.metadata[BASIS_DIMENSION[basis].to_s]
           next if invoice_value.nil?
-          next if local_calls.any? { |call| call[:attribution][BASIS_DIMENSION[basis]] == invoice_value }
+          next if local_index[basis].include?(invoice_value)
 
           {
             external_id: invoice.external_id,
@@ -128,6 +135,17 @@ module LlmCostTracker
             match_basis: basis
           }
         end
+      end
+
+      def local_attribution_index(local_calls)
+        index = BASIS_DIMENSION.each_key.to_h { |basis| [basis, Set.new] }
+        local_calls.each do |call|
+          BASIS_DIMENSION.each do |basis, key|
+            value = call[:attribution][key]
+            index[basis] << value if value
+          end
+        end
+        index
       end
 
       def unmatched_local_calls(invoices, local_calls)

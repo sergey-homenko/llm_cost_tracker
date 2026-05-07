@@ -56,7 +56,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::OpenaiUsage do
         "line_item" => "gpt-4o tokens",
         "provider_project_id" => "proj_alpha",
         "provider_api_key_id" => "key_a",
-        "provider_workspace_id" => "org_main"
+        "provider_organization_id" => "org_main"
       )
       expect(rows.first[:external_id]).to start_with("cost-")
     end
@@ -166,13 +166,18 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::OpenaiUsage do
       expect(rows.size).to eq(2)
     end
 
-    it "is empty for an unparseable JSON string" do
-      expect(described_class.parse("{ not-json")).to eq([])
+    it "raises a parse error rather than silently dropping malformed JSON" do
+      expect { described_class.parse("{ not-json") }
+        .to raise_error(ArgumentError, /Unable to parse OpenAI Costs payload/)
     end
 
-    it "is empty for a non-hash payload" do
+    it "raises when the JSON payload is not an object" do
+      expect { described_class.parse("[1, 2]") }
+        .to raise_error(ArgumentError, /must be a JSON object/)
+    end
+
+    it "is empty for nil input" do
       expect(described_class.parse(nil)).to eq([])
-      expect(described_class.parse([1, 2])).to eq([])
     end
 
     it "produces rows in the shape Reconciliation.import expects" do

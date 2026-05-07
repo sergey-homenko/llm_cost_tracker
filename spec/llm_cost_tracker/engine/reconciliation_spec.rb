@@ -139,6 +139,33 @@ RSpec.describe "LlmCostTracker::Engine reconciliation" do
     LlmCostTracker.configuration.reconciliation_importers = {}
   end
 
+  it "redirects after running an importer whose return value is not an ImportResult" do
+    LlmCostTracker.configuration.reconciliation_importers = { openai: -> { :ok } }
+
+    response = post("/llm-costs/reconciliation/import", params: { source: "openai" })
+
+    expect(response.status).to eq(302)
+  ensure
+    LlmCostTracker.configuration.reconciliation_importers = {}
+  end
+
+  it "masks api_key and workspace ids in the rendered attribution" do
+    import_invoice(
+      billed_amount: BigDecimal("12.00"),
+      external_id: "with-secrets",
+      metadata: { match_basis: "api_key", row_type: "cost", meter: "tokens",
+                  authority: "cost_api",
+                  provider_api_key_id: "sk-live-1234567890ABCDEF",
+                  provider_workspace_id: "wrkspc_secret_id_abcdef" }
+    )
+
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.body).to include("provider_api_key_id=***CDEF")
+    expect(response.body).not_to include("sk-live-1234567890ABCDEF")
+    expect(response.body).not_to include("wrkspc_secret_id_abcdef")
+  end
+
   it "surfaces non-cost evidence rows (free quota, credits)" do
     import_invoice(
       billed_amount: BigDecimal("5.00"),

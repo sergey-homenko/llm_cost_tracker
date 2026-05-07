@@ -67,7 +67,7 @@ module LlmCostTracker
             "model" => result[:model],
             "provider_project_id" => result[:project_id],
             "provider_api_key_id" => result[:api_key_id],
-            "provider_workspace_id" => result[:organization_id]
+            "provider_organization_id" => result[:organization_id]
           }.compact
         end
 
@@ -84,7 +84,6 @@ module LlmCostTracker
         def match_basis_for(result)
           return "project" if result[:project_id]
           return "api_key" if result[:api_key_id]
-          return "workspace" if result[:organization_id]
 
           "period_only"
         end
@@ -109,12 +108,15 @@ module LlmCostTracker
         end
 
         def coerce_hash(response)
+          return {} if response.nil?
           return symbolize(response) if response.is_a?(Hash)
 
           parsed = JSON.parse(response.to_s)
-          parsed.is_a?(Hash) ? symbolize(parsed) : {}
-        rescue JSON::ParserError
-          {}
+          raise ArgumentError, "OpenAI Costs payload must be a JSON object" unless parsed.is_a?(Hash)
+
+          symbolize(parsed)
+        rescue JSON::ParserError => e
+          raise ArgumentError, "Unable to parse OpenAI Costs payload: #{e.message}"
         end
 
         def symbolize(hash)

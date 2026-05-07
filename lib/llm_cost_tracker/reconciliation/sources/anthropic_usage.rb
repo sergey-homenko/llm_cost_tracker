@@ -126,12 +126,15 @@ module LlmCostTracker
         end
 
         def coerce_hash(response)
+          return {} if response.nil?
           return symbolize(response) if response.is_a?(Hash)
 
           parsed = JSON.parse(response.to_s)
-          parsed.is_a?(Hash) ? symbolize(parsed) : {}
-        rescue JSON::ParserError
-          {}
+          raise ArgumentError, "Anthropic Usage payload must be a JSON object" unless parsed.is_a?(Hash)
+
+          symbolize(parsed)
+        rescue JSON::ParserError => e
+          raise ArgumentError, "Unable to parse Anthropic Usage payload: #{e.message}"
         end
 
         def symbolize(hash)

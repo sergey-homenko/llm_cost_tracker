@@ -59,8 +59,16 @@ CREATE INDEX        ON llm_cost_tracker_provider_invoices (source, period_start)
 
 `metadata` carries the provider-specific dimensions that don't deserve a
 column: `provider_project_id`, `provider_api_key_id`,
-`provider_workspace_id`, `model`, `pricing_mode`, `line_item_kind` (token
-vs. tool), `quantity`, `unit`, `rate_basis`, raw provider payload digest.
+`provider_workspace_id`, `provider_organization_id`, `model`,
+`pricing_mode`, `line_item_kind` (token vs. tool), `quantity`, `unit`,
+`rate_basis`, raw provider payload digest.
+
+OpenAI scopes projects under an organization, so `organization_id` is
+recorded as `provider_organization_id` (informational, not used for
+diff matching in v0.9). Anthropic exposes a flat workspace as the
+top-level tenant identifier, recorded as `provider_workspace_id` and
+used for diff matching when no project is present. Mixing the two would
+mis-attribute cross-org tenants.
 
 ### Provider meter envelope
 

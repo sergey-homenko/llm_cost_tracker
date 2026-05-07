@@ -305,6 +305,65 @@ RSpec.describe LlmCostTracker::Reconciliation do
         LlmCostTracker.configuration.register_reconciliation_importer(:anthropic)
       end.to raise_error(LlmCostTracker::Error, /requires a block/)
     end
+  end
+
+  describe "import lifecycle" do
+    let(:rows) do
+      [{
+        external_id: "row-1",
+        period_start: "2026-05-01",
+        period_end: "2026-05-31",
+        billed_amount: "1.00"
+      }]
+    end
+
+    it "opens a running import record and marks it completed on success" do
+      result = LlmCostTracker::Reconciliation.import(
+        source: :openai, rows: rows, cursor: "page-3",
+        window: Date.new(2026, 5, 1)..Date.new(2026, 5, 31)
+      )
+
+      expect(result.import_id).not_to be_nil
+      record = LlmCostTracker::ProviderInvoiceImport.find(result.import_id)
+      expect(record).to have_attributes(
+        source: "openai",
+        state: LlmCostTracker::ProviderInvoiceImport::STATE_COMPLETED,
+        cursor: "page-3",
+        window_start: Date.new(2026, 5, 1),
+        window_end: Date.new(2026, 5, 31),
+        rows_imported: 1
+      )
+      expect(record.finished_at).not_to be_nil
+    end
+
+    it "marks the record failed when the import path raises" do
+      allow(LlmCostTracker::ProviderInvoice).to receive(:upsert_all).and_raise("boom")
+
+      expect do
+        LlmCostTracker::Reconciliation.import(source: :openai, rows: rows)
+      end.to raise_error(/boom/)
+
+      record = LlmCostTracker::ProviderInvoiceImport.last
+      expect(record.state).to eq(LlmCostTracker::ProviderInvoiceImport::STATE_FAILED)
+      expect(record.last_error).to include("boom")
+    end
+
+    it "exposes the latest cursor through ProviderInvoiceImport.resume_cursor_for" do
+      LlmCostTracker::Reconciliation.import(source: :openai, rows: rows, cursor: "page-1")
+      LlmCostTracker::Reconciliation.import(source: :openai, rows: [], cursor: "page-2")
+
+      expect(LlmCostTracker::ProviderInvoiceImport.resume_cursor_for("openai")).to eq("page-2")
+    end
+
+    it "still imports when the tracking table is absent" do
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoice_imports)
+      LlmCostTracker::ProviderInvoiceImport.reset_column_information
+
+      result = LlmCostTracker::Reconciliation.import(source: :openai, rows: rows)
+
+      expect(result.inserted).to eq(1)
+      expect(result.import_id).to be_nil
+    end
 
     it "stores nil billed_amount when the provider row has no charge value" do
       described_class.import(

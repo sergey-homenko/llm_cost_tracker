@@ -12,12 +12,13 @@ module LlmCostTracker
     SUPPORTED_SOURCES = %i[openai anthropic gemini csv].freeze
 
     class << self
-      def import(source:, rows:, imported_at: Time.now.utc, window: nil, strict_metadata: nil)
+      def import(source:, rows:, imported_at: Time.now.utc, window: nil, strict_metadata: nil, cursor: nil)
         Importer.new(
           source: source,
           imported_at: imported_at,
           window: window,
-          strict_metadata: strict_metadata
+          strict_metadata: strict_metadata,
+          cursor: cursor
         ).call(rows)
       end
 

@@ -10,6 +10,7 @@ module LlmCostTracker
       "openai" => Reconciliation::Sources::OpenaiUsage,
       "anthropic" => Reconciliation::Sources::AnthropicUsage
     }.freeze
+    GENERIC_SOURCES = %w[csv].freeze
 
     module_function
 
@@ -59,9 +60,11 @@ module LlmCostTracker
 
     def parse_rows(source:, payload:)
       parser = SOURCE_PARSERS[source.to_s]
-      return Array(payload["rows"]) if parser.nil?
+      return parser.parse(payload) if parser
+      return Array(payload["rows"]) if GENERIC_SOURCES.include?(source.to_s)
 
-      parser.parse(payload)
+      known = (SOURCE_PARSERS.keys + GENERIC_SOURCES).join(", ")
+      raise ArgumentError, "unknown SOURCE #{source.inspect}; known sources: #{known}"
     end
 
     def required_env(env, key)
@@ -101,10 +104,20 @@ module LlmCostTracker
       end
     end
 
+    SENSITIVE_ATTRIBUTION_KEYS = %i[provider_api_key_id provider_workspace_id provider_organization_id].freeze
+
     def format_attribution(attribution)
       return "" if attribution.nil? || attribution.empty?
 
-      attribution.map { |key, value| "#{key}=#{value}" }.join(",")
+      attribution.map { |key, value| "#{key}=#{mask_value(key, value)}" }.join(",")
+    end
+
+    def mask_value(key, value)
+      string = value.to_s
+      return string unless SENSITIVE_ATTRIBUTION_KEYS.include?(key.to_sym)
+      return string if string.length <= 4
+
+      "***#{string[-4, 4]}"
     end
   end
 end
