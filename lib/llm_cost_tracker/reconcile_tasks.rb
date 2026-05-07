@@ -7,7 +7,8 @@ require_relative "reconciliation"
 module LlmCostTracker
   module ReconcileTasks
     SOURCE_PARSERS = {
-      "openai" => Reconciliation::Sources::OpenaiUsage
+      "openai" => Reconciliation::Sources::OpenaiUsage,
+      "anthropic" => Reconciliation::Sources::AnthropicUsage
     }.freeze
 
     module_function
