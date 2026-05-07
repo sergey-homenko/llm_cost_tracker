@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.0] - 2026-05-07
 
 0.8 is a storage rebuild. Tokens and tool/runtime charges share one shape
 (`Billing::LineItem`) and live in a dedicated line items table. Per-component
