@@ -97,8 +97,8 @@ module LlmCostTracker
       private
 
       def normalize_string_mode(value)
-        normalized = value.strip.presence
-        return nil unless normalized
+        normalized = value.strip
+        return nil if normalized.empty?
 
         normalized.downcase.tr("-", "_").to_sym
       end

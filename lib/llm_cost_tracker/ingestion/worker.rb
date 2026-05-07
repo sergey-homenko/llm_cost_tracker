@@ -82,12 +82,10 @@ module LlmCostTracker
         end
 
         def flush_timeout_seconds(timeout)
-          return FLUSH_TIMEOUT_SECONDS if timeout.nil?
+          numeric = Float(timeout, exception: false)
+          return FLUSH_TIMEOUT_SECONDS unless numeric&.finite? && numeric.positive?
 
-          numeric = Float(timeout)
-          numeric.finite? && numeric.positive? ? numeric : FLUSH_TIMEOUT_SECONDS
-        rescue ArgumentError, TypeError
-          FLUSH_TIMEOUT_SECONDS
+          numeric
         end
 
         def ingest_once(require_lease: true)

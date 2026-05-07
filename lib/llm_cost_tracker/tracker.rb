@@ -106,10 +106,9 @@ module LlmCostTracker
 
       def finite_latency_ms(latency_ms)
         return nil if latency_ms.nil?
-        return nil if latency_ms.is_a?(Float) && !latency_ms.finite?
 
         Integer(latency_ms).clamp(0, (1 << 31) - 1)
-      rescue ArgumentError, TypeError
+      rescue ArgumentError, TypeError, FloatDomainError
         nil
       end
 
