@@ -27,7 +27,8 @@ module LlmCostTracker
         WRITE_TIMEOUT = 10
 
         def get(url, etag: nil, redirects: 0)
-          raise Error, "Too many redirects while fetching #{url}" if redirects > MAX_REDIRECTS
+          safe_url = scrub_url(url)
+          raise Error, "Too many redirects while fetching #{safe_url}" if redirects > MAX_REDIRECTS
 
           uri = URI.parse(url)
           raise Error, "Pricing snapshot URL must use https" unless uri.scheme == "https"
@@ -45,17 +46,28 @@ module LlmCostTracker
             build_response(response, body: nil, not_modified: true)
           when Net::HTTPRedirection
             location = response["location"]
-            raise Error, "Redirect without location while fetching #{url}" if location.blank?
+            raise Error, "Redirect without location while fetching #{safe_url}" if location.blank?
 
             get(URI.join(url, location).to_s, etag: etag, redirects: redirects + 1)
           else
-            raise Error, "Unable to fetch #{url}: HTTP #{response.code}"
+            raise Error, "Unable to fetch #{safe_url}: HTTP #{response.code}"
           end
         rescue OpenSSL::SSL::SSLError, SocketError, SystemCallError, Timeout::Error => e
-          raise Error, "Unable to fetch #{url}: #{e.class}: #{e.message}"
+          raise Error, "Unable to fetch #{scrub_url(url)}: #{e.class}: #{e.message}"
         end
 
         private
+
+        def scrub_url(url)
+          uri = URI.parse(url.to_s)
+          uri.user = nil
+          uri.password = nil
+          uri.query = nil
+          uri.fragment = nil
+          uri.to_s
+        rescue URI::InvalidURIError
+          "[invalid url]"
+        end
 
         def fetch_response(uri, request)
           body = nil

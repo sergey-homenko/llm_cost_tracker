@@ -88,7 +88,7 @@ module LlmCostTracker
           pricing_mode: pricing_mode,
           cost: cost,
           tags: LlmCostTracker::Tags::Sanitizer.call(context_tags.merge(metadata.to_h)).freeze,
-          latency_ms: latency_ms&.to_i&.clamp(0..),
+          latency_ms: finite_latency_ms(latency_ms),
           stream: capture.stream,
           usage_source: capture.usage_source,
           provider_response_id: capture.provider_response_id,
@@ -103,6 +103,15 @@ module LlmCostTracker
         )
       end
       # rubocop:enable Metrics/MethodLength
+
+      def finite_latency_ms(latency_ms)
+        return nil if latency_ms.nil?
+        return nil if latency_ms.is_a?(Float) && !latency_ms.finite?
+
+        Integer(latency_ms).clamp(0, (1 << 31) - 1)
+      rescue ArgumentError, TypeError
+        nil
+      end
 
       def cost_with_service_lines(cost_data, line_items)
         service_lines = line_items.reject(&:token?)

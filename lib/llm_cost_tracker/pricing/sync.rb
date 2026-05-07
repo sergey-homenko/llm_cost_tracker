@@ -54,7 +54,10 @@ module LlmCostTracker
           end
 
           remote = normalize_remote_registry(response.body, url: url, response: response, today: today)
-          RegistryWriter.new.call(path: path, registry: remote) unless preview
+          unless preview
+            RegistryWriter.new.call(path: path, registry: remote)
+            invalidate_pricing_caches!
+          end
           refresh_result(
             path: path,
             url: url,
@@ -64,6 +67,12 @@ module LlmCostTracker
             written: !preview,
             not_modified: false
           )
+        end
+
+        def invalidate_pricing_caches!
+          Pricing::Lookup.reset!
+          Pricing::Registry.reset!
+          Pricing::ServiceCharges.reset!
         end
 
         def check(path: DEFAULT_OUTPUT_PATH, url: DEFAULT_REMOTE_URL, fetcher: Fetcher.new, today: Date.today)

@@ -75,6 +75,39 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.latency_ms).to eq(123)
     end
 
+    it "drops non-finite latency to avoid integer overflow" do
+      event = record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1),
+        latency_ms: Float::INFINITY
+      )
+
+      expect(event.latency_ms).to be_nil
+    end
+
+    it "drops non-numeric latency" do
+      event = record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1),
+        latency_ms: "fast"
+      )
+
+      expect(event.latency_ms).to be_nil
+    end
+
+    it "clamps latency above the 32-bit signed integer ceiling" do
+      event = record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1),
+        latency_ms: (1 << 40)
+      )
+
+      expect(event.latency_ms).to eq((1 << 31) - 1)
+    end
+
     it "raises storage errors from the ActiveRecord backend" do
       allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_raise("storage down")
 

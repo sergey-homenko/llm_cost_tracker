@@ -1,8 +1,13 @@
 # frozen_string_literal: true
 
 require_relative "billing/components"
+require_relative "logging"
 
 module LlmCostTracker
+  KNOWN_TOKEN_KEYS = (
+    Billing::Components::TOKEN_PRICED.map(&:key) + %i[total hidden_output]
+  ).freeze
+
   TokenUsage = Data.define(
     :input_tokens,
     :cache_read_input_tokens,
@@ -16,8 +21,10 @@ module LlmCostTracker
   ) do
     def self.build_from_tokens(tokens)
       return tokens if tokens.is_a?(self)
+      raise ArgumentError, "tokens must be a Hash, got #{tokens.class}" unless tokens.respond_to?(:to_h)
 
       values = tokens.to_h.transform_keys { |key| key.is_a?(Symbol) ? key : key.to_s.to_sym }
+      warn_on_unknown_keys(values)
       token_attributes = Billing::Components::TOKEN_PRICED.to_h do |component|
         [component.token_key, values.fetch(component.key, 0)]
       end
@@ -26,6 +33,19 @@ module LlmCostTracker
         **token_attributes,
         total_tokens: values[:total],
         hidden_output_tokens: values.fetch(:hidden_output, 0)
+      )
+    end
+
+    def self.warn_on_unknown_keys(values)
+      return if values.empty?
+
+      unknown = values.keys - KNOWN_TOKEN_KEYS
+      return if unknown.empty?
+      return if values.keys.intersect?(KNOWN_TOKEN_KEYS)
+
+      Logging.warn(
+        "tokens hash contains no recognized keys (#{values.keys.inspect}); " \
+        "expected one of #{KNOWN_TOKEN_KEYS.inspect}. Did you pass a raw provider response?"
       )
     end
 

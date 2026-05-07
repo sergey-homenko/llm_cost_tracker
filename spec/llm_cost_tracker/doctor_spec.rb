@@ -196,6 +196,8 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "warns when legacy rows without cost status remain" do
+      ActiveRecord::Base.connection.change_column_null(:llm_cost_tracker_calls, :cost_status, true)
+      LlmCostTracker::Call.reset_column_information
       create_call(model: "legacy-status", cost_status: nil)
 
       check = described_class.call.find { |item| item.name == "cost status" }

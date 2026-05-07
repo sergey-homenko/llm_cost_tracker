@@ -327,6 +327,26 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker::Ingestion::InboxEntry.delete_all
   end
 
+  it "treats nil flush timeouts as the documented default" do
+    expect(LlmCostTracker::Ingestion::Worker.send(:flush_timeout_seconds, nil))
+      .to eq(LlmCostTracker::Ingestion::Worker::FLUSH_TIMEOUT_SECONDS)
+  end
+
+  it "treats non-numeric flush timeouts as the documented default" do
+    expect(LlmCostTracker::Ingestion::Worker.send(:flush_timeout_seconds, "soon"))
+      .to eq(LlmCostTracker::Ingestion::Worker::FLUSH_TIMEOUT_SECONDS)
+  end
+
+  it "treats non-positive flush timeouts as the documented default" do
+    expect(LlmCostTracker::Ingestion::Worker.send(:flush_timeout_seconds, 0))
+      .to eq(LlmCostTracker::Ingestion::Worker::FLUSH_TIMEOUT_SECONDS)
+  end
+
+  it "treats infinite flush timeouts as the documented default" do
+    expect(LlmCostTracker::Ingestion::Worker.send(:flush_timeout_seconds, Float::INFINITY))
+      .to eq(LlmCostTracker::Ingestion::Worker::FLUSH_TIMEOUT_SECONDS)
+  end
+
   it "keeps flushing after a processed inbox batch" do
     ingestor = LlmCostTracker::Ingestion::Worker
     batch = instance_double(LlmCostTracker::Ingestion::Batch)

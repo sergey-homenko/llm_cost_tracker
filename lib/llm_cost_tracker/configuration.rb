@@ -141,6 +141,7 @@ module LlmCostTracker
 
         raise Error, "Unknown integration: #{name.inspect}. Use one of: #{integrations.join(', ')}"
       end
+      names
     end
 
     def ensure_shared_configuration_mutable!

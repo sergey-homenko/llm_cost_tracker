@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "active_record"
+require "securerandom"
 
 require "llm_cost_tracker/billing/cost_status"
 require "llm_cost_tracker/ledger/schema/adapter"
@@ -9,6 +10,8 @@ require "llm_cost_tracker/ledger/tags/sql"
 module LlmCostTracker
   class Call < ActiveRecord::Base
     self.table_name = "llm_cost_tracker_calls"
+
+    before_validation :assign_event_id
 
     PERIOD_FORMATS = {
       day: {
@@ -155,6 +158,12 @@ module LlmCostTracker
       tag_records.to_h do |record|
         [record.key, record.value]
       end
+    end
+
+    private
+
+    def assign_event_id
+      self.event_id ||= SecureRandom.uuid
     end
   end
 end

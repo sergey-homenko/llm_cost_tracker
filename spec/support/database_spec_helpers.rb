@@ -63,7 +63,7 @@ module LlmCostTrackerDatabaseSpecHelpers
 
   def create_calls_table(connection)
     connection.create_table :llm_cost_tracker_calls, force: true do |table|
-      table.string :event_id
+      table.string :event_id, null: false
       table.string :provider, null: false
       table.string :model, null: false
       LlmCostTracker::TokenUsage.members.each do |column|
@@ -79,7 +79,7 @@ module LlmCostTrackerDatabaseSpecHelpers
       table.string :provider_workspace_id
       table.boolean :batch, null: false, default: false
       table.string :pricing_mode
-      table.string :cost_status
+      table.string :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
       if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
         table.jsonb :pricing_snapshot
       elsif LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)

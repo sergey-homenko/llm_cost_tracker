@@ -63,5 +63,20 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
 
       expect(described_class.current_schema_errors).to include("missing unique index: event_id")
     end
+
+    it "reports a missing non-unique index when it has been dropped" do
+      ActiveRecord::Base.connection.remove_index(:llm_cost_tracker_calls, %i[provider tracked_at])
+      LlmCostTracker::Call.reset_column_information
+      described_class.instance_variable_set(:@schema_capabilities, nil)
+
+      expect(described_class.current_schema_errors).to include("missing index: provider, tracked_at")
+    end
+
+    it "swallows index lookup failures so doctor never crashes the boot path" do
+      allow(LlmCostTracker::Call.connection).to receive(:index_exists?).and_raise("connection lost")
+      described_class.instance_variable_set(:@schema_capabilities, nil)
+
+      expect { described_class.current_schema_errors }.not_to raise_error
+    end
   end
 end

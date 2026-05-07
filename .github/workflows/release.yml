@@ -9,6 +9,10 @@ permissions:
   contents: write
   id-token: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -28,6 +32,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      BUNDLE_GEMFILE: gemfiles/rails_8_1.gemfile
       LCT_TEST_HOST: 127.0.0.1
       LCT_TEST_PORT: 55432
       LCT_TEST_USERNAME: lct

@@ -38,6 +38,22 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(described_class.normalize_mode(:priority)).to eq(:priority)
       expect(described_class.normalize_mode("data-residency")).to eq(:data_residency)
     end
+
+    it "matches provider tier strings regardless of case" do
+      expect(described_class.normalize_mode("PRIORITY")).to eq(:priority)
+      expect(described_class.normalize_mode(:Priority)).to eq(:priority)
+      expect(described_class.normalize_mode("Standard")).to be_nil
+    end
+
+    it "returns nil for nil and unparseable inputs" do
+      expect(described_class.normalize_mode(nil)).to be_nil
+      expect(described_class.normalize_mode("")).to be_nil
+    end
+
+    it "returns nil for an empty model lookup before touching the price tables" do
+      expect(LlmCostTracker::Pricing::Lookup.call(provider: "openai", model: "")).to be_nil
+      expect(LlmCostTracker::Pricing::Lookup.call(provider: "openai", model: nil)).to be_nil
+    end
   end
 
   describe ".stored_cost_attributes" do

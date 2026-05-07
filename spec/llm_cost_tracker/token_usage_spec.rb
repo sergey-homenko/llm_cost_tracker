@@ -59,4 +59,28 @@ RSpec.describe LlmCostTracker::TokenUsage do
     expect(usage.input_tokens).to eq(100)
     expect(usage.output_tokens).to eq(50)
   end
+
+  it "raises when given a non-hashable input" do
+    expect { described_class.build_from_tokens(42) }.to raise_error(ArgumentError, /must be a Hash/)
+  end
+
+  it "warns when no recognized keys are present so provider response shapes are caught" do
+    expect(LlmCostTracker::Logging).to receive(:warn).with(
+      a_string_including("tokens hash contains no recognized keys")
+    )
+
+    described_class.build_from_tokens(prompt_tokens: 10, completion_tokens: 5)
+  end
+
+  it "does not warn when at least one recognized key is present" do
+    expect(LlmCostTracker::Logging).not_to receive(:warn)
+
+    described_class.build_from_tokens(input: 10, prompt_tokens: 99)
+  end
+
+  it "does not warn for empty hashes" do
+    expect(LlmCostTracker::Logging).not_to receive(:warn)
+
+    described_class.build_from_tokens({})
+  end
 end

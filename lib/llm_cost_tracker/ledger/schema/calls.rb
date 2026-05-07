@@ -34,6 +34,16 @@ module LlmCostTracker
           tracked_at
         ].freeze
 
+        REQUIRED_INDEXES = [
+          { columns: :event_id, unique: true },
+          { columns: :tracked_at },
+          { columns: %i[provider tracked_at] },
+          { columns: %i[model tracked_at] },
+          { columns: :cost_status },
+          { columns: :provider_response_id }
+        ].freeze
+        private_constant :REQUIRED_INDEXES
+
         class << self
           def current_schema?
             current_schema_errors.empty?
@@ -76,15 +86,20 @@ module LlmCostTracker
             missing = missing_columns_for(columns)
             errors << "missing columns: #{missing.join(', ')}" if missing.any?
             errors.concat(Adapter.json_column_errors(columns["pricing_snapshot"], adapter_name, "pricing_snapshot"))
-            errors << "missing unique index: event_id" unless event_id_unique_index?
+            errors.concat(missing_index_errors)
             errors
           end
 
-          def event_id_unique_index?
+          def missing_index_errors
             connection = LlmCostTracker::Call.connection
-            connection.index_exists?(LlmCostTracker::Call.table_name, :event_id, unique: true)
+            REQUIRED_INDEXES.filter_map do |spec|
+              next if connection.index_exists?(LlmCostTracker::Call.table_name, spec[:columns], **spec.except(:columns))
+
+              prefix = spec[:unique] ? "unique " : ""
+              "missing #{prefix}index: #{Array(spec[:columns]).join(', ')}"
+            end
           rescue StandardError
-            true
+            []
           end
 
           def missing_columns_for(columns)

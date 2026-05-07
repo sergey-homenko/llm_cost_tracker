@@ -9,7 +9,7 @@ Hot-path code includes:
 - Faraday middleware request and response handling
 - stream collection
 - `Tracker.record`
-- `Pricing.cost_for`
+- `Pricing.cost_and_snapshot_for`
 - `Pricing.charge_rate`
 - ActiveRecord event persistence
 - budget checks
@@ -35,7 +35,7 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets read `llm_cost_tracker_call_rollups` and add pending `llm_cost_tracker_ingestion_inbox_entries` totals. The call rollups table and its unique `(period, period_start)` index are required current schema.
+Monthly and daily budgets read `llm_cost_tracker_call_rollups` and add pending `llm_cost_tracker_ingestion_inbox_entries` totals. The call rollups table and its unique `(period, period_start, currency)` index are required current schema.
 
 The stored call rollup and pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 

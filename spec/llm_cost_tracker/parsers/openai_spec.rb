@@ -154,6 +154,20 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.pricing_mode).to eq(:priority_data_residency)
     end
 
+    it "ignores data residency mode when the request url cannot be parsed" do
+      result = parser.parse(
+        request_url: "https://[bad-host]/v1/responses",
+        request_body: { model: "gpt-5.5" }.to_json,
+        response_status: 200,
+        response_body: {
+          model: "gpt-5.5",
+          usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to be_nil
+    end
+
     it "extracts token usage from a Responses API response" do
       response_body = {
         id: "resp_123",

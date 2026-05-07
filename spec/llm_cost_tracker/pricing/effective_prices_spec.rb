@@ -50,4 +50,12 @@ RSpec.describe LlmCostTracker::Pricing::EffectivePrices do
 
     expect(rates[:cache_read_input]).to eq(0.05)
   end
+
+  it "returns nil for the derived rate when the standard cache rate is missing" do
+    prices = { input: 1.0, output: 2.0, batch_input: 0.5 }
+
+    rates = described_class.call(usage: usage, prices: prices, pricing_mode: :batch)
+
+    expect(rates[:cache_read_input]).to be_nil
+  end
 end

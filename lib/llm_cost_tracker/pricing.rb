@@ -24,7 +24,7 @@ module LlmCostTracker
       def normalize_mode(value)
         return nil if value.nil?
 
-        mode = value.is_a?(Symbol) ? value : value.strip.presence&.tr("-", "_")&.to_sym
+        mode = value.is_a?(Symbol) ? value.to_s.downcase.to_sym : normalize_string_mode(value)
         return nil unless mode
 
         STANDARD_MODE_VALUES.include?(mode) ? nil : mode
@@ -95,6 +95,13 @@ module LlmCostTracker
       end
 
       private
+
+      def normalize_string_mode(value)
+        normalized = value.strip.presence
+        return nil unless normalized
+
+        normalized.downcase.tr("-", "_").to_sym
+      end
 
       def cost_from(calculation)
         costs = calculation[:costs]

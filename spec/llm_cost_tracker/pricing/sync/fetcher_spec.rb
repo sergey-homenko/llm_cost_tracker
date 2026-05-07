@@ -98,5 +98,66 @@ RSpec.describe LlmCostTracker::Pricing::Sync::Fetcher do
       end.to raise_error(LlmCostTracker::Error, /exceeds/)
       expect(chunks).to eq(1)
     end
+
+    it "scrubs credentials and query strings from error messages" do
+      allow(Net::HTTP).to receive(:start).and_raise(SocketError, "DNS lookup failed")
+
+      expect do
+        described_class.new.get("https://user:secret@example.com/prices.json?token=abc#section")
+      end.to raise_error(LlmCostTracker::Error) { |error|
+        expect(error.message).to include("https://example.com/prices.json")
+        expect(error.message).not_to include("secret")
+        expect(error.message).not_to include("token=abc")
+        expect(error.message).not_to include("section")
+      }
+    end
+
+    it "returns an invalid url placeholder when scrubbing an unparsable url" do
+      expect(described_class.new.send(:scrub_url, "https://[bad]")).to eq("[invalid url]")
+    end
+
+    it "scrubs the url when raising too-many-redirects" do
+      expect do
+        described_class.new.get(
+          "https://user:secret@example.com/prices.json?token=abc",
+          redirects: described_class::MAX_REDIRECTS + 1
+        )
+      end.to raise_error(LlmCostTracker::Error) { |error|
+        expect(error.message).to include("Too many redirects")
+        expect(error.message).to include("https://example.com/prices.json")
+        expect(error.message).not_to include("secret")
+        expect(error.message).not_to include("token=abc")
+      }
+    end
+
+    it "raises with a scrubbed url when a redirect is missing its location header" do
+      response = Net::HTTPMovedPermanently.new("1.1", "301", "Moved Permanently")
+      allow(response).to receive(:[]).with("location").and_return(nil)
+      http = instance_double(Net::HTTP)
+      allow(http).to receive(:request).and_yield(response).and_return(response)
+      allow(Net::HTTP).to receive(:start).and_yield(http)
+
+      expect do
+        described_class.new.get("https://user:secret@example.com/prices.json")
+      end.to raise_error(LlmCostTracker::Error) { |error|
+        expect(error.message).to include("Redirect without location")
+        expect(error.message).not_to include("secret")
+      }
+    end
+
+    it "raises with a scrubbed url and HTTP code on unhandled response statuses" do
+      response = Net::HTTPInternalServerError.new("1.1", "500", "Internal Server Error")
+      allow(response).to receive(:read_body)
+      http = instance_double(Net::HTTP)
+      allow(http).to receive(:request).and_yield(response).and_return(response)
+      allow(Net::HTTP).to receive(:start).and_yield(http)
+
+      expect do
+        described_class.new.get("https://user:secret@example.com/prices.json")
+      end.to raise_error(LlmCostTracker::Error) { |error|
+        expect(error.message).to include("HTTP 500")
+        expect(error.message).not_to include("secret")
+      }
+    end
   end
 end

@@ -46,7 +46,8 @@ module LlmCostTracker
           table = connection.quote_table_name("llm_cost_tracker_call_rollups")
           "COALESCE((SELECT SUM(total_cost) FROM #{table} " \
             "WHERE period = #{connection.quote(Period::PERIODS.fetch(period))} " \
-            "AND period_start = #{connection.quote(Period.bucket(period, time))}), 0)"
+            "AND period_start = #{connection.quote(Period.bucket(period, time))} " \
+            "AND currency = #{connection.quote(Ledger::Rollups::DEFAULT_CURRENCY)}), 0)"
         end
 
         def pending_total_sql(start)

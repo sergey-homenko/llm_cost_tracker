@@ -36,7 +36,7 @@ module LlmCostTracker
         def flush!(timeout: nil, require_lease: false)
           Ingestion.ensure_current_schema!
 
-          deadline = Time.now.utc + (timeout || FLUSH_TIMEOUT_SECONDS)
+          deadline = Time.now.utc + flush_timeout_seconds(timeout)
           loop do
             return true unless Ingestion::Batch.new(identity: identity).pending?
             return false if Time.now.utc >= deadline
@@ -79,6 +79,15 @@ module LlmCostTracker
             thread
           end
           wake_thread(thread)
+        end
+
+        def flush_timeout_seconds(timeout)
+          return FLUSH_TIMEOUT_SECONDS if timeout.nil?
+
+          numeric = Float(timeout)
+          numeric.finite? && numeric.positive? ? numeric : FLUSH_TIMEOUT_SECONDS
+        rescue ArgumentError, TypeError
+          FLUSH_TIMEOUT_SECONDS
         end
 
         def ingest_once(require_lease: true)
