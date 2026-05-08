@@ -1,91 +1,125 @@
 # Roadmap
 
-Direction of travel after the 0.8 line-item rebuild. Scope stays inside the
-**runtime LLM cost tracker** remit: capture, price, persist, attribute,
-and budget against LLM provider spend from a Rails app. No OTel, eval,
-cache, warehouse, or finance-reconciler extensions.
+The gem is a **runtime LLM cost tracker** for a Rails app. Capture, price,
+attribute, budget. No proxy, no prompt storage, no traces, no evals, no
+warehouse. The 0.8 line-item rebuild is the foundation; everything below
+keeps that boundary.
 
-The shipped schema and architecture are described in
-[Data model](data-model.md) and [Architecture](architecture.md). The original
-billing-rebuild design lives in [RFC 0001](rfcs/0001-line-item-billing.md).
+Architecture: [Architecture](architecture.md). Data model:
+[Data model](data-model.md). Original billing design: [RFC 0001](rfcs/0001-line-item-billing.md).
 
-## Strategic direction
+## Validation discipline
 
-0.8 left a hybrid. Header columns (`total_cost`, token counters) are still
-read by overview/sort/aggregate paths, but line items + `pricing_snapshot`
-are the bookkeeping truth. Header stays a projection/cache, line items
-stay the ledger.
+Every roadmap item must clear three filters before it gets started:
 
-Provider invoice reconciliation (v0.9) is an **experimental side mode**,
-not the strategic direction. The core gem is and remains a runtime
-tracker. Reconciliation lives behind two opt-ins, loads lazily, and
-doesn't touch core code paths — see [Architecture](architecture.md) for
-the isolation contract.
+1. **Pain** — 3+ independent GitHub issues, forum threads, or HN comments
+   from real developers describe the problem. Vendor blog posts don't count.
+2. **Concept** — does not break the load-bearing constraints: no proxy, no
+   prompt storage, Rails-native, ActiveRecord-only, hot path makes no
+   network calls and never reads the ledger.
+3. **Implementation** — reachable without admin-tier API keys, without
+   adding heavy infra, without depending on another vendor SaaS.
 
-## v0.9
+If a candidate fails any filter, it stays in the anti-roadmap until
+evidence shifts. If a shipped feature gets no traction in six months,
+it goes to maintenance mode, not the next minor.
 
-1. **Provider invoice reconciliation.** ⚠️ Shipped as **experimental**.
-   Two opt-ins required (`config.reconciliation_enabled = true` plus a
-   separate generator). Built on architectural intuition rather than
-   validated user demand — public API may change in v0.9.x based on real
-   feedback. If no concrete user demand surfaces by v1.0, reconciliation
-   stays in maintenance mode (bug fixes only) or moves to a companion
-   gem. Design: [RFC 0002](rfcs/0002-invoice-reconciliation.md).
-2. **Explicit rate basis enum on service charges.** ✓ Shipped.
-   `Billing::RATE_BASES = %i[per_million_tokens per_request per_1k_requests
-   per_session per_hour per_gb_day]`. `Billing::Component#rate_basis`
-   exposes the explicit unit semantics; `Pricing::ServiceCharges` derives
-   `rate_quantity` from it instead of the prior `unit == :request ? 1000
-   : 1` heuristic.
-3. **`pricing_mode` as a normalized set internally.** ✓ Shipped.
-   `Pricing::Mode` value object parses any `pricing_mode:` input into a
-   sorted modifier set (`%i[batch data_residency]`), drops the
-   permutation guesswork in `EffectivePrices`, and round-trips back to a
-   canonical string. The DB column stays a string for compatibility.
-4. **MySQL/MariaDB smoke as a release gate.** Real container, real
-   migrations, real `bin/check`. CI matrix already runs the suite, but
-   without an end-to-end smoke a MySQL-only regression can ship.
-   Deferred from the v0.9.0 cut.
+## v0.9 → v1.0 — sharpen the core
 
-## Scope policy
+Four items, all backed by verified pain. These are what users actually
+hit in production.
 
-The gem is `llm_cost_tracker` — a **runtime LLM cost tracker** for a
-Rails app. Capture, price, persist, attribute. That's the product.
+1. **Pre-send budget enforcement.**
+   Provider hard limits don't reliably stop spend (OpenAI forum:
+   `$563.88` debt on a `$5` prepaid account; "hard limit was bypassed"
+   threads). The gem already has a budget API; extend it with a
+   pre-call hook that estimates token cost via a heuristic (character
+   count for all providers; `tiktoken_ruby` optional for OpenAI) and
+   blocks before send when the budget is exhausted. After the call,
+   recalibrate against real usage. No network in the hot path.
 
-It is **not** an LLM finance reconciler, not a billing platform, not a
-warehouse. Reconciliation in v0.9 is an experimental opt-in side mode
-(separate config flag, separate generator, separate security plane via
-admin/org keys) — not a commitment to grow the gem in that direction.
+2. **Cache-aware cost accuracy.**
+   Cache cost calculation is broken across the ecosystem (LiteLLM
+   `#19681` — 10× overcharge; `#27191` — 67%, both with reproductions).
+   The line-item schema already models `cache_read_input`,
+   `cache_write_input`, and `cache_write_extended_input`. Lock the
+   accuracy in with regression fixtures derived from the public bug
+   reports above, plus per-provider cache-tier rate matrices that
+   capture Anthropic's 5-min vs 1-hour TTL split.
 
-Reconciliation does not graduate from experimental without **validated
-user demand** (concrete GitHub issues from real installations, not
-architectural intuition). If demand doesn't surface, reconciliation
-stays in maintenance mode or moves to a companion gem
-(`llm_cost_reconciler`).
+3. **Per-tenant chargeback report templates.**
+   Multi-tenant SaaS teams need "what did Acme Corp cost us last
+   month" (HN `$50K` MCP attribution comment; AWS Bedrock granular
+   attribution post; AgentPulse "surprise bills"). Tags already carry
+   `tenant_id` / `feature` / `user_id`. Add a rake task and a
+   dashboard view that groups cost by tag value with an optional
+   resolver hook into the host app's `accounts` / `organizations`
+   table.
 
-## v0.10 — core tracker improvements
+4. **Tokenizer fingerprint capture.**
+   Stealth re-pricing via tokenizer changes is now an established
+   pattern (Claude Opus 4.7, April 2026: same headline price, +32-34%
+   tokens on production prompts). Add a `tokenizer_version` column on
+   calls; parsers populate it from response headers/metadata where
+   available; doctor warns when an unexpected tokenizer version
+   appears for a known model.
 
-The next cycle stays inside the runtime cost tracker remit. Likely
-candidates, ordered by user value over architectural ambition:
+## v1.0 → v1.2 — agentic attribution (gated on signals)
 
-- Per-tag / per-feature budgets (the "who burned the money" question
-  gets sharper).
-- Cost forecasting on the dashboard (extrapolate the current trend).
-- Optimization hints (cache hit ratio, model substitution, token
-  hotspots).
-- More provider integrations as their official SDKs and OpenAI-compat
-  endpoints stabilise (Mistral, Cohere, Together, Groq, Perplexity).
-- Per-tenant chargeback report templates.
-- Drift alerts on local cost (anomaly detection on rollups).
+Pre-condition: at least 5 GitHub issues describing real production
+agentic-cost-attribution problems. If that signal doesn't arrive,
+defer.
 
-Each item is decided by GitHub issues / discussions, not roadmap
-inertia. Items only ship when at least one real user describes the
-shape of the problem they hit.
+- First-class `trace_id` / `parent_call_id` columns (not tag
+  conventions). Optional, nullable, indexed. Materialized rollups by
+  user action.
+- Tool-charge accuracy audit. Web search, file search GB-day, code
+  execution sessions, container minutes — capture as line items with
+  fixtures matching real provider responses (OpenAI forum blake24
+  thread: `$4.41` charged when `$1.71` expected).
+- Pricing snapshot drift detection. Doctor alert when bundled prices
+  change between releases for already-recorded calls.
 
-Reconciliation follow-ups (multi-meter tools, Gemini/Vertex billing
-import, `line_item` match basis, signed price registry source version)
-are explicitly **out of scope for v0.10** unless reconciliation itself
-graduates first.
+## v1.2+ — reactive
+
+Not planned in advance. Each item ships only against verified demand.
+
+- Automated price scraper polish (foundations exist in
+  `pricing/sync.rb`, `pricing/scrape/runner.rb`).
+- Optional OpenTelemetry GenAI emitter, when the semantic conventions
+  stabilize (likely 2027). Dual-emit: keep the local ledger, also
+  publish to whatever OTel backend the host app runs.
+- Regional billing dimensions, if EU AI Act enforcement creates real
+  customer demand for region-aware cost rows.
+- Real-time / voice API line items, if users start shipping them.
+- New provider integrations, when a provider crosses ~5% enterprise
+  share.
+
+## Anti-roadmap
+
+Explicit rejections. Every item below was considered and ruled out:
+
+- **Reconciliation expansion.** v0.9 ships an experimental opt-in
+  side mode (admin-key security plane, lazy-loaded, isolated). Zero
+  developer-pain evidence found in the wild — the original Reddit
+  comment was a drive-by. Stays experimental, no expansion.
+- **Cost forecasting.** Vendor blog posts only; no developer demand.
+- **Cross-provider price comparison** ("compare gpt-4o vs claude on
+  the same workload by cost"). Vendors talk about it, developers
+  don't ask.
+- **Multi-modal cost explainers.** Provider calculators already cover
+  this.
+- **Generic evals / traces / prompt management.** Different product;
+  the `$200`-`$2,499`/mo SaaS tier wins that lane.
+- **MCP-specific billing metadata.** No metering layer to integrate
+  with.
+- **OpenRouter-as-primary integration.** Direct provider integration
+  is the core; aggregators stay best-effort via OpenAI-compatible
+  Faraday.
+- **Proxy mode.** Breaks the "direct calls only" identity.
+- **Prompt content storage.** Breaks the privacy pillar.
+- **Standalone service / paid SaaS.** OSS gem is the moat; a SaaS
+  fork would dilute it.
 
 ## Tag conventions
 
@@ -99,24 +133,22 @@ a migration:
 - `user_action_id` — single user request that produced this run
 - `agent_name` — which agent role recorded the call
 
-Dashboards group and filter by these tag keys when present. Treat them as
-documented tag names, not enforced schema.
+Dashboards group and filter by these tag keys when present. If real
+demand surfaces (see v1.0 → v1.2), they get promoted to first-class
+columns; until then they stay tag conventions.
 
 ## Standing constraints
 
 - Runtime tracking never makes a network call or scans the ledger. Hot
-  path reads `pricing_overrides` → file snapshot → bundled snapshot, then
-  enqueues to the durable inbox.
-- Header is a projection. Per-component costs and provider-side usage
-  evidence live in `llm_cost_tracker_call_line_items` and
-  `llm_cost_tracker_provider_invoices`. Rollups stay a hot-path cache.
+  path reads `pricing_overrides` → file snapshot → bundled snapshot,
+  then enqueues to the durable inbox.
+- Header is a projection. Per-component costs live in
+  `llm_cost_tracker_call_line_items`; rollups stay a hot-path cache.
 - Postgres and MySQL parity. Every ledger query must run on both.
-- Importers are operational tools. They run off the hot path, must be
-  idempotent on `external_id`, paginated and resumable across provider
-  cursors.
-- Diff totals are SQL aggregates (`SUM(...)`); the dashboard
-  reconciliation page never loads provider invoices or calls into Ruby
-  to add them up.
+- Reconciliation must stay isolated from core (autoload, gated proxy
+  via `LlmCostTracker.reconciliation_enabled?`, no constant references
+  from core paths). See the isolation contract in
+  [Architecture](architecture.md).
 - No silent migrations. Schema changes ship behind generators with
   upgrade notes; doctor surfaces missing schema before per-event
   branching is introduced.

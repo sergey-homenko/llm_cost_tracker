@@ -125,8 +125,7 @@ Without `config.reconciliation_enabled = true`, `Reconciliation.import`
 hidden, and doctor ignores the reconciliation schema entirely. The gem
 stays a pure runtime tracker.
 
-See [RFC 0002](docs/rfcs/0002-invoice-reconciliation.md) for the design
-and [Upgrading](docs/upgrading.md) for the migration path.
+See [Upgrading](docs/upgrading.md) for the migration path.
 
 ## Manual tracking
 

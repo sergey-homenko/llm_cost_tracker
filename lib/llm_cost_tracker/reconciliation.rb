@@ -49,7 +49,7 @@ module LlmCostTracker
 
         raise Error,
               "reconciliation is disabled; set `config.reconciliation_enabled = true` in your initializer " \
-              "(requires admin/org-level provider API keys, see docs/rfcs/0002-invoice-reconciliation.md)"
+              "(requires admin/org-level provider API keys; see docs/upgrading.md)"
       end
     end
   end
