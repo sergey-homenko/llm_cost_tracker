@@ -102,7 +102,7 @@ Enable explicitly:
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.enable_reconciliation!
+  config.reconciliation_enabled = true
   config.register_reconciliation_importer(:openai) { OpenaiCostsImportJob.perform_later }
 end
 ```
@@ -114,10 +114,10 @@ bin/rails generate llm_cost_tracker:reconciliation
 bin/rails db:migrate
 ```
 
-Without `enable_reconciliation!`, `Reconciliation.import` / `.diff` raise
-a clear error, the dashboard's Reconciliation tab is hidden, and doctor
-ignores the reconciliation schema entirely. The gem stays a pure runtime
-tracker.
+Without `config.reconciliation_enabled = true`, `Reconciliation.import`
+/ `.diff` raise a clear error, the dashboard's Reconciliation tab is
+hidden, and doctor ignores the reconciliation schema entirely. The gem
+stays a pure runtime tracker.
 
 See [RFC 0002](docs/rfcs/0002-invoice-reconciliation.md) for the design
 and [Upgrading](docs/upgrading.md) for the migration path.

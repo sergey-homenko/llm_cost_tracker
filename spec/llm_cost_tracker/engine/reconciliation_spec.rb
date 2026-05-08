@@ -54,7 +54,7 @@ RSpec.describe "LlmCostTracker::Engine reconciliation" do
 
     expect(response.status).to eq(200)
     expect(response.body).to include("Reconciliation disabled")
-    expect(response.body).to include("config.enable_reconciliation!")
+    expect(response.body).to include("config.reconciliation_enabled = true")
   end
 
   it "rejects trigger_import when reconciliation is disabled" do

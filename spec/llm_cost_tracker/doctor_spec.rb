@@ -109,7 +109,7 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "skips reconciliation schema checks until reconciliation is enabled" do
-      LlmCostTracker.configuration.enable_reconciliation!
+      LlmCostTracker.configuration.reconciliation_enabled = true
 
       checks = described_class.call
 
@@ -117,7 +117,7 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "stays silent when the optional provider invoices table is missing" do
-      LlmCostTracker.configuration.enable_reconciliation!
+      LlmCostTracker.configuration.reconciliation_enabled = true
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoices, force: :cascade)
       LlmCostTracker::ProviderInvoice.reset_column_information
 
@@ -127,7 +127,7 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "fails when the provider invoices table exists but its schema drifted" do
-      LlmCostTracker.configuration.enable_reconciliation!
+      LlmCostTracker.configuration.reconciliation_enabled = true
       ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_provider_invoices, :external_id)
       LlmCostTracker::ProviderInvoice.reset_column_information
 

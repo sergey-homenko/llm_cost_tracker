@@ -22,10 +22,10 @@ applications that explicitly opt in.
 Reconciliation is **off by default** and lives behind two explicit
 opt-ins:
 
-1. `LlmCostTracker.configure { |c| c.enable_reconciliation! }` — the
-   runtime gate. Without it `Reconciliation.import` / `.diff` raise, the
-   dashboard tab is hidden, and doctor ignores the reconciliation
-   schema. Tracker keeps working untouched.
+1. `LlmCostTracker.configure { |c| c.reconciliation_enabled = true }`
+   — the runtime gate. Without it `Reconciliation.import` / `.diff`
+   raise, the dashboard tab is hidden, and doctor ignores the
+   reconciliation schema. Tracker keeps working untouched.
 2. `bin/rails generate llm_cost_tracker:reconciliation` — the schema
    gate. Adds `provider_invoices` and `provider_invoice_imports` tables.
 

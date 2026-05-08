@@ -7,7 +7,7 @@ invoice reconciliation. Two migrations:
 
 1. **Mandatory:** add `provider` column to `call_rollups`. No new tables.
 2. **Optional:** invoice reconciliation. Two opt-ins required:
-   `config.enable_reconciliation!` in the initializer, and
+   `config.reconciliation_enabled = true` in the initializer, and
    `bin/rails generate llm_cost_tracker:reconciliation` for the schema.
    Skip both entirely if you only use the gem for runtime tracking — it
    requires admin/org-level provider API keys (`sk-admin-…`, GCP

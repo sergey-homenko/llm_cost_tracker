@@ -56,7 +56,7 @@ RSpec.describe LlmCostTracker::Reconciliation do
 
       expect do
         LlmCostTracker.configuration.register_reconciliation_importer(:openai) { :ok }
-      end.to raise_error(LlmCostTracker::Error, /enable_reconciliation!/)
+      end.to raise_error(LlmCostTracker::Error, /reconciliation_enabled = true/)
     end
   end
 

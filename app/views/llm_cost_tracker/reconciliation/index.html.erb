@@ -36,7 +36,7 @@
       tracker uses. Enable explicitly in the initializer:
     </p>
     <pre class="lct-state-copy"><code>LlmCostTracker.configure do |config|
-  config.enable_reconciliation!
+  config.reconciliation_enabled = true
 end</code></pre>
   </section>
 <% elsif !@reconciliation_installed %>

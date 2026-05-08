@@ -39,14 +39,14 @@ module LlmCostTracker
       end
 
       def enabled?
-        LlmCostTracker.configuration.reconciliation_enabled?
+        LlmCostTracker.configuration.reconciliation_enabled
       end
 
       def ensure_enabled!
         return if enabled?
 
         raise Error,
-              "reconciliation is disabled; call `config.enable_reconciliation!` in your initializer " \
+              "reconciliation is disabled; set `config.reconciliation_enabled = true` in your initializer " \
               "(requires admin/org-level provider API keys, see docs/rfcs/0002-invoice-reconciliation.md)"
       end
     end

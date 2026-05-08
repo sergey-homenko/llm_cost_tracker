@@ -58,18 +58,14 @@ module LlmCostTracker
       @finalized = false
     end
 
-    def enable_reconciliation!
+    def reconciliation_enabled=(value)
       ensure_shared_configuration_mutable!
-      @reconciliation_enabled = true
-    end
-
-    def reconciliation_enabled?
-      @reconciliation_enabled
+      @reconciliation_enabled = !!value
     end
 
     def reconciliation_importers=(importers)
       ensure_shared_configuration_mutable!
-      raise Error, "reconciliation is disabled; call config.enable_reconciliation! first" unless @reconciliation_enabled
+      raise Error, RECONCILIATION_DISABLED_MESSAGE unless @reconciliation_enabled
 
       @reconciliation_importers = (importers || {}).to_h do |source, importer|
         raise Error, "reconciliation_importers[#{source}] must respond to call" unless importer.respond_to?(:call)
@@ -80,11 +76,14 @@ module LlmCostTracker
 
     def register_reconciliation_importer(source, &block)
       ensure_shared_configuration_mutable!
-      raise Error, "reconciliation is disabled; call config.enable_reconciliation! first" unless @reconciliation_enabled
+      raise Error, RECONCILIATION_DISABLED_MESSAGE unless @reconciliation_enabled
       raise Error, "register_reconciliation_importer requires a block" unless block
 
       @reconciliation_importers[source.to_sym] = block
     end
+
+    RECONCILIATION_DISABLED_MESSAGE = "reconciliation is disabled; set config.reconciliation_enabled = true first"
+    private_constant :RECONCILIATION_DISABLED_MESSAGE
 
     def openai_compatible_providers=(providers)
       ensure_shared_configuration_mutable!
