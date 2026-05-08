@@ -57,6 +57,14 @@ RSpec.describe "LlmCostTracker::Engine tags" do
     expect(response.body).to include("← All values for feature")
   end
 
+  it "preserves the drill-down value through the filter form via a hidden field" do
+    create_call(total_cost: 2.0, tags: { feature: "chat" })
+
+    response = get("/llm-costs/tags/feature", params: { value: "chat" })
+
+    expect(response.body).to match(%r{<input[^>]+type="hidden"[^>]+name="value"[^>]+value="chat"})
+  end
+
   it "renders an empty timeseries state when no calls carry the chosen tag value" do
     create_call(total_cost: 2.0, tags: { feature: "chat" })
 

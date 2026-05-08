@@ -8,8 +8,9 @@
     </div>
 
     <%= render "llm_cost_tracker/shared/filters",
-               path: tag_path(params[:key], value: @value),
+               path: tag_path(params[:key]),
                fields: %i[from to provider model],
+               hidden_fields: { value: @value },
                reset_path: tag_path(params[:key], value: @value) %>
   </section>
 

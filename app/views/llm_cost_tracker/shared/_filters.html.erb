@@ -10,6 +10,9 @@
 %>
 
 <form class="lct-filters" action="<%= path %>" method="get">
+  <% local_assigns.fetch(:hidden_fields, {}).each do |key, val| %>
+    <%= hidden_field_tag(key, val) %>
+  <% end %>
   <div class="lct-filter-row">
     <% if fields.include?(:from) %>
       <div class="lct-field">
