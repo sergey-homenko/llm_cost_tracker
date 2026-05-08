@@ -4,24 +4,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+0.9 lands per-provider rollups, an experimental opt-in reconciliation
+side mode kept fully out of the core code path, and proactive
+`stream_options.include_usage` injection for OpenAI / OpenAI-compatible
+streaming. Existing installs need a migration; see
+[Upgrading](docs/upgrading.md).
+
 ### Added
 
-- **Experimental:** optional provider invoice reconciliation, gated behind two opt-ins: `config.reconciliation_enabled = true` in the initializer and `rails generate llm_cost_tracker:reconciliation` for the schema. Public API (`Reconciliation.import` / `.diff`, source adapters, envelope shape) may change in v0.9.x based on user feedback. Requires admin/org-level provider keys (`sk-admin-…`, Anthropic admin keys, GCP `billing.viewer`) — runtime inference keys cannot fetch billing. Without `reconciliation_enabled`, `Reconciliation.import` / `.diff` raise, the dashboard tab is hidden, and doctor ignores the reconciliation schema. Adds `llm_cost_tracker_provider_invoices` + `llm_cost_tracker_provider_invoice_imports` tables. `LlmCostTracker::Reconciliation.import` lands provider Cost API rows idempotently; `Reconciliation.diff` compares provider totals against local cost per `(source, period_start, period_end)` with optional project / api_key / workspace scoping. Source adapters: `Sources::OpenaiUsage` (OpenAI Costs API), `Sources::AnthropicUsage` (Anthropic Cost/Usage). Rake tasks: `llm_cost_tracker:reconcile:import`, `llm_cost_tracker:reconcile:diff`. Dashboard `Reconciliation` page with per-source breakdown, drift status, unmatched rows, and non-cost evidence (free quota / credits / adjustments). Without the optional install, the gem stays a pure tracker — no extra schema, no admin-key requirement.
-- `Doctor::InvoiceReconciliationCheck` warns on drift past 5% or stale imports (>14 days).
-- `llm_cost_tracker_provider_invoice_imports` table tracks importer cursor / window / state for resumable runs. `Importer#call` opens, completes, and fails this row automatically.
-- `Configuration#reconciliation_importers` registers per-source callables that the dashboard can trigger via a re-import button.
-- `Reconciliation.import(window:)` filters rows whose period falls outside the supplied date range.
+- **Experimental:** opt-in provider invoice reconciliation. Two opt-ins required (`config.reconciliation_enabled = true` plus `bin/rails generate llm_cost_tracker:reconciliation`); admin/org-level provider keys, separate security plane, isolated from runtime tracking. See [Configuration](docs/configuration.md#reconciliation-experimental-opt-in).
+- `Doctor::InvoiceReconciliationCheck` warns on reconciliation drift past 5% or stale imports older than 14 days.
 
 ### Changed
 
-- `Tags::Sanitizer` now redacts tag values whose shape matches a known secret pattern (OpenAI / Anthropic / GitHub / AWS access key id / JWT / `Bearer …`), regardless of the tag key. Operational identifiers are unaffected.
-- OpenAI-compatible chat-completions streams (OpenAI, OpenRouter, DeepSeek, Groq, custom gateways) now log a clear warning when the request body sets `stream: true` without `stream_options: { include_usage: true }` and the final usage chunk is missing. The call is still recorded with `usage_source: "unknown"`; the warning surfaces the misconfiguration instead of leaving it silent. Responses API streams and the official OpenAI SDK helpers are unaffected — they emit usage automatically.
-- Faraday middleware auto-injects `stream_options: { include_usage: true }` for OpenAI / OpenAI-compatible chat-completions streaming requests when the caller has not set it. Explicit caller values (including `include_usage: false`) and other `stream_options` entries are preserved; non-streaming, Responses API, and non-JSON bodies are not modified. Disable with `config.auto_enable_stream_usage = false` to manage the flag manually.
-- `Billing::Component` carries an explicit `rate_basis` (`per_million_tokens` / `per_request` / `per_1k_requests` / `per_session` / `per_hour` / `per_gb_day`). `Pricing::ServiceCharges` reads the rate quantity from the component's `rate_basis` instead of the previous `unit == :request ? 1000 : 1` heuristic. Future GB-day, token-hour, session-minute meters plug in by adding a row to `Billing::RATE_BASES` and a `rate_basis:` to the YAML registry.
-- `Pricing::Mode` value object replaces the string-permutation logic inside `Pricing::EffectivePrices`. Modes parse `"batch_data_residency"` into a sorted set of modifiers (`%i[batch data_residency]`), expose `permutations` for compound-key lookups, and round-trip back to a canonical string. Public `pricing_mode:` parameters still accept strings/symbols; the gem normalizes them internally.
-- BREAKING: `llm_cost_tracker_call_rollups` gains a `provider` column (default `""` for legacy rows). The unique index moves from `(period, period_start, currency)` to `(period, period_start, currency, provider)`. Existing installs need a migration; see [Upgrading](docs/upgrading.md).
-- BREAKING: `Ledger::Rollups.decrement!` now expects a 5-tuple `[id, tracked_at, total_cost, pricing_snapshot, provider]` instead of the prior 4-tuple. Direct callers outside the gem (the gem itself updates `Retention#pluck_prunable` and `Ingestion#cleanup_verification_call`) will silently bucket into `provider = ""` if they keep emitting the 4-tuple shape.
-- `Ledger::Rollups.increment!` / `decrement!` now record and update the provider associated with each call. Per-provider rollups unlock the rollup fast path in `Reconciliation::Diff` for aligned month-bucket diffs.
+- BREAKING: `llm_cost_tracker_call_rollups` gains a `provider` column; unique index moves from `(period, period_start, currency)` to `(period, period_start, currency, provider)`. See [Upgrading](docs/upgrading.md).
+- BREAKING: `Ledger::Rollups.decrement!` now expects a 5-tuple `[id, tracked_at, total_cost, pricing_snapshot, provider]`. Direct callers outside the gem need to update their tuple shape; mismatched calls silently bucket into `provider = ""`.
+- Faraday middleware auto-injects `stream_options: { include_usage: true }` on OpenAI / OpenAI-compatible chat-completions streaming requests when the caller has not set it. Explicit caller values are preserved. Disable with `config.auto_enable_stream_usage = false`.
+- OpenAI-compatible chat-completions streams without a final usage chunk now log a warning instead of going silently into `usage_source: "unknown"`.
+- `Tags::Sanitizer` redacts tag values matching known secret patterns (OpenAI, Anthropic, GitHub, AWS access key id, JWT, `Bearer …`) regardless of the tag key.
+- `Billing::Component` carries an explicit `rate_basis` enum (`per_million_tokens`, `per_request`, `per_1k_requests`, `per_session`, `per_hour`, `per_gb_day`); `Pricing::ServiceCharges` derives quantity from it instead of the prior `unit == :request` heuristic.
+- `Pricing::Mode` value object normalizes `pricing_mode:` inputs into a sorted modifier set internally; public string/symbol API is unchanged.
 
 ## [0.8.0] - 2026-05-07
 
