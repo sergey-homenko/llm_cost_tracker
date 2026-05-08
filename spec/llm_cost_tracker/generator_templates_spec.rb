@@ -142,6 +142,56 @@ RSpec.describe "generator templates" do
     end
   end
 
+  describe "schema drift detection" do
+    let(:install_migration) { render_migration_template("create_llm_cost_tracker_calls.rb.erb") }
+
+    let(:reconciliation_migration) do
+      render_migration_template("create_llm_cost_tracker_reconciliation.rb.erb")
+    end
+
+    let(:auto_columns) { %w[id created_at updated_at llm_cost_tracker_call_id] }
+
+    def expect_columns_in(migration, columns)
+      missing = columns.reject do |column|
+        migration.match?(/[\s,(]:#{Regexp.escape(column)}\b/)
+      end
+      expect(missing).to eq([]),
+                         "expected migration to declare #{missing.inspect}; update the generator template when schema columns change"
+    end
+
+    it "covers every Calls schema column in the install migration" do
+      columns = LlmCostTracker::Ledger::Schema::Calls::CURRENT_SCHEMA_COLUMNS - auto_columns
+      expect_columns_in(install_migration, columns)
+    end
+
+    it "covers every CallLineItems required column in the install migration" do
+      columns = LlmCostTracker::Ledger::Schema::CallLineItems::REQUIRED_COLUMNS - auto_columns
+      expect_columns_in(install_migration, columns)
+    end
+
+    it "covers every CallTags required column in the install migration" do
+      columns = LlmCostTracker::Ledger::Schema::CallTags::REQUIRED_COLUMNS - auto_columns
+      expect_columns_in(install_migration, columns)
+    end
+
+    it "covers every CallRollups required column in the install migration" do
+      columns = LlmCostTracker::Ledger::Schema::CallRollups::REQUIRED_COLUMNS - auto_columns
+      expect_columns_in(install_migration, columns)
+    end
+
+    it "covers every ProviderInvoices required column in the reconciliation migration" do
+      LlmCostTracker.const_get(:Reconciliation)
+      columns = LlmCostTracker::Ledger::Schema::ProviderInvoices::REQUIRED_COLUMNS - auto_columns
+      expect_columns_in(reconciliation_migration, columns)
+    end
+
+    it "covers every ProviderInvoiceImports required column in the reconciliation migration" do
+      LlmCostTracker.const_get(:Reconciliation)
+      columns = LlmCostTracker::Ledger::Schema::ProviderInvoiceImports::REQUIRED_COLUMNS - auto_columns
+      expect_columns_in(reconciliation_migration, columns)
+    end
+  end
+
   it "generates a local prices snapshot from bundled prices" do
     expected = JSON.parse(File.read(LlmCostTracker::Pricing::Registry::DEFAULT_PRICES_PATH))
 

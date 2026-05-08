@@ -8,6 +8,14 @@ module LlmCostTracker
     module Sanitizer
       REDACTED_VALUE = "[REDACTED]"
 
+      SECRET_VALUE_PATTERNS = [
+        /\Ask-(?:ant-|admin-|proj-|live-|test-)?[A-Za-z0-9_-]{16,}\z/,
+        /\AAKIA[0-9A-Z]{16}\z/,
+        /\Aghp_[A-Za-z0-9]{30,}\z/,
+        /\Aeyj[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\z/i,
+        /\Abearer\s+[A-Za-z0-9_.-]{20,}\z/i
+      ].freeze
+
       class << self
         def call(tags, config: LlmCostTracker.configuration)
           tags = (tags || {}).to_h
@@ -24,9 +32,14 @@ module LlmCostTracker
           return REDACTED_VALUE if redacted_key?(key, redacted)
 
           string = value_string(value)
+          return REDACTED_VALUE if secret_shaped?(string)
           return value if string.bytesize <= limit
 
           string.byteslice(0, limit).encode("UTF-8", invalid: :replace, undef: :replace)
+        end
+
+        def secret_shaped?(string)
+          SECRET_VALUE_PATTERNS.any? { |pattern| pattern.match?(string) }
         end
 
         def redacted_key?(key, redacted)
