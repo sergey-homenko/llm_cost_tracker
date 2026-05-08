@@ -84,49 +84,6 @@ need `stream_options: { include_usage: true }`.
 - No traces, evals, or prompt management. Different product, different gem.
 - Not multi-service. Built for a Rails monolith.
 
-## Experimental: provider invoice reconciliation
-
-> **Experimental in v0.9.0.** Shipped behind two opt-ins because the
-> design is unvalidated by real user demand. API may change in v0.9.x
-> based on feedback. If you use it, please [open an issue](https://github.com/sergey-homenko/llm_cost_tracker/issues)
-> describing your setup — the gem stays a pure runtime tracker
-> otherwise.
-
-A separate **finance/admin mode**, off by default. The runtime tracker
-above doesn't need it. Reconciliation is for teams that want to verify
-local cost against provider-side invoices via admin/org-level provider
-APIs — a different security plane from the inference key the tracker
-uses.
-
-**Why it's gated:** OpenAI Costs API requires `sk-admin-…`. Anthropic
-Cost / Usage APIs require admin keys (`sk-ant-admin-…`). GCP billing
-export requires a service account with `billing.viewer`. These should
-not live on the runtime app server. Reconciliation is opt-in so the gem
-doesn't pretend to need them when it doesn't.
-
-Enable explicitly:
-
-```ruby
-LlmCostTracker.configure do |config|
-  config.reconciliation_enabled = true
-  config.register_reconciliation_importer(:openai) { OpenaiCostsImportJob.perform_later }
-end
-```
-
-Run the optional migration:
-
-```bash
-bin/rails generate llm_cost_tracker:reconciliation
-bin/rails db:migrate
-```
-
-Without `config.reconciliation_enabled = true`, `Reconciliation.import`
-/ `.diff` raise a clear error, the dashboard's Reconciliation tab is
-hidden, and doctor ignores the reconciliation schema entirely. The gem
-stays a pure runtime tracker.
-
-See [Upgrading](docs/upgrading.md) for the migration path.
-
 ## Manual tracking
 
 For batch jobs, internal gateways, or anything without an SDK/Faraday hook:
