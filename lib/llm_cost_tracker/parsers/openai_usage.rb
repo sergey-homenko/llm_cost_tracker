@@ -42,37 +42,59 @@ module LlmCostTracker
         return nil unless response_status == 200
 
         request = safe_json_parse(request_body)
-        model = find_event_value(events) { |data| data["model"] || data.dig("response", "model") } || request["model"]
         usage = detect_stream_usage(events)
-        response_id = find_event_value(events) { |data| data["id"] || data.dig("response", "id") }
-        pricing_mode = pricing_mode(
-          request_url: request_url,
-          model: model,
-          service_tier: stream_pricing_mode(events) || request["service_tier"]
-        )
-        service_line_items = openai_stream_service_line_items(events)
+        context = stream_capture_context(events: events, request: request, request_url: request_url)
 
-        if usage
-          cache_read = cache_read_input_tokens(usage)
-          UsageCapture.build(
-            provider: provider_for(request_url),
-            provider_response_id: response_id,
-            pricing_mode: pricing_mode,
+        return build_known_stream_usage(usage: usage, **context) if usage
+
+        warn_missing_stream_usage(request_url: request_url, request: request)
+        build_unknown_stream_usage(**context)
+      end
+
+      def stream_capture_context(events:, request:, request_url:)
+        model = find_event_value(events) { |data| data["model"] || data.dig("response", "model") } || request["model"]
+        {
+          provider: provider_for(request_url),
+          model: model,
+          provider_response_id: find_event_value(events) { |data| data["id"] || data.dig("response", "id") },
+          pricing_mode: pricing_mode(
+            request_url: request_url,
             model: model,
-            token_usage: token_usage(usage: usage, cache_read: cache_read),
-            stream: true,
-            usage_source: :stream_final,
-            service_line_items: service_line_items
-          )
-        else
-          build_unknown_stream_usage(
-            provider: provider_for(request_url),
-            model: model,
-            provider_response_id: response_id,
-            pricing_mode: pricing_mode,
-            service_line_items: service_line_items
-          )
-        end
+            service_tier: stream_pricing_mode(events) || request["service_tier"]
+          ),
+          service_line_items: openai_stream_service_line_items(events)
+        }
+      end
+
+      def build_known_stream_usage(usage:, provider:, model:, provider_response_id:, pricing_mode:, service_line_items:)
+        cache_read = cache_read_input_tokens(usage)
+        UsageCapture.build(
+          provider: provider,
+          provider_response_id: provider_response_id,
+          pricing_mode: pricing_mode,
+          model: model,
+          token_usage: token_usage(usage: usage, cache_read: cache_read),
+          stream: true,
+          usage_source: :stream_final,
+          service_line_items: service_line_items
+        )
+      end
+
+      def warn_missing_stream_usage(request_url:, request:)
+        return unless request.is_a?(Hash) && request["stream"]
+        return unless openai_chat_completions_url?(request_url)
+        return if request.dig("stream_options", "include_usage")
+
+        Logging.warn(
+          "OpenAI-compatible chat-completions stream finished without a final usage chunk. " \
+          "Set `stream_options: { include_usage: true }` in your request body so the gem can " \
+          "record token counts. This call was stored with usage_source=unknown."
+        )
+      end
+
+      def openai_chat_completions_url?(request_url)
+        uri = parsed_uri(request_url)
+        uri && uri.path.to_s.end_with?("/chat/completions")
       end
 
       def detect_stream_usage(events)

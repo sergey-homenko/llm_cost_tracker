@@ -179,4 +179,92 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
       expect(result.token_usage.output_tokens).to eq(42)
     end
   end
+
+  describe "#parse_stream" do
+    let(:request_body) do
+      { model: "deepseek-chat", stream: true, stream_options: { include_usage: true } }.to_json
+    end
+
+    let(:final_usage_event) do
+      {
+        event: nil,
+        data: { "usage" => { "prompt_tokens" => 30, "completion_tokens" => 10, "total_tokens" => 40 } }
+      }
+    end
+
+    it "extracts DeepSeek streaming usage and provider name" do
+      events = [
+        { event: nil, data: { "id" => "deepseek-1", "model" => "deepseek-chat" } },
+        final_usage_event
+      ]
+
+      result = parser.parse_stream(
+        request_url: deepseek_v1_chat_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.provider).to eq("deepseek")
+      expect(result.model).to eq("deepseek-chat")
+      expect(result.usage_source).to eq(:stream_final)
+      expect(result.token_usage.input_tokens).to eq(30)
+      expect(result.token_usage.output_tokens).to eq(10)
+      expect(result.provider_response_id).to eq("deepseek-1")
+    end
+
+    it "extracts Groq streaming usage" do
+      events = [
+        { event: nil, data: { "id" => "groq-x", "model" => "llama-3.3-70b-versatile" } },
+        final_usage_event
+      ]
+
+      result = parser.parse_stream(
+        request_url: groq_chat_url,
+        request_body: { model: "llama-3.3-70b-versatile", stream: true,
+                        stream_options: { include_usage: true } }.to_json,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.provider).to eq("groq")
+      expect(result.usage_source).to eq(:stream_final)
+      expect(result.token_usage.input_tokens).to eq(30)
+      expect(result.token_usage.output_tokens).to eq(10)
+    end
+
+    it "extracts OpenRouter streaming usage" do
+      events = [
+        { event: nil, data: { "id" => "or-y", "model" => "openrouter/auto" } },
+        final_usage_event
+      ]
+
+      result = parser.parse_stream(
+        request_url: openrouter_chat_url,
+        request_body: { model: "openrouter/auto", stream: true,
+                        stream_options: { include_usage: true } }.to_json,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.provider).to eq("openrouter")
+      expect(result.token_usage.input_tokens).to eq(30)
+    end
+
+    it "warns and records unknown usage when an OpenAI-compatible chat stream omits the final usage chunk" do
+      events = [
+        { event: nil, data: { "id" => "groq-x", "model" => "llama-3.3-70b-versatile" } }
+      ]
+
+      expect(LlmCostTracker::Logging).to receive(:warn).with(/stream_options.*include_usage/).once
+      result = parser.parse_stream(
+        request_url: groq_chat_url,
+        request_body: { model: "llama-3.3-70b-versatile", stream: true }.to_json,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.usage_source).to eq(:unknown)
+    end
+  end
 end

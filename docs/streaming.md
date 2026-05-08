@@ -9,14 +9,26 @@ final usage becomes an unknown-cost stream row instead of vanishing.
 The Faraday middleware tees `on_data`, keeps chunks flowing to the caller, and
 records usage after the response completes.
 
-OpenAI Chat Completions streaming needs:
+OpenAI Chat Completions streaming (and OpenAI-compatible gateways such as
+OpenRouter, DeepSeek, Groq) needs:
 
 ```ruby
 stream_options: { include_usage: true }
 ```
 
-Without the final usage chunk, the event is stored with
-`usage_source: "unknown"` and appears on Data Quality.
+Without the final usage chunk, the call is stored with
+`usage_source: "unknown"`, appears on Data Quality, and the gem emits a
+warning so the missing flag does not stay silent:
+
+```
+[LlmCostTracker] OpenAI-compatible chat-completions stream finished without
+a final usage chunk. Set `stream_options: { include_usage: true }` in your
+request body so the gem can record token counts. This call was stored with
+usage_source=unknown.
+```
+
+The Responses API and the official OpenAI SDK streaming helpers do not
+need the flag — usage is emitted automatically.
 
 Gemini `streamGenerateContent` and Anthropic streaming responses are parsed from
 their provider event shapes when usage metadata is present.

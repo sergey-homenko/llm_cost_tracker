@@ -651,6 +651,8 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         { event: nil, data: { "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] } }
       ]
 
+      result = nil
+      expect(LlmCostTracker::Logging).to receive(:warn).with(/stream_options.*include_usage/).once
       result = parser.parse_stream(
         request_url: chat_completions_url,
         request_body: request_body,
@@ -663,6 +665,37 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.token_usage.input_tokens).to eq(0)
       expect(result.token_usage.output_tokens).to eq(0)
       expect(result.provider_response_id).to be_nil
+    end
+
+    it "does not warn about stream_options when chat-completions request already opts into usage" do
+      events = [
+        { event: nil, data: { "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] } }
+      ]
+
+      expect(LlmCostTracker::Logging).not_to receive(:warn)
+      parser.parse_stream(
+        request_url: chat_completions_url,
+        request_body: { model: "gpt-4o", stream: true, stream_options: { include_usage: true } }.to_json,
+        response_status: 200,
+        events: events
+      )
+    end
+
+    it "does not warn about stream_options for the Responses API where usage is automatic" do
+      events = [
+        {
+          event: nil,
+          data: { "type" => "response.created", "response" => { "id" => "resp_x", "model" => "gpt-5-mini" } }
+        }
+      ]
+
+      expect(LlmCostTracker::Logging).not_to receive(:warn)
+      parser.parse_stream(
+        request_url: responses_url,
+        request_body: { model: "gpt-5-mini", stream: true }.to_json,
+        response_status: 200,
+        events: events
+      )
     end
 
     it "computes stream total tokens when the final usage omits total_tokens" do
