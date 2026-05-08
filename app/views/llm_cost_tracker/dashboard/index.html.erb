@@ -46,7 +46,7 @@
           <% end %>
         </p>
       </div>
-      <%= link_to "Review calls →",
+      <%= link_to "Calls",
                   calls_path(current_query(provider: @spend_anomaly.fetch(:provider), model: @spend_anomaly.fetch(:model), from: @to_date.iso8601, to: @to_date.iso8601, page: nil, per: nil, format: nil)),
                   class: "lct-button lct-button-secondary" %>
     </aside>
