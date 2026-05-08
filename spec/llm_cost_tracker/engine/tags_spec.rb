@@ -40,6 +40,41 @@ RSpec.describe "LlmCostTracker::Engine tags" do
     expect(response.body.index("chat")).to be < response.body.index("summarizer")
   end
 
+  it "renders a daily spend timeseries when a value is selected" do
+    create_call(total_cost: 2.0, tracked_at: Date.current.to_time, tags: { feature: "chat" })
+    create_call(total_cost: 3.0, tracked_at: (Date.current - 1).to_time, tags: { feature: "chat" })
+    create_call(total_cost: 1.0, tracked_at: Date.current.to_time, tags: { feature: "summarizer" })
+
+    response = get("/llm-costs/tags/feature", params: { value: "chat" })
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("feature")
+    expect(response.body).to include("chat")
+    expect(response.body).to include("Spend over time")
+    expect(response.body).to include("$5.00")
+    expect(response.body).to include("$2.50")
+    expect(response.body).not_to include("summarizer")
+    expect(response.body).to include("← All values for feature")
+  end
+
+  it "renders an empty timeseries state when no calls carry the chosen tag value" do
+    create_call(total_cost: 2.0, tags: { feature: "chat" })
+
+    response = get("/llm-costs/tags/feature", params: { value: "missing" })
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("No calls tagged with feature=missing")
+    expect(response.body).not_to include("Spend over time")
+  end
+
+  it "exposes a Trend link from the breakdown row to the value timeseries" do
+    create_call(total_cost: 2.0, tags: { feature: "chat" })
+
+    response = get("/llm-costs/tags/feature")
+
+    expect(response.body).to match(%r{href="[^"]*/llm-costs/tags/feature\?[^"]*value=chat[^"]*"[^>]*>\s*Trend\s*</a>})
+  end
+
   it "applies provider and date filters to the tag breakdown" do
     create_call(provider: "openai", total_cost: 2.0, tags: { feature: "chat" })
     create_call(provider: "anthropic", total_cost: 3.0, tags: { feature: "summarizer" })

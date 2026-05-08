@@ -1,3 +1,60 @@
+<% if @value.present? %>
+  <section class="lct-panel lct-toolbar">
+    <div class="lct-toolbar-head">
+      <div>
+        <p class="lct-muted"><%= link_to "← All values for #{params[:key]}", tag_path(params[:key], current_query.except(:value)) %></p>
+        <h2 class="lct-section-title">Tag: <code class="lct-code"><%= params[:key] %></code> = <code class="lct-code"><%= @value %></code></h2>
+      </div>
+    </div>
+
+    <%= render "llm_cost_tracker/shared/filters",
+               path: tag_path(params[:key], value: @value),
+               fields: %i[from to provider model],
+               reset_path: tag_path(params[:key], value: @value) %>
+  </section>
+
+  <% if @value_calls.zero? %>
+    <section class="lct-panel lct-empty">
+      <h2 class="lct-state-title">No calls tagged with <%= params[:key] %>=<%= @value %></h2>
+      <p class="lct-state-copy">No matching calls in the current slice.</p>
+      <div class="lct-state-actions">
+        <%= link_to "Back to values", tag_path(params[:key]), class: "lct-button lct-button-secondary" %>
+      </div>
+    </section>
+  <% else %>
+    <section class="lct-stat-grid lct-stat-grid-spaced">
+      <article class="lct-stat">
+        <p class="lct-stat-label">Total cost</p>
+        <p class="lct-stat-value"><%= money(@value_total_cost) %></p>
+        <p class="lct-stat-copy">Across <%= number(@value_calls) %> calls</p>
+      </article>
+
+      <article class="lct-stat">
+        <p class="lct-stat-label">Calls</p>
+        <p class="lct-stat-value"><%= number(@value_calls) %></p>
+        <p class="lct-stat-copy">Tagged with <code class="lct-code"><%= @value %></code></p>
+      </article>
+
+      <article class="lct-stat">
+        <p class="lct-stat-label">Avg cost / call</p>
+        <p class="lct-stat-value"><%= money(@value_calls.positive? ? @value_total_cost / @value_calls : 0) %></p>
+        <p class="lct-stat-copy">Mean over the slice</p>
+      </article>
+    </section>
+
+    <section class="lct-panel">
+      <div class="lct-section-head">
+        <div>
+          <h2 class="lct-section-title">Spend over time</h2>
+          <p class="lct-section-copy">Daily total cost for calls tagged <code class="lct-code"><%= params[:key] %>=<%= @value %></code>.</p>
+        </div>
+        <%= link_to "View calls", calls_path(calls_query_for_tag(key: @key, value: @value)), class: "lct-button lct-button-secondary lct-button-compact" %>
+      </div>
+
+      <%= render "llm_cost_tracker/shared/spend_chart", series: @value_points %>
+    </section>
+  <% end %>
+<% else %>
 <section class="lct-panel lct-toolbar">
   <div class="lct-toolbar-head">
     <div>
@@ -78,6 +135,7 @@
                 <% if row.value == "(untagged)" %>
                   <span class="lct-muted">n/a</span>
                 <% else %>
+                  <%= link_to "Trend", tag_path(params[:key], current_query.merge(value: row.value)), class: "lct-button lct-button-secondary lct-button-compact" %>
                   <%= link_to "Calls", calls_path(calls_query_for_tag(key: params[:key], value: row.value)), class: "lct-button lct-button-secondary lct-button-compact" %>
                 <% end %>
               </td>
@@ -87,4 +145,5 @@
       </table>
     </div>
   </section>
+<% end %>
 <% end %>
