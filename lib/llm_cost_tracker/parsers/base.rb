@@ -32,6 +32,10 @@ module LlmCostTracker
         nil
       end
 
+      def auto_enable_stream_usage?(_request_url)
+        false
+      end
+
       private
 
       def safe_json_parse(body)

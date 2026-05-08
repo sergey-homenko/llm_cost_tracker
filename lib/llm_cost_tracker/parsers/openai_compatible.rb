@@ -47,6 +47,10 @@ module LlmCostTracker
         )
       end
 
+      def auto_enable_stream_usage?(request_url)
+        openai_chat_completions_url?(request_url)
+      end
+
       private
 
       def provider_for(request_url)

@@ -389,6 +389,165 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first.dig(:token_usage, :input_tokens)).to eq(0)
   end
 
+  it "auto-injects stream_options.include_usage on OpenAI chat-completions streaming requests" do
+    captured_body = nil
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          captured_body = env.body
+          [200, { "Content-Type" => "text/event-stream" }, ""]
+        end
+      end
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json)
+
+    parsed = JSON.parse(captured_body)
+    expect(parsed.dig("stream_options", "include_usage")).to be true
+  end
+
+  it "preserves an explicit stream_options.include_usage = false set by the caller" do
+    captured_body = nil
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          captured_body = env.body
+          [200, { "Content-Type" => "text/event-stream" }, ""]
+        end
+      end
+    end
+
+    conn.post(
+      "/v1/chat/completions",
+      { model: "gpt-4o", stream: true, stream_options: { include_usage: false } }.to_json
+    )
+
+    parsed = JSON.parse(captured_body)
+    expect(parsed.dig("stream_options", "include_usage")).to be false
+  end
+
+  it "merges include_usage alongside other caller-supplied stream_options" do
+    captured_body = nil
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          captured_body = env.body
+          [200, { "Content-Type" => "text/event-stream" }, ""]
+        end
+      end
+    end
+
+    conn.post(
+      "/v1/chat/completions",
+      { model: "gpt-4o", stream: true, stream_options: { other_flag: true } }.to_json
+    )
+
+    parsed = JSON.parse(captured_body)
+    expect(parsed["stream_options"]).to eq("other_flag" => true, "include_usage" => true)
+  end
+
+  it "does not auto-inject stream_options on non-streaming chat-completions requests" do
+    captured_body = nil
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          captured_body = env.body
+          [200, { "Content-Type" => "application/json" }, openai_response_body]
+        end
+      end
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+
+    expect(JSON.parse(captured_body)).not_to have_key("stream_options")
+  end
+
+  it "does not auto-inject stream_options on the Responses API where usage is automatic" do
+    captured_body = nil
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/responses") do |env|
+          captured_body = env.body
+          [200, { "Content-Type" => "text/event-stream" }, ""]
+        end
+      end
+    end
+
+    conn.post("/v1/responses", { model: "gpt-5-mini", stream: true }.to_json)
+
+    expect(JSON.parse(captured_body)).not_to have_key("stream_options")
+  end
+
+  it "skips auto-injection when config.auto_enable_stream_usage is false" do
+    LlmCostTracker.configure { |config| config.auto_enable_stream_usage = false }
+
+    captured_body = nil
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          captured_body = env.body
+          [200, { "Content-Type" => "text/event-stream" }, ""]
+        end
+      end
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json)
+
+    expect(JSON.parse(captured_body)).not_to have_key("stream_options")
+  end
+
+  it "auto-injects on OpenAI-compatible chat-completions streaming requests (Groq)" do
+    captured_body = nil
+
+    conn = Faraday.new(url: "https://api.groq.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/openai/v1/chat/completions") do |env|
+          captured_body = env.body
+          [200, { "Content-Type" => "text/event-stream" }, ""]
+        end
+      end
+    end
+
+    conn.post(
+      "/openai/v1/chat/completions",
+      { model: "llama-3.3-70b-versatile", stream: true }.to_json
+    )
+
+    parsed = JSON.parse(captured_body)
+    expect(parsed.dig("stream_options", "include_usage")).to be true
+  end
+
+  it "leaves request bodies that are not JSON untouched" do
+    captured_body = nil
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          captured_body = env.body
+          [200, { "Content-Type" => "text/event-stream" }, ""]
+        end
+      end
+    end
+
+    conn.post("/v1/chat/completions", "not json at all")
+
+    expect(captured_body).to eq("not json at all")
+  end
+
   it "can block LLM requests before they hit the adapter" do
     error = LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 1.0)
     requests = 0

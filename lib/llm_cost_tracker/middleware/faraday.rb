@@ -23,6 +23,7 @@ module LlmCostTracker
         request_body = read_body(request_env.body)
         parser       = Parsers.find_for(request_url)
         streaming    = parser&.streaming_request?(request_url, request_body)
+        request_body = inject_stream_usage_flag(request_env, parser, request_url) if streaming
         stream_buffer = install_stream_tap(request_env) if streaming
 
         Tracker.enforce_budget! if parser
@@ -45,6 +46,20 @@ module LlmCostTracker
       end
 
       private
+
+      def inject_stream_usage_flag(request_env, parser, request_url)
+        body_string = read_body(request_env.body)
+        return body_string unless LlmCostTracker.configuration.auto_enable_stream_usage
+        return body_string unless parser&.auto_enable_stream_usage?(request_url)
+
+        body = JSON.parse(body_string)
+        return body_string if body["stream_options"].is_a?(Hash) && body["stream_options"].key?("include_usage")
+
+        body["stream_options"] = (body["stream_options"] || {}).merge("include_usage" => true)
+        new_body = body.to_json
+        request_env.body = new_body
+        new_body
+      end
 
       def process(parser:, request_url:, request_body:, response_env:,
                   latency_ms:, streaming:, stream_buffer:, context_tags:, metadata:)

@@ -32,7 +32,8 @@ module LlmCostTracker
       :unknown_pricing_behavior,
       :openai_compatible_providers,
       :reconciliation_importers,
-      :reconciliation_enabled
+      :reconciliation_enabled,
+      :auto_enable_stream_usage
     )
 
     def initialize
@@ -55,12 +56,18 @@ module LlmCostTracker
       self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
       @reconciliation_importers = {}
       @reconciliation_enabled = false
+      @auto_enable_stream_usage = true
       @finalized = false
     end
 
     def reconciliation_enabled=(value)
       ensure_shared_configuration_mutable!
       @reconciliation_enabled = !!value
+    end
+
+    def auto_enable_stream_usage=(value)
+      ensure_shared_configuration_mutable!
+      @auto_enable_stream_usage = !!value
     end
 
     def reconciliation_importers=(importers)

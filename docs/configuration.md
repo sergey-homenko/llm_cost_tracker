@@ -26,6 +26,7 @@ behavior mid-request.
 | `max_tag_value_bytesize` | `1024` | Maximum byte size for one stored tag value |
 | `redacted_tag_keys` | common secret-like keys | Tag keys whose values are replaced before storage |
 | `report_tag_breakdowns` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
+| `auto_enable_stream_usage` | `true` | Faraday middleware injects `stream_options: { include_usage: true }` on OpenAI / OpenAI-compatible chat-completions streaming requests so usage is captured automatically. See [Streaming](streaming.md). |
 
 `default_tags` callables run per event. Keep them fast and side-effect free.
 Explicit `tags:` passed to `track` win over scoped tags, and scoped tags win over
