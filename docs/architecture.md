@@ -98,9 +98,17 @@ Storage is ActiveRecord-only. The current schema is:
 | `llm_cost_tracker_call_line_items` | Per-component cost rows; cascade-deletes with the parent |
 | `llm_cost_tracker_call_tags` | Normalized tag rows; cascade-deletes with the parent |
 | `llm_cost_tracker_call_rollups` | Maintained day/month aggregates per currency for budget reads |
-| `llm_cost_tracker_provider_invoices` | Imported provider invoice headers (reserved for v0.9) |
 | `llm_cost_tracker_ingestion_inbox_entries` | Durable ingestion staging |
 | `llm_cost_tracker_ingestion_leases` | Shared worker lease |
+
+Optional reconciliation tables (created only by the
+`llm_cost_tracker:reconciliation` generator when reconciliation is
+explicitly enabled):
+
+| Table | Responsibility |
+| --- | --- |
+| `llm_cost_tracker_provider_invoices` | Imported provider-side invoice rows (reconciliation only) |
+| `llm_cost_tracker_provider_invoice_imports` | Importer cursor / window / state for resumable runs |
 
 Runtime tracking assumes the current schema. Schema gaps belong in doctor/setup
 failures, not per-event branches.
@@ -115,6 +123,39 @@ semantics, or pricing decisions.
 
 Dashboard queries may aggregate because they are user-initiated, but they should
 remain bounded, indexed, and database-side.
+
+## Reconciliation isolation contract
+
+Reconciliation is an experimental opt-in side mode (v0.9) with a
+different security plane (admin/org-level provider keys vs. the runtime
+inference key). It must not couple to the core tracker:
+
+- `LlmCostTracker::Reconciliation` is autoloaded, not eager-required.
+  After `require "llm_cost_tracker"` the namespace stays unloaded until
+  someone explicitly accesses it (`Reconciliation.import`,
+  `Reconciliation.diff`, the dashboard tab, the rake task).
+- Core code paths (`Tracker.record`, parsers, integrations, middleware,
+  pricing, billing, ingestion, ledger schema for calls/line_items/tags/
+  rollups) carry no references to `Reconciliation`, `ProviderInvoice`,
+  or `provider_invoices` tables.
+- `LlmCostTracker.reconciliation_enabled?` is the boolean proxy core
+  code uses to gate behaviour without triggering autoload. Touching
+  `LlmCostTracker::Reconciliation.enabled?` instead would resolve the
+  constant and pull the subsystem into memory.
+- `Doctor::InvoiceReconciliationCheck` and the controller's
+  `reconciliation_schema_checks` only run after the proxy gate; doctor
+  and dashboard are no-ops when reconciliation is disabled.
+- `attribution_summary` / `mask_secret` view helpers live in
+  `ReconciliationHelper`, not `ApplicationHelper`, so non-reconciliation
+  views never reference `Reconciliation::Masking`.
+- The install generator creates only core ledger tables. The optional
+  `llm_cost_tracker:reconciliation` generator is the only path to
+  `provider_invoices` / `provider_invoice_imports` schema.
+
+The contract is verifiable: `LlmCostTracker.autoload?(:Reconciliation)`
+returns the file path (autoload pending) on a fresh boot of a
+non-reconciliation app. If that ever returns `nil`, something in core
+has accidentally referenced the subsystem and pulled it in.
 
 ## Technical Docs
 

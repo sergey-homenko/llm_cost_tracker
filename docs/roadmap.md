@@ -1,9 +1,9 @@
 # Roadmap
 
 Direction of travel after the 0.8 line-item rebuild. Scope stays inside the
-"Rails cost ledger" remit: capture, price, persist, reconcile, and budget
-against LLM provider spend from a Rails app. No OTel, eval, cache, or
-warehouse extensions.
+**runtime LLM cost tracker** remit: capture, price, persist, attribute,
+and budget against LLM provider spend from a Rails app. No OTel, eval,
+cache, warehouse, or finance-reconciler extensions.
 
 The shipped schema and architecture are described in
 [Data model](data-model.md) and [Architecture](architecture.md). The original
@@ -13,15 +13,14 @@ billing-rebuild design lives in [RFC 0001](rfcs/0001-line-item-billing.md).
 
 0.8 left a hybrid. Header columns (`total_cost`, token counters) are still
 read by overview/sort/aggregate paths, but line items + `pricing_snapshot`
-are the bookkeeping truth. The 0.9-0.10 cycle should keep that boundary:
-header stays a projection/cache, line items + invoices stay the ledger.
+are the bookkeeping truth. Header stays a projection/cache, line items
+stay the ledger.
 
-The reconciliation work is provider-meter reconciliation, not just invoice
-import. Provider rows carry different kinds of evidence (financial cost
-vs. usage counts vs. free quota vs. credits) and the diff treats them
-separately rather than summing them blindly. Local ledger answers "what
-the app did and how we priced it"; provider invoice ledger answers "what
-the provider billed"; diff answers "where the truth diverged."
+Provider invoice reconciliation (v0.9) is an **experimental side mode**,
+not the strategic direction. The core gem is and remains a runtime
+tracker. Reconciliation lives behind two opt-ins, loads lazily, and
+doesn't touch core code paths — see [Architecture](architecture.md) for
+the isolation contract.
 
 ## v0.9
 
@@ -48,24 +47,45 @@ the provider billed"; diff answers "where the truth diverged."
    without an end-to-end smoke a MySQL-only regression can ship.
    Deferred from the v0.9.0 cut.
 
-## v0.10 — pending real-user feedback
+## Scope policy
 
-The next cycle is intentionally underspecified until we see how v0.9
-lands. Likely candidates depending on what users ask for:
+The gem is `llm_cost_tracker` — a **runtime LLM cost tracker** for a
+Rails app. Capture, price, persist, attribute. That's the product.
 
-**If reconciliation gets traction:** multi-meter tool components
-(file-search GB-day, container session-minute, vector-store bytes),
-Gemini / Vertex billing export importer, `line_item` match basis in
-Diff, signed `source_version` for the price registry.
+It is **not** an LLM finance reconciler, not a billing platform, not a
+warehouse. Reconciliation in v0.9 is an experimental opt-in side mode
+(separate config flag, separate generator, separate security plane via
+admin/org keys) — not a commitment to grow the gem in that direction.
 
-**If users want core tracker improvements:** per-tag / per-feature
-budgets, cost forecasting on the dashboard, optimization
-recommendations, more provider integrations (Mistral, Cohere, Together,
-Groq, Perplexity), per-tenant chargeback report templates, drift alerts
-on local cost.
+Reconciliation does not graduate from experimental without **validated
+user demand** (concrete GitHub issues from real installations, not
+architectural intuition). If demand doesn't surface, reconciliation
+stays in maintenance mode or moves to a companion gem
+(`llm_cost_reconciler`).
 
-The split between these two paths gets decided by what comes back from
-GitHub issues / discussions, not from architectural instinct.
+## v0.10 — core tracker improvements
+
+The next cycle stays inside the runtime cost tracker remit. Likely
+candidates, ordered by user value over architectural ambition:
+
+- Per-tag / per-feature budgets (the "who burned the money" question
+  gets sharper).
+- Cost forecasting on the dashboard (extrapolate the current trend).
+- Optimization hints (cache hit ratio, model substitution, token
+  hotspots).
+- More provider integrations as their official SDKs and OpenAI-compat
+  endpoints stabilise (Mistral, Cohere, Together, Groq, Perplexity).
+- Per-tenant chargeback report templates.
+- Drift alerts on local cost (anomaly detection on rollups).
+
+Each item is decided by GitHub issues / discussions, not roadmap
+inertia. Items only ship when at least one real user describes the
+shape of the problem they hit.
+
+Reconciliation follow-ups (multi-meter tools, Gemini/Vertex billing
+import, `line_item` match basis, signed price registry source version)
+are explicitly **out of scope for v0.10** unless reconciliation itself
+graduates first.
 
 ## Tag conventions
 
