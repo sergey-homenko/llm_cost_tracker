@@ -6,6 +6,7 @@ require "securerandom"
 
 require_relative "ingestion"
 require_relative "ledger"
+require_relative "logging"
 require_relative "pricing"
 require_relative "billing/cost_status"
 
@@ -43,12 +44,17 @@ module LlmCostTracker
           context_tags: context_tags
         )
 
-        ActiveSupport::Notifications.instrument(EVENT_NAME, event.to_h)
-
         Ingestion::Inbox.save(event)
+        notify_subscribers(event)
         Budget.check!(event)
 
         event
+      end
+
+      def notify_subscribers(event)
+        ActiveSupport::Notifications.instrument(EVENT_NAME, event.to_h)
+      rescue StandardError => e
+        Logging.warn("Subscriber raised on #{EVENT_NAME}: #{e.class}: #{e.message}")
       end
 
       private
@@ -113,15 +119,30 @@ module LlmCostTracker
       end
 
       def cost_with_service_lines(cost_data, line_items)
-        service_lines = line_items.reject(&:token?)
-        return cost_data if service_lines.empty?
-        return cost_data if service_lines.none?(&:priced?)
+        priced_services = line_items.reject(&:token?).select(&:priced?)
+        return cost_data if priced_services.empty?
 
-        service_total = service_lines.sum(BigDecimal("0"), &:cost_value)
+        base_currency = (cost_data && cost_data[:currency]) || Billing::LineItem::USD
+        matching, mismatched = priced_services.partition { |line| line.currency.to_s == base_currency.to_s }
+        warn_currency_mismatch(mismatched, base_currency) if mismatched.any?
+
         cost = cost_data ? cost_data.dup : {}
+        cost[:currency] ||= base_currency.to_s
+        return cost if matching.empty?
+
+        service_total = matching.sum(BigDecimal("0"), &:cost_value)
         base_total = BigDecimal(cost.fetch(:total_cost, 0).to_s)
         cost[:total_cost] = (base_total + service_total).round(8).to_f
         cost
+      end
+
+      def warn_currency_mismatch(lines, base_currency)
+        currencies = lines.map { |line| line.currency.to_s }.uniq.sort
+        Logging.warn(
+          "Service line currency mismatch: header is #{base_currency}, dropping " \
+          "#{lines.size} priced line(s) in #{currencies.join(', ')} from header total. " \
+          "Per-line costs are still recorded; header total reflects #{base_currency} only."
+        )
       end
     end
   end

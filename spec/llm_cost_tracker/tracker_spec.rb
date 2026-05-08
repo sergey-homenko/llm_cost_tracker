@@ -29,6 +29,75 @@ RSpec.describe LlmCostTracker::Tracker do
       )
     end
 
+    it "saves the event to the inbox even when a subscriber raises" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      ActiveSupport::Notifications.subscribe(described_class::EVENT_NAME) do |*, _payload|
+        raise "subscriber boom"
+      end
+
+      expect(LlmCostTracker::Ingestion::Inbox).to receive(:save).once
+
+      expect do
+        record(
+          provider: "openai",
+          model: "gpt-4o",
+          token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50)
+        )
+      end.not_to raise_error
+
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(/Subscriber raised on llm_request/)
+    end
+
+    it "drops service line items in a different currency from the header total and warns" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      euro_line = LlmCostTracker::Billing::LineItem.build(
+        kind: :web_search_request,
+        direction: :service,
+        modality: :request,
+        unit: :request,
+        quantity: 5,
+        cost: BigDecimal("0.50"),
+        currency: "EUR",
+        cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+        component_key: :web_search_request
+      )
+
+      event = record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50),
+        service_line_items: [euro_line]
+      )
+
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(/currency mismatch.*EUR/)
+      expect(event.cost[:currency]).to eq("USD")
+      expect(event.total_cost).to be > 0
+      expect(event.total_cost).to be < 0.50
+    end
+
+    it "sums service line items into the header total when currency matches" do
+      usd_line = LlmCostTracker::Billing::LineItem.build(
+        kind: :web_search_request,
+        direction: :service,
+        modality: :request,
+        unit: :request,
+        quantity: 3,
+        cost: BigDecimal("0.30"),
+        currency: "USD",
+        cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+        component_key: :web_search_request
+      )
+
+      event = record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50),
+        service_line_items: [usd_line]
+      )
+
+      expect(event.total_cost).to be >= 0.30
+    end
+
     it "emits an ActiveSupport::Notifications event" do
       events = []
       ActiveSupport::Notifications.subscribe(described_class::EVENT_NAME) do |*, payload|

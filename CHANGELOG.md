@@ -17,8 +17,15 @@ streaming. Existing installs need a migration; see
 - Dashboard Data Quality page now includes a "Streaming health by provider" breakdown — streams, with-usage, unknown, and unknown share per provider — so a misconfigured OpenAI-compatible host that ships streams without `stream_options.include_usage` is visible at a glance.
 - Dashboard tag detail page now drills into a single value via `?value=…`. Renders total cost, call count, average per call, and a daily spend timeseries for that tag value; the breakdown table exposes a "Trend" link per row.
 
+### Fixed
+
+- Tracker now writes to the durable inbox **before** firing `ActiveSupport::Notifications.instrument`. Previously a raising subscriber would crash the call before the event reached the inbox, silently losing the record. Subscriber failures are now caught and logged; the event still persists.
+- `Tracker.cost_with_service_lines` no longer mixes currencies into the header `total_cost`. Service line items in a currency that does not match the header pricing snapshot are excluded from the header total and a warning is logged. Per-line costs are still recorded with their original currency.
+- `bin/rails llm_cost_tracker:setup` no longer fails with `Missing Thor class for invoke llm_cost_tracker:prices`. The install generator now invokes `PricesGenerator` by class instead of by Thor namespace shortcut.
+
 ### Changed
 
+- BREAKING: `bin/rails generate llm_cost_tracker:install --dashboard` no longer writes a `mount LlmCostTracker::Engine => "/llm-costs"` line into `config/routes.rb`. The CLI now prints the recommended snippet wrapped in your auth (e.g. `authenticate :admin do ... end`); leaving the dashboard auto-mounted without auth would expose spend, tags, and provider IDs to anyone who can reach the host. Add the route manually under your authentication block.
 - BREAKING: `llm_cost_tracker_call_rollups` gains a `provider` column; unique index moves from `(period, period_start, currency)` to `(period, period_start, currency, provider)`. See [Upgrading](docs/upgrading.md).
 - BREAKING: `Ledger::Rollups.decrement!` now expects a 5-tuple `[id, tracked_at, total_cost, pricing_snapshot, provider]`. Direct callers outside the gem need to update their tuple shape; mismatched calls silently bucket into `provider = ""`.
 - Faraday middleware auto-injects `stream_options: { include_usage: true }` on OpenAI / OpenAI-compatible chat-completions streaming requests when the caller has not set it. Explicit caller values are preserved. Disable with `config.auto_enable_stream_usage = false`.

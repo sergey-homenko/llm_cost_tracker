@@ -19,14 +19,18 @@ bin/rails generate llm_cost_tracker:install --dashboard
 bin/rails db:migrate
 ```
 
-Or mount manually:
+The generator does **not** write the route automatically. Mount the engine
+in `config/routes.rb` behind your app's authentication:
 
 ```ruby
-mount LlmCostTracker::Engine => "/llm-costs"
+authenticate :admin do
+  mount LlmCostTracker::Engine => "/llm-costs"
+end
 ```
 
-The engine ships without authentication. Mount it behind your existing admin
-or auth layer.
+The engine ships without built-in authentication. Leaving it
+unauthenticated exposes spend totals, tags, and provider IDs to anyone
+who can reach the host.
 
 ## Tables Read
 

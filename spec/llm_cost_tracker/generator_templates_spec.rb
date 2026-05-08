@@ -123,7 +123,18 @@ RSpec.describe "generator templates" do
 
       expect(Dir[File.join(dir, "db/migrate/*create_llm_cost_tracker_calls.rb")].size).to eq(1)
       expect(File).to exist(File.join(dir, "config/llm_cost_tracker_prices.yml"))
-      expect(File.read(File.join(dir, "config/routes.rb")).scan("mount LlmCostTracker::Engine").size).to eq(1)
+    end
+  end
+
+  it "does not auto-mount the dashboard route (auth is host app's responsibility)" do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "config"))
+      File.write(File.join(dir, "config/application.rb"), %(require "rails/all"\n))
+      File.write(File.join(dir, "config/routes.rb"), "Rails.application.routes.draw do\nend\n")
+
+      LlmCostTracker::Generators::InstallGenerator.start(["--dashboard"], destination_root: dir)
+
+      expect(File.read(File.join(dir, "config/routes.rb"))).not_to include("mount LlmCostTracker::Engine")
     end
   end
 

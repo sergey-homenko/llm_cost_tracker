@@ -35,15 +35,25 @@ module LlmCostTracker
       def create_prices_file
         return unless options[:prices]
 
-        invoke "llm_cost_tracker:prices"
+        require_relative "prices_generator"
+        invoke LlmCostTracker::Generators::PricesGenerator
       end
 
       def mount_engine
         return unless options[:dashboard]
 
         add_engine_require
-        route %(mount LlmCostTracker::Engine => "/llm-costs")
-        say "Mount /llm-costs behind your app's admin auth before deploying.", :yellow
+        say(<<~MSG, :yellow)
+          The LLM Cost Tracker dashboard ships without authentication.
+          Mount it in config/routes.rb behind your app's admin auth, e.g.:
+
+            authenticate :admin do
+              mount LlmCostTracker::Engine => "/llm-costs"
+            end
+
+          The generator does NOT add a route automatically — leaving the dashboard
+          unauthenticated would expose spend, tags, and provider IDs to anyone.
+        MSG
       end
 
       private
