@@ -229,9 +229,7 @@
 
   .lct-hero-side .lct-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .lct-stat-grid-spaced { margin-bottom: 16px; }
-  .lct-two-col { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .lct-two-col > .lct-panel { display: flex; flex-direction: column; }
-  .lct-two-col > .lct-panel > .lct-chart { flex: 1 1 auto; height: auto; min-height: 180px; }
+  .lct-two-col { align-items: start; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 
   .lct-stat {
     align-items: flex-start;
