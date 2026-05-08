@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "updated_at": "2026-05-02",
+    "updated_at": "2026-05-08",
     "currency": "USD",
     "unit": "1M tokens",
     "source_urls": [
@@ -140,13 +140,13 @@
     },
     "gemini/gemini-2.0-flash": {
       "input": 0.1,
-      "cache_read_input": 0.025,
       "output": 0.4,
+      "audio_input": 0.7,
+      "cache_read_input": 0.025,
       "batch_input": 0.05,
       "batch_output": 0.2,
-      "batch_cache_read_input": 0.025,
-      "audio_input": 0.7,
-      "batch_audio_input": 0.35
+      "batch_audio_input": 0.35,
+      "batch_cache_read_input": 0.025
     },
     "gemini/gemini-2.0-flash-lite": {
       "input": 0.075,
@@ -157,52 +157,52 @@
     "gemini/gemini-2.5-flash": {
       "input": 0.3,
       "output": 2.5,
+      "audio_input": 1.0,
       "cache_read_input": 0.03,
       "batch_input": 0.15,
       "batch_output": 1.25,
+      "batch_audio_input": 0.5,
       "batch_cache_read_input": 0.03,
       "flex_input": 0.15,
       "flex_output": 1.25,
+      "flex_audio_input": 0.5,
       "flex_cache_read_input": 0.03,
       "priority_input": 0.54,
       "priority_output": 4.5,
-      "priority_cache_read_input": 0.054,
-      "audio_input": 1.0,
-      "batch_audio_input": 0.5,
-      "flex_audio_input": 0.5,
-      "priority_audio_input": 1.8
+      "priority_audio_input": 1.8,
+      "priority_cache_read_input": 0.054
     },
     "gemini/gemini-2.5-flash-lite": {
       "input": 0.1,
       "output": 0.4,
+      "audio_input": 0.3,
       "cache_read_input": 0.01,
       "batch_input": 0.05,
       "batch_output": 0.2,
+      "batch_audio_input": 0.15,
       "batch_cache_read_input": 0.01,
       "flex_input": 0.05,
       "flex_output": 0.2,
+      "flex_audio_input": 0.15,
       "flex_cache_read_input": 0.01,
       "priority_input": 0.18,
       "priority_output": 0.72,
-      "priority_cache_read_input": 0.018,
-      "audio_input": 0.3,
-      "batch_audio_input": 0.15,
-      "flex_audio_input": 0.15,
-      "priority_audio_input": 0.54
+      "priority_audio_input": 0.54,
+      "priority_cache_read_input": 0.018
     },
     "gemini/gemini-2.5-pro": {
       "input": 1.25,
       "output": 10.0,
-      "cache_read_input": 0.125,
-      "batch_input": 0.625,
-      "batch_output": 5.0,
-      "batch_cache_read_input": 0.125,
       "_context_price_threshold_tokens": 200000,
       "above_context_input": 2.5,
       "above_context_output": 15.0,
+      "cache_read_input": 0.125,
       "above_context_cache_read_input": 0.25,
+      "batch_input": 0.625,
+      "batch_output": 5.0,
       "above_context_batch_input": 1.25,
       "above_context_batch_output": 7.5,
+      "batch_cache_read_input": 0.125,
       "above_context_batch_cache_read_input": 0.25,
       "flex_input": 0.625,
       "flex_output": 5.0,
@@ -805,6 +805,24 @@
       "input": 1.5,
       "output": 6.0,
       "cache_read_input": 0.375
+    },
+    "gemini/gemini-3.1-flash-lite": {
+      "input": 0.25,
+      "output": 1.5,
+      "audio_input": 0.5,
+      "cache_read_input": 0.025,
+      "batch_input": 0.125,
+      "batch_output": 0.75,
+      "batch_audio_input": 0.25,
+      "batch_cache_read_input": 0.0125,
+      "flex_input": 0.125,
+      "flex_output": 0.75,
+      "flex_audio_input": 0.25,
+      "flex_cache_read_input": 0.0125,
+      "priority_input": 0.45,
+      "priority_output": 2.7,
+      "priority_audio_input": 0.9,
+      "priority_cache_read_input": 0.045
     }
   }
 }
