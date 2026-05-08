@@ -10,7 +10,7 @@ module LlmCostTracker
   module Reconciliation
     class Diff
       SCOPE_KEYS = %i[provider_project_id provider_api_key_id provider_workspace_id].freeze
-      ATTRIBUTION_KEYS = SCOPE_KEYS
+      ATTRIBUTION_KEYS = (SCOPE_KEYS + [:model]).freeze
       COST_ROW_TYPE = "cost"
       PERIOD_ONLY_BASIS = "period_only"
       SOURCE_TO_PROVIDER = {
@@ -21,7 +21,8 @@ module LlmCostTracker
       BASIS_DIMENSION = {
         "project" => :provider_project_id,
         "api_key" => :provider_api_key_id,
-        "workspace" => :provider_workspace_id
+        "workspace" => :provider_workspace_id,
+        "model" => :model
       }.freeze
 
       def initialize(source:, period_start:, period_end:, scope: {}, currency: nil)
@@ -35,11 +36,11 @@ module LlmCostTracker
       end
 
       def call
+        provider_total = scoped_invoices_relation_for(:cost).sum(:billed_amount).then { |sum| BigDecimal(sum.to_s) }
         invoices = scoped_invoices
         cost_invoices = invoices.select { |invoice| cost_row?(invoice) }
         local_calls = scoped_local_calls
 
-        provider_total = sum_decimal(cost_invoices.map(&:billed_amount))
         local_total, local_total_source = sum_local_total
 
         DiffResult.new(
@@ -64,12 +65,32 @@ module LlmCostTracker
       attr_reader :source, :period_start, :period_end, :scope, :currency
 
       def scoped_invoices
+        scoped_invoices_relation.to_a
+      end
+
+      def scoped_invoices_relation_for(row_type_filter = nil)
+        relation = scoped_invoices_relation
+        return relation unless row_type_filter == :cost
+
+        connection = ProviderInvoice.connection
+        if Ledger::Schema::Adapter.postgresql?(connection)
+          relation.where(
+            "metadata->>'row_type' IS NULL OR metadata->>'row_type' = ?", COST_ROW_TYPE
+          )
+        else
+          relation.where(
+            "JSON_EXTRACT(metadata, '$.row_type') IS NULL OR " \
+            "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type')) = ?", COST_ROW_TYPE
+          )
+        end
+      end
+
+      def scoped_invoices_relation
         relation = ProviderInvoice
                    .where(source: source, currency: currency)
                    .where(period_start: ..period_end)
                    .where(period_end: period_start..)
-        relation = apply_metadata_scope(relation) unless scope.empty?
-        relation.to_a
+        scope.empty? ? relation : apply_metadata_scope(relation)
       end
 
       def apply_metadata_scope(relation)
@@ -78,7 +99,7 @@ module LlmCostTracker
           relation.where("metadata @> ?::jsonb", scope.transform_keys(&:to_s).to_json)
         else
           scope.inject(relation) do |chain, (key, value)|
-            chain.where("JSON_EXTRACT(metadata, ?) = ?", "$.#{key}", value.to_s)
+            chain.where("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?)) = ?", "$.#{key}", value.to_s)
           end
         end
       end
@@ -246,10 +267,6 @@ module LlmCostTracker
         return nil if provider.zero?
 
         ((local - provider) * 100 / provider).round(4).to_f
-      end
-
-      def sum_decimal(values)
-        values.compact.sum(BigDecimal("0")) { |value| BigDecimal(value.to_s) }
       end
 
       def symbolize(hash)

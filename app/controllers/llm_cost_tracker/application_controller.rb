@@ -29,6 +29,10 @@ module LlmCostTracker
         "The llm_cost_tracker_call_tags table does not match the current LLM Cost Tracker schema."
       ],
       [
+        LlmCostTracker::Ledger::Schema::ProviderInvoices,
+        "The llm_cost_tracker_provider_invoices table does not match the current LLM Cost Tracker schema."
+      ],
+      [
         LlmCostTracker::Ledger::Schema::ProviderInvoiceImports,
         "The llm_cost_tracker_provider_invoice_imports table does not match the current LLM Cost Tracker schema."
       ]

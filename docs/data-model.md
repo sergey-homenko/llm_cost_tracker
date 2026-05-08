@@ -122,26 +122,51 @@ Maintained daily/monthly totals so budget checks don't scan the full ledger.
 | --- | --- | --- |
 | `period` | string, not null | `day` or `month` |
 | `period_start` | date, not null | Start of the period |
-| `currency` | string, not null, default `USD` | Rolled-up currency (single-currency in 0.8) |
+| `currency` | string, not null, default `USD` | Rolled-up currency |
+| `provider` | string, not null, default `""` | Per-provider bucket; `""` is the legacy / pre-v0.9 row |
 | `total_cost` | decimal(20,8), default `0` | Cost total |
 | `created_at` / `updated_at` | datetime | Rails timestamps |
 
-Index: unique `[period, period_start, currency]`.
+Index: unique `[period, period_start, currency, provider]`. The
+`Reconciliation::Diff` rollup fast path reads month-aligned diffs from
+this table filtered by `(provider, currency, period_start)`.
 
 ## `llm_cost_tracker_provider_invoices`
 
-Reserved for v0.9 invoice reconciliation. Written by the upcoming import jobs;
-not populated by the ingestor today.
+Provider-side cost evidence imported via `LlmCostTracker::Reconciliation`.
+Each row is one invoice/cost line from a provider Cost or Usage API.
 
-| Column | Type |
-| --- | --- |
-| `source` | string, not null |
-| `period_start` / `period_end` | date, not null |
-| `external_id` | string, not null (unique) |
-| `billed_amount` | decimal(20,8) |
-| `currency` | string, default `USD` |
-| `metadata` | jsonb / json |
-| `imported_at` | datetime, not null |
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source` | string, not null | `openai`, `anthropic`, `gemini`, `csv`, ... |
+| `period_start` / `period_end` | date, not null | Inclusive bucket bounds |
+| `external_id` | string, not null (unique) | Source-namespaced row id (`openai:cost-...`) |
+| `billed_amount` | decimal(20,8) | Provider-reported amount |
+| `currency` | string, default `USD` | Reported currency |
+| `metadata` | jsonb / json | Provider meter envelope (`row_type`, `meter`, `authority`, `match_basis`) plus attribution dimensions |
+| `imported_at` | datetime, not null | Per-row write time (not run start) |
+
+Indexes: unique `external_id`, plus `[source, period_start]`.
+
+## `llm_cost_tracker_provider_invoice_imports`
+
+Cursor / lifecycle ledger for provider-API import runs. One row per
+`Reconciliation::Importer#call`. Resumable runs read the last cursor
+through `ProviderInvoiceImport.resume_cursor_for(source)`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source` | string, not null | Same source set as `provider_invoices` |
+| `cursor` | string | Provider pagination token / last successful timestamp |
+| `window_start` / `window_end` | date | Inclusive window bounds being processed |
+| `state` | string, not null | `running` \| `completed` \| `failed` |
+| `last_error` | text | Populated on failure or when row-level errors are reported |
+| `rows_imported` | integer, default 0 | `inserted + updated` count |
+| `started_at` / `finished_at` | datetime | Run lifecycle |
+| `created_at` / `updated_at` | datetime | Rails timestamps |
+
+Index: `[source, started_at]`. Pruned by
+`LlmCostTracker::Retention.prune_invoice_imports(older_than:)`.
 
 ## `llm_cost_tracker_ingestion_inbox_entries`
 

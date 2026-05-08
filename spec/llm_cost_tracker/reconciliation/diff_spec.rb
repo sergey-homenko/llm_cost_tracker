@@ -15,7 +15,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
   end
 
   def import_invoice(external_id:, billed_amount:, source: "openai", currency: "USD",
-                     period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31), metadata: {})
+                     period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31), metadata: nil)
     LlmCostTracker::Reconciliation.import(
       source: source,
       rows: [{
@@ -24,7 +24,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
         period_end: period_end,
         billed_amount: billed_amount,
         currency: currency,
-        metadata: metadata
+        metadata: metadata.nil? ? full_envelope : metadata
       }]
     )
   end
@@ -115,6 +115,32 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.local_total).to eq(BigDecimal("9.50"))
     end
 
+    it "uses JSON_UNQUOTE-aware row_type filter on MySQL adapters" do
+      allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).and_return(false)
+      diff_instance = LlmCostTracker::Reconciliation::Diff.new(
+        source: :openai, period_start: period_start, period_end: period_end
+      )
+
+      sql = diff_instance.send(:scoped_invoices_relation_for, :cost).to_sql
+
+      expect(sql).to include("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type'))")
+    end
+
+    it "falls back to period_only when match_basis declares an unsupported dimension" do
+      import_invoice(
+        external_id: "line-item-row",
+        source: "csv",
+        billed_amount: "1.00",
+        metadata: { match_basis: "line_item", description: "tools" }
+      )
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :csv, period_start: period_start, period_end: period_end
+      )
+
+      expect(result.unmatched_provider_rows).to be_empty
+    end
+
     it "uses JSON_EXTRACT for invoice scope filtering on MySQL adapters" do
       allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).and_return(false)
       diff_instance = LlmCostTracker::Reconciliation::Diff.new(
@@ -134,12 +160,12 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       import_invoice(
         external_id: "row-a",
         billed_amount: "50.00",
-        metadata: { provider_project_id: "proj_a" }
+        metadata: full_envelope.merge(match_basis: "project", provider_project_id: "proj_a")
       )
       import_invoice(
         external_id: "row-b",
         billed_amount: "30.00",
-        metadata: { provider_project_id: "proj_b" }
+        metadata: full_envelope.merge(match_basis: "project", provider_project_id: "proj_b")
       )
       create_priced_call(total_cost: BigDecimal("48.00"), provider_project_id: "proj_a")
       create_priced_call(total_cost: BigDecimal("29.00"), provider_project_id: "proj_b")
@@ -272,6 +298,36 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.unmatched_provider_rows.first[:match_basis]).to eq("project")
     end
 
+    it "infers match_basis from declared dimensions for forgiving CSV imports" do
+      import_invoice(
+        external_id: "inferred-basis",
+        billed_amount: "12.00",
+        source: "csv",
+        metadata: { provider_project_id: "proj_inferred" }
+      )
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :csv, period_start: period_start, period_end: period_end
+      )
+
+      expect(result.unmatched_provider_rows.first[:match_basis]).to eq("project")
+    end
+
+    it "matches invoices and local calls on the model dimension when declared" do
+      import_invoice(
+        external_id: "model-matched",
+        billed_amount: "1.00",
+        metadata: full_envelope.merge(match_basis: "model", model: "gpt-4o-mini")
+      )
+      create_priced_call(total_cost: BigDecimal("1.00"), model: "gpt-4o-mini")
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end
+      )
+
+      expect(result.unmatched_provider_rows).to be_empty
+    end
+
     it "treats invoices declared as period-level as always matched" do
       import_invoice(
         external_id: "monthly-total",
@@ -329,12 +385,12 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       import_invoice(
         external_id: "phantom",
         billed_amount: "12.00",
-        metadata: { provider_project_id: "proj_phantom" }
+        metadata: full_envelope.merge(match_basis: "project", provider_project_id: "proj_phantom")
       )
       import_invoice(
         external_id: "matched",
         billed_amount: "8.00",
-        metadata: { provider_project_id: "proj_known" }
+        metadata: full_envelope.merge(match_basis: "project", provider_project_id: "proj_known")
       )
       create_priced_call(total_cost: BigDecimal("8.00"), provider_project_id: "proj_known")
 
@@ -353,7 +409,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       import_invoice(
         external_id: "matched",
         billed_amount: "8.00",
-        metadata: { provider_project_id: "proj_known" }
+        metadata: full_envelope.merge(match_basis: "project", provider_project_id: "proj_known")
       )
       create_priced_call(total_cost: BigDecimal("8.00"), provider_project_id: "proj_known")
       create_priced_call(total_cost: BigDecimal("3.00"), provider_project_id: "proj_orphan")
@@ -370,9 +426,24 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(orphan[:total_cost]).to eq(BigDecimal("7.50"))
     end
 
-    it "ignores invoices and calls with no attribution dimensions for unmatched lists" do
-      import_invoice(external_id: "totals-only", billed_amount: "5.00", metadata: {})
-      create_priced_call(total_cost: BigDecimal("5.00"))
+    it "treats invoices declared period-level as always matched" do
+      import_invoice(external_id: "totals-only", billed_amount: "5.00", metadata: full_envelope)
+      create_priced_call(
+        total_cost: BigDecimal("5.00"),
+        provider_project_id: "proj_x"
+      )
+      LlmCostTracker::Reconciliation.import(
+        source: :openai,
+        rows: [{
+          external_id: "model-cover",
+          period_start: Date.new(2026, 5, 1),
+          period_end: Date.new(2026, 5, 31),
+          billed_amount: "0.00",
+          currency: "USD",
+          metadata: full_envelope.merge(match_basis: "project", provider_project_id: "proj_x",
+                                        model: "gpt-4o")
+        }]
+      )
 
       result = LlmCostTracker::Reconciliation.diff(
         source: :openai, period_start: period_start, period_end: period_end

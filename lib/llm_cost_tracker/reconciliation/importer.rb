@@ -78,8 +78,9 @@ module LlmCostTracker
       def complete_import_record(record, result)
         return unless record
 
+        terminal_state = result.success? ? ProviderInvoiceImport::STATE_COMPLETED : ProviderInvoiceImport::STATE_FAILED
         record.update!(
-          state: ProviderInvoiceImport::STATE_COMPLETED,
+          state: terminal_state,
           rows_imported: result.total_imported,
           finished_at: Time.now.utc,
           last_error: result.errors.first
@@ -195,8 +196,6 @@ module LlmCostTracker
 
       def validate_envelope!(metadata)
         keys = metadata.keys.map(&:to_s)
-        return unless keys.intersect?(ENVELOPE_KEYS)
-
         missing = ENVELOPE_KEYS - keys
         return if missing.empty?
 

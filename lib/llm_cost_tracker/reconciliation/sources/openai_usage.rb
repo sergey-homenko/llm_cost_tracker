@@ -31,7 +31,7 @@ module LlmCostTracker
           return [] unless start_time && end_time
 
           period_start = epoch_to_date(start_time)
-          period_end = epoch_to_date(end_time) - 1
+          period_end = end_inclusive_date(end_time)
 
           Array(bucket[:results]).filter_map do |raw|
             row_for_result(raw,
@@ -109,6 +109,15 @@ module LlmCostTracker
           return Time.at(Integer(value)).utc.to_date if value.is_a?(Numeric) || value.to_s.match?(/\A\d+\z/)
 
           Time.parse(value.to_s).utc.to_date
+        end
+
+        def end_inclusive_date(value)
+          time = if value.is_a?(Numeric) || value.to_s.match?(/\A\d+\z/)
+                   Time.at(Integer(value)).utc
+                 else
+                   Time.parse(value.to_s).utc
+                 end
+          (time - 1).utc.to_date
         end
 
         def coerce_hash(response)

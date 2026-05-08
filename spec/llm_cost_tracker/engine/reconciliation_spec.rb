@@ -9,7 +9,9 @@ require_relative "../../dummy/config/environment"
 RSpec.describe "LlmCostTracker::Engine reconciliation" do
   include_context "with mounted llm cost tracker engine"
 
-  def import_invoice(billed_amount:, source: :openai, external_id: "row", metadata: {})
+  ENVELOPE = { row_type: "cost", meter: "tokens", authority: "cost_api", match_basis: "period_only" }.freeze
+
+  def import_invoice(billed_amount:, source: :openai, external_id: "row", metadata: ENVELOPE)
     LlmCostTracker::Reconciliation.import(
       source: source,
       rows: [{

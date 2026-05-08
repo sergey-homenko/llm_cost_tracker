@@ -118,6 +118,18 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::OpenaiUsage do
       expect(rows.map { |row| row[:external_id] }.uniq.size).to eq(2)
     end
 
+    it "collapses an hourly bucket into the correct inclusive end date" do
+      response[:data] = [{
+        "start_time" => Time.utc(2026, 5, 1, 0).to_i,
+        "end_time" => Time.utc(2026, 5, 1, 1).to_i,
+        "results" => [{ "amount" => { "value" => 0.1, "currency" => "usd" }, "line_item" => "tokens" }]
+      }]
+
+      row = described_class.parse(response).first
+      expect(row[:period_start]).to eq(Date.new(2026, 5, 1))
+      expect(row[:period_end]).to eq(Date.new(2026, 5, 1))
+    end
+
     it "produces consistent fingerprints across epoch and ISO timestamp shapes" do
       iso_response = {
         "data" => [{

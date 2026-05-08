@@ -166,6 +166,45 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
       expect(described_class.parse(response).first[:metadata]["meter"]).to eq("tokens")
     end
 
+    it "captures inference_geo and speed in metadata and pricing_mode" do
+      response[:data] = [{
+        "starts_at" => bucket_starts_at,
+        "ends_at" => bucket_ends_at,
+        "results" => [{
+          "amount" => "1.00", "token_type" => "input",
+          "service_tier" => "priority", "speed" => "fast",
+          "inference_geo" => "us"
+        }]
+      }]
+
+      row = described_class.parse(response).first
+      expect(row[:metadata]).to include("speed" => "fast", "inference_geo" => "us")
+      expect(row[:metadata]["pricing_mode"]).to eq("data_residency_fast_priority")
+    end
+
+    it "accepts Date instances directly when computing the inclusive end date" do
+      response[:data] = [{
+        "starts_at" => Date.new(2026, 5, 1),
+        "ends_at" => Date.new(2026, 5, 2),
+        "results" => [{ "amount" => "1.00", "token_type" => "input" }]
+      }]
+
+      row = described_class.parse(response).first
+      expect(row[:period_end]).to eq(Date.new(2026, 5, 1))
+    end
+
+    it "collapses an hourly bucket into the correct inclusive end date" do
+      response[:data] = [{
+        "starts_at" => "2026-05-01T00:00:00Z",
+        "ends_at" => "2026-05-01T01:00:00Z",
+        "results" => [{ "amount" => "0.10", "token_type" => "input" }]
+      }]
+
+      row = described_class.parse(response).first
+      expect(row[:period_start]).to eq(Date.new(2026, 5, 1))
+      expect(row[:period_end]).to eq(Date.new(2026, 5, 1))
+    end
+
     it "tags data_residency as a pricing_mode modifier" do
       response[:data] = [{
         "starts_at" => bucket_starts_at,

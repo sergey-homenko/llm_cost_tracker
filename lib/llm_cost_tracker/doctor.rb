@@ -49,7 +49,7 @@ module LlmCostTracker
                         table: "llm_cost_tracker_provider_invoice_imports").call,
         CostDriftCheck.new.call,
         PricingSnapshotDriftCheck.new.call,
-        InvoiceReconciliationCheck.new.call,
+        *Array(InvoiceReconciliationCheck.new.call),
         LegacyBillingStatusCheck.new.call,
         LegacyAuditCheck.new.call,
         call_rollups_check,

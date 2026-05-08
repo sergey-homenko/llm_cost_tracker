@@ -7,6 +7,10 @@ require_relative "../dummy/config/environment"
 RSpec.describe LlmCostTracker::Reconciliation do
   include_context "with mounted llm cost tracker engine"
 
+  let(:envelope) do
+    { row_type: "cost", meter: "tokens", authority: "cost_api", match_basis: "period_only" }
+  end
+
   let(:rows) do
     [
       {
@@ -15,14 +19,14 @@ RSpec.describe LlmCostTracker::Reconciliation do
         period_end: "2026-05-31",
         billed_amount: "12.34",
         currency: "USD",
-        metadata: { provider_project_id: "proj_a", model: "gpt-4o" }
+        metadata: envelope.merge(provider_project_id: "proj_a", model: "gpt-4o", match_basis: "project")
       },
       {
         external_id: "row-2",
         period_start: Date.new(2026, 5, 1),
         period_end: Date.new(2026, 5, 31),
         billed_amount: 0.5,
-        metadata: nil
+        metadata: envelope
       }
     ]
   end
@@ -64,7 +68,10 @@ RSpec.describe LlmCostTracker::Reconciliation do
 
     it "updates existing rows when re-imported with the same external_id" do
       described_class.import(source: :openai, rows: rows)
-      updated = rows.first.merge(billed_amount: "99.99", metadata: { note: "refund" })
+      updated = rows.first.merge(
+        billed_amount: "99.99",
+        metadata: envelope.merge(note: "refund", match_basis: "period_only")
+      )
 
       result = described_class.import(source: :openai, rows: [updated])
 
@@ -72,7 +79,7 @@ RSpec.describe LlmCostTracker::Reconciliation do
       expect(result.updated).to eq(1)
       reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai:row-1")
       expect(reloaded.billed_amount).to eq(BigDecimal("99.99"))
-      expect(reloaded.metadata).to eq("note" => "refund")
+      expect(reloaded.metadata).to include("note" => "refund")
     end
 
     it "defaults currency to USD when not provided" do
@@ -112,7 +119,8 @@ RSpec.describe LlmCostTracker::Reconciliation do
           "external_id" => "string-key-row",
           "period_start" => "2026-05-01",
           "period_end" => "2026-05-31",
-          "billed_amount" => "1.00"
+          "billed_amount" => "1.00",
+          "metadata" => envelope.transform_keys(&:to_s)
         }]
       )
 
@@ -129,12 +137,12 @@ RSpec.describe LlmCostTracker::Reconciliation do
           period_start: "2026-05-01",
           period_end: "2026-05-31",
           billed_amount: "2.00",
-          metadata: '{"provider_project_id":"proj_b"}'
+          metadata: envelope.merge(provider_project_id: "proj_b", match_basis: "project").to_json
         }]
       )
 
       reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "openai:string-metadata")
-      expect(reloaded.metadata).to eq("provider_project_id" => "proj_b")
+      expect(reloaded.metadata).to include("provider_project_id" => "proj_b")
     end
 
     it "rejects invalid metadata JSON for provider-API sources rather than silently dropping evidence" do
@@ -243,11 +251,11 @@ RSpec.describe LlmCostTracker::Reconciliation do
         rows: [
           {
             external_id: "april", period_start: "2026-04-01", period_end: "2026-04-30",
-            billed_amount: "1.00"
+            billed_amount: "1.00", metadata: envelope
           },
           {
             external_id: "may", period_start: "2026-05-01", period_end: "2026-05-31",
-            billed_amount: "2.00"
+            billed_amount: "2.00", metadata: envelope
           }
         ],
         window: Date.new(2026, 5, 1)..Date.new(2026, 5, 31)
@@ -262,7 +270,7 @@ RSpec.describe LlmCostTracker::Reconciliation do
         source: :openai,
         rows: [{
           external_id: "boundary", period_start: "2026-04-15", period_end: "2026-05-15",
-          billed_amount: "1.00"
+          billed_amount: "1.00", metadata: envelope
         }],
         window: Date.new(2026, 5, 1)..Date.new(2026, 5, 31)
       )
@@ -313,7 +321,8 @@ RSpec.describe LlmCostTracker::Reconciliation do
         external_id: "row-1",
         period_start: "2026-05-01",
         period_end: "2026-05-31",
-        billed_amount: "1.00"
+        billed_amount: "1.00",
+        metadata: envelope
       }]
     end
 
@@ -372,7 +381,8 @@ RSpec.describe LlmCostTracker::Reconciliation do
           external_id: "no-amount",
           period_start: "2026-05-01",
           period_end: "2026-05-31",
-          billed_amount: nil
+          billed_amount: nil,
+          metadata: envelope
         }]
       )
 

@@ -34,7 +34,7 @@ module LlmCostTracker
           return [] unless starts_at && ends_at
 
           period_start = parse_date(starts_at)
-          period_end = parse_date(ends_at) - 1
+          period_end = end_inclusive_date(ends_at)
 
           Array(bucket[:results]).filter_map do |raw|
             row_for_result(raw,
@@ -73,6 +73,8 @@ module LlmCostTracker
             "context_window" => result[:context_window],
             "description" => result[:description],
             "token_type" => result[:token_type],
+            "inference_geo" => result[:inference_geo],
+            "speed" => result[:speed],
             "provider_workspace_id" => result[:workspace_id],
             "provider_api_key_id" => result[:api_key_id]
           }.compact
@@ -95,8 +97,9 @@ module LlmCostTracker
           modes = []
           tier = result[:service_tier].to_s.downcase
           modes << tier if %w[priority batch].include?(tier)
-          modes << "data_residency" if result[:data_residency]
-          modes.empty? ? nil : modes.sort.join("_")
+          modes << result[:speed].to_s.downcase if %w[fast].include?(result[:speed].to_s.downcase)
+          modes << "data_residency" if result[:data_residency] || result[:inference_geo].to_s.downcase.match?(/.+/)
+          modes.empty? ? nil : modes.uniq.sort.join("_")
         end
 
         def match_basis_for(result)
@@ -125,6 +128,15 @@ module LlmCostTracker
           return Time.at(value).utc.to_date if value.is_a?(Numeric)
 
           Time.parse(value.to_s).utc.to_date
+        end
+
+        def end_inclusive_date(value)
+          time = case value
+                 when Numeric then Time.at(value).utc
+                 when Date then value.to_time.utc
+                 else Time.parse(value.to_s).utc
+                 end
+          (time - 1).utc.to_date
         end
 
         def coerce_hash(response)

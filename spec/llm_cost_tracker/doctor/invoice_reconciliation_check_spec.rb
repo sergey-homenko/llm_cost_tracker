@@ -80,34 +80,64 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
       expect(check).to have_attributes(status: :ok, message: include("no provider invoices"))
     end
 
-    it "reports ok when local cost matches the latest provider invoice within threshold" do
+    it "reports ok per source when local cost matches the latest provider invoice within threshold" do
       travel_to_today(period_end + 1)
       import_invoice(billed_amount: BigDecimal("100.00"))
       create_priced_call(total_cost: BigDecimal("99.00"))
 
-      check = described_class.new.call
+      checks = Array(described_class.new.call)
 
-      expect(check).to have_attributes(status: :ok, message: include("aligned"))
+      expect(checks.first).to have_attributes(status: :ok, name: "invoice reconciliation: openai")
+      expect(checks.first.message).to include("aligned")
     end
 
-    it "warns when delta exceeds the configured threshold" do
+    it "warns per source when delta exceeds the configured threshold" do
       travel_to_today(period_end + 1)
       import_invoice(billed_amount: BigDecimal("100.00"))
       create_priced_call(total_cost: BigDecimal("75.00"))
 
-      check = described_class.new.call
+      checks = Array(described_class.new.call)
 
-      expect(check).to have_attributes(status: :warn, message: include("drift"))
-      expect(check.message).to include("exceeds")
+      expect(checks.first).to have_attributes(status: :warn, name: "invoice reconciliation: openai")
+      expect(checks.first.message).to include("drift")
+      expect(checks.first.message).to include("exceeds")
     end
 
-    it "warns when the latest invoice is older than the freshness threshold" do
+    it "warns per source when the latest invoice is older than the freshness threshold" do
       travel_to_today(period_end + 30)
       import_invoice(billed_amount: BigDecimal("10.00"))
 
-      check = described_class.new.call
+      checks = Array(described_class.new.call)
 
-      expect(check).to have_attributes(status: :warn, message: include("no invoice imported"))
+      expect(checks.first).to have_attributes(status: :warn, name: "invoice reconciliation: openai")
+      expect(checks.first.message).to include("no invoice imported")
+    end
+
+    it "evaluates each source independently so a stale provider does not hide behind a fresh one" do
+      travel_to_today(period_end + 5)
+      import_invoice(billed_amount: BigDecimal("10.00"))
+      LlmCostTracker::Reconciliation.import(
+        source: :anthropic,
+        rows: [{
+          external_id: "anth",
+          period_start: Date.new(2026, 1, 1),
+          period_end: Date.new(2026, 1, 31),
+          billed_amount: "5.00",
+          currency: "USD",
+          metadata: {
+            row_type: "cost", meter: "tokens", authority: "cost_api", match_basis: "period_only"
+          }
+        }]
+      )
+
+      checks = Array(described_class.new.call)
+
+      expect(checks.map(&:name)).to contain_exactly(
+        "invoice reconciliation: anthropic", "invoice reconciliation: openai"
+      )
+      anthropic = checks.find { |c| c.name == "invoice reconciliation: anthropic" }
+      expect(anthropic.status).to eq(:warn)
+      expect(anthropic.message).to include("no invoice imported")
     end
 
     it "surfaces unexpected errors as :error status" do
