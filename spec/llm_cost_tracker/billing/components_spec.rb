@@ -33,8 +33,15 @@ RSpec.describe LlmCostTracker::Billing::Components do
       unit: :request,
       category: :tool,
       token_key: nil,
-      cost_key: nil
+      cost_key: nil,
+      rate_basis: :per_1k_requests
     )
+  end
+
+  it "defaults the rate_basis from the unit when YAML omits the field" do
+    expect(described_class::BY_KEY.fetch(:input).rate_basis).to eq(:per_million_tokens)
+    expect(described_class::BY_KEY.fetch(:container_session).rate_basis).to eq(:per_session)
+    expect(described_class::BY_KEY.fetch(:code_execution_hour).rate_basis).to eq(:per_hour)
   end
 
   describe ".build" do
@@ -42,6 +49,26 @@ RSpec.describe LlmCostTracker::Billing::Components do
       expect { described_class.build(key: :broken) }
         .to raise_error(LlmCostTracker::Error,
                         include("components.yml entry missing kind"))
+    end
+
+    it "raises when rate_basis is not in the supported enum" do
+      attributes = {
+        key: :weird, kind: :weird, direction: :neither, modality: :text,
+        cache_state: :none, unit: :widget, category: :tool, rate_basis: :per_widget
+      }
+
+      expect { described_class.build(attributes) }
+        .to raise_error(LlmCostTracker::Error, /unknown rate_basis :per_widget/)
+    end
+
+    it "raises when an unknown unit has no rate_basis to fall back on" do
+      attributes = {
+        key: :unknown_unit, kind: :unknown_unit, direction: :neither, modality: :text,
+        cache_state: :none, unit: :widget, category: :tool
+      }
+
+      expect { described_class.build(attributes) }
+        .to raise_error(LlmCostTracker::Error, /needs rate_basis for unit :widget/)
     end
   end
 end

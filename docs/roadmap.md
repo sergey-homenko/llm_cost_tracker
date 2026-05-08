@@ -36,16 +36,17 @@ the provider billed"; diff answers "where the truth diverged."
    docs explicitly call Costs the financial reconciliation source;
    Anthropic Cost/Usage ships second because of workspace + service-tier
    nuance. Design: RFC 0002.
-2. **Explicit rate basis enum on service charges.**
-   `per_request` / `per_1k_requests` / `per_session` / `per_hour` /
-   `per_gb_day`. Removes the per-1 vs per-1000 ambiguity that the
-   `service_charges` config still leaves implicit. Required ahead of
-   multi-meter tools in v0.10. One migration, additive.
-3. **`pricing_mode` as a normalized set internally.** Keep the column as a
-   string for compatibility, but represent it as a sorted array of
-   modifiers (`%i[priority batch data_residency]`) inside the gem. Drops
-   the permutation guesswork and makes mode checks `include?` instead of
-   string matching.
+2. **Explicit rate basis enum on service charges.** ✓ Shipped.
+   `Billing::RATE_BASES = %i[per_million_tokens per_request per_1k_requests
+   per_session per_hour per_gb_day]`. `Billing::Component#rate_basis`
+   exposes the explicit unit semantics; `Pricing::ServiceCharges` derives
+   `rate_quantity` from it instead of the prior `unit == :request ? 1000
+   : 1` heuristic.
+3. **`pricing_mode` as a normalized set internally.** ✓ Shipped.
+   `Pricing::Mode` value object parses any `pricing_mode:` input into a
+   sorted modifier set (`%i[batch data_residency]`), drops the
+   permutation guesswork in `EffectivePrices`, and round-trips back to a
+   canonical string. The DB column stays a string for compatibility.
 4. **MySQL/MariaDB smoke as a release gate.** Real container, real
    migrations, real `bin/check`. CI matrix already runs the suite, but
    without an end-to-end smoke a MySQL-only regression can ship.

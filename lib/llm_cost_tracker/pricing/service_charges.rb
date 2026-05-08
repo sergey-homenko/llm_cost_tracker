@@ -128,7 +128,7 @@ module LlmCostTracker
       end
 
       def rate_quantity(component)
-        component.unit == :request ? BigDecimal("1000") : BigDecimal("1")
+        BigDecimal(Billing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis, 1).to_s)
       end
 
       def charge_rate_match(provider:, component:, pricing_mode:)

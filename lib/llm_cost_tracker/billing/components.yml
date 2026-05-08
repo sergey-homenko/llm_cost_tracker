@@ -75,6 +75,7 @@
   cache_state: none
   unit: request
   category: tool
+  rate_basis: per_1k_requests
 
 - key: file_search_call
   kind: file_search_call
@@ -83,6 +84,7 @@
   cache_state: none
   unit: request
   category: tool
+  rate_basis: per_1k_requests
 
 - key: container_session
   kind: container_session
@@ -91,6 +93,7 @@
   cache_state: none
   unit: session
   category: runtime
+  rate_basis: per_session
 
 - key: code_execution_request
   kind: code_execution_request
@@ -99,6 +102,7 @@
   cache_state: none
   unit: request
   category: runtime
+  rate_basis: per_1k_requests
 
 - key: code_execution_hour
   kind: code_execution_hour
@@ -107,6 +111,7 @@
   cache_state: none
   unit: hour
   category: runtime
+  rate_basis: per_hour
 
 - key: grounding_request
   kind: grounding_request
@@ -115,3 +120,4 @@
   cache_state: none
   unit: request
   category: tool
+  rate_basis: per_1k_requests
