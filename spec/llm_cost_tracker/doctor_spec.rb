@@ -108,15 +108,23 @@ RSpec.describe LlmCostTracker::Doctor do
       )
     end
 
-    it "fails when provider invoices table is missing" do
-      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoices)
+    it "stays silent when the optional provider invoices table is missing" do
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoices, force: :cascade)
+      LlmCostTracker::ProviderInvoice.reset_column_information
+
+      check = described_class.call.find { |item| item.name == "provider invoices" }
+
+      expect(check).to be_nil
+    end
+
+    it "fails when the provider invoices table exists but its schema drifted" do
+      ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_provider_invoices, :external_id)
       LlmCostTracker::ProviderInvoice.reset_column_information
 
       check = described_class.call.find { |item| item.name == "provider invoices" }
 
       expect(check).to have_attributes(status: :error)
-      expect(check.message).to include("llm_cost_tracker_provider_invoices table is missing")
-      expect(check.message).to include("llm_cost_tracker:install")
+      expect(check.message).to include("llm_cost_tracker:reconciliation")
     end
 
     it "fails when call rollups are missing" do

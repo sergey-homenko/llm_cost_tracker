@@ -24,6 +24,7 @@ module LlmCostTracker
       end
 
       def call(rows)
+        ensure_reconciliation_installed!
         return ImportResult.empty if skippable?(rows)
 
         import_record = open_import_record
@@ -41,6 +42,14 @@ module LlmCostTracker
 
       def skippable?(rows)
         (rows.nil? || rows.empty?) && cursor.nil?
+      end
+
+      def ensure_reconciliation_installed!
+        return if ProviderInvoice.table_exists?
+
+        raise Error,
+              "llm_cost_tracker_provider_invoices table is missing; " \
+              "run `rails generate llm_cost_tracker:reconciliation && rails db:migrate`"
       end
 
       def perform_import(rows)

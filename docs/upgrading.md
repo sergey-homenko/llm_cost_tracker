@@ -2,20 +2,20 @@
 
 ## v0.8.x → v0.9 (in progress)
 
-v0.9 ships invoice reconciliation. The schema changes are additive on
-`llm_cost_tracker_calls` (no migration needed there), but
-`llm_cost_tracker_call_rollups` needs a `provider` column and a new unique
-index. There is no rolling-deploy hazard — old code reads/writes rollups
-with `provider = ""` and new code reads/writes per-provider rollups; both
-coexist in the table.
+v0.9 ships per-provider rollups (mandatory) plus optional provider
+invoice reconciliation. Two migrations:
 
-### Migration
+1. **Mandatory:** add `provider` column to `call_rollups`. No new tables.
+2. **Optional:** invoice reconciliation tables (`provider_invoices`,
+   `provider_invoice_imports`). Skip this step entirely if you only use
+   the gem for runtime tracking — it requires admin/org-level provider
+   API keys (`sk-admin-…`, GCP `billing.viewer`, etc.) that runtime apps
+   typically don't have.
 
-Generate the v0.9 install template (or hand-write the migration below) and
-run it:
+### Mandatory migration: per-provider rollups
 
 ```ruby
-class UpgradeLlmCostTrackerToV0_9 < ActiveRecord::Migration[7.1]
+class UpgradeLlmCostTrackerCallRollups < ActiveRecord::Migration[7.1]
   def change
     add_column :llm_cost_tracker_call_rollups, :provider, :string,
                null: false, default: ""
@@ -23,6 +23,39 @@ class UpgradeLlmCostTrackerToV0_9 < ActiveRecord::Migration[7.1]
                  column: %i[period period_start currency], unique: true
     add_index   :llm_cost_tracker_call_rollups,
                 %i[period period_start currency provider], unique: true
+  end
+end
+```
+
+There is no rolling-deploy hazard — old code reads/writes rollups with
+`provider = ""` and new code reads/writes per-provider rollups; both
+coexist in the table.
+
+### Optional migration: invoice reconciliation
+
+Run only if you plan to import provider-side invoices:
+
+```bash
+bin/rails generate llm_cost_tracker:reconciliation
+bin/rails db:migrate
+```
+
+Or hand-write:
+
+```ruby
+class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
+  def change
+    create_table :llm_cost_tracker_provider_invoices do |t|
+      t.string :source, null: false
+      t.date :period_start, null: false
+      t.date :period_end, null: false
+      t.string :external_id, null: false
+      t.decimal :billed_amount, precision: 20, scale: 8
+      t.string :currency, null: false, default: "USD"
+      t.jsonb :metadata, null: false, default: {} # MySQL: t.json
+      t.datetime :imported_at, null: false
+      t.timestamps
+    end
 
     create_table :llm_cost_tracker_provider_invoice_imports do |t|
       t.string :source, null: false
@@ -36,8 +69,10 @@ class UpgradeLlmCostTrackerToV0_9 < ActiveRecord::Migration[7.1]
       t.datetime :finished_at
       t.timestamps
     end
-    add_index :llm_cost_tracker_provider_invoice_imports,
-              %i[source started_at]
+
+    add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
+    add_index :llm_cost_tracker_provider_invoices, %i[source period_start]
+    add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at]
   end
 end
 ```

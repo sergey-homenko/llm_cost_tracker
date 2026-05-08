@@ -26,7 +26,18 @@
   </section>
 <% end %>
 
-<% if @diffs.empty? %>
+<% if !@reconciliation_installed %>
+  <section class="lct-panel lct-empty">
+    <h2 class="lct-state-title">Reconciliation not installed</h2>
+    <p class="lct-state-copy">
+      Provider invoice reconciliation is an optional add-on. It requires admin/org-level
+      provider API keys (OpenAI <code>sk-admin-…</code>, Anthropic admin keys, GCP
+      <code>billing.viewer</code>) and a separate migration:
+    </p>
+    <pre class="lct-state-copy"><code>bin/rails generate llm_cost_tracker:reconciliation
+bin/rails db:migrate</code></pre>
+  </section>
+<% elsif @diffs.empty? %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">No invoices imported yet</h2>
     <p class="lct-state-copy">

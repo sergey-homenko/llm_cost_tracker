@@ -374,6 +374,15 @@ RSpec.describe LlmCostTracker::Reconciliation do
       expect(result.import_id).to be_nil
     end
 
+    it "raises an installable error when reconciliation tables are missing" do
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoices, force: :cascade)
+      LlmCostTracker::ProviderInvoice.reset_column_information
+
+      expect do
+        LlmCostTracker::Reconciliation.import(source: :openai, rows: rows)
+      end.to raise_error(LlmCostTracker::Error, /llm_cost_tracker:reconciliation/)
+    end
+
     it "stores nil billed_amount when the provider row has no charge value" do
       described_class.import(
         source: :openai,

@@ -46,6 +46,26 @@ RSpec.describe "LlmCostTracker::Engine reconciliation" do
     )
   end
 
+  it "renders the install hint when reconciliation tables are absent" do
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoices, force: :cascade)
+    LlmCostTracker::ProviderInvoice.reset_column_information
+
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Reconciliation not installed")
+    expect(response.body).to include("llm_cost_tracker:reconciliation")
+  end
+
+  it "renders the setup-required page when an optional table drifts from the current schema" do
+    ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_provider_invoices, :external_id)
+    LlmCostTracker::ProviderInvoice.reset_column_information
+
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.body).to include("does not match the current LLM Cost Tracker schema")
+  end
+
   it "renders an empty state when no invoices have been imported" do
     response = get("/llm-costs/reconciliation")
 

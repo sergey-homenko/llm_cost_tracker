@@ -74,10 +74,8 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
       expect(described_class.new.call).to be_nil
     end
 
-    it "reports ok with a placeholder message when no invoices have been imported yet" do
-      check = described_class.new.call
-
-      expect(check).to have_attributes(status: :ok, message: include("no provider invoices"))
+    it "stays silent when no invoices have been imported yet so doctor doesn't nag uninstalled add-ons" do
+      expect(described_class.new.call).to be_nil
     end
 
     it "reports ok per source when local cost matches the latest provider invoice within threshold" do

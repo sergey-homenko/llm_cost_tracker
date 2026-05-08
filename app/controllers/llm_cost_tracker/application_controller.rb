@@ -27,18 +27,23 @@ module LlmCostTracker
       [
         LlmCostTracker::Ledger::Schema::CallTags,
         "The llm_cost_tracker_call_tags table does not match the current LLM Cost Tracker schema."
-      ],
+      ]
+    ].freeze
+
+    OPTIONAL_SCHEMA_CHECKS = [
       [
         LlmCostTracker::Ledger::Schema::ProviderInvoices,
+        "llm_cost_tracker_provider_invoices",
         "The llm_cost_tracker_provider_invoices table does not match the current LLM Cost Tracker schema."
       ],
       [
         LlmCostTracker::Ledger::Schema::ProviderInvoiceImports,
+        "llm_cost_tracker_provider_invoice_imports",
         "The llm_cost_tracker_provider_invoice_imports table does not match the current LLM Cost Tracker schema."
       ]
     ].freeze
 
-    private_constant :SCHEMA_CHECKS
+    private_constant :SCHEMA_CHECKS, :OPTIONAL_SCHEMA_CHECKS
 
     private
 
@@ -49,6 +54,17 @@ module LlmCostTracker
       end
 
       SCHEMA_CHECKS.each do |schema, message|
+        errors = schema.current_schema_errors
+        next if errors.empty?
+
+        @setup_message = message
+        @setup_details = errors + ["See docs/upgrading.md for the migration path."]
+        return render template: "llm_cost_tracker/shared/setup_required"
+      end
+
+      OPTIONAL_SCHEMA_CHECKS.each do |schema, table, message|
+        next unless ActiveRecord::Base.connection.data_source_exists?(table)
+
         errors = schema.current_schema_errors
         next if errors.empty?
 

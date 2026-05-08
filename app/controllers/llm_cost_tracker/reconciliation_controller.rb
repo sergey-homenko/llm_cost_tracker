@@ -3,13 +3,20 @@
 module LlmCostTracker
   class ReconciliationController < ApplicationController
     def index
-      @sources = LlmCostTracker::ProviderInvoice
-                 .order(:source)
-                 .distinct
-                 .pluck(:source)
-      @diffs = @sources.map { |source| diff_for(source) }.compact
+      @reconciliation_installed = LlmCostTracker::ProviderInvoice.table_exists?
+      if @reconciliation_installed
+        @sources = LlmCostTracker::ProviderInvoice
+                   .order(:source)
+                   .distinct
+                   .pluck(:source)
+        @diffs = @sources.map { |source| diff_for(source) }.compact
+        @last_imported_at = LlmCostTracker::ProviderInvoice.maximum(:imported_at)
+      else
+        @sources = []
+        @diffs = []
+        @last_imported_at = nil
+      end
       @threshold = LlmCostTracker::Reconciliation::DEFAULT_THRESHOLD_PERCENT
-      @last_imported_at = LlmCostTracker::ProviderInvoice.maximum(:imported_at)
       @configured_importers = configured_importers
     end
 

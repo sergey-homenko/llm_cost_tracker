@@ -11,7 +11,7 @@ module LlmCostTracker
     class InvoiceReconciliationCheck
       def call
         return unless Probe.table_exists?("llm_cost_tracker_provider_invoices")
-        return Check.new(:ok, "invoice reconciliation", "no provider invoices imported yet") if no_imports?
+        return if no_imports?
 
         sources = imported_sources
         return Check.new(:ok, "invoice reconciliation", "no provider invoices imported yet") if sources.empty?

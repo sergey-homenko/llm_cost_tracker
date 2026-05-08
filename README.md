@@ -84,6 +84,29 @@ need `stream_options: { include_usage: true }`.
 - Not invoice-grade. Provider response IDs are stored for reconciliation.
 - Not multi-service. Built for a Rails monolith.
 
+## Optional: provider invoice reconciliation
+
+For teams that want to verify local cost against provider-side invoices
+(OpenAI Costs API, Anthropic Cost API, GCP billing export, vendor CSV).
+Separate install — runtime API keys cannot fetch billing data, you need
+admin/org-level credentials (`sk-admin-…` for OpenAI, admin keys for
+Anthropic, `billing.viewer` service account for GCP).
+
+```bash
+bin/rails generate llm_cost_tracker:reconciliation
+bin/rails db:migrate
+```
+
+That adds `provider_invoices` and `provider_invoice_imports` tables,
+nothing else. The dashboard's Reconciliation page becomes live, doctor
+gains an `invoice reconciliation` check, and `Reconciliation.import` /
+`.diff` / `rake llm_cost_tracker:reconcile:*` start working. Without this
+generator the gem stays a pure tracker — no extra schema, no admin keys
+needed.
+
+See [RFC 0002](docs/rfcs/0002-invoice-reconciliation.md) for the design
+and [Upgrading](docs/upgrading.md) for the migration path.
+
 ## Manual tracking
 
 For batch jobs, internal gateways, or anything without an SDK/Faraday hook:
