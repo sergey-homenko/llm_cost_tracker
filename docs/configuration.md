@@ -105,6 +105,35 @@ won't invent a total cost out of thin air.
 
 Budget payloads include `budget_type`, `total`, `budget`, and `last_event`.
 
+## Reconciliation (Experimental, Opt-In)
+
+Provider invoice reconciliation is off by default. Enable it explicitly
+when you have admin/org-level provider keys (`sk-admin-…`, Anthropic
+admin keys, GCP `billing.viewer`) and a separate place to run them —
+not the runtime app server.
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `reconciliation_enabled` | `false` | Master switch. When `false`, `Reconciliation.import` / `.diff` raise, the dashboard tab is hidden, doctor ignores reconciliation schema, and the `Reconciliation` namespace is not loaded at all. |
+| `reconciliation_importers` | `{}` | Hash of callable importers per source. Used by the dashboard re-import button. Set via `register_reconciliation_importer(:source) { ... }`. |
+
+Two opt-ins are required — the config flag and a separate generator:
+
+```ruby
+LlmCostTracker.configure do |config|
+  config.reconciliation_enabled = true
+  config.register_reconciliation_importer(:openai) { OpenaiCostsImportJob.perform_later }
+end
+```
+
+```bash
+bin/rails generate llm_cost_tracker:reconciliation
+bin/rails db:migrate
+```
+
+Without both opt-ins, the gem stays a pure runtime tracker. See
+[Upgrading](upgrading.md) for the migration path.
+
 ## Capture Verification
 
 After installing and migrating, run:

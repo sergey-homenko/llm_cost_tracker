@@ -113,9 +113,10 @@ rollups are decremented in the same transaction.
 | Line items | `llm_cost_tracker_call_line_items` |
 | Tags | `llm_cost_tracker_call_tags` |
 | Call rollups | `llm_cost_tracker_call_rollups` |
-| Provider invoices | `llm_cost_tracker_provider_invoices` |
 | Durable inbox | `llm_cost_tracker_ingestion_inbox_entries` |
 | Worker lease | `llm_cost_tracker_ingestion_leases` |
+| Provider invoices (opt-in) | `llm_cost_tracker_provider_invoices` |
+| Provider invoice imports (opt-in) | `llm_cost_tracker_provider_invoice_imports` |
 
 Column and index details are documented in [Data Model](data-model.md).
 

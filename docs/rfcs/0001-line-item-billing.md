@@ -24,9 +24,10 @@ preserve dashboard/sort ergonomics:
 | `provider_reconciliation_imports` table | Renamed to `provider_invoices` (MySQL 64-char identifier limit). |
 | `call_tags` PK `(call_id, key)`, `value` `string`, index on `(key, value)` | Standard bigint PK; `value` is `text` (no length cap); index on `(key)` only — value-equality filters scan the per-key bucket. |
 
-Everything below is the original design as proposed. Treat it as the
-direction of travel for 0.9-0.10, not a literal description of the shipped
-schema. For the as-shipped data model see [Data model](../data-model.md) and
+Everything below is the original design as proposed. Treat it as
+historical context, not current roadmap direction — see
+[Roadmap](../roadmap.md) for current scope. For the as-shipped data
+model see [Data model](../data-model.md) and
 [Architecture](../architecture.md).
 
 ## Summary

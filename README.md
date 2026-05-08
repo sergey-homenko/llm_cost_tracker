@@ -81,7 +81,7 @@ need `stream_options: { include_usage: true }`.
 
 - No proxy. Direct calls only.
 - No prompts. Token counts and metadata only.
-- Not invoice-grade. Provider response IDs are stored for reconciliation.
+- No traces, evals, or prompt management. Different product, different gem.
 - Not multi-service. Built for a Rails monolith.
 
 ## Experimental: provider invoice reconciliation

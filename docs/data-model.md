@@ -11,12 +11,20 @@ Supported adapters: PostgreSQL and MySQL-family.
 | `llm_cost_tracker_call_line_items` | Per-component cost rows: text/audio/cached tokens, tool charges. |
 | `llm_cost_tracker_call_tags` | Normalized tag rows for attribution queries. |
 | `llm_cost_tracker_call_rollups` | Daily and monthly cost totals for fast budget checks. |
-| `llm_cost_tracker_provider_invoices` | Imported provider invoice headers (reserved for v0.9 reconciliation). |
 | `llm_cost_tracker_ingestion_inbox_entries` | Durable staging rows the ingestor drains into the ledger. |
 | `llm_cost_tracker_ingestion_leases` | Shared lease rows for the ingestion worker. |
 
-`llm_cost_tracker:install` creates the lot. `llm_cost_tracker:doctor` checks
-that the schema matches the gem version.
+`llm_cost_tracker:install` creates the core ledger above.
+`llm_cost_tracker:doctor` checks that the schema matches the gem version.
+
+Optional tables, created only when reconciliation is opted in via
+`config.reconciliation_enabled = true` plus
+`bin/rails generate llm_cost_tracker:reconciliation`:
+
+| Table | Role |
+| --- | --- |
+| `llm_cost_tracker_provider_invoices` | Imported provider-side invoice rows (reconciliation only). |
+| `llm_cost_tracker_provider_invoice_imports` | Importer cursor / window / state for resumable runs. |
 
 ## `llm_cost_tracker_calls`
 
@@ -133,8 +141,10 @@ this table filtered by `(provider, currency, period_start)`.
 
 ## `llm_cost_tracker_provider_invoices`
 
-Provider-side cost evidence imported via `LlmCostTracker::Reconciliation`.
-Each row is one invoice/cost line from a provider Cost or Usage API.
+Optional. Created by the `llm_cost_tracker:reconciliation` generator
+only when `config.reconciliation_enabled = true`. Provider-side cost
+evidence imported via `LlmCostTracker::Reconciliation`. Each row is one
+invoice/cost line from a provider Cost or Usage API.
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -150,9 +160,11 @@ Indexes: unique `external_id`, plus `[source, period_start]`.
 
 ## `llm_cost_tracker_provider_invoice_imports`
 
-Cursor / lifecycle ledger for provider-API import runs. One row per
-`Reconciliation::Importer#call`. Resumable runs read the last cursor
-through `ProviderInvoiceImport.resume_cursor_for(source)`.
+Optional. Created alongside `llm_cost_tracker_provider_invoices` by the
+reconciliation generator. Cursor / lifecycle ledger for provider-API
+import runs. One row per `Reconciliation::Importer#call`. Resumable
+runs read the last cursor through
+`ProviderInvoiceImport.resume_cursor_for(source)`.
 
 | Column | Type | Notes |
 | --- | --- | --- |

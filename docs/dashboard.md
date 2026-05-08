@@ -49,6 +49,7 @@ The dashboard reads:
 | Calls | `/calls` | Filterable ledger, call details, CSV export |
 | Tags | `/tags` and `/tags/:key` | Tag key explorer and tag value breakdowns |
 | Data Quality | `/data_quality` | Unknown pricing, partial costs, missing latency, incomplete streams, tool/runtime charge coverage |
+| Reconciliation | `/reconciliation` | Experimental opt-in. Hidden unless `config.reconciliation_enabled = true` and the optional generator has been run. See [Configuration](configuration.md#reconciliation-experimental-opt-in). |
 
 ## Filters
 
