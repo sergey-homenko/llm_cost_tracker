@@ -14,7 +14,7 @@
     <h2 class="lct-state-title">No LLM calls yet</h2>
     <p class="lct-state-copy">Tracked requests will appear here after your application records its first LLM API call.</p>
     <div class="lct-state-actions">
-      <%= link_to "View calls", calls_path, class: "lct-button lct-button-secondary" %>
+      <%= link_to "Calls", calls_path, class: "lct-button lct-button-secondary" %>
     </div>
   </section>
 <% else %>
@@ -65,15 +65,15 @@
     <div class="lct-hero-side">
       <div class="lct-stat-grid">
         <article class="lct-stat">
+          <p class="lct-stat-label">Avg cost / call</p>
+          <p class="lct-stat-value"><%= money(@stats.average_cost_per_call) %></p>
+        </article>
+
+        <article class="lct-stat">
           <p class="lct-stat-label">Calls</p>
           <p class="lct-stat-value"><%= number(@stats.total_calls) %></p>
           <% badge = delta_badge(@stats.calls_delta_percent, mode: :neutral) %>
           <span class="<%= badge[:css_class] %>"><span class="lct-delta-dot" aria-hidden="true"></span><%= badge[:text] %></span>
-        </article>
-
-        <article class="lct-stat">
-          <p class="lct-stat-label">Avg cost / call</p>
-          <p class="lct-stat-value"><%= money(@stats.average_cost_per_call) %></p>
         </article>
 
         <% if @stats.average_latency_ms %>

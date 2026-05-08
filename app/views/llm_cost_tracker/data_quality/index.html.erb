@@ -75,6 +75,56 @@
     <section class="lct-panel">
       <div class="lct-section-head">
         <div>
+          <h2 class="lct-section-title">Next actions</h2>
+          <p class="lct-section-copy">Use these fixes to improve the trustworthiness of downstream cost reports.</p>
+        </div>
+      </div>
+
+      <table class="lct-table lct-table-compact">
+        <thead>
+          <tr>
+            <th>Issue</th>
+            <th>Why it matters</th>
+            <th>Suggested action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Unknown pricing</td>
+            <td>Cost stays <code class="lct-code">nil</code>, so totals undercount.</td>
+            <td>Update <code class="lct-code">pricing_overrides</code> or <code class="lct-code">prices_file</code>.</td>
+          </tr>
+          <tr>
+            <td>Missing tags</td>
+            <td>Attribution by tenant, user, or feature becomes less useful.</td>
+            <td>Pass <code class="lct-code">tags:</code> from middleware using request context.</td>
+          </tr>
+          <tr>
+            <td>Missing latency</td>
+            <td>Slow requests become harder to isolate on the calls page.</td>
+            <td>Make sure latency capture is enabled on every tracked request.</td>
+          </tr>
+          <% if @summary.streaming_missing_usage.positive? %>
+            <tr>
+              <td>Streams without usage</td>
+              <td>Token totals undercount when streaming responses drop the final usage event.</td>
+              <td>Send OpenAI requests with <code class="lct-code">stream_options: { include_usage: true }</code>, or wrap custom clients with <code class="lct-code">LlmCostTracker.track_stream</code>.</td>
+            </tr>
+          <% end %>
+          <% if @summary.missing_provider_response_id_count.positive? %>
+            <tr>
+              <td>Missing provider response IDs</td>
+              <td>Proof of provider-issued responses is weaker when calls cannot be tied back to provider objects.</td>
+              <td>Upgrade to the latest parser coverage and pass <code class="lct-code">provider_response_id:</code> for custom clients when the provider exposes one.</td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="lct-panel">
+      <div class="lct-section-head">
+        <div>
           <h2 class="lct-section-title">Coverage summary</h2>
           <p class="lct-section-copy">Good dashboards start with clean pricing, tags, and latency coverage.</p>
         </div>
@@ -126,56 +176,6 @@
             <td class="lct-num"><%= number(@summary.calls_with_provider_response_id) %></td>
             <td><%= render "llm_cost_tracker/shared/bar", value: @summary.provider_response_id_coverage, max: 100.0 %></td>
           </tr>
-        </tbody>
-      </table>
-    </section>
-
-    <section class="lct-panel">
-      <div class="lct-section-head">
-        <div>
-          <h2 class="lct-section-title">Next actions</h2>
-          <p class="lct-section-copy">Use these fixes to improve the trustworthiness of downstream cost reports.</p>
-        </div>
-      </div>
-
-      <table class="lct-table lct-table-compact">
-        <thead>
-          <tr>
-            <th>Issue</th>
-            <th>Why it matters</th>
-            <th>Suggested action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Unknown pricing</td>
-            <td>Cost stays <code class="lct-code">nil</code>, so totals undercount.</td>
-            <td>Update <code class="lct-code">pricing_overrides</code> or <code class="lct-code">prices_file</code>.</td>
-          </tr>
-          <tr>
-            <td>Missing tags</td>
-            <td>Attribution by tenant, user, or feature becomes less useful.</td>
-            <td>Pass <code class="lct-code">tags:</code> from middleware using request context.</td>
-          </tr>
-          <tr>
-            <td>Missing latency</td>
-            <td>Slow requests become harder to isolate on the calls page.</td>
-            <td>Make sure latency capture is enabled on every tracked request.</td>
-          </tr>
-          <% if @summary.streaming_missing_usage.positive? %>
-            <tr>
-              <td>Streams without usage</td>
-              <td>Token totals undercount when streaming responses drop the final usage event.</td>
-              <td>Send OpenAI requests with <code class="lct-code">stream_options: { include_usage: true }</code>, or wrap custom clients with <code class="lct-code">LlmCostTracker.track_stream</code>.</td>
-            </tr>
-          <% end %>
-          <% if @summary.missing_provider_response_id_count.positive? %>
-            <tr>
-              <td>Missing provider response IDs</td>
-              <td>Proof of provider-issued responses is weaker when calls cannot be tied back to provider objects.</td>
-              <td>Upgrade to the latest parser coverage and pass <code class="lct-code">provider_response_id:</code> for custom clients when the provider exposes one.</td>
-            </tr>
-          <% end %>
         </tbody>
       </table>
     </section>
@@ -301,7 +301,7 @@
           <h2 class="lct-section-title">Unknown pricing by model</h2>
           <p class="lct-section-copy">These models have token counts but no configured rates, so cost stays unknown.</p>
         </div>
-        <%= link_to "Review calls", calls_path(current_query(sort: "unknown_pricing")), class: "lct-button lct-button-secondary" %>
+        <%= link_to "Calls", calls_path(current_query(sort: "unknown_pricing")), class: "lct-button lct-button-secondary" %>
       </div>
 
       <div class="lct-table-wrap">

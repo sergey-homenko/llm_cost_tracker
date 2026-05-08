@@ -49,7 +49,7 @@
           <h2 class="lct-section-title">Spend over time</h2>
           <p class="lct-section-copy">Daily total cost for calls tagged <code class="lct-code"><%= params[:key] %>=<%= @value %></code>.</p>
         </div>
-        <%= link_to "View calls", calls_path(calls_query_for_tag(key: @key, value: @value)), class: "lct-button lct-button-secondary lct-button-compact" %>
+        <%= link_to "Calls", calls_path(calls_query_for_tag(key: @key, value: @value)), class: "lct-button lct-button-secondary lct-button-compact" %>
       </div>
 
       <%= render "llm_cost_tracker/shared/spend_chart", series: @value_points %>
