@@ -100,9 +100,9 @@ Not planned in advance. Each item ships only against verified demand.
 Explicit rejections. Every item below was considered and ruled out:
 
 - **Reconciliation expansion.** v0.9 ships an experimental opt-in
-  side mode (admin-key security plane, lazy-loaded, isolated). Zero
-  developer-pain evidence found in the wild — the original Reddit
-  comment was a drive-by. Stays experimental, no expansion.
+  side mode (admin-key security plane, lazy-loaded, isolated). Stays
+  experimental until validated user demand surfaces; no expansion
+  otherwise.
 - **Cost forecasting.** Vendor blog posts only; no developer demand.
 - **Cross-provider price comparison** ("compare gpt-4o vs claude on
   the same workload by cost"). Vendors talk about it, developers
