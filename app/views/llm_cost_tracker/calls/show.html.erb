@@ -14,14 +14,18 @@ end %>
 <% end %>
 
 <section class="lct-panel">
-  <p class="lct-muted"><%= link_to "Back to calls", calls_path %></p>
+  <nav class="lct-breadcrumb" aria-label="Breadcrumb">
+    <%= link_to "Calls", calls_path, class: "lct-breadcrumb-link" %>
+    <span class="lct-breadcrumb-sep" aria-hidden="true">›</span>
+    <span class="lct-breadcrumb-current">#<%= @call.id %></span>
+  </nav>
   <div class="lct-call-hero">
     <div>
-      <h2 class="lct-section-title lct-call-title">Call #<%= @call.id %></h2>
+      <h2 class="lct-section-title lct-call-title">
+        <code class="lct-code"><%= @call.model %></code>
+      </h2>
       <p class="lct-call-subtitle">
         <code class="lct-code"><%= @call.provider %></code>
-        <span>·</span>
-        <code class="lct-code"><%= @call.model %></code>
         <span>·</span>
         <span><%= format_date(@call.tracked_at) %></span>
       </p>
@@ -65,45 +69,26 @@ end %>
 
   <div class="lct-detail-grid">
     <dl class="lct-dl">
-      <dt>Tracked At</dt>
-      <dd><%= format_date(@call.tracked_at) %></dd>
-
-      <dt>Provider</dt>
-      <dd><%= @call.provider %></dd>
-
-      <dt>Model</dt>
-      <dd><%= @call.model %></dd>
-
-      <dt>Pricing Status</dt>
-      <dd><%= pricing_status(@call) %></dd>
-
       <dt>Cost Status</dt>
       <dd><%= @call.cost_status.presence || "n/a" %></dd>
 
-      <dt>Provider Response ID</dt>
-      <dd><%= @call.provider_response_id.presence || "n/a" %></dd>
-
-      <dt>Provider Project ID</dt>
-      <dd><%= @call.provider_project_id.presence || "n/a" %></dd>
-
-      <dt>Provider API Key ID</dt>
-      <dd><%= @call.provider_api_key_id.presence || "n/a" %></dd>
-
-      <dt>Provider Workspace ID</dt>
-      <dd><%= @call.provider_workspace_id.presence || "n/a" %></dd>
+      <dt>Latency</dt>
+      <dd><%= @call.latency_ms ? "#{optional_number(@call.latency_ms)}ms" : "n/a" %></dd>
 
       <dt>Batch</dt>
       <dd><%= @call.batch? ? "yes" : "no" %></dd>
 
-      <% if @call.has_attribute?("created_at") %>
-        <dt>Created At</dt>
-        <dd><%= format_date(@call.created_at) %></dd>
-      <% end %>
+      <dt>Response ID</dt>
+      <dd><%= @call.provider_response_id.presence || "n/a" %></dd>
 
-      <% if @call.has_attribute?("updated_at") %>
-        <dt>Updated At</dt>
-        <dd><%= format_date(@call.updated_at) %></dd>
-      <% end %>
+      <dt>Project ID</dt>
+      <dd><%= @call.provider_project_id.presence || "n/a" %></dd>
+
+      <dt>API Key ID</dt>
+      <dd><%= @call.provider_api_key_id.presence || "n/a" %></dd>
+
+      <dt>Workspace ID</dt>
+      <dd><%= @call.provider_workspace_id.presence || "n/a" %></dd>
     </dl>
 
     <dl class="lct-dl">
@@ -114,7 +99,9 @@ end %>
 
       <dt>Total Tokens</dt>
       <dd><%= number(@call.total_tokens) %></dd>
+    </dl>
 
+    <dl class="lct-dl">
       <% priced_components.each do |component| %>
         <dt><%= component.fetch(:label).titleize %> Cost</dt>
         <dd><%= optional_money(line_item_costs_by_component[component.fetch(:price_key)]) %></dd>
@@ -122,9 +109,6 @@ end %>
 
       <dt>Total Cost</dt>
       <dd><%= optional_money(@call.total_cost) %></dd>
-
-      <dt>Latency</dt>
-      <dd><%= @call.latency_ms ? "#{optional_number(@call.latency_ms)}ms" : "n/a" %></dd>
     </dl>
   </div>
 </section>

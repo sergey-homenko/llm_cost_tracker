@@ -163,6 +163,31 @@
 
   .lct-panel + .lct-panel,
   .lct-stat-grid + .lct-panel { margin-top: 16px; }
+  .lct-grid > .lct-panel + .lct-panel,
+  .lct-grid > .lct-stat-grid + .lct-panel { margin-top: 0; }
+
+  .lct-breadcrumb {
+    align-items: center;
+    color: var(--lct-muted);
+    display: flex;
+    font-size: var(--fs-sm);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .lct-breadcrumb-link {
+    color: var(--lct-muted);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .lct-breadcrumb-link:hover { color: var(--lct-text); }
+  .lct-breadcrumb-link:focus-visible {
+    color: var(--lct-text);
+    outline: 2px solid var(--lct-accent-soft);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  .lct-breadcrumb-sep { color: var(--lct-border-strong); }
+  .lct-breadcrumb-current { color: var(--lct-text); font-weight: 500; }
 
   .lct-banner {
     align-items: center;
@@ -256,7 +281,6 @@
 
   .lct-stat-label,
   .lct-field label,
-  .lct-dl dt,
   .lct-call-summary-label,
   .lct-call-breakdown-title,
   .lct-chip-label {
@@ -300,6 +324,21 @@
 
   .lct-table-compact th,
   .lct-table-compact td { padding: 10px 12px; }
+
+  .lct-badge {
+    align-items: center;
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    padding: 4px 10px;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .lct-badge-ok { background: var(--lct-success-soft); color: var(--lct-success); }
+  .lct-badge-warn { background: var(--lct-warning-soft); color: var(--lct-warning-strong); }
 
   .lct-delta-badge {
     align-items: center;
@@ -491,6 +530,20 @@
   }
   .lct-state-title { font-size: var(--fs-lg); font-weight: 600; margin: 0 0 6px; letter-spacing: -0.005em; }
   .lct-state-copy { color: var(--lct-muted); margin: 0 auto; max-width: 480px; font-size: var(--fs-sm); line-height: 1.55; }
+  .lct-state-pre {
+    background: var(--lct-bg);
+    border: 1px solid var(--lct-border);
+    border-radius: 6px;
+    color: var(--lct-text);
+    font-family: var(--mono);
+    font-size: var(--fs-sm);
+    line-height: 1.55;
+    margin: 12px auto 0;
+    max-width: 560px;
+    overflow: auto;
+    padding: 12px 14px;
+    text-align: left;
+  }
   .lct-state-actions { display: flex; gap: 8px; justify-content: center; margin-top: 20px; }
 
   .lct-toolbar {
@@ -832,16 +885,21 @@
 
   .lct-nowrap { white-space: nowrap; }
 
-  .lct-detail-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .lct-detail-grid { align-items: start; display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
   .lct-dl {
     display: grid;
     gap: 12px;
-    grid-template-columns: minmax(120px, 0.4fr) minmax(0, 1fr);
+    grid-template-columns: minmax(120px, 0.45fr) minmax(0, 1fr);
     margin: 0;
   }
 
-  .lct-dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+  .lct-dl dt {
+    color: var(--lct-muted);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+  }
+  .lct-dl dd { color: var(--lct-text); font-size: var(--fs-sm); margin: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
 
   .lct-pre {
     background: #0f172a;

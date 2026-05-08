@@ -40,7 +40,7 @@
       <code>billing.viewer</code>) — separate from the runtime inference key the
       tracker uses. Enable explicitly in the initializer:
     </p>
-    <pre class="lct-state-copy"><code>LlmCostTracker.configure do |config|
+    <pre class="lct-state-pre"><code>LlmCostTracker.configure do |config|
   config.reconciliation_enabled = true
 end</code></pre>
   </section>
@@ -50,7 +50,7 @@ end</code></pre>
     <p class="lct-state-copy">
       Run the optional migration to create the reconciliation tables:
     </p>
-    <pre class="lct-state-copy"><code>bin/rails generate llm_cost_tracker:reconciliation
+    <pre class="lct-state-pre"><code>bin/rails generate llm_cost_tracker:reconciliation
 bin/rails db:migrate</code></pre>
   </section>
 <% elsif @diffs.empty? %>

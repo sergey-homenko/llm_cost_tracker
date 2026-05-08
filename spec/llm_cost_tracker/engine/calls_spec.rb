@@ -198,19 +198,19 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     response = get("/llm-costs/calls/#{call.id}")
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("Call ##{call.id}")
+    expect(response.body).to include("##{call.id}")
     expect(response.body).to include("2026-04-18 12:00")
     expect(response.body).to include("openai")
     expect(response.body).to include("gpt-4o")
     expect(response.body).to include("Estimated")
     expect(response.body).to include("complete")
-    expect(response.body).to include("Provider Response ID")
+    expect(response.body).to include("Response ID")
     expect(response.body).to include("chatcmpl_show_123")
-    expect(response.body).to include("Provider Project ID")
+    expect(response.body).to include("Project ID")
     expect(response.body).to include("proj_show_123")
-    expect(response.body).to include("Provider API Key ID")
+    expect(response.body).to include("API Key ID")
     expect(response.body).to include("key_show_123")
-    expect(response.body).to include("Provider Workspace ID")
+    expect(response.body).to include("Workspace ID")
     expect(response.body).to include("workspace_show_123")
     expect(response.body).to include("Batch")
     expect(response.body).to include("yes")
@@ -226,7 +226,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("Tags")
     expect(response.body).to include("feature")
     expect(response.body).to include("chat")
-    expect(response.body).to include("Back to calls")
+    expect(response.body).to include("lct-breadcrumb")
   end
 
   it "marks call details with nil total cost as unknown pricing" do
