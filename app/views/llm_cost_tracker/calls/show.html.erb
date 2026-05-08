@@ -85,10 +85,10 @@ end %>
       <dd><%= @call.provider_project_id.presence || "n/a" %></dd>
 
       <dt>API Key ID</dt>
-      <dd><%= @call.provider_api_key_id.present? ? mask_provider_id(:provider_api_key_id, @call.provider_api_key_id) : "n/a" %></dd>
+      <dd><%= @call.provider_api_key_id.present? ? LlmCostTracker::Masking.mask_value(:provider_api_key_id, @call.provider_api_key_id) : "n/a" %></dd>
 
       <dt>Workspace ID</dt>
-      <dd><%= @call.provider_workspace_id.present? ? mask_provider_id(:provider_workspace_id, @call.provider_workspace_id) : "n/a" %></dd>
+      <dd><%= @call.provider_workspace_id.present? ? LlmCostTracker::Masking.mask_value(:provider_workspace_id, @call.provider_workspace_id) : "n/a" %></dd>
     </dl>
 
     <dl class="lct-dl">

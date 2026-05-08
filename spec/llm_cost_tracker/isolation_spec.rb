@@ -70,14 +70,14 @@ RSpec.describe "Reconciliation isolation contract" do
       LlmCostTracker.const_get(:Reconciliation)
       puts JSON.generate(
         autoload: LlmCostTracker.autoload?(:Reconciliation),
-        masking: defined?(LlmCostTracker::Reconciliation::Masking),
+        importer: defined?(LlmCostTracker::Reconciliation::Importer),
         provider_invoices_schema: defined?(LlmCostTracker::Ledger::Schema::ProviderInvoices)
       )
     PROBE
 
     parsed = JSON.parse(output)
     expect(parsed["autoload"]).to be_nil
-    expect(parsed["masking"]).to eq("constant")
+    expect(parsed["importer"]).to eq("constant")
     expect(parsed["provider_invoices_schema"]).to eq("constant")
   end
 end

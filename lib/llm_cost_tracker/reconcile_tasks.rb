@@ -106,7 +106,7 @@ module LlmCostTracker
     end
 
     def format_attribution(attribution)
-      Reconciliation::Masking.format_attribution(attribution, separator: ",")
+      LlmCostTracker::Masking.format_attribution(attribution, separator: ",")
     end
   end
 end

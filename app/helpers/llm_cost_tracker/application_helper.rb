@@ -127,10 +127,6 @@ module LlmCostTracker
       current_query(provider: provider, model: model, page: nil, per: nil, format: nil)
     end
 
-    def mask_provider_id(key, value)
-      LlmCostTracker::Masking.mask_value(key, value)
-    end
-
     private
 
     def normalized_tags(tags)
