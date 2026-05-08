@@ -108,33 +108,33 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(checks.map(&:name)).not_to include("provider invoices")
     end
 
-    it "skips reconciliation schema checks until reconciliation is enabled" do
-      LlmCostTracker.configuration.reconciliation_enabled = true
+    context "with reconciliation enabled" do
+      include_context "with reconciliation enabled"
 
-      checks = described_class.call
+      it "includes reconciliation schema checks once reconciliation is enabled" do
+        checks = described_class.call
 
-      expect(checks.map(&:name)).to include("provider invoices", "provider invoice imports")
-    end
+        expect(checks.map(&:name)).to include("provider invoices", "provider invoice imports")
+      end
 
-    it "stays silent when the optional provider invoices table is missing" do
-      LlmCostTracker.configuration.reconciliation_enabled = true
-      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoices, force: :cascade)
-      LlmCostTracker::ProviderInvoice.reset_column_information
+      it "stays silent when the optional provider invoices table is missing" do
+        ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoices, force: :cascade)
+        LlmCostTracker::ProviderInvoice.reset_column_information
 
-      check = described_class.call.find { |item| item.name == "provider invoices" }
+        check = described_class.call.find { |item| item.name == "provider invoices" }
 
-      expect(check).to be_nil
-    end
+        expect(check).to be_nil
+      end
 
-    it "fails when the provider invoices table exists but its schema drifted" do
-      LlmCostTracker.configuration.reconciliation_enabled = true
-      ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_provider_invoices, :external_id)
-      LlmCostTracker::ProviderInvoice.reset_column_information
+      it "fails when the provider invoices table exists but its schema drifted" do
+        ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_provider_invoices, :external_id)
+        LlmCostTracker::ProviderInvoice.reset_column_information
 
-      check = described_class.call.find { |item| item.name == "provider invoices" }
+        check = described_class.call.find { |item| item.name == "provider invoices" }
 
-      expect(check).to have_attributes(status: :error)
-      expect(check.message).to include("llm_cost_tracker:reconciliation")
+        expect(check).to have_attributes(status: :error)
+        expect(check.message).to include("llm_cost_tracker:reconciliation")
+      end
     end
 
     it "fails when call rollups are missing" do

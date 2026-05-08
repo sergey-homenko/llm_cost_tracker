@@ -3,9 +3,11 @@
 require "spec_helper"
 
 require_relative "../../../dummy/config/environment"
+require "llm_cost_tracker/reconciliation"
 
 RSpec.describe LlmCostTracker::Ledger::Schema::ProviderInvoices do
   include_context "with mounted llm cost tracker engine"
+  include_context "with reconciliation enabled"
 
   describe ".current_schema_errors" do
     it "returns no errors for the install-generated schema" do

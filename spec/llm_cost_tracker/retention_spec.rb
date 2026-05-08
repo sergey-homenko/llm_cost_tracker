@@ -78,6 +78,12 @@ RSpec.describe LlmCostTracker::Retention do
   end
 
   describe ".prune_invoice_imports" do
+    before do
+      require_relative "../../app/models/llm_cost_tracker/provider_invoice_import"
+      create_lct_reconciliation_tables!
+      LlmCostTracker::ProviderInvoiceImport.reset_column_information
+    end
+
     it "deletes completed and failed import rows past the cutoff" do
       now = Time.utc(2026, 6, 1, 12)
       LlmCostTracker::ProviderInvoiceImport.create!(

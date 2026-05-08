@@ -3,6 +3,7 @@
 require "spec_helper"
 
 require_relative "../dummy/config/environment"
+require_relative "../../app/models/llm_cost_tracker/provider_invoice_import"
 
 RSpec.describe LlmCostTracker::ProviderInvoiceImport do
   include_context "with mounted llm cost tracker engine"

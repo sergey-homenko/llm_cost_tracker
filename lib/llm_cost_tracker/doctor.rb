@@ -10,10 +10,11 @@ require_relative "doctor/price_check"
 require_relative "doctor/schema_check"
 require_relative "doctor/cost_drift_check"
 require_relative "doctor/pricing_snapshot_drift_check"
-require_relative "doctor/invoice_reconciliation_check"
 
 module LlmCostTracker
   class Doctor
+    autoload :InvoiceReconciliationCheck, "llm_cost_tracker/doctor/invoice_reconciliation_check"
+
     class << self
       def call
         new.checks
@@ -45,7 +46,7 @@ module LlmCostTracker
         *reconciliation_schema_checks,
         CostDriftCheck.new.call,
         PricingSnapshotDriftCheck.new.call,
-        *Array(InvoiceReconciliationCheck.new.call),
+        *reconciliation_invoice_check,
         LegacyBillingStatusCheck.new.call,
         LegacyAuditCheck.new.call,
         call_rollups_check,
@@ -58,8 +59,9 @@ module LlmCostTracker
     private
 
     def reconciliation_schema_checks
-      return [] unless Reconciliation.enabled?
+      return [] unless LlmCostTracker.reconciliation_enabled?
 
+      LlmCostTracker.const_get(:Reconciliation) # autoload reconciliation + its ledger schemas
       [
         SchemaCheck.new(name: "provider invoices", schema: Ledger::Schema::ProviderInvoices,
                         table: "llm_cost_tracker_provider_invoices", optional: true,
@@ -69,6 +71,12 @@ module LlmCostTracker
                         table: "llm_cost_tracker_provider_invoice_imports", optional: true,
                         install_command: "llm_cost_tracker:reconciliation").call
       ].compact
+    end
+
+    def reconciliation_invoice_check
+      return [] unless LlmCostTracker.reconciliation_enabled?
+
+      Array(InvoiceReconciliationCheck.new.call)
     end
 
     def configuration_check

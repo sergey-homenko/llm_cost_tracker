@@ -127,14 +127,6 @@ module LlmCostTracker
       current_query(provider: provider, model: model, page: nil, per: nil, format: nil)
     end
 
-    def attribution_summary(attribution)
-      Reconciliation::Masking.format_attribution(attribution)
-    end
-
-    def mask_secret(value)
-      Reconciliation::Masking.mask_value(:provider_api_key_id, value)
-    end
-
     private
 
     def normalized_tags(tags)

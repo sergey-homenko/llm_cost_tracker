@@ -17,9 +17,14 @@ module LlmCostTrackerDatabaseSpecHelpers
     create_call_tags_table(connection)
     create_call_rollups_table(connection)
     create_ingestion_tables(connection)
+    create_lct_indexes(connection)
+  end
+
+  def create_lct_reconciliation_tables!
+    connection = ActiveRecord::Base.connection
     create_provider_invoices_table(connection)
     create_provider_invoice_imports_table(connection)
-    create_lct_indexes(connection)
+    create_lct_reconciliation_indexes(connection)
   end
 
   def tags_for_database(tags)
@@ -228,6 +233,9 @@ module LlmCostTrackerDatabaseSpecHelpers
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, %i[locked_at id]
     connection.add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
+  end
+
+  def create_lct_reconciliation_indexes(connection)
     connection.add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
     connection.add_index :llm_cost_tracker_provider_invoices, %i[source period_start]
     connection.add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at]

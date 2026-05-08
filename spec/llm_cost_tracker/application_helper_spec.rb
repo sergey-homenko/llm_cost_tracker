@@ -23,22 +23,4 @@ RSpec.describe LlmCostTracker::ApplicationHelper do
 
     expect(entry).to eq(key: "feature", value: "#{'x' * 80}...")
   end
-
-  describe "attribution masking" do
-    it "renders provider_api_key_id and workspace ids with the trailing characters only" do
-      summary = helper_object.attribution_summary(
-        provider_project_id: "proj_alpha",
-        provider_api_key_id: "sk-live-1234567890ABCDEF",
-        provider_workspace_id: "wrkspc_secret_abcdef"
-      )
-
-      expect(summary).to eq(
-        "provider_project_id=proj_alpha, provider_api_key_id=***CDEF, provider_workspace_id=***cdef"
-      )
-    end
-
-    it "leaves a short sensitive value unmasked rather than exposing one or two characters" do
-      expect(helper_object.mask_secret("ab")).to eq("ab")
-    end
-  end
 end

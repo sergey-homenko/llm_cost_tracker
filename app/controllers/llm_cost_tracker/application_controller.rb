@@ -30,20 +30,7 @@ module LlmCostTracker
       ]
     ].freeze
 
-    OPTIONAL_SCHEMA_CHECKS = [
-      [
-        LlmCostTracker::Ledger::Schema::ProviderInvoices,
-        "llm_cost_tracker_provider_invoices",
-        "The llm_cost_tracker_provider_invoices table does not match the current LLM Cost Tracker schema."
-      ],
-      [
-        LlmCostTracker::Ledger::Schema::ProviderInvoiceImports,
-        "llm_cost_tracker_provider_invoice_imports",
-        "The llm_cost_tracker_provider_invoice_imports table does not match the current LLM Cost Tracker schema."
-      ]
-    ].freeze
-
-    private_constant :SCHEMA_CHECKS, :OPTIONAL_SCHEMA_CHECKS
+    private_constant :SCHEMA_CHECKS
 
     private
 
@@ -62,9 +49,9 @@ module LlmCostTracker
         return render template: "llm_cost_tracker/shared/setup_required"
       end
 
-      return unless LlmCostTracker::Reconciliation.enabled?
+      return unless LlmCostTracker.reconciliation_enabled?
 
-      OPTIONAL_SCHEMA_CHECKS.each do |schema, table, message|
+      reconciliation_schema_checks.each do |schema, table, message|
         next unless ActiveRecord::Base.connection.data_source_exists?(table)
 
         errors = schema.current_schema_errors
@@ -74,6 +61,22 @@ module LlmCostTracker
         @setup_details = errors + ["See docs/upgrading.md for the migration path."]
         return render template: "llm_cost_tracker/shared/setup_required"
       end
+    end
+
+    def reconciliation_schema_checks
+      LlmCostTracker.const_get(:Reconciliation) # autoload reconciliation + its ledger schemas
+      [
+        [
+          LlmCostTracker::Ledger::Schema::ProviderInvoices,
+          "llm_cost_tracker_provider_invoices",
+          "The llm_cost_tracker_provider_invoices table does not match the current LLM Cost Tracker schema."
+        ],
+        [
+          LlmCostTracker::Ledger::Schema::ProviderInvoiceImports,
+          "llm_cost_tracker_provider_invoice_imports",
+          "The llm_cost_tracker_provider_invoice_imports table does not match the current LLM Cost Tracker schema."
+        ]
+      ]
     end
 
     def render_database_error(error)

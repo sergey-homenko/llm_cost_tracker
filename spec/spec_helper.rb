@@ -39,7 +39,6 @@ require_relative "../app/models/llm_cost_tracker/call"
 require_relative "../app/models/llm_cost_tracker/call_line_item"
 require_relative "../app/models/llm_cost_tracker/call_tag"
 require_relative "../app/models/llm_cost_tracker/call_rollup"
-require_relative "../app/models/llm_cost_tracker/provider_invoice"
 require_relative "../app/models/llm_cost_tracker/ingestion/inbox_entry"
 require_relative "../app/models/llm_cost_tracker/ingestion/lease"
 

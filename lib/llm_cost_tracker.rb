@@ -40,13 +40,14 @@ require_relative "llm_cost_tracker/ledger"
 require_relative "llm_cost_tracker/ingestion"
 require_relative "llm_cost_tracker/tracker"
 require_relative "llm_cost_tracker/retention"
-require_relative "llm_cost_tracker/reconciliation"
-require_relative "llm_cost_tracker/reconcile_tasks"
 require_relative "llm_cost_tracker/report"
 require_relative "llm_cost_tracker/doctor"
 require_relative "llm_cost_tracker/doctor/capture_verifier"
 
 module LlmCostTracker
+  autoload :Reconciliation, "llm_cost_tracker/reconciliation"
+  autoload :ReconcileTasks, "llm_cost_tracker/reconcile_tasks"
+
   @configuration = Configuration.new
 
   class << self
@@ -54,6 +55,10 @@ module LlmCostTracker
 
     def table_name_prefix
       "llm_cost_tracker_"
+    end
+
+    def reconciliation_enabled?
+      configuration.reconciliation_enabled
     end
 
     def configure

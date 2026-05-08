@@ -4,13 +4,12 @@ require "bigdecimal"
 
 require_relative "check"
 require_relative "probe"
-require_relative "../reconciliation"
 
 module LlmCostTracker
   class Doctor
     class InvoiceReconciliationCheck
       def call
-        return unless Reconciliation.enabled?
+        return unless LlmCostTracker.reconciliation_enabled?
         return unless Probe.table_exists?("llm_cost_tracker_provider_invoices")
         return if no_imports?
 
