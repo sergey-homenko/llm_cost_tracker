@@ -1,7 +1,16 @@
 # RFC 0002: Provider invoice reconciliation
 
-Status: Draft
+Status: Experimental (shipped in v0.9.0)
 Target: 0.9.0
+
+> **Experimental.** This feature ships in v0.9.0 behind two explicit
+> opt-ins (`config.reconciliation_enabled = true` and a separate
+> generator) without validated user demand. The public API
+> (`Reconciliation.import` / `.diff`, `Sources::*`, envelope shape) may
+> change in subsequent minor releases based on real-world feedback. If
+> you use it, please open a GitHub issue describing your setup — that
+> feedback shapes whether reconciliation graduates to a stable feature
+> or stays a power-user add-on.
 
 ## Summary
 

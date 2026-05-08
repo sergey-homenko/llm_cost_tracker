@@ -84,7 +84,13 @@ need `stream_options: { include_usage: true }`.
 - Not invoice-grade. Provider response IDs are stored for reconciliation.
 - Not multi-service. Built for a Rails monolith.
 
-## Optional: provider invoice reconciliation
+## Experimental: provider invoice reconciliation
+
+> **Experimental in v0.9.0.** Shipped behind two opt-ins because the
+> design is unvalidated by real user demand. API may change in v0.9.x
+> based on feedback. If you use it, please [open an issue](https://github.com/sergey-homenko/llm_cost_tracker/issues)
+> describing your setup — the gem stays a pure runtime tracker
+> otherwise.
 
 A separate **finance/admin mode**, off by default. The runtime tracker
 above doesn't need it. Reconciliation is for teams that want to verify

@@ -1,10 +1,15 @@
 <section class="lct-panel">
   <div class="lct-toolbar-head">
-    <h2 class="lct-section-title">Provider Invoice Reconciliation</h2>
+    <h2 class="lct-section-title">Provider Invoice Reconciliation <span class="lct-badge lct-badge-warn">Experimental</span></h2>
     <% if @last_imported_at %>
       <p class="lct-state-copy">Last import: <%= @last_imported_at.utc.iso8601 %></p>
     <% end %>
   </div>
+  <p class="lct-state-copy">
+    Experimental in v0.9.0 — public API may change in v0.9.x based on feedback.
+    <%= link_to "Open an issue", "https://github.com/sergey-homenko/llm_cost_tracker/issues", target: "_blank", rel: "noopener" %>
+    if you use it.
+  </p>
 </section>
 
 <% if flash[:notice] %>

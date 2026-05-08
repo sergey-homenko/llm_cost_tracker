@@ -25,17 +25,13 @@ the provider billed"; diff answers "where the truth diverged."
 
 ## v0.9
 
-1. **Provider invoice reconciliation.** Import provider-side cost/usage
-   rows into `llm_cost_tracker_provider_invoices`, diff against local
-   rollups and line items per `(source, period_start, period_end)` and the
-   captured `provider_project_id` / `provider_api_key_id` /
-   `provider_workspace_id` dimensions, surface drift in the dashboard.
-   `metadata` carries the meter envelope (`row_type`, `meter`, `authority`,
-   `match_basis`) so cost rows, usage rows, free-quota rows, and credits
-   stay distinct in the diff. OpenAI Costs API ships first because OpenAI
-   docs explicitly call Costs the financial reconciliation source;
-   Anthropic Cost/Usage ships second because of workspace + service-tier
-   nuance. Design: RFC 0002.
+1. **Provider invoice reconciliation.** ⚠️ Shipped as **experimental**.
+   Two opt-ins required (`config.reconciliation_enabled = true` plus a
+   separate generator). Built on architectural intuition rather than
+   validated user demand — public API may change in v0.9.x based on real
+   feedback. If no concrete user demand surfaces by v1.0, reconciliation
+   stays in maintenance mode (bug fixes only) or moves to a companion
+   gem. Design: [RFC 0002](rfcs/0002-invoice-reconciliation.md).
 2. **Explicit rate basis enum on service charges.** ✓ Shipped.
    `Billing::RATE_BASES = %i[per_million_tokens per_request per_1k_requests
    per_session per_hour per_gb_day]`. `Billing::Component#rate_basis`
@@ -50,21 +46,26 @@ the provider billed"; diff answers "where the truth diverged."
 4. **MySQL/MariaDB smoke as a release gate.** Real container, real
    migrations, real `bin/check`. CI matrix already runs the suite, but
    without an end-to-end smoke a MySQL-only regression can ship.
+   Deferred from the v0.9.0 cut.
 
-## v0.10
+## v0.10 — pending real-user feedback
 
-5. **Multi-meter tools.** File-search storage (per-GB-day), container
-   memory and session windows, search-content tokens, URL context
-   fetches, embeddings-backed retrieval, context cache token-hour. Extends
-   `Billing::Components` with the new `rate_basis` shapes from v0.9 and
-   feeds the reconciliation diff.
-6. **Price registry reproducibility.** Snapshot freshness checks, signed
-   `source_version`, drift detection between bundled and remote
-   snapshots, no runtime network. Builds on the existing
-   `pricing_snapshot` / `pricing_overrides` plumbing.
-7. **Gemini / Vertex billing export importer.** Free-quota and per-query
-   grounding semantics need their own meter shape; ships once the v0.9
-   meter envelope is in place.
+The next cycle is intentionally underspecified until we see how v0.9
+lands. Likely candidates depending on what users ask for:
+
+**If reconciliation gets traction:** multi-meter tool components
+(file-search GB-day, container session-minute, vector-store bytes),
+Gemini / Vertex billing export importer, `line_item` match basis in
+Diff, signed `source_version` for the price registry.
+
+**If users want core tracker improvements:** per-tag / per-feature
+budgets, cost forecasting on the dashboard, optimization
+recommendations, more provider integrations (Mistral, Cohere, Together,
+Groq, Perplexity), per-tenant chargeback report templates, drift alerts
+on local cost.
+
+The split between these two paths gets decided by what comes back from
+GitHub issues / discussions, not from architectural instinct.
 
 ## Tag conventions
 
