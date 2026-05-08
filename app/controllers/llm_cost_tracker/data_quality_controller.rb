@@ -16,6 +16,10 @@ module LlmCostTracker
         total_calls: @summary.total
       )
       @service_charge_rows = Dashboard::DataQuality.service_charge_rows(scope).to_a
+      @streaming_health_rows = Dashboard::DataQuality.streaming_health_rows(
+        scope,
+        total_streaming: @summary.streaming_count
+      )
     end
   end
 end

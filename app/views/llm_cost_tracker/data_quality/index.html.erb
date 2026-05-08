@@ -258,6 +258,42 @@
     </section>
   <% end %>
 
+  <% if @streaming_health_rows.any? %>
+    <section class="lct-panel">
+      <div class="lct-section-head">
+        <div>
+          <h2 class="lct-section-title">Streaming health by provider</h2>
+          <p class="lct-section-copy">Streams without a final usage chunk land as <code class="lct-code">usage_source: unknown</code> and undercount tokens. A high unknown share for an OpenAI-compatible provider usually means <code class="lct-code">stream_options: { include_usage: true }</code> is not being injected for that host.</p>
+        </div>
+      </div>
+
+      <div class="lct-table-wrap">
+        <table class="lct-table lct-table-compact">
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th class="lct-num">Streams</th>
+              <th class="lct-num">With usage</th>
+              <th class="lct-num">Unknown</th>
+              <th class="lct-num">Unknown share</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @streaming_health_rows.each do |row| %>
+              <tr>
+                <td><code class="lct-code"><%= row.provider %></code></td>
+                <td class="lct-num"><%= number(row.streams) %></td>
+                <td class="lct-num"><%= number(row.with_usage) %></td>
+                <td class="lct-num"><%= number(row.unknown) %></td>
+                <td class="lct-num"><%= percent(row.unknown_share) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% end %>
+
   <% unless @unknown_pricing_by_model.empty? %>
     <section class="lct-panel">
       <div class="lct-section-head">

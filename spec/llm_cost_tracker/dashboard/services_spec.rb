@@ -716,6 +716,34 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.missing_provider_response_id_count.to_i).to eq(1)
     end
 
+    it "breaks streaming health down per provider, sorted by stream volume" do
+      create_call(provider: "openai",     stream: true,  usage_source: "stream_final")
+      create_call(provider: "openai",     stream: true,  usage_source: "stream_final")
+      create_call(provider: "openrouter", stream: true,  usage_source: "unknown")
+      create_call(provider: "openrouter", stream: true,  usage_source: "stream_final")
+      create_call(provider: "anthropic",  stream: false, usage_source: "response")
+
+      rows = described_class.streaming_health_rows(LlmCostTracker::Call.all, total_streaming: 4)
+
+      expect(rows.map(&:provider)).to eq(%w[openai openrouter])
+      openai = rows.find { |row| row.provider == "openai" }
+      openrouter = rows.find { |row| row.provider == "openrouter" }
+      expect(openai.streams).to eq(2)
+      expect(openai.with_usage).to eq(2)
+      expect(openai.unknown).to eq(0)
+      expect(openai.unknown_share).to eq(0.0)
+      expect(openrouter.streams).to eq(2)
+      expect(openrouter.with_usage).to eq(1)
+      expect(openrouter.unknown).to eq(1)
+      expect(openrouter.unknown_share).to eq(50.0)
+    end
+
+    it "returns no streaming health rows when the slice has no streams" do
+      rows = described_class.streaming_health_rows(LlmCostTracker::Call.all, total_streaming: 0)
+
+      expect(rows).to eq([])
+    end
+
     it "groups service charges by provider, component, and status" do
       openai_call = create_call(provider: "openai")
       anthropic_call = create_call(provider: "anthropic")

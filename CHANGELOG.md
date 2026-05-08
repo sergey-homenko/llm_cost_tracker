@@ -14,6 +14,7 @@ streaming. Existing installs need a migration; see
 
 - **Experimental:** opt-in provider invoice reconciliation. Two opt-ins required (`config.reconciliation_enabled = true` plus `bin/rails generate llm_cost_tracker:reconciliation`); admin/org-level provider keys, separate security plane, isolated from runtime tracking. See [Configuration](docs/configuration.md#reconciliation-experimental-opt-in).
 - `Doctor::InvoiceReconciliationCheck` warns on reconciliation drift past 5% or stale imports older than 14 days.
+- Dashboard Data Quality page now includes a "Streaming health by provider" breakdown — streams, with-usage, unknown, and unknown share per provider — so a misconfigured OpenAI-compatible host that ships streams without `stream_options.include_usage` is visible at a glance.
 
 ### Changed
 

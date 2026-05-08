@@ -7,6 +7,7 @@ module LlmCostTracker
   module Dashboard
     class DataQuality
       UnknownPricingRow = ::Data.define(:model, :calls, :share_percent)
+      StreamingHealthRow = ::Data.define(:provider, :streams, :with_usage, :unknown, :unknown_share)
       Summary = ::Data.define(:total, :unknown_pricing_count, :untagged_calls_count, :missing_latency_count,
                               :streaming_count, :streaming_missing_usage, :missing_provider_response_id_count,
                               :calls_with_pricing, :tagged_calls, :calls_with_latency, :streams_with_usage,
@@ -123,6 +124,33 @@ module LlmCostTracker
                         Arel.sql("#{line_item_table}.cache_state"),
                         Arel.sql("COALESCE(SUM(#{line_item_table}.cost), 0)"))
           index_costs_by_component(rows)
+        end
+
+        def streaming_health_rows(scope, total_streaming:)
+          return [] unless total_streaming.positive?
+
+          unknown_predicate = "usage_source = 'unknown' OR usage_source IS NULL"
+          rows = scope.unscope(:select, :order, :group)
+                      .where(stream: true)
+                      .group(:provider)
+                      .order(Arel.sql("COUNT(*) DESC"), :provider)
+                      .pluck(
+                        :provider,
+                        Arel.sql("COUNT(*)"),
+                        Arel.sql("SUM(CASE WHEN #{unknown_predicate} THEN 1 ELSE 0 END)")
+                      )
+
+          rows.map do |provider, streams, unknown|
+            streams_count = streams.to_i
+            unknown_count = unknown.to_i
+            StreamingHealthRow.new(
+              provider: provider,
+              streams: streams_count,
+              with_usage: streams_count - unknown_count,
+              unknown: unknown_count,
+              unknown_share: percentage(unknown_count, streams_count)
+            )
+          end
         end
 
         def hidden_output_summary(stats)

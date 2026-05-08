@@ -112,4 +112,25 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
     expect(response.body).to include("Missing provider response IDs")
     expect(response.body).to include("track_stream")
   end
+
+  it "breaks streaming health down per provider when streams exist" do
+    create_call(provider: "openai",     stream: true, usage_source: "stream_final")
+    create_call(provider: "openai",     stream: true, usage_source: "stream_final")
+    create_call(provider: "openrouter", stream: true, usage_source: "unknown")
+    create_call(provider: "openrouter", stream: true, usage_source: "stream_final")
+
+    response = get("/llm-costs/data_quality")
+
+    expect(response.body).to include("Streaming health by provider")
+    expect(response.body).to match(%r{<code[^>]*>openai</code>})
+    expect(response.body).to match(%r{<code[^>]*>openrouter</code>})
+  end
+
+  it "omits the streaming health section when no streams are recorded in the slice" do
+    create_call(stream: false, usage_source: "response")
+
+    response = get("/llm-costs/data_quality")
+
+    expect(response.body).not_to include("Streaming health by provider")
+  end
 end
