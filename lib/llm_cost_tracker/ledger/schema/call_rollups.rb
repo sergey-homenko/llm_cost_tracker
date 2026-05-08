@@ -6,7 +6,7 @@ module LlmCostTracker
   module Ledger
     module Schema
       module CallRollups
-        REQUIRED_COLUMNS = %w[period period_start currency provider total_cost].freeze
+        REQUIRED_COLUMNS = %w[period period_start currency provider total_cost created_at updated_at].freeze
         UNIQUE_COLUMNS = %i[period period_start currency provider].freeze
 
         class << self

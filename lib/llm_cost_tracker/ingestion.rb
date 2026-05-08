@@ -20,10 +20,12 @@ module LlmCostTracker
       end
 
       WRITE_SCHEMA_GUARDS = [
-        ["llm_cost_tracker_calls",            Ledger::Schema::Calls],
-        ["llm_cost_tracker_call_line_items",  Ledger::Schema::CallLineItems],
-        ["llm_cost_tracker_call_tags",        Ledger::Schema::CallTags],
-        ["llm_cost_tracker_call_rollups",     Ledger::Schema::CallRollups]
+        ["llm_cost_tracker_calls",                    Ledger::Schema::Calls],
+        ["llm_cost_tracker_call_line_items",          Ledger::Schema::CallLineItems],
+        ["llm_cost_tracker_call_tags",                Ledger::Schema::CallTags],
+        ["llm_cost_tracker_call_rollups",             Ledger::Schema::CallRollups],
+        ["llm_cost_tracker_ingestion_inbox_entries",  Ledger::Schema::IngestionInboxEntries],
+        ["llm_cost_tracker_ingestion_leases",         Ledger::Schema::IngestionLeases]
       ].freeze
 
       def ensure_current_schema!

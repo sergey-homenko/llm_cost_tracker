@@ -35,11 +35,13 @@ module LlmCostTracker
         to_date = Dashboard::DateRange.parse(params, :to)
         Dashboard::DateRange.validate!(from: from_date, to: to_date)
 
-        from = from_date&.beginning_of_day
-        to = to_date&.end_of_day
-        relation = relation.where(tracked_at: from..) if from
-        relation = relation.where(tracked_at: ..to) if to
+        default_range = Dashboard::DateRange.call(params: params)
+        from_date ||= default_range.from
+        to_date ||= default_range.to
+
         relation
+          .where(tracked_at: from_date.beginning_of_day..)
+          .where(tracked_at: ..to_date.end_of_day)
       end
 
       def apply_exact_filter(relation, key)

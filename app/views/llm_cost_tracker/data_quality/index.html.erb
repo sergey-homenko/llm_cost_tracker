@@ -243,13 +243,14 @@
           </thead>
           <tbody>
             <% @service_charge_rows.each do |row| %>
+              <% unknown_cost = row.cost_status.to_s == LlmCostTracker::Billing::CostStatus::UNKNOWN %>
               <tr>
                 <td><code class="lct-code"><%= row.provider %></code></td>
                 <td><code class="lct-code"><%= row.component %></code></td>
                 <td><%= row.cost_status %></td>
                 <td class="lct-num"><%= number(row.charges_count) %></td>
                 <td class="lct-num"><%= number(row.quantity) %></td>
-                <td class="lct-num"><%= optional_money(row.total_cost) %></td>
+                <td class="lct-num<%= ' lct-num-muted' if unknown_cost %>"><%= unknown_cost ? "n/a" : money(row.total_cost) %></td>
               </tr>
             <% end %>
           </tbody>

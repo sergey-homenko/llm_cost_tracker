@@ -27,6 +27,7 @@ module LlmCostTracker
           provider_field
           provider_item_id
           details
+          created_at
         ].freeze
 
         class << self

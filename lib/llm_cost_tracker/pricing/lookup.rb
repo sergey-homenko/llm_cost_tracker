@@ -14,6 +14,8 @@ module LlmCostTracker
           model_name = model.to_s
           return nil if model_name.empty?
 
+          invalidate_cache_if_prices_file_changed!
+
           cache_key = [provider_name, model_name]
           cached = cached_lookup(cache_key)
           return cached unless cached.equal?(CACHE_MISS)
@@ -28,10 +30,24 @@ module LlmCostTracker
             @prices_cache = nil
             @lookup_cache = nil
             @sorted_price_keys_cache = nil
+            @prices_file_signature = nil
           end
         end
 
         private
+
+        def invalidate_cache_if_prices_file_changed!
+          path = LlmCostTracker.configuration.prices_file
+          signature = path && File.exist?(path) ? File.mtime(path) : nil
+          MUTEX.synchronize do
+            return if @prices_file_signature == signature
+
+            @prices_cache = nil
+            @lookup_cache = nil
+            @sorted_price_keys_cache = nil
+            @prices_file_signature = signature
+          end
+        end
 
         def lookup_match(provider_name:, model_name:)
           provider_model = provider_name ? "#{provider_name}/#{model_name}" : model_name

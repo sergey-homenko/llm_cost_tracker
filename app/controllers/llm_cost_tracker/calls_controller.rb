@@ -74,8 +74,9 @@ module LlmCostTracker
       case field
       when :tracked_at
         call.tracked_at&.utc&.iso8601
-      when :provider, :model, :provider_response_id, :provider_project_id, :provider_api_key_id,
-           :provider_workspace_id, :cost_status
+      when :provider_api_key_id, :provider_workspace_id
+        csv_safe(LlmCostTracker::Masking.mask_value(field, call[field]))
+      when :provider, :model, :provider_response_id, :provider_project_id, :cost_status
         csv_safe(call[field])
       when :pricing_snapshot
         csv_safe(csv_json(call.pricing_snapshot))

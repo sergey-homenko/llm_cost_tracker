@@ -25,7 +25,7 @@ module LlmCostTracker
       def normalize_mode(value)
         return nil if value.nil?
 
-        mode = value.is_a?(Symbol) ? value.downcase : normalize_string_mode(value)
+        mode = normalize_string_mode(value.to_s)
         return nil unless mode
 
         STANDARD_MODE_VALUES.include?(mode) ? nil : mode

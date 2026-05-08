@@ -36,7 +36,9 @@ module LlmCostTracker
       end
 
       def call
-        provider_total = scoped_invoices_relation_for(:cost).sum(:billed_amount).then { |sum| BigDecimal(sum.to_s) }
+        provider_total = scoped_invoices_relation_for(:cost, fully_contained: true)
+                         .sum(:billed_amount)
+                         .then { |sum| BigDecimal(sum.to_s) }
         invoices = scoped_invoices
         cost_invoices = invoices.select { |invoice| cost_row?(invoice) }
         local_calls = scoped_local_calls
@@ -68,8 +70,9 @@ module LlmCostTracker
         scoped_invoices_relation.to_a
       end
 
-      def scoped_invoices_relation_for(row_type_filter = nil)
+      def scoped_invoices_relation_for(row_type_filter = nil, fully_contained: false)
         relation = scoped_invoices_relation
+        relation = relation.where(period_start: period_start..).where(period_end: ..period_end) if fully_contained
         return relation unless row_type_filter == :cost
 
         connection = ProviderInvoice.connection
@@ -256,11 +259,12 @@ module LlmCostTracker
       end
 
       def window_start
-        period_start.to_time.utc
+        Time.utc(period_start.year, period_start.month, period_start.day)
       end
 
       def window_end
-        (period_end + 1).to_time.utc
+        next_day = period_end + 1
+        Time.utc(next_day.year, next_day.month, next_day.day)
       end
 
       def percent_for(local, provider)

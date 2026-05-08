@@ -22,6 +22,21 @@ streaming. Existing installs need a migration; see
 - Tracker now writes to the durable inbox **before** firing `ActiveSupport::Notifications.instrument`. Previously a raising subscriber would crash the call before the event reached the inbox, silently losing the record. Subscriber failures are now caught and logged; the event still persists.
 - `Tracker.cost_with_service_lines` no longer mixes currencies into the header `total_cost`. Service line items in a currency that does not match the header pricing snapshot are excluded from the header total and a warning is logged. Per-line costs are still recorded with their original currency.
 - `bin/rails llm_cost_tracker:setup` no longer fails with `Missing Thor class for invoke llm_cost_tracker:prices`. The install generator now invokes `PricesGenerator` by class instead of by Thor namespace shortcut.
+- `Capture::StreamCollector#finish!` is now retry-safe. Previously the collector flipped to `finished` before `Tracker.record` ran; if the record raised, a follow-up `finish!` returned silently and the stream event was lost. The collector now claims a "recording" slot, releases it on raise so a retry can persist the event, and only marks itself finished after `Tracker.record` returns.
+- `Pricing::Lookup` invalidates its cached price tables when `prices_file`'s mtime changes. Previously the lookup-level cache shadowed the registry's mtime-aware reload — editing `prices_file` left old rates active until the gem was reloaded.
+- `Pricing.normalize_mode` now treats Symbol input through the same `tr("-", "_")` path as String input. `:"standard-only"` no longer slips past `STANDARD_MODE_VALUES` and forces a known model into unknown pricing.
+- Reconciliation `Diff` now builds period boundaries with explicit `Time.utc(…)` instead of `Date#to_time.utc`, so app servers in non-UTC timezones (e.g. Europe/Kiev) no longer shift the diff window by their local offset.
+- Reconciliation `Diff` provider total now sums only invoice rows fully contained in the diff window. Previously a partially overlapping invoice (e.g. a full-month bill on a half-month window) was counted at its full `billed_amount`.
+- Dashboard filters now apply the default 30-day range when `from`/`to` params are missing. The filter form already showed the default visually; backend behavior now matches.
+- `provider_api_key_id` and `provider_workspace_id` are masked on the call detail page and CSV export, mirroring the existing reconciliation drill-down behavior. The shared masking helper moved to `LlmCostTracker::Masking` (with `Reconciliation::Masking` kept as an alias).
+- Stream pricing modes captured from in-stream events now win over the request-level pricing mode when recording, so message-level `service_tier` / `inference_geo` from Anthropic SDK streams reach the ledger.
+- Schema guards now check `created_at` on `llm_cost_tracker_call_line_items`, `created_at` + `updated_at` on `llm_cost_tracker_call_rollups`, and the ingestion inbox / lease tables. Doctor and the inbox write-path catch drift before the first row is inserted instead of failing at runtime.
+- Service-charge rows on the call detail page and Data Quality dashboard now render `n/a` instead of `$0.00` when `cost_status` is `unknown`, so unpriced charges don't masquerade as zero-cost.
+
+### Documentation
+
+- `docs/budgets.md` and `docs/technical/operational-notes.md` updated to reference the current `(period, period_start, currency, provider)` rollup unique index.
+- `docs/dashboard.md` documents the manual mount step under host-app authentication, matching the install generator's new behavior.
 
 ### Changed
 

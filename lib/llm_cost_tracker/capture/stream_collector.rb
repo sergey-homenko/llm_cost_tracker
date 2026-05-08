@@ -32,6 +32,7 @@ module LlmCostTracker
         @explicit_usage = nil
         @started_at = LlmCostTracker::Timing.now_monotonic
         @finished = false
+        @recording = false
         @mutex = Mutex.new
       end
 
@@ -88,10 +89,19 @@ module LlmCostTracker
       end
 
       def finish!(errored: false)
-        snapshot = @mutex.synchronize do
-          return if @finished
+        snapshot = claim_recording_slot
+        return if snapshot.nil?
 
-          @finished = true
+        record_snapshot(snapshot, errored: errored)
+      end
+
+      private
+
+      def claim_recording_slot
+        @mutex.synchronize do
+          return nil if @finished || @recording
+
+          @recording = true
           pricing_mode = Pricing.normalize_mode(@pricing_mode)
           {
             events: @events.dup,
@@ -106,21 +116,29 @@ module LlmCostTracker
             context_tags: @context_tags.deep_dup
           }
         end
+      end
 
+      def record_snapshot(snapshot, errored:)
         capture = build_usage_capture(snapshot)
         provider_response_id = capture.provider_response_id || snapshot[:provider_response_id]
         capture = capture.with(provider_response_id: provider_response_id)
 
-        Tracker.record(
+        result = Tracker.record(
           capture: capture,
           latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
-          pricing_mode: snapshot[:pricing_mode],
+          pricing_mode: capture.pricing_mode || snapshot[:pricing_mode],
           metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
           context_tags: snapshot[:context_tags]
         )
+        @mutex.synchronize do
+          @finished = true
+          @recording = false
+        end
+        result
+      rescue StandardError
+        @mutex.synchronize { @recording = false }
+        raise
       end
-
-      private
 
       def capture_dimensions(pricing_mode)
         batch = @batch.nil? ? UsageCapture.batch_from_pricing_mode?(pricing_mode).presence : @batch
