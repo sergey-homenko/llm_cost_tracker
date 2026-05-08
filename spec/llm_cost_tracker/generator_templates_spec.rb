@@ -153,7 +153,7 @@ RSpec.describe "generator templates" do
 
     def expect_columns_in(migration, columns)
       missing = columns.reject do |column|
-        migration.match?(/[\s,(]:#{Regexp.escape(column)}\b/)
+        migration.match?(/[\s,(\[]:#{Regexp.escape(column)}\b/)
       end
       expect(missing).to eq([]),
                          "expected migration to declare #{missing.inspect}; update the generator template when schema columns change"

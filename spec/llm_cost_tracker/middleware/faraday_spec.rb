@@ -530,6 +530,26 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(parsed.dig("stream_options", "include_usage")).to be true
   end
 
+  it "auto-injects when the caller hands Faraday a Hash body" do
+    captured_body = nil
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          captured_body = env.body
+          [200, { "Content-Type" => "text/event-stream" }, ""]
+        end
+      end
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true })
+
+    expect(captured_body).to be_a(String)
+    parsed = JSON.parse(captured_body)
+    expect(parsed.dig("stream_options", "include_usage")).to be true
+  end
+
   it "leaves request bodies that are not JSON untouched" do
     captured_body = nil
 

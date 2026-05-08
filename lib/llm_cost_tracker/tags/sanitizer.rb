@@ -11,10 +11,12 @@ module LlmCostTracker
       SECRET_VALUE_PATTERNS = [
         /\Ask-(?:ant-|admin-|proj-|live-|test-)?[A-Za-z0-9_-]{16,}\z/,
         /\AAKIA[0-9A-Z]{16}\z/,
-        /\Aghp_[A-Za-z0-9]{30,}\z/,
+        /\Agh[opsur]_[A-Za-z0-9]{16,}\z/,
+        /\Agithub_pat_[A-Za-z0-9_]{20,}\z/,
         /\Aeyj[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\z/i,
         /\Abearer\s+[A-Za-z0-9_.-]{20,}\z/i
       ].freeze
+      private_constant :SECRET_VALUE_PATTERNS
 
       class << self
         def call(tags, config: LlmCostTracker.configuration)

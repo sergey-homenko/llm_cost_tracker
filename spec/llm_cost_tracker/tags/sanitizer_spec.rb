@@ -57,6 +57,24 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
       expect(tags[:note]).to eq("[REDACTED]")
     end
 
+    it "redacts GitHub classic personal access tokens regardless of the tag key" do
+      tags = described_class.call(
+        { user: "ghp_1234567890ABCDEFGHIJKLMNOPQRSTUVwxyz" },
+        config: config
+      )
+
+      expect(tags[:user]).to eq("[REDACTED]")
+    end
+
+    it "redacts GitHub fine-grained personal access tokens regardless of the tag key" do
+      tags = described_class.call(
+        { auth: "github_pat_11AAAAAABBBBBBCCCCCCDDDDD" },
+        config: config
+      )
+
+      expect(tags[:auth]).to eq("[REDACTED]")
+    end
+
     it "redacts AWS access key ids regardless of the tag key" do
       tags = described_class.call({ context: "AKIAIOSFODNN7EXAMPLE" }, config: config)
 
