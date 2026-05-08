@@ -19,7 +19,9 @@
             <%= link_to "Calls", calls_path, class: ("lct-active" if request.path.start_with?(calls_path)) %>
             <%= link_to "Tags", tags_path, class: ("lct-active" if request.path.start_with?(tags_path)) %>
             <%= link_to "Data Quality", data_quality_path, class: ("lct-active" if request.path.start_with?(data_quality_path)) %>
-            <%= link_to "Reconciliation", reconciliation_path, class: ("lct-active" if request.path.start_with?(reconciliation_path)) %>
+            <% if LlmCostTracker::Reconciliation.enabled? %>
+              <%= link_to "Reconciliation", reconciliation_path, class: ("lct-active" if request.path.start_with?(reconciliation_path)) %>
+            <% end %>
           </nav>
         </header>
 

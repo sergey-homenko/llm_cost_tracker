@@ -6,6 +6,7 @@ require_relative "../../dummy/config/environment"
 
 RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
   include_context "with mounted llm cost tracker engine"
+  include_context "with reconciliation enabled"
 
   let(:period_start) { Date.new(2026, 5, 1) }
   let(:period_end) { Date.new(2026, 5, 31) }

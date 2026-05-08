@@ -62,6 +62,8 @@ module LlmCostTracker
         return render template: "llm_cost_tracker/shared/setup_required"
       end
 
+      return unless LlmCostTracker::Reconciliation.enabled?
+
       OPTIONAL_SCHEMA_CHECKS.each do |schema, table, message|
         next unless ActiveRecord::Base.connection.data_source_exists?(table)
 

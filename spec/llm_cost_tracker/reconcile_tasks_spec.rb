@@ -7,6 +7,7 @@ require_relative "../dummy/config/environment"
 
 RSpec.describe LlmCostTracker::ReconcileTasks do
   include_context "with mounted llm cost tracker engine"
+  include_context "with reconciliation enabled"
 
   describe ".import_from_env" do
     let(:openai_payload) do

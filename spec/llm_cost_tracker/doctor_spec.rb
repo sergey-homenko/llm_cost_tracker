@@ -102,13 +102,22 @@ RSpec.describe LlmCostTracker::Doctor do
         have_attributes(status: :ok, name: "llm_cost_tracker_calls columns"),
         have_attributes(status: :ok, name: "call line items"),
         have_attributes(status: :ok, name: "call tags"),
-        have_attributes(status: :ok, name: "provider invoices"),
         have_attributes(status: :ok, name: "call rollups"),
         have_attributes(status: :warn, name: "tracked calls")
       )
+      expect(checks.map(&:name)).not_to include("provider invoices")
+    end
+
+    it "skips reconciliation schema checks until reconciliation is enabled" do
+      LlmCostTracker.configuration.enable_reconciliation!
+
+      checks = described_class.call
+
+      expect(checks.map(&:name)).to include("provider invoices", "provider invoice imports")
     end
 
     it "stays silent when the optional provider invoices table is missing" do
+      LlmCostTracker.configuration.enable_reconciliation!
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoices, force: :cascade)
       LlmCostTracker::ProviderInvoice.reset_column_information
 
@@ -118,6 +127,7 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "fails when the provider invoices table exists but its schema drifted" do
+      LlmCostTracker.configuration.enable_reconciliation!
       ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_provider_invoices, :external_id)
       LlmCostTracker::ProviderInvoice.reset_column_information
 

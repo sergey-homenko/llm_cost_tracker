@@ -42,13 +42,7 @@ module LlmCostTracker
                         table: "llm_cost_tracker_call_line_items").call,
         SchemaCheck.new(name: "call tags", schema: Ledger::Schema::CallTags,
                         table: "llm_cost_tracker_call_tags").call,
-        SchemaCheck.new(name: "provider invoices", schema: Ledger::Schema::ProviderInvoices,
-                        table: "llm_cost_tracker_provider_invoices", optional: true,
-                        install_command: "llm_cost_tracker:reconciliation").call,
-        SchemaCheck.new(name: "provider invoice imports",
-                        schema: Ledger::Schema::ProviderInvoiceImports,
-                        table: "llm_cost_tracker_provider_invoice_imports", optional: true,
-                        install_command: "llm_cost_tracker:reconciliation").call,
+        *reconciliation_schema_checks,
         CostDriftCheck.new.call,
         PricingSnapshotDriftCheck.new.call,
         *Array(InvoiceReconciliationCheck.new.call),
@@ -62,6 +56,20 @@ module LlmCostTracker
     end
 
     private
+
+    def reconciliation_schema_checks
+      return [] unless Reconciliation.enabled?
+
+      [
+        SchemaCheck.new(name: "provider invoices", schema: Ledger::Schema::ProviderInvoices,
+                        table: "llm_cost_tracker_provider_invoices", optional: true,
+                        install_command: "llm_cost_tracker:reconciliation").call,
+        SchemaCheck.new(name: "provider invoice imports",
+                        schema: Ledger::Schema::ProviderInvoiceImports,
+                        table: "llm_cost_tracker_provider_invoice_imports", optional: true,
+                        install_command: "llm_cost_tracker:reconciliation").call
+      ].compact
+    end
 
     def configuration_check
       config = LlmCostTracker.configuration

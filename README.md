@@ -86,23 +86,38 @@ need `stream_options: { include_usage: true }`.
 
 ## Optional: provider invoice reconciliation
 
-For teams that want to verify local cost against provider-side invoices
-(OpenAI Costs API, Anthropic Cost API, GCP billing export, vendor CSV).
-Separate install — runtime API keys cannot fetch billing data, you need
-admin/org-level credentials (`sk-admin-…` for OpenAI, admin keys for
-Anthropic, `billing.viewer` service account for GCP).
+A separate **finance/admin mode**, off by default. The runtime tracker
+above doesn't need it. Reconciliation is for teams that want to verify
+local cost against provider-side invoices via admin/org-level provider
+APIs — a different security plane from the inference key the tracker
+uses.
+
+**Why it's gated:** OpenAI Costs API requires `sk-admin-…`. Anthropic
+Cost / Usage APIs require admin keys (`sk-ant-admin-…`). GCP billing
+export requires a service account with `billing.viewer`. These should
+not live on the runtime app server. Reconciliation is opt-in so the gem
+doesn't pretend to need them when it doesn't.
+
+Enable explicitly:
+
+```ruby
+LlmCostTracker.configure do |config|
+  config.enable_reconciliation!
+  config.register_reconciliation_importer(:openai) { OpenaiCostsImportJob.perform_later }
+end
+```
+
+Run the optional migration:
 
 ```bash
 bin/rails generate llm_cost_tracker:reconciliation
 bin/rails db:migrate
 ```
 
-That adds `provider_invoices` and `provider_invoice_imports` tables,
-nothing else. The dashboard's Reconciliation page becomes live, doctor
-gains an `invoice reconciliation` check, and `Reconciliation.import` /
-`.diff` / `rake llm_cost_tracker:reconcile:*` start working. Without this
-generator the gem stays a pure tracker — no extra schema, no admin keys
-needed.
+Without `enable_reconciliation!`, `Reconciliation.import` / `.diff` raise
+a clear error, the dashboard's Reconciliation tab is hidden, and doctor
+ignores the reconciliation schema entirely. The gem stays a pure runtime
+tracker.
 
 See [RFC 0002](docs/rfcs/0002-invoice-reconciliation.md) for the design
 and [Upgrading](docs/upgrading.md) for the migration path.

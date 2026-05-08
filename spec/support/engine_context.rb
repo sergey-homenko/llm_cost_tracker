@@ -55,6 +55,10 @@ module LlmCostTrackerEngineContext
 
 end
 
+RSpec.shared_context "with reconciliation enabled" do
+  before { LlmCostTracker.configuration.enable_reconciliation! }
+end
+
 RSpec.shared_context "with mounted llm cost tracker engine" do
   require "active_record"
   require "json"

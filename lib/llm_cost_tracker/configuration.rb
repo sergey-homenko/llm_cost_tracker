@@ -31,7 +31,8 @@ module LlmCostTracker
       :redacted_tag_keys,
       :unknown_pricing_behavior,
       :openai_compatible_providers,
-      :reconciliation_importers
+      :reconciliation_importers,
+      :reconciliation_enabled
     )
 
     def initialize
@@ -53,11 +54,23 @@ module LlmCostTracker
       @redacted_tag_keys = DEFAULT_REDACTED_TAG_KEYS.dup
       self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
       @reconciliation_importers = {}
+      @reconciliation_enabled = false
       @finalized = false
+    end
+
+    def enable_reconciliation!
+      ensure_shared_configuration_mutable!
+      @reconciliation_enabled = true
+    end
+
+    def reconciliation_enabled?
+      @reconciliation_enabled
     end
 
     def reconciliation_importers=(importers)
       ensure_shared_configuration_mutable!
+      raise Error, "reconciliation is disabled; call config.enable_reconciliation! first" unless @reconciliation_enabled
+
       @reconciliation_importers = (importers || {}).to_h do |source, importer|
         raise Error, "reconciliation_importers[#{source}] must respond to call" unless importer.respond_to?(:call)
 
@@ -67,6 +80,7 @@ module LlmCostTracker
 
     def register_reconciliation_importer(source, &block)
       ensure_shared_configuration_mutable!
+      raise Error, "reconciliation is disabled; call config.enable_reconciliation! first" unless @reconciliation_enabled
       raise Error, "register_reconciliation_importer requires a block" unless block
 
       @reconciliation_importers[source.to_sym] = block

@@ -8,6 +8,7 @@ require_relative "../../dummy/config/environment"
 
 RSpec.describe "LlmCostTracker::Engine reconciliation" do
   include_context "with mounted llm cost tracker engine"
+  include_context "with reconciliation enabled"
 
   ENVELOPE = { row_type: "cost", meter: "tokens", authority: "cost_api", match_basis: "period_only" }.freeze
 
@@ -44,6 +45,24 @@ RSpec.describe "LlmCostTracker::Engine reconciliation" do
       pricing_basis: "rate_table",
       details: {}
     )
+  end
+
+  it "renders the disabled state when reconciliation has not been enabled" do
+    LlmCostTracker.reset_configuration!
+
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Reconciliation disabled")
+    expect(response.body).to include("config.enable_reconciliation!")
+  end
+
+  it "rejects trigger_import when reconciliation is disabled" do
+    LlmCostTracker.reset_configuration!
+
+    response = post("/llm-costs/reconciliation/import", params: { source: "openai" })
+
+    expect(response.status).to eq(302)
   end
 
   it "renders the install hint when reconciliation tables are absent" do

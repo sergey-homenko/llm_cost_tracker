@@ -17,6 +17,7 @@ module LlmCostTracker
 
     class << self
       def import(source:, rows:, imported_at: nil, window: nil, strict_metadata: nil, cursor: nil)
+        ensure_enabled!
         Importer.new(
           source: source,
           imported_at: imported_at,
@@ -27,6 +28,7 @@ module LlmCostTracker
       end
 
       def diff(source:, period_start:, period_end:, scope: {}, currency: nil)
+        ensure_enabled!
         Diff.new(
           source: source,
           period_start: period_start,
@@ -34,6 +36,18 @@ module LlmCostTracker
           scope: scope,
           currency: currency
         ).call
+      end
+
+      def enabled?
+        LlmCostTracker.configuration.reconciliation_enabled?
+      end
+
+      def ensure_enabled!
+        return if enabled?
+
+        raise Error,
+              "reconciliation is disabled; call `config.enable_reconciliation!` in your initializer " \
+              "(requires admin/org-level provider API keys, see docs/rfcs/0002-invoice-reconciliation.md)"
       end
     end
   end

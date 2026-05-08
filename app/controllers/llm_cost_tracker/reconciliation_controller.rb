@@ -3,8 +3,9 @@
 module LlmCostTracker
   class ReconciliationController < ApplicationController
     def index
+      @reconciliation_enabled = LlmCostTracker::Reconciliation.enabled?
       @reconciliation_installed = LlmCostTracker::ProviderInvoice.table_exists?
-      if @reconciliation_installed
+      if @reconciliation_enabled && @reconciliation_installed
         @sources = LlmCostTracker::ProviderInvoice
                    .order(:source)
                    .distinct
@@ -17,10 +18,14 @@ module LlmCostTracker
         @last_imported_at = nil
       end
       @threshold = LlmCostTracker::Reconciliation::DEFAULT_THRESHOLD_PERCENT
-      @configured_importers = configured_importers
+      @configured_importers = @reconciliation_enabled ? configured_importers : {}
     end
 
     def trigger_import
+      unless LlmCostTracker::Reconciliation.enabled?
+        return redirect_to reconciliation_path, alert: "Reconciliation is disabled"
+      end
+
       source = params[:source].to_s
       importer = configured_importers[source.to_sym]
       return redirect_to reconciliation_path, alert: "No importer configured for #{source}" if importer.nil?

@@ -6,6 +6,7 @@ require_relative "../dummy/config/environment"
 
 RSpec.describe LlmCostTracker::ProviderInvoiceImport do
   include_context "with mounted llm cost tracker engine"
+  include_context "with reconciliation enabled"
 
   def build_import(state:, source: "openai", cursor: nil, started_at: Time.now.utc,
                    window_start: nil, window_end: nil)

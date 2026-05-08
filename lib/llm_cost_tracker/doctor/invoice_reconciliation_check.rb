@@ -10,6 +10,7 @@ module LlmCostTracker
   class Doctor
     class InvoiceReconciliationCheck
       def call
+        return unless Reconciliation.enabled?
         return unless Probe.table_exists?("llm_cost_tracker_provider_invoices")
         return if no_imports?
 

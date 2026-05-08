@@ -10,6 +10,7 @@ require "yaml"
 require "llm_cost_tracker/pricing/registry"
 require "llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/reconciliation_generator"
 
 RSpec.describe "generator templates" do
   let(:migration_version) { "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]" }
@@ -123,6 +124,21 @@ RSpec.describe "generator templates" do
       expect(Dir[File.join(dir, "db/migrate/*create_llm_cost_tracker_calls.rb")].size).to eq(1)
       expect(File).to exist(File.join(dir, "config/llm_cost_tracker_prices.yml"))
       expect(File.read(File.join(dir, "config/routes.rb")).scan("mount LlmCostTracker::Engine").size).to eq(1)
+    end
+  end
+
+  it "generates the optional reconciliation migration with provider invoices and imports tables" do
+    Dir.mktmpdir do |dir|
+      LlmCostTracker::Generators::ReconciliationGenerator.start([], destination_root: dir)
+
+      migration_path = Dir[File.join(dir, "db/migrate/*_create_llm_cost_tracker_reconciliation.rb")].first
+      expect(migration_path).not_to be_nil
+
+      migration = File.read(migration_path)
+      expect(migration).to include("create_table :llm_cost_tracker_provider_invoices")
+      expect(migration).to include("create_table :llm_cost_tracker_provider_invoice_imports")
+      expect(migration).to include("add_index :llm_cost_tracker_provider_invoices, :external_id")
+      expect(migration).to include("add_index :llm_cost_tracker_provider_invoice_imports, [:source, :started_at]")
     end
   end
 

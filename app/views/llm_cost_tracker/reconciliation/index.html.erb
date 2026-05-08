@@ -26,13 +26,24 @@
   </section>
 <% end %>
 
-<% if !@reconciliation_installed %>
+<% if !@reconciliation_enabled %>
+  <section class="lct-panel lct-empty">
+    <h2 class="lct-state-title">Reconciliation disabled</h2>
+    <p class="lct-state-copy">
+      Provider invoice reconciliation is opt-in because it requires admin/org-level
+      provider API keys (OpenAI <code>sk-admin-…</code>, Anthropic admin keys, GCP
+      <code>billing.viewer</code>) — separate from the runtime inference key the
+      tracker uses. Enable explicitly in the initializer:
+    </p>
+    <pre class="lct-state-copy"><code>LlmCostTracker.configure do |config|
+  config.enable_reconciliation!
+end</code></pre>
+  </section>
+<% elsif !@reconciliation_installed %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">Reconciliation not installed</h2>
     <p class="lct-state-copy">
-      Provider invoice reconciliation is an optional add-on. It requires admin/org-level
-      provider API keys (OpenAI <code>sk-admin-…</code>, Anthropic admin keys, GCP
-      <code>billing.viewer</code>) and a separate migration:
+      Run the optional migration to create the reconciliation tables:
     </p>
     <pre class="lct-state-copy"><code>bin/rails generate llm_cost_tracker:reconciliation
 bin/rails db:migrate</code></pre>

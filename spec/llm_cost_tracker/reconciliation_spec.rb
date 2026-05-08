@@ -6,6 +6,7 @@ require_relative "../dummy/config/environment"
 
 RSpec.describe LlmCostTracker::Reconciliation do
   include_context "with mounted llm cost tracker engine"
+  include_context "with reconciliation enabled"
 
   let(:envelope) do
     { row_type: "cost", meter: "tokens", authority: "cost_api", match_basis: "period_only" }
@@ -29,6 +30,34 @@ RSpec.describe LlmCostTracker::Reconciliation do
         metadata: envelope
       }
     ]
+  end
+
+  describe "the explicit enable gate" do
+    it "raises from .import when reconciliation is not enabled" do
+      LlmCostTracker.reset_configuration!
+
+      expect do
+        described_class.import(source: :openai, rows: rows)
+      end.to raise_error(LlmCostTracker::Error, /reconciliation is disabled/)
+    end
+
+    it "raises from .diff when reconciliation is not enabled" do
+      LlmCostTracker.reset_configuration!
+
+      expect do
+        described_class.diff(
+          source: :openai, period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31)
+        )
+      end.to raise_error(LlmCostTracker::Error, /reconciliation is disabled/)
+    end
+
+    it "rejects register_reconciliation_importer until enabled" do
+      LlmCostTracker.reset_configuration!
+
+      expect do
+        LlmCostTracker.configuration.register_reconciliation_importer(:openai) { :ok }
+      end.to raise_error(LlmCostTracker::Error, /enable_reconciliation!/)
+    end
   end
 
   describe ".import" do

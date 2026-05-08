@@ -14,7 +14,29 @@ attribution dimensions (`provider_project_id`, `provider_api_key_id`,
 This is the reason 0.8 carried those dimension columns into the
 `llm_cost_tracker_calls` header and shipped the
 `llm_cost_tracker_provider_invoices` placeholder table. With this RFC the
-gem stops being an estimator and becomes a reconciler.
+gem stops being an estimator and becomes a reconciler — but only for
+applications that explicitly opt in.
+
+## Opt-in gate
+
+Reconciliation is **off by default** and lives behind two explicit
+opt-ins:
+
+1. `LlmCostTracker.configure { |c| c.enable_reconciliation! }` — the
+   runtime gate. Without it `Reconciliation.import` / `.diff` raise, the
+   dashboard tab is hidden, and doctor ignores the reconciliation
+   schema. Tracker keeps working untouched.
+2. `bin/rails generate llm_cost_tracker:reconciliation` — the schema
+   gate. Adds `provider_invoices` and `provider_invoice_imports` tables.
+
+The gate exists because reconciliation is not a UX add-on; it's a
+**different security plane**. OpenAI Costs API requires
+`sk-admin-…` (`AdminApiKeyAuth`). Anthropic Usage / Cost APIs require
+admin keys (`sk-ant-admin-…`). GCP billing export requires a service
+account with `billing.viewer`. These credentials are typically held by
+finance / ops, not the app server, and shipping a code path that
+silently pretends they're available would mislead operators. The gate
+makes the requirement loud.
 
 ## Motivation
 
