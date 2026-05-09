@@ -29,8 +29,7 @@ gem "openai"
 bin/rails llm_cost_tracker:setup
 ```
 
-That runs the install generator with the dashboard and pricing snapshot,
-migrates the database, then verifies via `llm_cost_tracker:doctor`.
+Runs the install generator, drops a price snapshot, migrates the database, and verifies via `llm_cost_tracker:doctor`.
 
 ```ruby
 # config/initializers/llm_cost_tracker.rb
@@ -49,8 +48,15 @@ LlmCostTracker.with_tags(user_id: Current.user&.id, feature: "chat") do
 end
 ```
 
-Mount the dashboard at `/llm-costs` and put it behind your app's auth — it
-ships without one.
+Mount the dashboard in `config/routes.rb`, behind your auth:
+
+```ruby
+authenticate :admin do
+  mount LlmCostTracker::Engine => "/llm-costs"
+end
+```
+
+The engine ships without authentication on purpose.
 
 ## What lands in the ledger
 

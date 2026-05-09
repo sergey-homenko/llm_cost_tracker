@@ -280,6 +280,20 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(outside.tags).not_to include(:request_id)
     end
 
+    it "merges nested with_tags blocks; inner block wins on key conflict" do
+      event = LlmCostTracker.with_tags(user_id: 5, feature: "outer") do
+        LlmCostTracker.with_tags(feature: "chat", request_id: "req_xyz") do
+          record(
+            provider: "openai",
+            model: "gpt-4o",
+            token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+          )
+        end
+      end
+
+      expect(event.tags).to include(user_id: 5, feature: "chat", request_id: "req_xyz")
+    end
+
     it "keeps explicit token-like metadata as tags" do
       tags = {
         cache_read_input_tokens: 25,
