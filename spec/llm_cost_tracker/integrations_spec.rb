@@ -111,6 +111,8 @@ module LlmCostTrackerIntegrationSpecTypes
     :raw,
     keyword_init: true
   )
+  RubyLlmImage = Struct.new(:model_id, :usage, :provider_response_id, keyword_init: true)
+  RubyLlmModeration = Struct.new(:id, :model_id, keyword_init: true)
 end
 
 RSpec.describe LlmCostTracker::Integrations do
@@ -180,7 +182,7 @@ RSpec.describe LlmCostTracker::Integrations do
     end)
   end
 
-  def install_ruby_llm_fakes(response)
+  def install_ruby_llm_fakes(response, image: response, moderation: response)
     stub_const("RubyLLM", Module.new)
     stub_const("RubyLLM::VERSION", "1.14.1")
     stub_const("RubyLLM::Provider", Class.new do
@@ -189,6 +191,8 @@ RSpec.describe LlmCostTracker::Integrations do
         @completion = response
         @embedding = response
         @transcription = response
+        @image = image
+        @moderation = moderation
       end
 
       define_method(:slug) { @provider }
@@ -204,6 +208,14 @@ RSpec.describe LlmCostTracker::Integrations do
 
       define_method(:transcribe) do |_audio_file, **_kwargs|
         @transcription
+      end
+
+      define_method(:paint) do |_prompt, **_kwargs|
+        @image
+      end
+
+      define_method(:moderate) do |_input, **_kwargs|
+        @moderation
       end
     end)
   end
@@ -905,6 +917,92 @@ RSpec.describe LlmCostTracker::Integrations do
         provider_response_id: "audio_resp_123"
       )
     end
+  end
+
+  it "tracks RubyLLM image generation through the provider contract" do
+    image = LlmCostTrackerIntegrationSpecTypes::RubyLlmImage.new(
+      model_id: "gpt-image-1",
+      usage: { input_tokens: 25, output_tokens: 0 },
+      provider_response_id: "img_resp_123"
+    )
+    install_ruby_llm_fakes(image, image: image)
+    configure_integration(:ruby_llm)
+
+    capture_events do |events|
+      returned = RubyLLM::Provider.new.paint("a cat", model: "gpt-image-1", size: "1024x1024")
+
+      expect(returned).to be(image)
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-image-1",
+        input_tokens: 25,
+        output_tokens: 0,
+        usage_source: :sdk_response,
+        provider_response_id: "img_resp_123"
+      )
+    end
+  end
+
+  it "records RubyLLM image generation as a zero-token event when usage hash is missing" do
+    image = LlmCostTrackerIntegrationSpecTypes::RubyLlmImage.new(
+      model_id: "dall-e-3",
+      usage: nil,
+      provider_response_id: "img_resp_456"
+    )
+    install_ruby_llm_fakes(image, image: image)
+    configure_integration(:ruby_llm)
+
+    capture_events do |events|
+      RubyLLM::Provider.new.paint("a dog", model: "dall-e-3", size: "512x512")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "dall-e-3",
+        input_tokens: 0,
+        output_tokens: 0
+      )
+    end
+  end
+
+  it "tracks RubyLLM moderation calls as zero-token events" do
+    moderation = LlmCostTrackerIntegrationSpecTypes::RubyLlmModeration.new(
+      id: "mod_resp_123",
+      model_id: "omni-moderation-latest"
+    )
+    install_ruby_llm_fakes(moderation, moderation: moderation)
+    configure_integration(:ruby_llm)
+
+    capture_events do |events|
+      returned = RubyLLM::Provider.new.moderate("input", model: "omni-moderation-latest")
+
+      expect(returned).to be(moderation)
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "omni-moderation-latest",
+        input_tokens: 0,
+        output_tokens: 0,
+        usage_source: :sdk_response
+      )
+    end
+  end
+
+  it "warns when :ruby_llm and a Faraday-parser integration are enabled together" do
+    allow(LlmCostTracker::Logging).to receive(:warn)
+
+    LlmCostTracker::Integrations.warn_double_instrumentation(%i[ruby_llm openai])
+
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(/ruby_llm.*together with.*openai/)
+  end
+
+  it "does not warn when only :ruby_llm is enabled" do
+    allow(LlmCostTracker::Logging).to receive(:warn)
+
+    LlmCostTracker::Integrations.warn_double_instrumentation(%i[ruby_llm])
+
+    expect(LlmCostTracker::Logging).not_to have_received(:warn)
   end
 
   it "marks RubyLLM stream keyword calls as streaming" do

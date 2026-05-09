@@ -25,7 +25,7 @@ module LlmCostTracker
             patch_target(
               "RubyLLM::Provider",
               with: ProviderPatch,
-              methods: %i[slug complete embed transcribe]
+              methods: %i[slug complete embed transcribe paint moderate]
             )
           ]
         end
@@ -63,6 +63,49 @@ module LlmCostTracker
             latency_ms: latency_ms,
             stream: false
           )
+        end
+
+        def record_image(provider, response, request:, latency_ms:)
+          usage = object_value(response, :usage)
+          usage = {} unless usage.is_a?(Hash)
+          input_tokens = (usage[:input_tokens] || usage["input_tokens"]).to_i
+          output_tokens = (usage[:output_tokens] || usage["output_tokens"]).to_i
+          record_passthrough(
+            provider: provider_slug(provider),
+            model: response_model_id(response) || model_id(request[:model]),
+            response: response,
+            latency_ms: latency_ms,
+            input_tokens: input_tokens,
+            output_tokens: output_tokens
+          )
+        end
+
+        def record_moderation(provider, response, request:, latency_ms:)
+          record_passthrough(
+            provider: provider_slug(provider),
+            model: response_model_id(response) || model_id(request[:model]),
+            response: response,
+            latency_ms: latency_ms,
+            input_tokens: 0,
+            output_tokens: 0
+          )
+        end
+
+        def record_passthrough(provider:, model:, response:, latency_ms:, input_tokens:, output_tokens:)
+          return unless active?
+
+          record_safely do
+            LlmCostTracker::Tracker.record(
+              capture: UsageCapture.build(
+                provider: provider,
+                model: model,
+                token_usage: TokenUsage.build(input_tokens: input_tokens, output_tokens: output_tokens),
+                usage_source: :sdk_response,
+                provider_response_id: provider_response_id(response)
+              ),
+              latency_ms: latency_ms
+            )
+          end
         end
 
         def record_usage(provider:, model:, response:, latency_ms:, stream:, output_tokens: nil)
@@ -168,6 +211,36 @@ module LlmCostTracker
           started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           integration.record_transcription(
+            self,
+            response,
+            request: request,
+            latency_ms: integration.elapsed_ms(started_at)
+          )
+          response
+        end
+
+        def paint(*args, **kwargs)
+          integration = LlmCostTracker::Integrations::RubyLlm
+          request = integration.request_params(args, kwargs)
+          integration.enforce_budget!
+          started_at = LlmCostTracker::Timing.now_monotonic
+          response = super
+          integration.record_image(
+            self,
+            response,
+            request: request,
+            latency_ms: integration.elapsed_ms(started_at)
+          )
+          response
+        end
+
+        def moderate(*args, **kwargs)
+          integration = LlmCostTracker::Integrations::RubyLlm
+          request = integration.request_params(args, kwargs)
+          integration.enforce_budget!
+          started_at = LlmCostTracker::Timing.now_monotonic
+          response = super
+          integration.record_moderation(
             self,
             response,
             request: request,

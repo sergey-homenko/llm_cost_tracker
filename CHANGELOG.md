@@ -32,6 +32,8 @@ streaming. Existing installs need a migration; see
 - Stream pricing modes captured from in-stream events now win over the request-level pricing mode when recording, so message-level `service_tier` / `inference_geo` from Anthropic SDK streams reach the ledger.
 - Schema guards now check `created_at` on `llm_cost_tracker_call_line_items`, `created_at` + `updated_at` on `llm_cost_tracker_call_rollups`, and the ingestion inbox / lease tables. Doctor and the inbox write-path catch drift before the first row is inserted instead of failing at runtime.
 - Service-charge rows on the call detail page and Data Quality dashboard now render `n/a` instead of `$0.00` when `cost_status` is `unknown`, so unpriced charges don't masquerade as zero-cost.
+- RubyLLM SDK integration now also records `Provider#paint` and `Provider#moderate` calls. Image generation events read tokens from the `Image#usage` hash when present and are recorded with zero tokens otherwise (cost stays `unknown` until the image-pricing schema lands). Moderation calls are recorded as zero-token events for visibility.
+- Enabling `:ruby_llm` together with `:openai` / `:anthropic` now logs a warning at install — RubyLLM uses HTTP underneath, so calls routed to those providers would otherwise be recorded twice (once via the SDK patch, once via the Faraday parser). Pick one path per provider.
 
 ### Documentation
 
