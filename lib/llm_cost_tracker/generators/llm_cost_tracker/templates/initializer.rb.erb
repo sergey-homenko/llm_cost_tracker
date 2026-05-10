@@ -4,6 +4,9 @@ LlmCostTracker.configure do |config|
   # Set to false to temporarily disable tracking without removing middleware.
   config.enabled = true
 
+  # LLM Cost Tracker logs warnings through Rails.logger when available.
+  config.log_level = :info
+
   # Tags merged into every event. Use a callable for request/job-time context.
   config.default_tags = -> { { environment: Rails.env } }
 
@@ -18,8 +21,8 @@ LlmCostTracker.configure do |config|
   # config.instrument :anthropic
   # config.instrument :ruby_llm
 
-  # Local pricing file and Ruby-side overrides. Prices are USD per 1M tokens.
-  # Refresh the file with bin/rails llm_cost_tracker:prices:refresh.
+  # Pricing — local file refreshed via bin/rails llm_cost_tracker:prices:refresh
+  # plus inline overrides. Prices are USD per 1M tokens.
 <% if options[:prices] -%>
   config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
 <% else -%>
@@ -28,41 +31,30 @@ LlmCostTracker.configure do |config|
   # config.pricing_overrides = {
   #   "my-custom-model" => { input: 1.00, output: 2.00 }
   # }
+  # :warn (default) records token usage with nil cost when a model has no rate.
+  # Use :raise to require known pricing for every model.
+  config.unknown_pricing_behavior = :warn
 
-  # Cumulative monthly/daily budgets and a single-call ceiling, in USD.
+  # Budget guardrails — cumulative monthly/daily and per-call ceilings in USD,
+  # plus behavior on crossing (:notify default fires on_budget_exceeded; :raise
+  # raises after recording; :block_requests preflights supported requests) and
+  # an optional callback. Cap evaluation reads from llm_cost_tracker_calls live;
+  # flip cache_rollups to true at high volume so reads hit the rollups table
+  # instead — generate the table with `bin/rails generate llm_cost_tracker:call_rollups`.
   # config.monthly_budget = 100.00
   # config.daily_budget = 10.00
   # config.per_call_budget = 1.00
-
-  # Budget behavior: :notify calls on_budget_exceeded, :raise raises after recording,
-  # :block_requests preflights monthly/daily budgets before supported requests.
   config.budget_exceeded_behavior = :notify
-
-  # Called when :notify is selected and a monthly, daily, or per-call budget is exceeded.
   # config.on_budget_exceeded = ->(data) {
-  #   Rails.logger.warn(
-  #     "LLM #{data[:budget_type]} budget exceeded: $#{data[:total]} / $#{data[:budget]}"
-  #   )
+  #   Rails.logger.warn("LLM #{data[:budget_type]} budget exceeded: $#{data[:total]} / $#{data[:budget]}")
   # }
-
-  # Unknown pricing records token usage with nil cost by default. Use :raise if
-  # every model must have known pricing before it can be used.
-  config.unknown_pricing_behavior = :warn
-
-  # When false (default), Tracker writes events synchronously from the request thread.
-  # Flip to true for a write-ahead inbox + background worker that batches inserts and
-  # survives caller transaction rollbacks. Requires the optional inbox/leases tables
-  # created by `bin/rails generate llm_cost_tracker:durable_ingestion`.
-  # config.durable_ingestion = true
-
-  # When false (default), budget reads aggregate live from llm_cost_tracker_calls.
-  # Flip to true when you set monthly/daily/per-call budgets and your call volume makes
-  # live SUMs slow; the rollups table is created by
-  # `bin/rails generate llm_cost_tracker:call_rollups`.
   # config.cache_rollups = true
 
-  # LLM Cost Tracker logs warnings through Rails.logger when available.
-  config.log_level = :info
+  # Ingestion path — false (default) writes events synchronously from the request
+  # thread. Flip to true for a write-ahead inbox + background worker that batches
+  # inserts and survives caller transaction rollbacks. Requires the optional
+  # inbox/leases tables created by `bin/rails generate llm_cost_tracker:durable_ingestion`.
+  # config.durable_ingestion = true
 
   # Register OpenAI-compatible gateway hosts and choose extra tag breakdowns
   # for bin/rails llm_cost_tracker:report.
