@@ -116,6 +116,7 @@ LlmCostTracker.track(
 - [Extending](docs/extending.md)
 - [Operations](docs/operations.md)
 - [Architecture](docs/architecture.md)
+- [EU AI Act record-keeping](docs/eu_ai_act.md)
 - [Upgrading](docs/upgrading.md)
 - [Changelog](CHANGELOG.md)
 

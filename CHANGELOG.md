@@ -21,6 +21,7 @@ see [Upgrading](docs/upgrading.md).
 - OpenAI SDK integration now also patches `Embeddings#create`, `Images#generate` / `#edit` / `#create_variation`, `Audio::Transcriptions#create`, `Audio::Speech#create`, `Moderations#create`, and `Chat::Completions#stream`. Calls without provider-reported usage record as zero-token visibility events.
 - RubyLLM SDK integration also records `Provider#paint` and `Provider#moderate`.
 - `bin/rails generate llm_cost_tracker:upgrade_call_rollups_provider` writes the v0.8 → v0.9 migration that adds the `provider` column and swaps the unique index. Re-runs are no-ops.
+- [EU AI Act record-keeping guide](docs/eu_ai_act.md) — maps the ledger fields and `llm_cost_tracker:prune` retention to Article 26(6) deployer obligations (≥ 6-month retention, traceability, attribution tags). Not legal advice.
 
 ### Fixed
 
