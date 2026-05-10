@@ -17,6 +17,8 @@ OpenAI-compatible streaming. Existing installs need a migration — see
 - Dashboard tag detail page drills into a single value via `?value=…` with total cost, call count, average per call, and a daily spend timeseries; the breakdown table exposes a "Trend" link per row.
 - Anthropic `web_fetch_request` server tool is recorded as a billable line item in both Faraday and SDK paths, with a matching bundled rate.
 - `bin/rails generate llm_cost_tracker:upgrade_call_rollups_provider` writes the v0.8 → v0.9 migration that adds the `provider` column and swaps the unique index. Each step is gated by `column_exists?` / `index_exists?` so the migration is a no-op on already-upgraded schemas.
+- Bundled rates for OpenAI embeddings (`text-embedding-3-small` / `-3-large` / `-ada-002`, including 50% batch discount) and token-priced transcription models (`gpt-4o-transcribe`, `gpt-4o-mini-transcribe`). Per-image (DALL-E), per-minute (Whisper), and per-character (TTS) endpoints still record as zero-token visibility events — they need new pricing components and are tracked separately.
+- OpenAI `Audio::Transcriptions#create` extracts `usage.input_token_details.audio_tokens` into `audio_input_tokens`, so token-priced transcription models price audio and text inputs at their separate bundled rates.
 
 ### Fixed
 

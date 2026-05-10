@@ -92,20 +92,24 @@ module LlmCostTracker
         end
 
         def record_transcription(response, request:, latency_ms:)
-          usage = object_value(response, :usage)
-          input_tokens, output_tokens =
-            if usage && object_value(usage, :type).to_s == "tokens"
-              [object_value(usage, :input_tokens).to_i, object_value(usage, :output_tokens).to_i]
-            else
-              [0, 0]
-            end
           record_passthrough(
             model: request[:model],
             response: response,
             latency_ms: latency_ms,
-            input_tokens: input_tokens,
-            output_tokens: output_tokens
+            **transcription_token_attributes(object_value(response, :usage))
           )
+        end
+
+        def transcription_token_attributes(usage)
+          return { input_tokens: 0, output_tokens: 0 } unless usage && object_value(usage, :type).to_s == "tokens"
+
+          raw_input = object_value(usage, :input_tokens).to_i
+          audio_input = object_dig(usage, :input_token_details, :audio_tokens).to_i
+          {
+            input_tokens: [raw_input - audio_input, 0].max,
+            audio_input_tokens: audio_input,
+            output_tokens: object_value(usage, :output_tokens).to_i
+          }
         end
 
         def record_speech(_response, request:, latency_ms:)
@@ -128,7 +132,7 @@ module LlmCostTracker
           )
         end
 
-        def record_passthrough(model:, response:, latency_ms:, input_tokens:, output_tokens:)
+        def record_passthrough(model:, response:, latency_ms:, **token_attributes)
           return unless active?
 
           record_safely do
@@ -136,7 +140,7 @@ module LlmCostTracker
               capture: UsageCapture.build(
                 provider: "openai",
                 model: model,
-                token_usage: TokenUsage.build(input_tokens: input_tokens, output_tokens: output_tokens),
+                token_usage: TokenUsage.build(**token_attributes),
                 usage_source: :sdk_response,
                 provider_response_id: response && object_value(response, :id)
               ),

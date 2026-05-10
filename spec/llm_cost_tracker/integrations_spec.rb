@@ -118,7 +118,10 @@ module LlmCostTrackerIntegrationSpecTypes
   ImagesResponse = Struct.new(:created, :usage, keyword_init: true)
   ImagesUsage = Struct.new(:input_tokens, :output_tokens, :total_tokens, keyword_init: true)
   TranscriptionResponse = Struct.new(:text, :usage, keyword_init: true)
-  TranscriptionTokensUsage = Struct.new(:type, :input_tokens, :output_tokens, :total_tokens, keyword_init: true)
+  TranscriptionTokensUsage = Struct.new(
+    :type, :input_tokens, :output_tokens, :total_tokens, :input_token_details, keyword_init: true
+  )
+  TranscriptionInputTokenDetails = Struct.new(:audio_tokens, :text_tokens, keyword_init: true)
   TranscriptionDurationUsage = Struct.new(:type, :seconds, keyword_init: true)
   ModerationResponse = Struct.new(:id, :model, :results, keyword_init: true)
 end
@@ -634,6 +637,8 @@ RSpec.describe LlmCostTracker::Integrations do
         output_tokens: 0,
         usage_source: :sdk_response
       )
+      expect(events.first.dig(:cost, :input_cost)).to eq(0.00000512)
+      expect(events.first.dig(:cost, :total_cost)).to eq(0.00000512)
     end
   end
 
@@ -737,8 +742,43 @@ RSpec.describe LlmCostTracker::Integrations do
         model: "gpt-4o-transcribe",
         input_tokens: 14,
         output_tokens: 5,
+        audio_input_tokens: 0,
         usage_source: :sdk_response
       )
+    end
+  end
+
+  it "splits audio input tokens out of the input_tokens bucket on gpt-4o-transcribe" do
+    transcription_class = LlmCostTrackerIntegrationSpecTypes::TranscriptionResponse
+    tokens_usage_class = LlmCostTrackerIntegrationSpecTypes::TranscriptionTokensUsage
+    details_class = LlmCostTrackerIntegrationSpecTypes::TranscriptionInputTokenDetails
+    transcription = transcription_class.new(
+      text: "hello",
+      usage: tokens_usage_class.new(
+        type: "tokens",
+        input_tokens: 200,
+        output_tokens: 18,
+        total_tokens: 218,
+        input_token_details: details_class.new(audio_tokens: 150, text_tokens: 50)
+      )
+    )
+    install_openai_fakes(response_class.new, transcription: transcription)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Audio::Transcriptions.new.create(model: "gpt-4o-transcribe", file: "audio.mp3")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-4o-transcribe",
+        input_tokens: 50,
+        audio_input_tokens: 150,
+        output_tokens: 18,
+        usage_source: :sdk_response
+      )
+      cost = events.first.fetch(:cost)
+      expect(cost).to include(audio_input_cost: 0.0009, input_cost: 0.000125, output_cost: 0.00018)
     end
   end
 
