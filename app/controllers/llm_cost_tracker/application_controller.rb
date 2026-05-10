@@ -18,79 +18,15 @@ module LlmCostTracker
     rescue_from ActiveRecord::StatementInvalid, with: :render_database_error
     rescue_from LlmCostTracker::InvalidFilterError, with: :render_invalid_filter
 
-    CORE_SCHEMA_CHECKS = [
-      [
-        LlmCostTracker::Ledger::Schema::Calls,
-        "The llm_cost_tracker_calls table does not match the current LLM Cost Tracker schema."
-      ],
-      [
-        LlmCostTracker::Ledger::Schema::CallLineItems,
-        "The llm_cost_tracker_call_line_items table does not match the current LLM Cost Tracker schema."
-      ],
-      [
-        LlmCostTracker::Ledger::Schema::CallTags,
-        "The llm_cost_tracker_call_tags table does not match the current LLM Cost Tracker schema."
-      ]
-    ].freeze
-
-    OPTIONAL_CALL_ROLLUPS_CHECK = [
-      LlmCostTracker::Ledger::Schema::CallRollups,
-      "The llm_cost_tracker_call_rollups table does not match the current LLM Cost Tracker schema."
-    ].freeze
-
-    private_constant :CORE_SCHEMA_CHECKS, :OPTIONAL_CALL_ROLLUPS_CHECK
-
     private
 
     def ensure_current_schema
-      unless LlmCostTracker::Call.table_exists?
-        @setup_message = "The llm_cost_tracker_calls table is not available yet."
-        return render template: "llm_cost_tracker/shared/setup_required"
-      end
+      state = LlmCostTracker::DashboardSetupState.current
+      return unless state.setup_required?
 
-      schema_checks_for_current_config.each do |schema, message|
-        errors = schema.current_schema_errors
-        next if errors.empty?
-
-        @setup_message = message
-        @setup_details = errors + ["See docs/upgrading.md for the migration path."]
-        return render template: "llm_cost_tracker/shared/setup_required"
-      end
-
-      return unless LlmCostTracker.reconciliation_enabled?
-
-      reconciliation_schema_checks.each do |schema, table, message|
-        next unless ActiveRecord::Base.connection.data_source_exists?(table)
-
-        errors = schema.current_schema_errors
-        next if errors.empty?
-
-        @setup_message = message
-        @setup_details = errors + ["See docs/upgrading.md for the migration path."]
-        return render template: "llm_cost_tracker/shared/setup_required"
-      end
-    end
-
-    def schema_checks_for_current_config
-      checks = CORE_SCHEMA_CHECKS.dup
-      checks << OPTIONAL_CALL_ROLLUPS_CHECK if LlmCostTracker.configuration.cache_rollups
-      checks
-    end
-
-    def reconciliation_schema_checks
-      LlmCostTracker.const_get(:Reconciliation) # autoload reconciliation + its ledger schemas
-      [
-        [
-          LlmCostTracker::Ledger::Schema::ProviderInvoices,
-          "llm_cost_tracker_provider_invoices",
-          "The llm_cost_tracker_provider_invoices table does not match the current LLM Cost Tracker schema."
-        ],
-        [
-          LlmCostTracker::Ledger::Schema::ProviderInvoiceImports,
-          "llm_cost_tracker_provider_invoice_imports",
-          "The llm_cost_tracker_provider_invoice_imports table does not match the current LLM Cost Tracker schema."
-        ]
-      ]
+      @setup_message = state.message
+      @setup_details = state.details
+      render template: "llm_cost_tracker/shared/setup_required"
     end
 
     def render_database_error(error)

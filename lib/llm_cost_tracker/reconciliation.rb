@@ -25,6 +25,11 @@ module LlmCostTracker
       "gemini" => "gemini"
     }.freeze
 
+    SCHEMA_TABLES = {
+      Ledger::Schema::ProviderInvoices => "llm_cost_tracker_provider_invoices",
+      Ledger::Schema::ProviderInvoiceImports => "llm_cost_tracker_provider_invoice_imports"
+    }.freeze
+
     class << self
       def import(source:, rows:, provider: nil, imported_at: nil, window: nil,
                  strict_metadata: nil, cursor: nil)

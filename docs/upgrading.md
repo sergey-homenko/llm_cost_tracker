@@ -167,6 +167,16 @@ and the dashboard read `metadata["provider"]` from the most recent
 invoice for a source when no explicit provider is supplied. New
 imports always write `metadata["provider"]`.
 
+### Schema drift cache for the dashboard
+
+The engine schema check (which renders the "Setup required" page when
+tables drift) is computed once per process and invalidated through
+`Rails.application.reloader.to_prepare`. Production picks the result up
+on first request and reuses it; development re-checks on each code
+reload. **Host test suites that mutate engine tables mid-suite** (e.g.
+swapping schema between examples) should call
+`LlmCostTracker::DashboardSetupState.reset!` to invalidate the cache.
+
 ### Re-import dashboard button
 
 `LlmCostTracker.configuration.reconciliation_importers` accepts callables

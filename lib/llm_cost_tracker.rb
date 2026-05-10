@@ -84,6 +84,7 @@ module LlmCostTracker
       Pricing::Unknown.reset!
       Ingestion::Worker.reset!
       Tags::Context.clear!
+      DashboardSetupState.reset! if defined?(DashboardSetupState)
     end
 
     def with_tags(tags = nil, **kwargs, &)
