@@ -17,8 +17,8 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker::Ingestion::Lease.reset_column_information
 
     LlmCostTracker.configure do |config|
-      config.ingestion_adapter = :durable
-      config.maintain_rollups = true
+      config.durable_ingestion = true
+      config.cache_rollups = true
     end
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end

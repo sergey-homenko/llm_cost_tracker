@@ -68,8 +68,8 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
   end
 
   describe "Period::Totals integration" do
-    it "sums rollups across all currencies when maintain_rollups is enabled" do
-      LlmCostTracker.configure { |config| config.maintain_rollups = true }
+    it "sums rollups across all currencies when cache_rollups is enabled" do
+      LlmCostTracker.configure { |config| config.cache_rollups = true }
       time = Time.utc(2026, 5, 7, 12)
       described_class.increment!(build_event(total_cost: 4.5, currency: "USD", tracked_at: time))
       described_class.increment!(build_event(total_cost: 99.0, currency: "EUR", tracked_at: time))

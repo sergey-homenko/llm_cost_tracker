@@ -23,7 +23,7 @@ module LlmCostTracker
               call_ids = call_ids_for(insertable)
               insert_line_items(insertable, call_ids)
               insert_call_tags(insertable, call_ids)
-              Ledger::Rollups.increment_many!(insertable) if LlmCostTracker.configuration.maintain_rollups
+              Ledger::Rollups.increment_many!(insertable) if LlmCostTracker.configuration.cache_rollups
             end
           end
           events

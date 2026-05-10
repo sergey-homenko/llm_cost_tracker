@@ -50,15 +50,15 @@ module LlmCostTracker
           return Check.new(
             :ok,
             "inline ingestion",
-            "ingestion_adapter=:inline; events write directly to the ledger"
+            "durable_ingestion=false; events write directly to the ledger"
           )
         end
 
         Check.new(
           :warn,
           "inline ingestion",
-          "ingestion_adapter=:inline but found unused durable ingestion tables: #{leftovers.join(', ')}. " \
-          "Set config.ingestion_adapter = :durable to keep the durable inbox path or drop the tables."
+          "durable_ingestion=false but found unused durable ingestion tables: #{leftovers.join(', ')}. " \
+          "Set config.durable_ingestion = true to keep the durable inbox path or drop the tables."
         )
       end
 

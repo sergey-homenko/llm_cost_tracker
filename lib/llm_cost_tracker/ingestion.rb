@@ -48,16 +48,16 @@ module LlmCostTracker
       end
 
       def durable?
-        LlmCostTracker.configuration.ingestion_adapter == :durable
+        LlmCostTracker.configuration.durable_ingestion
       end
 
-      def maintain_rollups?
-        LlmCostTracker.configuration.maintain_rollups
+      def cache_rollups?
+        LlmCostTracker.configuration.cache_rollups
       end
 
       def guards_for_current_config
         guards = CORE_SCHEMA_GUARDS.dup
-        guards << ROLLUPS_SCHEMA_GUARD if maintain_rollups?
+        guards << ROLLUPS_SCHEMA_GUARD if cache_rollups?
         guards += DURABLE_SCHEMA_GUARDS if durable?
         guards
       end
@@ -145,7 +145,7 @@ module LlmCostTracker
         return if rows.empty?
 
         relation.delete_all
-        return unless LlmCostTracker.configuration.maintain_rollups
+        return unless cache_rollups?
 
         LlmCostTracker::Ledger::Rollups.decrement!(rows)
       end

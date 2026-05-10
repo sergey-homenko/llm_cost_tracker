@@ -14,20 +14,18 @@ module LlmCostTracker
 
     BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
-    INGESTION_ADAPTERS = %i[inline durable].freeze
     SHARED_SCALAR_ATTRIBUTES = %i[enabled default_tags on_budget_exceeded monthly_budget daily_budget per_call_budget
                                   log_level prices_file max_tag_count max_tag_value_bytesize].freeze
     SHARED_ENUM_ATTRIBUTES = {
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
-      unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn],
-      ingestion_adapter: [INGESTION_ADAPTERS, :inline]
+      unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn]
     }.freeze
     DEFAULT_REDACTED_TAG_KEYS = %w[api_key access_token authorization credential password refresh_token secret].freeze
 
     attr_reader(
       *SHARED_SCALAR_ATTRIBUTES,
       :budget_exceeded_behavior,
-      :ingestion_adapter,
+      :durable_ingestion,
       :instrumented_integrations,
       :pricing_overrides,
       :report_tag_breakdowns,
@@ -37,7 +35,7 @@ module LlmCostTracker
       :reconciliation_importers,
       :reconciliation_enabled,
       :auto_enable_stream_usage,
-      :maintain_rollups
+      :cache_rollups
     )
 
     def initialize
@@ -49,7 +47,6 @@ module LlmCostTracker
       @per_call_budget    = nil
       self.budget_exceeded_behavior = :notify
       self.unknown_pricing_behavior = :warn
-      self.ingestion_adapter = :inline
       @log_level          = :info
       @prices_file        = nil
       @max_tag_count      = 50
@@ -62,13 +59,19 @@ module LlmCostTracker
       @reconciliation_importers = {}
       @reconciliation_enabled = false
       @auto_enable_stream_usage = true
-      @maintain_rollups = false
+      @durable_ingestion = false
+      @cache_rollups = false
       @finalized = false
     end
 
-    def maintain_rollups=(value)
+    def durable_ingestion=(value)
       ensure_shared_configuration_mutable!
-      @maintain_rollups = !!value
+      @durable_ingestion = !!value
+    end
+
+    def cache_rollups=(value)
+      ensure_shared_configuration_mutable!
+      @cache_rollups = !!value
     end
 
     def reconciliation_enabled=(value)

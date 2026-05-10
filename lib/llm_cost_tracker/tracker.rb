@@ -52,7 +52,7 @@ module LlmCostTracker
       end
 
       def save_event(event)
-        if LlmCostTracker.configuration.ingestion_adapter == :durable
+        if LlmCostTracker.configuration.durable_ingestion
           Ingestion::Inbox.save(event)
         else
           Ingestion::Inline.save(event)

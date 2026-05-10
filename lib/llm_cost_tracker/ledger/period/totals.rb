@@ -45,7 +45,7 @@ module LlmCostTracker
         end
 
         def period_total_sql(period, start)
-          if LlmCostTracker.configuration.maintain_rollups
+          if LlmCostTracker.configuration.cache_rollups
             rollup_total_sql(period)
           else
             calls_total_sql(start)

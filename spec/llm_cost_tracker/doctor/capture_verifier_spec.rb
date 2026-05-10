@@ -77,8 +77,8 @@ RSpec.describe LlmCostTracker::Doctor::CaptureVerifier do
       expect(LlmCostTracker::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
     end
 
-    it "verifies a manual capture event through the inline writer when ingestion_adapter is :inline" do
-      LlmCostTracker.configure { |config| config.ingestion_adapter = :inline }
+    it "verifies a manual capture event through the inline writer when durable_ingestion is false" do
+      LlmCostTracker.configure { |config| config.durable_ingestion = false }
       checks = described_class.call
 
       expect(checks).to include(

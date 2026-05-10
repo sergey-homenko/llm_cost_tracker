@@ -11,7 +11,7 @@ module LlmCostTracker
       source_root File.expand_path("templates", __dir__)
 
       desc "Creates the durable ingestion tables (llm_cost_tracker_ingestion_inbox_entries + _leases). " \
-           "Required when config.ingestion_adapter = :durable."
+           "Required when config.durable_ingestion = true."
 
       def create_migration_file
         migration_template(
@@ -25,7 +25,7 @@ module LlmCostTracker
           After migrating, set the following in config/initializers/llm_cost_tracker.rb:
 
             LlmCostTracker.configure do |config|
-              config.ingestion_adapter = :durable
+              config.durable_ingestion = true
             end
 
           Without it the durable inbox tables stay unused and Tracker keeps writing
