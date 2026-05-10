@@ -2,6 +2,7 @@
 
 require "faraday"
 require "json"
+require "stringio"
 require "uri"
 
 require_relative "../logging"

@@ -131,7 +131,8 @@ module LlmCostTracker
       end
 
       def rollup_fast_path?
-        scope.empty? && SOURCE_TO_PROVIDER.key?(source) && month_aligned_period?
+        scope.empty? && SOURCE_TO_PROVIDER.key?(source) && month_aligned_period? &&
+          LlmCostTracker.configuration.cache_rollups && LlmCostTracker::CallRollup.table_exists?
       end
 
       def month_aligned_period?

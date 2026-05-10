@@ -10,6 +10,8 @@ require_relative "../timing"
 module LlmCostTracker
   module Capture
     class StreamCollector
+      PROVIDER_REPORTED_USAGE_SOURCES = %i[stream_final sdk_response sdk_stream response manual].freeze
+
       attr_reader :provider
 
       def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, provider_project_id: nil,
@@ -128,7 +130,7 @@ module LlmCostTracker
           result = Tracker.record(
             capture: capture,
             latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
-            pricing_mode: capture.pricing_mode || snapshot[:pricing_mode],
+            pricing_mode: pricing_mode_for(capture: capture, snapshot: snapshot),
             metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
             context_tags: snapshot[:context_tags]
           )
@@ -140,6 +142,12 @@ module LlmCostTracker
             @recording = false
           end
         end
+      end
+
+      def pricing_mode_for(capture:, snapshot:)
+        return capture.pricing_mode if PROVIDER_REPORTED_USAGE_SOURCES.include?(capture.usage_source)
+
+        capture.pricing_mode || snapshot[:pricing_mode]
       end
 
       def capture_dimensions(pricing_mode)

@@ -63,7 +63,9 @@ module LlmCostTracker
 
         existing = existing_external_ids(normalized.map { |row| row[:external_id] })
         rows_payload = normalized.map { |row| persistable_attributes(row) }
-        ProviderInvoice.upsert_all(rows_payload, unique_by: :external_id, record_timestamps: true)
+        upsert_options = { record_timestamps: true }
+        upsert_options[:unique_by] = :external_id if ProviderInvoice.connection.supports_insert_conflict_target?
+        ProviderInvoice.upsert_all(rows_payload, **upsert_options)
 
         inserted = normalized.count { |row| !existing.include?(row[:external_id]) }
         updated = normalized.size - inserted

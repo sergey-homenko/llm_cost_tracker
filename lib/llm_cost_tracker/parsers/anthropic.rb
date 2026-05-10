@@ -61,7 +61,7 @@ module LlmCostTracker
         end
       end
 
-      DATA_RESIDENCY_GEOS = %w[eu].freeze
+      DATA_RESIDENCY_GEOS = %w[us eu].freeze
       STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only priority].freeze
       private_constant :DATA_RESIDENCY_GEOS, :STANDARD_EQUIVALENT_SERVICE_TIERS
 

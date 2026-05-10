@@ -11,6 +11,10 @@ module LlmCostTracker
     generators do
       require_relative "generators/llm_cost_tracker/install_generator"
       require_relative "generators/llm_cost_tracker/prices_generator"
+      require_relative "generators/llm_cost_tracker/call_rollups_generator"
+      require_relative "generators/llm_cost_tracker/durable_ingestion_generator"
+      require_relative "generators/llm_cost_tracker/reconciliation_generator"
+      require_relative "generators/llm_cost_tracker/upgrade_call_rollups_provider_generator"
     end
 
     rake_tasks do

@@ -14,14 +14,10 @@ module LlmCostTracker
     rescue_from ActiveRecord::StatementInvalid, with: :render_database_error
     rescue_from LlmCostTracker::InvalidFilterError, with: :render_invalid_filter
 
-    SCHEMA_CHECKS = [
+    CORE_SCHEMA_CHECKS = [
       [
         LlmCostTracker::Ledger::Schema::Calls,
         "The llm_cost_tracker_calls table does not match the current LLM Cost Tracker schema."
-      ],
-      [
-        LlmCostTracker::Ledger::Schema::CallRollups,
-        "The llm_cost_tracker_call_rollups table does not match the current LLM Cost Tracker schema."
       ],
       [
         LlmCostTracker::Ledger::Schema::CallLineItems,
@@ -33,7 +29,12 @@ module LlmCostTracker
       ]
     ].freeze
 
-    private_constant :SCHEMA_CHECKS
+    OPTIONAL_CALL_ROLLUPS_CHECK = [
+      LlmCostTracker::Ledger::Schema::CallRollups,
+      "The llm_cost_tracker_call_rollups table does not match the current LLM Cost Tracker schema."
+    ].freeze
+
+    private_constant :CORE_SCHEMA_CHECKS, :OPTIONAL_CALL_ROLLUPS_CHECK
 
     private
 
@@ -43,7 +44,7 @@ module LlmCostTracker
         return render template: "llm_cost_tracker/shared/setup_required"
       end
 
-      SCHEMA_CHECKS.each do |schema, message|
+      schema_checks_for_current_config.each do |schema, message|
         errors = schema.current_schema_errors
         next if errors.empty?
 
@@ -64,6 +65,12 @@ module LlmCostTracker
         @setup_details = errors + ["See docs/upgrading.md for the migration path."]
         return render template: "llm_cost_tracker/shared/setup_required"
       end
+    end
+
+    def schema_checks_for_current_config
+      checks = CORE_SCHEMA_CHECKS.dup
+      checks << OPTIONAL_CALL_ROLLUPS_CHECK if LlmCostTracker.configuration.cache_rollups
+      checks
     end
 
     def reconciliation_schema_checks

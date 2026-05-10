@@ -110,7 +110,7 @@ module LlmCostTracker
           )
         end
 
-        DATA_RESIDENCY_GEOS = %w[eu].freeze
+        DATA_RESIDENCY_GEOS = %w[us eu].freeze
         # Anthropic Priority Tier is committed throughput (tokens/min capacity), not a per-token
         # surcharge. Treat it as standard pricing so cost_status doesn't fall to :unknown.
         STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only priority].freeze
