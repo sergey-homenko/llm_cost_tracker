@@ -130,10 +130,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.pricing_mode).to eq(:priority)
     end
 
-    it "captures fast US inference as a combined pricing mode" do
+    it "captures fast EU inference as a combined pricing mode" do
       result = parser.parse(
         request_url: anthropic_messages_url,
-        request_body: { model: "claude-opus-4-6", speed: "fast", inference_geo: "us" }.to_json,
+        request_body: { model: "claude-opus-4-6", speed: "fast", inference_geo: "eu" }.to_json,
         response_status: 200,
         response_body: {
           id: "msg_123",
@@ -142,7 +142,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
             input_tokens: 200,
             output_tokens: 80,
             speed: "fast",
-            inference_geo: "us"
+            inference_geo: "eu"
           }
         }.to_json
       )
@@ -265,7 +265,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
               "input_tokens" => 120,
               "output_tokens" => 1,
               "speed" => "fast",
-              "inference_geo" => "us"
+              "inference_geo" => "eu"
             }
           }
         } },

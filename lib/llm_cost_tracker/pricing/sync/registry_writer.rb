@@ -32,6 +32,7 @@ module LlmCostTracker
           merged["models"] = registry.fetch("models", {}).dup
           existing.fetch("models", {}).each do |model, attrs|
             next unless attrs.is_a?(Hash) && attrs["_source"].to_s == MANUAL_SOURCE
+            next if merged["models"].key?(model)
 
             merged["models"][model] = attrs
           end

@@ -53,6 +53,8 @@ RSpec.describe LlmCostTracker::Doctor::CaptureVerifier do
     stub_const("OpenAI::Resources::Chat::Completions", Class.new do
       def create(**); end
 
+      def stream(**); end
+
       def stream_raw(**); end
     end)
 
@@ -66,7 +68,17 @@ RSpec.describe LlmCostTracker::Doctor::CaptureVerifier do
   context "with ActiveRecord storage" do
     include_context "with mounted llm cost tracker engine"
 
-    it "verifies a manual capture event through the durable inbox" do
+    it "verifies a manual capture event through the inline writer" do
+      checks = described_class.call
+
+      expect(checks).to include(
+        have_attributes(status: :ok, name: "active_record capture", message: include("inline writer"))
+      )
+      expect(LlmCostTracker::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
+    end
+
+    it "verifies a manual capture event through the durable inbox when ingestion_adapter is :durable" do
+      LlmCostTracker.configure { |config| config.ingestion_adapter = :durable }
       checks = described_class.call
 
       expect(checks).to include(

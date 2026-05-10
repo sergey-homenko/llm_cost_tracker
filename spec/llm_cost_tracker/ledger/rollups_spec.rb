@@ -68,15 +68,16 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
   end
 
   describe "Period::Totals integration" do
-    it "sums only the default currency, ignoring foreign-currency rollups" do
+    it "sums rollups across all currencies when maintain_rollups is enabled" do
+      LlmCostTracker.configure { |config| config.maintain_rollups = true }
       time = Time.utc(2026, 5, 7, 12)
       described_class.increment!(build_event(total_cost: 4.5, currency: "USD", tracked_at: time))
       described_class.increment!(build_event(total_cost: 99.0, currency: "EUR", tracked_at: time))
 
       totals = LlmCostTracker::Ledger::Period::Totals.call(%i[day month], time: time)
 
-      expect(totals[:day]).to be_within(0.0001).of(4.5)
-      expect(totals[:month]).to be_within(0.0001).of(4.5)
+      expect(totals[:day]).to be_within(0.0001).of(103.5)
+      expect(totals[:month]).to be_within(0.0001).of(103.5)
     end
   end
 end
