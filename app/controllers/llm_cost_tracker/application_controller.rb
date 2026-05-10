@@ -14,6 +14,7 @@ module LlmCostTracker
     helper_method :dashboard_csp_nonce
 
     rescue_from ActiveRecord::ConnectionNotEstablished, with: :render_database_error
+    rescue_from ActiveRecord::AdapterNotSpecified, with: :render_database_error
     rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
     rescue_from ActiveRecord::StatementInvalid, with: :render_database_error
     rescue_from LlmCostTracker::InvalidFilterError, with: :render_invalid_filter

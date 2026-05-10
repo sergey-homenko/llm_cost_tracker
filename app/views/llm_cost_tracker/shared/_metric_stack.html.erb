@@ -5,7 +5,7 @@
 <% else %>
   <div class="lct-stack-track" aria-hidden="true">
     <% visible_segments.each do |segment| %>
-      <span id="<%= inline_style("width: #{segment[:percent].round(2)}%") %>" class="lct-stack-fill <%= segment[:css_class] %>"></span>
+      <span data-lct-style="<%= inline_style("width: #{segment[:percent].round(2)}%") %>" class="lct-stack-fill <%= segment[:css_class] %>"></span>
     <% end %>
   </div>
 

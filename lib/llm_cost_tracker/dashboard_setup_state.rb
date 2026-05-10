@@ -52,6 +52,7 @@ module LlmCostTracker
       private
 
       def compute
+        LlmCostTracker::Logging.debug("DashboardSetupState recomputing")
         return calls_table_missing unless LlmCostTracker::Call.table_exists?
 
         core_drift = drift_in(schema_checks_for_current_config)

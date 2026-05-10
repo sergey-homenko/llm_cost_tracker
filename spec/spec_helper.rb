@@ -64,4 +64,8 @@ RSpec.configure do |config|
     Rails.logger = nil
     LlmCostTracker.reset_configuration!
   end
+
+  config.after(:each) do
+    ActiveSupport::Notifications.unsubscribe(LlmCostTracker::Tracker::EVENT_NAME)
+  end
 end
