@@ -63,14 +63,15 @@ module LlmCostTracker
 
           def missing_fk?(connection, table_name)
             connection.foreign_keys(table_name).none? do |fk|
-              fk.column.to_s == "llm_cost_tracker_call_id" && fk.options[:on_delete] == :cascade
+              fk.column.to_s == "llm_cost_tracker_call_id" &&
+                fk.to_table.to_s == "llm_cost_tracker_calls"
             end
           rescue NotImplementedError, NoMethodError
             false
           end
 
           def missing_fk_error(_connection, _table_name)
-            "missing foreign key on llm_cost_tracker_call_id with on_delete: :cascade"
+            "missing foreign key on llm_cost_tracker_call_id referencing llm_cost_tracker_calls"
           end
         end
       end
