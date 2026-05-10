@@ -94,10 +94,8 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
 
-    LlmCostTracker.configure do |config|
-      config.durable_ingestion = true
-      config.cache_rollups = true
-    end
+    LlmCostTracker.configuration.durable_ingestion = true
+    LlmCostTracker.configuration.cache_rollups = true
   end
 
   after do

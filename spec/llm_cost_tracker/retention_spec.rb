@@ -12,7 +12,7 @@ RSpec.describe LlmCostTracker::Retention do
     LlmCostTracker::CallLineItem.reset_column_information
     LlmCostTracker::CallTag.reset_column_information
     LlmCostTracker::CallRollup.reset_column_information
-    LlmCostTracker.configure { |config| config.cache_rollups = true }
+    LlmCostTracker.configuration.cache_rollups = true
   end
 
   after do

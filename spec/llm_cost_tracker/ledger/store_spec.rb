@@ -17,10 +17,8 @@ RSpec.describe "ActiveRecord storage integration" do
     LlmCostTracker::CallRollup.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
-    LlmCostTracker.configure do |config|
-      config.durable_ingestion = true
-      config.cache_rollups = true
-    end
+    LlmCostTracker.configuration.durable_ingestion = true
+    LlmCostTracker.configuration.cache_rollups = true
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end
 
@@ -859,7 +857,7 @@ RSpec.describe "ActiveRecord storage integration" do
   it "raises when ActiveRecord storage fails" do
     require "llm_cost_tracker/ledger"
 
-    allow(LlmCostTracker::Ingestion::Inline).to receive(:save)
+    allow(LlmCostTracker::Ingestion::Inbox).to receive(:save)
       .and_raise(ActiveRecord::StatementInvalid, "database down")
 
     expect do
