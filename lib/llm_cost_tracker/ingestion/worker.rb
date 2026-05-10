@@ -18,6 +18,8 @@ module LlmCostTracker
       FLUSH_TIMEOUT_SECONDS = 10
       class << self
         def ensure_started
+          return unless Ingestion.durable?
+
           thread = mutex.synchronize do
             reset_after_fork!
             unless @thread&.alive?
@@ -34,6 +36,8 @@ module LlmCostTracker
         end
 
         def flush!(timeout: nil, require_lease: false)
+          return true unless Ingestion.durable?
+
           Ingestion.ensure_current_schema!
 
           deadline = Time.now.utc + flush_timeout_seconds(timeout)
@@ -52,6 +56,8 @@ module LlmCostTracker
         end
 
         def shutdown!(timeout: nil, drain: true)
+          return true unless Ingestion.durable?
+
           timeout ||= FLUSH_TIMEOUT_SECONDS
           thread = mutex.synchronize do
             @stop_requested = true

@@ -5,7 +5,10 @@ require "stringio"
 
 RSpec.describe LlmCostTracker::Tracker do
   describe ".record" do
-    before { allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true) }
+    before do
+      allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
+      allow(LlmCostTracker::Ingestion::Inline).to receive(:save).and_return(true)
+    end
 
     def record(provider:, model:, token_usage:, stream: false, usage_source: nil, provider_response_id: nil,
                provider_project_id: nil, provider_api_key_id: nil, provider_workspace_id: nil, batch: nil,
@@ -35,7 +38,7 @@ RSpec.describe LlmCostTracker::Tracker do
         raise "subscriber boom"
       end
 
-      expect(LlmCostTracker::Ingestion::Inbox).to receive(:save).once
+      expect(LlmCostTracker::Ingestion::Inline).to receive(:save).once
 
       expect do
         record(
@@ -178,7 +181,7 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     it "raises storage errors from the ActiveRecord backend" do
-      allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_raise("storage down")
+      allow(LlmCostTracker::Ingestion::Inline).to receive(:save).and_raise("storage down")
 
       expect do
         record(

@@ -12,6 +12,7 @@ require "llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/reconciliation_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_rollups_provider_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/durable_ingestion_generator"
 
 RSpec.describe "generator templates" do
   let(:migration_version) { "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]" }
@@ -62,15 +63,13 @@ RSpec.describe "generator templates" do
     expect(migration).to include("create_table :llm_cost_tracker_call_rollups")
     expect(migration).to include("create_table :llm_cost_tracker_call_line_items")
     expect(migration).to include("create_table :llm_cost_tracker_call_tags")
-    expect(migration).to include("create_table :llm_cost_tracker_ingestion_inbox_entries")
-    expect(migration).to include("create_table :llm_cost_tracker_ingestion_leases")
+    expect(migration).not_to include("create_table :llm_cost_tracker_ingestion_inbox_entries")
+    expect(migration).not_to include("create_table :llm_cost_tracker_ingestion_leases")
     expect(migration).not_to include("create_table :llm_cost_tracker_service_charges")
     expect(migration).to include("add_index :llm_cost_tracker_call_rollups, [:period, :period_start, :currency, :provider], unique: true")
     expect(migration).to include("add_index :llm_cost_tracker_calls, :event_id, unique: true")
-    expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true")
-    expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]")
-    expect(migration).not_to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :tracked_at")
-    expect(migration).to include("add_index :llm_cost_tracker_ingestion_leases, :name, unique: true")
+    expect(migration).not_to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true")
+    expect(migration).not_to include("add_index :llm_cost_tracker_ingestion_leases, :name, unique: true")
     expect(migration).to include("add_index :llm_cost_tracker_calls, :tracked_at")
     expect(migration).to include("add_index :llm_cost_tracker_calls, [:provider, :tracked_at]")
     expect(migration).to include("add_index :llm_cost_tracker_calls, [:model, :tracked_at]")
@@ -189,6 +188,27 @@ RSpec.describe "generator templates" do
           File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_call_rollups_provider.rb")
         ]
         expect(migrations.size).to eq(1)
+      end
+    end
+  end
+
+  describe "durable_ingestion generator" do
+    it "creates the durable ingestion inbox + leases tables" do
+      Dir.mktmpdir do |dir|
+        LlmCostTracker::Generators::DurableIngestionGenerator.start([], destination_root: dir)
+
+        migration_path = Dir[
+          File.join(dir, "db/migrate/*_create_llm_cost_tracker_durable_ingestion.rb")
+        ].first
+        expect(migration_path).not_to be_nil
+
+        migration = File.read(migration_path)
+        expect(migration).to include("create_table :llm_cost_tracker_ingestion_inbox_entries")
+        expect(migration).to include("create_table :llm_cost_tracker_ingestion_leases")
+        expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true")
+        expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]")
+        expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:locked_at, :id]")
+        expect(migration).to include("add_index :llm_cost_tracker_ingestion_leases, :name, unique: true")
       end
     end
   end

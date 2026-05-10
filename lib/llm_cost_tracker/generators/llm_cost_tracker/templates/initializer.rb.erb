@@ -26,6 +26,12 @@ LlmCostTracker.configure do |config|
   # every model must have known pricing before it can be used.
   config.unknown_pricing_behavior = :warn
 
+  # :inline (default) writes events synchronously to the ledger from the request thread.
+  # Switch to :durable for a write-ahead inbox + background worker that batches inserts
+  # and survives caller transaction rollbacks. :durable requires the optional inbox/leases
+  # tables created by `bin/rails generate llm_cost_tracker:durable_ingestion`.
+  # config.ingestion_adapter = :durable
+
   # LLM Cost Tracker logs warnings through Rails.logger when available.
   config.log_level = :info
 <% if options[:prices] -%>

@@ -855,7 +855,7 @@ RSpec.describe "ActiveRecord storage integration" do
   it "raises when ActiveRecord storage fails" do
     require "llm_cost_tracker/ledger"
 
-    allow(LlmCostTracker::Ingestion::Inbox).to receive(:save)
+    allow(LlmCostTracker::Ingestion::Inline).to receive(:save)
       .and_raise(ActiveRecord::StatementInvalid, "database down")
 
     expect do

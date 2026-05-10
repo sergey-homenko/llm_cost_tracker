@@ -14,17 +14,20 @@ module LlmCostTracker
 
     BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
+    INGESTION_ADAPTERS = %i[inline durable].freeze
     SHARED_SCALAR_ATTRIBUTES = %i[enabled default_tags on_budget_exceeded monthly_budget daily_budget per_call_budget
                                   log_level prices_file max_tag_count max_tag_value_bytesize].freeze
     SHARED_ENUM_ATTRIBUTES = {
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
-      unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn]
+      unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn],
+      ingestion_adapter: [INGESTION_ADAPTERS, :inline]
     }.freeze
     DEFAULT_REDACTED_TAG_KEYS = %w[api_key access_token authorization credential password refresh_token secret].freeze
 
     attr_reader(
       *SHARED_SCALAR_ATTRIBUTES,
       :budget_exceeded_behavior,
+      :ingestion_adapter,
       :instrumented_integrations,
       :pricing_overrides,
       :report_tag_breakdowns,
@@ -45,6 +48,7 @@ module LlmCostTracker
       @per_call_budget    = nil
       self.budget_exceeded_behavior = :notify
       self.unknown_pricing_behavior = :warn
+      self.ingestion_adapter = :inline
       @log_level          = :info
       @prices_file        = nil
       @max_tag_count      = 50

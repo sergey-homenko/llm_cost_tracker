@@ -38,8 +38,10 @@ module LlmCostTracker
 
         def snapshot_select(period)
           start = Period.range_start(period, time)
+          components = [rollup_total_sql(period)]
+          components << pending_total_sql(start) if Ingestion.durable?
           "SELECT #{connection.quote(period.name)} AS period_key, " \
-            "(#{rollup_total_sql(period)}) + (#{pending_total_sql(start)}) AS total_cost"
+            "(#{components.join(') + (')}) AS total_cost"
         end
 
         def rollup_total_sql(period)

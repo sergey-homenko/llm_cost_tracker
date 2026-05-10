@@ -5,6 +5,7 @@ require "securerandom"
 require_relative "doctor/check"
 require_relative "errors"
 require_relative "ledger"
+require_relative "ingestion/inline"
 require_relative "ingestion/lease_claim"
 require_relative "ingestion/inbox"
 require_relative "ingestion/batch"
@@ -19,13 +20,16 @@ module LlmCostTracker
         "llm_cost_tracker_ingestion_"
       end
 
-      WRITE_SCHEMA_GUARDS = [
-        ["llm_cost_tracker_calls",                    Ledger::Schema::Calls],
-        ["llm_cost_tracker_call_line_items",          Ledger::Schema::CallLineItems],
-        ["llm_cost_tracker_call_tags",                Ledger::Schema::CallTags],
-        ["llm_cost_tracker_call_rollups",             Ledger::Schema::CallRollups],
-        ["llm_cost_tracker_ingestion_inbox_entries",  Ledger::Schema::IngestionInboxEntries],
-        ["llm_cost_tracker_ingestion_leases",         Ledger::Schema::IngestionLeases]
+      CORE_SCHEMA_GUARDS = [
+        ["llm_cost_tracker_calls",           Ledger::Schema::Calls],
+        ["llm_cost_tracker_call_line_items", Ledger::Schema::CallLineItems],
+        ["llm_cost_tracker_call_tags",       Ledger::Schema::CallTags],
+        ["llm_cost_tracker_call_rollups",    Ledger::Schema::CallRollups]
+      ].freeze
+
+      DURABLE_SCHEMA_GUARDS = [
+        ["llm_cost_tracker_ingestion_inbox_entries", Ledger::Schema::IngestionInboxEntries],
+        ["llm_cost_tracker_ingestion_leases",        Ledger::Schema::IngestionLeases]
       ].freeze
 
       def ensure_current_schema!
@@ -33,13 +37,21 @@ module LlmCostTracker
           raise Error, "llm_cost_tracker_calls table is missing; run install generator and migrate"
         end
 
-        WRITE_SCHEMA_GUARDS.each do |table_name, schema_module|
+        guards_for_current_adapter.each do |table_name, schema_module|
           errors = schema_module.current_schema_errors
           next if errors.empty?
 
           raise Error,
                 "#{table_name} table is not on the current schema: #{errors.join('; ')}; see docs/upgrading.md"
         end
+      end
+
+      def durable?
+        LlmCostTracker.configuration.ingestion_adapter == :durable
+      end
+
+      def guards_for_current_adapter
+        durable? ? CORE_SCHEMA_GUARDS + DURABLE_SCHEMA_GUARDS : CORE_SCHEMA_GUARDS
       end
 
       def verify
@@ -73,7 +85,7 @@ module LlmCostTracker
           provider_response_id: response_id,
           tags: { feature: VERIFY_TAG }
         )
-        LlmCostTracker::Ingestion::Worker.flush!
+        LlmCostTracker::Ingestion::Worker.flush! if durable?
         persisted = LlmCostTracker::Call.where(provider_response_id: response_id).exists?
 
         return capture_success if persisted && notifications.any?
@@ -91,7 +103,9 @@ module LlmCostTracker
         LlmCostTracker::Doctor::Check.new(:error, "active_record capture", "#{e.class}: #{e.message}")
       ensure
         cleanup_verification_call(response_id) if response_id
-        LlmCostTracker::Ingestion::InboxEntry.where(event_id: event.event_id).delete_all if event
+        if event && durable? && LlmCostTracker::Ingestion::InboxEntry.table_exists?
+          LlmCostTracker::Ingestion::InboxEntry.where(event_id: event.event_id).delete_all
+        end
         ActiveSupport::Notifications.unsubscribe(subscription) if subscription
       end
 
@@ -102,10 +116,11 @@ module LlmCostTracker
       end
 
       def capture_success
+        path = durable? ? "durable inbox" : "inline writer"
         LlmCostTracker::Doctor::Check.new(
           :ok,
           "active_record capture",
-          "manual event emitted and persisted through durable inbox"
+          "manual event emitted and persisted through #{path}"
         )
       end
 

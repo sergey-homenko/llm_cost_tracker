@@ -11,6 +11,7 @@ module LlmCostTracker
 
       def call
         return unless Probe.table_exists?("llm_cost_tracker_calls")
+        return inline_check unless LlmCostTracker::Ingestion.durable?
 
         missing = missing_parts
         if missing.empty?
@@ -42,6 +43,31 @@ module LlmCostTracker
       end
 
       private
+
+      def inline_check
+        leftovers = inline_leftover_tables
+        if leftovers.empty?
+          return Check.new(
+            :ok,
+            "inline ingestion",
+            "ingestion_adapter=:inline; events write directly to the ledger"
+          )
+        end
+
+        Check.new(
+          :warn,
+          "inline ingestion",
+          "ingestion_adapter=:inline but found unused durable ingestion tables: #{leftovers.join(', ')}. " \
+          "Set config.ingestion_adapter = :durable to keep the durable inbox path or drop the tables."
+        )
+      end
+
+      def inline_leftover_tables
+        [
+          LlmCostTracker::Ingestion::InboxEntry.table_name,
+          LlmCostTracker::Ingestion::Lease.table_name
+        ].select { |table| Probe.table_exists?(table) }
+      end
 
       def missing_parts
         [

@@ -4,7 +4,10 @@ require "spec_helper"
 require "faraday"
 
 RSpec.describe LlmCostTracker::Middleware::Faraday do
-  before { allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true) }
+  before do
+    allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
+    allow(LlmCostTracker::Ingestion::Inline).to receive(:save).and_return(true)
+  end
 
   let(:openai_response_body) do
     {

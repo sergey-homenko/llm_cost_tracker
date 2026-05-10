@@ -44,11 +44,19 @@ module LlmCostTracker
           context_tags: context_tags
         )
 
-        Ingestion::Inbox.save(event)
+        save_event(event)
         notify_subscribers(event)
         Budget.check!(event)
 
         event
+      end
+
+      def save_event(event)
+        if LlmCostTracker.configuration.ingestion_adapter == :durable
+          Ingestion::Inbox.save(event)
+        else
+          Ingestion::Inline.save(event)
+        end
       end
 
       def notify_subscribers(event)

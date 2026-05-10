@@ -5,26 +5,26 @@ Supported adapters: PostgreSQL and MySQL-family.
 
 ## Tables
 
+`llm_cost_tracker:install` creates the core ledger:
+
 | Table | Role |
 | --- | --- |
 | `llm_cost_tracker_calls` | One row per tracked call. Header totals, attribution dimensions, pricing snapshot. |
 | `llm_cost_tracker_call_line_items` | Per-component cost rows: text/audio/cached tokens, tool charges. |
 | `llm_cost_tracker_call_tags` | Normalized tag rows for attribution queries. |
 | `llm_cost_tracker_call_rollups` | Daily and monthly cost totals for fast budget checks. |
-| `llm_cost_tracker_ingestion_inbox_entries` | Durable staging rows the ingestor drains into the ledger. |
-| `llm_cost_tracker_ingestion_leases` | Shared lease rows for the ingestion worker. |
 
-`llm_cost_tracker:install` creates the core ledger above.
-`llm_cost_tracker:doctor` checks that the schema matches the gem version.
+Optional tables — only created when you opt in:
 
-Optional tables, created only when reconciliation is opted in via
-`config.reconciliation_enabled = true` plus
-`bin/rails generate llm_cost_tracker:reconciliation`:
+| Table | Role | Created by |
+| --- | --- | --- |
+| `llm_cost_tracker_ingestion_inbox_entries` | Durable staging rows the ingestor drains into the ledger. | `bin/rails generate llm_cost_tracker:durable_ingestion` (requires `config.ingestion_adapter = :durable`) |
+| `llm_cost_tracker_ingestion_leases` | Shared lease rows for the ingestion worker. | same migration as the inbox |
+| `llm_cost_tracker_provider_invoices` | Imported provider-side invoice rows. | `bin/rails generate llm_cost_tracker:reconciliation` (requires `config.reconciliation_enabled = true`) |
+| `llm_cost_tracker_provider_invoice_imports` | Importer cursor / window / state for resumable runs. | same migration as provider invoices |
 
-| Table | Role |
-| --- | --- |
-| `llm_cost_tracker_provider_invoices` | Imported provider-side invoice rows (reconciliation only). |
-| `llm_cost_tracker_provider_invoice_imports` | Importer cursor / window / state for resumable runs. |
+`llm_cost_tracker:doctor` checks that the schema matches the gem version
+and that the optional tables match the configured adapter.
 
 ## `llm_cost_tracker_calls`
 

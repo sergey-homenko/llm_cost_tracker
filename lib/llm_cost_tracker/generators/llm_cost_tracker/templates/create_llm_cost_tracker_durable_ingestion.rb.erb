@@ -1,0 +1,29 @@
+class CreateLlmCostTrackerDurableIngestion < ActiveRecord::Migration<%= migration_version %>
+  def change
+    create_table :llm_cost_tracker_ingestion_inbox_entries do |t|
+      t.string   :event_id, null: false
+      t.decimal  :total_cost, precision: 20, scale: 8
+      t.datetime :tracked_at, null: false
+      t.text     :payload, null: false
+      t.datetime :locked_at
+      t.string   :locked_by
+      t.integer  :attempts, null: false, default: 0
+      t.text     :last_error
+
+      t.timestamps
+    end
+
+    create_table :llm_cost_tracker_ingestion_leases do |t|
+      t.string   :name, null: false
+      t.string   :locked_by
+      t.datetime :locked_until
+
+      t.timestamps
+    end
+
+    add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
+    add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]
+    add_index :llm_cost_tracker_ingestion_inbox_entries, [:locked_at, :id]
+    add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
+  end
+end

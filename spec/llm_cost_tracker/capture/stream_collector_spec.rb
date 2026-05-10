@@ -30,7 +30,10 @@ RSpec.describe LlmCostTracker do
   end
 
   describe ".track_stream" do
-    before { allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true) }
+    before do
+      allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
+      allow(LlmCostTracker::Ingestion::Inline).to receive(:save).and_return(true)
+    end
 
     let(:events) do
       captured = []
