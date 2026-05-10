@@ -149,10 +149,10 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.pricing_mode).to eq(:batch)
     end
 
-    it "captures fast EU inference as a combined pricing mode" do
+    it "captures fast US inference as a combined pricing mode" do
       result = parser.parse(
         request_url: anthropic_messages_url,
-        request_body: { model: "claude-opus-4-6", speed: "fast", inference_geo: "eu" }.to_json,
+        request_body: { model: "claude-opus-4-6", speed: "fast", inference_geo: "us" }.to_json,
         response_status: 200,
         response_body: {
           id: "msg_123",
@@ -161,12 +161,27 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
             input_tokens: 200,
             output_tokens: 80,
             speed: "fast",
-            inference_geo: "eu"
+            inference_geo: "us"
           }
         }.to_json
       )
 
       expect(result.pricing_mode).to eq(:fast_data_residency)
+    end
+
+    it "ignores inference_geo values that are not in the documented data-residency uplift list" do
+      result = parser.parse(
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: {
+          id: "msg_global",
+          model: "claude-sonnet-4-6",
+          usage: { input_tokens: 200, output_tokens: 80, inference_geo: "global" }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to be_nil
     end
 
     it "extracts provider-reported server tool usage as service charges" do
@@ -314,7 +329,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
               "input_tokens" => 120,
               "output_tokens" => 1,
               "speed" => "fast",
-              "inference_geo" => "eu"
+              "inference_geo" => "us"
             }
           }
         } },

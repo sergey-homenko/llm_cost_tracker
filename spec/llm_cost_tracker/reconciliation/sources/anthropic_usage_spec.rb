@@ -66,11 +66,11 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
       expect(first[:external_id]).to start_with("cost-")
     end
 
-    it "captures non-standard service tiers as pricing_mode" do
+    it "treats Anthropic Priority Tier as standard pricing (throughput tier, no per-token surcharge)" do
       rows = described_class.parse(response)
 
       output_row = rows.find { |row| row[:metadata]["token_type"] == "output" }
-      expect(output_row[:metadata]["pricing_mode"]).to eq("priority")
+      expect(output_row[:metadata]["pricing_mode"]).to be_nil
     end
 
     it "labels cache and tool meters from token_type and description" do
@@ -179,7 +179,20 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
 
       row = described_class.parse(response).first
       expect(row[:metadata]).to include("speed" => "fast", "inference_geo" => "us")
-      expect(row[:metadata]["pricing_mode"]).to eq("data_residency_fast_priority")
+      expect(row[:metadata]["pricing_mode"]).to eq("data_residency_fast")
+    end
+
+    it "ignores non-US inference_geo values that do not map to a documented uplift" do
+      response[:data] = [{
+        "starts_at" => bucket_starts_at,
+        "ends_at" => bucket_ends_at,
+        "results" => [{
+          "amount" => "1.00", "token_type" => "input",
+          "inference_geo" => "global"
+        }]
+      }]
+
+      expect(described_class.parse(response).first[:metadata]["pricing_mode"]).to be_nil
     end
 
     it "accepts Date instances directly when computing the inclusive end date" do
@@ -216,7 +229,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
       }]
 
       expect(described_class.parse(response).first[:metadata]["pricing_mode"])
-        .to eq("data_residency_priority")
+        .to eq("data_residency")
     end
 
     it "accepts epoch timestamps for bucket bounds" do

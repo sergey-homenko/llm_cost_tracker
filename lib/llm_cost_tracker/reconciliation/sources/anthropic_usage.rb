@@ -93,12 +93,16 @@ module LlmCostTracker
           DEFAULT_METER
         end
 
+        DATA_RESIDENCY_GEOS = %w[us].freeze
+        private_constant :DATA_RESIDENCY_GEOS
+
         def pricing_mode_for(result)
           modes = []
           tier = result[:service_tier].to_s.downcase
-          modes << tier if %w[priority batch].include?(tier)
-          modes << result[:speed].to_s.downcase if %w[fast].include?(result[:speed].to_s.downcase)
-          modes << "data_residency" if result[:data_residency] || result[:inference_geo].to_s.downcase.match?(/.+/)
+          modes << tier if tier == "batch"
+          modes << result[:speed].to_s.downcase if result[:speed].to_s.downcase == "fast"
+          geo = result[:inference_geo].to_s.downcase
+          modes << "data_residency" if result[:data_residency] || DATA_RESIDENCY_GEOS.include?(geo)
           modes.empty? ? nil : modes.uniq.sort.join("_")
         end
 

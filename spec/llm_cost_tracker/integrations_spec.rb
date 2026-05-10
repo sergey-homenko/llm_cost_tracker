@@ -998,14 +998,14 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 1_000_000,
         output_tokens: 1_000_000,
         service_tier: "batch",
-        inference_geo: "eu"
+        inference_geo: "us"
       )
     )
     install_anthropic_fakes(message)
     configure_integration(:anthropic)
 
     capture_events do |events|
-      Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-6", service_tier: "batch", inference_geo: "eu")
+      Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-6", service_tier: "batch", inference_geo: "us")
 
       expect(events.size).to eq(1)
       expect(events.first[:pricing_mode]).to eq(:batch_data_residency)
@@ -1021,14 +1021,14 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 120,
         output_tokens: 35,
         speed: "fast",
-        inference_geo: "eu"
+        inference_geo: "us"
       )
     )
     install_anthropic_fakes(message)
     configure_integration(:anthropic)
 
     capture_events do |events|
-      Anthropic::Resources::Messages.new.create(model: "claude-opus-4-6", speed: "fast", inference_geo: "eu")
+      Anthropic::Resources::Messages.new.create(model: "claude-opus-4-6", speed: "fast", inference_geo: "us")
 
       expect(events.size).to eq(1)
       expect(events.first[:pricing_mode]).to eq(:fast_data_residency)

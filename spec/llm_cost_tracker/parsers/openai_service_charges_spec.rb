@@ -54,5 +54,23 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiServiceCharges do
       )
       expect(result.kind).to eq(:web_search_request)
     end
+
+    it "classifies gpt-5-chat-latest as non-reasoning even though it starts with gpt-5" do
+      result = described_class.build_line_item(
+        { "type" => "web_search_call", "id" => "ws_chat" },
+        request: { tools: [{ type: "web_search_preview" }] },
+        model: "gpt-5-chat-latest"
+      )
+      expect(result.kind).to eq(:web_search_preview_request_non_reasoning)
+    end
+
+    it "classifies o-series double-digit reasoning models" do
+      result = described_class.build_line_item(
+        { "type" => "web_search_call", "id" => "ws_o10" },
+        request: { tools: [{ type: "web_search_preview" }] },
+        model: "o10"
+      )
+      expect(result.kind).to eq(:web_search_preview_request_reasoning)
+    end
   end
 end

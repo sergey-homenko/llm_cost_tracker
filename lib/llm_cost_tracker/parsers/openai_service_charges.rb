@@ -13,8 +13,10 @@ module LlmCostTracker
 
       REASONING_MODEL_PATTERNS = [
         /\Agpt-5(\b|[\d.-])/i,
-        /\Ao[1-9](\b|[\d.-])/i
+        /\Ao\d+(\b|[\d.-])/i
       ].freeze
+      NON_REASONING_GPT5_PATTERN = /\Agpt-5-chat\b/i
+      private_constant :NON_REASONING_GPT5_PATTERN
 
       module_function
 
@@ -91,6 +93,8 @@ module LlmCostTracker
         return false unless model
 
         name = model.to_s.split("/", 2).last
+        return false if NON_REASONING_GPT5_PATTERN.match?(name)
+
         REASONING_MODEL_PATTERNS.any? { |pattern| pattern.match?(name) }
       end
 
