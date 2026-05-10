@@ -98,12 +98,12 @@ module LlmCostTracker
 
         def pricing_mode_for(result)
           modes = []
+          modes << result[:speed].to_s.downcase if result[:speed].to_s.downcase == "fast"
           tier = result[:service_tier].to_s.downcase
           modes << tier if tier == "batch"
-          modes << result[:speed].to_s.downcase if result[:speed].to_s.downcase == "fast"
           geo = result[:inference_geo].to_s.downcase
           modes << "data_residency" if result[:data_residency] || DATA_RESIDENCY_GEOS.include?(geo)
-          modes.empty? ? nil : modes.uniq.sort.join("_")
+          modes.empty? ? nil : modes.uniq.join("_")
         end
 
         def match_basis_for(result)

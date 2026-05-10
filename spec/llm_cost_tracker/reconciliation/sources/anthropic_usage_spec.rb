@@ -179,7 +179,20 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
 
       row = described_class.parse(response).first
       expect(row[:metadata]).to include("speed" => "fast", "inference_geo" => "us")
-      expect(row[:metadata]["pricing_mode"]).to eq("data_residency_fast")
+      expect(row[:metadata]["pricing_mode"]).to eq("fast_data_residency")
+    end
+
+    it "tags pricing_mode as bare data_residency when only inference_geo: us is present" do
+      response[:data] = [{
+        "starts_at" => bucket_starts_at,
+        "ends_at" => bucket_ends_at,
+        "results" => [{
+          "amount" => "1.00", "token_type" => "input",
+          "inference_geo" => "us"
+        }]
+      }]
+
+      expect(described_class.parse(response).first[:metadata]["pricing_mode"]).to eq("data_residency")
     end
 
     it "ignores non-US inference_geo values that do not map to a documented uplift" do
