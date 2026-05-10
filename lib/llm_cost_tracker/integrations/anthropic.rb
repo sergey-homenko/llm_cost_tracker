@@ -111,13 +111,19 @@ module LlmCostTracker
         end
 
         DATA_RESIDENCY_GEOS = %w[eu].freeze
+        # Anthropic Priority Tier is committed throughput (tokens/min capacity), not a per-token
+        # surcharge. Treat it as standard pricing so cost_status doesn't fall to :unknown.
+        STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only priority].freeze
 
         def pricing_mode(message:, request:, usage:)
+          service_tier = object_value(usage, :service_tier) ||
+                         object_value(message, :service_tier) ||
+                         request[:service_tier]
+          service_tier = nil if STANDARD_EQUIVALENT_SERVICE_TIERS.include?(service_tier.to_s)
+
           modes = [
             Pricing.normalize_mode(object_value(usage, :speed) || object_value(message, :speed) || request[:speed]),
-            Pricing.normalize_mode(
-              object_value(usage, :service_tier) || object_value(message, :service_tier) || request[:service_tier]
-            )
+            Pricing.normalize_mode(service_tier)
           ]
           geo = inference_geo(message: message, request: request, usage: usage).to_s.downcase
           modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(geo)

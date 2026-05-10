@@ -35,6 +35,9 @@ OpenAI-compatible streaming. Existing installs need a migration — see
 - `Pricing::Sync.refresh` preserves models flagged with `_source: "manual"` in the local file, so locally curated rates survive subsequent remote refreshes.
 - `Pricing.normalize_mode` treats Symbol input the same as String input. `:"standard-only"` no longer slips past `STANDARD_MODE_VALUES` and forces a known model into unknown pricing.
 - Anthropic SDK integration only marks a call as `data_residency` when `inference_geo == "eu"` (the documented +10% surcharge tier), removing a false positive on unrelated US-region inference.
+- Anthropic Priority Tier no longer falls to `cost_status: unknown`. Anthropic's Priority Tier is committed throughput, not a per-token surcharge — both the SDK integration and the Faraday parser now treat `service_tier: "priority"` as standard pricing for token cost.
+- `web_fetch_request` is recorded with a `$0` bundled rate (Anthropic explicitly bills web fetch via standard tokens, not per fetch). The Anthropic scraper detects the "Web fetch usage has no additional charges" sentence and emits `0.0` so the rate stays accurate across `prices:refresh` runs.
+- `Pricing::Scrape::Orchestrator` merges scraped service-charge rates into the existing catalog instead of replacing the provider hash. Manually-curated entries (e.g. an internal-gateway tool charge that no public page documents) survive `prices:refresh` runs.
 - Reconciliation diff windows are anchored in UTC. App servers in non-UTC timezones (e.g. Europe/Kiev) no longer skew the window by their local offset.
 - Reconciliation provider totals sum only invoices fully contained in the diff window. Partially overlapping invoices (e.g. a full-month bill on a half-month window) are no longer counted at their full `billed_amount`.
 - Reconciliation import errors are no longer echoed verbatim into the dashboard flash. The full exception is logged; the alert shows the exception class only.

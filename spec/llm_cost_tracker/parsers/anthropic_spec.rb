@@ -111,7 +111,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.provider_response_id).to eq("msg_123")
     end
 
-    it "captures usage service tiers as pricing modes" do
+    it "treats Anthropic Priority Tier as standard pricing because it's a throughput commitment, not a per-token surcharge" do
       result = parser.parse(
         request_url: anthropic_messages_url,
         request_body: request_body,
@@ -127,7 +127,26 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq(:priority)
+      expect(result.pricing_mode).to be_nil
+    end
+
+    it "captures the batch service tier as a pricing mode" do
+      result = parser.parse(
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: {
+          id: "msg_123",
+          model: "claude-sonnet-4-6",
+          usage: {
+            input_tokens: 200,
+            output_tokens: 80,
+            service_tier: "batch"
+          }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to eq(:batch)
     end
 
     it "captures fast EU inference as a combined pricing mode" do
@@ -224,7 +243,7 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.provider_response_id).to eq("msg_456")
     end
 
-    it "captures stream usage service tiers as pricing modes" do
+    it "treats Anthropic Priority Tier in stream usage as standard (throughput, not per-token surcharge)" do
       events = [
         { event: "message_start", data: {
           "type" => "message_start",
@@ -251,7 +270,37 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
         events: events
       )
 
-      expect(result.pricing_mode).to eq(:priority)
+      expect(result.pricing_mode).to be_nil
+    end
+
+    it "captures the batch service tier in stream usage" do
+      events = [
+        { event: "message_start", data: {
+          "type" => "message_start",
+          "message" => {
+            "id" => "msg_batch",
+            "model" => "claude-sonnet-4-6",
+            "usage" => {
+              "input_tokens" => 120,
+              "output_tokens" => 1,
+              "service_tier" => "batch"
+            }
+          }
+        } },
+        { event: "message_delta", data: {
+          "type" => "message_delta",
+          "usage" => { "output_tokens" => 64 }
+        } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.pricing_mode).to eq(:batch)
     end
 
     it "captures stream usage speed and inference geo pricing modes" do

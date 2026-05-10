@@ -16,6 +16,9 @@ module LlmCostTracker
           "web_search_request" => /Web search is available.*?\$\s*(\d+(?:\.\d+)?)\s+per 1,000 searches/i,
           "code_execution_hour" => /Additional usage beyond .*? billed at \$\s*(\d+(?:\.\d+)?)\s+per hour/i
         }.freeze
+        FREE_SERVICE_CHARGE_PATTERNS = {
+          "web_fetch_request" => /Web fetch usage has no additional charges/i
+        }.freeze
 
         Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
 
@@ -44,7 +47,11 @@ module LlmCostTracker
 
         def extract_service_charges(doc)
           text = doc.text.gsub(/\s+/, " ")
-          SERVICE_CHARGE_PATTERNS.to_h { |component, pattern| [component, text_price(text, pattern)] }
+          charges = SERVICE_CHARGE_PATTERNS.to_h { |component, pattern| [component, text_price(text, pattern)] }
+          FREE_SERVICE_CHARGE_PATTERNS.each do |component, pattern|
+            charges[component] = 0.0 if text.match?(pattern)
+          end
+          charges
         end
 
         def text_price(text, pattern)

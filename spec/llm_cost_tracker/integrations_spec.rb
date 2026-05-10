@@ -900,7 +900,7 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
-  it "captures official Anthropic usage service tiers" do
+  it "treats Anthropic Priority Tier as standard pricing (throughput tier, no per-token surcharge)" do
     message = response_class.new(
       id: "msg_123",
       model: "claude-sonnet-4-6",
@@ -917,7 +917,28 @@ RSpec.describe LlmCostTracker::Integrations do
       Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-6")
 
       expect(events.size).to eq(1)
-      expect(events.first[:pricing_mode]).to eq(:priority)
+      expect(events.first[:pricing_mode]).to be_nil
+    end
+  end
+
+  it "captures the Anthropic batch service tier as a pricing mode" do
+    message = response_class.new(
+      id: "msg_batch",
+      model: "claude-sonnet-4-6",
+      usage: usage_class.new(
+        input_tokens: 120,
+        output_tokens: 35,
+        service_tier: "batch"
+      )
+    )
+    install_anthropic_fakes(message)
+    configure_integration(:anthropic)
+
+    capture_events do |events|
+      Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-6")
+
+      expect(events.size).to eq(1)
+      expect(events.first[:pricing_mode]).to eq(:batch)
     end
   end
 

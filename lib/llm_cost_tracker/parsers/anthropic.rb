@@ -62,7 +62,8 @@ module LlmCostTracker
       end
 
       DATA_RESIDENCY_GEOS = %w[eu].freeze
-      private_constant :DATA_RESIDENCY_GEOS
+      STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only priority].freeze
+      private_constant :DATA_RESIDENCY_GEOS, :STANDARD_EQUIVALENT_SERVICE_TIERS
 
       private
 
@@ -172,6 +173,7 @@ module LlmCostTracker
         service_tier = usage&.fetch("service_tier", nil) ||
                        response&.fetch("service_tier", nil) ||
                        request["service_tier"]
+        service_tier = nil if STANDARD_EQUIVALENT_SERVICE_TIERS.include?(service_tier.to_s)
 
         modes << Pricing.normalize_mode(speed)
         modes << Pricing.normalize_mode(service_tier)

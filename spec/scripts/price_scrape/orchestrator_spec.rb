@@ -208,7 +208,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     end
   end
 
-  it "replaces provider service charge rates without touching other providers" do
+  it "merges scraped provider service charge rates with the existing catalog without touching other providers" do
     registry = build_registry(
       models: { "openai/gpt-5" => { "input" => 1.25, "output" => 10.0 } },
       service_charges: {
@@ -233,7 +233,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
 
       expect(result.service_charges_updated).to eq(
         "web_search_request" => { "from" => 8.0, "to" => 10.0 },
-        "priority_web_search_request" => { "from" => 12.0, "to" => nil },
         "file_search_call" => { "from" => nil, "to" => 2.5 }
       )
 
@@ -241,6 +240,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
       expect(service_charges.fetch("anthropic")).to eq("web_search_request" => 10.0)
       expect(service_charges.fetch("openai")).to eq(
         "web_search_request" => 10.0,
+        "priority_web_search_request" => 12.0,
         "file_search_call" => 2.5
       )
     end
@@ -262,13 +262,39 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     with_registry(registry) do |path|
       result = described_class.new.call(provider: "gemini", provider_result: provider_result, registry_path: path)
 
-      expect(result.service_charges_updated).to eq(
-        "grounding_request" => { "from" => 35.0, "to" => nil }
-      )
+      expect(result.service_charges_updated).to be_empty
 
       service_charges = JSON.parse(File.read(path)).fetch("service_charges")
-      expect(service_charges).not_to have_key("gemini")
+      expect(service_charges.fetch("gemini")).to eq("grounding_request" => 35.0)
       expect(service_charges.fetch("openai")).to eq("web_search_request" => 10.0)
+    end
+  end
+
+  it "preserves manually-added service charge keys when the scraper returns a different subset" do
+    registry = build_registry(
+      models: { "anthropic/claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } },
+      service_charges: {
+        "anthropic" => {
+          "web_search_request" => 10.0,
+          "web_fetch_request" => 0.0,
+          "code_execution_hour" => 0.05
+        }
+      }
+    )
+    provider_result = build_result(
+      models: { "claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } },
+      service_charges: { "web_search_request" => 11.0, "code_execution_hour" => 0.06 }
+    )
+
+    with_registry(registry) do |path|
+      described_class.new.call(provider: "anthropic", provider_result: provider_result, registry_path: path)
+
+      service_charges = JSON.parse(File.read(path)).fetch("service_charges").fetch("anthropic")
+      expect(service_charges).to eq(
+        "web_search_request" => 11.0,
+        "web_fetch_request" => 0.0,
+        "code_execution_hour" => 0.06
+      )
     end
   end
 
