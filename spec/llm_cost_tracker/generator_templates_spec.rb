@@ -31,6 +31,11 @@ RSpec.describe "generator templates" do
     ERB.new(template(name), trim_mode: "-").result(binding)
   end
 
+  def render_install_initializer(prices:)
+    options = { prices: prices }
+    ERB.new(template("initializer.rb.erb"), trim_mode: "-").result(binding)
+  end
+
   it "creates calls, line items, tags, and ingestion tables for PostgreSQL installs" do
     migration = render_migration_template("create_llm_cost_tracker_calls.rb.erb")
 
@@ -112,6 +117,22 @@ RSpec.describe "generator templates" do
     expect(initializer).to include("# config.report_tag_breakdowns")
     expect(initializer).not_to include("config.storage_backend")
     expect(initializer).not_to include("config.custom_storage")
+  end
+
+  it "renders prices_file exactly once when --prices is enabled" do
+    rendered = render_install_initializer(prices: true)
+
+    occurrences = rendered.scan(/config\.prices_file\s*=/)
+    expect(occurrences.size).to eq(1)
+    expect(rendered).to include('config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")')
+  end
+
+  it "renders prices_file commented out exactly once when --prices is not enabled" do
+    rendered = render_install_initializer(prices: false)
+
+    occurrences = rendered.scan(/config\.prices_file\s*=/)
+    expect(occurrences.size).to eq(1)
+    expect(rendered).to include('# config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")')
   end
 
   it "can run the install generator twice" do
