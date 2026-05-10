@@ -143,6 +143,7 @@ module LlmCostTracker
 
     def call_rollups_check
       return unless llm_cost_tracker_calls_table?
+      return inline_rollups_check unless LlmCostTracker.configuration.maintain_rollups
 
       errors = LlmCostTracker::Ledger::Schema::CallRollups.current_schema_errors
       return Check.new(:ok, "call rollups", "llm_cost_tracker_call_rollups exists") if errors.empty?
@@ -152,6 +153,23 @@ module LlmCostTracker
         "call rollups",
         "schema mismatch: #{errors.join('; ')}; see docs/upgrading.md"
       )
+    end
+
+    def inline_rollups_check
+      if Probe.table_exists?("llm_cost_tracker_call_rollups")
+        Check.new(
+          :warn,
+          "call rollups",
+          "maintain_rollups=false but llm_cost_tracker_call_rollups exists. " \
+          "Set config.maintain_rollups = true to keep budget reads on the rollups fast path or drop the table."
+        )
+      else
+        Check.new(
+          :ok,
+          "call rollups",
+          "maintain_rollups=false; budget reads aggregate from llm_cost_tracker_calls directly"
+        )
+      end
     end
 
     def calls_check

@@ -23,9 +23,10 @@ module LlmCostTracker
       CORE_SCHEMA_GUARDS = [
         ["llm_cost_tracker_calls",           Ledger::Schema::Calls],
         ["llm_cost_tracker_call_line_items", Ledger::Schema::CallLineItems],
-        ["llm_cost_tracker_call_tags",       Ledger::Schema::CallTags],
-        ["llm_cost_tracker_call_rollups",    Ledger::Schema::CallRollups]
+        ["llm_cost_tracker_call_tags",       Ledger::Schema::CallTags]
       ].freeze
+
+      ROLLUPS_SCHEMA_GUARD = ["llm_cost_tracker_call_rollups", Ledger::Schema::CallRollups].freeze
 
       DURABLE_SCHEMA_GUARDS = [
         ["llm_cost_tracker_ingestion_inbox_entries", Ledger::Schema::IngestionInboxEntries],
@@ -37,7 +38,7 @@ module LlmCostTracker
           raise Error, "llm_cost_tracker_calls table is missing; run install generator and migrate"
         end
 
-        guards_for_current_adapter.each do |table_name, schema_module|
+        guards_for_current_config.each do |table_name, schema_module|
           errors = schema_module.current_schema_errors
           next if errors.empty?
 
@@ -50,8 +51,15 @@ module LlmCostTracker
         LlmCostTracker.configuration.ingestion_adapter == :durable
       end
 
-      def guards_for_current_adapter
-        durable? ? CORE_SCHEMA_GUARDS + DURABLE_SCHEMA_GUARDS : CORE_SCHEMA_GUARDS
+      def maintain_rollups?
+        LlmCostTracker.configuration.maintain_rollups
+      end
+
+      def guards_for_current_config
+        guards = CORE_SCHEMA_GUARDS.dup
+        guards << ROLLUPS_SCHEMA_GUARD if maintain_rollups?
+        guards += DURABLE_SCHEMA_GUARDS if durable?
+        guards
       end
 
       def verify
@@ -137,6 +145,8 @@ module LlmCostTracker
         return if rows.empty?
 
         relation.delete_all
+        return unless LlmCostTracker.configuration.maintain_rollups
+
         LlmCostTracker::Ledger::Rollups.decrement!(rows)
       end
 

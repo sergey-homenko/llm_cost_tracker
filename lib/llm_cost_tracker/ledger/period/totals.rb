@@ -38,10 +38,18 @@ module LlmCostTracker
 
         def snapshot_select(period)
           start = Period.range_start(period, time)
-          components = [rollup_total_sql(period)]
+          components = [period_total_sql(period, start)]
           components << pending_total_sql(start) if Ingestion.durable?
           "SELECT #{connection.quote(period.name)} AS period_key, " \
             "(#{components.join(') + (')}) AS total_cost"
+        end
+
+        def period_total_sql(period, start)
+          if LlmCostTracker.configuration.maintain_rollups
+            rollup_total_sql(period)
+          else
+            calls_total_sql(start)
+          end
         end
 
         def rollup_total_sql(period)
@@ -49,6 +57,13 @@ module LlmCostTracker
           "COALESCE((SELECT SUM(total_cost) FROM #{table} " \
             "WHERE period = #{connection.quote(Period::PERIODS.fetch(period))} " \
             "AND period_start = #{connection.quote(Period.bucket(period, time))}), 0)"
+        end
+
+        def calls_total_sql(start)
+          table = connection.quote_table_name("llm_cost_tracker_calls")
+          tracked_at = connection.quote_column_name("tracked_at")
+          "COALESCE((SELECT SUM(total_cost) FROM #{table} " \
+            "WHERE #{tracked_at} BETWEEN #{connection.quote(start)} AND #{connection.quote(time)}), 0)"
         end
 
         def pending_total_sql(start)

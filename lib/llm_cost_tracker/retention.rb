@@ -64,7 +64,9 @@ module LlmCostTracker
           next 0 if rows.empty?
 
           deleted = LlmCostTracker::Call.where(id: rows.map(&:first)).delete_all
-          LlmCostTracker::Ledger::Rollups.decrement!(rows) if deleted.positive?
+          if deleted.positive? && LlmCostTracker.configuration.maintain_rollups
+            LlmCostTracker::Ledger::Rollups.decrement!(rows)
+          end
           deleted
         end
       end

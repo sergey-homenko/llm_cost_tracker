@@ -32,6 +32,12 @@ LlmCostTracker.configure do |config|
   # tables created by `bin/rails generate llm_cost_tracker:durable_ingestion`.
   # config.ingestion_adapter = :durable
 
+  # When false (default), budget reads aggregate live from llm_cost_tracker_calls.
+  # Flip to true when you set monthly/daily/per-call budgets and your call volume makes
+  # live SUMs slow; the rollups table is created by
+  # `bin/rails generate llm_cost_tracker:call_rollups`.
+  # config.maintain_rollups = true
+
   # LLM Cost Tracker logs warnings through Rails.logger when available.
   config.log_level = :info
 <% if options[:prices] -%>

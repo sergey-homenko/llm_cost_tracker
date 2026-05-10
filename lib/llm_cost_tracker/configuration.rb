@@ -36,7 +36,8 @@ module LlmCostTracker
       :openai_compatible_providers,
       :reconciliation_importers,
       :reconciliation_enabled,
-      :auto_enable_stream_usage
+      :auto_enable_stream_usage,
+      :maintain_rollups
     )
 
     def initialize
@@ -61,7 +62,13 @@ module LlmCostTracker
       @reconciliation_importers = {}
       @reconciliation_enabled = false
       @auto_enable_stream_usage = true
+      @maintain_rollups = false
       @finalized = false
+    end
+
+    def maintain_rollups=(value)
+      ensure_shared_configuration_mutable!
+      @maintain_rollups = !!value
     end
 
     def reconciliation_enabled=(value)

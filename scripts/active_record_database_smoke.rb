@@ -337,6 +337,7 @@ begin
   LlmCostTracker.reset_configuration!
   LlmCostTracker.configure do |config|
     config.ingestion_adapter = :durable
+    config.maintain_rollups = true
     config.unknown_pricing_behavior = :raise
     config.pricing_overrides = {
       "smoke/small" => {

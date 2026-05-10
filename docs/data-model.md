@@ -12,12 +12,12 @@ Supported adapters: PostgreSQL and MySQL-family.
 | `llm_cost_tracker_calls` | One row per tracked call. Header totals, attribution dimensions, pricing snapshot. |
 | `llm_cost_tracker_call_line_items` | Per-component cost rows: text/audio/cached tokens, tool charges. |
 | `llm_cost_tracker_call_tags` | Normalized tag rows for attribution queries. |
-| `llm_cost_tracker_call_rollups` | Daily and monthly cost totals for fast budget checks. |
 
 Optional tables — only created when you opt in:
 
 | Table | Role | Created by |
 | --- | --- | --- |
+| `llm_cost_tracker_call_rollups` | Daily and monthly cost totals for fast budget checks. | `bin/rails generate llm_cost_tracker:call_rollups` (requires `config.maintain_rollups = true`) |
 | `llm_cost_tracker_ingestion_inbox_entries` | Durable staging rows the ingestor drains into the ledger. | `bin/rails generate llm_cost_tracker:durable_ingestion` (requires `config.ingestion_adapter = :durable`) |
 | `llm_cost_tracker_ingestion_leases` | Shared lease rows for the ingestion worker. | same migration as the inbox |
 | `llm_cost_tracker_provider_invoices` | Imported provider-side invoice rows. | `bin/rails generate llm_cost_tracker:reconciliation` (requires `config.reconciliation_enabled = true`) |

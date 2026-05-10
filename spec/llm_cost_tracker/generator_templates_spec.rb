@@ -13,6 +13,7 @@ require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/reconciliation_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_rollups_provider_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/durable_ingestion_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/call_rollups_generator"
 
 RSpec.describe "generator templates" do
   let(:migration_version) { "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]" }
@@ -60,13 +61,13 @@ RSpec.describe "generator templates" do
     expect(migration).to include("t.jsonb :pricing_snapshot")
     expect(migration).not_to include("t.jsonb :tags")
     expect(migration).not_to include("add_index :llm_cost_tracker_calls, :tags")
-    expect(migration).to include("create_table :llm_cost_tracker_call_rollups")
+    expect(migration).not_to include("create_table :llm_cost_tracker_call_rollups")
     expect(migration).to include("create_table :llm_cost_tracker_call_line_items")
     expect(migration).to include("create_table :llm_cost_tracker_call_tags")
     expect(migration).not_to include("create_table :llm_cost_tracker_ingestion_inbox_entries")
     expect(migration).not_to include("create_table :llm_cost_tracker_ingestion_leases")
     expect(migration).not_to include("create_table :llm_cost_tracker_service_charges")
-    expect(migration).to include("add_index :llm_cost_tracker_call_rollups, [:period, :period_start, :currency, :provider], unique: true")
+    expect(migration).not_to include("add_index :llm_cost_tracker_call_rollups, [:period, :period_start, :currency, :provider], unique: true")
     expect(migration).to include("add_index :llm_cost_tracker_calls, :event_id, unique: true")
     expect(migration).not_to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true")
     expect(migration).not_to include("add_index :llm_cost_tracker_ingestion_leases, :name, unique: true")
@@ -192,6 +193,26 @@ RSpec.describe "generator templates" do
     end
   end
 
+  describe "call_rollups generator" do
+    it "creates the optional llm_cost_tracker_call_rollups table" do
+      Dir.mktmpdir do |dir|
+        LlmCostTracker::Generators::CallRollupsGenerator.start([], destination_root: dir)
+
+        migration_path = Dir[
+          File.join(dir, "db/migrate/*_create_llm_cost_tracker_call_rollups.rb")
+        ].first
+        expect(migration_path).not_to be_nil
+
+        migration = File.read(migration_path)
+        expect(migration).to include("create_table :llm_cost_tracker_call_rollups")
+        expect(migration).to include("t.string :provider")
+        expect(migration).to include(
+          "add_index :llm_cost_tracker_call_rollups, [:period, :period_start, :currency, :provider], unique: true"
+        )
+      end
+    end
+  end
+
   describe "durable_ingestion generator" do
     it "creates the durable ingestion inbox + leases tables" do
       Dir.mktmpdir do |dir|
@@ -245,9 +266,25 @@ RSpec.describe "generator templates" do
       expect_columns_in(install_migration, columns)
     end
 
-    it "covers every CallRollups required column in the install migration" do
+    let(:call_rollups_migration) { render_migration_template("create_llm_cost_tracker_call_rollups.rb.erb") }
+
+    let(:durable_ingestion_migration) do
+      render_migration_template("create_llm_cost_tracker_durable_ingestion.rb.erb")
+    end
+
+    it "covers every CallRollups required column in the call_rollups migration" do
       columns = LlmCostTracker::Ledger::Schema::CallRollups::REQUIRED_COLUMNS - auto_columns
-      expect_columns_in(install_migration, columns)
+      expect_columns_in(call_rollups_migration, columns)
+    end
+
+    it "covers every IngestionInboxEntries required column in the durable_ingestion migration" do
+      columns = LlmCostTracker::Ledger::Schema::IngestionInboxEntries::REQUIRED_COLUMNS - auto_columns
+      expect_columns_in(durable_ingestion_migration, columns)
+    end
+
+    it "covers every IngestionLeases required column in the durable_ingestion migration" do
+      columns = LlmCostTracker::Ledger::Schema::IngestionLeases::REQUIRED_COLUMNS - auto_columns
+      expect_columns_in(durable_ingestion_migration, columns)
     end
 
     it "covers every ProviderInvoices required column in the reconciliation migration" do
