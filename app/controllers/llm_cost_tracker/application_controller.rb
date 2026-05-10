@@ -21,11 +21,11 @@ module LlmCostTracker
     private
 
     def ensure_current_schema
-      state = LlmCostTracker::DashboardSetupState.current
-      return unless state.setup_required?
+      drift = LlmCostTracker::DashboardSetupState.current
+      return unless drift
 
-      @setup_message = state.message
-      @setup_details = state.details
+      @setup_message = drift.message
+      @setup_details = drift.details
       render template: "llm_cost_tracker/shared/setup_required"
     end
 

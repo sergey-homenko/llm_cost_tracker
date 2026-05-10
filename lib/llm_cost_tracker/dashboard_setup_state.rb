@@ -7,10 +7,7 @@ require_relative "ledger/schema/call_rollups"
 
 module LlmCostTracker
   module DashboardSetupState
-    Result = Data.define(:setup_required, :message, :details) do
-      alias_method :setup_required?, :setup_required
-    end
-    OK = Result.new(setup_required: false, message: nil, details: nil)
+    SetupRequired = Data.define(:message, :details)
     DOCS_HINT = "See docs/upgrading.md for the migration path."
     MUTEX = Mutex.new
 
@@ -38,14 +35,18 @@ module LlmCostTracker
 
     class << self
       def current
-        cached = @cached
-        return cached if cached
+        return @cached if defined?(@cached)
 
-        MUTEX.synchronize { @cached ||= compute }
+        MUTEX.synchronize do
+          @cached = compute unless defined?(@cached)
+        end
+        @cached
       end
 
       def reset!
-        MUTEX.synchronize { @cached = nil }
+        MUTEX.synchronize do
+          remove_instance_variable(:@cached) if defined?(@cached)
+        end
       end
 
       private
@@ -55,9 +56,9 @@ module LlmCostTracker
 
         core_drift = drift_in(schema_checks_for_current_config)
         return core_drift if core_drift
-        return OK unless LlmCostTracker.reconciliation_enabled?
+        return nil unless LlmCostTracker.reconciliation_enabled?
 
-        reconciliation_drift || OK
+        reconciliation_drift
       end
 
       def schema_checks_for_current_config
@@ -71,7 +72,7 @@ module LlmCostTracker
           errors = schema.current_schema_errors
           next if errors.empty?
 
-          return Result.new(setup_required: true, message: message, details: errors + [DOCS_HINT])
+          return SetupRequired.new(message: message, details: errors + [DOCS_HINT])
         end
         nil
       end
@@ -86,14 +87,13 @@ module LlmCostTracker
           next if errors.empty?
 
           message = "The #{table} table does not match the current LLM Cost Tracker schema."
-          return Result.new(setup_required: true, message: message, details: errors + [DOCS_HINT])
+          return SetupRequired.new(message: message, details: errors + [DOCS_HINT])
         end
         nil
       end
 
       def calls_table_missing
-        Result.new(
-          setup_required: true,
+        SetupRequired.new(
           message: "The llm_cost_tracker_calls table is not available yet.",
           details: nil
         )
