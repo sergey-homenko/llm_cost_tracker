@@ -175,7 +175,10 @@ def create_call_line_items_table!(database_connection)
 end
 
 def add_call_line_item_columns(table)
-  table.references :llm_cost_tracker_call, null: false, index: false
+  table.references :llm_cost_tracker_call,
+                   null: false,
+                   index: false,
+                   foreign_key: { to_table: :llm_cost_tracker_calls, on_delete: :cascade }
   table.integer :position, null: false, default: 0, limit: 2
   table.string :kind, null: false
   table.string :direction, null: false
@@ -211,7 +214,10 @@ end
 
 def create_call_tags_table!
   create_table :llm_cost_tracker_call_tags, force: true do |t|
-    t.references :llm_cost_tracker_call, null: false, index: false
+    t.references :llm_cost_tracker_call,
+                 null: false,
+                 index: false,
+                 foreign_key: { to_table: :llm_cost_tracker_calls, on_delete: :cascade }
     t.string :key, null: false
     t.text :value, null: false
   end
