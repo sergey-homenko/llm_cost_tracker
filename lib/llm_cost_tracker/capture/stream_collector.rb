@@ -119,25 +119,27 @@ module LlmCostTracker
       end
 
       def record_snapshot(snapshot, errored:)
-        capture = build_usage_capture(snapshot)
-        provider_response_id = capture.provider_response_id || snapshot[:provider_response_id]
-        capture = capture.with(provider_response_id: provider_response_id)
+        recorded = false
+        begin
+          capture = build_usage_capture(snapshot)
+          provider_response_id = capture.provider_response_id || snapshot[:provider_response_id]
+          capture = capture.with(provider_response_id: provider_response_id)
 
-        result = Tracker.record(
-          capture: capture,
-          latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
-          pricing_mode: capture.pricing_mode || snapshot[:pricing_mode],
-          metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
-          context_tags: snapshot[:context_tags]
-        )
-        @mutex.synchronize do
-          @finished = true
-          @recording = false
+          result = Tracker.record(
+            capture: capture,
+            latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
+            pricing_mode: capture.pricing_mode || snapshot[:pricing_mode],
+            metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
+            context_tags: snapshot[:context_tags]
+          )
+          recorded = true
+          result
+        ensure
+          @mutex.synchronize do
+            @finished = recorded
+            @recording = false
+          end
         end
-        result
-      rescue StandardError
-        @mutex.synchronize { @recording = false }
-        raise
       end
 
       def capture_dimensions(pricing_mode)

@@ -113,6 +113,14 @@ module LlmCostTrackerIntegrationSpecTypes
   )
   RubyLlmImage = Struct.new(:model_id, :usage, :provider_response_id, keyword_init: true)
   RubyLlmModeration = Struct.new(:id, :model_id, keyword_init: true)
+  EmbeddingResponse = Struct.new(:model, :usage, keyword_init: true)
+  EmbeddingUsage = Struct.new(:prompt_tokens, :total_tokens, keyword_init: true)
+  ImagesResponse = Struct.new(:created, :usage, keyword_init: true)
+  ImagesUsage = Struct.new(:input_tokens, :output_tokens, :total_tokens, keyword_init: true)
+  TranscriptionResponse = Struct.new(:text, :usage, keyword_init: true)
+  TranscriptionTokensUsage = Struct.new(:type, :input_tokens, :output_tokens, :total_tokens, keyword_init: true)
+  TranscriptionDurationUsage = Struct.new(:type, :seconds, keyword_init: true)
+  ModerationResponse = Struct.new(:id, :model, :results, keyword_init: true)
 end
 
 RSpec.describe LlmCostTracker::Integrations do
@@ -142,11 +150,13 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
-  def install_openai_fakes(response, stream: nil)
+  def install_openai_fakes(response, stream: nil, embedding: response, image: response,
+                           transcription: response, speech: response, moderation: response)
     stub_const("OpenAI", Module.new)
     stub_const("OpenAI::VERSION", "0.59.0")
     stub_const("OpenAI::Resources", Module.new)
     stub_const("OpenAI::Resources::Chat", Module.new)
+    stub_const("OpenAI::Resources::Audio", Module.new)
     stub_const("OpenAI::Resources::Responses", Class.new do
       define_method(:initialize) do
         @response = response
@@ -163,7 +173,30 @@ RSpec.describe LlmCostTracker::Integrations do
         @stream = stream
       end
       define_method(:create) { |_params = {}| @response }
+      define_method(:stream) { |_params = {}| @stream }
       define_method(:stream_raw) { |_params = {}| @stream }
+    end)
+    stub_const("OpenAI::Resources::Embeddings", Class.new do
+      define_method(:initialize) { @embedding = embedding }
+      define_method(:create) { |_params = {}| @embedding }
+    end)
+    stub_const("OpenAI::Resources::Images", Class.new do
+      define_method(:initialize) { @image = image }
+      define_method(:generate) { |_params = {}| @image }
+      define_method(:edit) { |_params = {}| @image }
+      define_method(:create_variation) { |_params = {}| @image }
+    end)
+    stub_const("OpenAI::Resources::Audio::Transcriptions", Class.new do
+      define_method(:initialize) { @transcription = transcription }
+      define_method(:create) { |_params = {}| @transcription }
+    end)
+    stub_const("OpenAI::Resources::Audio::Speech", Class.new do
+      define_method(:initialize) { @speech = speech }
+      define_method(:create) { |_params = {}| @speech }
+    end)
+    stub_const("OpenAI::Resources::Moderations", Class.new do
+      define_method(:initialize) { @moderation = moderation }
+      define_method(:create) { |_params = {}| @moderation }
     end)
   end
 
@@ -580,6 +613,212 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "tracks official OpenAI embeddings.create calls" do
+    embedding_class = LlmCostTrackerIntegrationSpecTypes::EmbeddingResponse
+    embedding_usage_class = LlmCostTrackerIntegrationSpecTypes::EmbeddingUsage
+    embedding = embedding_class.new(
+      model: "text-embedding-3-small",
+      usage: embedding_usage_class.new(prompt_tokens: 256, total_tokens: 256)
+    )
+    install_openai_fakes(response_class.new, embedding: embedding)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Embeddings.new.create(model: "text-embedding-3-small", input: "hello")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "text-embedding-3-small",
+        input_tokens: 256,
+        output_tokens: 0,
+        usage_source: :sdk_response
+      )
+    end
+  end
+
+  it "tracks official OpenAI images.generate calls with token usage" do
+    images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
+    images_usage_class = LlmCostTrackerIntegrationSpecTypes::ImagesUsage
+    image = images_class.new(
+      created: 1_700_000_000,
+      usage: images_usage_class.new(input_tokens: 12, output_tokens: 1024, total_tokens: 1036)
+    )
+    install_openai_fakes(response_class.new, image: image)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Images.new.generate(prompt: "a cat", model: "gpt-image-1", size: "1024x1024")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-image-1",
+        input_tokens: 12,
+        output_tokens: 1024,
+        usage_source: :sdk_response
+      )
+    end
+  end
+
+  it "records OpenAI images.generate calls as zero-token events when usage is missing" do
+    images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
+    image = images_class.new(created: 1_700_000_000, usage: nil)
+    install_openai_fakes(response_class.new, image: image)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Images.new.generate(prompt: "a cat", model: "dall-e-3", size: "1024x1024")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "dall-e-3",
+        input_tokens: 0,
+        output_tokens: 0,
+        usage_source: :sdk_response
+      )
+    end
+  end
+
+  it "tracks official OpenAI images.edit calls" do
+    images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
+    images_usage_class = LlmCostTrackerIntegrationSpecTypes::ImagesUsage
+    image = images_class.new(
+      created: 1_700_000_000,
+      usage: images_usage_class.new(input_tokens: 200, output_tokens: 1024, total_tokens: 1224)
+    )
+    install_openai_fakes(response_class.new, image: image)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Images.new.edit(image: "...", prompt: "make it red", model: "gpt-image-1")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-image-1",
+        input_tokens: 200,
+        output_tokens: 1024
+      )
+    end
+  end
+
+  it "tracks official OpenAI images.create_variation calls" do
+    images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
+    image = images_class.new(created: 1_700_000_000, usage: nil)
+    install_openai_fakes(response_class.new, image: image)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Images.new.create_variation(image: "...", model: "dall-e-2")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(provider: "openai", model: "dall-e-2", input_tokens: 0, output_tokens: 0)
+    end
+  end
+
+  it "tracks official OpenAI audio.transcriptions.create with token usage" do
+    transcription_class = LlmCostTrackerIntegrationSpecTypes::TranscriptionResponse
+    tokens_usage_class = LlmCostTrackerIntegrationSpecTypes::TranscriptionTokensUsage
+    transcription = transcription_class.new(
+      text: "hello",
+      usage: tokens_usage_class.new(type: "tokens", input_tokens: 14, output_tokens: 5, total_tokens: 19)
+    )
+    install_openai_fakes(response_class.new, transcription: transcription)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Audio::Transcriptions.new.create(model: "gpt-4o-transcribe", file: "audio.mp3")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-4o-transcribe",
+        input_tokens: 14,
+        output_tokens: 5,
+        usage_source: :sdk_response
+      )
+    end
+  end
+
+  it "records OpenAI audio.transcriptions.create as zero-token when usage uses the duration variant" do
+    transcription_class = LlmCostTrackerIntegrationSpecTypes::TranscriptionResponse
+    duration_usage_class = LlmCostTrackerIntegrationSpecTypes::TranscriptionDurationUsage
+    transcription = transcription_class.new(
+      text: "hello",
+      usage: duration_usage_class.new(type: "duration", seconds: 12.5)
+    )
+    install_openai_fakes(response_class.new, transcription: transcription)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Audio::Transcriptions.new.create(model: "whisper-1", file: "audio.mp3")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(provider: "openai", model: "whisper-1", input_tokens: 0, output_tokens: 0)
+    end
+  end
+
+  it "records OpenAI audio.speech.create calls as zero-token visibility events" do
+    install_openai_fakes(response_class.new, speech: "binary-audio-bytes")
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Audio::Speech.new.create(model: "tts-1", input: "hello", voice: "alloy")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(provider: "openai", model: "tts-1", input_tokens: 0, output_tokens: 0)
+    end
+  end
+
+  it "records OpenAI moderations.create calls as zero-token visibility events" do
+    moderation_class = LlmCostTrackerIntegrationSpecTypes::ModerationResponse
+    moderation = moderation_class.new(id: "modr-123", model: "omni-moderation-latest", results: [])
+    install_openai_fakes(response_class.new, moderation: moderation)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Moderations.new.create(model: "omni-moderation-latest", input: "hello")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "omni-moderation-latest",
+        input_tokens: 0,
+        output_tokens: 0,
+        provider_response_id: "modr-123"
+      )
+    end
+  end
+
+  it "tracks official OpenAI chat.completions.stream calls" do
+    event = stream_event_class.new(
+      type: "chat.completion.chunk",
+      id: "chatcmpl_stream_1",
+      model: "gpt-4o",
+      usage: usage_class.new(input_tokens: 80, output_tokens: 30)
+    )
+    stream = stream_class.new([event])
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Chat::Completions.new.stream(model: "gpt-4o", messages: []).each { |_event| nil }
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(
+        provider: "openai",
+        model: "gpt-4o",
+        input_tokens: 80,
+        output_tokens: 30,
+        stream: true,
+        usage_source: :stream_final,
+        provider_response_id: "chatcmpl_stream_1"
+      )
+    end
+  end
+
   it "tracks official Anthropic messages.create calls" do
     message = response_class.new(
       id: "msg_123",
@@ -697,14 +936,14 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 1_000_000,
         output_tokens: 1_000_000,
         service_tier: "batch",
-        inference_geo: "us"
+        inference_geo: "eu"
       )
     )
     install_anthropic_fakes(message)
     configure_integration(:anthropic)
 
     capture_events do |events|
-      Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-6", service_tier: "batch", inference_geo: "us")
+      Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-6", service_tier: "batch", inference_geo: "eu")
 
       expect(events.size).to eq(1)
       expect(events.first[:pricing_mode]).to eq(:batch_data_residency)
@@ -720,14 +959,14 @@ RSpec.describe LlmCostTracker::Integrations do
         input_tokens: 120,
         output_tokens: 35,
         speed: "fast",
-        inference_geo: "us"
+        inference_geo: "eu"
       )
     )
     install_anthropic_fakes(message)
     configure_integration(:anthropic)
 
     capture_events do |events|
-      Anthropic::Resources::Messages.new.create(model: "claude-opus-4-6", speed: "fast", inference_geo: "us")
+      Anthropic::Resources::Messages.new.create(model: "claude-opus-4-6", speed: "fast", inference_geo: "eu")
 
       expect(events.size).to eq(1)
       expect(events.first[:pricing_mode]).to eq(:fast_data_residency)

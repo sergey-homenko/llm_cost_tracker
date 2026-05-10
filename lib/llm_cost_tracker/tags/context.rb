@@ -11,7 +11,7 @@ module LlmCostTracker
       class << self
         def with(tags)
           stack = ActiveSupport::IsolatedExecutionState[KEY] || []
-          ActiveSupport::IsolatedExecutionState[KEY] = stack + [(tags || {}).deep_dup.to_h]
+          ActiveSupport::IsolatedExecutionState[KEY] = stack + [scrub((tags || {}).to_h)]
           yield
         ensure
           ActiveSupport::IsolatedExecutionState[KEY] = stack
@@ -19,13 +19,19 @@ module LlmCostTracker
 
         def tags
           default_tags = LlmCostTracker.configuration.default_tags
-          default_tags = default_tags.call.deep_dup if default_tags.respond_to?(:call)
+          default_tags = default_tags.call if default_tags.respond_to?(:call)
 
-          default_tags.to_h.merge(*Array(ActiveSupport::IsolatedExecutionState[KEY]))
+          scrub(default_tags.to_h).merge(*Array(ActiveSupport::IsolatedExecutionState[KEY]))
         end
 
         def clear!
           ActiveSupport::IsolatedExecutionState[KEY] = []
+        end
+
+        private
+
+        def scrub(tags)
+          Sanitizer.call(tags).deep_dup
         end
       end
     end

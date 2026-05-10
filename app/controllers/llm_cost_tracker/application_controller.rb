@@ -4,7 +4,10 @@ module LlmCostTracker
   class ApplicationController < ActionController::Base
     layout "llm_cost_tracker/application"
 
+    protect_from_forgery with: :exception
+
     before_action :ensure_current_schema
+    before_action :set_dashboard_security_headers
 
     rescue_from ActiveRecord::ConnectionNotEstablished, with: :render_database_error
     rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
@@ -91,6 +94,15 @@ module LlmCostTracker
 
     def render_not_found
       render "llm_cost_tracker/errors/not_found", status: :not_found
+    end
+
+    def set_dashboard_security_headers
+      response.set_header("X-Frame-Options", "DENY")
+      response.set_header("Referrer-Policy", "same-origin")
+      response.set_header(
+        "Content-Security-Policy",
+        "default-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
+      )
     end
   end
 end

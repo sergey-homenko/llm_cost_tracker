@@ -77,6 +77,15 @@
   category: tool
   rate_basis: per_1k_requests
 
+- key: web_fetch_request
+  kind: web_fetch_request
+  direction: neither
+  modality: text
+  cache_state: none
+  unit: request
+  category: tool
+  rate_basis: per_1k_requests
+
 - key: file_search_call
   kind: file_search_call
   direction: neither

@@ -317,6 +317,25 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:provider_response_id]).to eq("chatcmpl_manual_123")
     end
 
+    it "releases the recording slot when Tracker.record raises so finish! can be retried" do
+      collector = LlmCostTracker::Capture::StreamCollector.new(provider: "openai", model: "gpt-4o")
+      collector.usage(input_tokens: 5, output_tokens: 1)
+
+      first_call = true
+      allow(LlmCostTracker::Tracker).to receive(:record) do |**args|
+        if first_call
+          first_call = false
+          raise "transient ingestion error"
+        end
+        events << args
+        :ok
+      end
+
+      expect { collector.finish! }.to raise_error(RuntimeError, "transient ingestion error")
+      expect(collector.finish!).to eq(:ok)
+      expect(events.size).to eq(1)
+    end
+
     it "still yields the stream object but does not record or enforce budget when tracking is disabled" do
       collected = events
       yielded = false

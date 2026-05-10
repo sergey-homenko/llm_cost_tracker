@@ -6,6 +6,11 @@ module LlmCostTracker
       module CallTags
         REQUIRED_COLUMNS = %w[llm_cost_tracker_call_id key value].freeze
 
+        REQUIRED_INDEX_COLUMNS = [
+          %w[key],
+          %w[llm_cost_tracker_call_id]
+        ].freeze
+
         class << self
           def current_schema_errors
             connection = LlmCostTracker::Call.connection
@@ -14,10 +19,20 @@ module LlmCostTracker
             return ["#{table_name} table is missing"] unless connection.data_source_exists?(table_name)
 
             columns = LlmCostTracker::CallTag.columns_hash
+            errors = []
             missing = REQUIRED_COLUMNS - columns.keys
-            return [] if missing.empty?
+            errors << "missing columns: #{missing.join(', ')}" if missing.any?
+            errors.concat(missing_index_errors(connection, table_name))
+            errors
+          end
 
-            ["missing columns: #{missing.join(', ')}"]
+          def missing_index_errors(connection, table_name)
+            existing = connection.indexes(table_name).map { |index| Array(index.columns).map(&:to_s) }
+            REQUIRED_INDEX_COLUMNS.filter_map do |required|
+              next if existing.any? { |columns| (required - columns).empty? }
+
+              "missing index on (#{required.join(', ')})"
+            end
           end
         end
       end

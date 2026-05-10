@@ -24,7 +24,9 @@ RSpec.describe "llm_cost_tracker rake tasks" do
 
     Rake::Task["llm_cost_tracker:setup"].invoke
 
-    expect(Rails::Generators).to have_received(:invoke).with("llm_cost_tracker:install", %w[--dashboard --prices])
+    expect(Rails::Generators).to have_received(:invoke).with(
+      "llm_cost_tracker:install", %w[--dashboard --prices --skip]
+    )
     expect(migrate).to have_received(:invoke)
     expect(doctor).to have_received(:invoke)
   end

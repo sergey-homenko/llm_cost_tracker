@@ -28,16 +28,26 @@ module LlmCostTracker
 
         def patch_targets
           [
-            patch_target(
-              "OpenAI::Resources::Responses",
-              with: ResponsesPatch,
-              methods: %i[create stream stream_raw retrieve_streaming]
-            ),
-            patch_target(
-              "OpenAI::Resources::Chat::Completions",
-              with: ChatCompletionsPatch,
-              methods: %i[create stream_raw]
-            )
+            patch_target("OpenAI::Resources::Responses",
+                         with: ResponsesPatch, methods: %i[create stream stream_raw retrieve_streaming]),
+            patch_target("OpenAI::Resources::Chat::Completions",
+                         with: ChatCompletionsPatch, methods: %i[create stream stream_raw]),
+            *auxiliary_patch_targets
+          ]
+        end
+
+        def auxiliary_patch_targets
+          [
+            patch_target("OpenAI::Resources::Embeddings",
+                         with: EmbeddingsPatch, methods: %i[create], optional: true),
+            patch_target("OpenAI::Resources::Images",
+                         with: ImagesPatch, methods: %i[generate edit create_variation], optional: true),
+            patch_target("OpenAI::Resources::Audio::Transcriptions",
+                         with: TranscriptionsPatch, methods: %i[create], optional: true),
+            patch_target("OpenAI::Resources::Audio::Speech",
+                         with: SpeechPatch, methods: %i[create], optional: true),
+            patch_target("OpenAI::Resources::Moderations",
+                         with: ModerationsPatch, methods: %i[create], optional: true)
           ]
         end
 
@@ -62,6 +72,73 @@ module LlmCostTracker
                 usage_source: :sdk_response,
                 provider_response_id: object_value(response, :id),
                 service_line_items: service_line_items_from(response)
+              ),
+              latency_ms: latency_ms
+            )
+          end
+        end
+
+        def record_image(response, request:, latency_ms:)
+          usage = object_value(response, :usage)
+          input_tokens = usage ? object_value(usage, :input_tokens).to_i : 0
+          output_tokens = usage ? object_value(usage, :output_tokens).to_i : 0
+          record_passthrough(
+            model: request[:model],
+            response: response,
+            latency_ms: latency_ms,
+            input_tokens: input_tokens,
+            output_tokens: output_tokens
+          )
+        end
+
+        def record_transcription(response, request:, latency_ms:)
+          usage = object_value(response, :usage)
+          input_tokens, output_tokens =
+            if usage && object_value(usage, :type).to_s == "tokens"
+              [object_value(usage, :input_tokens).to_i, object_value(usage, :output_tokens).to_i]
+            else
+              [0, 0]
+            end
+          record_passthrough(
+            model: request[:model],
+            response: response,
+            latency_ms: latency_ms,
+            input_tokens: input_tokens,
+            output_tokens: output_tokens
+          )
+        end
+
+        def record_speech(_response, request:, latency_ms:)
+          record_passthrough(
+            model: request[:model],
+            response: nil,
+            latency_ms: latency_ms,
+            input_tokens: 0,
+            output_tokens: 0
+          )
+        end
+
+        def record_moderation(response, request:, latency_ms:)
+          record_passthrough(
+            model: object_value(response, :model) || request[:model],
+            response: response,
+            latency_ms: latency_ms,
+            input_tokens: 0,
+            output_tokens: 0
+          )
+        end
+
+        def record_passthrough(model:, response:, latency_ms:, input_tokens:, output_tokens:)
+          return unless active?
+
+          record_safely do
+            LlmCostTracker::Tracker.record(
+              capture: UsageCapture.build(
+                provider: "openai",
+                model: model,
+                token_usage: TokenUsage.build(input_tokens: input_tokens, output_tokens: output_tokens),
+                usage_source: :sdk_response,
+                provider_response_id: response && object_value(response, :id)
               ),
               latency_ms: latency_ms
             )
@@ -206,6 +283,14 @@ module LlmCostTracker
           response
         end
 
+        def stream(*args, **kwargs)
+          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
+          LlmCostTracker::Integrations::Openai.enforce_budget!
+          collector = LlmCostTracker::Integrations::Openai.stream_collector(request)
+          stream = super
+          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+        end
+
         def stream_raw(*args, **kwargs)
           request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
           LlmCostTracker::Integrations::Openai.enforce_budget!
@@ -214,6 +299,37 @@ module LlmCostTracker
           LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
         end
       end
+
+      module PatchBuilder
+        module_function
+
+        def build(record_method:, methods:)
+          Module.new.tap do |mod|
+            methods.each { |method_name| define_wrapped_method(mod, method_name, record_method) }
+          end
+        end
+
+        def define_wrapped_method(mod, method_name, record_method)
+          mod.define_method(method_name) do |*args, **kwargs, &block|
+            integration = LlmCostTracker::Integrations::Openai
+            integration.enforce_budget!
+            started_at = LlmCostTracker::Timing.now_monotonic
+            response = super(*args, **kwargs, &block)
+            integration.public_send(
+              record_method, response,
+              request: integration.request_params(args, kwargs),
+              latency_ms: integration.elapsed_ms(started_at)
+            )
+            response
+          end
+        end
+      end
+
+      EmbeddingsPatch = PatchBuilder.build(record_method: :record_response, methods: %i[create])
+      ImagesPatch = PatchBuilder.build(record_method: :record_image, methods: %i[generate edit create_variation])
+      TranscriptionsPatch = PatchBuilder.build(record_method: :record_transcription, methods: %i[create])
+      SpeechPatch = PatchBuilder.build(record_method: :record_speech, methods: %i[create])
+      ModerationsPatch = PatchBuilder.build(record_method: :record_moderation, methods: %i[create])
     end
   end
 end

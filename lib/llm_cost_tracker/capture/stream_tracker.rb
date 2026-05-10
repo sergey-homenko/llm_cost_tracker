@@ -13,7 +13,7 @@ module LlmCostTracker
         @collector = collector
         @active = active
         @finish = finish || proc { |errored:| @collector.finish!(errored: errored) }
-        @finished = false
+        @finished_ref = [false]
         @capture_failed = false
         @mutex = Mutex.new
       end
@@ -33,6 +33,7 @@ module LlmCostTracker
         end
         wrap_each if !iterator_wrapped && @stream.respond_to?(:each)
 
+        register_orphan_finalizer
         @stream
       rescue StandardError => e
         Logging.warn("stream integration failed to install wrapper: #{e.class}: #{e.message}")
@@ -120,14 +121,42 @@ module LlmCostTracker
 
       def finish!(errored:)
         should_finish = @mutex.synchronize do
-          next false if @finished
+          next false if @finished_ref[0]
 
-          @finished = true
+          @finished_ref[0] = true
           true
         end
         return unless should_finish && @active.call
 
-        @finish.call(errored: errored)
+        begin
+          @finish.call(errored: errored)
+        rescue StandardError
+          @mutex.synchronize { @finished_ref[0] = false }
+          raise
+        end
+      end
+
+      def register_orphan_finalizer
+        finished_ref = @finished_ref
+        finish_proc = @finish
+        active_proc = @active
+        mutex = @mutex
+        ObjectSpace.define_finalizer(@stream, lambda do |_object_id|
+          mutex.synchronize do
+            next if finished_ref[0]
+
+            finished_ref[0] = true
+          end
+          next unless active_proc.call
+
+          begin
+            finish_proc.call(errored: false)
+          rescue StandardError
+            nil
+          end
+        end)
+      rescue TypeError, ArgumentError
+        nil
       end
     end
   end

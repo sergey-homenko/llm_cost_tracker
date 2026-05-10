@@ -12,10 +12,10 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
     )
   end
 
-  it "keeps only the configured number of tags" do
+  it "keeps the most recently added tags when the count cap is exceeded" do
     tags = described_class.call({ first: "1", second: "2", third: "3" }, config: config)
 
-    expect(tags).to eq(first: "1", second: "2")
+    expect(tags).to eq(second: "2", third: "3")
   end
 
   it "redacts configured secret-like keys and common variants" do
@@ -106,6 +106,43 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
 
       expect(tags[:feature]).to eq("billing.invoice.preview")
       expect(tags[:tenant]).to eq("acme-production-eu-west-1")
+    end
+
+    it "redacts secrets nested inside Hash and Array tag values" do
+      tags = described_class.call(
+        { context: { headers: { authorization: "Bearer abcdef0123456789ABCDEFGH" } } },
+        config: config
+      )
+
+      expect(tags[:context][:headers][:authorization]).to eq("[REDACTED]")
+    end
+
+    it "redacts secrets buried in Array leaves" do
+      tags = described_class.call(
+        { trail: ["clean-id", "sk-proj-A1B2C3D4E5F6G7H8I9J0"] },
+        config: config
+      )
+
+      expect(tags[:trail]).to eq(["clean-id", "[REDACTED]"])
+    end
+
+    it "redacts Slack tokens regardless of the tag key" do
+      tags = described_class.call({ note: "xoxb-123456789012-abcdefghijkl" }, config: config)
+
+      expect(tags[:note]).to eq("[REDACTED]")
+    end
+
+    it "redacts Stripe live keys regardless of the tag key" do
+      synthetic_stripe_value = ["sk", "live", "synthetictesttokenforsanitizerregex"].join("_")
+      tags = described_class.call({ note: synthetic_stripe_value }, config: config)
+
+      expect(tags[:note]).to eq("[REDACTED]")
+    end
+
+    it "redacts Google API keys regardless of the tag key" do
+      tags = described_class.call({ note: "AIzaSyDEXAMPLEgoogleapikey1234567890abc" }, config: config)
+
+      expect(tags[:note]).to eq("[REDACTED]")
     end
   end
 end

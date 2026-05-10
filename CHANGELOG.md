@@ -4,52 +4,52 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
-0.9 lands per-provider rollups, an experimental opt-in reconciliation
-side mode kept fully out of the core code path, and proactive
-`stream_options.include_usage` injection for OpenAI / OpenAI-compatible
-streaming. Existing installs need a migration; see
+0.9 adds per-provider rollups, opt-in provider invoice reconciliation, and
+proactive `stream_options.include_usage` injection for OpenAI and
+OpenAI-compatible streaming. Existing installs need a migration — see
 [Upgrading](docs/upgrading.md).
 
 ### Added
 
-- **Experimental:** opt-in provider invoice reconciliation. Two opt-ins required (`config.reconciliation_enabled = true` plus `bin/rails generate llm_cost_tracker:reconciliation`); admin/org-level provider keys, separate security plane, isolated from runtime tracking. See [Configuration](docs/configuration.md#reconciliation-experimental-opt-in).
-- `Doctor::InvoiceReconciliationCheck` warns on reconciliation drift past 5% or stale imports older than 14 days.
-- Dashboard Data Quality page now includes a "Streaming health by provider" breakdown — streams, with-usage, unknown, and unknown share per provider — so a misconfigured OpenAI-compatible host that ships streams without `stream_options.include_usage` is visible at a glance.
-- Dashboard tag detail page now drills into a single value via `?value=…`. Renders total cost, call count, average per call, and a daily spend timeseries for that tag value; the breakdown table exposes a "Trend" link per row.
+- **Experimental:** opt-in provider invoice reconciliation. Two opt-ins required (`config.reconciliation_enabled = true` plus `bin/rails generate llm_cost_tracker:reconciliation`). Public surface: `LlmCostTracker::Reconciliation.import / .diff / .enabled?`, `config.register_reconciliation_importer(:source) { … }`, rake tasks `llm_cost_tracker:reconcile:import` and `:reconcile:diff`, new optional table `llm_cost_tracker_provider_invoice_imports`. See [Configuration](docs/configuration.md#reconciliation-experimental-opt-in).
+- `Doctor::InvoiceReconciliationCheck` warns when reconciliation drift exceeds 5% or imports go stale past 14 days.
+- Dashboard Data Quality page shows a "Streaming health by provider" breakdown (streams, with-usage, unknown, unknown share) so a misconfigured OpenAI-compatible host shipping streams without `stream_options.include_usage` is visible at a glance.
+- Dashboard tag detail page drills into a single value via `?value=…` with total cost, call count, average per call, and a daily spend timeseries; the breakdown table exposes a "Trend" link per row.
+- Anthropic `web_fetch_request` server tool is recorded as a billable line item in both Faraday and SDK paths, with a matching bundled rate.
 
 ### Fixed
 
-- Tracker now writes to the durable inbox **before** firing `ActiveSupport::Notifications.instrument`. Previously a raising subscriber would crash the call before the event reached the inbox, silently losing the record. Subscriber failures are now caught and logged; the event still persists.
-- `Tracker.cost_with_service_lines` no longer mixes currencies into the header `total_cost`. Service line items in a currency that does not match the header pricing snapshot are excluded from the header total and a warning is logged. Per-line costs are still recorded with their original currency.
-- `bin/rails llm_cost_tracker:setup` no longer fails with `Missing Thor class for invoke llm_cost_tracker:prices`. The install generator now invokes `PricesGenerator` by class instead of by Thor namespace shortcut.
-- `Capture::StreamCollector#finish!` is now retry-safe. Previously the collector flipped to `finished` before `Tracker.record` ran; if the record raised, a follow-up `finish!` returned silently and the stream event was lost. The collector now claims a "recording" slot, releases it on raise so a retry can persist the event, and only marks itself finished after `Tracker.record` returns.
-- `Pricing::Lookup` invalidates its cached price tables when `prices_file`'s mtime changes. Previously the lookup-level cache shadowed the registry's mtime-aware reload — editing `prices_file` left old rates active until the gem was reloaded.
-- `Pricing.normalize_mode` now treats Symbol input through the same `tr("-", "_")` path as String input. `:"standard-only"` no longer slips past `STANDARD_MODE_VALUES` and forces a known model into unknown pricing.
-- Reconciliation `Diff` now builds period boundaries with explicit `Time.utc(…)` instead of `Date#to_time.utc`, so app servers in non-UTC timezones (e.g. Europe/Kiev) no longer shift the diff window by their local offset.
-- Reconciliation `Diff` provider total now sums only invoice rows fully contained in the diff window. Previously a partially overlapping invoice (e.g. a full-month bill on a half-month window) was counted at its full `billed_amount`.
-- Dashboard filters now apply the default 30-day range when `from`/`to` params are missing. The filter form already showed the default visually; backend behavior now matches.
-- `provider_api_key_id` and `provider_workspace_id` are masked on the call detail page and CSV export, mirroring the existing reconciliation drill-down behavior. The shared masking helper moved to `LlmCostTracker::Masking` (with `Reconciliation::Masking` kept as an alias).
-- Stream pricing modes captured from in-stream events now win over the request-level pricing mode when recording, so message-level `service_tier` / `inference_geo` from Anthropic SDK streams reach the ledger.
-- Schema guards now check `created_at` on `llm_cost_tracker_call_line_items`, `created_at` + `updated_at` on `llm_cost_tracker_call_rollups`, and the ingestion inbox / lease tables. Doctor and the inbox write-path catch drift before the first row is inserted instead of failing at runtime.
-- Service-charge rows on the call detail page and Data Quality dashboard now render `n/a` instead of `$0.00` when `cost_status` is `unknown`, so unpriced charges don't masquerade as zero-cost.
-- RubyLLM SDK integration now also records `Provider#paint` and `Provider#moderate` calls. Image generation events read tokens from the `Image#usage` hash when present and are recorded with zero tokens otherwise (cost stays `unknown` until the image-pricing schema lands). Moderation calls are recorded as zero-token events for visibility.
-- Enabling `:ruby_llm` together with `:openai` / `:anthropic` now logs a warning at install — RubyLLM uses HTTP underneath, so calls routed to those providers would otherwise be recorded twice (once via the SDK patch, once via the Faraday parser). Pick one path per provider.
-
-### Documentation
-
-- `docs/budgets.md` and `docs/technical/operational-notes.md` updated to reference the current `(period, period_start, currency, provider)` rollup unique index.
-- `docs/dashboard.md` documents the manual mount step under host-app authentication, matching the install generator's new behavior.
+- Tracker writes to the durable inbox before firing `ActiveSupport::Notifications.instrument`. A raising subscriber no longer crashes the call before the event is persisted; subscriber failures are caught and logged.
+- Header `total_cost` no longer mixes currencies. Service line items in a currency that doesn't match the header pricing snapshot are excluded from the header total (with a warning logged); per-line costs keep their original currency.
+- Budget reads sum across all rollup currencies instead of being silently scoped to USD-only rows, so non-USD pricing snapshots reach guardrail checks.
+- `bin/rails llm_cost_tracker:setup` no longer fails with `Missing Thor class for invoke llm_cost_tracker:prices`. The task is now idempotent on re-runs and surfaces a friendly error when the database is unreachable.
+- Stream events are no longer lost when `Tracker.record` raises during stream finalization. The collector clears the recording slot in an `ensure` block so retries (including those triggered by `Thread#kill` / `Timeout::Error` / signal-driven raises) persist on the next `finish!`. `StreamTracker` mirrors the same retry semantics.
+- Streams that are wrapped but never iterated to completion now emit a usage event via an `ObjectSpace` finalizer instead of disappearing silently.
+- Faraday-side stream overflow now keeps the buffer accumulated up to the limit (matching `StreamCollector` behaviour) rather than dropping all events on overflow.
+- Edits to `config.prices_file` are picked up without a gem reload — the lookup cache invalidates on file mtime changes. The lookup cache is now bounded to prevent unbounded growth from user-supplied model strings.
+- `Pricing::Sync.refresh` preserves models flagged with `_source: "manual"` in the local file, so locally curated rates survive subsequent remote refreshes.
+- `Pricing.normalize_mode` treats Symbol input the same as String input. `:"standard-only"` no longer slips past `STANDARD_MODE_VALUES` and forces a known model into unknown pricing.
+- Anthropic SDK integration only marks a call as `data_residency` when `inference_geo == "eu"` (the documented +10% surcharge tier), removing a false positive on unrelated US-region inference.
+- Reconciliation diff windows are anchored in UTC. App servers in non-UTC timezones (e.g. Europe/Kiev) no longer skew the window by their local offset.
+- Reconciliation provider totals sum only invoices fully contained in the diff window. Partially overlapping invoices (e.g. a full-month bill on a half-month window) are no longer counted at their full `billed_amount`.
+- Reconciliation import errors are no longer echoed verbatim into the dashboard flash. The full exception is logged; the alert shows the exception class only.
+- Dashboard filters apply the default 30-day range when `from`/`to` params are missing; backend behavior now matches the form's visual default.
+- `provider_api_key_id` and `provider_workspace_id` are masked on the call detail page and CSV export, matching the existing reconciliation drill-down.
+- Pricing modes captured from in-stream events win over the request-level mode when recording, so message-level `service_tier` / `inference_geo` from Anthropic SDK streams reach the ledger.
+- Doctor catches schema drift on `created_at` (line items), `created_at` + `updated_at` (rollups), and the ingestion inbox / lease tables before the first row is inserted. Schema checks for `call_line_items` and `call_tags` now also verify required indexes and the `ON DELETE CASCADE` foreign key.
+- Service-charge rows render `n/a` instead of `$0.00` when `cost_status` is `unknown`, so unpriced charges don't masquerade as zero-cost.
+- OpenAI SDK integration now also patches `Embeddings#create`, `Images#generate` / `#edit` / `#create_variation`, `Audio::Transcriptions#create`, `Audio::Speech#create`, `Moderations#create`, and `Chat::Completions#stream`. Token-bearing calls record real usage; calls without a `usage` field record zero-token visibility events.
+- RubyLLM SDK integration also records `Provider#paint` and `Provider#moderate`. Image events read tokens from `Image#usage` when present and stay zero-token otherwise (cost stays `unknown` until image pricing lands). Moderation calls are recorded as zero-token visibility events.
+- Enabling `:ruby_llm` together with `:openai` / `:anthropic` logs a warning at install — RubyLLM routes through HTTP, so calls to those providers would otherwise be double-counted (once via SDK patch, once via Faraday parser). Pick one path per provider.
 
 ### Changed
 
-- BREAKING: `bin/rails generate llm_cost_tracker:install --dashboard` no longer writes a `mount LlmCostTracker::Engine => "/llm-costs"` line into `config/routes.rb`. The CLI now prints the recommended snippet wrapped in your auth (e.g. `authenticate :admin do ... end`); leaving the dashboard auto-mounted without auth would expose spend, tags, and provider IDs to anyone who can reach the host. Add the route manually under your authentication block.
+- BREAKING: `bin/rails generate llm_cost_tracker:install --dashboard` no longer writes the `mount LlmCostTracker::Engine` line into `config/routes.rb`. The CLI prints the snippet wrapped in your auth instead — leaving the dashboard auto-mounted without auth would expose spend, tags, and provider IDs to anyone who can reach the host. Add the route under your authentication block.
 - BREAKING: `llm_cost_tracker_call_rollups` gains a `provider` column; unique index moves from `(period, period_start, currency)` to `(period, period_start, currency, provider)`. See [Upgrading](docs/upgrading.md).
-- BREAKING: `Ledger::Rollups.decrement!` now expects a 5-tuple `[id, tracked_at, total_cost, pricing_snapshot, provider]`. Direct callers outside the gem need to update their tuple shape; mismatched calls silently bucket into `provider = ""`.
-- Faraday middleware auto-injects `stream_options: { include_usage: true }` on OpenAI / OpenAI-compatible chat-completions streaming requests when the caller has not set it. Explicit caller values are preserved. Disable with `config.auto_enable_stream_usage = false`.
-- OpenAI-compatible chat-completions streams without a final usage chunk now log a warning instead of going silently into `usage_source: "unknown"`.
-- `Tags::Sanitizer` redacts tag values matching known secret patterns (OpenAI, Anthropic, GitHub, AWS access key id, JWT, `Bearer …`) regardless of the tag key.
-- `Billing::Component` carries an explicit `rate_basis` enum (`per_million_tokens`, `per_request`, `per_1k_requests`, `per_session`, `per_hour`, `per_gb_day`); `Pricing::ServiceCharges` derives quantity from it instead of the prior `unit == :request` heuristic.
-- `Pricing::Mode` value object normalizes `pricing_mode:` inputs into a sorted modifier set internally; public string/symbol API is unchanged.
+- Faraday middleware auto-injects `stream_options: { include_usage: true }` on OpenAI and OpenAI-compatible chat-completions streaming requests when the caller hasn't set it. Explicit values are preserved. Disable with `config.auto_enable_stream_usage = false`.
+- OpenAI-compatible chat-completions streams without a final usage chunk log a warning instead of recording silently as `usage_source: "unknown"`.
+- `Tags::Sanitizer` redacts tag values matching known secret patterns (OpenAI / Anthropic, GitHub, AWS access key id, JWT, Slack, Stripe, Google API key, `Bearer …`) regardless of the tag key. Patterns now recurse into nested Hash and Array leaves; on tag-count overflow the most recently added tags win (innermost `with_tags` block) instead of being dropped first. `Tags::Context` also sanitises secrets at block entry so raw values never reach `ActiveSupport::Notifications` subscribers, the Faraday request env, or the in-flight stream collector.
+- Engine dashboard adds CSRF protection on the reconciliation import endpoint, sets `Cache-Control: no-store` on CSV exports, registers `tag` / `tag_value` in `config.filter_parameters` so URL-supplied tag values stop landing in Rails request logs, and emits `X-Frame-Options: DENY` / `Referrer-Policy: same-origin` / a baseline `Content-Security-Policy` header on every dashboard response. The CSV export now streams via `find_each` instead of buffering the full result set in memory.
 
 ## [0.8.0] - 2026-05-07
 

@@ -30,6 +30,11 @@ module LlmCostTracker
           created_at
         ].freeze
 
+        REQUIRED_INDEX_COLUMNS = [
+          %w[llm_cost_tracker_call_id position],
+          %w[kind]
+        ].freeze
+
         class << self
           def current_schema_errors
             connection = LlmCostTracker::Call.connection
@@ -42,7 +47,30 @@ module LlmCostTracker
             missing = REQUIRED_COLUMNS - columns.keys
             errors << "missing columns: #{missing.join(', ')}" if missing.any?
             errors.concat(Adapter.json_column_errors(columns["details"], connection, "details"))
-            errors
+            errors.concat(missing_index_errors(connection, table_name))
+            errors << missing_fk_error(connection, table_name) if missing_fk?(connection, table_name)
+            errors.compact
+          end
+
+          def missing_index_errors(connection, table_name)
+            existing = connection.indexes(table_name).map { |index| Array(index.columns).map(&:to_s) }
+            REQUIRED_INDEX_COLUMNS.filter_map do |required|
+              next if existing.any? { |columns| columns == required }
+
+              "missing index on (#{required.join(', ')})"
+            end
+          end
+
+          def missing_fk?(connection, table_name)
+            connection.foreign_keys(table_name).none? do |fk|
+              fk.column.to_s == "llm_cost_tracker_call_id" && fk.options[:on_delete] == :cascade
+            end
+          rescue NotImplementedError, NoMethodError
+            false
+          end
+
+          def missing_fk_error(_connection, _table_name)
+            "missing foreign key on llm_cost_tracker_call_id with on_delete: :cascade"
           end
         end
       end

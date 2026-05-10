@@ -9,12 +9,15 @@ module LlmCostTracker
       REDACTED_VALUE = "[REDACTED]"
 
       SECRET_VALUE_PATTERNS = [
-        /\Ask-(?:ant-|admin-|proj-|live-|test-)?[A-Za-z0-9_-]{16,}\z/,
+        /\Ask-(?:ant-|admin-|proj-|svcacct-|live-|test-)?[A-Za-z0-9_-]{16,}\z/,
         /\AAKIA[0-9A-Z]{16}\z/,
         /\Agh[opsur]_[A-Za-z0-9]{16,}\z/,
         /\Agithub_pat_[A-Za-z0-9_]{20,}\z/,
         /\Aeyj[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\z/i,
-        /\Abearer\s+[A-Za-z0-9_.-]{20,}\z/i
+        /\Abearer\s+[A-Za-z0-9_.-]{20,}\z/i,
+        /\Axox[abprs]-[A-Za-z0-9-]{10,}\z/,
+        /\A(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{20,}\z/,
+        /\AAIza[0-9A-Za-z_-]{35}\z/
       ].freeze
       private_constant :SECRET_VALUE_PATTERNS
 
@@ -23,7 +26,8 @@ module LlmCostTracker
           tags = (tags || {}).to_h
           redacted = Array(config.redacted_tag_keys).map { |key| normalized_key(key) }
           limit = [config.max_tag_value_bytesize.to_i, 0].max
-          tags.first([config.max_tag_count.to_i, 0].max).each_with_object({}) do |(key, value), sanitized|
+          max_count = [config.max_tag_count.to_i, 0].max
+          tags.to_a.last(max_count).each_with_object({}) do |(key, value), sanitized|
             sanitized[key] = sanitized_value(key, value, redacted, limit)
           end
         end
@@ -33,14 +37,50 @@ module LlmCostTracker
         def sanitized_value(key, value, redacted, limit)
           return REDACTED_VALUE if redacted_key?(key, redacted)
 
-          string = value_string(value)
-          return REDACTED_VALUE if secret_shaped?(string)
-          return value if string.bytesize <= limit
+          truncated = scalar_truncate(value, limit)
+          recursed = scrub_secrets(truncated)
+          return REDACTED_VALUE if recursed.equal?(REDACTED_SENTINEL)
 
-          string.byteslice(0, limit).encode("UTF-8", invalid: :replace, undef: :replace)
+          recursed
+        end
+
+        REDACTED_SENTINEL = Object.new.freeze
+        private_constant :REDACTED_SENTINEL
+
+        def scalar_truncate(value, limit)
+          case value
+          when Hash
+            value.transform_values { |nested| scalar_truncate(nested, limit) }
+          when Array
+            value.map { |nested| scalar_truncate(nested, limit) }
+          else
+            string = value.to_s
+            return value if string.bytesize <= limit
+
+            string.byteslice(0, limit).encode("UTF-8", invalid: :replace, undef: :replace)
+          end
+        end
+
+        def scrub_secrets(value)
+          case value
+          when Hash
+            value.each_with_object({}) do |(key, nested), out|
+              scrubbed = scrub_secrets(nested)
+              out[key] = scrubbed.equal?(REDACTED_SENTINEL) ? REDACTED_VALUE : scrubbed
+            end
+          when Array
+            value.map do |nested|
+              scrubbed = scrub_secrets(nested)
+              scrubbed.equal?(REDACTED_SENTINEL) ? REDACTED_VALUE : scrubbed
+            end
+          else
+            secret_shaped?(value.to_s) ? REDACTED_SENTINEL : value
+          end
         end
 
         def secret_shaped?(string)
+          return false if string.bytesize < 16
+
           SECRET_VALUE_PATTERNS.any? { |pattern| pattern.match?(string) }
         end
 

@@ -7,6 +7,7 @@ module LlmCostTracker
       MUTEX = Mutex.new
       CACHE_MISS = Object.new.freeze
       NO_MATCH = Object.new.freeze
+      LOOKUP_CACHE_LIMIT = 2_048
 
       class << self
         def call(provider:, model:)
@@ -102,6 +103,7 @@ module LlmCostTracker
         def cache_lookup(cache_key, match)
           MUTEX.synchronize do
             values = (@lookup_cache || {}).dup
+            values.shift while values.size >= LOOKUP_CACHE_LIMIT
             values[cache_key] = match || NO_MATCH
             @lookup_cache = values.freeze
           end

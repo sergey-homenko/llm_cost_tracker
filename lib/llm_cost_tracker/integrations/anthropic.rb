@@ -66,6 +66,8 @@ module LlmCostTracker
           [
             line_item_for_server_tool(server_tool_use, :web_search_request, :web_search_requests,
                                       "usage.server_tool_use.web_search_requests"),
+            line_item_for_server_tool(server_tool_use, :web_fetch_request, :web_fetch_requests,
+                                      "usage.server_tool_use.web_fetch_requests"),
             line_item_for_server_tool(server_tool_use, :code_execution_request, :code_execution_requests,
                                       "usage.server_tool_use.code_execution_requests")
           ].compact
@@ -108,6 +110,8 @@ module LlmCostTracker
           )
         end
 
+        DATA_RESIDENCY_GEOS = %w[eu].freeze
+
         def pricing_mode(message:, request:, usage:)
           modes = [
             Pricing.normalize_mode(object_value(usage, :speed) || object_value(message, :speed) || request[:speed]),
@@ -115,7 +119,8 @@ module LlmCostTracker
               object_value(usage, :service_tier) || object_value(message, :service_tier) || request[:service_tier]
             )
           ]
-          modes << "data_residency" if inference_geo(message: message, request: request, usage: usage).to_s == "us"
+          geo = inference_geo(message: message, request: request, usage: usage).to_s.downcase
+          modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(geo)
           modes = modes.compact.uniq
           modes.empty? ? nil : modes.join("_")
         end

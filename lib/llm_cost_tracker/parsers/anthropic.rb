@@ -61,6 +61,9 @@ module LlmCostTracker
         end
       end
 
+      DATA_RESIDENCY_GEOS = %w[eu].freeze
+      private_constant :DATA_RESIDENCY_GEOS
+
       private
 
       def stream_usage(events)
@@ -102,6 +105,11 @@ module LlmCostTracker
             component_key: :web_search_request,
             quantity: server_tool_use["web_search_requests"],
             provider_field: "usage.server_tool_use.web_search_requests"
+          ),
+          service_line_item(
+            component_key: :web_fetch_request,
+            quantity: server_tool_use["web_fetch_requests"],
+            provider_field: "usage.server_tool_use.web_fetch_requests"
           ),
           service_line_item(
             component_key: :code_execution_request,
@@ -167,7 +175,8 @@ module LlmCostTracker
 
         modes << Pricing.normalize_mode(speed)
         modes << Pricing.normalize_mode(service_tier)
-        modes << "data_residency" if inference_geo(request: request, response: response, usage: usage) == "us"
+        geo = inference_geo(request: request, response: response, usage: usage).downcase
+        modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(geo)
 
         modes = modes.compact.uniq
         modes.empty? ? nil : modes.join("_")

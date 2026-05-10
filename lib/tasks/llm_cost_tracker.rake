@@ -10,8 +10,15 @@ require_relative "../llm_cost_tracker/pricing/sync_change_printer"
 namespace :llm_cost_tracker do
   desc "Install LLM Cost Tracker with dashboard and prices, migrate, and run doctor"
   task :setup do
-    Rails::Generators.invoke("llm_cost_tracker:install", %w[--dashboard --prices])
-    Rake::Task["db:migrate"].invoke
+    Rails::Generators.invoke("llm_cost_tracker:install", %w[--dashboard --prices --skip])
+    begin
+      Rake::Task["db:migrate"].invoke
+    rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished => e
+      abort(
+        "llm_cost_tracker: database is not reachable (#{e.class}). " \
+        "Start your database, run 'rails db:create db:migrate', then re-run 'rails llm_cost_tracker:setup'."
+      )
+    end
     Rake::Task["llm_cost_tracker:doctor"].invoke
   end
 

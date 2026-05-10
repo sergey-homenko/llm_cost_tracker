@@ -117,21 +117,13 @@ module LlmCostTracker
       end
 
       def parse_stream(parser:, request_url:, request_body:, response_env:, stream_buffer:)
-        if stream_buffer&.dig(:overflowed)
-          Logging.warn(capture_warning(request_url, stream_buffer))
-          return parser.parse_stream(
-            request_url: request_url,
-            request_body: request_body,
-            response_status: response_env.status,
-            response_headers: response_env.response_headers
-          )
-        end
+        Logging.warn(capture_warning(request_url, stream_buffer)) if stream_buffer&.dig(:overflowed)
 
         body = stream_buffer&.dig(:buffer)&.string
         body = read_body(response_env.body) if body.blank?
 
         if body.blank?
-          Logging.warn(capture_warning(request_url, stream_buffer))
+          Logging.warn(capture_warning(request_url, stream_buffer)) unless stream_buffer&.dig(:overflowed)
           return parser.parse_stream(
             request_url: request_url,
             request_body: request_body,
@@ -160,14 +152,14 @@ module LlmCostTracker
         state = { buffer: StringIO.new, bytes: 0, overflowed: false }
         request.on_data = proc do |chunk, size, env|
           chunk = chunk.to_s
-          unless state[:overflowed]
-            if state[:bytes] + chunk.bytesize <= Capture::Stream::LIMIT_BYTES
-              state[:buffer] << chunk
-              state[:bytes] += chunk.bytesize
-            else
-              state[:overflowed] = true
-              state[:buffer] = nil
-            end
+          remaining = Capture::Stream::LIMIT_BYTES - state[:bytes]
+          if chunk.bytesize <= remaining
+            state[:buffer] << chunk
+            state[:bytes] += chunk.bytesize
+          else
+            state[:buffer] << chunk.byteslice(0, remaining) if remaining.positive?
+            state[:bytes] += [remaining, 0].max
+            state[:overflowed] = true
           end
           original.call(chunk, size, env)
         end

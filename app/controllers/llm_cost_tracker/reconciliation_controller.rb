@@ -38,7 +38,9 @@ module LlmCostTracker
                 end
       redirect_to reconciliation_path, notice: message
     rescue StandardError => e
-      redirect_to reconciliation_path, alert: "Import failed: #{e.message}"
+      LlmCostTracker::Logging.warn("Reconciliation import failed for #{source}: #{e.class}: #{e.message}")
+      redirect_to reconciliation_path,
+                  alert: "Import failed (#{e.class.name}); see Rails logs for details."
     end
 
     private
