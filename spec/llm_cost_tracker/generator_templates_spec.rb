@@ -11,6 +11,7 @@ require "llm_cost_tracker/pricing/registry"
 require "llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/reconciliation_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_rollups_provider_generator"
 
 RSpec.describe "generator templates" do
   let(:migration_version) { "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]" }
@@ -150,6 +151,45 @@ RSpec.describe "generator templates" do
       expect(migration).to include("create_table :llm_cost_tracker_provider_invoice_imports")
       expect(migration).to include("add_index :llm_cost_tracker_provider_invoices, :external_id")
       expect(migration).to include("add_index :llm_cost_tracker_provider_invoice_imports, [:source, :started_at]")
+    end
+  end
+
+  describe "upgrade_call_rollups_provider generator" do
+    it "writes a guarded provider-column migration" do
+      Dir.mktmpdir do |dir|
+        LlmCostTracker::Generators::UpgradeCallRollupsProviderGenerator.start([], destination_root: dir)
+
+        migration_path = Dir[
+          File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_call_rollups_provider.rb")
+        ].first
+        expect(migration_path).not_to be_nil
+
+        migration = File.read(migration_path)
+        expect(migration).to include("class UpgradeLlmCostTrackerCallRollupsProvider")
+        expect(migration).to include('add_column TABLE, :provider, :string, null: false, default: ""')
+        expect(migration).to include("unless column_exists?(TABLE, :provider)")
+        expect(migration).to include("remove_index TABLE, column: OLD_INDEX, unique: true")
+        expect(migration).to include("if index_exists?(TABLE, OLD_INDEX, unique: true)")
+        expect(migration).to include("add_index TABLE, NEW_INDEX, unique: true")
+        expect(migration).to include("unless index_exists?(TABLE, NEW_INDEX, unique: true)")
+        expect(migration).to include("OLD_INDEX = %i[period period_start currency].freeze")
+        expect(migration).to include("NEW_INDEX = %i[period period_start currency provider].freeze")
+        expect(migration).to include("def up")
+        expect(migration).to include("def down")
+      end
+    end
+
+    it "is safe to run twice without writing duplicate migrations" do
+      Dir.mktmpdir do |dir|
+        2.times do
+          LlmCostTracker::Generators::UpgradeCallRollupsProviderGenerator.start([], destination_root: dir)
+        end
+
+        migrations = Dir[
+          File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_call_rollups_provider.rb")
+        ]
+        expect(migrations.size).to eq(1)
+      end
     end
   end
 

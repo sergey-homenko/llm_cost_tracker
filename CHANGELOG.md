@@ -16,6 +16,7 @@ OpenAI-compatible streaming. Existing installs need a migration — see
 - Dashboard Data Quality page shows a "Streaming health by provider" breakdown (streams, with-usage, unknown, unknown share) so a misconfigured OpenAI-compatible host shipping streams without `stream_options.include_usage` is visible at a glance.
 - Dashboard tag detail page drills into a single value via `?value=…` with total cost, call count, average per call, and a daily spend timeseries; the breakdown table exposes a "Trend" link per row.
 - Anthropic `web_fetch_request` server tool is recorded as a billable line item in both Faraday and SDK paths, with a matching bundled rate.
+- `bin/rails generate llm_cost_tracker:upgrade_call_rollups_provider` writes the v0.8 → v0.9 migration that adds the `provider` column and swaps the unique index. Each step is gated by `column_exists?` / `index_exists?` so the migration is a no-op on already-upgraded schemas.
 
 ### Fixed
 

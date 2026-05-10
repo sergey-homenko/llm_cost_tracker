@@ -15,22 +15,39 @@ invoice reconciliation. Two migrations:
 
 ### Mandatory migration: per-provider rollups
 
-```ruby
-class UpgradeLlmCostTrackerCallRollups < ActiveRecord::Migration[7.1]
-  def change
-    add_column :llm_cost_tracker_call_rollups, :provider, :string,
-               null: false, default: ""
-    remove_index :llm_cost_tracker_call_rollups,
-                 column: %i[period period_start currency], unique: true
-    add_index   :llm_cost_tracker_call_rollups,
-                %i[period period_start currency provider], unique: true
-  end
-end
+Generate the migration:
+
+```bash
+bin/rails generate llm_cost_tracker:upgrade_call_rollups_provider
+bin/rails db:migrate
 ```
+
+Each step in the generated migration is guarded by `column_exists?` /
+`index_exists?`, so re-running it on an already-upgraded schema is a
+no-op.
 
 There is no rolling-deploy hazard — old code reads/writes rollups with
 `provider = ""` and new code reads/writes per-provider rollups; both
 coexist in the table.
+
+If your install accumulated duplicate rollup rows under the old
+`(period, period_start, currency)` constraint, the new unique index
+will fail to apply. Dedupe before running the migration:
+
+```sql
+DELETE FROM llm_cost_tracker_call_rollups
+WHERE id IN (
+  SELECT id
+  FROM (
+    SELECT id, ROW_NUMBER() OVER (
+      PARTITION BY period, period_start, currency, provider
+      ORDER BY total_cost DESC, id DESC
+    ) AS rn
+    FROM llm_cost_tracker_call_rollups
+  ) rollup_dupes
+  WHERE rn > 1
+);
+```
 
 ### Optional migration: invoice reconciliation
 
@@ -81,25 +98,6 @@ end
 Existing rollup rows keep `provider = ""` (legacy bucket); v0.9-tracked
 calls write rollups per-provider. Reconciliation diffs only read the
 per-provider rollups, so legacy rows do not pollute fast-path totals.
-
-If the new unique-index step fails because your install accumulated
-duplicate rollup rows under the old `(period, period_start, currency)`
-constraint, dedupe before re-running the migration:
-
-```sql
-DELETE FROM llm_cost_tracker_call_rollups
-WHERE id IN (
-  SELECT id
-  FROM (
-    SELECT id, ROW_NUMBER() OVER (
-      PARTITION BY period, period_start, currency, provider
-      ORDER BY total_cost DESC, id DESC
-    ) AS rn
-    FROM llm_cost_tracker_call_rollups
-  ) rollup_dupes
-  WHERE rn > 1
-);
-```
 
 ### Re-import dashboard button
 
