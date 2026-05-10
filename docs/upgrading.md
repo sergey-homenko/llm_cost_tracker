@@ -141,6 +141,32 @@ Existing rollup rows keep `provider = ""` (legacy bucket); v0.9-tracked
 calls write rollups per-provider. Reconciliation diffs only read the
 per-provider rollups, so legacy rows do not pollute fast-path totals.
 
+### Reconciliation `provider:` is required for unmapped sources
+
+Pre-0.9 `Reconciliation.import` / `.diff` silently summed local calls
+across every provider when the `source` was anything other than
+`openai` / `anthropic` / `gemini`. v0.9 derives the provider from a
+small built-in mapping (`openai`, `openai_usage`, `anthropic`,
+`anthropic_usage`, `gemini`) and requires an explicit `provider:` for
+everything else. Update existing call sites:
+
+```ruby
+LlmCostTracker::Reconciliation.import(source: :csv, provider: :openai, rows: rows)
+LlmCostTracker::Reconciliation.diff(source: :csv, provider: :openai,
+                                    period_start: ..., period_end: ...)
+```
+
+Rake tasks accept `PROVIDER=`:
+
+```bash
+bin/rails llm_cost_tracker:reconcile:import SOURCE=csv PROVIDER=openai INPUT=invoice.json
+```
+
+Imports already in the database are recovered transparently — Doctor
+and the dashboard read `metadata["provider"]` from the most recent
+invoice for a source when no explicit provider is supplied. New
+imports always write `metadata["provider"]`.
+
 ### Re-import dashboard button
 
 `LlmCostTracker.configuration.reconciliation_importers` accepts callables

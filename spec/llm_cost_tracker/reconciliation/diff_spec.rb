@@ -15,10 +15,11 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
     { row_type: "cost", meter: "tokens", authority: "cost_api", match_basis: "period_only" }
   end
 
-  def import_invoice(external_id:, billed_amount:, source: "openai", currency: "USD",
+  def import_invoice(external_id:, billed_amount:, source: "openai", provider: nil, currency: "USD",
                      period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31), metadata: nil)
     LlmCostTracker::Reconciliation.import(
       source: source,
+      provider: provider,
       rows: [{
         external_id: external_id,
         period_start: period_start,
@@ -119,7 +120,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
     it "uses JSON_UNQUOTE-aware row_type filter on MySQL adapters" do
       allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).and_return(false)
       diff_instance = LlmCostTracker::Reconciliation::Diff.new(
-        source: :openai, period_start: period_start, period_end: period_end
+        source: :openai, provider: "openai", period_start: period_start, period_end: period_end
       )
 
       sql = diff_instance.send(:scoped_invoices_relation_for, :cost).to_sql
@@ -131,12 +132,13 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       import_invoice(
         external_id: "line-item-row",
         source: "csv",
+        provider: "openai",
         billed_amount: "1.00",
         metadata: { match_basis: "line_item", description: "tools" }
       )
 
       result = LlmCostTracker::Reconciliation.diff(
-        source: :csv, period_start: period_start, period_end: period_end
+        source: :csv, provider: "openai", period_start: period_start, period_end: period_end
       )
 
       expect(result.unmatched_provider_rows).to be_empty
@@ -146,6 +148,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).and_return(false)
       diff_instance = LlmCostTracker::Reconciliation::Diff.new(
         source: :openai,
+        provider: "openai",
         period_start: period_start,
         period_end: period_end,
         scope: { provider_project_id: "proj_a" }
@@ -304,11 +307,12 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
         external_id: "inferred-basis",
         billed_amount: "12.00",
         source: "csv",
+        provider: "openai",
         metadata: { provider_project_id: "proj_inferred" }
       )
 
       result = LlmCostTracker::Reconciliation.diff(
-        source: :csv, period_start: period_start, period_end: period_end
+        source: :csv, provider: "openai", period_start: period_start, period_end: period_end
       )
 
       expect(result.unmatched_provider_rows.first[:match_basis]).to eq("project")
@@ -466,16 +470,44 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.local_total).to eq(BigDecimal("10.00"))
     end
 
-    it "leaves local calls unfiltered when source has no documented provider mapping" do
-      import_invoice(external_id: "csv-row", billed_amount: "20.00", source: "csv")
+    it "filters by the explicit provider passed alongside an unmapped source" do
+      import_invoice(external_id: "csv-row", billed_amount: "20.00", source: "csv", provider: "openai")
       create_priced_call(total_cost: BigDecimal("12.00"), provider: "openai")
       create_priced_call(total_cost: BigDecimal("8.00"), provider: "anthropic")
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :csv, provider: "openai", period_start: period_start, period_end: period_end
+      )
+
+      expect(result.local_total).to eq(BigDecimal("12.00"))
+    end
+
+    it "raises when an unmapped source is used without an explicit provider" do
+      expect do
+        LlmCostTracker::Reconciliation.diff(
+          source: :csv, period_start: period_start, period_end: period_end
+        )
+      end.to raise_error(ArgumentError, /provider: must be specified/)
+    end
+
+    it "raises when an explicit empty provider is supplied" do
+      expect do
+        LlmCostTracker::Reconciliation.diff(
+          source: :openai, provider: "", period_start: period_start, period_end: period_end
+        )
+      end.to raise_error(ArgumentError, /provider must be present/)
+    end
+
+    it "recovers the provider from a previously imported invoice when not given explicitly" do
+      import_invoice(external_id: "prior-csv", billed_amount: "5.00", source: "csv", provider: "anthropic")
+      create_priced_call(total_cost: BigDecimal("4.00"), provider: "anthropic")
+      create_priced_call(total_cost: BigDecimal("99.00"), provider: "openai")
 
       result = LlmCostTracker::Reconciliation.diff(
         source: :csv, period_start: period_start, period_end: period_end
       )
 
-      expect(result.local_total).to eq(BigDecimal("20.00"))
+      expect(result.local_total).to eq(BigDecimal("4.00"))
     end
 
     it "excludes free_quota and credit rows from the financial provider total" do

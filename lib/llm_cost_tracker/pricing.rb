@@ -55,17 +55,26 @@ module LlmCostTracker
         [cost_from(calculation), snapshot_from(calculation)]
       end
 
+      def calculate(provider:, model:, tokens:, line_items:, pricing_mode: nil)
+        calculation = calculation_for(
+          provider: provider,
+          model: model,
+          tokens: tokens,
+          pricing_mode: pricing_mode
+        )
+        cost_data = calculation && cost_from(calculation)
+        snapshot = calculation && snapshot_from(calculation)
+        priced = apply_calculation_to_line_items(line_items, calculation,
+                                                 provider: provider, pricing_mode: pricing_mode)
+        [cost_data, snapshot, priced]
+      end
+
       def price_line_items(provider:, model:, line_items:, pricing_mode: nil)
         token_usage = TokenUsage.build_from_tokens(token_attributes_from(line_items))
         calculation = calculation_for(provider: provider, model: model, tokens: token_usage, pricing_mode: pricing_mode)
         snapshot = calculation && snapshot_from(calculation)
-
-        priced = line_items.map do |line_item|
-          next price_token_line_item(line_item, calculation) if line_item.unit == :token
-
-          price_service_charge_line_item(line_item, provider: provider, pricing_mode: pricing_mode)
-        end
-
+        priced = apply_calculation_to_line_items(line_items, calculation,
+                                                 provider: provider, pricing_mode: pricing_mode)
         [priced, snapshot]
       end
 
@@ -161,6 +170,14 @@ module LlmCostTracker
         Billing::Components::TOKEN_PRICED.to_h do |component|
           tokens = usage.public_send(component.token_key)
           [component.key, token_cost(tokens, effective[component.key])]
+        end
+      end
+
+      def apply_calculation_to_line_items(line_items, calculation, provider:, pricing_mode:)
+        line_items.map do |line_item|
+          next price_token_line_item(line_item, calculation) if line_item.unit == :token
+
+          price_service_charge_line_item(line_item, provider: provider, pricing_mode: pricing_mode)
         end
       end
 

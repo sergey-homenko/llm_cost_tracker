@@ -14,13 +14,15 @@ module LlmCostTracker
       FORGIVING_METADATA_SOURCES = %i[csv].to_set.freeze
       ENVELOPE_KEYS = %w[row_type meter authority match_basis].freeze
 
-      def initialize(source:, imported_at:, window: nil, strict_metadata: nil, cursor: nil)
+      def initialize(source:, imported_at:, provider:, window: nil, strict_metadata: nil, cursor: nil)
         @source = source.to_s
+        @provider = provider.to_s
         @imported_at = imported_at
         @window = coerce_window(window)
         @cursor = cursor
         @strict_metadata = strict_metadata.nil? ? !FORGIVING_METADATA_SOURCES.include?(source.to_sym) : strict_metadata
         raise ArgumentError, "source must be present" if @source.empty?
+        raise ArgumentError, "provider must be present" if @provider.empty?
       end
 
       def call(rows)
@@ -38,7 +40,7 @@ module LlmCostTracker
 
       private
 
-      attr_reader :source, :imported_at, :window, :cursor, :strict_metadata
+      attr_reader :source, :provider, :imported_at, :window, :cursor, :strict_metadata
 
       def skippable?(rows)
         (rows.nil? || rows.empty?) && cursor.nil?
@@ -165,9 +167,18 @@ module LlmCostTracker
           period_end: row[:period_end],
           billed_amount: billed_amount,
           currency: (row[:currency] || Ledger::Rollups::DEFAULT_CURRENCY).to_s,
-          metadata: row[:metadata],
+          metadata: metadata_with_provider(row[:metadata]),
           imported_at: imported_at || Time.now.utc
         }
+      end
+
+      def metadata_with_provider(metadata)
+        return { "provider" => provider } if metadata.nil? || metadata.empty?
+
+        existing = metadata["provider"] || metadata[:provider]
+        return metadata if existing.is_a?(String) && !existing.empty?
+
+        metadata.merge("provider" => provider)
       end
 
       def namespaced_external_id(external_id)

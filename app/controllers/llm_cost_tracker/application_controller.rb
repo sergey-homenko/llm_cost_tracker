@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "securerandom"
+
 module LlmCostTracker
   class ApplicationController < ActionController::Base
     layout "llm_cost_tracker/application"
@@ -8,6 +10,8 @@ module LlmCostTracker
 
     before_action :ensure_current_schema
     before_action :set_dashboard_security_headers
+
+    helper_method :dashboard_csp_nonce
 
     rescue_from ActiveRecord::ConnectionNotEstablished, with: :render_database_error
     rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
@@ -104,12 +108,17 @@ module LlmCostTracker
     end
 
     def set_dashboard_security_headers
+      nonce = dashboard_csp_nonce
       response.set_header("X-Frame-Options", "DENY")
       response.set_header("Referrer-Policy", "same-origin")
       response.set_header(
         "Content-Security-Policy",
-        "default-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
+        "default-src 'self'; style-src 'self' 'nonce-#{nonce}'; img-src 'self' data:; frame-ancestors 'none'"
       )
+    end
+
+    def dashboard_csp_nonce
+      request.env["llm_cost_tracker.csp_nonce"] ||= SecureRandom.base64(16)
     end
   end
 end

@@ -98,6 +98,19 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     expect(response.body).to include("vs. prior")
   end
 
+  it "renders a nonce-protected style block instead of CSP-blocked inline style attributes" do
+    LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
+    create_call(total_cost: 3.0, tracked_at: Time.now.utc)
+
+    response = get("/llm-costs")
+
+    csp = response.headers["Content-Security-Policy"]
+    nonce = csp[/style-src 'self' 'nonce-([^']+)'/, 1]
+    expect(nonce).to be_a(String).and(satisfy { |value| !value.empty? })
+    expect(response.body).to match(/<style nonce="#{Regexp.escape(nonce)}"/)
+    expect(response.body).not_to match(/<[^>]+ style="[^"]+"/)
+  end
+
   it "applies overview filters to stats and top models" do
     create_call(
       provider: "openai",

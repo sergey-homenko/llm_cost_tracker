@@ -9,6 +9,7 @@ module LlmCostTracker
       class << self
         def call(usage:, prices:, pricing_mode:)
           context_tier = context_tier?(usage: usage, prices: prices)
+          orderings = pricing_mode && Mode.parse(pricing_mode).permutations
 
           Billing::Components::TOKEN_PRICED.to_h do |component|
             price_key = component.key
@@ -17,7 +18,7 @@ module LlmCostTracker
                       price_for(
                         prices: prices,
                         key: price_key,
-                        pricing_mode: pricing_mode,
+                        orderings: orderings,
                         context_tier: context_tier
                       )
                     else
@@ -29,10 +30,9 @@ module LlmCostTracker
 
         private
 
-        def price_for(prices:, key:, pricing_mode:, context_tier:)
-          return contextual_price(prices: prices, key: key, context_tier: context_tier) unless pricing_mode
+        def price_for(prices:, key:, orderings:, context_tier:)
+          return contextual_price(prices: prices, key: key, context_tier: context_tier) unless orderings
 
-          orderings = mode_orderings_for(pricing_mode)
           orderings.each do |mode|
             direct = contextual_price(prices: prices, key: :"#{mode}_#{key}", context_tier: context_tier)
             return direct if direct
@@ -40,10 +40,6 @@ module LlmCostTracker
           return nil if %i[input output].include?(key)
 
           derived_mode_price(prices: prices, key: key, modes: orderings, context_tier: context_tier)
-        end
-
-        def mode_orderings_for(pricing_mode)
-          Mode.parse(pricing_mode).permutations
         end
 
         def contextual_price(prices:, key:, context_tier:)

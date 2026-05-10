@@ -5,6 +5,7 @@ require "json"
 require_relative "../pricing"
 require_relative "../billing/line_item"
 require_relative "rollups"
+require_relative "tags/encoding"
 
 module LlmCostTracker
   module Ledger
@@ -119,14 +120,11 @@ module LlmCostTracker
         end
 
         def tag_row_value(value)
-          case value
-          when Hash, Array then JSON.generate(stored_tag_value(value))
-          else value.to_s
-          end
+          Tags::Encoding.encode(value)
         end
 
         def stored_details(details)
-          (details || {}).transform_keys(&:to_s).transform_values { |value| stored_tag_value(value) }
+          (details || {}).transform_keys(&:to_s).transform_values { |value| Tags::Encoding.normalize_value(value) }
         end
 
         def insertable_events(events)
@@ -137,14 +135,6 @@ module LlmCostTracker
             event_id = event.event_id
             !existing_ids.include?(event_id) && seen_ids.add?(event_id)
           end
-        end
-
-        def stored_tag_value(value)
-          if value.is_a?(Hash)
-            return value.transform_keys(&:to_s).transform_values { |nested| stored_tag_value(nested) }
-          end
-
-          value.to_s
         end
       end
     end

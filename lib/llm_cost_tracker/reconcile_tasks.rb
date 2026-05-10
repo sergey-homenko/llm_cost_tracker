@@ -37,14 +37,15 @@ module LlmCostTracker
 
       payload = JSON.parse(File.read(input_path))
       rows = parse_rows(source: source, payload: payload)
-      Reconciliation.import(source: source.to_sym, rows: rows)
+      Reconciliation.import(source: source.to_sym, rows: rows, provider: env["PROVIDER"])
     end
 
     def diff_from_env(env: ENV)
       source = required_env(env, "SOURCE")
       period_start = Date.parse(required_env(env, "PERIOD_START"))
       period_end = Date.parse(required_env(env, "PERIOD_END"))
-      Reconciliation.diff(source: source.to_sym, period_start: period_start, period_end: period_end)
+      Reconciliation.diff(source: source.to_sym, period_start: period_start, period_end: period_end,
+                          provider: env["PROVIDER"])
     end
 
     def print_diff(diff, output: $stdout)

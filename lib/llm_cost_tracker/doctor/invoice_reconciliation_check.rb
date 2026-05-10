@@ -16,7 +16,7 @@ module LlmCostTracker
         sources = imported_sources
         return Check.new(:ok, "invoice reconciliation", "no provider invoices imported yet") if sources.empty?
 
-        sources.map { |source| check_source(source) }
+        sources.map { |source| check_source_safely(source) }
       rescue StandardError => e
         Check.new(:error, "invoice reconciliation", e.message)
       end
@@ -33,6 +33,12 @@ module LlmCostTracker
 
       def imported_sources
         LlmCostTracker::ProviderInvoice.distinct.order(:source).pluck(:source)
+      end
+
+      def check_source_safely(source)
+        check_source(source)
+      rescue ArgumentError => e
+        Check.new(:warn, "invoice reconciliation: #{source}", e.message)
       end
 
       def check_source(source)

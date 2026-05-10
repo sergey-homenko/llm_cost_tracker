@@ -128,6 +128,25 @@ RSpec.describe "LlmCostTracker::Engine reconciliation" do
     expect(response.body).to include("provider_project_id=proj_phantom")
   end
 
+  it "renders the dashboard without crashing when a legacy invoice cannot resolve to a provider" do
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    LlmCostTracker::ProviderInvoice.create!(
+      source: "legacy_csv",
+      external_id: "legacy_csv:row",
+      period_start: Date.new(2026, 5, 1),
+      period_end: Date.new(2026, 5, 31),
+      billed_amount: BigDecimal("5.00"),
+      currency: "USD",
+      metadata: {},
+      imported_at: Time.now.utc
+    )
+
+    response = get("/llm-costs/reconciliation")
+
+    expect(response.status).to eq(200)
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(/legacy_csv.*provider/)
+  end
+
   it "exposes a re-import button when an importer is configured for the source" do
     LlmCostTracker.configuration.reconciliation_importers = {
       openai: -> { LlmCostTracker::Reconciliation::ImportResult.empty }

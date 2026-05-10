@@ -32,6 +32,17 @@ RSpec.describe LlmCostTracker::Tracker do
       )
     end
 
+    it "skips ActiveSupport::Notifications.instrument when no subscriber is listening" do
+      ActiveSupport::Notifications.unsubscribe(described_class::EVENT_NAME)
+      expect(ActiveSupport::Notifications).not_to receive(:instrument)
+
+      record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50)
+      )
+    end
+
     it "saves the event to the inbox even when a subscriber raises" do
       allow(LlmCostTracker::Logging).to receive(:warn)
       ActiveSupport::Notifications.subscribe(described_class::EVENT_NAME) do |*, _payload|

@@ -141,6 +141,22 @@ RSpec.describe LlmCostTracker::Reconciliation do
         .to raise_error(ArgumentError, /source must be present/)
     end
 
+    it "rejects an explicit empty provider" do
+      expect { described_class.import(source: :openai, provider: "", rows: rows) }
+        .to raise_error(ArgumentError, /provider must be present/)
+    end
+
+    it "recovers the provider from a JSON-string metadata column on adapters that don't auto-cast JSON" do
+      relation = double("relation")
+      allow(LlmCostTracker::ProviderInvoice).to receive(:where).with(source: "raw_json")
+                                                                .and_return(relation)
+      allow(relation).to receive(:order).with(imported_at: :desc).and_return(relation)
+      allow(relation).to receive(:limit).with(1).and_return(relation)
+      allow(relation).to receive(:pick).with(:metadata).and_return('{"provider":"anthropic"}')
+
+      expect(described_class.resolve_provider(source: "raw_json", provider: nil)).to eq("anthropic")
+    end
+
     it "accepts string-keyed rows" do
       result = described_class.import(
         source: :openai,
@@ -194,6 +210,7 @@ RSpec.describe LlmCostTracker::Reconciliation do
     it "is forgiving about invalid metadata JSON for the generic CSV source" do
       described_class.import(
         source: :csv,
+        provider: "openai",
         rows: [{
           external_id: "garbage-csv",
           period_start: "2026-05-01",
@@ -204,12 +221,13 @@ RSpec.describe LlmCostTracker::Reconciliation do
       )
 
       reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "csv:garbage-csv")
-      expect(reloaded.metadata).to eq({})
+      expect(reloaded.metadata).to eq("provider" => "openai")
     end
 
     it "rejects invalid metadata JSON for novel sources by default so attribution evidence is never silently dropped" do
       result = described_class.import(
         source: :novel_provider,
+        provider: "openai",
         rows: [{
           external_id: "row",
           period_start: "2026-05-01",
@@ -222,9 +240,27 @@ RSpec.describe LlmCostTracker::Reconciliation do
       expect(result.errors.first).to include("invalid metadata JSON")
     end
 
+    it "preserves a row-supplied provider value in metadata over the resolved default" do
+      described_class.import(
+        source: :csv,
+        provider: "openai",
+        rows: [{
+          external_id: "explicit-provider",
+          period_start: "2026-05-01",
+          period_end: "2026-05-31",
+          billed_amount: "1.00",
+          metadata: { "provider" => "anthropic", "row_type" => "cost", "meter" => "tokens",
+                      "authority" => "manual", "match_basis" => "period_only" }
+        }]
+      )
+
+      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "csv:explicit-provider")
+      expect(reloaded.metadata["provider"]).to eq("anthropic")
+    end
+
     it "honours an explicit strict_metadata override over the per-source default" do
       result = LlmCostTracker::Reconciliation::Importer.new(
-        source: :csv, imported_at: Time.now.utc, strict_metadata: true
+        source: :csv, provider: "openai", imported_at: Time.now.utc, strict_metadata: true
       ).call([{
         external_id: "row",
         period_start: "2026-05-01",

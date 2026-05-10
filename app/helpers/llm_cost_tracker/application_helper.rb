@@ -13,6 +13,7 @@ module LlmCostTracker
     include ChartHelper
     include PaginationHelper
     include TokenUsageHelper
+    include InlineStyleHelper
 
     def coverage_percent(numerator, denominator)
       denominator = denominator.to_f

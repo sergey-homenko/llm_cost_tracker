@@ -49,7 +49,8 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
         }.to_json)
         file.flush
 
-        result = described_class.import_from_env(env: { "SOURCE" => "csv", "INPUT" => file.path })
+        result = described_class.import_from_env(env: { "SOURCE" => "csv", "PROVIDER" => "openai",
+                                                         "INPUT" => file.path })
 
         expect(result.inserted).to eq(1)
       end
@@ -225,7 +226,7 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
 
       expect do
         described_class.run_import(
-          env: { "SOURCE" => "csv", "INPUT" => input_file.path },
+          env: { "SOURCE" => "csv", "PROVIDER" => "openai", "INPUT" => input_file.path },
           output: StringIO.new, error_output: errors
         )
       end.to raise_error(/reconcile import had errors/)

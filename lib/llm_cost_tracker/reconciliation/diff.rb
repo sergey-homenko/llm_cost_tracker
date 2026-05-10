@@ -13,11 +13,6 @@ module LlmCostTracker
       ATTRIBUTION_KEYS = (SCOPE_KEYS + [:model]).freeze
       COST_ROW_TYPE = "cost"
       PERIOD_ONLY_BASIS = "period_only"
-      SOURCE_TO_PROVIDER = {
-        "openai" => "openai",
-        "anthropic" => "anthropic",
-        "gemini" => "gemini"
-      }.freeze
       BASIS_DIMENSION = {
         "project" => :provider_project_id,
         "api_key" => :provider_api_key_id,
@@ -25,13 +20,15 @@ module LlmCostTracker
         "model" => :model
       }.freeze
 
-      def initialize(source:, period_start:, period_end:, scope: {}, currency: nil)
+      def initialize(source:, period_start:, period_end:, provider:, scope: {}, currency: nil)
         @source = source.to_s
+        @provider = provider.to_s
         @period_start = parse_date(period_start)
         @period_end = parse_date(period_end)
         @scope = symbolize(scope || {}).slice(*SCOPE_KEYS)
         @currency = (currency || Ledger::Rollups::DEFAULT_CURRENCY).to_s
         raise ArgumentError, "source must be present" if @source.empty?
+        raise ArgumentError, "provider must be present" if @provider.empty?
         raise ArgumentError, "period_end must be on or after period_start" if @period_end < @period_start
       end
 
@@ -64,7 +61,7 @@ module LlmCostTracker
 
       private
 
-      attr_reader :source, :period_start, :period_end, :scope, :currency
+      attr_reader :source, :provider, :period_start, :period_end, :scope, :currency
 
       def scoped_invoices
         scoped_invoices_relation.to_a
@@ -131,7 +128,7 @@ module LlmCostTracker
       end
 
       def rollup_fast_path?
-        scope.empty? && SOURCE_TO_PROVIDER.key?(source) && month_aligned_period? &&
+        scope.empty? && month_aligned_period? &&
           LlmCostTracker.configuration.cache_rollups && LlmCostTracker::CallRollup.table_exists?
       end
 
@@ -140,7 +137,6 @@ module LlmCostTracker
       end
 
       def rollup_total
-        provider = SOURCE_TO_PROVIDER[source]
         cursor = period_start
         buckets = []
         while cursor <= period_end
@@ -157,9 +153,8 @@ module LlmCostTracker
         relation = LlmCostTracker::CallLineItem
                    .joins(:call)
                    .where(llm_cost_tracker_call_line_items: { currency: currency })
-                   .where("#{calls_table}.tracked_at" => window_start..window_end)
-        provider = SOURCE_TO_PROVIDER[source]
-        relation = relation.where("#{calls_table}.provider" => provider) if provider
+                   .where("#{calls_table}.tracked_at" => window_start...window_end)
+                   .where("#{calls_table}.provider" => provider)
         scope.each { |key, value| relation = relation.where("#{calls_table}.#{key}" => value) }
         relation
       end

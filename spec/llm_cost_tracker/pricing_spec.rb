@@ -1072,6 +1072,33 @@ RSpec.describe LlmCostTracker::Pricing do
       end
     end
 
+    it "skips File.mtime probing within the recheck interval" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write({ models: { "ttl-model" => { input: 0.1, output: 0.2 } } }.to_json)
+        file.close
+
+        LlmCostTracker.configure { |config| config.prices_file = file.path }
+        cost_for(provider: "custom", model: "ttl-model", input_tokens: 1_000_000, output_tokens: 0)
+        expect(File).not_to receive(:mtime)
+        cost_for(provider: "custom", model: "ttl-model", input_tokens: 1_000_000, output_tokens: 0)
+      end
+    end
+
+    it "clears the lookup cache when prices_file is dropped from a configured value" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write({ models: { "stale-model" => { input: 1.0, output: 2.0 } } }.to_json)
+        file.close
+
+        LlmCostTracker.configure { |config| config.prices_file = file.path }
+        primed = cost_for(provider: "custom", model: "stale-model", input_tokens: 1_000_000, output_tokens: 0)
+        expect(primed.fetch(:input_cost)).to eq(1.0)
+
+        allow(LlmCostTracker.configuration).to receive(:prices_file).and_return(nil)
+        result = cost_for(provider: "custom", model: "stale-model", input_tokens: 1_000_000, output_tokens: 0)
+        expect(result).to be_nil
+      end
+    end
+
     it "raises a readable error for invalid local price files" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write("{")

@@ -8,6 +8,8 @@ module LlmCostTracker
       CACHE_MISS = Object.new.freeze
       NO_MATCH = Object.new.freeze
       LOOKUP_CACHE_LIMIT = 2_048
+      PRICE_FILE_RECHECK_INTERVAL = 1.0
+      private_constant :PRICE_FILE_RECHECK_INTERVAL
 
       class << self
         def call(provider:, model:)
@@ -28,10 +30,8 @@ module LlmCostTracker
 
         def reset!
           MUTEX.synchronize do
-            @prices_cache = nil
-            @lookup_cache = nil
-            @sorted_price_keys_cache = nil
-            @prices_file_signature = nil
+            reset_prices_caches!(signature: nil)
+            @prices_file_last_check_at = nil
           end
         end
 
@@ -39,15 +39,30 @@ module LlmCostTracker
 
         def invalidate_cache_if_prices_file_changed!
           path = LlmCostTracker.configuration.prices_file
-          signature = path && File.exist?(path) ? File.mtime(path) : nil
-          MUTEX.synchronize do
-            return if @prices_file_signature == signature
 
-            @prices_cache = nil
-            @lookup_cache = nil
-            @sorted_price_keys_cache = nil
-            @prices_file_signature = signature
+          unless path
+            return if @prices_file_signature.nil?
+
+            MUTEX.synchronize { reset_prices_caches!(signature: nil) unless @prices_file_signature.nil? }
+            return
           end
+
+          now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          last_check = @prices_file_last_check_at
+          return if last_check && (now - last_check) < PRICE_FILE_RECHECK_INTERVAL
+
+          signature = File.exist?(path) ? File.mtime(path) : nil
+          MUTEX.synchronize do
+            @prices_file_last_check_at = now
+            reset_prices_caches!(signature: signature) if @prices_file_signature != signature
+          end
+        end
+
+        def reset_prices_caches!(signature:)
+          @prices_cache = nil
+          @lookup_cache = nil
+          @sorted_price_keys_cache = nil
+          @prices_file_signature = signature
         end
 
         def lookup_match(provider_name:, model_name:)

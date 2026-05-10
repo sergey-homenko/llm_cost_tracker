@@ -25,10 +25,11 @@ module LlmCostTracker
         return unless LlmCostTracker.configuration.enabled
 
         pricing_mode = Pricing.normalize_mode(pricing_mode) || capture.pricing_mode
-        cost_data, pricing_snapshot = Pricing.cost_and_snapshot_for(
+        cost_data, pricing_snapshot, priced_line_items = Pricing.calculate(
           provider: capture.provider,
           model: capture.model,
           tokens: capture.token_usage,
+          line_items: capture.line_items,
           pricing_mode: pricing_mode
         )
 
@@ -39,6 +40,7 @@ module LlmCostTracker
           pricing_mode: pricing_mode,
           cost_data: cost_data,
           pricing_snapshot: pricing_snapshot,
+          line_items: priced_line_items,
           metadata: metadata,
           latency_ms: latency_ms,
           context_tags: context_tags
@@ -60,6 +62,8 @@ module LlmCostTracker
       end
 
       def notify_subscribers(event)
+        return unless ActiveSupport::Notifications.notifier.listening?(EVENT_NAME)
+
         ActiveSupport::Notifications.instrument(EVENT_NAME, event.to_h)
       rescue StandardError => e
         Logging.warn("Subscriber raised on #{EVENT_NAME}: #{e.class}: #{e.message}")
@@ -75,15 +79,9 @@ module LlmCostTracker
         end
       end
 
-      # rubocop:disable Metrics/MethodLength
-      def build_event(capture:, pricing_mode:, cost_data:, pricing_snapshot:, metadata:, latency_ms:, context_tags:)
+      def build_event(capture:, pricing_mode:, cost_data:, pricing_snapshot:, line_items:,
+                      metadata:, latency_ms:, context_tags:)
         context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
-        line_items, = Pricing.price_line_items(
-          provider: capture.provider,
-          model: capture.model,
-          line_items: capture.line_items,
-          pricing_mode: pricing_mode
-        )
         cost = cost_with_service_lines(cost_data, line_items)
         cost_status = Billing::CostStatus.call(
           token_usage: capture.token_usage,
@@ -116,7 +114,6 @@ module LlmCostTracker
           line_items: line_items
         )
       end
-      # rubocop:enable Metrics/MethodLength
 
       def finite_latency_ms(latency_ms)
         return nil if latency_ms.nil?

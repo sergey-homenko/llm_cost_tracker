@@ -156,6 +156,25 @@ bin/rails generate llm_cost_tracker:reconciliation
 bin/rails db:migrate
 ```
 
+Each invoice row is anchored to a `provider`. Built-in `source:` values
+map automatically (`openai` → `openai`, `openai_usage` → `openai`,
+`anthropic` → `anthropic`, `anthropic_usage` → `anthropic`,
+`gemini` → `gemini`). For unmapped sources (e.g. `csv` or any custom
+source) pass an explicit `provider:` so reconciliation diffs filter
+local calls to that provider only:
+
+```ruby
+LlmCostTracker::Reconciliation.import(source: :csv, provider: :openai, rows: rows)
+LlmCostTracker::Reconciliation.diff(source: :csv, provider: :openai,
+                                    period_start: ..., period_end: ...)
+```
+
+The rake tasks accept `PROVIDER=...`:
+
+```bash
+bin/rails llm_cost_tracker:reconcile:import SOURCE=csv PROVIDER=openai INPUT=invoice.json
+```
+
 Without both opt-ins, the gem stays a pure runtime tracker. See
 [Upgrading](upgrading.md) for the migration path.
 

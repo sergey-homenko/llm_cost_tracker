@@ -139,6 +139,29 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
       expect(anthropic.message).to include("no invoice imported")
     end
 
+    it "isolates a per-source ArgumentError to a per-source warn instead of failing the whole check" do
+      travel_to_today(period_end + 1)
+      import_invoice(billed_amount: BigDecimal("10.00"))
+      LlmCostTracker::ProviderInvoice.create!(
+        source: "legacy_csv",
+        external_id: "legacy_csv:row",
+        period_start: period_start,
+        period_end: period_end,
+        billed_amount: BigDecimal("5.00"),
+        currency: "USD",
+        metadata: {},
+        imported_at: Time.now.utc
+      )
+
+      checks = Array(described_class.new.call)
+
+      legacy = checks.find { |c| c.name == "invoice reconciliation: legacy_csv" }
+      expect(legacy.status).to eq(:warn)
+      expect(legacy.message).to include("provider")
+      openai = checks.find { |c| c.name == "invoice reconciliation: openai" }
+      expect(openai.status).to be_in(%i[ok warn])
+    end
+
     it "surfaces unexpected errors as :error status" do
       allow(LlmCostTracker::ProviderInvoice).to receive(:none?).and_raise("boom")
 

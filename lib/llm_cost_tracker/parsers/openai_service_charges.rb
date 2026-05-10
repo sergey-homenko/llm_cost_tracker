@@ -15,7 +15,7 @@ module LlmCostTracker
         /\Agpt-5(\b|[\d.-])/i,
         /\Ao\d+(\b|[\d.-])/i
       ].freeze
-      NON_REASONING_GPT5_PATTERN = /\Agpt-5-chat\b/i
+      NON_REASONING_GPT5_PATTERN = /\Agpt-5(?:\.\d+)?-chat\b/i
       private_constant :NON_REASONING_GPT5_PATTERN
 
       module_function

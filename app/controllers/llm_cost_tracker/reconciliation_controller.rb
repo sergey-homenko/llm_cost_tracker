@@ -60,6 +60,9 @@ module LlmCostTracker
       LlmCostTracker::Reconciliation.diff(
         source: source, period_start: window[0], period_end: window[1]
       )
+    rescue ArgumentError => e
+      LlmCostTracker::Logging.warn("Reconciliation diff skipped for #{source}: #{e.message}")
+      nil
     end
   end
 end

@@ -483,6 +483,18 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Call.by_tag("user_id", "42").count).to eq(1)
   end
 
+  it "matches Hash tag values via by_tag using the same JSON encoding as storage" do
+    track_and_flush(
+      provider: :openai,
+      model: "gpt-4o",
+      tokens: { input: 10, output: 5 },
+      tags: { metadata: { user_id: 42 } }
+    )
+
+    expect(LlmCostTracker::Call.by_tag("metadata", { user_id: 42 }).count).to eq(1)
+    expect(LlmCostTracker::Call.by_tag("metadata", { user_id: 99 }).count).to eq(0)
+  end
+
   it "filters by multiple tags through by_tags" do
     track_and_flush(
       provider: :openai,

@@ -118,10 +118,12 @@ namespace :llm_cost_tracker do
   end
 
   namespace :reconcile do
-    desc "Import provider invoice rows from a JSON INPUT file. Use SOURCE=openai INPUT=path/to/file.json"
+    desc "Import provider invoice rows from a JSON INPUT file. " \
+         "Use SOURCE=openai INPUT=path/to/file.json. Pass PROVIDER=openai for unmapped sources (csv, ...)."
     task(:import) { reconcile_run(:run_import) }
 
-    desc "Print a reconciliation diff. Use SOURCE=openai PERIOD_START=YYYY-MM-DD PERIOD_END=YYYY-MM-DD"
+    desc "Print a reconciliation diff. " \
+         "Use SOURCE=openai PERIOD_START=YYYY-MM-DD PERIOD_END=YYYY-MM-DD. PROVIDER=openai for unmapped sources."
     task(:diff) { reconcile_run(:run_diff) }
   end
 end

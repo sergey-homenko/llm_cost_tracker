@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../schema/adapter"
+require_relative "encoding"
 
 module LlmCostTracker
   module Ledger
@@ -8,7 +9,7 @@ module LlmCostTracker
       module Query
         class << self
           def apply(tags)
-            normalized_tags = (tags || {}).to_h.transform_keys(&:to_s).transform_values(&:to_s)
+            normalized_tags = (tags || {}).to_h.transform_keys(&:to_s).transform_values { |v| Encoding.encode(v) }
             return LlmCostTracker::Call.all if normalized_tags.empty?
 
             normalized_tags.inject(LlmCostTracker::Call.all) do |relation, (key, value)|

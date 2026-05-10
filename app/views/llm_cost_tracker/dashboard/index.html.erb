@@ -103,9 +103,9 @@
               <span class="lct-budget-percent"><%= percent(budget[:percent_used]) %></span>
             </div>
             <div class="lct-budget-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= budget[:progress_percent].round %>">
-              <div class="lct-budget-fill <%= budget[:fill_modifier] %>" style="width: <%= budget[:progress_percent] %>%"></div>
+              <div id="<%= inline_style("width: #{budget[:progress_percent]}%") %>" class="lct-budget-fill <%= budget[:fill_modifier] %>"></div>
               <% if budget[:projected_spent].positive? %>
-                <span class="lct-budget-marker" aria-hidden="true" style="left: calc(<%= budget[:projected_marker_percent] %>% - 1px)"></span>
+                <span id="<%= inline_style("left: calc(#{budget[:projected_marker_percent]}% - 1px)") %>" class="lct-budget-marker" aria-hidden="true"></span>
               <% end %>
             </div>
             <p class="lct-budget-projection">
