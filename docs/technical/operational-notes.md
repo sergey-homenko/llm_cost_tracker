@@ -35,15 +35,17 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets read `llm_cost_tracker_call_rollups` and add pending `llm_cost_tracker_ingestion_inbox_entries` totals. The call rollups table and its unique `(period, period_start, currency, provider)` index are required current schema.
+Monthly and daily budgets read live `SUM(total_cost)` from `llm_cost_tracker_calls` by default. When `config.cache_rollups = true` they switch to the `llm_cost_tracker_call_rollups` fast path (with its `(period, period_start, currency, provider)` unique index). When `config.durable_ingestion = true`, pending `llm_cost_tracker_ingestion_inbox_entries` totals are added on top so events that haven't drained yet still count toward guardrails.
 
-The stored call rollup and pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
+Whichever combination is active, the rollup/calls aggregate and the pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 
 Per-call budgets are checked from the current event only.
 
 ## Durable Ingestion
 
-Ingestion::Inbox writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should raise instead of writing into the caller transaction.
+Durable ingestion is opt-in via `config.durable_ingestion = true` plus the `llm_cost_tracker:durable_ingestion` generator. With it off (the default), `Tracker.record` writes inline through `Ingestion::Inline` and the worker is dormant.
+
+`Ingestion::Inbox` and `Ingestion::Inline` writes inside an open caller transaction both need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should raise instead of writing into the caller transaction.
 
 The ingestor is database-leased and database-polled, with an opportunistic local wake after a successful inbox insert. The wake only reduces freshness latency in the process that wrote the row; correctness still comes from the shared database lease, retryable row locks, and adaptive polling across Puma, Sidekiq, Unicorn, deploy restarts, and multi-process hosts.
 
@@ -61,7 +63,7 @@ Process shutdown should stop the local ingestor thread without forcing every exi
 
 ## Retention
 
-Retention may delete old `llm_cost_tracker_calls`. Call rollups are the durable budget aggregate. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change.
+Retention may delete old `llm_cost_tracker_calls`. When `config.cache_rollups = true`, retained call rollups are decremented in the same transaction so the budget aggregate stays consistent. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change.
 
 ## Required Schema
 

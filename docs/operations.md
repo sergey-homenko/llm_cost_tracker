@@ -1,11 +1,16 @@
 # Operations
 
-Production use depends on ActiveRecord health, durable ingestion, bounded hot
-paths, and current pricing snapshots.
+Production use depends on ActiveRecord health, bounded hot paths, and
+current pricing snapshots. Durable ingestion and rollups are opt-ins —
+turn them on when scale or durability demands it (see [Storage in
+Configuration](configuration.md#storage)).
 
 ## Production Defaults
 
-- Size the ActiveRecord connection pool for your app plus durable inbox writes.
+- Size the ActiveRecord connection pool for your app's concurrency. If
+  `config.durable_ingestion = true`, add headroom for the local
+  ingestor thread and the separate connection capture uses inside open
+  caller transactions.
 - Keep `default_tags` callables fast and thread-safe.
 - Mount the dashboard behind existing admin authentication.
 - Run `llm_cost_tracker:doctor` after deploys that change the gem version or schema.
@@ -27,34 +32,43 @@ Before building or releasing production images:
 - Treat price files as immutable release config; refresh before image build or
   through an automation that opens a PR.
 
-A single app process can need more than its request/job connection. The
-local ingestor thread checks out a connection of its own, and capture inside
-an open caller transaction uses a separate connection so staged inbox entries
-survive caller rollbacks. Size pools for your app's concurrency plus those
-tracker paths.
+When `durable_ingestion` is on, a single app process can need more than
+its request/job connection: the local ingestor thread checks out one of
+its own, and capture inside an open caller transaction uses a separate
+connection so staged inbox entries survive caller rollbacks. Size pools
+for your app's concurrency plus those tracker paths.
 
-## Durable Ingestion
+## Ingestion Path
 
-Capture writes a compact row to `llm_cost_tracker_ingestion_inbox_entries`; the
-background worker drains rows into `llm_cost_tracker_calls`,
-`llm_cost_tracker_call_line_items`, `llm_cost_tracker_call_tags`, and the call
-rollups in one transaction per batch.
+By default `Tracker.record` writes events synchronously through
+`LlmCostTracker::Ingestion::Inline` straight into the ledger
+(`llm_cost_tracker_calls` + line items + tags) — no inbox, no worker,
+nothing to drain.
 
-The inbox is the durability boundary. If the process exits after staging but
-before draining, another process can claim the row later through the database
-lease.
+Flip `config.durable_ingestion = true` (after running
+`bin/rails generate llm_cost_tracker:durable_ingestion`) when you need:
 
-Use these lifecycle hooks when needed:
+- Multi-process safe staging — a crashed app worker leaves rows in the
+  inbox that another process can pick up via the database lease.
+- Insulation from caller transaction rollbacks — staged events survive
+  `ActiveRecord::Rollback`.
+- Batched inserts — the worker drains rows into
+  `llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
+  `llm_cost_tracker_call_tags`, and (when `cache_rollups = true`) the
+  call rollups in one transaction per batch.
+
+Lifecycle hooks (no-ops in inline mode):
 
 ```ruby
 LlmCostTracker::Ingestion::Worker.flush!(timeout: 5)
 LlmCostTracker::Ingestion::Worker.shutdown!(timeout: 5, drain: true)
 ```
 
-The default process `at_exit` hook stops the local ingestor without forcing every
-exiting process to drain the shared inbox. Rows remain durable in the database
-and another live process can claim them. Use `flush!` or `shutdown!(drain: true)`
-when a job or release step must wait for the ledger to catch up.
+The default process `at_exit` hook stops the local ingestor without
+forcing every exiting process to drain the shared inbox. Rows remain
+durable in the database and another live process can claim them. Use
+`flush!` or `shutdown!(drain: true)` when a job or release step must
+wait for the ledger to catch up.
 
 ## Ruby Concurrency
 
@@ -77,12 +91,15 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` checks current schema, durable ingestion tables, line item / tag /
-provider invoice tables, call rollups, stale prices, integration setup, legacy
-audit columns, and two sample-based drift checks: header `total_cost` vs
+`doctor` checks current schema (calls, line items, tags), the optional
+inbox/leases/rollups/provider-invoice tables that match your config
+flags, stale prices, integration setup, legacy audit columns, and two
+sample-based drift checks: header `total_cost` vs
 `SUM(line_items.cost)` and stored line item cost vs the call's
-`pricing_snapshot.rates`. Drift surfaces as a `:warn` so transient mismatches
-during a deploy don't fail the gate.
+`pricing_snapshot.rates`. Drift surfaces as a `:warn` so transient
+mismatches during a deploy don't fail the gate. Mismatches between
+config flags and present tables (e.g. inbox table exists but
+`durable_ingestion = false`) also surface as `:warn`.
 
 `verify_capture` records a synthetic event and verifies both notifications and
 ActiveRecord persistence.
@@ -101,9 +118,10 @@ Optional batch size:
 DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 ```
 
-Pruning deletes old `llm_cost_tracker_calls`. Dependent line items and tags are
-removed by the database via `on_delete: :cascade`. Affected daily/monthly call
-rollups are decremented in the same transaction.
+Pruning deletes old `llm_cost_tracker_calls`. Dependent line items and
+tags are removed by the database via `on_delete: :cascade`. When
+`config.cache_rollups = true`, affected daily/monthly call rollups are
+decremented in the same transaction.
 
 ## Data Shape
 
@@ -112,9 +130,9 @@ rollups are decremented in the same transaction.
 | Calls | `llm_cost_tracker_calls` |
 | Line items | `llm_cost_tracker_call_line_items` |
 | Tags | `llm_cost_tracker_call_tags` |
-| Call rollups | `llm_cost_tracker_call_rollups` |
-| Durable inbox | `llm_cost_tracker_ingestion_inbox_entries` |
-| Worker lease | `llm_cost_tracker_ingestion_leases` |
+| Call rollups (opt-in) | `llm_cost_tracker_call_rollups` |
+| Durable inbox (opt-in) | `llm_cost_tracker_ingestion_inbox_entries` |
+| Worker lease (opt-in) | `llm_cost_tracker_ingestion_leases` |
 | Provider invoices (opt-in) | `llm_cost_tracker_provider_invoices` |
 | Provider invoice imports (opt-in) | `llm_cost_tracker_provider_invoice_imports` |
 

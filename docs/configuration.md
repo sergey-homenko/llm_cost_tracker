@@ -106,6 +106,30 @@ won't invent a total cost out of thin air.
 
 Budget payloads include `budget_type`, `total`, `budget`, and `last_event`.
 
+## Storage
+
+Two boolean flags decide which optional tables the gem touches. Both
+default to `false`, so a fresh install ships with three mandatory
+tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
+`llm_cost_tracker_call_tags`).
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `durable_ingestion` | `false` | When `true`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `false` (default), events write inline from the request thread. |
+| `cache_rollups` | `false` | When `true`, `Tracker.record` maintains daily/monthly aggregates in `llm_cost_tracker_call_rollups`; budget reads and reconciliation diffs use the rollups fast path. When `false` (default), budget reads aggregate live from `llm_cost_tracker_calls`. |
+
+Each opt-in needs a matching generator before flipping the flag:
+
+```bash
+bin/rails generate llm_cost_tracker:durable_ingestion  # for durable_ingestion = true
+bin/rails generate llm_cost_tracker:call_rollups       # for cache_rollups = true
+bin/rails db:migrate
+```
+
+`bin/rails llm_cost_tracker:doctor` warns when a table exists without
+the matching flag (or vice versa) so the schema and config stay in
+sync.
+
 ## Reconciliation (Experimental, Opt-In)
 
 Provider invoice reconciliation is off by default. Enable it explicitly
@@ -145,5 +169,6 @@ bin/rails llm_cost_tracker:verify_capture
 ```
 
 `doctor` checks schema, prices, integration setup, and operational health.
-`verify_capture` records a synthetic manual event and verifies notifications plus
-durable ActiveRecord persistence.
+`verify_capture` records a synthetic manual event and verifies notifications
+plus ActiveRecord persistence (through the inline writer or the durable
+inbox depending on `config.durable_ingestion`).

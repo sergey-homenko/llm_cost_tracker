@@ -114,12 +114,12 @@ Responsibilities:
 - Apply token and service line item pricing.
 - Build pricing snapshot and cost status.
 - Emit `ActiveSupport::Notifications`.
-- Stage events durably.
-- Run budget checks after durable staging.
+- Persist events through `Ingestion::Inline` (default) or `Ingestion::Inbox` when `config.durable_ingestion = true`.
+- Run budget checks after the event is persisted.
 
 This module must remain provider-neutral.
 
-## Durable Ingestion and Ledger
+## Ingestion and Ledger
 
 Primary files:
 
@@ -132,10 +132,10 @@ Primary files:
 
 Responsibilities:
 
-- Stage captured events before ledger writes.
-- Claim retryable inbox entries through database leases.
+- Persist events inline by default; stage to the durable inbox and drain via the worker when `config.durable_ingestion = true`.
+- Claim retryable inbox entries through database leases (durable mode only).
 - Persist call headers, line items, and tag rows atomically.
-- Maintain call rollups for hot-path budget reads.
+- Maintain call rollups for hot-path budget reads when `config.cache_rollups = true`; otherwise budget reads aggregate live from `llm_cost_tracker_calls`.
 - Hide PostgreSQL and MySQL-family SQL differences.
 - Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
 
@@ -154,7 +154,7 @@ Responsibilities:
 
 - Prune old ledger rows in batches.
 - Let `on_delete: :cascade` clean up dependent line items and tag rows.
-- Keep daily and monthly call rollups consistent.
+- Keep daily and monthly call rollups consistent when `config.cache_rollups = true`.
 
 ## Dashboard and Reporting
 

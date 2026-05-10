@@ -41,8 +41,8 @@ The dashboard reads:
 | `llm_cost_tracker_calls` | Header rows: token totals, total cost, pricing status, snapshots |
 | `llm_cost_tracker_call_line_items` | Per-component cost breakdown (tokens + tool charges) |
 | `llm_cost_tracker_call_tags` | Tag attribution for filters and breakdowns |
-| `llm_cost_tracker_call_rollups` | Budget status and operational aggregates |
-| `llm_cost_tracker_ingestion_inbox_entries` | Pending budget totals and ingestion health |
+| `llm_cost_tracker_call_rollups` (optional) | Budget status and operational aggregates when `config.cache_rollups = true` |
+| `llm_cost_tracker_ingestion_inbox_entries` (optional) | Pending budget totals and ingestion health when `config.durable_ingestion = true` |
 
 ## Pages
 

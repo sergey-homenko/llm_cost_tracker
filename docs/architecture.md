@@ -85,30 +85,32 @@ Capture paths output `UsageCapture`:
 | SDK integrations | SDK response or stream objects | `UsageCapture` |
 | Explicit APIs | Host app token totals or stream events | `UsageCapture` |
 
-`Tracker.record` is the central coordinator. It combines usage capture, pricing,
-tags, cost status, notifications, durable inbox staging, and budget checks.
+`Tracker.record` is the central coordinator. It combines usage capture,
+pricing, tags, cost status, notifications, ledger persistence (inline
+or via the durable inbox depending on `config.durable_ingestion`), and
+budget checks.
 
 ## Storage Boundaries
 
-Storage is ActiveRecord-only. The current schema is:
+Storage is ActiveRecord-only. Mandatory tables, created by
+`llm_cost_tracker:install`:
 
 | Table | Responsibility |
 | --- | --- |
 | `llm_cost_tracker_calls` | Header ledger row per tracked call |
 | `llm_cost_tracker_call_line_items` | Per-component cost rows; cascade-deletes with the parent |
 | `llm_cost_tracker_call_tags` | Normalized tag rows; cascade-deletes with the parent |
-| `llm_cost_tracker_call_rollups` | Maintained day/month aggregates per currency for budget reads |
-| `llm_cost_tracker_ingestion_inbox_entries` | Durable ingestion staging |
-| `llm_cost_tracker_ingestion_leases` | Shared worker lease |
 
-Optional reconciliation tables (created only by the
-`llm_cost_tracker:reconciliation` generator when reconciliation is
-explicitly enabled):
+Optional tables, created only by their dedicated generators when the
+matching config flag is enabled:
 
-| Table | Responsibility |
-| --- | --- |
-| `llm_cost_tracker_provider_invoices` | Imported provider-side invoice rows (reconciliation only) |
-| `llm_cost_tracker_provider_invoice_imports` | Importer cursor / window / state for resumable runs |
+| Table | Generator + flag | Responsibility |
+| --- | --- | --- |
+| `llm_cost_tracker_call_rollups` | `llm_cost_tracker:call_rollups` + `config.cache_rollups = true` | Pre-aggregated day/month totals per currency/provider for fast budget reads |
+| `llm_cost_tracker_ingestion_inbox_entries` | `llm_cost_tracker:durable_ingestion` + `config.durable_ingestion = true` | Durable write-ahead staging for the background worker |
+| `llm_cost_tracker_ingestion_leases` | same migration as the inbox | Shared worker lease |
+| `llm_cost_tracker_provider_invoices` | `llm_cost_tracker:reconciliation` + `config.reconciliation_enabled = true` | Imported provider-side invoice rows |
+| `llm_cost_tracker_provider_invoice_imports` | same migration as provider invoices | Importer cursor / window / state for resumable runs |
 
 Runtime tracking assumes the current schema. Schema gaps belong in doctor/setup
 failures, not per-event branches.

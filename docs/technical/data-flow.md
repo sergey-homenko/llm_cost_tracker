@@ -42,19 +42,25 @@ Normal path from an application LLM call to stored ledger data:
 5. `Billing::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
 6. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
 7. An `Event` is created around `TokenUsage` and emitted through `ActiveSupport::Notifications`.
-8. The durable ingestion inbox receives the event.
-9. Budget checks run after the event is durably staged.
+8. Persistence runs through `Ingestion::Inline` (default) or `Ingestion::Inbox` when `config.durable_ingestion = true`.
+9. Budget checks run after the event is persisted.
 
 ## Ledger Storage
 
-1. `Ingestion::Inbox.save` writes a compact durable event row.
-2. `Ingestion::Worker` claims retryable inbox entries through a database lease and writes batches into `llm_cost_tracker_calls`.
-3. `Ledger::Store.insert_many` writes the call header, line items, and tag rows for the batch.
-4. The call rows, line items, tag rows, call rollup updates, and inbox deletes happen in one transaction.
-5. `Ledger::Rollups.increment_many!` updates daily and monthly totals only for rows inserted by the batch.
-6. Budget reads use call rollups plus pending inbox totals.
+When `config.durable_ingestion = false` (default):
 
-The inbox write is the durability boundary. Ledger freshness is eventually consistent unless the caller explicitly waits with `LlmCostTracker::Ingestion::Worker.flush!`.
+1. `Ingestion::Inline.save` writes the call header, line items, and tag rows in a single transaction (using a separate connection if a caller transaction is open, so tracked events survive caller rollbacks).
+2. When `config.cache_rollups = true`, the same transaction increments the matching daily/monthly rollup rows; otherwise rollups are skipped entirely.
+3. Budget reads aggregate live from `llm_cost_tracker_calls`, or from the rollups fast path when `cache_rollups = true`.
+
+When `config.durable_ingestion = true`:
+
+1. `Ingestion::Inbox.save` writes a compact durable event row.
+2. `Ingestion::Worker` claims retryable inbox entries through a database lease and drains batches into `llm_cost_tracker_calls`.
+3. `Ledger::Store.insert_many` writes the call header, line items, tag rows (and rollup increments when `cache_rollups = true`), and inbox deletes in one transaction.
+4. Budget reads add pending inbox totals on top of the rollups fast path or the live calls aggregate.
+
+The persistence write (inbox row in durable mode, ledger rows in inline mode) is the durability boundary. In durable mode, ledger freshness is eventually consistent unless the caller explicitly waits with `LlmCostTracker::Ingestion::Worker.flush!`.
 
 ## Dashboard Reads
 
