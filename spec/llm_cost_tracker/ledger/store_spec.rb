@@ -17,6 +17,10 @@ RSpec.describe "ActiveRecord storage integration" do
     LlmCostTracker::CallRollup.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
+    LlmCostTracker.configure do |config|
+      config.ingestion_adapter = :durable
+      config.maintain_rollups = true
+    end
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end
 
