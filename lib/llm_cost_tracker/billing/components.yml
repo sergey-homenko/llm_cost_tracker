@@ -77,6 +77,24 @@
   category: tool
   rate_basis: per_1k_requests
 
+- key: web_search_preview_request_reasoning
+  kind: web_search_preview_request_reasoning
+  direction: neither
+  modality: text
+  cache_state: none
+  unit: request
+  category: tool
+  rate_basis: per_1k_requests
+
+- key: web_search_preview_request_non_reasoning
+  kind: web_search_preview_request_non_reasoning
+  direction: neither
+  modality: text
+  cache_state: none
+  unit: request
+  category: tool
+  rate_basis: per_1k_requests
+
 - key: web_fetch_request
   kind: web_fetch_request
   direction: neither

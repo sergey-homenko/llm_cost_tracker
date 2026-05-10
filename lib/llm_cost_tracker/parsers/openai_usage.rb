@@ -34,7 +34,7 @@ module LlmCostTracker
           model: model,
           token_usage: token_usage(usage: usage, cache_read: cache_read),
           usage_source: :response,
-          service_line_items: openai_service_line_items(response)
+          service_line_items: openai_service_line_items(response, request: request)
         )
       end
 
@@ -62,7 +62,7 @@ module LlmCostTracker
             model: model,
             service_tier: stream_pricing_mode(events) || request["service_tier"]
           ),
-          service_line_items: openai_stream_service_line_items(events)
+          service_line_items: openai_stream_service_line_items(events, request: request, model: model)
         }
       end
 

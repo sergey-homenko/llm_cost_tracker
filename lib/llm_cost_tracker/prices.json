@@ -23,6 +23,8 @@
     },
     "openai": {
       "web_search_request": 10.0,
+      "web_search_preview_request_reasoning": 10.0,
+      "web_search_preview_request_non_reasoning": 25.0,
       "file_search_call": 2.5
     }
   },

@@ -71,7 +71,7 @@ module LlmCostTracker
                 token_usage: token_usage(usage:, input_tokens:, output_tokens:, cache_read:),
                 usage_source: :sdk_response,
                 provider_response_id: object_value(response, :id),
-                service_line_items: service_line_items_from(response)
+                service_line_items: service_line_items_from(response, request: request)
               ),
               latency_ms: latency_ms
             )
@@ -149,12 +149,15 @@ module LlmCostTracker
           end
         end
 
-        def service_line_items_from(response)
+        def service_line_items_from(response, request: nil)
           output = object_value(response, :output)
           return [] unless output.respond_to?(:each)
 
-          LlmCostTracker::Parsers::OpenaiServiceCharges
-            .line_items_from_output(output.map { |item| normalize_output_item(item) })
+          LlmCostTracker::Parsers::OpenaiServiceCharges.line_items_from_output(
+            output.map { |item| normalize_output_item(item) },
+            request: request,
+            model: object_value(response, :model) || request&.dig(:model)
+          )
         end
 
         def normalize_output_item(item)
@@ -194,32 +197,13 @@ module LlmCostTracker
         INPUT_DETAIL_KEYS = %i[input_tokens_details input_token_details prompt_tokens_details].freeze
         OUTPUT_DETAIL_KEYS = %i[output_tokens_details output_token_details completion_tokens_details].freeze
 
-        def cache_read_input_tokens(usage)
-          input_detail(usage, :cached_tokens)
-        end
+        def cache_read_input_tokens(usage) = detail(usage, INPUT_DETAIL_KEYS, :cached_tokens)
+        def hidden_output_tokens(usage)    = detail(usage, OUTPUT_DETAIL_KEYS, :reasoning_tokens)
+        def audio_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :audio_tokens)
+        def audio_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :audio_tokens)
 
-        def hidden_output_tokens(usage)
-          output_detail(usage, :reasoning_tokens)
-        end
-
-        def audio_input_tokens(usage)
-          input_detail(usage, :audio_tokens)
-        end
-
-        def audio_output_tokens(usage)
-          output_detail(usage, :audio_tokens)
-        end
-
-        def input_detail(usage, key)
-          INPUT_DETAIL_KEYS.each do |container|
-            value = object_dig(usage, container, key)
-            return value.to_i if value
-          end
-          0
-        end
-
-        def output_detail(usage, key)
-          OUTPUT_DETAIL_KEYS.each do |container|
+        def detail(usage, containers, key)
+          containers.each do |container|
             value = object_dig(usage, container, key)
             return value.to_i if value
           end

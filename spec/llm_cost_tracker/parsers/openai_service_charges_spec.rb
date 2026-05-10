@@ -25,7 +25,34 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiServiceCharges do
     end
 
     it "build_line_item returns nil when the type is not in the registry" do
-      expect(described_class.build_line_item("type" => "reasoning", "id" => "r_1")).to be_nil
+      expect(described_class.build_line_item({ "type" => "reasoning", "id" => "r_1" })).to be_nil
+    end
+
+    it "build_line_item dispatches web_search_call to the preview-non-reasoning component when the request used the preview tool with a non-reasoning model" do
+      result = described_class.build_line_item(
+        { "type" => "web_search_call", "id" => "ws_1" },
+        request: { tools: [{ type: "web_search_preview" }] },
+        model: "gpt-4o"
+      )
+      expect(result.kind).to eq(:web_search_preview_request_non_reasoning)
+    end
+
+    it "build_line_item dispatches web_search_call to the preview-reasoning component when the request used the preview tool with a reasoning model" do
+      result = described_class.build_line_item(
+        { "type" => "web_search_call", "id" => "ws_2" },
+        request: { tools: [{ type: "web_search_preview" }] },
+        model: "gpt-5-mini"
+      )
+      expect(result.kind).to eq(:web_search_preview_request_reasoning)
+    end
+
+    it "build_line_item keeps the standard web_search_request component when the request did not use the preview tool" do
+      result = described_class.build_line_item(
+        { "type" => "web_search_call", "id" => "ws_3" },
+        request: { tools: [{ type: "web_search" }] },
+        model: "gpt-4o"
+      )
+      expect(result.kind).to eq(:web_search_request)
     end
   end
 end

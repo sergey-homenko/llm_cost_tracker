@@ -71,14 +71,24 @@ module LlmCostTracker
 
           rows = table.css("tbody tr").map { |tr| tr.css("td").map { |td| td.text.gsub(/\s+/, " ").strip } }
           {
-            "web_search_request" => tool_price(rows, "Web search"),
-            "file_search_call" => tool_price(rows, "Tool call")
-          }
+            "web_search_request" => tool_price(rows, "Web search", required: true),
+            "web_search_preview_request_reasoning" => tool_price(
+              rows, "Web search preview (reasoning models, including gpt-5, o-series)"
+            ),
+            "web_search_preview_request_non_reasoning" => tool_price(
+              rows, "Web search preview (non-reasoning models)"
+            ),
+            "file_search_call" => tool_price(rows, "Tool call", required: true)
+          }.compact
         end
 
-        def tool_price(rows, label)
+        def tool_price(rows, label, required: false)
           row = rows.find { |cells| cells.first == label }
-          raise Error, "OpenAI tool price #{label.inspect} not found" unless row
+          unless row
+            raise Error, "OpenAI tool price #{label.inspect} not found" if required
+
+            return nil
+          end
 
           parse_service_charge_price(row.last)
         end
