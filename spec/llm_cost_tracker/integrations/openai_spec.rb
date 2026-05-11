@@ -10,6 +10,31 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
   ActionStruct = Struct.new(:type, keyword_init: true)
 
   describe ".service_line_items_from" do
+    it "coerces Symbol type accessors from the OpenAI SDK to strings so hosted-tool charges are not silently dropped" do
+      response = ResponseStruct.new(
+        output: [
+          OutputItemStruct.new(
+            type: :web_search_call,
+            id: "ws_sym_1",
+            status: :completed,
+            container_id: nil,
+            action: ActionStruct.new(type: :search)
+          ),
+          OutputItemStruct.new(
+            type: :file_search_call,
+            id: "fs_sym_1",
+            status: :completed,
+            container_id: nil,
+            action: nil
+          )
+        ]
+      )
+
+      items = described_class.service_line_items_from(response)
+
+      expect(items.map(&:kind)).to contain_exactly(:web_search_request, :file_search_call)
+    end
+
     it "emits SDK-shaped web_search_call as a billable line item" do
       response = ResponseStruct.new(
         output: [

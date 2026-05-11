@@ -233,7 +233,7 @@ module LlmCostTracker
           return nil if item.nil?
 
           {
-            "type" => object_value(item, :type),
+            "type" => object_value(item, :type)&.to_s,
             "id" => object_value(item, :id),
             "status" => object_value(item, :status),
             "container_id" => object_value(item, :container_id),
@@ -245,7 +245,7 @@ module LlmCostTracker
           return nil if action.nil?
           return action if action.is_a?(Hash)
 
-          { "type" => object_value(action, :type) }
+          { "type" => object_value(action, :type)&.to_s }
         end
 
         def token_usage(usage:, input_tokens:, output_tokens:, cache_read:)
