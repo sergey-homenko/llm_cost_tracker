@@ -8,8 +8,8 @@ module LlmCostTracker
 
     protect_from_forgery with: :exception
 
-    before_action :ensure_current_schema
     before_action :set_dashboard_security_headers
+    before_action :ensure_current_schema
 
     helper_method :dashboard_csp_nonce
 

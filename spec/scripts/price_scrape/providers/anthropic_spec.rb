@@ -63,7 +63,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "input" => 1.0,
         "output" => 5.0,
         "batch_input" => 0.5,
-        "batch_output" => 2.5
+        "batch_output" => 2.5,
+        "data_residency_input" => 1.1,
+        "data_residency_output" => 5.5
       )
     end
 

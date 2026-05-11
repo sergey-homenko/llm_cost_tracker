@@ -8,7 +8,7 @@ module LlmCostTracker
 
     def show
       scope = Dashboard::Filter.call(params: params)
-      @value = params[:value].to_s
+      @value = params[:tag_value].to_s
 
       if @value.empty?
         @breakdown = Dashboard::TagBreakdown.call(scope: scope, key: params[:key])

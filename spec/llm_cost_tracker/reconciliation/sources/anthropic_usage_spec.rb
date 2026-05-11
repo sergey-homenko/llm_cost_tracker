@@ -52,7 +52,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
       expect(first).to include(
         period_start: Date.new(2026, 5, 1),
         period_end: Date.new(2026, 5, 1),
-        billed_amount: "1.50",
+        billed_amount: "0.015",
         currency: "USD"
       )
       expect(first[:metadata]).to include(
@@ -67,6 +67,18 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
         "token_type" => "uncached_input_tokens"
       )
       expect(first[:external_id]).to start_with("cost-")
+    end
+
+    it "converts the cost API amount from cents to dollars" do
+      response[:data] = [{
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
+        "results" => [
+          { "amount" => "12345", "currency" => "USD", "cost_type" => "tokens", "token_type" => "uncached_input_tokens" }
+        ]
+      }]
+
+      expect(described_class.parse(response).first[:billed_amount]).to eq("123.45")
     end
 
     it "classifies output tokens from token_type" do

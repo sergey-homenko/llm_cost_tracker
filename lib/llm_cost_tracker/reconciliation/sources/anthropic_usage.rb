@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "bigdecimal"
 require "json"
 require "time"
 
@@ -51,18 +52,22 @@ module LlmCostTracker
 
         def row_for_result(raw, period_start:, period_end:, starting_at:, ending_at:, authority:, row_type:)
           result = symbolize(raw)
-          billed_amount = result[:amount]
-          return nil if billed_amount.nil?
+          raw_amount = result[:amount]
+          return nil if raw_amount.nil?
 
           fingerprint = fingerprint_for(result, starting_at: starting_at, ending_at: ending_at)
           {
             external_id: "cost-#{fingerprint}",
             period_start: period_start,
             period_end: period_end,
-            billed_amount: billed_amount,
+            billed_amount: dollars_from_cents(raw_amount),
             currency: (result[:currency] || "USD").to_s.upcase,
             metadata: metadata_for(result, authority: authority, row_type: row_type)
           }
+        end
+
+        def dollars_from_cents(amount)
+          (BigDecimal(amount.to_s) / 100).to_s("F")
         end
 
         def metadata_for(result, authority:, row_type:)

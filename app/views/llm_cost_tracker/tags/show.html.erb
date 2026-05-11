@@ -10,8 +10,8 @@
     <%= render "llm_cost_tracker/shared/filters",
                path: tag_path(params[:key]),
                fields: %i[from to provider model],
-               hidden_fields: { value: @value },
-               reset_path: tag_path(params[:key], value: @value) %>
+               hidden_fields: { tag_value: @value },
+               reset_path: tag_path(params[:key], tag_value: @value) %>
   </section>
 
   <% if @value_calls.zero? %>
@@ -136,7 +136,7 @@
                 <% if row.value == "(untagged)" %>
                   <span class="lct-muted">n/a</span>
                 <% else %>
-                  <%= link_to "Trend", tag_path(params[:key], current_query.merge(value: row.value)), class: "lct-button lct-button-secondary lct-button-compact" %>
+                  <%= link_to "Trend", tag_path(params[:key], current_query.merge(tag_value: row.value)), class: "lct-button lct-button-secondary lct-button-compact" %>
                   <%= link_to "Calls", calls_path(calls_query_for_tag(key: params[:key], value: row.value)), class: "lct-button lct-button-secondary lct-button-compact" %>
                 <% end %>
               </td>

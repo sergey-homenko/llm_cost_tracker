@@ -45,7 +45,7 @@ RSpec.describe "LlmCostTracker::Engine tags" do
     create_call(total_cost: 3.0, tracked_at: (Date.current - 1).to_time, tags: { feature: "chat" })
     create_call(total_cost: 1.0, tracked_at: Date.current.to_time, tags: { feature: "summarizer" })
 
-    response = get("/llm-costs/tags/feature", params: { value: "chat" })
+    response = get("/llm-costs/tags/feature", params: { tag_value: "chat" })
 
     expect(response.status).to eq(200)
     expect(response.body).to include("feature")
@@ -60,15 +60,15 @@ RSpec.describe "LlmCostTracker::Engine tags" do
   it "preserves the drill-down value through the filter form via a hidden field" do
     create_call(total_cost: 2.0, tags: { feature: "chat" })
 
-    response = get("/llm-costs/tags/feature", params: { value: "chat" })
+    response = get("/llm-costs/tags/feature", params: { tag_value: "chat" })
 
-    expect(response.body).to match(%r{<input[^>]+type="hidden"[^>]+name="value"[^>]+value="chat"})
+    expect(response.body).to match(%r{<input[^>]+type="hidden"[^>]+name="tag_value"[^>]+value="chat"})
   end
 
   it "renders an empty timeseries state when no calls carry the chosen tag value" do
     create_call(total_cost: 2.0, tags: { feature: "chat" })
 
-    response = get("/llm-costs/tags/feature", params: { value: "missing" })
+    response = get("/llm-costs/tags/feature", params: { tag_value: "missing" })
 
     expect(response.status).to eq(200)
     expect(response.body).to include("No calls tagged with feature=missing")
@@ -80,7 +80,7 @@ RSpec.describe "LlmCostTracker::Engine tags" do
 
     response = get("/llm-costs/tags/feature")
 
-    expect(response.body).to match(%r{href="[^"]*/llm-costs/tags/feature\?[^"]*value=chat[^"]*"[^>]*>\s*Trend\s*</a>})
+    expect(response.body).to match(%r{href="[^"]*/llm-costs/tags/feature\?[^"]*tag_value=chat[^"]*"[^>]*>\s*Trend\s*</a>})
   end
 
   it "applies provider and date filters to the tag breakdown" do

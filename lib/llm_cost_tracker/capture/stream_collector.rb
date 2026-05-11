@@ -10,8 +10,6 @@ require_relative "../timing"
 module LlmCostTracker
   module Capture
     class StreamCollector
-      PROVIDER_REPORTED_USAGE_SOURCES = %i[stream_final sdk_response sdk_stream response manual].freeze
-
       attr_reader :provider
 
       def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, provider_project_id: nil,
@@ -145,8 +143,6 @@ module LlmCostTracker
       end
 
       def pricing_mode_for(capture:, snapshot:)
-        return capture.pricing_mode if PROVIDER_REPORTED_USAGE_SOURCES.include?(capture.usage_source)
-
         capture.pricing_mode || snapshot[:pricing_mode]
       end
 
@@ -168,12 +164,13 @@ module LlmCostTracker
 
       def build_usage_capture(snapshot)
         return build_from_explicit_usage(snapshot) if snapshot[:explicit_usage]
+        return build_unknown_usage(snapshot) if snapshot[:overflowed]
 
         capture = Parsers.find_for_provider(@provider)&.parse_stream(
           response_status: 200,
           events: snapshot[:events]
         )
-        if capture && (capture.usage_source != :unknown || !snapshot[:overflowed])
+        if capture
           model = present_model(capture.model) || present_model(snapshot[:model]) || UsageCapture::UNKNOWN_MODEL
           return capture.with(provider: @provider, model: model, **snapshot.fetch(:capture_dimensions))
         end
