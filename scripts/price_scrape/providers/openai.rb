@@ -28,12 +28,15 @@ module LlmCostTracker
           input: "priority_input", cache_read_input: "priority_cache_read_input", output: "priority_output"
         }.freeze
         AUDIO_FIELDS = { input: "audio_input", output: "audio_output" }.freeze
+        IMAGE_FIELDS = { input: "image_input", output: "image_output" }.freeze
+        BATCH_IMAGE_FIELDS = { input: "batch_image_input", output: "batch_image_output" }.freeze
         TIER_FIELDS = {
           "standard" => STANDARD_FIELDS,
           "batch" => BATCH_FIELDS,
           "flex" => FLEX_FIELDS,
           "priority" => PRIORITY_FIELDS
         }.freeze
+        TIER_IMAGE_FIELDS = { STANDARD_FIELDS => IMAGE_FIELDS, BATCH_FIELDS => BATCH_IMAGE_FIELDS }.freeze
 
         Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
 
@@ -125,8 +128,6 @@ module LlmCostTracker
             )
           end
 
-          return tiered_models unless tier == "standard"
-
           merge_model_fields(tiered_models, extract_untiered_grouped_models(doc, fields: fields))
         end
 
@@ -135,9 +136,11 @@ module LlmCostTracker
         end
 
         def extract_untiered_grouped_models(doc, fields:)
-          return {} unless fields == STANDARD_FIELDS
+          doc.css("astro-island").each_with_object({}) do |island, models|
+            next unless island["component-url"].to_s.include?("/pricing.")
+            next unless island_matches_tier?(island, fields)
 
-          pricing_props(doc).each_with_object({}) do |props, models|
+            props = parse_island_props(island)
             next if props.key?("tier")
 
             grouped_models = extract_grouped_rows(groups_from(props), fields: fields)
@@ -145,14 +148,24 @@ module LlmCostTracker
           end
         end
 
+        def island_matches_tier?(island, fields)
+          pane = island.ancestors("[data-content-switcher-pane]").first
+          pane_value = pane && pane["data-value"]
+          TIER_FIELDS.fetch(pane_value || "standard", STANDARD_FIELDS) == fields
+        end
+
         def pricing_props(node)
           node.css("astro-island").filter_map do |island|
             next unless island["component-url"].to_s.include?("/pricing.")
 
-            JSON.parse(island["props"].to_s)
-          rescue JSON::ParserError => e
-            raise Error, "unable to parse OpenAI pricing payload: #{e.message}"
+            parse_island_props(island)
           end
+        end
+
+        def parse_island_props(island)
+          JSON.parse(island["props"].to_s)
+        rescue JSON::ParserError => e
+          raise Error, "unable to parse OpenAI pricing payload: #{e.message}"
         end
 
         def rows_from(props)
@@ -204,27 +217,33 @@ module LlmCostTracker
             rows = unwrap(group["rows"])
             next unless rows.is_a?(Array)
 
-            price_fields = rows.each_with_object({}) do |row, values|
-              cells = unwrap(row)
-              next unless cells.is_a?(Array) && cells.size >= 4
-
-              modality = unwrap(cells[0])
-              case modality
-              when "Text"
-                values.merge!(extract_price_fields(cells, fields: fields))
-              when "Audio"
-                values.merge!(extract_price_fields(cells, fields: AUDIO_FIELDS))
-              end
-            end
+            price_fields = group_price_fields(rows, fields: fields)
             models[model_id] = price_fields if price_fields.any?
           end
         end
 
+        def group_price_fields(rows, fields:)
+          rows.each_with_object({}) do |row, values|
+            cells = unwrap(row)
+            next unless cells.is_a?(Array) && cells.size >= 4
+
+            modality_fields = modality_fields_for(unwrap(cells[0]), fields: fields)
+            values.merge!(extract_price_fields(cells, fields: modality_fields)) if modality_fields
+          end
+        end
+
+        def modality_fields_for(modality, fields:)
+          case modality
+          when "Text" then fields
+          when "Audio" then AUDIO_FIELDS
+          when "Image" then TIER_IMAGE_FIELDS[fields]
+          end
+        end
+
         def extract_price_fields(cells, fields:)
-          prices = {
-            fields.fetch(:input) => parse_price(unwrap(cells[1])),
-            fields.fetch(:output) => parse_price(unwrap(cells[3]))
-          }
+          prices = { fields.fetch(:input) => parse_price(unwrap(cells[1])) }
+          output = parse_optional_price(unwrap(cells[3]))
+          prices[fields.fetch(:output)] = output if output
           cache_read_input = parse_optional_price(unwrap(cells[2]))
           prices[fields.fetch(:cache_read_input)] = cache_read_input if cache_read_input && fields[:cache_read_input]
 

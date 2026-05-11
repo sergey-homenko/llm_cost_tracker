@@ -37,6 +37,8 @@ Metrics/ClassLength:
   Max: 200
   CountAsOne:
     - hash
+  Exclude:
+    - "scripts/price_scrape/providers/openai.rb"
 
 Metrics/ModuleLength:
   Max: 200

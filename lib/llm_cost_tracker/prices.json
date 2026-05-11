@@ -463,7 +463,7 @@
       "image_input": 8.0,
       "image_output": 30.0,
       "batch_input": 2.5,
-      "batch_cache_read_input": 0.63,
+      "batch_cache_read_input": 0.625,
       "batch_image_input": 4.0,
       "batch_image_output": 15.0
     },

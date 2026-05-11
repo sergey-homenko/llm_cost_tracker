@@ -140,14 +140,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "cache_read_input" => 0.4,
         "output" => 16.0,
         "audio_input" => 32.0,
-        "audio_output" => 64.0
+        "audio_output" => 64.0,
+        "image_input" => 5.0
       )
       expect(result.models.fetch("gpt-realtime-mini")).to eq(
         "input" => 0.6,
         "cache_read_input" => 0.06,
         "output" => 2.4,
         "audio_input" => 10.0,
-        "audio_output" => 20.0
+        "audio_output" => 20.0,
+        "image_input" => 0.8
       )
       expect(result.models.fetch("gpt-audio-1.5")).to eq(
         "input" => 2.5,
@@ -160,6 +162,30 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "output" => 0.6,
         "audio_input" => 10.0,
         "audio_output" => 20.0
+      )
+      expect(result.models.fetch("gpt-image-1")).to eq(
+        "input" => 5.0, "cache_read_input" => 1.25,
+        "image_input" => 10.0, "image_output" => 40.0,
+        "batch_input" => 2.5, "batch_cache_read_input" => 0.63,
+        "batch_image_input" => 5.0, "batch_image_output" => 20.0
+      )
+      expect(result.models.fetch("gpt-image-1-mini")).to eq(
+        "input" => 2.0, "cache_read_input" => 0.2,
+        "image_input" => 2.5, "image_output" => 8.0,
+        "batch_input" => 1.0, "batch_cache_read_input" => 0.1,
+        "batch_image_input" => 1.25, "batch_image_output" => 4.0
+      )
+      expect(result.models.fetch("gpt-image-1.5")).to eq(
+        "input" => 5.0, "cache_read_input" => 1.25, "output" => 10.0,
+        "image_input" => 8.0, "image_output" => 32.0,
+        "batch_input" => 2.5, "batch_cache_read_input" => 0.63, "batch_output" => 5.0,
+        "batch_image_input" => 4.0, "batch_image_output" => 16.0
+      )
+      expect(result.models.fetch("gpt-image-2")).to eq(
+        "input" => 5.0, "cache_read_input" => 1.25,
+        "image_input" => 8.0, "image_output" => 30.0,
+        "batch_input" => 2.5, "batch_cache_read_input" => 0.625,
+        "batch_image_input" => 4.0, "batch_image_output" => 15.0
       )
     end
 

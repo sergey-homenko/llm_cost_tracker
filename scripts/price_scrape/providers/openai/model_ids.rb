@@ -34,7 +34,10 @@ module LlmCostTracker
           "gpt-realtime" => "gpt-realtime", "gpt-realtime-1.5" => "gpt-realtime-1.5",
           "gpt-realtime-mini" => "gpt-realtime-mini", "o1-pro" => "o1-pro", "o3" => "o3",
           "o3-mini" => "o3-mini", "o3-pro" => "o3-pro",
-          "o4-mini" => "o4-mini"
+          "o4-mini" => "o4-mini",
+          "gpt-image-1" => "gpt-image-1", "gpt-image-1-mini" => "gpt-image-1-mini",
+          "gpt-image-1.5" => "gpt-image-1.5", "gpt-image-2" => "gpt-image-2",
+          "chatgpt-image-latest" => "chatgpt-image-latest"
         }.freeze
       end
     end
