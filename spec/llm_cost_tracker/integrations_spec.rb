@@ -777,8 +777,8 @@ RSpec.describe LlmCostTracker::Integrations do
       event = events.first
       expect(event).to include(input_tokens: 150, image_input_tokens: 100, image_output_tokens: 1024)
       cost = event.fetch(:cost)
-      # 150 text @ $2.5 + 100 image @ $5 + 1024 image_out @ $20 (per 1M)
-      expected_total = (150 * 2.5 + 100 * 5.0 + 1024 * 20.0) / 1_000_000
+      # 150 text @ $5 + 100 image @ $10 + 1024 image_out @ $40 (per 1M)
+      expected_total = (150 * 5.0 + 100 * 10.0 + 1024 * 40.0) / 1_000_000
       expect(cost.fetch(:total_cost)).to be_within(0.000001).of(expected_total)
     end
   end
