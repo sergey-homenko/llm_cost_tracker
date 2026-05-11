@@ -59,7 +59,7 @@ module LlmCostTracker
                  .limit(1)
                  .first
         return nil unless latest
-        return nil if (Date.today - latest.period_end).to_i > Reconciliation::INVOICE_FRESHNESS_DAYS
+        return nil if (Time.now.utc.to_date - latest.period_end).to_i > Reconciliation::INVOICE_FRESHNESS_DAYS
 
         latest
       end
@@ -74,7 +74,7 @@ module LlmCostTracker
 
       def stale_check(source)
         latest = LlmCostTracker::ProviderInvoice.where(source: source).maximum(:period_end)
-        days = (Date.today - latest).to_i
+        days = (Time.now.utc.to_date - latest).to_i
         Check.new(
           :warn,
           "invoice reconciliation: #{source}",

@@ -10,13 +10,15 @@ module LlmCostTracker
     module Sources
       module AnthropicUsage
         FINGERPRINT_KEYS = %i[
-          starts_at ends_at model workspace_id api_key_id
-          service_tier context_window token_type description
+          starting_at ending_at model workspace_id
+          service_tier context_window cost_type token_type description
           inference_geo
         ].freeze
         ROW_TYPE_COST = "cost"
         AUTHORITY_COST_API = "cost_api"
         DEFAULT_METER = "tokens"
+        DATA_RESIDENCY_GEOS = %w[us].freeze
+        private_constant :DATA_RESIDENCY_GEOS
 
         module_function
 
@@ -30,29 +32,29 @@ module LlmCostTracker
 
         def rows_for_bucket(bucket, authority:, row_type:)
           bucket = symbolize(bucket)
-          starts_at = bucket[:starts_at]
-          ends_at = bucket[:ends_at]
-          return [] unless starts_at && ends_at
+          starting_at = bucket[:starting_at]
+          ending_at = bucket[:ending_at]
+          return [] unless starting_at && ending_at
 
-          period_start = parse_date(starts_at)
-          period_end = end_inclusive_date(ends_at)
+          period_start = parse_date(starting_at)
+          period_end = end_inclusive_date(ending_at)
 
           Array(bucket[:results]).filter_map do |raw|
             row_for_result(raw,
                            period_start: period_start, period_end: period_end,
-                           starts_at: starts_at, ends_at: ends_at,
+                           starting_at: starting_at, ending_at: ending_at,
                            authority: authority, row_type: row_type)
           end
         rescue ArgumentError
           []
         end
 
-        def row_for_result(raw, period_start:, period_end:, starts_at:, ends_at:, authority:, row_type:)
+        def row_for_result(raw, period_start:, period_end:, starting_at:, ending_at:, authority:, row_type:)
           result = symbolize(raw)
           billed_amount = result[:amount]
           return nil if billed_amount.nil?
 
-          fingerprint = fingerprint_for(result, starts_at: starts_at, ends_at: ends_at)
+          fingerprint = fingerprint_for(result, starting_at: starting_at, ending_at: ending_at)
           {
             external_id: "cost-#{fingerprint}",
             period_start: period_start,
@@ -72,21 +74,26 @@ module LlmCostTracker
             "model" => result[:model],
             "pricing_mode" => pricing_mode_for(result),
             "context_window" => result[:context_window],
+            "cost_type" => result[:cost_type],
             "description" => result[:description],
             "token_type" => result[:token_type],
             "inference_geo" => result[:inference_geo],
-            "speed" => result[:speed],
-            "provider_workspace_id" => result[:workspace_id],
-            "provider_api_key_id" => result[:api_key_id]
+            "provider_workspace_id" => result[:workspace_id]
           }.compact
         end
 
         def meter_for(result)
-          token_type = result[:token_type].to_s.downcase
-          description = result[:description].to_s.downcase
-          return "web_search" if description.include?("web search")
-          return "code_execution_hour" if description.include?("code execution")
-          return "cache_read_input_tokens" if token_type.include?("cache_read") || description.include?("cache read")
+          case result[:cost_type].to_s
+          when "web_search" then "web_search"
+          when "code_execution" then "code_execution_hour"
+          when "session_usage" then "session_usage"
+          when "tokens" then token_meter(result[:token_type].to_s)
+          else DEFAULT_METER
+          end
+        end
+
+        def token_meter(token_type)
+          return "cache_read_input_tokens" if token_type.include?("cache_read")
           return "cache_creation_input_tokens" if token_type.include?("cache_creation")
           return "input_tokens" if token_type.include?("input")
           return "output_tokens" if token_type.include?("output")
@@ -94,29 +101,22 @@ module LlmCostTracker
           DEFAULT_METER
         end
 
-        DATA_RESIDENCY_GEOS = %w[us].freeze
-        private_constant :DATA_RESIDENCY_GEOS
-
         def pricing_mode_for(result)
           modes = []
-          modes << result[:speed].to_s.downcase if result[:speed].to_s.downcase == "fast"
-          tier = result[:service_tier].to_s.downcase
-          modes << tier if tier == "batch"
-          geo = result[:inference_geo].to_s.downcase
-          modes << "data_residency" if result[:data_residency] || DATA_RESIDENCY_GEOS.include?(geo)
+          modes << "batch" if result[:service_tier].to_s.downcase == "batch"
+          modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(result[:inference_geo].to_s.downcase)
           modes.empty? ? nil : modes.uniq.join("_")
         end
 
         def match_basis_for(result)
-          return "api_key" if result[:api_key_id]
           return "workspace" if result[:workspace_id]
 
           "period_only"
         end
 
-        def fingerprint_for(result, starts_at:, ends_at:)
-          attributes = result.merge(starts_at: normalized_epoch(starts_at),
-                                    ends_at: normalized_epoch(ends_at))
+        def fingerprint_for(result, starting_at:, ending_at:)
+          attributes = result.merge(starting_at: normalized_epoch(starting_at),
+                                    ending_at: normalized_epoch(ending_at))
           Fingerprint.compute(FINGERPRINT_KEYS, attributes)
         end
 

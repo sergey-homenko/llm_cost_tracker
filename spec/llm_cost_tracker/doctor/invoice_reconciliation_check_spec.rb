@@ -172,6 +172,6 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
   end
 
   def travel_to_today(date)
-    allow(Date).to receive(:today).and_return(date)
+    allow(Time).to receive(:now).and_return(date.to_time.utc + 12.hours)
   end
 end

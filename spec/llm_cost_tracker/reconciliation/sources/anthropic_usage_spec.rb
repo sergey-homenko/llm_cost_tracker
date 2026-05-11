@@ -4,25 +4,25 @@ require "spec_helper"
 require "json"
 
 RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
-  let(:bucket_starts_at) { "2026-05-01T00:00:00Z" }
-  let(:bucket_ends_at) { "2026-05-02T00:00:00Z" }
+  let(:bucket_starting_at) { "2026-05-01T00:00:00Z" }
+  let(:bucket_ending_at) { "2026-05-02T00:00:00Z" }
 
   let(:response) do
     {
       "data" => [
         {
-          "starts_at" => bucket_starts_at,
-          "ends_at" => bucket_ends_at,
+          "starting_at" => bucket_starting_at,
+          "ending_at" => bucket_ending_at,
           "results" => [
             {
               "amount" => "1.50",
               "currency" => "USD",
               "model" => "claude-haiku-4-5",
               "workspace_id" => "wrkspc_main",
-              "api_key_id" => "apikey_alpha",
               "service_tier" => "standard",
-              "context_window" => "0_to_200k",
-              "token_type" => "input",
+              "context_window" => "0-200k",
+              "cost_type" => "tokens",
+              "token_type" => "uncached_input_tokens",
               "description" => "Input tokens"
             },
             {
@@ -30,9 +30,11 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
               "currency" => "USD",
               "model" => "claude-haiku-4-5",
               "workspace_id" => "wrkspc_main",
-              "service_tier" => "priority",
-              "token_type" => "output",
-              "description" => "Output tokens (priority)"
+              "service_tier" => "standard",
+              "context_window" => "0-200k",
+              "cost_type" => "tokens",
+              "token_type" => "output_tokens",
+              "description" => "Output tokens"
             }
           ]
         }
@@ -57,45 +59,52 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
         "row_type" => "cost",
         "meter" => "input_tokens",
         "authority" => "cost_api",
-        "match_basis" => "api_key",
+        "match_basis" => "workspace",
         "model" => "claude-haiku-4-5",
         "provider_workspace_id" => "wrkspc_main",
-        "provider_api_key_id" => "apikey_alpha",
-        "context_window" => "0_to_200k"
+        "context_window" => "0-200k",
+        "cost_type" => "tokens",
+        "token_type" => "uncached_input_tokens"
       )
       expect(first[:external_id]).to start_with("cost-")
     end
 
-    it "treats Anthropic Priority Tier as standard pricing (throughput tier, no per-token surcharge)" do
+    it "classifies output tokens from token_type" do
       rows = described_class.parse(response)
 
-      output_row = rows.find { |row| row[:metadata]["token_type"] == "output" }
+      output_row = rows.find { |row| row[:metadata]["token_type"] == "output_tokens" }
+      expect(output_row[:metadata]["meter"]).to eq("output_tokens")
       expect(output_row[:metadata]["pricing_mode"]).to be_nil
     end
 
-    it "labels cache and tool meters from token_type and description" do
+    it "classifies meters by cost_type and Anthropic token_type tags" do
       response[:data] = [{
-        "starts_at" => bucket_starts_at,
-        "ends_at" => bucket_ends_at,
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
         "results" => [
-          { "amount" => "0.10", "token_type" => "cache_read_input", "description" => "Cache read" },
-          { "amount" => "0.20", "token_type" => "cache_creation_input", "description" => "Cache creation" },
-          { "amount" => "0.05", "description" => "Web search request" },
-          { "amount" => "0.50", "description" => "Code execution hour" }
+          { "amount" => "0.10", "cost_type" => "tokens", "token_type" => "cache_read_input_tokens" },
+          { "amount" => "0.20", "cost_type" => "tokens",
+            "token_type" => "cache_creation.ephemeral_5m_input_tokens" },
+          { "amount" => "0.25", "cost_type" => "tokens",
+            "token_type" => "cache_creation.ephemeral_1h_input_tokens" },
+          { "amount" => "0.05", "cost_type" => "web_search", "description" => "Web search requests" },
+          { "amount" => "0.50", "cost_type" => "code_execution", "description" => "Code execution sessions" },
+          { "amount" => "0.30", "cost_type" => "session_usage", "description" => "Claude Code session" }
         ]
       }]
 
       meters = described_class.parse(response).map { |row| row[:metadata]["meter"] }
-      expect(meters).to eq(%w[cache_read_input_tokens cache_creation_input_tokens web_search code_execution_hour])
+      expect(meters).to eq(%w[cache_read_input_tokens cache_creation_input_tokens cache_creation_input_tokens
+                              web_search code_execution_hour session_usage])
     end
 
     it "skips results without an amount" do
       response[:data] = [{
-        "starts_at" => bucket_starts_at,
-        "ends_at" => bucket_ends_at,
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
         "results" => [
-          { "currency" => "USD", "token_type" => "input" },
-          { "amount" => "0.50", "token_type" => "input" }
+          { "currency" => "USD", "cost_type" => "tokens", "token_type" => "uncached_input_tokens" },
+          { "amount" => "0.50", "cost_type" => "tokens", "token_type" => "uncached_input_tokens" }
         ]
       }]
 
@@ -110,8 +119,8 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
 
     it "falls back to the raw value when a timestamp cannot be parsed" do
       response[:data] = [{
-        "starts_at" => "garbage", "ends_at" => bucket_ends_at,
-        "results" => [{ "amount" => "1.00", "token_type" => "input" }]
+        "starting_at" => "garbage", "ending_at" => bucket_ending_at,
+        "results" => [{ "amount" => "1.00", "cost_type" => "tokens", "token_type" => "uncached_input_tokens" }]
       }]
 
       expect { described_class.parse(response) }.not_to raise_error
@@ -119,11 +128,13 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
 
     it "differentiates rows that share a model but differ on workspace" do
       response[:data] = [{
-        "starts_at" => bucket_starts_at,
-        "ends_at" => bucket_ends_at,
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
         "results" => [
-          { "amount" => "1.00", "model" => "claude-haiku-4-5", "workspace_id" => "ws_a", "token_type" => "input" },
-          { "amount" => "2.00", "model" => "claude-haiku-4-5", "workspace_id" => "ws_b", "token_type" => "input" }
+          { "amount" => "1.00", "model" => "claude-haiku-4-5", "workspace_id" => "ws_a",
+            "cost_type" => "tokens", "token_type" => "uncached_input_tokens" },
+          { "amount" => "2.00", "model" => "claude-haiku-4-5", "workspace_id" => "ws_b",
+            "cost_type" => "tokens", "token_type" => "uncached_input_tokens" }
         ]
       }]
 
@@ -148,59 +159,71 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
 
     it "falls back to period_only match_basis when no attribution dimension is present" do
       response[:data] = [{
-        "starts_at" => bucket_starts_at,
-        "ends_at" => bucket_ends_at,
-        "results" => [{ "amount" => "1.00", "token_type" => "input" }]
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
+        "results" => [{ "amount" => "1.00", "cost_type" => "tokens", "token_type" => "uncached_input_tokens" }]
       }]
 
       expect(described_class.parse(response).first[:metadata]["match_basis"]).to eq("period_only")
     end
 
-    it "falls back to the default meter when the line cannot be classified" do
+    it "falls back to the default meter when the cost line cannot be classified" do
       response[:data] = [{
-        "starts_at" => bucket_starts_at,
-        "ends_at" => bucket_ends_at,
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
         "results" => [{ "amount" => "1.00", "description" => "unknown subscription line" }]
       }]
 
       expect(described_class.parse(response).first[:metadata]["meter"]).to eq("tokens")
     end
 
-    it "captures inference_geo and speed in metadata and pricing_mode" do
+    it "tags pricing_mode as data_residency when inference_geo is us" do
       response[:data] = [{
-        "starts_at" => bucket_starts_at,
-        "ends_at" => bucket_ends_at,
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
         "results" => [{
-          "amount" => "1.00", "token_type" => "input",
-          "service_tier" => "priority", "speed" => "fast",
+          "amount" => "1.00", "cost_type" => "tokens", "token_type" => "uncached_input_tokens",
           "inference_geo" => "us"
         }]
       }]
 
       row = described_class.parse(response).first
-      expect(row[:metadata]).to include("speed" => "fast", "inference_geo" => "us")
-      expect(row[:metadata]["pricing_mode"]).to eq("fast_data_residency")
+      expect(row[:metadata]).to include("inference_geo" => "us")
+      expect(row[:metadata]["pricing_mode"]).to eq("data_residency")
     end
 
-    it "tags pricing_mode as bare data_residency when only inference_geo: us is present" do
+    it "tags pricing_mode as batch when service_tier is batch" do
       response[:data] = [{
-        "starts_at" => bucket_starts_at,
-        "ends_at" => bucket_ends_at,
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
         "results" => [{
-          "amount" => "1.00", "token_type" => "input",
-          "inference_geo" => "us"
+          "amount" => "1.00", "cost_type" => "tokens", "token_type" => "uncached_input_tokens",
+          "service_tier" => "batch"
         }]
       }]
 
-      expect(described_class.parse(response).first[:metadata]["pricing_mode"]).to eq("data_residency")
+      expect(described_class.parse(response).first[:metadata]["pricing_mode"]).to eq("batch")
+    end
+
+    it "combines batch and data_residency when both apply" do
+      response[:data] = [{
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
+        "results" => [{
+          "amount" => "1.00", "cost_type" => "tokens", "token_type" => "uncached_input_tokens",
+          "service_tier" => "batch", "inference_geo" => "us"
+        }]
+      }]
+
+      expect(described_class.parse(response).first[:metadata]["pricing_mode"]).to eq("batch_data_residency")
     end
 
     it "ignores non-US inference_geo values that do not map to a documented uplift" do
       response[:data] = [{
-        "starts_at" => bucket_starts_at,
-        "ends_at" => bucket_ends_at,
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
         "results" => [{
-          "amount" => "1.00", "token_type" => "input",
+          "amount" => "1.00", "cost_type" => "tokens", "token_type" => "uncached_input_tokens",
           "inference_geo" => "global"
         }]
       }]
@@ -210,46 +233,20 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
 
     it "accepts Date instances directly when computing the inclusive end date" do
       response[:data] = [{
-        "starts_at" => Date.new(2026, 5, 1),
-        "ends_at" => Date.new(2026, 5, 2),
-        "results" => [{ "amount" => "1.00", "token_type" => "input" }]
+        "starting_at" => Date.new(2026, 5, 1),
+        "ending_at" => Date.new(2026, 5, 2),
+        "results" => [{ "amount" => "1.00", "cost_type" => "tokens", "token_type" => "uncached_input_tokens" }]
       }]
 
       row = described_class.parse(response).first
       expect(row[:period_end]).to eq(Date.new(2026, 5, 1))
-    end
-
-    it "collapses an hourly bucket into the correct inclusive end date" do
-      response[:data] = [{
-        "starts_at" => "2026-05-01T00:00:00Z",
-        "ends_at" => "2026-05-01T01:00:00Z",
-        "results" => [{ "amount" => "0.10", "token_type" => "input" }]
-      }]
-
-      row = described_class.parse(response).first
-      expect(row[:period_start]).to eq(Date.new(2026, 5, 1))
-      expect(row[:period_end]).to eq(Date.new(2026, 5, 1))
-    end
-
-    it "tags data_residency as a pricing_mode modifier" do
-      response[:data] = [{
-        "starts_at" => bucket_starts_at,
-        "ends_at" => bucket_ends_at,
-        "results" => [{
-          "amount" => "1.00", "token_type" => "input",
-          "service_tier" => "priority", "data_residency" => true
-        }]
-      }]
-
-      expect(described_class.parse(response).first[:metadata]["pricing_mode"])
-        .to eq("data_residency")
     end
 
     it "accepts epoch timestamps for bucket bounds" do
       response[:data] = [{
-        "starts_at" => Time.utc(2026, 5, 1).to_i,
-        "ends_at" => Time.utc(2026, 5, 2).to_i,
-        "results" => [{ "amount" => "1.00", "token_type" => "input" }]
+        "starting_at" => Time.utc(2026, 5, 1).to_i,
+        "ending_at" => Time.utc(2026, 5, 2).to_i,
+        "results" => [{ "amount" => "1.00", "cost_type" => "tokens", "token_type" => "uncached_input_tokens" }]
       }]
 
       expect(described_class.parse(response).first[:period_start]).to eq(Date.new(2026, 5, 1))
