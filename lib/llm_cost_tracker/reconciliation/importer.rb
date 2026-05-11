@@ -84,7 +84,7 @@ module LlmCostTracker
           window_start: window&.first,
           window_end: window&.last,
           state: ProviderInvoiceImport::STATE_RUNNING,
-          started_at: imported_at || Time.now.utc
+          started_at: Time.now.utc
         )
       end
 

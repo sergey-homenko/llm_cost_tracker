@@ -443,6 +443,16 @@ RSpec.describe LlmCostTracker::Reconciliation do
       expect(LlmCostTracker::ProviderInvoiceImport.resume_cursor_for("openai")).to eq("page-2")
     end
 
+    it "stamps started_at with the wall-clock time so a backfill with a historical imported_at does not invert resume_cursor_for ordering" do
+      LlmCostTracker::Reconciliation.import(
+        source: :openai, rows: rows, cursor: "page-historical",
+        imported_at: Time.utc(2020, 1, 1)
+      )
+
+      record = LlmCostTracker::ProviderInvoiceImport.last
+      expect(record.started_at).to be_within(60).of(Time.now.utc)
+    end
+
     it "still imports when the tracking table is absent" do
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoice_imports)
       LlmCostTracker::ProviderInvoiceImport.reset_column_information
