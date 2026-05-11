@@ -53,6 +53,8 @@ module LlmCostTracker
           when Array
             value.map { |nested| scalar_truncate(nested, limit) }
           else
+            return value if value == REDACTED_VALUE
+
             string = value.to_s
             return value if string.bytesize <= limit
 

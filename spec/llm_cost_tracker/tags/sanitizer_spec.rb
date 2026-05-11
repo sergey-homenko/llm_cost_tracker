@@ -140,6 +140,21 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
       expect(tags[:trail]).to eq(["clean-id", "[REDACTED]"])
     end
 
+    it "keeps the redaction marker intact inside nested values even when max_tag_value_bytesize is smaller than '[REDACTED]'" do
+      tiny_config = instance_double(
+        LlmCostTracker::Configuration,
+        max_tag_count: 10,
+        max_tag_value_bytesize: 5,
+        redacted_tag_keys: []
+      )
+      tags = described_class.call(
+        { trail: ["sk-proj-A1B2C3D4E5F6G7H8I9J0"] },
+        config: tiny_config
+      )
+
+      expect(tags[:trail]).to eq(["[REDACTED]"])
+    end
+
     it "redacts Slack tokens regardless of the tag key" do
       tags = described_class.call({ note: "xoxb-123456789012-abcdefghijkl" }, config: config)
 
