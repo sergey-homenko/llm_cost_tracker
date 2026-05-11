@@ -61,9 +61,11 @@ bin/rails db:migrate
 
 Each step in the generated migration is guarded by `column_exists?` /
 `index_exists?`, so re-running it on an already-upgraded schema is a
-no-op. Old code reads/writes rollups with `provider = ""` and new code
-reads/writes per-provider rollups; both coexist in the table during
-rolling deploys.
+no-op. The migration clears the existing rollup rows before adding the
+`provider` column: stale rows with no provider value would otherwise be
+invisible to the per-provider reconciliation fast path. Budget reads
+fall back to live aggregation from `llm_cost_tracker_calls` until new
+events repopulate the rollups under their provider keys.
 
 If your install accumulated duplicate rollup rows under the old
 `(period, period_start, currency)` constraint, the new unique index
