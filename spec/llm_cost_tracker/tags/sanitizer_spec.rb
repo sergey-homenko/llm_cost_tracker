@@ -18,6 +18,20 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
     expect(tags).to eq(second: "2", third: "3")
   end
 
+  it "redacts a secret-shaped value before truncation so a small max_tag_value_bytesize cannot leave the leading bytes of the secret in the tag" do
+    tiny_config = instance_double(
+      LlmCostTracker::Configuration,
+      max_tag_count: 10,
+      max_tag_value_bytesize: 6,
+      redacted_tag_keys: []
+    )
+
+    tags = described_class.call({ feature: "sk-proj-A1B2C3D4E5F6G7H8I9J0" }, config: tiny_config)
+
+    expect(tags[:feature]).to eq("[REDACTED]")
+    expect(tags[:feature]).not_to include("sk-pr")
+  end
+
   it "redacts configured secret-like keys and common variants" do
     tags = described_class.call({ "openai.APIKey" => "sk-secret", accessToken: "token" }, config: config)
 

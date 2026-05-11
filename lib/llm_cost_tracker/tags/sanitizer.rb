@@ -37,11 +37,10 @@ module LlmCostTracker
         def sanitized_value(key, value, redacted, limit)
           return REDACTED_VALUE if redacted_key?(key, redacted)
 
-          truncated = scalar_truncate(value, limit)
-          recursed = scrub_secrets(truncated)
-          return REDACTED_VALUE if recursed.equal?(REDACTED_SENTINEL)
+          scrubbed = scrub_secrets(value)
+          return REDACTED_VALUE if scrubbed.equal?(REDACTED_SENTINEL)
 
-          recursed
+          scalar_truncate(scrubbed, limit)
         end
 
         REDACTED_SENTINEL = Object.new.freeze
