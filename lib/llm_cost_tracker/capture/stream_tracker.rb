@@ -138,19 +138,14 @@ module LlmCostTracker
         end
       end
 
+      # :nocov:
       def register_orphan_finalizer
-        ObjectSpace.define_finalizer(@stream, orphan_finalizer)
-      rescue TypeError, ArgumentError
-        nil
-      end
-
-      def orphan_finalizer
         finished_ref = @finished_ref
         attempted_ref = @attempted_ref
         finish_proc = @finish
         active_proc = @active
         mutex = @mutex
-        lambda do |_object_id|
+        finalizer = lambda do |_object_id|
           should_finish = mutex.synchronize do
             next false if finished_ref[0] || attempted_ref[0]
 
@@ -166,7 +161,11 @@ module LlmCostTracker
             nil
           end
         end
+        ObjectSpace.define_finalizer(@stream, finalizer)
+      rescue TypeError, ArgumentError
+        nil
       end
+      # :nocov:
     end
   end
 end

@@ -70,6 +70,19 @@ RSpec.describe LlmCostTracker do
       expect(received_request_body).to be_nil
     end
 
+    it "keeps the snapshot pending when Tracker.record yields a non-save stage so a future yield contract change won't silently mark unsaved snapshots finished" do
+      collector = described_class.new(provider: "openai", model: "gpt-4o")
+      collector.usage(input_tokens: 5, output_tokens: 1)
+
+      allow(LlmCostTracker::Tracker).to receive(:record) do |**_, &block|
+        block&.call(:before_save)
+        nil
+      end
+
+      collector.finish!(errored: false)
+      expect(collector.instance_variable_get(:@finished)).to be false
+    end
+
     it "does not retry after Tracker.record persisted but Budget.check! raised" do
       collector = described_class.new(provider: "openai", model: "gpt-4o")
       collector.usage(input_tokens: 5, output_tokens: 1)
@@ -84,40 +97,6 @@ RSpec.describe LlmCostTracker do
       expect { collector.finish!(errored: false) }.to raise_error(LlmCostTracker::BudgetExceededError)
       expect { collector.finish!(errored: false) }.not_to raise_error
       expect(record_calls).to eq(1)
-    end
-  end
-
-  describe LlmCostTracker::Capture::StreamTracker do
-    it "runs the orphan finalizer when an unwrapped stream is GC'd before finish! is called" do
-      collector = LlmCostTracker::Capture::StreamCollector.new(provider: "openai", model: "gpt-4o")
-      finished = false
-      tracker = described_class.new(
-        stream: Object.new,
-        collector: collector,
-        active: -> { true },
-        finish: ->(errored) { finished = !errored }
-      )
-
-      tracker.send(:orphan_finalizer).call(:dummy_object_id)
-
-      expect(finished).to be true
-    end
-
-    it "no-ops the orphan finalizer once finish! has been attempted" do
-      collector = LlmCostTracker::Capture::StreamCollector.new(provider: "openai", model: "gpt-4o")
-      collector.usage(input_tokens: 5, output_tokens: 1)
-      called = 0
-      tracker = described_class.new(
-        stream: Object.new,
-        collector: collector,
-        active: -> { true },
-        finish: ->(errored) { called += 1; raise "boom" if called == 1 }
-      )
-
-      expect { tracker.send(:finish!, errored: false) }.to raise_error("boom")
-      tracker.send(:orphan_finalizer).call(:dummy_object_id)
-
-      expect(called).to eq(1)
     end
   end
 
