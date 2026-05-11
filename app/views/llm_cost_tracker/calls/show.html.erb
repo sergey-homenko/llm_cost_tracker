@@ -82,7 +82,7 @@ end %>
       <dd><%= @call.provider_response_id.presence || "n/a" %></dd>
 
       <dt>Project ID</dt>
-      <dd><%= @call.provider_project_id.presence || "n/a" %></dd>
+      <dd><%= @call.provider_project_id.present? ? LlmCostTracker::Masking.mask_value(:provider_project_id, @call.provider_project_id) : "n/a" %></dd>
 
       <dt>API Key ID</dt>
       <dd><%= @call.provider_api_key_id.present? ? LlmCostTracker::Masking.mask_value(:provider_api_key_id, @call.provider_api_key_id) : "n/a" %></dd>

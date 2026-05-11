@@ -82,7 +82,12 @@ module LlmCostTracker
         LlmCostTracker.const_get(:Reconciliation) # autoload reconciliation + its ledger schemas
         connection = ActiveRecord::Base.connection
         LlmCostTracker::Reconciliation::SCHEMA_TABLES.each do |schema, table|
-          next unless connection.data_source_exists?(table)
+          unless connection.data_source_exists?(table)
+            return SetupRequired.new(
+              message: "The #{table} table is required when reconciliation is enabled.",
+              details: ["run bin/rails generate llm_cost_tracker:reconciliation && bin/rails db:migrate", DOCS_HINT]
+            )
+          end
 
           errors = schema.current_schema_errors
           next if errors.empty?

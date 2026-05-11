@@ -113,4 +113,18 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       expect(items.first.details).to include("action_type" => "search")
     end
   end
+
+  describe ".normalize_sdk_args" do
+    it "passes args through when at least one positional is present" do
+      expect(described_class.normalize_sdk_args([{ a: 1 }], {})).to eq([{ a: 1 }])
+    end
+
+    it "wraps kwargs as a single positional hash when only kwargs were given (explicit splat)" do
+      expect(described_class.normalize_sdk_args([], { model: "x" })).to eq([{ model: "x" }])
+    end
+
+    it "returns empty args when nothing was given" do
+      expect(described_class.normalize_sdk_args([], {})).to eq([])
+    end
+  end
 end

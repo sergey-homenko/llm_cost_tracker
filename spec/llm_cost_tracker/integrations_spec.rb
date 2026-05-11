@@ -185,14 +185,23 @@ RSpec.describe LlmCostTracker::Integrations do
       define_method(:create) { |_params = {}| @embedding }
     end)
     stub_const("OpenAI::Resources::Images", Class.new do
-      define_method(:initialize) { @image = image }
+      define_method(:initialize) do
+        @image = image
+        @stream = stream
+      end
       define_method(:generate) { |_params = {}| @image }
       define_method(:edit) { |_params = {}| @image }
       define_method(:create_variation) { |_params = {}| @image }
+      define_method(:generate_stream_raw) { |_params = {}| @stream }
+      define_method(:edit_stream_raw) { |_params = {}| @stream }
     end)
     stub_const("OpenAI::Resources::Audio::Transcriptions", Class.new do
-      define_method(:initialize) { @transcription = transcription }
+      define_method(:initialize) do
+        @transcription = transcription
+        @stream = stream
+      end
       define_method(:create) { |_params = {}| @transcription }
+      define_method(:create_streaming) { |_params = {}| @stream }
     end)
     stub_const("OpenAI::Resources::Audio::Speech", Class.new do
       define_method(:initialize) { @speech = speech }
@@ -811,6 +820,24 @@ RSpec.describe LlmCostTracker::Integrations do
       expected_total = (50 * 5.0 + 100 * 10.0 + 1000 * 32.0) / 1_000_000
       expect(cost.fetch(:total_cost)).to be_within(0.000001).of(expected_total)
     end
+  end
+
+  it "wraps Images#generate_stream_raw through the stream collector" do
+    stream = stream_class.new([])
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    expect { OpenAI::Resources::Images.new.generate_stream_raw(prompt: "a cat", model: "gpt-image-1") }
+      .not_to raise_error
+  end
+
+  it "wraps Audio::Transcriptions#create_streaming through the stream collector" do
+    stream = stream_class.new([])
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    expect { OpenAI::Resources::Audio::Transcriptions.new.create_streaming(model: "gpt-4o-transcribe", file: "f") }
+      .not_to raise_error
   end
 
   it "tracks official OpenAI images.create_variation calls" do

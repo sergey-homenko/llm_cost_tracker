@@ -2,7 +2,7 @@
   <section class="lct-panel lct-toolbar">
     <div class="lct-toolbar-head">
       <div>
-        <p class="lct-muted"><%= link_to "← All values for #{params[:key]}", tag_path(params[:key], current_query.except(:value)) %></p>
+        <p class="lct-muted"><%= link_to "← All values for #{params[:key]}", tag_path(params[:key], current_query.except(:tag_value)) %></p>
         <h2 class="lct-section-title">Tag: <code class="lct-code"><%= params[:key] %></code> = <code class="lct-code"><%= @value %></code></h2>
       </div>
     </div>

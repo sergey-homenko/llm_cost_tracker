@@ -44,6 +44,8 @@ Header row. One per tracked call (or completed stream).
 | `cache_write_extended_input_tokens` | integer, default `0` | Extended cache-write input |
 | `audio_input_tokens` | integer, default `0` | Audio input |
 | `audio_output_tokens` | integer, default `0` | Audio output |
+| `image_input_tokens` | integer, default `0` | Image input tokens (gpt-image-*, vision inputs) |
+| `image_output_tokens` | integer, default `0` | Image output tokens (gpt-image-*) |
 | `hidden_output_tokens` | integer, default `0` | Reasoning/hidden output |
 | `total_cost` | decimal(20,8) | Total known cost; `nil` when pricing is unknown |
 | `latency_ms` | integer | Request latency when captured |

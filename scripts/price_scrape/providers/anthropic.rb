@@ -177,7 +177,7 @@ module LlmCostTracker
 
           major = match[1].to_i
           minor = match[2].to_i
-          major > 4 || (major == 4 && minor >= 5)
+          major > 4 || (major == 4 && minor >= 6)
         end
 
         def normalize_model_id(display_name)

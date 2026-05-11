@@ -72,7 +72,7 @@ RSpec.describe "LlmCostTracker::Engine reconciliation" do
     response = get("/llm-costs/reconciliation")
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("Reconciliation not installed")
+    expect(response.body).to include("llm_cost_tracker_provider_invoices table is required")
     expect(response.body).to include("llm_cost_tracker:reconciliation")
   end
 

@@ -12,6 +12,7 @@ require "llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/reconciliation_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_rollups_provider_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_image_tokens_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/durable_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/call_rollups_generator"
 
@@ -210,6 +211,26 @@ RSpec.describe "generator templates" do
           File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_call_rollups_provider.rb")
         ]
         expect(migrations.size).to eq(1)
+      end
+    end
+  end
+
+  describe "upgrade_image_tokens generator" do
+    it "writes a guarded image-tokens column migration" do
+      Dir.mktmpdir do |dir|
+        LlmCostTracker::Generators::UpgradeImageTokensGenerator.start([], destination_root: dir)
+
+        migration_path = Dir[
+          File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_image_tokens.rb")
+        ].first
+        expect(migration_path).not_to be_nil
+
+        migration = File.read(migration_path)
+        expect(migration).to include("class UpgradeLlmCostTrackerImageTokens")
+        expect(migration).to include("TABLE = :llm_cost_tracker_calls")
+        expect(migration).to include("COLUMNS = %i[image_input_tokens image_output_tokens].freeze")
+        expect(migration).to include("next if column_exists?(TABLE, column)")
+        expect(migration).to include("add_column TABLE, column, :integer, null: false, default: 0")
       end
     end
   end

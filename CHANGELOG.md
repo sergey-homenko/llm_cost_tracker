@@ -51,7 +51,7 @@ see [Upgrading](docs/upgrading.md).
 - Faraday streaming captures no longer silently degrade to `usage_source: :unknown`.
 - Dashboard filters apply the default 30-day range when `from`/`to` params are missing.
 - `provider_api_key_id` and `provider_workspace_id` are masked on the call detail page and CSV export.
-- Doctor catches schema drift on `created_at` / `updated_at` columns, required indexes, and the `ON DELETE CASCADE` foreign key on `call_line_items` / `call_tags` before the first row is inserted.
+- Doctor catches schema drift on required columns, required indexes, and the foreign key on `call_line_items` before the first row is inserted.
 - Service-charge rows render `n/a` instead of `$0.00` when `cost_status` is `unknown`, so unpriced charges don't masquerade as zero-cost.
 - Enabling `:ruby_llm` together with `:openai` / `:anthropic` logs a warning at install — RubyLLM routes through HTTP, so calls would otherwise be double-counted. Pick one path per provider.
 

@@ -622,6 +622,19 @@ RSpec.describe LlmCostTracker::Tracker do
       }
     end
 
+    it "does not fire on_budget_exceeded from preflight in :block_requests mode" do
+      callback_calls = []
+      LlmCostTracker.configure do |c|
+        c.daily_budget = 0.0001
+        c.budget_exceeded_behavior = :block_requests
+        c.on_budget_exceeded = ->(payload) { callback_calls << payload }
+      end
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 12.5)
+
+      expect { described_class.enforce_budget! }.to raise_error(LlmCostTracker::BudgetExceededError)
+      expect(callback_calls).to be_empty
+    end
+
     it "skips preflight totals when no period budget is configured" do
       LlmCostTracker.configure do |c|
         c.budget_exceeded_behavior = :block_requests
