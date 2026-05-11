@@ -26,7 +26,8 @@ module LlmCostTracker
           LlmCostTracker::Capture::StreamCollector.new(
             provider: integration_name.to_s,
             model: request[:model],
-            pricing_mode: stream_pricing_mode(request, host: host)
+            pricing_mode: stream_pricing_mode(request, host: host),
+            request: request
           )
         end
 
@@ -110,16 +111,25 @@ module LlmCostTracker
           raw_output = usage ? object_value(usage, :output_tokens).to_i : 0
           image_input = image_input_tokens(usage).to_i
           text_input = [raw_input - image_input, 0].max
+          image_output, text_output = split_image_output(usage, raw_output)
           record_passthrough(
             model: request[:model],
             response: response,
             latency_ms: latency_ms,
             input_tokens: text_input,
             image_input_tokens: image_input,
-            output_tokens: 0,
-            image_output_tokens: raw_output,
+            output_tokens: text_output,
+            image_output_tokens: image_output,
             cache_read_input_tokens: cache_read_input_tokens(usage).to_i
           )
+        end
+
+        def split_image_output(usage, raw_output)
+          image_tokens = image_output_tokens(usage).to_i
+          text_tokens = text_output_tokens(usage).to_i
+          return [image_tokens, text_tokens] if image_tokens.positive? || text_tokens.positive?
+
+          [raw_output, 0]
         end
 
         def record_transcription(response, request:, latency_ms:)
@@ -252,6 +262,8 @@ module LlmCostTracker
         def audio_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :audio_tokens)
         def audio_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :audio_tokens)
         def image_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :image_tokens)
+        def image_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :image_tokens)
+        def text_output_tokens(usage)      = detail(usage, OUTPUT_DETAIL_KEYS, :text_tokens)
 
         def detail(usage, containers, key)
           containers.each do |container|

@@ -144,8 +144,10 @@ module LlmCostTracker
       end
 
       def forward_on_data_chunk(callable, chunk, size, env)
-        required = callable.arity.negative? ? -callable.arity - 1 : callable.arity
-        case required
+        arity = callable.arity
+        return callable.call(chunk, size, env) if arity.negative?
+
+        case arity
         when 0, 1 then callable.call(chunk)
         when 2 then callable.call(chunk, size)
         else callable.call(chunk, size, env)

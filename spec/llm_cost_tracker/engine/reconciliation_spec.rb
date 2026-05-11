@@ -125,7 +125,7 @@ RSpec.describe "LlmCostTracker::Engine reconciliation" do
 
     expect(response.body).to include("Provider rows without a matching local call")
     expect(response.body).to include("openai:phantom")
-    expect(response.body).to include("provider_project_id=proj_phantom")
+    expect(response.body).to include("provider_project_id=***ntom")
   end
 
   it "renders the dashboard without crashing when a legacy invoice cannot resolve to a provider" do

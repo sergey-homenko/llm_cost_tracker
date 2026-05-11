@@ -69,11 +69,15 @@ module LlmCostTracker
       end
 
       def stream_capture_context(events:, request:, request_url:)
-        model = find_event_value(events) { |data| data["model"] || data.dig("response", "model") } || request["model"]
+        model = find_event_value(events) do |data|
+          data["model"] || data.dig("response", "model") || data.dig("chunk", "model")
+        end || request["model"]
         {
           provider: provider_for(request_url),
           model: model,
-          provider_response_id: find_event_value(events) { |data| data["id"] || data.dig("response", "id") },
+          provider_response_id: find_event_value(events) do |data|
+            data["id"] || data.dig("response", "id") || data.dig("chunk", "id")
+          end,
           pricing_mode: pricing_mode(
             request_url: request_url,
             model: model,
@@ -116,14 +120,14 @@ module LlmCostTracker
 
       def detect_stream_usage(events)
         find_event_value(events, reverse: true) do |data|
-          usage = data["usage"] || data.dig("response", "usage")
+          usage = data["usage"] || data.dig("response", "usage") || data.dig("chunk", "usage")
           usage if usage.is_a?(Hash)
         end
       end
 
       def stream_pricing_mode(events)
         find_event_value(events, reverse: true) do |data|
-          data["service_tier"] || data.dig("response", "service_tier")
+          data["service_tier"] || data.dig("response", "service_tier") || data.dig("chunk", "service_tier")
         end
       end
 

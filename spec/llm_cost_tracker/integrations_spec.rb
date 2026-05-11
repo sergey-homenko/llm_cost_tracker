@@ -783,6 +783,36 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "splits gpt-image-1.5 output details into text and image output tokens" do
+    detailed_usage = Struct.new(
+      :input_tokens, :output_tokens, :total_tokens, :output_tokens_details, keyword_init: true
+    )
+    output_detail = Struct.new(:image_tokens, :text_tokens, keyword_init: true)
+    images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
+    image = images_class.new(
+      created: 1_700_000_000,
+      usage: detailed_usage.new(
+        input_tokens: 50,
+        output_tokens: 1100,
+        total_tokens: 1150,
+        output_tokens_details: output_detail.new(image_tokens: 1000, text_tokens: 100)
+      )
+    )
+    install_openai_fakes(response_class.new, image: image)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Images.new.generate(prompt: "a cat", model: "gpt-image-1.5", size: "1024x1024")
+
+      event = events.first
+      expect(event).to include(input_tokens: 50, output_tokens: 100, image_output_tokens: 1000)
+      cost = event.fetch(:cost)
+      # 50 text @ $5 + 100 text out @ $10 + 1000 image_out @ $32 (per 1M)
+      expected_total = (50 * 5.0 + 100 * 10.0 + 1000 * 32.0) / 1_000_000
+      expect(cost.fetch(:total_cost)).to be_within(0.000001).of(expected_total)
+    end
+  end
+
   it "tracks official OpenAI images.create_variation calls" do
     images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
     image = images_class.new(created: 1_700_000_000, usage: nil)

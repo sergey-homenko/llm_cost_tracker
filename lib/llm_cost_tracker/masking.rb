@@ -2,7 +2,9 @@
 
 module LlmCostTracker
   module Masking
-    SENSITIVE_KEYS = %i[provider_api_key_id provider_workspace_id provider_organization_id].to_set.freeze
+    SENSITIVE_KEYS = %i[
+      provider_api_key_id provider_workspace_id provider_organization_id provider_project_id
+    ].to_set.freeze
     MASK_TAIL_LENGTH = 4
 
     module_function

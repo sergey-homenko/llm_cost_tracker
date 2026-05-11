@@ -430,6 +430,27 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.provider_response_id).to be_nil
     end
 
+    it "extracts usage from SDK chat-completion stream events wrapped in a chunk envelope" do
+      events = [
+        { event: nil, data: { "chunk" => { "id" => "chatcmpl_chunk", "model" => "gpt-4o" } } },
+        { event: nil, data: { "chunk" => { "usage" => { "prompt_tokens" => 8, "completion_tokens" => 2,
+                                                        "total_tokens" => 10 } } } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: chat_completions_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.token_usage.input_tokens).to eq(8)
+      expect(result.token_usage.output_tokens).to eq(2)
+      expect(result.model).to eq("gpt-4o")
+      expect(result.provider_response_id).to eq("chatcmpl_chunk")
+      expect(result.usage_source).to eq(:stream_final)
+    end
+
     it "extracts response ids from chat completion stream chunks" do
       events = [
         {

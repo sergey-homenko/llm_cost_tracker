@@ -14,7 +14,7 @@ module LlmCostTracker
 
       def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, provider_project_id: nil,
                      provider_api_key_id: nil, provider_workspace_id: nil, batch: nil, pricing_mode: nil,
-                     metadata: {}, context_tags: nil)
+                     metadata: {}, context_tags: nil, request: nil)
         @provider = provider.to_s
         @model = model
         @latency_ms = latency_ms
@@ -26,6 +26,7 @@ module LlmCostTracker
         @pricing_mode = pricing_mode
         @metadata = (metadata || {}).deep_dup
         @context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).deep_dup
+        @request = request
         @events = []
         @captured_bytes = 0
         @overflowed = false
@@ -113,7 +114,8 @@ module LlmCostTracker
             capture_dimensions: capture_dimensions(pricing_mode),
             pricing_mode: pricing_mode,
             metadata: @metadata.deep_dup,
-            context_tags: @context_tags.deep_dup
+            context_tags: @context_tags.deep_dup,
+            request: @request
           }
         end
       end
@@ -168,7 +170,8 @@ module LlmCostTracker
 
         capture = Parsers.find_for_provider(@provider)&.parse_stream(
           response_status: 200,
-          events: snapshot[:events]
+          events: snapshot[:events],
+          request_body: request_body_for(snapshot[:request])
         )
         if capture
           model = present_model(capture.model) || present_model(snapshot[:model]) || UsageCapture::UNKNOWN_MODEL
@@ -176,6 +179,14 @@ module LlmCostTracker
         end
 
         build_unknown_usage(snapshot)
+      end
+
+      def request_body_for(request)
+        return nil unless request
+
+        JSON.generate(request)
+      rescue StandardError
+        nil
       end
 
       def present_model(value)

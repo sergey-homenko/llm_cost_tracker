@@ -74,7 +74,7 @@ module LlmCostTracker
         end
 
         def line_item_for_server_tool(server_tool_use, component_key, count_key, provider_field)
-          quantity = object_value(server_tool_use, count_key).to_i
+          quantity = server_tool_count(server_tool_use, count_key)
           return nil if quantity.zero?
 
           Billing::LineItem.build(
@@ -84,6 +84,14 @@ module LlmCostTracker
             pricing_basis: :provider_usage,
             provider_field: provider_field
           )
+        end
+
+        def server_tool_count(server_tool_use, count_key)
+          direct = object_value(server_tool_use, count_key).to_i
+          return direct if direct.positive?
+          return 0 unless server_tool_use.respond_to?(:to_h)
+
+          server_tool_use.to_h[count_key].to_i
         end
 
         def token_usage(usage:, input_tokens:, output_tokens:)

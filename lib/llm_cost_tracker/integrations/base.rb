@@ -76,7 +76,8 @@ module LlmCostTracker
         LlmCostTracker::Capture::StreamCollector.new(
           provider: integration_name.to_s,
           model: request[:model],
-          pricing_mode: stream_pricing_mode(request)
+          pricing_mode: stream_pricing_mode(request),
+          request: request
         )
       end
 

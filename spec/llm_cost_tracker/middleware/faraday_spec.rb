@@ -369,6 +369,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end
 
     expect(received).not_to be_empty
+    expect(received).to all(eq(3))
   end
 
   it "records an unknown-usage event for oversized streaming responses" do

@@ -14,7 +14,7 @@ RSpec.describe LlmCostTracker::ReconciliationHelper do
   end
 
   describe "attribution masking" do
-    it "renders provider_api_key_id and workspace ids with the trailing characters only" do
+    it "renders provider project, api key, and workspace ids with the trailing characters only" do
       summary = helper_object.attribution_summary(
         provider_project_id: "proj_alpha",
         provider_api_key_id: "sk-live-1234567890ABCDEF",
@@ -22,7 +22,7 @@ RSpec.describe LlmCostTracker::ReconciliationHelper do
       )
 
       expect(summary).to eq(
-        "provider_project_id=proj_alpha, provider_api_key_id=***CDEF, provider_workspace_id=***cdef"
+        "provider_project_id=***lpha, provider_api_key_id=***CDEF, provider_workspace_id=***cdef"
       )
     end
 
