@@ -63,11 +63,13 @@ bin/rails db:migrate</code></pre>
   </section>
 <% else %>
   <section class="lct-panel">
-    <h3 class="lct-section-title">Latest period per source</h3>
+    <h3 class="lct-section-title">Latest period per source / provider / currency</h3>
     <table class="lct-table">
       <thead>
         <tr>
           <th>Source</th>
+          <th>Provider</th>
+          <th>Currency</th>
           <th>Period</th>
           <th class="lct-num">Provider total</th>
           <th class="lct-num">Local total</th>
@@ -80,6 +82,8 @@ bin/rails db:migrate</code></pre>
         <% @diffs.each do |diff| %>
           <tr>
             <td><%= diff.source %></td>
+            <td><%= diff.provider %></td>
+            <td><%= diff.currency %></td>
             <td><%= diff.period_start %> → <%= diff.period_end %></td>
             <td class="lct-num"><%= money(diff.provider_total) %></td>
             <td class="lct-num"><%= money(diff.local_total) %></td>
@@ -102,7 +106,7 @@ bin/rails db:migrate</code></pre>
     <% next if diff.unmatched_provider_rows.empty? && diff.unmatched_local_calls.empty? && diff.non_cost_rows.empty? %>
 
     <section class="lct-panel">
-      <h3 class="lct-section-title"><%= diff.source %> — drill down</h3>
+      <h3 class="lct-section-title"><%= diff.source %> / <%= diff.provider %> / <%= diff.currency %> — drill down</h3>
 
       <% if diff.unmatched_provider_rows.any? %>
         <h4 class="lct-state-title">Provider rows without a matching local call</h4>

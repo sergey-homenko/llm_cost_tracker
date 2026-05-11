@@ -4,6 +4,7 @@ module LlmCostTracker
   module Reconciliation
     DiffResult = Data.define(
       :source,
+      :provider,
       :period_start,
       :period_end,
       :currency,

@@ -44,6 +44,7 @@ module LlmCostTracker
 
         DiffResult.new(
           source: source,
+          provider: provider,
           period_start: period_start,
           period_end: period_end,
           currency: currency,
