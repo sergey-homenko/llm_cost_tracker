@@ -69,7 +69,7 @@ module LlmCostTracker
       hidden_output = non_negative_int(hidden_output_tokens)
       calculated_total = input + cache_read + cache_write + cache_write_extended +
                          audio_input + image_input + output + audio_output + image_output
-      total = total_tokens.nil? ? calculated_total : [non_negative_int(total_tokens), calculated_total].max
+      total = total_tokens ? [non_negative_int(total_tokens), calculated_total].max : calculated_total
 
       new(
         input_tokens: input,

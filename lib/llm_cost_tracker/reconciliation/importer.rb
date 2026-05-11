@@ -159,7 +159,7 @@ module LlmCostTracker
       end
 
       def persistable_attributes(row)
-        billed_amount = row[:billed_amount].nil? ? nil : BigDecimal(row[:billed_amount].to_s)
+        billed_amount = row[:billed_amount] && BigDecimal(row[:billed_amount].to_s)
         {
           source: source,
           external_id: row[:external_id],
