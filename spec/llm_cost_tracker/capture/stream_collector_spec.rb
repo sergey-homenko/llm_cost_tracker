@@ -35,6 +35,24 @@ RSpec.describe LlmCostTracker do
       end
     end
 
+    it "strips b64_json payload data before counting bytes so an OpenAI image_generation.completed event with a multi-megabyte image does not overflow the buffer and lose the usage chunk" do
+      collector = described_class.new(provider: "openai", model: "gpt-image-2")
+      huge_blob = "A" * (LlmCostTracker::Capture::Stream::LIMIT_BYTES + 1024)
+      collector.event(
+        {
+          "type" => "image_generation.completed",
+          "b64_json" => huge_blob,
+          "usage" => { "input_tokens" => 10, "output_tokens" => 1000, "total_tokens" => 1010 }
+        },
+        type: "image_generation.completed"
+      )
+
+      expect(collector.instance_variable_get(:@overflowed)).to be false
+      stored = collector.instance_variable_get(:@events).first
+      expect(stored[:data]).not_to have_key("b64_json")
+      expect(stored[:data]["usage"]).to include("input_tokens" => 10, "output_tokens" => 1000)
+    end
+
     it "tags the recorded event with stream_errored: true when errored is passed" do
       collector = described_class.new(provider: "openai", model: "gpt-4o")
       collector.usage(input_tokens: 5, output_tokens: 1)
