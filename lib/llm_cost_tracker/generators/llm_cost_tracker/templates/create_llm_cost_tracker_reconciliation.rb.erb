@@ -2,7 +2,7 @@ require "llm_cost_tracker/ledger/schema/adapter"
 
 class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration<%= migration_version %>
   def change
-    create_table :llm_cost_tracker_provider_invoices do |t|
+    create_table :llm_cost_tracker_provider_invoices, if_not_exists: true do |t|
       t.string :source, null: false
       t.date :period_start, null: false
       t.date :period_end, null: false
@@ -21,7 +21,7 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration<%= migration_
       t.timestamps
     end
 
-    create_table :llm_cost_tracker_provider_invoice_imports do |t|
+    create_table :llm_cost_tracker_provider_invoice_imports, if_not_exists: true do |t|
       t.string :source, null: false
       t.string :cursor
       t.date :window_start
@@ -35,9 +35,12 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration<%= migration_
       t.timestamps
     end
 
-    add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
-    add_index :llm_cost_tracker_provider_invoices, [:source, :period_start]
-    add_index :llm_cost_tracker_provider_invoice_imports, [:source, :started_at]
+    add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true,
+              if_not_exists: true
+    add_index :llm_cost_tracker_provider_invoices, [:source, :period_start],
+              if_not_exists: true
+    add_index :llm_cost_tracker_provider_invoice_imports, [:source, :started_at],
+              if_not_exists: true
   end
 
   private
