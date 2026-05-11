@@ -115,6 +115,7 @@ module LlmCostTracker
 
         def non_negative_float(key, value)
           rate = Float(value)
+          raise ArgumentError, "price for #{key.inspect} must be finite (got #{rate})" unless rate.finite?
           raise ArgumentError, "price for #{key.inspect} must be non-negative (got #{rate})" if rate.negative?
 
           rate
