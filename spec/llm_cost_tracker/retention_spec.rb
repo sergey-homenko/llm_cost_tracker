@@ -117,6 +117,13 @@ RSpec.describe LlmCostTracker::Retention do
       remaining = LlmCostTracker::ProviderInvoiceImport.pluck(:state).sort
       expect(remaining).to eq(%w[completed running])
     end
+
+    it "returns 0 without querying when the table does not exist" do
+      allow(LlmCostTracker::ProviderInvoiceImport).to receive(:table_exists?).and_return(false)
+      expect(LlmCostTracker::ProviderInvoiceImport).not_to receive(:where)
+
+      expect(described_class.prune_invoice_imports(older_than: 90)).to eq(0)
+    end
   end
 
   it "deletes call line items with pruned parent calls" do

@@ -43,6 +43,8 @@ jobs:
       LCT_TEST_ADMIN_DATABASE: postgres
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1

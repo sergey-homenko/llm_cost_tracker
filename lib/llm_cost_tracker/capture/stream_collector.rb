@@ -5,6 +5,7 @@ require "active_support/core_ext/object/deep_dup"
 require "json"
 
 require_relative "stream"
+require_relative "../pricing/mode"
 require_relative "../timing"
 
 module LlmCostTracker
@@ -144,8 +145,23 @@ module LlmCostTracker
         end
       end
 
+      HOST_DERIVED_MODE_TOKENS = %i[data_residency].freeze
+      STANDARD_LIKE_MODE_TOKENS = %i[standard standard_only auto default].freeze
+      private_constant :HOST_DERIVED_MODE_TOKENS, :STANDARD_LIKE_MODE_TOKENS
+
       def pricing_mode_for(capture:, snapshot:)
-        capture.pricing_mode || snapshot[:pricing_mode]
+        merge_pricing_modes(capture.pricing_mode, snapshot[:pricing_mode])
+      end
+
+      def merge_pricing_modes(provider_mode, request_mode)
+        return Pricing.normalize_mode(request_mode) if provider_mode.to_s.strip.empty?
+
+        provider_tokens = Pricing::Mode.tokenize(provider_mode) - STANDARD_LIKE_MODE_TOKENS
+        request_host_tokens = Pricing::Mode.tokenize(request_mode || "") & HOST_DERIVED_MODE_TOKENS
+        combined = provider_tokens | request_host_tokens
+        return nil if combined.empty?
+
+        Pricing.normalize_mode(combined.join("_"))
       end
 
       def capture_dimensions(pricing_mode)

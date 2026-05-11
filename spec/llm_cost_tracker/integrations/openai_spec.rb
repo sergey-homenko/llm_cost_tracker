@@ -1,21 +1,24 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "ostruct"
 
 require "llm_cost_tracker/integrations/openai"
 
 RSpec.describe LlmCostTracker::Integrations::Openai do
+  ResponseStruct = Struct.new(:output, keyword_init: true)
+  OutputItemStruct = Struct.new(:type, :id, :status, :container_id, :action, keyword_init: true)
+  ActionStruct = Struct.new(:type, keyword_init: true)
+
   describe ".service_line_items_from" do
     it "emits SDK-shaped web_search_call as a billable line item" do
-      response = OpenStruct.new(
+      response = ResponseStruct.new(
         output: [
-          OpenStruct.new(
+          OutputItemStruct.new(
             type: "web_search_call",
             id: "ws_1",
             status: "completed",
             container_id: nil,
-            action: OpenStruct.new(type: "search")
+            action: ActionStruct.new(type: "search")
           )
         ]
       )
@@ -29,14 +32,14 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
 
     it "skips web_search_call when action.type is not 'search'" do
-      response = OpenStruct.new(
+      response = ResponseStruct.new(
         output: [
-          OpenStruct.new(
+          OutputItemStruct.new(
             type: "web_search_call",
             id: "ws_1",
             status: "completed",
             container_id: nil,
-            action: OpenStruct.new(type: "preview")
+            action: ActionStruct.new(type: "preview")
           )
         ]
       )
@@ -45,12 +48,12 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
 
     it "deduplicates container_session items by container_id across the SDK output" do
-      response = OpenStruct.new(
+      response = ResponseStruct.new(
         output: [
-          OpenStruct.new(type: "code_interpreter_call", id: "ci_a", status: "completed",
-                         container_id: "container-42", action: nil),
-          OpenStruct.new(type: "code_interpreter_call", id: "ci_b", status: "completed",
-                         container_id: "container-42", action: nil)
+          OutputItemStruct.new(type: "code_interpreter_call", id: "ci_a", status: "completed",
+                               container_id: "container-42", action: nil),
+          OutputItemStruct.new(type: "code_interpreter_call", id: "ci_b", status: "completed",
+                               container_id: "container-42", action: nil)
         ]
       )
 
@@ -62,11 +65,11 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
 
     it "ignores nil items and items without a recognized type" do
-      response = OpenStruct.new(
+      response = ResponseStruct.new(
         output: [
           nil,
-          OpenStruct.new(type: "reasoning", id: "r_1", status: "completed",
-                         container_id: nil, action: nil)
+          OutputItemStruct.new(type: "reasoning", id: "r_1", status: "completed",
+                               container_id: nil, action: nil)
         ]
       )
 
@@ -74,7 +77,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
 
     it "returns [] when the response has no output collection" do
-      response = OpenStruct.new(output: nil)
+      response = ResponseStruct.new(output: nil)
 
       expect(described_class.service_line_items_from(response)).to eq([])
     end
@@ -93,9 +96,9 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
 
     it "preserves hash actions on SDK-shaped items" do
-      response = OpenStruct.new(
+      response = ResponseStruct.new(
         output: [
-          OpenStruct.new(
+          OutputItemStruct.new(
             type: "web_search_call",
             id: "ws_1",
             status: "completed",

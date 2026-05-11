@@ -161,6 +161,31 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("docs/upgrading.md")
     end
 
+    it "warns when call rollups drift more than 1% from today's calls SUM" do
+      tracked_at = Time.now.utc.beginning_of_day + 1.hour
+      LlmCostTracker::Call.create!(event_id: "drift-1", provider: "openai", model: "gpt-4o", total_cost: 10.0,
+                                   tracked_at: tracked_at, cost_status: "complete")
+      LlmCostTracker::CallRollup.create!(period: "day", period_start: tracked_at.to_date, currency: "USD",
+                                         provider: "openai", total_cost: 0.0)
+
+      check = described_class.call.find { |item| item.name == "call rollups" }
+
+      expect(check).to have_attributes(status: :warn)
+      expect(check.message).to include("rollups drift detected")
+    end
+
+    it "passes call rollups when today's calls and rollups SUM agree" do
+      tracked_at = Time.now.utc.beginning_of_day + 1.hour
+      LlmCostTracker::Call.create!(event_id: "match-1", provider: "openai", model: "gpt-4o", total_cost: 10.0,
+                                   tracked_at: tracked_at, cost_status: "complete")
+      LlmCostTracker::CallRollup.create!(period: "day", period_start: tracked_at.to_date, currency: "USD",
+                                         provider: "openai", total_cost: 10.0)
+
+      check = described_class.call.find { |item| item.name == "call rollups" }
+
+      expect(check).to have_attributes(status: :ok)
+    end
+
     it "fails when call rollups lack the current unique index" do
       ActiveRecord::Base.connection.remove_index(
         :llm_cost_tracker_call_rollups, %i[period period_start currency provider]

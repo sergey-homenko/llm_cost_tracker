@@ -4,6 +4,38 @@ require "spec_helper"
 require "llm_cost_tracker/capture/stream_collector"
 
 RSpec.describe LlmCostTracker do
+  describe LlmCostTracker::Capture::StreamCollector do
+    describe "#pricing_mode_for" do
+      let(:collector) { described_class.new(provider: "openai", model: "gpt-5.5") }
+
+      def merge(provider_mode, request_mode)
+        capture = Struct.new(:pricing_mode).new(provider_mode)
+        snapshot = { pricing_mode: request_mode }
+        collector.send(:pricing_mode_for, capture: capture, snapshot: snapshot)
+      end
+
+      it "keeps host-derived data_residency from the request hint when provider only echoes the tier" do
+        expect(merge("priority", "priority_data_residency")).to eq(:priority_data_residency)
+      end
+
+      it "lets the provider override the tier while preserving host-derived data_residency" do
+        expect(merge("standard", "priority_data_residency")).to eq(:data_residency)
+      end
+
+      it "falls back to the request hint when the provider returns no pricing mode" do
+        expect(merge(nil, "batch_data_residency")).to eq(:batch_data_residency)
+      end
+
+      it "uses the provider mode when the request had no hint" do
+        expect(merge("batch", nil)).to eq(:batch)
+      end
+
+      it "drops standard tier tokens (normalize_mode collapses them)" do
+        expect(merge("standard", nil)).to be_nil
+      end
+    end
+  end
+
   describe LlmCostTracker::Capture::StreamTracker do
     it "runs the orphan finalizer when an unwrapped stream is GC'd before finish! is called" do
       collector = LlmCostTracker::Capture::StreamCollector.new(provider: "openai", model: "gpt-4o")

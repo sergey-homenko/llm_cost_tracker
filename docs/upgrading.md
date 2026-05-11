@@ -155,9 +155,13 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
 end
 ```
 
-Existing rollup rows keep `provider = ""` (legacy bucket); v0.9-tracked
-calls write rollups per-provider. Reconciliation diffs only read the
-per-provider rollups, so legacy rows do not pollute fast-path totals.
+The upgrade migration clears existing rollup rows before adding the
+`provider` column — stale `provider = ""` rows would be invisible to
+the per-provider reconciliation fast path. Budget reads fall back to
+live aggregation from `llm_cost_tracker_calls` until new events
+repopulate the rollups under their provider keys. Doctor's `call
+rollups` check compares today's calls SUM vs rollups SUM and warns on
+drift above 1%, so post-upgrade drift surfaces explicitly.
 
 ### Reconciliation `provider:` is required for unmapped sources
 

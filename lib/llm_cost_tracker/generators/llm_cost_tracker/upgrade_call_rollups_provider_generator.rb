@@ -19,11 +19,12 @@ module LlmCostTracker
         )
       end
 
-      def warn_about_dedup
+      def warn_about_rollups_truncation
         say(<<~MSG, :yellow)
-          The new (period, period_start, currency, provider) unique index will fail to apply
-          if your call_rollups table already has duplicate rows under the old constraint.
-          See docs/upgrading.md for the dedupe SQL snippet to run before the migration.
+          The migration clears existing llm_cost_tracker_call_rollups rows before adding the
+          provider column. Budget reads fall back to live aggregation from
+          llm_cost_tracker_calls until new events repopulate the rollups under their provider
+          keys. See docs/upgrading.md for details.
         MSG
       end
 

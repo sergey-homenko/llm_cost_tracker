@@ -145,13 +145,42 @@ module LlmCostTracker
       return live_rollups_check unless LlmCostTracker.configuration.cache_rollups
 
       errors = LlmCostTracker::Ledger::Schema::CallRollups.current_schema_errors
-      return Check.new(:ok, "call rollups", "llm_cost_tracker_call_rollups exists") if errors.empty?
+      return rollups_drift_check if errors.empty?
 
       Check.new(
         :error,
         "call rollups",
         "schema mismatch: #{errors.join('; ')}; see docs/upgrading.md"
       )
+    end
+
+    ROLLUPS_DRIFT_TOLERANCE_PERCENT = 1.0
+    private_constant :ROLLUPS_DRIFT_TOLERANCE_PERCENT
+
+    def rollups_drift_check
+      drift_window = Time.now.utc.beginning_of_day
+      calls_total = LlmCostTracker::Call
+                    .where(tracked_at: drift_window..)
+                    .where.not(total_cost: nil)
+                    .sum(:total_cost)
+      rollup_total = LlmCostTracker::CallRollup
+                     .where(period: "day", period_start: drift_window.to_date)
+                     .sum(:total_cost)
+      return Check.new(:ok, "call rollups", "llm_cost_tracker_call_rollups exists") if calls_total.zero?
+
+      drift_percent = ((calls_total - rollup_total).abs * 100.0 / calls_total)
+      if drift_percent > ROLLUPS_DRIFT_TOLERANCE_PERCENT
+        return Check.new(
+          :warn, "call rollups",
+          "rollups drift detected: today's calls SUM=#{calls_total} vs rollups SUM=#{rollup_total} " \
+          "(#{drift_percent.round(2)}% > #{ROLLUPS_DRIFT_TOLERANCE_PERCENT}% threshold). " \
+          "Cached budget reads may understate spend until a rebuild."
+        )
+      end
+
+      Check.new(:ok, "call rollups", "llm_cost_tracker_call_rollups exists")
+    rescue StandardError => e
+      Check.new(:warn, "call rollups", "rollups drift check failed: #{e.class}: #{e.message}")
     end
 
     def live_rollups_check

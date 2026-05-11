@@ -3,7 +3,8 @@
 require "open3"
 
 class CoverageGate
-  DEFAULT_PATHS = %w[app lib scripts].freeze
+  DEFAULT_PATCH_PATHS = %w[app lib scripts].freeze
+  DEFAULT_PROJECT_PATHS = %w[app lib].freeze
 
   def self.call
     new.call
@@ -12,14 +13,15 @@ class CoverageGate
   def call
     report = LcovReport.new(lcov_path)
     base = coverage_base
-    patch = PatchCoverage.new(report, base, coverage_paths)
+    patch = PatchCoverage.new(report, base, patch_paths)
+    project_percent = report.percent_for(project_paths)
     failures = []
 
-    failures << project_failure(report) if report.percent < project_minimum
+    failures << project_failure(project_percent) if project_percent < project_minimum
     failures << patch_failure(patch) if patch.total.positive? && patch.percent < patch_minimum
     failures.concat(missing_report_failures(patch))
 
-    print_summary(report, patch, failures)
+    print_summary(report, project_percent, patch, failures)
     exit(failures.empty? ? 0 : 1)
   end
 
@@ -37,26 +39,32 @@ class CoverageGate
     Float(ENV.fetch("PATCH_COVERAGE_MIN", "95.0"))
   end
 
-  def coverage_paths
-    ENV.fetch("COVERAGE_PATHS", DEFAULT_PATHS.join(" ")).split
+  def patch_paths
+    ENV.fetch("COVERAGE_PATCH_PATHS", DEFAULT_PATCH_PATHS.join(" ")).split
+  end
+
+  def project_paths
+    ENV.fetch("COVERAGE_PROJECT_PATHS", DEFAULT_PROJECT_PATHS.join(" ")).split
   end
 
   def coverage_base
     ENV["COVERAGE_BASE"] || Git.coverage_base
   end
 
-  def project_failure(report)
-    "Project coverage #{percent(report.percent)} is below #{percent(project_minimum)}"
+  def project_failure(project_percent)
+    "Project coverage #{percent(project_percent)} is below #{percent(project_minimum)}"
   end
 
   def patch_failure(patch)
     "Patch coverage #{percent(patch.percent)} is below #{percent(patch_minimum)}"
   end
 
-  def print_summary(report, patch, failures)
+  def print_summary(report, project_percent, patch, failures)
     puts "Coverage gate"
-    project_ratio = "#{report.covered_lines}/#{report.total_lines}"
-    puts "Project: #{percent(report.percent)} (#{project_ratio}), minimum #{percent(project_minimum)}"
+    project_stats = report.stats_for(project_paths)
+    project_ratio = "#{project_stats[:covered]}/#{project_stats[:total]}"
+    puts "Project (#{project_paths.join(',')}): #{percent(project_percent)} (#{project_ratio}), " \
+         "minimum #{percent(project_minimum)}"
     print_patch_summary(patch)
     print_file_rows(patch)
     print_missing_reports(patch)
@@ -122,6 +130,27 @@ class LcovReport
     return 100.0 if total_lines.zero?
 
     covered_lines * 100.0 / total_lines
+  end
+
+  def percent_for(paths)
+    stats = stats_for(paths)
+    return 100.0 if stats[:total].zero?
+
+    stats[:covered] * 100.0 / stats[:total]
+  end
+
+  def stats_for(paths)
+    total = 0
+    covered = 0
+    @files.each do |path, lines|
+      next unless paths.any? { |prefix| path.start_with?("#{prefix}/") }
+
+      lines.each_key do |line|
+        total += 1
+        covered += 1 if covered?(path, line)
+      end
+    end
+    { total: total, covered: covered }
   end
 
   def report_for?(path)
