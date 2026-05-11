@@ -138,7 +138,6 @@ module LlmCostTracker
         end
       end
 
-      # :nocov:
       def register_orphan_finalizer
         finished_ref = @finished_ref
         attempted_ref = @attempted_ref
@@ -165,7 +164,6 @@ module LlmCostTracker
       rescue TypeError, ArgumentError
         nil
       end
-      # :nocov:
     end
   end
 end
