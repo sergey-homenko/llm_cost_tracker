@@ -3,7 +3,7 @@
 module LlmCostTracker
   class AssetsController < ActionController::Base
     def stylesheet
-      response.set_header("Cache-Control", cache_control_header)
+      response.headers["Cache-Control"] = cache_control_header
       send_file LlmCostTracker::Assets::STYLESHEET_PATH, type: "text/css", disposition: "inline"
     end
 

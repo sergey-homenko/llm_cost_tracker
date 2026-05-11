@@ -46,12 +46,10 @@ module LlmCostTracker
 
     def set_dashboard_security_headers
       nonce = dashboard_csp_nonce
-      response.set_header("X-Frame-Options", "DENY")
-      response.set_header("Referrer-Policy", "same-origin")
-      response.set_header(
-        "Content-Security-Policy",
+      response.headers["X-Frame-Options"] = "DENY"
+      response.headers["Referrer-Policy"] = "same-origin"
+      response.headers["Content-Security-Policy"] =
         "default-src 'self'; style-src 'self' 'nonce-#{nonce}'; img-src 'self' data:; frame-ancestors 'none'"
-      )
     end
 
     def dashboard_csp_nonce

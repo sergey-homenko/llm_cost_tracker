@@ -1,11 +1,7 @@
 # frozen_string_literal: true
 
-require "active_record"
-
 module LlmCostTracker
   class ProviderInvoiceImport < ActiveRecord::Base
-    self.table_name = "llm_cost_tracker_provider_invoice_imports"
-
     STATE_RUNNING = "running"
     STATE_COMPLETED = "completed"
     STATE_FAILED = "failed"

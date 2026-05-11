@@ -4,8 +4,7 @@ LlmCostTracker::Engine.routes.draw do
   root "dashboard#index"
   resources :calls, only: %i[index show], constraints: { id: /\d+/ }, defaults: { format: :html }
   resources :models, only: :index
-  get "tags",      to: "tags#index",  as: :tags
-  get "tags/:key", to: "tags#show",   as: :tag, format: false
+  resources :tags, only: %i[index show], param: :key, format: false
   get "data_quality", to: "data_quality#index", as: :data_quality
   get "reconciliation", to: "reconciliation#index", as: :reconciliation
   post "reconciliation/import", to: "reconciliation#trigger_import", as: :reconciliation_import

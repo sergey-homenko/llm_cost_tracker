@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "active_record"
 require "securerandom"
 
 require "llm_cost_tracker/billing/cost_status"
@@ -9,8 +8,6 @@ require "llm_cost_tracker/ledger/tags/sql"
 
 module LlmCostTracker
   class Call < ActiveRecord::Base
-    self.table_name = "llm_cost_tracker_calls"
-
     before_validation :assign_event_id
 
     PERIOD_FORMATS = {

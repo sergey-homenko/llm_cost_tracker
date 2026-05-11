@@ -22,7 +22,7 @@ module LlmCostTracker
           @calls = ordered_scope.includes(:tag_records).limit(@page.limit).offset(@page.offset).to_a
         end
         format.csv do
-          response.set_header("Cache-Control", "no-store")
+          response.headers["Cache-Control"] = "no-store"
           send_data render_csv(ordered_scope.limit(CSV_EXPORT_LIMIT)),
                     type: "text/csv",
                     disposition: %(attachment; filename="llm_calls_#{Time.now.utc.strftime('%Y%m%d_%H%M%S')}.csv")
@@ -89,11 +89,7 @@ module LlmCostTracker
     end
 
     def csv_json(value)
-      return value.transform_keys(&:to_s).to_json if value.is_a?(Hash)
-
-      JSON.parse(value || "{}").to_json
-    rescue JSON::ParserError
-      "{}"
+      Hash(value).deep_stringify_keys.to_json
     end
 
     def csv_safe(value)
