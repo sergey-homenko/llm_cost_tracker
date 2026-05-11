@@ -309,6 +309,7 @@
         <table class="lct-table lct-table-compact">
           <thead>
             <tr>
+              <th>Provider</th>
               <th>Model</th>
               <th class="lct-num">Calls without cost</th>
               <th class="lct-num">Share of total</th>
@@ -317,6 +318,7 @@
           <tbody>
             <% @unknown_pricing_by_model.each do |row| %>
               <tr>
+                <td><code class="lct-code"><%= row.provider %></code></td>
                 <td><code class="lct-code"><%= row.model %></code></td>
                 <td class="lct-num"><%= number(row.calls) %></td>
                 <td class="lct-num"><%= percent(row.share_percent) %></td>

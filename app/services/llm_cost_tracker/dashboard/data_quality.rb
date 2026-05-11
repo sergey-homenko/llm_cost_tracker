@@ -6,7 +6,7 @@ require "llm_cost_tracker/ledger/schema/adapter"
 module LlmCostTracker
   module Dashboard
     class DataQuality
-      UnknownPricingRow = ::Data.define(:model, :calls, :share_percent)
+      UnknownPricingRow = ::Data.define(:provider, :model, :calls, :share_percent)
       StreamingHealthRow = ::Data.define(:provider, :streams, :with_usage, :unknown, :unknown_share)
       Summary = ::Data.define(:total, :unknown_pricing_count, :untagged_calls_count, :missing_latency_count,
                               :streaming_count, :streaming_missing_usage, :missing_provider_response_id_count,
@@ -49,13 +49,14 @@ module LlmCostTracker
 
         def unknown_pricing_by_model(scope, total_calls:)
           scope.unknown_pricing
-               .group(:model)
+               .group(:provider, :model)
                .order(Arel.sql("COUNT(*) DESC"))
-               .select("model, COUNT(*) AS calls")
+               .select("provider, model, COUNT(*) AS calls")
                .limit(10)
                .map do |row|
                  calls = row.calls.to_i
-                 UnknownPricingRow.new(model: row.model, calls: calls, share_percent: percentage(calls, total_calls))
+                 UnknownPricingRow.new(provider: row.provider, model: row.model, calls: calls,
+                                       share_percent: percentage(calls, total_calls))
                end
         end
 
