@@ -258,6 +258,29 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
       expect(result.provider_response_id).to eq("msg_456")
     end
 
+    it "records unknown usage when message_start is received but message_delta never arrives" do
+      events = [
+        { event: "message_start", data: {
+          "type" => "message_start",
+          "message" => {
+            "id" => "msg_partial",
+            "model" => "claude-sonnet-4-6",
+            "usage" => { "input_tokens" => 120, "output_tokens" => 1 }
+          }
+        } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.usage_source).to eq(:unknown)
+      expect(result.token_usage.output_tokens).to eq(0)
+    end
+
     it "treats Anthropic Priority Tier in stream usage as standard (throughput, not per-token surcharge)" do
       events = [
         { event: "message_start", data: {

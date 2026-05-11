@@ -34,6 +34,37 @@ RSpec.describe LlmCostTracker do
         expect(merge("standard", nil)).to be_nil
       end
     end
+
+    it "tags the recorded event with stream_errored: true when errored is passed" do
+      collector = described_class.new(provider: "openai", model: "gpt-4o")
+      collector.usage(input_tokens: 5, output_tokens: 1)
+
+      received_metadata = nil
+      allow(LlmCostTracker::Tracker).to receive(:record) do |metadata:, **_, &block|
+        received_metadata = metadata
+        block&.call(:after_save)
+        nil
+      end
+
+      collector.finish!(errored: true)
+      expect(received_metadata).to include(stream_errored: true)
+    end
+
+    it "does not retry after Tracker.record persisted but Budget.check! raised" do
+      collector = described_class.new(provider: "openai", model: "gpt-4o")
+      collector.usage(input_tokens: 5, output_tokens: 1)
+
+      record_calls = 0
+      allow(LlmCostTracker::Tracker).to receive(:record) do |**_, &block|
+        record_calls += 1
+        block&.call(:after_save)
+        raise LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1, budget: 0.5)
+      end
+
+      expect { collector.finish!(errored: false) }.to raise_error(LlmCostTracker::BudgetExceededError)
+      expect { collector.finish!(errored: false) }.not_to raise_error
+      expect(record_calls).to eq(1)
+    end
   end
 
   describe LlmCostTracker::Capture::StreamTracker do

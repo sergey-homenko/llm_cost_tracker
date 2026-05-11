@@ -372,6 +372,71 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(received).to all(eq(3))
   end
 
+  it "re-raises non-streaming adapter errors without emitting an interrupted-stream event" do
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") { |_env| raise Faraday::ConnectionFailed, "boom" }
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    expect do
+      conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+    end.to raise_error(Faraday::ConnectionFailed)
+    expect(events).to be_empty
+  end
+
+  it "logs and continues when interrupted-stream capture itself raises" do
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") { |_env| raise Faraday::ConnectionFailed, "first" }
+      end
+    end
+
+    allow(LlmCostTracker::Tracker).to receive(:record).and_raise("recording blew up")
+
+    expect(LlmCostTracker::Logging).to receive(:warn).with(/recording blew up/i).at_least(:once)
+    expect do
+      conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json) do |req|
+        req.options.on_data = proc { |_c, _s, _e| }
+      end
+    end.to raise_error(Faraday::ConnectionFailed)
+  end
+
+  it "records an unknown-usage event when the adapter raises mid-stream" do
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          env.request.on_data&.call("data: {\"model\":\"gpt-4o\"}\n\n", 26, env)
+          raise Faraday::ConnectionFailed, "network died mid-stream"
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    expect do
+      conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json) do |req|
+        req.options.on_data = proc { |_chunk, _size, _env| }
+      end
+    end.to raise_error(Faraday::ConnectionFailed)
+
+    expect(events.size).to eq(1)
+    expect(events.first[:usage_source]).to eq(:unknown)
+    expect(events.first[:tags]).to include(stream_interrupted: true)
+    expect(events.first[:tags][:stream_interrupted_error]).to include("Faraday::ConnectionFailed")
+  end
+
   it "records an unknown-usage event for oversized streaming responses" do
     stub_const("LlmCostTracker::Capture::Stream::LIMIT_BYTES", 32)
 

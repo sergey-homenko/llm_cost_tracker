@@ -430,6 +430,47 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.provider_response_id).to be_nil
     end
 
+    it "splits image_tokens out of regular text input/output when streamed" do
+      events = [
+        { event: nil, data: { "model" => "gpt-image-1.5" } },
+        { event: nil, data: { "usage" => {
+          "prompt_tokens" => 150, "completion_tokens" => 1100,
+          "input_tokens_details" => { "image_tokens" => 100 },
+          "output_tokens_details" => { "image_tokens" => 1000, "text_tokens" => 100 }
+        } } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: chat_completions_url,
+        request_body: { model: "gpt-image-1.5", stream: true }.to_json,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.token_usage.input_tokens).to eq(50)
+      expect(result.token_usage.image_input_tokens).to eq(100)
+      expect(result.token_usage.output_tokens).to eq(100)
+      expect(result.token_usage.image_output_tokens).to eq(1000)
+    end
+
+    it "leaves stream output tokens unsplit when no image/text details arrive" do
+      events = [
+        { event: nil, data: { "model" => "gpt-4o" } },
+        { event: nil, data: { "usage" => { "prompt_tokens" => 10, "completion_tokens" => 20, "total_tokens" => 30 } } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: chat_completions_url,
+        request_body: { model: "gpt-4o", stream: true }.to_json,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.token_usage.image_input_tokens).to eq(0)
+      expect(result.token_usage.image_output_tokens).to eq(0)
+      expect(result.token_usage.output_tokens).to eq(20)
+    end
+
     it "extracts usage from SDK chat-completion stream events wrapped in a chunk envelope" do
       events = [
         { event: nil, data: { "chunk" => { "id" => "chatcmpl_chunk", "model" => "gpt-4o" } } },

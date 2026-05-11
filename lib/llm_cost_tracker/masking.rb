@@ -22,5 +22,18 @@ module LlmCostTracker
 
       attribution.map { |key, value| "#{key}=#{mask_value(key, value)}" }.join(separator)
     end
+
+    def mask_hash(hash)
+      return hash unless hash.is_a?(Hash)
+
+      hash.each_with_object({}) do |(key, value), masked|
+        masked[key] = case value
+                      when Hash then mask_hash(value)
+                      when Array then value.map { |entry| entry.is_a?(Hash) ? mask_hash(entry) : entry }
+                      else
+                        mask_value(key, value)
+                      end
+      end
+    end
   end
 end

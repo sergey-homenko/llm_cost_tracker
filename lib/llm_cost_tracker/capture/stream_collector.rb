@@ -122,24 +122,22 @@ module LlmCostTracker
       end
 
       def record_snapshot(snapshot, errored:)
-        recorded = false
+        save_succeeded = false
         begin
           capture = build_usage_capture(snapshot)
           provider_response_id = capture.provider_response_id || snapshot[:provider_response_id]
           capture = capture.with(provider_response_id: provider_response_id)
 
-          result = Tracker.record(
+          Tracker.record(
             capture: capture,
             latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
             pricing_mode: pricing_mode_for(capture: capture, snapshot: snapshot),
             metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
             context_tags: snapshot[:context_tags]
-          )
-          recorded = true
-          result
+          ) { |stage| save_succeeded = true if stage == :after_save }
         ensure
           @mutex.synchronize do
-            @finished = recorded
+            @finished = save_succeeded
             @recording = false
           end
         end

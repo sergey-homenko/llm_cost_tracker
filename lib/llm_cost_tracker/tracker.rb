@@ -47,6 +47,7 @@ module LlmCostTracker
         )
 
         save_event(event)
+        yield :after_save if block_given?
         notify_subscribers(event)
         Budget.check!(event)
 

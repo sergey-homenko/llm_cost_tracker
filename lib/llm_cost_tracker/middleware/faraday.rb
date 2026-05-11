@@ -31,22 +31,35 @@ module LlmCostTracker
         context_tags, metadata = tag_snapshot(request_env) if parser
         started_at = LlmCostTracker::Timing.now_monotonic
 
-        @app.call(request_env).on_complete do |response_env|
-          process(
-            parser: parser,
-            request_url: request_url,
-            request_body: request_body,
-            response_env: response_env,
-            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
-            streaming: streaming,
-            stream_buffer: stream_buffer,
-            context_tags: context_tags,
-            metadata: metadata
-          )
-        end
+        invoke_app_with_capture(
+          request_env: request_env, parser: parser, request_url: request_url,
+          request_body: request_body, streaming: streaming, stream_buffer: stream_buffer,
+          context_tags: context_tags, metadata: metadata, started_at: started_at
+        )
       end
 
       private
+
+      def invoke_app_with_capture(request_env:, parser:, request_url:, request_body:, streaming:,
+                                  stream_buffer:, context_tags:, metadata:, started_at:)
+        @app.call(request_env).on_complete do |response_env|
+          process(
+            parser: parser, request_url: request_url, request_body: request_body,
+            response_env: response_env, latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
+            streaming: streaming, stream_buffer: stream_buffer,
+            context_tags: context_tags, metadata: metadata
+          )
+        end
+      rescue StandardError => e
+        if streaming && parser
+          process_interrupted_stream(
+            parser: parser, request_url: request_url, request_body: request_body,
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
+            context_tags: context_tags, metadata: metadata, error: e
+          )
+        end
+        raise
+      end
 
       def inject_stream_usage_flag(request_env, parser, request_url)
         body_string = read_body(request_env.body)
@@ -60,6 +73,31 @@ module LlmCostTracker
         new_body = body.to_json
         request_env.body = new_body
         new_body
+      end
+
+      def process_interrupted_stream(parser:, request_url:, request_body:, latency_ms:,
+                                     context_tags:, metadata:, error:)
+        request = parser.respond_to?(:safe_json_parse, true) ? parser.send(:safe_json_parse, request_body) : {}
+        provider = parser.respond_to?(:provider_for, true) ? parser.send(:provider_for, request_url) : "unknown"
+        capture = UsageCapture.build(
+          provider: provider,
+          model: request["model"] || UsageCapture::UNKNOWN_MODEL,
+          token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
+          stream: true,
+          usage_source: :unknown
+        )
+        merged_metadata = (metadata || {}).merge(
+          stream_interrupted: true,
+          stream_interrupted_error: "#{error.class}: #{error.message}"
+        )
+        Tracker.record(
+          capture: capture,
+          latency_ms: latency_ms,
+          metadata: merged_metadata,
+          context_tags: context_tags
+        )
+      rescue StandardError => e
+        Logging.warn("Error recording interrupted stream: #{e.class}: #{e.message}")
       end
 
       def process(parser:, request_url:, request_body:, response_env:,
@@ -118,13 +156,14 @@ module LlmCostTracker
       end
 
       def parse_stream(parser:, request_url:, request_body:, response_env:, stream_buffer:)
-        Logging.warn(capture_warning(request_url, stream_buffer)) if stream_buffer&.dig(:overflowed)
+        overflowed = stream_buffer&.dig(:overflowed) == true
+        Logging.warn(capture_warning(request_url, stream_buffer)) if overflowed
 
         body = stream_buffer&.dig(:buffer)&.string
         body = read_body(response_env.body) if body.blank?
 
         if body.blank?
-          Logging.warn(capture_warning(request_url, stream_buffer)) unless stream_buffer&.dig(:overflowed)
+          Logging.warn(capture_warning(request_url, stream_buffer)) unless overflowed
           return parser.parse_stream(
             request_url: request_url,
             request_body: request_body,
@@ -133,7 +172,7 @@ module LlmCostTracker
           )
         end
 
-        events = Parsers::SSE.parse(body)
+        events = overflowed ? [] : Parsers::SSE.parse(body)
         parser.parse_stream(
           request_url: request_url,
           request_body: request_body,

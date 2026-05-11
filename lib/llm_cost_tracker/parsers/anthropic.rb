@@ -68,16 +68,16 @@ module LlmCostTracker
       private
 
       def stream_usage(events)
-        start_usage = find_event_value(events, reverse: true) do |data|
-          data.dig("message", "usage") if data["type"] == "message_start"
-        end
         latest_delta = find_event_value(events, reverse: true) do |data|
           data["usage"] if data["type"] == "message_delta" && data["usage"].is_a?(Hash)
         end
+        return nil unless latest_delta
 
-        return nil unless start_usage || latest_delta
+        start_usage = find_event_value(events, reverse: true) do |data|
+          data.dig("message", "usage") if data["type"] == "message_start"
+        end
 
-        (start_usage || {}).merge(latest_delta || {}) do |_key, start_val, delta_val|
+        (start_usage || {}).merge(latest_delta) do |_key, start_val, delta_val|
           delta_val || start_val
         end
       end
