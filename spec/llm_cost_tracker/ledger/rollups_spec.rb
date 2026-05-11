@@ -79,5 +79,20 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       expect(totals[:day]).to be_within(0.0001).of(103.5)
       expect(totals[:month]).to be_within(0.0001).of(103.5)
     end
+
+    it "falls back to live aggregation from calls when the rollups table has been truncated" do
+      LlmCostTracker.configure { |config| config.cache_rollups = true }
+      time = Time.utc(2026, 5, 7, 12)
+      LlmCostTracker::Ledger::Store.insert_many([
+                                                  build_event(total_cost: 4.5, currency: "USD", tracked_at: time),
+                                                  build_event(total_cost: 99.0, currency: "EUR", tracked_at: time)
+                                                ])
+      LlmCostTracker::CallRollup.delete_all
+
+      totals = LlmCostTracker::Ledger::Period::Totals.call(%i[day month], time: time)
+
+      expect(totals[:day]).to be_within(0.0001).of(103.5)
+      expect(totals[:month]).to be_within(0.0001).of(103.5)
+    end
   end
 end

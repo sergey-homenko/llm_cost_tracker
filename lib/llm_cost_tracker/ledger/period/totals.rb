@@ -46,24 +46,24 @@ module LlmCostTracker
 
         def period_total_sql(period, start)
           if LlmCostTracker.configuration.cache_rollups
-            rollup_total_sql(period)
+            "COALESCE(#{rollup_sum_sql(period)}, #{calls_sum_sql(start)}, 0)"
           else
-            calls_total_sql(start)
+            "COALESCE(#{calls_sum_sql(start)}, 0)"
           end
         end
 
-        def rollup_total_sql(period)
+        def rollup_sum_sql(period)
           table = connection.quote_table_name("llm_cost_tracker_call_rollups")
-          "COALESCE((SELECT SUM(total_cost) FROM #{table} " \
+          "(SELECT SUM(total_cost) FROM #{table} " \
             "WHERE period = #{connection.quote(Period::PERIODS.fetch(period))} " \
-            "AND period_start = #{connection.quote(Period.bucket(period, time))}), 0)"
+            "AND period_start = #{connection.quote(Period.bucket(period, time))})"
         end
 
-        def calls_total_sql(start)
+        def calls_sum_sql(start)
           table = connection.quote_table_name("llm_cost_tracker_calls")
           tracked_at = connection.quote_column_name("tracked_at")
-          "COALESCE((SELECT SUM(total_cost) FROM #{table} " \
-            "WHERE #{tracked_at} BETWEEN #{connection.quote(start)} AND #{connection.quote(time)}), 0)"
+          "(SELECT SUM(total_cost) FROM #{table} " \
+            "WHERE #{tracked_at} BETWEEN #{connection.quote(start)} AND #{connection.quote(time)})"
         end
 
         def pending_total_sql(start)
