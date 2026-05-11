@@ -220,7 +220,7 @@ RSpec.describe LlmCostTracker::Reconciliation do
         }]
       )
 
-      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "csv:garbage-csv")
+      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "csv/openai:garbage-csv")
       expect(reloaded.metadata).to eq("provider" => "openai")
     end
 
@@ -254,8 +254,22 @@ RSpec.describe LlmCostTracker::Reconciliation do
         }]
       )
 
-      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "csv:explicit-provider")
+      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "csv/openai:explicit-provider")
       expect(reloaded.metadata["provider"]).to eq("anthropic")
+    end
+
+    it "namespaces external_id by source and provider so the same CSV row id imported under two providers does not collide on the unique index" do
+      described_class.import(
+        source: :csv, provider: "openai",
+        rows: [{ external_id: "shared-1", period_start: "2026-05-01", period_end: "2026-05-31", billed_amount: "1.00" }]
+      )
+      described_class.import(
+        source: :csv, provider: "anthropic",
+        rows: [{ external_id: "shared-1", period_start: "2026-05-01", period_end: "2026-05-31", billed_amount: "2.00" }]
+      )
+
+      external_ids = LlmCostTracker::ProviderInvoice.pluck(:external_id).sort
+      expect(external_ids).to eq(["csv/anthropic:shared-1", "csv/openai:shared-1"])
     end
 
     it "honours an explicit strict_metadata override over the per-source default" do

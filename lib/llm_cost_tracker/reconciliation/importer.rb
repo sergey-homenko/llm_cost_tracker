@@ -183,7 +183,8 @@ module LlmCostTracker
 
       def namespaced_external_id(external_id)
         raw = external_id.to_s
-        prefix = "#{source}:"
+        scope = source == provider ? source : "#{source}/#{provider}"
+        prefix = "#{scope}:"
         raw.start_with?(prefix) ? raw : "#{prefix}#{raw}"
       end
 
