@@ -56,7 +56,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::OpenaiUsage do
         "line_item" => "gpt-4o tokens",
         "provider_project_id" => "proj_alpha",
         "provider_api_key_id" => "key_a",
-        "provider_organization_id" => "org_main"
+        "provider_workspace_id" => "org_main"
       )
       expect(rows.first[:external_id]).to start_with("cost-")
     end

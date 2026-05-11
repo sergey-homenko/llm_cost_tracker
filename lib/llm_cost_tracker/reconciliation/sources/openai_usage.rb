@@ -70,7 +70,7 @@ module LlmCostTracker
             "model" => result[:model],
             "provider_project_id" => result[:project_id],
             "provider_api_key_id" => result[:api_key_id],
-            "provider_organization_id" => result[:organization_id]
+            "provider_workspace_id" => result[:organization_id]
           }.compact
         end
 
