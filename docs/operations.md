@@ -9,8 +9,10 @@ Configuration](configuration.md#storage)).
 
 - Size the ActiveRecord connection pool for your app's concurrency. If
   `config.durable_ingestion = true`, add headroom for the local
-  ingestor thread and the separate connection capture uses inside open
-  caller transactions.
+  ingestor thread and for the separate connection that inbox writes
+  use when the caller is inside an open transaction (so staged events
+  survive caller rollbacks). The default inline path shares the
+  caller's connection and joins its transaction.
 - Keep `default_tags` callables fast and thread-safe.
 - Mount the dashboard behind existing admin authentication.
 - Run `llm_cost_tracker:doctor` after deploys that change the gem version or schema.

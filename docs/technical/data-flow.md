@@ -49,9 +49,9 @@ Normal path from an application LLM call to stored ledger data:
 
 When `config.durable_ingestion = false` (default):
 
-1. `Ingestion::Inline.save` writes the call header, line items, and tag rows in a single transaction (using a separate connection if a caller transaction is open, so tracked events survive caller rollbacks).
+1. `Ingestion::Inline.save` writes the call header, line items, and tag rows in a single transaction on the caller's ActiveRecord connection. If the caller is inside an open transaction, this write joins it as a savepoint — a caller-side `ActiveRecord::Rollback` discards the tracked event with the rest of the work. Switch to `config.durable_ingestion = true` if you need ledger writes to survive caller rollbacks.
 2. When `config.cache_rollups = true`, the same transaction increments the matching daily/monthly rollup rows; otherwise rollups are skipped entirely.
-3. Budget reads aggregate live from `llm_cost_tracker_calls`, or from the rollups fast path when `cache_rollups = true`.
+3. Budget reads aggregate live from `llm_cost_tracker_calls`, or from the rollups fast path when `cache_rollups = true` (with `llm_cost_tracker_calls` as fallback when the rollup row is missing).
 
 When `config.durable_ingestion = true`:
 
