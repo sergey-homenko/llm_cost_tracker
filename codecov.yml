@@ -1,0 +1,19 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: 95%
+        threshold: 1%
+
+ignore:
+  - "scripts/**/*"
+  - "bin/**/*"
+  - "spec/**/*"
+  - "gemfiles/**/*"
+  - "docs/**/*"
+  - "lib/tasks/**/*"
+  - "lib/llm_cost_tracker/generators/llm_cost_tracker/templates/**/*"
