@@ -26,17 +26,34 @@ module LlmCostTracker
 
         def merge_with_existing(path:, registry:)
           existing = read_existing(path)
-          return registry unless existing.is_a?(Hash) && existing["models"].is_a?(Hash)
+          return registry unless existing.is_a?(Hash)
 
           merged = registry.dup
-          merged["models"] = registry.fetch("models", {}).dup
-          existing.fetch("models", {}).each do |model, attrs|
-            next unless attrs.is_a?(Hash) && attrs["_source"].to_s == MANUAL_SOURCE
-            next if merged["models"].key?(model)
-
-            merged["models"][model] = attrs
+          merged["models"] = merged_models(registry, existing) if existing["models"].is_a?(Hash)
+          if existing["service_charges"].is_a?(Hash)
+            merged["service_charges"] = merged_service_charges(registry, existing)
           end
           merged
+        end
+
+        def merged_models(registry, existing)
+          merged = registry.fetch("models", {}).dup
+          existing.fetch("models", {}).each do |model, attrs|
+            next unless attrs.is_a?(Hash) && attrs["_source"].to_s == MANUAL_SOURCE
+            next if merged.key?(model)
+
+            merged[model] = attrs
+          end
+          merged
+        end
+
+        def merged_service_charges(registry, existing)
+          remote = registry.fetch("service_charges", {})
+          existing.fetch("service_charges", {}).each_with_object(remote.dup) do |(provider, charges), merged|
+            next unless charges.is_a?(Hash)
+
+            merged[provider] = charges.merge(merged.fetch(provider, {}))
+          end
         end
 
         def read_existing(path)

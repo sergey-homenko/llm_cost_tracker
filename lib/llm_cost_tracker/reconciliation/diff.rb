@@ -90,15 +90,16 @@ module LlmCostTracker
                    .where(source: source, currency: currency)
                    .where(period_start: ..period_end)
                    .where(period_end: period_start..)
-        scope.empty? ? relation : apply_metadata_scope(relation)
+        relation = apply_metadata_scope(relation, "provider" => @provider)
+        scope.empty? ? relation : apply_metadata_scope(relation, scope.transform_keys(&:to_s))
       end
 
-      def apply_metadata_scope(relation)
+      def apply_metadata_scope(relation, criteria)
         connection = ProviderInvoice.connection
         if Ledger::Schema::Adapter.postgresql?(connection)
-          relation.where("metadata @> ?::jsonb", scope.transform_keys(&:to_s).to_json)
+          relation.where("metadata @> ?::jsonb", criteria.to_json)
         else
-          scope.inject(relation) do |chain, (key, value)|
+          criteria.inject(relation) do |chain, (key, value)|
             chain.where("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?)) = ?", "$.#{key}", value.to_s)
           end
         end

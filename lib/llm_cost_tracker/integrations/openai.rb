@@ -64,8 +64,16 @@ module LlmCostTracker
                          with: EmbeddingsPatch, methods: %i[create], optional: true),
             patch_target("OpenAI::Resources::Images",
                          with: ImagesPatch, methods: %i[generate edit create_variation], optional: true),
+            patch_target("OpenAI::Resources::Images",
+                         with: StreamingImagesPatch,
+                         methods: %i[generate_stream_raw edit_stream_raw],
+                         optional: true, skip_when_methods_missing: true),
             patch_target("OpenAI::Resources::Audio::Transcriptions",
                          with: TranscriptionsPatch, methods: %i[create], optional: true),
+            patch_target("OpenAI::Resources::Audio::Transcriptions",
+                         with: StreamingTranscriptionsPatch,
+                         methods: %i[create_streaming],
+                         optional: true, skip_when_methods_missing: true),
             patch_target("OpenAI::Resources::Audio::Speech",
                          with: SpeechPatch, methods: %i[create], optional: true),
             patch_target("OpenAI::Resources::Moderations",
@@ -388,6 +396,30 @@ module LlmCostTracker
       TranscriptionsPatch = PatchBuilder.build(record_method: :record_transcription, methods: %i[create])
       SpeechPatch = PatchBuilder.build(record_method: :record_speech, methods: %i[create])
       ModerationsPatch = PatchBuilder.build(record_method: :record_moderation, methods: %i[create])
+
+      module StreamingImagesPatch
+        %i[generate_stream_raw edit_stream_raw].each do |method_name|
+          define_method(method_name) do |*args, **kwargs|
+            request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
+            LlmCostTracker::Integrations::Openai.enforce_budget!
+            host = LlmCostTracker::Integrations::Openai.client_host_for(self)
+            collector = LlmCostTracker::Integrations::Openai.stream_collector(request, host: host)
+            stream = super(*args, **kwargs)
+            LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+          end
+        end
+      end
+
+      module StreamingTranscriptionsPatch
+        def create_streaming(*args, **kwargs)
+          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
+          LlmCostTracker::Integrations::Openai.enforce_budget!
+          host = LlmCostTracker::Integrations::Openai.client_host_for(self)
+          collector = LlmCostTracker::Integrations::Openai.stream_collector(request, host: host)
+          stream = super
+          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+        end
+      end
     end
   end
 end

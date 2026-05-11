@@ -24,6 +24,7 @@ module LlmCostTracker
       def prune_invoice_imports(older_than:, now: Time.now.utc)
         cutoff = resolve_cutoff(older_than, now)
         require_relative "ledger"
+        return 0 unless LlmCostTracker::ProviderInvoiceImport.table_exists?
 
         LlmCostTracker::ProviderInvoiceImport
           .where(state: %w[completed failed])

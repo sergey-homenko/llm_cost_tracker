@@ -34,7 +34,7 @@ see [Upgrading](docs/upgrading.md).
 - Stream events are no longer lost when finalization raises. The collector retries on the next `finish!`. Abandoned streams (wrapped but never iterated) emit a usage event instead of disappearing.
 - Faraday streaming overflow keeps the buffer accumulated up to the limit (matching the SDK collector) instead of dropping all events.
 - Edits to `config.prices_file` are picked up without a gem reload — the lookup cache invalidates on file mtime changes.
-- Models flagged with `_source: "manual"` in the local prices file survive `prices:refresh`.
+- Models flagged with `_source: "manual"` in the local prices file are preserved through `prices:refresh` when the remote registry does not claim the same key.
 - Anthropic Priority Tier no longer falls to `cost_status: unknown`. It's a throughput commitment, not a per-token surcharge — both the SDK integration and the Faraday parser treat `service_tier: "priority"` as standard pricing.
 - Anthropic `data_residency` mode triggers on `inference_geo: "us"` only — the documented +1.1x uplift tier. Earlier preview ranges that listed `"eu"` were incorrect; EU data residency runs through Bedrock Frankfurt or Vertex Belgium with separate pricing, not the Anthropic API.
 - Anthropic `web_fetch_request` is recorded with a `$0` rate (Anthropic bills web fetch via standard tokens, not per fetch). The scraper picks up the "no additional charges" wording so `prices:refresh` keeps it accurate.

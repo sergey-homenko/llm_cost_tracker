@@ -19,8 +19,11 @@ module LlmCostTracker
 
         budgets.each do |budget_type, budget|
           total = totals.fetch(budget_type)
+          next unless total >= budget
 
-          handle_exceeded(budget_type: budget_type, total: total, budget: budget) if total >= budget
+          raise BudgetExceededError.new(**budget_payload(
+            budget_type: budget_type, total: total, budget: budget, last_event: nil
+          ))
         end
       end
 

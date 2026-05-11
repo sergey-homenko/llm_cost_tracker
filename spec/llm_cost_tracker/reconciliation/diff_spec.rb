@@ -155,7 +155,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       )
       base_relation = LlmCostTracker::ProviderInvoice.all
 
-      sql = diff_instance.send(:apply_metadata_scope, base_relation).to_sql
+      sql = diff_instance.send(:apply_metadata_scope, base_relation, { "provider_project_id" => "proj_a" }).to_sql
 
       expect(sql).to include("JSON_EXTRACT(metadata")
     end

@@ -9,7 +9,7 @@ module LlmCostTracker
         "web_search_call" => :web_search_request,
         "file_search_call" => :file_search_call,
         "code_interpreter_call" => :container_session,
-        "image_generation_call" => :image_generation_request
+        "mcp_call" => :mcp_call
       }.freeze
 
       REASONING_MODEL_PATTERNS = [

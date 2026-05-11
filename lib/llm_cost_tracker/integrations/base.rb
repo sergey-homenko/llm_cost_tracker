@@ -107,12 +107,13 @@ module LlmCostTracker
 
       def patch_targets = []
 
-      def patch_target(constant_name, with:, methods:, optional: false)
+      def patch_target(constant_name, with:, methods:, optional: false, skip_when_methods_missing: false)
         {
           constant_name: constant_name,
           patch: with,
           method_names: Array(methods),
-          optional: optional
+          optional: optional,
+          skip_when_methods_missing: skip_when_methods_missing
         }
       end
 
@@ -173,6 +174,8 @@ module LlmCostTracker
       end
 
       def missing_methods(target_class, target)
+        return [] if target[:skip_when_methods_missing]
+
         target.fetch(:method_names).filter_map do |method_name|
           next if target_class.method_defined?(method_name) || target_class.private_method_defined?(method_name)
 

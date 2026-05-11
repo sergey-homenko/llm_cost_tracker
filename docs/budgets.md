@@ -23,9 +23,9 @@ a numeric budget until pricing lands.
 
 | Behavior | Timing | Result |
 | --- | --- | --- |
-| `:notify` | After a priced event is recorded | Calls `on_budget_exceeded` once for the crossed limit |
+| `:notify` | After a priced event is recorded | Calls `on_budget_exceeded` once per budget type the event crossed (an event that pushes both daily and monthly over fires the callback twice — once per limit) |
 | `:raise` | After a priced event is recorded | Raises `LlmCostTracker::BudgetExceededError` |
-| `:block_requests` | Before supported requests and again after recording | Blocks the next request once accumulated spend crosses the budget |
+| `:block_requests` | Before supported requests and again after recording | Blocks the next request once accumulated spend crosses the budget. Preflight blocks do not fire `on_budget_exceeded`; the callback only fires post-record on the event that first crossed the limit |
 
 `:raise` records first, then raises. The call that crossed the budget
 remains visible in the ledger.

@@ -22,7 +22,9 @@ module LlmCostTracker
         end
 
         def data_residency_model?(model)
-          model.to_s.match?(/\Agpt-5\.(?:4|5)(?:-(?:mini|nano|pro))?(?:-\d{4}-\d{2}-\d{2})?\z/)
+          model.to_s.match?(
+            /\Agpt-5\.(?:4|5)(?:-(?:mini|nano|pro|codex(?:-mini|-max)?))?(?:-\d{4}-\d{2}-\d{2})?\z/
+          )
         end
       end
 
