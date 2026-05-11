@@ -119,7 +119,7 @@ module LlmCostTracker
       def self.symbol_or_nil(value)
         return nil if value.nil?
 
-        value.is_a?(Symbol) ? value : value.to_s.to_sym
+        value.to_s.to_sym
       end
 
       def self.decimal_or_nil(value)

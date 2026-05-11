@@ -10,7 +10,7 @@ module LlmCostTracker
                    .order(:source)
                    .distinct
                    .pluck(:source)
-        @diffs = @sources.map { |source| diff_for(source) }.compact
+        @diffs = @sources.filter_map { |source| diff_for(source) }
         @last_imported_at = LlmCostTracker::ProviderInvoice.maximum(:imported_at)
       else
         @sources = []

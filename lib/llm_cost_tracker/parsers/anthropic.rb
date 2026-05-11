@@ -78,7 +78,7 @@ module LlmCostTracker
         return nil unless start_usage || latest_delta
 
         (start_usage || {}).merge(latest_delta || {}) do |_key, start_val, delta_val|
-          delta_val.nil? ? start_val : delta_val
+          delta_val || start_val
         end
       end
 

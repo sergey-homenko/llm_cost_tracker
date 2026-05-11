@@ -66,22 +66,22 @@ module LlmCostTracker
 
     def durable_ingestion=(value)
       ensure_shared_configuration_mutable!
-      @durable_ingestion = !!value
+      @durable_ingestion = value
     end
 
     def cache_rollups=(value)
       ensure_shared_configuration_mutable!
-      @cache_rollups = !!value
+      @cache_rollups = value
     end
 
     def reconciliation_enabled=(value)
       ensure_shared_configuration_mutable!
-      @reconciliation_enabled = !!value
+      @reconciliation_enabled = value
     end
 
     def auto_enable_stream_usage=(value)
       ensure_shared_configuration_mutable!
-      @auto_enable_stream_usage = !!value
+      @auto_enable_stream_usage = value
     end
 
     def reconciliation_importers=(importers)

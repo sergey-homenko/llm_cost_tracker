@@ -89,7 +89,7 @@ module LlmCostTracker
 
       def stored_cost_attributes(attributes)
         value = attributes.to_h[:total_cost]
-        value.nil? ? {} : { total_cost: value }
+        value ? { total_cost: value } : {}
       end
 
       private
