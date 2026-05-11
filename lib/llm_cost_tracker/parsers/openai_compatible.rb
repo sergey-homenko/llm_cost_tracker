@@ -51,12 +51,12 @@ module LlmCostTracker
         openai_chat_completions_url?(request_url)
       end
 
-      private
-
       def provider_for(request_url)
         uri = parsed_uri(request_url)
         provider_for_uri(uri) || "openai_compatible"
       end
+
+      private
 
       def provider_for_uri(uri)
         return nil unless uri

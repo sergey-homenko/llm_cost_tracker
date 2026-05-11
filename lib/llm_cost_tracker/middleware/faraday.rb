@@ -77,9 +77,9 @@ module LlmCostTracker
 
       def process_interrupted_stream(parser:, request_url:, request_body:, latency_ms:,
                                      context_tags:, metadata:, error:)
-        request = parser.send(:safe_json_parse, request_body)
+        request = parser.safe_json_parse(request_body)
         capture = UsageCapture.build(
-          provider: parser.send(:provider_for, request_url),
+          provider: parser.provider_for(request_url),
           model: request["model"] || UsageCapture::UNKNOWN_MODEL,
           token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,

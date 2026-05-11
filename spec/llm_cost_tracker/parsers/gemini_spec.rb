@@ -48,7 +48,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
 
   describe "#provider_for" do
     it "returns the gemini provider name regardless of the request URL" do
-      expect(parser.send(:provider_for, stream_generate_content_url)).to eq("gemini")
+      expect(parser.provider_for(stream_generate_content_url)).to eq("gemini")
     end
   end
 

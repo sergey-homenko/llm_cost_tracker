@@ -53,8 +53,6 @@ module LlmCostTracker
         openai_chat_completions_url?(request_url)
       end
 
-      private
-
       def provider_for(_request_url)
         "openai"
       end

@@ -61,15 +61,15 @@ module LlmCostTracker
         end
       end
 
+      def provider_for(_request_url)
+        "anthropic"
+      end
+
       DATA_RESIDENCY_GEOS = %w[us].freeze
       STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only priority].freeze
       private_constant :DATA_RESIDENCY_GEOS, :STANDARD_EQUIVALENT_SERVICE_TIERS
 
       private
-
-      def provider_for(_request_url)
-        "anthropic"
-      end
 
       def stream_usage(events)
         latest_delta = find_event_value(events, reverse: true) do |data|

@@ -36,8 +36,6 @@ module LlmCostTracker
         false
       end
 
-      private
-
       def safe_json_parse(body)
         return {} if body.blank?
 
@@ -45,6 +43,8 @@ module LlmCostTracker
       rescue JSON::ParserError
         {}
       end
+
+      private
 
       def uri_matches?(url)
         uri = parsed_uri(url)
