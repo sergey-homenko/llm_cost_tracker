@@ -120,7 +120,8 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
   describe ".print_diff" do
     it "masks api_key and workspace ids in attribution lines" do
       diff = LlmCostTracker::Reconciliation::DiffResult.new(
-        source: "openai", period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31),
+        source: "openai", provider: "openai",
+        period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31),
         currency: "USD", scope: {}, provider_total: BigDecimal("0"), local_total: BigDecimal("0"),
         local_total_source: :line_items,
         delta_amount: BigDecimal("0"), delta_percent: nil,
@@ -143,6 +144,7 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
     it "renders a structured human-readable summary" do
       diff = LlmCostTracker::Reconciliation::DiffResult.new(
         source: "openai",
+        provider: "openai",
         period_start: Date.new(2026, 5, 1),
         period_end: Date.new(2026, 5, 31),
         currency: "USD",
