@@ -117,6 +117,24 @@ RSpec.describe LlmCostTracker::Report do
     )
   end
 
+  it "counts partial-pricing calls with non-nil total_cost as unknown_pricing" do
+    now = Time.utc(2026, 4, 27, 12)
+    LlmCostTracker::Call.create!(
+      provider: "openai", model: "gpt-4o", input_tokens: 0, output_tokens: 0, total_tokens: 0,
+      total_cost: 0.42, cost_status: LlmCostTracker::Billing::CostStatus::PARTIAL,
+      tracked_at: now - 1.hour
+    )
+    LlmCostTracker::Call.create!(
+      provider: "openai", model: "gpt-4o", input_tokens: 0, output_tokens: 0, total_tokens: 0,
+      total_cost: 0.10, cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      tracked_at: now - 1.hour
+    )
+
+    data = LlmCostTracker::Report::Data.build(days: 30, now: now)
+
+    expect(data.unknown_pricing_count).to eq(1)
+  end
+
   it "limits generated report text to the rendered top values" do
     now = Time.utc(2026, 4, 27, 12)
     create_ranked_report_calls(now)

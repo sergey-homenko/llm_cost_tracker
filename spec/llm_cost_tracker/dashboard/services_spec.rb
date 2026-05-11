@@ -621,6 +621,29 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(rows.first.share_percent).to eq(0.0)
     end
 
+    it "keeps the same model name as separate rows when providers differ" do
+      create_call(provider: "openrouter", model: "foo", total_cost: nil)
+      create_call(provider: "openrouter", model: "foo", total_cost: nil)
+      create_call(provider: "custom", model: "foo", total_cost: nil)
+
+      rows = described_class.unknown_pricing_by_model(LlmCostTracker::Call.all, total_calls: 3)
+      by_pair = rows.to_h { |row| [[row.provider, row.model], row.calls.to_i] }
+
+      expect(by_pair).to eq(["openrouter", "foo"] => 2, ["custom", "foo"] => 1)
+    end
+
+    it "treats cost_status partial or unknown as unknown pricing rows even when total_cost is non-nil" do
+      create_call(provider: "openai", model: "gpt-4o", total_cost: 0.42,
+                  cost_status: LlmCostTracker::Billing::CostStatus::PARTIAL)
+      create_call(provider: "openai", model: "gpt-4o", total_cost: 0.10,
+                  cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE)
+
+      rows = described_class.unknown_pricing_by_model(LlmCostTracker::Call.all, total_calls: 2)
+
+      expect(rows.size).to eq(1)
+      expect(rows.first).to have_attributes(provider: "openai", model: "gpt-4o", calls: 1)
+    end
+
     it "sums header token columns and pulls per-component cost from line items" do
       call_one = create_call(
         input_tokens: 100,
