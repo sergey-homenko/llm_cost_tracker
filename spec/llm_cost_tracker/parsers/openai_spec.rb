@@ -453,6 +453,26 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       expect(result.token_usage.image_output_tokens).to eq(1000)
     end
 
+    it "computes text output from raw totals when image_tokens details arrive without a text_tokens split" do
+      events = [
+        { event: nil, data: { "model" => "gpt-image-1.5" } },
+        { event: nil, data: { "usage" => {
+          "prompt_tokens" => 50, "completion_tokens" => 1150,
+          "output_tokens_details" => { "image_tokens" => 1000 }
+        } } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: chat_completions_url,
+        request_body: { model: "gpt-image-1.5", stream: true }.to_json,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.token_usage.image_output_tokens).to eq(1000)
+      expect(result.token_usage.output_tokens).to eq(150)
+    end
+
     it "leaves stream output tokens unsplit when no image/text details arrive" do
       events = [
         { event: nil, data: { "model" => "gpt-4o" } },

@@ -372,6 +372,88 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(received).to all(eq(3))
   end
 
+  it "logs and swallows unexpected post-response errors so the user request returns normally" do
+    sse_body = "data: {\"id\":\"chatcmpl_1\",\"model\":\"gpt-4o\"," \
+               "\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n"
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          [200, { "Content-Type" => "text/event-stream" }, sse_body]
+        end
+      end
+    end
+
+    allow(LlmCostTracker::Tracker).to receive(:record).and_raise(StandardError, "boom")
+    expect(LlmCostTracker::Logging).to receive(:warn).with(/boom/).at_least(:once)
+
+    expect { conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json) }
+      .not_to raise_error
+  end
+
+  it "labels an invalid URI by stripping the query string before tagging it on the warning" do
+    label = LlmCostTracker::Middleware::Faraday.new(->(_env) { Faraday::Response.new })
+      .send(:request_url_label, "ht!tp://broken url[ with ]bad chars?foo=1")
+    expect(label).to eq("ht!tp://broken url[ with ]bad chars")
+  end
+
+  it "leaves Anthropic streaming bodies untouched because the parser opts out of stream_options injection" do
+    sse_body = "event: message_start\n" \
+               "data: {\"type\":\"message_start\",\"message\":" \
+               "{\"id\":\"msg_x\",\"model\":\"claude-sonnet-4-6\"," \
+               "\"usage\":{\"input_tokens\":10,\"output_tokens\":1}}}\n\n" \
+               "event: message_delta\ndata: {\"type\":\"message_delta\"," \
+               "\"usage\":{\"output_tokens\":7}}\n\n"
+    request_body_seen = nil
+    conn = Faraday.new(url: "https://api.anthropic.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/messages") do |env|
+          request_body_seen = env.request_body
+          env.request.on_data&.call(sse_body, sse_body.bytesize, env)
+          [200, { "Content-Type" => "text/event-stream" }, sse_body]
+        end
+      end
+    end
+
+    conn.post("/v1/messages", { model: "claude-sonnet-4-6", stream: true }.to_json) do |req|
+      req.options.on_data = proc { |_chunk, _size, _env| }
+    end
+
+    expect(JSON.parse(request_body_seen)).not_to include("stream_options")
+  end
+
+  it "warns only once when the streaming tap overflowed and the response body is also blank" do
+    middleware = LlmCostTracker::Middleware::Faraday.new(->(_env) { Faraday::Response.new })
+    parser = LlmCostTracker::Parsers::Openai.new
+    response_env = double("response_env", body: nil, status: 200, response_headers: {})
+    stream_buffer = { buffer: StringIO.new(""), bytes: 0, overflowed: true }
+    warnings = []
+    allow(LlmCostTracker::Logging).to receive(:warn) { |message| warnings << message }
+
+    middleware.send(
+      :parse_stream,
+      parser: parser,
+      request_url: "https://api.openai.com/v1/chat/completions",
+      request_body: { model: "gpt-4o", stream: true }.to_json,
+      response_env: response_env,
+      stream_buffer: stream_buffer
+    )
+
+    expect(warnings.count { |w| w.include?("exceeded") }).to eq(1)
+  end
+
+  it "logs and returns nil when the streaming tap cannot be installed" do
+    middleware = LlmCostTracker::Middleware::Faraday.new(->(_env) { Faraday::Response.new })
+    failing_request = double("request")
+    allow(failing_request).to receive(:on_data).and_return(proc { |_| })
+    allow(failing_request).to receive(:on_data=).and_raise(StandardError, "cannot rewrap on_data")
+    request_env = double("request_env", request: failing_request)
+
+    expect(LlmCostTracker::Logging).to receive(:warn).with(/cannot rewrap on_data/)
+    expect(middleware.send(:install_stream_tap, request_env)).to be_nil
+  end
+
   it "re-raises non-streaming adapter errors without emitting an interrupted-stream event" do
     conn = Faraday.new(url: "https://api.openai.com") do |f|
       f.use :llm_cost_tracker
@@ -435,6 +517,33 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:usage_source]).to eq(:unknown)
     expect(events.first[:tags]).to include(stream_interrupted: true)
     expect(events.first[:tags][:stream_interrupted_error]).to include("Faraday::ConnectionFailed")
+  end
+
+  it "preserves the provider name when an Anthropic stream is interrupted mid-flight" do
+    conn = Faraday.new(url: "https://api.anthropic.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/messages") do |env|
+          env.request.on_data&.call("event: message_start\n", 21, env)
+          raise Faraday::ConnectionFailed, "network died mid-stream"
+        end
+      end
+    end
+
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+      events << payload
+    end
+
+    expect do
+      conn.post("/v1/messages", { model: "claude-sonnet-4-6", stream: true }.to_json) do |req|
+        req.options.on_data = proc { |_chunk, _size, _env| }
+      end
+    end.to raise_error(Faraday::ConnectionFailed)
+
+    expect(events.size).to eq(1)
+    expect(events.first[:provider]).to eq("anthropic")
+    expect(events.first[:model]).to eq("claude-sonnet-4-6")
   end
 
   it "records an unknown-usage event for oversized streaming responses" do

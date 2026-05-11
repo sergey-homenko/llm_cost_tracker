@@ -134,7 +134,7 @@ module LlmCostTracker
             pricing_mode: pricing_mode_for(capture: capture, snapshot: snapshot),
             metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
             context_tags: snapshot[:context_tags]
-          ) { |stage| save_succeeded = true if stage == :after_save }
+          ) { save_succeeded = true }
         ensure
           @mutex.synchronize do
             @finished = save_succeeded

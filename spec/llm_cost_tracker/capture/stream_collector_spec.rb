@@ -50,6 +50,26 @@ RSpec.describe LlmCostTracker do
       expect(received_metadata).to include(stream_errored: true)
     end
 
+    it "passes a nil request body to the parser when the original request cannot be JSON-serialized" do
+      unserializable = Object.new
+      def unserializable.to_json(*)
+        raise StandardError, "cannot serialize"
+      end
+      collector = described_class.new(provider: "openai", model: "gpt-4o", request: unserializable)
+      collector.event({ "id" => "chatcmpl_x", "model" => "gpt-4o",
+                        "usage" => { "prompt_tokens" => 5, "completion_tokens" => 2, "total_tokens" => 7 } })
+
+      received_request_body = :unset
+      allow_any_instance_of(LlmCostTracker::Parsers::Openai).to receive(:parse_stream) do |_, request_body:, **_|
+        received_request_body = request_body
+        nil
+      end
+      allow(LlmCostTracker::Tracker).to receive(:record) { |&block| block&.call(:after_save); nil }
+
+      collector.finish!(errored: false)
+      expect(received_request_body).to be_nil
+    end
+
     it "does not retry after Tracker.record persisted but Budget.check! raised" do
       collector = described_class.new(provider: "openai", model: "gpt-4o")
       collector.usage(input_tokens: 5, output_tokens: 1)

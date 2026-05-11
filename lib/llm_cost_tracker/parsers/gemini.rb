@@ -77,6 +77,10 @@ module LlmCostTracker
 
       private
 
+      def provider_for(_request_url)
+        "gemini"
+      end
+
       def build_usage_capture(request_url:, usage:, usage_source:, stream: false, provider_response_id: nil,
                               pricing_mode: nil, service_line_items: nil)
         cache_read = usage["cachedContentTokenCount"].to_i

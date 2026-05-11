@@ -67,6 +67,10 @@ module LlmCostTracker
 
       private
 
+      def provider_for(_request_url)
+        "anthropic"
+      end
+
       def stream_usage(events)
         latest_delta = find_event_value(events, reverse: true) do |data|
           data["usage"] if data["type"] == "message_delta" && data["usage"].is_a?(Hash)
