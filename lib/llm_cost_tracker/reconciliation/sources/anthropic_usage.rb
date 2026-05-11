@@ -12,6 +12,7 @@ module LlmCostTracker
         FINGERPRINT_KEYS = %i[
           starts_at ends_at model workspace_id api_key_id
           service_tier context_window token_type description
+          inference_geo
         ].freeze
         ROW_TYPE_COST = "cost"
         AUTHORITY_COST_API = "cost_api"

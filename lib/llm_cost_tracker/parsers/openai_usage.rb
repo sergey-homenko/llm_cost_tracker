@@ -9,6 +9,23 @@ module LlmCostTracker
 
       OPENAI_DATA_RESIDENCY_HOST_PATTERN = /\A[a-z]{2,3}\.api\.openai\.com\z/
 
+      class << self
+        def combined_pricing_mode(host:, model:, service_tier:)
+          modes = [Pricing.normalize_mode(service_tier)]
+          modes << "data_residency" if regional_processing?(host: host, model: model)
+          modes = modes.compact.uniq
+          modes.empty? ? nil : modes.join("_")
+        end
+
+        def regional_processing?(host:, model:)
+          host.to_s.downcase.match?(OPENAI_DATA_RESIDENCY_HOST_PATTERN) && data_residency_model?(model)
+        end
+
+        def data_residency_model?(model)
+          model.to_s.match?(/\Agpt-5\.(?:4|5)(?:-(?:mini|nano|pro))?(?:-\d{4}-\d{2}-\d{2})?\z/)
+        end
+      end
+
       private
 
       def parse_openai_usage(request_url:, request_body:, response_status:, response_body:)
@@ -111,21 +128,7 @@ module LlmCostTracker
       end
 
       def pricing_mode(request_url:, model:, service_tier:)
-        modes = [Pricing.normalize_mode(service_tier)]
-        modes << "data_residency" if openai_regional_processing?(request_url: request_url, model: model)
-        modes = modes.compact.uniq
-        modes.empty? ? nil : modes.join("_")
-      end
-
-      def openai_regional_processing?(request_url:, model:)
-        uri = parsed_uri(request_url)
-        return false unless uri&.host.to_s.downcase.match?(OPENAI_DATA_RESIDENCY_HOST_PATTERN)
-
-        openai_data_residency_model?(model)
-      end
-
-      def openai_data_residency_model?(model)
-        model.to_s.match?(/\Agpt-5\.(?:4|5)(?:-(?:mini|nano|pro))?(?:-\d{4}-\d{2}-\d{2})?\z/)
+        OpenaiUsage.combined_pricing_mode(host: parsed_uri(request_url)&.host, model: model, service_tier: service_tier)
       end
 
       def token_usage(usage:, cache_read:)

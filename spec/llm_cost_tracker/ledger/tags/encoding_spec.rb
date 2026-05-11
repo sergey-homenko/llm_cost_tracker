@@ -17,7 +17,7 @@ RSpec.describe LlmCostTracker::Ledger::Tags::Encoding do
     it "JSON-encodes Hash values with stringified keys and values" do
       expect(described_class.encode({ user_id: 42 })).to eq('{"user_id":"42"}')
       expect(described_class.encode("user_id" => "42")).to eq('{"user_id":"42"}')
-      expect(described_class.encode({ user_id: 42, role: :admin })).to eq('{"user_id":"42","role":"admin"}')
+      expect(described_class.encode({ user_id: 42, role: :admin })).to eq('{"role":"admin","user_id":"42"}')
     end
 
     it "JSON-encodes Array values" do
@@ -27,11 +27,15 @@ RSpec.describe LlmCostTracker::Ledger::Tags::Encoding do
 
     it "recurses through nested mixes" do
       value = { tags: [{ name: "foo", count: 3 }, { name: "bar", count: 0 }] }
-      expect(described_class.encode(value)).to eq('{"tags":[{"name":"foo","count":"3"},{"name":"bar","count":"0"}]}')
+      expect(described_class.encode(value)).to eq('{"tags":[{"count":"3","name":"foo"},{"count":"0","name":"bar"}]}')
     end
 
     it "produces matching strings for equivalent symbol-keyed and string-keyed hashes" do
       expect(described_class.encode(user_id: 42)).to eq(described_class.encode("user_id" => 42))
+    end
+
+    it "canonicalizes hash key order so write and query produce identical strings" do
+      expect(described_class.encode({ a: 1, b: 2 })).to eq(described_class.encode({ b: 2, a: 1 }))
     end
   end
 

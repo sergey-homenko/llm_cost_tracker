@@ -290,6 +290,27 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "tags SDK responses with data_residency pricing mode when the client uses us.api.openai.com on an uplifted model" do
+    response = response_class.new(
+      id: "resp_dr", model: "gpt-5.4",
+      usage: usage_class.new(input_tokens: 100, output_tokens: 50)
+    )
+    regional_client = Struct.new(:base_url).new("https://us.api.openai.com/v1")
+    install_openai_fakes(response)
+    OpenAI::Resources::Responses.class_eval do
+      define_method(:initialize) do
+        @client = regional_client
+        @response = response
+      end
+    end
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Responses.new.create(model: "gpt-5.4")
+      expect(events.first[:pricing_mode]).to eq(:data_residency)
+    end
+  end
+
   it "tracks official OpenAI response audio tokens" do
     response = response_class.new(
       id: "resp_audio",
@@ -409,6 +430,26 @@ RSpec.describe LlmCostTracker::Integrations do
         usage_source: :stream_final,
         provider_response_id: "resp_456"
       )
+    end
+  end
+
+  it "tracks official OpenAI responses.stream_raw calls" do
+    stream = stream_class.new([
+                                stream_event_class.new(
+                                  type: :"response.completed",
+                                  response: {
+                                    id: "resp_raw", model: "gpt-4o",
+                                    usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 }
+                                  }
+                                )
+                              ])
+    install_openai_fakes(response_class.new, stream: stream)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Responses.new.stream_raw(model: "gpt-4o").each { |_event| nil }
+
+      expect(events.first).to include(provider: "openai", model: "gpt-4o", input_tokens: 5, output_tokens: 2)
     end
   end
 

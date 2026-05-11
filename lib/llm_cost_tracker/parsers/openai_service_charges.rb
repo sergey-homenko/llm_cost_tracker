@@ -8,7 +8,8 @@ module LlmCostTracker
       RESPONSE_OUTPUT_COMPONENTS = {
         "web_search_call" => :web_search_request,
         "file_search_call" => :file_search_call,
-        "code_interpreter_call" => :container_session
+        "code_interpreter_call" => :container_session,
+        "image_generation_call" => :image_generation_request
       }.freeze
 
       REASONING_MODEL_PATTERNS = [
@@ -23,7 +24,9 @@ module LlmCostTracker
       def line_items_from_output(output_items, request: nil, model: nil)
         deduped = {}
         Array(output_items).each { |item| store_output_item(deduped, item) }
-        deduped.values.filter_map { |item| build_line_item(item, request: request, model: model) }
+        deduped.values
+               .select { |item| billable?(item) }
+               .filter_map { |item| build_line_item(item, request: request, model: model) }
       end
 
       def billable?(item)
@@ -38,7 +41,7 @@ module LlmCostTracker
       end
 
       def store_output_item(output_items, item)
-        return unless billable?(item)
+        return unless item.is_a?(Hash) && RESPONSE_OUTPUT_COMPONENTS.key?(item["type"])
 
         component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
         key = if component == :container_session && item["container_id"]

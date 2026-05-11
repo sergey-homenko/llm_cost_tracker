@@ -349,8 +349,19 @@ RSpec.describe "ActiveRecord storage integration" do
     LlmCostTracker::Ledger::Store.insert_many([event])
 
     expect(LlmCostTracker::Call.first.parsed_tags).to eq(
-      "metadata" => '{"user_id":"42","active":"true"}'
+      "metadata" => '{"active":"true","user_id":"42"}'
     )
+  end
+
+  it "preserves the ledger write when the rollup increment raises" do
+    LlmCostTracker.configure { |config| config.cache_rollups = true }
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    allow(LlmCostTracker::Ledger::Rollups).to receive(:increment_many!).and_raise("rollup contention")
+    event = build_event(event_id: "rollup-failure")
+
+    expect { LlmCostTracker::Ledger::Store.insert_many([event]) }.not_to raise_error
+    expect(LlmCostTracker::Call.find_by(event_id: "rollup-failure")).to be_present
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(include("Rollup increment failed"))
   end
 
   it "qualifies PostgreSQL rollup upsert totals" do

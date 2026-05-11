@@ -17,7 +17,7 @@ module LlmCostTracker
         end
 
         def normalize_hash(hash)
-          hash.transform_keys(&:to_s).transform_values { |v| normalize_value(v) }
+          hash.transform_keys(&:to_s).sort.to_h.transform_values { |v| normalize_value(v) }
         end
 
         def normalize_array(array)

@@ -169,6 +169,15 @@
   category: tool
   rate_basis: per_1k_requests
 
+- key: image_generation_request
+  kind: image_generation_request
+  direction: neither
+  modality: image
+  cache_state: none
+  unit: request
+  category: tool
+  rate_basis: per_request
+
 - key: text_to_speech_character
   kind: text_to_speech_character
   direction: output

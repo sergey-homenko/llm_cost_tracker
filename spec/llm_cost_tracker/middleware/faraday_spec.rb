@@ -305,6 +305,72 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:provider_response_id]).to eq("chatcmpl_stream_123")
   end
 
+  it "preserves a 1-arg on_data lambda" do
+    sse_body = "data: {\"id\":\"chat_1arg\",\"model\":\"gpt-4o\"," \
+               "\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" \
+               "data: [DONE]\n\n"
+    chunks_received = []
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          env.request.on_data&.call(sse_body, sse_body.bytesize, env)
+          [200, { "Content-Type" => "text/event-stream" }, sse_body]
+        end
+      end
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json) do |req|
+      req.options.on_data = ->(chunk) { chunks_received << chunk }
+    end
+
+    expect(chunks_received).to eq([sse_body])
+  end
+
+  it "preserves a 2-arg on_data lambda" do
+    sse_body = "data: {\"id\":\"chat_2arg\",\"model\":\"gpt-4o\"," \
+               "\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" \
+               "data: [DONE]\n\n"
+    received = []
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          env.request.on_data&.call(sse_body, sse_body.bytesize, env)
+          [200, { "Content-Type" => "text/event-stream" }, sse_body]
+        end
+      end
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json) do |req|
+      req.options.on_data = ->(chunk, size) { received << [chunk, size] }
+    end
+
+    expect(received.first[1]).to eq(sse_body.bytesize)
+  end
+
+  it "preserves a variadic on_data proc with negative arity" do
+    sse_body = "data: {\"id\":\"chat_var\",\"model\":\"gpt-4o\"," \
+               "\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" \
+               "data: [DONE]\n\n"
+    received = []
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          env.request.on_data&.call(sse_body, sse_body.bytesize, env)
+          [200, { "Content-Type" => "text/event-stream" }, sse_body]
+        end
+      end
+    end
+
+    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json) do |req|
+      req.options.on_data = proc { |*args| received << args.length }
+    end
+
+    expect(received).not_to be_empty
+  end
+
   it "records an unknown-usage event for oversized streaming responses" do
     stub_const("LlmCostTracker::Capture::Stream::LIMIT_BYTES", 32)
 

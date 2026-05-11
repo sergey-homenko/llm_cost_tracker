@@ -137,7 +137,7 @@ module LlmCostTracker
 
         service_total = matching.sum(BigDecimal("0"), &:cost_value)
         base_total = BigDecimal(cost.fetch(:total_cost, 0).to_s)
-        cost[:total_cost] = (base_total + service_total).round(8).to_f
+        cost[:total_cost] = (base_total + service_total).round(8)
         cost
       end
 

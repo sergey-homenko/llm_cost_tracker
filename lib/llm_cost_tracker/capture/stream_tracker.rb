@@ -12,8 +12,9 @@ module LlmCostTracker
         @stream = stream
         @collector = collector
         @active = active
-        @finish = finish || proc { |errored:| @collector.finish!(errored: errored) }
+        @finish = finish || proc { |errored:| collector.finish!(errored: errored) }
         @finished_ref = [false]
+        @attempted_ref = [false]
         @capture_failed = false
         @mutex = Mutex.new
       end
@@ -121,6 +122,7 @@ module LlmCostTracker
 
       def finish!(errored:)
         should_finish = @mutex.synchronize do
+          @attempted_ref[0] = true
           next false if @finished_ref[0]
 
           @finished_ref[0] = true
@@ -137,26 +139,33 @@ module LlmCostTracker
       end
 
       def register_orphan_finalizer
+        ObjectSpace.define_finalizer(@stream, orphan_finalizer)
+      rescue TypeError, ArgumentError
+        nil
+      end
+
+      def orphan_finalizer
         finished_ref = @finished_ref
+        attempted_ref = @attempted_ref
         finish_proc = @finish
         active_proc = @active
         mutex = @mutex
-        ObjectSpace.define_finalizer(@stream, lambda do |_object_id|
-          mutex.synchronize do
-            next if finished_ref[0]
+        lambda do |_object_id|
+          should_finish = mutex.synchronize do
+            next false if finished_ref[0] || attempted_ref[0]
 
             finished_ref[0] = true
+            attempted_ref[0] = true
+            true
           end
-          next unless active_proc.call
+          next unless should_finish && active_proc.call
 
           begin
             finish_proc.call(errored: false)
           rescue StandardError
             nil
           end
-        end)
-      rescue TypeError, ArgumentError
-        nil
+        end
       end
     end
   end

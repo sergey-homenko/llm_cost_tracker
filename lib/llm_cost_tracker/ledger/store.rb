@@ -24,8 +24,8 @@ module LlmCostTracker
               call_ids = call_ids_for(insertable)
               insert_line_items(insertable, call_ids)
               insert_call_tags(insertable, call_ids)
-              Ledger::Rollups.increment_many!(insertable) if LlmCostTracker.configuration.cache_rollups
             end
+            increment_rollups_safely(insertable) if LlmCostTracker.configuration.cache_rollups
           end
           events
         end
@@ -125,6 +125,16 @@ module LlmCostTracker
 
         def stored_details(details)
           (details || {}).transform_keys(&:to_s).transform_values { |value| Tags::Encoding.normalize_value(value) }
+        end
+
+        def increment_rollups_safely(events)
+          Ledger::Rollups.increment_many!(events)
+        rescue StandardError => e
+          raise if LlmCostTracker::Call.connection.open_transactions.positive?
+
+          LlmCostTracker::Logging.warn(
+            "Rollup increment failed for #{events.size} events after ledger commit: #{e.class}: #{e.message}"
+          )
         end
 
         def insertable_events(events)

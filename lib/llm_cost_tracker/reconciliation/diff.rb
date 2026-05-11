@@ -8,7 +8,7 @@ require_relative "../ledger/rollups"
 
 module LlmCostTracker
   module Reconciliation
-    class Diff
+    class Diff # rubocop:disable Metrics/ClassLength
       SCOPE_KEYS = %i[provider_project_id provider_api_key_id provider_workspace_id].freeze
       ATTRIBUTION_KEYS = (SCOPE_KEYS + [:model]).freeze
       COST_ROW_TYPE = "cost"
@@ -36,8 +36,8 @@ module LlmCostTracker
         provider_total = scoped_invoices_relation_for(:cost, fully_contained: true)
                          .sum(:billed_amount)
                          .then { |sum| BigDecimal(sum.to_s) }
-        invoices = scoped_invoices
-        cost_invoices = invoices.select { |invoice| cost_row?(invoice) }
+        all_invoices = scoped_invoices
+        cost_invoices = all_invoices.select { |invoice| cost_row?(invoice) && fully_contained?(invoice) }
         local_calls = scoped_local_calls
 
         local_total, local_total_source = sum_local_total
@@ -55,7 +55,7 @@ module LlmCostTracker
           delta_percent: percent_for(local_total, provider_total),
           unmatched_provider_rows: unmatched_provider_rows(cost_invoices, local_calls),
           unmatched_local_calls: unmatched_local_calls(cost_invoices, local_calls),
-          non_cost_rows: non_cost_rows(invoices)
+          non_cost_rows: non_cost_rows(all_invoices)
         )
       end
 
@@ -107,6 +107,10 @@ module LlmCostTracker
       def cost_row?(invoice)
         row_type = invoice.metadata["row_type"]
         row_type.nil? || row_type.to_s == COST_ROW_TYPE
+      end
+
+      def fully_contained?(invoice)
+        invoice.period_start >= period_start && invoice.period_end <= period_end
       end
 
       def scoped_local_calls

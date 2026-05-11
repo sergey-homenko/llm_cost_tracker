@@ -107,7 +107,7 @@ module LlmCostTracker
           cost = costs[component.key]
           result[component.cost_key] = cost.round(8) unless cost.nil?
         end
-        values[:total_cost] = costs.values.compact.sum.round(8)
+        values[:total_cost] = costs.values.compact.sum(BigDecimal("0")).round(8)
         values
       end
 
@@ -258,10 +258,10 @@ module LlmCostTracker
       end
 
       def token_cost(tokens, per_million_price)
-        return 0.0 if tokens.zero?
+        return BigDecimal("0") if tokens.zero?
         return nil if per_million_price.nil?
 
-        (tokens * per_million_price) / RATE_DENOMINATOR_TOKENS
+        (BigDecimal(tokens.to_s) * BigDecimal(per_million_price.to_s)) / RATE_DENOMINATOR_TOKENS
       end
     end
   end

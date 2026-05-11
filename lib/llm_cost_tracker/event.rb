@@ -29,7 +29,7 @@ module LlmCostTracker
     def to_h
       super.merge(
         token_usage: token_usage.to_h,
-        cost: cost&.to_h,
+        cost: cost && cost.to_h.transform_values { |v| v.is_a?(BigDecimal) ? v.to_f : v },
         tags: tags ? tags.to_h : {},
         line_items: (line_items || []).map(&:to_h)
       )

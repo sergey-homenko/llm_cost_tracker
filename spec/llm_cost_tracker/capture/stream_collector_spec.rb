@@ -4,6 +4,40 @@ require "spec_helper"
 require "llm_cost_tracker/capture/stream_collector"
 
 RSpec.describe LlmCostTracker do
+  describe LlmCostTracker::Capture::StreamTracker do
+    it "runs the orphan finalizer when an unwrapped stream is GC'd before finish! is called" do
+      collector = LlmCostTracker::Capture::StreamCollector.new(provider: "openai", model: "gpt-4o")
+      finished = false
+      tracker = described_class.new(
+        stream: Object.new,
+        collector: collector,
+        active: -> { true },
+        finish: ->(errored:) { finished = !errored }
+      )
+
+      tracker.send(:orphan_finalizer).call(:dummy_object_id)
+
+      expect(finished).to be true
+    end
+
+    it "no-ops the orphan finalizer once finish! has been attempted" do
+      collector = LlmCostTracker::Capture::StreamCollector.new(provider: "openai", model: "gpt-4o")
+      collector.usage(input_tokens: 5, output_tokens: 1)
+      called = 0
+      tracker = described_class.new(
+        stream: Object.new,
+        collector: collector,
+        active: -> { true },
+        finish: ->(errored:) { called += 1; raise "boom" if called == 1 }
+      )
+
+      expect { tracker.send(:finish!, errored: false) }.to raise_error("boom")
+      tracker.send(:orphan_finalizer).call(:dummy_object_id)
+
+      expect(called).to eq(1)
+    end
+  end
+
   describe ".track" do
     it "does not record or enforce budget when tracking is disabled" do
       collected = []

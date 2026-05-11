@@ -143,6 +143,15 @@ module LlmCostTracker
         )
       end
 
+      def forward_on_data_chunk(callable, chunk, size, env)
+        required = callable.arity.negative? ? -callable.arity - 1 : callable.arity
+        case required
+        when 0, 1 then callable.call(chunk)
+        when 2 then callable.call(chunk, size)
+        else callable.call(chunk, size, env)
+        end
+      end
+
       def install_stream_tap(request_env)
         request = request_env.request
         return nil unless request
@@ -162,7 +171,7 @@ module LlmCostTracker
             state[:bytes] += [remaining, 0].max
             state[:overflowed] = true
           end
-          original.call(chunk, size, env)
+          forward_on_data_chunk(original, chunk, size, env)
         end
         state
       rescue StandardError => e

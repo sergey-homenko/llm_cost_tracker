@@ -65,13 +65,15 @@ module LlmCostTracker
             @thread
           end
           wake_thread(thread)
-          thread&.join([timeout, 1].min)
+          thread&.join(timeout)
           drain ? flush!(timeout: timeout, require_lease: true) : true
         rescue StandardError => e
           handle_error(e)
           false
         ensure
-          mutex.synchronize { @thread = nil if @thread.equal?(thread) }
+          mutex.synchronize do
+            @thread = nil if @thread.equal?(thread) && !thread&.alive?
+          end
         end
 
         def reset!
