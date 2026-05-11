@@ -12,7 +12,7 @@ RSpec.describe LlmCostTracker do
         stream: Object.new,
         collector: collector,
         active: -> { true },
-        finish: ->(errored:) { finished = !errored }
+        finish: ->(errored) { finished = !errored }
       )
 
       tracker.send(:orphan_finalizer).call(:dummy_object_id)
@@ -28,7 +28,7 @@ RSpec.describe LlmCostTracker do
         stream: Object.new,
         collector: collector,
         active: -> { true },
-        finish: ->(errored:) { called += 1; raise "boom" if called == 1 }
+        finish: ->(errored) { called += 1; raise "boom" if called == 1 }
       )
 
       expect { tracker.send(:finish!, errored: false) }.to raise_error("boom")

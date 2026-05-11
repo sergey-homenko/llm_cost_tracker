@@ -12,7 +12,7 @@ module LlmCostTracker
         @stream = stream
         @collector = collector
         @active = active
-        @finish = finish || proc { |errored:| collector.finish!(errored: errored) }
+        @finish = finish || proc { |errored| collector.finish!(errored: errored) }
         @finished_ref = [false]
         @attempted_ref = [false]
         @capture_failed = false
@@ -131,7 +131,7 @@ module LlmCostTracker
         return unless should_finish && @active.call
 
         begin
-          @finish.call(errored: errored)
+          @finish.call(errored)
         rescue StandardError
           @mutex.synchronize { @finished_ref[0] = false }
           raise
@@ -161,7 +161,7 @@ module LlmCostTracker
           next unless should_finish && active_proc.call
 
           begin
-            finish_proc.call(errored: false)
+            finish_proc.call(false)
           rescue StandardError
             nil
           end

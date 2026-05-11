@@ -68,7 +68,7 @@ module LlmCostTracker
           stream: stream,
           collector: collector,
           active: -> { active? },
-          finish: ->(errored:) { record_safely { collector.finish!(errored: errored) } }
+          finish: ->(errored) { record_safely { collector.finish!(errored: errored) } }
         ).wrap
       end
 
