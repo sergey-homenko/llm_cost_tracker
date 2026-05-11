@@ -117,13 +117,14 @@ RSpec.describe LlmCostTracker::Doctor do
         expect(checks.map(&:name)).to include("provider invoices", "provider invoice imports")
       end
 
-      it "stays silent when the optional provider invoices table is missing" do
+      it "fails when reconciliation is enabled but the provider invoices table is missing" do
         ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_provider_invoices, force: :cascade)
         LlmCostTracker::ProviderInvoice.reset_column_information
 
         check = described_class.call.find { |item| item.name == "provider invoices" }
 
-        expect(check).to be_nil
+        expect(check).to have_attributes(status: :error)
+        expect(check.message).to include("llm_cost_tracker:reconciliation")
       end
 
       it "fails when the provider invoices table exists but its schema drifted" do

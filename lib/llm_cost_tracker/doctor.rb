@@ -64,7 +64,7 @@ module LlmCostTracker
       LlmCostTracker.const_get(:Reconciliation) # autoload reconciliation + its ledger schemas
       Reconciliation::SCHEMA_TABLES.map do |schema, table|
         SchemaCheck.new(name: humanize_table(table), schema: schema, table: table,
-                        optional: true, install_command: "llm_cost_tracker:reconciliation").call
+                        optional: false, install_command: "llm_cost_tracker:reconciliation").call
       end.compact
     end
 
