@@ -1,0 +1,18 @@
+class UpgradeLlmCostTrackerImageTokens < ActiveRecord::Migration<%= migration_version %>
+  TABLE = :llm_cost_tracker_calls
+  COLUMNS = %i[image_input_tokens image_output_tokens].freeze
+
+  def up
+    COLUMNS.each do |column|
+      next if column_exists?(TABLE, column)
+
+      add_column TABLE, column, :integer, null: false, default: 0
+    end
+  end
+
+  def down
+    COLUMNS.each do |column|
+      remove_column TABLE, column if column_exists?(TABLE, column)
+    end
+  end
+end

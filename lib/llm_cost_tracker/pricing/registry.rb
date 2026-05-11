@@ -145,8 +145,9 @@ module LlmCostTracker
 
         def price_key_for(key)
           name = key.is_a?(Symbol) ? key.name : key
-          Billing::Components::TOKEN_PRICED.each do |candidate|
+          Billing::Components::REGISTRY.each do |candidate|
             return candidate.key if candidate.key.name == name
+            next unless candidate.token_key
 
             suffix = "_#{candidate.key.name}"
             next unless name.end_with?(suffix)

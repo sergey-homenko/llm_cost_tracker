@@ -14,8 +14,10 @@ module LlmCostTracker
     :cache_write_input_tokens,
     :cache_write_extended_input_tokens,
     :audio_input_tokens,
+    :image_input_tokens,
     :output_tokens,
     :audio_output_tokens,
+    :image_output_tokens,
     :total_tokens,
     :hidden_output_tokens
   ) do
@@ -53,6 +55,7 @@ module LlmCostTracker
     def self.build(input_tokens:, output_tokens:, cache_read_input_tokens: 0,
                    cache_write_input_tokens: 0, cache_write_extended_input_tokens: 0,
                    audio_input_tokens: 0, audio_output_tokens: 0,
+                   image_input_tokens: 0, image_output_tokens: 0,
                    total_tokens: nil, hidden_output_tokens: 0)
       input = non_negative_int(input_tokens)
       output = non_negative_int(output_tokens)
@@ -61,8 +64,11 @@ module LlmCostTracker
       cache_write_extended = non_negative_int(cache_write_extended_input_tokens)
       audio_input = non_negative_int(audio_input_tokens)
       audio_output = non_negative_int(audio_output_tokens)
+      image_input = non_negative_int(image_input_tokens)
+      image_output = non_negative_int(image_output_tokens)
       hidden_output = non_negative_int(hidden_output_tokens)
-      calculated_total = input + cache_read + cache_write + cache_write_extended + audio_input + output + audio_output
+      calculated_total = input + cache_read + cache_write + cache_write_extended +
+                         audio_input + image_input + output + audio_output + image_output
       total = total_tokens.nil? ? calculated_total : [non_negative_int(total_tokens), calculated_total].max
 
       new(
@@ -71,8 +77,10 @@ module LlmCostTracker
         cache_write_input_tokens: cache_write,
         cache_write_extended_input_tokens: cache_write_extended,
         audio_input_tokens: audio_input,
+        image_input_tokens: image_input,
         output_tokens: output,
         audio_output_tokens: audio_output,
+        image_output_tokens: image_output,
         total_tokens: total,
         hidden_output_tokens: hidden_output
       )

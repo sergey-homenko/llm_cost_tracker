@@ -68,6 +68,26 @@
   token_key: audio_output_tokens
   cost_key: audio_output_cost
 
+- key: image_input
+  kind: image_token
+  direction: input
+  modality: image
+  cache_state: none
+  unit: token
+  category: token
+  token_key: image_input_tokens
+  cost_key: image_input_cost
+
+- key: image_output
+  kind: image_token
+  direction: output
+  modality: image
+  cache_state: none
+  unit: token
+  category: token
+  token_key: image_output_tokens
+  cost_key: image_output_cost
+
 - key: web_search_request
   kind: web_search_request
   direction: neither
@@ -148,3 +168,12 @@
   unit: request
   category: tool
   rate_basis: per_1k_requests
+
+- key: text_to_speech_character
+  kind: text_to_speech_character
+  direction: output
+  modality: audio
+  cache_state: none
+  unit: character
+  category: tool
+  rate_basis: per_million_characters

@@ -661,7 +661,8 @@ RSpec.describe LlmCostTracker::Integrations do
         provider: "openai",
         model: "gpt-image-1",
         input_tokens: 12,
-        output_tokens: 1024,
+        output_tokens: 0,
+        image_output_tokens: 1024,
         usage_source: :sdk_response
       )
     end
@@ -705,8 +706,39 @@ RSpec.describe LlmCostTracker::Integrations do
         provider: "openai",
         model: "gpt-image-1",
         input_tokens: 200,
-        output_tokens: 1024
+        output_tokens: 0,
+        image_output_tokens: 1024
       )
+    end
+  end
+
+  it "splits gpt-image-1 input details into text and image input tokens" do
+    detailed_usage = Struct.new(
+      :input_tokens, :output_tokens, :total_tokens, :input_tokens_details, keyword_init: true
+    )
+    detail_struct = Struct.new(:image_tokens, :cached_tokens, keyword_init: true)
+    images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
+    image = images_class.new(
+      created: 1_700_000_000,
+      usage: detailed_usage.new(
+        input_tokens: 250,
+        output_tokens: 1024,
+        total_tokens: 1274,
+        input_tokens_details: detail_struct.new(image_tokens: 100, cached_tokens: 0)
+      )
+    )
+    install_openai_fakes(response_class.new, image: image)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Images.new.edit(image: "...", prompt: "make it red", model: "gpt-image-1")
+
+      event = events.first
+      expect(event).to include(input_tokens: 150, image_input_tokens: 100, image_output_tokens: 1024)
+      cost = event.fetch(:cost)
+      # 150 text @ $2.5 + 100 image @ $5 + 1024 image_out @ $20 (per 1M)
+      expected_total = (150 * 2.5 + 100 * 5.0 + 1024 * 20.0) / 1_000_000
+      expect(cost.fetch(:total_cost)).to be_within(0.000001).of(expected_total)
     end
   end
 
@@ -801,15 +833,45 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
-  it "records OpenAI audio.speech.create calls as zero-token visibility events" do
+  it "records OpenAI audio.speech.create calls and prices the input characters at the per-model rate" do
     install_openai_fakes(response_class.new, speech: "binary-audio-bytes")
     configure_integration(:openai)
 
     capture_events do |events|
-      OpenAI::Resources::Audio::Speech.new.create(model: "tts-1", input: "hello", voice: "alloy")
+      OpenAI::Resources::Audio::Speech.new.create(model: "tts-1", input: "hello world", voice: "alloy")
 
       expect(events.size).to eq(1)
-      expect(events.first).to include(provider: "openai", model: "tts-1", input_tokens: 0, output_tokens: 0)
+      event = events.first
+      expect(event).to include(provider: "openai", model: "tts-1", input_tokens: 0, output_tokens: 0)
+      tts_line = event.fetch(:line_items).find { |li| li.fetch(:kind) == :text_to_speech_character }
+      expect(tts_line.fetch(:quantity)).to eq("11.0")
+      expect(tts_line.fetch(:cost_status)).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+      # tts-1: $15 per 1M chars; 11 chars = 0.000165
+      expect(BigDecimal(tts_line.fetch(:cost))).to eq(BigDecimal("0.000165"))
+    end
+  end
+
+  it "skips TTS line item when the speech request has no string input" do
+    install_openai_fakes(response_class.new, speech: "binary-audio-bytes")
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Audio::Speech.new.create(model: "tts-1", input: nil, voice: "alloy")
+
+      tts_line = events.first.fetch(:line_items).find { |li| li.fetch(:kind) == :text_to_speech_character }
+      expect(tts_line).to be_nil
+    end
+  end
+
+  it "skips TTS line item for non-character-billed models like gpt-4o-mini-tts" do
+    install_openai_fakes(response_class.new, speech: "binary-audio-bytes")
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Audio::Speech.new.create(model: "gpt-4o-mini-tts", input: "hello", voice: "alloy")
+
+      tts_line = events.first.fetch(:line_items).find { |li| li.fetch(:kind) == :text_to_speech_character }
+      expect(tts_line).to be_nil
     end
   end
 

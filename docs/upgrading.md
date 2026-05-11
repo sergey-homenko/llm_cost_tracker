@@ -84,6 +84,22 @@ WHERE id IN (
 );
 ```
 
+### Image-token columns on `llm_cost_tracker_calls`
+
+v0.9 adds `image_input_tokens` and `image_output_tokens` columns to
+`llm_cost_tracker_calls` so OpenAI's `gpt-image-*` family bills
+correctly (text and image tokens have different per-1M rates). Doctor
+flags the missing columns at startup; fix it with:
+
+```bash
+bin/rails generate llm_cost_tracker:upgrade_image_tokens
+bin/rails db:migrate
+```
+
+The migration only adds columns (defaults to 0); it does not rewrite
+existing rows. Independent of the rollups upgrade — order doesn't
+matter.
+
 ### Optional invoice reconciliation
 
 Reconciliation stays a separate opt-in (config flag plus its own

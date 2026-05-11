@@ -6,7 +6,7 @@ require_relative "../parsers/openai_service_charges"
 
 module LlmCostTracker
   module Integrations
-    module Openai
+    module Openai # rubocop:disable Metrics/ModuleLength
       extend Base
 
       class << self
@@ -80,14 +80,19 @@ module LlmCostTracker
 
         def record_image(response, request:, latency_ms:)
           usage = object_value(response, :usage)
-          input_tokens = usage ? object_value(usage, :input_tokens).to_i : 0
-          output_tokens = usage ? object_value(usage, :output_tokens).to_i : 0
+          raw_input = usage ? object_value(usage, :input_tokens).to_i : 0
+          raw_output = usage ? object_value(usage, :output_tokens).to_i : 0
+          image_input = image_input_tokens(usage).to_i
+          text_input = [raw_input - image_input, 0].max
           record_passthrough(
             model: request[:model],
             response: response,
             latency_ms: latency_ms,
-            input_tokens: input_tokens,
-            output_tokens: output_tokens
+            input_tokens: text_input,
+            image_input_tokens: image_input,
+            output_tokens: 0,
+            image_output_tokens: raw_output,
+            cache_read_input_tokens: cache_read_input_tokens(usage).to_i
           )
         end
 
@@ -118,8 +123,26 @@ module LlmCostTracker
             response: nil,
             latency_ms: latency_ms,
             input_tokens: 0,
-            output_tokens: 0
+            output_tokens: 0,
+            service_line_items: speech_line_items(request)
           )
+        end
+
+        CHARACTER_BILLED_TTS_MODELS = /\Atts-1(-hd)?\z/
+        private_constant :CHARACTER_BILLED_TTS_MODELS
+
+        def speech_line_items(request)
+          input = request[:input]
+          return [] unless input.is_a?(String)
+          return [] unless CHARACTER_BILLED_TTS_MODELS.match?(request[:model].to_s)
+
+          [LlmCostTracker::Billing::LineItem.build(
+            component_key: :text_to_speech_character,
+            quantity: input.length,
+            cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN,
+            pricing_basis: :provider_usage,
+            provider_field: "request.input"
+          )]
         end
 
         def record_moderation(response, request:, latency_ms:)
@@ -132,7 +155,7 @@ module LlmCostTracker
           )
         end
 
-        def record_passthrough(model:, response:, latency_ms:, **token_attributes)
+        def record_passthrough(model:, response:, latency_ms:, service_line_items: [], **token_attributes)
           return unless active?
 
           record_safely do
@@ -142,7 +165,8 @@ module LlmCostTracker
                 model: model,
                 token_usage: TokenUsage.build(**token_attributes),
                 usage_source: :sdk_response,
-                provider_response_id: response && object_value(response, :id)
+                provider_response_id: response && object_value(response, :id),
+                service_line_items: service_line_items
               ),
               latency_ms: latency_ms
             )
@@ -201,6 +225,7 @@ module LlmCostTracker
         def hidden_output_tokens(usage)    = detail(usage, OUTPUT_DETAIL_KEYS, :reasoning_tokens)
         def audio_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :audio_tokens)
         def audio_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :audio_tokens)
+        def image_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :image_tokens)
 
         def detail(usage, containers, key)
           containers.each do |container|

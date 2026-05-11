@@ -18,6 +18,8 @@ module LlmCostTracker
           cache_write_extended_input_tokens
           audio_input_tokens
           audio_output_tokens
+          image_input_tokens
+          image_output_tokens
           hidden_output_tokens
           total_cost
           latency_ms

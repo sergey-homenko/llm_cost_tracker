@@ -14,7 +14,7 @@ require_relative "pricing/explainer"
 require_relative "pricing/service_charges"
 
 module LlmCostTracker
-  module Pricing
+  module Pricing # rubocop:disable Metrics/ModuleLength
     extend ServiceCharges
 
     STANDARD_MODE_VALUES = %i[auto default standard standard_only].freeze
@@ -41,18 +41,6 @@ module LlmCostTracker
         return nil unless calculation
 
         cost_from(calculation)
-      end
-
-      def cost_and_snapshot_for(provider:, model:, tokens:, pricing_mode: nil)
-        calculation = calculation_for(
-          provider: provider,
-          model: model,
-          tokens: tokens,
-          pricing_mode: pricing_mode
-        )
-        return [nil, nil] unless calculation
-
-        [cost_from(calculation), snapshot_from(calculation)]
       end
 
       def calculate(provider:, model:, tokens:, line_items:, pricing_mode: nil)
@@ -177,7 +165,10 @@ module LlmCostTracker
         line_items.map do |line_item|
           next price_token_line_item(line_item, calculation) if line_item.unit == :token
 
-          price_service_charge_line_item(line_item, provider: provider, pricing_mode: pricing_mode)
+          price_service_charge_line_item(line_item,
+                                         provider: provider,
+                                         calculation: calculation,
+                                         pricing_mode: pricing_mode)
         end
       end
 
@@ -213,14 +204,33 @@ module LlmCostTracker
         )
       end
 
-      def price_service_charge_line_item(line_item, provider:, pricing_mode:)
+      def price_service_charge_line_item(line_item, provider:, calculation:, pricing_mode:)
         return line_item if line_item.priced?
         return line_item unless line_item.billable?
 
-        rate = charge_rate(provider: provider, component: line_item.kind, pricing_mode: pricing_mode)
+        rate = model_rate_for(line_item, calculation) ||
+               charge_rate(provider: provider, component: line_item.kind, pricing_mode: pricing_mode)
         return line_item unless rate
 
         line_item.apply_rate(rate)
+      end
+
+      def model_rate_for(line_item, calculation)
+        return nil unless calculation
+
+        match = calculation[:match]
+        amount = match.prices[line_item.kind] || match.prices[line_item.kind.to_s]
+        return nil unless amount.is_a?(Numeric)
+
+        component = Billing::Components::BY_KEY[line_item.kind]
+        {
+          amount: BigDecimal(amount.to_s),
+          quantity: BigDecimal(Billing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis).to_s),
+          currency: "USD",
+          source: match.source,
+          source_key: "#{match.key}.#{line_item.kind}",
+          source_version: source_version_for(match.source)
+        }
       end
 
       def component_for_line_item(line_item)
