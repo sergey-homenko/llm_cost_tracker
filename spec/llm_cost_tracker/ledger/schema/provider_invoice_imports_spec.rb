@@ -30,13 +30,13 @@ RSpec.describe LlmCostTracker::Ledger::Schema::ProviderInvoiceImports do
         .to include("missing columns: cursor")
     end
 
-    it "reports a missing source/started_at index" do
+    it "reports a missing source/provider/started_at index" do
       ActiveRecord::Base.connection.remove_index(
-        :llm_cost_tracker_provider_invoice_imports, %i[source started_at]
+        :llm_cost_tracker_provider_invoice_imports, %i[source provider started_at]
       )
 
       expect(described_class.current_schema_errors)
-        .to include("missing index: source, started_at")
+        .to include("missing index: source, provider, started_at")
     end
   end
 end

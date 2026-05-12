@@ -107,7 +107,9 @@ module LlmCostTracker
       def compute_service_charge_updates(provider, provider_result, current_service_charges)
         existing = current_service_charges.fetch(provider, {})
         scraped = provider_result.service_charges
-        scraped.keys.sort.each_with_object({}) do |key, updates|
+        return {} if scraped.empty?
+
+        (existing.keys | scraped.keys).sort.each_with_object({}) do |key, updates|
           from = existing[key]
           to = scraped[key]
           updates[key] = { "from" => from, "to" => to } if from != to
@@ -116,15 +118,10 @@ module LlmCostTracker
 
       def apply_service_charges(provider, current_service_charges, provider_result)
         next_service_charges = current_service_charges.dup
-        existing = next_service_charges.fetch(provider, {})
         scraped = provider_result.service_charges
+        return next_service_charges if scraped.empty?
 
-        merged = existing.merge(scraped)
-        if merged.empty?
-          next_service_charges.delete(provider)
-        else
-          next_service_charges[provider] = merged
-        end
+        next_service_charges[provider] = scraped
         next_service_charges
       end
 

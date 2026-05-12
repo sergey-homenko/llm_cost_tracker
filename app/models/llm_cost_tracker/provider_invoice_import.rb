@@ -8,17 +8,22 @@ module LlmCostTracker
     STATES = [STATE_RUNNING, STATE_COMPLETED, STATE_FAILED].freeze
 
     scope :for_source, ->(source) { where(source: source.to_s) }
+    scope :for_provider, ->(provider) { where(provider: provider.to_s) }
     scope :running, -> { where(state: STATE_RUNNING) }
     scope :completed, -> { where(state: STATE_COMPLETED) }
     scope :failed, -> { where(state: STATE_FAILED) }
     scope :latest, -> { order(started_at: :desc, id: :desc) }
 
-    def self.resume_cursor_for(source)
-      for_source(source).latest.limit(1).pick(:cursor)
+    def self.resume_cursor_for(source, provider: nil)
+      scope = for_source(source)
+      scope = scope.for_provider(provider) if provider
+      scope.latest.limit(1).pick(:cursor)
     end
 
-    def self.last_completed_window_for(source)
-      for_source(source).completed.latest.limit(1).pick(:window_start, :window_end)
+    def self.last_completed_window_for(source, provider: nil)
+      scope = for_source(source)
+      scope = scope.for_provider(provider) if provider
+      scope.completed.latest.limit(1).pick(:window_start, :window_end)
     end
   end
 end

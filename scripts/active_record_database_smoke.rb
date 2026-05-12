@@ -106,6 +106,7 @@ end
 def create_provider_invoice_imports_table!
   create_table :llm_cost_tracker_provider_invoice_imports, force: true do |t|
     t.string :source, null: false
+    t.string :provider, null: false, default: ""
     t.string :cursor
     t.date :window_start
     t.date :window_end
@@ -278,7 +279,10 @@ def add_schema_indexes!(database_connection)
   add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
   add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
   add_index :llm_cost_tracker_provider_invoices, %i[source currency period_start]
-  add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at]
+  if ActiveRecord::Base.connection.adapter_name.match?(/postgres/i)
+    add_index :llm_cost_tracker_provider_invoices, :metadata, using: :gin
+  end
+  add_index :llm_cost_tracker_provider_invoice_imports, %i[source provider started_at]
 end
 
 def create_database!(adapter, admin, database)

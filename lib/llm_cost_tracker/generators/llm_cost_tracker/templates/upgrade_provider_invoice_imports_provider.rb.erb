@@ -1,0 +1,17 @@
+class UpgradeLlmCostTrackerProviderInvoiceImportsProvider < ActiveRecord::Migration<%= migration_version %>
+  TABLE = :llm_cost_tracker_provider_invoice_imports
+  OLD_INDEX = %i[source started_at].freeze
+  NEW_INDEX = %i[source provider started_at].freeze
+
+  def up
+    add_column TABLE, :provider, :string, null: false, default: "" unless column_exists?(TABLE, :provider)
+    remove_index TABLE, column: OLD_INDEX if index_exists?(TABLE, OLD_INDEX)
+    add_index TABLE, NEW_INDEX unless index_exists?(TABLE, NEW_INDEX)
+  end
+
+  def down
+    remove_index TABLE, column: NEW_INDEX if index_exists?(TABLE, NEW_INDEX)
+    add_index TABLE, OLD_INDEX unless index_exists?(TABLE, OLD_INDEX)
+    remove_column TABLE, :provider if column_exists?(TABLE, :provider)
+  end
+end

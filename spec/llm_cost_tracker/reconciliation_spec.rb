@@ -459,6 +459,14 @@ RSpec.describe LlmCostTracker::Reconciliation do
       expect(LlmCostTracker::ProviderInvoiceImport.resume_cursor_for("openai")).to eq("page-2")
     end
 
+    it "isolates resume cursors per provider when the source is shared (e.g. csv/openai vs csv/anthropic)" do
+      LlmCostTracker::Reconciliation.import(source: :csv, provider: :openai,    rows: rows, cursor: "openai-2")
+      LlmCostTracker::Reconciliation.import(source: :csv, provider: :anthropic, rows: rows, cursor: "anthropic-7")
+
+      expect(LlmCostTracker::ProviderInvoiceImport.resume_cursor_for("csv", provider: "openai")).to eq("openai-2")
+      expect(LlmCostTracker::ProviderInvoiceImport.resume_cursor_for("csv", provider: "anthropic")).to eq("anthropic-7")
+    end
+
     it "stamps started_at with the wall-clock time so a backfill with a historical imported_at does not invert resume_cursor_for ordering" do
       LlmCostTracker::Reconciliation.import(
         source: :openai, rows: rows, cursor: "page-historical",

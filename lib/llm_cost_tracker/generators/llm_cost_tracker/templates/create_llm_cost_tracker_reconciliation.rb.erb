@@ -23,6 +23,7 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration<%= migration_
 
     create_table :llm_cost_tracker_provider_invoice_imports, if_not_exists: true do |t|
       t.string :source, null: false
+      t.string :provider, null: false, default: ""
       t.string :cursor
       t.date :window_start
       t.date :window_end
@@ -39,7 +40,11 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration<%= migration_
               if_not_exists: true
     add_index :llm_cost_tracker_provider_invoices, %i[source currency period_start],
               if_not_exists: true
-    add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at],
+    if postgresql?
+      add_index :llm_cost_tracker_provider_invoices, :metadata, using: :gin,
+                if_not_exists: true
+    end
+    add_index :llm_cost_tracker_provider_invoice_imports, %i[source provider started_at],
               if_not_exists: true
   end
 

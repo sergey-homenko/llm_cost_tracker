@@ -32,6 +32,14 @@ module LlmCostTracker
           .delete_all
       end
 
+      def prune_inbox(older_than:, now: Time.now.utc)
+        cutoff = resolve_cutoff(older_than, now)
+        require_relative "ingestion"
+        return 0 unless LlmCostTracker::Ingestion::InboxEntry.table_exists?
+
+        LlmCostTracker::Ingestion::InboxEntry.where(tracked_at: ...cutoff).delete_all
+      end
+
       private
 
       def resolve_cutoff(older_than, now)

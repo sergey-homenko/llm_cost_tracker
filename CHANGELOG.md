@@ -4,6 +4,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- `bin/rails generate llm_cost_tracker:upgrade_provider_invoice_imports_provider` writes a migration that adds a `provider` column (default `""`) to `llm_cost_tracker_provider_invoice_imports` and swaps the `(source, started_at)` index for `(source, provider, started_at)`. Required so `ProviderInvoiceImport.resume_cursor_for` and `last_completed_window_for` can isolate per-provider state when two providers share a `source` (e.g. `csv/openai` vs `csv/anthropic`).
+- `bin/rails generate llm_cost_tracker:upgrade_provider_invoices_metadata_index` writes a migration that adds a GIN index on `llm_cost_tracker_provider_invoices.metadata` for PostgreSQL so `Reconciliation::Diff` queries filtering on `metadata->>'provider'`, `'row_type'`, and `'match_basis'` hit an index instead of a sequential scan. No-op on MySQL.
+
+### Fixed
+
+- `LlmCostTracker::Retention.prune_inbox(older_than:)` deletes durable inbox entries past the retention cutoff. The `llm_cost_tracker:prune` rake task now invokes it after pruning calls, so pending or quarantined inbox rows older than `DAYS` no longer flush retroactively and re-create stale calls.
+- `ProviderInvoiceImport.resume_cursor_for(source, provider:)` and `last_completed_window_for(source, provider:)` accept an optional `provider:` keyword and persist a `provider` column on each import. Two importers sharing a `source` ("csv/openai" vs "csv/anthropic") no longer cross-pollute resume cursors.
+- Provider-price snapshots no longer keep stale service-charge keys: when a scraper produces a non-empty `service_charges` set, the orchestrator and registry writer treat it as authoritative for that provider and drop keys the scraper stopped emitting. Empty scrapes (e.g. groq/gemini, which don't parse a charges section) still preserve the existing entries.
+
+### Changed
+
+- Schema: `llm_cost_tracker_provider_invoice_imports` gains a `provider` column (default `""`) and replaces the `(source, started_at)` index with `(source, provider, started_at)`. Doctor's schema guard requires both. Existing installs run `bin/rails generate llm_cost_tracker:upgrade_provider_invoice_imports_provider && bin/rails db:migrate`. `resume_cursor_for(source)` without a `provider:` keyword keeps its pre-0.10 behaviour (latest cursor across all rows for the source).
+
 ## [0.9.0] - 2026-05-12
 
 0.9 leans the default install: only `calls`, `call_line_items`, and `call_tags`

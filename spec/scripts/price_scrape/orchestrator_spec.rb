@@ -233,6 +233,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
 
       expect(result.service_charges_updated).to eq(
         "web_search_request" => { "from" => 8.0, "to" => 10.0 },
+        "priority_web_search_request" => { "from" => 12.0, "to" => nil },
         "file_search_call" => { "from" => nil, "to" => 2.5 }
       )
 
@@ -240,7 +241,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
       expect(service_charges.fetch("anthropic")).to eq("web_search_request" => 10.0)
       expect(service_charges.fetch("openai")).to eq(
         "web_search_request" => 10.0,
-        "priority_web_search_request" => 12.0,
         "file_search_call" => 2.5
       )
     end
@@ -270,7 +270,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     end
   end
 
-  it "preserves manually-added service charge keys when the scraper returns a different subset" do
+  it "drops stale service charge keys when the scraper produces a different subset" do
     registry = build_registry(
       models: { "anthropic/claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } },
       service_charges: {
@@ -287,15 +287,19 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     )
 
     with_registry(registry) do |path|
-      described_class.new.call(provider: "anthropic", provider_result: provider_result, registry_path: path)
+      result = described_class.new.call(provider: "anthropic", provider_result: provider_result, registry_path: path)
+
+      expect(result.service_charges_updated).to eq(
+        "web_search_request" => { "from" => 10.0, "to" => 11.0 },
+        "web_fetch_request" => { "from" => 0.0, "to" => nil },
+        "code_execution_hour" => { "from" => 0.05, "to" => 0.06 }
+      )
 
       service_charges = JSON.parse(File.read(path)).fetch("service_charges").fetch("anthropic")
       expect(service_charges).to eq(
         "web_search_request" => 11.0,
-        "web_fetch_request" => 0.0,
         "code_execution_hour" => 0.06
       )
     end
   end
-
 end

@@ -141,6 +141,7 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
 
     create_table :llm_cost_tracker_provider_invoice_imports do |t|
       t.string :source, null: false
+      t.string :provider, null: false, default: ""
       t.string :cursor
       t.date :window_start
       t.date :window_end
@@ -154,7 +155,8 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
 
     add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
     add_index :llm_cost_tracker_provider_invoices, %i[source currency period_start]
-    add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at]
+    add_index :llm_cost_tracker_provider_invoices, :metadata, using: :gin if postgresql?
+    add_index :llm_cost_tracker_provider_invoice_imports, %i[source provider started_at]
   end
 end
 ```
@@ -192,6 +194,39 @@ Imports already in the database are recovered transparently — Doctor
 and the dashboard read `metadata["provider"]` from the most recent
 invoice for a source when no explicit provider is supplied. New
 imports always write `metadata["provider"]`.
+
+### Provider-scoped `ProviderInvoiceImport` resume state
+
+`ProviderInvoiceImport.resume_cursor_for` /
+`last_completed_window_for` now accept an optional `provider:` keyword
+so two providers sharing the same `source` (e.g. `csv/openai` and
+`csv/anthropic`) no longer mix resume cursors. The schema gains a
+`provider` column with default `""` and a `(source, provider,
+started_at)` index that replaces the old `(source, started_at)`:
+
+```bash
+bin/rails generate llm_cost_tracker:upgrade_provider_invoice_imports_provider
+bin/rails db:migrate
+```
+
+Legacy rows back-fill to `provider = ""`. Callers passing
+`resume_cursor_for(source)` without `provider:` keep their old
+behaviour (latest cursor across all providers on that source).
+
+### Optional GIN index on `provider_invoices.metadata` (PostgreSQL)
+
+`Reconciliation::Diff` filters on `metadata->>'provider'`,
+`metadata->>'row_type'`, and `metadata->>'match_basis'`. On large
+invoice tables under PostgreSQL, a GIN index speeds these queries from
+a sequential scan to an index lookup. Fresh installs from `0.10` and
+later get the index automatically; existing installs can opt in:
+
+```bash
+bin/rails generate llm_cost_tracker:upgrade_provider_invoices_metadata_index
+bin/rails db:migrate
+```
+
+The migration is a no-op on MySQL.
 
 ### Schema drift cache for the dashboard
 

@@ -7,10 +7,10 @@ module LlmCostTracker
     module Schema
       module ProviderInvoiceImports
         REQUIRED_COLUMNS = %w[
-          source cursor window_start window_end state last_error
+          source provider cursor window_start window_end state last_error
           rows_imported started_at finished_at
         ].freeze
-        SOURCE_STARTED_AT_INDEX = %i[source started_at].freeze
+        SOURCE_PROVIDER_STARTED_AT_INDEX = %i[source provider started_at].freeze
 
         class << self
           def current_schema_errors
@@ -35,9 +35,9 @@ module LlmCostTracker
           end
 
           def index_errors(connection, table_name)
-            return [] if connection.index_exists?(table_name, SOURCE_STARTED_AT_INDEX)
+            return [] if connection.index_exists?(table_name, SOURCE_PROVIDER_STARTED_AT_INDEX)
 
-            ["missing index: source, started_at"]
+            ["missing index: source, provider, started_at"]
           end
         end
       end

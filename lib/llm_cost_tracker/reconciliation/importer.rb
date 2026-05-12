@@ -81,6 +81,7 @@ module LlmCostTracker
 
         ProviderInvoiceImport.create!(
           source: source,
+          provider: provider,
           cursor: cursor,
           window_start: window&.first,
           window_end: window&.last,

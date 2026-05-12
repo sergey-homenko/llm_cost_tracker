@@ -158,7 +158,10 @@ invoice/cost line from a provider Cost or Usage API.
 | `metadata` | jsonb / json | Provider meter envelope (`row_type`, `meter`, `authority`, `match_basis`) plus attribution dimensions |
 | `imported_at` | datetime, not null | Per-row write time (not run start) |
 
-Indexes: unique `external_id`, plus `[source, period_start]`.
+Indexes: unique `external_id`, plus `[source, currency, period_start]`.
+PostgreSQL installs also get a GIN index on `metadata` so
+`Reconciliation::Diff` filters on `metadata->>'provider'`/`'row_type'`/`'match_basis'`
+hit an index lookup.
 
 ## `llm_cost_tracker_provider_invoice_imports`
 
@@ -166,11 +169,12 @@ Optional. Created alongside `llm_cost_tracker_provider_invoices` by the
 reconciliation generator. Cursor / lifecycle ledger for provider-API
 import runs. One row per `Reconciliation::Importer#call`. Resumable
 runs read the last cursor through
-`ProviderInvoiceImport.resume_cursor_for(source)`.
+`ProviderInvoiceImport.resume_cursor_for(source, provider:)`.
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `source` | string, not null | Same source set as `provider_invoices` |
+| `provider` | string, not null, default `""` | Disambiguates a shared source (e.g. `csv/openai` vs `csv/anthropic`) |
 | `cursor` | string | Provider pagination token / last successful timestamp |
 | `window_start` / `window_end` | date | Inclusive window bounds being processed |
 | `state` | string, not null | `running` \| `completed` \| `failed` |
@@ -179,7 +183,7 @@ runs read the last cursor through
 | `started_at` / `finished_at` | datetime | Run lifecycle |
 | `created_at` / `updated_at` | datetime | Rails timestamps |
 
-Index: `[source, started_at]`. Pruned by
+Index: `[source, provider, started_at]`. Pruned by
 `LlmCostTracker::Retention.prune_invoice_imports(older_than:)`.
 
 ## `llm_cost_tracker_ingestion_inbox_entries`

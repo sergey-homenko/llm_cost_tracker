@@ -60,4 +60,25 @@ RSpec.describe LlmCostTracker::Pricing::Sync::RegistryWriter do
 
     expect(JSON.parse(File.read(path))["models"]).to eq("openai/gpt-x" => { "input" => 2.0 })
   end
+
+  it "preserves service_charges for providers absent from the registry, replaces per-provider when present" do
+    path = path_for("prices.json")
+    File.write(path, JSON.pretty_generate(
+                       "service_charges" => {
+                         "anthropic" => { "web_search_request" => 10.0, "code_execution_hour" => 0.05 },
+                         "openai" => { "web_search_request" => 8.0, "stale_legacy" => 99.0 }
+                       }
+                     ))
+
+    writer.call(
+      path: path,
+      registry: { "service_charges" => { "openai" => { "web_search_request" => 10.0 } } }
+    )
+
+    written = JSON.parse(File.read(path))
+    expect(written["service_charges"]).to eq(
+      "anthropic" => { "web_search_request" => 10.0, "code_execution_hour" => 0.05 },
+      "openai" => { "web_search_request" => 10.0 }
+    )
+  end
 end

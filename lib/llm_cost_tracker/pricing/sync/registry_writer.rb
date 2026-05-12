@@ -51,8 +51,9 @@ module LlmCostTracker
           remote = registry.fetch("service_charges", {})
           existing.fetch("service_charges", {}).each_with_object(remote.dup) do |(provider, charges), merged|
             next unless charges.is_a?(Hash)
+            next if merged.key?(provider)
 
-            merged[provider] = charges.merge(merged.fetch(provider, {}))
+            merged[provider] = charges
           end
         end
 

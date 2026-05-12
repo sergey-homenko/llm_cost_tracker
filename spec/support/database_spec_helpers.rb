@@ -182,6 +182,7 @@ module LlmCostTrackerDatabaseSpecHelpers
   def create_provider_invoice_imports_table(connection)
     connection.create_table :llm_cost_tracker_provider_invoice_imports, force: true do |table|
       table.string :source, null: false
+      table.string :provider, null: false, default: ""
       table.string :cursor
       table.date :window_start
       table.date :window_end
@@ -237,6 +238,9 @@ module LlmCostTrackerDatabaseSpecHelpers
   def create_lct_reconciliation_indexes(connection)
     connection.add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
     connection.add_index :llm_cost_tracker_provider_invoices, %i[source currency period_start]
-    connection.add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at]
+    if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+      connection.add_index :llm_cost_tracker_provider_invoices, :metadata, using: :gin
+    end
+    connection.add_index :llm_cost_tracker_provider_invoice_imports, %i[source provider started_at]
   end
 end

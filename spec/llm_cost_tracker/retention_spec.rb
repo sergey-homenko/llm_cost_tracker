@@ -126,6 +126,38 @@ RSpec.describe LlmCostTracker::Retention do
     end
   end
 
+  describe ".prune_inbox" do
+    before { LlmCostTracker::Ingestion::InboxEntry.reset_column_information }
+
+    it "deletes durable inbox entries older than the cutoff regardless of state" do
+      now = Time.utc(2026, 6, 1, 12)
+      LlmCostTracker::Ingestion::InboxEntry.create!(
+        event_id: "old-pending", tracked_at: now - 100.days,
+        payload: "{}", attempts: 0
+      )
+      LlmCostTracker::Ingestion::InboxEntry.create!(
+        event_id: "old-quarantined", tracked_at: now - 95.days,
+        payload: "{}", attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
+      )
+      LlmCostTracker::Ingestion::InboxEntry.create!(
+        event_id: "fresh", tracked_at: now - 1.day,
+        payload: "{}", attempts: 0
+      )
+
+      deleted = described_class.prune_inbox(older_than: 90, now: now)
+
+      expect(deleted).to eq(2)
+      expect(LlmCostTracker::Ingestion::InboxEntry.pluck(:event_id)).to eq(%w[fresh])
+    end
+
+    it "returns 0 without querying when the table does not exist" do
+      allow(LlmCostTracker::Ingestion::InboxEntry).to receive(:table_exists?).and_return(false)
+      expect(LlmCostTracker::Ingestion::InboxEntry).not_to receive(:where)
+
+      expect(described_class.prune_inbox(older_than: 90)).to eq(0)
+    end
+  end
+
   it "deletes call line items with pruned parent calls" do
     now = Time.utc(2026, 4, 20, 12, 0, 0)
     old_call = create_call(tracked_at: now - 100.days, total_cost: 0.01)

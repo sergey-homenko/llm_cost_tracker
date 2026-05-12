@@ -1,0 +1,25 @@
+require "llm_cost_tracker/ledger/schema/adapter"
+
+class UpgradeLlmCostTrackerProviderInvoicesMetadataIndex < ActiveRecord::Migration<%= migration_version %>
+  TABLE = :llm_cost_tracker_provider_invoices
+
+  def up
+    return unless postgresql?
+    return if index_exists?(TABLE, :metadata, using: :gin)
+
+    add_index TABLE, :metadata, using: :gin
+  end
+
+  def down
+    return unless postgresql?
+    return unless index_exists?(TABLE, :metadata, using: :gin)
+
+    remove_index TABLE, column: :metadata
+  end
+
+  private
+
+  def postgresql?
+    LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+  end
+end
