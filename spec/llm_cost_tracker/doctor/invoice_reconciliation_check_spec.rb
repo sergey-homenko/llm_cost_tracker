@@ -202,6 +202,19 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
       expect(scopes.map { |s| s[:currency] }).to all(eq("USD"))
     end
 
+    it "surfaces a warn check when provider invoice rows are stored with non-uppercase currency, pointing at the backfill SQL — without this the dashboard silently zeroes for legacy lowercase data" do
+      travel_to_today(period_end + 1)
+      import_invoice(billed_amount: BigDecimal("10.00"))
+      LlmCostTracker::ProviderInvoice.where(source: "openai").update_all(currency: "usd")
+
+      checks = Array(described_class.new.call)
+      canonicalisation = checks.find { |c| c.name == "invoice reconciliation: currency canonicalisation" }
+
+      expect(canonicalisation).not_to be_nil
+      expect(canonicalisation.status).to eq(:warn)
+      expect(canonicalisation.message).to include("UPDATE llm_cost_tracker_provider_invoices SET currency = UPPER(currency)")
+    end
+
     it "surfaces unexpected errors as :error status" do
       allow(LlmCostTracker::ProviderInvoice).to receive(:none?).and_raise("boom")
 

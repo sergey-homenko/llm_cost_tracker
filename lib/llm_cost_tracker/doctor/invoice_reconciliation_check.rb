@@ -17,7 +17,10 @@ module LlmCostTracker
         scopes = imported_scopes
         return Check.new(:ok, "invoice reconciliation", "no provider invoices imported yet") if scopes.empty?
 
-        scopes.map { |scope| check_scope_safely(scope) }
+        non_canonical = non_canonical_currency_check
+        checks = scopes.map { |scope| check_scope_safely(scope) }
+        checks << non_canonical if non_canonical
+        checks
       rescue StandardError => e
         Check.new(:error, "invoice reconciliation", e.message)
       end
@@ -26,6 +29,19 @@ module LlmCostTracker
 
       def no_imports?
         LlmCostTracker::ProviderInvoice.none?
+      end
+
+      def non_canonical_currency_check
+        legacy = LlmCostTracker::ProviderInvoice.where("currency <> UPPER(currency)").count
+        return nil if legacy.zero?
+
+        Check.new(
+          :warn,
+          "invoice reconciliation: currency canonicalisation",
+          "#{legacy} provider invoice row(s) stored with non-uppercase currency. Diff queries " \
+          "are case-sensitive — run " \
+          "`UPDATE llm_cost_tracker_provider_invoices SET currency = UPPER(currency);` to backfill."
+        )
       end
 
       def threshold
@@ -105,12 +121,23 @@ module LlmCostTracker
 
       def stale_check(scope)
         latest = scope_relation(scope).maximum(:period_end)
+        return scope_unreachable_check(scope) if latest.nil?
+
         days = (Time.now.utc.to_date - latest).to_i
         Check.new(
           :warn,
           "invoice reconciliation: #{scope_label(scope)}",
           "no invoice imported in #{days} days (threshold #{Reconciliation::INVOICE_FRESHNESS_DAYS} days); " \
           "run reconciliation import"
+        )
+      end
+
+      def scope_unreachable_check(scope)
+        Check.new(
+          :warn,
+          "invoice reconciliation: #{scope_label(scope)}",
+          "scope grouped invoices but the filter (likely currency case mismatch) matches zero rows; " \
+          "the currency-canonicalisation check below points at the backfill SQL"
         )
       end
 
