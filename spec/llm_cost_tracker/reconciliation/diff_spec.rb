@@ -69,6 +69,22 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
   end
 
   describe "#call" do
+    it "bounds the SQL-side invoice load to drilldown_limit * 5 so a million-row reconciliation cannot OOM at the Ruby boundary; passing drilldown_limit: nil opts back into the unbounded load for CLI/export consumers" do
+      bounded = LlmCostTracker::Reconciliation::Diff.new(
+        source: :openai, provider: "openai",
+        period_start: period_start, period_end: period_end,
+        drilldown_limit: 7
+      )
+      unbounded = LlmCostTracker::Reconciliation::Diff.new(
+        source: :openai, provider: "openai",
+        period_start: period_start, period_end: period_end,
+        drilldown_limit: nil
+      )
+
+      expect(bounded.send(:intermediate_load_limit)).to eq(35)
+      expect(unbounded.send(:intermediate_load_limit)).to be_nil
+    end
+
     it "caps unmatched drilldown lists to drilldown_limit ranked by amount, and exposes the full counts via *_total" do
       5.times do |i|
         import_invoice(

@@ -53,6 +53,43 @@ RSpec.describe LlmCostTracker do
       expect(stored[:data]["usage"]).to include("input_tokens" => 10, "output_tokens" => 1000)
     end
 
+    it "strips partial_image_b64 from Responses image_generation_call.partial_image events so the Responses image-gen tool stream also stays under the buffer cap" do
+      collector = described_class.new(provider: "openai", model: "gpt-5")
+      huge_blob = "B" * (LlmCostTracker::Capture::Stream::LIMIT_BYTES + 1024)
+      collector.event(
+        {
+          "type" => "response.image_generation_call.partial_image",
+          "item_id" => "ig_1",
+          "partial_image_b64" => huge_blob,
+          "partial_image_index" => 0
+        },
+        type: "response.image_generation_call.partial_image"
+      )
+
+      expect(collector.instance_variable_get(:@overflowed)).to be false
+      stored = collector.instance_variable_get(:@events).first
+      expect(stored[:data]).not_to have_key("partial_image_b64")
+      expect(stored[:data]).to include("item_id" => "ig_1")
+    end
+
+    it "drops any string field larger than the heavy-string threshold so unknown blob fields (audio delta bytes, future blob fields) cannot overflow the buffer" do
+      collector = described_class.new(provider: "openai", model: "gpt-4o")
+      huge_unknown = "C" * (32 * 1024)
+      collector.event(
+        {
+          "type" => "response.audio.delta",
+          "delta" => huge_unknown,
+          "item_id" => "audio_1"
+        },
+        type: "response.audio.delta"
+      )
+
+      expect(collector.instance_variable_get(:@overflowed)).to be false
+      stored = collector.instance_variable_get(:@events).first
+      expect(stored[:data]["delta"]).to eq("")
+      expect(stored[:data]["item_id"]).to eq("audio_1")
+    end
+
     it "tags the recorded event with stream_errored: true when errored is passed" do
       collector = described_class.new(provider: "openai", model: "gpt-4o")
       collector.usage(input_tokens: 5, output_tokens: 1)

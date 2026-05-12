@@ -202,5 +202,6 @@ quantity the published rate uses.
 | Gemini modality tokens | `usageMetadata.promptTokensDetails` and response token details | Audio token rates price captured buckets when the model has registry rates |
 | Gemini grounding | `groundingMetadata.webSearchQueries` | Stored as unknown-cost `grounding_request` rows because free-tier and query reconciliation are account-level |
 | Groq OpenAI-compatible usage | Chat usage, cached input, reasoning output, and service tier headers | Token rates price captured buckets when the model has registry rates |
-| RubyLLM chat | `RubyLLM::Provider#complete` and `#ask` (streaming-aware) | Routed through the matched provider parser (OpenAI / Anthropic / Gemini); same pricing path as native SDK |
+| RubyLLM chat | `RubyLLM::Provider#complete` (streaming-aware; `Chat#ask` and `Chat#complete` reach this transitively) | Routed through the matched provider parser (OpenAI / Anthropic / Gemini); same pricing path as native SDK |
+| RubyLLM embed / transcribe | `RubyLLM::Provider#embed`, `#transcribe` | Routed through the matched provider parser; priced like the underlying provider call |
 | RubyLLM image / moderation | `RubyLLM::Provider#paint`, `#moderate` | Zero-cost visibility line items when no captured quantity has a registry rate |

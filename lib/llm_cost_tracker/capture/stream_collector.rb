@@ -236,11 +236,14 @@ module LlmCostTracker
         )
       end
 
-      IGNORED_PAYLOAD_KEYS = %w[b64_json].freeze
+      IGNORED_PAYLOAD_KEYS = %w[b64_json partial_image_b64].freeze
       private_constant :IGNORED_PAYLOAD_KEYS
 
+      HEAVY_STRING_BYTES = 8 * 1024
+      private_constant :HEAVY_STRING_BYTES
+
       def capture_event(data, type:)
-        event = { event: type, data: strip_ignored_payload_keys(data) }
+        event = { event: type, data: strip_heavy_payload(data) }
         size = JSON.generate(event).bytesize
         if @captured_bytes + size <= Capture::Stream::LIMIT_BYTES
           @events << event.deep_dup
@@ -252,16 +255,18 @@ module LlmCostTracker
         @overflowed = true
       end
 
-      def strip_ignored_payload_keys(value)
+      def strip_heavy_payload(value)
         case value
         when Hash
           value.each_with_object({}) do |(key, nested), out|
             next if IGNORED_PAYLOAD_KEYS.include?(key.to_s)
 
-            out[key] = strip_ignored_payload_keys(nested)
+            out[key] = strip_heavy_payload(nested)
           end
         when Array
-          value.map { |nested| strip_ignored_payload_keys(nested) }
+          value.map { |nested| strip_heavy_payload(nested) }
+        when String
+          value.bytesize > HEAVY_STRING_BYTES ? "" : value
         else
           value
         end

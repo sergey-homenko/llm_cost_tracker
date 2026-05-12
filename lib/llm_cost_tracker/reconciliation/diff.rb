@@ -40,15 +40,15 @@ module LlmCostTracker
         provider_total = scoped_invoices_relation_for(:cost, fully_contained: true)
                          .sum(:billed_amount)
                          .then { |sum| BigDecimal(sum.to_s) }
-        all_invoices = scoped_invoices
-        cost_invoices = all_invoices.select { |invoice| cost_row?(invoice) && fully_contained?(invoice) }
+        cost_invoices = scoped_cost_invoices_for_drilldown
+        non_cost_invoices = scoped_non_cost_invoices_for_drilldown
         local_calls = scoped_local_calls
 
         local_total, local_total_source = sum_local_total
 
         unmatched_providers_full = unmatched_provider_rows(cost_invoices, local_calls)
         unmatched_locals_full = unmatched_local_calls(cost_invoices, local_calls)
-        non_cost_full = non_cost_rows(all_invoices)
+        non_cost_full = non_cost_invoices_to_rows(non_cost_invoices)
 
         DiffResult.new(
           source: source,
@@ -83,8 +83,35 @@ module LlmCostTracker
           .first(@drilldown_limit)
       end
 
-      def scoped_invoices
-        scoped_invoices_relation.to_a
+      def scoped_cost_invoices_for_drilldown
+        relation = scoped_invoices_relation_for(:cost, fully_contained: true)
+                   .order(billed_amount: :desc)
+        relation = relation.limit(intermediate_load_limit) if intermediate_load_limit
+        relation.to_a
+      end
+
+      def scoped_non_cost_invoices_for_drilldown
+        connection = ProviderInvoice.connection
+        relation =
+          if Ledger::Schema::Adapter.postgresql?(connection)
+            scoped_invoices_relation.where(
+              "metadata->>'row_type' IS NOT NULL AND metadata->>'row_type' <> ?", COST_ROW_TYPE
+            )
+          else
+            scoped_invoices_relation.where(
+              "JSON_EXTRACT(metadata, '$.row_type') IS NOT NULL AND " \
+              "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type')) <> ?", COST_ROW_TYPE
+            )
+          end
+        relation = relation.order(billed_amount: :desc)
+        relation = relation.limit(intermediate_load_limit) if intermediate_load_limit
+        relation.to_a
+      end
+
+      def intermediate_load_limit
+        return nil if @drilldown_limit.nil?
+
+        @drilldown_limit * 5
       end
 
       def scoped_invoices_relation_for(row_type_filter = nil, fully_contained: false)
@@ -262,8 +289,8 @@ module LlmCostTracker
         end
       end
 
-      def non_cost_rows(invoices)
-        invoices.reject { |invoice| cost_row?(invoice) }.map do |invoice|
+      def non_cost_invoices_to_rows(invoices)
+        invoices.map do |invoice|
           {
             external_id: invoice.external_id,
             row_type: invoice.metadata["row_type"],
