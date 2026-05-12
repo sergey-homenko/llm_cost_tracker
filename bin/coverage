@@ -3,8 +3,7 @@
 require "open3"
 
 class CoverageGate
-  DEFAULT_PATCH_PATHS = %w[app lib].freeze
-  DEFAULT_PROJECT_PATHS = %w[app lib].freeze
+  DEFAULT_PATHS = %w[app lib].freeze
 
   def self.call
     new.call
@@ -40,11 +39,11 @@ class CoverageGate
   end
 
   def patch_paths
-    ENV.fetch("COVERAGE_PATCH_PATHS", DEFAULT_PATCH_PATHS.join(" ")).split
+    ENV.fetch("COVERAGE_PATCH_PATHS", DEFAULT_PATHS.join(" ")).split
   end
 
   def project_paths
-    ENV.fetch("COVERAGE_PROJECT_PATHS", DEFAULT_PROJECT_PATHS.join(" ")).split
+    ENV.fetch("COVERAGE_PROJECT_PATHS", DEFAULT_PATHS.join(" ")).split
   end
 
   def coverage_base
