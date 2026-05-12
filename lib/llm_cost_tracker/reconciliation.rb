@@ -45,7 +45,8 @@ module LlmCostTracker
         ).call(rows)
       end
 
-      def diff(source:, period_start:, period_end:, provider: nil, scope: {}, currency: nil)
+      def diff(source:, period_start:, period_end:, provider: nil, scope: {}, currency: nil,
+               drilldown_limit: Diff::DEFAULT_DRILLDOWN_LIMIT)
         ensure_enabled!
         ensure_source_present!(source)
         Diff.new(
@@ -54,7 +55,8 @@ module LlmCostTracker
           period_start: period_start,
           period_end: period_end,
           scope: scope,
-          currency: currency
+          currency: currency,
+          drilldown_limit: drilldown_limit
         ).call
       end
 

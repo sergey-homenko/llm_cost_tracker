@@ -69,6 +69,31 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
   end
 
   describe "#call" do
+    it "caps unmatched drilldown lists to drilldown_limit ranked by amount, and exposes the full counts via *_total" do
+      5.times do |i|
+        import_invoice(
+          external_id: "phantom-#{i}",
+          billed_amount: (i + 1).to_s,
+          metadata: full_envelope.merge(
+            match_basis: "project",
+            provider_project_id: "proj_phantom_#{i}",
+            provider: "openai"
+          )
+        )
+      end
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end,
+        drilldown_limit: 2
+      )
+
+      expect(result.unmatched_provider_rows.size).to eq(2)
+      expect(result.unmatched_provider_rows_total).to eq(5)
+      expect(result.unmatched_provider_rows_truncated?).to be true
+      expect(result.unmatched_provider_rows.map { |row| row[:billed_amount].to_s("F") })
+        .to eq(["5.0", "4.0"])
+    end
+
     it "computes provider total, local total, and delta for the period" do
       import_invoice(external_id: "row-1", billed_amount: "100.00")
       create_priced_call(total_cost: BigDecimal("95.00"))

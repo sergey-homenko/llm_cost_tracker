@@ -20,13 +20,17 @@ module LlmCostTracker
         "model" => :model
       }.freeze
 
-      def initialize(source:, period_start:, period_end:, provider:, scope: {}, currency: nil)
+      DEFAULT_DRILLDOWN_LIMIT = 100
+
+      def initialize(source:, period_start:, period_end:, provider:, scope: {}, currency: nil,
+                     drilldown_limit: DEFAULT_DRILLDOWN_LIMIT)
         @source = source.to_s
         @provider = provider.to_s
         @period_start = parse_date(period_start)
         @period_end = parse_date(period_end)
         @scope = symbolize(scope || {}).slice(*SCOPE_KEYS)
         @currency = (currency || Ledger::Rollups::DEFAULT_CURRENCY).to_s
+        @drilldown_limit = drilldown_limit
         raise ArgumentError, "source must be present" if @source.empty?
         raise ArgumentError, "provider must be present" if @provider.empty?
         raise ArgumentError, "period_end must be on or after period_start" if @period_end < @period_start
@@ -42,6 +46,10 @@ module LlmCostTracker
 
         local_total, local_total_source = sum_local_total
 
+        unmatched_providers_full = unmatched_provider_rows(cost_invoices, local_calls)
+        unmatched_locals_full = unmatched_local_calls(cost_invoices, local_calls)
+        non_cost_full = non_cost_rows(all_invoices)
+
         DiffResult.new(
           source: source,
           provider: provider,
@@ -54,15 +62,26 @@ module LlmCostTracker
           local_total_source: local_total_source,
           delta_amount: local_total - provider_total,
           delta_percent: percent_for(local_total, provider_total),
-          unmatched_provider_rows: unmatched_provider_rows(cost_invoices, local_calls),
-          unmatched_local_calls: unmatched_local_calls(cost_invoices, local_calls),
-          non_cost_rows: non_cost_rows(all_invoices)
+          unmatched_provider_rows: cap_by_amount(unmatched_providers_full, :billed_amount),
+          unmatched_provider_rows_total: unmatched_providers_full.size,
+          unmatched_local_calls: cap_by_amount(unmatched_locals_full, :total_cost),
+          unmatched_local_calls_total: unmatched_locals_full.size,
+          non_cost_rows: cap_by_amount(non_cost_full, :billed_amount),
+          non_cost_rows_total: non_cost_full.size
         )
       end
 
       private
 
       attr_reader :source, :provider, :period_start, :period_end, :scope, :currency
+
+      def cap_by_amount(rows, key)
+        return rows if @drilldown_limit.nil? || rows.size <= @drilldown_limit
+
+        rows
+          .sort_by { |row| -BigDecimal((row[key] || 0).to_s).abs }
+          .first(@drilldown_limit)
+      end
 
       def scoped_invoices
         scoped_invoices_relation.to_a

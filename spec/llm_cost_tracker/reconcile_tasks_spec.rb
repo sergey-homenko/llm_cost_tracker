@@ -131,7 +131,9 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
           attribution: { provider_api_key_id: "sk-live-1234567890ABCDEF" },
           match_basis: "api_key"
         }],
-        unmatched_local_calls: [], non_cost_rows: []
+        unmatched_provider_rows_total: 1,
+        unmatched_local_calls: [], unmatched_local_calls_total: 0,
+        non_cost_rows: [], non_cost_rows_total: 0
       )
       output = StringIO.new
 
@@ -160,11 +162,13 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
           attribution: { provider_project_id: "proj_x" },
           match_basis: "project"
         }],
+        unmatched_provider_rows_total: 1,
         unmatched_local_calls: [{
           attribution: { provider_project_id: "proj_y" },
           count: 2,
           total_cost: BigDecimal("3.00")
         }],
+        unmatched_local_calls_total: 1,
         non_cost_rows: [{
           external_id: "openai:credit",
           row_type: "credit",
@@ -172,7 +176,8 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
           billed_amount: BigDecimal("-2.00"),
           attribution: { provider_project_id: "proj_x" },
           match_basis: "project"
-        }]
+        }],
+        non_cost_rows_total: 1
       )
 
       output = StringIO.new

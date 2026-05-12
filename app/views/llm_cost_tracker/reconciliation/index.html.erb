@@ -109,7 +109,12 @@ bin/rails db:migrate</code></pre>
       <h3 class="lct-section-title"><%= diff.source %> / <%= diff.provider %> / <%= diff.currency %> — drill down</h3>
 
       <% if diff.unmatched_provider_rows.any? %>
-        <h4 class="lct-state-title">Provider rows without a matching local call</h4>
+        <h4 class="lct-state-title">
+          Provider rows without a matching local call
+          <% if diff.unmatched_provider_rows_truncated? %>
+            <small>(showing <%= diff.unmatched_provider_rows.size %> of <%= diff.unmatched_provider_rows_total %>, ranked by billed amount)</small>
+          <% end %>
+        </h4>
         <table class="lct-table">
           <thead>
             <tr><th>External ID</th><th>Match basis</th><th>Attribution</th><th class="lct-num">Billed</th></tr>
@@ -128,7 +133,12 @@ bin/rails db:migrate</code></pre>
       <% end %>
 
       <% if diff.unmatched_local_calls.any? %>
-        <h4 class="lct-state-title">Local calls no provider invoice can explain</h4>
+        <h4 class="lct-state-title">
+          Local calls no provider invoice can explain
+          <% if diff.unmatched_local_calls_truncated? %>
+            <small>(showing <%= diff.unmatched_local_calls.size %> of <%= diff.unmatched_local_calls_total %>, ranked by total cost)</small>
+          <% end %>
+        </h4>
         <table class="lct-table">
           <thead>
             <tr><th>Attribution</th><th class="lct-num">Calls</th><th class="lct-num">Total cost</th></tr>
@@ -146,7 +156,12 @@ bin/rails db:migrate</code></pre>
       <% end %>
 
       <% if diff.non_cost_rows.any? %>
-        <h4 class="lct-state-title">Non-cost evidence (free quota, credits, adjustments)</h4>
+        <h4 class="lct-state-title">
+          Non-cost evidence (free quota, credits, adjustments)
+          <% if diff.non_cost_rows_truncated? %>
+            <small>(showing <%= diff.non_cost_rows.size %> of <%= diff.non_cost_rows_total %>, ranked by amount)</small>
+          <% end %>
+        </h4>
         <table class="lct-table">
           <thead>
             <tr><th>Row type</th><th>Meter</th><th>Attribution</th><th class="lct-num">Amount</th></tr>
