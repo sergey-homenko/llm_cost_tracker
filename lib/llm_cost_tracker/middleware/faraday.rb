@@ -42,7 +42,9 @@ module LlmCostTracker
 
       def invoke_app_with_capture(request_env:, parser:, request_url:, request_body:, streaming:,
                                   stream_buffer:, context_tags:, metadata:, started_at:)
+        response_received = false
         @app.call(request_env).on_complete do |response_env|
+          response_received = true
           process(
             parser: parser, request_url: request_url, request_body: request_body,
             response_env: response_env, latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
@@ -51,7 +53,7 @@ module LlmCostTracker
           )
         end
       rescue StandardError => e
-        if streaming && parser
+        if streaming && parser && !response_received
           process_interrupted_stream(
             parser: parser, request_url: request_url, request_body: request_body,
             latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),

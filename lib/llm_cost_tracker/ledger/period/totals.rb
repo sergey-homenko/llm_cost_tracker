@@ -46,7 +46,7 @@ module LlmCostTracker
 
         def period_total_sql(period, start)
           if LlmCostTracker.configuration.cache_rollups
-            "COALESCE(#{rollup_sum_sql(period)}, #{calls_sum_sql(start)}, 0)"
+            "GREATEST(COALESCE(#{rollup_sum_sql(period)}, 0), COALESCE(#{calls_sum_sql(start)}, 0))"
           else
             "COALESCE(#{calls_sum_sql(start)}, 0)"
           end

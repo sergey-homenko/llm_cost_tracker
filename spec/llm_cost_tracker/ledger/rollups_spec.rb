@@ -94,5 +94,19 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       expect(totals[:day]).to be_within(0.0001).of(103.5)
       expect(totals[:month]).to be_within(0.0001).of(103.5)
     end
+
+    it "prefers calls aggregation over a stale partial rollup row so a post-v0.9-migration period with historical pre-migration calls is not under-counted while the new rollup bucket only contains the post-migration tail" do
+      LlmCostTracker.configure { |config| config.cache_rollups = true }
+      time = Time.utc(2026, 5, 15, 12)
+      LlmCostTracker::Ledger::Store.insert_many([
+                                                  build_event(total_cost: 50.0, currency: "USD", tracked_at: time),
+                                                  build_event(total_cost: 50.0, currency: "USD", tracked_at: time)
+                                                ])
+      LlmCostTracker::CallRollup.where(period: "month").update_all(total_cost: 5.0)
+
+      totals = LlmCostTracker::Ledger::Period::Totals.call(%i[month], time: time)
+
+      expect(totals[:month]).to be_within(0.0001).of(100.0)
+    end
   end
 end
