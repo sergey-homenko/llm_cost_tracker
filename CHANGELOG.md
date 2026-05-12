@@ -67,9 +67,9 @@ see [Upgrading](docs/upgrading.md).
 - Reconciliation diff drill-down shows the actual unmatched rows even when most invoices match — small-amount unmatched rows are no longer hidden by a wall of matched big-amount rows.
 - OpenAI SDK Responses calls bill image and text tokens separately for `gpt-image-*` models, matching the Faraday parser.
 - OpenAI SDK integration captures the request when the caller passes a typed request object (anything that responds to `to_h`) instead of dropping it.
-- `Pricing::ServiceCharges` rejects non-finite amounts (`Infinity` / `NaN`) in `config.prices_file`.
-- New `bin/rails generate llm_cost_tracker:upgrade_call_tags_key_value_index` adds a `(key, value)` composite index so high-cardinality tag filters use an index lookup. Fresh installs get the index automatically.
-- Provider invoice tables are indexed by `(source, currency, period_start)` and `(source, currency, period_end)` so reconciliation diff over a large invoice set uses an index scan.
+- Custom prices files with `Infinity` / `NaN` service-charge rates fail to load with a clear error instead of silently corrupting cost math.
+- High-cardinality tag filters (`Call.by_tag(:tenant_id, …)`) now hit a composite index instead of scanning. Existing installs run `bin/rails generate llm_cost_tracker:upgrade_call_tags_key_value_index && bin/rails db:migrate`.
+- Reconciliation diff over a large invoice set uses an index scan on the new `(source, currency, period_start)` composite.
 - A request-level `pricing_mode` no longer overrides what the provider reports back on a streamed response. Provider-reported standard wins over a request that asked for priority.
 - The new generators (`call_rollups`, `durable_ingestion`, `reconciliation`, `upgrade_call_rollups_provider`) are reachable through `bin/rails generate llm_cost_tracker:<name>`.
 - Faraday streaming captures no longer silently degrade to `usage_source: :unknown`.
