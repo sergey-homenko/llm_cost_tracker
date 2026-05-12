@@ -67,24 +67,12 @@ invisible to the per-provider reconciliation fast path. Budget reads
 fall back to live aggregation from `llm_cost_tracker_calls` until new
 events repopulate the rollups under their provider keys.
 
-If your install accumulated duplicate rollup rows under the old
-`(period, period_start, currency)` constraint, the new unique index
-will fail to apply. Dedupe before running the migration:
-
-```sql
-DELETE FROM llm_cost_tracker_call_rollups
-WHERE id IN (
-  SELECT id
-  FROM (
-    SELECT id, ROW_NUMBER() OVER (
-      PARTITION BY period, period_start, currency, provider
-      ORDER BY total_cost DESC, id DESC
-    ) AS rn
-    FROM llm_cost_tracker_call_rollups
-  ) rollup_dupes
-  WHERE rn > 1
-);
-```
+The upgrade migration runs `DELETE FROM llm_cost_tracker_call_rollups`
+before adding the `provider` column, so any duplicate rows under the
+old `(period, period_start, currency)` constraint are removed in the
+same step. Live aggregation from `llm_cost_tracker_calls` covers the
+period until events repopulate the rollups under their new
+`(period, period_start, currency, provider)` unique index.
 
 ### Image-token columns on `llm_cost_tracker_calls`
 
@@ -118,7 +106,9 @@ bin/rails generate llm_cost_tracker:reconciliation
 bin/rails db:migrate
 ```
 
-Or hand-write:
+Or hand-write (PostgreSQL — for MySQL swap `t.jsonb :metadata, null:
+false, default: {}` for `t.json :metadata, null: false`; MySQL JSON
+columns don't accept a SQL-level default):
 
 ```ruby
 class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
@@ -130,7 +120,7 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
       t.string :external_id, null: false
       t.decimal :billed_amount, precision: 20, scale: 8
       t.string :currency, null: false, default: "USD"
-      t.jsonb :metadata, null: false, default: {} # MySQL: t.json
+      t.jsonb :metadata, null: false, default: {}
       t.datetime :imported_at, null: false
       t.timestamps
     end
@@ -366,10 +356,21 @@ You'll lose pre-0.8 history. Re-attribution starts from the next captured call.
      parsed = call.read_attribute_before_type_cast(:tags)
      parsed = JSON.parse(parsed) if parsed.is_a?(String)
      next if parsed.blank?
-     rows = parsed.map { |k, v| { llm_cost_tracker_call_id: call.id, key: k.to_s, value: v.to_s } }
+     rows = parsed.map do |k, v|
+       {
+         llm_cost_tracker_call_id: call.id,
+         key: k.to_s,
+         value: LlmCostTracker::Ledger::Tags::Encoding.encode(v)
+       }
+     end
      LlmCostTracker::CallTag.insert_all(rows) if rows.any?
    end
    ```
+
+   The `Encoding.encode` step matches how `Ledger::Store` writes tag
+   values for new calls — Hash and Array tags become canonical
+   `JSON.generate(...)` strings so `LlmCostTracker::Call.by_tag(key,
+   nested_value)` matches backfilled rows.
 
 3. **Backfills `call_line_items` rows.** The mapping from per-component cost
    columns to line items is non-trivial (kind / direction / cache_state /

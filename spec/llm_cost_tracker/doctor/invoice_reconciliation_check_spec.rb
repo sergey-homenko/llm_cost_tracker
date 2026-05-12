@@ -31,10 +31,10 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
     )
   end
 
-  def create_priced_call(total_cost:)
+  def create_priced_call(total_cost:, provider: "openai")
     tracked_at = Time.utc(2026, 5, 15, 12)
     call = LlmCostTracker::Call.create!(
-      provider: "openai",
+      provider: provider,
       model: "gpt-4o",
       input_tokens: 10,
       output_tokens: 5,
@@ -86,7 +86,7 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
 
       checks = Array(described_class.new.call)
 
-      expect(checks.first).to have_attributes(status: :ok, name: "invoice reconciliation: openai")
+      expect(checks.first).to have_attributes(status: :ok, name: "invoice reconciliation: openai/openai/USD")
       expect(checks.first.message).to include("aligned")
     end
 
@@ -97,7 +97,7 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
 
       checks = Array(described_class.new.call)
 
-      expect(checks.first).to have_attributes(status: :warn, name: "invoice reconciliation: openai")
+      expect(checks.first).to have_attributes(status: :warn, name: "invoice reconciliation: openai/openai/USD")
       expect(checks.first.message).to include("drift")
       expect(checks.first.message).to include("exceeds")
     end
@@ -108,7 +108,7 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
 
       checks = Array(described_class.new.call)
 
-      expect(checks.first).to have_attributes(status: :warn, name: "invoice reconciliation: openai")
+      expect(checks.first).to have_attributes(status: :warn, name: "invoice reconciliation: openai/openai/USD")
       expect(checks.first.message).to include("no invoice imported")
     end
 
@@ -132,9 +132,9 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
       checks = Array(described_class.new.call)
 
       expect(checks.map(&:name)).to contain_exactly(
-        "invoice reconciliation: anthropic", "invoice reconciliation: openai"
+        "invoice reconciliation: anthropic/anthropic/USD", "invoice reconciliation: openai/openai/USD"
       )
-      anthropic = checks.find { |c| c.name == "invoice reconciliation: anthropic" }
+      anthropic = checks.find { |c| c.name == "invoice reconciliation: anthropic/anthropic/USD" }
       expect(anthropic.status).to eq(:warn)
       expect(anthropic.message).to include("no invoice imported")
     end
@@ -155,11 +155,41 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
 
       checks = Array(described_class.new.call)
 
-      legacy = checks.find { |c| c.name == "invoice reconciliation: legacy_csv" }
+      legacy = checks.find { |c| c.name.start_with?("invoice reconciliation: legacy_csv") }
       expect(legacy.status).to eq(:warn)
       expect(legacy.message).to include("provider")
-      openai = checks.find { |c| c.name == "invoice reconciliation: openai" }
+      openai = checks.find { |c| c.name == "invoice reconciliation: openai/openai/USD" }
       expect(openai.status).to be_in(%i[ok warn])
+    end
+
+    it "separates checks by source / provider / currency so a CSV import that carries two providers under the same source surfaces drift on each independently" do
+      travel_to_today(period_end + 1)
+      LlmCostTracker::Reconciliation.import(
+        source: :csv, provider: "openai",
+        rows: [{
+          external_id: "csv-openai", period_start: period_start, period_end: period_end,
+          billed_amount: "20.00", currency: "USD",
+          metadata: { row_type: "cost", meter: "tokens", authority: "manual", match_basis: "period_only" }
+        }]
+      )
+      LlmCostTracker::Reconciliation.import(
+        source: :csv, provider: "anthropic",
+        rows: [{
+          external_id: "csv-anthropic", period_start: period_start, period_end: period_end,
+          billed_amount: "10.00", currency: "USD",
+          metadata: { row_type: "cost", meter: "tokens", authority: "manual", match_basis: "period_only" }
+        }]
+      )
+      create_priced_call(total_cost: BigDecimal("19.50"), provider: "openai")
+      create_priced_call(total_cost: BigDecimal("9.75"), provider: "anthropic")
+
+      checks = Array(described_class.new.call)
+      names = checks.map(&:name)
+
+      expect(names).to include(
+        "invoice reconciliation: csv/openai/USD",
+        "invoice reconciliation: csv/anthropic/USD"
+      )
     end
 
     it "surfaces unexpected errors as :error status" do

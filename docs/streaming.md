@@ -125,6 +125,10 @@ Stream rows include:
 | `cost_status` | `free`, `complete`, `partial`, or `unknown` |
 
 The collector caps captured event bytes so a long stream can't grow memory
-unbounded. When the cap hits, already-buffered events stay available to the
-parser; the call is recorded as unknown only when no usage can be extracted
-from the retained prefix.
+unbounded. When the cap hits, the call is recorded with `usage_source:
+unknown` regardless of what was buffered — partial-prefix usage extraction
+is intentionally disabled because the prefix shape is provider-specific
+and inferring totals from a truncated stream is unsafe. Image and audio
+event payloads (`b64_json`, `partial_image_b64`, any single string field
+over 8 KB) are dropped before the cap is consulted, so a multi-megabyte
+image chunk doesn't push the trailing `usage` event past the limit.

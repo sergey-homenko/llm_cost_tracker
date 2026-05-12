@@ -1,0 +1,32 @@
+require "llm_cost_tracker/ledger/schema/adapter"
+
+class UpgradeLlmCostTrackerCallTagsKeyValueIndex < ActiveRecord::Migration<%= migration_version %>
+  TABLE = :llm_cost_tracker_call_tags
+  INDEX_COLUMNS = %i[key value].freeze
+
+  def up
+    return if index_exists?(TABLE, INDEX_COLUMNS)
+
+    if postgresql?
+      add_index TABLE, INDEX_COLUMNS
+    elsif mysql?
+      add_index TABLE, INDEX_COLUMNS, length: { value: 191 }
+    else
+      raise "LLM Cost Tracker supports PostgreSQL and MySQL only"
+    end
+  end
+
+  def down
+    remove_index TABLE, column: INDEX_COLUMNS if index_exists?(TABLE, INDEX_COLUMNS)
+  end
+
+  private
+
+  def postgresql?
+    LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+  end
+
+  def mysql?
+    LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)
+  end
+end

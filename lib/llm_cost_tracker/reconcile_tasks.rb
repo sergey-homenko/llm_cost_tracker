@@ -91,7 +91,7 @@ module LlmCostTracker
                                                                 diff.unmatched_provider_rows_total)}:"
       diff.unmatched_provider_rows.each do |row|
         output.puts "    #{row[:external_id]} (#{row[:match_basis]}): " \
-                    "#{row[:billed_amount].to_s('F')} #{format_attribution(row[:attribution])}"
+                    "#{format_amount(row[:billed_amount])} #{format_attribution(row[:attribution])}"
       end
     end
 
@@ -112,7 +112,7 @@ module LlmCostTracker
       output.puts "  non-cost evidence#{truncation_suffix(diff.non_cost_rows.size,
                                                           diff.non_cost_rows_total)}:"
       diff.non_cost_rows.each do |row|
-        output.puts "    [#{row[:row_type]}/#{row[:meter]}] #{row[:billed_amount].to_s('F')} " \
+        output.puts "    [#{row[:row_type]}/#{row[:meter]}] #{format_amount(row[:billed_amount])} " \
                     "#{format_attribution(row[:attribution])}"
       end
     end
@@ -121,6 +121,10 @@ module LlmCostTracker
       return "" if shown >= total
 
       " (showing #{shown} of #{total} — pass DRILLDOWN_LIMIT=all to see every row)"
+    end
+
+    def format_amount(value)
+      value.nil? ? "n/a" : value.to_s("F")
     end
 
     def format_attribution(attribution)

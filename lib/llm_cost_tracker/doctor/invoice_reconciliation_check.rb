@@ -4,6 +4,7 @@ require "bigdecimal"
 
 require_relative "check"
 require_relative "probe"
+require_relative "../ledger/schema/adapter"
 
 module LlmCostTracker
   class Doctor
@@ -13,10 +14,10 @@ module LlmCostTracker
         return unless Probe.table_exists?("llm_cost_tracker_provider_invoices")
         return if no_imports?
 
-        sources = imported_sources
-        return Check.new(:ok, "invoice reconciliation", "no provider invoices imported yet") if sources.empty?
+        scopes = imported_scopes
+        return Check.new(:ok, "invoice reconciliation", "no provider invoices imported yet") if scopes.empty?
 
-        sources.map { |source| check_source_safely(source) }
+        scopes.map { |scope| check_scope_safely(scope) }
       rescue StandardError => e
         Check.new(:error, "invoice reconciliation", e.message)
       end
@@ -31,29 +32,57 @@ module LlmCostTracker
         Reconciliation::DEFAULT_THRESHOLD_PERCENT
       end
 
-      def imported_sources
-        LlmCostTracker::ProviderInvoice.distinct.order(:source).pluck(:source)
+      def imported_scopes
+        connection = LlmCostTracker::ProviderInvoice.connection
+        provider_expr =
+          if Ledger::Schema::Adapter.postgresql?(connection)
+            Arel.sql("metadata->>'provider'")
+          else
+            Arel.sql("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.provider'))")
+          end
+        LlmCostTracker::ProviderInvoice
+          .group(:source, provider_expr, :currency)
+          .order(:source, :currency)
+          .pluck(:source, provider_expr, :currency)
+          .map { |source, provider, currency| { source: source, provider: provider, currency: currency } }
       end
 
-      def check_source_safely(source)
-        check_source(source)
+      def scope_label(scope)
+        "#{scope[:source]}/#{scope[:provider]}/#{scope[:currency]}"
+      end
+
+      def check_scope_safely(scope)
+        check_scope(scope)
       rescue ArgumentError => e
-        Check.new(:warn, "invoice reconciliation: #{source}", e.message)
+        Check.new(:warn, "invoice reconciliation: #{scope_label(scope)}", e.message)
       end
 
-      def check_source(source)
-        window = latest_window_for(source)
-        return stale_check(source) if window.nil?
+      def check_scope(scope)
+        window = latest_window_for(scope)
+        return stale_check(scope) if window.nil?
 
-        diff = run_diff(source, window)
-        return ok_check(source, window, diff) if diff.aligned?(threshold_percent: threshold)
+        diff = run_diff(scope, window)
+        return ok_check(scope, window, diff) if diff.aligned?(threshold_percent: threshold)
 
-        warn_check(source, window, diff)
+        warn_check(scope, window, diff)
       end
 
-      def latest_window_for(source)
-        latest = LlmCostTracker::ProviderInvoice
-                 .where(source: source)
+      def scope_relation(scope)
+        relation = LlmCostTracker::ProviderInvoice
+                   .where(source: scope[:source], currency: scope[:currency])
+        provider = scope[:provider]
+        return relation if provider.nil? || provider.to_s.empty?
+
+        connection = LlmCostTracker::ProviderInvoice.connection
+        if Ledger::Schema::Adapter.postgresql?(connection)
+          relation.where("metadata->>'provider' = ?", provider)
+        else
+          relation.where("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.provider')) = ?", provider)
+        end
+      end
+
+      def latest_window_for(scope)
+        latest = scope_relation(scope)
                  .select(:period_start, :period_end)
                  .order(period_end: :desc, period_start: :desc)
                  .limit(1)
@@ -64,38 +93,40 @@ module LlmCostTracker
         latest
       end
 
-      def run_diff(source, window)
+      def run_diff(scope, window)
         Reconciliation.diff(
-          source: source,
+          source: scope[:source],
+          provider: scope[:provider],
+          currency: scope[:currency],
           period_start: window.period_start,
           period_end: window.period_end
         )
       end
 
-      def stale_check(source)
-        latest = LlmCostTracker::ProviderInvoice.where(source: source).maximum(:period_end)
+      def stale_check(scope)
+        latest = scope_relation(scope).maximum(:period_end)
         days = (Time.now.utc.to_date - latest).to_i
         Check.new(
           :warn,
-          "invoice reconciliation: #{source}",
+          "invoice reconciliation: #{scope_label(scope)}",
           "no invoice imported in #{days} days (threshold #{Reconciliation::INVOICE_FRESHNESS_DAYS} days); " \
           "run reconciliation import"
         )
       end
 
-      def ok_check(source, window, diff)
+      def ok_check(scope, window, diff)
         Check.new(
           :ok,
-          "invoice reconciliation: #{source}",
+          "invoice reconciliation: #{scope_label(scope)}",
           "#{window.period_start}..#{window.period_end} aligned " \
           "(local=#{diff.local_total.to_s('F')}, provider=#{diff.provider_total.to_s('F')})"
         )
       end
 
-      def warn_check(source, window, diff)
+      def warn_check(scope, window, diff)
         Check.new(
           :warn,
-          "invoice reconciliation: #{source}",
+          "invoice reconciliation: #{scope_label(scope)}",
           "#{window.period_start}..#{window.period_end} drift " \
           "delta=#{diff.delta_amount.to_s('F')} (#{diff.delta_percent}%) " \
           "exceeds #{threshold}% threshold"

@@ -167,7 +167,7 @@ module LlmCostTracker
           period_start: row[:period_start],
           period_end: row[:period_end],
           billed_amount: billed_amount,
-          currency: (row[:currency] || Ledger::Rollups::DEFAULT_CURRENCY).to_s,
+          currency: (row[:currency] || Ledger::Rollups::DEFAULT_CURRENCY).to_s.upcase,
           metadata: stamp_metadata(row[:metadata]),
           imported_at: imported_at || Time.now.utc
         }

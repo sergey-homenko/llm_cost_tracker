@@ -121,8 +121,14 @@ module LlmCostTracker
 
       def amount_for(key, amount, context:)
         value = BigDecimal(amount.to_s)
-        message = "service charge price amount for #{key.inspect} in #{context} must be non-negative"
-        raise ArgumentError, message if value.negative?
+        if value.infinite? || value.nan?
+          raise ArgumentError,
+                "service charge price amount for #{key.inspect} in #{context} must be finite"
+        end
+        if value.negative?
+          raise ArgumentError,
+                "service charge price amount for #{key.inspect} in #{context} must be non-negative"
+        end
 
         value
       end

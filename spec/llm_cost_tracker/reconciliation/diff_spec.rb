@@ -69,20 +69,41 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
   end
 
   describe "#call" do
-    it "bounds the SQL-side invoice load to drilldown_limit * 5 so a million-row reconciliation cannot OOM at the Ruby boundary; passing drilldown_limit: nil opts back into the unbounded load for CLI/export consumers" do
-      bounded = LlmCostTracker::Reconciliation::Diff.new(
-        source: :openai, provider: "openai",
-        period_start: period_start, period_end: period_end,
-        drilldown_limit: 7
-      )
-      unbounded = LlmCostTracker::Reconciliation::Diff.new(
-        source: :openai, provider: "openai",
-        period_start: period_start, period_end: period_end,
-        drilldown_limit: nil
+    it "loads only unmatched provider rows from SQL per-basis with drilldown_limit so a million-row reconciliation cannot OOM and small-amount unmatched rows hidden behind a wall of matched big-amount rows still appear in the drill-down" do
+      # 5 matched high-amount rows + 3 unmatched low-amount rows. With the previous
+      # 'top N by amount then filter unmatched in Ruby' design, the matched rows
+      # would consume the load budget and the unmatched rows would never reach
+      # the dashboard. The new SQL-side NOT IN filter returns the unmatched rows
+      # regardless of where they fall in the amount ordering.
+      5.times do |i|
+        import_invoice(
+          external_id: "match-#{i}",
+          billed_amount: "100.#{i}",
+          metadata: full_envelope.merge(
+            match_basis: "project", provider_project_id: "proj_match_#{i}", provider: "openai"
+          )
+        )
+        create_priced_call(total_cost: BigDecimal("100.0"), provider_project_id: "proj_match_#{i}")
+      end
+      3.times do |i|
+        import_invoice(
+          external_id: "phantom-#{i}",
+          billed_amount: "0.0#{i + 1}",
+          metadata: full_envelope.merge(
+            match_basis: "project", provider_project_id: "proj_phantom_#{i}", provider: "openai"
+          )
+        )
+      end
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end,
+        drilldown_limit: 100
       )
 
-      expect(bounded.send(:intermediate_load_limit)).to eq(35)
-      expect(unbounded.send(:intermediate_load_limit)).to be_nil
+      expect(result.unmatched_provider_rows.size).to eq(3)
+      expect(result.unmatched_provider_rows_total).to eq(3)
+      expect(result.unmatched_provider_rows.map { |row| row[:external_id] })
+        .to match_array(%w[openai:phantom-0 openai:phantom-1 openai:phantom-2])
     end
 
     it "caps unmatched drilldown lists to drilldown_limit ranked by amount, and exposes the full counts via *_total" do

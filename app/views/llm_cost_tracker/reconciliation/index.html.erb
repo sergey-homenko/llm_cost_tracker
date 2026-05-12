@@ -125,7 +125,7 @@ bin/rails db:migrate</code></pre>
                 <td><%= row[:external_id] %></td>
                 <td><%= row[:match_basis] %></td>
                 <td><%= attribution_summary(row[:attribution]) %></td>
-                <td class="lct-num"><%= money(row[:billed_amount]) %></td>
+                <td class="lct-num"><%= optional_money(row[:billed_amount]) %></td>
               </tr>
             <% end %>
           </tbody>
@@ -172,7 +172,7 @@ bin/rails db:migrate</code></pre>
                 <td><%= row[:row_type] %></td>
                 <td><%= row[:meter] %></td>
                 <td><%= attribution_summary(row[:attribution]) %></td>
-                <td class="lct-num"><%= money(row[:billed_amount]) %></td>
+                <td class="lct-num"><%= optional_money(row[:billed_amount]) %></td>
               </tr>
             <% end %>
           </tbody>

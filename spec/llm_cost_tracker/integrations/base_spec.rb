@@ -20,4 +20,35 @@ RSpec.describe LlmCostTracker::Integrations::Base do
       expect(collector.provider).to eq("test_integration")
     end
   end
+
+  describe ".request_params" do
+    let(:integration) do
+      Module.new do
+        extend LlmCostTracker::Integrations::Base
+
+        def self.integration_name
+          :test
+        end
+      end
+    end
+
+    it "extracts a Hash positional argument unchanged" do
+      params = integration.request_params([{ model: "gpt-4o", input: "x" }], {})
+      expect(params["model"]).to eq("gpt-4o")
+    end
+
+    it "extracts an SDK request object that responds to to_h instead of returning empty params (would otherwise lose model context on typed SDK params)" do
+      request_obj = Struct.new(:to_h_value).new({ model: "gpt-image-2", n: 2 }).tap do |s|
+        s.define_singleton_method(:to_h) { @to_h_value || to_h_value }
+      end
+      params = integration.request_params([request_obj], {})
+      expect(params["model"]).to eq("gpt-image-2")
+      expect(params["n"]).to eq(2)
+    end
+
+    it "falls back to kwargs alone when the positional argument cannot be coerced to a Hash" do
+      params = integration.request_params([Object.new], { temperature: 0.2 })
+      expect(params["temperature"]).to eq(0.2)
+    end
+  end
 end

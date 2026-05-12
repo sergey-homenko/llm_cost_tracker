@@ -172,6 +172,17 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         end.to raise_error(LlmCostTracker::Error, /amount.*must be non-negative/)
       end
     end
+
+    it "rejects an infinite service-charge amount so a literal 'Infinity' in a custom prices file cannot poison downstream cost math" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(%({"service_charges":{"openai":{"web_search_request":"Infinity"}},"models":{}}))
+        file.close
+
+        expect do
+          described_class.file_rates(file.path)
+        end.to raise_error(LlmCostTracker::Error, /amount.*must be finite/)
+      end
+    end
   end
 
   describe ".rates_from_registry" do
