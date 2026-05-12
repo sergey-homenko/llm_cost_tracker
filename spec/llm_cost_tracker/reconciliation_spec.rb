@@ -221,7 +221,23 @@ RSpec.describe LlmCostTracker::Reconciliation do
       )
 
       reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "csv/openai:garbage-csv")
-      expect(reloaded.metadata).to eq("provider" => "openai")
+      expect(reloaded.metadata).to eq("provider" => "openai", "match_basis" => "period_only")
+    end
+
+    it "stamps an inferred match_basis from the highest-priority attribution dimension when the imported row omits one — keeps the SQL count of unmatched_provider_rows in lockstep with the Ruby-side drilldown that infers basis the same way" do
+      described_class.import(
+        source: :csv, provider: "openai",
+        rows: [{
+          external_id: "inferred",
+          period_start: "2026-05-01",
+          period_end: "2026-05-31",
+          billed_amount: "1.00",
+          metadata: { "provider_api_key_id" => "key_x", "provider_workspace_id" => "ws_y" }
+        }]
+      )
+
+      reloaded = LlmCostTracker::ProviderInvoice.find_by!(external_id: "csv/openai:inferred")
+      expect(reloaded.metadata["match_basis"]).to eq("api_key")
     end
 
     it "rejects invalid metadata JSON for novel sources by default so attribution evidence is never silently dropped" do

@@ -26,6 +26,7 @@ module LlmCostTracker
       end
 
       def call(rows)
+        import_record = nil
         ensure_reconciliation_installed!
         return ImportResult.empty if skippable?(rows)
 
@@ -167,9 +168,22 @@ module LlmCostTracker
           period_end: row[:period_end],
           billed_amount: billed_amount,
           currency: (row[:currency] || Ledger::Rollups::DEFAULT_CURRENCY).to_s,
-          metadata: metadata_with_provider(row[:metadata]),
+          metadata: stamp_metadata(row[:metadata]),
           imported_at: imported_at || Time.now.utc
         }
+      end
+
+      BASIS_DIMENSIONS_BY_PRIORITY = [
+        %w[project provider_project_id],
+        %w[api_key provider_api_key_id],
+        %w[workspace provider_workspace_id],
+        %w[model model]
+      ].freeze
+      private_constant :BASIS_DIMENSIONS_BY_PRIORITY
+
+      def stamp_metadata(metadata)
+        merged = metadata_with_provider(metadata)
+        metadata_with_match_basis(merged)
       end
 
       def metadata_with_provider(metadata)
@@ -179,6 +193,16 @@ module LlmCostTracker
         return metadata if existing.is_a?(String) && !existing.empty?
 
         metadata.merge("provider" => provider)
+      end
+
+      def metadata_with_match_basis(metadata)
+        existing = metadata["match_basis"] || metadata[:match_basis]
+        return metadata if existing.is_a?(String) && !existing.empty?
+
+        inferred = BASIS_DIMENSIONS_BY_PRIORITY.find { |_basis, key| metadata[key] || metadata[key.to_sym] }
+        return metadata.merge("match_basis" => "period_only") if inferred.nil?
+
+        metadata.merge("match_basis" => inferred.first)
       end
 
       def namespaced_external_id(external_id)
