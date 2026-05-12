@@ -141,7 +141,8 @@ columns; until then they stay tag conventions.
 
 - Runtime tracking never makes a network call or scans the ledger. Hot
   path reads `pricing_overrides` → file snapshot → bundled snapshot,
-  then enqueues to the durable inbox.
+  then writes inline through `Ingestion::Inline` by default, or
+  enqueues to the durable inbox when `config.durable_ingestion = true`.
 - Header is a projection. Per-component costs live in
   `llm_cost_tracker_call_line_items`; rollups stay a hot-path cache.
 - Postgres and MySQL parity. Every ledger query must run on both.

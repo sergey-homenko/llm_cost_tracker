@@ -68,8 +68,9 @@ Captured SDK helpers:
 
 | Provider | Helpers |
 | --- | --- |
-| OpenAI | `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, `chat.completions.stream_raw` |
+| OpenAI | `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, `chat.completions.stream`, `chat.completions.stream_raw`, `images.generate_stream_raw`, `images.edit_stream_raw`, `audio.transcriptions.create_streaming` |
 | Anthropic | `messages.stream`, `messages.stream_raw`, beta Messages stream helpers |
+| RubyLLM | `chat.complete` (with `stream:`), `chat.ask` (with `stream:`) |
 
 The returned stream object is preserved. Usage is recorded after the stream is
 consumed.
