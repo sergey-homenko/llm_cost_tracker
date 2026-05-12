@@ -115,6 +115,28 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
         described_class.diff_from_env(env: { "SOURCE" => "openai", "PERIOD_START" => "2026-05-01" })
       end.to raise_error(ArgumentError, /missing PERIOD_END/)
     end
+
+    it "honours DRILLDOWN_LIMIT=all so a CLI user can disable the 100-row drilldown cap and see every unmatched row" do
+      expect(LlmCostTracker::Reconciliation).to receive(:diff).with(hash_including(drilldown_limit: nil))
+
+      described_class.diff_from_env(env: {
+                                      "SOURCE" => "openai",
+                                      "PERIOD_START" => "2026-05-01",
+                                      "PERIOD_END" => "2026-05-31",
+                                      "DRILLDOWN_LIMIT" => "all"
+                                    })
+    end
+
+    it "parses DRILLDOWN_LIMIT as an Integer when the caller wants a custom cap" do
+      expect(LlmCostTracker::Reconciliation).to receive(:diff).with(hash_including(drilldown_limit: 25))
+
+      described_class.diff_from_env(env: {
+                                      "SOURCE" => "openai",
+                                      "PERIOD_START" => "2026-05-01",
+                                      "PERIOD_END" => "2026-05-31",
+                                      "DRILLDOWN_LIMIT" => "25"
+                                    })
+    end
   end
 
   describe ".print_diff" do
@@ -141,6 +163,28 @@ RSpec.describe LlmCostTracker::ReconcileTasks do
 
       expect(output.string).to include("provider_api_key_id=***CDEF")
       expect(output.string).not_to include("sk-live-1234567890ABCDEF")
+    end
+
+    it "annotates each section heading with 'showing N of M' when the drilldown was truncated so CLI users know more rows exist" do
+      diff = LlmCostTracker::Reconciliation::DiffResult.new(
+        source: "openai", provider: "openai",
+        period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31),
+        currency: "USD", scope: {}, provider_total: BigDecimal("100"), local_total: BigDecimal("90"),
+        local_total_source: :line_items, delta_amount: BigDecimal("-10"), delta_percent: -10.0,
+        unmatched_provider_rows: [{
+          external_id: "openai:p", billed_amount: BigDecimal("5"),
+          attribution: {}, match_basis: "project"
+        }],
+        unmatched_provider_rows_total: 42,
+        unmatched_local_calls: [], unmatched_local_calls_total: 0,
+        non_cost_rows: [], non_cost_rows_total: 0
+      )
+      output = StringIO.new
+
+      described_class.print_diff(diff, output: output)
+
+      expect(output.string).to include("unmatched provider rows (showing 1 of 42")
+      expect(output.string).to include("DRILLDOWN_LIMIT=all")
     end
 
     it "renders a structured human-readable summary" do

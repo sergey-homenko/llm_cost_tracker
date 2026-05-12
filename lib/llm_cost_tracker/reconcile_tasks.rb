@@ -45,7 +45,15 @@ module LlmCostTracker
       period_start = Date.parse(required_env(env, "PERIOD_START"))
       period_end = Date.parse(required_env(env, "PERIOD_END"))
       Reconciliation.diff(source: source.to_sym, period_start: period_start, period_end: period_end,
-                          provider: env["PROVIDER"])
+                          provider: env["PROVIDER"],
+                          drilldown_limit: parse_drilldown_limit(env["DRILLDOWN_LIMIT"]))
+    end
+
+    def parse_drilldown_limit(value)
+      return Reconciliation::Diff::DEFAULT_DRILLDOWN_LIMIT if value.nil? || value.to_s.empty?
+      return nil if value.to_s.downcase == "all"
+
+      Integer(value)
     end
 
     def print_diff(diff, output: $stdout)
@@ -79,7 +87,8 @@ module LlmCostTracker
     def print_unmatched_provider_rows(diff, output)
       return if diff.unmatched_provider_rows.empty?
 
-      output.puts "  unmatched provider rows:"
+      output.puts "  unmatched provider rows#{truncation_suffix(diff.unmatched_provider_rows.size,
+                                                                diff.unmatched_provider_rows_total)}:"
       diff.unmatched_provider_rows.each do |row|
         output.puts "    #{row[:external_id]} (#{row[:match_basis]}): " \
                     "#{row[:billed_amount].to_s('F')} #{format_attribution(row[:attribution])}"
@@ -89,7 +98,8 @@ module LlmCostTracker
     def print_unmatched_local_calls(diff, output)
       return if diff.unmatched_local_calls.empty?
 
-      output.puts "  unmatched local calls:"
+      output.puts "  unmatched local calls#{truncation_suffix(diff.unmatched_local_calls.size,
+                                                              diff.unmatched_local_calls_total)}:"
       diff.unmatched_local_calls.each do |row|
         output.puts "    #{row[:count]} calls / #{row[:total_cost].to_s('F')} " \
                     "#{format_attribution(row[:attribution])}"
@@ -99,11 +109,18 @@ module LlmCostTracker
     def print_non_cost_rows(diff, output)
       return if diff.non_cost_rows.empty?
 
-      output.puts "  non-cost evidence:"
+      output.puts "  non-cost evidence#{truncation_suffix(diff.non_cost_rows.size,
+                                                          diff.non_cost_rows_total)}:"
       diff.non_cost_rows.each do |row|
         output.puts "    [#{row[:row_type]}/#{row[:meter]}] #{row[:billed_amount].to_s('F')} " \
                     "#{format_attribution(row[:attribution])}"
       end
+    end
+
+    def truncation_suffix(shown, total)
+      return "" if shown >= total
+
+      " (showing #{shown} of #{total} — pass DRILLDOWN_LIMIT=all to see every row)"
     end
 
     def format_attribution(attribution)
