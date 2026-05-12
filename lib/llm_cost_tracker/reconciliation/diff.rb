@@ -40,15 +40,15 @@ module LlmCostTracker
         provider_total = scoped_invoices_relation_for(:cost, fully_contained: true)
                          .sum(:billed_amount)
                          .then { |sum| BigDecimal(sum.to_s) }
+        local_index = local_attribution_index_distinct
         cost_invoices = scoped_cost_invoices_for_drilldown
         non_cost_invoices = scoped_non_cost_invoices_for_drilldown
-        local_calls = scoped_local_calls
 
         local_total, local_total_source = sum_local_total
 
-        unmatched_providers_full = unmatched_provider_rows(cost_invoices, local_calls)
-        unmatched_locals_full = unmatched_local_calls(cost_invoices, local_calls)
-        non_cost_full = non_cost_invoices_to_rows(non_cost_invoices)
+        unmatched_providers = unmatched_provider_rows_in(cost_invoices, local_index)
+        unmatched_locals = unmatched_local_calls_in(cost_invoices)
+        non_cost_rows = non_cost_invoices_to_rows(non_cost_invoices)
 
         DiffResult.new(
           source: source,
@@ -62,12 +62,12 @@ module LlmCostTracker
           local_total_source: local_total_source,
           delta_amount: local_total - provider_total,
           delta_percent: percent_for(local_total, provider_total),
-          unmatched_provider_rows: cap_by_amount(unmatched_providers_full, :billed_amount),
-          unmatched_provider_rows_total: unmatched_providers_full.size,
-          unmatched_local_calls: cap_by_amount(unmatched_locals_full, :total_cost),
-          unmatched_local_calls_total: unmatched_locals_full.size,
-          non_cost_rows: cap_by_amount(non_cost_full, :billed_amount),
-          non_cost_rows_total: non_cost_full.size
+          unmatched_provider_rows: cap_by_amount(unmatched_providers, :billed_amount),
+          unmatched_provider_rows_total: unmatched_provider_rows_total_count(local_index),
+          unmatched_local_calls: cap_by_amount(unmatched_locals, :total_cost),
+          unmatched_local_calls_total: unmatched_local_calls_total_count,
+          non_cost_rows: cap_by_amount(non_cost_rows, :billed_amount),
+          non_cost_rows_total: non_cost_invoices_total_count
         )
       end
 
@@ -161,18 +161,6 @@ module LlmCostTracker
         invoice.period_start >= period_start && invoice.period_end <= period_end
       end
 
-      def scoped_local_calls
-        attribution_columns = ATTRIBUTION_KEYS.map { |key| "#{calls_table}.#{key}" }
-        call_id = "#{calls_table}.id"
-        rows = scoped_line_items
-               .group(call_id, *attribution_columns)
-               .pluck(call_id, Arel.sql("SUM(cost)"), *attribution_columns)
-        rows.map do |row|
-          _id, total_cost, *attrs = row
-          { total_cost: total_cost, attribution: ATTRIBUTION_KEYS.zip(attrs).to_h }
-        end
-      end
-
       def sum_local_total
         return [rollup_total, :rollups] if rollup_fast_path?
 
@@ -215,8 +203,7 @@ module LlmCostTracker
         LlmCostTracker::Call.quoted_table_name
       end
 
-      def unmatched_provider_rows(invoices, local_calls)
-        local_index = local_attribution_index(local_calls)
+      def unmatched_provider_rows_in(invoices, local_index)
         invoices.filter_map do |invoice|
           basis = invoice_match_basis(invoice)
           next if basis == PERIOD_ONLY_BASIS
@@ -234,20 +221,35 @@ module LlmCostTracker
         end
       end
 
-      def local_attribution_index(local_calls)
-        index = BASIS_DIMENSION.each_key.to_h { |basis| [basis, Set.new] }
-        local_calls.each do |call|
-          BASIS_DIMENSION.each do |basis, key|
-            value = call[:attribution][key]
-            index[basis] << value if value
-          end
+      def unmatched_provider_rows_total_count(local_index)
+        BASIS_DIMENSION.each_key.sum do |basis|
+          next 0 if basis == PERIOD_ONLY_BASIS
+
+          column = BASIS_DIMENSION[basis].to_s
+          relation = scoped_invoices_relation_for(:cost, fully_contained: true)
+          relation = where_match_basis_eq(relation, basis)
+          relation = where_metadata_present(relation, column)
+          values = local_index[basis].to_a
+          relation = where_metadata_not_in(relation, column, values) if values.any?
+          relation.count
         end
-        index
       end
 
-      def unmatched_local_calls(invoices, local_calls)
+      def local_attribution_index_distinct
+        BASIS_DIMENSION.each_key.to_h do |basis|
+          if basis == PERIOD_ONLY_BASIS
+            [basis, Set.new]
+          else
+            column = BASIS_DIMENSION[basis]
+            values = scoped_calls_relation.where.not(column => nil).distinct.pluck(column)
+            [basis, Set.new(values)]
+          end
+        end
+      end
+
+      def unmatched_local_calls_in(invoices)
         basis_values = invoice_basis_values(invoices)
-        grouped = local_calls.each_with_object({}) do |row, totals|
+        grouped = scoped_line_items_with_attribution.each_with_object({}) do |row, totals|
           attribution = row[:attribution].compact
           next if attribution.empty?
           next if local_call_matched?(attribution, basis_values)
@@ -257,6 +259,113 @@ module LlmCostTracker
           totals[attribution][:total_cost] += BigDecimal(row[:total_cost].to_s)
         end
         grouped.map { |attribution, summary| summary.merge(attribution: attribution) }
+      end
+
+      def unmatched_local_calls_total_count
+        invoice_basis_values_distinct = invoice_basis_values_distinct_sql
+        unmatched = 0
+        scoped_calls_relation.find_each(batch_size: 1_000) do |call|
+          attribution = ATTRIBUTION_KEYS.each_with_object({}) do |key, acc|
+            value = call.public_send(key)
+            acc[key] = value unless value.nil? || value.to_s.empty?
+          end
+          next if attribution.empty?
+          next if local_call_matched?(attribution, invoice_basis_values_distinct)
+
+          unmatched += 1
+        end
+        unmatched
+      end
+
+      def invoice_basis_values_distinct_sql
+        BASIS_DIMENSION.each_key.to_h do |basis|
+          if basis == PERIOD_ONLY_BASIS
+            [basis, Set.new]
+          else
+            column = BASIS_DIMENSION[basis].to_s
+            relation = scoped_invoices_relation_for(:cost, fully_contained: true)
+            relation = where_match_basis_eq(relation, basis)
+            relation = where_metadata_present(relation, column)
+            values = pluck_metadata_distinct(relation, column)
+            [basis, Set.new(values)]
+          end
+        end
+      end
+
+      def non_cost_invoices_total_count
+        scoped_non_cost_invoices_relation.count
+      end
+
+      def scoped_non_cost_invoices_relation
+        connection = ProviderInvoice.connection
+        if Ledger::Schema::Adapter.postgresql?(connection)
+          scoped_invoices_relation.where(
+            "metadata->>'row_type' IS NOT NULL AND metadata->>'row_type' <> ?", COST_ROW_TYPE
+          )
+        else
+          scoped_invoices_relation.where(
+            "JSON_EXTRACT(metadata, '$.row_type') IS NOT NULL AND " \
+            "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type')) <> ?", COST_ROW_TYPE
+          )
+        end
+      end
+
+      def scoped_calls_relation
+        relation = LlmCostTracker::Call
+                   .where(provider: provider)
+                   .where(tracked_at: window_start...window_end)
+        scope.each { |key, value| relation = relation.where(key => value) }
+        relation
+      end
+
+      def scoped_line_items_with_attribution
+        attribution_columns = ATTRIBUTION_KEYS.map { |key| "#{calls_table}.#{key}" }
+        call_id = "#{calls_table}.id"
+        rows = scoped_line_items
+               .group(call_id, *attribution_columns)
+               .pluck(call_id, Arel.sql("SUM(cost)"), *attribution_columns)
+        rows.map do |row|
+          _id, total_cost, *attrs = row
+          { total_cost: total_cost, attribution: ATTRIBUTION_KEYS.zip(attrs).to_h }
+        end
+      end
+
+      def where_match_basis_eq(relation, basis)
+        connection = ProviderInvoice.connection
+        if Ledger::Schema::Adapter.postgresql?(connection)
+          relation.where("metadata->>'match_basis' = ?", basis)
+        else
+          relation.where("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.match_basis')) = ?", basis)
+        end
+      end
+
+      def where_metadata_present(relation, column)
+        connection = ProviderInvoice.connection
+        if Ledger::Schema::Adapter.postgresql?(connection)
+          relation.where("metadata->>? IS NOT NULL", column)
+        else
+          relation.where("JSON_EXTRACT(metadata, ?) IS NOT NULL", "$.#{column}")
+        end
+      end
+
+      def where_metadata_not_in(relation, column, values)
+        connection = ProviderInvoice.connection
+        if Ledger::Schema::Adapter.postgresql?(connection)
+          relation.where.not("metadata->>? IN (?)", column, values)
+        else
+          relation.where.not("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?)) IN (?)", "$.#{column}", values)
+        end
+      end
+
+      def pluck_metadata_distinct(relation, column)
+        connection = ProviderInvoice.connection
+        expr =
+          if Ledger::Schema::Adapter.postgresql?(connection)
+            Arel.sql("metadata->>'#{column}'")
+          else
+            Arel.sql("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.#{column}'))")
+          end
+        relation.distinct.pluck(expr).compact
       end
 
       def invoice_match_basis(invoice)

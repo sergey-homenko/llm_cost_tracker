@@ -110,6 +110,29 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
         .to eq(["5.0", "4.0"])
     end
 
+    it "computes unmatched_provider_rows_total via a SQL count over the full scope so it stays accurate when the drilldown load itself is capped by intermediate_load_limit (drilldown_limit * 5)" do
+      total_rows = 20
+      total_rows.times do |i|
+        import_invoice(
+          external_id: "phantom-#{i}",
+          billed_amount: (i + 1).to_s,
+          metadata: full_envelope.merge(
+            match_basis: "project",
+            provider_project_id: "proj_phantom_#{i}",
+            provider: "openai"
+          )
+        )
+      end
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end,
+        drilldown_limit: 3
+      )
+
+      expect(result.unmatched_provider_rows.size).to eq(3)
+      expect(result.unmatched_provider_rows_total).to eq(total_rows)
+    end
+
     it "computes provider total, local total, and delta for the period" do
       import_invoice(external_id: "row-1", billed_amount: "100.00")
       create_priced_call(total_cost: BigDecimal("95.00"))
