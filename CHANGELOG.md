@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-12
+
 0.9 leans the default install: only `calls`, `call_line_items`, and `call_tags`
 are mandatory. Durable ingestion, rollup-cached budget reads, and provider
 invoice reconciliation are opt-in behind config flags and dedicated generators.
