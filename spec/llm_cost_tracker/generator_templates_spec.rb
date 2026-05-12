@@ -172,7 +172,9 @@ RSpec.describe "generator templates" do
       expect(migration).to include("create_table :llm_cost_tracker_provider_invoices, if_not_exists: true")
       expect(migration).to include("create_table :llm_cost_tracker_provider_invoice_imports, if_not_exists: true")
       expect(migration).to include("add_index :llm_cost_tracker_provider_invoices, :external_id")
-      expect(migration).to include("add_index :llm_cost_tracker_provider_invoice_imports, [:source, :started_at]")
+      expect(migration).to include("%i[source started_at]")
+      expect(migration).to include("%i[source currency period_start]")
+      expect(migration).to include("%i[source currency period_end]")
       expect(migration).to include("if_not_exists: true")
     end
   end

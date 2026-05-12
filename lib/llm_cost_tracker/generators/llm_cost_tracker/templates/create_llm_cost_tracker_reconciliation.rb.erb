@@ -37,9 +37,11 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration<%= migration_
 
     add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true,
               if_not_exists: true
-    add_index :llm_cost_tracker_provider_invoices, [:source, :period_start],
+    add_index :llm_cost_tracker_provider_invoices, %i[source currency period_start],
               if_not_exists: true
-    add_index :llm_cost_tracker_provider_invoice_imports, [:source, :started_at],
+    add_index :llm_cost_tracker_provider_invoices, %i[source currency period_end],
+              if_not_exists: true
+    add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at],
               if_not_exists: true
   end
 
