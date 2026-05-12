@@ -122,7 +122,7 @@ Normalized attribution. One row per `key=value` pair on a call.
 Indexes:
 
 - `llm_cost_tracker_call_id`
-- `key` (filter by tag key; value-side filtering happens row-wise after seek)
+- `[key, value]` composite — high-cardinality tag filters (`Call.by_tag(:tenant_id, …)`) hit an index seek instead of a full key-prefix scan. MySQL gets `length: { value: 191 }` because of the index byte-length limit. Existing installs upgrade with `bin/rails generate llm_cost_tracker:upgrade_call_tags_key_value_index && bin/rails db:migrate`.
 
 ## `llm_cost_tracker_call_rollups`
 

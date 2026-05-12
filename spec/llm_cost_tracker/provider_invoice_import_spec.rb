@@ -9,10 +9,11 @@ RSpec.describe LlmCostTracker::ProviderInvoiceImport do
   include_context "with mounted llm cost tracker engine"
   include_context "with reconciliation enabled"
 
-  def build_import(state:, source: "openai", cursor: nil, started_at: Time.now.utc,
+  def build_import(state:, source: "openai", provider: "", cursor: nil, started_at: Time.now.utc,
                    window_start: nil, window_end: nil)
     described_class.create!(
       source: source,
+      provider: provider,
       cursor: cursor,
       window_start: window_start,
       window_end: window_end,
@@ -68,6 +69,20 @@ RSpec.describe LlmCostTracker::ProviderInvoiceImport do
       build_import(state: described_class::STATE_FAILED)
 
       expect(described_class.last_completed_window_for("openai")).to be_nil
+    end
+
+    it "isolates per-provider when the provider keyword is supplied" do
+      build_import(state: described_class::STATE_COMPLETED, source: "csv", provider: "openai",
+                   window_start: Date.new(2026, 4, 1), window_end: Date.new(2026, 4, 30),
+                   started_at: 2.days.ago)
+      build_import(state: described_class::STATE_COMPLETED, source: "csv", provider: "anthropic",
+                   window_start: Date.new(2026, 5, 1), window_end: Date.new(2026, 5, 31),
+                   started_at: 1.day.ago)
+
+      expect(described_class.last_completed_window_for("csv", provider: "openai"))
+        .to eq([Date.new(2026, 4, 1), Date.new(2026, 4, 30)])
+      expect(described_class.last_completed_window_for("csv", provider: "anthropic"))
+        .to eq([Date.new(2026, 5, 1), Date.new(2026, 5, 31)])
     end
   end
 end

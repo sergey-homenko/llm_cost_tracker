@@ -389,17 +389,13 @@ You'll lose pre-0.8 history. Re-attribution starts from the next captured call.
    `create_table` blocks for the new tables into your migration verbatim.
 
 2. **Backfills `call_tags` rows from the JSONB / JSON `tags` column.**
+   The Ruby path below is the canonical option on every adapter — it
+   re-uses `LlmCostTracker::Ledger::Tags::Encoding.encode` so Hash /
+   Array tag values are written as the same sorted-keys, no-whitespace
+   `JSON.generate(...)` form that `Ledger::Store` writes for new calls.
+   That's what `LlmCostTracker::Call.by_tag(key, nested_value)` looks
+   up against the `(key, value)` composite index:
 
-   PostgreSQL:
-   ```sql
-   INSERT INTO llm_cost_tracker_call_tags (llm_cost_tracker_call_id, key, value)
-   SELECT c.id, kv.key, kv.value::text
-   FROM llm_cost_tracker_calls c
-   CROSS JOIN LATERAL jsonb_each_text(c.tags) AS kv(key, value);
-   ```
-
-   MySQL doesn't ship a clean SQL idiom for iterating JSON object keys —
-   easiest path is a Ruby script:
    ```ruby
    LlmCostTracker::Call.find_each(batch_size: 500) do |call|
      parsed = call.read_attribute_before_type_cast(:tags)
@@ -416,10 +412,20 @@ You'll lose pre-0.8 history. Re-attribution starts from the next captured call.
    end
    ```
 
-   The `Encoding.encode` step matches how `Ledger::Store` writes tag
-   values for new calls — Hash and Array tags become canonical
-   `JSON.generate(...)` strings so `LlmCostTracker::Call.by_tag(key,
-   nested_value)` matches backfilled rows.
+   PostgreSQL also has a pure-SQL shortcut, but **only if your `tags`
+   column never stored nested Hash/Array values** (most installs).
+   `jsonb_each_text` produces `text` representations whose whitespace
+   layout for nested values doesn't match `JSON.generate` — running it
+   on installs with nested tag values strands those rows behind
+   `Call.by_tag`'s exact-match WHERE clause. For scalar-only `tags`
+   (strings / numbers / booleans):
+
+   ```sql
+   INSERT INTO llm_cost_tracker_call_tags (llm_cost_tracker_call_id, key, value)
+   SELECT c.id, kv.key, kv.value
+   FROM llm_cost_tracker_calls c
+   CROSS JOIN LATERAL jsonb_each_text(c.tags) AS kv(key, value);
+   ```
 
 3. **Backfills `call_line_items` rows.** The mapping from per-component cost
    columns to line items is non-trivial (kind / direction / cache_state /

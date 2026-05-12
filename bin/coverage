@@ -35,7 +35,7 @@ class CoverageGate
   end
 
   def patch_minimum
-    Float(ENV.fetch("PATCH_COVERAGE_MIN", "80.0"))
+    Float(ENV.fetch("PATCH_COVERAGE_MIN", "95.0"))
   end
 
   def coverage_base
