@@ -50,6 +50,14 @@ These keys are derived from `Billing::Components`, the master component registry
 is priced separately when provider usage exposes a longer retention bucket, such
 as Anthropic's 1-hour prompt cache writes.
 
+`cache_read_input` is modality-agnostic. OpenAI's pricing page for the `gpt-image-*`
+family lists separate rates for image-cached input ($2.00 / M) and text-cached input
+($1.25 / M), but the API only reports a single `prompt_tokens_details.cached_tokens`
+total without a modality breakdown. The registry stores the text-cached rate under
+`cache_read_input`, which under-prices image-heavy cache hits relative to the published
+list price. When OpenAI exposes the split (or a provider gives us a typed cached-image
+token count), `image_cache_read_input_tokens` will become a separate billable component.
+
 Mode-prefixed fields use the same base terms:
 
 - `batch_input`
