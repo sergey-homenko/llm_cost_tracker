@@ -93,6 +93,20 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::OpenaiUsage do
       expect(described_class.parse(response).first[:metadata]["match_basis"]).to eq("period_only")
     end
 
+    it "uses model match_basis when only the model is present" do
+      response[:data] = [{
+        "start_time" => bucket_start,
+        "end_time" => bucket_end,
+        "results" => [{
+          "amount" => { "value" => 1.0, "currency" => "usd" },
+          "line_item" => "tokens",
+          "model" => "gpt-4o"
+        }]
+      }]
+
+      expect(described_class.parse(response).first[:metadata]["match_basis"]).to eq("model")
+    end
+
     it "produces stable external_ids so re-parsing the same response is idempotent" do
       rows_a = described_class.parse(response)
       rows_b = described_class.parse(response)

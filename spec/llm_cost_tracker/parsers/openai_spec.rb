@@ -39,6 +39,20 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
     it "does not match other URLs" do
       expect(parser.match?(anthropic_messages_url)).to be false
     end
+
+    it "matches OpenAI image, audio, and moderations endpoints" do
+      %w[
+        /v1/images/generations
+        /v1/images/edits
+        /v1/images/variations
+        /v1/audio/transcriptions
+        /v1/audio/speech
+        /v1/moderations
+      ].each do |path|
+        url = URI::HTTPS.build(host: "api.openai.com", path: path).to_s
+        expect(parser.match?(url)).to be(true), "expected match? to be true for #{path}"
+      end
+    end
   end
 
   describe "#parse" do
@@ -382,6 +396,27 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
       )
 
       expect(result.model).to eq("unknown")
+    end
+
+    it "routes output to image_output_tokens for gpt-image-* models when details omit the image split" do
+      images_url = URI::HTTPS.build(host: "api.openai.com", path: "/v1/images/generations").to_s
+
+      result = parser.parse(
+        request_url: images_url,
+        request_body: { model: "gpt-image-1" }.to_json,
+        response_status: 200,
+        response_body: {
+          model: "gpt-image-1",
+          usage: {
+            input_tokens: 30,
+            output_tokens: 1568,
+            total_tokens: 1598
+          }
+        }.to_json
+      )
+
+      expect(result.token_usage.image_output_tokens).to eq(1568)
+      expect(result.token_usage.output_tokens).to eq(0)
     end
   end
 

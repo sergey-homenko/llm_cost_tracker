@@ -75,7 +75,15 @@ see [Upgrading](docs/upgrading.md).
 - The new generators (`call_rollups`, `durable_ingestion`, `reconciliation`, `upgrade_call_rollups_provider`) are reachable through `bin/rails generate llm_cost_tracker:<name>`.
 - Faraday streaming captures no longer silently degrade to `usage_source: :unknown`.
 - Dashboard filters apply the default 30-day range when `from`/`to` params are missing.
-- `provider_api_key_id` and `provider_workspace_id` are masked on the call detail page and CSV export.
+- `provider_api_key_id` and `provider_workspace_id` are masked on the call detail page and CSV export. Host apps that added a `metadata` column written as a JSON string now flow through the same masking instead of rendering the raw column.
+- Faraday parser also matches `/v1/images/*`, `/v1/audio/*`, and `/v1/moderations` so budget enforcement runs on these endpoints too. Image-generation calls with provider-reported usage now record; audio/speech and moderations record as zero-token visibility events (no `usage` field in the response).
+- OpenAI SDK `Images#generate` / `#edit` / `#create_variation` no longer double-counts cached input tokens.
+- OpenAI SDK `Responses.create` and Faraday parser both route output to `image_output_tokens` for `gpt-image-*` models even when the response omits `output_tokens_details.image_tokens`.
+- RubyLLM `Provider#paint` for `gpt-image-*` models records image output tokens under `image_output_tokens` so image rates apply.
+- Provider-invoice reconciliation falls back to `match_basis: "model"` (was `period_only`) when an invoice carries only a model identifier.
+- `prices:refresh` bootstraps a missing local pricing file instead of failing with `Errno::ENOENT`.
+- Doctor's durable-inbox verification no longer leaves a synthetic inbox row behind when `Tracker.track` raises `BudgetExceededError`.
+- Install-generator snippet in [Upgrading](docs/upgrading.md) for the reconciliation table now matches the shipped index (`(source, currency, period_start)`).
 - Doctor catches schema drift on required columns, required indexes, and the foreign key on `call_line_items` before the first row is inserted.
 - Service-charge rows render `n/a` instead of `$0.00` when `cost_status` is `unknown`, so unpriced charges don't masquerade as zero-cost.
 - Enabling `:ruby_llm` together with `:openai` / `:anthropic` logs a warning at install — RubyLLM routes through HTTP, so calls would otherwise be double-counted. Pick one path per provider.

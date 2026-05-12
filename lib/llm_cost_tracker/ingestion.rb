@@ -111,9 +111,7 @@ module LlmCostTracker
         LlmCostTracker::Doctor::Check.new(:error, "active_record capture", "#{e.class}: #{e.message}")
       ensure
         cleanup_verification_call(response_id) if response_id
-        if event && durable? && LlmCostTracker::Ingestion::InboxEntry.table_exists?
-          LlmCostTracker::Ingestion::InboxEntry.where(event_id: event.event_id).delete_all
-        end
+        cleanup_verification_inbox(event: event, response_id: response_id)
         ActiveSupport::Notifications.unsubscribe(subscription) if subscription
       end
 
@@ -148,6 +146,19 @@ module LlmCostTracker
         return unless cache_rollups?
 
         LlmCostTracker::Ledger::Rollups.decrement!(rows)
+      end
+
+      def cleanup_verification_inbox(event:, response_id:)
+        return unless durable? && LlmCostTracker::Ingestion::InboxEntry.table_exists?
+
+        if event
+          LlmCostTracker::Ingestion::InboxEntry.where(event_id: event.event_id).delete_all
+        elsif response_id
+          escaped = ActiveRecord::Base.sanitize_sql_like(response_id)
+          LlmCostTracker::Ingestion::InboxEntry
+            .where("payload LIKE ?", "%\"provider_response_id\":\"#{escaped}\"%")
+            .delete_all
+        end
       end
 
       def sample_priced_identity

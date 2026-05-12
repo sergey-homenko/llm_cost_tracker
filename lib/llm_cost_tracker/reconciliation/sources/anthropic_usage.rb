@@ -115,6 +115,7 @@ module LlmCostTracker
 
         def match_basis_for(result)
           return "workspace" if result[:workspace_id]
+          return "model" if result[:model]
 
           "period_only"
         end

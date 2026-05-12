@@ -792,6 +792,35 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "subtracts cached tokens from text input for gpt-image-1 so cache_read is not double-counted" do
+    detailed_usage = Struct.new(
+      :input_tokens, :output_tokens, :total_tokens, :input_tokens_details, keyword_init: true
+    )
+    detail_struct = Struct.new(:image_tokens, :cached_tokens, keyword_init: true)
+    images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
+    image = images_class.new(
+      created: 1_700_000_000,
+      usage: detailed_usage.new(
+        input_tokens: 250, output_tokens: 1024, total_tokens: 1274,
+        input_tokens_details: detail_struct.new(image_tokens: 100, cached_tokens: 30)
+      )
+    )
+    install_openai_fakes(response_class.new, image: image)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Images.new.edit(image: "...", prompt: "make it red", model: "gpt-image-1")
+
+      event = events.first
+      expect(event).to include(
+        input_tokens: 120,
+        image_input_tokens: 100,
+        cache_read_input_tokens: 30,
+        image_output_tokens: 1024
+      )
+    end
+  end
+
   it "splits gpt-image-1.5 output details into text and image output tokens" do
     detailed_usage = Struct.new(
       :input_tokens, :output_tokens, :total_tokens, :output_tokens_details, keyword_init: true
@@ -819,6 +848,21 @@ RSpec.describe LlmCostTracker::Integrations do
       # 50 text @ $5 + 100 text out @ $10 + 1000 image_out @ $32 (per 1M)
       expected_total = (50 * 5.0 + 100 * 10.0 + 1000 * 32.0) / 1_000_000
       expect(cost.fetch(:total_cost)).to be_within(0.000001).of(expected_total)
+    end
+  end
+
+  it "routes Responses.create output to image_output_tokens for gpt-image models when usage omits output details" do
+    response = response_class.new(
+      id: "resp_img", model: "gpt-image-1",
+      usage: usage_class.new(input_tokens: 30, output_tokens: 1568)
+    )
+    install_openai_fakes(response)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Responses.new.create(model: "gpt-image-1")
+
+      expect(events.first).to include(image_output_tokens: 1568, output_tokens: 0)
     end
   end
 
@@ -1402,6 +1446,30 @@ RSpec.describe LlmCostTracker::Integrations do
         usage_source: :sdk_response,
         provider_response_id: "img_resp_123"
       )
+    end
+  end
+
+  it "routes RubyLLM image output tokens to image_output_tokens for image models" do
+    image = LlmCostTrackerIntegrationSpecTypes::RubyLlmImage.new(
+      model_id: "gpt-image-1.5",
+      usage: {
+        input_tokens: 50,
+        output_tokens: 100,
+        input_tokens_details: { image_tokens: 30 },
+        output_tokens_details: { image_tokens: 80 }
+      },
+      provider_response_id: "img_resp_split"
+    )
+    install_ruby_llm_fakes(image, image: image)
+    configure_integration(:ruby_llm)
+
+    capture_events do |events|
+      RubyLLM::Provider.new.paint("a cat", model: "gpt-image-1.5", size: "1024x1024")
+
+      expect(events.first.dig(:token_usage, :input_tokens)).to eq(20)
+      expect(events.first.dig(:token_usage, :image_input_tokens)).to eq(30)
+      expect(events.first.dig(:token_usage, :output_tokens)).to eq(20)
+      expect(events.first.dig(:token_usage, :image_output_tokens)).to eq(80)
     end
   end
 

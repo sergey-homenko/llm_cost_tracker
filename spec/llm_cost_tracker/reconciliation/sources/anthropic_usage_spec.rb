@@ -179,6 +179,21 @@ RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
       expect(described_class.parse(response).first[:metadata]["match_basis"]).to eq("period_only")
     end
 
+    it "falls back to model match_basis when only model is present" do
+      response[:data] = [{
+        "starting_at" => bucket_starting_at,
+        "ending_at" => bucket_ending_at,
+        "results" => [{
+          "amount" => "1.00",
+          "cost_type" => "tokens",
+          "token_type" => "uncached_input_tokens",
+          "model" => "claude-3-5-sonnet"
+        }]
+      }]
+
+      expect(described_class.parse(response).first[:metadata]["match_basis"]).to eq("model")
+    end
+
     it "falls back to the default meter when the cost line cannot be classified" do
       response[:data] = [{
         "starting_at" => bucket_starting_at,

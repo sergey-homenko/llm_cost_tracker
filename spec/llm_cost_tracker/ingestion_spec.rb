@@ -455,6 +455,22 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
   end
 
+  it "purges the synthetic inbox row when verification track raises before returning the event" do
+    captured_response_id = nil
+    allow(LlmCostTracker).to receive(:track).and_wrap_original do |original, **kwargs|
+      captured_response_id = kwargs[:provider_response_id]
+      original.call(**kwargs)
+      raise LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 0.5)
+    end
+
+    checks = LlmCostTracker::Ingestion.verify
+    check = checks.find { |item| item.name == "active_record capture" }
+
+    expect(check).to have_attributes(status: :error, message: include("blocked by budget guardrail"))
+    expect(captured_response_id).to be_a(String)
+    expect(LlmCostTracker::Ingestion::InboxEntry.where("payload LIKE ?", "%#{captured_response_id}%")).to be_empty
+  end
+
   it "reports a missing ActiveRecord table during verification" do
     allow(LlmCostTracker::Call).to receive(:table_exists?).and_return(false)
 

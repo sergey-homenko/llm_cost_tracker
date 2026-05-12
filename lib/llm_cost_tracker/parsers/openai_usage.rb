@@ -51,7 +51,7 @@ module LlmCostTracker
             service_tier: response["service_tier"] || request["service_tier"]
           ),
           model: model,
-          token_usage: token_usage(usage: usage, cache_read: cache_read),
+          token_usage: token_usage(usage: usage, cache_read: cache_read, model: model),
           usage_source: :response,
           service_line_items: openai_service_line_items(response, request: request)
         )
@@ -96,7 +96,7 @@ module LlmCostTracker
           provider_response_id: provider_response_id,
           pricing_mode: pricing_mode,
           model: model,
-          token_usage: token_usage(usage: usage, cache_read: cache_read),
+          token_usage: token_usage(usage: usage, cache_read: cache_read, model: model),
           stream: true,
           usage_source: :stream_final,
           service_line_items: service_line_items
@@ -137,7 +137,10 @@ module LlmCostTracker
         OpenaiUsage.combined_pricing_mode(host: parsed_uri(request_url)&.host, model: model, service_tier: service_tier)
       end
 
-      def token_usage(usage:, cache_read:)
+      IMAGE_OUTPUT_MODEL_PATTERN = /\Agpt-image-/i
+      private_constant :IMAGE_OUTPUT_MODEL_PATTERN
+
+      def token_usage(usage:, cache_read:, model: nil)
         audio_input = audio_input_tokens(usage)
         audio_output = audio_output_tokens(usage)
         image_input = image_input_tokens(usage)
@@ -146,7 +149,8 @@ module LlmCostTracker
         raw_output = (usage["completion_tokens"] || usage["output_tokens"]).to_i
         image_output, regular_output_remainder = split_stream_image_output(
           raw_output: raw_output, image_output_details: image_output_details,
-          text_output_details: text_output_details, audio_output: audio_output
+          text_output_details: text_output_details, audio_output: audio_output,
+          default_to_image: model.to_s.match?(IMAGE_OUTPUT_MODEL_PATTERN)
         )
 
         TokenUsage.build(
@@ -164,8 +168,12 @@ module LlmCostTracker
         )
       end
 
-      def split_stream_image_output(raw_output:, image_output_details:, text_output_details:, audio_output:)
-        return [0, [raw_output - audio_output, 0].max] if image_output_details.zero? && text_output_details.zero?
+      def split_stream_image_output(raw_output:, image_output_details:, text_output_details:, audio_output:,
+                                    default_to_image: false)
+        if image_output_details.zero? && text_output_details.zero?
+          remainder = [raw_output - audio_output, 0].max
+          return default_to_image ? [remainder, 0] : [0, remainder]
+        end
 
         text_output = text_output_details
         text_output = [raw_output - image_output_details - audio_output, 0].max if text_output.zero?

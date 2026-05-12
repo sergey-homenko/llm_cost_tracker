@@ -103,7 +103,7 @@ module LlmCostTracker
                   model: model,
                   service_tier: object_value(response, :service_tier) || request[:service_tier]
                 ),
-                token_usage: token_usage(usage:, input_tokens:, output_tokens:, cache_read:),
+                token_usage: token_usage(usage:, input_tokens:, output_tokens:, cache_read:, model: model),
                 usage_source: :sdk_response,
                 provider_response_id: object_value(response, :id),
                 service_line_items: service_line_items_from(response, request: request)
@@ -118,7 +118,8 @@ module LlmCostTracker
           raw_input = usage ? object_value(usage, :input_tokens).to_i : 0
           raw_output = usage ? object_value(usage, :output_tokens).to_i : 0
           image_input = image_input_tokens(usage).to_i
-          text_input = [raw_input - image_input, 0].max
+          cache_read = cache_read_input_tokens(usage).to_i
+          text_input = [raw_input - image_input - cache_read, 0].max
           image_output, text_output = split_image_output(usage, raw_output)
           record_passthrough(
             model: request[:model],
@@ -128,7 +129,7 @@ module LlmCostTracker
             image_input_tokens: image_input,
             output_tokens: text_output,
             image_output_tokens: image_output,
-            cache_read_input_tokens: cache_read_input_tokens(usage).to_i
+            cache_read_input_tokens: cache_read
           )
         end
 
@@ -248,7 +249,10 @@ module LlmCostTracker
           { "type" => object_value(action, :type)&.to_s }
         end
 
-        def token_usage(usage:, input_tokens:, output_tokens:, cache_read:)
+        IMAGE_OUTPUT_MODEL_PATTERN = /\Agpt-image-/i
+        private_constant :IMAGE_OUTPUT_MODEL_PATTERN
+
+        def token_usage(usage:, input_tokens:, output_tokens:, cache_read:, model: nil)
           audio_input = audio_input_tokens(usage)
           audio_output = audio_output_tokens(usage)
           image_input = image_input_tokens(usage)
@@ -258,7 +262,8 @@ module LlmCostTracker
             output_tokens: output_tokens.to_i,
             image_output_details: image_output_details,
             text_output_details: text_output_details,
-            audio_output: audio_output
+            audio_output: audio_output,
+            default_to_image: model.to_s.match?(IMAGE_OUTPUT_MODEL_PATTERN)
           )
 
           TokenUsage.build(
@@ -296,8 +301,12 @@ module LlmCostTracker
           [input_tokens.to_i - cache_read - audio_input - image_input, 0].max
         end
 
-        def split_responses_image_output(output_tokens:, image_output_details:, text_output_details:, audio_output:)
-          return [0, [output_tokens - audio_output, 0].max] if image_output_details.zero? && text_output_details.zero?
+        def split_responses_image_output(output_tokens:, image_output_details:, text_output_details:, audio_output:,
+                                         default_to_image: false)
+          if image_output_details.zero? && text_output_details.zero?
+            remainder = [output_tokens - audio_output, 0].max
+            return default_to_image ? [remainder, 0] : [0, remainder]
+          end
 
           text_output = text_output_details
           text_output = [output_tokens - image_output_details - audio_output, 0].max if text_output.zero?

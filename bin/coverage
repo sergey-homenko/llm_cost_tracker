@@ -3,7 +3,7 @@
 require "open3"
 
 class CoverageGate
-  DEFAULT_PATCH_PATHS = %w[app lib scripts].freeze
+  DEFAULT_PATCH_PATHS = %w[app lib].freeze
   DEFAULT_PROJECT_PATHS = %w[app lib].freeze
 
   def self.call

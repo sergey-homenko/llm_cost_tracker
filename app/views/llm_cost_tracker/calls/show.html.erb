@@ -162,6 +162,6 @@ end %>
 <% if @call.has_attribute?("metadata") %>
   <section class="lct-panel">
     <h2 class="lct-section-title">Metadata</h2>
-    <pre class="lct-pre"><%= safe_json(LlmCostTracker::Masking.mask_hash(@call.read_attribute("metadata"))) %></pre>
+    <pre class="lct-pre"><%= safe_json(LlmCostTracker::Masking.mask_hash(masked_metadata_hash(@call.read_attribute("metadata")))) %></pre>
   </section>
 <% end %>

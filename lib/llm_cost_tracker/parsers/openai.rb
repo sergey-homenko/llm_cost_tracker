@@ -21,7 +21,18 @@ module LlmCostTracker
         gb.api.openai.com
         ae.api.openai.com
       ].freeze
-      TRACKED_PATHS = %w[/v1/chat/completions /v1/completions /v1/embeddings /v1/responses].freeze
+      TRACKED_PATHS = %w[
+        /v1/chat/completions
+        /v1/completions
+        /v1/embeddings
+        /v1/responses
+        /v1/images/generations
+        /v1/images/edits
+        /v1/images/variations
+        /v1/audio/transcriptions
+        /v1/audio/speech
+        /v1/moderations
+      ].freeze
 
       def match?(url)
         match_uri?(url, hosts: HOSTS, exact_paths: TRACKED_PATHS)

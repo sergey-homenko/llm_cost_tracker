@@ -87,6 +87,7 @@ module LlmCostTracker
         def match_basis_for(result)
           return "project" if result[:project_id]
           return "api_key" if result[:api_key_id]
+          return "model" if result[:model]
 
           "period_only"
         end

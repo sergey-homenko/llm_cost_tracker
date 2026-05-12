@@ -153,7 +153,7 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
     end
 
     add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
-    add_index :llm_cost_tracker_provider_invoices, %i[source period_start]
+    add_index :llm_cost_tracker_provider_invoices, %i[source currency period_start]
     add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at]
   end
 end

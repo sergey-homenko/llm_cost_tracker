@@ -3,6 +3,7 @@
 require "json"
 require "spec_helper"
 require "tempfile"
+require "tmpdir"
 require "yaml"
 
 class CuratedPriceFetcher
@@ -248,6 +249,23 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
           )
         end.to raise_error(LlmCostTracker::Error, /requires llm_cost_tracker >= 99.0.0/)
         expect(File.read(file.path)).to eq(original)
+      end
+    end
+
+    it "bootstraps a missing local registry from the remote snapshot" do
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, "nested", "llm_cost_tracker_prices.yml")
+
+        result = described_class.refresh(
+          path: path,
+          url: source_url,
+          fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
+        )
+
+        expect(result.written).to be(true)
+        expect(File.exist?(path)).to be(true)
+        loaded = YAML.safe_load_file(path)
+        expect(loaded.fetch("models").keys).to include("gpt-4o", "gpt-5-mini")
       end
     end
   end

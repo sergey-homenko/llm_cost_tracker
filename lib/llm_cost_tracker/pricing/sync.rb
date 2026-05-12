@@ -150,8 +150,10 @@ module LlmCostTracker
         end
 
         def load_registry(path)
+          return {} unless File.exist?(path)
+
           YAML.safe_load_file(path, aliases: false) || {}
-        rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
+        rescue Psych::Exception, ArgumentError, TypeError => e
           raise Error, "Unable to load pricing registry #{path.inspect}: #{e.message}"
         end
 

@@ -68,15 +68,21 @@ module LlmCostTracker
         def record_image(provider, response, request:, latency_ms:)
           usage = object_value(response, :usage)
           usage = {} unless usage.is_a?(Hash)
-          input_tokens = (usage[:input_tokens] || usage["input_tokens"]).to_i
-          output_tokens = (usage[:output_tokens] || usage["output_tokens"]).to_i
+          raw_input = (usage[:input_tokens] || usage["input_tokens"]).to_i
+          raw_output = (usage[:output_tokens] || usage["output_tokens"]).to_i
+          image_input = image_token_detail(usage, :input)
+          image_output = image_token_detail(usage, :output)
+          text_input = [raw_input - image_input, 0].max
+          text_output = [raw_output - image_output, 0].max
           record_passthrough(
             provider: provider_slug(provider),
             model: response_model_id(response) || model_id(request[:model]),
             response: response,
             latency_ms: latency_ms,
-            input_tokens: input_tokens,
-            output_tokens: output_tokens
+            input_tokens: text_input,
+            image_input_tokens: image_input,
+            output_tokens: text_output,
+            image_output_tokens: image_output
           )
         end
 
@@ -91,7 +97,16 @@ module LlmCostTracker
           )
         end
 
-        def record_passthrough(provider:, model:, response:, latency_ms:, input_tokens:, output_tokens:)
+        def image_token_detail(usage, direction)
+          container_key = direction == :input ? :input_tokens_details : :output_tokens_details
+          details = usage[container_key] || usage[container_key.to_s] || {}
+          return 0 unless details.is_a?(Hash)
+
+          (details[:image_tokens] || details["image_tokens"]).to_i
+        end
+
+        def record_passthrough(provider:, model:, response:, latency_ms:, input_tokens:, output_tokens:,
+                               image_input_tokens: 0, image_output_tokens: 0)
           return unless active?
 
           record_safely do
@@ -99,7 +114,12 @@ module LlmCostTracker
               capture: UsageCapture.build(
                 provider: provider,
                 model: model,
-                token_usage: TokenUsage.build(input_tokens: input_tokens, output_tokens: output_tokens),
+                token_usage: TokenUsage.build(
+                  input_tokens: input_tokens,
+                  output_tokens: output_tokens,
+                  image_input_tokens: image_input_tokens,
+                  image_output_tokens: image_output_tokens
+                ),
                 usage_source: :sdk_response,
                 provider_response_id: provider_response_id(response)
               ),

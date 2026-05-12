@@ -105,6 +105,15 @@ module LlmCostTracker
       value.to_s
     end
 
+    def masked_metadata_hash(value)
+      return value if value.is_a?(Hash)
+      return {} if value.nil?
+
+      JSON.parse(value.to_s)
+    rescue JSON::ParserError, TypeError
+      {}
+    end
+
     def tag_chip_entries(tags, limit: 3)
       normalized = normalized_tags(tags)
       return [] if normalized.empty?
