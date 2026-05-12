@@ -109,8 +109,7 @@ module LlmCostTracker
 
       def scoped_invoices_relation
         relation = ProviderInvoice
-                   .where(source: source)
-                   .where("UPPER(currency) = ?", currency)
+                   .where(source: source, currency: currency)
                    .where(period_start: ..period_end)
                    .where(period_end: period_start..)
         relation = apply_metadata_scope(relation, "provider" => @provider)

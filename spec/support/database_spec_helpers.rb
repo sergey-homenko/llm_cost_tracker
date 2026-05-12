@@ -238,7 +238,6 @@ module LlmCostTrackerDatabaseSpecHelpers
   def create_lct_reconciliation_indexes(connection)
     connection.add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
     connection.add_index :llm_cost_tracker_provider_invoices, %i[source currency period_start]
-    connection.add_index :llm_cost_tracker_provider_invoices, %i[source currency period_end]
     connection.add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at]
   end
 end
