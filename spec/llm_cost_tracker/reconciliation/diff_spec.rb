@@ -69,6 +69,35 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
   end
 
   describe "#call" do
+    it "matches a legacy lowercase 'usd' invoice row when the diff is run with currency: 'USD' so rolling-preview installs that imported with the old write path are not silently zeroed out" do
+      import_invoice(external_id: "lower", billed_amount: "12.00")
+      LlmCostTracker::ProviderInvoice.where(external_id: "openai:lower").update_all(currency: "usd")
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end,
+        currency: "USD"
+      )
+
+      expect(result.provider_total).to eq(BigDecimal("12.00"))
+    end
+
+    it "scopes scoped_calls_relation by line-item currency so a USD invoice attribution is not falsely marked matched against a same-project EUR call when both currencies share a project_id" do
+      import_invoice(
+        external_id: "usd-phantom", billed_amount: "10.00",
+        metadata: full_envelope.merge(match_basis: "project",
+                                      provider_project_id: "proj_shared", provider: "openai")
+      )
+      create_priced_call(total_cost: BigDecimal("5.00"), provider_project_id: "proj_shared", currency: "EUR")
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai, period_start: period_start, period_end: period_end,
+        currency: "USD"
+      )
+
+      expect(result.unmatched_provider_rows_total).to eq(1)
+      expect(result.unmatched_provider_rows.first[:external_id]).to eq("openai:usd-phantom")
+    end
+
     it "loads only unmatched provider rows from SQL per-basis with drilldown_limit so a million-row reconciliation cannot OOM and small-amount unmatched rows hidden behind a wall of matched big-amount rows still appear in the drill-down" do
       # 5 matched high-amount rows + 3 unmatched low-amount rows. With the previous
       # 'top N by amount then filter unmatched in Ruby' design, the matched rows

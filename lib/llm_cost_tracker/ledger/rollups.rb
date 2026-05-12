@@ -124,7 +124,8 @@ module LlmCostTracker
         end
 
         def currency_from_snapshot(snapshot)
-          (snapshot.is_a?(Hash) && (snapshot["currency"] || snapshot[:currency])) || DEFAULT_CURRENCY
+          value = (snapshot.is_a?(Hash) && (snapshot["currency"] || snapshot[:currency])) || DEFAULT_CURRENCY
+          value.to_s.upcase
         end
 
         def provider_for(event)

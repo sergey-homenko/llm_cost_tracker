@@ -109,7 +109,8 @@ module LlmCostTracker
 
       def scoped_invoices_relation
         relation = ProviderInvoice
-                   .where(source: source, currency: currency)
+                   .where(source: source)
+                   .where("UPPER(currency) = ?", currency)
                    .where(period_start: ..period_end)
                    .where(period_end: period_start..)
         relation = apply_metadata_scope(relation, "provider" => @provider)
@@ -293,9 +294,16 @@ module LlmCostTracker
       end
 
       def scoped_calls_relation
+        line_items_table = LlmCostTracker::CallLineItem.quoted_table_name
         relation = LlmCostTracker::Call
                    .where(provider: provider)
                    .where(tracked_at: window_start...window_end)
+                   .where(
+                     "EXISTS (SELECT 1 FROM #{line_items_table} " \
+                     "WHERE #{line_items_table}.llm_cost_tracker_call_id = #{calls_table}.id " \
+                     "AND #{line_items_table}.currency = ?)",
+                     currency
+                   )
         scope.each { |key, value| relation = relation.where(key => value) }
         relation
       end
