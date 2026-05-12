@@ -70,7 +70,7 @@ module LlmCostTracker
         .group(:source, provider_expr, :currency)
         .order(:source, :currency)
         .pluck(:source, provider_expr, :currency)
-        .map { |source, provider, currency| { source: source, provider: provider, currency: currency } }
+        .map { |source, provider, currency| { source: source, provider: provider, currency: currency&.upcase } }
     end
 
     def diff_for(scope)

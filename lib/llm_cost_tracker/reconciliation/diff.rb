@@ -83,7 +83,7 @@ module LlmCostTracker
       end
 
       def scoped_non_cost_invoices_for_drilldown
-        relation = scoped_non_cost_invoices_relation.order(billed_amount: :desc)
+        relation = scoped_non_cost_invoices_relation.order(Arel.sql("ABS(billed_amount) DESC"))
         relation = relation.limit(@drilldown_limit) if @drilldown_limit
         relation.to_a
       end
@@ -101,6 +101,7 @@ module LlmCostTracker
         else
           relation.where(
             "JSON_EXTRACT(metadata, '$.row_type') IS NULL OR " \
+            "JSON_TYPE(JSON_EXTRACT(metadata, '$.row_type')) = 'NULL' OR " \
             "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type')) = ?", COST_ROW_TYPE
           )
         end
@@ -285,6 +286,7 @@ module LlmCostTracker
         else
           scoped_invoices_relation.where(
             "JSON_EXTRACT(metadata, '$.row_type') IS NOT NULL AND " \
+            "JSON_TYPE(JSON_EXTRACT(metadata, '$.row_type')) <> 'NULL' AND " \
             "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type')) <> ?", COST_ROW_TYPE
           )
         end

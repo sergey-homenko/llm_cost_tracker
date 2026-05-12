@@ -27,6 +27,20 @@ Without those flags, `Tracker.record` writes inline, budget reads scan
 unused (doctor warns until you either flip the flags or drop the
 tables).
 
+If you imported reconciliation invoices on a rolling-preview build,
+back-fill the data shape changes before running the diff or the
+dashboard reports zero matches:
+
+```sql
+UPDATE llm_cost_tracker_provider_invoices SET currency = UPPER(currency);
+```
+
+The other two pre-release shape changes — `external_id` now namespaces
+`source/provider` for cross-provider sources, and the OpenAI Cost API
+tags the organization id under `provider_workspace_id` instead of
+`provider_organization_id` — are easier to handle via
+`LlmCostTracker::ProviderInvoice.delete_all` + a re-import.
+
 ### Fresh installs that need the opt-in tables
 
 Run the matching generators only for the optional capabilities you

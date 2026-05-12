@@ -10,7 +10,7 @@ module LlmCostTracker
           source period_start period_end external_id billed_amount currency metadata imported_at
         ].freeze
         UNIQUE_INDEX_COLUMNS = %i[external_id].freeze
-        SOURCE_PERIOD_INDEX_COLUMNS = %i[source period_start].freeze
+        SOURCE_PERIOD_INDEX_COLUMNS = %i[source currency period_start].freeze
 
         class << self
           def current_schema_errors
@@ -46,7 +46,7 @@ module LlmCostTracker
               errors << "missing unique index: external_id"
             end
             unless connection.index_exists?(table_name, SOURCE_PERIOD_INDEX_COLUMNS)
-              errors << "missing index: source, period_start"
+              errors << "missing index: source, currency, period_start"
             end
             errors
           end

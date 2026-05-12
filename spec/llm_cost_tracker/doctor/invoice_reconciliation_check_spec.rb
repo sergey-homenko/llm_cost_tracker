@@ -192,6 +192,16 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
       )
     end
 
+    it "upcases legacy lowercase currency rows when grouping scopes so a rolling-preview install with 'usd' rows reaches Reconciliation.diff with 'USD'" do
+      travel_to_today(period_end + 1)
+      import_invoice(billed_amount: BigDecimal("10.00"))
+      LlmCostTracker::ProviderInvoice.where(source: "openai").update_all(currency: "usd")
+
+      scopes = described_class.new.send(:imported_scopes)
+
+      expect(scopes.map { |s| s[:currency] }).to all(eq("USD"))
+    end
+
     it "surfaces unexpected errors as :error status" do
       allow(LlmCostTracker::ProviderInvoice).to receive(:none?).and_raise("boom")
 

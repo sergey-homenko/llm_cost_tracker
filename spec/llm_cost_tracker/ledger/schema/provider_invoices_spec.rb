@@ -37,13 +37,13 @@ RSpec.describe LlmCostTracker::Ledger::Schema::ProviderInvoices do
         .to include("missing unique index: external_id")
     end
 
-    it "reports a missing source/period_start index" do
+    it "reports a missing source/currency/period_start index" do
       ActiveRecord::Base.connection.remove_index(
-        :llm_cost_tracker_provider_invoices, %i[source period_start]
+        :llm_cost_tracker_provider_invoices, %i[source currency period_start]
       )
 
       expect(described_class.current_schema_errors)
-        .to include("missing index: source, period_start")
+        .to include("missing index: source, currency, period_start")
     end
 
     it "rejects metadata columns of the wrong adapter type" do
