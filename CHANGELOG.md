@@ -70,6 +70,7 @@ see [Upgrading](docs/upgrading.md).
 - Custom prices files with `Infinity` / `NaN` service-charge rates fail to load with a clear error instead of silently corrupting cost math.
 - High-cardinality tag filters (`Call.by_tag(:tenant_id, …)`) now hit a composite index instead of scanning. Existing installs run `bin/rails generate llm_cost_tracker:upgrade_call_tags_key_value_index && bin/rails db:migrate`.
 - Reconciliation diff over a large invoice set uses an index scan on the new `(source, currency, period_start)` composite.
+- Doctor warns when provider invoice rows are stored with non-uppercase currency and points at the one-line backfill SQL, instead of the dashboard silently zeroing out diffs against legacy lowercase data.
 - A request-level `pricing_mode` no longer overrides what the provider reports back on a streamed response. Provider-reported standard wins over a request that asked for priority.
 - The new generators (`call_rollups`, `durable_ingestion`, `reconciliation`, `upgrade_call_rollups_provider`) are reachable through `bin/rails generate llm_cost_tracker:<name>`.
 - Faraday streaming captures no longer silently degrade to `usage_source: :unknown`.
