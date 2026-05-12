@@ -84,9 +84,7 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
     add_index :llm_cost_tracker_calls, :cost_status
     add_index :llm_cost_tracker_calls, :provider_response_id
     add_index :llm_cost_tracker_call_line_items, [:llm_cost_tracker_call_id, :position]
-    add_index :llm_cost_tracker_call_line_items, :kind
     add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
-    add_index :llm_cost_tracker_call_tags, :key
     if postgresql?
       add_index :llm_cost_tracker_call_tags, [:key, :value]
     elsif mysql?

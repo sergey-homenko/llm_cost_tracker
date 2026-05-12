@@ -31,8 +31,7 @@ module LlmCostTracker
         ].freeze
 
         REQUIRED_INDEX_COLUMNS = [
-          %w[llm_cost_tracker_call_id position],
-          %w[kind]
+          %w[llm_cost_tracker_call_id position]
         ].freeze
 
         class << self

@@ -7,7 +7,7 @@ module LlmCostTracker
         REQUIRED_COLUMNS = %w[llm_cost_tracker_call_id key value].freeze
 
         REQUIRED_INDEX_COLUMNS = [
-          %w[key],
+          %w[key value],
           %w[llm_cost_tracker_call_id]
         ].freeze
 
