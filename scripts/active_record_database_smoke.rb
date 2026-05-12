@@ -257,7 +257,7 @@ def create_ingestion_leases_table!
   end
 end
 
-def add_schema_indexes!(_database_connection)
+def add_schema_indexes!(database_connection)
   add_index :llm_cost_tracker_calls, :event_id, unique: true
   add_index :llm_cost_tracker_calls, :tracked_at
   add_index :llm_cost_tracker_calls, %i[provider tracked_at]
@@ -265,16 +265,19 @@ def add_schema_indexes!(_database_connection)
   add_index :llm_cost_tracker_calls, :cost_status
   add_index :llm_cost_tracker_calls, :provider_response_id
   add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
-  add_index :llm_cost_tracker_call_line_items, :kind
   add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
-  add_index :llm_cost_tracker_call_tags, :key
+  if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
+    add_index :llm_cost_tracker_call_tags, %i[key value]
+  else
+    add_index :llm_cost_tracker_call_tags, %i[key value], length: { value: 191 }
+  end
   add_index :llm_cost_tracker_call_rollups, %i[period period_start currency provider], unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
   add_index :llm_cost_tracker_ingestion_inbox_entries, %i[locked_at id]
   add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
   add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
-  add_index :llm_cost_tracker_provider_invoices, %i[source period_start]
+  add_index :llm_cost_tracker_provider_invoices, %i[source currency period_start]
   add_index :llm_cost_tracker_provider_invoice_imports, %i[source started_at]
 end
 
