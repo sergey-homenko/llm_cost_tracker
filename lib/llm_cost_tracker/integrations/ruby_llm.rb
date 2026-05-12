@@ -143,7 +143,7 @@ module LlmCostTracker
               capture: UsageCapture.build(
                 provider: provider,
                 model: model,
-                pricing_mode: pricing_mode(response),
+                pricing_mode: pricing_mode(provider: provider, response: response),
                 token_usage: TokenUsage.build(
                   input_tokens: regular_input_tokens(input_tokens, cache_read),
                   output_tokens: output_tokens.to_i,
@@ -185,10 +185,16 @@ module LlmCostTracker
           object_value(response, :id, :provider_response_id) || object_dig(response, :raw, :id)
         end
 
-        def pricing_mode(response)
-          object_value(response, :pricing_mode, :service_tier) ||
-            object_dig(response, :raw, :pricing_mode) ||
-            object_dig(response, :raw, :service_tier)
+        ANTHROPIC_STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only priority].freeze
+        private_constant :ANTHROPIC_STANDARD_EQUIVALENT_SERVICE_TIERS
+
+        def pricing_mode(provider:, response:)
+          raw = object_value(response, :pricing_mode, :service_tier) ||
+                object_dig(response, :raw, :pricing_mode) ||
+                object_dig(response, :raw, :service_tier)
+          return nil if provider == "anthropic" && ANTHROPIC_STANDARD_EQUIVALENT_SERVICE_TIERS.include?(raw.to_s)
+
+          raw
         end
       end
 

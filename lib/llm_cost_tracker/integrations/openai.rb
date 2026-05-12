@@ -74,6 +74,8 @@ module LlmCostTracker
                          with: StreamingTranscriptionsPatch,
                          methods: %i[create_streaming],
                          optional: true, skip_when_methods_missing: true),
+            patch_target("OpenAI::Resources::Audio::Translations",
+                         with: TranslationsPatch, methods: %i[create], optional: true),
             patch_target("OpenAI::Resources::Audio::Speech",
                          with: SpeechPatch, methods: %i[create], optional: true),
             patch_target("OpenAI::Resources::Moderations",
@@ -136,9 +138,10 @@ module LlmCostTracker
         def split_image_output(usage, raw_output)
           image_tokens = image_output_tokens(usage).to_i
           text_tokens = text_output_tokens(usage).to_i
-          return [image_tokens, text_tokens] if image_tokens.positive? || text_tokens.positive?
+          return [raw_output, 0] if image_tokens.zero? && text_tokens.zero?
 
-          [raw_output, 0]
+          text_tokens = [raw_output - image_tokens, 0].max if text_tokens.zero?
+          [image_tokens, text_tokens]
         end
 
         def record_transcription(response, request:, latency_ms:)
@@ -418,6 +421,7 @@ module LlmCostTracker
       EmbeddingsPatch = PatchBuilder.build(record_method: :record_response, methods: %i[create])
       ImagesPatch = PatchBuilder.build(record_method: :record_image, methods: %i[generate edit create_variation])
       TranscriptionsPatch = PatchBuilder.build(record_method: :record_transcription, methods: %i[create])
+      TranslationsPatch = PatchBuilder.build(record_method: :record_transcription, methods: %i[create])
       SpeechPatch = PatchBuilder.build(record_method: :record_speech, methods: %i[create])
       ModerationsPatch = PatchBuilder.build(record_method: :record_moderation, methods: %i[create])
 

@@ -46,6 +46,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         /v1/images/edits
         /v1/images/variations
         /v1/audio/transcriptions
+        /v1/audio/translations
         /v1/audio/speech
         /v1/moderations
       ].each do |path|

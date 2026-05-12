@@ -137,8 +137,15 @@ module LlmCostTracker
       end
 
       def sum_local_total
-        return [rollup_total, :rollups] if rollup_fast_path?
+        return line_items_total unless rollup_fast_path?
 
+        rollup = rollup_total
+        return [rollup, :rollups] if rollup.positive?
+
+        line_items_total
+      end
+
+      def line_items_total
         [BigDecimal(scoped_line_items.sum(:cost).to_s), :line_items]
       end
 

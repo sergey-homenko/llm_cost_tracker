@@ -354,6 +354,24 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.local_total).to eq(LlmCostTracker::Call.sum(:total_cost))
     end
 
+    it "falls back to line items when rollups are stale (e.g. after upgrade_call_rollups_provider truncates them)" do
+      import_invoice(
+        external_id: "may-stale", billed_amount: "5.00",
+        period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31)
+      )
+      create_priced_call(total_cost: BigDecimal("4.00"), tracked_at: Time.utc(2026, 5, 15, 12))
+      LlmCostTracker::CallRollup.delete_all
+
+      result = LlmCostTracker::Reconciliation.diff(
+        source: :openai,
+        period_start: Date.new(2026, 5, 1),
+        period_end: Date.new(2026, 5, 31)
+      )
+
+      expect(result.local_total).to eq(BigDecimal("4.00"))
+      expect(result.local_total_source).to eq(:line_items)
+    end
+
     it "uses the line-items path and reports it for partial-month diffs" do
       import_invoice(
         external_id: "partial", billed_amount: "1.00",

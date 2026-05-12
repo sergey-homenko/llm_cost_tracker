@@ -76,10 +76,14 @@ see [Upgrading](docs/upgrading.md).
 - Faraday streaming captures no longer silently degrade to `usage_source: :unknown`.
 - Dashboard filters apply the default 30-day range when `from`/`to` params are missing.
 - `provider_api_key_id` and `provider_workspace_id` are masked on the call detail page and CSV export. Host apps that added a `metadata` column written as a JSON string now flow through the same masking instead of rendering the raw column.
-- Faraday parser also matches `/v1/images/*`, `/v1/audio/*`, and `/v1/moderations` so budget enforcement runs on these endpoints too. Image-generation calls with provider-reported usage now record; audio/speech and moderations record as zero-token visibility events (no `usage` field in the response).
+- Faraday parser tracks OpenAI `/v1/images/*` and `/v1/audio/transcriptions`/`/v1/audio/translations` so raw-Faraday image generations and transcriptions land in the ledger. `/v1/audio/speech` and `/v1/moderations` are also matched so `Tracker.enforce_budget!` gates them; they do not record a row because OpenAI does not return token usage for those endpoints.
+- OpenAI SDK `Audio::Translations#create` is now patched alongside `Audio::Transcriptions#create`.
 - OpenAI SDK `Images#generate` / `#edit` / `#create_variation` no longer double-counts cached input tokens.
 - OpenAI SDK `Responses.create` and Faraday parser both route output to `image_output_tokens` for `gpt-image-*` models even when the response omits `output_tokens_details.image_tokens`.
+- OpenAI SDK `Images#generate` / `#edit` / `#create_variation` no longer drops the text-output remainder when `output_tokens_details` reports only `image_tokens`. The remainder lands as `output_tokens`, matching the Faraday parser.
 - RubyLLM `Provider#paint` for `gpt-image-*` models records image output tokens under `image_output_tokens` so image rates apply.
+- RubyLLM integration treats Anthropic `service_tier: "priority"` as standard pricing (Priority Tier is committed throughput, not a surcharge). Previously these calls fell to `cost_status: unknown` because the literal `"priority"` was passed through as `pricing_mode`.
+- Reconciliation diff falls back to live `llm_cost_tracker_call_line_items` aggregation when the rollup fast path finds no row for the period. Without the fallback, past-month diffs after the v0.9 `upgrade_call_rollups_provider` migration (which truncates rollups) would report `local_total = $0` until events repopulate the new schema.
 - Provider-invoice reconciliation falls back to `match_basis: "model"` (was `period_only`) when an invoice carries only a model identifier.
 - `prices:refresh` bootstraps a missing local pricing file instead of failing with `Errno::ENOENT`.
 - Doctor's durable-inbox verification no longer leaves a synthetic inbox row behind when `Tracker.track` raises `BudgetExceededError`.

@@ -203,6 +203,10 @@ RSpec.describe LlmCostTracker::Integrations do
       define_method(:create) { |_params = {}| @transcription }
       define_method(:create_streaming) { |_params = {}| @stream }
     end)
+    stub_const("OpenAI::Resources::Audio::Translations", Class.new do
+      define_method(:initialize) { @translation = transcription }
+      define_method(:create) { |_params = {}| @translation }
+    end)
     stub_const("OpenAI::Resources::Audio::Speech", Class.new do
       define_method(:initialize) { @speech = speech }
       define_method(:create) { |_params = {}| @speech }
@@ -866,6 +870,27 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "recovers text output remainder for gpt-image-1.5 when output_tokens_details only carries image_tokens" do
+    detailed_usage = Struct.new(:input_tokens, :output_tokens, :output_tokens_details, keyword_init: true)
+    output_detail = Struct.new(:image_tokens, keyword_init: true)
+    images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
+    image = images_class.new(
+      created: 1_700_000_000,
+      usage: detailed_usage.new(
+        input_tokens: 50, output_tokens: 1100,
+        output_tokens_details: output_detail.new(image_tokens: 1000)
+      )
+    )
+    install_openai_fakes(response_class.new, image: image)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Images.new.generate(prompt: "a cat", model: "gpt-image-1.5", size: "1024x1024")
+
+      expect(events.first).to include(output_tokens: 100, image_output_tokens: 1000)
+    end
+  end
+
   it "wraps Images#generate_stream_raw through the stream collector" do
     stream = stream_class.new([])
     install_openai_fakes(response_class.new, stream: stream)
@@ -969,6 +994,24 @@ RSpec.describe LlmCostTracker::Integrations do
 
     capture_events do |events|
       OpenAI::Resources::Audio::Transcriptions.new.create(model: "whisper-1", file: "audio.mp3")
+
+      expect(events.size).to eq(1)
+      expect(events.first).to include(provider: "openai", model: "whisper-1", input_tokens: 0, output_tokens: 0)
+    end
+  end
+
+  it "records OpenAI audio.translations.create as a zero-token whisper visibility event" do
+    transcription_class = LlmCostTrackerIntegrationSpecTypes::TranscriptionResponse
+    duration_usage_class = LlmCostTrackerIntegrationSpecTypes::TranscriptionDurationUsage
+    transcription = transcription_class.new(
+      text: "hello",
+      usage: duration_usage_class.new(type: "duration", seconds: 7.0)
+    )
+    install_openai_fakes(response_class.new, transcription: transcription)
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Audio::Translations.new.create(model: "whisper-1", file: "audio.mp3")
 
       expect(events.size).to eq(1)
       expect(events.first).to include(provider: "openai", model: "whisper-1", input_tokens: 0, output_tokens: 0)
@@ -1335,6 +1378,26 @@ RSpec.describe LlmCostTracker::Integrations do
       Anthropic::Resources::Messages.new.create(model: "claude-sonnet-4-5-20250929")
 
       expect(events).to be_empty
+    end
+  end
+
+  it "treats Anthropic service_tier=priority as standard pricing for RubyLLM completions" do
+    response = LlmCostTrackerIntegrationSpecTypes::RubyLlmResponse.new(
+      id: "msg_pri",
+      model_id: "claude-sonnet-4-6",
+      input_tokens: 100,
+      output_tokens: 30,
+      service_tier: "priority"
+    )
+    model = LlmCostTrackerIntegrationSpecTypes::RubyLlmModel.new(id: "claude-sonnet-4-6")
+    install_ruby_llm_fakes(response)
+    configure_integration(:ruby_llm)
+
+    capture_events do |events|
+      RubyLLM::Provider.new(provider: "anthropic")
+                       .complete([], model: model, tools: {}, temperature: nil) { |_| nil }
+
+      expect(events.first[:pricing_mode]).to be_nil
     end
   end
 
