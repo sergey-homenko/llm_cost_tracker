@@ -59,6 +59,17 @@ see [Upgrading](docs/upgrading.md).
 - Reconciliation `ProviderInvoiceImport.started_at` is the wall-clock import time. Backfills with a historical `imported_at` no longer invert `resume_cursor_for` ordering.
 - Reconciliation install migration is re-runnable on installs that already carry the v0.8 placeholder tables.
 - Pre-release v0.9 deployers who imported reconciliation rows before these fixes need `LlmCostTracker::ProviderInvoice.delete_all` and a re-import — the `external_id` prefix and the OpenAI organization-id field both changed shape.
+- Budget reads survive the v0.9 upgrade migration's rollup truncation — a partial rollup row no longer hides historical pre-migration spend in the same period.
+- Streaming requests that hit `unknown_pricing_behavior = :raise` after the response is received raise without recording a synthetic zero-token event.
+- Reconciliation doctor checks each `source / provider / currency` combination separately; a stale Anthropic CSV import no longer hides behind a fresh OpenAI one on the same source.
+- Reconciliation imports normalise `currency` to upper case so `usd` and `USD` no longer split the diff.
+- Reconciliation dashboard and CLI render `n/a` for invoice rows imported with no `billed_amount` instead of `$0.00`.
+- Reconciliation diff drill-down shows the actual unmatched rows even when most invoices match — small-amount unmatched rows are no longer hidden by a wall of matched big-amount rows.
+- OpenAI SDK Responses calls bill image and text tokens separately for `gpt-image-*` models, matching the Faraday parser.
+- OpenAI SDK integration captures the request when the caller passes a typed request object (anything that responds to `to_h`) instead of dropping it.
+- `Pricing::ServiceCharges` rejects non-finite amounts (`Infinity` / `NaN`) in `config.prices_file`.
+- New `bin/rails generate llm_cost_tracker:upgrade_call_tags_key_value_index` adds a `(key, value)` composite index so high-cardinality tag filters use an index lookup. Fresh installs get the index automatically.
+- Provider invoice tables are indexed by `(source, currency, period_start)` and `(source, currency, period_end)` so reconciliation diff over a large invoice set uses an index scan.
 - A request-level `pricing_mode` no longer overrides what the provider reports back on a streamed response. Provider-reported standard wins over a request that asked for priority.
 - The new generators (`call_rollups`, `durable_ingestion`, `reconciliation`, `upgrade_call_rollups_provider`) are reachable through `bin/rails generate llm_cost_tracker:<name>`.
 - Faraday streaming captures no longer silently degrade to `usage_source: :unknown`.
