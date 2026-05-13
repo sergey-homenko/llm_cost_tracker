@@ -38,5 +38,10 @@ RSpec.describe LlmCostTracker::Ledger::Schema::ProviderInvoiceImports do
       expect(described_class.current_schema_errors)
         .to include("missing index: source, provider, started_at")
     end
+
+    it "memoizes the computed errors while the columns_hash identity is stable" do
+      first = described_class.current_schema_errors
+      expect(described_class.current_schema_errors).to equal(first)
+    end
   end
 end

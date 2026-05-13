@@ -178,6 +178,16 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(response.status).to eq(200)
   end
 
+  it "snapshots configuration.enabled and configuration.auto_enable_stream_usage on first call and reuses them" do
+    middleware = described_class.new(->(env) { env })
+
+    expect(LlmCostTracker.configuration).to receive(:enabled).once.and_call_original
+    expect(LlmCostTracker.configuration).to receive(:auto_enable_stream_usage).once.and_call_original
+
+    2.times { middleware.send(:enabled?) }
+    2.times { middleware.send(:auto_enable_stream_usage?) }
+  end
+
   it "does not interfere with non-LLM requests" do
     conn = Faraday.new(url: "https://example.com") do |f|
       f.use :llm_cost_tracker

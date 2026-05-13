@@ -55,5 +55,10 @@ RSpec.describe LlmCostTracker::Ledger::Schema::ProviderInvoices do
       expect(described_class.current_schema_errors)
         .to include(match(/metadata column must use (jsonb|json) \(got varchar/))
     end
+
+    it "memoizes the computed errors while the columns_hash identity is stable" do
+      first = described_class.current_schema_errors
+      expect(described_class.current_schema_errors).to equal(first)
+    end
   end
 end
