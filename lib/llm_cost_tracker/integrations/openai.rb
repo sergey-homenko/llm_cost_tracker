@@ -3,7 +3,7 @@
 require_relative "base"
 require_relative "../billing/line_item"
 require_relative "../parsers/openai_service_charges"
-require_relative "../azure/hosts"
+require_relative "../providers/azure/hosts"
 
 module LlmCostTracker
   module Integrations
@@ -42,7 +42,7 @@ module LlmCostTracker
         end
 
         def provider_for_host(host)
-          LlmCostTracker::Azure::Hosts.openai?(host) ? "azure_openai" : "openai"
+          LlmCostTracker::Providers::Azure::Hosts.openai?(host) ? "azure_openai" : "openai"
         end
 
         def minimum_version

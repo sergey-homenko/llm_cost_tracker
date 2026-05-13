@@ -2,7 +2,7 @@
 
 require_relative "base"
 require_relative "../billing/line_item"
-require_relative "../anthropic/tier_classification"
+require_relative "../providers/anthropic/tier_classification"
 
 module LlmCostTracker
   module Integrations
@@ -123,14 +123,15 @@ module LlmCostTracker
           service_tier = object_value(usage, :service_tier) ||
                          object_value(message, :service_tier) ||
                          request[:service_tier]
-          service_tier = nil if LlmCostTracker::Anthropic::TierClassification.standard_equivalent_tier?(service_tier)
+          tier = Providers::Anthropic::TierClassification
+          service_tier = nil if tier.standard_equivalent_tier?(service_tier)
 
           modes = [
             Pricing.normalize_mode(object_value(usage, :speed) || object_value(message, :speed) || request[:speed]),
             Pricing.normalize_mode(service_tier)
           ]
           geo = inference_geo(message: message, request: request, usage: usage).to_s.downcase
-          modes << "data_residency" if LlmCostTracker::Anthropic::TierClassification.data_residency_geo?(geo)
+          modes << "data_residency" if tier.data_residency_geo?(geo)
           modes = modes.compact.uniq
           modes.empty? ? nil : modes.join("_")
         end
