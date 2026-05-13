@@ -300,7 +300,7 @@
       <div class="lct-section-head">
         <div>
           <h2 class="lct-section-title">Unknown pricing by model</h2>
-          <p class="lct-section-copy">These models have token counts but no configured rates, so cost stays unknown.</p>
+          <p class="lct-section-copy">These models have token counts but no configured rates, so cost stays unknown. After the next price refresh or a <code class="lct-code">pricing_overrides</code> update, run <code class="lct-code">bin/rails llm_cost_tracker:backfill_unknown_pricing</code> to recompute these calls.</p>
         </div>
         <%= link_to "Calls", calls_path(current_query(sort: "unknown_pricing")), class: "lct-button lct-button-secondary" %>
       </div>

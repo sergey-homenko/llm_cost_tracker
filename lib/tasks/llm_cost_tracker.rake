@@ -48,6 +48,16 @@ namespace :llm_cost_tracker do
     puts LlmCostTracker::Report.generate(days: days)
   end
 
+  desc "Recompute total_cost for calls with unknown pricing using the current price registry. " \
+       "Use BATCH_SIZE=N to tune."
+  task backfill_unknown_pricing: :environment do
+    require_relative "../llm_cost_tracker/pricing/backfill"
+    batch_size = (ENV["BATCH_SIZE"] || LlmCostTracker::Pricing::Backfill::DEFAULT_BATCH_SIZE).to_i
+    result = LlmCostTracker::Pricing::Backfill.call(batch_size: batch_size)
+    puts "llm_cost_tracker: examined #{result.examined} calls, recomputed #{result.recomputed}, " \
+         "still unknown #{result.still_unknown}"
+  end
+
   desc "Delete llm_cost_tracker_calls older than DAYS (default: 90). Use BATCH_SIZE=N to tune."
   task prune: :environment do
     days = (ENV["DAYS"] || 90).to_i
