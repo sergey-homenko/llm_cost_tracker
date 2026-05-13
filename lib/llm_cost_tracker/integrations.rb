@@ -12,6 +12,7 @@ module LlmCostTracker
 
     INTEGRATION_CONSTANTS = { openai: :Openai, anthropic: :Anthropic, ruby_llm: :RubyLlm }.freeze
     DOUBLE_INSTRUMENTATION_OVERLAPS = %i[openai anthropic].freeze
+    private_constant :DOUBLE_INSTRUMENTATION_OVERLAPS
 
     module_function
 
