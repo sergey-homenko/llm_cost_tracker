@@ -24,7 +24,6 @@ require_relative "llm_cost_tracker/billing/cost_status"
 require_relative "llm_cost_tracker/event"
 require_relative "llm_cost_tracker/pricing"
 require_relative "llm_cost_tracker/usage_capture"
-require_relative "llm_cost_tracker/pricing/sync"
 require_relative "llm_cost_tracker/parsers"
 require_relative "llm_cost_tracker/middleware/faraday"
 require_relative "llm_cost_tracker/integrations"
@@ -33,14 +32,17 @@ require_relative "llm_cost_tracker/pricing/unknown"
 require_relative "llm_cost_tracker/ledger"
 require_relative "llm_cost_tracker/ingestion"
 require_relative "llm_cost_tracker/tracker"
-require_relative "llm_cost_tracker/retention"
-require_relative "llm_cost_tracker/report"
-require_relative "llm_cost_tracker/doctor"
-require_relative "llm_cost_tracker/doctor/capture_verifier"
 
 module LlmCostTracker
   autoload :Reconciliation, "llm_cost_tracker/reconciliation"
   autoload :ReconcileTasks, "llm_cost_tracker/reconcile_tasks"
+  autoload :Doctor,         "llm_cost_tracker/doctor"
+  autoload :Report,         "llm_cost_tracker/report"
+  autoload :Retention,      "llm_cost_tracker/retention"
+
+  module Pricing
+    autoload :Sync, "llm_cost_tracker/pricing/sync"
+  end
 
   @configuration = Configuration.new
 

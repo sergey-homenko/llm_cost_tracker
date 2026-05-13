@@ -14,6 +14,7 @@ require_relative "doctor/pricing_snapshot_drift_check"
 module LlmCostTracker
   class Doctor
     autoload :InvoiceReconciliationCheck, "llm_cost_tracker/doctor/invoice_reconciliation_check"
+    autoload :CaptureVerifier,            "llm_cost_tracker/doctor/capture_verifier"
 
     class << self
       def call

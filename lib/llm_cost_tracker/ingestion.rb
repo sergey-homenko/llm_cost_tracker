@@ -2,7 +2,6 @@
 
 require "securerandom"
 
-require_relative "doctor/check"
 require_relative "errors"
 require_relative "ledger"
 require_relative "ingestion/inline"
