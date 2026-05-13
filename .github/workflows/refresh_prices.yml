@@ -172,9 +172,9 @@ jobs:
               echo "**Parser:** [scripts/price_scrape/providers/${provider}.rb](${REPO_URL}/blob/main/scripts/price_scrape/providers/${provider}.rb)"
               echo "**Time:** $(date -u +"%Y-%m-%d %H:%M UTC")"
               echo
-              echo "Use OpenAI Codex or another coding agent to repair the parser. The agent should follow \`.github/parser-agent-instructions.md\`, refresh the fixture, update the provider parser/spec, run \`bin/check\`, and open a PR that closes this issue."
+              echo "Use a coding agent to repair the parser. The agent should follow \`.github/parser-agent-instructions.md\`, refresh the fixture, update the provider parser/spec, run \`bin/check\`, and open a PR that closes this issue."
               echo
-              echo "Suggested Codex prompt:"
+              echo "Suggested agent prompt:"
               echo
               echo '```'
               echo "Fix the ${provider} parser-broken issue in ${GITHUB_REPOSITORY}."
