@@ -2,6 +2,7 @@
 
 require_relative "../billing/line_item"
 require_relative "base"
+require_relative "../providers/gemini/model_families"
 
 module LlmCostTracker
   module Parsers
@@ -9,7 +10,6 @@ module LlmCostTracker
       HOSTS = %w[generativelanguage.googleapis.com].freeze
       TRACKED_PATH_PATTERN = %r{/models/[^/:]+:(?:generateContent|streamGenerateContent)\z}
       STREAM_PATH_PATTERN  = /:streamGenerateContent\z/
-      PER_QUERY_GROUNDING_MODEL_PATTERN = /\bgemini-(?:[3-9]|[1-9]\d)\b/i
 
       class << self
         def match?(url)
@@ -229,7 +229,7 @@ module LlmCostTracker
       end
 
       def per_query_billing?(model)
-        model.to_s.match?(PER_QUERY_GROUNDING_MODEL_PATTERN)
+        LlmCostTracker::Providers::Gemini::ModelFamilies.per_query_grounding?(model)
       end
     end
   end

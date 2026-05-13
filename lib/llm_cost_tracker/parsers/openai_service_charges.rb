@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../billing/line_item"
+require_relative "../providers/openai/model_families"
 
 module LlmCostTracker
   module Parsers
@@ -11,13 +12,6 @@ module LlmCostTracker
         "code_interpreter_call" => :container_session,
         "mcp_call" => :mcp_call
       }.freeze
-
-      REASONING_MODEL_PATTERNS = [
-        /\Agpt-5(\b|[\d.-])/i,
-        /\Ao\d+(\b|[\d.-])/i
-      ].freeze
-      NON_REASONING_GPT5_PATTERN = /\Agpt-5(?:\.\d+)?-chat\b/i
-      private_constant :NON_REASONING_GPT5_PATTERN
 
       module_function
 
@@ -96,9 +90,7 @@ module LlmCostTracker
         return false unless model
 
         name = model.to_s.split("/", 2).last
-        return false if NON_REASONING_GPT5_PATTERN.match?(name)
-
-        REASONING_MODEL_PATTERNS.any? { |pattern| pattern.match?(name) }
+        LlmCostTracker::Providers::Openai::ModelFamilies.reasoning?(name)
       end
 
       def line_item_details(item)

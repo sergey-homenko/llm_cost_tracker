@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 require_relative "openai_service_charges"
+require_relative "../providers/openai/hosts"
+require_relative "../providers/openai/model_families"
 
 module LlmCostTracker
   module Parsers
     module OpenaiUsage
       include OpenaiServiceCharges
-
-      OPENAI_DATA_RESIDENCY_HOST_PATTERN = /\A[a-z]{2,3}\.api\.openai\.com\z/
 
       class << self
         def combined_pricing_mode(host:, model:, service_tier:)
@@ -18,13 +18,8 @@ module LlmCostTracker
         end
 
         def regional_processing?(host:, model:)
-          host.to_s.downcase.match?(OPENAI_DATA_RESIDENCY_HOST_PATTERN) && data_residency_model?(model)
-        end
-
-        def data_residency_model?(model)
-          model.to_s.match?(
-            /\Agpt-5\.(?:4|5)(?:-(?:mini|nano|pro|codex(?:-mini|-max)?))?(?:-\d{4}-\d{2}-\d{2})?\z/
-          )
+          LlmCostTracker::Providers::Openai::Hosts.data_residency?(host) &&
+            LlmCostTracker::Providers::Openai::ModelFamilies.data_residency?(model)
         end
       end
 
@@ -137,9 +132,6 @@ module LlmCostTracker
         OpenaiUsage.combined_pricing_mode(host: parsed_uri(request_url)&.host, model: model, service_tier: service_tier)
       end
 
-      IMAGE_OUTPUT_MODEL_PATTERN = /\Agpt-image-/i
-      private_constant :IMAGE_OUTPUT_MODEL_PATTERN
-
       def token_usage(usage:, cache_read:, model: nil)
         audio_input = audio_input_tokens(usage)
         audio_output = audio_output_tokens(usage)
@@ -150,7 +142,7 @@ module LlmCostTracker
         image_output, regular_output_remainder = split_stream_image_output(
           raw_output: raw_output, image_output_details: image_output_details,
           text_output_details: text_output_details, audio_output: audio_output,
-          default_to_image: model.to_s.match?(IMAGE_OUTPUT_MODEL_PATTERN)
+          default_to_image: LlmCostTracker::Providers::Openai::ModelFamilies.image_output?(model)
         )
 
         TokenUsage.build(

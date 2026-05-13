@@ -4,6 +4,7 @@ require_relative "base"
 require_relative "../billing/line_item"
 require_relative "../parsers/openai_service_charges"
 require_relative "../providers/azure/hosts"
+require_relative "../providers/openai/model_families"
 
 module LlmCostTracker
   module Integrations
@@ -184,13 +185,10 @@ module LlmCostTracker
           )
         end
 
-        CHARACTER_BILLED_TTS_MODELS = /\Atts-1(-hd)?\z/
-        private_constant :CHARACTER_BILLED_TTS_MODELS
-
         def speech_line_items(request)
           input = request[:input]
           return [] unless input.is_a?(String)
-          return [] unless CHARACTER_BILLED_TTS_MODELS.match?(request[:model].to_s)
+          return [] unless LlmCostTracker::Providers::Openai::ModelFamilies.character_billed_tts?(request[:model])
 
           [LlmCostTracker::Billing::LineItem.build(
             component_key: :text_to_speech_character,
@@ -261,9 +259,6 @@ module LlmCostTracker
           { "type" => object_value(action, :type)&.to_s }
         end
 
-        IMAGE_OUTPUT_MODEL_PATTERN = /\Agpt-image-/i
-        private_constant :IMAGE_OUTPUT_MODEL_PATTERN
-
         def token_usage(usage:, input_tokens:, output_tokens:, cache_read:, model: nil)
           audio_input = audio_input_tokens(usage)
           audio_output = audio_output_tokens(usage)
@@ -275,7 +270,7 @@ module LlmCostTracker
             image_output_details: image_output_details,
             text_output_details: text_output_details,
             audio_output: audio_output,
-            default_to_image: model.to_s.match?(IMAGE_OUTPUT_MODEL_PATTERN)
+            default_to_image: LlmCostTracker::Providers::Openai::ModelFamilies.image_output?(model)
           )
 
           TokenUsage.build(

@@ -2,25 +2,13 @@
 
 require_relative "base"
 require_relative "openai_usage"
+require_relative "../providers/openai/hosts"
 
 module LlmCostTracker
   module Parsers
     class Openai < Base
       include OpenaiUsage
 
-      HOSTS = %w[
-        api.openai.com
-        us.api.openai.com
-        eu.api.openai.com
-        au.api.openai.com
-        ca.api.openai.com
-        jp.api.openai.com
-        in.api.openai.com
-        sg.api.openai.com
-        kr.api.openai.com
-        gb.api.openai.com
-        ae.api.openai.com
-      ].freeze
       TRACKED_PATHS = %w[
         /v1/chat/completions
         /v1/completions
@@ -37,7 +25,7 @@ module LlmCostTracker
 
       class << self
         def match?(url)
-          match_uri?(url, hosts: HOSTS, exact_paths: TRACKED_PATHS)
+          match_uri?(url, hosts: Providers::Openai::Hosts::API_HOSTS, exact_paths: TRACKED_PATHS)
         end
 
         def provider_names
