@@ -6,16 +6,74 @@ require "uri"
 
 module LlmCostTracker
   module Parsers
-    class Base
-      def parse(**)
-        raise NotImplementedError
+    module UrlMatchers
+      def match_uri?(url, hosts: nil, exact_paths: nil, path_includes: nil, path_suffixes: nil, path_pattern: nil)
+        uri_matches?(url) do |uri|
+          host_match = hosts.nil? || hosts.include?(uri.host.to_s.downcase)
+          path_match = path_matches?(
+            uri,
+            exact_paths: exact_paths,
+            path_includes: path_includes,
+            path_suffixes: path_suffixes,
+            path_pattern: path_pattern
+          )
+          extra_match = block_given? ? yield(uri) : true
+
+          next false unless host_match && path_match
+          next false unless extra_match
+
+          true
+        end
       end
 
-      def provider_names
-        []
+      def uri_matches?(url)
+        uri = parsed_uri(url)
+        uri ? yield(uri) : false
+      end
+
+      def parsed_uri(url)
+        URI.parse(url.to_s)
+      rescue URI::InvalidURIError
+        nil
+      end
+
+      def path_matches?(uri, exact_paths: nil, path_includes: nil, path_suffixes: nil, path_pattern: nil)
+        path = uri.path.to_s
+        matches = true
+
+        matches &&= exact_paths.include?(path) if exact_paths
+        matches &&= Array(path_includes).all? { |fragment| path.include?(fragment) } if path_includes
+        matches &&= path.match?(path_pattern) if path_pattern
+
+        matches &&= path_suffixes.any? { |suffix| path == suffix || path.end_with?(suffix) } if path_suffixes
+
+        matches
+      end
+    end
+
+    class Base
+      extend UrlMatchers
+      include UrlMatchers
+
+      class << self
+        def match?(_url)
+          raise NotImplementedError
+        end
+
+        def provider_names
+          []
+        end
       end
 
       def match?(url)
+        self.class.match?(url)
+      end
+
+      def provider_names
+        self.class.provider_names
+      end
+
+      def parse(**)
         raise NotImplementedError
       end
 
@@ -45,49 +103,6 @@ module LlmCostTracker
       end
 
       private
-
-      def uri_matches?(url)
-        uri = parsed_uri(url)
-        uri ? yield(uri) : false
-      end
-
-      def match_uri?(url, hosts: nil, exact_paths: nil, path_includes: nil, path_suffixes: nil, path_pattern: nil)
-        uri_matches?(url) do |uri|
-          host_match = hosts.nil? || hosts.include?(uri.host.to_s.downcase)
-          path_match = path_matches?(
-            uri,
-            exact_paths: exact_paths,
-            path_includes: path_includes,
-            path_suffixes: path_suffixes,
-            path_pattern: path_pattern
-          )
-          extra_match = block_given? ? yield(uri) : true
-
-          next false unless host_match && path_match
-          next false unless extra_match
-
-          true
-        end
-      end
-
-      def parsed_uri(url)
-        URI.parse(url.to_s)
-      rescue URI::InvalidURIError
-        nil
-      end
-
-      def path_matches?(uri, exact_paths: nil, path_includes: nil, path_suffixes: nil, path_pattern: nil)
-        path = uri.path.to_s
-        matches = true
-
-        matches &&= exact_paths.include?(path) if exact_paths
-        matches &&= Array(path_includes).all? { |fragment| path.include?(fragment) } if path_includes
-        matches &&= path.match?(path_pattern) if path_pattern
-
-        matches &&= path_suffixes.any? { |suffix| path == suffix || path.end_with?(suffix) } if path_suffixes
-
-        matches
-      end
 
       def each_event_data(events, reverse: false)
         enumerator = reverse ? events.reverse_each : events.each

@@ -14,14 +14,16 @@ module LlmCostTracker
         (chat/completions|completions|embeddings|audio/transcriptions|audio/translations|images/generations)\z
       }x
 
-      def match?(url)
-        uri_matches?(url) do |uri|
-          uri.host.to_s.downcase.match?(HOST_PATTERN) && uri.path.to_s.match?(PATH_PATTERN)
+      class << self
+        def match?(url)
+          uri_matches?(url) do |uri|
+            uri.host.to_s.downcase.match?(HOST_PATTERN) && uri.path.to_s.match?(PATH_PATTERN)
+          end
         end
-      end
 
-      def provider_names
-        %w[azure_openai]
+        def provider_names
+          %w[azure_openai]
+        end
       end
 
       def parse(request_url:, request_body:, response_status:, response_body:, **)

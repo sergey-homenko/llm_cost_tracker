@@ -35,12 +35,14 @@ module LlmCostTracker
         /v1/moderations
       ].freeze
 
-      def match?(url)
-        match_uri?(url, hosts: HOSTS, exact_paths: TRACKED_PATHS)
-      end
+      class << self
+        def match?(url)
+          match_uri?(url, hosts: HOSTS, exact_paths: TRACKED_PATHS)
+        end
 
-      def provider_names
-        %w[openai]
+        def provider_names
+          %w[openai]
+        end
       end
 
       def parse(request_url:, request_body:, response_status:, response_body:, **)

@@ -7,12 +7,14 @@ module LlmCostTracker
     class Anthropic < Base
       HOSTS = %w[api.anthropic.com].freeze
 
-      def match?(url)
-        match_uri?(url, hosts: HOSTS, path_includes: "/v1/messages")
-      end
+      class << self
+        def match?(url)
+          match_uri?(url, hosts: HOSTS, path_includes: "/v1/messages")
+        end
 
-      def provider_names
-        %w[anthropic]
+        def provider_names
+          %w[anthropic]
+        end
       end
 
       def parse(request_body:, response_status:, response_body:, **)

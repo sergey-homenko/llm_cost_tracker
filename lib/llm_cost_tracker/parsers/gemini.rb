@@ -11,12 +11,14 @@ module LlmCostTracker
       STREAM_PATH_PATTERN  = /:streamGenerateContent\z/
       PER_QUERY_GROUNDING_MODEL_PATTERN = /\bgemini-(?:[3-9]|[1-9]\d)\b/i
 
-      def match?(url)
-        match_uri?(url, hosts: HOSTS, path_pattern: TRACKED_PATH_PATTERN)
-      end
+      class << self
+        def match?(url)
+          match_uri?(url, hosts: HOSTS, path_pattern: TRACKED_PATH_PATTERN)
+        end
 
-      def provider_names
-        %w[gemini]
+        def provider_names
+          %w[gemini]
+        end
       end
 
       def streaming_request?(request_url, request_body)
