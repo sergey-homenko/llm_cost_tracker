@@ -47,10 +47,6 @@ module LlmCostTracker
         private_constant :REQUIRED_INDEXES
 
         class << self
-          def current_schema?
-            current_schema_errors.empty?
-          end
-
           def current_schema_errors
             schema_capabilities.fetch(:current_schema_errors)
           end

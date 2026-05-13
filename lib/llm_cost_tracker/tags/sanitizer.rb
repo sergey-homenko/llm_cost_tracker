@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/string/inflections"
-require "json"
 
 module LlmCostTracker
   module Tags

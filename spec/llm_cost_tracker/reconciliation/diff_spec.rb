@@ -467,12 +467,13 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.unmatched_provider_rows).to be_empty
     end
 
-    it "is empty when no provider rows and no priced calls exist for the window" do
+    it "is aligned when no provider rows and no priced calls exist for the window" do
       result = LlmCostTracker::Reconciliation.diff(
         source: :openai, period_start: period_start, period_end: period_end
       )
 
-      expect(result).to be_empty
+      expect(result.provider_total).to eq(0)
+      expect(result.local_total).to eq(0)
       expect(result).to be_aligned
     end
 

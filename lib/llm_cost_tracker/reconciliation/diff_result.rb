@@ -39,10 +39,6 @@ module LlmCostTracker
 
         delta_percent.abs <= threshold_percent
       end
-
-      def empty?
-        provider_total.zero? && local_total.zero?
-      end
     end
   end
 end

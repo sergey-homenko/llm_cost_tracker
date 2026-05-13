@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "../schema/adapter"
 require_relative "encoding"
 
 module LlmCostTracker

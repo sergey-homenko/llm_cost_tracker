@@ -9,10 +9,6 @@ module LlmCostTracker
         log(:debug, message)
       end
 
-      def info(message)
-        log(:info, message)
-      end
-
       def warn(message)
         log(:warn, message)
       end
