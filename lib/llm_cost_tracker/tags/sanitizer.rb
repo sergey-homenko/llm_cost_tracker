@@ -24,12 +24,16 @@ module LlmCostTracker
       class << self
         def call(tags, config: LlmCostTracker.configuration)
           tags = (tags || {}).to_h
-          redacted = Array(config.redacted_tag_keys).map { |key| normalized_key(key) }
+          redacted = config.normalized_redacted_tag_keys
           limit = [config.max_tag_value_bytesize.to_i, 0].max
           max_count = [config.max_tag_count.to_i, 0].max
           tags.to_a.last(max_count).each_with_object({}) do |(key, value), sanitized|
             sanitized[key] = sanitized_value(key, value, redacted, limit)
           end
+        end
+
+        def normalized_key(key)
+          key.to_s.underscore.gsub(/[^a-z0-9]+/, "_").delete_prefix("_").delete_suffix("_")
         end
 
         private
@@ -90,10 +94,6 @@ module LlmCostTracker
 
           normalized = normalized_key(key)
           redacted.any? { |candidate| redacted_key_component?(normalized, candidate) }
-        end
-
-        def normalized_key(key)
-          key.to_s.underscore.gsub(/[^a-z0-9]+/, "_").delete_prefix("_").delete_suffix("_")
         end
 
         def redacted_key_component?(key, candidate)

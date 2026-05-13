@@ -14,7 +14,7 @@ module LlmCostTracker
         private
 
         def persist(event)
-          Ledger::Store.insert_many([event])
+          Ledger::Store.insert_many([event], skip_existence_check: true)
         end
       end
     end

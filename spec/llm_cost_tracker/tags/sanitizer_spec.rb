@@ -3,14 +3,17 @@
 require "spec_helper"
 
 RSpec.describe LlmCostTracker::Tags::Sanitizer do
-  let(:config) do
+  def build_config(max_tag_count:, max_tag_value_bytesize:, redacted_tag_keys:)
     instance_double(
       LlmCostTracker::Configuration,
-      max_tag_count: 2,
-      max_tag_value_bytesize: 4,
-      redacted_tag_keys: %w[api_key access_token]
+      max_tag_count: max_tag_count,
+      max_tag_value_bytesize: max_tag_value_bytesize,
+      redacted_tag_keys: redacted_tag_keys,
+      normalized_redacted_tag_keys: redacted_tag_keys.map { |key| described_class.normalized_key(key) }
     )
   end
+
+  let(:config) { build_config(max_tag_count: 2, max_tag_value_bytesize: 4, redacted_tag_keys: %w[api_key access_token]) }
 
   it "keeps the most recently added tags when the count cap is exceeded" do
     tags = described_class.call({ first: "1", second: "2", third: "3" }, config: config)
@@ -19,12 +22,7 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
   end
 
   it "redacts a secret-shaped value before truncation so a small max_tag_value_bytesize cannot leave the leading bytes of the secret in the tag" do
-    tiny_config = instance_double(
-      LlmCostTracker::Configuration,
-      max_tag_count: 10,
-      max_tag_value_bytesize: 6,
-      redacted_tag_keys: []
-    )
+    tiny_config = build_config(max_tag_count: 10, max_tag_value_bytesize: 6, redacted_tag_keys: [])
 
     tags = described_class.call({ feature: "sk-proj-A1B2C3D4E5F6G7H8I9J0" }, config: tiny_config)
 
@@ -47,14 +45,7 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
   end
 
   context "with a roomy byte budget" do
-    let(:config) do
-      instance_double(
-        LlmCostTracker::Configuration,
-        max_tag_count: 10,
-        max_tag_value_bytesize: 4096,
-        redacted_tag_keys: %w[api_key]
-      )
-    end
+    let(:config) { build_config(max_tag_count: 10, max_tag_value_bytesize: 4096, redacted_tag_keys: %w[api_key]) }
 
     it "redacts OpenAI-shaped secrets regardless of the tag key" do
       tags = described_class.call({ feature: "sk-proj-A1B2C3D4E5F6G7H8I9J0" }, config: config)
@@ -141,12 +132,7 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
     end
 
     it "keeps the redaction marker intact inside nested values even when max_tag_value_bytesize is smaller than '[REDACTED]'" do
-      tiny_config = instance_double(
-        LlmCostTracker::Configuration,
-        max_tag_count: 10,
-        max_tag_value_bytesize: 5,
-        redacted_tag_keys: []
-      )
+      tiny_config = build_config(max_tag_count: 10, max_tag_value_bytesize: 5, redacted_tag_keys: [])
       tags = described_class.call(
         { trail: ["sk-proj-A1B2C3D4E5F6G7H8I9J0"] },
         config: tiny_config

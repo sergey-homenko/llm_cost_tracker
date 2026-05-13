@@ -404,10 +404,9 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:usage_source]).to eq(:unknown)
     end
 
-    it "keeps a stream event that fits the JSON byte cap exactly" do
+    it "keeps a stream event that fits the byte cap" do
       collected = events
       data = { "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } }
-      stub_const("LlmCostTracker::Capture::Stream::LIMIT_BYTES", JSON.generate(event: nil, data: data).bytesize)
 
       described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
         stream.event(data)

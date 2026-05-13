@@ -11,11 +11,11 @@ module LlmCostTracker
   module Ledger
     class Store
       class << self
-        def insert_many(events)
+        def insert_many(events, skip_existence_check: false)
           events = Array(events)
           return [] if events.empty?
 
-          insertable = insertable_events(events)
+          insertable = skip_existence_check ? events : insertable_events(events)
 
           if insertable.any?
             LlmCostTracker::Call.transaction do

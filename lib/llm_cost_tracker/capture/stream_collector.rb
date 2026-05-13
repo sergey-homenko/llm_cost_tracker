@@ -243,14 +243,14 @@ module LlmCostTracker
 
       def capture_event(data, type:)
         event = { event: type, data: strip_heavy_payload(data) }
-        size = JSON.generate(event).bytesize
+        size = approximate_bytesize(event)
         if @captured_bytes + size <= Capture::Stream::LIMIT_BYTES
-          @events << event.deep_dup
+          @events << event
           @captured_bytes += size
         else
           @overflowed = true
         end
-      rescue JSON::JSONError, TypeError, SystemStackError
+      rescue TypeError, SystemStackError
         @overflowed = true
       end
 
@@ -268,6 +268,19 @@ module LlmCostTracker
           value.bytesize > HEAVY_STRING_BYTES ? "" : value
         else
           value
+        end
+      end
+
+      def approximate_bytesize(value)
+        case value
+        when Hash
+          value.sum { |key, nested| approximate_bytesize(key) + approximate_bytesize(nested) + 4 }
+        when Array
+          value.sum { |nested| approximate_bytesize(nested) + 2 }
+        when Numeric, true, false, nil
+          8
+        else
+          value.to_s.bytesize + 2
         end
       end
     end
