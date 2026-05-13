@@ -18,7 +18,7 @@ module LlmCostTracker
       end
 
       def call(request_env)
-        return @app.call(request_env) unless LlmCostTracker.configuration.enabled
+        return @app.call(request_env) unless enabled?
 
         request_url  = request_env.url.to_s
         request_body = read_body(request_env.body)
@@ -39,6 +39,18 @@ module LlmCostTracker
       end
 
       private
+
+      def enabled?
+        return @enabled if defined?(@enabled)
+
+        @enabled = LlmCostTracker.configuration.enabled
+      end
+
+      def auto_enable_stream_usage?
+        return @auto_enable_stream_usage if defined?(@auto_enable_stream_usage)
+
+        @auto_enable_stream_usage = LlmCostTracker.configuration.auto_enable_stream_usage
+      end
 
       def invoke_app_with_capture(request_env:, parser:, request_url:, request_body:, streaming:,
                                   stream_buffer:, context_tags:, metadata:, started_at:)
@@ -65,7 +77,7 @@ module LlmCostTracker
 
       def inject_stream_usage_flag(request_env, parser, request_url)
         body_string = read_body(request_env.body)
-        return body_string unless LlmCostTracker.configuration.auto_enable_stream_usage
+        return body_string unless auto_enable_stream_usage?
         return body_string unless parser&.auto_enable_stream_usage?(request_url)
 
         body = JSON.parse(body_string)
