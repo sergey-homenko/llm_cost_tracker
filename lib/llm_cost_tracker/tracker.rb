@@ -102,7 +102,7 @@ module LlmCostTracker
           token_usage: capture.token_usage,
           pricing_mode: pricing_mode,
           cost: cost,
-          tags: LlmCostTracker::Tags::Sanitizer.call(context_tags.merge(metadata.to_h)).freeze,
+          tags: build_tags(context_tags: context_tags, metadata: metadata),
           latency_ms: finite_latency_ms(latency_ms),
           stream: capture.stream,
           usage_source: capture.usage_source,
@@ -116,6 +116,11 @@ module LlmCostTracker
           pricing_snapshot: pricing_snapshot,
           line_items: line_items
         )
+      end
+
+      def build_tags(context_tags:, metadata:)
+        sanitized_metadata = LlmCostTracker::Tags::Sanitizer.call(metadata.to_h)
+        LlmCostTracker::Tags::Sanitizer.cap(context_tags.merge(sanitized_metadata)).freeze
       end
 
       def finite_latency_ms(latency_ms)

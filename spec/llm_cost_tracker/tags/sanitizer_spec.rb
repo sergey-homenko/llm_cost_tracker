@@ -160,4 +160,18 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
       expect(tags[:note]).to eq("[REDACTED]")
     end
   end
+
+  describe ".cap" do
+    let(:config) { build_config(max_tag_count: 3, max_tag_value_bytesize: 4096, redacted_tag_keys: []) }
+
+    it "returns the input unchanged when its size is within max_tag_count" do
+      tags = { a: 1, b: 2 }
+      expect(described_class.cap(tags, config: config)).to equal(tags)
+    end
+
+    it "keeps the last max_tag_count entries when the union overflows" do
+      result = described_class.cap({ a: 1, b: 2, c: 3, d: 4, e: 5 }, config: config)
+      expect(result).to eq(c: 3, d: 4, e: 5)
+    end
+  end
 end

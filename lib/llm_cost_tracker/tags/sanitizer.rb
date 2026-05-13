@@ -31,6 +31,14 @@ module LlmCostTracker
           end
         end
 
+        def cap(tags, config: LlmCostTracker.configuration)
+          tags = (tags || {}).to_h
+          max_count = [config.max_tag_count.to_i, 0].max
+          return tags if tags.size <= max_count
+
+          tags.to_a.last(max_count).to_h
+        end
+
         def normalized_key(key)
           key.to_s.underscore.gsub(/[^a-z0-9]+/, "_").delete_prefix("_").delete_suffix("_")
         end
