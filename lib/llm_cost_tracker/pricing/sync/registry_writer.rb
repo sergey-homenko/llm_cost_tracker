@@ -13,7 +13,7 @@ module LlmCostTracker
 
         def call(path:, registry:)
           FileUtils.mkdir_p(File.dirname(path))
-          merged = merge_with_existing(path: path, registry: registry)
+          merged = canonicalize(merge_with_existing(path: path, registry: registry))
           payload = yaml_file?(path) ? YAML.dump(merged) : "#{JSON.pretty_generate(merged)}\n"
           temp_path = "#{path}.tmp-#{Process.pid}-#{Thread.current.object_id}"
           File.write(temp_path, payload)
@@ -23,6 +23,17 @@ module LlmCostTracker
         end
 
         private
+
+        def canonicalize(value)
+          case value
+          when Hash
+            value.sort_by { |key, _| key.to_s }.to_h { |key, nested| [key, canonicalize(nested)] }
+          when Array
+            value.map { |element| canonicalize(element) }
+          else
+            value
+          end
+        end
 
         def merge_with_existing(path:, registry:)
           existing = read_existing(path)
