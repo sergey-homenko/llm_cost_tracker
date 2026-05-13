@@ -101,3 +101,13 @@ Project coverage defaults to the Codecov target. Patch coverage defaults to 95% 
 For the closest match to the Codecov upload job, run `BUNDLE_GEMFILE=gemfiles/rails_8_1.gemfile bin/check`.
 
 Docs-only changes do not require the full suite, but any code, generator, migration, parser, pricing, dashboard, or storage change does.
+
+## Known Limitations
+
+### Inbox batch lock timeout
+
+`Ingestion::Batch` claims rows under a 30-second row-level lock without a heartbeat. If `persist` exceeds 30s, another worker can re-claim the same rows and try to insert them again; the `event_id` unique index on `llm_cost_tracker_calls` raises a duplicate-key error, the first worker's transaction rolls back, and the rows stay claimed (with bumped `attempts`) for retry. Default `BATCH_SIZE = 100` finishes well under 30s on any healthy database. Raising the batch size beyond production-measured persist latency invites re-claim contention — measure first.
+
+### Reconciliation diff loads line items into Ruby
+
+`Reconciliation::Diff` loads scoped line items into Ruby to group unmatched local calls by attribution dimension. Memory grows linearly with the number of matching line items in the window. For installs that bill at the scale where a single reconciliation window covers tens of millions of line items, this is an OOM risk. Diff is `config.reconciliation_enabled = true` experimental and runs on schedule, not per-request — typical installs stay well below the boundary. Narrow the window via `period_start` / `period_end` or smaller `scope:` filters if memory becomes a concern.
