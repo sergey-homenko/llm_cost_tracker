@@ -11,6 +11,7 @@ module LlmCostTracker
       class Anthropic
         SOURCE_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
         MIN_MODELS_EXPECTED = 10
+        ANCHOR_MODELS = %w[claude-opus-4-7 claude-sonnet-4-6].freeze
         MAX_PRICE_PER_MTOK = 1000.0
         SERVICE_CHARGE_PATTERNS = {
           "web_search_request" => /Web search is available.*?\$\s*(\d+(?:\.\d+)?)\s+per 1,000 searches/i,
@@ -202,6 +203,7 @@ module LlmCostTracker
             models,
             minimum: MIN_MODELS_EXPECTED,
             maximum: MAX_PRICE_PER_MTOK,
+            anchors: ANCHOR_MODELS,
             error_class: Error
           )
         end

@@ -17,6 +17,7 @@ module LlmCostTracker
         SOURCE_URL = "https://developers.openai.com/api/docs/pricing"
         MIN_MODELS_EXPECTED = 25
         MAX_PRICE_PER_MTOK = 1000.0
+        ANCHOR_MODELS = %w[gpt-5.5 gpt-5.4-mini].freeze
         STANDARD_FIELDS = { input: "input", cache_read_input: "cache_read_input", output: "output" }.freeze
         BATCH_FIELDS = {
           input: "batch_input", cache_read_input: "batch_cache_read_input", output: "batch_output"
@@ -55,6 +56,7 @@ module LlmCostTracker
             models,
             minimum: MIN_MODELS_EXPECTED,
             maximum: MAX_PRICE_PER_MTOK,
+            anchors: ANCHOR_MODELS,
             error_class: Error
           )
           Result.new(

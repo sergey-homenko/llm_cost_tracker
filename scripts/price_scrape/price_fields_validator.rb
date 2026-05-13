@@ -4,8 +4,11 @@ module LlmCostTracker
   module Pricing::Scrape
     module PriceFieldsValidator
       class << self
-        def call(models, minimum:, maximum:, error_class:)
+        def call(models, minimum:, maximum:, error_class:, anchors: [])
           raise error_class, "expected at least #{minimum} models, parsed #{models.size}" if models.size < minimum
+
+          missing_anchors = anchors - models.keys
+          raise error_class, "anchor models missing from scrape: #{missing_anchors.join(', ')}" if missing_anchors.any?
 
           models.each do |model_id, fields|
             fields.each do |field, value|

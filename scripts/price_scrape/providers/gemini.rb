@@ -12,6 +12,7 @@ module LlmCostTracker
         SOURCE_URL = "https://ai.google.dev/gemini-api/docs/pricing"
         MIN_MODELS_EXPECTED = 5
         MAX_PRICE_PER_MTOK = 1000.0
+        ANCHOR_MODELS = %w[gemini-2.5-pro gemini-2.5-flash].freeze
 
         Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
 
@@ -24,6 +25,7 @@ module LlmCostTracker
             models,
             minimum: MIN_MODELS_EXPECTED,
             maximum: MAX_PRICE_PER_MTOK,
+            anchors: ANCHOR_MODELS,
             error_class: Error
           )
           Result.new(

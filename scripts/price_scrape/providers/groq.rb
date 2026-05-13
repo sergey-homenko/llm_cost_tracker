@@ -15,6 +15,7 @@ module LlmCostTracker
         SOURCE_URLS = [SOURCE_URL, PROMPT_CACHING_SOURCE_URL, FLEX_PROCESSING_SOURCE_URL].freeze
         MIN_MODELS_EXPECTED = 4
         MAX_PRICE_PER_MTOK = 1000.0
+        ANCHOR_MODELS = %w[llama-3.1-8b-instant openai/gpt-oss-20b].freeze
 
         Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
 
@@ -35,6 +36,7 @@ module LlmCostTracker
             models,
             minimum: MIN_MODELS_EXPECTED,
             maximum: MAX_PRICE_PER_MTOK,
+            anchors: ANCHOR_MODELS,
             error_class: Error
           )
           Result.new(
