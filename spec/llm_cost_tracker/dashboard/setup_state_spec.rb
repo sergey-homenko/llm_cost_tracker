@@ -2,9 +2,9 @@
 
 require "spec_helper"
 
-require_relative "../dummy/config/environment"
+require_relative "../../dummy/config/environment"
 
-RSpec.describe LlmCostTracker::DashboardSetupState do
+RSpec.describe LlmCostTracker::Dashboard::SetupState do
   include_context "with mounted llm cost tracker engine"
 
   describe ".current" do

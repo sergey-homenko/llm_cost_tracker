@@ -3,7 +3,6 @@
 require "rails"
 require_relative "../llm_cost_tracker"
 require_relative "assets"
-require_relative "dashboard_setup_state"
 require "rack/files"
 
 module LlmCostTracker
@@ -15,7 +14,7 @@ module LlmCostTracker
     end
 
     initializer "llm_cost_tracker.dashboard_setup_state" do |app|
-      app.reloader.to_prepare { LlmCostTracker::DashboardSetupState.reset! }
+      app.reloader.to_prepare { LlmCostTracker::Dashboard::SetupState.reset! }
     end
   end
 end

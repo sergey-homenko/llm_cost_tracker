@@ -22,7 +22,7 @@ module LlmCostTracker
     private
 
     def ensure_current_schema
-      drift = LlmCostTracker::DashboardSetupState.current
+      drift = LlmCostTracker::Dashboard::SetupState.current
       return unless drift
 
       @setup_message = drift.message
