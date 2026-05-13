@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require_relative "../anthropic/tier_classification"
 
 module LlmCostTracker
   module Integrations
@@ -185,14 +186,13 @@ module LlmCostTracker
           object_value(response, :id, :provider_response_id) || object_dig(response, :raw, :id)
         end
 
-        ANTHROPIC_STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only priority].freeze
-        private_constant :ANTHROPIC_STANDARD_EQUIVALENT_SERVICE_TIERS
-
         def pricing_mode(provider:, response:)
           raw = object_value(response, :pricing_mode, :service_tier) ||
                 object_dig(response, :raw, :pricing_mode) ||
                 object_dig(response, :raw, :service_tier)
-          return nil if provider == "anthropic" && ANTHROPIC_STANDARD_EQUIVALENT_SERVICE_TIERS.include?(raw.to_s)
+          if provider == "anthropic" && LlmCostTracker::Anthropic::TierClassification.standard_equivalent_tier?(raw)
+            return nil
+          end
 
           raw
         end

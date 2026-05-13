@@ -19,7 +19,7 @@ module LlmCostTracker
 
     STANDARD_MODE_VALUES = %i[auto default standard standard_only].freeze
     RATE_DENOMINATOR_TOKENS = 1_000_000
-    private_constant :STANDARD_MODE_VALUES, :RATE_DENOMINATOR_TOKENS
+    private_constant :RATE_DENOMINATOR_TOKENS
 
     class << self
       def normalize_mode(value)

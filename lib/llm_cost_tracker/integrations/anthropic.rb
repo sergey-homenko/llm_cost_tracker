@@ -2,6 +2,7 @@
 
 require_relative "base"
 require_relative "../billing/line_item"
+require_relative "../anthropic/tier_classification"
 
 module LlmCostTracker
   module Integrations
@@ -118,23 +119,18 @@ module LlmCostTracker
           )
         end
 
-        DATA_RESIDENCY_GEOS = %w[us].freeze
-        # Anthropic Priority Tier is committed throughput (tokens/min capacity), not a per-token
-        # surcharge. Treat it as standard pricing so cost_status doesn't fall to :unknown.
-        STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only priority].freeze
-
         def pricing_mode(message:, request:, usage:)
           service_tier = object_value(usage, :service_tier) ||
                          object_value(message, :service_tier) ||
                          request[:service_tier]
-          service_tier = nil if STANDARD_EQUIVALENT_SERVICE_TIERS.include?(service_tier.to_s)
+          service_tier = nil if LlmCostTracker::Anthropic::TierClassification.standard_equivalent_tier?(service_tier)
 
           modes = [
             Pricing.normalize_mode(object_value(usage, :speed) || object_value(message, :speed) || request[:speed]),
             Pricing.normalize_mode(service_tier)
           ]
           geo = inference_geo(message: message, request: request, usage: usage).to_s.downcase
-          modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(geo)
+          modes << "data_residency" if LlmCostTracker::Anthropic::TierClassification.data_residency_geo?(geo)
           modes = modes.compact.uniq
           modes.empty? ? nil : modes.join("_")
         end

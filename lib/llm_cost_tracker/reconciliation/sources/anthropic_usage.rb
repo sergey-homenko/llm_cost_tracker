@@ -5,6 +5,7 @@ require "json"
 require "time"
 
 require_relative "fingerprint"
+require_relative "../../anthropic/tier_classification"
 
 module LlmCostTracker
   module Reconciliation
@@ -18,8 +19,6 @@ module LlmCostTracker
         ROW_TYPE_COST = "cost"
         AUTHORITY_COST_API = "cost_api"
         DEFAULT_METER = "tokens"
-        DATA_RESIDENCY_GEOS = %w[us].freeze
-        private_constant :DATA_RESIDENCY_GEOS
 
         module_function
 
@@ -109,7 +108,9 @@ module LlmCostTracker
         def pricing_mode_for(result)
           modes = []
           modes << "batch" if result[:service_tier].to_s.downcase == "batch"
-          modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(result[:inference_geo].to_s.downcase)
+          if LlmCostTracker::Anthropic::TierClassification.data_residency_geo?(result[:inference_geo])
+            modes << "data_residency"
+          end
           modes.empty? ? nil : modes.uniq.join("_")
         end
 

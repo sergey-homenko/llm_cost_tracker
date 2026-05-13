@@ -144,8 +144,7 @@ module LlmCostTracker
       end
 
       HOST_DERIVED_MODE_TOKENS = %i[data_residency].freeze
-      STANDARD_LIKE_MODE_TOKENS = %i[standard standard_only auto default].freeze
-      private_constant :HOST_DERIVED_MODE_TOKENS, :STANDARD_LIKE_MODE_TOKENS
+      private_constant :HOST_DERIVED_MODE_TOKENS
 
       def pricing_mode_for(capture:, snapshot:)
         merge_pricing_modes(capture.pricing_mode, snapshot[:pricing_mode])
@@ -154,7 +153,7 @@ module LlmCostTracker
       def merge_pricing_modes(provider_mode, request_mode)
         return Pricing.normalize_mode(request_mode) if provider_mode.to_s.strip.empty?
 
-        provider_tokens = Pricing::Mode.tokenize(provider_mode) - STANDARD_LIKE_MODE_TOKENS
+        provider_tokens = Pricing::Mode.tokenize(provider_mode) - Pricing::STANDARD_MODE_VALUES
         request_host_tokens = Pricing::Mode.tokenize(request_mode || "") & HOST_DERIVED_MODE_TOKENS
         combined = provider_tokens | request_host_tokens
         return nil if combined.empty?

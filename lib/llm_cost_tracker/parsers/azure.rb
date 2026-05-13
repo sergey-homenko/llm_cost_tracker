@@ -2,13 +2,13 @@
 
 require_relative "base"
 require_relative "openai_usage"
+require_relative "../azure/hosts"
 
 module LlmCostTracker
   module Parsers
     class Azure < Base
       include OpenaiUsage
 
-      HOST_PATTERN = /\A[a-z0-9][a-z0-9-]*\.openai\.azure\.com\z/i
       PATH_PATTERN = %r{
         \A/openai/deployments/[^/]+/
         (chat/completions|completions|embeddings|audio/transcriptions|audio/translations|images/generations)\z
@@ -17,7 +17,7 @@ module LlmCostTracker
       class << self
         def match?(url)
           uri_matches?(url) do |uri|
-            uri.host.to_s.downcase.match?(HOST_PATTERN) && uri.path.to_s.match?(PATH_PATTERN)
+            LlmCostTracker::Azure::Hosts.openai?(uri.host) && uri.path.to_s.match?(PATH_PATTERN)
           end
         end
 

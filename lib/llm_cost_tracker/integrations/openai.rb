@@ -3,6 +3,7 @@
 require_relative "base"
 require_relative "../billing/line_item"
 require_relative "../parsers/openai_service_charges"
+require_relative "../azure/hosts"
 
 module LlmCostTracker
   module Integrations
@@ -40,10 +41,8 @@ module LlmCostTracker
           nil
         end
 
-        AZURE_HOST_PATTERN = /\A[a-z0-9][a-z0-9-]*\.openai\.azure\.com\z/i
-
         def provider_for_host(host)
-          host.to_s.match?(AZURE_HOST_PATTERN) ? "azure_openai" : "openai"
+          LlmCostTracker::Azure::Hosts.openai?(host) ? "azure_openai" : "openai"
         end
 
         def minimum_version

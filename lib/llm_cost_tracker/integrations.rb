@@ -2,18 +2,15 @@
 
 require_relative "errors"
 require_relative "logging"
-require_relative "integrations/openai"
-require_relative "integrations/anthropic"
-require_relative "integrations/ruby_llm"
 
 module LlmCostTracker
   module Integrations
-    AVAILABLE = {
-      openai: Openai,
-      anthropic: Anthropic,
-      ruby_llm: RubyLlm
-    }.freeze
+    autoload :Base, "llm_cost_tracker/integrations/base"
+    autoload :Openai, "llm_cost_tracker/integrations/openai"
+    autoload :Anthropic, "llm_cost_tracker/integrations/anthropic"
+    autoload :RubyLlm, "llm_cost_tracker/integrations/ruby_llm"
 
+    INTEGRATION_CONSTANTS = { openai: :Openai, anthropic: :Anthropic, ruby_llm: :RubyLlm }.freeze
     DOUBLE_INSTRUMENTATION_OVERLAPS = %i[openai anthropic].freeze
 
     module_function
@@ -48,14 +45,17 @@ module LlmCostTracker
     end
 
     def fetch(name)
-      AVAILABLE.fetch(name) do
-        message = "Unknown integration: #{name.inspect}. Use one of: #{names.join(', ')}"
-        raise LlmCostTracker::Error, message
+      const_name = INTEGRATION_CONSTANTS[name.to_sym]
+      unless const_name
+        raise LlmCostTracker::Error,
+              "Unknown integration: #{name.inspect}. Use one of: #{names.join(', ')}"
       end
+
+      const_get(const_name)
     end
 
     def names
-      AVAILABLE.keys
+      INTEGRATION_CONSTANTS.keys
     end
   end
 end

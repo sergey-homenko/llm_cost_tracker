@@ -102,17 +102,6 @@ module LlmCostTracker
             key.end_with?("_#{candidate}") ||
             key.include?("_#{candidate}_")
         end
-
-        def value_string(value)
-          case value
-          when Hash, Array
-            JSON.generate(value)
-          else
-            value.to_s
-          end
-        rescue JSON::GeneratorError, TypeError
-          value.to_s
-        end
       end
     end
   end

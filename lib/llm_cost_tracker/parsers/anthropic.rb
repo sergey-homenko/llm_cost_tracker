@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require_relative "../anthropic/tier_classification"
 
 module LlmCostTracker
   module Parsers
@@ -66,10 +67,6 @@ module LlmCostTracker
       def provider_for(_request_url)
         "anthropic"
       end
-
-      DATA_RESIDENCY_GEOS = %w[us].freeze
-      STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only priority].freeze
-      private_constant :DATA_RESIDENCY_GEOS, :STANDARD_EQUIVALENT_SERVICE_TIERS
 
       private
 
@@ -179,12 +176,12 @@ module LlmCostTracker
         service_tier = usage&.fetch("service_tier", nil) ||
                        response&.fetch("service_tier", nil) ||
                        request["service_tier"]
-        service_tier = nil if STANDARD_EQUIVALENT_SERVICE_TIERS.include?(service_tier.to_s)
+        service_tier = nil if LlmCostTracker::Anthropic::TierClassification.standard_equivalent_tier?(service_tier)
 
         modes << Pricing.normalize_mode(speed)
         modes << Pricing.normalize_mode(service_tier)
         geo = inference_geo(request: request, response: response, usage: usage).downcase
-        modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(geo)
+        modes << "data_residency" if LlmCostTracker::Anthropic::TierClassification.data_residency_geo?(geo)
 
         modes = modes.compact.uniq
         modes.empty? ? nil : modes.join("_")
