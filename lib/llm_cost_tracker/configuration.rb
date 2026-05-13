@@ -157,9 +157,6 @@ module LlmCostTracker
       @instrumented_integrations = deep_freeze(@instrumented_integrations || Set.new)
       @report_tag_breakdowns = deep_freeze(Array(@report_tag_breakdowns))
       @redacted_tag_keys = deep_freeze(Array(@redacted_tag_keys))
-      @normalized_redacted_tag_keys = deep_freeze(
-        @redacted_tag_keys.map { |key| Tags::Sanitizer.normalized_key(key) }
-      )
       @openai_compatible_providers = deep_freeze(
         normalize_openai_compatible_providers(@openai_compatible_providers)
       )
@@ -168,8 +165,8 @@ module LlmCostTracker
     end
 
     def normalized_redacted_tag_keys
-      @normalized_redacted_tag_keys ||
-        Array(@redacted_tag_keys).map { |key| Tags::Sanitizer.normalized_key(key) }
+      @normalized_redacted_tag_keys ||=
+        Array(@redacted_tag_keys).map { |key| Tags::Sanitizer.normalized_key(key) }.freeze
     end
 
     def finalized?
