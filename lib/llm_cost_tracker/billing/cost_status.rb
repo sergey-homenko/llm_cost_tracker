@@ -16,9 +16,7 @@ module LlmCostTracker
                  token_pricing_partial: false)
           return UNKNOWN if usage_source == :unknown
 
-          token_billable = Components::TOKEN_PRICED.any? do |component|
-            token_usage.public_send(component.token_key).positive?
-          end
+          token_billable = token_usage.priced_quantities.any? { |_key, quantity| quantity.positive? }
           service_billable = false
           service_priced = false
           service_unpriced = false

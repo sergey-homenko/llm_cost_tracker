@@ -72,10 +72,10 @@ module LlmCostTracker
       def self.from_token_usage(token_usage)
         return [] unless token_usage
 
-        Components::TOKEN_PRICED.filter_map do |component|
-          quantity = token_usage.public_send(component.token_key)
+        token_usage.priced_quantities.filter_map do |key, quantity|
           next unless quantity.positive?
 
+          component = Components::BY_KEY.fetch(key)
           new(
             kind: component.kind,
             direction: component.direction,

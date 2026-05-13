@@ -21,6 +21,10 @@ module LlmCostTracker
     :total_tokens,
     :hidden_output_tokens
   ) do
+    def priced_quantities
+      Billing::Components::TOKEN_PRICED.to_h { |component| [component.key, public_send(component.token_key)] }
+    end
+
     def self.build_from_tokens(tokens)
       return tokens if tokens.is_a?(self)
       raise ArgumentError, "tokens must be a Hash, got #{tokens.class}" unless tokens.respond_to?(:to_h)

@@ -7,13 +7,11 @@ module LlmCostTracker
   module Pricing
     module EffectivePrices
       class << self
-        def call(usage:, prices:, pricing_mode:)
+        def call(usage:, quantities:, prices:, pricing_mode:)
           context_tier = context_tier?(usage: usage, prices: prices)
           orderings = pricing_mode && Mode.parse(pricing_mode).permutations
 
-          Billing::Components::TOKEN_PRICED.to_h do |component|
-            price_key = component.key
-            tokens = usage.public_send(component.token_key)
+          quantities.to_h do |price_key, tokens|
             price = if tokens.positive?
                       price_for(
                         prices: prices,

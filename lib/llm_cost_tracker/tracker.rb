@@ -75,8 +75,10 @@ module LlmCostTracker
       def token_pricing_partial?(token_usage:, cost_data:)
         return false unless cost_data
 
-        Billing::Components::TOKEN_PRICED.any? do |component|
-          token_usage.public_send(component.token_key).positive? && cost_data[component.cost_key].nil?
+        token_usage.priced_quantities.any? do |key, quantity|
+          next false unless quantity.positive?
+
+          cost_data[Billing::Components::BY_KEY.fetch(key).cost_key].nil?
         end
       end
 

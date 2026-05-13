@@ -91,13 +91,6 @@ module LlmCostTracker
 
         private
 
-        def raw_registry
-          cached = @raw_registry
-          return cached if cached
-
-          MUTEX.synchronize { @raw_registry ||= load_raw_registry }
-        end
-
         def load_raw_registry
           YAML.safe_load_file(DEFAULT_PRICES_PATH, aliases: false).freeze
         end

@@ -114,16 +114,11 @@ module LlmCostTracker
       def snapshot_from(calculation)
         match = calculation[:match]
         effective = calculation[:effective]
-        token_usage = calculation[:token_usage]
-        rates = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, values|
-          quantity = token_usage.public_send(component.token_key)
-          price = effective[component.key]
+        rates = calculation[:quantities].each_with_object({}) do |(key, quantity), values|
+          price = effective[key]
           next if quantity.zero? || price.nil?
 
-          values[component.key] = {
-            amount: price,
-            quantity: RATE_DENOMINATOR_TOKENS
-          }
+          values[key] = { amount: price, quantity: RATE_DENOMINATOR_TOKENS }
         end
 
         {
@@ -142,23 +137,29 @@ module LlmCostTracker
         return nil unless match
 
         token_usage = TokenUsage.build_from_tokens(tokens)
+        quantities = token_usage.priced_quantities
         mode = normalize_mode(pricing_mode)
-        effective = EffectivePrices.call(usage: token_usage, prices: match.prices, pricing_mode: mode)
-        return nil unless any_billable_priced?(token_usage, effective)
+        effective = EffectivePrices.call(usage: token_usage, quantities: quantities, prices: match.prices,
+                                         pricing_mode: mode)
+        return nil unless any_billable_priced?(quantities, effective)
 
-        { match: match, effective: effective, token_usage: token_usage, costs: costs_for(token_usage, effective) }
+        { match: match, effective: effective, token_usage: token_usage, quantities: quantities,
+          costs: costs_for(quantities, effective) }
       end
 
-      def any_billable_priced?(token_usage, effective)
-        billable = Billing::Components::TOKEN_PRICED.select { |c| token_usage.public_send(c.token_key).positive? }
-        billable.empty? || billable.any? { |c| effective[c.key] }
-      end
+      def any_billable_priced?(quantities, effective)
+        any_billable = false
+        quantities.each_pair do |key, quantity|
+          next unless quantity.positive?
+          return true if effective[key]
 
-      def costs_for(usage, effective)
-        Billing::Components::TOKEN_PRICED.to_h do |component|
-          tokens = usage.public_send(component.token_key)
-          [component.key, token_cost(tokens, effective[component.key])]
+          any_billable = true
         end
+        !any_billable
+      end
+
+      def costs_for(quantities, effective)
+        quantities.to_h { |key, tokens| [key, token_cost(tokens, effective[key])] }
       end
 
       def apply_calculation_to_line_items(line_items, calculation, provider:, pricing_mode:)
