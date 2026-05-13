@@ -8,6 +8,11 @@ RSpec.describe LlmCostTracker::Parsers do
       expect(described_class.find_for("https://api.openai.com/v1/responses"))
         .to be_a(LlmCostTracker::Parsers::Openai)
     end
+
+    it "routes Azure OpenAI URLs to the Azure parser" do
+      url = "https://myresource.openai.azure.com/openai/deployments/gpt4o-prod/chat/completions"
+      expect(described_class.find_for(url)).to be_a(LlmCostTracker::Parsers::Azure)
+    end
   end
 
   describe ".find_for_provider" do
@@ -27,6 +32,10 @@ RSpec.describe LlmCostTracker::Parsers do
 
     it "matches provider names case-insensitively" do
       expect(described_class.find_for_provider("OPENAI")).to be_a(LlmCostTracker::Parsers::Openai)
+    end
+
+    it "finds the Azure parser by the azure_openai provider name" do
+      expect(described_class.find_for_provider("azure_openai")).to be_a(LlmCostTracker::Parsers::Azure)
     end
 
     it "uses provider names from the current configuration" do

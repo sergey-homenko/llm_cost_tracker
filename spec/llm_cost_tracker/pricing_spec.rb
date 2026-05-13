@@ -54,6 +54,22 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(LlmCostTracker::Pricing::Lookup.call(provider: "openai", model: "")).to be_nil
       expect(LlmCostTracker::Pricing::Lookup.call(provider: "openai", model: nil)).to be_nil
     end
+
+    it "resolves azure_openai/<model> through the unique-providerless fallback to OpenAI direct entries" do
+      match = LlmCostTracker::Pricing::Lookup.call(provider: "azure_openai", model: "gpt-4o-mini")
+
+      expect(match).not_to be_nil
+      expect(match.key).to eq("openai/gpt-4o-mini")
+      expect(match.matched_by).to eq(:unique_providerless_model)
+    end
+
+    it "resolves dated azure_openai snapshots through the unique-providerless dated-snapshot fallback" do
+      match = LlmCostTracker::Pricing::Lookup.call(provider: "azure_openai", model: "gpt-4o-2024-08-06")
+
+      expect(match).not_to be_nil
+      expect(match.key).to eq("openai/gpt-4o")
+      expect(match.matched_by).to eq(:unique_providerless_dated_snapshot)
+    end
   end
 
   describe ".stored_cost_attributes" do

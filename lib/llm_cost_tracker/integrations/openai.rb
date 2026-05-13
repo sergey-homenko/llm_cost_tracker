@@ -24,7 +24,7 @@ module LlmCostTracker
 
         def stream_collector(request, host: nil)
           LlmCostTracker::Capture::StreamCollector.new(
-            provider: integration_name.to_s,
+            provider: provider_for_host(host),
             model: request[:model],
             pricing_mode: stream_pricing_mode(request, host: host),
             request: request
@@ -38,6 +38,12 @@ module LlmCostTracker
           URI.parse(client.send(:base_url).to_s).host
         rescue URI::InvalidURIError
           nil
+        end
+
+        AZURE_HOST_PATTERN = /\A[a-z0-9][a-z0-9-]*\.openai\.azure\.com\z/i
+
+        def provider_for_host(host)
+          host.to_s.match?(AZURE_HOST_PATTERN) ? "azure_openai" : "openai"
         end
 
         def minimum_version
@@ -98,7 +104,7 @@ module LlmCostTracker
             model = object_value(response, :model) || request[:model]
             LlmCostTracker::Tracker.record(
               capture: UsageCapture.build(
-                provider: "openai",
+                provider: provider_for_host(host),
                 model: model,
                 pricing_mode: LlmCostTracker::Parsers::OpenaiUsage.combined_pricing_mode(
                   host: host,
@@ -115,7 +121,7 @@ module LlmCostTracker
           end
         end
 
-        def record_image(response, request:, latency_ms:)
+        def record_image(response, request:, latency_ms:, host: nil)
           usage = object_value(response, :usage)
           raw_input = usage ? object_value(usage, :input_tokens).to_i : 0
           raw_output = usage ? object_value(usage, :output_tokens).to_i : 0
@@ -127,6 +133,7 @@ module LlmCostTracker
             model: request[:model],
             response: response,
             latency_ms: latency_ms,
+            host: host,
             input_tokens: text_input,
             image_input_tokens: image_input,
             output_tokens: text_output,
@@ -144,11 +151,12 @@ module LlmCostTracker
           [image_tokens, text_tokens]
         end
 
-        def record_transcription(response, request:, latency_ms:)
+        def record_transcription(response, request:, latency_ms:, host: nil)
           record_passthrough(
             model: request[:model],
             response: response,
             latency_ms: latency_ms,
+            host: host,
             **transcription_token_attributes(object_value(response, :usage))
           )
         end
@@ -165,11 +173,12 @@ module LlmCostTracker
           }
         end
 
-        def record_speech(_response, request:, latency_ms:)
+        def record_speech(_response, request:, latency_ms:, host: nil)
           record_passthrough(
             model: request[:model],
             response: nil,
             latency_ms: latency_ms,
+            host: host,
             input_tokens: 0,
             output_tokens: 0,
             service_line_items: speech_line_items(request)
@@ -193,23 +202,24 @@ module LlmCostTracker
           )]
         end
 
-        def record_moderation(response, request:, latency_ms:)
+        def record_moderation(response, request:, latency_ms:, host: nil)
           record_passthrough(
             model: object_value(response, :model) || request[:model],
             response: response,
             latency_ms: latency_ms,
+            host: host,
             input_tokens: 0,
             output_tokens: 0
           )
         end
 
-        def record_passthrough(model:, response:, latency_ms:, service_line_items: [], **token_attributes)
+        def record_passthrough(model:, response:, latency_ms:, host: nil, service_line_items: [], **token_attributes)
           return unless active?
 
           record_safely do
             LlmCostTracker::Tracker.record(
               capture: UsageCapture.build(
-                provider: "openai",
+                provider: provider_for_host(host),
                 model: model,
                 token_usage: TokenUsage.build(**token_attributes),
                 usage_source: :sdk_response,
@@ -411,7 +421,8 @@ module LlmCostTracker
             integration.public_send(
               record_method, response,
               request: integration.request_params(args, kwargs),
-              latency_ms: integration.elapsed_ms(started_at)
+              latency_ms: integration.elapsed_ms(started_at),
+              host: integration.client_host_for(self)
             )
             response
           end

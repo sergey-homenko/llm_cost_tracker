@@ -2,7 +2,7 @@
 
 module LlmCostTracker
   module Parsers
-    BUILT_INS = [Openai.new, OpenaiCompatible.new, Anthropic.new, Gemini.new].freeze
+    BUILT_INS = [Openai.new, Azure.new, OpenaiCompatible.new, Anthropic.new, Gemini.new].freeze
 
     module_function
 

@@ -303,6 +303,82 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "tags SDK responses as azure_openai when the OpenAI client is configured with an Azure base_url" do
+    response = response_class.new(
+      id: "resp_az", model: "gpt-4o-2024-08-06",
+      usage: usage_class.new(input_tokens: 80, output_tokens: 20)
+    )
+    azure_client = Struct.new(:base_url).new("https://acme.openai.azure.com/openai")
+    install_openai_fakes(response)
+    OpenAI::Resources::Responses.class_eval do
+      define_method(:initialize) do
+        @client = azure_client
+        @response = response
+      end
+    end
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Responses.new.create(model: "gpt-4o-2024-08-06")
+      expect(events.first[:provider]).to eq("azure_openai")
+    end
+  end
+
+  it "tags streamed SDK responses as azure_openai under an Azure base_url" do
+    stream = stream_class.new([
+                                stream_event_class.new(
+                                  type: :"response.completed",
+                                  response: {
+                                    id: "resp_az_stream", model: "gpt-4o-mini",
+                                    usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 }
+                                  }
+                                )
+                              ])
+    azure_client = Struct.new(:base_url).new("https://acme.openai.azure.com/openai")
+    install_openai_fakes(response_class.new, stream: stream)
+    OpenAI::Resources::Responses.class_eval do
+      define_method(:initialize) do
+        @client = azure_client
+        @stream = stream
+      end
+    end
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Responses.new.stream(model: "gpt-4o-mini").text.to_a
+
+      expect(events.first[:provider]).to eq("azure_openai")
+      expect(events.first[:stream]).to be true
+    end
+  end
+
+  it "tags SDK image / transcription / speech / moderation calls as azure_openai under an Azure base_url" do
+    detailed_usage = Struct.new(
+      :input_tokens, :output_tokens, :total_tokens, :input_tokens_details, keyword_init: true
+    )
+    detail_struct = Struct.new(:image_tokens, :cached_tokens, keyword_init: true)
+    images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
+    image = images_class.new(
+      created: 1_700_000_000,
+      usage: detailed_usage.new(input_tokens: 50, output_tokens: 1024, total_tokens: 1074,
+                                input_tokens_details: detail_struct.new(image_tokens: 0, cached_tokens: 0))
+    )
+    azure_client = Struct.new(:base_url).new("https://acme.openai.azure.com/openai")
+    install_openai_fakes(response_class.new, image: image)
+    OpenAI::Resources::Images.class_eval do
+      define_method(:initialize) do
+        @image = image
+        @client = azure_client
+      end
+    end
+    configure_integration(:openai)
+
+    capture_events do |events|
+      OpenAI::Resources::Images.new.generate(prompt: "a cat", model: "gpt-image-1", size: "1024x1024")
+      expect(events.first[:provider]).to eq("azure_openai")
+    end
+  end
+
   it "tags SDK responses with data_residency pricing mode when the client uses us.api.openai.com on an uplifted model" do
     response = response_class.new(
       id: "resp_dr", model: "gpt-5.4",

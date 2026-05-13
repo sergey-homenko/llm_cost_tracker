@@ -77,6 +77,32 @@ config.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
 This maps capture identity only. Gateway-specific prices belong in
 `prices_file` or `pricing_overrides`.
 
+## Azure OpenAI Service
+
+Azure OpenAI capture is built in — no configuration required. The Faraday
+middleware matches URLs of the form
+`https://{resource}.openai.azure.com/openai/deployments/{deployment-id}/{operation}?api-version=...`
+across chat/completions, completions, embeddings, audio/transcriptions,
+audio/translations, and images/generations, parses the same response shape
+as OpenAI direct, and tags calls with `provider: "azure_openai"`. The OpenAI
+Ruby SDK is also covered: if `OpenAI::Client.new` is initialized with an
+Azure `base_url`, SDK-side capture in `record_response` detects the Azure
+host and tags the same way.
+
+Pricing for `azure_openai/<model>` resolves through
+`Pricing::Lookup#unique_providerless_model` to the matching `openai/<model>`
+entry in the bundled price snapshot. That's correct for Global-tier
+deployments in primary regions where Azure prices match OpenAI direct. If
+your deployment uses Data Zone (data-residency) pricing or a regional
+uplift that differs from Global, set per-key deltas via
+`config.pricing_overrides` with the `azure_openai/<model>` prefix:
+
+```ruby
+config.pricing_overrides = {
+  "azure_openai/gpt-4o-mini" => { input: 0.16, output: 0.64 }
+}
+```
+
 ## Pricing Options
 
 | Option | Default | Purpose |
