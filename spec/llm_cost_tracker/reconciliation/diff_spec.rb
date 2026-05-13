@@ -354,7 +354,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.local_total).to eq(LlmCostTracker::Call.sum(:total_cost))
     end
 
-    it "falls back to line items when rollups are stale (e.g. after upgrade_call_rollups_provider truncates them)" do
+    it "falls back to line items when rollups are stale (e.g. after a manual rebuild)" do
       import_invoice(
         external_id: "may-stale", billed_amount: "5.00",
         period_start: Date.new(2026, 5, 1), period_end: Date.new(2026, 5, 31)

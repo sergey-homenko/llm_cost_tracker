@@ -113,7 +113,7 @@ end %>
   </div>
 </section>
 
-<% service_line_items = @call.line_items.where.not(unit: "token").order(:position).to_a %>
+<% service_line_items = @call.line_items.reject { |li| li.unit == "token" }.sort_by(&:position) %>
 <% if service_line_items.any? %>
   <section class="lct-panel">
     <h2 class="lct-section-title">Service Charges</h2>

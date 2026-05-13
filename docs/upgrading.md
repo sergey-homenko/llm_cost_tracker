@@ -75,18 +75,11 @@ bin/rails db:migrate
 
 Each step in the generated migration is guarded by `column_exists?` /
 `index_exists?`, so re-running it on an already-upgraded schema is a
-no-op. The migration clears the existing rollup rows before adding the
-`provider` column: stale rows with no provider value would otherwise be
-invisible to the per-provider reconciliation fast path. Budget reads
-fall back to live aggregation from `llm_cost_tracker_calls` until new
-events repopulate the rollups under their provider keys.
-
-The upgrade migration runs `DELETE FROM llm_cost_tracker_call_rollups`
-before adding the `provider` column, so any duplicate rows under the
-old `(period, period_start, currency)` constraint are removed in the
-same step. Live aggregation from `llm_cost_tracker_calls` covers the
-period until events repopulate the rollups under their new
-`(period, period_start, currency, provider)` unique index.
+no-op. Pre-upgrade rollup rows are kept and back-filled with an empty
+`provider` value (the new column's default), so existing aggregate
+totals stay readable. New events write under their actual provider
+key, so per-provider queries see only post-upgrade data until the
+empty-provider bucket ages out of retention.
 
 ### Image-token columns on `llm_cost_tracker_calls`
 
@@ -160,14 +153,6 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
   end
 end
 ```
-
-The upgrade migration clears existing rollup rows before adding the
-`provider` column — stale `provider = ""` rows would be invisible to
-the per-provider reconciliation fast path. Budget reads fall back to
-live aggregation from `llm_cost_tracker_calls` until new events
-repopulate the rollups under their provider keys. Doctor's `call
-rollups` check compares today's calls SUM vs rollups SUM and warns on
-drift above 1%, so post-upgrade drift surfaces explicitly.
 
 ### Reconciliation `provider:` is required for unmapped sources
 

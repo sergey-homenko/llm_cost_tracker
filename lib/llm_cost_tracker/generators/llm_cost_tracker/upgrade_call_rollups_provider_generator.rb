@@ -19,15 +19,6 @@ module LlmCostTracker
         )
       end
 
-      def warn_about_rollups_truncation
-        say(<<~MSG, :yellow)
-          The migration clears existing llm_cost_tracker_call_rollups rows before adding the
-          provider column. Budget reads fall back to live aggregation from
-          llm_cost_tracker_calls until new events repopulate the rollups under their provider
-          keys. See docs/upgrading.md for details.
-        MSG
-      end
-
       private
 
       def migration_version
