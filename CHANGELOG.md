@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- `bin/rails generate llm_cost_tracker:upgrade_call_rollups_provider` no longer wipes the existing `llm_cost_tracker_call_rollups` table when it adds the `provider` column. Pre-upgrade aggregates are kept (bucketed under empty provider) instead of being silently deleted on `db:migrate`.
 - `LlmCostTracker::Retention.prune_inbox(older_than:)` deletes durable inbox entries past the retention cutoff. The `llm_cost_tracker:prune` rake task now invokes it after pruning calls, so pending or quarantined inbox rows older than `DAYS` no longer flush retroactively and re-create stale calls.
 - `ProviderInvoiceImport.resume_cursor_for(source, provider:)` and `last_completed_window_for(source, provider:)` accept an optional `provider:` keyword and persist a `provider` column on each import. Two importers sharing a `source` ("csv/openai" vs "csv/anthropic") no longer cross-pollute resume cursors.
 - Provider-price snapshots no longer keep stale service-charge keys: when a scraper produces a non-empty `service_charges` set, the orchestrator and registry writer treat it as authoritative for that provider and drop keys the scraper stopped emitting. Empty scrapes (e.g. groq/gemini, which don't parse a charges section) still preserve the existing entries.

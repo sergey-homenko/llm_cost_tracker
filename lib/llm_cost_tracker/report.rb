@@ -17,8 +17,6 @@ module LlmCostTracker
         Formatter.new(report_data).to_s
       rescue LoadError => e
         "Unable to build LLM cost report: ActiveRecord storage is unavailable (#{e.message})"
-      rescue StandardError => e
-        "Unable to build LLM cost report: #{e.class}: #{e.message}"
       end
     end
   end

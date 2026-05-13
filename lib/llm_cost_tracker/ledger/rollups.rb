@@ -34,8 +34,8 @@ module LlmCostTracker
         private
 
         def period_rows(event)
-          currency = currency_for(event)
-          provider = provider_for(event)
+          currency = currency_from_snapshot(event.pricing_snapshot)
+          provider = event.provider.to_s
           Period::PERIODS.map do |period, name|
             {
               period: name,
@@ -61,8 +61,8 @@ module LlmCostTracker
 
         def call_rollups(events)
           events.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |event, totals|
-            currency = currency_for(event)
-            provider = provider_for(event)
+            currency = currency_from_snapshot(event.pricing_snapshot)
+            provider = event.provider.to_s
             Period::PERIODS.each do |period, name|
               key = [name, Period.bucket(period, event.tracked_at), currency, provider]
               totals[key] += BigDecimal(event.total_cost.to_s)
@@ -118,18 +118,9 @@ module LlmCostTracker
           end
         end
 
-        def currency_for(event)
-          snapshot = event.respond_to?(:pricing_snapshot) ? event.pricing_snapshot : nil
-          currency_from_snapshot(snapshot)
-        end
-
         def currency_from_snapshot(snapshot)
           value = (snapshot.is_a?(Hash) && (snapshot["currency"] || snapshot[:currency])) || DEFAULT_CURRENCY
           value.to_s.upcase
-        end
-
-        def provider_for(event)
-          (event.respond_to?(:provider) ? event.provider : nil).to_s
         end
 
         def upsert_call_rollups(rows)

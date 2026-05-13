@@ -4,10 +4,7 @@ class UpgradeLlmCostTrackerCallRollupsProvider < ActiveRecord::Migration<%= migr
   NEW_INDEX = %i[period period_start currency provider].freeze
 
   def up
-    unless column_exists?(TABLE, :provider)
-      execute "DELETE FROM #{TABLE}"
-      add_column TABLE, :provider, :string, null: false, default: ""
-    end
+    add_column TABLE, :provider, :string, null: false, default: "" unless column_exists?(TABLE, :provider)
     remove_index TABLE, column: OLD_INDEX, unique: true if index_exists?(TABLE, OLD_INDEX, unique: true)
     add_index TABLE, NEW_INDEX, unique: true unless index_exists?(TABLE, NEW_INDEX, unique: true)
   end

@@ -31,7 +31,7 @@ module LlmCostTracker
     end
 
     def show
-      @call = LlmCostTracker::Call.find(params[:id])
+      @call = LlmCostTracker::Call.includes(:line_items, :tag_records).find(params[:id])
     end
 
     private
