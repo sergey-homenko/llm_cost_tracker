@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "updated_at": "2026-05-08",
+    "updated_at": "2026-05-13",
     "currency": "USD",
     "unit": "1M tokens",
     "source_urls": [
@@ -333,69 +333,72 @@
       "priority_cache_read_input": 0.125
     },
     "openai/gpt-4o-realtime-preview": {
-      "input": 5.0,
-      "cache_read_input": 2.5,
       "audio_input": 40.0,
+      "audio_output": 80.0,
+      "input": 5.0,
       "output": 20.0,
-      "audio_output": 80.0
+      "cache_read_input": 2.5
     },
     "openai/gpt-4o-mini-realtime-preview": {
-      "input": 0.6,
-      "cache_read_input": 0.3,
       "audio_input": 10.0,
+      "audio_output": 20.0,
+      "input": 0.6,
       "output": 2.4,
-      "audio_output": 20.0
+      "cache_read_input": 0.3
     },
     "openai/gpt-realtime": {
-      "input": 4.0,
-      "cache_read_input": 0.4,
       "audio_input": 32.0,
+      "audio_output": 64.0,
+      "input": 4.0,
       "output": 16.0,
-      "audio_output": 64.0
+      "cache_read_input": 0.4,
+      "image_input": 5.0
     },
     "openai/gpt-realtime-1.5": {
-      "input": 4.0,
-      "cache_read_input": 0.4,
       "audio_input": 32.0,
+      "audio_output": 64.0,
+      "input": 4.0,
       "output": 16.0,
-      "audio_output": 64.0
+      "cache_read_input": 0.4,
+      "image_input": 5.0
     },
     "openai/gpt-realtime-mini": {
-      "input": 0.6,
-      "cache_read_input": 0.06,
       "audio_input": 10.0,
+      "audio_output": 20.0,
+      "input": 0.6,
       "output": 2.4,
-      "audio_output": 20.0
+      "cache_read_input": 0.06,
+      "image_input": 0.8
     },
     "openai/gpt-audio-1.5": {
-      "input": 2.5,
       "audio_input": 32.0,
-      "output": 10.0,
-      "audio_output": 64.0
+      "audio_output": 64.0,
+      "input": 2.5,
+      "output": 10.0
     },
     "openai/gpt-audio-mini": {
-      "input": 0.6,
       "audio_input": 10.0,
-      "output": 2.4,
-      "audio_output": 20.0
+      "audio_output": 20.0,
+      "input": 0.6,
+      "output": 2.4
     },
     "openai/gpt-audio": {
-      "input": 2.5,
       "audio_input": 32.0,
-      "output": 10.0,
-      "audio_output": 64.0
+      "audio_output": 64.0,
+      "input": 2.5,
+      "output": 10.0
     },
     "openai/gpt-4o-audio-preview": {
-      "input": 2.5,
       "audio_input": 40.0,
-      "output": 10.0,
-      "audio_output": 80.0
+      "audio_output": 80.0,
+      "input": 2.5,
+      "output": 10.0
     },
     "openai/gpt-4o-mini-audio-preview": {
-      "input": 0.15,
       "audio_input": 10.0,
-      "output": 0.6,
-      "audio_output": 20.0
+      "audio_output": 20.0,
+      "input": 0.15,
+      "output": 0.6
     },
     "openai/text-embedding-3-small": {
       "input": 0.02,
@@ -406,7 +409,7 @@
       "batch_input": 0.065
     },
     "openai/text-embedding-ada-002": {
-      "input": 0.10,
+      "input": 0.1,
       "batch_input": 0.05
     },
     "openai/gpt-4o-transcribe": {
@@ -426,46 +429,46 @@
       "text_to_speech_character": 30.0
     },
     "openai/gpt-image-1": {
-      "input": 5.0,
-      "cache_read_input": 1.25,
       "image_input": 10.0,
       "image_output": 40.0,
-      "batch_input": 2.5,
-      "batch_cache_read_input": 0.63,
+      "input": 5.0,
+      "cache_read_input": 1.25,
       "batch_image_input": 5.0,
-      "batch_image_output": 20.0
+      "batch_image_output": 20.0,
+      "batch_input": 2.5,
+      "batch_cache_read_input": 0.63
     },
     "openai/gpt-image-1-mini": {
-      "input": 2.0,
-      "cache_read_input": 0.2,
       "image_input": 2.5,
       "image_output": 8.0,
-      "batch_input": 1.0,
-      "batch_cache_read_input": 0.1,
+      "input": 2.0,
+      "cache_read_input": 0.2,
       "batch_image_input": 1.25,
-      "batch_image_output": 4.0
+      "batch_image_output": 4.0,
+      "batch_input": 1.0,
+      "batch_cache_read_input": 0.1
     },
     "openai/gpt-image-1.5": {
-      "input": 5.0,
-      "cache_read_input": 1.25,
-      "output": 10.0,
       "image_input": 8.0,
       "image_output": 32.0,
-      "batch_input": 2.5,
-      "batch_cache_read_input": 0.63,
-      "batch_output": 5.0,
+      "input": 5.0,
+      "output": 10.0,
+      "cache_read_input": 1.25,
       "batch_image_input": 4.0,
-      "batch_image_output": 16.0
+      "batch_image_output": 16.0,
+      "batch_input": 2.5,
+      "batch_output": 5.0,
+      "batch_cache_read_input": 0.63
     },
     "openai/gpt-image-2": {
-      "input": 5.0,
-      "cache_read_input": 1.25,
       "image_input": 8.0,
       "image_output": 30.0,
-      "batch_input": 2.5,
-      "batch_cache_read_input": 0.625,
+      "input": 5.0,
+      "cache_read_input": 1.25,
       "batch_image_input": 4.0,
-      "batch_image_output": 15.0
+      "batch_image_output": 15.0,
+      "batch_input": 2.5,
+      "batch_cache_read_input": 0.625
     },
     "openai/gpt-5": {
       "input": 1.25,
@@ -602,13 +605,13 @@
       "input": 2.5,
       "output": 15.0,
       "cache_read_input": 0.25,
-      "batch_input": 1.25,
-      "batch_output": 7.5,
-      "batch_cache_read_input": 0.13,
       "_context_price_threshold_tokens": 272000,
       "above_context_input": 5.0,
       "above_context_output": 22.5,
       "above_context_cache_read_input": 0.5,
+      "batch_input": 1.25,
+      "batch_output": 7.5,
+      "batch_cache_read_input": 0.13,
       "above_context_batch_input": 2.5,
       "above_context_batch_output": 11.25,
       "above_context_batch_cache_read_input": 0.25,
@@ -692,11 +695,11 @@
     "openai/gpt-5.4-pro": {
       "input": 30.0,
       "output": 180.0,
-      "batch_input": 15.0,
-      "batch_output": 90.0,
       "_context_price_threshold_tokens": 272000,
       "above_context_input": 60.0,
       "above_context_output": 270.0,
+      "batch_input": 15.0,
+      "batch_output": 90.0,
       "above_context_batch_input": 30.0,
       "above_context_batch_output": 135.0,
       "flex_input": 15.0,
@@ -720,13 +723,13 @@
       "input": 5.0,
       "output": 30.0,
       "cache_read_input": 0.5,
-      "batch_input": 2.5,
-      "batch_output": 15.0,
-      "batch_cache_read_input": 0.25,
       "_context_price_threshold_tokens": 272000,
       "above_context_input": 10.0,
       "above_context_output": 45.0,
       "above_context_cache_read_input": 1.0,
+      "batch_input": 2.5,
+      "batch_output": 15.0,
+      "batch_cache_read_input": 0.25,
       "above_context_batch_input": 5.0,
       "above_context_batch_output": 22.5,
       "above_context_batch_cache_read_input": 0.5,
@@ -764,11 +767,11 @@
     "openai/gpt-5.5-pro": {
       "input": 30.0,
       "output": 180.0,
-      "batch_input": 15.0,
-      "batch_output": 90.0,
       "_context_price_threshold_tokens": 272000,
       "above_context_input": 60.0,
       "above_context_output": 270.0,
+      "batch_input": 15.0,
+      "batch_output": 90.0,
       "flex_input": 15.0,
       "flex_output": 90.0,
       "data_residency_input": 33.0,
@@ -789,8 +792,8 @@
     },
     "openai/o1-mini": {
       "input": 1.1,
-      "cache_read_input": 0.55,
       "output": 4.4,
+      "cache_read_input": 0.55,
       "batch_input": 0.55,
       "batch_output": 2.2
     },
@@ -896,6 +899,18 @@
       "priority_output": 2.7,
       "priority_audio_input": 0.9,
       "priority_cache_read_input": 0.045
+    },
+    "openai/chatgpt-image-latest": {
+      "image_input": 8.0,
+      "image_output": 32.0,
+      "input": 5.0,
+      "output": 10.0,
+      "cache_read_input": 1.25,
+      "batch_image_input": 4.0,
+      "batch_image_output": 16.0,
+      "batch_input": 2.5,
+      "batch_output": 5.0,
+      "batch_cache_read_input": 0.63
     }
   }
 }
