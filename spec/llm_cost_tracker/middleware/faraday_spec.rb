@@ -188,6 +188,14 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     2.times { middleware.send(:auto_enable_stream_usage?) }
   end
 
+  it "safe_json_parse returns {} for empty and malformed bodies so non-LLM Faraday calls don't crash the middleware" do
+    middleware = described_class.new(->(env) { env })
+
+    expect(middleware.send(:safe_json_parse, nil)).to eq({})
+    expect(middleware.send(:safe_json_parse, "")).to eq({})
+    expect(middleware.send(:safe_json_parse, "{not json")).to eq({})
+  end
+
   it "does not interfere with non-LLM requests" do
     conn = Faraday.new(url: "https://example.com") do |f|
       f.use :llm_cost_tracker

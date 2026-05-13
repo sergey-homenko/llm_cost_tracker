@@ -77,13 +77,8 @@ module LlmCostTracker
         raise NotImplementedError
       end
 
-      def streaming_request?(_request_url, request_body)
-        return false if request_body.blank?
-
-        body = request_body.to_s
-
-        request = safe_json_parse(body)
-        request.is_a?(Hash) && request["stream"] == true
+      def streaming_request?(_request_url, request_parsed)
+        request_parsed.is_a?(Hash) && request_parsed["stream"] == true
       end
 
       def parse_stream(**)

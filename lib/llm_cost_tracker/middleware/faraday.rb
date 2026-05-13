@@ -23,8 +23,11 @@ module LlmCostTracker
         request_url  = request_env.url.to_s
         request_body = read_body(request_env.body)
         parser       = Parsers.find_for(request_url)
-        streaming    = parser&.streaming_request?(request_url, request_body)
-        request_body = inject_stream_usage_flag(request_env, parser, request_url) if streaming
+        request_parsed = parser ? safe_json_parse(request_body) : nil
+        streaming = parser&.streaming_request?(request_url, request_parsed)
+        if streaming
+          request_body = inject_stream_usage_flag(request_env, parser, request_url, request_parsed) || request_body
+        end
         stream_buffer = install_stream_tap(request_env) if streaming
 
         Tracker.enforce_budget! if parser
@@ -44,6 +47,14 @@ module LlmCostTracker
         return @enabled if defined?(@enabled)
 
         @enabled = LlmCostTracker.configuration.enabled
+      end
+
+      def safe_json_parse(body)
+        return {} if body.nil? || body.empty?
+
+        JSON.parse(body)
+      rescue JSON::ParserError
+        {}
       end
 
       def auto_enable_stream_usage?
@@ -75,16 +86,15 @@ module LlmCostTracker
         raise
       end
 
-      def inject_stream_usage_flag(request_env, parser, request_url)
-        body_string = read_body(request_env.body)
-        return body_string unless auto_enable_stream_usage?
-        return body_string unless parser&.auto_enable_stream_usage?(request_url)
+      def inject_stream_usage_flag(request_env, parser, request_url, request_parsed)
+        return nil unless auto_enable_stream_usage?
+        return nil unless parser&.auto_enable_stream_usage?(request_url)
 
-        body = JSON.parse(body_string)
-        return body_string if body["stream_options"].is_a?(Hash) && body["stream_options"].key?("include_usage")
+        stream_options = request_parsed["stream_options"]
+        return nil if stream_options.is_a?(Hash) && stream_options.key?("include_usage")
 
-        body["stream_options"] = (body["stream_options"] || {}).merge("include_usage" => true)
-        new_body = body.to_json
+        request_parsed["stream_options"] = (stream_options || {}).merge("include_usage" => true)
+        new_body = request_parsed.to_json
         request_env.body = new_body
         new_body
       end

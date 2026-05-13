@@ -422,21 +422,17 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
   end
 
   describe "#streaming_request?" do
-    it "detects a stream:true body" do
-      expect(parser.streaming_request?(chat_completions_url,
-                                       '{"model":"gpt-4o","stream":true}')).to be true
+    it "detects a stream:true parsed body" do
+      expect(parser.streaming_request?(chat_completions_url, { "model" => "gpt-4o", "stream" => true })).to be true
     end
 
     it "ignores non-streaming bodies" do
-      expect(parser.streaming_request?(chat_completions_url,
-                                       '{"model":"gpt-4o"}')).to be false
+      expect(parser.streaming_request?(chat_completions_url, { "model" => "gpt-4o" })).to be false
     end
 
-    it "ignores stream text inside string content" do
-      expect(parser.streaming_request?(
-               chat_completions_url,
-               '{"model":"gpt-4o","messages":[{"role":"user","content":"\\"stream\\":true"}]}'
-             )).to be false
+    it "ignores nil and non-Hash parsed bodies" do
+      expect(parser.streaming_request?(chat_completions_url, nil)).to be false
+      expect(parser.streaming_request?(chat_completions_url, "not a hash")).to be false
     end
   end
 

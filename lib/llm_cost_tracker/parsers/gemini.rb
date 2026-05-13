@@ -21,7 +21,7 @@ module LlmCostTracker
         end
       end
 
-      def streaming_request?(request_url, request_body)
+      def streaming_request?(request_url, request_parsed)
         return true if match_uri?(request_url, path_pattern: STREAM_PATH_PATTERN)
 
         super
