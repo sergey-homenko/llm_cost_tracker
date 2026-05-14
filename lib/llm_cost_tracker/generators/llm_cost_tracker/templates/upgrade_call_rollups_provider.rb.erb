@@ -1,17 +1,35 @@
+require "llm_cost_tracker/ledger/schema/adapter"
+
 class UpgradeLlmCostTrackerCallRollupsProvider < ActiveRecord::Migration<%= migration_version %>
+  disable_ddl_transaction!
+
   TABLE = :llm_cost_tracker_call_rollups
   OLD_INDEX = %i[period period_start currency].freeze
   NEW_INDEX = %i[period period_start currency provider].freeze
 
   def up
     add_column TABLE, :provider, :string, null: false, default: "" unless column_exists?(TABLE, :provider)
-    remove_index TABLE, column: OLD_INDEX, unique: true if index_exists?(TABLE, OLD_INDEX, unique: true)
-    add_index TABLE, NEW_INDEX, unique: true unless index_exists?(TABLE, NEW_INDEX, unique: true)
+    add_unique_index NEW_INDEX
+    remove_index TABLE, column: OLD_INDEX, unique: true, if_exists: true
   end
 
   def down
-    remove_index TABLE, column: NEW_INDEX, unique: true if index_exists?(TABLE, NEW_INDEX, unique: true)
-    add_index TABLE, OLD_INDEX, unique: true unless index_exists?(TABLE, OLD_INDEX, unique: true)
+    add_unique_index OLD_INDEX
+    remove_index TABLE, column: NEW_INDEX, unique: true, if_exists: true
     remove_column TABLE, :provider if column_exists?(TABLE, :provider)
+  end
+
+  private
+
+  def add_unique_index(columns)
+    if postgresql?
+      add_index TABLE, columns, unique: true, algorithm: :concurrently, if_not_exists: true
+    else
+      add_index TABLE, columns, unique: true, if_not_exists: true
+    end
+  end
+
+  def postgresql?
+    LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
   end
 end
