@@ -2,7 +2,7 @@
 
 module LlmCostTracker
   module Ingestion
-    module IsolatedConnection
+    module Pool
       DEFAULT_POOL_SIZE = 2
       MUTEX = Mutex.new
 

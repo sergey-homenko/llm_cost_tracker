@@ -540,7 +540,7 @@ RSpec.describe "ActiveRecord durable inbox" do
   end
 
   it "fails honestly when the isolated pool cannot lend a connection" do
-    allow(LlmCostTracker::Ingestion::IsolatedConnection)
+    allow(LlmCostTracker::Ingestion::Pool)
       .to receive(:with_connection)
       .and_raise(ActiveRecord::ConnectionTimeoutError)
 

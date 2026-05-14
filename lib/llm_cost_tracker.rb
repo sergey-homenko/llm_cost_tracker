@@ -72,7 +72,7 @@ module LlmCostTracker
 
     def reset_configuration!
       Ingestion::Worker.shutdown!(drain: false)
-      Ingestion::IsolatedConnection.reset!
+      Ingestion::Pool.reset!
       @configuration = Configuration.new
       Pricing::Lookup.reset!
       Pricing::Registry.reset!

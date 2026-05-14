@@ -3,7 +3,7 @@
 require "spec_helper"
 require "active_record"
 
-RSpec.describe LlmCostTracker::Ingestion::IsolatedConnection do
+RSpec.describe LlmCostTracker::Ingestion::Pool do
   before do
     establish_database_connection!
     create_lct_tables!
