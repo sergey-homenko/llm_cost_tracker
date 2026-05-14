@@ -119,7 +119,7 @@ module LlmCostTracker
           loop do
             break if mutex.synchronize { @stop_requested || generation != @generation }
 
-            processed = executor_wrap { ingest_once }
+            processed = Rails.application.executor.wrap { ingest_once }
             release_connection!
             if processed.zero?
               sleep(idle_interval)
@@ -148,19 +148,6 @@ module LlmCostTracker
         def wake_thread(thread)
           thread&.wakeup if thread&.alive?
         rescue ThreadError
-          nil
-        end
-
-        def executor_wrap(&)
-          executor = rails_executor
-          return yield unless executor
-
-          executor.wrap(&)
-        end
-
-        def rails_executor
-          Rails.application.try(:executor)
-        rescue StandardError
           nil
         end
 

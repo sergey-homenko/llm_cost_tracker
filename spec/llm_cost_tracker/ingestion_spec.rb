@@ -672,34 +672,6 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(executor).to have_received(:wrap)
   end
 
-  it "runs background ingestion work without a Rails executor" do
-    ingestor = LlmCostTracker::Ingestion::Worker
-    rails = double("rails")
-    application = double("application")
-    stub_const("Rails", rails)
-    allow(rails).to receive(:respond_to?).with(:application).and_return(true)
-    allow(rails).to receive(:application).and_return(application)
-    allow(application).to receive(:respond_to?).with(:executor).and_return(false)
-    yielded = false
-
-    ingestor.send(:executor_wrap) { yielded = true }
-
-    expect(yielded).to be true
-  end
-
-  it "keeps running when Rails executor lookup fails" do
-    ingestor = LlmCostTracker::Ingestion::Worker
-    rails = double("rails")
-    stub_const("Rails", rails)
-    allow(rails).to receive(:respond_to?).with(:application).and_return(true)
-    allow(rails).to receive(:application).and_raise("executor failed")
-    yielded = false
-
-    ingestor.send(:executor_wrap) { yielded = true }
-
-    expect(yielded).to be true
-  end
-
   it "warns when ingestor storage errors happen" do
     allow(LlmCostTracker::Logging).to receive(:warn)
 

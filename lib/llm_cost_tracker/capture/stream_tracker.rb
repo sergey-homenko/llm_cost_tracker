@@ -155,7 +155,7 @@ module LlmCostTracker
           next unless should_finish && active_proc.call
 
           begin
-            finish_proc.call(false)
+            Rails.application.executor.wrap { finish_proc.call(false) }
           rescue StandardError
             nil
           end
