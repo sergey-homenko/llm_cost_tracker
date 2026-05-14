@@ -42,7 +42,6 @@ module LlmCostTracker
       def mount_engine
         return unless options[:dashboard]
 
-        add_engine_require
         say(<<~MSG, :yellow)
           The LLM Cost Tracker dashboard ships without authentication.
           Mount it in config/routes.rb behind your app's admin auth, e.g.:
@@ -60,24 +59,6 @@ module LlmCostTracker
 
       def migration_version
         "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]"
-      end
-
-      def add_engine_require
-        return unless File.exist?("config/application.rb")
-
-        contents = File.read("config/application.rb")
-        return if contents.include?(%(require "llm_cost_tracker/engine"))
-
-        unless contents.include?(%(require "rails/all"\n))
-          prepend_to_file("config/application.rb", %(require "llm_cost_tracker/engine"\n))
-          return
-        end
-
-        inject_into_file(
-          "config/application.rb",
-          %(require "llm_cost_tracker/engine"\n),
-          after: %(require "rails/all"\n)
-        )
       end
     end
   end

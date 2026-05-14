@@ -34,6 +34,7 @@ require_relative "llm_cost_tracker/ingestion"
 require_relative "llm_cost_tracker/tracker"
 
 module LlmCostTracker
+  autoload :Engine,         "llm_cost_tracker/engine"
   autoload :Reconciliation, "llm_cost_tracker/reconciliation"
   autoload :ReconcileTasks, "llm_cost_tracker/reconcile_tasks"
   autoload :Doctor,         "llm_cost_tracker/doctor"
