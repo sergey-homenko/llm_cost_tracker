@@ -74,6 +74,7 @@ The engine ships without authentication on purpose.
 | --- | --- |
 | OpenAI | Official SDK or Faraday |
 | Anthropic | Official SDK or Faraday |
+| Azure OpenAI | Faraday (auto-detected on `*.openai.azure.com`) |
 | Google Gemini | Faraday |
 | RubyLLM | Provider layer |
 | `ruby-openai` | Faraday |
