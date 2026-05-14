@@ -68,11 +68,17 @@ module LlmCostTracker
             if child["class"]&.include?("models-section")
               raw_id = child.at_css("div.heading-group code")&.text&.strip
               current_model_id = normalize_model_id(raw_id)
-            elsif child["class"]&.include?("ds-selector-tabs")
+            elsif pricing_tabs_container?(child)
               pairs << [current_model_id, child]
               current_model_id = nil
             end
           end
+        end
+
+        def pricing_tabs_container?(child)
+          child["class"]&.include?("ds-selector-tabs") ||
+            child.at_css("devsite-selector[data-ds-scope='code-sample']") ||
+            (child["data-ds-scope"] == "code-sample")
         end
 
         def find_standard_table(tabs)
