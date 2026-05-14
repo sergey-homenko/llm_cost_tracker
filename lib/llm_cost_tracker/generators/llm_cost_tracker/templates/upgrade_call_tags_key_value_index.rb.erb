@@ -1,23 +1,23 @@
 require "llm_cost_tracker/ledger/schema/adapter"
 
 class UpgradeLlmCostTrackerCallTagsKeyValueIndex < ActiveRecord::Migration<%= migration_version %>
+  disable_ddl_transaction!
+
   TABLE = :llm_cost_tracker_call_tags
   INDEX_COLUMNS = %i[key value].freeze
 
   def up
-    return if index_exists?(TABLE, INDEX_COLUMNS)
-
     if postgresql?
-      add_index TABLE, INDEX_COLUMNS
+      add_index TABLE, INDEX_COLUMNS, algorithm: :concurrently, if_not_exists: true
     elsif mysql?
-      add_index TABLE, INDEX_COLUMNS, length: { value: 191 }
+      add_index TABLE, INDEX_COLUMNS, length: { value: 191 }, if_not_exists: true
     else
       raise "LLM Cost Tracker supports PostgreSQL and MySQL only"
     end
   end
 
   def down
-    remove_index TABLE, column: INDEX_COLUMNS if index_exists?(TABLE, INDEX_COLUMNS)
+    remove_index TABLE, column: INDEX_COLUMNS, if_exists: true
   end
 
   private
