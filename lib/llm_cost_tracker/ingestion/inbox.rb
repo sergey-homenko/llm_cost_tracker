@@ -86,25 +86,10 @@ module LlmCostTracker
         end
 
         def insert_row(row)
-          connection = LlmCostTracker::Call.connection
-          if connection.transaction_open?
-            insert_with_separate_connection(row)
-          else
-            execute_insert(connection, row)
-          end
+          IsolatedConnection.with_connection { |connection| execute_insert(connection, row) }
         rescue ActiveRecord::ConnectionTimeoutError => e
           raise LlmCostTracker::Error,
-                "ledger inbox could not checkout a separate database connection: #{e.message}"
-        end
-
-        def insert_with_separate_connection(row)
-          pool = LlmCostTracker::Call.connection_pool
-          connection = pool.checkout
-          begin
-            connection.transaction(requires_new: true) { execute_insert(connection, row) }
-          ensure
-            pool.checkin(connection)
-          end
+                "ledger inbox could not checkout a database connection: #{e.message}"
         end
 
         def execute_insert(connection, row)

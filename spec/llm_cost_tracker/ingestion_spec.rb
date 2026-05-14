@@ -539,18 +539,16 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(LlmCostTracker::Ingestion::InboxEntry.find_by!(event_id: event.event_id)).to be_present
   end
 
-  it "fails honestly when no separate connection is available inside a caller transaction" do
-    connection = LlmCostTracker::Call.connection
-    allow(connection).to receive(:transaction_open?).and_return(true)
-    allow(LlmCostTracker::Ingestion::Inbox)
-      .to receive(:insert_with_separate_connection)
+  it "fails honestly when the isolated pool cannot lend a connection" do
+    allow(LlmCostTracker::Ingestion::IsolatedConnection)
+      .to receive(:with_connection)
       .and_raise(ActiveRecord::ConnectionTimeoutError)
 
     expect do
       LlmCostTracker.track(
         provider: :openai,
         model: "gpt-4o",
-        tokens: { input: 1_000, output: 0 },
+        tokens: { input: 1_000, output: 0 }
       )
     end.to raise_error(LlmCostTracker::Error, /could not checkout/)
 

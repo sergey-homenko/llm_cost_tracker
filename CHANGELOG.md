@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- Durable ingestion writes through an isolated 2-connection pool instead of borrowing from `ActiveRecord::Base.connection_pool`, so tracking an LLM call from inside a caller transaction no longer competes with request-handling threads under burst load and the inbox row still persists when the caller transaction rolls back. Tune via `config.durable_ingestion_pool_size` if your PG / PgBouncer budget is tight.
 - `bin/rails generate llm_cost_tracker:upgrade_call_rollups_provider` no longer wipes the existing `llm_cost_tracker_call_rollups` table when it adds the `provider` column. Pre-upgrade aggregates are kept (bucketed under empty provider) instead of being silently deleted on `db:migrate`.
 - `LlmCostTracker::Retention.prune_inbox(older_than:)` deletes durable inbox entries past the retention cutoff. The `llm_cost_tracker:prune` rake task now invokes it after pruning calls, so pending or quarantined inbox rows older than `DAYS` no longer flush retroactively and re-create stale calls.
 - `ProviderInvoiceImport.resume_cursor_for(source, provider:)` and `last_completed_window_for(source, provider:)` accept an optional `provider:` keyword and persist a `provider` column on each import. Two importers sharing a `source` ("csv/openai" vs "csv/anthropic") no longer cross-pollute resume cursors.
