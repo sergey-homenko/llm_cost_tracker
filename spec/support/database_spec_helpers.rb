@@ -200,11 +200,11 @@ module LlmCostTrackerDatabaseSpecHelpers
       table.string :event_id, null: false
       table.decimal :total_cost, precision: 20, scale: 8
       table.datetime :tracked_at, null: false
-      table.text :payload, null: false
+      table.text :payload, null: false, limit: 16.megabytes
       table.datetime :locked_at
       table.string :locked_by
       table.integer :attempts, null: false, default: 0
-      table.text :last_error
+      table.text :last_error, limit: 16.megabytes
 
       table.timestamps
     end

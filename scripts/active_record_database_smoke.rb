@@ -240,11 +240,11 @@ def create_ingestion_inbox_entries_table!
     t.string :event_id, null: false
     t.decimal :total_cost, precision: 20, scale: 8
     t.datetime :tracked_at, null: false
-    t.text :payload, null: false
+    t.text :payload, null: false, limit: 16.megabytes
     t.datetime :locked_at
     t.string :locked_by
     t.integer :attempts, null: false, default: 0
-    t.text :last_error
+    t.text :last_error, limit: 16.megabytes
     t.timestamps
   end
 end

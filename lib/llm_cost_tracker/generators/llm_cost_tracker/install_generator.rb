@@ -26,10 +26,10 @@ module LlmCostTracker
       end
 
       def create_initializer
-        template(
-          "initializer.rb.erb",
-          "config/initializers/llm_cost_tracker.rb"
-        )
+        destination = "config/initializers/llm_cost_tracker.rb"
+        return if File.exist?(File.join(destination_root, destination))
+
+        template("initializer.rb.erb", destination)
       end
 
       def create_prices_file
