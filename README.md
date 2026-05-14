@@ -39,7 +39,7 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-Tag your calls — that's how you find out who burned the money:
+Tag your calls to attribute spend:
 
 ```ruby
 LlmCostTracker.with_tags(user_id: Current.user&.id, feature: "chat") do
