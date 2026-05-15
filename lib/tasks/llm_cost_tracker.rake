@@ -4,7 +4,7 @@ require "fileutils"
 require "rails/generators"
 
 require_relative "../llm_cost_tracker/generators/llm_cost_tracker/install_generator"
-require_relative "../llm_cost_tracker/pricing/sync_change_printer"
+require_relative "../llm_cost_tracker/pricing/sync/change_printer"
 
 # rubocop:disable Metrics/BlockLength
 namespace :llm_cost_tracker do
@@ -148,7 +148,7 @@ def reconcile_run(method)
 end
 
 def print_changes(changes)
-  LlmCostTracker::Pricing::SyncChangePrinter.call(changes)
+  LlmCostTracker::Pricing::Sync::ChangePrinter.call(changes)
 end
 
 def price_refresh_output_path

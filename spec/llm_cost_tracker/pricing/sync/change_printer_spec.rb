@@ -2,9 +2,9 @@
 
 require "spec_helper"
 require "stringio"
-require "llm_cost_tracker/pricing/sync_change_printer"
+require "llm_cost_tracker/pricing/sync/change_printer"
 
-RSpec.describe LlmCostTracker::Pricing::SyncChangePrinter do
+RSpec.describe LlmCostTracker::Pricing::Sync::ChangePrinter do
   let(:io) { StringIO.new }
 
   describe ".call" do

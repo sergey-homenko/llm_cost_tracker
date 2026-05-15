@@ -7,14 +7,8 @@ module LlmCostTracker
     module Inline
       class << self
         def save(event)
-          persist(event)
-          event
-        end
-
-        private
-
-        def persist(event)
           Ledger::Store.insert_many([event], skip_existence_check: true)
+          event
         end
       end
     end
