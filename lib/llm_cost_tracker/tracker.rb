@@ -60,7 +60,7 @@ module LlmCostTracker
         if LlmCostTracker.configuration.durable_ingestion
           Ingestion::Inbox.save(event)
         else
-          Ingestion::Inline.save(event)
+          Ledger::Store.insert_many([event], skip_existence_check: true)
         end
       end
 

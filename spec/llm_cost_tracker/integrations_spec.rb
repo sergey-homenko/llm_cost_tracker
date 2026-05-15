@@ -147,7 +147,7 @@ RSpec.describe LlmCostTracker::Integrations do
 
   def configure_integration(name)
     allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
-    allow(LlmCostTracker::Ingestion::Inline).to receive(:save).and_return(true)
+    allow(LlmCostTracker::Ledger::Store).to receive(:insert_many).and_return(true)
     LlmCostTracker.configure do |config|
       config.unknown_pricing_behavior = :ignore
       config.instrument name

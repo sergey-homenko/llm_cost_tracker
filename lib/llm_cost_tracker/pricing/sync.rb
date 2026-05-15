@@ -29,7 +29,7 @@ module LlmCostTracker
           prices_file = config.prices_file
           return prices_file.to_s if prices_file
 
-          default_output_path
+          Rails.root.join(DEFAULT_OUTPUT_PATH).to_s
         end
 
         def configured_remote_url(env: ENV)
@@ -102,14 +102,6 @@ module LlmCostTracker
         end
 
         private
-
-        def default_output_path
-          if Rails.root
-            Rails.root.join(DEFAULT_OUTPUT_PATH).to_s
-          else
-            DEFAULT_OUTPUT_PATH
-          end
-        end
 
         def normalize_remote_registry(body, url:, response:, today:)
           registry = parse_registry(body)

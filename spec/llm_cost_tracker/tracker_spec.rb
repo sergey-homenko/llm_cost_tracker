@@ -7,7 +7,7 @@ RSpec.describe LlmCostTracker::Tracker do
   describe ".record" do
     before do
       allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
-      allow(LlmCostTracker::Ingestion::Inline).to receive(:save).and_return(true)
+      allow(LlmCostTracker::Ledger::Store).to receive(:insert_many).and_return(true)
     end
 
     def record(provider:, model:, token_usage:, stream: false, usage_source: nil, provider_response_id: nil,
@@ -49,7 +49,7 @@ RSpec.describe LlmCostTracker::Tracker do
         raise "subscriber boom"
       end
 
-      expect(LlmCostTracker::Ingestion::Inline).to receive(:save).once
+      expect(LlmCostTracker::Ledger::Store).to receive(:insert_many).once
 
       expect do
         record(
@@ -192,7 +192,7 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     it "raises storage errors from the ActiveRecord backend" do
-      allow(LlmCostTracker::Ingestion::Inline).to receive(:save).and_raise("storage down")
+      allow(LlmCostTracker::Ledger::Store).to receive(:insert_many).and_raise("storage down")
 
       expect do
         record(

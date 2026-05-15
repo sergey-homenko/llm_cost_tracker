@@ -7,7 +7,7 @@ RSpec.describe "concurrency", :aggregate_failures do
   describe LlmCostTracker::Capture::StreamCollector do
     before do
       allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
-      allow(LlmCostTracker::Ingestion::Inline).to receive(:save).and_return(true)
+      allow(LlmCostTracker::Ledger::Store).to receive(:insert_many).and_return(true)
     end
 
     it "records exactly one event when finish! races across many threads" do
@@ -204,7 +204,7 @@ RSpec.describe "concurrency", :aggregate_failures do
   describe LlmCostTracker::Tags::Context do
     before do
       allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
-      allow(LlmCostTracker::Ingestion::Inline).to receive(:save).and_return(true)
+      allow(LlmCostTracker::Ledger::Store).to receive(:insert_many).and_return(true)
     end
 
     it "keeps scoped tags isolated across threads" do
@@ -276,7 +276,7 @@ RSpec.describe "concurrency", :aggregate_failures do
   describe "opt-in budget preflight" do
     before do
       allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
-      allow(LlmCostTracker::Ingestion::Inline).to receive(:save).and_return(true)
+      allow(LlmCostTracker::Ledger::Store).to receive(:insert_many).and_return(true)
     end
 
     it "raises before tracking when track opts in" do

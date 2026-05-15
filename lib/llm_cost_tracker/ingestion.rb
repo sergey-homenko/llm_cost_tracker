@@ -4,7 +4,6 @@ require "securerandom"
 
 require_relative "errors"
 require_relative "ledger"
-require_relative "ingestion/inline"
 require_relative "ingestion/lease_claim"
 require_relative "ingestion/pool"
 require_relative "ingestion/inbox"
