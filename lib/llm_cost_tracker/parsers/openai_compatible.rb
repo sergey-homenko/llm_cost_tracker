@@ -43,28 +43,6 @@ module LlmCostTracker
         end
       end
 
-      def parse(request_url:, request_body:, response_status:, response_body:, **)
-        parse_openai_usage(
-          request_url: request_url,
-          request_body: request_body,
-          response_status: response_status,
-          response_body: response_body
-        )
-      end
-
-      def parse_stream(response_status:, request_url: nil, request_body: nil, events: [], **)
-        parse_openai_stream_usage(
-          request_url: request_url,
-          request_body: request_body,
-          response_status: response_status,
-          events: events
-        )
-      end
-
-      def auto_enable_stream_usage?(request_url)
-        openai_chat_completions_url?(request_url)
-      end
-
       def provider_for(request_url)
         self.class.provider_for(request_url)
       end

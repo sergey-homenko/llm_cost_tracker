@@ -23,9 +23,7 @@ module LlmCostTracker
         end
       end
 
-      private
-
-      def parse_openai_usage(request_url:, request_body:, response_status:, response_body:)
+      def parse(request_url:, request_body:, response_status:, response_body:, **)
         return nil unless response_status == 200
 
         response = safe_json_parse(response_body)
@@ -52,7 +50,7 @@ module LlmCostTracker
         )
       end
 
-      def parse_openai_stream_usage(response_status:, request_url: nil, request_body: nil, events: [])
+      def parse_stream(response_status:, request_url: nil, request_body: nil, events: [], **)
         return nil unless response_status == 200
 
         request = safe_json_parse(request_body)
@@ -64,6 +62,12 @@ module LlmCostTracker
         warn_missing_stream_usage(request_url: request_url, request: request)
         build_unknown_stream_usage(**context)
       end
+
+      def auto_enable_stream_usage?(request_url)
+        openai_chat_completions_url?(request_url)
+      end
+
+      private
 
       def stream_capture_context(events:, request:, request_url:)
         model = find_event_value(events) do |data|
