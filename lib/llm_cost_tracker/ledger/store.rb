@@ -13,20 +13,18 @@ module LlmCostTracker
       class << self
         def insert_many(events, skip_existence_check: false)
           events = Array(events)
-          return [] if events.empty?
+          return if events.empty?
 
           insertable = skip_existence_check ? events : insertable_events(events)
+          return unless insertable.any?
 
-          if insertable.any?
-            LlmCostTracker::Call.transaction do
-              rows = insertable.map { |event| attributes_for(event) }
-              call_ids = insert_calls_returning_ids(rows, insertable)
-              insert_line_items(insertable, call_ids)
-              insert_call_tags(insertable, call_ids)
-            end
-            increment_rollups_safely(insertable) if LlmCostTracker.configuration.cache_rollups
+          LlmCostTracker::Call.transaction do
+            rows = insertable.map { |event| attributes_for(event) }
+            call_ids = insert_calls_returning_ids(rows, insertable)
+            insert_line_items(insertable, call_ids)
+            insert_call_tags(insertable, call_ids)
           end
-          events
+          increment_rollups_safely(insertable) if LlmCostTracker.configuration.cache_rollups
         end
 
         private

@@ -16,7 +16,6 @@ module LlmCostTracker
         def save(event)
           insert_row(row_for(event))
           Ingestion::Worker.ensure_started
-          event
         end
 
         def event_from_row(row)
