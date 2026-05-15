@@ -48,20 +48,16 @@ module LlmCostTracker
           context_tags: context_tags
         )
 
-        save_event(event)
-        yield :after_save if block_given?
-        notify_subscribers(event)
-        Budget.check!(event)
-
-        event
-      end
-
-      def save_event(event)
         if LlmCostTracker.configuration.durable_ingestion
           Ingestion::Inbox.save(event)
         else
           Ledger::Store.insert_many([event], skip_existence_check: true)
         end
+        yield :after_save if block_given?
+        notify_subscribers(event)
+        Budget.check!(event)
+
+        event
       end
 
       def notify_subscribers(event)
