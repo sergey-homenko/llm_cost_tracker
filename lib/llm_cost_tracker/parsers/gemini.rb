@@ -36,7 +36,7 @@ module LlmCostTracker
 
         request = safe_json_parse(request_body)
         model = extract_model_from_url(request_url)
-        build_usage_capture(
+        build_event(
           request_url: request_url,
           usage: usage,
           usage_source: :response,
@@ -57,7 +57,7 @@ module LlmCostTracker
         service_line_items = grounding_line_items_for_stream(events, model: model)
 
         if usage
-          build_usage_capture(
+          build_event(
             request_url: request_url,
             usage: usage,
             stream: true,
@@ -83,14 +83,14 @@ module LlmCostTracker
 
       private
 
-      def build_usage_capture(request_url:, usage:, usage_source:, stream: false, provider_response_id: nil,
-                              pricing_mode: nil, service_line_items: nil)
+      def build_event(request_url:, usage:, usage_source:, stream: false, provider_response_id: nil,
+                      pricing_mode: nil, service_line_items: nil)
         cache_read = usage["cachedContentTokenCount"].to_i
         tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
         audio_input = audio_input_tokens(usage)
         audio_output = audio_output_tokens(usage)
 
-        UsageCapture.build(
+        Event.build(
           provider: "gemini",
           model: extract_model_from_url(request_url),
           pricing_mode: pricing_mode,

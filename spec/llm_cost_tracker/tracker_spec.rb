@@ -14,7 +14,7 @@ RSpec.describe LlmCostTracker::Tracker do
                provider_project_id: nil, provider_api_key_id: nil, provider_workspace_id: nil, batch: nil,
                capture_pricing_mode: nil, service_line_items: [], **options)
       described_class.record(
-        capture: LlmCostTracker::UsageCapture.build(
+        event: LlmCostTracker::Event.build(
           provider: provider,
           model: model,
           token_usage: token_usage,

@@ -102,9 +102,9 @@ module LlmCostTracker
       def process_interrupted_stream(parser:, request_url:, request_body:, latency_ms:,
                                      context_tags:, metadata:, error:)
         request = parser.safe_json_parse(request_body)
-        capture = UsageCapture.build(
+        capture = Event.build(
           provider: parser.provider_for(request_url),
-          model: request["model"] || UsageCapture::UNKNOWN_MODEL,
+          model: request["model"] || Event::UNKNOWN_MODEL,
           token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
           usage_source: :unknown
@@ -114,7 +114,7 @@ module LlmCostTracker
           stream_interrupted_error: "#{error.class}: #{error.message}"
         )
         Tracker.record(
-          capture: capture,
+          event: capture,
           latency_ms: latency_ms,
           metadata: merged_metadata,
           context_tags: context_tags
@@ -147,7 +147,7 @@ module LlmCostTracker
         return unless parsed
 
         Tracker.record(
-          capture: parsed,
+          event: parsed,
           latency_ms: latency_ms,
           metadata: metadata,
           context_tags: context_tags

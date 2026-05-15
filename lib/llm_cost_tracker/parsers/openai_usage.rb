@@ -37,7 +37,7 @@ module LlmCostTracker
 
         model = response["model"] || request["model"]
 
-        UsageCapture.build(
+        Event.build(
           provider: provider_for(request_url),
           provider_response_id: response["id"],
           pricing_mode: pricing_mode(
@@ -86,7 +86,7 @@ module LlmCostTracker
 
       def build_known_stream_usage(usage:, provider:, model:, provider_response_id:, pricing_mode:, service_line_items:)
         cache_read = cache_read_input_tokens(usage)
-        UsageCapture.build(
+        Event.build(
           provider: provider,
           provider_response_id: provider_response_id,
           pricing_mode: pricing_mode,

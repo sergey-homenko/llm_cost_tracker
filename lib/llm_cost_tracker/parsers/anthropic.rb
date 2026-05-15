@@ -28,7 +28,7 @@ module LlmCostTracker
         request = safe_json_parse(request_body)
         cache_read = usage["cache_read_input_tokens"].to_i
 
-        UsageCapture.build(
+        Event.build(
           provider: "anthropic",
           provider_response_id: response["id"],
           pricing_mode: pricing_mode(request: request, response: response, usage: usage),
@@ -88,7 +88,7 @@ module LlmCostTracker
       def build_stream_result(model:, usage:, response_id:, pricing_mode:)
         cache_read = usage["cache_read_input_tokens"].to_i
 
-        UsageCapture.build(
+        Event.build(
           provider: "anthropic",
           provider_response_id: response_id,
           pricing_mode: pricing_mode,

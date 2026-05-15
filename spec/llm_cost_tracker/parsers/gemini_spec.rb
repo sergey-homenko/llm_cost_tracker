@@ -428,7 +428,7 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
       expect(service_lines.first.quantity).to eq(3)
     end
 
-    it "returns an unknown-usage UsageCapture when no usage metadata is seen" do
+    it "returns an unknown-usage Event when no usage metadata is seen" do
       result = parser.parse_stream(
         request_url: url,
         response_status: 200,

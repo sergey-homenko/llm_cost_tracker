@@ -21,24 +21,24 @@ module LlmCostTracker
         Budget.enforce!
       end
 
-      def record(capture:, latency_ms: nil, pricing_mode: nil, metadata: {}, context_tags: nil)
+      def record(event:, latency_ms: nil, pricing_mode: nil, metadata: {}, context_tags: nil)
         return unless LlmCostTracker.configuration.enabled
 
-        pricing_mode = Pricing.normalize_mode(pricing_mode) || capture.pricing_mode
+        pricing_mode = Pricing.normalize_mode(pricing_mode) || event.pricing_mode
         cost_data, pricing_snapshot, priced_line_items = Pricing.calculate(
-          provider: capture.provider,
-          model: capture.model,
-          tokens: capture.token_usage,
-          line_items: capture.line_items,
+          provider: event.provider,
+          model: event.model,
+          tokens: event.token_usage,
+          line_items: event.line_items,
           pricing_mode: pricing_mode
         )
 
-        if cost_data.nil? && capture.token_usage.total_tokens.positive? && priced_line_items.none?(&:priced?)
-          Pricing::Unknown.handle!(capture.model)
+        if cost_data.nil? && event.token_usage.total_tokens.positive? && priced_line_items.none?(&:priced?)
+          Pricing::Unknown.handle!(event.model)
         end
 
         event = build_event(
-          capture: capture,
+          event: event,
           pricing_mode: pricing_mode,
           cost_data: cost_data,
           pricing_snapshot: pricing_snapshot,
@@ -81,35 +81,25 @@ module LlmCostTracker
         end
       end
 
-      def build_event(capture:, pricing_mode:, cost_data:, pricing_snapshot:, line_items:,
+      def build_event(event:, pricing_mode:, cost_data:, pricing_snapshot:, line_items:,
                       metadata:, latency_ms:, context_tags:)
         context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
         cost = cost_with_service_lines(cost_data, line_items)
         cost_status = Billing::CostStatus.call(
-          token_usage: capture.token_usage,
-          usage_source: capture.usage_source,
+          token_usage: event.token_usage,
+          usage_source: event.usage_source,
           token_cost: cost_data,
-          token_pricing_partial: token_pricing_partial?(token_usage: capture.token_usage, cost_data: cost_data),
+          token_pricing_partial: token_pricing_partial?(token_usage: event.token_usage, cost_data: cost_data),
           service_line_items: line_items.reject(&:token?),
           total_cost: cost&.fetch(:total_cost, nil)
         )
 
-        Event.new(
+        event.with(
           event_id: SecureRandom.uuid,
-          provider: capture.provider,
-          model: capture.model,
-          token_usage: capture.token_usage,
           pricing_mode: pricing_mode,
           cost: cost,
           tags: build_tags(context_tags: context_tags, metadata: metadata),
           latency_ms: finite_latency_ms(latency_ms),
-          stream: capture.stream,
-          usage_source: capture.usage_source,
-          provider_response_id: capture.provider_response_id,
-          provider_project_id: capture.provider_project_id,
-          provider_api_key_id: capture.provider_api_key_id,
-          provider_workspace_id: capture.provider_workspace_id,
-          batch: capture.batch,
           tracked_at: Time.now.utc,
           cost_status: cost_status,
           pricing_snapshot: pricing_snapshot,

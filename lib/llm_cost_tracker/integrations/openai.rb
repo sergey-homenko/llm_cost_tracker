@@ -103,7 +103,7 @@ module LlmCostTracker
             cache_read = cache_read_input_tokens(usage)
             model = object_value(response, :model) || request[:model]
             LlmCostTracker::Tracker.record(
-              capture: UsageCapture.build(
+              event: Event.build(
                 provider: provider_for_host(host),
                 model: model,
                 pricing_mode: LlmCostTracker::Parsers::OpenaiUsage.combined_pricing_mode(
@@ -215,7 +215,7 @@ module LlmCostTracker
 
           record_safely do
             LlmCostTracker::Tracker.record(
-              capture: UsageCapture.build(
+              event: Event.build(
                 provider: provider_for_host(host),
                 model: model,
                 token_usage: TokenUsage.build(**token_attributes),

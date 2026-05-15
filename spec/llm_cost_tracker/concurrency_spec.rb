@@ -214,7 +214,7 @@ RSpec.describe "concurrency", :aggregate_failures do
         Thread.new do
           LlmCostTracker.with_tags(request_id: "req_#{i}") do
             event = LlmCostTracker::Tracker.record(
-              capture: LlmCostTracker::UsageCapture.build(
+              event: LlmCostTracker::Event.build(
                 provider: "openai",
                 model: "gpt-4o",
                 token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
@@ -240,7 +240,7 @@ RSpec.describe "concurrency", :aggregate_failures do
         LlmCostTracker.with_tags(request_id: "fiber_a") do
           Fiber.yield
           event = LlmCostTracker::Tracker.record(
-            capture: LlmCostTracker::UsageCapture.build(
+            event: LlmCostTracker::Event.build(
               provider: "openai",
               model: "gpt-4o",
               token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
@@ -253,7 +253,7 @@ RSpec.describe "concurrency", :aggregate_failures do
       fiber_b = Fiber.new do
         LlmCostTracker.with_tags(request_id: "fiber_b") do
           event = LlmCostTracker::Tracker.record(
-            capture: LlmCostTracker::UsageCapture.build(
+            event: LlmCostTracker::Event.build(
               provider: "openai",
               model: "gpt-4o",
               token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)

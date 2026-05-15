@@ -112,7 +112,7 @@ module LlmCostTracker
 
           record_safely do
             LlmCostTracker::Tracker.record(
-              capture: UsageCapture.build(
+              event: Event.build(
                 provider: provider,
                 model: model,
                 token_usage: TokenUsage.build(
@@ -141,7 +141,7 @@ module LlmCostTracker
             hidden_output = object_value(response, :thinking_tokens, :reasoning_tokens).to_i
 
             LlmCostTracker::Tracker.record(
-              capture: UsageCapture.build(
+              event: Event.build(
                 provider: provider,
                 model: model,
                 pricing_mode: pricing_mode(provider: provider, response: response),

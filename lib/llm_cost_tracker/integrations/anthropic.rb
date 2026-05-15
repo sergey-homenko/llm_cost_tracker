@@ -46,7 +46,7 @@ module LlmCostTracker
             next if input_tokens.nil? && output_tokens.nil?
 
             LlmCostTracker::Tracker.record(
-              capture: UsageCapture.build(
+              event: Event.build(
                 provider: "anthropic",
                 model: object_value(message, :model) || request[:model],
                 pricing_mode: pricing_mode(message: message, request: request, usage: usage),

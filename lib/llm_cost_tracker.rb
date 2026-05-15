@@ -23,7 +23,6 @@ require_relative "llm_cost_tracker/billing/line_item"
 require_relative "llm_cost_tracker/billing/cost_status"
 require_relative "llm_cost_tracker/event"
 require_relative "llm_cost_tracker/pricing"
-require_relative "llm_cost_tracker/usage_capture"
 require_relative "llm_cost_tracker/parsers"
 require_relative "llm_cost_tracker/middleware/faraday"
 require_relative "llm_cost_tracker/integrations"
@@ -95,7 +94,7 @@ module LlmCostTracker
       Tracker.enforce_budget! if enforce_budget
 
       Tracker.record(
-        capture: UsageCapture.build(
+        event: Event.build(
           provider: provider,
           model: model,
           token_usage: TokenUsage.build_from_tokens(tokens),
