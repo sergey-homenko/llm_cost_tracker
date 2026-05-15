@@ -33,6 +33,15 @@ module LlmCostTracker
           )
         end
 
+        def wrap_stream_call(args, kwargs, resource)
+          request = request_params(args, kwargs)
+          enforce_budget!
+          host = client_host_for(resource)
+          collector = stream_collector(request, host: host)
+          stream = yield(normalize_sdk_args(args, kwargs), collector)
+          track_stream(stream, collector: collector)
+        end
+
         def client_host_for(resource)
           client = resource.instance_variable_get(:@client)
           return nil unless client.respond_to?(:base_url, true)
@@ -336,31 +345,22 @@ module LlmCostTracker
         end
 
         def stream(*args, **kwargs)
-          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
-          LlmCostTracker::Integrations::Openai.enforce_budget!
-          host = LlmCostTracker::Integrations::Openai.client_host_for(self)
-          collector = LlmCostTracker::Integrations::Openai.stream_collector(request, host: host)
-          stream = super(*LlmCostTracker::Integrations::Openai.normalize_sdk_args(args, kwargs))
-          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+          LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |normalized, _|
+            super(*normalized)
+          end
         end
 
         def stream_raw(*args, **kwargs)
-          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
-          LlmCostTracker::Integrations::Openai.enforce_budget!
-          host = LlmCostTracker::Integrations::Openai.client_host_for(self)
-          collector = LlmCostTracker::Integrations::Openai.stream_collector(request, host: host)
-          stream = super(*LlmCostTracker::Integrations::Openai.normalize_sdk_args(args, kwargs))
-          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+          LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |normalized, _|
+            super(*normalized)
+          end
         end
 
         def retrieve_streaming(response_id, *args, **kwargs)
-          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
-          LlmCostTracker::Integrations::Openai.enforce_budget!
-          host = LlmCostTracker::Integrations::Openai.client_host_for(self)
-          collector = LlmCostTracker::Integrations::Openai.stream_collector(request, host: host)
-          collector.provider_response_id = response_id
-          stream = super(response_id, *LlmCostTracker::Integrations::Openai.normalize_sdk_args(args, kwargs))
-          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+          LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |normalized, collector|
+            collector.provider_response_id = response_id
+            super(response_id, *normalized)
+          end
         end
       end
 
@@ -379,21 +379,15 @@ module LlmCostTracker
         end
 
         def stream(*args, **kwargs)
-          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
-          LlmCostTracker::Integrations::Openai.enforce_budget!
-          host = LlmCostTracker::Integrations::Openai.client_host_for(self)
-          collector = LlmCostTracker::Integrations::Openai.stream_collector(request, host: host)
-          stream = super(*LlmCostTracker::Integrations::Openai.normalize_sdk_args(args, kwargs))
-          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+          LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |normalized, _|
+            super(*normalized)
+          end
         end
 
         def stream_raw(*args, **kwargs)
-          request = LlmCostTracker::Integrations::Openai.request_params(args, kwargs)
-          LlmCostTracker::Integrations::Openai.enforce_budget!
-          host = LlmCostTracker::Integrations::Openai.client_host_for(self)
-          collector = LlmCostTracker::Integrations::Openai.stream_collector(request, host: host)
-          stream = super(*LlmCostTracker::Integrations::Openai.normalize_sdk_args(args, kwargs))
-          LlmCostTracker::Integrations::Openai.track_stream(stream, collector: collector)
+          LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |normalized, _|
+            super(*normalized)
+          end
         end
       end
 

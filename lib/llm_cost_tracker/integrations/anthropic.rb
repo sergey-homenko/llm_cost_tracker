@@ -137,6 +137,14 @@ module LlmCostTracker
             object_value(message, :inference_geo) ||
             request[:inference_geo]
         end
+
+        def wrap_stream_call(args, kwargs)
+          request = request_params(args, kwargs)
+          enforce_budget!
+          collector = stream_collector(request)
+          stream = yield
+          track_stream(stream, collector: collector)
+        end
       end
 
       module MessagesPatch
@@ -153,19 +161,11 @@ module LlmCostTracker
         end
 
         def stream(*args, **kwargs)
-          request = LlmCostTracker::Integrations::Anthropic.request_params(args, kwargs)
-          LlmCostTracker::Integrations::Anthropic.enforce_budget!
-          collector = LlmCostTracker::Integrations::Anthropic.stream_collector(request)
-          stream = super
-          LlmCostTracker::Integrations::Anthropic.track_stream(stream, collector: collector)
+          LlmCostTracker::Integrations::Anthropic.wrap_stream_call(args, kwargs) { super }
         end
 
         def stream_raw(*args, **kwargs)
-          request = LlmCostTracker::Integrations::Anthropic.request_params(args, kwargs)
-          LlmCostTracker::Integrations::Anthropic.enforce_budget!
-          collector = LlmCostTracker::Integrations::Anthropic.stream_collector(request)
-          stream = super
-          LlmCostTracker::Integrations::Anthropic.track_stream(stream, collector: collector)
+          LlmCostTracker::Integrations::Anthropic.wrap_stream_call(args, kwargs) { super }
         end
       end
     end
