@@ -9,9 +9,9 @@ RSpec.describe LlmCostTracker do
       let(:collector) { described_class.new(provider: "openai", model: "gpt-5.5") }
 
       def merge(provider_mode, request_mode)
-        capture = Struct.new(:pricing_mode).new(provider_mode)
+        event = Struct.new(:pricing_mode).new(provider_mode)
         snapshot = { pricing_mode: request_mode }
-        collector.send(:pricing_mode_for, capture: capture, snapshot: snapshot)
+        collector.send(:pricing_mode_for, event: event, snapshot: snapshot)
       end
 
       it "keeps host-derived data_residency from the request hint when provider only echoes the tier" do

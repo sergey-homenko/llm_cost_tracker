@@ -122,14 +122,14 @@ module LlmCostTracker
       def record_snapshot(snapshot, errored:)
         save_succeeded = false
         begin
-          capture = build_event(snapshot)
-          provider_response_id = capture.provider_response_id || snapshot[:provider_response_id]
-          capture = capture.with(provider_response_id: provider_response_id)
+          event = build_event(snapshot)
+          provider_response_id = event.provider_response_id || snapshot[:provider_response_id]
+          event = event.with(provider_response_id: provider_response_id)
 
           Tracker.record(
-            event: capture,
+            event: event,
             latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
-            pricing_mode: pricing_mode_for(capture: capture, snapshot: snapshot),
+            pricing_mode: pricing_mode_for(event: event, snapshot: snapshot),
             metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
             context_tags: snapshot[:context_tags]
           ) { save_succeeded = true }
@@ -144,8 +144,8 @@ module LlmCostTracker
       HOST_DERIVED_MODE_TOKENS = %i[data_residency].freeze
       private_constant :HOST_DERIVED_MODE_TOKENS
 
-      def pricing_mode_for(capture:, snapshot:)
-        merge_pricing_modes(capture.pricing_mode, snapshot[:pricing_mode])
+      def pricing_mode_for(event:, snapshot:)
+        merge_pricing_modes(event.pricing_mode, snapshot[:pricing_mode])
       end
 
       def merge_pricing_modes(provider_mode, request_mode)
@@ -179,14 +179,14 @@ module LlmCostTracker
         return build_from_explicit_usage(snapshot) if snapshot[:explicit_usage]
         return build_unknown_usage(snapshot) if snapshot[:overflowed]
 
-        capture = Parsers.find_for_provider(@provider)&.parse_stream(
+        event = Parsers.find_for_provider(@provider)&.parse_stream(
           response_status: 200,
           events: snapshot[:events],
           request_body: request_body_for(snapshot[:request])
         )
-        if capture
-          model = present_model(capture.model) || present_model(snapshot[:model]) || Event::UNKNOWN_MODEL
-          return capture.with(provider: @provider, model: model, **snapshot.fetch(:capture_dimensions))
+        if event
+          model = present_model(event.model) || present_model(snapshot[:model]) || Event::UNKNOWN_MODEL
+          return event.with(provider: @provider, model: model, **snapshot.fetch(:capture_dimensions))
         end
 
         build_unknown_usage(snapshot)
