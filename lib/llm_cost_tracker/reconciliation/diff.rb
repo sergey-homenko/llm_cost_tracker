@@ -187,8 +187,6 @@ module LlmCostTracker
 
       def unmatched_provider_rows_from_sql(local_index)
         rows = BASIS_DIMENSION.each_key.flat_map do |basis|
-          next [] if basis == PERIOD_ONLY_BASIS
-
           column = BASIS_DIMENSION[basis].to_s
           relation = scoped_invoices_relation_for(:cost, fully_contained: true)
           relation = where_match_basis_eq(relation, basis)
@@ -213,8 +211,6 @@ module LlmCostTracker
 
       def unmatched_provider_rows_total_count(local_index)
         BASIS_DIMENSION.each_key.sum do |basis|
-          next 0 if basis == PERIOD_ONLY_BASIS
-
           column = BASIS_DIMENSION[basis].to_s
           relation = scoped_invoices_relation_for(:cost, fully_contained: true)
           relation = where_match_basis_eq(relation, basis)
@@ -227,13 +223,9 @@ module LlmCostTracker
 
       def local_attribution_index_distinct
         BASIS_DIMENSION.each_key.to_h do |basis|
-          if basis == PERIOD_ONLY_BASIS
-            [basis, Set.new]
-          else
-            column = BASIS_DIMENSION[basis]
-            values = scoped_calls_relation.where.not(column => nil).distinct.pluck(column)
-            [basis, Set.new(values)]
-          end
+          column = BASIS_DIMENSION[basis]
+          values = scoped_calls_relation.where.not(column => nil).distinct.pluck(column)
+          [basis, Set.new(values)]
         end
       end
 
@@ -268,16 +260,12 @@ module LlmCostTracker
 
       def invoice_basis_values_distinct_sql
         BASIS_DIMENSION.each_key.to_h do |basis|
-          if basis == PERIOD_ONLY_BASIS
-            [basis, Set.new]
-          else
-            column = BASIS_DIMENSION[basis].to_s
-            relation = scoped_invoices_relation_for(:cost, fully_contained: true)
-            relation = where_match_basis_eq(relation, basis)
-            relation = where_metadata_present(relation, column)
-            values = pluck_metadata_distinct(relation, column)
-            [basis, Set.new(values)]
-          end
+          column = BASIS_DIMENSION[basis].to_s
+          relation = scoped_invoices_relation_for(:cost, fully_contained: true)
+          relation = where_match_basis_eq(relation, basis)
+          relation = where_metadata_present(relation, column)
+          values = pluck_metadata_distinct(relation, column)
+          [basis, Set.new(values)]
         end
       end
 
