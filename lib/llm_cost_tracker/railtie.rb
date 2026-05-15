@@ -17,8 +17,6 @@ module LlmCostTracker
       require_relative "generators/llm_cost_tracker/upgrade_call_rollups_provider_generator"
       require_relative "generators/llm_cost_tracker/upgrade_image_tokens_generator"
       require_relative "generators/llm_cost_tracker/upgrade_call_tags_key_value_index_generator"
-      require_relative "generators/llm_cost_tracker/upgrade_call_line_items_currency_index_generator"
-      require_relative "generators/llm_cost_tracker/upgrade_provider_invoice_imports_finished_at_index_generator"
     end
 
     rake_tasks do

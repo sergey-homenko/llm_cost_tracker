@@ -226,7 +226,6 @@ module LlmCostTrackerDatabaseSpecHelpers
     connection.add_index :llm_cost_tracker_calls, :cost_status
     connection.add_index :llm_cost_tracker_calls, :provider_response_id
     connection.add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
-    connection.add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id currency]
     connection.add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
     connection.add_index :llm_cost_tracker_call_tags, %i[key value]
     connection.add_index :llm_cost_tracker_call_rollups, %i[period period_start currency provider], unique: true
@@ -243,6 +242,5 @@ module LlmCostTrackerDatabaseSpecHelpers
       connection.add_index :llm_cost_tracker_provider_invoices, :metadata, using: :gin
     end
     connection.add_index :llm_cost_tracker_provider_invoice_imports, %i[source provider started_at]
-    connection.add_index :llm_cost_tracker_provider_invoice_imports, %i[state finished_at]
   end
 end
