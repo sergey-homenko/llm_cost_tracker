@@ -69,7 +69,6 @@ module LlmCostTracker
           ensure_open!
           capture_event(data, type: type) unless data.nil?
         end
-        self
       end
 
       def usage(input_tokens:, output_tokens:, **extra)
@@ -87,7 +86,6 @@ module LlmCostTracker
             output_tokens: output_tokens
           )
         end
-        self
       end
 
       def finish!(errored: false)

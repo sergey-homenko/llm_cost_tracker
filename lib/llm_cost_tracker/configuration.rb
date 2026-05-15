@@ -163,7 +163,6 @@ module LlmCostTracker
         normalize_openai_compatible_providers(@openai_compatible_providers)
       )
       @finalized = true
-      self
     end
 
     def normalized_redacted_tag_keys
