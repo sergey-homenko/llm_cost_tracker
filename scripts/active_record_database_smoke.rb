@@ -266,6 +266,7 @@ def add_schema_indexes!(database_connection)
   add_index :llm_cost_tracker_calls, :cost_status
   add_index :llm_cost_tracker_calls, :provider_response_id
   add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
+  add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id currency]
   add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
   if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
     add_index :llm_cost_tracker_call_tags, %i[key value]
@@ -283,6 +284,7 @@ def add_schema_indexes!(database_connection)
     add_index :llm_cost_tracker_provider_invoices, :metadata, using: :gin
   end
   add_index :llm_cost_tracker_provider_invoice_imports, %i[source provider started_at]
+  add_index :llm_cost_tracker_provider_invoice_imports, %i[state finished_at]
 end
 
 def create_database!(adapter, admin, database)

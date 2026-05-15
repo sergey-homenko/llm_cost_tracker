@@ -1,0 +1,32 @@
+require "llm_cost_tracker/ledger/schema/adapter"
+
+class UpgradeLlmCostTrackerProviderInvoiceImportsFinishedAtIndex < ActiveRecord::Migration<%= migration_version %>
+  disable_ddl_transaction!
+
+  TABLE = :llm_cost_tracker_provider_invoice_imports
+  INDEX_COLUMNS = %i[state finished_at].freeze
+
+  def up
+    if postgresql?
+      add_index TABLE, INDEX_COLUMNS, algorithm: :concurrently, if_not_exists: true
+    elsif mysql?
+      add_index TABLE, INDEX_COLUMNS, if_not_exists: true
+    else
+      raise "LLM Cost Tracker supports PostgreSQL and MySQL only"
+    end
+  end
+
+  def down
+    remove_index TABLE, column: INDEX_COLUMNS, if_exists: true
+  end
+
+  private
+
+  def postgresql?
+    LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+  end
+
+  def mysql?
+    LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)
+  end
+end
