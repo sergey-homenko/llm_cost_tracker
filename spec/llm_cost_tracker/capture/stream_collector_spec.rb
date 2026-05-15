@@ -97,7 +97,7 @@ RSpec.describe LlmCostTracker do
       received_metadata = nil
       allow(LlmCostTracker::Tracker).to receive(:record) do |metadata:, **_, &block|
         received_metadata = metadata
-        block&.call(:after_save)
+        block&.call
         nil
       end
 
@@ -119,23 +119,10 @@ RSpec.describe LlmCostTracker do
         received_request_body = request_body
         nil
       end
-      allow(LlmCostTracker::Tracker).to receive(:record) { |&block| block&.call(:after_save); nil }
+      allow(LlmCostTracker::Tracker).to receive(:record) { |&block| block&.call; nil }
 
       collector.finish!(errored: false)
       expect(received_request_body).to be_nil
-    end
-
-    it "keeps the snapshot pending when Tracker.record yields a non-save stage so a future yield contract change won't silently mark unsaved snapshots finished" do
-      collector = described_class.new(provider: "openai", model: "gpt-4o")
-      collector.usage(input_tokens: 5, output_tokens: 1)
-
-      allow(LlmCostTracker::Tracker).to receive(:record) do |**_, &block|
-        block&.call(:before_save)
-        nil
-      end
-
-      collector.finish!(errored: false)
-      expect(collector.instance_variable_get(:@finished)).to be false
     end
 
     it "does not retry after Tracker.record persisted but Budget.check! raised" do
@@ -145,7 +132,7 @@ RSpec.describe LlmCostTracker do
       record_calls = 0
       allow(LlmCostTracker::Tracker).to receive(:record) do |**_, &block|
         record_calls += 1
-        block&.call(:after_save)
+        block&.call
         raise LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1, budget: 0.5)
       end
 

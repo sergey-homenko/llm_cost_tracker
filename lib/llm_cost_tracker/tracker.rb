@@ -53,7 +53,8 @@ module LlmCostTracker
         else
           Ledger::Store.insert_many([event], skip_existence_check: true)
         end
-        yield :after_save if block_given?
+
+        yield if block_given?
         notify_subscribers(event)
         Budget.check!(event)
 
