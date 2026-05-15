@@ -14,17 +14,17 @@ module LlmCostTracker
 
     BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
-    SHARED_SCALAR_ATTRIBUTES = %i[enabled default_tags on_budget_exceeded monthly_budget daily_budget per_call_budget
+    SCALAR_ATTRIBUTES = %i[enabled default_tags on_budget_exceeded monthly_budget daily_budget per_call_budget
                                   log_level prices_file max_tag_count max_tag_value_bytesize
                                   durable_ingestion_pool_size].freeze
-    SHARED_ENUM_ATTRIBUTES = {
+    ENUM_ATTRIBUTES = {
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
       unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn]
     }.freeze
     DEFAULT_REDACTED_TAG_KEYS = %w[api_key access_token authorization credential password refresh_token secret].freeze
 
     attr_reader(
-      *SHARED_SCALAR_ATTRIBUTES,
+      *SCALAR_ATTRIBUTES,
       :budget_exceeded_behavior,
       :durable_ingestion,
       :instrumented_integrations,
@@ -67,27 +67,27 @@ module LlmCostTracker
     end
 
     def durable_ingestion=(value)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       @durable_ingestion = value
     end
 
     def cache_rollups=(value)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       @cache_rollups = value
     end
 
     def reconciliation_enabled=(value)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       @reconciliation_enabled = value
     end
 
     def auto_enable_stream_usage=(value)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       @auto_enable_stream_usage = value
     end
 
     def reconciliation_importers=(importers)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       raise Error, RECONCILIATION_DISABLED_MESSAGE unless @reconciliation_enabled
 
       @reconciliation_importers = (importers || {}).to_h do |source, importer|
@@ -98,7 +98,7 @@ module LlmCostTracker
     end
 
     def register_reconciliation_importer(source, &block)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       raise Error, RECONCILIATION_DISABLED_MESSAGE unless @reconciliation_enabled
       raise Error, "register_reconciliation_importer requires a block" unless block
 
@@ -109,29 +109,29 @@ module LlmCostTracker
     private_constant :RECONCILIATION_DISABLED_MESSAGE
 
     def openai_compatible_providers=(providers)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       @openai_compatible_providers = normalize_openai_compatible_providers(providers)
     end
 
     def pricing_overrides=(value)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       @pricing_overrides = Pricing::Registry.normalize_price_table(value || {})
     rescue ArgumentError => e
       raise Error, "invalid pricing_overrides: #{e.message}"
     end
 
     def report_tag_breakdowns=(value)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       @report_tag_breakdowns = Array(value).map { |key| Tags::Key.validate!(key, error_class: Error) }
     end
 
     def redacted_tag_keys=(value)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       @redacted_tag_keys = Array(value).map(&:to_s)
     end
 
     def instrument(*names)
-      ensure_shared_configuration_mutable!
+      ensure_mutable!
       @instrumented_integrations.merge(normalize_instrumentation_names(names))
     end
 
@@ -139,16 +139,16 @@ module LlmCostTracker
       @instrumented_integrations.include?(name)
     end
 
-    SHARED_SCALAR_ATTRIBUTES.each do |name|
+    SCALAR_ATTRIBUTES.each do |name|
       define_method("#{name}=") do |value|
-        ensure_shared_configuration_mutable!
+        ensure_mutable!
         instance_variable_set(:"@#{name}", value)
       end
     end
 
-    SHARED_ENUM_ATTRIBUTES.each do |name, (allowed, default)|
+    ENUM_ATTRIBUTES.each do |name, (allowed, default)|
       define_method("#{name}=") do |value|
-        ensure_shared_configuration_mutable!
+        ensure_mutable!
         instance_variable_set(:"@#{name}", normalize_enum(name, value, allowed, default: default))
       end
     end
@@ -203,7 +203,7 @@ module LlmCostTracker
       names
     end
 
-    def ensure_shared_configuration_mutable!
+    def ensure_mutable!
       return unless finalized?
 
       raise FrozenError, "can't modify frozen LlmCostTracker::Configuration"
