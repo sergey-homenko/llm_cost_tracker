@@ -1030,4 +1030,14 @@ RSpec.describe "ActiveRecord storage integration" do
 
     expect(total).to eq(0.0025)
   end
+
+  it "falls back to a follow-up SELECT for adapters without RETURNING (MySQL/Trilogy path)" do
+    allow_any_instance_of(LlmCostTracker::Call.connection.class).to receive(:supports_insert_returning?).and_return(false)
+
+    event = track_and_flush(provider: :openai, model: "gpt-4o", tokens: { input: 1_000, output: 500 })
+
+    persisted = LlmCostTracker::Call.find_by!(event_id: event.event_id)
+    expect(persisted.line_items.count).to eq(2)
+    expect(persisted.line_items.pluck(:llm_cost_tracker_call_id).uniq).to eq([persisted.id])
+  end
 end

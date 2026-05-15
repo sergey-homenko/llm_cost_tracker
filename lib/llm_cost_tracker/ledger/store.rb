@@ -20,8 +20,7 @@ module LlmCostTracker
           if insertable.any?
             LlmCostTracker::Call.transaction do
               rows = insertable.map { |event| attributes_for(event) }
-              LlmCostTracker::Call.insert_all!(rows, record_timestamps: true, returning: false)
-              call_ids = call_ids_for(insertable)
+              call_ids = insert_calls_returning_ids(rows, insertable)
               insert_line_items(insertable, call_ids)
               insert_call_tags(insertable, call_ids)
             end
@@ -31,6 +30,16 @@ module LlmCostTracker
         end
 
         private
+
+        def insert_calls_returning_ids(rows, insertable)
+          if LlmCostTracker::Call.connection.supports_insert_returning?
+            result = LlmCostTracker::Call.insert_all!(rows, record_timestamps: true, returning: %i[id event_id])
+            result.rows.to_h { |id, event_id| [event_id, id] }
+          else
+            LlmCostTracker::Call.insert_all!(rows, record_timestamps: true, returning: false)
+            call_ids_for(insertable)
+          end
+        end
 
         def attributes_for(event)
           attributes = {
