@@ -35,6 +35,24 @@ module LlmCostTracker
           end
         end
 
+        def prices_file_iso_version
+          invalidate_cache_if_prices_file_changed!
+          signature = @prices_file_signature
+          return nil unless signature
+
+          cached = @prices_file_iso_cache
+          return cached[:value] if cached && cached[:mtime] == signature
+
+          MUTEX.synchronize do
+            cached = @prices_file_iso_cache
+            return cached[:value] if cached && cached[:mtime] == signature
+
+            iso = signature.utc.iso8601
+            @prices_file_iso_cache = { mtime: signature, value: iso }.freeze
+            iso
+          end
+        end
+
         private
 
         def invalidate_cache_if_prices_file_changed!
@@ -62,6 +80,7 @@ module LlmCostTracker
           @prices_cache = nil
           @lookup_cache = nil
           @sorted_price_keys_cache = nil
+          @prices_file_iso_cache = nil
           @prices_file_signature = signature
         end
 

@@ -198,12 +198,7 @@ module LlmCostTracker
       def rate_source_version_for(source)
         return LlmCostTracker::VERSION if source == :bundled
 
-        path = LlmCostTracker.configuration.prices_file
-        return nil unless path
-
-        File.mtime(path).utc.iso8601
-      rescue Errno::ENOENT
-        nil
+        Lookup.prices_file_iso_version
       end
     end
   end

@@ -249,13 +249,10 @@ module LlmCostTracker
         when :bundled
           LlmCostTracker::VERSION
         when :prices_file
-          path = LlmCostTracker.configuration.prices_file
-          path ? File.mtime(path).utc.iso8601 : nil
+          Lookup.prices_file_iso_version
         when :pricing_overrides
           "configuration"
         end
-      rescue Errno::ENOENT
-        nil
       end
 
       def token_cost(tokens, per_million_price)
