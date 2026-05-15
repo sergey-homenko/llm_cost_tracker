@@ -219,7 +219,7 @@ module LlmCostTracker
     def active_record_available?
       LlmCostTracker::Call.connection
       true
-    rescue LoadError, StandardError
+    rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError
       false
     end
 

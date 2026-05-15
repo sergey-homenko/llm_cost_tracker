@@ -40,7 +40,10 @@ module LlmCostTracker
         Ingestion::InboxEntry
           .where(id: rows.map(&:id), locked_by: identity)
           .update_all(last_error: message, locked_at: now, locked_by: nil, updated_at: now)
-      rescue StandardError
+      rescue StandardError => e
+        LlmCostTracker::Logging.warn(
+          "Inbox mark_failed failed for #{rows.size} rows: #{e.class}: #{e.message} (original error: #{error.class})"
+        )
         nil
       end
 

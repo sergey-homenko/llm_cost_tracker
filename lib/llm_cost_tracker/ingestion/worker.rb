@@ -16,11 +16,13 @@ module LlmCostTracker
       MAX_IDLE_INTERVAL_SECONDS = 5.0
       LEASE_SECONDS = 10
       FLUSH_TIMEOUT_SECONDS = 10
+      MUTEX = Mutex.new
+
       class << self
         def ensure_started
           return unless Ingestion.durable?
 
-          thread = mutex.synchronize do
+          thread = MUTEX.synchronize do
             reset_after_fork!
             unless @thread&.alive?
               @stop_requested = false
@@ -39,6 +41,7 @@ module LlmCostTracker
           return true unless Ingestion.durable?
 
           Ingestion.ensure_current_schema!
+          MUTEX.synchronize { reset_after_fork! }
 
           deadline = Time.now.utc + flush_timeout_seconds(timeout)
           loop do
@@ -59,7 +62,7 @@ module LlmCostTracker
           return true unless Ingestion.durable?
 
           timeout ||= FLUSH_TIMEOUT_SECONDS
-          thread = mutex.synchronize do
+          thread = MUTEX.synchronize do
             @stop_requested = true
             @generation = @generation.to_i + 1
             @thread
@@ -71,13 +74,13 @@ module LlmCostTracker
           handle_error(e)
           false
         ensure
-          mutex.synchronize do
+          MUTEX.synchronize do
             @thread = nil if @thread.equal?(thread) && !thread&.alive?
           end
         end
 
         def reset!
-          thread = mutex.synchronize do
+          thread = MUTEX.synchronize do
             @stop_requested = true
             @generation = @generation.to_i + 1
             thread = @thread
@@ -98,6 +101,7 @@ module LlmCostTracker
 
         def ingest_once(require_lease: true)
           Ingestion.ensure_current_schema!
+          MUTEX.synchronize { reset_after_fork! }
           batch = Ingestion::Batch.new(identity: identity)
           return 0 unless batch.claimable?
           return 0 if require_lease && !Ingestion::LeaseClaim.new(identity: identity, seconds: LEASE_SECONDS).acquire
@@ -110,14 +114,10 @@ module LlmCostTracker
 
         private
 
-        def mutex
-          @mutex ||= Mutex.new
-        end
-
         def run(generation)
           idle_interval = IDLE_INTERVAL_SECONDS
           loop do
-            break if mutex.synchronize { @stop_requested || generation != @generation }
+            break if MUTEX.synchronize { @stop_requested || generation != @generation }
 
             processed = Rails.application.executor.wrap { ingest_once }
             release_connection!
@@ -134,7 +134,7 @@ module LlmCostTracker
           end
         ensure
           release_connection!
-          mutex.synchronize { @thread = nil if @thread.equal?(Thread.current) }
+          MUTEX.synchronize { @thread = nil if @thread.equal?(Thread.current) }
         end
 
         def reset_after_fork!
