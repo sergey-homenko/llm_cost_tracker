@@ -69,20 +69,24 @@ module LlmCostTracker
 
       def prune_batch(cutoff, batch_size)
         LlmCostTracker::Call.transaction do
-          rows = pluck_prunable(cutoff, batch_size)
+          cache_rollups = LlmCostTracker.configuration.cache_rollups
+          rows = pluck_prunable(cutoff, batch_size, with_rollup_columns: cache_rollups)
           next 0 if rows.empty?
 
-          deleted = LlmCostTracker::Call.where(id: rows.map(&:first)).delete_all
-          if deleted.positive? && LlmCostTracker.configuration.cache_rollups
-            LlmCostTracker::Ledger::Rollups.decrement!(rows)
-          end
+          ids = cache_rollups ? rows.map(&:first) : rows
+          deleted = LlmCostTracker::Call.where(id: ids).delete_all
+          LlmCostTracker::Ledger::Rollups.decrement!(rows) if cache_rollups && deleted.positive?
           deleted
         end
       end
 
-      def pluck_prunable(cutoff, batch_size)
-        LlmCostTracker::Call.where(tracked_at: ...cutoff).order(:id).limit(batch_size).lock
-                            .pluck(:id, :tracked_at, :total_cost, :pricing_snapshot, :provider)
+      def pluck_prunable(cutoff, batch_size, with_rollup_columns:)
+        relation = LlmCostTracker::Call.where(tracked_at: ...cutoff).order(:id).limit(batch_size).lock
+        if with_rollup_columns
+          relation.pluck(:id, :tracked_at, :total_cost, :pricing_snapshot, :provider)
+        else
+          relation.pluck(:id)
+        end
       end
     end
   end

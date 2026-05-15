@@ -203,4 +203,16 @@ RSpec.describe LlmCostTracker::Retention do
     expect { described_class.prune(older_than: now, now: now) }
       .to raise_error(ArgumentError, /cutoff must be before now/)
   end
+
+  it "skips plucking pricing_snapshot when cache_rollups is disabled" do
+    LlmCostTracker.configuration.cache_rollups = false
+    now = Time.utc(2026, 4, 20, 12, 0, 0)
+    create_call(tracked_at: now - 200.days, total_cost: 1.0)
+    create_call(tracked_at: now - 1.day, total_cost: 2.0)
+
+    deleted = described_class.prune(older_than: 90.days, now: now)
+
+    expect(deleted).to eq(1)
+    expect(LlmCostTracker::Call.count).to eq(1)
+  end
 end
