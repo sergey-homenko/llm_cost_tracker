@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-05-13"
+    "updated_at": "2026-05-15"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -25,15 +25,6 @@
       "input": 0.25,
       "output": 1.25
     },
-    "anthropic/claude-haiku-3-5": {
-      "batch_input": 0.4,
-      "batch_output": 2.0,
-      "cache_read_input": 0.08,
-      "cache_write_extended_input": 1.6,
-      "cache_write_input": 1.0,
-      "input": 0.8,
-      "output": 4.0
-    },
     "anthropic/claude-haiku-4-5": {
       "batch_input": 0.5,
       "batch_output": 2.5,
@@ -42,15 +33,6 @@
       "cache_write_input": 1.25,
       "input": 1.0,
       "output": 5.0
-    },
-    "anthropic/claude-opus-4": {
-      "batch_input": 7.5,
-      "batch_output": 37.5,
-      "cache_read_input": 1.5,
-      "cache_write_extended_input": 30.0,
-      "cache_write_input": 18.75,
-      "input": 15.0,
-      "output": 75.0
     },
     "anthropic/claude-opus-4-1": {
       "batch_input": 7.5,
@@ -111,15 +93,6 @@
       "data_residency_output": 27.5,
       "input": 5.0,
       "output": 25.0
-    },
-    "anthropic/claude-sonnet-4": {
-      "batch_input": 1.5,
-      "batch_output": 7.5,
-      "cache_read_input": 0.3,
-      "cache_write_extended_input": 6.0,
-      "cache_write_input": 3.75,
-      "input": 3.0,
-      "output": 15.0
     },
     "anthropic/claude-sonnet-4-5": {
       "batch_input": 1.5,
