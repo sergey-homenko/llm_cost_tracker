@@ -37,7 +37,7 @@ module LlmCostTracker
       end
 
       def call
-        provider_total = scoped_invoices_relation_for(:cost, fully_contained: true)
+        provider_total = scoped_cost_invoices_in_window
                          .sum(:billed_amount)
                          .then { |sum| BigDecimal(sum.to_s) }
         local_index = local_attribution_index_distinct
@@ -88,10 +88,10 @@ module LlmCostTracker
         relation.to_a
       end
 
-      def scoped_invoices_relation_for(row_type_filter = nil, fully_contained: false)
+      def scoped_cost_invoices_in_window
         relation = scoped_invoices_relation
-        relation = relation.where(period_start: period_start..).where(period_end: ..period_end) if fully_contained
-        return relation unless row_type_filter == :cost
+                   .where(period_start: period_start..)
+                   .where(period_end: ..period_end)
 
         connection = ProviderInvoice.connection
         if Ledger::Schema::Adapter.postgresql?(connection)
@@ -188,7 +188,7 @@ module LlmCostTracker
       def unmatched_provider_rows_from_sql(local_index)
         rows = BASIS_DIMENSION.each_key.flat_map do |basis|
           column = BASIS_DIMENSION[basis].to_s
-          relation = scoped_invoices_relation_for(:cost, fully_contained: true)
+          relation = scoped_cost_invoices_in_window
           relation = where_match_basis_eq(relation, basis)
           relation = where_metadata_present(relation, column)
           values = local_index[basis].to_a
@@ -212,7 +212,7 @@ module LlmCostTracker
       def unmatched_provider_rows_total_count(local_index)
         BASIS_DIMENSION.each_key.sum do |basis|
           column = BASIS_DIMENSION[basis].to_s
-          relation = scoped_invoices_relation_for(:cost, fully_contained: true)
+          relation = scoped_cost_invoices_in_window
           relation = where_match_basis_eq(relation, basis)
           relation = where_metadata_present(relation, column)
           values = local_index[basis].to_a
@@ -261,7 +261,7 @@ module LlmCostTracker
       def invoice_basis_values_distinct_sql
         BASIS_DIMENSION.each_key.to_h do |basis|
           column = BASIS_DIMENSION[basis].to_s
-          relation = scoped_invoices_relation_for(:cost, fully_contained: true)
+          relation = scoped_cost_invoices_in_window
           relation = where_match_basis_eq(relation, basis)
           relation = where_metadata_present(relation, column)
           values = pluck_metadata_distinct(relation, column)

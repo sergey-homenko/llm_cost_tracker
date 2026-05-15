@@ -225,7 +225,7 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
         source: :openai, provider: "openai", period_start: period_start, period_end: period_end
       )
 
-      sql = diff_instance.send(:scoped_invoices_relation_for, :cost).to_sql
+      sql = diff_instance.send(:scoped_cost_invoices_in_window).to_sql
 
       expect(sql).to include("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type'))")
     end
