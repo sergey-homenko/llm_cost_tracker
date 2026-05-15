@@ -28,7 +28,7 @@ module LlmCostTracker
         @provider = provider.to_s
         @period_start = parse_date(period_start)
         @period_end = parse_date(period_end)
-        @scope = symbolize(scope || {}).slice(*SCOPE_KEYS)
+        @scope = (scope || {}).to_h.transform_keys { |key| key.to_s.to_sym }.slice(*SCOPE_KEYS)
         @currency = (currency || Ledger::Rollups::DEFAULT_CURRENCY).to_s.upcase
         @drilldown_limit = drilldown_limit
         raise ArgumentError, "source must be present" if @source.empty?
@@ -66,7 +66,7 @@ module LlmCostTracker
           unmatched_local_calls: cap_by_amount(unmatched_locals, :total_cost),
           unmatched_local_calls_total: unmatched_local_calls_total_count(invoice_basis_values),
           non_cost_rows: cap_by_amount(non_cost_rows, :billed_amount),
-          non_cost_rows_total: non_cost_invoices_total_count
+          non_cost_rows_total: scoped_non_cost_invoices_relation.count
         )
       end
 
@@ -269,10 +269,6 @@ module LlmCostTracker
         end
       end
 
-      def non_cost_invoices_total_count
-        scoped_non_cost_invoices_relation.count
-      end
-
       def scoped_non_cost_invoices_relation
         connection = ProviderInvoice.connection
         if Ledger::Schema::Adapter.postgresql?(connection)
@@ -401,10 +397,6 @@ module LlmCostTracker
         return nil if provider.zero?
 
         ((local - provider) * 100 / provider).round(4).to_f
-      end
-
-      def symbolize(hash)
-        hash.to_h.transform_keys { |key| key.to_s.to_sym }
       end
 
       def parse_date(value)

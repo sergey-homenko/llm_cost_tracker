@@ -53,12 +53,8 @@ module LlmCostTracker
             tracked_at: Time.iso8601(payload.fetch(:tracked_at)),
             cost_status: payload.fetch(:cost_status),
             pricing_snapshot: payload[:pricing_snapshot],
-            line_items: line_items_from(payload)
+            line_items: (payload[:line_items] || []).map { |attrs| Billing::LineItem.build(attrs) }
           }
-        end
-
-        def line_items_from(payload)
-          (payload[:line_items] || []).map { |attributes| Billing::LineItem.build(attributes) }
         end
 
         def row_for(event)

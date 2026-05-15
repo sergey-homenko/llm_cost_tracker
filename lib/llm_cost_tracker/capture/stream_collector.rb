@@ -129,7 +129,7 @@ module LlmCostTracker
           Tracker.record(
             event: event,
             latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
-            pricing_mode: pricing_mode_for(event: event, snapshot: snapshot),
+            pricing_mode: merge_pricing_modes(event.pricing_mode, snapshot[:pricing_mode]),
             metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
             context_tags: snapshot[:context_tags]
           ) { save_succeeded = true }
@@ -143,10 +143,6 @@ module LlmCostTracker
 
       HOST_DERIVED_MODE_TOKENS = %i[data_residency].freeze
       private_constant :HOST_DERIVED_MODE_TOKENS
-
-      def pricing_mode_for(event:, snapshot:)
-        merge_pricing_modes(event.pricing_mode, snapshot[:pricing_mode])
-      end
 
       def merge_pricing_modes(provider_mode, request_mode)
         return Pricing.normalize_mode(request_mode) if provider_mode.to_s.strip.empty?
