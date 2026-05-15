@@ -15,6 +15,8 @@ require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_rollups_provi
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_image_tokens_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_provider_invoice_imports_provider_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_provider_invoices_metadata_index_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_line_items_currency_index_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_provider_invoice_imports_finished_at_index_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/durable_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/call_rollups_generator"
 
@@ -404,6 +406,45 @@ RSpec.describe "generator templates" do
 
       expect(parsed.fetch("metadata")).to eq(expected.fetch("metadata"))
       expect(parsed.fetch("models")).to eq(expected.fetch("models"))
+    end
+  end
+
+  describe "upgrade_call_line_items_currency_index generator" do
+    it "writes a concurrent composite index migration" do
+      Dir.mktmpdir do |dir|
+        LlmCostTracker::Generators::UpgradeCallLineItemsCurrencyIndexGenerator.start([], destination_root: dir)
+
+        migration_path = Dir[
+          File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_call_line_items_currency_index.rb")
+        ].first
+        expect(migration_path).not_to be_nil
+
+        migration = File.read(migration_path)
+        expect(migration).to include("class UpgradeLlmCostTrackerCallLineItemsCurrencyIndex")
+        expect(migration).to include("disable_ddl_transaction!")
+        expect(migration).to include("INDEX_COLUMNS = %i[llm_cost_tracker_call_id currency].freeze")
+        expect(migration).to include("algorithm: :concurrently, if_not_exists: true")
+      end
+    end
+  end
+
+  describe "upgrade_provider_invoice_imports_finished_at_index generator" do
+    it "writes a concurrent state-finished_at index migration" do
+      Dir.mktmpdir do |dir|
+        LlmCostTracker::Generators::UpgradeProviderInvoiceImportsFinishedAtIndexGenerator
+          .start([], destination_root: dir)
+
+        migration_path = Dir[
+          File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_provider_invoice_imports_finished_at_index.rb")
+        ].first
+        expect(migration_path).not_to be_nil
+
+        migration = File.read(migration_path)
+        expect(migration).to include("class UpgradeLlmCostTrackerProviderInvoiceImportsFinishedAtIndex")
+        expect(migration).to include("disable_ddl_transaction!")
+        expect(migration).to include("INDEX_COLUMNS = %i[state finished_at].freeze")
+        expect(migration).to include("algorithm: :concurrently, if_not_exists: true")
+      end
     end
   end
 end

@@ -252,15 +252,16 @@ module LlmCostTracker
 
       def unmatched_local_calls_total_count(invoice_basis_values)
         unmatched = 0
-        scoped_calls_relation.find_each(batch_size: 1_000) do |call|
-          attribution = ATTRIBUTION_KEYS.each_with_object({}) do |key, acc|
-            value = call.public_send(key)
-            acc[key] = value unless value.nil? || value.to_s.empty?
-          end
-          next if attribution.empty?
-          next if local_call_matched?(attribution, invoice_basis_values)
+        scoped_calls_relation.in_batches(of: 1_000) do |batch|
+          batch.pluck(*ATTRIBUTION_KEYS).each do |row|
+            attribution = ATTRIBUTION_KEYS.zip(row).each_with_object({}) do |(key, value), acc|
+              acc[key] = value unless value.nil? || value.to_s.empty?
+            end
+            next if attribution.empty?
+            next if local_call_matched?(attribution, invoice_basis_values)
 
-          unmatched += 1
+            unmatched += 1
+          end
         end
         unmatched
       end
