@@ -63,25 +63,13 @@ module LlmCostTracker
           next unless quantity.positive?
 
           component = Components::BY_KEY.fetch(key)
-          new(
+          build(
             kind: component.kind,
             direction: component.direction,
             modality: component.modality,
             cache_state: component.cache_state,
-            quantity: BigDecimal(quantity.to_s),
-            unit: component.unit,
-            rate_amount: nil,
-            rate_quantity: BigDecimal("1"),
-            cost: nil,
-            currency: USD,
-            cost_status: CostStatus::UNKNOWN,
-            pricing_basis: nil,
-            price_key: nil,
-            price_source: nil,
-            price_source_version: nil,
-            provider_field: nil,
-            provider_item_id: nil,
-            details: {}
+            quantity: quantity,
+            unit: component.unit
           )
         end
       end
