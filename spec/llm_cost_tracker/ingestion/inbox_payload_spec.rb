@@ -46,7 +46,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     )
   end
 
-  it "writes a schema version into durable payload rows" do
+  it "writes a schema version into inbox payload rows" do
     row = described_class.send(:row_for, event)
     payload = JSON.parse(row.fetch(:payload))
 

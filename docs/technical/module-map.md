@@ -1,6 +1,6 @@
 # Module Map
 
-LLM Cost Tracker is organized around durable responsibilities. File layout does
+LLM Cost Tracker is organized around stable responsibilities. File layout does
 not need to mirror this map perfectly, but new code should fit one boundary.
 
 ## Public API and Configuration

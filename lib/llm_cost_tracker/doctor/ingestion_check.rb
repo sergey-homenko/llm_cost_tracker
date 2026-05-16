@@ -58,7 +58,7 @@ module LlmCostTracker
           :warn,
           "inline ingestion",
           "config.ingestion = :inline but found unused async ingestion tables: #{leftovers.join(', ')}. " \
-          "Set config.ingestion = :async to keep the durable inbox path or drop the tables."
+          "Set config.ingestion = :async to keep the inbox path or drop the tables."
         )
       end
 

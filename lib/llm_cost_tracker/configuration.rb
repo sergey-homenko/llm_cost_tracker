@@ -68,26 +68,6 @@ module LlmCostTracker
       @finalized = false
     end
 
-    def durable_ingestion=(value)
-      warn_deprecated_durable("config.durable_ingestion=", "config.ingestion = :async / :inline")
-      self.ingestion = value ? :async : :inline
-    end
-
-    def durable_ingestion # rubocop:disable Naming/PredicateMethod
-      warn_deprecated_durable("config.durable_ingestion", "config.ingestion")
-      @ingestion == :async
-    end
-
-    def durable_ingestion_pool_size=(value)
-      warn_deprecated_durable("config.durable_ingestion_pool_size=", "config.ingestion_pool_size=")
-      self.ingestion_pool_size = value
-    end
-
-    def durable_ingestion_pool_size
-      warn_deprecated_durable("config.durable_ingestion_pool_size", "config.ingestion_pool_size")
-      @ingestion_pool_size
-    end
-
     def cache_rollups=(value)
       ensure_mutable!
       @cache_rollups = value
@@ -198,10 +178,6 @@ module LlmCostTracker
       return value if allowed.include?(value)
 
       raise Error, "Unknown #{name}: #{value.inspect}. Use one of: #{allowed.join(', ')}"
-    end
-
-    def warn_deprecated_durable(old, replacement)
-      Kernel.warn("[llm_cost_tracker] #{old} is deprecated; use #{replacement} (removed in 1.0)", uplevel: 2)
     end
 
     def normalize_openai_compatible_providers(providers)

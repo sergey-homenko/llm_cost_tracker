@@ -67,8 +67,8 @@ LlmCostTracker::Ingestion::Worker.shutdown!(timeout: 5, drain: true)
 ```
 
 The default process `at_exit` hook stops the local ingestor without
-forcing every exiting process to drain the shared inbox. Rows remain
-durable in the database and another live process can claim them. Use
+forcing every exiting process to drain the shared inbox. Rows stay
+in the database and another live process can claim them. Use
 `flush!` or `shutdown!(drain: true)` when a job or release step must
 wait for the ledger to catch up.
 

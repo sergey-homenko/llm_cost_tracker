@@ -161,6 +161,27 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("docs/upgrading.md")
     end
 
+    it "warns when inline mode is set but async ingestion tables still exist" do
+      LlmCostTracker.configure { |config| config.ingestion = :inline }
+
+      check = described_class.call.find { |item| item.name == "inline ingestion" }
+
+      expect(check).to have_attributes(status: :warn)
+      expect(check.message).to include("unused async ingestion tables")
+    end
+
+    it "passes inline mode when the async tables have been dropped" do
+      LlmCostTracker.configure { |config| config.ingestion = :inline }
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_ingestion_inbox_entries)
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_ingestion_leases)
+      LlmCostTracker::Ingestion::InboxEntry.reset_column_information
+      LlmCostTracker::Ingestion::Lease.reset_column_information
+
+      check = described_class.call.find { |item| item.name == "inline ingestion" }
+
+      expect(check).to have_attributes(status: :ok, message: include("events write directly to the ledger"))
+    end
+
     it "warns when call rollups drift more than 1% from today's calls SUM" do
       tracked_at = Time.now.utc.beginning_of_day + 1.hour
       LlmCostTracker::Call.create!(event_id: "drift-1", provider: "openai", model: "gpt-4o", total_cost: 10.0,

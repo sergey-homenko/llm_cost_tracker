@@ -16,7 +16,6 @@ require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_image_tokens_gener
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_provider_invoice_imports_provider_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_provider_invoices_metadata_index_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/async_ingestion_generator"
-require "llm_cost_tracker/generators/llm_cost_tracker/durable_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/call_rollups_generator"
 
 RSpec.describe "generator templates" do
@@ -328,16 +327,6 @@ RSpec.describe "generator templates" do
       end
     end
 
-    it "still works through the deprecated durable_ingestion alias" do
-      Dir.mktmpdir do |dir|
-        LlmCostTracker::Generators::DurableIngestionGenerator.start([], destination_root: dir)
-
-        migration_path = Dir[
-          File.join(dir, "db/migrate/*_create_llm_cost_tracker_async_ingestion.rb")
-        ].first
-        expect(migration_path).not_to be_nil
-      end
-    end
   end
 
   describe "schema drift detection" do

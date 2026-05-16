@@ -26,7 +26,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - Schema: `llm_cost_tracker_provider_invoice_imports` gains a `provider` column and replaces the `(source, started_at)` index with `(source, provider, started_at)`. Existing installs run `bin/rails generate llm_cost_tracker:upgrade_provider_invoice_imports_provider && bin/rails db:migrate`.
-- `config.ingestion = :inline | :async` replaces `config.durable_ingestion = true/false` (same for `*_pool_size` and the `llm_cost_tracker:async_ingestion` generator). Old names keep working with a deprecation warning until 1.0.
+- BREAKING: `config.durable_ingestion = true/false` is replaced by `config.ingestion = :inline | :async` (default `:inline`). `config.durable_ingestion_pool_size` is renamed to `config.ingestion_pool_size`, and the install generator is now `bin/rails generate llm_cost_tracker:async_ingestion`. Update `config/initializers/llm_cost_tracker.rb` accordingly.
 
 ## [0.9.0] - 2026-05-12
 

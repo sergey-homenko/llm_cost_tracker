@@ -1,7 +1,7 @@
 # Architecture
 
-LLM Cost Tracker is a provider-neutral billing ledger. Core code models durable
-billing and observability concepts; provider-specific API fields stop at
+LLM Cost Tracker is a provider-neutral billing ledger. Core code models
+provider-neutral billing concepts; provider-specific API fields stop at
 ingestion, integration, and price-scraper boundaries.
 
 ## Canonical Vocabulary
@@ -107,7 +107,7 @@ matching config flag is enabled:
 | Table | Generator + flag | Responsibility |
 | --- | --- | --- |
 | `llm_cost_tracker_call_rollups` | `llm_cost_tracker:call_rollups` + `config.cache_rollups = true` | Pre-aggregated day/month totals per currency/provider for fast budget reads |
-| `llm_cost_tracker_ingestion_inbox_entries` | `llm_cost_tracker:async_ingestion` + `config.ingestion = :async` | Durable write-ahead staging for the background worker |
+| `llm_cost_tracker_ingestion_inbox_entries` | `llm_cost_tracker:async_ingestion` + `config.ingestion = :async` | Write-ahead inbox for the background worker |
 | `llm_cost_tracker_ingestion_leases` | same migration as the inbox | Shared worker lease |
 | `llm_cost_tracker_provider_invoices` | `llm_cost_tracker:reconciliation` + `config.reconciliation_enabled = true` | Imported provider-side invoice rows |
 | `llm_cost_tracker_provider_invoice_imports` | same migration as provider invoices | Importer cursor / window / state for resumable runs |

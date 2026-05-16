@@ -55,7 +55,7 @@ When `config.ingestion = :inline` (default):
 
 When `config.ingestion = :async`:
 
-1. `Ingestion::Inbox.save` writes a compact durable event row.
+1. `Ingestion::Inbox.save` writes a compact inbox event row.
 2. `Ingestion::Worker` claims retryable inbox entries through a database lease and drains batches into `llm_cost_tracker_calls`.
 3. `Ledger::Store.insert_many` writes the call header, line items, tag rows (and rollup increments when `cache_rollups = true`), and inbox deletes in one transaction.
 4. Budget reads add pending inbox totals on top of the rollups fast path or the live calls aggregate.

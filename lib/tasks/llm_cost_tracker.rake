@@ -65,7 +65,7 @@ namespace :llm_cost_tracker do
     deleted = LlmCostTracker::Retention.prune(older_than: days, batch_size: batch_size)
     puts "llm_cost_tracker: pruned #{deleted} calls older than #{days} days"
     inbox_pruned = LlmCostTracker::Retention.prune_inbox(older_than: days)
-    puts "llm_cost_tracker: pruned #{inbox_pruned} durable inbox entries older than #{days} days"
+    puts "llm_cost_tracker: pruned #{inbox_pruned} inbox entries older than #{days} days"
   end
 
   namespace :prices do
