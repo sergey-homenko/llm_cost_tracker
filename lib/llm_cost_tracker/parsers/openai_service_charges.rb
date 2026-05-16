@@ -101,10 +101,6 @@ module LlmCostTracker
         }.compact
       end
 
-      def openai_service_line_items(response, request: nil)
-        line_items_from_output(response["output"], request: request, model: response["model"])
-      end
-
       def openai_stream_service_line_items(events, request: nil, model: nil)
         output_items = []
         each_event_data(events) do |data|

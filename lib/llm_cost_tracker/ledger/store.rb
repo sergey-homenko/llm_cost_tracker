@@ -117,17 +117,13 @@ module LlmCostTracker
               {
                 llm_cost_tracker_call_id: call_ids.fetch(event.event_id),
                 key: key.to_s,
-                value: tag_row_value(value)
+                value: Tags::Encoding.encode(value)
               }
             end
           end
           return if rows.empty?
 
           LlmCostTracker::CallTag.insert_all!(rows, record_timestamps: false, returning: false)
-        end
-
-        def tag_row_value(value)
-          Tags::Encoding.encode(value)
         end
 
         def stored_details(details)

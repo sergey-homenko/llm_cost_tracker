@@ -46,7 +46,7 @@ module LlmCostTracker
           model: model,
           token_usage: token_usage(usage: usage, cache_read: cache_read, model: model),
           usage_source: :response,
-          service_line_items: openai_service_line_items(response, request: request)
+          service_line_items: line_items_from_output(response["output"], request: request, model: response["model"])
         )
       end
 

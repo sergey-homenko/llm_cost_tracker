@@ -42,7 +42,7 @@ module LlmCostTracker
           usage_source: :response,
           provider_response_id: response["responseId"],
           pricing_mode: pricing_mode(request: request, response_headers: response_headers),
-          service_line_items: grounding_line_items_for_response(response, model: model)
+          service_line_items: grounding_line_items(grounding_request_count(response["candidates"]), model: model)
         )
       end
 
@@ -186,10 +186,6 @@ module LlmCostTracker
         headers.to_h.find { |key, _value| key.to_s.downcase == name }&.last
       end
 
-      def grounding_line_items_for_response(response, model:)
-        grounding_line_items(grounding_request_count(response["candidates"]), model: model)
-      end
-
       def grounding_line_items_for_stream(events, model:)
         quantity = find_event_value(events, reverse: true) do |data|
           count = grounding_request_count(data["candidates"])
@@ -225,11 +221,7 @@ module LlmCostTracker
       end
 
       def grounding_billed_quantity(query_count, model:)
-        per_query_billing?(model) ? query_count : 1
-      end
-
-      def per_query_billing?(model)
-        LlmCostTracker::Providers::Gemini::ModelFamilies.per_query_grounding?(model)
+        LlmCostTracker::Providers::Gemini::ModelFamilies.per_query_grounding?(model) ? query_count : 1
       end
     end
   end
