@@ -41,10 +41,6 @@ module LlmCostTracker
         Result.new(:warn, name, "#{name} integration is enabled but not installed")
       end
 
-      def elapsed_ms(started_at)
-        Timing.elapsed_ms(started_at)
-      end
-
       def enforce_budget!(request:)
         return unless active?
 

@@ -273,13 +273,6 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("legacy rows without cost_status remain")
     end
 
-    it "skips legacy checks when schema lookup fails" do
-      allow(LlmCostTracker::Call).to receive(:column_names).and_raise("schema unavailable")
-
-      expect(described_class::LegacyAuditCheck.new.call).to be_nil
-      expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil
-    end
-
     it "skips legacy checks before billing audit columns exist" do
       allow(LlmCostTracker::Call).to receive(:column_names).and_return([])
 

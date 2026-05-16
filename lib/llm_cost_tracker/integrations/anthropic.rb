@@ -156,7 +156,7 @@ module LlmCostTracker
           LlmCostTracker::Integrations::Anthropic.record_message(
             message,
             request: request,
-            latency_ms: LlmCostTracker::Integrations::Anthropic.elapsed_ms(started_at)
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at)
           )
           message
         end

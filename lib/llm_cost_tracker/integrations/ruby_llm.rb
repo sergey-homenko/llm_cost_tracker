@@ -209,7 +209,7 @@ module LlmCostTracker
             self,
             response,
             request: request,
-            latency_ms: integration.elapsed_ms(started_at),
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
             stream: integration.streaming_request?(request, has_block: block_given?)
           )
           response
@@ -225,7 +225,7 @@ module LlmCostTracker
             self,
             response,
             request: request,
-            latency_ms: integration.elapsed_ms(started_at)
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at)
           )
           response
         end
@@ -240,7 +240,7 @@ module LlmCostTracker
             self,
             response,
             request: request,
-            latency_ms: integration.elapsed_ms(started_at)
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at)
           )
           response
         end
@@ -255,7 +255,7 @@ module LlmCostTracker
             self,
             response,
             request: request,
-            latency_ms: integration.elapsed_ms(started_at)
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at)
           )
           response
         end
@@ -270,7 +270,7 @@ module LlmCostTracker
             self,
             response,
             request: request,
-            latency_ms: integration.elapsed_ms(started_at)
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at)
           )
           response
         end

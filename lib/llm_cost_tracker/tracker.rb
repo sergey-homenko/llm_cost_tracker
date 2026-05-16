@@ -62,6 +62,8 @@ module LlmCostTracker
         event
       end
 
+      private
+
       def notify_subscribers(event)
         return unless ActiveSupport::Notifications.notifier.listening?(EVENT_NAME)
 
@@ -69,8 +71,6 @@ module LlmCostTracker
       rescue StandardError => e
         Logging.warn("Subscriber raised on #{EVENT_NAME}: #{e.class}: #{e.message}")
       end
-
-      private
 
       def token_pricing_partial?(token_usage:, cost_data:)
         return false unless cost_data

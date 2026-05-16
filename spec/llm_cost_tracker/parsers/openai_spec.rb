@@ -17,27 +17,27 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
     it_behaves_like "a parser with invalid URL handling"
 
     it "matches OpenAI chat completions URL" do
-      expect(parser.match?(chat_completions_url)).to be true
+      expect(described_class.match?(chat_completions_url)).to be true
     end
 
     it "matches OpenAI embeddings URL" do
-      expect(parser.match?(embeddings_url)).to be true
+      expect(described_class.match?(embeddings_url)).to be true
     end
 
     it "matches OpenAI Responses URL" do
-      expect(parser.match?(responses_url)).to be true
+      expect(described_class.match?(responses_url)).to be true
     end
 
     it "matches OpenAI regional processing URLs" do
-      expect(parser.match?(regional_responses_url)).to be true
+      expect(described_class.match?(regional_responses_url)).to be true
     end
 
     it "does not match OpenAI response retrieval URLs" do
-      expect(parser.match?(response_retrieval_url)).to be false
+      expect(described_class.match?(response_retrieval_url)).to be false
     end
 
     it "does not match other URLs" do
-      expect(parser.match?(anthropic_messages_url)).to be false
+      expect(described_class.match?(anthropic_messages_url)).to be false
     end
 
     it "matches OpenAI image, audio, and moderations endpoints" do
@@ -51,7 +51,7 @@ RSpec.describe LlmCostTracker::Parsers::Openai do
         /v1/moderations
       ].each do |path|
         url = URI::HTTPS.build(host: "api.openai.com", path: path).to_s
-        expect(parser.match?(url)).to be(true), "expected match? to be true for #{path}"
+        expect(described_class.match?(url)).to be(true), "expected match? to be true for #{path}"
       end
     end
   end

@@ -42,33 +42,33 @@ RSpec.describe LlmCostTracker::Parsers::Azure do
     it_behaves_like "a parser with invalid URL handling"
 
     it "matches Azure OpenAI chat completions" do
-      expect(parser.match?(chat_completions_url)).to be true
+      expect(described_class.match?(chat_completions_url)).to be true
     end
 
     it "matches Azure OpenAI embeddings" do
-      expect(parser.match?(embeddings_url)).to be true
+      expect(described_class.match?(embeddings_url)).to be true
     end
 
     it "matches Azure OpenAI audio translations and images endpoints" do
-      expect(parser.match?(audio_translations_url)).to be true
-      expect(parser.match?(images_url)).to be true
+      expect(described_class.match?(audio_translations_url)).to be true
+      expect(described_class.match?(images_url)).to be true
     end
 
     it "does not match Azure resource management or other Azure surfaces" do
       mgmt = URI::HTTPS.build(host: "management.azure.com", path: "/subscriptions/abc").to_s
       cog = URI::HTTPS.build(host: "myresource.cognitiveservices.azure.com",
                              path: "/openai/deployments/gpt4o/chat/completions").to_s
-      expect(parser.match?(mgmt)).to be false
-      expect(parser.match?(cog)).to be false
+      expect(described_class.match?(mgmt)).to be false
+      expect(described_class.match?(cog)).to be false
     end
 
     it "does not match OpenAI direct URLs (the Openai parser owns those)" do
-      expect(parser.match?(openai_direct_url)).to be false
+      expect(described_class.match?(openai_direct_url)).to be false
     end
 
     it "does not match paths that omit the deployment segment" do
       bare = URI::HTTPS.build(host: "myresource.openai.azure.com", path: "/openai/chat/completions").to_s
-      expect(parser.match?(bare)).to be false
+      expect(described_class.match?(bare)).to be false
     end
   end
 

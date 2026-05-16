@@ -13,11 +13,11 @@ RSpec.describe LlmCostTracker::Parsers::Anthropic do
     it_behaves_like "a parser with invalid URL handling"
 
     it "matches Anthropic messages URL" do
-      expect(parser.match?(anthropic_messages_url)).to be true
+      expect(described_class.match?(anthropic_messages_url)).to be true
     end
 
     it "does not match OpenAI URLs" do
-      expect(parser.match?(openai_chat_url)).to be false
+      expect(described_class.match?(openai_chat_url)).to be false
     end
   end
 

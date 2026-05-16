@@ -28,8 +28,6 @@ module LlmCostTracker
         message = "#{missing}/#{total} tracked calls lack pricing_snapshot; " \
                   "stored totals remain stable but applied rates cannot be audited"
         Check.new(:warn, "pricing snapshot audit", message)
-      rescue StandardError
-        nil
       end
     end
   end

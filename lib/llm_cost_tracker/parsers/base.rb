@@ -65,14 +65,6 @@ module LlmCostTracker
         end
       end
 
-      def match?(url)
-        self.class.match?(url)
-      end
-
-      def provider_names
-        self.class.provider_names
-      end
-
       def parse(**)
         raise NotImplementedError
       end

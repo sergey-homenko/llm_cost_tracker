@@ -34,15 +34,15 @@ RSpec.describe LlmCostTracker::Parsers::Gemini do
         path: "/v1beta/models/gemini-2.5-flash:generateContent"
       ).to_s
 
-      expect(parser.match?(uppercased_host_url)).to be true
+      expect(described_class.match?(uppercased_host_url)).to be true
     end
 
     it "matches Gemini streaming generation URLs" do
-      expect(parser.match?(stream_generate_content_url)).to be true
+      expect(described_class.match?(stream_generate_content_url)).to be true
     end
 
     it "does not match unrelated Gemini endpoints" do
-      expect(parser.match?(models_index_url)).to be false
+      expect(described_class.match?(models_index_url)).to be false
     end
   end
 

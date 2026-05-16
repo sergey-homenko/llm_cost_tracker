@@ -23,16 +23,16 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
     it_behaves_like "a parser with invalid URL handling"
 
     it "matches OpenRouter chat completions URLs" do
-      expect(parser.match?(openrouter_chat_url)).to be true
+      expect(described_class.match?(openrouter_chat_url)).to be true
     end
 
     it "matches DeepSeek chat completions URLs" do
-      expect(parser.match?(deepseek_v1_chat_url)).to be true
+      expect(described_class.match?(deepseek_v1_chat_url)).to be true
     end
 
     it "matches Groq OpenAI-compatible URLs" do
-      expect(parser.match?(groq_chat_url)).to be true
-      expect(parser.match?(groq_responses_url)).to be true
+      expect(described_class.match?(groq_chat_url)).to be true
+      expect(described_class.match?(groq_responses_url)).to be true
     end
 
     it "matches configured OpenAI-compatible hosts" do
@@ -40,7 +40,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
         config.openai_compatible_providers["llm.example.com"] = "internal_gateway"
       end
 
-      expect(parser.match?(configured_responses_url)).to be true
+      expect(described_class.match?(configured_responses_url)).to be true
     end
 
     it "matches configured OpenAI-compatible hosts case-insensitively" do
@@ -48,7 +48,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
         config.openai_compatible_providers["LLM.EXAMPLE.COM"] = "internal_gateway"
       end
 
-      expect(parser.match?(configured_responses_url)).to be true
+      expect(described_class.match?(configured_responses_url)).to be true
     end
 
     it "normalizes configured OpenAI-compatible host keys after configure" do
@@ -62,11 +62,11 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
     end
 
     it "does not match unknown hosts" do
-      expect(parser.match?(configured_chat_url)).to be false
+      expect(described_class.match?(configured_chat_url)).to be false
     end
 
     it "does not match unrelated paths on configured hosts" do
-      expect(parser.match?(openrouter_models_url)).to be false
+      expect(described_class.match?(openrouter_models_url)).to be false
     end
   end
 

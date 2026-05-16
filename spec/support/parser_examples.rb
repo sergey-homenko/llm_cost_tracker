@@ -27,6 +27,6 @@ end
 
 RSpec.shared_examples "a parser with invalid URL handling" do
   it "returns false for invalid URLs" do
-    expect(parser.match?("https://%zz")).to be false
+    expect(described_class.match?("https://%zz")).to be false
   end
 end

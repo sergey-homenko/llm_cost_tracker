@@ -44,9 +44,9 @@ module LlmCostTracker
 
         def client_host_for(resource)
           client = resource.instance_variable_get(:@client)
-          return nil unless client.respond_to?(:base_url, true)
+          return nil unless client
 
-          URI.parse(client.send(:base_url).to_s).host
+          URI.parse(client.base_url.to_s).host
         rescue URI::InvalidURIError
           nil
         end
@@ -339,7 +339,7 @@ module LlmCostTracker
           LlmCostTracker::Integrations::Openai.record_response(
             response,
             request: request,
-            latency_ms: LlmCostTracker::Integrations::Openai.elapsed_ms(started_at),
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
             host: LlmCostTracker::Integrations::Openai.client_host_for(self)
           )
           response
@@ -374,7 +374,7 @@ module LlmCostTracker
           LlmCostTracker::Integrations::Openai.record_response(
             response,
             request: request,
-            latency_ms: LlmCostTracker::Integrations::Openai.elapsed_ms(started_at),
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
             host: LlmCostTracker::Integrations::Openai.client_host_for(self)
           )
           response
@@ -412,7 +412,7 @@ module LlmCostTracker
             integration.public_send(
               record_method, response,
               request: request,
-              latency_ms: integration.elapsed_ms(started_at),
+              latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
               host: integration.client_host_for(self)
             )
             response
