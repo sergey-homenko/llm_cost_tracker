@@ -200,7 +200,7 @@ module LlmCostTracker
         return nil if value.nil?
 
         string = value.to_s.presence
-        return nil if string.nil? || string == "unknown"
+        return nil if string.nil? || string == Event::UNKNOWN_MODEL
 
         string
       end
