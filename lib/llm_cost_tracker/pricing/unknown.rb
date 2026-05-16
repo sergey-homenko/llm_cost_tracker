@@ -9,7 +9,7 @@ module LlmCostTracker
 
       class << self
         def handle!(model)
-          model = model.to_s.presence || "unknown"
+          model = model.to_s.presence || Event::UNKNOWN_MODEL
 
           case LlmCostTracker.configuration.unknown_pricing_behavior
           when :ignore
