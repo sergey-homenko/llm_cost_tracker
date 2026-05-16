@@ -141,13 +141,13 @@ tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `durable_ingestion` | `false` | When `true`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `false` (default), events write inline from the request thread. |
+| `ingestion` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
 | `cache_rollups` | `false` | When `true`, `Tracker.record` maintains daily/monthly aggregates in `llm_cost_tracker_call_rollups`; budget reads and reconciliation diffs use the rollups fast path. When `false` (default), budget reads aggregate live from `llm_cost_tracker_calls`. |
 
 Each opt-in needs a matching generator before flipping the flag:
 
 ```bash
-bin/rails generate llm_cost_tracker:durable_ingestion  # for durable_ingestion = true
+bin/rails generate llm_cost_tracker:async_ingestion    # for ingestion = :async
 bin/rails generate llm_cost_tracker:call_rollups       # for cache_rollups = true
 bin/rails db:migrate
 ```
@@ -215,5 +215,5 @@ bin/rails llm_cost_tracker:verify_capture
 
 `doctor` checks schema, prices, integration setup, and operational health.
 `verify_capture` records a synthetic manual event and verifies notifications
-plus ActiveRecord persistence (through the inline writer or the durable
-inbox depending on `config.durable_ingestion`).
+plus ActiveRecord persistence (through the inline writer or the async
+inbox depending on `config.ingestion`).

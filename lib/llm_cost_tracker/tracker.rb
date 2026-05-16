@@ -48,7 +48,7 @@ module LlmCostTracker
           context_tags: context_tags
         )
 
-        if LlmCostTracker.configuration.durable_ingestion
+        if Ingestion.async?
           Ingestion::Inbox.save(event)
         else
           Ledger::Store.insert_many([event], skip_existence_check: true)

@@ -13,19 +13,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
-- Durable ingestion writes through its own dedicated connection pool instead of competing with request-handling threads, so tracking an LLM call from inside a caller transaction no longer deadlocks under burst load and the inbox row still persists when the caller transaction rolls back. Tune via `config.durable_ingestion_pool_size` if your PG / PgBouncer budget is tight.
+- Async ingestion writes through its own dedicated connection pool instead of competing with request-handling threads, so tracking an LLM call from inside a caller transaction no longer deadlocks under burst load and the inbox row still persists when the caller transaction rolls back. Tune via `config.ingestion_pool_size` if your PG / PgBouncer budget is tight.
 - `mount LlmCostTracker::Engine => "/llm-costs"` works without adding `require "llm_cost_tracker/engine"` to `config/application.rb` — the engine is autoloaded.
 - Upgrade migrations for the call_rollups and call_tags indexes build concurrently on PostgreSQL, so the upgrade no longer takes a long table-write lock on installs with millions of rows. The rollups upgrade keeps pre-upgrade aggregates (bucketed under empty provider) instead of wiping them.
 - CSV exports stream in 500-row batches so peak memory stays flat at large export sizes while the user-selected sort order is preserved (`?sort=expensive`, `?sort=slow`, etc.).
 - `bin/rails generate llm_cost_tracker:install` skips `config/initializers/llm_cost_tracker.rb` when it already exists instead of prompting Thor's "overwrite?" dialog, so re-running the generator in CI no longer hangs waiting on stdin.
-- Durable inbox entries no longer truncate on MySQL — large pricing snapshots and stack traces stay intact (MEDIUMTEXT instead of TEXT cap at 64 KB). PostgreSQL is unaffected.
+- Async inbox entries no longer truncate on MySQL — large pricing snapshots and stack traces stay intact (MEDIUMTEXT instead of TEXT cap at 64 KB). PostgreSQL is unaffected.
 - Logs no longer warn `unknown pricing for model X` when the call has no token pricing but at least one service charge was successfully priced. Misleading false-positive is gone for Anthropic web-search-style calls on models missing from the token-pricing table.
-- `llm_cost_tracker:prune` rake task also prunes durable inbox entries past the `DAYS` cutoff, so pending or quarantined rows no longer flush retroactively and re-create stale calls.
+- `llm_cost_tracker:prune` rake task also prunes async inbox entries past the `DAYS` cutoff, so pending or quarantined rows no longer flush retroactively and re-create stale calls.
 - `prices:refresh` drops service-charge keys when a scraper stops emitting them, so stale charges no longer linger in the local price snapshot. Scrapers that don't parse a charges section (groq, gemini) preserve existing entries.
 
 ### Changed
 
 - Schema: `llm_cost_tracker_provider_invoice_imports` gains a `provider` column and replaces the `(source, started_at)` index with `(source, provider, started_at)`. Existing installs run `bin/rails generate llm_cost_tracker:upgrade_provider_invoice_imports_provider && bin/rails db:migrate`.
+- `config.ingestion = :inline | :async` replaces `config.durable_ingestion = true/false` (same for `*_pool_size` and the `llm_cost_tracker:async_ingestion` generator). Old names keep working with a deprecation warning until 1.0.
 
 ## [0.9.0] - 2026-05-12
 

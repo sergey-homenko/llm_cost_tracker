@@ -14,19 +14,21 @@ module LlmCostTracker
 
     BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
     UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
+    INGESTION_MODES = %i[inline async].freeze
     SCALAR_ATTRIBUTES = %i[enabled default_tags on_budget_exceeded monthly_budget daily_budget per_call_budget
                            log_level prices_file max_tag_count max_tag_value_bytesize
-                           durable_ingestion_pool_size].freeze
+                           ingestion_pool_size].freeze
     ENUM_ATTRIBUTES = {
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
-      unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn]
+      unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn],
+      ingestion: [INGESTION_MODES, :inline]
     }.freeze
     DEFAULT_REDACTED_TAG_KEYS = %w[api_key access_token authorization credential password refresh_token secret].freeze
 
     attr_reader(
       *SCALAR_ATTRIBUTES,
       :budget_exceeded_behavior,
-      :durable_ingestion,
+      :ingestion,
       :instrumented_integrations,
       :pricing_overrides,
       :report_tag_breakdowns,
@@ -52,7 +54,7 @@ module LlmCostTracker
       @prices_file        = nil
       @max_tag_count      = 50
       @max_tag_value_bytesize = 1024
-      @durable_ingestion_pool_size = nil
+      @ingestion_pool_size = nil
       self.pricing_overrides = {}
       @instrumented_integrations = Set.new
       @report_tag_breakdowns = []
@@ -61,14 +63,29 @@ module LlmCostTracker
       @reconciliation_importers = {}
       @reconciliation_enabled = false
       @auto_enable_stream_usage = true
-      @durable_ingestion = false
+      self.ingestion = :inline
       @cache_rollups = false
       @finalized = false
     end
 
     def durable_ingestion=(value)
-      ensure_mutable!
-      @durable_ingestion = value
+      warn_deprecated_durable("config.durable_ingestion=", "config.ingestion = :async / :inline")
+      self.ingestion = value ? :async : :inline
+    end
+
+    def durable_ingestion # rubocop:disable Naming/PredicateMethod
+      warn_deprecated_durable("config.durable_ingestion", "config.ingestion")
+      @ingestion == :async
+    end
+
+    def durable_ingestion_pool_size=(value)
+      warn_deprecated_durable("config.durable_ingestion_pool_size=", "config.ingestion_pool_size=")
+      self.ingestion_pool_size = value
+    end
+
+    def durable_ingestion_pool_size
+      warn_deprecated_durable("config.durable_ingestion_pool_size", "config.ingestion_pool_size")
+      @ingestion_pool_size
     end
 
     def cache_rollups=(value)
@@ -181,6 +198,10 @@ module LlmCostTracker
       return value if allowed.include?(value)
 
       raise Error, "Unknown #{name}: #{value.inspect}. Use one of: #{allowed.join(', ')}"
+    end
+
+    def warn_deprecated_durable(old, replacement)
+      Kernel.warn("[llm_cost_tracker] #{old} is deprecated; use #{replacement} (removed in 1.0)", uplevel: 2)
     end
 
     def normalize_openai_compatible_providers(providers)

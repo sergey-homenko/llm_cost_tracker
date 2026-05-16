@@ -27,7 +27,7 @@ module LlmCostTracker
 
       ROLLUPS_SCHEMA_GUARD = ["llm_cost_tracker_call_rollups", Ledger::Schema::CallRollups].freeze
 
-      DURABLE_SCHEMA_GUARDS = [
+      ASYNC_SCHEMA_GUARDS = [
         ["llm_cost_tracker_ingestion_inbox_entries", Ledger::Schema::IngestionInboxEntries],
         ["llm_cost_tracker_ingestion_leases",        Ledger::Schema::IngestionLeases]
       ].freeze
@@ -46,8 +46,8 @@ module LlmCostTracker
         end
       end
 
-      def durable?
-        LlmCostTracker.configuration.durable_ingestion
+      def async?
+        LlmCostTracker.configuration.ingestion == :async
       end
 
       def cache_rollups?
@@ -57,7 +57,7 @@ module LlmCostTracker
       def guards_for_current_config
         guards = CORE_SCHEMA_GUARDS.dup
         guards << ROLLUPS_SCHEMA_GUARD if cache_rollups?
-        guards += DURABLE_SCHEMA_GUARDS if durable?
+        guards += ASYNC_SCHEMA_GUARDS if async?
         guards
       end
 
@@ -92,7 +92,7 @@ module LlmCostTracker
           provider_response_id: response_id,
           tags: { feature: VERIFY_TAG }
         )
-        LlmCostTracker::Ingestion::Worker.flush! if durable?
+        LlmCostTracker::Ingestion::Worker.flush! if async?
         persisted = LlmCostTracker::Call.where(provider_response_id: response_id).exists?
 
         return capture_success if persisted && notifications.any?
@@ -121,7 +121,7 @@ module LlmCostTracker
       end
 
       def capture_success
-        path = durable? ? "durable inbox" : "inline writer"
+        path = async? ? "async inbox" : "inline writer"
         LlmCostTracker::Doctor::Check.new(
           :ok,
           "active_record capture",
@@ -148,7 +148,7 @@ module LlmCostTracker
       end
 
       def cleanup_verification_inbox(event:, response_id:)
-        return unless durable? && LlmCostTracker::Ingestion::InboxEntry.table_exists?
+        return unless async? && LlmCostTracker::Ingestion::InboxEntry.table_exists?
 
         if event
           LlmCostTracker::Ingestion::InboxEntry.where(event_id: event.event_id).delete_all

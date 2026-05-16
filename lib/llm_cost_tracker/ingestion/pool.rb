@@ -35,7 +35,7 @@ module LlmCostTracker
         end
 
         def pool_size
-          configured = LlmCostTracker.configuration.durable_ingestion_pool_size.to_i
+          configured = LlmCostTracker.configuration.ingestion_pool_size.to_i
           configured.positive? ? configured : DEFAULT_POOL_SIZE
         end
       end

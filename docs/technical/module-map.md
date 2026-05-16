@@ -114,7 +114,7 @@ Responsibilities:
 - Apply token and service line item pricing.
 - Build pricing snapshot and cost status.
 - Emit `ActiveSupport::Notifications`.
-- Persist events through `Ingestion::Inline` (default) or `Ingestion::Inbox` when `config.durable_ingestion = true`.
+- Persist events through `Ledger::Store.insert_many` (default) or `Ingestion::Inbox` when `config.ingestion = :async`.
 - Run budget checks after the event is persisted.
 
 This module must remain provider-neutral.
@@ -132,8 +132,8 @@ Primary files:
 
 Responsibilities:
 
-- Persist events inline by default; stage to the durable inbox and drain via the worker when `config.durable_ingestion = true`.
-- Claim retryable inbox entries through database leases (durable mode only).
+- Persist events inline by default; stage to the async inbox and drain via the worker when `config.ingestion = :async`.
+- Claim retryable inbox entries through database leases (async mode only).
 - Persist call headers, line items, and tag rows atomically.
 - Maintain call rollups for hot-path budget reads when `config.cache_rollups = true`; otherwise budget reads aggregate live from `llm_cost_tracker_calls`.
 - Hide PostgreSQL and MySQL-family SQL differences.

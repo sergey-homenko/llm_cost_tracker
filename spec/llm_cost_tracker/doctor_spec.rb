@@ -149,11 +149,11 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("docs/upgrading.md")
     end
 
-    it "fails when durable ingestion tables are missing" do
+    it "fails when async ingestion tables are missing" do
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_ingestion_inbox_entries)
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_ingestion_leases)
 
-      check = described_class.call.find { |item| item.name == "durable ingestion" }
+      check = described_class.call.find { |item| item.name == "async ingestion" }
 
       expect(check).to have_attributes(status: :error)
       expect(check.message).to include("llm_cost_tracker_ingestion_inbox_entries")

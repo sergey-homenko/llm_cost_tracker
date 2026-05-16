@@ -15,6 +15,7 @@ require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_rollups_provi
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_image_tokens_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_provider_invoice_imports_provider_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_provider_invoices_metadata_index_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/async_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/durable_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/call_rollups_generator"
 
@@ -307,13 +308,13 @@ RSpec.describe "generator templates" do
     end
   end
 
-  describe "durable_ingestion generator" do
-    it "creates the durable ingestion inbox + leases tables" do
+  describe "async_ingestion generator" do
+    it "creates the async ingestion inbox + leases tables" do
       Dir.mktmpdir do |dir|
-        LlmCostTracker::Generators::DurableIngestionGenerator.start([], destination_root: dir)
+        LlmCostTracker::Generators::AsyncIngestionGenerator.start([], destination_root: dir)
 
         migration_path = Dir[
-          File.join(dir, "db/migrate/*_create_llm_cost_tracker_durable_ingestion.rb")
+          File.join(dir, "db/migrate/*_create_llm_cost_tracker_async_ingestion.rb")
         ].first
         expect(migration_path).not_to be_nil
 
@@ -324,6 +325,17 @@ RSpec.describe "generator templates" do
         expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]")
         expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:locked_at, :id]")
         expect(migration).to include("add_index :llm_cost_tracker_ingestion_leases, :name, unique: true")
+      end
+    end
+
+    it "still works through the deprecated durable_ingestion alias" do
+      Dir.mktmpdir do |dir|
+        LlmCostTracker::Generators::DurableIngestionGenerator.start([], destination_root: dir)
+
+        migration_path = Dir[
+          File.join(dir, "db/migrate/*_create_llm_cost_tracker_async_ingestion.rb")
+        ].first
+        expect(migration_path).not_to be_nil
       end
     end
   end
@@ -362,8 +374,8 @@ RSpec.describe "generator templates" do
 
     let(:call_rollups_migration) { render_migration_template("create_llm_cost_tracker_call_rollups.rb.erb") }
 
-    let(:durable_ingestion_migration) do
-      render_migration_template("create_llm_cost_tracker_durable_ingestion.rb.erb")
+    let(:async_ingestion_migration) do
+      render_migration_template("create_llm_cost_tracker_async_ingestion.rb.erb")
     end
 
     it "covers every CallRollups required column in the call_rollups migration" do
@@ -371,14 +383,14 @@ RSpec.describe "generator templates" do
       expect_columns_in(call_rollups_migration, columns)
     end
 
-    it "covers every IngestionInboxEntries required column in the durable_ingestion migration" do
+    it "covers every IngestionInboxEntries required column in the async_ingestion migration" do
       columns = LlmCostTracker::Ledger::Schema::IngestionInboxEntries::REQUIRED_COLUMNS - auto_columns
-      expect_columns_in(durable_ingestion_migration, columns)
+      expect_columns_in(async_ingestion_migration, columns)
     end
 
-    it "covers every IngestionLeases required column in the durable_ingestion migration" do
+    it "covers every IngestionLeases required column in the async_ingestion migration" do
       columns = LlmCostTracker::Ledger::Schema::IngestionLeases::REQUIRED_COLUMNS - auto_columns
-      expect_columns_in(durable_ingestion_migration, columns)
+      expect_columns_in(async_ingestion_migration, columns)
     end
 
     it "covers every ProviderInvoices required column in the reconciliation migration" do

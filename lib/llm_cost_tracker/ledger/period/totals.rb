@@ -39,7 +39,7 @@ module LlmCostTracker
         def snapshot_select(period)
           start = Period.range_start(period, time)
           components = [period_total_sql(period, start)]
-          components << pending_total_sql(start) if Ingestion.durable?
+          components << pending_total_sql(start) if Ingestion.async?
           "SELECT #{connection.quote(period.name)} AS period_key, " \
             "(#{components.join(') + (')}) AS total_cost"
         end

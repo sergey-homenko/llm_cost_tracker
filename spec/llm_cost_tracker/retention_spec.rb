@@ -129,7 +129,7 @@ RSpec.describe LlmCostTracker::Retention do
   describe ".prune_inbox" do
     before { LlmCostTracker::Ingestion::InboxEntry.reset_column_information }
 
-    it "deletes durable inbox entries older than the cutoff regardless of state" do
+    it "deletes inbox entries older than the cutoff regardless of state" do
       now = Time.utc(2026, 6, 1, 12)
       LlmCostTracker::Ingestion::InboxEntry.create!(
         event_id: "old-pending", tracked_at: now - 100.days,

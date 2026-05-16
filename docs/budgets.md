@@ -38,13 +38,13 @@ lands — it doesn't make provider spend transactional.
 ## Budget Reads
 
 Where the monthly/daily totals come from depends on
-`config.cache_rollups` and `config.durable_ingestion`:
+`config.cache_rollups` and `config.ingestion`:
 
 | Source | When read |
 | --- | --- |
 | Live `SUM(total_cost)` from `llm_cost_tracker_calls` | Default when `cache_rollups = false` |
 | `llm_cost_tracker_call_rollups` fast path | When `cache_rollups = true` |
-| Pending `llm_cost_tracker_ingestion_inbox_entries` totals | Added on top when `durable_ingestion = true` (events sit in the inbox until the worker drains them) |
+| Pending `llm_cost_tracker_ingestion_inbox_entries` totals | Added on top when `ingestion = :async` (events sit in the inbox until the worker drains them) |
 
 Per-call budgets are checked from the current event only.
 

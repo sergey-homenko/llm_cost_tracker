@@ -1,14 +1,14 @@
 # Operations
 
 Production use depends on ActiveRecord health, bounded hot paths, and
-current pricing snapshots. Durable ingestion and rollups are opt-ins —
+current pricing snapshots. Async ingestion and rollups are opt-ins —
 turn them on when scale or durability demands it (see [Storage in
 Configuration](configuration.md#storage)).
 
 ## Production Defaults
 
 - Size the ActiveRecord connection pool for your app's concurrency. If
-  `config.durable_ingestion = true`, add headroom for the local
+  `config.ingestion = :async`, add headroom for the local
   ingestor thread and for the separate connection that inbox writes
   use when the caller is inside an open transaction (so staged events
   survive caller rollbacks). The default inline path shares the
@@ -34,7 +34,7 @@ Before building or releasing production images:
 - Treat price files as immutable release config; refresh before image build or
   through an automation that opens a PR.
 
-When `durable_ingestion` is on, a single app process can need more than
+When `ingestion = :async` is on, a single app process can need more than
 its request/job connection: the local ingestor thread checks out one of
 its own, and capture inside an open caller transaction uses a separate
 connection so staged inbox entries survive caller rollbacks. Size pools
@@ -43,12 +43,12 @@ for your app's concurrency plus those tracker paths.
 ## Ingestion Path
 
 By default `Tracker.record` writes events synchronously through
-`LlmCostTracker::Ingestion::Inline` straight into the ledger
+`LlmCostTracker::Ledger::Store.insert_many` straight into the ledger
 (`llm_cost_tracker_calls` + line items + tags) — no inbox, no worker,
 nothing to drain.
 
-Flip `config.durable_ingestion = true` (after running
-`bin/rails generate llm_cost_tracker:durable_ingestion`) when you need:
+Flip `config.ingestion = :async` (after running
+`bin/rails generate llm_cost_tracker:async_ingestion`) when you need:
 
 - Multi-process safe staging — a crashed app worker leaves rows in the
   inbox that another process can pick up via the database lease.
@@ -101,7 +101,7 @@ sample-based drift checks: header `total_cost` vs
 `pricing_snapshot.rates`. Drift surfaces as a `:warn` so transient
 mismatches during a deploy don't fail the gate. Mismatches between
 config flags and present tables (e.g. inbox table exists but
-`durable_ingestion = false`) also surface as `:warn`.
+`ingestion = :inline`) also surface as `:warn`.
 
 `verify_capture` records a synthetic event and verifies both notifications and
 ActiveRecord persistence.
@@ -133,7 +133,7 @@ decremented in the same transaction.
 | Line items | `llm_cost_tracker_call_line_items` |
 | Tags | `llm_cost_tracker_call_tags` |
 | Call rollups (opt-in) | `llm_cost_tracker_call_rollups` |
-| Durable inbox (opt-in) | `llm_cost_tracker_ingestion_inbox_entries` |
+| Async inbox (opt-in) | `llm_cost_tracker_ingestion_inbox_entries` |
 | Worker lease (opt-in) | `llm_cost_tracker_ingestion_leases` |
 | Provider invoices (opt-in) | `llm_cost_tracker_provider_invoices` |
 | Provider invoice imports (opt-in) | `llm_cost_tracker_provider_invoice_imports` |

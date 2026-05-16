@@ -20,7 +20,7 @@ module LlmCostTracker
 
       class << self
         def ensure_started
-          return unless Ingestion.durable?
+          return unless Ingestion.async?
 
           thread = MUTEX.synchronize do
             reset_after_fork!
@@ -38,7 +38,7 @@ module LlmCostTracker
         end
 
         def flush!(timeout: nil, require_lease: false)
-          return true unless Ingestion.durable?
+          return true unless Ingestion.async?
 
           Ingestion.ensure_current_schema!
           MUTEX.synchronize { reset_after_fork! }
@@ -59,7 +59,7 @@ module LlmCostTracker
         end
 
         def shutdown!(timeout: nil, drain: true)
-          return true unless Ingestion.durable?
+          return true unless Ingestion.async?
 
           timeout ||= FLUSH_TIMEOUT_SECONDS
           thread = MUTEX.synchronize do

@@ -3,7 +3,7 @@
 ## v0.8.x → v0.9 (in progress)
 
 v0.9 makes the rollup, inbox, and lease tables opt-in, splits ingestion
-between an inline default and an opt-in durable inbox, and ships
+between an inline default and an opt-in async inbox, and ships
 optional provider invoice reconciliation. Default installs ship with
 three mandatory tables (`calls`, `call_line_items`, `call_tags`) plus
 whatever opt-ins the host enables.
@@ -17,7 +17,7 @@ keep the previous behavior:
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.durable_ingestion = true   # keep the write-ahead inbox + worker path
+  config.ingestion         = :async # keep the write-ahead inbox + worker path
   config.cache_rollups     = true   # keep budget reads on the rollups fast path
 end
 ```
@@ -47,9 +47,9 @@ Run the matching generators only for the optional capabilities you
 want:
 
 ```bash
-# Durable inbox + worker + leases (multi-process safe staging,
+# Async inbox + worker + leases (multi-process safe staging,
 # survives caller transaction rollbacks).
-bin/rails generate llm_cost_tracker:durable_ingestion
+bin/rails generate llm_cost_tracker:async_ingestion
 
 # Pre-aggregated daily/monthly rollups for fast budget reads.
 bin/rails generate llm_cost_tracker:call_rollups
@@ -57,7 +57,7 @@ bin/rails generate llm_cost_tracker:call_rollups
 bin/rails db:migrate
 ```
 
-After migrating, set the matching `config.durable_ingestion = true` /
+After migrating, set the matching `config.ingestion = :async` /
 `config.cache_rollups = true` so the write path and budget reads use
 the new tables.
 

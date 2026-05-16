@@ -1,42 +1,20 @@
 # frozen_string_literal: true
 
 require "rails/generators"
-require "rails/generators/active_record"
+require_relative "async_ingestion_generator"
 
 module LlmCostTracker
   module Generators
     class DurableIngestionGenerator < Rails::Generators::Base
-      include ActiveRecord::Generators::Migration
+      desc "Deprecated alias for llm_cost_tracker:async_ingestion (removed in 1.0)."
 
-      source_root File.expand_path("templates", __dir__)
-
-      desc "Creates the durable ingestion tables (llm_cost_tracker_ingestion_inbox_entries + _leases). " \
-           "Required when config.durable_ingestion = true."
-
-      def create_migration_file
-        migration_template(
-          "create_llm_cost_tracker_durable_ingestion.rb.erb",
-          "db/migrate/create_llm_cost_tracker_durable_ingestion.rb"
+      def deprecate_and_invoke
+        say(
+          "[llm_cost_tracker] generator llm_cost_tracker:durable_ingestion is deprecated; " \
+          "use llm_cost_tracker:async_ingestion (removed in 1.0)",
+          :yellow
         )
-      end
-
-      def warn_about_config_flag
-        say(<<~MSG, :yellow)
-          After migrating, set the following in config/initializers/llm_cost_tracker.rb:
-
-            LlmCostTracker.configure do |config|
-              config.durable_ingestion = true
-            end
-
-          Without it the durable inbox tables stay unused and Tracker keeps writing
-          inline. The doctor check warns about unused durable tables.
-        MSG
-      end
-
-      private
-
-      def migration_version
-        "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]"
+        invoke "llm_cost_tracker:async_ingestion"
       end
     end
   end

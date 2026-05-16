@@ -9,7 +9,7 @@ RSpec.describe LlmCostTracker::Ingestion::Pool do
     create_lct_tables!
     LlmCostTracker::Call.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
-    LlmCostTracker.configuration.durable_ingestion = true
+    LlmCostTracker.configuration.ingestion = :async
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
     described_class.reset!
   end
@@ -38,9 +38,9 @@ RSpec.describe LlmCostTracker::Ingestion::Pool do
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(1)
   end
 
-  it "honors durable_ingestion_pool_size when configured" do
+  it "honors ingestion_pool_size when configured" do
     described_class.reset!
-    LlmCostTracker.configuration.durable_ingestion_pool_size = 3
+    LlmCostTracker.configuration.ingestion_pool_size = 3
 
     expect(described_class.pool.size).to eq(3)
   end

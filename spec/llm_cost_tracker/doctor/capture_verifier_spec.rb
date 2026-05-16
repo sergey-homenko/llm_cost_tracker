@@ -68,17 +68,17 @@ RSpec.describe LlmCostTracker::Doctor::CaptureVerifier do
   context "with ActiveRecord storage" do
     include_context "with mounted llm cost tracker engine"
 
-    it "verifies a manual capture event through the durable inbox" do
+    it "verifies a manual capture event through the async inbox" do
       checks = described_class.call
 
       expect(checks).to include(
-        have_attributes(status: :ok, name: "active_record capture", message: include("durable inbox"))
+        have_attributes(status: :ok, name: "active_record capture", message: include("async inbox"))
       )
       expect(LlmCostTracker::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
     end
 
-    it "verifies a manual capture event through the inline writer when durable_ingestion is false" do
-      LlmCostTracker.configure { |config| config.durable_ingestion = false }
+    it "verifies a manual capture event through the inline writer when ingestion is :inline" do
+      LlmCostTracker.configure { |config| config.ingestion = :inline }
       checks = described_class.call
 
       expect(checks).to include(

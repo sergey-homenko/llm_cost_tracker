@@ -343,7 +343,7 @@ begin
 
   LlmCostTracker.reset_configuration!
   LlmCostTracker.configure do |config|
-    config.durable_ingestion = true
+    config.ingestion = :async
     config.cache_rollups = true
     config.unknown_pricing_behavior = :raise
     config.pricing_overrides = {
@@ -360,9 +360,9 @@ begin
     raise ActiveRecord::Rollback
   end
   sleep 0.1
-  durable_rows = LlmCostTracker::Ingestion::InboxEntry.where(event_id: rollback_event.event_id).count +
+  pending_rows = LlmCostTracker::Ingestion::InboxEntry.where(event_id: rollback_event.event_id).count +
                  LlmCostTracker::Call.where(event_id: rollback_event.event_id).count
-  assert("event was lost across caller rollback") { durable_rows == 1 }
+  assert("event was lost across caller rollback") { pending_rows == 1 }
   flush!
   assert("rollback event did not reach ledger") do
     LlmCostTracker::Call.where(event_id: rollback_event.event_id, provider_response_id: "rollback").one?

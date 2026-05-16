@@ -1,4 +1,4 @@
-class CreateLlmCostTrackerDurableIngestion < ActiveRecord::Migration<%= migration_version %>
+class CreateLlmCostTrackerAsyncIngestion < ActiveRecord::Migration<%= migration_version %>
   def change
     create_table :llm_cost_tracker_ingestion_inbox_entries do |t|
       t.string   :event_id, null: false

@@ -11,14 +11,14 @@ module LlmCostTracker
 
       def call
         return unless Probe.table_exists?("llm_cost_tracker_calls")
-        return inline_check unless LlmCostTracker::Ingestion.durable?
+        return inline_check unless LlmCostTracker::Ingestion.async?
 
         missing = missing_parts
         if missing.empty?
           inbox = inbox_snapshot
           quarantined = inbox.try(:quarantined_count).to_i
           if quarantined.positive?
-            return Check.new(:warn, "durable ingestion", "#{quarantined} inbox entries quarantined after retries")
+            return Check.new(:warn, "async ingestion", "#{quarantined} inbox entries quarantined after retries")
           end
 
           pending_count = inbox.try(:pending_count).to_i
@@ -27,17 +27,17 @@ module LlmCostTracker
           if pending_count.positive? && pending_age && pending_age >= PENDING_AGE_WARNING_SECONDS
             return Check.new(
               :warn,
-              "durable ingestion",
+              "async ingestion",
               "#{pending_count} inbox entries pending; oldest pending age #{pending_age.round}s"
             )
           end
 
-          return Check.new(:ok, "durable ingestion", "inbox and ingestion lease tables available")
+          return Check.new(:ok, "async ingestion", "inbox and ingestion lease tables available")
         end
 
         Check.new(
           :error,
-          "durable ingestion",
+          "async ingestion",
           "missing #{missing.join(', ')}; see docs/upgrading.md for the recovery steps"
         )
       end
@@ -50,15 +50,15 @@ module LlmCostTracker
           return Check.new(
             :ok,
             "inline ingestion",
-            "durable_ingestion=false; events write directly to the ledger"
+            "config.ingestion = :inline; events write directly to the ledger"
           )
         end
 
         Check.new(
           :warn,
           "inline ingestion",
-          "durable_ingestion=false but found unused durable ingestion tables: #{leftovers.join(', ')}. " \
-          "Set config.durable_ingestion = true to keep the durable inbox path or drop the tables."
+          "config.ingestion = :inline but found unused async ingestion tables: #{leftovers.join(', ')}. " \
+          "Set config.ingestion = :async to keep the durable inbox path or drop the tables."
         )
       end
 

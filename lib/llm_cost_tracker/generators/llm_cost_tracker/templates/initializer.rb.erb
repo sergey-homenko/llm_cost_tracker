@@ -50,11 +50,11 @@ LlmCostTracker.configure do |config|
   # }
   # config.cache_rollups = true
 
-  # Ingestion path — false (default) writes events synchronously from the request
-  # thread. Flip to true for a write-ahead inbox + background worker that batches
+  # Ingestion path — :inline (default) writes events synchronously from the request
+  # thread. Set to :async for a write-ahead inbox + background worker that batches
   # inserts and survives caller transaction rollbacks. Requires the optional
-  # inbox/leases tables created by `bin/rails generate llm_cost_tracker:durable_ingestion`.
-  # config.durable_ingestion = true
+  # inbox/leases tables created by `bin/rails generate llm_cost_tracker:async_ingestion`.
+  # config.ingestion = :async
 
   # Register OpenAI-compatible gateway hosts and choose extra tag breakdowns
   # for bin/rails llm_cost_tracker:report.

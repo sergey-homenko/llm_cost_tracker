@@ -35,17 +35,17 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets read live `SUM(total_cost)` from `llm_cost_tracker_calls` by default. When `config.cache_rollups = true` they switch to the `llm_cost_tracker_call_rollups` fast path (with its `(period, period_start, currency, provider)` unique index). When `config.durable_ingestion = true`, pending `llm_cost_tracker_ingestion_inbox_entries` totals are added on top so events that haven't drained yet still count toward guardrails.
+Monthly and daily budgets read live `SUM(total_cost)` from `llm_cost_tracker_calls` by default. When `config.cache_rollups = true` they switch to the `llm_cost_tracker_call_rollups` fast path (with its `(period, period_start, currency, provider)` unique index). When `config.ingestion = :async`, pending `llm_cost_tracker_ingestion_inbox_entries` totals are added on top so events that haven't drained yet still count toward guardrails.
 
 Whichever combination is active, the rollup/calls aggregate and the pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 
 Per-call budgets are checked from the current event only.
 
-## Durable Ingestion
+## Async Ingestion
 
-Durable ingestion is opt-in via `config.durable_ingestion = true` plus the `llm_cost_tracker:durable_ingestion` generator. With it off (the default), `Tracker.record` writes inline through `Ingestion::Inline` and the worker is dormant.
+Async ingestion is opt-in via `config.ingestion = :async` plus the `llm_cost_tracker:async_ingestion` generator. With it off (the `:inline` default), `Tracker.record` writes inline through `Ledger::Store.insert_many` and the worker is dormant.
 
-`Ingestion::Inbox` and `Ingestion::Inline` writes inside an open caller transaction both need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should raise instead of writing into the caller transaction.
+`Ingestion::Inbox` writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should raise instead of writing into the caller transaction.
 
 The ingestor is database-leased and database-polled, with an opportunistic local wake after a successful inbox insert. The wake only reduces freshness latency in the process that wrote the row; correctness still comes from the shared database lease, retryable row locks, and adaptive polling across Puma, Sidekiq, Unicorn, deploy restarts, and multi-process hosts.
 
@@ -59,7 +59,7 @@ needs tuning.
 
 Ingestors should claim only retryable rows. Rows that keep failing after the retry cap stay in `llm_cost_tracker_ingestion_inbox_entries` with `last_error` for operator inspection and must not block healthy rows behind them.
 
-Process shutdown should stop the local ingestor thread without forcing every exiting process to drain the shared inbox. Operators can call `LlmCostTracker::Ingestion::Worker.flush!` when they intentionally want to wait for the durable inbox to drain.
+Process shutdown should stop the local ingestor thread without forcing every exiting process to drain the shared inbox. Operators can call `LlmCostTracker::Ingestion::Worker.flush!` when they intentionally want to wait for the async inbox to drain.
 
 ## Retention
 

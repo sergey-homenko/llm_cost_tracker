@@ -3,7 +3,7 @@
 require "spec_helper"
 require "active_record"
 
-RSpec.describe "ActiveRecord durable inbox" do
+RSpec.describe "ActiveRecord async inbox" do
   before do
     establish_database_connection!
 
@@ -16,7 +16,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
 
-    LlmCostTracker.configuration.durable_ingestion = true
+    LlmCostTracker.configuration.ingestion = :async
     LlmCostTracker.configuration.cache_rollups = true
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end
@@ -26,13 +26,13 @@ RSpec.describe "ActiveRecord durable inbox" do
     disconnect_database!
   end
 
-  it "uses durable ingestion table names" do
+  it "uses async ingestion table names" do
     expect(LlmCostTracker::Ingestion::InboxEntry.table_name)
       .to eq("llm_cost_tracker_ingestion_inbox_entries")
     expect(LlmCostTracker::Ingestion::Lease.table_name).to eq("llm_cost_tracker_ingestion_leases")
   end
 
-  it "captures events into a durable inbox before ingesting them into the ledger" do
+  it "captures events into an async inbox before ingesting them into the ledger" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
@@ -278,7 +278,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
     )
 
-    check = LlmCostTracker::Doctor.call.find { |item| item.name == "durable ingestion" }
+    check = LlmCostTracker::Doctor.call.find { |item| item.name == "async ingestion" }
 
     expect(check).to have_attributes(status: :warn, message: include("quarantined"))
   end
@@ -294,7 +294,7 @@ RSpec.describe "ActiveRecord durable inbox" do
       updated_at: time
     )
 
-    check = LlmCostTracker::Doctor.call.find { |item| item.name == "durable ingestion" }
+    check = LlmCostTracker::Doctor.call.find { |item| item.name == "async ingestion" }
 
     expect(check).to have_attributes(status: :warn, message: include("pending"))
   end
@@ -435,17 +435,17 @@ RSpec.describe "ActiveRecord durable inbox" do
     ingestor.instance_variable_set(:@identity, nil)
   end
 
-  it "verifies and cleans up capture through the durable inbox" do
+  it "verifies and cleans up capture through the async inbox" do
     checks = LlmCostTracker::Ingestion.verify
     check = checks.find { |item| item.name == "active_record capture" }
 
-    expect(check).to have_attributes(status: :ok, message: include("durable inbox"))
+    expect(check).to have_attributes(status: :ok, message: include("async inbox"))
     expect(LlmCostTracker::Call.where("provider_response_id LIKE ?", "lct_verify_%")).to be_empty
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
     expect(LlmCostTracker::CallRollup.sum(:total_cost).to_f).to eq(0.0)
   end
 
-  it "reports a failed durable inbox verification when flush does not persist the row" do
+  it "reports a failed async inbox verification when flush does not persist the row" do
     allow(LlmCostTracker::Ingestion::Worker).to receive(:flush!).and_return(false)
 
     checks = LlmCostTracker::Ingestion.verify
@@ -562,7 +562,7 @@ RSpec.describe "ActiveRecord durable inbox" do
     expect(LlmCostTracker::Ingestion::Worker.shutdown!(timeout: 0.01)).to be false
   end
 
-  it "can stop the ingestor without draining durable rows" do
+  it "can stop the ingestor without draining inbox rows" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
