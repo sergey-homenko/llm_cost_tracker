@@ -26,6 +26,7 @@ require_relative "../app/models/llm_cost_tracker/call_tag"
 require_relative "../app/models/llm_cost_tracker/call_rollup"
 require_relative "../app/models/llm_cost_tracker/ingestion/inbox_entry"
 require_relative "../app/models/llm_cost_tracker/ingestion/lease"
+require_relative "../app/services/llm_cost_tracker/dashboard/setup_state"
 
 admin = {
   adapter: adapter,
