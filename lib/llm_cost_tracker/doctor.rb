@@ -200,9 +200,7 @@ module LlmCostTracker
       count = snapshot.tracked_call_count.to_i
       return Check.new(:warn, "tracked calls", "none recorded yet") if count.zero?
 
-      latest_at = snapshot.latest_tracked_at
-      latest_at = latest_at.to_time if latest_at.respond_to?(:to_time)
-      latest = latest_at&.utc&.iso8601
+      latest = snapshot.latest_tracked_at.to_time.utc.iso8601
       Check.new(:ok, "tracked calls", "#{count} recorded; latest #{latest}")
     end
 

@@ -64,7 +64,7 @@ module LlmCostTracker
           case args.first
           when Hash then args.first
           when nil then {}
-          else args.first.respond_to?(:to_h) ? args.first.to_h : {}
+          else args.first.to_h
           end
         params.merge(kwargs).with_indifferent_access
       rescue StandardError
