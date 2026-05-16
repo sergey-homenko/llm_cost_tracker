@@ -198,7 +198,7 @@ module LlmCostTracker
       def rate_source_version_for(source)
         return LlmCostTracker::VERSION if source == :bundled
 
-        Lookup.prices_file_iso_version
+        Lookup.prices_file_mtime_iso
       end
     end
   end

@@ -83,7 +83,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
     it "falls back to live aggregation from calls when the rollups table has been truncated" do
       LlmCostTracker.configure { |config| config.cache_rollups = true }
       time = Time.utc(2026, 5, 7, 12)
-      LlmCostTracker::Ledger::Store.insert_many([
+      LlmCostTracker::Ledger::Store.insert([
                                                   build_event(total_cost: 4.5, currency: "USD", tracked_at: time),
                                                   build_event(total_cost: 99.0, currency: "EUR", tracked_at: time)
                                                 ])
@@ -98,7 +98,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
     it "prefers calls aggregation over a stale partial rollup row so a post-v0.9-migration period with historical pre-migration calls is not under-counted while the new rollup bucket only contains the post-migration tail" do
       LlmCostTracker.configure { |config| config.cache_rollups = true }
       time = Time.utc(2026, 5, 15, 12)
-      LlmCostTracker::Ledger::Store.insert_many([
+      LlmCostTracker::Ledger::Store.insert([
                                                   build_event(total_cost: 50.0, currency: "USD", tracked_at: time),
                                                   build_event(total_cost: 50.0, currency: "USD", tracked_at: time)
                                                 ])

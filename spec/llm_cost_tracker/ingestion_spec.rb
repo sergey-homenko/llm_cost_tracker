@@ -53,6 +53,12 @@ RSpec.describe "ActiveRecord async inbox" do
     expect(call.parsed_tags).to include("feature" => "chat")
   end
 
+  it "wakes the worker from Tracker.record in async mode" do
+    expect(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started).at_least(:once)
+
+    LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input: 1, output: 0 })
+  end
+
   it "includes pending inbox costs in call rollups before ingesting" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
@@ -145,7 +151,7 @@ RSpec.describe "ActiveRecord async inbox" do
     parsed = LlmCostTracker::Ingestion::Inbox.event_from_row(row)
 
     LlmCostTracker::Call.transaction do
-      LlmCostTracker::Ledger::Store.insert_many([parsed])
+      LlmCostTracker::Ledger::Store.insert([parsed])
     end
     LlmCostTracker::Ingestion::Worker.flush!
 
@@ -168,7 +174,7 @@ RSpec.describe "ActiveRecord async inbox" do
     allow(LlmCostTracker::Call).to receive(:insert_all!).and_raise(ActiveRecord::RecordNotUnique)
 
     expect do
-      LlmCostTracker::Ledger::Store.insert_many([parsed])
+      LlmCostTracker::Ledger::Store.insert([parsed])
     end.to raise_error(ActiveRecord::RecordNotUnique)
     expect(LlmCostTracker::CallRollup.count).to eq(0)
 
@@ -215,7 +221,7 @@ RSpec.describe "ActiveRecord async inbox" do
       model: "gpt-4o",
       tokens: { input: 1_000, output: 0 },
     )
-    allow(LlmCostTracker::Ledger::Store).to receive(:insert_many).and_raise("write failed")
+    allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_raise("write failed")
     allow(LlmCostTracker::Logging).to receive(:warn)
 
     expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(0)

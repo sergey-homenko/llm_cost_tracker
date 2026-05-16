@@ -11,7 +11,7 @@ module LlmCostTracker
   module Ledger
     class Store
       class << self
-        def insert_many(events, skip_existence_check: false)
+        def insert(events, skip_existence_check: false)
           events = Array(events)
           return if events.empty?
 

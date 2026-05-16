@@ -282,7 +282,7 @@ provider response →
               Notifications.instrument →
                 Inbox.save (payload v3) →
                   Worker drains →
-                    Store.insert_many:
+                    Store.insert:
                       Calls.insert_all
                       CallLineItems.insert_all
                       CallTags.insert_all

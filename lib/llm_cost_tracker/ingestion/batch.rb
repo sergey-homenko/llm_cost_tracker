@@ -80,7 +80,7 @@ module LlmCostTracker
 
       def persist(rows, events)
         LlmCostTracker::Call.transaction do
-          Ledger::Store.insert_many(events)
+          Ledger::Store.insert(events)
           Ingestion::InboxEntry.where(id: rows.map(&:id), locked_by: identity).delete_all
         end
       end

@@ -35,7 +35,7 @@ module LlmCostTracker
           end
         end
 
-        def prices_file_iso_version
+        def prices_file_mtime_iso
           invalidate_cache_if_prices_file_changed!
           signature = @prices_file_signature
           return nil unless signature

@@ -6,7 +6,7 @@ require "faraday"
 RSpec.describe LlmCostTracker::Middleware::Faraday do
   before do
     allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
-    allow(LlmCostTracker::Ledger::Store).to receive(:insert_many).and_return(true)
+    allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_return(true)
   end
 
   let(:openai_response_body) do

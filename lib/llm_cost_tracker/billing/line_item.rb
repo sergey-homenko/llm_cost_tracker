@@ -129,7 +129,7 @@ module LlmCostTracker
         cost || BigDecimal("0")
       end
 
-      def apply_rate(rate)
+      def with_rate(rate)
         rate_amount = rate.fetch(:amount)
         rate_quantity = rate.fetch(:quantity)
         applied_cost = (quantity / rate_quantity) * rate_amount

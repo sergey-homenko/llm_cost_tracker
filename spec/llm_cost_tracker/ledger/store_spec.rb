@@ -312,7 +312,7 @@ RSpec.describe "ActiveRecord storage integration" do
   it "skips duplicate event ids within one insert batch before incrementing rollups" do
     event = build_event(event_id: "duplicate-event")
 
-    LlmCostTracker::Ledger::Store.insert_many([event, event])
+    LlmCostTracker::Ledger::Store.insert([event, event])
 
     expect(LlmCostTracker::Call.where(event_id: "duplicate-event").count).to eq(1)
     expect(LlmCostTracker::Ledger::Period::Totals.call(%i[day month], time: event.tracked_at)).to eq(
@@ -338,14 +338,14 @@ RSpec.describe "ActiveRecord storage integration" do
   it "stores nil tag values as empty strings without raising on the not-null column" do
     event = build_event(event_id: "nil-tag", tags: { "feature" => nil })
 
-    expect { LlmCostTracker::Ledger::Store.insert_many([event]) }.not_to raise_error
+    expect { LlmCostTracker::Ledger::Store.insert([event]) }.not_to raise_error
     expect(LlmCostTracker::Call.first.parsed_tags).to eq("feature" => "")
   end
 
   it "serializes nested tag values as JSON strings in llm_cost_tracker_call_tags" do
     event = build_event(event_id: "nested-tags", tags: { metadata: { user_id: 42, active: true } })
 
-    LlmCostTracker::Ledger::Store.insert_many([event])
+    LlmCostTracker::Ledger::Store.insert([event])
 
     expect(LlmCostTracker::Call.first.parsed_tags).to eq(
       "metadata" => '{"active":"true","user_id":"42"}'
@@ -358,7 +358,7 @@ RSpec.describe "ActiveRecord storage integration" do
     allow(LlmCostTracker::Ledger::Rollups).to receive(:increment_many!).and_raise("rollup contention")
     event = build_event(event_id: "rollup-failure")
 
-    expect { LlmCostTracker::Ledger::Store.insert_many([event]) }.not_to raise_error
+    expect { LlmCostTracker::Ledger::Store.insert([event]) }.not_to raise_error
     expect(LlmCostTracker::Call.find_by(event_id: "rollup-failure")).to be_present
     expect(LlmCostTracker::Logging).to have_received(:warn).with(include("Rollup increment failed"))
   end

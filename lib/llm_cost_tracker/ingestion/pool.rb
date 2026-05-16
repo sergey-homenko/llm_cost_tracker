@@ -12,7 +12,7 @@ module LlmCostTracker
         end
 
         def pool
-          @pool || MUTEX.synchronize { @pool ||= build_pool }
+          @pool || MUTEX.synchronize { @pool ||= connect! }
         end
 
         def reset!
@@ -25,7 +25,7 @@ module LlmCostTracker
 
         private
 
-        def build_pool
+        def connect!
           @handler = ActiveRecord::ConnectionAdapters::ConnectionHandler.new
           @handler.establish_connection(connection_config)
         end

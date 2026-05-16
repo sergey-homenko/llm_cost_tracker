@@ -43,7 +43,7 @@ Per-call budgets are checked from the current event only.
 
 ## Async Ingestion
 
-Async ingestion is opt-in via `config.ingestion = :async` plus the `llm_cost_tracker:async_ingestion` generator. With it off (the `:inline` default), `Tracker.record` writes inline through `Ledger::Store.insert_many` and the worker is dormant.
+Async ingestion is opt-in via `config.ingestion = :async` plus the `llm_cost_tracker:async_ingestion` generator. With it off (the `:inline` default), `Tracker.record` writes inline through `Ledger::Store.insert` and the worker is dormant.
 
 `Ingestion::Inbox` writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should raise instead of writing into the caller transaction.
 

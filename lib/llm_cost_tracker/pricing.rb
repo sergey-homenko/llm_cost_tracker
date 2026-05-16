@@ -214,7 +214,7 @@ module LlmCostTracker
                charge_rate(provider: provider, component: line_item.kind, pricing_mode: pricing_mode)
         return line_item unless rate
 
-        line_item.apply_rate(rate)
+        line_item.with_rate(rate)
       end
 
       def model_rate_for(line_item, calculation)
@@ -250,7 +250,7 @@ module LlmCostTracker
         when :bundled
           LlmCostTracker::VERSION
         when :prices_file
-          Lookup.prices_file_iso_version
+          Lookup.prices_file_mtime_iso
         when :pricing_overrides
           "configuration"
         end

@@ -177,7 +177,7 @@ conventions — promoting them to schema columns is in the anti-roadmap.
 
 - Runtime tracking never makes a network call or scans the ledger. Hot
   path reads `pricing_overrides` → file snapshot → bundled snapshot,
-  then writes inline through `Ledger::Store.insert_many` by default, or
+  then writes inline through `Ledger::Store.insert` by default, or
   enqueues to the async inbox when `config.ingestion = :async`.
 - Header is a projection. Per-component costs live in
   `llm_cost_tracker_call_line_items`; rollups stay a hot-path cache.

@@ -43,7 +43,7 @@ for your app's concurrency plus those tracker paths.
 ## Ingestion Path
 
 By default `Tracker.record` writes events synchronously through
-`LlmCostTracker::Ledger::Store.insert_many` straight into the ledger
+`LlmCostTracker::Ledger::Store.insert` straight into the ledger
 (`llm_cost_tracker_calls` + line items + tags) — no inbox, no worker,
 nothing to drain.
 

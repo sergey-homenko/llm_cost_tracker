@@ -114,7 +114,7 @@ Responsibilities:
 - Apply token and service line item pricing.
 - Build pricing snapshot and cost status.
 - Emit `ActiveSupport::Notifications`.
-- Persist events through `Ledger::Store.insert_many` (default) or `Ingestion::Inbox` when `config.ingestion = :async`.
+- Persist events through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion = :async`.
 - Run budget checks after the event is persisted.
 
 This module must remain provider-neutral.

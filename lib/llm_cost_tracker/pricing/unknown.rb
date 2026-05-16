@@ -8,7 +8,7 @@ module LlmCostTracker
       MUTEX = Mutex.new
 
       class << self
-        def handle!(model)
+        def process(model)
           model = model.to_s.presence || Event::UNKNOWN_MODEL
 
           case LlmCostTracker.configuration.unknown_pricing_behavior

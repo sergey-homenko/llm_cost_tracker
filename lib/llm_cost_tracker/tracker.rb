@@ -34,7 +34,7 @@ module LlmCostTracker
         )
 
         if cost_data.nil? && event.token_usage.total_tokens.positive? && priced_line_items.none?(&:priced?)
-          Pricing::Unknown.handle!(event.model)
+          Pricing::Unknown.process(event.model)
         end
 
         event = build_event(
@@ -50,8 +50,9 @@ module LlmCostTracker
 
         if Ingestion.async?
           Ingestion::Inbox.save(event)
+          Ingestion::Worker.ensure_started
         else
-          Ledger::Store.insert_many([event], skip_existence_check: true)
+          Ledger::Store.insert(event, skip_existence_check: true)
         end
 
         yield if block_given?
