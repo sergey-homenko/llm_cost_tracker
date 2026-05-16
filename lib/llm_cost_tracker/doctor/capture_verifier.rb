@@ -47,7 +47,7 @@ module LlmCostTracker
         end
 
         LlmCostTracker::Integrations.checks.map do |check|
-          Check.new(check.status, "sdk integration #{check.name}", check.message)
+          check.with(name: "sdk integration #{check.name}")
         end
       end
 

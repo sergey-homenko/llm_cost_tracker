@@ -23,7 +23,7 @@ module LlmCostTracker
     end
 
     def checks(names = LlmCostTracker.configuration.instrumented_integrations)
-      return [Base::Result.new(:integrations, :ok, "no SDK integrations enabled")] if names.empty?
+      return [Base::Result.new(:ok, "integrations", "no SDK integrations enabled")] if names.empty?
 
       normalize(names).map { |name| fetch(name).status }
     end

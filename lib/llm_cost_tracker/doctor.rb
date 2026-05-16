@@ -103,9 +103,7 @@ module LlmCostTracker
     end
 
     def integration_checks
-      LlmCostTracker::Integrations.checks.map do |check|
-        Check.new(check.status, check.name.to_s, check.message)
-      end
+      LlmCostTracker::Integrations.checks
     end
 
     def active_record_check

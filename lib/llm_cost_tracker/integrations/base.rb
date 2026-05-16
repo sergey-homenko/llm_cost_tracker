@@ -3,6 +3,7 @@
 require "active_support/core_ext/hash/indifferent_access"
 require "active_support/core_ext/string/inflections"
 
+require_relative "../doctor/check"
 require_relative "../logging"
 require_relative "../timing"
 require_relative "../capture/stream_collector"
@@ -11,7 +12,7 @@ require_relative "../capture/stream_tracker"
 module LlmCostTracker
   module Integrations
     module Base
-      Result = Data.define(:name, :status, :message)
+      Result = LlmCostTracker::Doctor::Check
 
       def active?
         LlmCostTracker.configuration.instrumented?(integration_name)
@@ -26,18 +27,18 @@ module LlmCostTracker
       end
 
       def status
-        name = integration_name
+        name = integration_name.to_s
         problems = version_problems + target_problems
         if problems.any?
-          return Result.new(name, :warn, "#{name} integration cannot be installed: #{problems.join('; ')}")
+          return Result.new(:warn, name, "#{name} integration cannot be installed: #{problems.join('; ')}")
         end
 
         installed = patch_targets.reject { |target| target.fetch(:optional) }.all? do |target|
           target.fetch(:constant_name).to_s.safe_constantize&.ancestors&.include?(target.fetch(:patch))
         end
-        return Result.new(name, :ok, "#{name} integration installed") if installed
+        return Result.new(:ok, name, "#{name} integration installed") if installed
 
-        Result.new(name, :warn, "#{name} integration is enabled but not installed")
+        Result.new(:warn, name, "#{name} integration is enabled but not installed")
       end
 
       def elapsed_ms(started_at)
