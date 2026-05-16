@@ -10,7 +10,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `bin/rails llm_cost_tracker:backfill_unknown_pricing` rake task recomputes cost, pricing snapshot, line-item costs, and rollup buckets for calls that landed with no pricing (e.g. a new model recorded before the next scraper refresh added its rates). The Data Quality dashboard's "Unknown pricing by model" panel points at this task. Idempotent — re-running only touches calls still missing a cost.
 - Azure OpenAI Service is captured out of the box. Calls to `*.openai.azure.com` and OpenAI Ruby SDK calls made with an Azure `base_url` land in the ledger tagged `provider: "azure_openai"`. Pricing resolves to the matching `openai/<model>` entry; regional / Data Zone uplifts are configurable via `config.pricing_overrides` with the `azure_openai/<model>` prefix. See [Configuration → Azure OpenAI Service](docs/configuration.md#azure-openai-service).
 - `bin/rails generate llm_cost_tracker:upgrade_provider_invoice_imports_provider` writes the migration so two reconciliation importers sharing a `source` (e.g. `csv/openai` and `csv/anthropic`) no longer cross-pollute resume cursors.
-- `bin/rails generate llm_cost_tracker:upgrade_provider_invoices_metadata_index` writes a migration adding a GIN index on PostgreSQL so the reconciliation dashboard stays fast on large invoice sets. No-op on MySQL.
+- `bin/rails generate llm_cost_tracker:upgrade_provider_invoices_metadata_index` writes a migration adding a GIN index on `llm_cost_tracker_provider_invoices.metadata` (PostgreSQL only) so the `metadata @> ?::jsonb` containment lookup used by `Reconciliation::Diff#apply_metadata_scope` doesn't seq-scan on large invoice sets. No-op on MySQL.
 
 ### Fixed
 

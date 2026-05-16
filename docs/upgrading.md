@@ -200,11 +200,14 @@ behaviour (latest cursor across all providers on that source).
 
 ### Optional GIN index on `provider_invoices.metadata` (PostgreSQL)
 
-`Reconciliation::Diff` filters on `metadata->>'provider'`,
-`metadata->>'row_type'`, and `metadata->>'match_basis'`. On large
-invoice tables under PostgreSQL, a GIN index speeds these queries from
-a sequential scan to an index lookup. Fresh installs from `0.10` and
-later get the index automatically; existing installs can opt in:
+`Reconciliation::Diff#apply_metadata_scope` filters invoices with
+`metadata @> '<criteria>'::jsonb` (JSONB containment) so the dynamic
+metadata-scope filter stays fast on large invoice tables under
+PostgreSQL. The default `jsonb_ops` GIN operator class accelerates
+`@>` lookups, not `->>` text-extraction filters — direct
+`metadata->>'key' = ?` queries still seq-scan. Fresh installs from
+`0.10` and later get the index automatically; existing installs can
+opt in:
 
 ```bash
 bin/rails generate llm_cost_tracker:upgrade_provider_invoices_metadata_index
