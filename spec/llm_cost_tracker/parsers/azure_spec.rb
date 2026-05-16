@@ -72,6 +72,22 @@ RSpec.describe LlmCostTracker::Parsers::Azure do
     end
   end
 
+  describe "#model_for" do
+    it "returns the request body's model when present" do
+      expect(parser.model_for(chat_completions_url, { "model" => "gpt-4o" })).to eq("gpt-4o")
+    end
+
+    it "falls back to the deployment-id from the URL path when the body has no model" do
+      expect(parser.model_for(chat_completions_url, {})).to eq("gpt4o-prod")
+      expect(parser.model_for(embeddings_url, nil)).to eq("embed-3-large")
+    end
+
+    it "returns nil when neither the body nor the URL carry a deployment" do
+      bogus = URI::HTTPS.build(host: "myresource.openai.azure.com", path: "/openai/chat/completions").to_s
+      expect(parser.model_for(bogus, {})).to be_nil
+    end
+  end
+
   describe "#parse" do
     it "extracts token usage from a successful Azure response and tags provider as azure_openai" do
       result = parser.parse(

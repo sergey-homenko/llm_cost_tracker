@@ -130,7 +130,7 @@ won't invent a total cost out of thin air.
 | `budget_exceeded_behavior` | `:notify` | `:notify`, `:raise`, or `:block_requests` |
 | `on_budget_exceeded` | `nil` | Callable receiving the budget payload |
 
-Budget payloads include `budget_type`, `total`, `budget`, and `last_event`.
+Budget payloads include `budget_type`, `total`, `budget`, `last_event`, and `stage` (`:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks). See [Budgets and Guardrails](budgets.md) for the pre-send estimate behavior.
 
 ## Storage
 

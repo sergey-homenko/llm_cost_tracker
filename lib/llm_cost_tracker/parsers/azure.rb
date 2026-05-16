@@ -29,6 +29,15 @@ module LlmCostTracker
       def provider_for(_request_url)
         "azure_openai"
       end
+
+      def model_for(request_url, request_parsed)
+        body_model = super
+        return body_model if body_model
+
+        uri = parsed_uri(request_url)
+        match = uri&.path&.match(%r{/openai/deployments/([^/]+)/})
+        match && match[1]
+      end
     end
   end
 end

@@ -37,8 +37,9 @@ LlmCostTracker.configure do |config|
 
   # Budget guardrails — cumulative monthly/daily and per-call ceilings in USD,
   # plus behavior on crossing (:notify default fires on_budget_exceeded; :raise
-  # raises after recording; :block_requests preflights supported requests) and
-  # an optional callback. Cap evaluation reads from llm_cost_tracker_calls live;
+  # raises after recording; :block_requests preflights supported requests, also
+  # estimating the current call's input cost via chars/4 so it can block before
+  # send) and an optional callback. Cap evaluation reads from llm_cost_tracker_calls live;
   # flip cache_rollups to true at high volume so reads hit the rollups table
   # instead — generate the table with `bin/rails generate llm_cost_tracker:call_rollups`.
   # config.monthly_budget = 100.00

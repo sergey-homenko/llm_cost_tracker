@@ -448,6 +448,21 @@ RSpec.describe LlmCostTracker::Integrations do
     end
   end
 
+  it "passes the request payload to Tracker.enforce_budget! for pre-send estimation from SDK patches" do
+    response = response_class.new(id: "chatcmpl_x", usage: usage_class.new(prompt_tokens: 1, completion_tokens: 1))
+    install_openai_fakes(response)
+    configure_integration(:openai)
+    allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_call_original
+
+    OpenAI::Resources::Chat::Completions.new.create(model: "gpt-4o", messages: [{ role: "user", content: "hello" }])
+
+    expect(LlmCostTracker::Tracker).to have_received(:enforce_budget!).with(
+      provider: "openai",
+      model: "gpt-4o",
+      request: include(model: "gpt-4o")
+    )
+  end
+
   it "tracks official OpenAI chat.completions.create calls" do
     response = response_class.new(
       id: "chatcmpl_123",

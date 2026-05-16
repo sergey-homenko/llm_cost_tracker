@@ -77,6 +77,10 @@ module LlmCostTracker
         end
       end
 
+      def model_for(request_url, _request_parsed)
+        extract_model_from_url(request_url)
+      end
+
       def provider_for(_request_url)
         "gemini"
       end

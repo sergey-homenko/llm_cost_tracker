@@ -81,6 +81,10 @@ module LlmCostTracker
         request_parsed.is_a?(Hash) && request_parsed["stream"] == true
       end
 
+      def model_for(_request_url, request_parsed)
+        request_parsed["model"] if request_parsed.is_a?(Hash)
+      end
+
       def parse_stream(**)
         nil
       end

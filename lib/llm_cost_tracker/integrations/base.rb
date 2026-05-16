@@ -45,8 +45,14 @@ module LlmCostTracker
         Timing.elapsed_ms(started_at)
       end
 
-      def enforce_budget!
-        LlmCostTracker::Tracker.enforce_budget! if active?
+      def enforce_budget!(request:)
+        return unless active?
+
+        LlmCostTracker::Tracker.enforce_budget!(
+          provider: integration_name.to_s,
+          model: request[:model],
+          request: request
+        )
       end
 
       def record_safely

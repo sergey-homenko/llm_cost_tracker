@@ -876,4 +876,44 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end.to raise_error(LlmCostTracker::BudgetExceededError)
     expect(requests).to eq(0)
   end
+
+  it "passes provider, model, and parsed request body to Tracker.enforce_budget! for pre-send estimation" do
+    allow(LlmCostTracker::Tracker).to receive(:enforce_budget!)
+
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do
+          [200, { "Content-Type" => "application/json" }, openai_response_body]
+        end
+      end
+    end
+
+    conn.post("/v1/chat/completions", { "model" => "gpt-4o", "messages" => [{ "role" => "user", "content" => "hi" }] }.to_json)
+
+    expect(LlmCostTracker::Tracker).to have_received(:enforce_budget!).with(
+      provider: "openai",
+      model: "gpt-4o",
+      request: include("model" => "gpt-4o", "messages" => [{ "role" => "user", "content" => "hi" }])
+    )
+  end
+
+  it "resolves Gemini's model from the request URL path for pre-send estimation" do
+    allow(LlmCostTracker::Tracker).to receive(:enforce_budget!)
+
+    conn = Faraday.new(url: "https://generativelanguage.googleapis.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1beta/models/gemini-2.0-flash:generateContent") do
+          [200, { "Content-Type" => "application/json" }, "{}"]
+        end
+      end
+    end
+
+    conn.post("/v1beta/models/gemini-2.0-flash:generateContent", { "contents" => [] }.to_json)
+
+    expect(LlmCostTracker::Tracker).to have_received(:enforce_budget!).with(
+      hash_including(provider: "gemini", model: "gemini-2.0-flash")
+    )
+  end
 end

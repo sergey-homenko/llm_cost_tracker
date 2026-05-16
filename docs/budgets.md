@@ -25,12 +25,22 @@ a numeric budget until pricing lands.
 | --- | --- | --- |
 | `:notify` | After a priced event is recorded | Calls `on_budget_exceeded` once per budget type the event crossed (an event that pushes both daily and monthly over fires the callback twice — once per limit) |
 | `:raise` | After a priced event is recorded | Raises `LlmCostTracker::BudgetExceededError` |
-| `:block_requests` | Before supported requests and again after recording | Blocks the next request once accumulated spend crosses the budget. Preflight blocks do not fire `on_budget_exceeded`; the callback only fires post-record on the event that first crossed the limit |
+| `:block_requests` | Before supported requests and again after recording | Blocks the request when prior spend plus a character-count estimate of this call would cross a daily / monthly limit, or when the estimate alone crosses `per_call_budget`. Preflight blocks do not fire `on_budget_exceeded`; the callback only fires post-record on the event that first crossed the limit |
 
 `:raise` records first, then raises. The call that crossed the budget
 remains visible in the ledger.
 
-`:block_requests` reads accumulated spend (see Budget Reads below).
+`:block_requests` reads accumulated spend (see Budget Reads below) and
+also estimates the current call's input cost via a character-count
+heuristic (chars / 4 ≈ tokens, provider-agnostic, no external
+tokenizer). It blocks before send when prior spend plus the estimate
+would cross a daily / monthly limit, or when the estimate alone
+crosses `per_call_budget`. Output tokens stay unknown pre-send and
+are caught by the existing post-record check. Approximate by design —
+runway-stop, not precise prediction. Unknown models (no pricing
+match) skip the estimate and fall through to the prior-spend
+preflight.
+
 Under concurrency, multiple workers can clear preflight before each
 other's spend is visible. It stops the next request once overspend
 lands — it doesn't make provider spend transactional.
@@ -58,9 +68,10 @@ daily before monthly so short-term operational alerts stay prominent.
 | Key | Meaning |
 | --- | --- |
 | `budget_type` | `:monthly`, `:daily`, or `:per_call` |
-| `total` | Observed total for the budget type |
+| `total` | Observed total for the budget type. For `stage == :pre_send`: prior spend plus the call's estimate for daily / monthly, and the estimate alone for `per_call`. |
 | `budget` | Configured threshold |
-| `last_event` | Event that triggered the check when available |
+| `last_event` | Event that triggered the check when available (`nil` for `stage == :pre_send` because the call has not yet been made) |
+| `stage` | `:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks |
 
 ## Operational Notes
 

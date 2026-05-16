@@ -545,7 +545,8 @@ RSpec.describe LlmCostTracker::Tracker do
         budget_type: :per_call,
         total: event.total_cost,
         budget: 0.0001,
-        last_event: event
+        last_event: event,
+        stage: :post_spend
       )
     end
 
@@ -643,6 +644,93 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(LlmCostTracker::Ledger::Period::Totals).not_to receive(:call)
 
       described_class.enforce_budget!
+    end
+
+    it "blocks pre-send when prior spend plus the estimate exceeds the daily budget" do
+      LlmCostTracker.configure do |c|
+        c.daily_budget = 10.0
+        c.budget_exceeded_behavior = :block_requests
+      end
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 8.0)
+
+      expect do
+        described_class.enforce_budget!(
+          provider: "openai",
+          model: "gpt-4o",
+          request: { input: "x" * 4_000_000 }
+        )
+      end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error.budget_type).to eq(:daily)
+        expect(error.stage).to eq(:pre_send)
+        expect(error.last_event).to be_nil
+        expect(error.total).to be > error.budget
+      }
+    end
+
+    it "does not block pre-send when prior spend plus the estimate stays under the daily budget" do
+      LlmCostTracker.configure do |c|
+        c.daily_budget = 100.0
+        c.budget_exceeded_behavior = :block_requests
+      end
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 1.0)
+
+      expect do
+        described_class.enforce_budget!(
+          provider: "openai",
+          model: "gpt-4o",
+          request: { input: "x" * 4_000_000 }
+        )
+      end.not_to raise_error
+    end
+
+    it "blocks pre-send when the estimate alone exceeds the per_call budget" do
+      LlmCostTracker.configure do |c|
+        c.per_call_budget = 0.5
+        c.budget_exceeded_behavior = :block_requests
+      end
+
+      expect do
+        described_class.enforce_budget!(
+          provider: "openai",
+          model: "gpt-4o",
+          request: { input: "x" * 4_000_000 }
+        )
+      end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error.budget_type).to eq(:per_call)
+        expect(error.stage).to eq(:pre_send)
+        expect(error.last_event).to be_nil
+      }
+    end
+
+    it "does not pre-send block when the estimate fits under per_call_budget" do
+      LlmCostTracker.configure do |c|
+        c.per_call_budget = 10.0
+        c.budget_exceeded_behavior = :block_requests
+      end
+
+      expect do
+        described_class.enforce_budget!(
+          provider: "openai",
+          model: "gpt-4o",
+          request: { input: "x" * 400 }
+        )
+      end.not_to raise_error
+    end
+
+    it "does not pre-send block on unknown models — falls through to the post-spend gate" do
+      LlmCostTracker.configure do |c|
+        c.daily_budget = 0.0001
+        c.budget_exceeded_behavior = :block_requests
+      end
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 0.0)
+
+      expect do
+        described_class.enforce_budget!(
+          provider: "openai",
+          model: "no-such-model",
+          request: { input: "x" * 4_000_000 }
+        )
+      end.not_to raise_error
     end
 
     it "raises a per-call budget error when configured to raise" do

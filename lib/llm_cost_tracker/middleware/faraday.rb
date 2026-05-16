@@ -30,7 +30,13 @@ module LlmCostTracker
         end
         stream_buffer = install_stream_tap(request_env) if streaming
 
-        Tracker.enforce_budget! if parser
+        if parser
+          Tracker.enforce_budget!(
+            provider: parser.provider_for(request_url),
+            model: parser.model_for(request_url, request_parsed),
+            request: request_parsed
+          )
+        end
         context_tags, metadata = tag_snapshot(request_env) if parser
         started_at = LlmCostTracker::Timing.now_monotonic
 

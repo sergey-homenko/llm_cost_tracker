@@ -15,10 +15,10 @@ module LlmCostTracker
     EVENT_NAME = "llm_request.llm_cost_tracker"
 
     class << self
-      def enforce_budget!
+      def enforce_budget!(provider: nil, model: nil, request: nil)
         return unless LlmCostTracker.configuration.enabled
 
-        Budget.enforce!
+        Budget.enforce!(provider: provider, model: model, request: request)
       end
 
       def record(event:, latency_ms: nil, pricing_mode: nil, metadata: {}, context_tags: nil)

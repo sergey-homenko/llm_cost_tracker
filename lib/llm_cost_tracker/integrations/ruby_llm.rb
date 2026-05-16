@@ -202,7 +202,7 @@ module LlmCostTracker
         def complete(*args, **kwargs, &)
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
-          integration.enforce_budget!
+          integration.enforce_budget!(request: request)
           started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           integration.record_completion(
@@ -218,7 +218,7 @@ module LlmCostTracker
         def embed(*args, **kwargs)
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
-          integration.enforce_budget!
+          integration.enforce_budget!(request: request)
           started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           integration.record_embedding(
@@ -233,7 +233,7 @@ module LlmCostTracker
         def transcribe(*args, **kwargs)
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
-          integration.enforce_budget!
+          integration.enforce_budget!(request: request)
           started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           integration.record_transcription(
@@ -248,7 +248,7 @@ module LlmCostTracker
         def paint(*args, **kwargs)
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
-          integration.enforce_budget!
+          integration.enforce_budget!(request: request)
           started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           integration.record_image(
@@ -263,7 +263,7 @@ module LlmCostTracker
         def moderate(*args, **kwargs)
           integration = LlmCostTracker::Integrations::RubyLlm
           request = integration.request_params(args, kwargs)
-          integration.enforce_budget!
+          integration.enforce_budget!(request: request)
           started_at = LlmCostTracker::Timing.now_monotonic
           response = super
           integration.record_moderation(
