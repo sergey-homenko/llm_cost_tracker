@@ -21,7 +21,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `bin/rails generate llm_cost_tracker:install` skips `config/initializers/llm_cost_tracker.rb` when it already exists instead of prompting Thor's "overwrite?" dialog, so re-running the generator in CI no longer hangs waiting on stdin.
 - Async inbox entries no longer truncate on MySQL — large pricing snapshots and stack traces stay intact (MEDIUMTEXT instead of TEXT cap at 64 KB). PostgreSQL is unaffected.
 - Logs no longer warn `unknown pricing for model X` when the call has no token pricing but at least one service charge was successfully priced. Misleading false-positive is gone for Anthropic web-search-style calls on models missing from the token-pricing table.
-- `llm_cost_tracker:prune` rake task also prunes async inbox entries past the `DAYS` cutoff, so pending or quarantined rows no longer flush retroactively and re-create stale calls.
+- `llm_cost_tracker:prune` rake task also prunes async inbox entries and finished provider invoice imports past the `DAYS` cutoff, so pending or quarantined rows no longer flush retroactively and old import-cursor rows don't linger forever.
+- Azure OpenAI deployments using `audio/speech`, `images/edits`, `images/variations`, or `moderations` endpoints are now captured by the Faraday parser; previously only `chat/completions`, `completions`, `embeddings`, `audio/transcriptions`, `audio/translations`, and `images/generations` matched.
 - `prices:refresh` drops service-charge keys when a scraper stops emitting them, so stale charges no longer linger in the local price snapshot. Scrapers that don't parse a charges section (groq, gemini) preserve existing entries.
 
 ### Changed

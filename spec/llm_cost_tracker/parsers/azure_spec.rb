@@ -54,6 +54,16 @@ RSpec.describe LlmCostTracker::Parsers::Azure do
       expect(described_class.match?(images_url)).to be true
     end
 
+    it "matches the remaining classic Azure OpenAI endpoints" do
+      %w[audio/speech images/edits images/variations moderations].each do |endpoint|
+        url = URI::HTTPS.build(
+          host: "myresource.openai.azure.com",
+          path: "/openai/deployments/deploy-1/#{endpoint}"
+        ).to_s
+        expect(described_class.match?(url)).to be(true), "expected match? to be true for #{endpoint}"
+      end
+    end
+
     it "does not match Azure resource management or other Azure surfaces" do
       mgmt = URI::HTTPS.build(host: "management.azure.com", path: "/subscriptions/abc").to_s
       cog = URI::HTTPS.build(host: "myresource.cognitiveservices.azure.com",

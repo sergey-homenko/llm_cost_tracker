@@ -9,10 +9,13 @@ module LlmCostTracker
     class Azure < Base
       include OpenaiUsage
 
-      PATH_PATTERN = %r{
-        \A/openai/deployments/[^/]+/
-        (chat/completions|completions|embeddings|audio/transcriptions|audio/translations|images/generations)\z
-      }x
+      TRACKED_ENDPOINTS = %w[
+        chat/completions completions embeddings moderations
+        audio/transcriptions audio/translations audio/speech
+        images/generations images/edits images/variations
+      ].freeze
+
+      PATH_PATTERN = %r{\A/openai/deployments/[^/]+/(?:#{TRACKED_ENDPOINTS.join('|')})\z}
 
       class << self
         def match?(url)
