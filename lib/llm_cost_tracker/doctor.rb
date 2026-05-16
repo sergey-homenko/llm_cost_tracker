@@ -36,7 +36,7 @@ module LlmCostTracker
       [
         configuration_check,
         capture_check,
-        *integration_checks,
+        *LlmCostTracker::Integrations.checks,
         active_record_check,
         table_check,
         column_check,
@@ -100,10 +100,6 @@ module LlmCostTracker
         "capture",
         "no SDK integrations enabled; Faraday middleware and manual capture remain available"
       )
-    end
-
-    def integration_checks
-      LlmCostTracker::Integrations.checks
     end
 
     def active_record_check
