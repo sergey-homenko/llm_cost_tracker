@@ -30,28 +30,11 @@ module LlmCostTracker
 
     class LineItem
       USD = "USD"
-      OPTIONAL_ATTRIBUTES = %i[
-        pricing_basis
-        price_key
-        price_source
-        price_source_version
-        provider_field
-        provider_item_id
-      ].freeze
-      SYMBOL_ATTRIBUTES = %i[
-        kind
-        direction
-        modality
-        cache_state
-        unit
-        pricing_basis
-        price_source
-      ].freeze
 
       def self.build(attributes)
         attributes = attributes.to_h
         component = component_for(attributes)
-        normalized = {
+        new(
           kind: symbol_or_nil(attributes[:kind]) || component&.kind,
           direction: symbol_or_nil(attributes[:direction]) || component&.direction,
           modality: symbol_or_nil(attributes[:modality]) || component&.modality,
@@ -63,10 +46,14 @@ module LlmCostTracker
           cost: decimal_or_nil(attributes[:cost]),
           currency: attributes[:currency] || USD,
           cost_status: cost_status_for(attributes),
+          pricing_basis: symbol_or_nil(attributes[:pricing_basis]),
+          price_key: attributes[:price_key],
+          price_source: symbol_or_nil(attributes[:price_source]),
+          price_source_version: attributes[:price_source_version],
+          provider_field: attributes[:provider_field],
+          provider_item_id: attributes[:provider_item_id],
           details: attributes[:details] || {}
-        }.merge(optional_attributes_for(attributes))
-
-        new(**normalized)
+        )
       end
 
       def self.from_token_usage(token_usage)
@@ -132,16 +119,7 @@ module LlmCostTracker
         decimal_or_nil(value) || BigDecimal("0")
       end
 
-      def self.optional_attributes_for(attributes)
-        OPTIONAL_ATTRIBUTES.to_h do |key|
-          value = attributes[key]
-          value = value.to_sym if value.is_a?(String) && SYMBOL_ATTRIBUTES.include?(key)
-          [key, value]
-        end
-      end
-
-      private_class_method :cost_status_for, :component_for, :symbol_or_nil, :decimal_or_nil, :decimal_or_zero,
-                           :optional_attributes_for
+      private_class_method :cost_status_for, :component_for, :symbol_or_nil, :decimal_or_nil, :decimal_or_zero
 
       def billable?
         quantity.positive?
