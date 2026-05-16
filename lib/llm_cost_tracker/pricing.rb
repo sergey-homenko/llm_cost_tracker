@@ -12,6 +12,7 @@ require_relative "pricing/lookup"
 require_relative "pricing/effective_prices"
 require_relative "pricing/explainer"
 require_relative "pricing/service_charges"
+require_relative "pricing/estimator"
 
 module LlmCostTracker
   module Pricing # rubocop:disable Metrics/ModuleLength

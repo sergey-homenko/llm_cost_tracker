@@ -33,10 +33,13 @@ hit in production.
    Provider hard limits don't reliably stop spend (OpenAI forum:
    `$563.88` debt on a `$5` prepaid account; "hard limit was bypassed"
    threads). The gem already has a budget API; extend it with a
-   pre-call hook that estimates token cost via a heuristic (character
-   count for all providers; `tiktoken_ruby` optional for OpenAI) and
-   blocks before send when the budget is exhausted. After the call,
-   recalibrate against real usage. No network in the hot path.
+   pre-call hook that estimates token cost via character-count
+   heuristic (chars / 4 ≈ tokens, provider-agnostic, no external
+   tokenizer deps) and blocks before send when the budget is exhausted.
+   After the call, recalibrate against real usage. Approximate by
+   design — runway-stop, not precise prediction. Output tokens stay
+   unknowable pre-send and are caught by the existing post-spend gate.
+   Foundation in place: `LlmCostTracker::Pricing::Estimator.call(...)`.
 
 2. **Cache-aware cost accuracy.**
    Cache cost calculation is broken across the ecosystem (LiteLLM
