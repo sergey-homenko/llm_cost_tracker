@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/object/blank"
+require "bigdecimal"
 require "time"
 
 require_relative "version"
+require_relative "logging"
 require_relative "token_usage"
 require_relative "billing/components"
+require_relative "billing/line_item"
 require_relative "pricing/mode"
 require_relative "pricing/registry"
 require_relative "pricing/lookup"
@@ -93,7 +96,44 @@ module LlmCostTracker
         value ? { total_cost: value } : {}
       end
 
+      def combine_with_service_lines(cost_data, line_items)
+        priced_services = line_items.reject(&:token?).select(&:priced?)
+        return cost_data if priced_services.empty?
+
+        base_currency = (cost_data && cost_data[:currency]) || Billing::LineItem::USD
+        matching, mismatched = priced_services.partition { |line| line.currency.to_s == base_currency.to_s }
+        warn_currency_mismatch(mismatched, base_currency) if mismatched.any?
+
+        cost = cost_data ? cost_data.dup : {}
+        cost[:currency] ||= base_currency.to_s
+        return cost if matching.empty?
+
+        service_total = matching.sum(BigDecimal("0"), &:cost_value)
+        base_total = BigDecimal(cost.fetch(:total_cost, 0).to_s)
+        cost[:total_cost] = (base_total + service_total).round(8)
+        cost
+      end
+
+      def token_pricing_partial?(token_usage, cost_data)
+        return false unless cost_data
+
+        token_usage.priced_quantities.any? do |key, quantity|
+          next false unless quantity.positive?
+
+          cost_data[Billing::Components::BY_KEY.fetch(key).cost_key].nil?
+        end
+      end
+
       private
+
+      def warn_currency_mismatch(lines, base_currency)
+        currencies = lines.map { |line| line.currency.to_s }.uniq.sort
+        Logging.warn(
+          "Service line currency mismatch: header is #{base_currency}, dropping " \
+          "#{lines.size} priced line(s) in #{currencies.join(', ')} from header total. " \
+          "Per-line costs are still recorded; header total reflects #{base_currency} only."
+        )
+      end
 
       def normalize_string_mode(value)
         normalized = value.strip

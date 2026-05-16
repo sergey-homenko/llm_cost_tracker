@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "bigdecimal"
-
 require_relative "../pricing"
 require_relative "../billing/cost_status"
 require_relative "../billing/line_item"
@@ -56,7 +54,7 @@ module LlmCostTracker
           )
           return nil unless cost_data
 
-          full_cost = combine_with_service_lines(cost_data, priced)
+          full_cost = Pricing.combine_with_service_lines(cost_data, priced)
           total_cost = full_cost[:total_cost]
           return nil if total_cost.nil?
 
@@ -68,7 +66,7 @@ module LlmCostTracker
               token_usage: token_usage,
               usage_source: call.usage_source&.to_sym,
               token_cost: cost_data,
-              token_pricing_partial: token_pricing_partial?(token_usage, cost_data),
+              token_pricing_partial: Pricing.token_pricing_partial?(token_usage, cost_data),
               service_line_items: priced.reject(&:token?),
               total_cost: total_cost
             )
@@ -133,27 +131,6 @@ module LlmCostTracker
               provider_field: record.provider_field, provider_item_id: record.provider_item_id,
               details: record.details
             )
-          end
-        end
-
-        def combine_with_service_lines(cost_data, priced_line_items)
-          priced_services = priced_line_items.reject(&:token?).select(&:priced?)
-          return cost_data if priced_services.empty?
-
-          combined = cost_data.dup
-          service_total = priced_services.sum(BigDecimal("0"), &:cost_value)
-          base_total = BigDecimal(combined.fetch(:total_cost, 0).to_s)
-          combined[:total_cost] = (base_total + service_total).round(8)
-          combined
-        end
-
-        def token_pricing_partial?(token_usage, cost_data)
-          return false unless cost_data
-
-          token_usage.priced_quantities.any? do |key, quantity|
-            next false unless quantity.positive?
-
-            cost_data[Billing::Components::BY_KEY.fetch(key).cost_key].nil?
           end
         end
       end

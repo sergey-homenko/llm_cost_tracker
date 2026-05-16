@@ -36,6 +36,7 @@ end
 
 require "webmock/rspec"
 require "active_record"
+require_relative "dummy/config/environment"
 require "llm_cost_tracker"
 require_relative "../app/models/llm_cost_tracker/call"
 require_relative "../app/models/llm_cost_tracker/call_line_item"
