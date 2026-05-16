@@ -80,7 +80,6 @@ module LlmCostTracker
         end
 
         def reconciliation_drift
-          LlmCostTracker.const_get(:Reconciliation) # autoload reconciliation + its ledger schemas
           connection = ActiveRecord::Base.connection
           LlmCostTracker::Reconciliation::SCHEMA_TABLES.each do |schema, table|
             unless connection.data_source_exists?(table)

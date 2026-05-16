@@ -62,7 +62,6 @@ module LlmCostTracker
     def reconciliation_schema_checks
       return [] unless LlmCostTracker.reconciliation_enabled?
 
-      LlmCostTracker.const_get(:Reconciliation) # autoload reconciliation + its ledger schemas
       Reconciliation::SCHEMA_TABLES.map do |schema, table|
         SchemaCheck.new(name: table.delete_prefix("llm_cost_tracker_").tr("_", " "),
                         schema: schema, table: table,
