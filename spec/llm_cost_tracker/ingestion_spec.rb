@@ -398,6 +398,24 @@ RSpec.describe "ActiveRecord async inbox" do
     expect(LlmCostTracker::Ingestion::Worker.shutdown!).to be true
   end
 
+  it "refuses to respawn the ingestor after shutdown until reset clears the stop flag" do
+    ingestor = LlmCostTracker::Ingestion::Worker
+    allow(ingestor).to receive(:ensure_started).and_wrap_original(&:call)
+
+    ingestor.ensure_started
+    expect(ingestor.instance_variable_get(:@thread)).to be_a(Thread)
+
+    expect(ingestor.shutdown!(drain: false)).to be true
+    expect(ingestor.instance_variable_get(:@thread)).to be_nil
+
+    ingestor.ensure_started
+    expect(ingestor.instance_variable_get(:@thread)).to be_nil
+
+    ingestor.reset!
+    ingestor.ensure_started
+    expect(ingestor.instance_variable_get(:@thread)).to be_a(Thread)
+  end
+
   it "wakes a running ingestor thread when a new row arrives" do
     ingestor = LlmCostTracker::Ingestion::Worker
     thread = instance_double(Thread, alive?: true)

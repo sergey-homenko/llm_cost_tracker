@@ -24,14 +24,14 @@ module LlmCostTracker
 
           thread = MUTEX.synchronize do
             reset_after_fork!
-            unless @thread&.alive?
-              @stop_requested = false
-              @generation = @generation.to_i + 1
-              generation = @generation
-              @thread = Thread.new { run(generation) }
-              @thread.name = "llm_cost_tracker_ingestor"
-              @thread.report_on_exception = false
-            end
+            break @thread if @stop_requested
+            break @thread if @thread&.alive?
+
+            @generation = @generation.to_i + 1
+            generation = @generation
+            @thread = Thread.new { run(generation) }
+            @thread.name = "llm_cost_tracker_ingestor"
+            @thread.report_on_exception = false
             @thread
           end
           wake_thread(thread)
@@ -81,7 +81,7 @@ module LlmCostTracker
 
         def reset!
           thread = MUTEX.synchronize do
-            @stop_requested = true
+            @stop_requested = false
             @generation = @generation.to_i + 1
             thread = @thread
             @thread = nil
