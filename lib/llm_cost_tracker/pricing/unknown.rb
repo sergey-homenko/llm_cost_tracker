@@ -6,6 +6,7 @@ module LlmCostTracker
   module Pricing
     class Unknown
       MUTEX = Mutex.new
+      WARN_CACHE_LIMIT = 1024
 
       class << self
         def process(model)
@@ -30,6 +31,8 @@ module LlmCostTracker
         def warn_missing(model)
           should_warn = MUTEX.synchronize do
             @warned_models ||= Set.new
+            next false if @warned_models.size >= WARN_CACHE_LIMIT && !@warned_models.include?(model)
+
             @warned_models.add?(model)
           end
           return unless should_warn

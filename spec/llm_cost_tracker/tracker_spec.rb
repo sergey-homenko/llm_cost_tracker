@@ -792,6 +792,28 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(fake_stderr.string.scan('No pricing configured for model "unknown-model-dedup"').size).to eq(1)
     end
 
+    it "caps the unknown-model warn cache so user-controlled model strings can't grow it unbounded" do
+      stub_const("LlmCostTracker::Pricing::Unknown::WARN_CACHE_LIMIT", 2)
+
+      original_stderr = $stderr
+      fake_stderr = StringIO.new
+      $stderr = fake_stderr
+
+      begin
+        %w[unk-a unk-b unk-c].each do |model|
+          record(
+            provider: "openai",
+            model: model,
+            token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+          )
+        end
+      ensure
+        $stderr = original_stderr
+      end
+
+      expect(fake_stderr.string.scan(/No pricing configured for model "unk-[abc]"/).size).to eq(2)
+    end
+
     it "raises unknown pricing errors when configured" do
       LlmCostTracker.configure do |c|
         c.unknown_pricing_behavior = :raise

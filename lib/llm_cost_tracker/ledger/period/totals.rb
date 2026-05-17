@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "bigdecimal"
+
 require_relative "../period"
 
 module LlmCostTracker
@@ -26,12 +28,12 @@ module LlmCostTracker
         attr_reader :periods, :time
 
         def snapshot_totals
-          values = periods.to_h { |period| [period, 0.0] }
+          values = periods.to_h { |period| [period, BigDecimal("0")] }
           period_by_name = periods.to_h { |period| [period.name, period] }
           sql = periods.map { |period| snapshot_select(period) }.join(" UNION ALL ")
           LlmCostTracker::Call.find_by_sql(sql).each do |row|
             period = period_by_name.fetch(row.period_key)
-            values[period] = row.total_cost.to_f
+            values[period] = BigDecimal(row.total_cost.to_s)
           end
           values
         end
