@@ -31,7 +31,7 @@ module LlmCostTracker
         Event.build(
           provider: "anthropic",
           provider_response_id: response["id"],
-          pricing_mode: pricing_mode(request: request, response: response, usage: usage),
+          pricing_mode: pricing_mode(request: request, usage: usage),
           model: response["model"] || request["model"],
           token_usage: token_usage(usage: usage, cache_read: cache_read),
           usage_source: :response,
@@ -52,14 +52,14 @@ module LlmCostTracker
             model: model,
             usage: usage,
             response_id: response_id,
-            pricing_mode: pricing_mode(request: request, response: nil, usage: usage)
+            pricing_mode: pricing_mode(request: request, usage: usage)
           )
         else
           build_unknown_stream_usage(
             provider: "anthropic",
             model: model,
             provider_response_id: response_id,
-            pricing_mode: pricing_mode(request: request, response: nil, usage: usage)
+            pricing_mode: pricing_mode(request: request, usage: usage)
           )
         end
       end
@@ -170,29 +170,23 @@ module LlmCostTracker
         Logging.warn("Anthropic usage.cache_creation has unexpected shape: #{cache_creation.class}")
       end
 
-      def pricing_mode(request:, response:, usage:)
+      def pricing_mode(request:, usage:)
         modes = []
-        speed = usage&.fetch("speed", nil) || response&.fetch("speed", nil) || request["speed"]
-        service_tier = usage&.fetch("service_tier", nil) ||
-                       response&.fetch("service_tier", nil) ||
-                       request["service_tier"]
+        speed = usage&.fetch("speed", nil) || request["speed"]
+        service_tier = usage&.fetch("service_tier", nil) || request["service_tier"]
         service_tier = nil if Providers::Anthropic::TierClassification.standard_equivalent_tier?(service_tier)
 
         modes << Pricing.normalize_mode(speed)
         modes << Pricing.normalize_mode(service_tier)
-        geo = inference_geo(request: request, response: response, usage: usage).downcase
+        geo = inference_geo(request: request, usage: usage).downcase
         modes << "data_residency" if Providers::Anthropic::TierClassification.data_residency_geo?(geo)
 
         modes = modes.compact.uniq
         modes.empty? ? nil : modes.join("_")
       end
 
-      def inference_geo(request:, response:, usage:)
-        (
-          usage&.fetch("inference_geo", nil) ||
-          response&.fetch("inference_geo", nil) ||
-          request["inference_geo"]
-        ).to_s
+      def inference_geo(request:, usage:)
+        (usage&.fetch("inference_geo", nil) || request["inference_geo"]).to_s
       end
     end
   end

@@ -183,13 +183,11 @@ module LlmCostTracker
         end
 
         def provider_response_id(response)
-          object_value(response, :id, :provider_response_id) || object_dig(response, :raw, :id)
+          object_value(response, :id, :provider_response_id)
         end
 
         def pricing_mode(provider:, response:)
-          raw = object_value(response, :pricing_mode, :service_tier) ||
-                object_dig(response, :raw, :pricing_mode) ||
-                object_dig(response, :raw, :service_tier)
+          raw = object_value(response, :pricing_mode, :service_tier)
           if provider == "anthropic" && LlmCostTracker::Providers::Anthropic::TierClassification.standard_equivalent_tier?(raw)
             return nil
           end

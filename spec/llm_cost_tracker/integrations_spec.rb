@@ -1552,10 +1552,10 @@ RSpec.describe LlmCostTracker::Integrations do
 
   it "tracks RubyLLM transcriptions through the provider contract" do
     response = LlmCostTrackerIntegrationSpecTypes::RubyLlmResponse.new(
+      id: "audio_resp_123",
       input_tokens: 12,
       output_tokens: 3,
-      reasoning_tokens: 2,
-      raw: { "id" => "audio_resp_123" }
+      reasoning_tokens: 2
     )
     install_ruby_llm_fakes(response)
     configure_integration(:ruby_llm)

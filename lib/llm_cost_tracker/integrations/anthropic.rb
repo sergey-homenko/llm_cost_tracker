@@ -49,7 +49,7 @@ module LlmCostTracker
               event: Event.build(
                 provider: "anthropic",
                 model: object_value(message, :model) || request[:model],
-                pricing_mode: pricing_mode(message: message, request: request, usage: usage),
+                pricing_mode: pricing_mode(request: request, usage: usage),
                 token_usage: token_usage(usage: usage, input_tokens: input_tokens, output_tokens: output_tokens),
                 usage_source: :sdk_response,
                 provider_response_id: object_value(message, :id),
@@ -111,31 +111,27 @@ module LlmCostTracker
           )
         end
 
-        def pricing_mode(message:, request:, usage:)
-          service_tier = object_value(usage, :service_tier) ||
-                         object_value(message, :service_tier) ||
-                         request[:service_tier]
+        def pricing_mode(request:, usage:)
+          service_tier = object_value(usage, :service_tier) || request[:service_tier]
           tier = Providers::Anthropic::TierClassification
           service_tier = nil if tier.standard_equivalent_tier?(service_tier)
 
           modes = [
-            Pricing.normalize_mode(object_value(usage, :speed) || object_value(message, :speed) || request[:speed]),
+            Pricing.normalize_mode(object_value(usage, :speed) || request[:speed]),
             Pricing.normalize_mode(service_tier)
           ]
-          geo = inference_geo(message: message, request: request, usage: usage).to_s.downcase
+          geo = inference_geo(request: request, usage: usage).to_s.downcase
           modes << "data_residency" if tier.data_residency_geo?(geo)
           modes = modes.compact.uniq
           modes.empty? ? nil : modes.join("_")
         end
 
         def stream_pricing_mode(request)
-          pricing_mode(message: nil, request: request || {}, usage: nil)
+          pricing_mode(request: request || {}, usage: nil)
         end
 
-        def inference_geo(message:, request:, usage:)
-          object_value(usage, :inference_geo) ||
-            object_value(message, :inference_geo) ||
-            request[:inference_geo]
+        def inference_geo(request:, usage:)
+          object_value(usage, :inference_geo) || request[:inference_geo]
         end
 
         def wrap_stream_call(args, kwargs)
