@@ -110,7 +110,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiServiceCharges do
       expect(items.first.provider_field).to eq("choices.message.annotations.url_citation")
     end
 
-    it "returns no service line items for a Chat Completions response without url_citation annotations" do
+    it "returns no service line items for a Chat Completions response from a non-search model without url_citation annotations" do
       response = {
         "id" => "chatcmpl_plain_1",
         "model" => "gpt-4o",
@@ -118,6 +118,21 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiServiceCharges do
       }
 
       expect(described_class.service_line_items_for(response, request: {}, model: "gpt-4o")).to eq([])
+    end
+
+    it "captures the per-call fee for a Chat Completions search-preview model even when the response carries no url_citation annotations" do
+      response = {
+        "id" => "chatcmpl_no_cite_1",
+        "model" => "gpt-4o-search-preview",
+        "choices" => [{ "message" => { "role" => "assistant", "content" => "nothing relevant" } }]
+      }
+
+      items = described_class.service_line_items_for(response, request: {}, model: "gpt-4o-search-preview")
+
+      expect(items.size).to eq(1)
+      expect(items.first.kind).to eq(:web_search_preview_request_non_reasoning)
+      expect(items.first.provider_item_id).to eq("chatcmpl_no_cite_1")
+      expect(items.first.provider_field).to eq("request.model")
     end
 
     it "still parses Responses-API output items unchanged" do

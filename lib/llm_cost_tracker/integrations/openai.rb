@@ -238,27 +238,31 @@ module LlmCostTracker
         end
 
         def service_line_items_from(response, request: nil)
+          model = object_value(response, :model) || request&.dig(:model)
           output = object_value(response, :output)
           output_items = output.respond_to?(:each) ? output.map { |item| normalize_output_item(item) }.compact : []
-          chat_search = output_items.empty? ? chat_completions_search_item(response) : nil
+          chat_search = output_items.empty? ? chat_completions_search_item(response, model: model) : nil
           output_items << chat_search if chat_search
           return [] if output_items.empty?
 
           LlmCostTracker::Parsers::OpenaiServiceCharges.line_items_from_output(
-            output_items,
-            request: request,
-            model: object_value(response, :model) || request&.dig(:model)
+            output_items, request: request, model: model
           )
         end
 
-        def chat_completions_search_item(response)
+        def chat_completions_search_item(response, model: nil)
           choices = object_value(response, :choices)
           return nil unless choices.respond_to?(:any?)
-          return nil unless choices.any? { |choice| choice_used_url_citation?(choice) }
+
+          provider_field = if choices.any? { |choice| choice_used_url_citation?(choice) }
+                             LlmCostTracker::Parsers::OpenaiServiceCharges::CHAT_COMPLETIONS_ANNOTATION_PROVIDER_FIELD
+                           elsif LlmCostTracker::Providers::Openai::ModelFamilies.chat_completions_search?(model)
+                             LlmCostTracker::Parsers::OpenaiServiceCharges::CHAT_COMPLETIONS_SEARCH_MODEL_PROVIDER_FIELD
+                           end
+          return nil unless provider_field
 
           { "type" => "web_search_call", "id" => object_value(response, :id),
-            "action" => { "type" => "search" },
-            "provider_field" => LlmCostTracker::Parsers::OpenaiServiceCharges::CHAT_COMPLETIONS_SEARCH_PROVIDER_FIELD }
+            "action" => { "type" => "search" }, "provider_field" => provider_field }
         end
 
         def choice_used_url_citation?(choice)

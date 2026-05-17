@@ -164,7 +164,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       expect(items.first.provider_field).to eq("choices.message.annotations.url_citation")
     end
 
-    it "does not capture a service line item for an SDK Chat Completions response without url_citation annotations" do
+    it "does not capture a service line item for an SDK Chat Completions response from a non-search model without url_citation annotations" do
       response = ChatResponseStruct.new(
         id: "chatcmpl_sdk_2",
         model: "gpt-4o",
@@ -173,6 +173,22 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       )
 
       expect(described_class.service_line_items_from(response)).to eq([])
+    end
+
+    it "captures the per-call fee for an SDK Chat Completions search-preview response even when no annotations are present" do
+      response = ChatResponseStruct.new(
+        id: "chatcmpl_sdk_no_cite",
+        model: "gpt-4o-mini-search-preview",
+        choices: [ChatChoiceStruct.new(message: ChatMessageStruct.new(role: "assistant", content: "nothing",
+                                                                       annotations: nil))]
+      )
+
+      items = described_class.service_line_items_from(response, request: { model: "gpt-4o-mini-search-preview" })
+
+      expect(items.size).to eq(1)
+      expect(items.first.kind).to eq(:web_search_preview_request_non_reasoning)
+      expect(items.first.provider_item_id).to eq("chatcmpl_sdk_no_cite")
+      expect(items.first.provider_field).to eq("request.model")
     end
   end
 

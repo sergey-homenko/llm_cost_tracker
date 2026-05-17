@@ -25,17 +25,28 @@ module LlmCostTracker
 
       def service_line_items_for(response, request: nil, model: nil)
         output_items = Array(response["output"])
-        output_items += chat_completions_web_search_items(response) if output_items.empty?
+        output_items += chat_completions_web_search_items(response, model: model) if output_items.empty?
         line_items_from_output(output_items, request: request, model: model)
       end
 
-      CHAT_COMPLETIONS_SEARCH_PROVIDER_FIELD = "choices.message.annotations.url_citation"
+      CHAT_COMPLETIONS_ANNOTATION_PROVIDER_FIELD = "choices.message.annotations.url_citation"
+      CHAT_COMPLETIONS_SEARCH_MODEL_PROVIDER_FIELD = "request.model"
 
-      def chat_completions_web_search_items(response)
-        return [] unless chat_completions_used_web_search?(response["choices"])
+      def chat_completions_web_search_items(response, model: nil)
+        return [] unless response["choices"]
+
+        provider_field = chat_completions_search_provider_field(response["choices"], model)
+        return [] unless provider_field
 
         [{ "type" => "web_search_call", "id" => response["id"], "action" => { "type" => "search" },
-           "provider_field" => CHAT_COMPLETIONS_SEARCH_PROVIDER_FIELD }]
+           "provider_field" => provider_field }]
+      end
+
+      def chat_completions_search_provider_field(choices, model)
+        return CHAT_COMPLETIONS_ANNOTATION_PROVIDER_FIELD if chat_completions_used_web_search?(choices)
+        return CHAT_COMPLETIONS_SEARCH_MODEL_PROVIDER_FIELD if chat_completions_search_model?(model)
+
+        nil
       end
 
       def chat_completions_used_web_search?(choices)
