@@ -24,8 +24,7 @@ module LlmCostTracker
 
           thread = MUTEX.synchronize do
             reset_after_fork!
-            break @thread if @stop_requested
-            break @thread if @thread&.alive?
+            break @thread if @stop_requested || @thread&.alive?
 
             @generation = @generation.to_i + 1
             generation = @generation
