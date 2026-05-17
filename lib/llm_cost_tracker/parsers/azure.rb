@@ -10,12 +10,12 @@ module LlmCostTracker
       include OpenaiUsage
 
       TRACKED_ENDPOINTS = %w[
-        chat/completions completions embeddings moderations
+        chat/completions completions embeddings moderations responses
         audio/transcriptions audio/translations audio/speech
         images/generations images/edits images/variations
       ].freeze
 
-      PATH_PATTERN = %r{\A/openai/deployments/[^/]+/(?:#{TRACKED_ENDPOINTS.join('|')})\z}
+      PATH_PATTERN = %r{\A/openai/(?:deployments/[^/]+|v1)/(?:#{TRACKED_ENDPOINTS.join('|')})\z}
 
       class << self
         def match?(url)

@@ -4,7 +4,7 @@ module LlmCostTracker
   module Providers
     module Azure
       module Hosts
-        OPENAI_HOST_PATTERN = /\A[a-z0-9][a-z0-9-]*\.openai\.azure\.com\z/i
+        OPENAI_HOST_PATTERN = /\A[a-z0-9][a-z0-9-]*\.(?:openai\.azure\.com|services\.ai\.azure\.com)\z/i
 
         module_function
 

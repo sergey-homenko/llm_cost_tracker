@@ -64,6 +64,15 @@ RSpec.describe LlmCostTracker::Parsers::Azure do
       end
     end
 
+    it "matches Foundry-style /openai/v1/ paths on either Azure host" do
+      %w[chat/completions completions embeddings responses moderations audio/speech images/generations].each do |endpoint|
+        %w[myresource.openai.azure.com myresource.services.ai.azure.com].each do |host|
+          url = URI::HTTPS.build(host: host, path: "/openai/v1/#{endpoint}").to_s
+          expect(described_class.match?(url)).to be(true), "expected match? to be true for #{host}#{endpoint}"
+        end
+      end
+    end
+
     it "does not match Azure resource management or other Azure surfaces" do
       mgmt = URI::HTTPS.build(host: "management.azure.com", path: "/subscriptions/abc").to_s
       cog = URI::HTTPS.build(host: "myresource.cognitiveservices.azure.com",

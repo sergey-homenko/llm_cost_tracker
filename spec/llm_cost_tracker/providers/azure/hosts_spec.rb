@@ -11,13 +11,19 @@ RSpec.describe LlmCostTracker::Providers::Azure::Hosts do
       end
     end
 
+    it "matches the Foundry {resource}.services.ai.azure.com host pattern" do
+      %w[acme.services.ai.azure.com my-prod.services.ai.azure.com Tenant.Services.AI.Azure.Com].each do |host|
+        expect(described_class.openai?(host)).to be(true), "expected #{host} to be an Azure Foundry host"
+      end
+    end
+
     it "rejects non-Azure OpenAI hosts" do
       [
         "api.openai.com",
         "us.api.openai.com",
         "tenant.cognitiveservices.azure.com",
-        "tenant.services.ai.azure.com",
-        "openai.azure.com"
+        "openai.azure.com",
+        "services.ai.azure.com"
       ].each do |host|
         expect(described_class.openai?(host)).to be(false), "expected #{host} to not match"
       end

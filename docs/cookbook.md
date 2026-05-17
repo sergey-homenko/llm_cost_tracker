@@ -161,13 +161,9 @@ client.chat(
 
 ## Azure OpenAI
 
-Azure's v1 API works with OpenAI-compatible HTTP shapes, but pricing and deployment names are yours. Register the Azure host, use the Faraday middleware path, and keep Azure-specific prices in `prices_file` or `pricing_overrides`.
+Azure's classic deployment endpoints (`/openai/deployments/{name}/...`) and the v1 endpoints (`/openai/v1/...`) are both captured out of the box on the `*.openai.azure.com` and `*.services.ai.azure.com` hostnames — no `openai_compatible_providers` registration needed. Keep Azure-specific deltas in `pricing_overrides` with the `azure_openai/<model>` prefix; everything else falls back to the matching `openai/<model>` entry.
 
 ```ruby
-LlmCostTracker.configure do |config|
-  config.openai_compatible_providers["my-resource.openai.azure.com"] = "azure_openai"
-end
-
 conn = Faraday.new(url: "https://my-resource.openai.azure.com") do |f|
   f.use :llm_cost_tracker, tags: { feature: "chat" }
   f.request :json

@@ -80,13 +80,16 @@ This maps capture identity only. Gateway-specific prices belong in
 ## Azure OpenAI Service
 
 Azure OpenAI capture is built in — no configuration required. The Faraday
-middleware matches URLs of the form
-`https://{resource}.openai.azure.com/openai/deployments/{deployment-id}/{operation}?api-version=...`
-across chat/completions, completions, embeddings, audio/transcriptions,
-audio/translations, and images/generations, parses the same response shape
-as OpenAI direct, and tags calls with `provider: "azure_openai"`. The OpenAI
-Ruby SDK is also covered: if `OpenAI::Client.new` is initialized with an
-Azure `base_url`, SDK-side capture in `record_response` detects the Azure
+middleware matches URLs on `{resource}.openai.azure.com` and Foundry's
+`{resource}.services.ai.azure.com`, both on the classic
+`/openai/deployments/{deployment-id}/{operation}` path and the v1
+`/openai/v1/{operation}` path, across chat/completions, completions,
+embeddings, responses, moderations, audio/transcriptions,
+audio/translations, audio/speech, images/generations, images/edits, and
+images/variations. Responses parse with the same shape as OpenAI direct
+and tag calls with `provider: "azure_openai"`. The OpenAI Ruby SDK is
+also covered: if `OpenAI::Client.new` is initialized with an Azure
+`base_url`, SDK-side capture in `record_response` detects the Azure
 host and tags the same way.
 
 Pricing for `azure_openai/<model>` resolves through
