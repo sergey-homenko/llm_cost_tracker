@@ -239,13 +239,33 @@ module LlmCostTracker
 
         def service_line_items_from(response, request: nil)
           output = object_value(response, :output)
-          return [] unless output.respond_to?(:each)
+          output_items = output.respond_to?(:each) ? output.map { |item| normalize_output_item(item) }.compact : []
+          chat_search = output_items.empty? ? chat_completions_search_item(response) : nil
+          output_items << chat_search if chat_search
+          return [] if output_items.empty?
 
           LlmCostTracker::Parsers::OpenaiServiceCharges.line_items_from_output(
-            output.map { |item| normalize_output_item(item) },
+            output_items,
             request: request,
             model: object_value(response, :model) || request&.dig(:model)
           )
+        end
+
+        def chat_completions_search_item(response)
+          choices = object_value(response, :choices)
+          return nil unless choices.respond_to?(:any?)
+          return nil unless choices.any? { |choice| choice_used_url_citation?(choice) }
+
+          { "type" => "web_search_call", "id" => object_value(response, :id),
+            "action" => { "type" => "search" } }
+        end
+
+        def choice_used_url_citation?(choice)
+          message = object_value(choice, :message)
+          annotations = message && object_value(message, :annotations)
+          return false unless annotations.respond_to?(:any?)
+
+          annotations.any? { |annotation| object_value(annotation, :type).to_s == "url_citation" }
         end
 
         def normalize_output_item(item)

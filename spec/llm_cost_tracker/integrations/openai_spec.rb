@@ -8,6 +8,10 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
   ResponseStruct = Struct.new(:output, keyword_init: true)
   OutputItemStruct = Struct.new(:type, :id, :status, :container_id, :action, keyword_init: true)
   ActionStruct = Struct.new(:type, keyword_init: true)
+  ChatResponseStruct = Struct.new(:id, :choices, :model, keyword_init: true)
+  ChatChoiceStruct = Struct.new(:message, keyword_init: true)
+  ChatMessageStruct = Struct.new(:role, :content, :annotations, keyword_init: true)
+  ChatAnnotationStruct = Struct.new(:type, :url_citation, keyword_init: true)
 
   describe ".service_line_items_from" do
     it "coerces Symbol type accessors from the OpenAI SDK to strings so hosted-tool charges are not silently dropped" do
@@ -136,6 +140,38 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       items = described_class.service_line_items_from(response)
 
       expect(items.first.details).to include("action_type" => "search")
+    end
+
+    it "captures a web_search line item from an SDK Chat Completions response with url_citation annotations" do
+      response = ChatResponseStruct.new(
+        id: "chatcmpl_sdk_1",
+        model: "gpt-4o-search-preview",
+        choices: [
+          ChatChoiceStruct.new(message: ChatMessageStruct.new(
+            role: "assistant",
+            content: "hi",
+            annotations: [ChatAnnotationStruct.new(type: "url_citation",
+                                                   url_citation: { url: "https://example.com" })]
+          ))
+        ]
+      )
+
+      items = described_class.service_line_items_from(response, request: { model: "gpt-4o-search-preview" })
+
+      expect(items.size).to eq(1)
+      expect(items.first.kind).to eq(:web_search_preview_request_non_reasoning)
+      expect(items.first.provider_item_id).to eq("chatcmpl_sdk_1")
+    end
+
+    it "does not capture a service line item for an SDK Chat Completions response without url_citation annotations" do
+      response = ChatResponseStruct.new(
+        id: "chatcmpl_sdk_2",
+        model: "gpt-4o",
+        choices: [ChatChoiceStruct.new(message: ChatMessageStruct.new(role: "assistant", content: "hi",
+                                                                       annotations: nil))]
+      )
+
+      expect(described_class.service_line_items_from(response)).to eq([])
     end
   end
 

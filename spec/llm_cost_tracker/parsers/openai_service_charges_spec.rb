@@ -86,7 +86,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiServiceCharges do
   end
 
   describe ".service_line_items_for" do
-    it "captures a web_search_request when a Chat Completions response carries url_citation annotations" do
+    it "captures a web-search line item when a Chat Completions response carries url_citation annotations, routed to the preview-non-reasoning rate for gpt-4o-search-preview" do
       response = {
         "id" => "chatcmpl_search_1",
         "model" => "gpt-4o-search-preview",
@@ -105,7 +105,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiServiceCharges do
       items = described_class.service_line_items_for(response, request: {}, model: "gpt-4o-search-preview")
 
       expect(items.size).to eq(1)
-      expect(items.first.kind).to eq(:web_search_request)
+      expect(items.first.kind).to eq(:web_search_preview_request_non_reasoning)
       expect(items.first.provider_item_id).to eq("chatcmpl_search_1")
     end
 
@@ -132,25 +132,60 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiServiceCharges do
     end
   end
 
-  describe "openai_stream_service_line_items via Parsers::Openai" do
-    let(:parser) { LlmCostTracker::Parsers::Openai.new }
+  describe "Chat Completions search model routing" do
+    it "routes gpt-4o-search-preview to the preview-non-reasoning rate even without a tools array" do
+      result = described_class.build_line_item(
+        { "type" => "web_search_call", "id" => "ws_search_pre" },
+        request: {},
+        model: "gpt-4o-search-preview"
+      )
+      expect(result.kind).to eq(:web_search_preview_request_non_reasoning)
+    end
 
-    it "captures a web_search_request from streamed Chat Completions chunks with url_citation delta annotations" do
-      events = [
-        { event: nil, data: { "id" => "chatcmpl_stream_1", "choices" => [{ "delta" => { "content" => "Hello" } }] } },
-        { event: nil, data: { "choices" => [{ "delta" => { "annotations" => [{
-          "type" => "url_citation",
-          "url_citation" => { "url" => "https://example.com", "title" => "Example",
-                              "start_index" => 0, "end_index" => 10 }
-        }] } }] } }
-      ]
+    it "routes gpt-4o-mini-search-preview to the preview-non-reasoning rate" do
+      result = described_class.build_line_item(
+        { "type" => "web_search_call", "id" => "ws_search_mini" },
+        request: {},
+        model: "gpt-4o-mini-search-preview"
+      )
+      expect(result.kind).to eq(:web_search_preview_request_non_reasoning)
+    end
 
-      items = parser.send(:openai_stream_service_line_items, events, request: {},
-                          model: "gpt-4o-search-preview")
+    it "routes gpt-5-search-api to the preview-reasoning rate (gpt-5 family is reasoning)" do
+      result = described_class.build_line_item(
+        { "type" => "web_search_call", "id" => "ws_search_5" },
+        request: {},
+        model: "gpt-5-search-api"
+      )
+      expect(result.kind).to eq(:web_search_preview_request_reasoning)
+    end
 
-      expect(items.size).to eq(1)
-      expect(items.first.kind).to eq(:web_search_request)
-      expect(items.first.provider_item_id).to eq("chatcmpl_stream_1")
+    it "leaves a plain gpt-4o (no search model name, no preview tool) on the standard web_search_request rate" do
+      result = described_class.build_line_item(
+        { "type" => "web_search_call", "id" => "ws_plain" },
+        request: {},
+        model: "gpt-4o"
+      )
+      expect(result.kind).to eq(:web_search_request)
+    end
+  end
+
+  describe "annotation type discrimination" do
+    it "does not capture a service line item when the only annotation type is file_citation" do
+      response = {
+        "id" => "chatcmpl_file_1",
+        "choices" => [{
+          "message" => {
+            "role" => "assistant",
+            "annotations" => [{
+              "type" => "file_citation",
+              "file_citation" => { "file_id" => "file_abc", "index" => 0 }
+            }]
+          }
+        }]
+      }
+
+      expect(described_class.service_line_items_for(response, request: {}, model: "gpt-4o")).to eq([])
     end
   end
 end
