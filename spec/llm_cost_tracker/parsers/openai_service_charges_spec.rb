@@ -84,4 +84,73 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiServiceCharges do
       expect(result.kind).to eq(:web_search_preview_request_reasoning)
     end
   end
+
+  describe ".service_line_items_for" do
+    it "captures a web_search_request when a Chat Completions response carries url_citation annotations" do
+      response = {
+        "id" => "chatcmpl_search_1",
+        "model" => "gpt-4o-search-preview",
+        "choices" => [{
+          "message" => {
+            "role" => "assistant",
+            "annotations" => [{
+              "type" => "url_citation",
+              "url_citation" => { "url" => "https://example.com", "title" => "Example",
+                                  "start_index" => 0, "end_index" => 10 }
+            }]
+          }
+        }]
+      }
+
+      items = described_class.service_line_items_for(response, request: {}, model: "gpt-4o-search-preview")
+
+      expect(items.size).to eq(1)
+      expect(items.first.kind).to eq(:web_search_request)
+      expect(items.first.provider_item_id).to eq("chatcmpl_search_1")
+    end
+
+    it "returns no service line items for a Chat Completions response without url_citation annotations" do
+      response = {
+        "id" => "chatcmpl_plain_1",
+        "model" => "gpt-4o",
+        "choices" => [{ "message" => { "role" => "assistant", "content" => "hello" } }]
+      }
+
+      expect(described_class.service_line_items_for(response, request: {}, model: "gpt-4o")).to eq([])
+    end
+
+    it "still parses Responses-API output items unchanged" do
+      response = {
+        "id" => "resp_1",
+        "output" => [{ "type" => "web_search_call", "id" => "ws_1", "action" => { "type" => "search" } }]
+      }
+
+      items = described_class.service_line_items_for(response, request: {}, model: "gpt-4o")
+
+      expect(items.size).to eq(1)
+      expect(items.first.kind).to eq(:web_search_request)
+    end
+  end
+
+  describe "openai_stream_service_line_items via Parsers::Openai" do
+    let(:parser) { LlmCostTracker::Parsers::Openai.new }
+
+    it "captures a web_search_request from streamed Chat Completions chunks with url_citation delta annotations" do
+      events = [
+        { event: nil, data: { "id" => "chatcmpl_stream_1", "choices" => [{ "delta" => { "content" => "Hello" } }] } },
+        { event: nil, data: { "choices" => [{ "delta" => { "annotations" => [{
+          "type" => "url_citation",
+          "url_citation" => { "url" => "https://example.com", "title" => "Example",
+                              "start_index" => 0, "end_index" => 10 }
+        }] } }] } }
+      ]
+
+      items = parser.send(:openai_stream_service_line_items, events, request: {},
+                          model: "gpt-4o-search-preview")
+
+      expect(items.size).to eq(1)
+      expect(items.first.kind).to eq(:web_search_request)
+      expect(items.first.provider_item_id).to eq("chatcmpl_stream_1")
+    end
+  end
 end

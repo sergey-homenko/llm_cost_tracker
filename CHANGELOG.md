@@ -15,6 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- OpenAI Chat Completions responses that used the hosted `web_search` tool now record a `web_search_request` service line item (priced at the OpenAI hosted web-search rate) instead of being silently dropped. Both buffered and streaming responses are covered; detection is by `url_citation` annotations in `choices[].message` / `choices[].delta`. Responses API capture (`response.output[]`) is unchanged.
 - Async ingestion writes through its own dedicated connection pool instead of competing with request-handling threads, so tracking an LLM call from inside a caller transaction no longer deadlocks under burst load and the inbox row still persists when the caller transaction rolls back. Tune via `config.ingestion_pool_size` if your PG / PgBouncer budget is tight.
 - `mount LlmCostTracker::Engine => "/llm-costs"` works without adding `require "llm_cost_tracker/engine"` to `config/application.rb` — the engine is autoloaded.
 - Upgrade migrations for the call_rollups and call_tags indexes build concurrently on PostgreSQL, so the upgrade no longer takes a long table-write lock on installs with millions of rows. The rollups upgrade keeps pre-upgrade aggregates (bucketed under empty provider) instead of wiping them.

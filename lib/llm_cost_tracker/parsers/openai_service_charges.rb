@@ -23,6 +23,26 @@ module LlmCostTracker
                .filter_map { |item| build_line_item(item, request: request, model: model) }
       end
 
+      def service_line_items_for(response, request: nil, model: nil)
+        output_items = Array(response["output"])
+        output_items += chat_completions_web_search_items(response) if output_items.empty?
+        line_items_from_output(output_items, request: request, model: model)
+      end
+
+      def chat_completions_web_search_items(response)
+        return [] unless chat_completions_used_web_search?(response["choices"])
+
+        [{ "type" => "web_search_call", "id" => response["id"], "action" => { "type" => "search" } }]
+      end
+
+      def chat_completions_used_web_search?(choices)
+        Array(choices).any? do |choice|
+          Array(choice.dig("message", "annotations") || choice.dig("delta", "annotations")).any? do |annotation|
+            annotation.is_a?(Hash) && annotation["type"] == "url_citation"
+          end
+        end
+      end
+
       def billable?(item)
         return false unless item.is_a?(Hash)
 
@@ -103,9 +123,17 @@ module LlmCostTracker
 
       def openai_stream_service_line_items(events, request: nil, model: nil)
         output_items = []
+        chat_choices = []
+        response_id = nil
         each_event_data(events) do |data|
           output_items.concat(Array(data.dig("response", "output")))
           output_items << data["item"] if data["item"]
+          chat_choices.concat(Array(data["choices"]))
+          response_id ||= data["id"] || data.dig("response", "id")
+        end
+        if output_items.empty? && chat_completions_used_web_search?(chat_choices)
+          output_items << { "type" => "web_search_call", "id" => response_id,
+                            "action" => { "type" => "search" } }
         end
         line_items_from_output(output_items, request: request, model: model)
       end
