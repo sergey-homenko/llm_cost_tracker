@@ -15,7 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
-- OpenAI Chat Completions calls to the specialized search models (`gpt-4o-search-preview`, `gpt-4o-mini-search-preview`, `gpt-5-search-api`) record the per-call web-search fee as a line item at the "Web search preview" rate (non-reasoning $25/1k, reasoning $10/1k); previously the fee was dropped and only token usage was captured. Non-streaming only — OpenAI's stream `delta` schema does not surface the citation that signals the charge.
+- OpenAI Chat Completions calls to the specialized search models (`gpt-4o-search-preview`, `gpt-4o-mini-search-preview`, `gpt-5-search-api`) record the per-call web-search fee as a line item at OpenAI's "Web search preview" rate (non-reasoning $25/1k, reasoning $10/1k); previously the fee was dropped and only token usage was captured. Non-streaming responses only.
 - Async ingestion writes through its own dedicated connection pool instead of competing with request-handling threads, so tracking an LLM call from inside a caller transaction no longer deadlocks under burst load and the inbox row still persists when the caller transaction rolls back. Tune via `config.ingestion_pool_size` if your PG / PgBouncer budget is tight.
 - `mount LlmCostTracker::Engine => "/llm-costs"` works without adding `require "llm_cost_tracker/engine"` to `config/application.rb` — the engine is autoloaded.
 - Upgrade migrations for the call_rollups and call_tags indexes build concurrently on PostgreSQL, so the upgrade no longer takes a long table-write lock on installs with millions of rows. The rollups upgrade keeps pre-upgrade aggregates (bucketed under empty provider) instead of wiping them.

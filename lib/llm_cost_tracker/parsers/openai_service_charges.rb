@@ -40,7 +40,7 @@ module LlmCostTracker
 
       def chat_completions_used_web_search?(choices)
         Array(choices).any? do |choice|
-          Array(choice.dig("message", "annotations") || choice.dig("delta", "annotations")).any? do |annotation|
+          Array(choice.dig("message", "annotations")).any? do |annotation|
             annotation.is_a?(Hash) && annotation["type"] == "url_citation"
           end
         end
