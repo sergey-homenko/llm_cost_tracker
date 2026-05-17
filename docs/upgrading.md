@@ -9,27 +9,28 @@ a backfill task for calls that landed without pricing, and two optional
 upgrade migrations for the reconciliation surface. One BREAKING change in
 the initializer.
 
-### Required: rename `durable_ingestion` config knobs (BREAKING)
+### Required: rename `durable_ingestion` (BREAKING)
 
 `config.durable_ingestion = true | false` is replaced by
-`config.ingestion = :inline | :async` (default `:inline`), and
-`config.durable_ingestion_pool_size` is renamed to
-`config.ingestion_pool_size`. The install generator is now
-`bin/rails generate llm_cost_tracker:async_ingestion`. Update
-`config/initializers/llm_cost_tracker.rb` accordingly:
+`config.ingestion = :inline | :async` (default `:inline`). The install
+generator is renamed from `llm_cost_tracker:durable_ingestion` to
+`llm_cost_tracker:async_ingestion`. Update
+`config/initializers/llm_cost_tracker.rb`:
 
 ```ruby
 LlmCostTracker.configure do |config|
   # Before:
-  # config.durable_ingestion          = true
-  # config.durable_ingestion_pool_size = 5
+  # config.durable_ingestion = true
   # After:
-  config.ingestion          = :async
-  config.ingestion_pool_size = 5
+  config.ingestion = :async
 end
 ```
 
-The DB schema is unchanged — only the config surface renames.
+v0.10 also adds a new optional `config.ingestion_pool_size` (default
+`5`) to size the dedicated async-ingestion connection pool — set it
+explicitly only if your PG / PgBouncer budget is tight.
+
+The DB schema is unchanged — only the config surface changes.
 
 ### Optional: backfill calls priced after the fact
 
@@ -74,8 +75,8 @@ keep the previous behavior:
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.ingestion         = :async # keep the write-ahead inbox + worker path
-  config.cache_rollups     = true   # keep budget reads on the rollups fast path
+  config.durable_ingestion = true # keep the write-ahead inbox + worker path
+  config.cache_rollups     = true # keep budget reads on the rollups fast path
 end
 ```
 
@@ -83,6 +84,11 @@ Without those flags, `Tracker.record` writes inline, budget reads scan
 `llm_cost_tracker_calls` live, and the inbox/leases/rollups tables sit
 unused (doctor warns until you either flip the flags or drop the
 tables).
+
+> v0.10 renamed `config.durable_ingestion = true` to
+> `config.ingestion = :async` (BREAKING) — if you're jumping straight
+> from v0.8 to v0.10, use the v0.10 names from the
+> [v0.9.x → v0.10](#v09x--v010) section above.
 
 If you imported reconciliation invoices on a rolling-preview build,
 back-fill the data shape changes before running the diff or the
@@ -105,7 +111,8 @@ want:
 
 ```bash
 # Async inbox + worker + leases (multi-process safe staging,
-# survives caller transaction rollbacks).
+# survives caller transaction rollbacks). In v0.9 the generator was
+# named `durable_ingestion`; v0.10 renamed it to `async_ingestion`.
 bin/rails generate llm_cost_tracker:async_ingestion
 
 # Pre-aggregated daily/monthly rollups for fast budget reads.
@@ -114,9 +121,10 @@ bin/rails generate llm_cost_tracker:call_rollups
 bin/rails db:migrate
 ```
 
-After migrating, set the matching `config.ingestion = :async` /
+After migrating, set the matching `config.durable_ingestion = true` /
 `config.cache_rollups = true` so the write path and budget reads use
-the new tables.
+the new tables. v0.10 users: substitute `config.ingestion = :async`
+for the durable-ingestion flag (see the v0.9 → v0.10 section).
 
 ### Per-provider rollup column
 
