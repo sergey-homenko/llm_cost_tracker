@@ -219,6 +219,24 @@ RSpec.describe LlmCostTracker::Pricing do
       end
     end
 
+    it "carries the prices_file metadata currency through to the service charge rate" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(
+          {
+            metadata: { currency: "EUR" },
+            service_charges: { openai: { web_search_request: 10.0 } },
+            models: {}
+          }.to_json
+        )
+        file.close
+        LlmCostTracker.configure { |config| config.prices_file = file.path }
+
+        rate = described_class.charge_rate(provider: "openai", component: :web_search_request, pricing_mode: nil)
+
+        expect(rate).to include(amount: BigDecimal("10.0"), currency: "EUR", source: :prices_file)
+      end
+    end
+
     it "falls back from combined pricing modes to component tier rates" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write(

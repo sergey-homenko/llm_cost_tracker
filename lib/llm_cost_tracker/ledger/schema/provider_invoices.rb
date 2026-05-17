@@ -53,11 +53,17 @@ module LlmCostTracker
             unless connection.index_exists?(table_name, SOURCE_PERIOD_INDEX_COLUMNS)
               errors << "missing index: source, currency, period_start"
             end
-            if Adapter.postgresql?(connection) && !connection.index_exists?(table_name, :metadata, using: :gin)
+            if Adapter.postgresql?(connection) && !gin_metadata_index?(connection, table_name)
               errors << "missing GIN index on metadata " \
                         "(run bin/rails generate llm_cost_tracker:upgrade_provider_invoices_metadata_index)"
             end
             errors
+          end
+
+          def gin_metadata_index?(connection, table_name)
+            connection.indexes(table_name).any? do |index|
+              index.columns == ["metadata"] && index.using.to_s == "gin"
+            end
           end
         end
       end

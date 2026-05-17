@@ -107,7 +107,6 @@ New billing components are added by registering metadata in
 Indexes:
 
 - `[llm_cost_tracker_call_id, position]`
-- `kind`
 
 ## `llm_cost_tracker_call_tags`
 

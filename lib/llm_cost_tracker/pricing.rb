@@ -100,7 +100,7 @@ module LlmCostTracker
         priced_services = line_items.reject(&:token?).select(&:priced?)
         return cost_data if priced_services.empty?
 
-        base_currency = (cost_data && cost_data[:currency]) || Billing::LineItem::USD
+        base_currency = base_currency_for(cost_data, priced_services)
         matching, mismatched = priced_services.partition { |line| line.currency.to_s == base_currency.to_s }
         warn_currency_mismatch(mismatched, base_currency) if mismatched.any?
 
@@ -125,6 +125,10 @@ module LlmCostTracker
       end
 
       private
+
+      def base_currency_for(cost_data, priced_services)
+        (cost_data && cost_data[:currency]) || priced_services.first.currency || Billing::LineItem::USD
+      end
 
       def warn_currency_mismatch(lines, base_currency)
         currencies = lines.map { |line| line.currency.to_s }.uniq.sort

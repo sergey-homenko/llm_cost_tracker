@@ -86,6 +86,7 @@ module LlmCostTracker
               rate_amount: priced.rate_amount,
               rate_quantity: priced.rate_quantity,
               cost: priced.cost,
+              currency: priced.currency,
               cost_status: priced.cost_status,
               price_key: priced.price_key,
               price_source: priced.price_source&.to_s,

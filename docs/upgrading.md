@@ -281,7 +281,7 @@ tables drift) is computed once per process and invalidated through
 on first request and reuses it; development re-checks on each code
 reload. **Host test suites that mutate engine tables mid-suite** (e.g.
 swapping schema between examples) should call
-`LlmCostTracker::DashboardSetupState.reset!` to invalidate the cache.
+`LlmCostTracker::Dashboard::SetupState.reset!` to invalidate the cache.
 
 ### Re-import dashboard button
 
