@@ -46,6 +46,16 @@ RSpec.describe LlmCostTracker::Ledger::Schema::ProviderInvoices do
         .to include("missing index: source, currency, period_start")
     end
 
+    it "reports a missing GIN index on metadata when running on PostgreSQL" do
+      connection = ActiveRecord::Base.connection
+      skip "PostgreSQL-only" unless LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+
+      connection.remove_index(:llm_cost_tracker_provider_invoices, column: :metadata)
+
+      expect(described_class.current_schema_errors)
+        .to include(match(/missing GIN index on metadata/))
+    end
+
     it "rejects metadata columns of the wrong adapter type" do
       metadata_column = LlmCostTracker::ProviderInvoice.columns_hash["metadata"]
       double = instance_double(metadata_column.class, sql_type: "varchar(255)", type: :string)

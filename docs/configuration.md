@@ -145,6 +145,7 @@ tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `ingestion` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
+| `ingestion_pool_size` | `2` | Size of the dedicated ActiveRecord connection pool the async ingestion worker uses for inbox writes (kept isolated from the request connection pool so a busy app doesn't deadlock its own tracking). Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion = :inline`. |
 | `cache_rollups` | `false` | When `true`, `Tracker.record` maintains daily/monthly aggregates in `llm_cost_tracker_call_rollups`; budget reads and reconciliation diffs use the rollups fast path. When `false` (default), budget reads aggregate live from `llm_cost_tracker_calls`. |
 
 Each opt-in needs a matching generator before flipping the flag:

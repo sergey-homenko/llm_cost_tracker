@@ -1,6 +1,63 @@
 # Upgrading
 
-## v0.8.x → v0.9 (in progress)
+## v0.9.x → v0.10
+
+v0.10 sharpens the v0.9 line: a pre-send budget gate, multi-currency-aware
+pricing snapshots when a `prices_file` declares its currency, zero-config
+Azure Foundry capture (`*.services.ai.azure.com` + `/openai/v1/...` paths),
+a backfill task for calls that landed without pricing, and two optional
+upgrade migrations for the reconciliation surface. One BREAKING change in
+the initializer.
+
+### Required: rename `durable_ingestion` config knobs (BREAKING)
+
+`config.durable_ingestion = true | false` is replaced by
+`config.ingestion = :inline | :async` (default `:inline`), and
+`config.durable_ingestion_pool_size` is renamed to
+`config.ingestion_pool_size`. The install generator is now
+`bin/rails generate llm_cost_tracker:async_ingestion`. Update
+`config/initializers/llm_cost_tracker.rb` accordingly:
+
+```ruby
+LlmCostTracker.configure do |config|
+  # Before:
+  # config.durable_ingestion          = true
+  # config.durable_ingestion_pool_size = 5
+  # After:
+  config.ingestion          = :async
+  config.ingestion_pool_size = 5
+end
+```
+
+The DB schema is unchanged — only the config surface renames.
+
+### Optional: backfill calls priced after the fact
+
+When a model lands in the ledger before its pricing entry is in the
+bundled snapshot or your `prices_file`, the call records with no cost
+and the Data Quality dashboard's "Unknown pricing by model" panel
+flags it. After a `prices:refresh` (or after dropping a
+`pricing_overrides` entry into the initializer), run:
+
+```bash
+bin/rails llm_cost_tracker:backfill_unknown_pricing
+```
+
+The task recomputes `total_cost`, the pricing snapshot, per-component
+costs, and the rollup buckets for every call still missing a cost.
+Idempotent — calls that already have a cost are skipped.
+
+### Optional: reconciliation schema generators
+
+If `config.reconciliation_enabled = true` and you have invoices
+imported on a v0.9 install, the two reconciliation upgrade migrations
+listed under `v0.8.x → v0.9` below now ship as separate generators
+(`upgrade_provider_invoice_imports_provider`,
+`upgrade_provider_invoices_metadata_index`). Run them in order on
+existing installs. Doctor surfaces the missing `provider` column and
+the missing GIN index on `provider_invoices.metadata` (PostgreSQL).
+
+## v0.8.x → v0.9
 
 v0.9 makes the rollup, inbox, and lease tables opt-in, splits ingestion
 between an inline default and an opt-in async inbox, and ships

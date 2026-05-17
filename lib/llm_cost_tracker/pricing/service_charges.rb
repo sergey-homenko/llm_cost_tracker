@@ -60,9 +60,10 @@ module LlmCostTracker
         data = registry.fetch("service_charges", EMPTY_RATES)
         raise ArgumentError, "#{context} service_charges must be a hash" unless data.is_a?(Hash)
 
+        currency = registry.dig("metadata", "currency") || DEFAULT_CURRENCY
         data.each_with_object({}) do |(provider, entries), rates|
           section_context = "#{context} service_charges.#{provider}"
-          rates[provider] = rates_from_section(entries, context: section_context)
+          rates[provider] = rates_from_section(entries, currency: currency, context: section_context)
         end
       end
 
@@ -84,7 +85,7 @@ module LlmCostTracker
 
       private
 
-      def rates_from_section(entries, context:)
+      def rates_from_section(entries, currency:, context:)
         raise ArgumentError, "#{context} must be a hash" unless entries.is_a?(Hash)
 
         entries.each_with_object({}) do |(key, amount), rates|
@@ -95,7 +96,7 @@ module LlmCostTracker
           rate = {
             amount: amount,
             quantity: rate_quantity(component),
-            currency: DEFAULT_CURRENCY,
+            currency: currency,
             source_key: key
           }
           component_rates = rates[component.key] ||= { tiers: {} }

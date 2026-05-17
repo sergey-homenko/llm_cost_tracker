@@ -24,22 +24,18 @@ If a candidate fails any filter, it stays in the anti-roadmap until
 evidence shifts. If a shipped feature gets no traction in six months,
 it goes to maintenance mode, not the next minor.
 
-## v0.9 → v1.0 — sharpen the core
+## v0.10 → v1.0 — sharpen the core
 
-Two items, both backed by verified pain. These are what users actually
+One item left, backed by verified pain. This is what users actually
 hit in production.
 
-1. **Pre-send budget enforcement.**
-   Provider hard limits don't reliably stop spend (OpenAI forum:
-   `$563.88` debt on a `$5` prepaid account; "hard limit was bypassed"
-   threads). The gem already has a budget API; extend it with a
-   pre-call hook that estimates token cost via character-count
-   heuristic (chars / 4 ≈ tokens, provider-agnostic, no external
-   tokenizer deps) and blocks before send when the budget is exhausted.
-   After the call, recalibrate against real usage. Approximate by
-   design — runway-stop, not precise prediction. Output tokens stay
-   unknowable pre-send and are caught by the existing post-spend gate.
-   Foundation in place: `LlmCostTracker::Pricing::Estimator.call(...)`.
+1. **Pre-send budget enforcement** — *shipped in v0.10*. The
+   `:block_requests` mode now estimates the current call's input cost
+   via a character-count heuristic (chars / 4 ≈ tokens,
+   provider-agnostic) and blocks before send when prior spend plus the
+   estimate would cross the budget. Output tokens stay unknowable
+   pre-send and are caught by the existing post-spend gate. Approximate
+   by design — runway-stop, not precise prediction.
 
 2. **Cache-aware cost accuracy.**
    Cache cost calculation is broken across the ecosystem (LiteLLM

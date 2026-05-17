@@ -240,6 +240,7 @@ module LlmCostTracker
           rate_amount: BigDecimal(effective_price.to_s),
           rate_quantity: BigDecimal(RATE_DENOMINATOR_TOKENS),
           cost: cost,
+          currency: match.currency,
           cost_status: cost.zero? ? Billing::CostStatus::FREE : Billing::CostStatus::COMPLETE,
           price_key: component.key,
           price_source: match.source,

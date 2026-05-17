@@ -72,6 +72,14 @@ in the database and another live process can claim them. Use
 `flush!` or `shutdown!(drain: true)` when a job or release step must
 wait for the ledger to catch up.
 
+`shutdown!` is one-way for the calling process: subsequent
+`Tracker.record` calls still enqueue to the inbox (so events aren't
+lost), but the local worker thread won't respawn — another live
+process picks them up, or the next `LlmCostTracker.reset_configuration!`
+(or the process restarting) clears the stop flag and brings a fresh
+worker back. Don't call `shutdown!` mid-process unless you intend
+that contract.
+
 ## Ruby Concurrency
 
 Threaded Rails servers and fiber schedulers are supported. Scoped tags use
