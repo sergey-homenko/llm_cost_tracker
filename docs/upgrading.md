@@ -27,7 +27,7 @@ end
 ```
 
 v0.10 also adds a new optional `config.ingestion_pool_size` (default
-`5`) to size the dedicated async-ingestion connection pool — set it
+`2`) to size the dedicated async-ingestion connection pool — set it
 explicitly only if your PG / PgBouncer budget is tight.
 
 The DB schema is unchanged — only the config surface changes.
