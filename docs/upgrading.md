@@ -175,6 +175,8 @@ false, default: {}` for `t.json :metadata, null: false`; MySQL JSON
 columns don't accept a SQL-level default):
 
 ```ruby
+require "llm_cost_tracker/ledger/schema/adapter"
+
 class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
   def change
     create_table :llm_cost_tracker_provider_invoices do |t|
@@ -205,7 +207,9 @@ class CreateLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
 
     add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
     add_index :llm_cost_tracker_provider_invoices, %i[source currency period_start]
-    add_index :llm_cost_tracker_provider_invoices, :metadata, using: :gin if postgresql?
+    if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+      add_index :llm_cost_tracker_provider_invoices, :metadata, using: :gin
+    end
     add_index :llm_cost_tracker_provider_invoice_imports, %i[source provider started_at]
   end
 end

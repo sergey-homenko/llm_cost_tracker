@@ -38,7 +38,7 @@ module LlmCostTracker
     end
 
     def number(value)
-      number_with_delimiter(value.to_i)
+      number_with_delimiter(value)
     end
 
     def format_date(value)
