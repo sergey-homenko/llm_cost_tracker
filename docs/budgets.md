@@ -61,6 +61,18 @@ Per-call budgets are checked from the current event only.
 Monthly preflight runs before daily preflight. Post-record checks report
 daily before monthly so short-term operational alerts stay prominent.
 
+Budget aggregation assumes a single-currency ledger. The rollups table
+partitions buckets by currency on the write side (so a `prices_file`
+with `metadata.currency: "EUR"` lands EUR rows separately from
+bundled USD), but `Period::Totals` sums across currency rows without a
+filter and `llm_cost_tracker_calls` has no currency column to filter
+the live aggregate against. In practice this is correct for the only
+two realistic setups — USD-only (the default) or a fully non-USD
+`prices_file` — because every row in the period is denominated in
+the same currency. Mixing currencies inside one ledger (some models
+bundled USD, others priced from a non-USD `prices_file`) leaves the
+budget total summed across units and is not supported.
+
 ## Error and Callback Payload
 
 `BudgetExceededError` and `on_budget_exceeded` payloads expose:
