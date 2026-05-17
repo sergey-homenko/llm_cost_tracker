@@ -107,6 +107,7 @@ RSpec.describe LlmCostTracker::Parsers::OpenaiServiceCharges do
       expect(items.size).to eq(1)
       expect(items.first.kind).to eq(:web_search_preview_request_non_reasoning)
       expect(items.first.provider_item_id).to eq("chatcmpl_search_1")
+      expect(items.first.provider_field).to eq("choices.message.annotations.url_citation")
     end
 
     it "returns no service line items for a Chat Completions response without url_citation annotations" do

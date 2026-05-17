@@ -257,7 +257,8 @@ module LlmCostTracker
           return nil unless choices.any? { |choice| choice_used_url_citation?(choice) }
 
           { "type" => "web_search_call", "id" => object_value(response, :id),
-            "action" => { "type" => "search" } }
+            "action" => { "type" => "search" },
+            "provider_field" => LlmCostTracker::Parsers::OpenaiServiceCharges::CHAT_COMPLETIONS_SEARCH_PROVIDER_FIELD }
         end
 
         def choice_used_url_citation?(choice)

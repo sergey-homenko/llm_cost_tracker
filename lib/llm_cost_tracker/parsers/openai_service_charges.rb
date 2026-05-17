@@ -29,10 +29,13 @@ module LlmCostTracker
         line_items_from_output(output_items, request: request, model: model)
       end
 
+      CHAT_COMPLETIONS_SEARCH_PROVIDER_FIELD = "choices.message.annotations.url_citation"
+
       def chat_completions_web_search_items(response)
         return [] unless chat_completions_used_web_search?(response["choices"])
 
-        [{ "type" => "web_search_call", "id" => response["id"], "action" => { "type" => "search" } }]
+        [{ "type" => "web_search_call", "id" => response["id"], "action" => { "type" => "search" },
+           "provider_field" => CHAT_COMPLETIONS_SEARCH_PROVIDER_FIELD }]
       end
 
       def chat_completions_used_web_search?(choices)
@@ -82,7 +85,7 @@ module LlmCostTracker
           quantity: 1,
           cost_status: Billing::CostStatus::UNKNOWN,
           pricing_basis: :provider_usage,
-          provider_field: "response.output.#{item['type']}",
+          provider_field: item["provider_field"] || "response.output.#{item['type']}",
           provider_item_id: provider_item_id,
           details: line_item_details(item)
         )

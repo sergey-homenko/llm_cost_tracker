@@ -161,6 +161,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       expect(items.size).to eq(1)
       expect(items.first.kind).to eq(:web_search_preview_request_non_reasoning)
       expect(items.first.provider_item_id).to eq("chatcmpl_sdk_1")
+      expect(items.first.provider_field).to eq("choices.message.annotations.url_citation")
     end
 
     it "does not capture a service line item for an SDK Chat Completions response without url_citation annotations" do
