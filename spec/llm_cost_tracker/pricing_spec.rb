@@ -123,6 +123,38 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(snapshot.dig(:rates, :input)).to eq(amount: 1.0, quantity: 1_000_000)
       expect(snapshot.dig(:rates)).not_to have_key(:output)
     end
+
+    it "defaults pricing_overrides snapshots to USD" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = { "usd-model" => { input: 1.0 } }
+      end
+
+      snapshot = described_class.snapshot_for(provider: "custom", model: "usd-model", tokens: { input: 100 })
+
+      expect(snapshot.fetch(:currency)).to eq("USD")
+    end
+
+    it "carries the currency from a prices_file metadata into the snapshot" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(
+          {
+            metadata: { currency: "EUR" },
+            models: { "eur-model" => { input: 1.0, output: 2.0 } }
+          }.to_json
+        )
+        file.close
+        LlmCostTracker.configure { |config| config.prices_file = file.path }
+
+        snapshot = described_class.snapshot_for(
+          provider: "custom",
+          model: "eur-model",
+          tokens: { input: 100, output: 50 }
+        )
+
+        expect(snapshot.fetch(:currency)).to eq("EUR")
+        expect(snapshot.fetch(:source)).to eq(:prices_file)
+      end
+    end
   end
 
   describe ".charge_rate" do

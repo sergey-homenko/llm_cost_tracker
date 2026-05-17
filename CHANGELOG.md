@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Azure OpenAI Service is captured out of the box. Calls to `*.openai.azure.com` and OpenAI Ruby SDK calls made with an Azure `base_url` land in the ledger tagged `provider: "azure_openai"`. Pricing resolves to the matching `openai/<model>` entry; regional / Data Zone uplifts are configurable via `config.pricing_overrides` with the `azure_openai/<model>` prefix. See [Configuration → Azure OpenAI Service](docs/configuration.md#azure-openai-service).
 - `bin/rails generate llm_cost_tracker:upgrade_provider_invoice_imports_provider` writes the migration so two reconciliation importers sharing a `source` (e.g. `csv/openai` and `csv/anthropic`) no longer cross-pollute resume cursors.
 - `bin/rails generate llm_cost_tracker:upgrade_provider_invoices_metadata_index` writes a migration adding a GIN index on `llm_cost_tracker_provider_invoices.metadata` (PostgreSQL only) so the `metadata @> ?::jsonb` containment lookup used by `Reconciliation::Diff#apply_metadata_scope` doesn't seq-scan on large invoice sets. No-op on MySQL.
+- A `prices_file` with `metadata.currency: "EUR"` (or any non-USD code) now flows through to the call's `pricing_snapshot.currency`, the `call_rollups.currency` bucket, and the header `cost.currency` instead of being hardcoded to USD. The bundled price snapshot and `pricing_overrides` still default to USD; mixed-currency line items continue to drop from the header total with a warning.
 
 ### Fixed
 

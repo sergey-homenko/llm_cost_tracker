@@ -3,7 +3,8 @@
 module LlmCostTracker
   module Pricing
     module Lookup
-      Match = Data.define(:source, :key, :prices, :matched_by)
+      Match = Data.define(:source, :key, :prices, :matched_by, :currency)
+      DEFAULT_CURRENCY = "USD"
       MUTEX = Mutex.new
       CACHE_MISS = Object.new.freeze
       NO_MATCH = Object.new.freeze
@@ -187,7 +188,22 @@ module LlmCostTracker
         end
 
         def match(table:, source:, key:, matched_by:)
-          Match.new(source: source, key: key, prices: table[key], matched_by: matched_by)
+          Match.new(
+            source: source,
+            key: key,
+            prices: table[key],
+            matched_by: matched_by,
+            currency: source_currency(source)
+          )
+        end
+
+        def source_currency(source)
+          case source
+          when :bundled then Registry.metadata["currency"] || DEFAULT_CURRENCY
+          when :prices_file
+            Registry.file_metadata(LlmCostTracker.configuration.prices_file)["currency"] || DEFAULT_CURRENCY
+          else DEFAULT_CURRENCY
+          end
         end
 
         def snapshot_variant?(model, key)

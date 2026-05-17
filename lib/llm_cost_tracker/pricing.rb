@@ -149,6 +149,7 @@ module LlmCostTracker
           result[component.cost_key] = cost.round(8) unless cost.nil?
         end
         values[:total_cost] = costs.values.compact.sum(BigDecimal("0")).round(8)
+        values[:currency] = calculation[:match].currency
         values
       end
 
@@ -168,7 +169,7 @@ module LlmCostTracker
           source_key: match.key,
           source_version: source_version_for(match.source),
           matched_by: match.matched_by,
-          currency: "USD",
+          currency: match.currency,
           rates: rates
         }
       end
@@ -268,7 +269,7 @@ module LlmCostTracker
         {
           amount: BigDecimal(amount.to_s),
           quantity: BigDecimal(Billing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis).to_s),
-          currency: "USD",
+          currency: match.currency,
           source: match.source,
           source_key: "#{match.key}.#{line_item.kind}",
           source_version: source_version_for(match.source)
