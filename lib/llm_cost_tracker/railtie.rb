@@ -20,9 +20,5 @@ module LlmCostTracker
       require_relative "generators/llm_cost_tracker/upgrade_provider_invoice_imports_provider_generator"
       require_relative "generators/llm_cost_tracker/upgrade_provider_invoices_metadata_index_generator"
     end
-
-    rake_tasks do
-      load File.expand_path("../tasks/llm_cost_tracker.rake", __dir__)
-    end
   end
 end

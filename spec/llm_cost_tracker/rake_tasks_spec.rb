@@ -31,4 +31,8 @@ RSpec.describe "llm_cost_tracker rake tasks" do
     expect(doctor).to have_received(:invoke)
   end
 
+  it "does not register tasks from the Railtie because the Engine already auto-loads lib/tasks" do
+    railtie_source = File.read(File.expand_path("../../lib/llm_cost_tracker/railtie.rb", __dir__))
+    expect(railtie_source).not_to include("rake_tasks do")
+  end
 end

@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Fixed
 
 - The `upgrade_call_rollups_provider`, `upgrade_provider_invoice_imports_provider`, and `upgrade_provider_invoices_metadata_index` migrations now no-op when their target table doesn't exist (e.g. installs that never opted into `cache_rollups` or reconciliation), instead of raising `PG::UndefinedTable`.
+- Every `llm_cost_tracker:*` rake task ran its body twice (so `doctor` and `report` printed every line twice and `prices:refresh` re-scraped on each invocation) because the gem's Railtie loaded the task file in addition to the Engine's automatic discovery.
 
 ## [0.10.0] - 2026-05-17
 
