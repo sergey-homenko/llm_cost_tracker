@@ -13,7 +13,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - `bin/rails llm_cost_tracker:doctor` colors `[ok]` / `[warn]` / `[error]` status tags green / yellow / red on a TTY.
 - The dashboard "Setup required" screen clears after `bin/rails db:migrate` without a Rails server restart, and the schema-drift details render as a monospaced block instead of indented bullets.
-- The "LLM Cost Tracker" header is now a link back to the Overview page, so it works the same as every other product's brand-name shortcut.
 
 ## [0.10.0] - 2026-05-17
 
