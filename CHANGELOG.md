@@ -6,13 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
-- The `upgrade_call_rollups_provider`, `upgrade_provider_invoice_imports_provider`, and `upgrade_provider_invoices_metadata_index` migrations now no-op when their target table doesn't exist (e.g. installs that never opted into `cache_rollups` or reconciliation), instead of raising `PG::UndefinedTable`.
-- Every `llm_cost_tracker:*` rake task ran its body twice (so `doctor` and `report` printed every line twice and `prices:refresh` re-scraped on each invocation) because the gem's Railtie loaded the task file in addition to the Engine's automatic discovery.
+- The `upgrade_call_rollups_provider`, `upgrade_provider_invoice_imports_provider`, and `upgrade_provider_invoices_metadata_index` migrations no-op when their target table doesn't exist (installs that never opted into `cache_rollups` or reconciliation) instead of crashing.
+- `llm_cost_tracker:*` rake tasks ran their body twice on each invocation, so `doctor` and `report` printed every line twice and `prices:refresh` re-scraped on each run.
 
 ### Changed
 
-- `bin/rails llm_cost_tracker:doctor` colors the `[ok]` / `[warn]` / `[error]` status tags green / yellow / red when stdout is a TTY, so problems stand out at a glance. Output piped to a file or non-TTY stays plain.
-- The "Setup required" dashboard screen recomputes after every `db:migrate` (it keys its cache off `schema_migrations`), so applying the recommended upgrade migrations clears the warning without restarting the Rails server. The schema details now render as a monospaced block instead of indented bullet points.
+- `bin/rails llm_cost_tracker:doctor` colors `[ok]` / `[warn]` / `[error]` status tags green / yellow / red on a TTY.
+- The dashboard "Setup required" screen clears after `bin/rails db:migrate` without a Rails server restart, and the schema-drift details render as a monospaced block instead of indented bullets.
 
 ## [0.10.0] - 2026-05-17
 
