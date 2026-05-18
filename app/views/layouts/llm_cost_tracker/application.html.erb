@@ -13,7 +13,7 @@
       <main class="lct-shell">
         <header class="lct-header">
           <div class="lct-header-copy">
-            <h1 class="lct-title">LLM Cost Tracker</h1>
+            <h1 class="lct-title"><%= link_to "LLM Cost Tracker", root_path, class: "lct-title-link" %></h1>
           </div>
           <nav class="lct-nav" aria-label="Dashboard">
             <%= link_to "Overview", root_path, class: ("lct-active" if request.path.delete_suffix("/") == root_path.delete_suffix("/")) %>

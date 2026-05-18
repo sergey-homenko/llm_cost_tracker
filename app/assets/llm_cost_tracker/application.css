@@ -137,6 +137,9 @@
     line-height: 1.2;
   }
 
+  .lct-title-link { color: inherit; text-decoration: none; }
+  .lct-title-link:hover, .lct-title-link:focus { text-decoration: none; }
+
   .lct-nav { display: flex; gap: 4px; flex-wrap: wrap; }
 
   .lct-nav a {
