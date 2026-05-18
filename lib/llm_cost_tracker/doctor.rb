@@ -16,7 +16,34 @@ module LlmCostTracker
     autoload :InvoiceReconciliationCheck, "llm_cost_tracker/doctor/invoice_reconciliation_check"
     autoload :CaptureVerifier,            "llm_cost_tracker/doctor/capture_verifier"
 
+    STATUS_GLYPHS = { ok: "✓", warn: "!", error: "x" }.freeze
     STATUS_COLORS = { ok: 32, warn: 33, error: 31 }.freeze
+
+    SECTIONS = ["Setup", "Schema", "Data integrity", "Operations"].freeze
+
+    SECTION_FOR_CHECK = {
+      "configuration" => "Setup",
+      "capture" => "Setup",
+      "active_record" => "Schema",
+      "llm_cost_tracker_calls" => "Schema",
+      "llm_cost_tracker_calls columns" => "Schema",
+      "call line items" => "Schema",
+      "call tags" => "Schema",
+      "provider invoices" => "Schema",
+      "provider invoice imports" => "Schema",
+      "cost drift" => "Data integrity",
+      "pricing snapshot drift" => "Data integrity",
+      "pricing snapshot audit" => "Data integrity",
+      "cost status" => "Data integrity",
+      "invoice reconciliation" => "Data integrity",
+      "call rollups" => "Operations",
+      "inline ingestion" => "Operations",
+      "async ingestion" => "Operations",
+      "prices" => "Operations",
+      "tracked calls" => "Operations"
+    }.freeze
+
+    private_constant :STATUS_GLYPHS, :STATUS_COLORS, :SECTIONS, :SECTION_FOR_CHECK
 
     class << self
       def call
@@ -24,9 +51,19 @@ module LlmCostTracker
       end
 
       def report(checks = call, color: $stdout.tty?)
-        (["LLM Cost Tracker doctor"] + checks.map do |check|
-          "#{format_status(check.status, color)} #{check.name}: #{check.message}"
-        end).join("\n")
+        name_width = checks.map { |c| c.name.length }.max.to_i
+
+        lines = [bold("LLM Cost Tracker doctor", color), ""]
+        each_section(checks) do |section, members|
+          lines << bold(section, color)
+          members.each do |check|
+            status = paint_status("[#{STATUS_GLYPHS.fetch(check.status, check.status)}]", check.status, color)
+            lines << "  #{status} #{"#{check.name}:".ljust(name_width + 1)} #{check.message}"
+          end
+          lines << ""
+        end
+        lines.pop if lines.last == ""
+        lines.join("\n")
       end
 
       def healthy?(checks = call)
@@ -35,11 +72,25 @@ module LlmCostTracker
 
       private
 
-      def format_status(status, color)
-        tag = "[#{status}]"
-        return tag unless color && STATUS_COLORS.key?(status)
+      def each_section(checks)
+        SECTIONS.each do |section|
+          members = checks.select { |c| (SECTION_FOR_CHECK[c.name] || "Setup") == section }
+          next if members.empty?
 
-        "\e[#{STATUS_COLORS[status]}m#{tag}\e[0m"
+          yield section, members
+        end
+      end
+
+      def paint_status(text, status, color)
+        return text unless color && STATUS_COLORS.key?(status)
+
+        "\e[#{STATUS_COLORS[status]}m#{text}\e[0m"
+      end
+
+      def bold(text, color)
+        return text unless color
+
+        "\e[1m#{text}\e[0m"
       end
     end
 

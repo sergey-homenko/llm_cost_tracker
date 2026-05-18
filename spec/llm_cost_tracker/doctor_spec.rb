@@ -309,19 +309,25 @@ RSpec.describe LlmCostTracker::Doctor do
       ]
     end
 
-    it "leaves bracket tags plain when stdout is not a TTY" do
+    it "groups checks by section with aligned columns and iconic plain tags when stdout is not a TTY" do
       report = described_class.report(checks, color: false)
 
-      expect(report).to include("[ok] configuration", "[warn] prices", "[error] llm_cost_tracker_calls")
+      expect(report).to start_with("LLM Cost Tracker doctor\n\nSetup\n")
+      expect(report).to include("  [✓] configuration:          enabled=true")
+      expect(report).to include("Schema\n  [x] llm_cost_tracker_calls: missing")
+      expect(report).to include("Operations\n  [!] prices:                 using bundled prices")
       expect(report).not_to include("\e[")
     end
 
-    it "wraps bracket tags in ANSI color codes when stdout is a TTY" do
+    it "wraps the title, section headers, and status icons in ANSI codes when stdout is a TTY" do
       report = described_class.report(checks, color: true)
 
-      expect(report).to include("\e[32m[ok]\e[0m configuration")
-      expect(report).to include("\e[33m[warn]\e[0m prices")
-      expect(report).to include("\e[31m[error]\e[0m llm_cost_tracker_calls")
+      expect(report).to start_with("\e[1mLLM Cost Tracker doctor\e[0m\n\n\e[1mSetup\e[0m\n")
+      expect(report).to include("\e[32m[✓]\e[0m configuration:")
+      expect(report).to include("\e[1mSchema\e[0m")
+      expect(report).to include("\e[31m[x]\e[0m llm_cost_tracker_calls:")
+      expect(report).to include("\e[1mOperations\e[0m")
+      expect(report).to include("\e[33m[!]\e[0m prices:")
     end
   end
 end

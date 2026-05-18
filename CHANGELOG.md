@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed
 
-- `bin/rails llm_cost_tracker:doctor` colors `[ok]` / `[warn]` / `[error]` status tags green / yellow / red on a TTY.
+- `bin/rails llm_cost_tracker:doctor` groups checks under Setup / Schema / Data integrity / Operations headers, renders each row with a `[✓]` / `[!]` / `[x]` status icon (green / yellow / red on a TTY), and aligns the columns so the message stays readable.
 - The dashboard "Setup required" screen clears after `bin/rails db:migrate` without a Rails server restart, and the schema-drift details render as a monospaced block instead of indented bullets.
 
 ## [0.10.0] - 2026-05-17
