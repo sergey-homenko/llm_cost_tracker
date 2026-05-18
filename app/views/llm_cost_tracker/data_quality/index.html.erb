@@ -25,7 +25,7 @@
     </article>
 
     <article class="lct-stat">
-      <p class="lct-stat-label">Unknown pricing</p>
+      <p class="lct-stat-label">Incomplete pricing</p>
       <p class="lct-stat-value"><%= number(@summary.unknown_pricing_count) %></p>
       <p class="lct-stat-sub"><%= percent(@summary.unknown_pricing_share) %> of calls</p>
     </article>
@@ -90,8 +90,8 @@
         </thead>
         <tbody>
           <tr>
-            <td>Unknown pricing</td>
-            <td>Cost stays <code class="lct-code">nil</code>, so totals undercount.</td>
+            <td>Incomplete pricing</td>
+            <td>Some or all line items have no configured rate, so totals undercount.</td>
             <td>Update <code class="lct-code">pricing_overrides</code> or <code class="lct-code">prices_file</code>.</td>
           </tr>
           <tr>
@@ -299,8 +299,8 @@
     <section class="lct-panel">
       <div class="lct-section-head">
         <div>
-          <h2 class="lct-section-title">Unknown pricing by model</h2>
-          <p class="lct-section-copy">These models have token counts but no configured rates, so cost stays unknown. After the next price refresh or a <code class="lct-code">pricing_overrides</code> update, run <code class="lct-code">bin/rails llm_cost_tracker:backfill_unknown_pricing</code> to recompute these calls.</p>
+          <h2 class="lct-section-title">Incomplete pricing by model</h2>
+          <p class="lct-section-copy">These models have line items without configured rates, so totals undercount (a full row is missing all rates; a partial row has some line items priced and others not). After the next price refresh or a <code class="lct-code">pricing_overrides</code> update, run <code class="lct-code">bin/rails llm_cost_tracker:backfill_unknown_pricing</code> to recompute these calls.</p>
         </div>
         <%= link_to "Calls", calls_path(current_query(sort: "unknown_pricing")), class: "lct-button lct-button-secondary" %>
       </div>
