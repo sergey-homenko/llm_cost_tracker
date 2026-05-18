@@ -172,7 +172,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
   end
 
   describe LlmCostTracker::Dashboard::Filter do
-    before { allow(Date).to receive(:current).and_return(Date.new(2026, 4, 19)) }
+    around { |example| travel_to(Time.utc(2026, 4, 19, 12)) { example.run } }
 
     it "filters by dates, provider, model, and multiple tag keys" do
       create_call(

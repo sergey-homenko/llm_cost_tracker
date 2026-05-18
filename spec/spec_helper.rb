@@ -36,6 +36,7 @@ end
 
 require "webmock/rspec"
 require "active_record"
+require "active_support/testing/time_helpers"
 require_relative "dummy/config/environment"
 require "llm_cost_tracker"
 require_relative "../app/models/llm_cost_tracker/call"
@@ -62,6 +63,7 @@ RSpec.configure do |config|
   config.filter_run_when_matching :focus
   config.order = :random
   config.include LlmCostTrackerDatabaseSpecHelpers
+  config.include ActiveSupport::Testing::TimeHelpers
 
   config.before(:each) do
     Rails.logger = nil

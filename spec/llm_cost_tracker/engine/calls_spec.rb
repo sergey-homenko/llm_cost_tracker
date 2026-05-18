@@ -9,12 +9,7 @@ require_relative "../../dummy/config/environment"
 RSpec.describe "LlmCostTracker::Engine calls" do
   include_context "with mounted llm cost tracker engine"
 
-  before do
-    fake_now = Time.utc(2026, 4, 19, 12, 0, 0)
-    allow(Date).to receive(:current).and_return(fake_now.to_date)
-    allow(Time).to receive(:current).and_return(fake_now)
-    allow(Time).to receive(:now).and_return(fake_now)
-  end
+  around { |example| travel_to(Time.utc(2026, 4, 19, 12)) { example.run } }
 
   it "renders the calls index with cost, token, latency, and tag columns" do
     create_call(
