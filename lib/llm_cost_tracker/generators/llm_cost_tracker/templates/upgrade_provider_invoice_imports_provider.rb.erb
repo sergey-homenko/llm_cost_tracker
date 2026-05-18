@@ -8,6 +8,8 @@ class UpgradeLlmCostTrackerProviderInvoiceImportsProvider < ActiveRecord::Migrat
   NEW_INDEX = %i[source provider started_at].freeze
 
   def up
+    return unless table_exists?(TABLE)
+
     add_column TABLE, :provider, :string, null: false, default: "" unless column_exists?(TABLE, :provider)
     if postgresql?
       remove_index TABLE, column: OLD_INDEX, algorithm: :concurrently, if_exists: true
@@ -19,6 +21,8 @@ class UpgradeLlmCostTrackerProviderInvoiceImportsProvider < ActiveRecord::Migrat
   end
 
   def down
+    return unless table_exists?(TABLE)
+
     remove_index TABLE, column: NEW_INDEX, if_exists: true
     add_index TABLE, OLD_INDEX, if_not_exists: true
     remove_column TABLE, :provider if column_exists?(TABLE, :provider)

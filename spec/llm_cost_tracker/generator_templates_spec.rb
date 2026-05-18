@@ -207,6 +207,7 @@ RSpec.describe "generator templates" do
         expect(migration).to include("NEW_INDEX = %i[period period_start currency provider].freeze")
         expect(migration).to include("def up")
         expect(migration).to include("def down")
+        expect(migration).to include("return unless table_exists?(TABLE)")
       end
     end
 
@@ -263,6 +264,7 @@ RSpec.describe "generator templates" do
         expect(migration).to include("unless column_exists?(TABLE, :provider)")
         expect(migration).to include("remove_index TABLE, column: OLD_INDEX")
         expect(migration).to include("add_index TABLE, NEW_INDEX")
+        expect(migration).to include("return unless table_exists?(TABLE)")
       end
     end
   end
@@ -281,6 +283,7 @@ RSpec.describe "generator templates" do
         expect(migration).to include("class UpgradeLlmCostTrackerProviderInvoicesMetadataIndex")
         expect(migration).to include("TABLE = :llm_cost_tracker_provider_invoices")
         expect(migration).to include("return unless postgresql?")
+        expect(migration).to include("return unless table_exists?(TABLE)")
         expect(migration).to include("add_index TABLE, :metadata, using: :gin")
         expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)")
       end

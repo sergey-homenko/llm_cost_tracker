@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The `upgrade_call_rollups_provider`, `upgrade_provider_invoice_imports_provider`, and `upgrade_provider_invoices_metadata_index` migrations now no-op when their target table doesn't exist (e.g. installs that never opted into `cache_rollups` or reconciliation), instead of raising `PG::UndefinedTable`.
+
 ## [0.10.0] - 2026-05-17
 
 ### Added

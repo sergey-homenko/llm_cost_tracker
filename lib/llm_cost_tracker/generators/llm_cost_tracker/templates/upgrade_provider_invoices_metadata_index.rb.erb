@@ -7,12 +7,14 @@ class UpgradeLlmCostTrackerProviderInvoicesMetadataIndex < ActiveRecord::Migrati
 
   def up
     return unless postgresql?
+    return unless table_exists?(TABLE)
 
     add_index TABLE, :metadata, using: :gin, algorithm: :concurrently, if_not_exists: true
   end
 
   def down
     return unless postgresql?
+    return unless table_exists?(TABLE)
 
     remove_index TABLE, column: :metadata, if_exists: true
   end
