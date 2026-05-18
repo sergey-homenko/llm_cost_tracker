@@ -16,19 +16,30 @@ module LlmCostTracker
     autoload :InvoiceReconciliationCheck, "llm_cost_tracker/doctor/invoice_reconciliation_check"
     autoload :CaptureVerifier,            "llm_cost_tracker/doctor/capture_verifier"
 
+    STATUS_COLORS = { ok: 32, warn: 33, error: 31 }.freeze
+
     class << self
       def call
         new.checks
       end
 
-      def report(checks = call)
+      def report(checks = call, color: $stdout.tty?)
         (["LLM Cost Tracker doctor"] + checks.map do |check|
-          "[#{check.status}] #{check.name}: #{check.message}"
+          "#{format_status(check.status, color)} #{check.name}: #{check.message}"
         end).join("\n")
       end
 
       def healthy?(checks = call)
         checks.none? { |check| check.status == :error }
+      end
+
+      private
+
+      def format_status(status, color)
+        tag = "[#{status}]"
+        return tag unless color && STATUS_COLORS.key?(status)
+
+        "\e[#{STATUS_COLORS[status]}m#{tag}\e[0m"
       end
     end
 

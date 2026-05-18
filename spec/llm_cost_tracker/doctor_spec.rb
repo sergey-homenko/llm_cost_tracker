@@ -299,4 +299,29 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check).to be_nil
     end
   end
+
+  describe ".report" do
+    let(:checks) do
+      [
+        LlmCostTracker::Doctor::Check.new(:ok, "configuration", "enabled=true"),
+        LlmCostTracker::Doctor::Check.new(:warn, "prices", "using bundled prices"),
+        LlmCostTracker::Doctor::Check.new(:error, "llm_cost_tracker_calls", "missing")
+      ]
+    end
+
+    it "leaves bracket tags plain when stdout is not a TTY" do
+      report = described_class.report(checks, color: false)
+
+      expect(report).to include("[ok] configuration", "[warn] prices", "[error] llm_cost_tracker_calls")
+      expect(report).not_to include("\e[")
+    end
+
+    it "wraps bracket tags in ANSI color codes when stdout is a TTY" do
+      report = described_class.report(checks, color: true)
+
+      expect(report).to include("\e[32m[ok]\e[0m configuration")
+      expect(report).to include("\e[33m[warn]\e[0m prices")
+      expect(report).to include("\e[31m[error]\e[0m llm_cost_tracker_calls")
+    end
+  end
 end
