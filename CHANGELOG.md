@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - `bin/rails llm_cost_tracker:doctor` colors the `[ok]` / `[warn]` / `[error]` status tags green / yellow / red when stdout is a TTY, so problems stand out at a glance. Output piped to a file or non-TTY stays plain.
+- The "Setup required" dashboard screen recomputes after every `db:migrate` (it keys its cache off `schema_migrations`), so applying the recommended upgrade migrations clears the warning without restarting the Rails server. The schema details now render as a monospaced block instead of indented bullet points.
 
 ## [0.10.0] - 2026-05-17
 

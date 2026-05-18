@@ -12,7 +12,7 @@ RSpec.describe LlmCostTracker::Dashboard::SetupState do
       expect(described_class.current).to be_nil
     end
 
-    it "memoizes the schema check across repeat calls so dashboard requests don't re-query metadata" do
+    it "memoizes the schema check while the schema version is unchanged so dashboard requests don't re-query metadata" do
       described_class.current
 
       expect(LlmCostTracker::Ledger::Schema::Calls).not_to receive(:current_schema_errors)
@@ -22,16 +22,19 @@ RSpec.describe LlmCostTracker::Dashboard::SetupState do
       described_class.current
     end
 
-    it "reflects schema drift only after #reset! is invoked" do
+    it "recomputes after a new migration bumps the schema version, without an explicit reset" do
+      connection = ActiveRecord::Base.connection
+      connection.create_table(:schema_migrations, id: false, if_not_exists: true) { |t| t.string :version, null: false, primary_key: true }
+      connection.execute("INSERT INTO schema_migrations(version) VALUES('1')")
       described_class.current
-      ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_calls, :pricing_mode)
-      LlmCostTracker::Call.reset_column_information
 
-      expect(described_class.current).to be_nil
+      connection.remove_column(:llm_cost_tracker_calls, :pricing_mode)
+      connection.execute("INSERT INTO schema_migrations(version) VALUES('2')")
 
-      described_class.reset!
       drift = described_class.current
       expect(drift.message).to include("llm_cost_tracker_calls table does not match")
+    ensure
+      connection.drop_table(:schema_migrations, if_exists: true)
     end
 
     it "reports the calls table being missing" do

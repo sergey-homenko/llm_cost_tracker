@@ -2,6 +2,8 @@
   <h2 class="lct-state-title">Setup required</h2>
   <p class="lct-state-copy">
     <%= @setup_message || "The llm_cost_tracker_calls table is not available yet." %>
+  </p>
+  <p class="lct-state-copy">
     <% if @setup_details.present? %>
       Run <span class="lct-code">bin/rails llm_cost_tracker:doctor</span>, apply the listed migrations, and migrate your database.
     <% else %>
@@ -9,10 +11,6 @@
     <% end %>
   </p>
   <% if @setup_details.present? %>
-    <ul class="lct-state-copy">
-      <% @setup_details.each do |detail| %>
-        <li><code class="lct-code"><%= detail %></code></li>
-      <% end %>
-    </ul>
+    <pre class="lct-state-pre"><%= @setup_details.join("\n") %></pre>
   <% end %>
 </section>

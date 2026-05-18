@@ -36,10 +36,14 @@ module LlmCostTracker
 
       class << self
         def current
-          return @cached if defined?(@cached)
+          fingerprint = schema_fingerprint
 
           MUTEX.synchronize do
-            @cached = compute unless defined?(@cached)
+            if !defined?(@cache_fingerprint) || @cache_fingerprint != fingerprint
+              LlmCostTracker::Call.reset_column_information
+              @cached = compute
+              @cache_fingerprint = fingerprint
+            end
           end
           @cached
         end
@@ -47,10 +51,22 @@ module LlmCostTracker
         def reset!
           MUTEX.synchronize do
             remove_instance_variable(:@cached) if defined?(@cached)
+            remove_instance_variable(:@cache_fingerprint) if defined?(@cache_fingerprint)
           end
         end
 
         private
+
+        SCHEMA_MIGRATIONS_TABLE = "schema_migrations"
+        private_constant :SCHEMA_MIGRATIONS_TABLE
+
+        def schema_fingerprint
+          connection = ActiveRecord::Base.connection
+          quoted = connection.quote_table_name(SCHEMA_MIGRATIONS_TABLE)
+          connection.query_value("SELECT MAX(version) FROM #{quoted}")
+        rescue ActiveRecord::StatementInvalid, ActiveRecord::ConnectionNotEstablished
+          nil
+        end
 
         def compute
           LlmCostTracker::Logging.debug("Dashboard::SetupState recomputing")
