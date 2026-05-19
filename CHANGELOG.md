@@ -4,15 +4,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- A "Pricing" page under the dashboard sidebar's new "Reference" group lists every model's rates from `pricing_overrides`, your `prices_file`, and the bundled fallback as separate tabs; the active source (first non-empty in priority order) is highlighted, with last-updated date and currency next to the row count.
+- The Overview page now has Provider and Model filter pills next to Date, so cost slices can be scoped without leaving Overview.
+- The Calls page now has a Stream filter pill for narrowing to streaming or non-streaming calls.
+
+### Changed
+
+- Models, Calls, and Tags-breakdown tables sort by clicking a column header — ▲/▼ shows direction and clicking again reverses it. URLs use `?sort=<column>&dir=asc|desc`. The previous "Recent / Most expensive / Largest input / Slowest" sort buttons on Calls are gone; use `?sort=cost&dir=desc`, `?sort=latency&dir=desc`, etc. instead.
+- `?sort=unknown_pricing` on `/calls` is replaced by the `?cost_status=incomplete` filter — the Data Quality "Incomplete pricing by model" panel's "Calls" button uses the new URL.
+- The dashboard sidebar stays sticky while you scroll, with pages grouped into "Insights" (Overview / Models / Calls / Tags / Data Quality) and "Reference" (Pricing / Reconciliation if enabled).
+- Dashboard pages use native `<details>` filter popovers instead of inline form rows. Only one popover stays open at a time, and Esc closes the open one.
+- The Calls show page tucks the pricing snapshot and metadata JSON behind expandable `<details>` blocks; the redundant per-component "Tokens" and "Cost" lists are dropped — the Token mix / Cost mix bars already carry the breakdown.
+- The Data Quality page groups stat cards under "Volume" and "Issues" headers, hides zero-count issue cards, and replaces the whole "Issues" block with a single "No data-quality issues in this slice" message when nothing is wrong.
+- The daily spend chart text no longer stretches horizontally on wide screens.
+- `bin/rails llm_cost_tracker:doctor` groups checks under Setup / Schema / Data integrity / Operations headers, renders each row with a `[✓]` / `[!]` / `[x]` status icon (green / yellow / red on a TTY), and aligns the columns so the message stays readable.
+- The dashboard "Setup required" screen clears after `bin/rails db:migrate` without a Rails server restart, and the schema-drift details render as a monospaced block instead of indented bullets.
+
 ### Fixed
 
 - The `upgrade_call_rollups_provider`, `upgrade_provider_invoice_imports_provider`, and `upgrade_provider_invoices_metadata_index` migrations no-op when their target table doesn't exist (installs that never opted into `cache_rollups` or reconciliation) instead of crashing.
 - `llm_cost_tracker:*` rake tasks ran their body twice on each invocation, so `doctor` and `report` printed every line twice and `prices:refresh` re-scraped on each run.
-
-### Changed
-
-- `bin/rails llm_cost_tracker:doctor` groups checks under Setup / Schema / Data integrity / Operations headers, renders each row with a `[✓]` / `[!]` / `[x]` status icon (green / yellow / red on a TTY), and aligns the columns so the message stays readable.
-- The dashboard "Setup required" screen clears after `bin/rails db:migrate` without a Rails server restart, and the schema-drift details render as a monospaced block instead of indented bullets.
 
 ## [0.10.0] - 2026-05-17
 
