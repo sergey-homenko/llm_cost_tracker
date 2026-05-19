@@ -4,19 +4,30 @@ module LlmCostTracker
   module Dashboard
     class TopModels
       DEFAULT_LIMIT = 5
-      SORT_OPTIONS = %w[cost calls avg_cost latency].freeze
+      SORT_OPTIONS = %w[cost calls avg_cost latency tokens provider name].freeze
       DEFAULT_SORT = "cost"
+      DIRECTIONS = %w[asc desc].freeze
+      DEFAULT_DIRECTIONS = {
+        "provider" => "asc",
+        "name" => "asc",
+        "calls" => "desc",
+        "tokens" => "desc",
+        "latency" => "desc",
+        "avg_cost" => "desc",
+        "cost" => "desc"
+      }.freeze
 
       class << self
-        def call(scope: LlmCostTracker::Call.all, limit: DEFAULT_LIMIT, sort: DEFAULT_SORT)
-          new(scope: scope, limit: limit, sort: sort).rows
+        def call(scope: LlmCostTracker::Call.all, limit: DEFAULT_LIMIT, sort: DEFAULT_SORT, direction: nil)
+          new(scope: scope, limit: limit, sort: sort, direction: direction).rows
         end
       end
 
-      def initialize(scope:, limit:, sort: DEFAULT_SORT)
+      def initialize(scope:, limit:, sort: DEFAULT_SORT, direction: nil)
         @scope = scope
         @limit = limit
         @sort = SORT_OPTIONS.include?(sort.to_s) ? sort.to_s : DEFAULT_SORT
+        @direction = DIRECTIONS.include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTIONS[@sort]
       end
 
       def rows
@@ -29,18 +40,25 @@ module LlmCostTracker
 
       private
 
-      attr_reader :scope, :limit, :sort
+      attr_reader :scope, :limit, :sort, :direction
 
       def order_sql
+        dir = direction.upcase
         case sort
+        when "provider"
+          "provider #{dir}, model ASC"
+        when "name"
+          "model #{dir}"
         when "calls"
-          "COUNT(*) DESC"
+          "COUNT(*) #{dir}"
+        when "tokens"
+          "COALESCE(SUM(total_tokens), 0) #{dir}"
         when "avg_cost"
-          "COALESCE(SUM(total_cost), 0) / NULLIF(COUNT(*), 0) DESC"
+          "COALESCE(SUM(total_cost), 0) / NULLIF(COUNT(*), 0) #{dir}"
         when "latency"
-          "CASE WHEN AVG(latency_ms) IS NULL THEN 1 ELSE 0 END ASC, AVG(latency_ms) DESC"
+          "CASE WHEN AVG(latency_ms) IS NULL THEN 1 ELSE 0 END ASC, AVG(latency_ms) #{dir}"
         else
-          "COALESCE(SUM(total_cost), 0) DESC"
+          "COALESCE(SUM(total_cost), 0) #{dir}"
         end
       end
 

@@ -1,0 +1,19 @@
+<% extra_hidden = local_assigns.fetch(:extra_hidden, {}) %>
+<% extra_except = local_assigns.fetch(:extra_except, []) %>
+<details class="lct-filter-pop" name="lct-filter">
+  <summary class="lct-filter-pill">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    <span class="lct-filter-pill-key">Date</span>
+    <span class="lct-filter-pill-value"><%= @from_date.strftime("%b %-d") %> – <%= @to_date.strftime("%b %-d") %></span>
+    <svg class="lct-chev" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l4 4 4-4"/></svg>
+  </summary>
+  <%= form_with url: path, method: :get, local: true, html: { class: "lct-filter-pop-body" } do %>
+    <% extra_hidden.each do |k, v| %><%= hidden_field_tag k, v %><% end %>
+    <% current_query.except(:from, :to, :page, :per, *extra_except).each do |key, value| %>
+      <% Array(value).each do |v| %><%= hidden_field_tag(value.is_a?(Array) ? "#{key}[]" : key.to_s, v) %><% end %>
+    <% end %>
+    <div class="lct-filter-pop-field"><label for="lct-filter-from">From</label><input type="date" name="from" id="lct-filter-from" value="<%= @from_date.iso8601 %>"></div>
+    <div class="lct-filter-pop-field"><label for="lct-filter-to">To</label><input type="date" name="to" id="lct-filter-to" value="<%= @to_date.iso8601 %>"></div>
+    <button type="submit" class="lct-button lct-button-primary">Apply</button>
+  <% end %>
+</details>

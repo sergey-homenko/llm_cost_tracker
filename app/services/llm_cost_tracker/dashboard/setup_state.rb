@@ -90,7 +90,7 @@ module LlmCostTracker
             errors = schema.current_schema_errors
             next if errors.empty?
 
-            return SetupRequired.new(message: message, details: errors + [DOCS_HINT])
+            return SetupRequired.new(message: message, details: errors)
           end
           nil
         end
@@ -101,7 +101,7 @@ module LlmCostTracker
             unless connection.data_source_exists?(table)
               return SetupRequired.new(
                 message: "The #{table} table is required when reconciliation is enabled.",
-                details: ["run bin/rails generate llm_cost_tracker:reconciliation && bin/rails db:migrate", DOCS_HINT]
+                details: ["bin/rails generate llm_cost_tracker:reconciliation && bin/rails db:migrate"]
               )
             end
 
@@ -109,7 +109,7 @@ module LlmCostTracker
             next if errors.empty?
 
             message = "The #{table} table does not match the current LLM Cost Tracker schema."
-            return SetupRequired.new(message: message, details: errors + [DOCS_HINT])
+            return SetupRequired.new(message: message, details: errors)
           end
           nil
         end

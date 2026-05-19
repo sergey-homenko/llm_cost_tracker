@@ -11,7 +11,9 @@ module LlmCostTracker
       @value = params[:tag_value].to_s
 
       if @value.empty?
-        @breakdown = Dashboard::TagBreakdown.call(scope: scope, key: params[:key])
+        @sort = params[:sort].to_s
+        @dir = params[:dir].to_s
+        @breakdown = Dashboard::TagBreakdown.call(scope: scope, key: params[:key], sort: @sort, direction: @dir)
       else
         @key = LlmCostTracker::Tags::Key.validate!(
           params[:key],

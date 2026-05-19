@@ -1,0 +1,93 @@
+<nav class="lct-tabs" aria-label="Price sources">
+  <% LlmCostTracker::Dashboard::PricingOverview::SOURCES.each do |source| %>
+    <% data = @overview.fetch(:sources)[source] %>
+    <% next unless data %>
+    <% active = source == @active_source %>
+    <%= link_to pricing_path(source: source), class: "lct-tab#{' lct-active' if active}", aria: (active ? { current: "page" } : {}) do %>
+      <%= data.fetch(:label) %><span class="lct-tab-count"><%= number(data.fetch(:rows).size) %></span>
+    <% end %>
+  <% end %>
+</nav>
+
+<% if @active_source != @overview.fetch(:effective_source) %>
+  <% if @active_source == :bundled %>
+    <div class="lct-alert lct-alert-info">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      <span><strong>Fallback source</strong> shipped with the gem. For production, pin a <code>prices_file</code> you control.</span>
+    </div>
+  <% else %>
+    <div class="lct-alert lct-alert-info">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <span>A higher-priority source is active — entries here only take effect when not overridden.</span>
+    </div>
+  <% end %>
+<% end %>
+
+<div class="lct-filter-row">
+  <details class="lct-filter-pop" name="lct-filter">
+    <summary class="lct-filter-pill <%= 'lct-active' if @provider_filter %>">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      <span class="lct-filter-pill-key">Provider</span>
+      <span class="lct-filter-pill-value"><%= @provider_filter || "All" %></span>
+      <svg class="lct-chev" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l4 4 4-4"/></svg>
+    </summary>
+    <%= form_with url: pricing_path, method: :get, local: true, html: { class: "lct-filter-pop-body" } do %>
+      <%= hidden_field_tag :source, @active_source %>
+      <div class="lct-filter-pop-field">
+        <label for="lct-filter-provider">Provider</label>
+        <%= select_tag :provider, options_for_select(@providers, @provider_filter), include_blank: "All providers", id: "lct-filter-provider" %>
+      </div>
+      <button type="submit" class="lct-button lct-button-primary">Apply</button>
+    <% end %>
+  </details>
+
+  <% if @provider_filter %>
+    <%= link_to "× Clear filters", pricing_path(source: @active_source), class: "lct-filter-clear" %>
+  <% end %>
+
+  <span class="lct-filter-row-meta">
+    <%= number(@rows.size) %> entr<%= @rows.size == 1 ? "y" : "ies" %><% if @source_data.fetch(:currency) %> · <%= @source_data.fetch(:currency) %><% end %><% if @source_data.fetch(:updated_at) %> · Updated <%= @source_data.fetch(:updated_at) %><% end %>
+  </span>
+</div>
+
+<% if @rows.empty? %>
+  <section class="lct-panel lct-empty">
+    <h2 class="lct-state-title">No prices for this provider</h2>
+    <p class="lct-state-copy">Try a different provider filter or clear filters to see the full price table.</p>
+  </section>
+<% else %>
+  <section class="lct-panel">
+    <table class="lct-tbl">
+      <thead>
+        <tr>
+          <th>Provider</th>
+          <th>Model</th>
+          <th class="lct-num">Input</th>
+          <th class="lct-num">Output</th>
+          <th class="lct-num">Cache read</th>
+          <th class="lct-num">Cache write</th>
+          <th class="lct-num">Batch input</th>
+          <th class="lct-num">Batch output</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @rows.each do |row| %>
+          <tr>
+            <td>
+              <% if row.provider %>
+                <span class="lct-model-cell"><span class="lct-provider-dot lct-provider-dot-<%= row.provider %>"></span><%= row.provider %></span>
+              <% else %>
+                <span class="lct-num-muted">—</span>
+              <% end %>
+            </td>
+            <td><code class="lct-code-id"><%= row.model %></code></td>
+            <% LlmCostTracker::Dashboard::PricingOverview::RATE_COLUMNS.each do |key| %>
+              <% value = row.rates[key] %>
+              <td class="lct-num<%= ' lct-num-muted' if value.nil? %>"><%= value ? money(value) : "—" %></td>
+            <% end %>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+<% end %>

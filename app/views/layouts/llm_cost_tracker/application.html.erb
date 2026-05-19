@@ -7,28 +7,91 @@
     <title>LLM Cost Tracker</title>
     <%= stylesheet_link_tag stylesheet_path %>
     <%= inline_style_block %>
+    <script nonce="<%= dashboard_csp_nonce %>">
+      (function () {
+        try {
+          var v = localStorage.getItem("lct_theme");
+          if (v === "dark" || v === "light") document.documentElement.setAttribute("data-theme", v);
+        } catch (e) {}
+        document.addEventListener("DOMContentLoaded", function () {
+          var btn = document.querySelector("[data-lct-theme-toggle]");
+          if (btn) {
+            btn.addEventListener("click", function () {
+              var cur = document.documentElement.getAttribute("data-theme");
+              if (!cur) {
+                cur = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+              }
+              var next = cur === "dark" ? "light" : "dark";
+              document.documentElement.setAttribute("data-theme", next);
+              try { localStorage.setItem("lct_theme", next); } catch (e) {}
+            });
+          }
+          document.addEventListener("keydown", function (e) {
+            if (e.key !== "Escape") return;
+            var open = document.querySelector("details.lct-filter-pop[open]");
+            if (open) { open.removeAttribute("open"); e.preventDefault(); }
+          });
+        });
+      })();
+    </script>
   </head>
   <body class="lct-body">
     <div class="lct-app">
-      <main class="lct-shell">
-        <header class="lct-header">
-          <div class="lct-header-copy">
-            <h1 class="lct-title"><%= link_to "LLM Cost Tracker", root_path, class: "lct-title-link" %></h1>
-          </div>
-          <nav class="lct-nav" aria-label="Dashboard">
-            <%= link_to "Overview", root_path, class: ("lct-active" if request.path.delete_suffix("/") == root_path.delete_suffix("/")) %>
-            <%= link_to "Models", models_path, class: ("lct-active" if request.path.start_with?(models_path)) %>
-            <%= link_to "Calls", calls_path, class: ("lct-active" if request.path.start_with?(calls_path)) %>
-            <%= link_to "Tags", tags_path, class: ("lct-active" if request.path.start_with?(tags_path)) %>
-            <%= link_to "Data Quality", data_quality_path, class: ("lct-active" if request.path.start_with?(data_quality_path)) %>
-            <% if LlmCostTracker.reconciliation_enabled? %>
-              <%= link_to "Reconciliation", reconciliation_path, class: ("lct-active" if request.path.start_with?(reconciliation_path)) %>
-            <% end %>
-          </nav>
-        </header>
+      <div class="lct-toolbar">
+        <%= link_to root_path, class: "lct-toolbar-brand" do %>
+          <span class="lct-brandmark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l4-5 3 3 6-8 5 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span>LLM Cost Tracker</span>
+        <% end %>
+        <div class="lct-toolbar-right">
+          <button class="lct-theme-toggle" type="button" data-lct-theme-toggle aria-label="Toggle theme">
+            <svg class="lct-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg class="lct-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          </button>
+        </div>
+      </div>
 
-        <%= body %>
-      </main>
+      <div class="lct-shell">
+        <aside class="lct-sidebar" aria-label="Dashboard">
+          <div class="lct-sidebar-inner">
+          <div class="lct-sidebar-section">Insights</div>
+          <%= link_to root_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :overview) || "lct-sidebar-link", aria: (dashboard_section == :overview ? { current: "page" } : {}) do %>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+            Overview
+          <% end %>
+          <%= link_to models_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :models) || "lct-sidebar-link", aria: (dashboard_section == :models ? { current: "page" } : {}) do %>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+            Models
+          <% end %>
+          <%= link_to calls_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :calls) || "lct-sidebar-link", aria: (dashboard_section == :calls ? { current: "page" } : {}) do %>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Calls
+          <% end %>
+          <%= link_to tags_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :tags) || "lct-sidebar-link", aria: (dashboard_section == :tags ? { current: "page" } : {}) do %>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            Tags
+          <% end %>
+          <%= link_to data_quality_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :data_quality) || "lct-sidebar-link", aria: (dashboard_section == :data_quality ? { current: "page" } : {}) do %>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            Data Quality
+          <% end %>
+          <div class="lct-sidebar-section">Reference</div>
+          <%= link_to pricing_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :pricing) || "lct-sidebar-link", aria: (dashboard_section == :pricing ? { current: "page" } : {}) do %>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Pricing
+          <% end %>
+          <% if LlmCostTracker.reconciliation_enabled? %>
+            <%= link_to reconciliation_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :reconciliation) || "lct-sidebar-link", aria: (dashboard_section == :reconciliation ? { current: "page" } : {}) do %>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Reconciliation
+            <% end %>
+          <% end %>
+          </div>
+        </aside>
+
+        <main class="lct-content">
+          <%= body %>
+        </main>
+      </div>
     </div>
   </body>
 </html>

@@ -30,11 +30,10 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("gpt-4o")
     expect(response.body).to include("1,200")
     expect(response.body).to include("300")
-    expect(response.body).to include("1,500")
     expect(response.body).to include("$2.50")
     expect(response.body).to include("250ms")
-    expect(response.body).to include("feature=chat")
-    expect(response.body).to include("user_id=42")
+    expect(response.body).to include(">feature</span>=chat")
+    expect(response.body).to include(">user_id</span>=42")
     expect(response.body).to include("Details")
     expect(response.body).to include("/llm-costs/calls/#{LlmCostTracker::Call.first.id}")
   end
@@ -46,8 +45,8 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     response = get("/llm-costs/calls")
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("feature=#{'x' * 80}...")
-    expect(response.body).not_to include("feature=#{long_value}")
+    expect(response.body).to include(">feature</span>=#{'x' * 80}...")
+    expect(response.body).not_to include("=#{long_value}")
     expect(response.body).not_to include(long_value)
   end
 
@@ -75,19 +74,19 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     )
 
     response = get("/llm-costs/calls?provider=openai&tag%5Bfeature%5D=chat&per=1")
-    rows = response.body.scan(%r{<td><code class="lct-code">([^<]+)</code></td>}).flatten
+    rows = response.body.scan(%r{<td><code class="lct-code-id">([^<]+)</code></td>}).flatten
 
     expect(response.status).to eq(200)
     expect(rows).to eq(["new-chat"])
-    expect(response.body).to include("Showing <strong>1</strong> to <strong>1</strong> of <strong>2</strong> results")
-    expect(response.body).to include("Next")
+    expect(response.body).to include("Showing <strong>1</strong>–<strong>1</strong> of <strong>2</strong>")
+    expect(response.body).to include('rel="next"')
 
     second_page = get("/llm-costs/calls?provider=openai&tag%5Bfeature%5D=chat&per=1&page=2")
-    second_rows = second_page.body.scan(%r{<td><code class="lct-code">([^<]+)</code></td>}).flatten
+    second_rows = second_page.body.scan(%r{<td><code class="lct-code-id">([^<]+)</code></td>}).flatten
 
     expect(second_page.status).to eq(200)
     expect(second_rows).to eq(["old-chat"])
-    expect(second_page.body).to include("Previous")
+    expect(second_page.body).to include('rel="prev"')
   end
 
   it "supports tag hash filters on the calls index" do
@@ -139,8 +138,8 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     create_call(model: "slow-call", latency_ms: 500, tracked_at: Time.utc(2026, 4, 18, 12, 0, 0))
     create_call(model: "unknown-latency", latency_ms: nil, tracked_at: Time.utc(2026, 4, 18, 13, 0, 0))
 
-    response = get("/llm-costs/calls?sort=slow")
-    rows = response.body.scan(%r{<td><code class="lct-code">([^<]+)</code></td>}).flatten
+    response = get("/llm-costs/calls?sort=latency&dir=desc")
+    rows = response.body.scan(%r{<td><code class="lct-code-id">([^<]+)</code></td>}).flatten
 
     expect(response.status).to eq(200)
     expect(rows).to eq(%w[slow-call fast-call unknown-latency])
@@ -205,7 +204,6 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("openai")
     expect(response.body).to include("gpt-4o")
     expect(response.body).to include("Estimated")
-    expect(response.body).to include("complete")
     expect(response.body).to include("Response ID")
     expect(response.body).to include("chatcmpl_show_123")
     expect(response.body).to include("Project ID")
@@ -221,15 +219,15 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("300")
     expect(response.body).to include("1,500")
     expect(response.body).to include("$3.00")
-    expect(response.body).to include("250ms")
-    expect(response.body).to include("Token Mix")
-    expect(response.body).to include("Cost Mix")
+    expect(response.body).to match(/250<span class="lct-stat-unit">ms<\/span>/)
+    expect(response.body).to include("Token mix")
+    expect(response.body).to include("Cost mix")
     expect(response.body).to include("80.0%")
     expect(response.body).to include("20.0%")
     expect(response.body).to include("Tags")
     expect(response.body).to include("feature")
     expect(response.body).to include("chat")
-    expect(response.body).to include("lct-breadcrumb")
+    expect(response.body).to include("lct-breadcrumb-back")
   end
 
   it "marks call details with nil total cost as unknown pricing" do
@@ -241,8 +239,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     response = get("/llm-costs/calls/#{call.id}")
 
     expect(response.status).to eq(200)
-    expect(response.body).to include("Unknown pricing")
-    expect(response.body).to include("unknown")
+    expect(response.body).to include("Unknown")
     expect(response.body).to include("n/a")
     expect(response.body).to include("Pricing not available for this call.")
   end
@@ -264,10 +261,8 @@ RSpec.describe "LlmCostTracker::Engine calls" do
 
     expect(free_response.status).to eq(200)
     expect(free_response.body).to include("Free")
-    expect(free_response.body).to include("free")
     expect(partial_response.status).to eq(200)
-    expect(partial_response.body).to include("Partial pricing")
-    expect(partial_response.body).to include("partial")
+    expect(partial_response.body).to include("Partial")
   end
 
   it "renders optional metadata on call details when the column exists" do

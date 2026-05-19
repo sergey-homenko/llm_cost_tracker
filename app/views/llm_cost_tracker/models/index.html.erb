@@ -1,71 +1,51 @@
-<section class="lct-panel lct-toolbar">
-  <div class="lct-toolbar-head">
-    <h2 class="lct-section-title">Models</h2>
-  </div>
+<% rows = @rows.to_a %>
+<div class="lct-filter-row">
+  <%= render "llm_cost_tracker/shared/filter_pill_date", path: models_path %>
+  <%= render "llm_cost_tracker/shared/filter_pill_provider", path: models_path %>
+  <%= render "llm_cost_tracker/shared/filter_pill_model", path: models_path %>
 
-  <%= render "llm_cost_tracker/shared/filters",
-             path: models_path,
-             fields: %i[from to provider model] %>
+  <% if params[:provider].present? || params[:model].present? %>
+    <%= link_to "× Clear filters", models_path(current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
+  <% end %>
 
-  <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: models_path %>
-</section>
+  <span class="lct-filter-row-meta"><%= number(rows.size) %> model<%= "s" unless rows.size == 1 %></span>
+</div>
 
-<% if @rows.empty? %>
+<% if rows.empty? %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">No models in this slice</h2>
-    <p class="lct-state-copy">Tracked models will appear here once calls match the current provider, model, and date filters.</p>
-    <div class="lct-state-actions">
-      <%= link_to "Clear filters", models_path, class: "lct-button lct-button-secondary" %>
-    </div>
+    <p class="lct-state-copy">Tracked models will appear here once calls match the current filters.</p>
   </section>
 <% else %>
   <section class="lct-panel">
-    <div class="lct-results-toolbar">
-      <%= render "llm_cost_tracker/shared/sort",
-                 current: (@sort.presence || "cost"),
-                 options: [
-                   ["Total spend", "cost"],
-                   ["Call volume", "calls"],
-                   ["Avg cost / call", "avg_cost"],
-                   ["Avg latency", "latency"]
-                 ],
-                 path_for_sort: ->(value) { models_path(current_query(sort: value)) } %>
-    </div>
-
-    <div class="lct-table-wrap">
-      <table class="lct-table lct-table-compact">
-        <thead>
+    <table class="lct-tbl">
+      <thead>
+        <tr>
+          <%= sortable_header("Provider", "provider") %>
+          <%= sortable_header("Model", "name") %>
+          <%= sortable_header("Calls", "calls", num: true) %>
+          <%= sortable_header("Tokens", "tokens", num: true) %>
+          <%= sortable_header("Avg latency", "latency", num: true) %>
+          <%= sortable_header("Avg cost / call", "avg_cost", num: true) %>
+          <%= sortable_header("Total cost", "cost", num: true) %>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.each do |row| %>
           <tr>
-            <th>Provider</th>
-            <th>Model</th>
-            <th class="lct-num">Calls</th>
-            <th class="lct-num">Total tokens</th>
-            <th class="lct-num">Regular input</th>
-            <th class="lct-num">Output</th>
-            <th class="lct-num">Total cost</th>
-            <th class="lct-num">Avg cost / call</th>
-            <th class="lct-num">Avg latency</th>
-            <th></th>
+            <td><span class="lct-model-cell"><span class="lct-provider-dot lct-provider-dot-<%= row.provider %>"></span><%= row.provider %></span></td>
+            <td><code class="lct-code-id"><%= row.model %></code></td>
+            <td class="lct-num"><%= number(row.calls) %></td>
+            <td class="lct-num"><%= number(row.total_tokens) %></td>
+            <% avg_latency = row.average_latency_ms %>
+            <td class="lct-num<%= ' lct-num-muted' if avg_latency.nil? %>"><%= avg_latency ? "#{number(avg_latency.round)}ms" : "n/a" %></td>
+            <td class="lct-num"><%= money(row.average_cost_per_call) %></td>
+            <td class="lct-num"><%= money(row.total_cost) %></td>
+            <td class="lct-num"><%= link_to "Calls", calls_path(calls_query_for_model(provider: row.provider, model: row.model)), class: "lct-page-link" %></td>
           </tr>
-        </thead>
-        <tbody>
-          <% @rows.each do |row| %>
-            <tr>
-              <td><%= row.provider %></td>
-              <td><code class="lct-code"><%= row.model %></code></td>
-              <td class="lct-num"><%= number(row.calls) %></td>
-              <td class="lct-num"><%= number(row.total_tokens) %></td>
-              <td class="lct-num"><%= number(row.input_tokens) %></td>
-              <td class="lct-num"><%= number(row.output_tokens) %></td>
-              <td class="lct-num"><%= money(row.total_cost) %></td>
-              <td class="lct-num"><%= money(row.average_cost_per_call) %></td>
-              <% average_latency_ms = row.average_latency_ms %>
-              <td class="lct-num<%= ' lct-num-muted' if average_latency_ms.nil? %>"><%= average_latency_ms ? "#{number(average_latency_ms.round)}ms" : "n/a" %></td>
-              <td><%= link_to "Calls", calls_path(calls_query_for_model(provider: row.provider, model: row.model)), class: "lct-button lct-button-secondary lct-button-compact" %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
+        <% end %>
+      </tbody>
+    </table>
   </section>
 <% end %>

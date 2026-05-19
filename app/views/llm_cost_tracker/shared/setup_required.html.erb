@@ -1,16 +1,19 @@
-<section class="lct-panel lct-empty">
-  <h2 class="lct-state-title">Setup required</h2>
-  <p class="lct-state-copy">
-    <%= @setup_message || "The llm_cost_tracker_calls table is not available yet." %>
-  </p>
-  <p class="lct-state-copy">
-    <% if @setup_details.present? %>
-      Run <span class="lct-code">bin/rails llm_cost_tracker:doctor</span>, apply the listed migrations, and migrate your database.
-    <% else %>
-      Run <span class="lct-code">rails generate llm_cost_tracker:install</span> and migrate your database.
-    <% end %>
-  </p>
+<section class="lct-panel lct-setup-card">
+  <div class="lct-panel-head">
+    <h2 class="lct-panel-title">Setup required</h2>
+  </div>
+  <div class="lct-panel-body lct-setup-body">
+    <p><%= @setup_message || "The llm_cost_tracker_calls table is not available yet." %></p>
+    <p>
+      <% if @setup_details.present? %>
+        Run <code class="lct-code-id">bin/rails llm_cost_tracker:doctor</code>, apply the listed migrations, and migrate your database.
+      <% else %>
+        Run <code class="lct-code-id">rails generate llm_cost_tracker:install</code> and migrate your database.
+      <% end %>
+    </p>
+    <p>See <code class="lct-code-id">docs/upgrading.md</code> for the migration path.</p>
+  </div>
   <% if @setup_details.present? %>
-    <pre class="lct-state-pre"><%= @setup_details.join("\n") %></pre>
+    <pre class="lct-pre"><%= @setup_details.join("\n") %></pre>
   <% end %>
 </section>

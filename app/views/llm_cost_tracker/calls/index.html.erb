@@ -1,121 +1,100 @@
-<section class="lct-panel lct-toolbar">
-  <div class="lct-toolbar-head">
-    <h2 class="lct-section-title">Calls</h2>
-    <div class="lct-toolbar-actions">
-      <%= link_to "Export CSV",
-                  calls_path(current_query(format: :csv)),
-                  class: "lct-button lct-button-secondary",
-                  title: "Capped at #{number(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT)} rows per request — narrow the date range to export larger slices." %>
-    </div>
-  </div>
+<% incomplete_only = params[:cost_status].to_s == "incomplete" %>
 
-  <%= render "llm_cost_tracker/shared/filters", path: calls_path %>
+<div class="lct-filter-row">
+  <%= render "llm_cost_tracker/shared/filter_pill_date", path: calls_path %>
+  <%= render "llm_cost_tracker/shared/filter_pill_provider", path: calls_path %>
+  <%= render "llm_cost_tracker/shared/filter_pill_model", path: calls_path %>
+  <%= render "llm_cost_tracker/shared/filter_pill_stream", path: calls_path %>
 
-  <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: calls_path %>
-</section>
+  <% if incomplete_only %>
+    <%= link_to calls_path(current_query(cost_status: nil, page: nil)), class: "lct-filter-pill lct-active", "aria-label": "Remove incomplete-pricing filter" do %>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      <span class="lct-filter-pill-key">Pricing</span>
+      <span class="lct-filter-pill-value">Incomplete ×</span>
+    <% end %>
+  <% end %>
+
+  <% if params[:provider].present? || params[:model].present? || params[:stream].present? || incomplete_only %>
+    <%= link_to "× Clear filters", calls_path(current_query(provider: nil, model: nil, stream: nil, cost_status: nil, page: nil)), class: "lct-filter-clear" %>
+  <% end %>
+
+  <span class="lct-filter-row-meta"><%= number(@calls_count) %> call<%= "s" unless @calls_count == 1 %> · <%= money(@calls_total_cost) %></span>
+  <%= link_to "Export CSV", calls_path(current_query(format: :csv)), class: "lct-page-link", title: "Capped at #{number(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT)} rows per request" %>
+</div>
 
 <% if @calls_count.zero? %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">No matching calls</h2>
     <p class="lct-state-copy">Tracked requests will appear here when they match the current filters.</p>
-    <div class="lct-state-actions">
-      <%= link_to "Clear filters", calls_path, class: "lct-button lct-button-secondary" %>
-    </div>
   </section>
 <% else %>
   <section class="lct-panel">
-    <div class="lct-results-toolbar">
-      <span class="lct-pagination-per">
-        <span class="lct-pagination-per-label">Per page:</span>
+    <table class="lct-tbl">
+      <thead>
+        <tr>
+          <%= sortable_header("Tracked at", "tracked_at", num: true) %>
+          <%= sortable_header("Provider", "provider") %>
+          <%= sortable_header("Model", "model") %>
+          <%= sortable_header("Input", "input", num: true) %>
+          <%= sortable_header("Output", "output", num: true) %>
+          <%= sortable_header("Cost", "cost", num: true) %>
+          <%= sortable_header("Latency", "latency", num: true) %>
+          <th>Tags</th>
+          <th class="lct-num"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @calls.each do |call| %>
+          <tr>
+            <td><%= format_date(call.tracked_at) %></td>
+            <td><span class="lct-model-cell"><span class="lct-provider-dot lct-provider-dot-<%= call.provider %>"></span><%= call.provider %></span></td>
+            <td><code class="lct-code-id"><%= call.model %></code></td>
+            <td class="lct-num"><%= number(call.input_tokens) %></td>
+            <td class="lct-num"><%= number(call.output_tokens) %></td>
+            <td class="lct-num<%= ' lct-num-muted' if call.total_cost.nil? %>"><%= optional_money(call.total_cost) %></td>
+            <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
+            <td><%= render "llm_cost_tracker/shared/tag_chips", tags: call.parsed_tags %></td>
+            <td class="lct-num"><%= link_to "Details", call_path(call), class: "lct-page-link" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+
+    <% first_row = @page.offset + 1 %>
+    <% last_row = [@page.offset + @calls.length, @calls_count].min %>
+    <% total_pages = @page.total_pages(@calls_count) %>
+    <div class="lct-pagination">
+      <span class="lct-pagination-info">Showing <strong><%= number(first_row) %></strong>–<strong><%= number(last_row) %></strong> of <strong><%= number(@calls_count) %></strong></span>
+      <span class="lct-seg lct-pagination-perpage" title="Rows per page">
         <% LlmCostTracker::PaginationHelper::PER_PAGE_CHOICES.each do |choice| %>
           <% if choice == @page.per %>
-            <span class="lct-pagination-per-option is-active" aria-current="true"><%= choice %></span>
+            <a class="lct-active" aria-current="true"><%= choice %></a>
           <% else %>
-            <%= link_to choice, calls_path(current_query(per: choice, page: 1)), class: "lct-pagination-per-option" %>
+            <%= link_to choice, calls_path(current_query(per: choice, page: 1)) %>
           <% end %>
         <% end %>
       </span>
-
-      <%= render "llm_cost_tracker/shared/sort",
-                 current: @sort,
-                 options: [
-                   ["Recent", ""],
-                   ["Most expensive", "expensive"],
-                   ["Largest input", "input"],
-                   ["Largest output", "output"],
-                   ["Slowest", "slow"],
-                   ["Incomplete pricing", "unknown_pricing"]
-                 ],
-                 path_for_sort: ->(value) { calls_path(current_query(sort: value.presence, page: nil)) } %>
-    </div>
-
-    <div class="lct-table-wrap">
-      <table class="lct-table lct-table-compact lct-calls-table">
-        <thead>
-          <tr>
-            <th>Tracked At</th>
-            <th>Provider</th>
-            <th>Model</th>
-            <th class="lct-num">Input</th>
-            <th class="lct-num">Output</th>
-            <th class="lct-num">Total</th>
-            <th class="lct-num">Cost</th>
-            <th class="lct-num">Latency</th>
-            <th>Tags</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @calls.each do |call| %>
-            <tr>
-              <td class="lct-nowrap"><%= format_date(call.tracked_at) %></td>
-              <td><%= call.provider %></td>
-              <td><code class="lct-code"><%= call.model %></code></td>
-              <td class="lct-num"><%= number(call.input_tokens) %></td>
-              <td class="lct-num"><%= number(call.output_tokens) %></td>
-              <td class="lct-num"><%= number(call.total_tokens) %></td>
-              <td class="lct-num<%= ' lct-num-muted' if call.total_cost.nil? %>"><%= optional_money(call.total_cost) %></td>
-              <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
-              <td><%= render "llm_cost_tracker/shared/tag_chips", tags: call.parsed_tags %></td>
-              <td><%= link_to "Details", call_path(call), class: "lct-button lct-button-secondary lct-button-compact" %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-
-    <nav class="lct-pagination" aria-label="Pagination">
-      <% first_row = @page.offset + 1 %>
-      <% last_row = [@page.offset + @calls.length, @calls_count].min %>
-      <% total_pages = @page.total_pages(@calls_count) %>
-
-      <div class="lct-pagination-info">
-        <span>Showing <strong><%= number(first_row) %></strong> to <strong><%= number(last_row) %></strong> of <strong><%= number(@calls_count) %></strong> results</span>
-      </div>
-
-      <div class="lct-pagination-nav" role="group" aria-label="Page navigation">
+      <span class="lct-pagination-nav">
         <% if @page.prev_page? %>
-          <%= link_to "‹", calls_path(current_query(page: @page.page - 1, per: @page.per)), class: "lct-page-link lct-page-arrow", rel: "prev", aria: { label: "Previous page" } %>
+          <%= link_to "‹", calls_path(current_query(page: @page.page - 1, per: @page.per)), class: "lct-page-link", rel: "prev", aria: { label: "Previous page" } %>
         <% else %>
-          <span class="lct-page-link lct-page-arrow is-disabled" aria-disabled="true" aria-label="Previous page">‹</span>
+          <span class="lct-page-link lct-disabled" aria-disabled="true" aria-label="Previous page">‹</span>
         <% end %>
-
         <% pagination_page_items(@page.page, total_pages).each do |item| %>
           <% if item == :gap %>
-            <span class="lct-page-gap" aria-hidden="true">…</span>
+            <span class="lct-page-link lct-disabled" aria-hidden="true">…</span>
           <% elsif item == @page.page %>
-            <span class="lct-page-link is-current" aria-current="page"><%= item %></span>
+            <span class="lct-page-link lct-current" aria-current="page"><%= item %></span>
           <% else %>
             <%= link_to item, calls_path(current_query(page: item, per: @page.per)), class: "lct-page-link", aria: { label: "Go to page #{item}" } %>
           <% end %>
         <% end %>
-
         <% if @page.next_page?(@calls_count) %>
-          <%= link_to "›", calls_path(current_query(page: @page.page + 1, per: @page.per)), class: "lct-page-link lct-page-arrow", rel: "next", aria: { label: "Next page" } %>
+          <%= link_to "›", calls_path(current_query(page: @page.page + 1, per: @page.per)), class: "lct-page-link", rel: "next", aria: { label: "Next page" } %>
         <% else %>
-          <span class="lct-page-link lct-page-arrow is-disabled" aria-disabled="true" aria-label="Next page">›</span>
+          <span class="lct-page-link lct-disabled" aria-disabled="true" aria-label="Next page">›</span>
         <% end %>
-      </div>
-    </nav>
+      </span>
+    </div>
   </section>
 <% end %>

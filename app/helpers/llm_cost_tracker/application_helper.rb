@@ -15,6 +15,18 @@ module LlmCostTracker
     include TokenUsageHelper
     include InlineStyleHelper
 
+    def dashboard_section
+      path = request.path.to_s
+      return :models if path.start_with?(models_path)
+      return :calls if path.start_with?(calls_path)
+      return :tags if path.start_with?(tags_path)
+      return :data_quality if path.start_with?(data_quality_path)
+      return :pricing if path.start_with?(pricing_path)
+      return :reconciliation if LlmCostTracker.reconciliation_enabled? && path.start_with?(reconciliation_path)
+
+      :overview
+    end
+
     def coverage_percent(numerator, denominator)
       denominator = denominator.to_f
       return 0.0 unless denominator.positive?
@@ -46,14 +58,14 @@ module LlmCostTracker
     end
 
     def pricing_status(call)
-      return "Unknown pricing" if call.total_cost.nil?
+      return "Unknown" if call.total_cost.nil?
       return "Estimated" unless call.has_attribute?(:cost_status)
 
       {
         LlmCostTracker::Billing::CostStatus::COMPLETE => "Estimated",
         LlmCostTracker::Billing::CostStatus::FREE => "Free",
-        LlmCostTracker::Billing::CostStatus::PARTIAL => "Partial pricing"
-      }.fetch(call.cost_status, "Unknown pricing")
+        LlmCostTracker::Billing::CostStatus::PARTIAL => "Partial"
+      }.fetch(call.cost_status, "Unknown")
     end
 
     def percent(value)

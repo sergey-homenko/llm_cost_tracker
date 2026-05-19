@@ -3,9 +3,6 @@
 module LlmCostTracker
   class DashboardController < ApplicationController
     def index
-      range = Dashboard::DateRange.call(params: params)
-      @from_date = range.from
-      @to_date = range.to
       prev_from, prev_to = previous_range
       filter_params = LlmCostTracker::Dashboard::Params.to_hash(params)
       scope = Dashboard::Filter.call(

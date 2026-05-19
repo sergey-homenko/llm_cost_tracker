@@ -1,17 +1,7 @@
 <% if series.blank? %>
-  <div class="lct-chart-empty">No spend in this range.</div>
+  <div class="lct-panel-body lct-muted">No spend in this range.</div>
 <% else %>
-  <%= spend_chart_svg(series, comparison_points: local_assigns[:comparison_series]) %>
-  <div class="lct-chart-legend">
-    <span><%= series.first[:label] %></span>
-    <% if local_assigns[:comparison_series].present? %>
-      <span class="lct-chart-legend-compare">
-        <span class="lct-chart-key"><span class="lct-chart-key-line"></span> Current</span>
-        <span class="lct-chart-key"><span class="lct-chart-key-line lct-chart-key-line-secondary"></span> Previous</span>
-      </span>
-    <% else %>
-      <span>Peak <%= money(series.map { |p| p[:cost] }.max) %></span>
-    <% end %>
-    <span><%= series.last[:label] %></span>
+  <div class="lct-panel-body">
+    <%= spend_chart_svg(series, comparison_points: local_assigns[:comparison_series]) %>
   </div>
 <% end %>

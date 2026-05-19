@@ -1,150 +1,131 @@
-<% if @value.present? %>
-  <section class="lct-panel lct-toolbar">
-    <div class="lct-toolbar-head">
-      <div>
-        <p class="lct-muted"><%= link_to "← All values for #{params[:key]}", tag_path(params[:key], current_query.except(:tag_value)) %></p>
-        <h2 class="lct-section-title">Tag: <code class="lct-code"><%= params[:key] %></code> = <code class="lct-code"><%= @value %></code></h2>
-      </div>
-    </div>
+<% form_url = tag_path(params[:key]) %>
 
-    <%= render "llm_cost_tracker/shared/filters",
-               path: tag_path(params[:key]),
-               fields: %i[from to provider model],
-               hidden_fields: { tag_value: @value },
-               reset_path: tag_path(params[:key], tag_value: @value) %>
-  </section>
+<% if @value.present? %>
+  <p class="lct-breadcrumb-back"><%= link_to "← All values for #{params[:key]}", tag_path(params[:key], current_query.except(:tag_value)) %></p>
+  <h2 class="lct-page-title">Tag: <code class="lct-code-id"><%= params[:key] %></code> = <code class="lct-code-id"><%= @value %></code></h2>
+
+  <div class="lct-filter-row">
+    <%= render "llm_cost_tracker/shared/filter_pill_date", path: form_url, extra_hidden: { tag_value: @value }, extra_except: [:tag_value] %>
+    <%= render "llm_cost_tracker/shared/filter_pill_provider", path: form_url, extra_hidden: { tag_value: @value }, extra_except: [:tag_value] %>
+    <%= render "llm_cost_tracker/shared/filter_pill_model", path: form_url, extra_hidden: { tag_value: @value }, extra_except: [:tag_value] %>
+
+    <% if params[:provider].present? || params[:model].present? %>
+      <%= link_to "× Clear filters", tag_path(params[:key], current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
+    <% end %>
+
+    <span class="lct-filter-row-meta"><%= number(@value_calls) %> call<%= "s" unless @value_calls == 1 %> · <%= money(@value_total_cost) %></span>
+  </div>
 
   <% if @value_calls.zero? %>
     <section class="lct-panel lct-empty">
       <h2 class="lct-state-title">No calls tagged with <%= params[:key] %>=<%= @value %></h2>
       <p class="lct-state-copy">No matching calls in the current slice.</p>
-      <div class="lct-state-actions">
-        <%= link_to "Back to values", tag_path(params[:key]), class: "lct-button lct-button-secondary" %>
-      </div>
     </section>
   <% else %>
-    <section class="lct-stat-grid lct-stat-grid-spaced">
-      <article class="lct-stat">
-        <p class="lct-stat-label">Total cost</p>
+    <div class="lct-stat-grid">
+      <div class="lct-stat">
+        <div class="lct-stat-head"><p class="lct-stat-label">Total cost</p></div>
         <p class="lct-stat-value"><%= money(@value_total_cost) %></p>
-        <p class="lct-stat-copy">Across <%= number(@value_calls) %> calls</p>
-      </article>
-
-      <article class="lct-stat">
-        <p class="lct-stat-label">Calls</p>
+        <p class="lct-stat-foot">Across <%= number(@value_calls) %> calls</p>
+      </div>
+      <div class="lct-stat">
+        <div class="lct-stat-head"><p class="lct-stat-label">Calls</p></div>
         <p class="lct-stat-value"><%= number(@value_calls) %></p>
-        <p class="lct-stat-copy">Tagged with <code class="lct-code"><%= @value %></code></p>
-      </article>
-
-      <article class="lct-stat">
-        <p class="lct-stat-label">Avg cost / call</p>
+        <p class="lct-stat-foot">Tagged with <code class="lct-code-id"><%= @value %></code></p>
+      </div>
+      <div class="lct-stat">
+        <div class="lct-stat-head"><p class="lct-stat-label">Avg cost / call</p></div>
         <p class="lct-stat-value"><%= money(@value_calls.positive? ? @value_total_cost / @value_calls : 0) %></p>
-        <p class="lct-stat-copy">Mean over the slice</p>
-      </article>
-    </section>
+      </div>
+    </div>
 
     <section class="lct-panel">
-      <div class="lct-section-head">
-        <div>
-          <h2 class="lct-section-title">Spend over time</h2>
-          <p class="lct-section-copy">Daily total cost for calls tagged <code class="lct-code"><%= params[:key] %>=<%= @value %></code>.</p>
-        </div>
-        <%= link_to "Calls", calls_path(calls_query_for_tag(key: @key, value: @value)), class: "lct-button lct-button-secondary lct-button-compact" %>
+      <div class="lct-panel-head">
+        <h2 class="lct-panel-title">Spend over time</h2>
+        <span class="lct-panel-meta"><%= link_to "View calls →", calls_path(calls_query_for_tag(key: @key, value: @value)) %></span>
       </div>
-
-      <%= render "llm_cost_tracker/shared/spend_chart", series: @value_points %>
+      <%= render "llm_cost_tracker/shared/spend_chart", series: @value_points, comparison_series: [] %>
     </section>
   <% end %>
+
 <% else %>
-<section class="lct-panel lct-toolbar">
-  <div class="lct-toolbar-head">
-    <div>
-      <p class="lct-muted"><%= link_to "← All tag keys", tags_path(current_query) %></p>
-      <h2 class="lct-section-title">Tag: <code class="lct-code"><%= params[:key] %></code></h2>
-    </div>
+
+  <p class="lct-breadcrumb-back"><%= link_to "← All tag keys", tags_path(current_query) %></p>
+  <h2 class="lct-page-title">Tag: <code class="lct-code-id"><%= params[:key] %></code></h2>
+
+  <div class="lct-filter-row">
+    <%= render "llm_cost_tracker/shared/filter_pill_date", path: form_url %>
+    <%= render "llm_cost_tracker/shared/filter_pill_provider", path: form_url %>
+    <%= render "llm_cost_tracker/shared/filter_pill_model", path: form_url %>
+
+    <% if params[:provider].present? || params[:model].present? %>
+      <%= link_to "× Clear filters", tag_path(params[:key], current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
+    <% end %>
+
+    <span class="lct-filter-row-meta"><%= number(@breakdown.tagged_calls) %> tagged call<%= "s" unless @breakdown.tagged_calls == 1 %> · <%= percent(coverage_percent(@breakdown.tagged_calls, @breakdown.total_calls)) %> coverage · <%= number(@breakdown.distinct_values) %> distinct value<%= "s" unless @breakdown.distinct_values == 1 %></span>
   </div>
 
-  <%= render "llm_cost_tracker/shared/filters",
-             path: tag_path(params[:key]),
-             fields: %i[from to provider model],
-             reset_path: tag_path(params[:key]) %>
-
-  <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: tag_path(params[:key]) %>
-
-  <p class="lct-summary-row">
-    <span><strong><%= number(@breakdown.tagged_calls) %></strong> tagged calls</span>
-    <span><strong><%= percent(coverage_percent(@breakdown.tagged_calls, @breakdown.total_calls)) %></strong> coverage</span>
-    <span><strong><%= number(@breakdown.distinct_values) %></strong> distinct values</span>
-  </p>
-
-  <% if @breakdown.distinct_values > @breakdown.rows.size %>
-    <p class="lct-toolbar-note">Showing top <%= number(@breakdown.limit) %> values by spend.</p>
-  <% end %>
-</section>
-
-<% if @breakdown.rows.empty? %>
-  <section class="lct-panel lct-empty">
-    <h2 class="lct-state-title">No calls tagged with <%= params[:key] %></h2>
-    <p class="lct-state-copy">Values for this key will appear here once matching calls carry the tag in the current slice.</p>
-    <div class="lct-state-actions">
-      <%= link_to "Clear filters", tag_path(params[:key]), class: "lct-button lct-button-secondary" %>
+  <% if @breakdown.rows.empty? %>
+    <section class="lct-panel lct-empty">
+      <h2 class="lct-state-title">No calls tagged with <%= params[:key] %></h2>
+      <p class="lct-state-copy">Values for this key will appear here once matching calls carry the tag in the current slice.</p>
+    </section>
+  <% else %>
+    <div class="lct-stat-grid">
+      <div class="lct-stat">
+        <div class="lct-stat-head"><p class="lct-stat-label">Tagged calls</p></div>
+        <p class="lct-stat-value"><%= number(@breakdown.tagged_calls) %></p>
+        <p class="lct-stat-foot">Rows that include <code class="lct-code-id"><%= params[:key] %></code></p>
+      </div>
+      <div class="lct-stat">
+        <div class="lct-stat-head"><p class="lct-stat-label">Coverage</p></div>
+        <p class="lct-stat-value"><%= percent(coverage_percent(@breakdown.tagged_calls, @breakdown.total_calls)) %></p>
+        <p class="lct-stat-foot"><%= number(@breakdown.total_calls) %> total calls in this slice</p>
+      </div>
+      <div class="lct-stat">
+        <div class="lct-stat-head"><p class="lct-stat-label">Distinct values</p></div>
+        <p class="lct-stat-value"><%= number(@breakdown.distinct_values) %></p>
+      </div>
     </div>
-  </section>
-<% else %>
-  <section class="lct-stat-grid lct-stat-grid-spaced">
-    <article class="lct-stat">
-      <p class="lct-stat-label">Tagged calls</p>
-      <p class="lct-stat-value"><%= number(@breakdown.tagged_calls) %></p>
-      <p class="lct-stat-copy">Rows that include <code class="lct-code"><%= params[:key] %></code></p>
-    </article>
 
-    <article class="lct-stat">
-      <p class="lct-stat-label">Coverage</p>
-      <p class="lct-stat-value"><%= percent(coverage_percent(@breakdown.tagged_calls, @breakdown.total_calls)) %></p>
-      <p class="lct-stat-copy"><%= number(@breakdown.total_calls) %> total calls in this slice</p>
-    </article>
+    <% if @breakdown.distinct_values > @breakdown.rows.size %>
+      <div class="lct-alert lct-alert-info">
+        <span>Showing top <%= number(@breakdown.limit) %> values by spend.</span>
+      </div>
+    <% end %>
 
-    <article class="lct-stat">
-      <p class="lct-stat-label">Distinct values</p>
-      <p class="lct-stat-value"><%= number(@breakdown.distinct_values) %></p>
-      <p class="lct-stat-copy">Unique values currently visible</p>
-    </article>
-  </section>
-
-  <section class="lct-panel">
-    <div class="lct-table-wrap">
-      <table class="lct-table lct-table-compact">
+    <section class="lct-panel">
+      <table class="lct-tbl">
         <thead>
           <tr>
-            <th>Value</th>
-            <th class="lct-num">Calls</th>
+            <%= sortable_header("Value", "value") %>
+            <%= sortable_header("Calls", "calls", num: true) %>
             <th class="lct-num">Share</th>
-            <th class="lct-num">Total cost</th>
-            <th class="lct-num">Avg cost / call</th>
+            <%= sortable_header("Total cost", "cost", num: true) %>
+            <%= sortable_header("Avg cost / call", "avg_cost", num: true) %>
             <th></th>
           </tr>
         </thead>
         <tbody>
           <% @breakdown.rows.each do |row| %>
             <tr>
-              <td><code class="lct-code"><%= row.value %></code></td>
+              <td><code class="lct-code-id"><%= row.value %></code></td>
               <td class="lct-num"><%= number(row.calls) %></td>
               <td class="lct-num"><%= percent(row.share_percent) %></td>
               <td class="lct-num"><%= money(row.total_cost) %></td>
               <td class="lct-num"><%= money(row.average_cost_per_call) %></td>
-              <td>
+              <td class="lct-num">
                 <% if row.value == "(untagged)" %>
-                  <span class="lct-muted">n/a</span>
+                  <span class="lct-num-muted">n/a</span>
                 <% else %>
-                  <%= link_to "Trend", tag_path(params[:key], current_query.merge(tag_value: row.value)), class: "lct-button lct-button-secondary lct-button-compact" %>
-                  <%= link_to "Calls", calls_path(calls_query_for_tag(key: params[:key], value: row.value)), class: "lct-button lct-button-secondary lct-button-compact" %>
+                  <%= link_to "Trend", tag_path(params[:key], current_query.merge(tag_value: row.value)), class: "lct-page-link" %>
+                  <%= link_to "Calls", calls_path(calls_query_for_tag(key: params[:key], value: row.value)), class: "lct-page-link" %>
                 <% end %>
               </td>
             </tr>
           <% end %>
         </tbody>
       </table>
-    </div>
-  </section>
-<% end %>
+    </section>
+  <% end %>
 <% end %>

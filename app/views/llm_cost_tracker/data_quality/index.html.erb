@@ -1,86 +1,105 @@
-<section class="lct-panel lct-toolbar">
-  <div class="lct-toolbar-head">
-    <h2 class="lct-section-title">Data Quality</h2>
-  </div>
+<div class="lct-filter-row">
+  <%= render "llm_cost_tracker/shared/filter_pill_date", path: data_quality_path %>
+  <%= render "llm_cost_tracker/shared/filter_pill_provider", path: data_quality_path %>
+  <%= render "llm_cost_tracker/shared/filter_pill_model", path: data_quality_path %>
 
-  <%= render "llm_cost_tracker/shared/filters", path: data_quality_path %>
+  <% if params[:provider].present? || params[:model].present? %>
+    <%= link_to "× Clear filters", data_quality_path(current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
+  <% end %>
 
-  <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: data_quality_path %>
-</section>
+  <span class="lct-filter-row-meta"><%= number(@summary.total) %> call<%= "s" unless @summary.total == 1 %> inspected</span>
+</div>
 
 <% if @summary.total.zero? %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">No data yet</h2>
     <p class="lct-state-copy">Quality metrics will appear here once calls are recorded in the current slice.</p>
-    <div class="lct-state-actions">
-      <%= link_to "Clear filters", data_quality_path, class: "lct-button lct-button-secondary" %>
-    </div>
   </section>
 <% else %>
-  <section class="lct-stat-grid lct-stat-grid-spaced">
-    <article class="lct-stat">
-      <p class="lct-stat-label">Calls inspected</p>
+  <h3 class="lct-stat-section-label">Volume</h3>
+  <div class="lct-stat-grid">
+    <div class="lct-stat">
+      <div class="lct-stat-head"><p class="lct-stat-label">Calls inspected</p></div>
       <p class="lct-stat-value"><%= number(@summary.total) %></p>
-      <p class="lct-stat-sub">in current slice</p>
-    </article>
+      <p class="lct-stat-foot">in current slice</p>
+    </div>
 
-    <article class="lct-stat">
-      <p class="lct-stat-label">Incomplete pricing</p>
-      <p class="lct-stat-value"><%= number(@summary.unknown_pricing_count) %></p>
-      <p class="lct-stat-sub"><%= percent(@summary.unknown_pricing_share) %> of calls</p>
-    </article>
-
-    <article class="lct-stat">
-      <p class="lct-stat-label">Calls without tags</p>
-      <p class="lct-stat-value"><%= number(@summary.untagged_calls_count) %></p>
-      <p class="lct-stat-sub"><%= percent(@summary.untagged_share) %> of calls</p>
-    </article>
-
-    <article class="lct-stat">
-      <p class="lct-stat-label">Missing latency</p>
-      <p class="lct-stat-value"><%= number(@summary.missing_latency_count) %></p>
-      <p class="lct-stat-sub"><%= percent(@summary.missing_latency_share) %> of calls</p>
-    </article>
-
-    <article class="lct-stat">
-      <p class="lct-stat-label">Streaming calls</p>
+    <div class="lct-stat">
+      <div class="lct-stat-head"><p class="lct-stat-label">Streaming calls</p></div>
       <p class="lct-stat-value"><%= number(@summary.streaming_count) %></p>
-      <p class="lct-stat-sub"><%= percent(@summary.streaming_share) %> of calls</p>
-    </article>
+      <p class="lct-stat-foot"><%= percent(@summary.streaming_share) %> of calls</p>
+    </div>
 
-    <% if @summary.streaming_count.positive? %>
-      <article class="lct-stat">
-        <p class="lct-stat-label">Streams without usage</p>
-        <p class="lct-stat-value"><%= number(@summary.streaming_missing_usage) %></p>
-        <p class="lct-stat-sub"><%= percent(@summary.streaming_missing_usage_share) %> of streams</p>
-      </article>
-    <% end %>
-
-    <article class="lct-stat">
-      <p class="lct-stat-label">Calls with provider response ID</p>
+    <div class="lct-stat">
+      <div class="lct-stat-head"><p class="lct-stat-label">Calls with provider response ID</p></div>
       <p class="lct-stat-value"><%= number(@summary.calls_with_provider_response_id) %></p>
-      <p class="lct-stat-sub"><%= percent(@summary.provider_response_id_coverage) %> of calls</p>
-    </article>
+      <p class="lct-stat-foot"><%= percent(@summary.provider_response_id_coverage) %> of calls</p>
+    </div>
+  </div>
 
-    <% if @hidden_output_summary %>
-      <article class="lct-stat">
-        <p class="lct-stat-label">Hidden output share</p>
-        <p class="lct-stat-value"><%= percent(@hidden_output_summary.fetch(:share_percent)) %></p>
-        <p class="lct-stat-sub"><%= number(@hidden_output_summary.fetch(:hidden_output_tokens)) %> of <%= number(@hidden_output_summary.fetch(:output_tokens)) %> output tokens</p>
-      </article>
-    <% end %>
-  </section>
+  <% incomplete_pricing = @summary.unknown_pricing_count.to_i %>
+  <% untagged = @summary.untagged_calls_count.to_i %>
+  <% missing_latency = @summary.missing_latency_count.to_i %>
+  <% streams_missing_usage = @summary.streaming_missing_usage.to_i %>
+  <% hidden_output_share = @hidden_output_summary&.fetch(:share_percent).to_f %>
+  <% has_issues = incomplete_pricing.positive? || untagged.positive? || missing_latency.positive? || streams_missing_usage.positive? || hidden_output_share.positive? %>
 
-  <section class="lct-grid lct-two-col">
-    <section class="lct-panel">
-      <div class="lct-section-head">
-        <div>
-          <h2 class="lct-section-title">Next actions</h2>
-          <p class="lct-section-copy">Use these fixes to improve the trustworthiness of downstream cost reports.</p>
+  <% if has_issues %>
+    <h3 class="lct-stat-section-label">Issues</h3>
+    <div class="lct-stat-grid">
+      <% if incomplete_pricing.positive? %>
+        <div class="lct-stat lct-stat-warn">
+          <div class="lct-stat-head"><p class="lct-stat-label">Incomplete pricing</p></div>
+          <p class="lct-stat-value"><%= number(incomplete_pricing) %></p>
+          <p class="lct-stat-foot"><%= percent(@summary.unknown_pricing_share) %> of calls</p>
         </div>
-      </div>
+      <% end %>
 
-      <table class="lct-table lct-table-compact">
+      <% if untagged.positive? %>
+        <div class="lct-stat lct-stat-warn">
+          <div class="lct-stat-head"><p class="lct-stat-label">Calls without tags</p></div>
+          <p class="lct-stat-value"><%= number(untagged) %></p>
+          <p class="lct-stat-foot"><%= percent(@summary.untagged_share) %> of calls</p>
+        </div>
+      <% end %>
+
+      <% if missing_latency.positive? %>
+        <div class="lct-stat lct-stat-warn">
+          <div class="lct-stat-head"><p class="lct-stat-label">Missing latency</p></div>
+          <p class="lct-stat-value"><%= number(missing_latency) %></p>
+          <p class="lct-stat-foot"><%= percent(@summary.missing_latency_share) %> of calls</p>
+        </div>
+      <% end %>
+
+      <% if streams_missing_usage.positive? %>
+        <div class="lct-stat lct-stat-warn">
+          <div class="lct-stat-head"><p class="lct-stat-label">Streams without usage</p></div>
+          <p class="lct-stat-value"><%= number(streams_missing_usage) %></p>
+          <p class="lct-stat-foot"><%= percent(@summary.streaming_missing_usage_share) %> of streams</p>
+        </div>
+      <% end %>
+
+      <% if hidden_output_share.positive? %>
+        <div class="lct-stat lct-stat-warn">
+          <div class="lct-stat-head"><p class="lct-stat-label">Hidden output share</p></div>
+          <p class="lct-stat-value"><%= percent(hidden_output_share) %></p>
+          <p class="lct-stat-foot"><%= number(@hidden_output_summary.fetch(:hidden_output_tokens)) %> of <%= number(@hidden_output_summary.fetch(:output_tokens)) %> output tokens</p>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="lct-alert lct-alert-info">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <span>No data-quality issues in this slice.</span>
+    </div>
+  <% end %>
+
+  <div class="lct-grid-2">
+    <section class="lct-panel">
+      <div class="lct-panel-head"><h2 class="lct-panel-title">Next actions</h2></div>
+      <p class="lct-panel-intro">Use these fixes to improve the trustworthiness of downstream cost reports.</p>
+
+      <table class="lct-tbl">
         <thead>
           <tr>
             <th>Issue</th>
@@ -92,12 +111,12 @@
           <tr>
             <td>Incomplete pricing</td>
             <td>Some or all line items have no configured rate, so totals undercount.</td>
-            <td>Update <code class="lct-code">pricing_overrides</code> or <code class="lct-code">prices_file</code>.</td>
+            <td>Update <code class="lct-code-id">pricing_overrides</code> or <code class="lct-code-id">prices_file</code>.</td>
           </tr>
           <tr>
             <td>Missing tags</td>
             <td>Attribution by tenant, user, or feature becomes less useful.</td>
-            <td>Pass <code class="lct-code">tags:</code> from middleware using request context.</td>
+            <td>Pass <code class="lct-code-id">tags:</code> from middleware using request context.</td>
           </tr>
           <tr>
             <td>Missing latency</td>
@@ -108,14 +127,14 @@
             <tr>
               <td>Streams without usage</td>
               <td>Token totals undercount when streaming responses drop the final usage event.</td>
-              <td>Send OpenAI requests with <code class="lct-code">stream_options: { include_usage: true }</code>, or wrap custom clients with <code class="lct-code">LlmCostTracker.track_stream</code>.</td>
+              <td>Send OpenAI requests with <code class="lct-code-id">stream_options: { include_usage: true }</code>, or wrap custom clients with <code class="lct-code-id">LlmCostTracker.track_stream</code>.</td>
             </tr>
           <% end %>
           <% if @summary.missing_provider_response_id_count.positive? %>
             <tr>
               <td>Missing provider response IDs</td>
               <td>Proof of provider-issued responses is weaker when calls cannot be tied back to provider objects.</td>
-              <td>Upgrade to the latest parser coverage and pass <code class="lct-code">provider_response_id:</code> for custom clients when the provider exposes one.</td>
+              <td>Upgrade to the latest parser coverage and pass <code class="lct-code-id">provider_response_id:</code> for custom clients when the provider exposes one.</td>
             </tr>
           <% end %>
         </tbody>
@@ -123,14 +142,10 @@
     </section>
 
     <section class="lct-panel">
-      <div class="lct-section-head">
-        <div>
-          <h2 class="lct-section-title">Coverage summary</h2>
-          <p class="lct-section-copy">Good dashboards start with clean pricing, tags, and latency coverage.</p>
-        </div>
-      </div>
+      <div class="lct-panel-head"><h2 class="lct-panel-title">Coverage summary</h2></div>
+      <p class="lct-panel-intro">Good dashboards start with clean pricing, tags, and latency coverage.</p>
 
-      <table class="lct-table lct-table-compact">
+      <table class="lct-tbl">
         <thead>
           <tr>
             <th>Dimension</th>
@@ -179,17 +194,13 @@
         </tbody>
       </table>
     </section>
-  </section>
+  </div>
 
   <section class="lct-panel">
-    <div class="lct-section-head">
-      <div>
-        <h2 class="lct-section-title">Token usage</h2>
-      </div>
-    </div>
+    <div class="lct-panel-head"><h2 class="lct-panel-title">Token usage</h2></div>
 
     <div class="lct-table-wrap">
-      <table class="lct-table lct-table-compact">
+      <table class="lct-tbl">
         <thead>
           <tr>
             <th>Bucket</th>
@@ -223,14 +234,10 @@
 
   <% if @service_charge_rows.any? %>
     <section class="lct-panel">
-      <div class="lct-section-head">
-        <div>
-          <h2 class="lct-section-title">Service charges</h2>
-        </div>
-      </div>
+      <div class="lct-panel-head"><h2 class="lct-panel-title">Service charges</h2></div>
 
       <div class="lct-table-wrap">
-        <table class="lct-table lct-table-compact">
+        <table class="lct-tbl">
           <thead>
             <tr>
               <th>Provider</th>
@@ -245,8 +252,8 @@
             <% @service_charge_rows.each do |row| %>
               <% unknown_cost = row.cost_status.to_s == LlmCostTracker::Billing::CostStatus::UNKNOWN %>
               <tr>
-                <td><code class="lct-code"><%= row.provider %></code></td>
-                <td><code class="lct-code"><%= row.component %></code></td>
+                <td><code class="lct-code-id"><%= row.provider %></code></td>
+                <td><code class="lct-code-id"><%= row.component %></code></td>
                 <td><%= row.cost_status %></td>
                 <td class="lct-num"><%= number(row.charges_count) %></td>
                 <td class="lct-num"><%= number(row.quantity) %></td>
@@ -261,15 +268,11 @@
 
   <% if @streaming_health_rows.any? %>
     <section class="lct-panel">
-      <div class="lct-section-head">
-        <div>
-          <h2 class="lct-section-title">Streaming health by provider</h2>
-          <p class="lct-section-copy">Streams without a final usage chunk land as <code class="lct-code">usage_source: unknown</code> and undercount tokens. A high unknown share for an OpenAI-compatible provider usually means <code class="lct-code">stream_options: { include_usage: true }</code> is not being injected for that host.</p>
-        </div>
-      </div>
+      <div class="lct-panel-head"><h2 class="lct-panel-title">Streaming health by provider</h2></div>
+      <p class="lct-panel-intro">Streams without a final usage chunk land as <code>usage_source: unknown</code> and undercount tokens. A high unknown share for an OpenAI-compatible provider usually means <code>stream_options: { include_usage: true }</code> is not being injected for that host.</p>
 
       <div class="lct-table-wrap">
-        <table class="lct-table lct-table-compact">
+        <table class="lct-tbl">
           <thead>
             <tr>
               <th>Provider</th>
@@ -282,7 +285,7 @@
           <tbody>
             <% @streaming_health_rows.each do |row| %>
               <tr>
-                <td><code class="lct-code"><%= row.provider %></code></td>
+                <td><code class="lct-code-id"><%= row.provider %></code></td>
                 <td class="lct-num"><%= number(row.streams) %></td>
                 <td class="lct-num"><%= number(row.with_usage) %></td>
                 <td class="lct-num"><%= number(row.unknown) %></td>
@@ -297,16 +300,14 @@
 
   <% unless @unknown_pricing_by_model.empty? %>
     <section class="lct-panel">
-      <div class="lct-section-head">
-        <div>
-          <h2 class="lct-section-title">Incomplete pricing by model</h2>
-          <p class="lct-section-copy">These models have line items without configured rates, so totals undercount (a full row is missing all rates; a partial row has some line items priced and others not). After the next price refresh or a <code class="lct-code">pricing_overrides</code> update, run <code class="lct-code">bin/rails llm_cost_tracker:backfill_unknown_pricing</code> to recompute these calls.</p>
-        </div>
-        <%= link_to "Calls", calls_path(current_query(sort: "unknown_pricing")), class: "lct-button lct-button-secondary" %>
+      <div class="lct-panel-head">
+        <h2 class="lct-panel-title">Incomplete pricing by model</h2>
+        <span class="lct-panel-meta"><%= link_to "View calls →", calls_path(current_query(cost_status: "incomplete", sort: nil)) %></span>
       </div>
+      <p class="lct-panel-intro">These models have line items without configured rates, so totals undercount (a full row is missing all rates; a partial row has some line items priced and others not). After the next price refresh or a <code>pricing_overrides</code> update, run <code>bin/rails llm_cost_tracker:backfill_unknown_pricing</code> to recompute these calls.</p>
 
       <div class="lct-table-wrap">
-        <table class="lct-table lct-table-compact">
+        <table class="lct-tbl">
           <thead>
             <tr>
               <th>Provider</th>
@@ -318,8 +319,8 @@
           <tbody>
             <% @unknown_pricing_by_model.each do |row| %>
               <tr>
-                <td><code class="lct-code"><%= row.provider %></code></td>
-                <td><code class="lct-code"><%= row.model %></code></td>
+                <td><code class="lct-code-id"><%= row.provider %></code></td>
+                <td><code class="lct-code-id"><%= row.model %></code></td>
                 <td class="lct-num"><%= number(row.calls) %></td>
                 <td class="lct-num"><%= percent(row.share_percent) %></td>
               </tr>

@@ -6,6 +6,7 @@ LlmCostTracker::Engine.routes.draw do
   resources :models, only: :index
   resources :tags, only: %i[index show], param: :key, format: false
   get "data_quality", to: "data_quality#index", as: :data_quality
+  get "pricing", to: "pricing#index", as: :pricing
   get "reconciliation", to: "reconciliation#index", as: :reconciliation
   post "reconciliation/import", to: "reconciliation#trigger_import", as: :reconciliation_import
 

@@ -26,7 +26,7 @@ RSpec.describe "LlmCostTracker::Engine models" do
                 input_tokens: 10, output_tokens: 5, total_cost: 0.5, latency_ms: 100)
 
     response = get("/llm-costs/models")
-    rows = response.body.scan(%r{<td><code class="lct-code">([^<]+)</code></td>}).flatten
+    rows = response.body.scan(%r{<td><code class="lct-code-id">([^<]+)</code></td>}).flatten
 
     expect(response.status).to eq(200)
     expect(response.body).to include("gpt-4o")
@@ -37,11 +37,7 @@ RSpec.describe "LlmCostTracker::Engine models" do
     expect(response.body).to include("$2.00")
     expect(response.body).to include("$0.50")
     expect(response.body).to include("250ms")
-    expect(response.body).to include("Total tokens")
-    expect(response.body).to include("Regular input")
-    expect(response.body).to include("500")
-    expect(response.body).to include("300")
-    expect(response.body).to include("150")
+    expect(response.body).to include("Tokens")
     expect(response.body).to include("/llm-costs/calls?model=gpt-4o&amp;provider=openai")
     expect(rows).to eq(["gpt-4o", "claude-haiku-4-5"])
   end

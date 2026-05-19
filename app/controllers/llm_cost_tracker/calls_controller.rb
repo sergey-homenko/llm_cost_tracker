@@ -9,17 +9,20 @@ module LlmCostTracker
     CSV_EXPORT_BATCH_SIZE = 500
     CSV_FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"].freeze
     DEFAULT_ORDER = "tracked_at DESC, id DESC"
+    SORT_OPTIONS = %w[tracked_at provider model input output cost latency].freeze
+    SORT_DIRECTIONS = %w[asc desc].freeze
 
     def index
       @sort = params[:sort].to_s
+      @dir = params[:dir].to_s
       scope = Dashboard::Filter.call(params: params)
-      scope = scope.unknown_pricing if @sort == "unknown_pricing"
-      ordered_scope = scope.order(Arel.sql(calls_order(@sort)))
+      scope = scope.unknown_pricing if params[:cost_status].to_s == "incomplete"
+      ordered_scope = scope.order(Arel.sql(calls_order(@sort, @dir)))
 
       respond_to do |format|
         format.html do
           @page = Dashboard::Pagination.call(params)
-          @calls_count = scope.count
+          @calls_count, @calls_total_cost = scope.pick(Arel.sql("COUNT(*), COALESCE(SUM(total_cost), 0)"))
           @calls = ordered_scope.includes(:tag_records).limit(@page.limit).offset(@page.offset).to_a
         end
         format.csv do
@@ -37,18 +40,19 @@ module LlmCostTracker
 
     private
 
-    def calls_order(sort)
-      case sort
-      when "expensive"
-        "CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END ASC, total_cost DESC, #{DEFAULT_ORDER}"
-      when "input"
-        "input_tokens DESC, #{DEFAULT_ORDER}"
-      when "output"
-        "output_tokens DESC, #{DEFAULT_ORDER}"
-      when "slow"
-        "CASE WHEN latency_ms IS NULL THEN 1 ELSE 0 END ASC, latency_ms DESC, #{DEFAULT_ORDER}"
-      else
-        DEFAULT_ORDER
+    def calls_order(sort, dir)
+      column = SORT_OPTIONS.include?(sort) ? sort : "tracked_at"
+      natural = %w[provider model].include?(column) ? "asc" : "desc"
+      direction = (SORT_DIRECTIONS.include?(dir.downcase) ? dir.downcase : natural).upcase
+
+      case column
+      when "tracked_at" then "tracked_at #{direction}, id #{direction}"
+      when "provider"   then "provider #{direction}, model ASC, #{DEFAULT_ORDER}"
+      when "model"      then "model #{direction}, #{DEFAULT_ORDER}"
+      when "input"      then "input_tokens #{direction}, #{DEFAULT_ORDER}"
+      when "output"     then "output_tokens #{direction}, #{DEFAULT_ORDER}"
+      when "cost"       then "CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END ASC, total_cost #{direction}, #{DEFAULT_ORDER}"
+      when "latency"    then "CASE WHEN latency_ms IS NULL THEN 1 ELSE 0 END ASC, latency_ms #{direction}, #{DEFAULT_ORDER}"
       end
     end
 

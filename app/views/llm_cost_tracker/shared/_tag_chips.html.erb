@@ -7,7 +7,7 @@
       <% if entry[:more] %>
         <span class="lct-tag-chip lct-tag-chip-more">+<%= entry[:more] %></span>
       <% else %>
-        <span class="lct-tag-chip"><%= entry[:key] %>=<%= entry[:value] %></span>
+        <span class="lct-tag-chip"><span class="lct-tag-chip-key"><%= entry[:key] %></span>=<%= entry[:value] %></span>
       <% end %>
     <% end %>
   </span>

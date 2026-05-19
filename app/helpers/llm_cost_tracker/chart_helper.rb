@@ -6,7 +6,7 @@ module LlmCostTracker
       return nil if points.blank?
 
       cfg = chart_config(points, comparison_points, height, y_ticks)
-      parts = [chart_svg_open(cfg)]
+      parts = [chart_svg_open(cfg), "<title>Daily spend trend</title>", chart_area_gradient_def]
       parts.concat(chart_grid_and_axis(cfg))
       parts << chart_paths(cfg)
       parts.concat(chart_dots(cfg))
@@ -22,7 +22,7 @@ module LlmCostTracker
     end
 
     def chart_config(points, comparison_points, height, y_ticks)
-      width = 720
+      width = 1180
       pad = { top: 16, right: 16, bottom: 28, left: 56 }
       plot_w = width - pad[:left] - pad[:right]
       plot_h = height - pad[:top] - pad[:bottom]
@@ -31,9 +31,11 @@ module LlmCostTracker
       coords = chart_coords(points, pad, plot_w, plot_h, max_cost)
       comparison_coords = chart_coords(comparison_points, pad, plot_w, plot_h, max_cost) if comparison_points.present?
 
+      peak_index = points.each_with_index.max_by { |point, _| point[:cost].to_f }&.last
       { width: width, height: height, pad: pad, plot_w: plot_w, plot_h: plot_h,
         max_cost: max_cost, n: points.size, y_ticks: y_ticks, points: points, coords: coords,
-        comparison_points: comparison_points, comparison_coords: comparison_coords }
+        comparison_points: comparison_points, comparison_coords: comparison_coords,
+        peak_index: peak_index }
     end
 
     def chart_coords(points, pad, plot_w, plot_h, max_cost)
@@ -51,7 +53,7 @@ module LlmCostTracker
       attrs = [
         %(class="lct-chart"),
         %(viewBox="0 0 #{cfg[:width]} #{cfg[:height]}"),
-        %(preserveAspectRatio="none"),
+        %(preserveAspectRatio="xMidYMid meet"),
         %(role="img"),
         %(aria-label="Daily spend trend")
       ].join(" ")
@@ -114,8 +116,18 @@ module LlmCostTracker
     def chart_dot(cfg, pt_x, pt_y, idx)
       point = cfg[:points][idx]
       title = ERB::Util.html_escape("#{point[:label]}: #{money(point[:cost])}")
-      circle = %(<circle class="lct-chart-dot" cx="#{chart_fmt(pt_x)}" cy="#{chart_fmt(pt_y)}" r="3"/>)
+      peak = idx == cfg[:peak_index]
+      klass = peak ? "lct-chart-peak" : "lct-chart-dot"
+      radius = peak ? 4 : 3
+      circle = %(<circle class="#{klass}" cx="#{chart_fmt(pt_x)}" cy="#{chart_fmt(pt_y)}" r="#{radius}"/>)
       "<g>#{circle}<title>#{title}</title></g>"
+    end
+
+    def chart_area_gradient_def
+      %(<defs><linearGradient id="lct-chart-grad" x1="0" x2="0" y1="0" y2="1">) \
+        + %(<stop offset="0%" stop-color="var(--lct-accent)" stop-opacity="0.28"/>) \
+        + %(<stop offset="100%" stop-color="var(--lct-accent)" stop-opacity="0.02"/>) \
+        + %(</linearGradient></defs>)
     end
 
     def chart_x_labels(cfg)
@@ -127,7 +139,11 @@ module LlmCostTracker
     def chart_x_label(cfg, idx, label_y)
       pt_x, = cfg[:coords][idx]
       label = ERB::Util.html_escape(cfg[:points][idx][:label])
-      %(<text class="lct-chart-axis" x="#{chart_fmt(pt_x)}" y="#{label_y}" text-anchor="middle">#{label}</text>)
+      anchor = if idx.zero? then "start"
+               elsif idx == cfg[:n] - 1 then "end"
+               else "middle"
+               end
+      %(<text class="lct-chart-axis" x="#{chart_fmt(pt_x)}" y="#{label_y}" text-anchor="#{anchor}">#{label}</text>)
     end
   end
 end

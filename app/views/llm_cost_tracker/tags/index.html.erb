@@ -1,46 +1,41 @@
-<section class="lct-panel lct-toolbar">
-  <div class="lct-toolbar-head">
-    <h2 class="lct-section-title">Tag keys</h2>
-  </div>
+<div class="lct-filter-row">
+  <%= render "llm_cost_tracker/shared/filter_pill_date", path: tags_path %>
+  <%= render "llm_cost_tracker/shared/filter_pill_provider", path: tags_path %>
+  <%= render "llm_cost_tracker/shared/filter_pill_model", path: tags_path %>
 
-  <%= render "llm_cost_tracker/shared/filters",
-             path: tags_path,
-             fields: %i[from to provider model] %>
+  <% if params[:provider].present? || params[:model].present? %>
+    <%= link_to "× Clear filters", tags_path(current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
+  <% end %>
 
-  <%= render "llm_cost_tracker/shared/active_filters", chips: active_tag_filters, clear_path: tags_path %>
-</section>
+  <span class="lct-filter-row-meta"><%= number(@rows.size) %> tag key<%= "s" unless @rows.size == 1 %></span>
+</div>
 
 <% if @rows.empty? %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">No tag keys found</h2>
     <p class="lct-state-copy">Tag keys will appear here once tagged calls exist in the current slice.</p>
-    <div class="lct-state-actions">
-      <%= link_to "Clear filters", tags_path, class: "lct-button lct-button-secondary" %>
-    </div>
   </section>
 <% else %>
   <section class="lct-panel">
-    <div class="lct-table-wrap">
-      <table class="lct-table lct-table-compact">
-        <thead>
+    <table class="lct-tbl">
+      <thead>
+        <tr>
+          <th>Tag key</th>
+          <th class="lct-num">Calls with this key</th>
+          <th class="lct-num">Distinct values</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @rows.each do |row| %>
           <tr>
-            <th>Tag key</th>
-            <th class="lct-num">Calls with this key</th>
-            <th class="lct-num">Distinct values</th>
-            <th></th>
+            <td><code class="lct-code-id"><%= row.key %></code></td>
+            <td class="lct-num"><%= number(row.calls_count) %></td>
+            <td class="lct-num"><%= number(row.distinct_values) %></td>
+            <td class="lct-num"><%= link_to "Breakdown", tag_path(row.key, current_query), class: "lct-page-link" %></td>
           </tr>
-        </thead>
-        <tbody>
-          <% @rows.each do |row| %>
-            <tr>
-              <td><code class="lct-code"><%= row.key %></code></td>
-              <td class="lct-num"><%= number(row.calls_count) %></td>
-              <td class="lct-num"><%= number(row.distinct_values) %></td>
-              <td><%= link_to "Breakdown", tag_path(row.key, current_query), class: "lct-button lct-button-secondary lct-button-compact" %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
+        <% end %>
+      </tbody>
+    </table>
   </section>
 <% end %>

@@ -12,156 +12,155 @@ end %>
     { label: component.fetch(:label), value: value, formatted_value: optional_money(value), css_class: component.fetch(:css_class) }
   end %>
 <% end %>
+<% service_line_items = @call.line_items.reject { |li| li.unit == "token" }.sort_by(&:position) %>
 
-<section class="lct-panel">
-  <nav class="lct-breadcrumb" aria-label="Breadcrumb">
-    <%= link_to "Calls", calls_path, class: "lct-breadcrumb-link" %>
-    <span class="lct-breadcrumb-sep" aria-hidden="true">›</span>
-    <span class="lct-breadcrumb-current">#<%= @call.id %></span>
-  </nav>
-  <div class="lct-call-hero">
-    <div>
-      <h2 class="lct-section-title lct-call-title">
-        <code class="lct-code"><%= @call.model %></code>
-      </h2>
-      <p class="lct-call-subtitle">
-        <code class="lct-code"><%= @call.provider %></code>
-        <span>·</span>
-        <span><%= format_date(@call.tracked_at) %></span>
-      </p>
-    </div>
+<p class="lct-breadcrumb-back"><%= link_to "← All calls", calls_path %></p>
+<h2 class="lct-page-title"><code class="lct-code-id"><%= @call.model %></code> <span class="lct-page-title-meta">#<%= @call.id %></span></h2>
+<p class="lct-page-subtitle">
+  <span class="lct-model-cell"><span class="lct-provider-dot lct-provider-dot-<%= @call.provider %>"></span><%= @call.provider %></span>
+  <span class="lct-page-subtitle-sep">·</span>
+  <span><%= format_date(@call.tracked_at) %></span>
+</p>
 
-    <div class="lct-call-summary">
-      <div class="lct-call-summary-item">
-        <span class="lct-call-summary-label">Pricing</span>
-        <strong><%= pricing_status(@call) %></strong>
-      </div>
-      <div class="lct-call-summary-item">
-        <span class="lct-call-summary-label">Total cost</span>
-        <strong><%= optional_money(@call.total_cost) %></strong>
-      </div>
-      <div class="lct-call-summary-item">
-        <span class="lct-call-summary-label">Total tokens</span>
-        <strong><%= number(@call.total_tokens) %></strong>
-      </div>
-      <div class="lct-call-summary-item">
-        <span class="lct-call-summary-label">Latency</span>
-        <strong><%= @call.latency_ms ? "#{optional_number(@call.latency_ms)}ms" : "n/a" %></strong>
-      </div>
-    </div>
+<div class="lct-stat-grid">
+  <div class="lct-stat">
+    <div class="lct-stat-head"><p class="lct-stat-label">Pricing</p></div>
+    <p class="lct-stat-value-sm"><%= pricing_status(@call) %></p>
   </div>
+  <div class="lct-stat">
+    <div class="lct-stat-head"><p class="lct-stat-label">Total cost</p></div>
+    <p class="lct-stat-value<%= ' lct-num-muted' if @call.total_cost.nil? %>"><%= optional_money(@call.total_cost) %></p>
+  </div>
+  <div class="lct-stat">
+    <div class="lct-stat-head"><p class="lct-stat-label">Total tokens</p></div>
+    <p class="lct-stat-value"><%= number(@call.total_tokens) %></p>
+  </div>
+  <div class="lct-stat">
+    <div class="lct-stat-head"><p class="lct-stat-label">Latency</p></div>
+    <p class="lct-stat-value<%= ' lct-num-muted' if @call.latency_ms.nil? %>"><%= @call.latency_ms ? number(@call.latency_ms) : "n/a" %><% if @call.latency_ms %><span class="lct-stat-unit">ms</span><% end %></p>
+  </div>
+</div>
 
-  <div class="lct-call-breakdown-grid">
-    <section class="lct-call-breakdown">
-      <h3 class="lct-call-breakdown-title">Token Mix</h3>
+<div class="lct-grid-2">
+  <section class="lct-panel">
+    <div class="lct-panel-head"><h2 class="lct-panel-title">Token mix</h2></div>
+    <div class="lct-panel-body">
       <%= render "llm_cost_tracker/shared/metric_stack", segments: token_segments, empty_message: "No token data for this call." %>
-    </section>
+    </div>
+  </section>
 
-    <section class="lct-call-breakdown">
-      <h3 class="lct-call-breakdown-title">Cost Mix</h3>
+  <section class="lct-panel">
+    <div class="lct-panel-head"><h2 class="lct-panel-title">Cost mix</h2></div>
+    <div class="lct-panel-body">
       <% if @call.total_cost.nil? %>
-        <p class="lct-call-breakdown-empty">Pricing not available for this call.</p>
+        <p class="lct-stack-empty">Pricing not available for this call.</p>
       <% else %>
         <%= render "llm_cost_tracker/shared/metric_stack", segments: cost_segments, empty_message: "No cost breakdown for this call." %>
       <% end %>
-    </section>
-  </div>
+    </div>
+  </section>
+</div>
 
-  <div class="lct-detail-grid">
-    <dl class="lct-dl">
-      <dt>Cost Status</dt>
-      <dd><%= @call.cost_status.presence || "n/a" %></dd>
-
-      <dt>Latency</dt>
-      <dd><%= @call.latency_ms ? "#{optional_number(@call.latency_ms)}ms" : "n/a" %></dd>
-
+<section class="lct-panel">
+  <div class="lct-panel-head"><h2 class="lct-panel-title">Provider context</h2></div>
+  <dl class="lct-meta-strip">
+    <div class="lct-meta-strip-item">
       <dt>Batch</dt>
       <dd><%= @call.batch? ? "yes" : "no" %></dd>
-
+    </div>
+    <% if @call.has_attribute?(:stream) %>
+      <div class="lct-meta-strip-item">
+        <dt>Stream</dt>
+        <dd><%= @call.stream? ? "yes" : "no" %></dd>
+      </div>
+    <% end %>
+    <% if @call.has_attribute?(:usage_source) && @call.usage_source.present? %>
+      <div class="lct-meta-strip-item">
+        <dt>Usage source</dt>
+        <dd><code class="lct-code-id"><%= @call.usage_source %></code></dd>
+      </div>
+    <% end %>
+    <div class="lct-meta-strip-item">
       <dt>Response ID</dt>
-      <dd><%= @call.provider_response_id.presence || "n/a" %></dd>
-
+      <dd><%= @call.provider_response_id.present? ? content_tag(:code, @call.provider_response_id, class: "lct-code-id") : "n/a" %></dd>
+    </div>
+    <div class="lct-meta-strip-item">
       <dt>Project ID</dt>
-      <dd><%= @call.provider_project_id.present? ? LlmCostTracker::Masking.mask_value(:provider_project_id, @call.provider_project_id) : "n/a" %></dd>
-
+      <dd><%= @call.provider_project_id.present? ? content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_project_id, @call.provider_project_id), class: "lct-code-id") : "n/a" %></dd>
+    </div>
+    <div class="lct-meta-strip-item">
       <dt>API Key ID</dt>
-      <dd><%= @call.provider_api_key_id.present? ? LlmCostTracker::Masking.mask_value(:provider_api_key_id, @call.provider_api_key_id) : "n/a" %></dd>
-
+      <dd><%= @call.provider_api_key_id.present? ? content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_api_key_id, @call.provider_api_key_id), class: "lct-code-id") : "n/a" %></dd>
+    </div>
+    <div class="lct-meta-strip-item">
       <dt>Workspace ID</dt>
-      <dd><%= @call.provider_workspace_id.present? ? LlmCostTracker::Masking.mask_value(:provider_workspace_id, @call.provider_workspace_id) : "n/a" %></dd>
-    </dl>
+      <dd><%= @call.provider_workspace_id.present? ? content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_workspace_id, @call.provider_workspace_id), class: "lct-code-id") : "n/a" %></dd>
+    </div>
+  </dl>
+</section>
 
-    <dl class="lct-dl">
-      <% priced_components.each do |component| %>
-        <dt><%= component.fetch(:label).titleize %> Tokens</dt>
-        <dd><%= number(@call[component.fetch(:token_key)]) %></dd>
-      <% end %>
-
-      <dt>Total Tokens</dt>
-      <dd><%= number(@call.total_tokens) %></dd>
-    </dl>
-
-    <dl class="lct-dl">
-      <% priced_components.each do |component| %>
-        <dt><%= component.fetch(:label).titleize %> Cost</dt>
-        <dd><%= optional_money(line_item_costs_by_component[component.fetch(:price_key)]) %></dd>
-      <% end %>
-
-      <dt>Total Cost</dt>
-      <dd><%= optional_money(@call.total_cost) %></dd>
-    </dl>
+<section class="lct-panel">
+  <div class="lct-panel-head"><h2 class="lct-panel-title">Tags</h2></div>
+  <div class="lct-panel-body">
+    <% if @call.parsed_tags.empty? %>
+      <p class="lct-stack-empty">(untagged)</p>
+    <% else %>
+      <span class="lct-tag-chips">
+        <% @call.parsed_tags.each do |k, v| %>
+          <span class="lct-tag-chip"><span class="lct-tag-chip-key"><%= k %></span>=<%= v %></span>
+        <% end %>
+      </span>
+    <% end %>
   </div>
 </section>
 
-<% service_line_items = @call.line_items.reject { |li| li.unit == "token" }.sort_by(&:position) %>
 <% if service_line_items.any? %>
   <section class="lct-panel">
-    <h2 class="lct-section-title">Service Charges</h2>
-    <div class="lct-table-wrap">
-      <table class="lct-table lct-table-compact">
-        <thead>
+    <div class="lct-panel-head"><h2 class="lct-panel-title">Service charges</h2></div>
+    <table class="lct-tbl">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Unit</th>
+          <th class="lct-num">Quantity</th>
+          <th class="lct-num">Rate</th>
+          <th class="lct-num">Cost</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% service_line_items.each do |line_item| %>
           <tr>
-            <th>Component</th>
-            <th>Unit</th>
-            <th class="lct-num">Quantity</th>
-            <th class="lct-num">Rate</th>
-            <th class="lct-num">Cost</th>
-            <th>Status</th>
+            <td><code class="lct-code-id"><%= line_item.kind %></code></td>
+            <td><%= line_item.unit %></td>
+            <td class="lct-num"><%= line_item.quantity %></td>
+            <td class="lct-num"><%= line_item.rate_amount ? "#{optional_money(line_item.rate_amount)} / #{line_item.rate_quantity}" : "n/a" %></td>
+            <% unknown_cost = line_item.cost.nil? || line_item.cost_status.to_s == LlmCostTracker::Billing::CostStatus::UNKNOWN %>
+            <td class="lct-num<%= ' lct-num-muted' if unknown_cost %>"><%= unknown_cost ? "n/a" : money(line_item.cost) %></td>
+            <td><%= line_item.cost_status %></td>
           </tr>
-        </thead>
-        <tbody>
-          <% service_line_items.each do |line_item| %>
-            <tr>
-              <td><code class="lct-code"><%= line_item.kind %></code></td>
-              <td><%= line_item.unit %></td>
-              <td class="lct-num"><%= line_item.quantity %></td>
-              <td class="lct-num"><%= line_item.rate_amount ? "#{optional_money(line_item.rate_amount)} / #{line_item.rate_quantity}" : "n/a" %></td>
-              <% unknown_cost = line_item.cost.nil? || line_item.cost_status.to_s == LlmCostTracker::Billing::CostStatus::UNKNOWN %>
-              <td class="lct-num<%= ' lct-num-muted' if unknown_cost %>"><%= unknown_cost ? "n/a" : money(line_item.cost) %></td>
-              <td><%= line_item.cost_status %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
+        <% end %>
+      </tbody>
+    </table>
   </section>
 <% end %>
 
 <% if @call.pricing_snapshot.present? %>
-  <section class="lct-panel">
-    <h2 class="lct-section-title">Pricing Snapshot</h2>
+  <details class="lct-panel lct-disclose">
+    <summary class="lct-panel-head lct-disclose-summary">
+      <h2 class="lct-panel-title">Pricing snapshot</h2>
+      <span class="lct-disclose-hint">show JSON</span>
+    </summary>
     <pre class="lct-pre"><%= safe_json(@call.pricing_snapshot) %></pre>
-  </section>
+  </details>
 <% end %>
 
-<section class="lct-panel">
-  <h2 class="lct-section-title">Tags</h2>
-  <pre class="lct-pre"><%= safe_json(@call.parsed_tags) %></pre>
-</section>
-
 <% if @call.has_attribute?("metadata") %>
-  <section class="lct-panel">
-    <h2 class="lct-section-title">Metadata</h2>
+  <details class="lct-panel lct-disclose">
+    <summary class="lct-panel-head lct-disclose-summary">
+      <h2 class="lct-panel-title">Metadata</h2>
+      <span class="lct-disclose-hint">show JSON</span>
+    </summary>
     <pre class="lct-pre"><%= safe_json(LlmCostTracker::Masking.mask_hash(masked_metadata_hash(@call.read_attribute("metadata")))) %></pre>
-  </section>
+  </details>
 <% end %>

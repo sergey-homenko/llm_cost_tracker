@@ -10,6 +10,7 @@ module LlmCostTracker
 
     before_action :set_dashboard_security_headers
     before_action :ensure_current_schema
+    before_action :assign_dashboard_date_range
 
     helper_method :dashboard_csp_nonce
 
@@ -28,6 +29,12 @@ module LlmCostTracker
       @setup_message = drift.message
       @setup_details = drift.details
       render template: "llm_cost_tracker/shared/setup_required"
+    end
+
+    def assign_dashboard_date_range
+      range = LlmCostTracker::Dashboard::DateRange.call(params: params)
+      @from_date = range.from
+      @to_date = range.to
     end
 
     def render_database_error(error)
@@ -49,7 +56,7 @@ module LlmCostTracker
       response.headers["X-Frame-Options"] = "DENY"
       response.headers["Referrer-Policy"] = "same-origin"
       response.headers["Content-Security-Policy"] =
-        "default-src 'self'; style-src 'self' 'nonce-#{nonce}'; img-src 'self' data:; frame-ancestors 'none'"
+        "default-src 'self'; script-src 'self' 'nonce-#{nonce}'; style-src 'self' 'nonce-#{nonce}'; img-src 'self' data:; frame-ancestors 'none'"
     end
 
     def dashboard_csp_nonce

@@ -4,21 +4,26 @@ module LlmCostTracker
   module Dashboard
     class TagBreakdown
       DEFAULT_LIMIT = 100
+      SORT_OPTIONS = %w[value calls cost avg_cost].freeze
+      DIRECTIONS = %w[asc desc].freeze
+      DEFAULT_DIRECTIONS = { "value" => "asc", "calls" => "desc", "cost" => "desc", "avg_cost" => "desc" }.freeze
       Row = Data.define(:value, :calls, :total_cost, :average_cost_per_call, :share_percent)
 
       class << self
-        def call(key:, scope: LlmCostTracker::Call.all, limit: DEFAULT_LIMIT)
-          new(scope: scope, key: key, limit: limit)
+        def call(key:, scope: LlmCostTracker::Call.all, limit: DEFAULT_LIMIT, sort: "cost", direction: nil)
+          new(scope: scope, key: key, limit: limit, sort: sort, direction: direction)
         end
       end
 
       attr_reader :limit
 
-      def initialize(scope:, key:, limit:)
+      def initialize(scope:, key:, limit:, sort: "cost", direction: nil)
         @scope = scope
         @key = LlmCostTracker::Tags::Key.validate!(key, error_class: LlmCostTracker::InvalidFilterError)
         limit = limit.to_i
         @limit = limit.positive? ? [limit, DEFAULT_LIMIT].min : DEFAULT_LIMIT
+        @sort = SORT_OPTIONS.include?(sort.to_s) ? sort.to_s : "cost"
+        @direction = DIRECTIONS.include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTIONS[@sort]
       end
 
       def rows
@@ -51,7 +56,7 @@ module LlmCostTracker
 
       private
 
-      attr_reader :scope, :key
+      attr_reader :scope, :key, :sort, :direction
 
       def summary_counts
         @summary_counts ||= scope.klass.find_by_sql(summary_sql).first
@@ -67,9 +72,19 @@ module LlmCostTracker
           INNER JOIN #{call_tag_table} t ON t.llm_cost_tracker_call_id = sub.id AND t.#{quote_column('key')} = #{quoted_key}
           WHERE #{tag_present_predicate}
           GROUP BY #{tag_value_column}
-          ORDER BY total_cost DESC, calls DESC, value ASC
+          ORDER BY #{order_clause}
           LIMIT #{limit}
         SQL
+      end
+
+      def order_clause
+        dir = direction.upcase
+        case sort
+        when "value"    then "#{tag_value_column} #{dir}"
+        when "calls"    then "COUNT(*) #{dir}, total_cost DESC"
+        when "avg_cost" then "average_cost_per_call #{dir}, total_cost DESC"
+        else "total_cost #{dir}, calls DESC, value ASC"
+        end
       end
 
       def summary_sql

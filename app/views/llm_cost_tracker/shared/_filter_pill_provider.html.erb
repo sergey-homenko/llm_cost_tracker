@@ -1,0 +1,22 @@
+<% extra_hidden = local_assigns.fetch(:extra_hidden, {}) %>
+<% extra_except = local_assigns.fetch(:extra_except, []) %>
+<% active = params[:provider].presence %>
+<details class="lct-filter-pop" name="lct-filter">
+  <summary class="lct-filter-pill <%= 'lct-active' if active %>">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    <span class="lct-filter-pill-key">Provider</span>
+    <span class="lct-filter-pill-value"><%= active || "All" %></span>
+    <svg class="lct-chev" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l4 4 4-4"/></svg>
+  </summary>
+  <%= form_with url: path, method: :get, local: true, html: { class: "lct-filter-pop-body" } do %>
+    <% extra_hidden.each do |k, v| %><%= hidden_field_tag k, v %><% end %>
+    <% current_query.except(:provider, :page, :per, *extra_except).each do |key, value| %>
+      <% Array(value).each do |v| %><%= hidden_field_tag(value.is_a?(Array) ? "#{key}[]" : key.to_s, v) %><% end %>
+    <% end %>
+    <div class="lct-filter-pop-field">
+      <label for="lct-filter-provider">Provider</label>
+      <%= select_tag :provider, options_for_select(provider_filter_options, active), include_blank: "All providers", id: "lct-filter-provider" %>
+    </div>
+    <button type="submit" class="lct-button lct-button-primary">Apply</button>
+  <% end %>
+</details>

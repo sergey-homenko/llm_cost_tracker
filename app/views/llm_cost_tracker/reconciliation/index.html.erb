@@ -1,33 +1,30 @@
-<section class="lct-panel">
-  <div class="lct-toolbar-head">
-    <h2 class="lct-section-title">Provider Invoice Reconciliation <span class="lct-badge lct-badge-warn">Experimental</span></h2>
-    <% if @last_imported_at %>
-      <p class="lct-state-copy">Last import: <%= @last_imported_at.utc.iso8601 %></p>
-    <% end %>
-  </div>
-  <p class="lct-state-copy">
-    Experimental in v0.9.0 — public API may change in v0.9.x based on feedback.
-    <%= link_to "Open an issue", "https://github.com/sergey-homenko/llm_cost_tracker/issues", target: "_blank", rel: "noopener" %>
-    if you use it.
-  </p>
-</section>
+<h2 class="lct-page-title">Provider invoice reconciliation <span class="lct-page-title-meta">Experimental</span></h2>
+<p class="lct-page-subtitle">
+  <% if @last_imported_at %>
+    <span>Last import: <%= @last_imported_at.utc.iso8601 %></span>
+    <span class="lct-page-subtitle-sep">·</span>
+  <% end %>
+  <span>Public API may change based on feedback — <%= link_to "open an issue", "https://github.com/sergey-homenko/llm_cost_tracker/issues", target: "_blank", rel: "noopener" %> if you use it.</span>
+</p>
 
 <% if flash[:notice] %>
-  <section class="lct-panel"><p class="lct-state-copy"><%= flash[:notice] %></p></section>
+  <div class="lct-alert lct-alert-info"><span><%= flash[:notice] %></span></div>
 <% end %>
 <% if flash[:alert] %>
-  <section class="lct-panel"><p class="lct-state-copy"><%= flash[:alert] %></p></section>
+  <div class="lct-alert lct-alert-danger"><span><%= flash[:alert] %></span></div>
 <% end %>
 
 <% if @configured_importers.any? %>
   <section class="lct-panel">
-    <h3 class="lct-section-title">Trigger import</h3>
-    <% @configured_importers.each_key do |source| %>
-      <%= button_to "Re-import #{source}",
-            reconciliation_import_path(source: source),
-            method: :post,
-            class: "lct-button lct-button-secondary" %>
-    <% end %>
+    <div class="lct-panel-head"><h2 class="lct-panel-title">Trigger import</h2></div>
+    <div class="lct-panel-body">
+      <% @configured_importers.each_key do |source| %>
+        <%= button_to "Re-import #{source}",
+              reconciliation_import_path(source: source),
+              method: :post,
+              class: "lct-button lct-button-secondary" %>
+      <% end %>
+    </div>
   </section>
 <% end %>
 
@@ -35,36 +32,30 @@
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">Reconciliation disabled</h2>
     <p class="lct-state-copy">
-      Provider invoice reconciliation is opt-in because it requires admin/org-level
-      provider API keys (OpenAI <code>sk-admin-…</code>, Anthropic admin keys, GCP
-      <code>billing.viewer</code>) — separate from the runtime inference key the
-      tracker uses. Enable explicitly in the initializer:
+      Provider invoice reconciliation is opt-in because it requires admin/org-level provider API keys (OpenAI <code class="lct-code-id">sk-admin-…</code>, Anthropic admin keys, GCP <code class="lct-code-id">billing.viewer</code>) — separate from the runtime inference key the tracker uses. Enable explicitly in the initializer:
     </p>
-    <pre class="lct-state-pre"><code>LlmCostTracker.configure do |config|
+    <pre class="lct-pre">LlmCostTracker.configure do |config|
   config.reconciliation_enabled = true
-end</code></pre>
+end</pre>
   </section>
 <% elsif !@reconciliation_installed %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">Reconciliation not installed</h2>
-    <p class="lct-state-copy">
-      Run the optional migration to create the reconciliation tables:
-    </p>
-    <pre class="lct-state-pre"><code>bin/rails generate llm_cost_tracker:reconciliation
-bin/rails db:migrate</code></pre>
+    <p class="lct-state-copy">Run the optional migration to create the reconciliation tables:</p>
+    <pre class="lct-pre">bin/rails generate llm_cost_tracker:reconciliation
+bin/rails db:migrate</pre>
   </section>
 <% elsif @diffs.empty? %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">No invoices imported yet</h2>
     <p class="lct-state-copy">
-      Reconciliation compares provider-side invoices against local cost. Once you import
-      invoice rows via <code>LlmCostTracker::Reconciliation.import</code>, they appear here.
+      Reconciliation compares provider-side invoices against local cost. Once you import invoice rows via <code class="lct-code-id">LlmCostTracker::Reconciliation.import</code>, they appear here.
     </p>
   </section>
 <% else %>
   <section class="lct-panel">
-    <h3 class="lct-section-title">Latest period per source / provider / currency</h3>
-    <table class="lct-table">
+    <div class="lct-panel-head"><h2 class="lct-panel-title">Latest period per source / provider / currency</h2></div>
+    <table class="lct-tbl">
       <thead>
         <tr>
           <th>Source</th>
@@ -81,8 +72,8 @@ bin/rails db:migrate</code></pre>
       <tbody>
         <% @diffs.each do |diff| %>
           <tr>
-            <td><%= diff.source %></td>
-            <td><%= diff.provider %></td>
+            <td><code class="lct-code-id"><%= diff.source %></code></td>
+            <td><span class="lct-model-cell"><span class="lct-provider-dot lct-provider-dot-<%= diff.provider %>"></span><%= diff.provider %></span></td>
             <td><%= diff.currency %></td>
             <td><%= diff.period_start %> → <%= diff.period_end %></td>
             <td class="lct-num"><%= money(diff.provider_total) %></td>
@@ -91,9 +82,9 @@ bin/rails db:migrate</code></pre>
             <td class="lct-num"><%= diff.delta_percent.nil? ? "—" : "#{diff.delta_percent}%" %></td>
             <td>
               <% if diff.aligned?(threshold_percent: @threshold) %>
-                <span class="lct-badge lct-badge-ok">Aligned</span>
+                <span class="lct-status-pill lct-status-pill-ok">Aligned</span>
               <% else %>
-                <span class="lct-badge lct-badge-warn">Drift</span>
+                <span class="lct-status-pill lct-status-pill-warn">Drift</span>
               <% end %>
             </td>
           </tr>
@@ -106,23 +97,23 @@ bin/rails db:migrate</code></pre>
     <% next if diff.unmatched_provider_rows.empty? && diff.unmatched_local_calls.empty? && diff.non_cost_rows.empty? %>
 
     <section class="lct-panel">
-      <h3 class="lct-section-title"><%= diff.source %> / <%= diff.provider %> / <%= diff.currency %> — drill down</h3>
+      <div class="lct-panel-head"><h2 class="lct-panel-title"><code class="lct-code-id"><%= diff.source %></code> / <%= diff.provider %> / <%= diff.currency %> — drill down</h2></div>
 
       <% if diff.unmatched_provider_rows.any? %>
-        <h4 class="lct-state-title">
-          Provider rows without a matching local call
+        <p class="lct-panel-intro">
+          <strong>Provider rows without a matching local call</strong>
           <% if diff.unmatched_provider_rows_truncated? %>
-            <small>(showing <%= diff.unmatched_provider_rows.size %> of <%= diff.unmatched_provider_rows_total %>, ranked by billed amount)</small>
+            <span class="lct-num-muted">(showing <%= diff.unmatched_provider_rows.size %> of <%= diff.unmatched_provider_rows_total %>, ranked by billed amount)</span>
           <% end %>
-        </h4>
-        <table class="lct-table">
+        </p>
+        <table class="lct-tbl">
           <thead>
             <tr><th>External ID</th><th>Match basis</th><th>Attribution</th><th class="lct-num">Billed</th></tr>
           </thead>
           <tbody>
             <% diff.unmatched_provider_rows.each do |row| %>
               <tr>
-                <td><%= row[:external_id] %></td>
+                <td><code class="lct-code-id"><%= row[:external_id] %></code></td>
                 <td><%= row[:match_basis] %></td>
                 <td><%= attribution_summary(row[:attribution]) %></td>
                 <td class="lct-num"><%= optional_money(row[:billed_amount]) %></td>
@@ -133,13 +124,13 @@ bin/rails db:migrate</code></pre>
       <% end %>
 
       <% if diff.unmatched_local_calls.any? %>
-        <h4 class="lct-state-title">
-          Local calls no provider invoice can explain
+        <p class="lct-panel-intro">
+          <strong>Local calls no provider invoice can explain</strong>
           <% if diff.unmatched_local_calls_truncated? %>
-            <small>(showing <%= diff.unmatched_local_calls.size %> of <%= diff.unmatched_local_calls_total %>, ranked by total cost)</small>
+            <span class="lct-num-muted">(showing <%= diff.unmatched_local_calls.size %> of <%= diff.unmatched_local_calls_total %>, ranked by total cost)</span>
           <% end %>
-        </h4>
-        <table class="lct-table">
+        </p>
+        <table class="lct-tbl">
           <thead>
             <tr><th>Attribution</th><th class="lct-num">Calls</th><th class="lct-num">Total cost</th></tr>
           </thead>
@@ -156,13 +147,13 @@ bin/rails db:migrate</code></pre>
       <% end %>
 
       <% if diff.non_cost_rows.any? %>
-        <h4 class="lct-state-title">
-          Non-cost evidence (free quota, credits, adjustments)
+        <p class="lct-panel-intro">
+          <strong>Non-cost evidence</strong> (free quota, credits, adjustments)
           <% if diff.non_cost_rows_truncated? %>
-            <small>(showing <%= diff.non_cost_rows.size %> of <%= diff.non_cost_rows_total %>, ranked by amount)</small>
+            <span class="lct-num-muted">(showing <%= diff.non_cost_rows.size %> of <%= diff.non_cost_rows_total %>, ranked by amount)</span>
           <% end %>
-        </h4>
-        <table class="lct-table">
+        </p>
+        <table class="lct-tbl">
           <thead>
             <tr><th>Row type</th><th>Meter</th><th>Attribution</th><th class="lct-num">Amount</th></tr>
           </thead>
