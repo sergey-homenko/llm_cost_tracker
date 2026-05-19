@@ -124,10 +124,10 @@ module LlmCostTracker
     end
 
     def chart_area_gradient_def
-      %(<defs><linearGradient id="lct-chart-grad" x1="0" x2="0" y1="0" y2="1">) \
-        + %(<stop offset="0%" stop-color="var(--lct-accent)" stop-opacity="0.28"/>) \
-        + %(<stop offset="100%" stop-color="var(--lct-accent)" stop-opacity="0.02"/>) \
-        + %(</linearGradient></defs>)
+      "<defs><linearGradient id=\"lct-chart-grad\" x1=\"0\" x2=\"0\" y1=\"0\" y2=\"1\">" \
+        "<stop offset=\"0%\" stop-color=\"var(--lct-accent)\" stop-opacity=\"0.28\"/>" \
+        "<stop offset=\"100%\" stop-color=\"var(--lct-accent)\" stop-opacity=\"0.02\"/>" \
+        "</linearGradient></defs>"
     end
 
     def chart_x_labels(cfg)

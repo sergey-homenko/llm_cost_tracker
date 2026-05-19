@@ -51,9 +51,13 @@ module LlmCostTracker
       when "model"      then "model #{direction}, #{DEFAULT_ORDER}"
       when "input"      then "input_tokens #{direction}, #{DEFAULT_ORDER}"
       when "output"     then "output_tokens #{direction}, #{DEFAULT_ORDER}"
-      when "cost"       then "CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END ASC, total_cost #{direction}, #{DEFAULT_ORDER}"
-      when "latency"    then "CASE WHEN latency_ms IS NULL THEN 1 ELSE 0 END ASC, latency_ms #{direction}, #{DEFAULT_ORDER}"
+      when "cost"       then nulls_last_order("total_cost", direction)
+      when "latency"    then nulls_last_order("latency_ms", direction)
       end
+    end
+
+    def nulls_last_order(column, direction)
+      "CASE WHEN #{column} IS NULL THEN 1 ELSE 0 END ASC, #{column} #{direction}, #{DEFAULT_ORDER}"
     end
 
     def render_csv(relation)

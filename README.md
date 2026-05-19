@@ -15,7 +15,10 @@ attribution only.
 
 Requires Ruby 3.4+, Rails 7.1+, PostgreSQL or MySQL.
 
-![Dashboard overview](docs/dashboard-overview.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/dashboard-overview-dark.png">
+  <img alt="LLM Cost Tracker dashboard" src="docs/dashboard-overview-light.png">
+</picture>
 
 ## Quickstart
 

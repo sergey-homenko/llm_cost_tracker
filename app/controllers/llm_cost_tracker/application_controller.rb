@@ -55,8 +55,13 @@ module LlmCostTracker
       nonce = dashboard_csp_nonce
       response.headers["X-Frame-Options"] = "DENY"
       response.headers["Referrer-Policy"] = "same-origin"
-      response.headers["Content-Security-Policy"] =
-        "default-src 'self'; script-src 'self' 'nonce-#{nonce}'; style-src 'self' 'nonce-#{nonce}'; img-src 'self' data:; frame-ancestors 'none'"
+      response.headers["Content-Security-Policy"] = [
+        "default-src 'self'",
+        "script-src 'self' 'nonce-#{nonce}'",
+        "style-src 'self' 'nonce-#{nonce}'",
+        "img-src 'self' data:",
+        "frame-ancestors 'none'"
+      ].join("; ")
     end
 
     def dashboard_csp_nonce

@@ -77,10 +77,11 @@ module LlmCostTracker
       end
 
       def build_rows(prices)
-        prices.map do |key, rates|
+        rows = prices.map do |key, rates|
           provider, model = split_key(key.to_s)
           Row.new(provider: provider, model: model, rates: rates)
-        end.sort_by { |row| [row.provider || "~", row.model] }
+        end
+        rows.sort_by { |row| [row.provider || "~", row.model] }
       end
 
       def split_key(key)
