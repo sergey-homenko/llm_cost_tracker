@@ -102,10 +102,7 @@ module LlmCostTracker
         active_record_check,
         table_check,
         column_check,
-        SchemaCheck.new(name: "call line items", schema: Ledger::Schema::CallLineItems,
-                        table: "llm_cost_tracker_call_line_items").call,
-        SchemaCheck.new(name: "call tags", schema: Ledger::Schema::CallTags,
-                        table: "llm_cost_tracker_call_tags").call,
+        *dependent_core_schema_checks,
         *reconciliation_schema_checks,
         CostDriftCheck.new.call,
         PricingSnapshotDriftCheck.new.call,
@@ -120,6 +117,13 @@ module LlmCostTracker
     end
 
     private
+
+    def dependent_core_schema_checks
+      Ledger::Schema::CORE_SCHEMAS.drop(1).map do |schema, table|
+        SchemaCheck.new(name: table.delete_prefix("llm_cost_tracker_").tr("_", " "),
+                        schema: schema, table: table).call
+      end
+    end
 
     def reconciliation_schema_checks
       return [] unless LlmCostTracker.reconciliation_enabled?

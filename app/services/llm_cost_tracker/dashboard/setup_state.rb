@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
-require "llm_cost_tracker/ledger/schema/calls"
-require "llm_cost_tracker/ledger/schema/call_line_items"
-require "llm_cost_tracker/ledger/schema/call_tags"
-require "llm_cost_tracker/ledger/schema/call_rollups"
+require "llm_cost_tracker/ledger"
 
 module LlmCostTracker
   module Dashboard
@@ -12,27 +9,7 @@ module LlmCostTracker
       DOCS_HINT = "See docs/upgrading.md for the migration path."
       MUTEX = Mutex.new
 
-      CORE_SCHEMA_CHECKS = [
-        [
-          LlmCostTracker::Ledger::Schema::Calls,
-          "The llm_cost_tracker_calls table does not match the current LLM Cost Tracker schema."
-        ],
-        [
-          LlmCostTracker::Ledger::Schema::CallLineItems,
-          "The llm_cost_tracker_call_line_items table does not match the current LLM Cost Tracker schema."
-        ],
-        [
-          LlmCostTracker::Ledger::Schema::CallTags,
-          "The llm_cost_tracker_call_tags table does not match the current LLM Cost Tracker schema."
-        ]
-      ].freeze
-
-      OPTIONAL_CALL_ROLLUPS_CHECK = [
-        LlmCostTracker::Ledger::Schema::CallRollups,
-        "The llm_cost_tracker_call_rollups table does not match the current LLM Cost Tracker schema."
-      ].freeze
-
-      private_constant :MUTEX, :CORE_SCHEMA_CHECKS, :OPTIONAL_CALL_ROLLUPS_CHECK, :DOCS_HINT
+      private_constant :MUTEX, :DOCS_HINT
 
       class << self
         def current
@@ -80,16 +57,17 @@ module LlmCostTracker
         end
 
         def schema_checks_for_current_config
-          return CORE_SCHEMA_CHECKS unless LlmCostTracker.configuration.cache_rollups
+          return LlmCostTracker::Ledger::Schema::CORE_SCHEMAS unless LlmCostTracker.configuration.cache_rollups
 
-          CORE_SCHEMA_CHECKS + [OPTIONAL_CALL_ROLLUPS_CHECK]
+          LlmCostTracker::Ledger::Schema::CORE_SCHEMAS + [LlmCostTracker::Ledger::Schema::CACHE_ROLLUPS_SCHEMA]
         end
 
         def drift_in(checks)
-          checks.each do |schema, message|
+          checks.each do |schema, table|
             errors = schema.current_schema_errors
             next if errors.empty?
 
+            message = "The #{table} table does not match the current LLM Cost Tracker schema."
             return SetupRequired.new(message: message, details: errors)
           end
           nil
