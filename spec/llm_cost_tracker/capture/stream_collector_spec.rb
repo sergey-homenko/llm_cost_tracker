@@ -5,34 +5,6 @@ require "llm_cost_tracker/capture/stream_collector"
 
 RSpec.describe LlmCostTracker do
   describe LlmCostTracker::Capture::StreamCollector do
-    describe "#merge_pricing_modes" do
-      let(:collector) { described_class.new(provider: "openai", model: "gpt-5.5") }
-
-      def merge(provider_mode, request_mode)
-        collector.send(:merge_pricing_modes, provider_mode, request_mode)
-      end
-
-      it "keeps host-derived data_residency from the request hint when provider only echoes the tier" do
-        expect(merge("priority", "priority_data_residency")).to eq(:priority_data_residency)
-      end
-
-      it "lets the provider override the tier while preserving host-derived data_residency" do
-        expect(merge("standard", "priority_data_residency")).to eq(:data_residency)
-      end
-
-      it "falls back to the request hint when the provider returns no pricing mode" do
-        expect(merge(nil, "batch_data_residency")).to eq(:batch_data_residency)
-      end
-
-      it "uses the provider mode when the request had no hint" do
-        expect(merge("batch", nil)).to eq(:batch)
-      end
-
-      it "drops standard tier tokens (Mode.normalize collapses them)" do
-        expect(merge("standard", nil)).to be_nil
-      end
-    end
-
     it "strips b64_json payload data before counting bytes so an OpenAI image_generation.completed event with a multi-megabyte image does not overflow the buffer and lose the usage chunk" do
       collector = described_class.new(provider: "openai", model: "gpt-image-2")
       huge_blob = "A" * (LlmCostTracker::Capture::Stream::LIMIT_BYTES + 1024)

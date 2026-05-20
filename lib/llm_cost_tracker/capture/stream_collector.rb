@@ -129,7 +129,7 @@ module LlmCostTracker
           Tracker.record(
             event: event,
             latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
-            pricing_mode: merge_pricing_modes(event.pricing_mode, snapshot[:pricing_mode]),
+            pricing_mode: Pricing::Mode.merge(event.pricing_mode, snapshot[:pricing_mode]),
             metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
             context_tags: snapshot[:context_tags]
           ) { save_succeeded = true }
@@ -139,20 +139,6 @@ module LlmCostTracker
             @recording = false
           end
         end
-      end
-
-      HOST_DERIVED_MODE_TOKENS = %i[data_residency].freeze
-      private_constant :HOST_DERIVED_MODE_TOKENS
-
-      def merge_pricing_modes(provider_mode, request_mode)
-        return Pricing::Mode.normalize(request_mode) if provider_mode.to_s.strip.empty?
-
-        provider_tokens = Pricing::Mode.tokenize(provider_mode) - Pricing::Mode::STANDARD_MODE_VALUES
-        request_host_tokens = Pricing::Mode.tokenize(request_mode || "") & HOST_DERIVED_MODE_TOKENS
-        combined = provider_tokens | request_host_tokens
-        return nil if combined.empty?
-
-        Pricing::Mode.normalize(combined.join("_"))
       end
 
       def capture_dimensions(pricing_mode)

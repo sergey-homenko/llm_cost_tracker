@@ -5,6 +5,7 @@ module LlmCostTracker
     class Mode
       STANDARD_MODE_VALUES = %i[auto default standard standard_only].freeze
       COMPOUND_MODIFIERS = %w[data_residency].freeze
+      HOST_DERIVED_MODIFIERS = %i[data_residency].freeze
 
       attr_reader :modifiers
 
@@ -15,6 +16,17 @@ module LlmCostTracker
         return nil unless symbol
 
         STANDARD_MODE_VALUES.include?(symbol) ? nil : symbol
+      end
+
+      def self.merge(provider_mode, request_mode)
+        return normalize(request_mode) if provider_mode.to_s.strip.empty?
+
+        provider_tokens = tokenize(provider_mode) - STANDARD_MODE_VALUES
+        request_host_tokens = tokenize(request_mode || "") & HOST_DERIVED_MODIFIERS
+        combined = provider_tokens | request_host_tokens
+        return nil if combined.empty?
+
+        normalize(combined.join("_"))
       end
 
       def self.normalize_string(value)
