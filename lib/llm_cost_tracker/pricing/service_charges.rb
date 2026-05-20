@@ -68,7 +68,7 @@ module LlmCostTracker
       end
 
       def charge_rate(provider:, component:, pricing_mode:)
-        pricing_mode = Pricing.normalize_mode(pricing_mode)
+        pricing_mode = Pricing::Mode.normalize(pricing_mode)
         match = charge_rate_match(provider: provider, component: component, pricing_mode: pricing_mode)
         return nil unless match
 

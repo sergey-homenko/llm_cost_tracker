@@ -117,8 +117,8 @@ module LlmCostTracker
           service_tier = nil if tier.standard_equivalent_tier?(service_tier)
 
           modes = [
-            Pricing.normalize_mode(object_value(usage, :speed) || request[:speed]),
-            Pricing.normalize_mode(service_tier)
+            Pricing::Mode.normalize(object_value(usage, :speed) || request[:speed]),
+            Pricing::Mode.normalize(service_tier)
           ]
           geo = inference_geo(request: request, usage: usage).to_s.downcase
           modes << "data_residency" if tier.data_residency_geo?(geo)

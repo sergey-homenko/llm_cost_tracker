@@ -176,8 +176,8 @@ module LlmCostTracker
         service_tier = usage&.fetch("service_tier", nil) || request["service_tier"]
         service_tier = nil if Providers::Anthropic::TierClassification.standard_equivalent_tier?(service_tier)
 
-        modes << Pricing.normalize_mode(speed)
-        modes << Pricing.normalize_mode(service_tier)
+        modes << Pricing::Mode.normalize(speed)
+        modes << Pricing::Mode.normalize(service_tier)
         geo = inference_geo(request: request, usage: usage).downcase
         modes << "data_residency" if Providers::Anthropic::TierClassification.data_residency_geo?(geo)
 

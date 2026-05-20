@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
-require_relative "openai_service_charges"
 require_relative "../providers/openai/hosts"
 require_relative "../providers/openai/model_families"
+require_relative "../providers/openai/service_charges"
 
 module LlmCostTracker
   module Parsers
     module OpenaiUsage
-      include OpenaiServiceCharges
+      include LlmCostTracker::Providers::Openai::ServiceCharges
 
       class << self
         def combined_pricing_mode(host:, model:, service_tier:)
-          modes = [Pricing.normalize_mode(service_tier)]
+          modes = [Pricing::Mode.normalize(service_tier)]
           modes << "data_residency" if regional_processing?(host: host, model: model)
           modes = modes.compact.uniq
           modes.empty? ? nil : modes.join("_")

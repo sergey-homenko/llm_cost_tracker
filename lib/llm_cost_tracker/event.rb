@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "pricing"
+require_relative "pricing/mode"
 require_relative "billing/line_item"
 
 module LlmCostTracker
@@ -30,7 +30,7 @@ module LlmCostTracker
     end
 
     def self.build(**attributes)
-      pricing_mode = Pricing.normalize_mode(attributes[:pricing_mode])
+      pricing_mode = Pricing::Mode.normalize(attributes[:pricing_mode])
       token_usage = attributes.fetch(:token_usage)
       batch = attributes[:batch].nil? ? batch_from_pricing_mode?(pricing_mode) : attributes[:batch]
       line_items = attributes[:line_items] || resolve_line_items(attributes[:service_line_items], token_usage)

@@ -174,10 +174,10 @@ module LlmCostTracker
 
       def pricing_mode(request:, response_headers:)
         response_tier = response_header(response_headers, "x-gemini-service-tier")
-        response_mode = Pricing.normalize_mode(response_tier)
+        response_mode = Pricing::Mode.normalize(response_tier)
         return response_mode if response_mode
 
-        request_mode = Pricing.normalize_mode(
+        request_mode = Pricing::Mode.normalize(
           request["service_tier"] ||
           request["serviceTier"] ||
           request.dig("config", "service_tier") ||

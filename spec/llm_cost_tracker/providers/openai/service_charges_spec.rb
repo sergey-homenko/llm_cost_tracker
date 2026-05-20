@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "llm_cost_tracker/parsers/openai_service_charges"
+require "llm_cost_tracker/providers/openai/service_charges"
 
-RSpec.describe LlmCostTracker::Parsers::OpenaiServiceCharges do
+RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
   describe ".line_items_from_output" do
     it "returns no line items for an empty output" do
       expect(described_class.line_items_from_output([])).to eq([])

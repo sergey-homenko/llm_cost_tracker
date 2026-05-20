@@ -6,6 +6,7 @@ require "stringio"
 require "uri"
 
 require_relative "../logging"
+require_relative "../capture/sse"
 require_relative "../capture/stream"
 require_relative "../timing"
 
@@ -201,7 +202,7 @@ module LlmCostTracker
           )
         end
 
-        events = overflowed ? [] : Parsers::SSE.parse(body)
+        events = overflowed ? [] : Capture::SSE.parse(body)
         parser.parse_stream(
           request_url: request_url,
           request_body: request_body,

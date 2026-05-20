@@ -3,9 +3,27 @@
 module LlmCostTracker
   module Pricing
     class Mode
+      STANDARD_MODE_VALUES = %i[auto default standard standard_only].freeze
       COMPOUND_MODIFIERS = %w[data_residency].freeze
 
       attr_reader :modifiers
+
+      def self.normalize(value)
+        return nil if value.nil?
+
+        symbol = normalize_string(value.to_s)
+        return nil unless symbol
+
+        STANDARD_MODE_VALUES.include?(symbol) ? nil : symbol
+      end
+
+      def self.normalize_string(value)
+        normalized = value.strip
+        return nil if normalized.empty?
+
+        normalized.downcase.tr("-", "_").to_sym
+      end
+      private_class_method :normalize_string
 
       def self.parse(value)
         return value if value.is_a?(self)

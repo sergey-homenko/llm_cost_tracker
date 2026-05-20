@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe LlmCostTracker::Parsers::SSE do
+RSpec.describe LlmCostTracker::Capture::SSE do
   describe ".parse" do
     it "returns an empty array for nil or empty input" do
       expect(described_class.parse(nil)).to eq([])

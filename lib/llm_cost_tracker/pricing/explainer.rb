@@ -50,7 +50,7 @@ module LlmCostTracker
 
         def explanation(provider:, model:, pricing_mode:, match:, usage:)
           prices = match&.prices
-          pricing_mode = Pricing.normalize_mode(pricing_mode)
+          pricing_mode = Pricing::Mode.normalize(pricing_mode)
           effective = if prices
                         EffectivePrices.call(usage: usage, quantities: usage.priced_quantities,
                                              prices: prices, pricing_mode: pricing_mode)

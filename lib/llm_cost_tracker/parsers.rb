@@ -4,8 +4,6 @@ module LlmCostTracker
   module Parsers
     autoload :Base,                 "llm_cost_tracker/parsers/base"
     autoload :OpenaiUsage,          "llm_cost_tracker/parsers/openai_usage"
-    autoload :OpenaiServiceCharges, "llm_cost_tracker/parsers/openai_service_charges"
-    autoload :SSE,                  "llm_cost_tracker/parsers/sse"
     autoload :Openai,               "llm_cost_tracker/parsers/openai"
     autoload :Azure,                "llm_cost_tracker/parsers/azure"
     autoload :OpenaiCompatible,     "llm_cost_tracker/parsers/openai_compatible"

@@ -38,7 +38,7 @@ module LlmCostTracker
             provider: payload.fetch(:provider),
             model: payload.fetch(:model),
             token_usage: token_usage,
-            pricing_mode: Pricing.normalize_mode(payload[:pricing_mode]),
+            pricing_mode: Pricing::Mode.normalize(payload[:pricing_mode]),
             cost: cost,
             tags: payload.fetch(:tags),
             latency_ms: payload[:latency_ms],

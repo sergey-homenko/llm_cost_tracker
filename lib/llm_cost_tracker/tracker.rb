@@ -23,7 +23,7 @@ module LlmCostTracker
       def record(event:, latency_ms: nil, pricing_mode: nil, metadata: {}, context_tags: nil)
         return unless LlmCostTracker.configuration.enabled
 
-        pricing_mode = Pricing.normalize_mode(pricing_mode) || event.pricing_mode
+        pricing_mode = Pricing::Mode.normalize(pricing_mode) || event.pricing_mode
         cost_data, pricing_snapshot, priced_line_items = Pricing.calculate(
           provider: event.provider,
           model: event.model,

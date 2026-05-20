@@ -2,9 +2,9 @@
 
 require_relative "base"
 require_relative "../billing/line_item"
-require_relative "../parsers/openai_service_charges"
 require_relative "../providers/azure/hosts"
 require_relative "../providers/openai/model_families"
+require_relative "../providers/openai/service_charges"
 
 module LlmCostTracker
   module Integrations
@@ -245,7 +245,7 @@ module LlmCostTracker
           output_items << chat_search if chat_search
           return [] if output_items.empty?
 
-          LlmCostTracker::Parsers::OpenaiServiceCharges.line_items_from_output(
+          LlmCostTracker::Providers::Openai::ServiceCharges.line_items_from_output(
             output_items, request: request, model: model
           )
         end
@@ -255,9 +255,9 @@ module LlmCostTracker
           return nil unless choices.respond_to?(:any?)
 
           provider_field = if choices.any? { |choice| choice_used_url_citation?(choice) }
-                             LlmCostTracker::Parsers::OpenaiServiceCharges::CHAT_COMPLETIONS_ANNOTATION_PROVIDER_FIELD
+                             LlmCostTracker::Providers::Openai::ServiceCharges::CHAT_COMPLETIONS_ANNOTATION_PROVIDER_FIELD
                            elsif LlmCostTracker::Providers::Openai::ModelFamilies.chat_completions_search?(model)
-                             LlmCostTracker::Parsers::OpenaiServiceCharges::CHAT_COMPLETIONS_SEARCH_MODEL_PROVIDER_FIELD
+                             LlmCostTracker::Providers::Openai::ServiceCharges::CHAT_COMPLETIONS_SEARCH_MODEL_PROVIDER_FIELD
                            end
           return nil unless provider_field
 

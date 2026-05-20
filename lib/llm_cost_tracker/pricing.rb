@@ -21,20 +21,10 @@ module LlmCostTracker
   module Pricing # rubocop:disable Metrics/ModuleLength
     extend ServiceCharges
 
-    STANDARD_MODE_VALUES = %i[auto default standard standard_only].freeze
     RATE_DENOMINATOR_TOKENS = 1_000_000
     private_constant :RATE_DENOMINATOR_TOKENS
 
     class << self
-      def normalize_mode(value)
-        return nil if value.nil?
-
-        mode = normalize_string_mode(value.to_s)
-        return nil unless mode
-
-        STANDARD_MODE_VALUES.include?(mode) ? nil : mode
-      end
-
       def cost_for(provider:, model:, tokens:, pricing_mode: nil)
         calculation = calculation_for(
           provider: provider,
@@ -139,13 +129,6 @@ module LlmCostTracker
         )
       end
 
-      def normalize_string_mode(value)
-        normalized = value.strip
-        return nil if normalized.empty?
-
-        normalized.downcase.tr("-", "_").to_sym
-      end
-
       def cost_from(calculation)
         costs = calculation[:costs]
         values = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, result|
@@ -184,7 +167,7 @@ module LlmCostTracker
 
         token_usage = TokenUsage.build_from_tokens(tokens)
         quantities = token_usage.priced_quantities
-        mode = normalize_mode(pricing_mode)
+        mode = Mode.normalize(pricing_mode)
         effective = EffectivePrices.call(usage: token_usage, quantities: quantities, prices: match.prices,
                                          pricing_mode: mode)
         return nil unless any_billable_priced?(quantities, effective)

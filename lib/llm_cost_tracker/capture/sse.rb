@@ -4,7 +4,7 @@ require "active_support/core_ext/object/blank"
 require "json"
 
 module LlmCostTracker
-  module Parsers
+  module Capture
     module SSE
       DONE_MARKER = "[DONE]"
 

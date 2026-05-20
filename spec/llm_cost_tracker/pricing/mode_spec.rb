@@ -4,6 +4,33 @@ require "spec_helper"
 require "llm_cost_tracker/pricing/mode"
 
 RSpec.describe LlmCostTracker::Pricing::Mode do
+  describe ".normalize" do
+    it "treats standard provider aliases as default pricing" do
+      expect(described_class.normalize("standard")).to be_nil
+      expect(described_class.normalize("default")).to be_nil
+      expect(described_class.normalize("auto")).to be_nil
+      expect(described_class.normalize("standard_only")).to be_nil
+      expect(described_class.normalize(" ")).to be_nil
+    end
+
+    it "keeps non-standard pricing modes" do
+      expect(described_class.normalize("priority")).to eq(:priority)
+      expect(described_class.normalize(:priority)).to eq(:priority)
+      expect(described_class.normalize("data-residency")).to eq(:data_residency)
+    end
+
+    it "matches provider tier strings regardless of case" do
+      expect(described_class.normalize("PRIORITY")).to eq(:priority)
+      expect(described_class.normalize(:Priority)).to eq(:priority)
+      expect(described_class.normalize("Standard")).to be_nil
+    end
+
+    it "returns nil for nil and unparseable inputs" do
+      expect(described_class.normalize(nil)).to be_nil
+      expect(described_class.normalize("")).to be_nil
+    end
+  end
+
   describe ".parse" do
     it "produces an empty mode for nil" do
       expect(described_class.parse(nil)).to be_empty

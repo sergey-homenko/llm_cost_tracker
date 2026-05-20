@@ -28,7 +28,7 @@ RSpec.describe LlmCostTracker do
         expect(merge("batch", nil)).to eq(:batch)
       end
 
-      it "drops standard tier tokens (normalize_mode collapses them)" do
+      it "drops standard tier tokens (Mode.normalize collapses them)" do
         expect(merge("standard", nil)).to be_nil
       end
     end

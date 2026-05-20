@@ -102,7 +102,7 @@ module LlmCostTracker
           return nil if @finished || @recording
 
           @recording = true
-          pricing_mode = Pricing.normalize_mode(@pricing_mode)
+          pricing_mode = Pricing::Mode.normalize(@pricing_mode)
           {
             events: @events.dup,
             overflowed: @overflowed,
@@ -145,14 +145,14 @@ module LlmCostTracker
       private_constant :HOST_DERIVED_MODE_TOKENS
 
       def merge_pricing_modes(provider_mode, request_mode)
-        return Pricing.normalize_mode(request_mode) if provider_mode.to_s.strip.empty?
+        return Pricing::Mode.normalize(request_mode) if provider_mode.to_s.strip.empty?
 
-        provider_tokens = Pricing::Mode.tokenize(provider_mode) - Pricing::STANDARD_MODE_VALUES
+        provider_tokens = Pricing::Mode.tokenize(provider_mode) - Pricing::Mode::STANDARD_MODE_VALUES
         request_host_tokens = Pricing::Mode.tokenize(request_mode || "") & HOST_DERIVED_MODE_TOKENS
         combined = provider_tokens | request_host_tokens
         return nil if combined.empty?
 
-        Pricing.normalize_mode(combined.join("_"))
+        Pricing::Mode.normalize(combined.join("_"))
       end
 
       def capture_dimensions(pricing_mode)
