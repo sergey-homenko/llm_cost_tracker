@@ -16,6 +16,24 @@ module LlmCostTracker
         "avg_cost" => "desc",
         "cost" => "desc"
       }.freeze
+      ORDER_NODES = {
+        %w[provider asc]  => [{ provider: :asc, model: :asc }],
+        %w[provider desc] => [{ provider: :desc, model: :asc }],
+        %w[name asc]      => [{ model: :asc }],
+        %w[name desc]     => [{ model: :desc }],
+        %w[calls asc]     => [Arel.sql("COUNT(*) ASC")],
+        %w[calls desc]    => [Arel.sql("COUNT(*) DESC")],
+        %w[tokens asc]    => [Arel.sql("COALESCE(SUM(total_tokens), 0) ASC")],
+        %w[tokens desc]   => [Arel.sql("COALESCE(SUM(total_tokens), 0) DESC")],
+        %w[avg_cost asc]  => [Arel.sql("COALESCE(SUM(total_cost), 0) / NULLIF(COUNT(*), 0) ASC")],
+        %w[avg_cost desc] => [Arel.sql("COALESCE(SUM(total_cost), 0) / NULLIF(COUNT(*), 0) DESC")],
+        %w[latency asc]   => [Arel.sql("CASE WHEN AVG(latency_ms) IS NULL THEN 1 ELSE 0 END ASC, " \
+                                       "AVG(latency_ms) ASC")],
+        %w[latency desc]  => [Arel.sql("CASE WHEN AVG(latency_ms) IS NULL THEN 1 ELSE 0 END ASC, " \
+                                       "AVG(latency_ms) DESC")],
+        %w[cost asc]      => [Arel.sql("COALESCE(SUM(total_cost), 0) ASC")],
+        %w[cost desc]     => [Arel.sql("COALESCE(SUM(total_cost), 0) DESC")]
+      }.freeze
 
       class << self
         def call(scope: LlmCostTracker::Call.all, limit: DEFAULT_LIMIT, sort: DEFAULT_SORT, direction: nil)
@@ -34,33 +52,13 @@ module LlmCostTracker
         scope
           .group(:provider, :model)
           .select(selects)
-          .order(Arel.sql(order_sql))
+          .order(*ORDER_NODES.fetch([sort, direction]))
           .then { |r| limit ? r.limit(limit) : r }
       end
 
       private
 
       attr_reader :scope, :limit, :sort, :direction
-
-      def order_sql
-        dir = direction.upcase
-        case sort
-        when "provider"
-          "provider #{dir}, model ASC"
-        when "name"
-          "model #{dir}"
-        when "calls"
-          "COUNT(*) #{dir}"
-        when "tokens"
-          "COALESCE(SUM(total_tokens), 0) #{dir}"
-        when "avg_cost"
-          "COALESCE(SUM(total_cost), 0) / NULLIF(COUNT(*), 0) #{dir}"
-        when "latency"
-          "CASE WHEN AVG(latency_ms) IS NULL THEN 1 ELSE 0 END ASC, AVG(latency_ms) #{dir}"
-        else
-          "COALESCE(SUM(total_cost), 0) #{dir}"
-        end
-      end
 
       def selects
         columns = [

@@ -8,16 +8,20 @@ module LlmCostTracker
     CSV_EXPORT_LIMIT = 10_000
     CSV_EXPORT_BATCH_SIZE = 500
     CSV_FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"].freeze
-    DEFAULT_ORDER = "tracked_at DESC, id DESC"
+    DEFAULT_TIEBREAKER = { tracked_at: :desc, id: :desc }.freeze
     SORT_OPTIONS = %w[tracked_at provider model input output cost latency].freeze
     SORT_DIRECTIONS = %w[asc desc].freeze
+    NULLS_LAST_GUARD = {
+      total_cost: Arel.sql("CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END ASC"),
+      latency_ms: Arel.sql("CASE WHEN latency_ms IS NULL THEN 1 ELSE 0 END ASC")
+    }.freeze
 
     def index
       @sort = params[:sort].to_s
       @dir = params[:dir].to_s
       scope = Dashboard::Filter.call(params: params)
       scope = scope.unknown_pricing if params[:cost_status].to_s == "incomplete"
-      ordered_scope = scope.order(Arel.sql(calls_order(@sort, @dir)))
+      ordered_scope = scope.order(*calls_order(@sort, @dir))
 
       respond_to do |format|
         format.html do
@@ -41,23 +45,19 @@ module LlmCostTracker
     private
 
     def calls_order(sort, dir)
-      column = SORT_OPTIONS.include?(sort) ? sort : "tracked_at"
-      natural = %w[provider model].include?(column) ? "asc" : "desc"
-      direction = (SORT_DIRECTIONS.include?(dir.downcase) ? dir.downcase : natural).upcase
+      column = SORT_OPTIONS.include?(sort) ? sort.to_sym : :tracked_at
+      natural = %i[provider model].include?(column) ? :asc : :desc
+      direction = SORT_DIRECTIONS.include?(dir.downcase) ? dir.downcase.to_sym : natural
 
       case column
-      when "tracked_at" then "tracked_at #{direction}, id #{direction}"
-      when "provider"   then "provider #{direction}, model ASC, #{DEFAULT_ORDER}"
-      when "model"      then "model #{direction}, #{DEFAULT_ORDER}"
-      when "input"      then "input_tokens #{direction}, #{DEFAULT_ORDER}"
-      when "output"     then "output_tokens #{direction}, #{DEFAULT_ORDER}"
-      when "cost"       then nulls_last_order("total_cost", direction)
-      when "latency"    then nulls_last_order("latency_ms", direction)
+      when :tracked_at then [{ tracked_at: direction, id: direction }]
+      when :provider   then [{ provider: direction, model: :asc, **DEFAULT_TIEBREAKER }]
+      when :model      then [{ model: direction, **DEFAULT_TIEBREAKER }]
+      when :input      then [{ input_tokens: direction, **DEFAULT_TIEBREAKER }]
+      when :output     then [{ output_tokens: direction, **DEFAULT_TIEBREAKER }]
+      when :cost       then [NULLS_LAST_GUARD[:total_cost], { total_cost: direction, **DEFAULT_TIEBREAKER }]
+      when :latency    then [NULLS_LAST_GUARD[:latency_ms], { latency_ms: direction, **DEFAULT_TIEBREAKER }]
       end
-    end
-
-    def nulls_last_order(column, direction)
-      "CASE WHEN #{column} IS NULL THEN 1 ELSE 0 END ASC, #{column} #{direction}, #{DEFAULT_ORDER}"
     end
 
     def render_csv(relation)
