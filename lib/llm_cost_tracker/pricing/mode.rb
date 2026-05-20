@@ -4,8 +4,7 @@ module LlmCostTracker
   module Pricing
     class Mode
       STANDARD_MODE_VALUES = %i[auto default standard standard_only].freeze
-      COMPOUND_MODIFIERS = %w[data_residency].freeze
-      HOST_DERIVED_MODIFIERS = %i[data_residency].freeze
+      COMPOUND_MODIFIERS = %i[data_residency].freeze
 
       attr_reader :modifiers
 
@@ -22,7 +21,7 @@ module LlmCostTracker
         return normalize(request_mode) if provider_mode.to_s.strip.empty?
 
         provider_tokens = tokenize(provider_mode) - STANDARD_MODE_VALUES
-        request_host_tokens = tokenize(request_mode || "") & HOST_DERIVED_MODIFIERS
+        request_host_tokens = tokenize(request_mode || "") & COMPOUND_MODIFIERS
         combined = provider_tokens | request_host_tokens
         return nil if combined.empty?
 
@@ -51,11 +50,12 @@ module LlmCostTracker
           break if remaining.empty?
 
           compound = COMPOUND_MODIFIERS.find do |token|
-            remaining == token || remaining.start_with?("#{token}_")
+            name = token.name
+            remaining == name || remaining.start_with?("#{name}_")
           end
           if compound
-            tokens << compound.to_sym
-            remaining = remaining.delete_prefix(compound).delete_prefix("_")
+            tokens << compound
+            remaining = remaining.delete_prefix(compound.name).delete_prefix("_")
           else
             first, _, rest = remaining.partition("_")
             tokens << first.to_sym unless first.empty?
