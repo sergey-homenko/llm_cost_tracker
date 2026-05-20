@@ -199,12 +199,14 @@ RSpec.describe "LlmCostTracker::Engine reconciliation" do
     LlmCostTracker.configuration.reconciliation_importers = {}
   end
 
-  it "redirects after running an importer whose return value is not an ImportResult" do
+  it "redirects with the alert when the registered importer returns a non-ImportResult value" do
+    allow(LlmCostTracker::Logging).to receive(:warn)
     LlmCostTracker.configuration.reconciliation_importers = { openai: -> { :ok } }
 
     response = post("/llm-costs/reconciliation/import", params: { source: "openai" })
 
     expect(response.status).to eq(302)
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(/Reconciliation import failed for openai/)
   ensure
     LlmCostTracker.configuration.reconciliation_importers = {}
   end

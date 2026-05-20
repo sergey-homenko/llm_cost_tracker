@@ -30,22 +30,18 @@ module LlmCostTracker
       return redirect_to reconciliation_path, alert: "No importer configured for #{source}" if importer.nil?
 
       result = importer.call
-      if result.respond_to?(:errors) && result.errors.any?
+      if result.errors.any?
         LlmCostTracker::Logging.warn(
           "Reconciliation import for #{source} returned #{result.errors.size} row error(s)"
         )
         return redirect_to(
           reconciliation_path,
-          alert: "Imported #{result.respond_to?(:total_imported) ? result.total_imported : 0} " \
-                 "#{source} rows with #{result.errors.size} row error(s); see Rails logs for details."
+          alert: "Imported #{result.total_imported} #{source} rows " \
+                 "with #{result.errors.size} row error(s); see Rails logs for details."
         )
       end
-      message = if result.respond_to?(:total_imported)
-                  "Imported #{result.total_imported} #{source} rows"
-                else
-                  "Triggered #{source} importer"
-                end
-      redirect_to reconciliation_path, notice: message
+      redirect_to reconciliation_path,
+                  notice: "Imported #{result.total_imported} #{source} rows"
     rescue StandardError => e
       LlmCostTracker::Logging.warn("Reconciliation import failed for #{source}: #{e.class}: #{e.message}")
       redirect_to reconciliation_path,

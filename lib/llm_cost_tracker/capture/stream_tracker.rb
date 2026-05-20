@@ -74,11 +74,7 @@ module LlmCostTracker
       end
 
       def capture(event)
-        raw_payload = event.try(:deep_to_h) || event.try(:to_h)
-        raw_payload ||= %i[type id model usage response message].each_with_object({}) do |key, attributes|
-          value = event.try(key)
-          attributes[key] = value unless value.nil?
-        end
+        raw_payload = event.try(:deep_to_h) || event.try(:to_h) || {}
         payload = normalize(raw_payload)
         type = event.try(:type) || payload["type"]
         @collector.event(payload, type: type&.to_s)
