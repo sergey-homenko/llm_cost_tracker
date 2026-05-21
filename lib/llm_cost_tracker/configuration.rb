@@ -17,7 +17,8 @@ module LlmCostTracker
     INGESTION_MODES = %i[inline async].freeze
     SCALAR_ATTRIBUTES = %i[enabled default_tags on_budget_exceeded monthly_budget daily_budget per_call_budget
                            log_level prices_file max_tag_count max_tag_value_bytesize
-                           ingestion_pool_size].freeze
+                           ingestion_pool_size auto_enable_stream_usage cache_rollups
+                           reconciliation_enabled].freeze
     ENUM_ATTRIBUTES = {
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
       unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn],
@@ -35,10 +36,7 @@ module LlmCostTracker
       :redacted_tag_keys,
       :unknown_pricing_behavior,
       :openai_compatible_providers,
-      :reconciliation_importers,
-      :reconciliation_enabled,
-      :auto_enable_stream_usage,
-      :cache_rollups
+      :reconciliation_importers
     )
 
     def initialize
@@ -66,21 +64,6 @@ module LlmCostTracker
       self.ingestion = :inline
       @cache_rollups = false
       @finalized = false
-    end
-
-    def cache_rollups=(value)
-      ensure_mutable!
-      @cache_rollups = value
-    end
-
-    def reconciliation_enabled=(value)
-      ensure_mutable!
-      @reconciliation_enabled = value
-    end
-
-    def auto_enable_stream_usage=(value)
-      ensure_mutable!
-      @auto_enable_stream_usage = value
     end
 
     def reconciliation_importers=(importers)

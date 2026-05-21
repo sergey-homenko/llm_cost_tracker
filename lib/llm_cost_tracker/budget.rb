@@ -112,8 +112,7 @@ module LlmCostTracker
 
       def notify_exceeded?(config, budget_type:, total:, budget:, last_event:)
         return false unless config.on_budget_exceeded
-        return true unless last_event&.total_cost
-        return true if budget_type == :per_call
+        return true if !last_event&.total_cost || budget_type == :per_call
 
         total - last_event.total_cost < budget
       end

@@ -5,6 +5,7 @@ require "date"
 require "json"
 
 require_relative "import_result"
+require_relative "sources/coercion"
 require_relative "../ledger/rollups"
 
 module LlmCostTracker
@@ -120,7 +121,7 @@ module LlmCostTracker
       def normalize_rows(rows)
         errors = []
         normalized = rows.each_with_index.filter_map do |row, index|
-          attrs = symbolize(row)
+          attrs = Sources::Coercion.symbolize(row)
           missing = REQUIRED_FIELDS - attrs.keys
           if missing.any?
             errors << "row #{index}: missing #{missing.join(', ')}"
@@ -211,12 +212,6 @@ module LlmCostTracker
         scope = source == provider ? source : "#{source}/#{provider}"
         prefix = "#{scope}:"
         raw.start_with?(prefix) ? raw : "#{prefix}#{raw}"
-      end
-
-      def symbolize(row)
-        return row if row.is_a?(Hash) && row.keys.all?(Symbol)
-
-        row.to_h.transform_keys { |key| key.to_s.to_sym }
       end
 
       def parse_date(value)

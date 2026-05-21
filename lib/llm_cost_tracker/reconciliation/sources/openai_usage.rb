@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require "json"
 require "time"
 
+require_relative "coercion"
 require_relative "fingerprint"
 
 module LlmCostTracker
@@ -17,7 +17,7 @@ module LlmCostTracker
         module_function
 
         def parse(response, authority: AUTHORITY_COST_API, row_type: ROW_TYPE_COST)
-          payload = coerce_hash(response)
+          payload = Coercion.coerce_hash(response, label: "OpenAI Costs")
           buckets = Array(payload[:data])
           buckets.flat_map do |bucket|
             rows_for_bucket(bucket, authority: authority, row_type: row_type)
@@ -25,7 +25,7 @@ module LlmCostTracker
         end
 
         def rows_for_bucket(bucket, authority:, row_type:)
-          bucket = symbolize(bucket)
+          bucket = Coercion.symbolize(bucket)
           start_time = bucket[:start_time]
           end_time = bucket[:end_time]
           return [] unless start_time && end_time
@@ -44,8 +44,8 @@ module LlmCostTracker
         end
 
         def row_for_result(raw, period_start:, period_end:, start_time:, end_time:, authority:, row_type:)
-          result = symbolize(raw)
-          amount = symbolize(result[:amount] || {})
+          result = Coercion.symbolize(raw)
+          amount = Coercion.symbolize(result[:amount] || {})
           billed_amount = amount[:value]
           return nil if billed_amount.nil?
 
@@ -93,17 +93,9 @@ module LlmCostTracker
         end
 
         def fingerprint_for(result, start_time:, end_time:)
-          attributes = result.merge(start_time: normalized_epoch(start_time),
-                                    end_time: normalized_epoch(end_time))
+          attributes = result.merge(start_time: Coercion.normalized_epoch(start_time),
+                                    end_time: Coercion.normalized_epoch(end_time))
           Fingerprint.compute(FINGERPRINT_KEYS, attributes)
-        end
-
-        def normalized_epoch(value)
-          return value.to_i if value.is_a?(Numeric)
-
-          Time.parse(value.to_s).utc.to_i
-        rescue ArgumentError
-          value.to_s
         end
 
         def epoch_to_date(value)
@@ -119,22 +111,6 @@ module LlmCostTracker
                    Time.parse(value.to_s).utc
                  end
           (time - 1).utc.to_date
-        end
-
-        def coerce_hash(response)
-          return {} if response.nil?
-          return symbolize(response) if response.is_a?(Hash)
-
-          parsed = JSON.parse(response.to_s)
-          raise ArgumentError, "OpenAI Costs payload must be a JSON object" unless parsed.is_a?(Hash)
-
-          symbolize(parsed)
-        rescue JSON::ParserError => e
-          raise ArgumentError, "Unable to parse OpenAI Costs payload: #{e.message}"
-        end
-
-        def symbolize(hash)
-          hash.to_h.transform_keys { |key| key.to_s.to_sym }
         end
       end
     end

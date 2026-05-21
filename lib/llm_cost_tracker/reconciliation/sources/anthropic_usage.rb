@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "bigdecimal"
-require "json"
 require "time"
 
+require_relative "coercion"
 require_relative "fingerprint"
 require_relative "../../providers/anthropic/tier_classification"
 
@@ -23,7 +23,7 @@ module LlmCostTracker
         module_function
 
         def parse(response, authority: AUTHORITY_COST_API, row_type: ROW_TYPE_COST)
-          payload = coerce_hash(response)
+          payload = Coercion.coerce_hash(response, label: "Anthropic Usage")
           buckets = Array(payload[:data])
           buckets.flat_map do |bucket|
             rows_for_bucket(bucket, authority: authority, row_type: row_type)
@@ -31,7 +31,7 @@ module LlmCostTracker
         end
 
         def rows_for_bucket(bucket, authority:, row_type:)
-          bucket = symbolize(bucket)
+          bucket = Coercion.symbolize(bucket)
           starting_at = bucket[:starting_at]
           ending_at = bucket[:ending_at]
           return [] unless starting_at && ending_at
@@ -50,7 +50,7 @@ module LlmCostTracker
         end
 
         def row_for_result(raw, period_start:, period_end:, starting_at:, ending_at:, authority:, row_type:)
-          result = symbolize(raw)
+          result = Coercion.symbolize(raw)
           raw_amount = result[:amount]
           return nil if raw_amount.nil?
 
@@ -122,17 +122,9 @@ module LlmCostTracker
         end
 
         def fingerprint_for(result, starting_at:, ending_at:)
-          attributes = result.merge(starting_at: normalized_epoch(starting_at),
-                                    ending_at: normalized_epoch(ending_at))
+          attributes = result.merge(starting_at: Coercion.normalized_epoch(starting_at),
+                                    ending_at: Coercion.normalized_epoch(ending_at))
           Fingerprint.compute(FINGERPRINT_KEYS, attributes)
-        end
-
-        def normalized_epoch(value)
-          return value.to_i if value.is_a?(Numeric)
-
-          Time.parse(value.to_s).utc.to_i
-        rescue ArgumentError
-          value.to_s
         end
 
         def parse_date(value)
@@ -149,22 +141,6 @@ module LlmCostTracker
                  else Time.parse(value.to_s).utc
                  end
           (time - 1).utc.to_date
-        end
-
-        def coerce_hash(response)
-          return {} if response.nil?
-          return symbolize(response) if response.is_a?(Hash)
-
-          parsed = JSON.parse(response.to_s)
-          raise ArgumentError, "Anthropic Usage payload must be a JSON object" unless parsed.is_a?(Hash)
-
-          symbolize(parsed)
-        rescue JSON::ParserError => e
-          raise ArgumentError, "Unable to parse Anthropic Usage payload: #{e.message}"
-        end
-
-        def symbolize(hash)
-          hash.to_h.transform_keys { |key| key.to_s.to_sym }
         end
       end
     end

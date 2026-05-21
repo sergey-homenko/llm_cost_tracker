@@ -49,15 +49,8 @@ module LlmCostTracker
       end
 
       def append_top_calls(lines)
-        lines << ""
-        lines << bold("Top expensive calls:")
-        return lines << "  none" if @data.top_calls.empty?
-
-        visible = @data.top_calls.first(TOP_LIMIT)
-        width = column_width(visible) { |call| "#{call.provider}/#{call.model}" }
-        visible.each do |call|
-          label = "#{call.provider}/#{call.model}"
-          lines << "  #{label.ljust(width)} #{money(call.total_cost)}"
+        append_cost_section(lines, "Top expensive calls", @data.top_calls) do |call|
+          "#{call.provider}/#{call.model}"
         end
       end
 

@@ -85,36 +85,33 @@ module LlmCostTracker
     end
 
     def print_unmatched_provider_rows(diff, output)
-      return if diff.unmatched_provider_rows.empty?
-
-      output.puts "  unmatched provider rows#{truncation_suffix(diff.unmatched_provider_rows.size,
-                                                                diff.unmatched_provider_rows_total)}:"
-      diff.unmatched_provider_rows.each do |row|
-        output.puts "    #{row[:external_id]} (#{row[:match_basis]}): " \
-                    "#{format_amount(row[:billed_amount])} #{format_attribution(row[:attribution])}"
+      print_section(output, "unmatched provider rows",
+                    diff.unmatched_provider_rows, diff.unmatched_provider_rows_total) do |row|
+        "#{row[:external_id]} (#{row[:match_basis]}): " \
+          "#{format_amount(row[:billed_amount])} #{format_attribution(row[:attribution])}"
       end
     end
 
     def print_unmatched_local_calls(diff, output)
-      return if diff.unmatched_local_calls.empty?
-
-      output.puts "  unmatched local calls#{truncation_suffix(diff.unmatched_local_calls.size,
-                                                              diff.unmatched_local_calls_total)}:"
-      diff.unmatched_local_calls.each do |row|
-        output.puts "    #{row[:count]} calls / #{row[:total_cost].to_s('F')} " \
-                    "#{format_attribution(row[:attribution])}"
+      print_section(output, "unmatched local calls",
+                    diff.unmatched_local_calls, diff.unmatched_local_calls_total) do |row|
+        "#{row[:count]} calls / #{row[:total_cost].to_s('F')} #{format_attribution(row[:attribution])}"
       end
     end
 
     def print_non_cost_rows(diff, output)
-      return if diff.non_cost_rows.empty?
-
-      output.puts "  non-cost evidence#{truncation_suffix(diff.non_cost_rows.size,
-                                                          diff.non_cost_rows_total)}:"
-      diff.non_cost_rows.each do |row|
-        output.puts "    [#{row[:row_type]}/#{row[:meter]}] #{format_amount(row[:billed_amount])} " \
-                    "#{format_attribution(row[:attribution])}"
+      print_section(output, "non-cost evidence",
+                    diff.non_cost_rows, diff.non_cost_rows_total) do |row|
+        "[#{row[:row_type]}/#{row[:meter]}] " \
+          "#{format_amount(row[:billed_amount])} #{format_attribution(row[:attribution])}"
       end
+    end
+
+    def print_section(output, label, rows, total)
+      return if rows.empty?
+
+      output.puts "  #{label}#{truncation_suffix(rows.size, total)}:"
+      rows.each { |row| output.puts "    #{yield(row)}" }
     end
 
     def truncation_suffix(shown, total)
