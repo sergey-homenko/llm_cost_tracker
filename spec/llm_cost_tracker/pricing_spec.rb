@@ -1329,6 +1329,16 @@ RSpec.describe LlmCostTracker::Pricing do
       end
     end
 
+    it "holds the Anthropic default (5-minute) cache-write pricing ratios" do
+      bundled.each do |model_id, fields|
+        next unless model_id.split("/").last.start_with?("claude-")
+        next unless fields[:cache_write_input] && fields[:input]
+
+        expected_ratio = model_id.end_with?("/claude-haiku-3") ? 1.2 : 1.25
+        expect(fields[:cache_write_input]).to be_within(0.0001).of(fields[:input] * expected_ratio)
+      end
+    end
+
     it "holds the Anthropic batch-discount invariant (50% of standard input/output)" do
       bundled.each do |model_id, fields|
         next unless model_id.split("/").last.start_with?("claude-")
