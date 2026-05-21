@@ -5,7 +5,6 @@ require "active_support/core_ext/string/inflections"
 
 require_relative "../doctor/check"
 require_relative "../logging"
-require_relative "../polymorphic_access"
 require_relative "../timing"
 require_relative "../capture/stream_collector"
 require_relative "../capture/stream_tracker"
@@ -13,8 +12,6 @@ require_relative "../capture/stream_tracker"
 module LlmCostTracker
   module Integrations
     module Base
-      include LlmCostTracker::PolymorphicAccess
-
       Result = LlmCostTracker::Doctor::Check
 
       def active?

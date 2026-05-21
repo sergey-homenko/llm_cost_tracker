@@ -3,20 +3,6 @@
 require "spec_helper"
 
 module LlmCostTrackerIntegrationSpecTypes
-  module DeepToH
-    def self.normalize(value)
-      case value
-      when Hash then value.transform_values { |v| normalize(v) }
-      when Array then value.map { |v| normalize(v) }
-      else value.respond_to?(:deep_to_h) ? value.deep_to_h : value
-      end
-    end
-
-    def deep_to_h
-      to_h.transform_values { |v| DeepToH.normalize(v) }
-    end
-  end
-
   Usage = Struct.new(
     :input_tokens,
     :output_tokens,
@@ -37,12 +23,12 @@ module LlmCostTrackerIntegrationSpecTypes
     :inference_geo,
     :server_tool_use,
     keyword_init: true
-  ) { include DeepToH }
-  ServerToolUse = Struct.new(:web_search_requests, :code_execution_requests, keyword_init: true) { include DeepToH }
-  OutputItem = Struct.new(:type, :id, :status, :container_id, :action, keyword_init: true) { include DeepToH }
-  OutputAction = Struct.new(:type, keyword_init: true) { include DeepToH }
-  Details = Struct.new(:cached_tokens, :reasoning_tokens, :audio_tokens, keyword_init: true) { include DeepToH }
-  Response = Struct.new(:id, :model, :usage, :service_tier, :output, keyword_init: true) { include DeepToH }
+  ) { include SdkFixtureDeepToH }
+  ServerToolUse = Struct.new(:web_search_requests, :code_execution_requests, keyword_init: true) { include SdkFixtureDeepToH }
+  OutputItem = Struct.new(:type, :id, :status, :container_id, :action, keyword_init: true) { include SdkFixtureDeepToH }
+  OutputAction = Struct.new(:type, keyword_init: true) { include SdkFixtureDeepToH }
+  Details = Struct.new(:cached_tokens, :reasoning_tokens, :audio_tokens, keyword_init: true) { include SdkFixtureDeepToH }
+  Response = Struct.new(:id, :model, :usage, :service_tier, :output, keyword_init: true) { include SdkFixtureDeepToH }
   BrokenStreamEvent = Class.new do
     def to_h
       raise "boom"
@@ -127,17 +113,17 @@ module LlmCostTrackerIntegrationSpecTypes
   )
   RubyLlmImage = Struct.new(:model_id, :usage, :provider_response_id, keyword_init: true)
   RubyLlmModeration = Struct.new(:id, :model_id, keyword_init: true)
-  EmbeddingResponse = Struct.new(:model, :usage, keyword_init: true)
-  EmbeddingUsage = Struct.new(:prompt_tokens, :total_tokens, keyword_init: true)
-  ImagesResponse = Struct.new(:created, :usage, keyword_init: true)
-  ImagesUsage = Struct.new(:input_tokens, :output_tokens, :total_tokens, keyword_init: true)
-  TranscriptionResponse = Struct.new(:text, :usage, keyword_init: true)
+  EmbeddingResponse = Struct.new(:model, :usage, keyword_init: true) { include SdkFixtureDeepToH }
+  EmbeddingUsage = Struct.new(:prompt_tokens, :total_tokens, keyword_init: true) { include SdkFixtureDeepToH }
+  ImagesResponse = Struct.new(:created, :usage, keyword_init: true) { include SdkFixtureDeepToH }
+  ImagesUsage = Struct.new(:input_tokens, :output_tokens, :total_tokens, keyword_init: true) { include SdkFixtureDeepToH }
+  TranscriptionResponse = Struct.new(:text, :usage, keyword_init: true) { include SdkFixtureDeepToH }
   TranscriptionTokensUsage = Struct.new(
     :type, :input_tokens, :output_tokens, :total_tokens, :input_token_details, keyword_init: true
-  )
-  TranscriptionInputTokenDetails = Struct.new(:audio_tokens, :text_tokens, keyword_init: true)
-  TranscriptionDurationUsage = Struct.new(:type, :seconds, keyword_init: true)
-  ModerationResponse = Struct.new(:id, :model, :results, keyword_init: true)
+  ) { include SdkFixtureDeepToH }
+  TranscriptionInputTokenDetails = Struct.new(:audio_tokens, :text_tokens, keyword_init: true) { include SdkFixtureDeepToH }
+  TranscriptionDurationUsage = Struct.new(:type, :seconds, keyword_init: true) { include SdkFixtureDeepToH }
+  ModerationResponse = Struct.new(:id, :model, :results, keyword_init: true) { include SdkFixtureDeepToH }
 end
 
 RSpec.describe LlmCostTracker::Integrations do
@@ -369,8 +355,8 @@ RSpec.describe LlmCostTracker::Integrations do
   it "tags SDK image / transcription / speech / moderation calls as azure_openai under an Azure base_url" do
     detailed_usage = Struct.new(
       :input_tokens, :output_tokens, :total_tokens, :input_tokens_details, keyword_init: true
-    )
-    detail_struct = Struct.new(:image_tokens, :cached_tokens, keyword_init: true)
+    ) { include SdkFixtureDeepToH }
+    detail_struct = Struct.new(:image_tokens, :cached_tokens, keyword_init: true) { include SdkFixtureDeepToH }
     images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
     image = images_class.new(
       created: 1_700_000_000,
@@ -874,8 +860,8 @@ RSpec.describe LlmCostTracker::Integrations do
   it "splits gpt-image-1 input details into text and image input tokens" do
     detailed_usage = Struct.new(
       :input_tokens, :output_tokens, :total_tokens, :input_tokens_details, keyword_init: true
-    )
-    detail_struct = Struct.new(:image_tokens, :cached_tokens, keyword_init: true)
+    ) { include SdkFixtureDeepToH }
+    detail_struct = Struct.new(:image_tokens, :cached_tokens, keyword_init: true) { include SdkFixtureDeepToH }
     images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
     image = images_class.new(
       created: 1_700_000_000,
@@ -904,8 +890,8 @@ RSpec.describe LlmCostTracker::Integrations do
   it "subtracts cached tokens from text input for gpt-image-1 so cache_read is not double-counted" do
     detailed_usage = Struct.new(
       :input_tokens, :output_tokens, :total_tokens, :input_tokens_details, keyword_init: true
-    )
-    detail_struct = Struct.new(:image_tokens, :cached_tokens, keyword_init: true)
+    ) { include SdkFixtureDeepToH }
+    detail_struct = Struct.new(:image_tokens, :cached_tokens, keyword_init: true) { include SdkFixtureDeepToH }
     images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
     image = images_class.new(
       created: 1_700_000_000,
@@ -933,8 +919,8 @@ RSpec.describe LlmCostTracker::Integrations do
   it "splits gpt-image-1.5 output details into text and image output tokens" do
     detailed_usage = Struct.new(
       :input_tokens, :output_tokens, :total_tokens, :output_tokens_details, keyword_init: true
-    )
-    output_detail = Struct.new(:image_tokens, :text_tokens, keyword_init: true)
+    ) { include SdkFixtureDeepToH }
+    output_detail = Struct.new(:image_tokens, :text_tokens, keyword_init: true) { include SdkFixtureDeepToH }
     images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
     image = images_class.new(
       created: 1_700_000_000,
@@ -976,8 +962,8 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   it "recovers text output remainder for gpt-image-1.5 when output_tokens_details only carries image_tokens" do
-    detailed_usage = Struct.new(:input_tokens, :output_tokens, :output_tokens_details, keyword_init: true)
-    output_detail = Struct.new(:image_tokens, keyword_init: true)
+    detailed_usage = Struct.new(:input_tokens, :output_tokens, :output_tokens_details, keyword_init: true) { include SdkFixtureDeepToH }
+    output_detail = Struct.new(:image_tokens, keyword_init: true) { include SdkFixtureDeepToH }
     images_class = LlmCostTrackerIntegrationSpecTypes::ImagesResponse
     image = images_class.new(
       created: 1_700_000_000,
@@ -1832,6 +1818,10 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   it "reports missing enabled SDK integrations in doctor" do
+    allow(Gem.loaded_specs).to receive(:[]).and_call_original
+    allow(Gem.loaded_specs).to receive(:[]).with("anthropic").and_return(nil)
+    hide_const("Anthropic")
+
     expect(LlmCostTracker::Integrations.checks([:anthropic]).first.message)
       .to include("anthropic integration cannot be installed")
   end

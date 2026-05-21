@@ -1,0 +1,131 @@
+# frozen_string_literal: true
+
+require "spec_helper"
+require "ruby_llm"
+
+RSpec.describe LlmCostTracker::Integrations::RubyLlm do
+  before { configure_sdk_integration(:ruby_llm) }
+
+  let(:provider) { Struct.new(:slug).new("openai") }
+  let(:request) { { model: "gpt-4o", stream: false } }
+
+  describe ".record_completion" do
+    it "extracts tokens from a real RubyLLM::Message" do
+      message = RubyLLM::Message.new(
+        role: :assistant,
+        content: "hi",
+        model_id: "gpt-4o",
+        input_tokens: 100,
+        output_tokens: 30,
+        cached_tokens: 25,
+        cache_creation_tokens: 5,
+        thinking_tokens: 8
+      )
+
+      capture_sdk_events do |events|
+        described_class.record_completion(provider, message, request: request, latency_ms: 10, has_block: false)
+
+        expect(events.first).to include(
+          provider: "openai",
+          model: "gpt-4o",
+          input_tokens: 75,
+          output_tokens: 30,
+          cache_read_input_tokens: 25,
+          cache_write_input_tokens: 5,
+          hidden_output_tokens: 8,
+          usage_source: :sdk_response
+        )
+      end
+    end
+  end
+
+  describe ".record_embedding" do
+    it "records embedding token usage from a real RubyLLM::Embedding" do
+      embedding = RubyLLM::Embedding.new(vectors: [], model: "text-embedding-3-large", input_tokens: 30)
+
+      capture_sdk_events do |events|
+        described_class.record_embedding(provider, embedding,
+                                         request: { model: "text-embedding-3-large" }, latency_ms: 5)
+
+        expect(events.first).to include(
+          provider: "openai",
+          model: "text-embedding-3-large",
+          input_tokens: 30,
+          output_tokens: 0,
+          usage_source: :sdk_response
+        )
+      end
+    end
+  end
+
+  describe ".record_transcription" do
+    it "records transcription token usage from a real RubyLLM::Transcription" do
+      transcription = RubyLLM::Transcription.new(
+        text: "hi",
+        model: "whisper-1",
+        input_tokens: 12,
+        output_tokens: 3
+      )
+
+      capture_sdk_events do |events|
+        described_class.record_transcription(provider, transcription,
+                                             request: { model: "whisper-1" }, latency_ms: 5)
+
+        expect(events.first).to include(
+          provider: "openai",
+          model: "whisper-1",
+          input_tokens: 12,
+          output_tokens: 3,
+          usage_source: :sdk_response
+        )
+      end
+    end
+  end
+
+  describe ".record_image" do
+    it "splits image tokens from text input for a real RubyLLM::Image" do
+      image = RubyLLM::Image.new(
+        url: nil, data: nil, mime_type: "image/png", revised_prompt: nil,
+        model_id: "gpt-image-1",
+        usage: {
+          input_tokens: 50, output_tokens: 100,
+          input_tokens_details: { image_tokens: 30 },
+          output_tokens_details: { image_tokens: 80 }
+        }
+      )
+
+      capture_sdk_events do |events|
+        described_class.record_image(provider, image, request: { model: "gpt-image-1" }, latency_ms: 5)
+
+        expect(events.first).to include(
+          provider: "openai",
+          model: "gpt-image-1",
+          input_tokens: 20,
+          image_input_tokens: 30,
+          output_tokens: 20,
+          image_output_tokens: 80,
+          usage_source: :sdk_response
+        )
+      end
+    end
+  end
+
+  describe ".record_moderation" do
+    it "records moderation as a zero-token event from a real RubyLLM::Moderation" do
+      moderation = RubyLLM::Moderation.new(id: "modr_xyz", model: "omni-moderation-latest", results: [])
+
+      capture_sdk_events do |events|
+        described_class.record_moderation(provider, moderation,
+                                          request: { model: "omni-moderation-latest" }, latency_ms: 5)
+
+        expect(events.first).to include(
+          provider: "openai",
+          model: "omni-moderation-latest",
+          input_tokens: 0,
+          output_tokens: 0,
+          provider_response_id: "modr_xyz"
+        )
+      end
+    end
+  end
+end

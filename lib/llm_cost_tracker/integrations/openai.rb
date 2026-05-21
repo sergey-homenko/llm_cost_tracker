@@ -11,7 +11,7 @@ module LlmCostTracker
     module Openai # rubocop:disable Metrics/ModuleLength
       extend Base
 
-      class << self
+      class << self # rubocop:disable Metrics/ClassLength
         def integration_name
           :openai
         end
@@ -102,27 +102,28 @@ module LlmCostTracker
           return unless active?
 
           record_safely do
-            usage = object_value(response, :usage)
+            usage = usage_hash_from(response)
             next unless usage
 
-            input_tokens = object_value(usage, :input_tokens, :prompt_tokens)
-            output_tokens = object_value(usage, :output_tokens, :completion_tokens)
+            input_tokens = usage[:input_tokens] || usage[:prompt_tokens]
+            output_tokens = usage[:output_tokens] || usage[:completion_tokens]
             next if input_tokens.nil? && output_tokens.nil?
 
             cache_read = cache_read_input_tokens(usage)
-            model = object_value(response, :model) || request[:model]
+            model = response.model || request[:model]
+            service_tier = response.try(:service_tier) || request[:service_tier]
+
             LlmCostTracker::Tracker.record(
               event: Event.build(
                 provider: provider_for_host(host),
                 model: model,
                 pricing_mode: LlmCostTracker::Parsers::OpenaiUsage.combined_pricing_mode(
-                  host: host,
-                  model: model,
-                  service_tier: object_value(response, :service_tier) || request[:service_tier]
+                  host: host, model: model, service_tier: service_tier
                 ),
-                token_usage: token_usage(usage:, input_tokens:, output_tokens:, cache_read:, model: model),
+                token_usage: token_usage(usage: usage, input_tokens: input_tokens, output_tokens: output_tokens,
+                                         cache_read: cache_read, model: model),
                 usage_source: :sdk_response,
-                provider_response_id: object_value(response, :id),
+                provider_response_id: response.try(:id),
                 service_line_items: service_line_items_from(response, request: request)
               ),
               latency_ms: latency_ms
@@ -131,11 +132,11 @@ module LlmCostTracker
         end
 
         def record_image(response, request:, latency_ms:, host: nil)
-          usage = object_value(response, :usage)
-          raw_input = usage ? object_value(usage, :input_tokens).to_i : 0
-          raw_output = usage ? object_value(usage, :output_tokens).to_i : 0
-          image_input = image_input_tokens(usage).to_i
-          cache_read = cache_read_input_tokens(usage).to_i
+          usage = usage_hash_from(response) || {}
+          raw_input = usage[:input_tokens].to_i
+          raw_output = usage[:output_tokens].to_i
+          image_input = image_input_tokens(usage)
+          cache_read = cache_read_input_tokens(usage)
           text_input = [raw_input - image_input - cache_read, 0].max
           image_output, text_output = split_image_output(usage, raw_output)
           record_passthrough(
@@ -152,8 +153,8 @@ module LlmCostTracker
         end
 
         def split_image_output(usage, raw_output)
-          image_tokens = image_output_tokens(usage).to_i
-          text_tokens = text_output_tokens(usage).to_i
+          image_tokens = image_output_tokens(usage)
+          text_tokens = text_output_tokens(usage)
           return [raw_output, 0] if image_tokens.zero? && text_tokens.zero?
 
           text_tokens = [raw_output - image_tokens, 0].max if text_tokens.zero?
@@ -166,19 +167,19 @@ module LlmCostTracker
             response: response,
             latency_ms: latency_ms,
             host: host,
-            **transcription_token_attributes(object_value(response, :usage))
+            **transcription_token_attributes(usage_hash_from(response))
           )
         end
 
         def transcription_token_attributes(usage)
-          return { input_tokens: 0, output_tokens: 0 } unless usage && object_value(usage, :type).to_s == "tokens"
+          return { input_tokens: 0, output_tokens: 0 } unless usage && usage[:type].to_s == "tokens"
 
-          raw_input = object_value(usage, :input_tokens).to_i
-          audio_input = object_dig(usage, :input_token_details, :audio_tokens).to_i
+          raw_input = usage[:input_tokens].to_i
+          audio_input = usage.dig(:input_token_details, :audio_tokens).to_i
           {
             input_tokens: [raw_input - audio_input, 0].max,
             audio_input_tokens: audio_input,
-            output_tokens: object_value(usage, :output_tokens).to_i
+            output_tokens: usage[:output_tokens].to_i
           }
         end
 
@@ -210,7 +211,7 @@ module LlmCostTracker
 
         def record_moderation(response, request:, latency_ms:, host: nil)
           record_passthrough(
-            model: object_value(response, :model) || request[:model],
+            model: response.model || request[:model],
             response: response,
             latency_ms: latency_ms,
             host: host,
@@ -229,7 +230,7 @@ module LlmCostTracker
                 model: model,
                 token_usage: TokenUsage.build(**token_attributes),
                 usage_source: :sdk_response,
-                provider_response_id: response && object_value(response, :id),
+                provider_response_id: response&.try(:id),
                 service_line_items: service_line_items
               ),
               latency_ms: latency_ms
@@ -238,9 +239,9 @@ module LlmCostTracker
         end
 
         def service_line_items_from(response, request: nil)
-          model = object_value(response, :model) || request&.dig(:model)
-          output = object_value(response, :output)
-          output_items = output.respond_to?(:each) ? output.map { |item| normalize_output_item(item) }.compact : []
+          model = response_field(response, :model) || request&.dig(:model)
+          output = response_field(response, :output)
+          output_items = Array(output).map { |item| normalize_output_item(item) }.compact
           chat_search = output_items.empty? ? chat_completions_search_item(response, model: model) : nil
           output_items << chat_search if chat_search
           return [] if output_items.empty?
@@ -251,8 +252,8 @@ module LlmCostTracker
         end
 
         def chat_completions_search_item(response, model: nil)
-          choices = object_value(response, :choices)
-          return nil unless choices.respond_to?(:any?)
+          choices = response_field(response, :choices)
+          return nil if choices.nil?
 
           provider_field = if choices.any? { |choice| choice_used_url_citation?(choice) }
                              LlmCostTracker::Providers::Openai::ServiceCharges::CHAT_COMPLETIONS_ANNOTATION_PROVIDER_FIELD
@@ -261,36 +262,41 @@ module LlmCostTracker
                            end
           return nil unless provider_field
 
-          { "type" => "web_search_call", "id" => object_value(response, :id),
+          { "type" => "web_search_call", "id" => response_field(response, :id),
             "action" => { "type" => "search" }, "provider_field" => provider_field }
         end
 
         def choice_used_url_citation?(choice)
-          message = object_value(choice, :message)
-          annotations = message && object_value(message, :annotations)
-          return false unless annotations.respond_to?(:any?)
+          message = response_field(choice, :message)
+          annotations = response_field(message, :annotations)
+          return false if annotations.nil?
 
-          annotations.any? { |annotation| object_value(annotation, :type).to_s == "url_citation" }
+          annotations.any? { |annotation| response_field(annotation, :type).to_s == "url_citation" }
         end
 
         def normalize_output_item(item)
-          return item if item.is_a?(Hash)
           return nil if item.nil?
 
-          {
-            "type" => object_value(item, :type)&.to_s,
-            "id" => object_value(item, :id),
-            "status" => object_value(item, :status),
-            "container_id" => object_value(item, :container_id),
-            "action" => normalize_output_action(object_value(item, :action))
-          }
+          hash = (item.is_a?(Hash) ? item : item.deep_to_h).deep_stringify_keys
+          hash["type"] = hash["type"]&.to_s
+          hash["status"] = hash["status"]&.to_s if hash.key?("status")
+          hash["action"] = hash["action"].merge("type" => hash["action"]["type"]&.to_s) if hash["action"].is_a?(Hash)
+          hash
         end
 
-        def normalize_output_action(action)
-          return nil if action.nil?
-          return action if action.is_a?(Hash)
+        def response_field(object, key)
+          return nil if object.nil?
+          return object[key] || object[key.to_s] if object.is_a?(Hash)
 
-          { "type" => object_value(action, :type)&.to_s }
+          object.try(key)
+        end
+
+        def usage_hash_from(response)
+          usage = response&.try(:usage)
+          return nil unless usage
+          return usage.deep_symbolize_keys if usage.is_a?(Hash)
+
+          usage.deep_to_h
         end
 
         def token_usage(usage:, input_tokens:, output_tokens:, cache_read:, model: nil)
@@ -332,7 +338,7 @@ module LlmCostTracker
 
         def detail(usage, containers, key)
           containers.each do |container|
-            value = object_dig(usage, container, key)
+            value = usage.dig(container, key)
             return value.to_i if value
           end
           0

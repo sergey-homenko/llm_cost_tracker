@@ -5,13 +5,13 @@ require "spec_helper"
 require "llm_cost_tracker/integrations/openai"
 
 RSpec.describe LlmCostTracker::Integrations::Openai do
-  ResponseStruct = Struct.new(:output, keyword_init: true)
-  OutputItemStruct = Struct.new(:type, :id, :status, :container_id, :action, keyword_init: true)
-  ActionStruct = Struct.new(:type, keyword_init: true)
-  ChatResponseStruct = Struct.new(:id, :choices, :model, keyword_init: true)
-  ChatChoiceStruct = Struct.new(:message, keyword_init: true)
-  ChatMessageStruct = Struct.new(:role, :content, :annotations, keyword_init: true)
-  ChatAnnotationStruct = Struct.new(:type, :url_citation, keyword_init: true)
+  ResponseStruct = Struct.new(:output, keyword_init: true) { include SdkFixtureDeepToH }
+  OutputItemStruct = Struct.new(:type, :id, :status, :container_id, :action, keyword_init: true) { include SdkFixtureDeepToH }
+  ActionStruct = Struct.new(:type, keyword_init: true) { include SdkFixtureDeepToH }
+  ChatResponseStruct = Struct.new(:id, :choices, :model, keyword_init: true) { include SdkFixtureDeepToH }
+  ChatChoiceStruct = Struct.new(:message, keyword_init: true) { include SdkFixtureDeepToH }
+  ChatMessageStruct = Struct.new(:role, :content, :annotations, keyword_init: true) { include SdkFixtureDeepToH }
+  ChatAnnotationStruct = Struct.new(:type, :url_citation, keyword_init: true) { include SdkFixtureDeepToH }
 
   describe ".service_line_items_from" do
     it "coerces Symbol type accessors from the OpenAI SDK to strings so hosted-tool charges are not silently dropped" do

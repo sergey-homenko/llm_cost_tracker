@@ -1,0 +1,13 @@
+{
+  "text": "hello world",
+  "usage": {
+    "type": "tokens",
+    "input_tokens": 12,
+    "output_tokens": 3,
+    "total_tokens": 15,
+    "input_token_details": {
+      "audio_tokens": 8,
+      "text_tokens": 4
+    }
+  }
+}
