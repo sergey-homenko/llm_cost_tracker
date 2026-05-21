@@ -152,9 +152,7 @@ module LlmCostTracker
 
       def modality_tokens(details, modality)
         Array(details).sum do |detail|
-          next 0 unless detail.is_a?(Hash)
-
-          next 0 unless detail["modality"] == modality
+          next 0 unless detail.is_a?(Hash) && detail["modality"] == modality
 
           (detail["tokenCount"] || detail["token_count"]).to_i
         end

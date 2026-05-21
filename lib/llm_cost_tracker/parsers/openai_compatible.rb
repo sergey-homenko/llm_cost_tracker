@@ -30,12 +30,6 @@ module LlmCostTracker
           @provider_names = names
         end
 
-        def provider_for(request_url)
-          provider_for_uri(parsed_uri(request_url)) || "openai_compatible"
-        end
-
-        private
-
         def provider_for_uri(uri)
           return nil unless uri
 
@@ -44,7 +38,7 @@ module LlmCostTracker
       end
 
       def provider_for(request_url)
-        self.class.provider_for(request_url)
+        self.class.provider_for_uri(parsed_uri(request_url)) || "openai_compatible"
       end
     end
   end

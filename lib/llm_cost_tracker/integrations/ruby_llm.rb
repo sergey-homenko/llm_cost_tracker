@@ -31,18 +31,14 @@ module LlmCostTracker
           ]
         end
 
-        def record_completion(provider, response, request:, latency_ms:, stream:)
+        def record_completion(provider, response, request:, latency_ms:, has_block:)
           record_usage(
             provider: provider_slug(provider),
             model: response_model_id(response) || model_id(request[:model]),
             response: response,
             latency_ms: latency_ms,
-            stream: stream
+            stream: has_block || request[:stream] == true
           )
-        end
-
-        def streaming_request?(request, has_block:)
-          has_block || request[:stream] == true
         end
 
         def record_embedding(provider, response, request:, latency_ms:)
@@ -198,77 +194,37 @@ module LlmCostTracker
 
       module ProviderPatch
         def complete(*args, **kwargs, &)
-          integration = LlmCostTracker::Integrations::RubyLlm
-          request = integration.request_params(args, kwargs)
-          integration.enforce_budget!(request: request)
-          started_at = LlmCostTracker::Timing.now_monotonic
-          response = super
-          integration.record_completion(
-            self,
-            response,
-            request: request,
-            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
-            stream: integration.streaming_request?(request, has_block: block_given?)
-          )
-          response
+          measure(args, kwargs, recorder: :record_completion, has_block: block_given?) { super }
         end
 
         def embed(*args, **kwargs)
-          integration = LlmCostTracker::Integrations::RubyLlm
-          request = integration.request_params(args, kwargs)
-          integration.enforce_budget!(request: request)
-          started_at = LlmCostTracker::Timing.now_monotonic
-          response = super
-          integration.record_embedding(
-            self,
-            response,
-            request: request,
-            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at)
-          )
-          response
+          measure(args, kwargs, recorder: :record_embedding) { super }
         end
 
         def transcribe(*args, **kwargs)
-          integration = LlmCostTracker::Integrations::RubyLlm
-          request = integration.request_params(args, kwargs)
-          integration.enforce_budget!(request: request)
-          started_at = LlmCostTracker::Timing.now_monotonic
-          response = super
-          integration.record_transcription(
-            self,
-            response,
-            request: request,
-            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at)
-          )
-          response
+          measure(args, kwargs, recorder: :record_transcription) { super }
         end
 
         def paint(*args, **kwargs)
-          integration = LlmCostTracker::Integrations::RubyLlm
-          request = integration.request_params(args, kwargs)
-          integration.enforce_budget!(request: request)
-          started_at = LlmCostTracker::Timing.now_monotonic
-          response = super
-          integration.record_image(
-            self,
-            response,
-            request: request,
-            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at)
-          )
-          response
+          measure(args, kwargs, recorder: :record_image) { super }
         end
 
         def moderate(*args, **kwargs)
-          integration = LlmCostTracker::Integrations::RubyLlm
-          request = integration.request_params(args, kwargs)
-          integration.enforce_budget!(request: request)
+          measure(args, kwargs, recorder: :record_moderation) { super }
+        end
+
+        private
+
+        def measure(args, kwargs, recorder:, **extras)
+          request = RubyLlm.request_params(args, kwargs)
+          RubyLlm.enforce_budget!(request: request)
           started_at = LlmCostTracker::Timing.now_monotonic
-          response = super
-          integration.record_moderation(
-            self,
-            response,
+          response = yield
+          RubyLlm.public_send(
+            recorder, self, response,
             request: request,
-            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at)
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
+            **extras
           )
           response
         end

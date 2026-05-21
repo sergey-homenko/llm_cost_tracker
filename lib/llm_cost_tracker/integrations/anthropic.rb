@@ -141,20 +141,20 @@ module LlmCostTracker
           stream = yield
           track_stream(stream, collector: collector)
         end
+
+        def wrap_blocking_call(args, kwargs)
+          request = request_params(args, kwargs)
+          enforce_budget!(request: request)
+          started_at = LlmCostTracker::Timing.now_monotonic
+          message = yield
+          record_message(message, request: request, latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at))
+          message
+        end
       end
 
       module MessagesPatch
         def create(*args, **kwargs)
-          request = LlmCostTracker::Integrations::Anthropic.request_params(args, kwargs)
-          LlmCostTracker::Integrations::Anthropic.enforce_budget!(request: request)
-          started_at = LlmCostTracker::Timing.now_monotonic
-          message = super
-          LlmCostTracker::Integrations::Anthropic.record_message(
-            message,
-            request: request,
-            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at)
-          )
-          message
+          LlmCostTracker::Integrations::Anthropic.wrap_blocking_call(args, kwargs) { super }
         end
 
         def stream(*args, **kwargs)
