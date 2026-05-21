@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-05-21
+
 ### Added
 
 - A "Pricing" page under the dashboard sidebar's new "Reference" group lists every model's rates from `pricing_overrides`, your `prices_file`, and the bundled fallback as separate tabs; the active source (first non-empty in priority order) is highlighted, with last-updated date and currency next to the row count.
