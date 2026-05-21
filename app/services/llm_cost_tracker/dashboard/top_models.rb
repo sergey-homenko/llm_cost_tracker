@@ -6,7 +6,6 @@ module LlmCostTracker
       DEFAULT_LIMIT = 5
       SORT_OPTIONS = %w[cost calls avg_cost latency tokens provider name].freeze
       DEFAULT_SORT = "cost"
-      DIRECTIONS = %w[asc desc].freeze
       DEFAULT_DIRECTIONS = {
         "provider" => "asc",
         "name" => "asc",
@@ -45,7 +44,7 @@ module LlmCostTracker
         @scope = scope
         @limit = limit
         @sort = SORT_OPTIONS.include?(sort.to_s) ? sort.to_s : DEFAULT_SORT
-        @direction = DIRECTIONS.include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTIONS[@sort]
+        @direction = Sort::DIRECTIONS.include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTIONS[@sort]
       end
 
       def rows

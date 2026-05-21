@@ -55,13 +55,7 @@ module LlmCostTracker
     end
 
     def invoice_scopes
-      connection = LlmCostTracker::ProviderInvoice.connection
-      provider_expr =
-        if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
-          Arel.sql("metadata->>'provider'")
-        else
-          Arel.sql("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.provider'))")
-        end
+      provider_expr = Arel.sql(metadata_provider_sql)
       LlmCostTracker::ProviderInvoice
         .group(:source, provider_expr, :currency)
         .order(:source, :currency)
@@ -88,14 +82,18 @@ module LlmCostTracker
     def scope_invoices(scope)
       relation = LlmCostTracker::ProviderInvoice
                  .where(source: scope[:source], currency: scope[:currency])
-      connection = LlmCostTracker::ProviderInvoice.connection
       provider = scope[:provider]
       return relation if provider.nil? || provider.empty?
 
+      relation.where("#{metadata_provider_sql} = ?", provider)
+    end
+
+    def metadata_provider_sql
+      connection = LlmCostTracker::ProviderInvoice.connection
       if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
-        relation.where("metadata->>'provider' = ?", provider)
+        "metadata->>'provider'"
       else
-        relation.where("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.provider')) = ?", provider)
+        "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.provider'))"
       end
     end
   end

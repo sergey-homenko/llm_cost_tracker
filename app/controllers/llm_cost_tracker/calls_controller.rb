@@ -10,7 +10,6 @@ module LlmCostTracker
     CSV_FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"].freeze
     DEFAULT_TIEBREAKER = { tracked_at: :desc, id: :desc }.freeze
     SORT_OPTIONS = %w[tracked_at provider model input output cost latency].freeze
-    SORT_DIRECTIONS = %w[asc desc].freeze
     NULLS_LAST_GUARD = {
       total_cost: Arel.sql("CASE WHEN total_cost IS NULL THEN 1 ELSE 0 END ASC"),
       latency_ms: Arel.sql("CASE WHEN latency_ms IS NULL THEN 1 ELSE 0 END ASC")
@@ -47,7 +46,7 @@ module LlmCostTracker
     def calls_order(sort, dir)
       column = SORT_OPTIONS.include?(sort) ? sort.to_sym : :tracked_at
       natural = %i[provider model].include?(column) ? :asc : :desc
-      direction = SORT_DIRECTIONS.include?(dir.downcase) ? dir.downcase.to_sym : natural
+      direction = Dashboard::Sort::DIRECTIONS.include?(dir.downcase) ? dir.downcase.to_sym : natural
 
       case column
       when :tracked_at then [{ tracked_at: direction, id: direction }]

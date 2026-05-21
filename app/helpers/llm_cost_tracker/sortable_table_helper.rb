@@ -2,8 +2,6 @@
 
 module LlmCostTracker
   module SortableTableHelper
-    SORT_DIRECTIONS = %w[asc desc].freeze
-
     def sortable_header(label, column, num: false)
       state = sortable_state(column, num: num)
       classes = ["lct-sortable"]
@@ -20,7 +18,7 @@ module LlmCostTracker
 
     def sortable_state(column, num:)
       current_sort = params[:sort].to_s
-      current_dir = SORT_DIRECTIONS.include?(params[:dir].to_s) ? params[:dir].to_s : nil
+      current_dir = Dashboard::Sort::DIRECTIONS.include?(params[:dir].to_s) ? params[:dir].to_s : nil
       natural_dir = num ? "desc" : "asc"
       active = current_sort == column
       effective_dir = active ? (current_dir || natural_dir) : natural_dir
