@@ -2,6 +2,7 @@
 
 require_relative "base"
 require_relative "../billing/line_item"
+require_relative "../providers/anthropic/server_tools"
 require_relative "../providers/anthropic/tier_classification"
 
 module LlmCostTracker
@@ -64,27 +65,18 @@ module LlmCostTracker
           server_tool_use = object_value(usage, :server_tool_use)
           return [] unless server_tool_use
 
-          [
-            line_item_for_server_tool(server_tool_use, :web_search_request, :web_search_requests,
-                                      "usage.server_tool_use.web_search_requests"),
-            line_item_for_server_tool(server_tool_use, :web_fetch_request, :web_fetch_requests,
-                                      "usage.server_tool_use.web_fetch_requests"),
-            line_item_for_server_tool(server_tool_use, :code_execution_request, :code_execution_requests,
-                                      "usage.server_tool_use.code_execution_requests")
-          ].compact
-        end
+          Providers::Anthropic::ServerTools::LINE_ITEMS.filter_map do |component_key, count_key|
+            quantity = object_value(server_tool_use, count_key).to_i
+            next if quantity.zero?
 
-        def line_item_for_server_tool(server_tool_use, component_key, count_key, provider_field)
-          quantity = object_value(server_tool_use, count_key).to_i
-          return nil if quantity.zero?
-
-          Billing::LineItem.build(
-            component_key: component_key,
-            quantity: quantity,
-            cost_status: Billing::CostStatus::UNKNOWN,
-            pricing_basis: :provider_usage,
-            provider_field: provider_field
-          )
+            Billing::LineItem.build(
+              component_key: component_key,
+              quantity: quantity,
+              cost_status: Billing::CostStatus::UNKNOWN,
+              pricing_basis: :provider_usage,
+              provider_field: "usage.server_tool_use.#{count_key}"
+            )
+          end
         end
 
         def token_usage(usage:, input_tokens:, output_tokens:)

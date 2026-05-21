@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require_relative "../providers/anthropic/server_tools"
 require_relative "../providers/anthropic/tier_classification"
 
 module LlmCostTracker
@@ -104,36 +105,18 @@ module LlmCostTracker
         server_tool_use = usage["server_tool_use"]
         return [] unless server_tool_use.is_a?(Hash)
 
-        [
-          service_line_item(
-            component_key: :web_search_request,
-            quantity: server_tool_use["web_search_requests"],
-            provider_field: "usage.server_tool_use.web_search_requests"
-          ),
-          service_line_item(
-            component_key: :web_fetch_request,
-            quantity: server_tool_use["web_fetch_requests"],
-            provider_field: "usage.server_tool_use.web_fetch_requests"
-          ),
-          service_line_item(
-            component_key: :code_execution_request,
-            quantity: server_tool_use["code_execution_requests"],
-            provider_field: "usage.server_tool_use.code_execution_requests"
+        Providers::Anthropic::ServerTools::LINE_ITEMS.filter_map do |component_key, count_key|
+          quantity = server_tool_use[count_key.to_s].to_i
+          next if quantity.zero?
+
+          Billing::LineItem.build(
+            component_key: component_key,
+            quantity: quantity,
+            cost_status: Billing::CostStatus::UNKNOWN,
+            pricing_basis: :provider_usage,
+            provider_field: "usage.server_tool_use.#{count_key}"
           )
-        ].compact
-      end
-
-      def service_line_item(component_key:, quantity:, provider_field:)
-        quantity = quantity.to_i
-        return if quantity.zero?
-
-        Billing::LineItem.build(
-          component_key: component_key,
-          quantity: quantity,
-          cost_status: Billing::CostStatus::UNKNOWN,
-          pricing_basis: :provider_usage,
-          provider_field: provider_field
-        )
+        end
       end
 
       def token_usage(usage:, cache_read:)
