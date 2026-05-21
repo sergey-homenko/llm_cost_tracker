@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "../billing/line_item"
-require_relative "../providers/anthropic/server_tools"
-require_relative "../providers/anthropic/tier_classification"
+require_relative "../providers/anthropic/usage_extractor"
 
 module LlmCostTracker
   module Integrations
@@ -39,91 +37,29 @@ module LlmCostTracker
           return unless active?
 
           record_safely do
-            usage = object_value(message, :usage)
+            usage = message.usage
             next unless usage
+            next if usage.input_tokens.nil? && usage.output_tokens.nil?
 
-            input_tokens = object_value(usage, :input_tokens)
-            output_tokens = object_value(usage, :output_tokens)
-            next if input_tokens.nil? && output_tokens.nil?
+            usage_hash = usage.deep_to_h
 
             LlmCostTracker::Tracker.record(
               event: Event.build(
                 provider: "anthropic",
-                model: object_value(message, :model) || request[:model],
-                pricing_mode: pricing_mode(request: request, usage: usage),
-                token_usage: token_usage(usage: usage, input_tokens: input_tokens, output_tokens: output_tokens),
+                model: message.model || request[:model],
+                pricing_mode: Providers::Anthropic::UsageExtractor.pricing_mode(request: request, usage: usage_hash),
+                token_usage: Providers::Anthropic::UsageExtractor.token_usage(usage_hash),
                 usage_source: :sdk_response,
-                provider_response_id: object_value(message, :id),
-                service_line_items: service_line_items_from(usage)
+                provider_response_id: message.id,
+                service_line_items: Providers::Anthropic::UsageExtractor.service_line_items(usage_hash)
               ),
               latency_ms: latency_ms
             )
           end
         end
 
-        def service_line_items_from(usage)
-          server_tool_use = object_value(usage, :server_tool_use)
-          return [] unless server_tool_use
-
-          Providers::Anthropic::ServerTools::LINE_ITEMS.filter_map do |component_key, count_key|
-            quantity = object_value(server_tool_use, count_key).to_i
-            next if quantity.zero?
-
-            Billing::LineItem.build(
-              component_key: component_key,
-              quantity: quantity,
-              cost_status: Billing::CostStatus::UNKNOWN,
-              pricing_basis: :provider_usage,
-              provider_field: "usage.server_tool_use.#{count_key}"
-            )
-          end
-        end
-
-        def token_usage(usage:, input_tokens:, output_tokens:)
-          cache_creation = object_value(usage, :cache_creation)
-          if cache_creation
-            cache_write_default = object_value(cache_creation, :ephemeral_5m_input_tokens).to_i
-            cache_write_extended = object_value(cache_creation, :ephemeral_1h_input_tokens).to_i
-          else
-            cache_write_default = object_value(usage, :cache_creation_input_tokens).to_i
-            cache_write_extended = 0
-          end
-          hidden_output = (
-            object_value(usage, :thinking_tokens, :thinking_output_tokens) ||
-            object_dig(usage, :output_tokens_details, :reasoning_tokens)
-          ).to_i
-
-          TokenUsage.build(
-            input_tokens: input_tokens.to_i,
-            output_tokens: output_tokens.to_i,
-            cache_read_input_tokens: object_value(usage, :cache_read_input_tokens).to_i,
-            cache_write_input_tokens: cache_write_default,
-            cache_write_extended_input_tokens: cache_write_extended,
-            hidden_output_tokens: hidden_output
-          )
-        end
-
-        def pricing_mode(request:, usage:)
-          service_tier = object_value(usage, :service_tier) || request[:service_tier]
-          tier = Providers::Anthropic::TierClassification
-          service_tier = nil if tier.standard_equivalent_tier?(service_tier)
-
-          modes = [
-            Pricing::Mode.normalize(object_value(usage, :speed) || request[:speed]),
-            Pricing::Mode.normalize(service_tier)
-          ]
-          geo = inference_geo(request: request, usage: usage).to_s.downcase
-          modes << "data_residency" if tier.data_residency_geo?(geo)
-          modes = modes.compact.uniq
-          modes.empty? ? nil : modes.join("_")
-        end
-
         def stream_pricing_mode(request)
-          pricing_mode(request: request || {}, usage: nil)
-        end
-
-        def inference_geo(request:, usage:)
-          object_value(usage, :inference_geo) || request[:inference_geo]
+          Providers::Anthropic::UsageExtractor.pricing_mode(request: request || {}, usage: nil)
         end
 
         def wrap_stream_call(args, kwargs)

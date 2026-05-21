@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/hash/keys"
+
 require_relative "base"
-require_relative "../providers/anthropic/server_tools"
-require_relative "../providers/anthropic/tier_classification"
+require_relative "../providers/anthropic/usage_extractor"
 
 module LlmCostTracker
   module Parsers
@@ -23,44 +24,38 @@ module LlmCostTracker
         return nil unless response_status == 200
 
         response = safe_json_parse(response_body)
-        usage    = response["usage"]
+        usage = response["usage"]&.deep_symbolize_keys
         return nil unless usage
 
-        request = safe_json_parse(request_body)
-        cache_read = usage["cache_read_input_tokens"].to_i
+        request = symbolize_request(request_body)
 
         Event.build(
           provider: "anthropic",
           provider_response_id: response["id"],
-          pricing_mode: pricing_mode(request: request, usage: usage),
-          model: response["model"] || request["model"],
-          token_usage: token_usage(usage: usage, cache_read: cache_read),
+          pricing_mode: Providers::Anthropic::UsageExtractor.pricing_mode(request: request, usage: usage),
+          model: response["model"] || request[:model],
+          token_usage: Providers::Anthropic::UsageExtractor.token_usage(usage),
           usage_source: :response,
-          service_line_items: service_line_items(usage)
+          service_line_items: Providers::Anthropic::UsageExtractor.service_line_items(usage)
         )
       end
 
       def parse_stream(response_status:, request_body: nil, events: [], **)
         return nil unless response_status == 200
 
-        request = safe_json_parse(request_body)
-        model = find_event_value(events) { |data| data.dig("message", "model") } || request["model"]
-        usage = stream_usage(events)
+        request = symbolize_request(request_body)
+        model = find_event_value(events) { |data| data.dig("message", "model") } || request[:model]
+        usage = stream_usage(events)&.deep_symbolize_keys
         response_id = find_event_value(events) { |data| data.dig("message", "id") || data["id"] }
 
         if usage
-          build_stream_result(
-            model: model,
-            usage: usage,
-            response_id: response_id,
-            pricing_mode: pricing_mode(request: request, usage: usage)
-          )
+          build_stream_result(model: model, usage: usage, response_id: response_id, request: request)
         else
           build_unknown_stream_usage(
             provider: "anthropic",
             model: model,
             provider_response_id: response_id,
-            pricing_mode: pricing_mode(request: request, usage: usage)
+            pricing_mode: Providers::Anthropic::UsageExtractor.pricing_mode(request: request, usage: usage)
           )
         end
       end
@@ -70,6 +65,11 @@ module LlmCostTracker
       end
 
       private
+
+      def symbolize_request(request_body)
+        parsed = safe_json_parse(request_body)
+        parsed.is_a?(Hash) ? parsed.deep_symbolize_keys : {}
+      end
 
       def stream_usage(events)
         latest_delta = find_event_value(events, reverse: true) do |data|
@@ -86,90 +86,17 @@ module LlmCostTracker
         end
       end
 
-      def build_stream_result(model:, usage:, response_id:, pricing_mode:)
-        cache_read = usage["cache_read_input_tokens"].to_i
-
+      def build_stream_result(model:, usage:, response_id:, request:)
         Event.build(
           provider: "anthropic",
           provider_response_id: response_id,
-          pricing_mode: pricing_mode,
+          pricing_mode: Providers::Anthropic::UsageExtractor.pricing_mode(request: request, usage: usage),
           model: model,
-          token_usage: token_usage(usage: usage, cache_read: cache_read),
+          token_usage: Providers::Anthropic::UsageExtractor.token_usage(usage),
           stream: true,
           usage_source: :stream_final,
-          service_line_items: service_line_items(usage)
+          service_line_items: Providers::Anthropic::UsageExtractor.service_line_items(usage)
         )
-      end
-
-      def service_line_items(usage)
-        server_tool_use = usage["server_tool_use"]
-        return [] unless server_tool_use.is_a?(Hash)
-
-        Providers::Anthropic::ServerTools::LINE_ITEMS.filter_map do |component_key, count_key|
-          quantity = server_tool_use[count_key.to_s].to_i
-          next if quantity.zero?
-
-          Billing::LineItem.build(
-            component_key: component_key,
-            quantity: quantity,
-            cost_status: Billing::CostStatus::UNKNOWN,
-            pricing_basis: :provider_usage,
-            provider_field: "usage.server_tool_use.#{count_key}"
-          )
-        end
-      end
-
-      def token_usage(usage:, cache_read:)
-        input = usage["input_tokens"].to_i
-        output = usage["output_tokens"].to_i
-        cache_creation = usage["cache_creation"]
-        if cache_creation.is_a?(Hash)
-          cache_write = cache_creation["ephemeral_5m_input_tokens"].to_i
-          cache_write_extended = cache_creation["ephemeral_1h_input_tokens"].to_i
-        else
-          warn_unexpected_cache_creation(cache_creation, usage)
-          cache_write = usage["cache_creation_input_tokens"].to_i
-          cache_write_extended = 0
-        end
-        hidden_output = (
-          usage["thinking_tokens"] || usage["thinking_output_tokens"] ||
-            usage.dig("output_tokens_details", "reasoning_tokens")
-        ).to_i
-
-        TokenUsage.build(
-          input_tokens: input,
-          output_tokens: output,
-          total_tokens: input + output + cache_read + cache_write + cache_write_extended,
-          cache_read_input_tokens: cache_read,
-          cache_write_input_tokens: cache_write,
-          cache_write_extended_input_tokens: cache_write_extended,
-          hidden_output_tokens: hidden_output
-        )
-      end
-
-      def warn_unexpected_cache_creation(cache_creation, usage)
-        return if cache_creation.nil? || usage.key?("cache_creation_input_tokens")
-
-        Logging.warn("Anthropic usage.cache_creation has unexpected shape: #{cache_creation.class}")
-      end
-
-      def pricing_mode(request:, usage:)
-        modes = []
-        speed = usage&.fetch("speed", nil) || request["speed"]
-        service_tier = usage&.fetch("service_tier", nil) || request["service_tier"]
-        service_tier = nil if Providers::Anthropic::TierClassification.standard_equivalent_tier?(service_tier)
-
-        modes << Pricing::Mode.normalize(speed)
-        modes << Pricing::Mode.normalize(service_tier)
-        geo = inference_geo(request: request, usage: usage).downcase
-        modes << "data_residency" if Providers::Anthropic::TierClassification.data_residency_geo?(geo)
-
-        modes = modes.compact.uniq
-        modes.empty? ? nil : modes.join("_")
-      end
-
-      def inference_geo(request:, usage:)
-        (usage&.fetch("inference_geo", nil) || request["inference_geo"]).to_s
       end
     end
   end

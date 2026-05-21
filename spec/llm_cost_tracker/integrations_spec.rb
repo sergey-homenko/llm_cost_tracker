@@ -3,6 +3,20 @@
 require "spec_helper"
 
 module LlmCostTrackerIntegrationSpecTypes
+  module DeepToH
+    def self.normalize(value)
+      case value
+      when Hash then value.transform_values { |v| normalize(v) }
+      when Array then value.map { |v| normalize(v) }
+      else value.respond_to?(:deep_to_h) ? value.deep_to_h : value
+      end
+    end
+
+    def deep_to_h
+      to_h.transform_values { |v| DeepToH.normalize(v) }
+    end
+  end
+
   Usage = Struct.new(
     :input_tokens,
     :output_tokens,
@@ -23,12 +37,12 @@ module LlmCostTrackerIntegrationSpecTypes
     :inference_geo,
     :server_tool_use,
     keyword_init: true
-  )
-  ServerToolUse = Struct.new(:web_search_requests, :code_execution_requests, keyword_init: true)
-  OutputItem = Struct.new(:type, :id, :status, :container_id, :action, keyword_init: true)
-  OutputAction = Struct.new(:type, keyword_init: true)
-  Details = Struct.new(:cached_tokens, :reasoning_tokens, :audio_tokens, keyword_init: true)
-  Response = Struct.new(:id, :model, :usage, :service_tier, :output, keyword_init: true)
+  ) { include DeepToH }
+  ServerToolUse = Struct.new(:web_search_requests, :code_execution_requests, keyword_init: true) { include DeepToH }
+  OutputItem = Struct.new(:type, :id, :status, :container_id, :action, keyword_init: true) { include DeepToH }
+  OutputAction = Struct.new(:type, keyword_init: true) { include DeepToH }
+  Details = Struct.new(:cached_tokens, :reasoning_tokens, :audio_tokens, keyword_init: true) { include DeepToH }
+  Response = Struct.new(:id, :model, :usage, :service_tier, :output, keyword_init: true) { include DeepToH }
   BrokenStreamEvent = Class.new do
     def to_h
       raise "boom"
@@ -1730,6 +1744,8 @@ RSpec.describe LlmCostTracker::Integrations do
   it "raises when an enabled integration cannot satisfy its install contract" do
     stub_const("RubyLLM", Module.new)
     stub_const("RubyLLM::VERSION", "1.13.0")
+    allow(Gem.loaded_specs).to receive(:[]).and_call_original
+    allow(Gem.loaded_specs).to receive(:[]).with("ruby_llm").and_return(nil)
 
     expect do
       configure_integration(:ruby_llm)
@@ -1742,6 +1758,8 @@ RSpec.describe LlmCostTracker::Integrations do
   it "reports incompatible integrations with invalid SDK version constants" do
     stub_const("RubyLLM", Module.new)
     stub_const("RubyLLM::VERSION", "not-a-version")
+    allow(Gem.loaded_specs).to receive(:[]).and_call_original
+    allow(Gem.loaded_specs).to receive(:[]).with("ruby_llm").and_return(nil)
 
     check = LlmCostTracker::Integrations.checks([:ruby_llm]).first
 
