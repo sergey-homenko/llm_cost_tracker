@@ -33,6 +33,51 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         )
       end
     end
+
+    it "treats priority service tier as standard pricing (throughput, not per-token uplift)" do
+      stub_sdk_json(:post, "https://api.anthropic.com/v1/messages",
+                    provider: :anthropic, fixture: "messages_priority_tier.json")
+
+      capture_sdk_events do |events|
+        client.messages.create(**request_params)
+        expect(events.first[:pricing_mode]).to be_nil
+      end
+    end
+
+    it "captures the batch service tier as a pricing mode" do
+      stub_sdk_json(:post, "https://api.anthropic.com/v1/messages",
+                    provider: :anthropic, fixture: "messages_batch_tier.json")
+
+      capture_sdk_events do |events|
+        client.messages.create(**request_params)
+        expect(events.first[:pricing_mode]).to eq(:batch)
+      end
+    end
+
+    it "combines fast mode and US inference into fast_data_residency" do
+      stub_sdk_json(:post, "https://api.anthropic.com/v1/messages",
+                    provider: :anthropic, fixture: "messages_fast_data_residency.json")
+
+      capture_sdk_events do |events|
+        client.messages.create(model: "claude-opus-4-6", max_tokens: 100,
+                               messages: [{ role: "user", content: "hi" }],
+                               speed: "fast", inference_geo: "us")
+        expect(events.first[:pricing_mode]).to eq(:fast_data_residency)
+      end
+    end
+
+    it "records server tool usage as service line items" do
+      stub_sdk_json(:post, "https://api.anthropic.com/v1/messages",
+                    provider: :anthropic, fixture: "messages_with_server_tools.json")
+
+      capture_sdk_events do |events|
+        client.messages.create(**request_params)
+
+        service_lines = events.first[:line_items].reject { |item| item[:unit] == :token }
+        expect(service_lines.map { |item| item[:kind] }).to contain_exactly(:web_search_request, :code_execution_request)
+        expect(service_lines.map { |item| item[:quantity].to_i }).to contain_exactly(2, 1)
+      end
+    end
   end
 
   describe "messages.stream / stream_raw" do

@@ -1,19 +1,5 @@
 # frozen_string_literal: true
 
-module SdkFixtureDeepToH
-  def self.normalize(value)
-    case value
-    when Hash then value.transform_values { |v| normalize(v) }
-    when Array then value.map { |v| normalize(v) }
-    else value.respond_to?(:deep_to_h) ? value.deep_to_h : value
-    end
-  end
-
-  def deep_to_h
-    to_h.transform_values { |v| SdkFixtureDeepToH.normalize(v) }
-  end
-end
-
 module SdkIntegrationHelpers
   FIXTURE_ROOT = File.expand_path("../fixtures/sdk_responses", __dir__)
 

@@ -1,0 +1,14 @@
+{
+  "id": "resp_tier",
+  "object": "response",
+  "model": "gpt-4o",
+  "status": "completed",
+  "created_at": 1700000000,
+  "service_tier": "priority",
+  "output": [],
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 25,
+    "total_tokens": 125
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "id": "resp_tools",
+  "object": "response",
+  "model": "gpt-4o",
+  "status": "completed",
+  "created_at": 1700000000,
+  "output": [
+    {
+      "type": "web_search_call",
+      "id": "ws_1",
+      "status": "completed",
+      "action": { "type": "search" }
+    },
+    {
+      "type": "file_search_call",
+      "id": "fs_1",
+      "status": "completed"
+    },
+    {
+      "type": "code_interpreter_call",
+      "id": "ci_1",
+      "status": "completed",
+      "container_id": "container-42",
+      "code": "print(1)",
+      "outputs": []
+    }
+  ],
+  "usage": {
+    "input_tokens": 50,
+    "output_tokens": 25,
+    "total_tokens": 75
+  }
+}

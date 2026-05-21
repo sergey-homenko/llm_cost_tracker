@@ -1,0 +1,14 @@
+{
+  "id": "msg_fast_us",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-6",
+  "content": [{ "type": "text", "text": "ok" }],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 30,
+    "speed": "fast",
+    "inference_geo": "us"
+  }
+}
