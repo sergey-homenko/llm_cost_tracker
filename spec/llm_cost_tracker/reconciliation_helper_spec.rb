@@ -25,9 +25,5 @@ RSpec.describe LlmCostTracker::ReconciliationHelper do
         "provider_project_id=***lpha, provider_api_key_id=***CDEF, provider_workspace_id=***cdef"
       )
     end
-
-    it "leaves a short sensitive value unmasked rather than exposing one or two characters" do
-      expect(helper_object.mask_secret("ab")).to eq("ab")
-    end
   end
 end

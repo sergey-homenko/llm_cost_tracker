@@ -33,10 +33,6 @@ module LlmCostTracker
         freeze
       end
 
-      def limit
-        per
-      end
-
       def offset
         (page - 1) * per
       end

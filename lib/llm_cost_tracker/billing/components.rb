@@ -6,17 +6,6 @@ require_relative "../errors"
 
 module LlmCostTracker
   module Billing
-    RATE_BASES = %i[
-      per_million_tokens
-      per_million_characters
-      per_request
-      per_1k_requests
-      per_session
-      per_hour
-      per_gb_day
-      per_image
-    ].freeze
-
     RATE_BASIS_QUANTITIES = {
       per_million_tokens: 1_000_000,
       per_million_characters: 1_000_000,
@@ -27,6 +16,8 @@ module LlmCostTracker
       per_gb_day: 1,
       per_image: 1
     }.freeze
+
+    RATE_BASES = RATE_BASIS_QUANTITIES.keys.freeze
 
     DEFAULT_RATE_BASIS_BY_UNIT = {
       token: :per_million_tokens,

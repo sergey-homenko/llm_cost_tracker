@@ -45,10 +45,6 @@ module LlmCostTracker
       value.nil? ? "n/a" : money(value)
     end
 
-    def optional_number(value)
-      value.nil? ? "n/a" : number(value)
-    end
-
     def number(value)
       number_with_delimiter(value)
     end

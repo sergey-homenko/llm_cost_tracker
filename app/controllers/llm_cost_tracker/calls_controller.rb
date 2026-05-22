@@ -26,7 +26,7 @@ module LlmCostTracker
         format.html do
           @page = Dashboard::Pagination.call(params)
           @calls_count, @calls_total_cost = scope.pick(Arel.sql("COUNT(*), COALESCE(SUM(total_cost), 0)"))
-          @calls = ordered_scope.includes(:tag_records).limit(@page.limit).offset(@page.offset).to_a
+          @calls = ordered_scope.includes(:tag_records).limit(@page.per).offset(@page.offset).to_a
         end
         format.csv do
           response.headers["Cache-Control"] = "no-store"

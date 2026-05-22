@@ -6,10 +6,9 @@ module LlmCostTracker
   module Dashboard
     module SetupState
       SetupRequired = Data.define(:message, :details)
-      DOCS_HINT = "See docs/upgrading.md for the migration path."
       MUTEX = Mutex.new
 
-      private_constant :MUTEX, :DOCS_HINT
+      private_constant :MUTEX
 
       class << self
         def current

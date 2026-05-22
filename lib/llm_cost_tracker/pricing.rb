@@ -55,18 +55,6 @@ module LlmCostTracker
         [priced, snapshot]
       end
 
-      def snapshot_for(provider:, model:, tokens:, pricing_mode: nil)
-        calculation = calculation_for(
-          provider: provider,
-          model: model,
-          tokens: tokens,
-          pricing_mode: pricing_mode
-        )
-        return nil unless calculation
-
-        snapshot_from(calculation)
-      end
-
       def explain(provider:, model:, tokens:, pricing_mode: nil)
         Explainer.call(
           provider: provider,

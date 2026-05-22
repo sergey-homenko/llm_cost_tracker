@@ -108,7 +108,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       expect(page.page).to eq(1)
       expect(page.per).to eq(200)
-      expect(page.limit).to eq(200)
       expect(page.offset).to eq(0)
       expect(page.prev_page?).to be false
     end
