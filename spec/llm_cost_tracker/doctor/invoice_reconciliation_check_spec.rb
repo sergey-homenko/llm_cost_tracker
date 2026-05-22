@@ -197,7 +197,7 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
       import_invoice(billed_amount: BigDecimal("10.00"))
       LlmCostTracker::ProviderInvoice.where(source: "openai").update_all(currency: "usd")
 
-      scopes = described_class.new.send(:imported_scopes)
+      scopes = LlmCostTracker::Reconciliation.invoice_scopes
 
       expect(scopes.map { |s| s[:currency] }).to all(eq("USD"))
     end

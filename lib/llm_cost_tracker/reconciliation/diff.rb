@@ -13,12 +13,6 @@ module LlmCostTracker
       ATTRIBUTION_KEYS = (SCOPE_KEYS + [:model]).freeze
       COST_ROW_TYPE = "cost"
       PERIOD_ONLY_BASIS = "period_only"
-      BASIS_DIMENSION = {
-        "project" => :provider_project_id,
-        "api_key" => :provider_api_key_id,
-        "workspace" => :provider_workspace_id,
-        "model" => :model
-      }.freeze
 
       DEFAULT_DRILLDOWN_LIMIT = 100
 
@@ -177,8 +171,8 @@ module LlmCostTracker
       end
 
       def unmatched_provider_rows_from_sql(local_index)
-        rows = BASIS_DIMENSION.each_key.flat_map do |basis|
-          column = BASIS_DIMENSION[basis].to_s
+        rows = Reconciliation::BASIS_DIMENSIONS.flat_map do |basis, column_sym|
+          column = column_sym.to_s
           relation = scoped_cost_invoices_in_window
           relation = where_match_basis_eq(relation, basis)
           relation = where_metadata_present(relation, column)
@@ -201,8 +195,8 @@ module LlmCostTracker
       end
 
       def unmatched_provider_rows_total_count(local_index)
-        BASIS_DIMENSION.each_key.sum do |basis|
-          column = BASIS_DIMENSION[basis].to_s
+        Reconciliation::BASIS_DIMENSIONS.sum do |basis, column_sym|
+          column = column_sym.to_s
           relation = scoped_cost_invoices_in_window
           relation = where_match_basis_eq(relation, basis)
           relation = where_metadata_present(relation, column)
@@ -213,8 +207,7 @@ module LlmCostTracker
       end
 
       def local_attribution_index_distinct
-        BASIS_DIMENSION.each_key.to_h do |basis|
-          column = BASIS_DIMENSION[basis]
+        Reconciliation::BASIS_DIMENSIONS.to_h do |basis, column|
           values = scoped_calls_relation.where.not(column => nil).distinct.pluck(column)
           [basis, Set.new(values)]
         end
@@ -250,8 +243,8 @@ module LlmCostTracker
       end
 
       def invoice_basis_values_distinct_sql
-        BASIS_DIMENSION.each_key.to_h do |basis|
-          column = BASIS_DIMENSION[basis].to_s
+        Reconciliation::BASIS_DIMENSIONS.to_h do |basis, column_sym|
+          column = column_sym.to_s
           relation = scoped_cost_invoices_in_window
           relation = where_match_basis_eq(relation, basis)
           relation = where_metadata_present(relation, column)
@@ -342,17 +335,17 @@ module LlmCostTracker
 
       def invoice_match_basis(invoice)
         declared = invoice.metadata["match_basis"]
-        return declared if BASIS_DIMENSION.key?(declared)
+        return declared if Reconciliation::BASIS_DIMENSIONS.any? { |basis, _| basis == declared }
         return declared if declared == PERIOD_ONLY_BASIS
 
-        BASIS_DIMENSION.each do |basis, dimension|
+        Reconciliation::BASIS_DIMENSIONS.each do |basis, dimension|
           return basis if invoice.metadata[dimension.to_s]
         end
         PERIOD_ONLY_BASIS
       end
 
       def local_call_matched?(attribution, basis_values)
-        BASIS_DIMENSION.any? do |basis, local_key|
+        Reconciliation::BASIS_DIMENSIONS.any? do |basis, local_key|
           value = attribution[local_key]
           value && basis_values[basis].include?(value)
         end

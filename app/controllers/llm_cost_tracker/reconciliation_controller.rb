@@ -6,7 +6,7 @@ module LlmCostTracker
       @reconciliation_enabled = LlmCostTracker::Reconciliation.enabled?
       @reconciliation_installed = LlmCostTracker::ProviderInvoice.table_exists?
       if @reconciliation_enabled && @reconciliation_installed
-        @scopes = invoice_scopes
+        @scopes = LlmCostTracker::Reconciliation.invoice_scopes
         @sources = @scopes.map { |scope| scope[:source] }.uniq
         @diffs = @scopes.filter_map { |scope| diff_for(scope) }
         @last_imported_at = LlmCostTracker::ProviderInvoice.maximum(:imported_at)
@@ -54,17 +54,9 @@ module LlmCostTracker
       LlmCostTracker.configuration.reconciliation_importers
     end
 
-    def invoice_scopes
-      provider_expr = Arel.sql(metadata_provider_sql)
-      LlmCostTracker::ProviderInvoice
-        .group(:source, provider_expr, :currency)
-        .order(:source, :currency)
-        .pluck(:source, provider_expr, :currency)
-        .map { |source, provider, currency| { source: source, provider: provider, currency: currency.upcase } }
-    end
-
     def diff_for(scope)
-      window = scope_invoices(scope)
+      window = LlmCostTracker::Reconciliation
+               .scope_relation(scope)
                .order(period_end: :desc, period_start: :desc)
                .limit(1)
                .pick(:period_start, :period_end)
@@ -77,24 +69,6 @@ module LlmCostTracker
     rescue ArgumentError => e
       LlmCostTracker::Logging.warn("Reconciliation diff skipped for #{scope.inspect}: #{e.message}")
       nil
-    end
-
-    def scope_invoices(scope)
-      relation = LlmCostTracker::ProviderInvoice
-                 .where(source: scope[:source], currency: scope[:currency])
-      provider = scope[:provider]
-      return relation if provider.nil? || provider.empty?
-
-      relation.where("#{metadata_provider_sql} = ?", provider)
-    end
-
-    def metadata_provider_sql
-      connection = LlmCostTracker::ProviderInvoice.connection
-      if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
-        "metadata->>'provider'"
-      else
-        "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.provider'))"
-      end
     end
   end
 end

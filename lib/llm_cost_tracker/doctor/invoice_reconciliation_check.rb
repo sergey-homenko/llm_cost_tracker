@@ -14,7 +14,7 @@ module LlmCostTracker
         return unless Probe.table_exists?("llm_cost_tracker_provider_invoices")
         return if no_imports?
 
-        scopes = imported_scopes
+        scopes = Reconciliation.invoice_scopes
         return Check.new(:ok, "invoice reconciliation", "no provider invoices imported yet") if scopes.empty?
 
         non_canonical = non_canonical_currency_check
@@ -48,21 +48,6 @@ module LlmCostTracker
         Reconciliation::DEFAULT_THRESHOLD_PERCENT
       end
 
-      def imported_scopes
-        connection = LlmCostTracker::ProviderInvoice.connection
-        provider_expr =
-          if Ledger::Schema::Adapter.postgresql?(connection)
-            Arel.sql("metadata->>'provider'")
-          else
-            Arel.sql("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.provider'))")
-          end
-        LlmCostTracker::ProviderInvoice
-          .group(:source, provider_expr, :currency)
-          .order(:source, :currency)
-          .pluck(:source, provider_expr, :currency)
-          .map { |source, provider, currency| { source: source, provider: provider, currency: currency.upcase } }
-      end
-
       def scope_label(scope)
         "#{scope[:source]}/#{scope[:provider]}/#{scope[:currency]}"
       end
@@ -83,26 +68,12 @@ module LlmCostTracker
         warn_check(scope, window, diff)
       end
 
-      def scope_relation(scope)
-        relation = LlmCostTracker::ProviderInvoice
-                   .where(source: scope[:source], currency: scope[:currency])
-        provider = scope[:provider]
-        return relation if provider.nil? || provider.to_s.empty?
-
-        connection = LlmCostTracker::ProviderInvoice.connection
-        if Ledger::Schema::Adapter.postgresql?(connection)
-          relation.where("metadata->>'provider' = ?", provider)
-        else
-          relation.where("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.provider')) = ?", provider)
-        end
-      end
-
       def latest_window_for(scope)
-        latest = scope_relation(scope)
-                 .select(:period_start, :period_end)
-                 .order(period_end: :desc, period_start: :desc)
-                 .limit(1)
-                 .first
+        latest = Reconciliation.scope_relation(scope)
+                               .select(:period_start, :period_end)
+                               .order(period_end: :desc, period_start: :desc)
+                               .limit(1)
+                               .first
         return nil unless latest
         return nil if (Time.now.utc.to_date - latest.period_end).to_i > Reconciliation::INVOICE_FRESHNESS_DAYS
 
@@ -120,7 +91,7 @@ module LlmCostTracker
       end
 
       def stale_check(scope)
-        latest = scope_relation(scope).maximum(:period_end)
+        latest = Reconciliation.scope_relation(scope).maximum(:period_end)
         return scope_unreachable_check(scope) if latest.nil?
 
         days = (Time.now.utc.to_date - latest).to_i

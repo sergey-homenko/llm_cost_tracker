@@ -5,6 +5,7 @@ require "json"
 require_relative "ledger/schema/provider_invoices"
 require_relative "ledger/schema/provider_invoice_imports"
 require_relative "providers"
+require_relative "reconciliation/constants"
 require_relative "reconciliation/import_result"
 require_relative "reconciliation/importer"
 require_relative "reconciliation/diff_result"
@@ -13,16 +14,6 @@ require_relative "reconciliation/fingerprint"
 
 module LlmCostTracker
   module Reconciliation
-    DEFAULT_THRESHOLD_PERCENT = 5.0
-    INVOICE_FRESHNESS_DAYS = 14
-    SOURCE_TO_PROVIDER = {
-      "openai" => "openai",
-      "openai_usage" => "openai",
-      "anthropic" => "anthropic",
-      "anthropic_usage" => "anthropic",
-      "gemini" => "gemini"
-    }.freeze
-
     SCHEMA_TABLES = {
       Ledger::Schema::ProviderInvoices => "llm_cost_tracker_provider_invoices",
       Ledger::Schema::ProviderInvoiceImports => "llm_cost_tracker_provider_invoice_imports"
@@ -56,6 +47,24 @@ module LlmCostTracker
           currency: currency,
           drilldown_limit: drilldown_limit
         ).call
+      end
+
+      def invoice_scopes
+        provider_expr = Arel.sql(metadata_provider_sql)
+        LlmCostTracker::ProviderInvoice
+          .group(:source, provider_expr, :currency)
+          .order(:source, :currency)
+          .pluck(:source, provider_expr, :currency)
+          .map { |source, provider, currency| { source: source, provider: provider, currency: currency.upcase } }
+      end
+
+      def scope_relation(scope)
+        relation = LlmCostTracker::ProviderInvoice
+                   .where(source: scope[:source], currency: scope[:currency])
+        provider = scope[:provider]
+        return relation if provider.nil? || provider.to_s.empty?
+
+        relation.where("#{metadata_provider_sql} = ?", provider)
       end
 
       def ensure_source_present!(source)
@@ -110,6 +119,17 @@ module LlmCostTracker
         raise Error,
               "reconciliation is disabled; set `config.reconciliation_enabled = true` in your initializer " \
               "(requires admin/org-level provider API keys; see docs/upgrading.md)"
+      end
+
+      private
+
+      def metadata_provider_sql
+        connection = LlmCostTracker::ProviderInvoice.connection
+        if Ledger::Schema::Adapter.postgresql?(connection)
+          "metadata->>'provider'"
+        else
+          "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.provider'))"
+        end
       end
     end
   end
