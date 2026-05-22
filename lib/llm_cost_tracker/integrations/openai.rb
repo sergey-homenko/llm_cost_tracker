@@ -5,13 +5,14 @@ require_relative "../billing/line_item"
 require_relative "../providers/azure/hosts"
 require_relative "../providers/openai/model_families"
 require_relative "../providers/openai/service_charges"
+require_relative "../providers/openai/usage_extractor"
 
 module LlmCostTracker
   module Integrations
     module Openai # rubocop:disable Metrics/ModuleLength
       extend Base
 
-      class << self # rubocop:disable Metrics/ClassLength
+      class << self
         def integration_name
           :openai
         end
@@ -109,7 +110,6 @@ module LlmCostTracker
             output_tokens = usage[:output_tokens] || usage[:completion_tokens]
             next if input_tokens.nil? && output_tokens.nil?
 
-            cache_read = cache_read_input_tokens(usage)
             model = response.model || request[:model]
             service_tier = response.try(:service_tier) || request[:service_tier]
 
@@ -120,8 +120,7 @@ module LlmCostTracker
                 pricing_mode: LlmCostTracker::Parsers::OpenaiUsage.combined_pricing_mode(
                   host: host, model: model, service_tier: service_tier
                 ),
-                token_usage: token_usage(usage: usage, input_tokens: input_tokens, output_tokens: output_tokens,
-                                         cache_read: cache_read, model: model),
+                token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
                 usage_source: :sdk_response,
                 provider_response_id: response.try(:id),
                 service_line_items: service_line_items_from(response, request: request)
@@ -134,31 +133,26 @@ module LlmCostTracker
         def record_image(response, request:, latency_ms:, host: nil)
           usage = usage_hash_from(response) || {}
           raw_input = usage[:input_tokens].to_i
-          raw_output = usage[:output_tokens].to_i
-          image_input = image_input_tokens(usage)
-          cache_read = cache_read_input_tokens(usage)
-          text_input = [raw_input - image_input - cache_read, 0].max
-          image_output, text_output = split_image_output(usage, raw_output)
+          image_input = LlmCostTracker::Providers::Openai::UsageExtractor.image_input_tokens(usage)
+          cache_read = LlmCostTracker::Providers::Openai::UsageExtractor.cache_read_input_tokens(usage)
+          image_output, text_output = LlmCostTracker::Providers::Openai::UsageExtractor.split_output(
+            output_tokens: usage[:output_tokens].to_i,
+            image_output_details: LlmCostTracker::Providers::Openai::UsageExtractor.image_output_tokens(usage),
+            text_output_details: LlmCostTracker::Providers::Openai::UsageExtractor.text_output_tokens(usage),
+            audio_output: 0,
+            default_to_image: true
+          )
           record_passthrough(
             model: request[:model],
             response: response,
             latency_ms: latency_ms,
             host: host,
-            input_tokens: text_input,
+            input_tokens: [raw_input - image_input - cache_read, 0].max,
             image_input_tokens: image_input,
             output_tokens: text_output,
             image_output_tokens: image_output,
             cache_read_input_tokens: cache_read
           )
-        end
-
-        def split_image_output(usage, raw_output)
-          image_tokens = image_output_tokens(usage)
-          text_tokens = text_output_tokens(usage)
-          return [raw_output, 0] if image_tokens.zero? && text_tokens.zero?
-
-          text_tokens = [raw_output - image_tokens, 0].max if text_tokens.zero?
-          [image_tokens, text_tokens]
         end
 
         def record_transcription(response, request:, latency_ms:, host: nil)
@@ -175,7 +169,7 @@ module LlmCostTracker
           return { input_tokens: 0, output_tokens: 0 } unless usage && usage[:type].to_s == "tokens"
 
           raw_input = usage[:input_tokens].to_i
-          audio_input = usage.dig(:input_token_details, :audio_tokens).to_i
+          audio_input = LlmCostTracker::Providers::Openai::UsageExtractor.audio_input_tokens(usage)
           {
             input_tokens: [raw_input - audio_input, 0].max,
             audio_input_tokens: audio_input,
@@ -297,67 +291,6 @@ module LlmCostTracker
           return usage.deep_symbolize_keys if usage.is_a?(Hash)
 
           usage.deep_to_h
-        end
-
-        def token_usage(usage:, input_tokens:, output_tokens:, cache_read:, model: nil)
-          audio_input = audio_input_tokens(usage)
-          audio_output = audio_output_tokens(usage)
-          image_input = image_input_tokens(usage)
-          image_output_details = image_output_tokens(usage)
-          text_output_details = text_output_tokens(usage)
-          image_output, regular_output = split_responses_image_output(
-            output_tokens: output_tokens.to_i,
-            image_output_details: image_output_details,
-            text_output_details: text_output_details,
-            audio_output: audio_output,
-            default_to_image: LlmCostTracker::Providers::Openai::ModelFamilies.image_output?(model)
-          )
-
-          TokenUsage.build(
-            input_tokens: regular_input_tokens(input_tokens, cache_read, audio_input, image_input),
-            output_tokens: regular_output,
-            cache_read_input_tokens: cache_read,
-            audio_input_tokens: audio_input,
-            audio_output_tokens: audio_output,
-            image_input_tokens: image_input,
-            image_output_tokens: image_output,
-            hidden_output_tokens: hidden_output_tokens(usage)
-          )
-        end
-
-        INPUT_DETAIL_KEYS = %i[input_tokens_details input_token_details prompt_tokens_details].freeze
-        OUTPUT_DETAIL_KEYS = %i[output_tokens_details output_token_details completion_tokens_details].freeze
-
-        def cache_read_input_tokens(usage) = detail(usage, INPUT_DETAIL_KEYS, :cached_tokens)
-        def hidden_output_tokens(usage)    = detail(usage, OUTPUT_DETAIL_KEYS, :reasoning_tokens)
-        def audio_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :audio_tokens)
-        def audio_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :audio_tokens)
-        def image_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :image_tokens)
-        def image_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :image_tokens)
-        def text_output_tokens(usage)      = detail(usage, OUTPUT_DETAIL_KEYS, :text_tokens)
-
-        def detail(usage, containers, key)
-          containers.each do |container|
-            value = usage.dig(container, key)
-            return value.to_i if value
-          end
-          0
-        end
-
-        def regular_input_tokens(input_tokens, cache_read, audio_input, image_input)
-          [input_tokens.to_i - cache_read - audio_input - image_input, 0].max
-        end
-
-        def split_responses_image_output(output_tokens:, image_output_details:, text_output_details:, audio_output:,
-                                         default_to_image: false)
-          if image_output_details.zero? && text_output_details.zero?
-            remainder = [output_tokens - audio_output, 0].max
-            return default_to_image ? [remainder, 0] : [0, remainder]
-          end
-
-          text_output = text_output_details
-          text_output = [output_tokens - image_output_details - audio_output, 0].max if text_output.zero?
-          [image_output_details, text_output]
         end
       end
 

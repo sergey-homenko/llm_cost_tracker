@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/hash/keys"
+
 require_relative "../providers/openai/hosts"
 require_relative "../providers/openai/model_families"
 require_relative "../providers/openai/service_charges"
+require_relative "../providers/openai/usage_extractor"
 
 module LlmCostTracker
   module Parsers
@@ -27,12 +30,10 @@ module LlmCostTracker
         return nil unless response_status == 200
 
         response = safe_json_parse(response_body)
-        usage = response["usage"]
+        usage = response["usage"]&.deep_symbolize_keys
         return nil unless usage
 
         request = safe_json_parse(request_body)
-        cache_read = cache_read_input_tokens(usage)
-
         model = response["model"] || request["model"]
 
         Event.build(
@@ -44,7 +45,7 @@ module LlmCostTracker
             service_tier: response["service_tier"] || request["service_tier"]
           ),
           model: model,
-          token_usage: token_usage(usage: usage, cache_read: cache_read, model: model),
+          token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
           usage_source: :response,
           service_line_items: service_line_items_for(response, request: request, model: response["model"])
         )
@@ -89,13 +90,12 @@ module LlmCostTracker
       end
 
       def build_known_stream_usage(usage:, provider:, model:, provider_response_id:, pricing_mode:, service_line_items:)
-        cache_read = cache_read_input_tokens(usage)
         Event.build(
           provider: provider,
           provider_response_id: provider_response_id,
           pricing_mode: pricing_mode,
           model: model,
-          token_usage: token_usage(usage: usage, cache_read: cache_read, model: model),
+          token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
           stream: true,
           usage_source: :stream_final,
           service_line_items: service_line_items
@@ -120,10 +120,11 @@ module LlmCostTracker
       end
 
       def detect_stream_usage(events)
-        find_event_value(events, reverse: true) do |data|
-          usage = data["usage"] || data.dig("response", "usage") || data.dig("chunk", "usage")
-          usage if usage.is_a?(Hash)
+        usage = find_event_value(events, reverse: true) do |data|
+          candidate = data["usage"] || data.dig("response", "usage") || data.dig("chunk", "usage")
+          candidate if candidate.is_a?(Hash)
         end
+        usage&.deep_symbolize_keys
       end
 
       def stream_pricing_mode(events)
@@ -134,94 +135,6 @@ module LlmCostTracker
 
       def pricing_mode(request_url:, model:, service_tier:)
         OpenaiUsage.combined_pricing_mode(host: parsed_uri(request_url)&.host, model: model, service_tier: service_tier)
-      end
-
-      def token_usage(usage:, cache_read:, model: nil)
-        audio_input = audio_input_tokens(usage)
-        audio_output = audio_output_tokens(usage)
-        image_input = image_input_tokens(usage)
-        image_output_details = image_output_tokens(usage)
-        text_output_details = text_output_tokens(usage)
-        raw_output = (usage["completion_tokens"] || usage["output_tokens"]).to_i
-        image_output, regular_output_remainder = split_stream_image_output(
-          raw_output: raw_output, image_output_details: image_output_details,
-          text_output_details: text_output_details, audio_output: audio_output,
-          default_to_image: LlmCostTracker::Providers::Openai::ModelFamilies.image_output?(model)
-        )
-
-        TokenUsage.build(
-          input_tokens: regular_input_tokens(
-            usage: usage, cache_read: cache_read, audio_input: audio_input, image_input: image_input
-          ),
-          output_tokens: regular_output_remainder,
-          total_tokens: usage["total_tokens"],
-          cache_read_input_tokens: cache_read,
-          audio_input_tokens: audio_input,
-          audio_output_tokens: audio_output,
-          image_input_tokens: image_input,
-          image_output_tokens: image_output,
-          hidden_output_tokens: hidden_output_tokens(usage)
-        )
-      end
-
-      def split_stream_image_output(raw_output:, image_output_details:, text_output_details:, audio_output:,
-                                    default_to_image: false)
-        if image_output_details.zero? && text_output_details.zero?
-          remainder = [raw_output - audio_output, 0].max
-          return default_to_image ? [remainder, 0] : [0, remainder]
-        end
-
-        text_output = text_output_details
-        text_output = [raw_output - image_output_details - audio_output, 0].max if text_output.zero?
-        [image_output_details, text_output]
-      end
-
-      def regular_input_tokens(usage:, cache_read:, audio_input:, image_input:)
-        raw = (usage["prompt_tokens"] || usage["input_tokens"]).to_i
-        [raw - cache_read - audio_input - image_input, 0].max
-      end
-
-      def cache_read_input_tokens(usage)
-        details = input_token_details(usage)
-        details["cached_tokens"].to_i
-      end
-
-      def audio_input_tokens(usage)
-        details = input_token_details(usage)
-        details["audio_tokens"].to_i
-      end
-
-      def hidden_output_tokens(usage)
-        details = output_token_details(usage)
-        details["reasoning_tokens"].to_i
-      end
-
-      def audio_output_tokens(usage)
-        details = output_token_details(usage)
-        details["audio_tokens"].to_i
-      end
-
-      def image_input_tokens(usage)
-        details = input_token_details(usage)
-        details["image_tokens"].to_i
-      end
-
-      def image_output_tokens(usage)
-        details = output_token_details(usage)
-        details["image_tokens"].to_i
-      end
-
-      def text_output_tokens(usage)
-        details = output_token_details(usage)
-        details["text_tokens"].to_i
-      end
-
-      def input_token_details(usage)
-        usage["prompt_tokens_details"] || usage["input_tokens_details"] || usage["input_token_details"] || {}
-      end
-
-      def output_token_details(usage)
-        usage["completion_tokens_details"] || usage["output_tokens_details"] || usage["output_token_details"] || {}
       end
     end
   end
