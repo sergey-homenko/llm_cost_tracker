@@ -11,10 +11,7 @@ module LlmCostTracker
       "anthropic" => Providers::Anthropic::ReconciliationSource
     }.freeze
     GENERIC_SOURCES = %w[csv].freeze
-
-    module_function
-
-    def run_import(env: ENV, output: $stdout, error_output: $stderr)
+    def self.run_import(env: ENV, output: $stdout, error_output: $stderr)
       result = import_from_env(env: env)
       output.puts "llm_cost_tracker: imported #{result.total_imported} rows " \
                   "(inserted=#{result.inserted}, updated=#{result.updated}, skipped=#{result.skipped})"
@@ -24,13 +21,13 @@ module LlmCostTracker
       result
     end
 
-    def run_diff(env: ENV, output: $stdout)
+    def self.run_diff(env: ENV, output: $stdout)
       diff = diff_from_env(env: env)
       print_diff(diff, output: output)
       diff
     end
 
-    def import_from_env(env: ENV)
+    def self.import_from_env(env: ENV)
       source = required_env(env, "SOURCE")
       input_path = required_env(env, "INPUT")
       raise ArgumentError, "INPUT file not found: #{input_path}" unless File.exist?(input_path)
@@ -40,7 +37,7 @@ module LlmCostTracker
       Reconciliation.import(source: source.to_sym, rows: rows, provider: env["PROVIDER"])
     end
 
-    def diff_from_env(env: ENV)
+    def self.diff_from_env(env: ENV)
       source = required_env(env, "SOURCE")
       period_start = Date.parse(required_env(env, "PERIOD_START"))
       period_end = Date.parse(required_env(env, "PERIOD_END"))
@@ -49,14 +46,14 @@ module LlmCostTracker
                           drilldown_limit: parse_drilldown_limit(env["DRILLDOWN_LIMIT"]))
     end
 
-    def parse_drilldown_limit(value)
+    def self.parse_drilldown_limit(value)
       return Reconciliation::Diff::DEFAULT_DRILLDOWN_LIMIT if value.nil? || value.to_s.empty?
       return nil if value.to_s.downcase == "all"
 
       Integer(value)
     end
 
-    def print_diff(diff, output: $stdout)
+    def self.print_diff(diff, output: $stdout)
       output.puts "llm_cost_tracker: reconciliation diff for #{diff.source} " \
                   "#{diff.period_start}..#{diff.period_end}"
       output.puts "  provider_total: #{diff.provider_total.to_s('F')} #{diff.currency}"
@@ -68,7 +65,7 @@ module LlmCostTracker
       print_non_cost_rows(diff, output)
     end
 
-    def parse_rows(source:, payload:)
+    def self.parse_rows(source:, payload:)
       parser = SOURCE_PARSERS[source.to_s]
       return parser.parse(payload) if parser
       return Array(payload["rows"]) if GENERIC_SOURCES.include?(source.to_s)
@@ -77,14 +74,14 @@ module LlmCostTracker
       raise ArgumentError, "unknown SOURCE #{source.inspect}; known sources: #{known}"
     end
 
-    def required_env(env, key)
+    def self.required_env(env, key)
       value = env[key].to_s.strip
       raise ArgumentError, "missing #{key}" if value.empty?
 
       value
     end
 
-    def print_unmatched_provider_rows(diff, output)
+    def self.print_unmatched_provider_rows(diff, output)
       print_section(output, "unmatched provider rows",
                     diff.unmatched_provider_rows, diff.unmatched_provider_rows_total) do |row|
         "#{row[:external_id]} (#{row[:match_basis]}): " \
@@ -92,14 +89,14 @@ module LlmCostTracker
       end
     end
 
-    def print_unmatched_local_calls(diff, output)
+    def self.print_unmatched_local_calls(diff, output)
       print_section(output, "unmatched local calls",
                     diff.unmatched_local_calls, diff.unmatched_local_calls_total) do |row|
         "#{row[:count]} calls / #{row[:total_cost].to_s('F')} #{format_attribution(row[:attribution])}"
       end
     end
 
-    def print_non_cost_rows(diff, output)
+    def self.print_non_cost_rows(diff, output)
       print_section(output, "non-cost evidence",
                     diff.non_cost_rows, diff.non_cost_rows_total) do |row|
         "[#{row[:row_type]}/#{row[:meter]}] " \
@@ -107,24 +104,24 @@ module LlmCostTracker
       end
     end
 
-    def print_section(output, label, rows, total)
+    def self.print_section(output, label, rows, total)
       return if rows.empty?
 
       output.puts "  #{label}#{truncation_suffix(rows.size, total)}:"
       rows.each { |row| output.puts "    #{yield(row)}" }
     end
 
-    def truncation_suffix(shown, total)
+    def self.truncation_suffix(shown, total)
       return "" if shown >= total
 
       " (showing #{shown} of #{total} — pass DRILLDOWN_LIMIT=all to see every row)"
     end
 
-    def format_amount(value)
+    def self.format_amount(value)
       value.nil? ? "n/a" : value.to_s("F")
     end
 
-    def format_attribution(attribution)
+    def self.format_attribution(attribution)
       LlmCostTracker::Masking.format_attribution(attribution, separator: ",")
     end
   end

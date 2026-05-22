@@ -3,8 +3,6 @@
 require "bigdecimal"
 require "time"
 
-require_relative "../../reconciliation/coercion"
-require_relative "../../reconciliation/fingerprint"
 require_relative "tier_classification"
 
 module LlmCostTracker
@@ -19,10 +17,7 @@ module LlmCostTracker
         ROW_TYPE_COST = "cost"
         AUTHORITY_COST_API = "cost_api"
         DEFAULT_METER = "tokens"
-
-        module_function
-
-        def parse(response, authority: AUTHORITY_COST_API, row_type: ROW_TYPE_COST)
+        def self.parse(response, authority: AUTHORITY_COST_API, row_type: ROW_TYPE_COST)
           payload = LlmCostTracker::Reconciliation::Coercion.coerce_hash(response, label: "Anthropic Usage")
           buckets = Array(payload[:data])
           buckets.flat_map do |bucket|
@@ -30,7 +25,7 @@ module LlmCostTracker
           end.compact
         end
 
-        def rows_for_bucket(bucket, authority:, row_type:)
+        def self.rows_for_bucket(bucket, authority:, row_type:)
           bucket = LlmCostTracker::Reconciliation::Coercion.symbolize(bucket)
           starting_at = bucket[:starting_at]
           ending_at = bucket[:ending_at]
@@ -49,7 +44,7 @@ module LlmCostTracker
           []
         end
 
-        def row_for_result(raw, period_start:, period_end:, starting_at:, ending_at:, authority:, row_type:)
+        def self.row_for_result(raw, period_start:, period_end:, starting_at:, ending_at:, authority:, row_type:)
           result = LlmCostTracker::Reconciliation::Coercion.symbolize(raw)
           raw_amount = result[:amount]
           return nil if raw_amount.nil?
@@ -65,11 +60,11 @@ module LlmCostTracker
           }
         end
 
-        def dollars_from_cents(amount)
+        def self.dollars_from_cents(amount)
           (BigDecimal(amount.to_s) / 100).to_s("F")
         end
 
-        def metadata_for(result, authority:, row_type:)
+        def self.metadata_for(result, authority:, row_type:)
           {
             "row_type" => row_type,
             "meter" => meter_for(result),
@@ -86,7 +81,7 @@ module LlmCostTracker
           }.compact
         end
 
-        def meter_for(result)
+        def self.meter_for(result)
           case result[:cost_type].to_s
           when "web_search" then "web_search"
           when "code_execution" then "code_execution_hour"
@@ -96,7 +91,7 @@ module LlmCostTracker
           end
         end
 
-        def token_meter(token_type)
+        def self.token_meter(token_type)
           return "cache_read_input_tokens" if token_type.include?("cache_read")
           return "cache_creation_input_tokens" if token_type.include?("cache_creation")
           return "input_tokens" if token_type.include?("input")
@@ -105,34 +100,34 @@ module LlmCostTracker
           DEFAULT_METER
         end
 
-        def pricing_mode_for(result)
+        def self.pricing_mode_for(result)
           modes = []
           modes << "batch" if result[:service_tier].to_s.downcase == "batch"
           modes << "data_residency" if TierClassification.data_residency_geo?(result[:inference_geo])
           modes.empty? ? nil : modes.uniq.join("_")
         end
 
-        def match_basis_for(result)
+        def self.match_basis_for(result)
           return "workspace" if result[:workspace_id]
           return "model" if result[:model]
 
           "period_only"
         end
 
-        def fingerprint_for(result, starting_at:, ending_at:)
+        def self.fingerprint_for(result, starting_at:, ending_at:)
           attributes = result.merge(starting_at: LlmCostTracker::Reconciliation::Coercion.normalized_epoch(starting_at),
                                     ending_at: LlmCostTracker::Reconciliation::Coercion.normalized_epoch(ending_at))
           LlmCostTracker::Reconciliation::Fingerprint.compute(FINGERPRINT_KEYS, attributes)
         end
 
-        def parse_date(value)
+        def self.parse_date(value)
           return value if value.is_a?(Date)
           return Time.at(value).utc.to_date if value.is_a?(Numeric)
 
           Time.parse(value.to_s).utc.to_date
         end
 
-        def end_inclusive_date(value)
+        def self.end_inclusive_date(value)
           time = case value
                  when Numeric then Time.at(value).utc
                  when Date then value.to_time.utc

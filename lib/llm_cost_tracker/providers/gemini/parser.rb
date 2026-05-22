@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "../../billing/line_item"
-
 module LlmCostTracker
   module Providers
     module Gemini

@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "pricing/mode"
-require_relative "billing/line_item"
-
 module LlmCostTracker
   Event = Data.define(
     :event_id,

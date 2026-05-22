@@ -6,15 +6,13 @@ require "time"
 module LlmCostTracker
   module Reconciliation
     module Coercion
-      module_function
-
-      def symbolize(hash)
+      def self.symbolize(hash)
         return hash if hash.is_a?(Hash) && hash.keys.all?(Symbol)
 
         hash.to_h.transform_keys { |key| key.to_s.to_sym }
       end
 
-      def normalized_epoch(value)
+      def self.normalized_epoch(value)
         return value.to_i if value.is_a?(Numeric)
 
         Time.parse(value.to_s).utc.to_i
@@ -22,7 +20,7 @@ module LlmCostTracker
         value.to_s
       end
 
-      def coerce_hash(response, label:)
+      def self.coerce_hash(response, label:)
         return {} if response.nil?
         return symbolize(response) if response.is_a?(Hash)
 

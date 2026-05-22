@@ -5,7 +5,6 @@ require "time"
 
 require_relative "../event"
 require_relative "../pricing"
-require_relative "../billing/line_item"
 
 module LlmCostTracker
   module Ingestion

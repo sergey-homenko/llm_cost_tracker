@@ -282,21 +282,19 @@ module LlmCostTracker
       end
 
       module PatchBuilder
-        module_function
-
-        def build(record_method:, methods:)
+        def self.build(record_method:, methods:)
           Module.new.tap do |mod|
             methods.each { |method_name| define_blocking_method(mod, method_name, record_method) }
           end
         end
 
-        def build_stream(methods:)
+        def self.build_stream(methods:)
           Module.new.tap do |mod|
             methods.each { |method_name| define_stream_method(mod, method_name) }
           end
         end
 
-        def define_blocking_method(mod, method_name, record_method)
+        def self.define_blocking_method(mod, method_name, record_method)
           mod.define_method(method_name) do |*args, **kwargs, &block|
             LlmCostTracker::Integrations::Openai.wrap_blocking_call(
               args, kwargs, self, record_method: record_method
@@ -304,7 +302,7 @@ module LlmCostTracker
           end
         end
 
-        def define_stream_method(mod, method_name)
+        def self.define_stream_method(mod, method_name)
           mod.define_method(method_name) do |*args, **kwargs|
             LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |_collector|
               super(*args, **kwargs)

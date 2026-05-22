@@ -5,7 +5,6 @@ require "active_support/core_ext/object/deep_dup"
 require "json"
 
 require_relative "stream"
-require_relative "../pricing/mode"
 require_relative "../timing"
 
 module LlmCostTracker

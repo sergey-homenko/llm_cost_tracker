@@ -5,7 +5,6 @@ require "json"
 require "stringio"
 require "uri"
 
-require_relative "../logging"
 require_relative "../capture/sse"
 require_relative "../capture/stream"
 require_relative "../timing"

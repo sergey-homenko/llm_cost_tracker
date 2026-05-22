@@ -7,14 +7,11 @@ module LlmCostTracker
         month: "month",
         day:   "day"
       }.freeze
-
-      module_function
-
-      def valid_keys(periods)
+      def self.valid_keys(periods)
         periods.select { |period| PERIODS.key?(period) }
       end
 
-      def range_start(period, time)
+      def self.range_start(period, time)
         utc_time = time.to_time.utc
 
         case period
@@ -23,7 +20,7 @@ module LlmCostTracker
         end
       end
 
-      def bucket(period, time)
+      def self.bucket(period, time)
         range_start(period, time).to_date
       end
     end

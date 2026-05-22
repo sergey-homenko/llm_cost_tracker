@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "billing/components"
-require_relative "logging"
-
 module LlmCostTracker
   KNOWN_TOKEN_KEYS = (
     Billing::Components::TOKEN_PRICED.map(&:key) + %i[total hidden_output]

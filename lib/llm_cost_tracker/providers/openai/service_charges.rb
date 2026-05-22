@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "../../billing/line_item"
 require_relative "model_families"
 
 module LlmCostTracker

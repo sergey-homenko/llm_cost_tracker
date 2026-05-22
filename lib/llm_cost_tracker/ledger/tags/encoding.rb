@@ -6,9 +6,7 @@ module LlmCostTracker
   module Ledger
     module Tags
       module Encoding
-        module_function
-
-        def encode(value)
+        def self.encode(value)
           case value
           when Hash then JSON.generate(normalize_hash(value))
           when Array then JSON.generate(normalize_array(value))
@@ -16,15 +14,15 @@ module LlmCostTracker
           end
         end
 
-        def normalize_hash(hash)
+        def self.normalize_hash(hash)
           hash.transform_keys(&:to_s).sort.to_h.transform_values { |v| normalize_value(v) }
         end
 
-        def normalize_array(array)
+        def self.normalize_array(array)
           array.map { |v| normalize_value(v) }
         end
 
-        def normalize_value(value)
+        def self.normalize_value(value)
           case value
           when Hash then normalize_hash(value)
           when Array then normalize_array(value)

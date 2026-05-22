@@ -2,7 +2,6 @@
 
 require "bigdecimal"
 
-require_relative "logging"
 require_relative "ledger"
 require_relative "pricing/estimator"
 

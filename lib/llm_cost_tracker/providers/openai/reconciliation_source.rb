@@ -2,9 +2,6 @@
 
 require "time"
 
-require_relative "../../reconciliation/coercion"
-require_relative "../../reconciliation/fingerprint"
-
 module LlmCostTracker
   module Providers
     module Openai
@@ -13,10 +10,7 @@ module LlmCostTracker
         ROW_TYPE_COST = "cost"
         AUTHORITY_COST_API = "cost_api"
         DEFAULT_METER = "tokens"
-
-        module_function
-
-        def parse(response, authority: AUTHORITY_COST_API, row_type: ROW_TYPE_COST)
+        def self.parse(response, authority: AUTHORITY_COST_API, row_type: ROW_TYPE_COST)
           payload = LlmCostTracker::Reconciliation::Coercion.coerce_hash(response, label: "OpenAI Costs")
           buckets = Array(payload[:data])
           buckets.flat_map do |bucket|
@@ -24,7 +18,7 @@ module LlmCostTracker
           end.compact
         end
 
-        def rows_for_bucket(bucket, authority:, row_type:)
+        def self.rows_for_bucket(bucket, authority:, row_type:)
           bucket = LlmCostTracker::Reconciliation::Coercion.symbolize(bucket)
           start_time = bucket[:start_time]
           end_time = bucket[:end_time]
@@ -43,7 +37,7 @@ module LlmCostTracker
           []
         end
 
-        def row_for_result(raw, period_start:, period_end:, start_time:, end_time:, authority:, row_type:)
+        def self.row_for_result(raw, period_start:, period_end:, start_time:, end_time:, authority:, row_type:)
           result = LlmCostTracker::Reconciliation::Coercion.symbolize(raw)
           amount = LlmCostTracker::Reconciliation::Coercion.symbolize(result[:amount] || {})
           billed_amount = amount[:value]
@@ -60,7 +54,7 @@ module LlmCostTracker
           }
         end
 
-        def metadata_for(result, authority:, row_type:)
+        def self.metadata_for(result, authority:, row_type:)
           {
             "row_type" => row_type,
             "meter" => meter_for(result),
@@ -74,7 +68,7 @@ module LlmCostTracker
           }.compact
         end
 
-        def meter_for(result)
+        def self.meter_for(result)
           line_item = result[:line_item].to_s.downcase
           case line_item
           when /web search/, /search content/ then "web_search"
@@ -84,7 +78,7 @@ module LlmCostTracker
           end
         end
 
-        def match_basis_for(result)
+        def self.match_basis_for(result)
           return "project" if result[:project_id]
           return "api_key" if result[:api_key_id]
           return "model" if result[:model]
@@ -92,7 +86,7 @@ module LlmCostTracker
           "period_only"
         end
 
-        def fingerprint_for(result, start_time:, end_time:)
+        def self.fingerprint_for(result, start_time:, end_time:)
           attributes = result.merge(
             start_time: LlmCostTracker::Reconciliation::Coercion.normalized_epoch(start_time),
             end_time: LlmCostTracker::Reconciliation::Coercion.normalized_epoch(end_time)
@@ -100,13 +94,13 @@ module LlmCostTracker
           LlmCostTracker::Reconciliation::Fingerprint.compute(FINGERPRINT_KEYS, attributes)
         end
 
-        def epoch_to_date(value)
+        def self.epoch_to_date(value)
           return Time.at(Integer(value)).utc.to_date if value.is_a?(Numeric) || value.to_s.match?(/\A\d+\z/)
 
           Time.parse(value.to_s).utc.to_date
         end
 
-        def end_inclusive_date(value)
+        def self.end_inclusive_date(value)
           time = if value.is_a?(Numeric) || value.to_s.match?(/\A\d+\z/)
                    Time.at(Integer(value)).utc
                  else

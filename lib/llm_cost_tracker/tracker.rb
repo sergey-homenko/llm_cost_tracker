@@ -5,7 +5,6 @@ require "securerandom"
 
 require_relative "ingestion"
 require_relative "ledger"
-require_relative "logging"
 require_relative "pricing"
 require_relative "billing/cost_status"
 

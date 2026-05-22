@@ -6,10 +6,7 @@ module LlmCostTracker
       provider_api_key_id provider_workspace_id provider_organization_id provider_project_id
     ].to_set.freeze
     MASK_TAIL_LENGTH = 4
-
-    module_function
-
-    def mask_value(key, value)
+    def self.mask_value(key, value)
       string = value.to_s
       return string unless SENSITIVE_KEYS.include?(key.to_sym)
       return string if string.length <= MASK_TAIL_LENGTH
@@ -17,13 +14,13 @@ module LlmCostTracker
       "***#{string[-MASK_TAIL_LENGTH, MASK_TAIL_LENGTH]}"
     end
 
-    def format_attribution(attribution, separator: ", ")
+    def self.format_attribution(attribution, separator: ", ")
       return "" if attribution.nil? || attribution.empty?
 
       attribution.map { |key, value| "#{key}=#{mask_value(key, value)}" }.join(separator)
     end
 
-    def mask_hash(hash)
+    def self.mask_hash(hash)
       return hash unless hash.is_a?(Hash)
 
       hash.each_with_object({}) do |(key, value), masked|

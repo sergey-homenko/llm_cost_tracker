@@ -19,26 +19,23 @@ module LlmCostTracker
         NON_REASONING_GPT5_PATTERN = /\Agpt-5(?:\.\d+)?-chat\b/i
 
         CHAT_COMPLETIONS_SEARCH_MODEL_PATTERN = /-search-(?:preview|api)\b/i
-
-        module_function
-
-        def data_residency?(model)
+        def self.data_residency?(model)
           model.to_s.match?(DATA_RESIDENCY_MODEL_PATTERN)
         end
 
-        def image_output?(model)
+        def self.image_output?(model)
           model.to_s.match?(IMAGE_OUTPUT_MODEL_PATTERN)
         end
 
-        def character_billed_tts?(model)
+        def self.character_billed_tts?(model)
           model.to_s.match?(CHARACTER_BILLED_TTS_MODEL_PATTERN)
         end
 
-        def chat_completions_search?(model)
+        def self.chat_completions_search?(model)
           model.to_s.match?(CHAT_COMPLETIONS_SEARCH_MODEL_PATTERN)
         end
 
-        def reasoning?(model)
+        def self.reasoning?(model)
           name = model.to_s
           return false if name.empty?
           return false if NON_REASONING_GPT5_PATTERN.match?(name)

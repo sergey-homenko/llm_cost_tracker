@@ -3,9 +3,7 @@
 require "json"
 
 require_relative "../pricing"
-require_relative "../billing/line_item"
 require_relative "rollups"
-require_relative "tags/encoding"
 
 module LlmCostTracker
   module Ledger

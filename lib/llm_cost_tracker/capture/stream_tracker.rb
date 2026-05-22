@@ -3,8 +3,6 @@
 require "active_support/core_ext/object/deep_dup"
 require "active_support/core_ext/object/try"
 
-require_relative "../logging"
-
 module LlmCostTracker
   module Capture
     class StreamTracker

@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "../../token_usage"
 require_relative "model_families"
 
 module LlmCostTracker
@@ -9,10 +8,7 @@ module LlmCostTracker
       module UsageExtractor
         INPUT_DETAIL_KEYS = %i[input_tokens_details input_token_details prompt_tokens_details].freeze
         OUTPUT_DETAIL_KEYS = %i[output_tokens_details output_token_details completion_tokens_details].freeze
-
-        module_function
-
-        def token_usage(usage, model: nil)
+        def self.token_usage(usage, model: nil)
           input_tokens = (usage[:input_tokens] || usage[:prompt_tokens]).to_i
           output_tokens = (usage[:output_tokens] || usage[:completion_tokens]).to_i
           cache_read = cache_read_input_tokens(usage)
@@ -40,8 +36,8 @@ module LlmCostTracker
           )
         end
 
-        def split_output(output_tokens:, image_output_details:, text_output_details:, audio_output:,
-                         default_to_image: false)
+        def self.split_output(output_tokens:, image_output_details:, text_output_details:, audio_output:,
+                              default_to_image: false)
           if image_output_details.zero? && text_output_details.zero?
             remainder = [output_tokens - audio_output, 0].max
             return default_to_image ? [remainder, 0] : [0, remainder]
@@ -52,15 +48,15 @@ module LlmCostTracker
           [image_output_details, text_output]
         end
 
-        def cache_read_input_tokens(usage) = detail(usage, INPUT_DETAIL_KEYS, :cached_tokens)
-        def hidden_output_tokens(usage)    = detail(usage, OUTPUT_DETAIL_KEYS, :reasoning_tokens)
-        def audio_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :audio_tokens)
-        def audio_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :audio_tokens)
-        def image_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :image_tokens)
-        def image_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :image_tokens)
-        def text_output_tokens(usage)      = detail(usage, OUTPUT_DETAIL_KEYS, :text_tokens)
+        def self.cache_read_input_tokens(usage) = detail(usage, INPUT_DETAIL_KEYS, :cached_tokens)
+        def self.hidden_output_tokens(usage)    = detail(usage, OUTPUT_DETAIL_KEYS, :reasoning_tokens)
+        def self.audio_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :audio_tokens)
+        def self.audio_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :audio_tokens)
+        def self.image_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :image_tokens)
+        def self.image_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :image_tokens)
+        def self.text_output_tokens(usage)      = detail(usage, OUTPUT_DETAIL_KEYS, :text_tokens)
 
-        def detail(usage, containers, key)
+        def self.detail(usage, containers, key)
           containers.each do |container|
             value = usage.dig(container, key)
             return value.to_i if value

@@ -2,13 +2,11 @@
 
 module LlmCostTracker
   module Timing
-    module_function
-
-    def now_monotonic
+    def self.now_monotonic
       Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
 
-    def elapsed_ms(started_at)
+    def self.elapsed_ms(started_at)
       ((now_monotonic - started_at) * 1000).round
     end
   end
