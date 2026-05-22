@@ -53,11 +53,6 @@ module LlmCostTracker
           }
         end
 
-        UNKNOWN_PRICING_COST_STATUSES = [
-          LlmCostTracker::Billing::CostStatus::UNKNOWN,
-          LlmCostTracker::Billing::CostStatus::PARTIAL
-        ].freeze
-
         private
 
         def aggregate_selects(table_name: nil, previous: false)
@@ -69,9 +64,10 @@ module LlmCostTracker
             THEN COALESCE(SUM(#{total_cost}), 0) * 1.0 / COUNT(*)
             ELSE 0 END
           SQL
+          incomplete_list = LlmCostTracker::Billing::CostStatus::INCOMPLETE
+                            .map { |s| connection.quote(s) }.join(", ")
           unknown_pricing_sql = <<~SQL.squish
-            SUM(CASE WHEN #{total_cost} IS NULL OR
-                          #{cost_status} IN (#{UNKNOWN_PRICING_COST_STATUSES.map { |s| connection.quote(s) }.join(', ')})
+            SUM(CASE WHEN #{total_cost} IS NULL OR #{cost_status} IN (#{incomplete_list})
                 THEN 1 ELSE 0 END)
           SQL
           selects = [

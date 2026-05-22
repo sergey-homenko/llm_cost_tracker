@@ -7,7 +7,6 @@ module LlmCostTracker
     TAG_VALUE_SUMMARY_BYTES = 80
     TAG_TOOLTIP_BYTES = 512
 
-    include DashboardFilterHelper
     include DashboardFilterOptionsHelper
     include DashboardQueryHelper
     include ChartHelper

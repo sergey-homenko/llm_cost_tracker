@@ -224,10 +224,8 @@ module LlmCostTracker
         end
 
         def unknown_pricing_predicate(scope)
-          values = [
-            LlmCostTracker::Billing::CostStatus::UNKNOWN,
-            LlmCostTracker::Billing::CostStatus::PARTIAL
-          ].map { |value| scope.connection.quote(value) }
+          values = LlmCostTracker::Billing::CostStatus::INCOMPLETE
+                   .map { |value| scope.connection.quote(value) }
 
           "total_cost IS NULL OR cost_status IN (#{values.join(', ')})"
         end

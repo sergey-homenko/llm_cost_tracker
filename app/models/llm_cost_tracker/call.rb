@@ -26,9 +26,7 @@ module LlmCostTracker
     scope :with_cost, -> { where.not(total_cost: nil) }
     scope :without_cost, -> { where(total_cost: nil) }
     scope :unknown_pricing, lambda {
-      where(total_cost: nil).or(
-        where(cost_status: [Billing::CostStatus::UNKNOWN, Billing::CostStatus::PARTIAL])
-      )
+      where(total_cost: nil).or(where(cost_status: Billing::CostStatus::INCOMPLETE))
     }
     scope :with_latency, -> { where.not(latency_ms: nil) }
     scope :streaming,     -> { where(stream: true) }

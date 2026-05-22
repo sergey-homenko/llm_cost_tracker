@@ -9,6 +9,7 @@ module LlmCostTracker
       FREE = "free"
       PARTIAL = "partial"
       UNKNOWN = "unknown"
+      INCOMPLETE = [UNKNOWN, PARTIAL].freeze
 
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def self.call(token_usage:, usage_source:, token_cost:, service_line_items:, total_cost:,

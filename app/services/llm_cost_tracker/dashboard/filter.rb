@@ -5,6 +5,11 @@ require "date"
 module LlmCostTracker
   module Dashboard
     class Filter
+      STREAM_FILTER_OPTIONS = [
+        ["Streaming only", "yes"],
+        ["Non-streaming only", "no"]
+      ].freeze
+
       class << self
         def call(scope: LlmCostTracker::Call.all, params: {})
           new(scope: scope, params: params).relation

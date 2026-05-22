@@ -6,11 +6,11 @@ require "active_support/core_ext/object/try"
 module LlmCostTracker
   module Capture
     class StreamTracker
-      def initialize(stream:, collector:, active:, finish: nil)
+      def initialize(stream:, collector:, active:, finish:)
         @stream = stream
         @collector = collector
         @active = active
-        @finish = finish || proc { |errored| collector.finish!(errored: errored) }
+        @finish = finish
         @finished_ref = [false]
         @attempted_ref = [false]
         @capture_failed = false

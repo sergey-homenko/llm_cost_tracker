@@ -59,7 +59,7 @@ module LlmCostTracker
             "COUNT(*) AS requests_count, " \
             "AVG(latency_ms) AS average_latency_ms, " \
             "COALESCE(SUM(CASE WHEN total_cost IS NULL " \
-            "OR cost_status IN ('#{Billing::CostStatus::UNKNOWN}', '#{Billing::CostStatus::PARTIAL}') " \
+            "OR cost_status IN ('#{Billing::CostStatus::INCOMPLETE.join("', '")}') " \
             "THEN 1 ELSE 0 END), 0) AS unknown_pricing_count"
           )
           .take

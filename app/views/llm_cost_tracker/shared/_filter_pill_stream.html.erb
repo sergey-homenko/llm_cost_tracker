@@ -16,7 +16,7 @@
     <% end %>
     <div class="lct-filter-pop-field">
       <label for="lct-filter-stream">Stream</label>
-      <%= select_tag :stream, options_for_select(LlmCostTracker::DashboardFilterHelper::STREAM_FILTER_OPTIONS, active), include_blank: "All calls", id: "lct-filter-stream" %>
+      <%= select_tag :stream, options_for_select(LlmCostTracker::Dashboard::Filter::STREAM_FILTER_OPTIONS, active), include_blank: "All calls", id: "lct-filter-stream" %>
     </div>
     <button type="submit" class="lct-button lct-button-primary">Apply</button>
   <% end %>

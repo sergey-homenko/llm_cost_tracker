@@ -147,9 +147,8 @@ inference key). It must not couple to the core tracker:
 - `Doctor::InvoiceReconciliationCheck` and the controller's
   `reconciliation_schema_checks` only run after the proxy gate; doctor
   and dashboard are no-ops when reconciliation is disabled.
-- `attribution_summary` view helper lives in `ReconciliationHelper`,
-  not `ApplicationHelper`, so non-reconciliation views never reference
-  `LlmCostTracker::Masking`.
+- Only the reconciliation view calls `LlmCostTracker::Masking.format_attribution`;
+  non-reconciliation views never reference `LlmCostTracker::Masking`.
 - The install generator creates only core ledger tables. The optional
   `llm_cost_tracker:reconciliation` generator is the only path to
   `provider_invoices` / `provider_invoice_imports` schema.

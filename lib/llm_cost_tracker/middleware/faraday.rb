@@ -18,12 +18,12 @@ module LlmCostTracker
       end
 
       def call(request_env)
-        return @app.call(request_env) unless enabled?
+        return @app.call(request_env) unless LlmCostTracker.configuration.enabled
 
         request_url  = request_env.url.to_s
         request_body = read_body(request_env.body)
         parser       = Parsers.find_for(request_url)
-        request_parsed = parser ? safe_json_parse(request_body) : nil
+        request_parsed = parser&.safe_json_parse(request_body)
         streaming = parser&.streaming_request?(request_url, request_parsed)
         if streaming
           request_body = inject_stream_usage_flag(request_env, parser, request_url, request_parsed) || request_body
@@ -49,26 +49,6 @@ module LlmCostTracker
 
       private
 
-      def enabled?
-        return @enabled if defined?(@enabled)
-
-        @enabled = LlmCostTracker.configuration.enabled
-      end
-
-      def safe_json_parse(body)
-        return {} if body.nil? || body.empty?
-
-        JSON.parse(body)
-      rescue JSON::ParserError
-        {}
-      end
-
-      def auto_enable_stream_usage?
-        return @auto_enable_stream_usage if defined?(@auto_enable_stream_usage)
-
-        @auto_enable_stream_usage = LlmCostTracker.configuration.auto_enable_stream_usage
-      end
-
       def invoke_app_with_capture(request_env:, parser:, request_url:, request_body:, streaming:,
                                   stream_buffer:, context_tags:, metadata:, started_at:)
         response_received = false
@@ -93,7 +73,7 @@ module LlmCostTracker
       end
 
       def inject_stream_usage_flag(request_env, parser, request_url, request_parsed)
-        return nil unless auto_enable_stream_usage?
+        return nil unless LlmCostTracker.configuration.auto_enable_stream_usage
         return nil unless parser&.auto_enable_stream_usage?(request_url)
 
         stream_options = request_parsed["stream_options"]
