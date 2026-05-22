@@ -175,4 +175,102 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
   end
+
+  describe "ProviderPatch end-to-end through wrap_blocking_call" do
+    let(:patched_provider_class) do
+      Class.new do
+        def slug = "openai"
+
+        def complete(_messages, **)
+          RubyLLM::Message.new(role: :assistant, content: "hi", model_id: "gpt-4o",
+                               input_tokens: 8, output_tokens: 4, cached_tokens: 3)
+        end
+
+        def embed(_text, **)
+          RubyLLM::Embedding.new(vectors: [], model: "text-embedding-3-large", input_tokens: 7)
+        end
+
+        def transcribe(_audio_file, **)
+          RubyLLM::Transcription.new(text: "hi", model: "whisper-1", input_tokens: 6, output_tokens: 2)
+        end
+
+        def paint(_prompt, **)
+          RubyLLM::Image.new(url: nil, data: nil, mime_type: "image/png", revised_prompt: nil,
+                             model_id: "gpt-image-1",
+                             usage: { input_tokens: 6, output_tokens: 0,
+                                      input_tokens_details: { image_tokens: 4 } })
+        end
+
+        def moderate(_input, **)
+          RubyLLM::Moderation.new(id: "modr_p", model: "omni-moderation-latest", results: [])
+        end
+
+        prepend LlmCostTracker::Integrations::RubyLlm::ProviderPatch
+      end
+    end
+
+    it "dispatches complete through the patch to record_completion with stream=false" do
+      capture_sdk_events do |events|
+        result = patched_provider_class.new.complete([], tools: [], temperature: 0.7, model: "gpt-4o")
+
+        expect(result).to be_a(RubyLLM::Message)
+        expect(events.first).to include(
+          provider: "openai", model: "gpt-4o",
+          input_tokens: 5, output_tokens: 4, cache_read_input_tokens: 3,
+          stream: false, usage_source: :sdk_response
+        )
+      end
+    end
+
+    it "forwards block_given? to record_completion as the stream flag" do
+      capture_sdk_events do |events|
+        patched_provider_class.new.complete([], tools: [], temperature: 0.7, model: "gpt-4o") { |_| }
+        expect(events.first[:stream]).to be(true)
+      end
+    end
+
+    it "dispatches embed through the patch to record_embedding with zero output_tokens" do
+      capture_sdk_events do |events|
+        patched_provider_class.new.embed("hi", model: "text-embedding-3-large", dimensions: nil)
+
+        expect(events.first).to include(
+          provider: "openai", model: "text-embedding-3-large",
+          input_tokens: 7, output_tokens: 0, usage_source: :sdk_response
+        )
+      end
+    end
+
+    it "dispatches transcribe through the patch to record_transcription" do
+      capture_sdk_events do |events|
+        patched_provider_class.new.transcribe(nil, model: "whisper-1", language: "en")
+
+        expect(events.first).to include(
+          provider: "openai", model: "whisper-1",
+          input_tokens: 6, output_tokens: 2, usage_source: :sdk_response
+        )
+      end
+    end
+
+    it "dispatches paint through the patch to record_image with image-token splits" do
+      capture_sdk_events do |events|
+        patched_provider_class.new.paint("a cat", model: "gpt-image-1", size: "1024x1024")
+
+        expect(events.first).to include(
+          provider: "openai", model: "gpt-image-1",
+          input_tokens: 2, image_input_tokens: 4, usage_source: :sdk_response
+        )
+      end
+    end
+
+    it "dispatches moderate through the patch to record_moderation as a zero-token event" do
+      capture_sdk_events do |events|
+        patched_provider_class.new.moderate("hello", model: "omni-moderation-latest")
+
+        expect(events.first).to include(
+          provider: "openai", model: "omni-moderation-latest",
+          input_tokens: 0, output_tokens: 0, provider_response_id: "modr_p"
+        )
+      end
+    end
+  end
 end
