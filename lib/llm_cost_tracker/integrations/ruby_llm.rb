@@ -183,43 +183,51 @@ module LlmCostTracker
 
           raw
         end
-      end
 
-      module ProviderPatch
-        def complete(*args, **kwargs, &)
-          measure(args, kwargs, recorder: :record_completion, has_block: block_given?) { super }
-        end
-
-        def embed(*args, **kwargs)
-          measure(args, kwargs, recorder: :record_embedding) { super }
-        end
-
-        def transcribe(*args, **kwargs)
-          measure(args, kwargs, recorder: :record_transcription) { super }
-        end
-
-        def paint(*args, **kwargs)
-          measure(args, kwargs, recorder: :record_image) { super }
-        end
-
-        def moderate(*args, **kwargs)
-          measure(args, kwargs, recorder: :record_moderation) { super }
-        end
-
-        private
-
-        def measure(args, kwargs, recorder:, **extras)
-          request = RubyLlm.request_params(args, kwargs)
-          RubyLlm.enforce_budget!(request: request)
+        def wrap_blocking_call(args, kwargs, resource, record_method:, **extras)
+          request = request_params(args, kwargs)
+          enforce_budget!(request: request)
           started_at = LlmCostTracker::Timing.now_monotonic
           response = yield
-          RubyLlm.public_send(
-            recorder, self, response,
+          public_send(
+            record_method, resource, response,
             request: request,
             latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
             **extras
           )
           response
+        end
+      end
+
+      module ProviderPatch
+        def complete(*args, **kwargs, &)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking_call(
+            args, kwargs, self, record_method: :record_completion, has_block: block_given?
+          ) { super }
+        end
+
+        def embed(*args, **kwargs)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking_call(
+            args, kwargs, self, record_method: :record_embedding
+          ) { super }
+        end
+
+        def transcribe(*args, **kwargs)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking_call(
+            args, kwargs, self, record_method: :record_transcription
+          ) { super }
+        end
+
+        def paint(*args, **kwargs)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking_call(
+            args, kwargs, self, record_method: :record_image
+          ) { super }
+        end
+
+        def moderate(*args, **kwargs)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking_call(
+            args, kwargs, self, record_method: :record_moderation
+          ) { super }
         end
       end
     end

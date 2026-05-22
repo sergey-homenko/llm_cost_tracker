@@ -34,6 +34,20 @@ module LlmCostTracker
           )
         end
 
+        def wrap_blocking_call(args, kwargs, resource, record_method:)
+          request = request_params(args, kwargs)
+          enforce_budget!(request: request)
+          started_at = LlmCostTracker::Timing.now_monotonic
+          response = yield(normalize_sdk_args(args, kwargs))
+          public_send(
+            record_method, response,
+            request: request,
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
+            host: client_host_for(resource)
+          )
+          response
+        end
+
         def wrap_stream_call(args, kwargs, resource)
           request = request_params(args, kwargs)
           enforce_budget!(request: request)
@@ -311,18 +325,9 @@ module LlmCostTracker
 
         def define_blocking_method(mod, method_name, record_method)
           mod.define_method(method_name) do |*args, **kwargs, &block|
-            integration = LlmCostTracker::Integrations::Openai
-            request = integration.request_params(args, kwargs)
-            integration.enforce_budget!(request: request)
-            started_at = LlmCostTracker::Timing.now_monotonic
-            response = super(*integration.normalize_sdk_args(args, kwargs), &block)
-            integration.public_send(
-              record_method, response,
-              request: request,
-              latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
-              host: integration.client_host_for(self)
-            )
-            response
+            LlmCostTracker::Integrations::Openai.wrap_blocking_call(
+              args, kwargs, self, record_method: record_method
+            ) { |normalized| super(*normalized, &block) }
           end
         end
 
