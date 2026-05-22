@@ -32,7 +32,7 @@ Primary files:
 - `lib/llm_cost_tracker/middleware/faraday.rb`
 - `lib/llm_cost_tracker/capture/stream_tracker.rb`
 - `lib/llm_cost_tracker/capture/stream_collector.rb`
-- `lib/llm_cost_tracker/usage_capture.rb`
+- `lib/llm_cost_tracker/event.rb`
 - `lib/llm_cost_tracker/parsers.rb` (registry + base parser)
 - `lib/llm_cost_tracker/providers/<vendor>/parser.rb`
 
@@ -40,11 +40,11 @@ Responsibilities:
 
 - Detect supported LLM HTTP requests.
 - Preserve streaming behavior while teeing events for tracking.
-- Parse provider responses and stream events into `UsageCapture`.
+- Parse provider responses and stream events into `Event`.
 - Translate provider-specific fields into canonical token usage, pricing mode, response identity, and service line items.
 
 Provider-specific response shape handling belongs here. The output boundary is
-`UsageCapture`, not raw provider JSON.
+`Event`, not raw provider JSON.
 
 ## SDK Integrations
 

@@ -18,7 +18,7 @@ Expected integration contract:
 - install-time checks for the target classes and methods
 - idempotent `Module#prepend` around narrow resource methods
 - no tracking when the integration is not enabled in configuration
-- `UsageCapture` with `TokenUsage` passed to `Tracker.record`
+- `Event` with `TokenUsage` passed to `Tracker.record`
 
 SDK integrations belong under `LlmCostTracker::Integrations`. Do not put SDK object-shape handling in parsers, storage, or pricing.
 

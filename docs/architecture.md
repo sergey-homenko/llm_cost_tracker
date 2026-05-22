@@ -77,13 +77,13 @@ Free tiers and account-level reconciliation are not modeled in the ledger.
 
 ## Capture Boundaries
 
-Capture paths output `UsageCapture`:
+Capture paths output `Event`:
 
 | Boundary | Input | Output |
 | --- | --- | --- |
-| Faraday middleware | HTTP request/response bodies or SSE chunks | `UsageCapture` |
-| SDK integrations | SDK response or stream objects | `UsageCapture` |
-| Explicit APIs | Host app token totals or stream events | `UsageCapture` |
+| Faraday middleware | HTTP request/response bodies or SSE chunks | `Event` |
+| SDK integrations | SDK response or stream objects | `Event` |
+| Explicit APIs | Host app token totals or stream events | `Event` |
 
 `Tracker.record` is the central coordinator. It combines usage capture,
 pricing, tags, cost status, notifications, ledger persistence (inline
@@ -149,7 +149,7 @@ inference key). It must not couple to the core tracker:
   and dashboard are no-ops when reconciliation is disabled.
 - `attribution_summary` view helper lives in `ReconciliationHelper`,
   not `ApplicationHelper`, so non-reconciliation views never reference
-  `Reconciliation::Masking`.
+  `LlmCostTracker::Masking`.
 - The install generator creates only core ledger tables. The optional
   `llm_cost_tracker:reconciliation` generator is the only path to
   `provider_invoices` / `provider_invoice_imports` schema.

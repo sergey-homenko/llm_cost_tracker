@@ -9,7 +9,7 @@ Normal path from an application LLM call to stored ledger data:
 3. For non-streaming responses, the middleware passes request and response data to the parser.
 4. For streaming responses, the middleware tees `on_data`, collects stream events, and parses final usage when the stream completes.
 5. Tags are snapshotted before the request enters the adapter.
-6. The parser returns `UsageCapture` with canonical `TokenUsage`, `pricing_mode`, and any service `Billing::LineItem`s the provider exposed.
+6. The parser returns `Event` with canonical `TokenUsage`, `pricing_mode`, and any service `Billing::LineItem`s the provider exposed.
 7. `Tracker.record` prices and persists the event.
 
 ## SDK Integrations
@@ -20,13 +20,13 @@ Normal path from an application LLM call to stored ledger data:
 4. Your app keeps calling the provider SDK normally.
 5. For streaming SDK calls, the wrapper passes the SDK stream through `Capture::StreamTracker` so the app still consumes the same stream object.
 6. Streaming wrappers snapshot tags before returning the stream to the app.
-7. The wrapper measures latency, extracts usage and provider tier data from the SDK response object or collected stream events, and sends `UsageCapture` to `Tracker.record`.
+7. The wrapper measures latency, extracts usage and provider tier data from the SDK response object or collected stream events, and sends `Event` to `Tracker.record`.
 8. If an explicitly enabled SDK is not loaded or does not satisfy the install contract, boot raises before the app silently misses usage.
 
 ## Explicit Tracking
 
 1. Your app calls `LlmCostTracker.track` with known usage totals, or `LlmCostTracker.track_stream` with stream events.
-2. `track` accepts explicit `tokens:` and `tags:`, builds `UsageCapture`, and sends it to `Tracker.record`.
+2. `track` accepts explicit `tokens:` and `tags:`, builds `Event`, and sends it to `Tracker.record`.
 3. `track_stream` snapshots tags when the stream collector is created.
 4. `track_stream` uses `Capture::StreamCollector`, then `Parsers.find_for_provider` when events need parsing.
 5. `Tracker.record` prices and persists the event.
@@ -36,7 +36,7 @@ Normal path from an application LLM call to stored ledger data:
 `Tracker.record` performs the central normalization step:
 
 1. Blank model identifiers become `unknown`.
-2. `UsageCapture` carries provider identity, model identity, stream metadata, response identity, provider grouping dimensions, `pricing_mode`, and `TokenUsage`.
+2. `Event` carries provider identity, model identity, stream metadata, response identity, provider grouping dimensions, `pricing_mode`, and `TokenUsage`.
 3. `Pricing.calculate` prices token counters with the normalized `pricing_mode`, applies the same rates to token line items, and falls back to `Pricing.charge_rate` for service line items when the registry has a reliable rate for the captured quantity basis. It returns the header total (or `nil` for unknown pricing), the rate snapshot, and the priced line items.
 4. `Billing::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
 5. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.

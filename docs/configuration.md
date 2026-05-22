@@ -92,9 +92,9 @@ also covered: if `OpenAI::Client.new` is initialized with an Azure
 `base_url`, SDK-side capture in `record_response` detects the Azure
 host and tags the same way.
 
-Pricing for `azure_openai/<model>` resolves through
-`Pricing::Lookup#unique_providerless_model` to the matching `openai/<model>`
-entry in the bundled price snapshot. That's correct for Global-tier
+Pricing for `azure_openai/<model>` resolves through the
+`unique_providerless_model` match strategy in `Pricing::Lookup` to the
+matching `openai/<model>` entry in the bundled price snapshot. That's correct for Global-tier
 deployments in primary regions where Azure prices match OpenAI direct. If
 your deployment uses Data Zone (data-residency) pricing or a regional
 uplift that differs from Global, set per-key deltas via
