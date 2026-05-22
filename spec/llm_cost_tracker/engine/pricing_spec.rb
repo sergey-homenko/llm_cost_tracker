@@ -15,7 +15,7 @@ RSpec.describe "LlmCostTracker::Engine pricing" do
     expect(response.status).to eq(200)
     expect(response.body).to include("Pricing")
     expect(response.body).to include("Bundled")
-    expect(response.body).to include("Updated 2026-05-15")
+    expect(response.body).to include("Updated #{LlmCostTracker::Pricing::Registry.metadata.fetch('updated_at')}")
     expect(response.body).to include("claude-haiku-4-5")
   end
 
