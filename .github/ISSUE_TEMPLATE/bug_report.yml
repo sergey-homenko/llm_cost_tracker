@@ -12,7 +12,7 @@ body:
     attributes:
       label: llm_cost_tracker version
       description: Output of `bundle info llm_cost_tracker` or the version from your Gemfile.lock
-      placeholder: "0.3.1"
+      placeholder: "0.11.0"
     validations:
       required: true
 
@@ -51,7 +51,8 @@ body:
         - label: OpenAI
         - label: Anthropic
         - label: Google Gemini
-        - label: OpenAI-compatible (OpenRouter, DeepSeek, private gateway, etc.)
+        - label: Azure OpenAI
+        - label: OpenAI-compatible (OpenRouter, DeepSeek, Groq, private gateway, etc.)
         - label: Not provider-specific
 
   - type: dropdown
@@ -59,9 +60,12 @@ body:
     attributes:
       label: How are calls being tracked?
       options:
-        - Faraday middleware
+        - Official openai gem (config.instrument :openai)
+        - Official anthropic gem (config.instrument :anthropic)
+        - RubyLLM (config.instrument :ruby_llm)
+        - Faraday middleware (use :llm_cost_tracker)
         - Explicit track / track_stream
-        - Both
+        - Multiple of the above
         - Not sure
     validations:
       required: true
