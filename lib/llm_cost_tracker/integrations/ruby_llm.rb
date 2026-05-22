@@ -22,13 +22,7 @@ module LlmCostTracker
         end
 
         def patch_targets
-          [
-            patch_target(
-              "RubyLLM::Provider",
-              with: ProviderPatch,
-              methods: %i[slug complete embed transcribe paint moderate]
-            )
-          ]
+          [patch_target("RubyLLM::Provider", with: ProviderPatch)]
         end
 
         def record_completion(provider, response, request:, latency_ms:, has_block:)

@@ -23,13 +23,8 @@ module LlmCostTracker
 
         def patch_targets
           [
-            patch_target("Anthropic::Resources::Messages", with: MessagesPatch, methods: %i[create stream stream_raw]),
-            patch_target(
-              "Anthropic::Resources::Beta::Messages",
-              with: MessagesPatch,
-              methods: %i[create stream stream_raw],
-              optional: true
-            )
+            patch_target("Anthropic::Resources::Messages", with: MessagesPatch),
+            patch_target("Anthropic::Resources::Beta::Messages", with: MessagesPatch, optional: true)
           ]
         end
 

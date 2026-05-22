@@ -80,36 +80,24 @@ module LlmCostTracker
 
         def patch_targets
           [
-            patch_target("OpenAI::Resources::Responses",
-                         with: ResponsesPatch, methods: %i[create stream stream_raw retrieve_streaming]),
-            patch_target("OpenAI::Resources::Chat::Completions",
-                         with: ChatCompletionsPatch, methods: %i[create stream stream_raw]),
+            patch_target("OpenAI::Resources::Responses", with: ResponsesPatch),
+            patch_target("OpenAI::Resources::Chat::Completions", with: ChatCompletionsPatch),
             *auxiliary_patch_targets
           ]
         end
 
         def auxiliary_patch_targets
           [
-            patch_target("OpenAI::Resources::Embeddings",
-                         with: EmbeddingsPatch, methods: %i[create], optional: true),
-            patch_target("OpenAI::Resources::Images",
-                         with: ImagesPatch, methods: %i[generate edit create_variation], optional: true),
-            patch_target("OpenAI::Resources::Images",
-                         with: StreamingImagesPatch,
-                         methods: %i[generate_stream_raw edit_stream_raw],
-                         optional: true, skip_when_methods_missing: true),
-            patch_target("OpenAI::Resources::Audio::Transcriptions",
-                         with: TranscriptionsPatch, methods: %i[create], optional: true),
-            patch_target("OpenAI::Resources::Audio::Transcriptions",
-                         with: StreamingTranscriptionsPatch,
-                         methods: %i[create_streaming],
-                         optional: true, skip_when_methods_missing: true),
-            patch_target("OpenAI::Resources::Audio::Translations",
-                         with: TranslationsPatch, methods: %i[create], optional: true),
-            patch_target("OpenAI::Resources::Audio::Speech",
-                         with: SpeechPatch, methods: %i[create], optional: true),
-            patch_target("OpenAI::Resources::Moderations",
-                         with: ModerationsPatch, methods: %i[create], optional: true)
+            patch_target("OpenAI::Resources::Embeddings", with: EmbeddingsPatch, optional: true),
+            patch_target("OpenAI::Resources::Images", with: ImagesPatch, optional: true),
+            patch_target("OpenAI::Resources::Images", with: StreamingImagesPatch,
+                                                      optional: true, skip_when_methods_missing: true),
+            patch_target("OpenAI::Resources::Audio::Transcriptions", with: TranscriptionsPatch, optional: true),
+            patch_target("OpenAI::Resources::Audio::Transcriptions", with: StreamingTranscriptionsPatch,
+                                                                     optional: true, skip_when_methods_missing: true),
+            patch_target("OpenAI::Resources::Audio::Translations", with: TranslationsPatch, optional: true),
+            patch_target("OpenAI::Resources::Audio::Speech", with: SpeechPatch, optional: true),
+            patch_target("OpenAI::Resources::Moderations", with: ModerationsPatch, optional: true)
           ]
         end
 

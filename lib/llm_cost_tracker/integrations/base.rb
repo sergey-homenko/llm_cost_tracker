@@ -101,11 +101,11 @@ module LlmCostTracker
 
       def patch_targets = []
 
-      def patch_target(constant_name, with:, methods:, optional: false, skip_when_methods_missing: false)
+      def patch_target(constant_name, with:, optional: false, skip_when_methods_missing: false)
         {
           constant_name: constant_name,
           patch: with,
-          method_names: Array(methods),
+          method_names: with.instance_methods,
           optional: optional,
           skip_when_methods_missing: skip_when_methods_missing
         }
