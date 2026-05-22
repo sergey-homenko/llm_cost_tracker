@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "../../parsers"
-require_relative "usage_parser"
-require_relative "hosts"
-
 module LlmCostTracker
   module Providers
     module Openai

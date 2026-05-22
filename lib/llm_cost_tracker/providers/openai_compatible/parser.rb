@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "../../parsers"
-require_relative "../openai/usage_parser"
-
 module LlmCostTracker
   module Providers
     module OpenaiCompatible
