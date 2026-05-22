@@ -4,6 +4,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed
+
+- The RubyLLM SDK integration now requires `ruby_llm >= 1.15.0` (was `>= 1.14.1`).
+
+### Fixed
+
+- RubyLLM SDK integration over-subtracted cache-read tokens from recorded `input_tokens` on chat completions, so the figure landed in the ledger short by the cache-read amount; the gem now passes RubyLLM's net `input_tokens` through unchanged.
+
 ## [0.11.0] - 2026-05-21
 
 ### Added

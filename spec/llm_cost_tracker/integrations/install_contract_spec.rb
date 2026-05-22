@@ -20,7 +20,7 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   it "raises when an enabled integration cannot satisfy its install contract" do
-    stub_const("RubyLLM::VERSION", "1.13.0")
+    stub_const("RubyLLM::VERSION", "1.14.1")
     allow(Gem.loaded_specs).to receive(:[]).and_call_original
     allow(Gem.loaded_specs).to receive(:[]).with("ruby_llm").and_return(nil)
 
@@ -28,7 +28,7 @@ RSpec.describe LlmCostTracker::Integrations do
       LlmCostTracker.configure { |c| c.instrument(:ruby_llm) }
     end.to raise_error(
       LlmCostTracker::Error,
-      /ruby_llm integration cannot be installed: ruby_llm >= 1\.14\.1 is required, detected 1\.13\.0/
+      /ruby_llm integration cannot be installed: ruby_llm >= 1\.15\.0 is required, detected 1\.14\.1/
     )
   end
 
@@ -39,7 +39,7 @@ RSpec.describe LlmCostTracker::Integrations do
 
     check = described_class.checks([:ruby_llm]).first
     expect(check.status).to eq(:warn)
-    expect(check.message).to include("ruby_llm >= 1.14.1 is required, but ruby_llm is not loaded")
+    expect(check.message).to include("ruby_llm >= 1.15.0 is required, but ruby_llm is not loaded")
   end
 
   it "reports missing enabled SDK integrations in doctor" do

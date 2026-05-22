@@ -14,7 +14,7 @@ module LlmCostTracker
         end
 
         def minimum_version
-          "1.14.1"
+          "1.15.0"
         end
 
         def version_constant
@@ -132,21 +132,17 @@ module LlmCostTracker
             output_tokens = response.output_tokens if output_tokens.nil?
             next if input_tokens.nil? && output_tokens.nil?
 
-            cache_read = response.try(:cached_tokens).to_i
-            cache_write = response.try(:cache_creation_tokens).to_i
-            hidden_output = (response.try(:thinking_tokens) || response.try(:reasoning_tokens)).to_i
-
             LlmCostTracker::Tracker.record(
               event: Event.build(
                 provider: provider,
                 model: model,
                 pricing_mode: pricing_mode_for(provider: provider, response: response),
                 token_usage: TokenUsage.build(
-                  input_tokens: regular_input_tokens(input_tokens, cache_read),
+                  input_tokens: input_tokens.to_i,
                   output_tokens: output_tokens.to_i,
-                  cache_read_input_tokens: cache_read,
-                  cache_write_input_tokens: cache_write,
-                  hidden_output_tokens: hidden_output
+                  cache_read_input_tokens: response.try(:cached_tokens).to_i,
+                  cache_write_input_tokens: response.try(:cache_creation_tokens).to_i,
+                  hidden_output_tokens: response.try(:thinking_tokens).to_i
                 ),
                 stream: stream,
                 usage_source: :sdk_response,
@@ -155,10 +151,6 @@ module LlmCostTracker
               latency_ms: latency_ms
             )
           end
-        end
-
-        def regular_input_tokens(input_tokens, cache_read)
-          [input_tokens.to_i - cache_read, 0].max
         end
 
         def model_id_from_request(value)

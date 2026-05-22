@@ -54,7 +54,7 @@ Built-in integration names:
 | --- | --- | --- |
 | `:openai` | `openai >= 0.59.0` | Responses, Chat Completions, streaming helpers |
 | `:anthropic` | `anthropic >= 1.36.0` | Messages and beta Messages helpers |
-| `:ruby_llm` | `ruby_llm >= 1.14.1` | Provider chat, embedding, and transcription calls |
+| `:ruby_llm` | `ruby_llm >= 1.15.0` | Provider chat, embedding, transcription, image, and moderation calls |
 
 ## OpenAI-Compatible Hosts
 

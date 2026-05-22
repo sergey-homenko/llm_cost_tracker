@@ -35,6 +35,7 @@ if ENV["COVERAGE"] != "false"
 end
 
 require "webmock/rspec"
+WebMock.disable_net_connect!(allow_localhost: true)
 require "active_record"
 require "active_support/testing/time_helpers"
 require_relative "dummy/config/environment"

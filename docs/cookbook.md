@@ -28,7 +28,7 @@ LlmCostTracker.with_tags(feature: "support_chat") do
 end
 ```
 
-The RubyLLM integration supports `ruby_llm >= 1.14.1` and checks RubyLLM's provider contract at boot. Chat, embedding, and transcription calls are captured. Image generation, moderation, and tool execution are not recorded as separate ledger rows.
+The RubyLLM integration supports `ruby_llm >= 1.15.0` and checks RubyLLM's provider contract at boot. Chat, embedding, transcription, image generation, and moderation calls are captured. Tool execution that runs through chat completions is captured as additional chat rows, not as a separate tool ledger row.
 
 ## Official OpenAI SDK
 
