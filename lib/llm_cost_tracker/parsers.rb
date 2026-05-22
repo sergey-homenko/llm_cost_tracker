@@ -1,23 +1,27 @@
 # frozen_string_literal: true
 
+require_relative "parsers/base"
+require_relative "providers/openai/parser"
+require_relative "providers/azure/parser"
+require_relative "providers/openai_compatible/parser"
+require_relative "providers/anthropic/parser"
+require_relative "providers/gemini/parser"
+
 module LlmCostTracker
   module Parsers
-    autoload :Base,                 "llm_cost_tracker/parsers/base"
-    autoload :OpenaiUsage,          "llm_cost_tracker/parsers/openai_usage"
-    autoload :Openai,               "llm_cost_tracker/parsers/openai"
-    autoload :Azure,                "llm_cost_tracker/parsers/azure"
-    autoload :OpenaiCompatible,     "llm_cost_tracker/parsers/openai_compatible"
-    autoload :Anthropic,            "llm_cost_tracker/parsers/anthropic"
-    autoload :Gemini,               "llm_cost_tracker/parsers/gemini"
-
     MUTEX = Mutex.new
-    PARSER_CONSTANTS = %i[Openai Azure OpenaiCompatible Anthropic Gemini].freeze
+    PARSER_CLASSES = [
+      Providers::Openai::Parser,
+      Providers::Azure::Parser,
+      Providers::OpenaiCompatible::Parser,
+      Providers::Anthropic::Parser,
+      Providers::Gemini::Parser
+    ].freeze
 
     module_function
 
     def find_for(url)
-      PARSER_CONSTANTS.each do |name|
-        klass = const_get(name)
+      PARSER_CLASSES.each do |klass|
         return instance_for(klass) if klass.match?(url)
       end
       nil
@@ -25,8 +29,7 @@ module LlmCostTracker
 
     def find_for_provider(provider)
       provider_name = provider.to_s.downcase
-      PARSER_CONSTANTS.each do |name|
-        klass = const_get(name)
+      PARSER_CLASSES.each do |klass|
         return instance_for(klass) if klass.provider_names.include?(provider_name)
       end
       nil

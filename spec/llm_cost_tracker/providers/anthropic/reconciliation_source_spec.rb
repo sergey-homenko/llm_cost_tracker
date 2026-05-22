@@ -3,7 +3,7 @@
 require "spec_helper"
 require "json"
 
-RSpec.describe LlmCostTracker::Reconciliation::Sources::AnthropicUsage do
+RSpec.describe LlmCostTracker::Providers::Anthropic::ReconciliationSource do
   let(:bucket_starting_at) { "2026-05-01T00:00:00Z" }
   let(:bucket_ending_at) { "2026-05-02T00:00:00Z" }
 

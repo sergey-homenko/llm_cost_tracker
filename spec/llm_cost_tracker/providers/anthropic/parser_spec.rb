@@ -3,7 +3,7 @@
 require "spec_helper"
 require "uri"
 
-RSpec.describe LlmCostTracker::Parsers::Anthropic do
+RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
   subject(:parser) { described_class.new }
 
   let(:anthropic_messages_url) { URI::HTTPS.build(host: "api.anthropic.com", path: "/v1/messages").to_s }

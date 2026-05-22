@@ -3,7 +3,7 @@
 require "spec_helper"
 require "json"
 
-RSpec.describe LlmCostTracker::Reconciliation::Sources::OpenaiUsage do
+RSpec.describe LlmCostTracker::Providers::Openai::ReconciliationSource do
   let(:bucket_start) { Time.utc(2026, 5, 1).to_i }
   let(:bucket_end) { Time.utc(2026, 5, 2).to_i }
 

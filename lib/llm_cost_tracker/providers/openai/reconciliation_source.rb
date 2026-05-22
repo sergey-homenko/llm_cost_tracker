@@ -2,13 +2,13 @@
 
 require "time"
 
-require_relative "coercion"
-require_relative "fingerprint"
+require_relative "../../reconciliation/coercion"
+require_relative "../../reconciliation/fingerprint"
 
 module LlmCostTracker
-  module Reconciliation
-    module Sources
-      module OpenaiUsage
+  module Providers
+    module Openai
+      module ReconciliationSource
         FINGERPRINT_KEYS = %i[start_time end_time line_item model project_id api_key_id organization_id].freeze
         ROW_TYPE_COST = "cost"
         AUTHORITY_COST_API = "cost_api"
@@ -17,7 +17,7 @@ module LlmCostTracker
         module_function
 
         def parse(response, authority: AUTHORITY_COST_API, row_type: ROW_TYPE_COST)
-          payload = Coercion.coerce_hash(response, label: "OpenAI Costs")
+          payload = LlmCostTracker::Reconciliation::Coercion.coerce_hash(response, label: "OpenAI Costs")
           buckets = Array(payload[:data])
           buckets.flat_map do |bucket|
             rows_for_bucket(bucket, authority: authority, row_type: row_type)
@@ -25,7 +25,7 @@ module LlmCostTracker
         end
 
         def rows_for_bucket(bucket, authority:, row_type:)
-          bucket = Coercion.symbolize(bucket)
+          bucket = LlmCostTracker::Reconciliation::Coercion.symbolize(bucket)
           start_time = bucket[:start_time]
           end_time = bucket[:end_time]
           return [] unless start_time && end_time
@@ -44,8 +44,8 @@ module LlmCostTracker
         end
 
         def row_for_result(raw, period_start:, period_end:, start_time:, end_time:, authority:, row_type:)
-          result = Coercion.symbolize(raw)
-          amount = Coercion.symbolize(result[:amount] || {})
+          result = LlmCostTracker::Reconciliation::Coercion.symbolize(raw)
+          amount = LlmCostTracker::Reconciliation::Coercion.symbolize(result[:amount] || {})
           billed_amount = amount[:value]
           return nil if billed_amount.nil?
 
@@ -93,9 +93,11 @@ module LlmCostTracker
         end
 
         def fingerprint_for(result, start_time:, end_time:)
-          attributes = result.merge(start_time: Coercion.normalized_epoch(start_time),
-                                    end_time: Coercion.normalized_epoch(end_time))
-          Fingerprint.compute(FINGERPRINT_KEYS, attributes)
+          attributes = result.merge(
+            start_time: LlmCostTracker::Reconciliation::Coercion.normalized_epoch(start_time),
+            end_time: LlmCostTracker::Reconciliation::Coercion.normalized_epoch(end_time)
+          )
+          LlmCostTracker::Reconciliation::Fingerprint.compute(FINGERPRINT_KEYS, attributes)
         end
 
         def epoch_to_date(value)

@@ -18,7 +18,7 @@ module LlmCostTracker
         end
 
         def stream_pricing_mode(request, host: nil)
-          LlmCostTracker::Parsers::OpenaiUsage.combined_pricing_mode(
+          LlmCostTracker::Providers::Openai::UsageParser.combined_pricing_mode(
             host: host,
             model: (request || {})[:model],
             service_tier: (request || {})[:service_tier]
@@ -119,7 +119,7 @@ module LlmCostTracker
               event: Event.build(
                 provider: provider_for_host(host),
                 model: model,
-                pricing_mode: LlmCostTracker::Parsers::OpenaiUsage.combined_pricing_mode(
+                pricing_mode: LlmCostTracker::Providers::Openai::UsageParser.combined_pricing_mode(
                   host: host, model: model, service_tier: service_tier
                 ),
                 token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),

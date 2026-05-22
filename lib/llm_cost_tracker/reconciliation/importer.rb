@@ -5,7 +5,7 @@ require "date"
 require "json"
 
 require_relative "import_result"
-require_relative "sources/coercion"
+require_relative "coercion"
 require_relative "../ledger/rollups"
 
 module LlmCostTracker
@@ -121,7 +121,7 @@ module LlmCostTracker
       def normalize_rows(rows)
         errors = []
         normalized = rows.each_with_index.filter_map do |row, index|
-          attrs = Sources::Coercion.symbolize(row)
+          attrs = Coercion.symbolize(row)
           missing = REQUIRED_FIELDS - attrs.keys
           if missing.any?
             errors << "row #{index}: missing #{missing.join(', ')}"

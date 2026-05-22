@@ -3,7 +3,7 @@
 require "spec_helper"
 require "uri"
 
-RSpec.describe LlmCostTracker::Parsers::Azure do
+RSpec.describe LlmCostTracker::Providers::Azure::Parser do
   subject(:parser) { described_class.new }
 
   let(:chat_completions_url) do

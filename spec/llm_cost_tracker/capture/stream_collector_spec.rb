@@ -85,7 +85,7 @@ RSpec.describe LlmCostTracker do
                         "usage" => { "prompt_tokens" => 5, "completion_tokens" => 2, "total_tokens" => 7 } })
 
       received_request_body = :unset
-      allow_any_instance_of(LlmCostTracker::Parsers::Openai).to receive(:parse_stream) do |_, request_body:, **_|
+      allow_any_instance_of(LlmCostTracker::Providers::Openai::Parser).to receive(:parse_stream) do |_, request_body:, **_|
         received_request_body = request_body
         nil
       end

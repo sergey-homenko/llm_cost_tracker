@@ -3,7 +3,7 @@
 require "spec_helper"
 require "uri"
 
-RSpec.describe LlmCostTracker::Parsers::Gemini do
+RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
   subject(:parser) { described_class.new }
 
   let(:generate_content_url) do

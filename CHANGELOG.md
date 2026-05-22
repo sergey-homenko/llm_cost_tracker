@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - The RubyLLM SDK integration now requires `ruby_llm >= 1.15.0` (was `>= 1.14.1`).
+- Vendor-specific parsers and reconciliation sources moved under `LlmCostTracker::Providers::<Vendor>::*`; the `LlmCostTracker::Reconciliation::Sources` namespace is removed (its `Coercion` and `Fingerprint` helpers moved up to `LlmCostTracker::Reconciliation::*`). Custom code referencing the old constants — `LlmCostTracker::Parsers::Anthropic`/`Openai`/`Azure`/`Gemini`/`OpenaiCompatible`/`OpenaiUsage`, `LlmCostTracker::Reconciliation::Sources::OpenaiUsage`/`AnthropicUsage`/`Coercion`/`Fingerprint` — has to update to the new names.
 
 ### Fixed
 

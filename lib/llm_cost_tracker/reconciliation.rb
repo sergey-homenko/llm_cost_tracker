@@ -8,9 +8,9 @@ require_relative "reconciliation/import_result"
 require_relative "reconciliation/importer"
 require_relative "reconciliation/diff_result"
 require_relative "reconciliation/diff"
-require_relative "reconciliation/sources/fingerprint"
-require_relative "reconciliation/sources/openai_usage"
-require_relative "reconciliation/sources/anthropic_usage"
+require_relative "reconciliation/fingerprint"
+require_relative "providers/openai/reconciliation_source"
+require_relative "providers/anthropic/reconciliation_source"
 
 module LlmCostTracker
   module Reconciliation

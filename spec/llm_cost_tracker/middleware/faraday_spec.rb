@@ -468,7 +468,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
   it "warns only once when the streaming tap overflowed and the response body is also blank" do
     middleware = LlmCostTracker::Middleware::Faraday.new(->(_env) { Faraday::Response.new })
-    parser = LlmCostTracker::Parsers::Openai.new
+    parser = LlmCostTracker::Providers::Openai::Parser.new
     response_env = double("response_env", body: nil, status: 200, response_headers: {})
     stream_buffer = { buffer: StringIO.new(""), bytes: 0, overflowed: true }
     warnings = []

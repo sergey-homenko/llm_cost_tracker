@@ -3,14 +3,14 @@
 require "bigdecimal"
 require "time"
 
-require_relative "coercion"
-require_relative "fingerprint"
-require_relative "../../providers/anthropic/tier_classification"
+require_relative "../../reconciliation/coercion"
+require_relative "../../reconciliation/fingerprint"
+require_relative "tier_classification"
 
 module LlmCostTracker
-  module Reconciliation
-    module Sources
-      module AnthropicUsage
+  module Providers
+    module Anthropic
+      module ReconciliationSource
         FINGERPRINT_KEYS = %i[
           starting_at ending_at model workspace_id
           service_tier context_window cost_type token_type description
@@ -23,7 +23,7 @@ module LlmCostTracker
         module_function
 
         def parse(response, authority: AUTHORITY_COST_API, row_type: ROW_TYPE_COST)
-          payload = Coercion.coerce_hash(response, label: "Anthropic Usage")
+          payload = LlmCostTracker::Reconciliation::Coercion.coerce_hash(response, label: "Anthropic Usage")
           buckets = Array(payload[:data])
           buckets.flat_map do |bucket|
             rows_for_bucket(bucket, authority: authority, row_type: row_type)
@@ -31,7 +31,7 @@ module LlmCostTracker
         end
 
         def rows_for_bucket(bucket, authority:, row_type:)
-          bucket = Coercion.symbolize(bucket)
+          bucket = LlmCostTracker::Reconciliation::Coercion.symbolize(bucket)
           starting_at = bucket[:starting_at]
           ending_at = bucket[:ending_at]
           return [] unless starting_at && ending_at
@@ -50,7 +50,7 @@ module LlmCostTracker
         end
 
         def row_for_result(raw, period_start:, period_end:, starting_at:, ending_at:, authority:, row_type:)
-          result = Coercion.symbolize(raw)
+          result = LlmCostTracker::Reconciliation::Coercion.symbolize(raw)
           raw_amount = result[:amount]
           return nil if raw_amount.nil?
 
@@ -108,9 +108,7 @@ module LlmCostTracker
         def pricing_mode_for(result)
           modes = []
           modes << "batch" if result[:service_tier].to_s.downcase == "batch"
-          if LlmCostTracker::Providers::Anthropic::TierClassification.data_residency_geo?(result[:inference_geo])
-            modes << "data_residency"
-          end
+          modes << "data_residency" if TierClassification.data_residency_geo?(result[:inference_geo])
           modes.empty? ? nil : modes.uniq.join("_")
         end
 
@@ -122,9 +120,9 @@ module LlmCostTracker
         end
 
         def fingerprint_for(result, starting_at:, ending_at:)
-          attributes = result.merge(starting_at: Coercion.normalized_epoch(starting_at),
-                                    ending_at: Coercion.normalized_epoch(ending_at))
-          Fingerprint.compute(FINGERPRINT_KEYS, attributes)
+          attributes = result.merge(starting_at: LlmCostTracker::Reconciliation::Coercion.normalized_epoch(starting_at),
+                                    ending_at: LlmCostTracker::Reconciliation::Coercion.normalized_epoch(ending_at))
+          LlmCostTracker::Reconciliation::Fingerprint.compute(FINGERPRINT_KEYS, attributes)
         end
 
         def parse_date(value)

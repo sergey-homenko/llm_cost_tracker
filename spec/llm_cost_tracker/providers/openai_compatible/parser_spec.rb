@@ -3,7 +3,7 @@
 require "spec_helper"
 require "uri"
 
-RSpec.describe LlmCostTracker::Parsers::OpenaiCompatible do
+RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
   subject(:parser) { described_class.new }
 
   let(:openrouter_chat_url) { URI::HTTPS.build(host: "openrouter.ai", path: "/api/v1/chat/completions").to_s }
