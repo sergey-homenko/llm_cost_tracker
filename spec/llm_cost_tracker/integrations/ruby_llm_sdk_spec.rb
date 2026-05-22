@@ -37,6 +37,39 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
         )
       end
     end
+
+    it "marks the event as streaming when the caller passes a block" do
+      message = RubyLLM::Message.new(role: :assistant, content: "hi", model_id: "gpt-4o",
+                                     input_tokens: 5, output_tokens: 2)
+
+      capture_sdk_events do |events|
+        described_class.record_completion(provider, message, request: request, latency_ms: 1, has_block: true)
+        expect(events.first[:stream]).to be(true)
+      end
+    end
+
+    it "marks the event as streaming when the request payload sets stream: true" do
+      message = RubyLLM::Message.new(role: :assistant, content: "hi", model_id: "gpt-4o",
+                                     input_tokens: 5, output_tokens: 2)
+
+      capture_sdk_events do |events|
+        described_class.record_completion(provider, message,
+                                          request: { model: "gpt-4o", stream: true },
+                                          latency_ms: 1, has_block: false)
+        expect(events.first[:stream]).to be(true)
+      end
+    end
+
+    it "drops the event when both input_tokens and output_tokens are nil" do
+      message = RubyLLM::Message.new(role: :assistant, content: "hi", model_id: "gpt-4o")
+      expect(message.input_tokens).to be_nil
+      expect(message.output_tokens).to be_nil
+
+      capture_sdk_events do |events|
+        described_class.record_completion(provider, message, request: request, latency_ms: 1, has_block: false)
+        expect(events).to be_empty
+      end
+    end
   end
 
   describe ".record_embedding" do
@@ -105,6 +138,20 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
           output_tokens: 20,
           image_output_tokens: 80,
           usage_source: :sdk_response
+        )
+      end
+    end
+
+    it "records zero tokens when the image response has no usage hash" do
+      image = RubyLLM::Image.new(url: "https://example.com/a.png", data: nil, mime_type: "image/png",
+                                 revised_prompt: nil, model_id: "dall-e-3")
+
+      capture_sdk_events do |events|
+        described_class.record_image(provider, image, request: { model: "dall-e-3" }, latency_ms: 1)
+
+        expect(events.first).to include(
+          provider: "openai", model: "dall-e-3", input_tokens: 0, output_tokens: 0,
+          image_input_tokens: 0, image_output_tokens: 0
         )
       end
     end
