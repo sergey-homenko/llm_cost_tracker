@@ -19,10 +19,7 @@ module LlmCostTracker
           )
           extra_match = block_given? ? yield(uri) : true
 
-          next false unless host_match && path_match
-          next false unless extra_match
-
-          true
+          !!(host_match && path_match && extra_match)
         end
       end
 
@@ -40,13 +37,10 @@ module LlmCostTracker
       def path_matches?(uri, exact_paths: nil, path_includes: nil, path_suffixes: nil, path_pattern: nil)
         path = uri.path.to_s
         matches = true
-
         matches &&= exact_paths.include?(path) if exact_paths
         matches &&= Array(path_includes).all? { |fragment| path.include?(fragment) } if path_includes
         matches &&= path.match?(path_pattern) if path_pattern
-
         matches &&= path_suffixes.any? { |suffix| path == suffix || path.end_with?(suffix) } if path_suffixes
-
         matches
       end
     end

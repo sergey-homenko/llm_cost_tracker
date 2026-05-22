@@ -4,13 +4,12 @@ require "json"
 
 require_relative "ledger/schema/provider_invoices"
 require_relative "ledger/schema/provider_invoice_imports"
+require_relative "providers"
 require_relative "reconciliation/import_result"
 require_relative "reconciliation/importer"
 require_relative "reconciliation/diff_result"
 require_relative "reconciliation/diff"
 require_relative "reconciliation/fingerprint"
-require_relative "providers/openai/reconciliation_source"
-require_relative "providers/anthropic/reconciliation_source"
 
 module LlmCostTracker
   module Reconciliation
