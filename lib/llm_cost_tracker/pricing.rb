@@ -13,7 +13,7 @@ require_relative "pricing/service_charges"
 require_relative "pricing/estimator"
 
 module LlmCostTracker
-  module Pricing # rubocop:disable Metrics/ModuleLength
+  module Pricing
     extend ServiceCharges
 
     RATE_DENOMINATOR_TOKENS = 1_000_000

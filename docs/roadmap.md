@@ -6,7 +6,7 @@ warehouse. The 0.8 line-item rebuild is the foundation; everything below
 keeps that boundary.
 
 Architecture: [Architecture](architecture.md). Data model:
-[Data model](data-model.md). Original billing design: [RFC 0001](rfcs/0001-line-item-billing.md).
+[Data model](data-model.md).
 
 ## Validation discipline
 
