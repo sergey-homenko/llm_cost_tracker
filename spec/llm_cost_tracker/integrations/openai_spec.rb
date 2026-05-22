@@ -9,6 +9,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
   let(:client) { OpenAI::Client.new(api_key: "test-key") }
   let(:audio_io) { StringIO.new("RIFF").tap { |io| io.set_encoding(Encoding::BINARY) } }
+  let(:image_io) { StringIO.new("\x89PNG").tap { |io| io.set_encoding(Encoding::BINARY) } }
 
   describe "responses.create" do
     it "records token usage with cached and reasoning breakdowns" do
@@ -88,6 +89,46 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         expect(events.first).to include(
           provider: "openai",
           model: "gpt-image-1",
+          input_tokens: 10,
+          image_input_tokens: 15,
+          output_tokens: 0,
+          usage_source: :sdk_response
+        )
+      end
+    end
+  end
+
+  describe "images.edit" do
+    it "records image tokens through the same recorder as images.generate" do
+      stub_sdk_json(:post, "https://api.openai.com/v1/images/edits",
+                    provider: :openai, fixture: "images_generate.json")
+
+      capture_sdk_events do |events|
+        client.images.edit(image: image_io, prompt: "make it blue", model: "gpt-image-1")
+
+        expect(events.first).to include(
+          provider: "openai",
+          model: "gpt-image-1",
+          input_tokens: 10,
+          image_input_tokens: 15,
+          output_tokens: 0,
+          usage_source: :sdk_response
+        )
+      end
+    end
+  end
+
+  describe "images.create_variation" do
+    it "records token usage from the variations endpoint" do
+      stub_sdk_json(:post, "https://api.openai.com/v1/images/variations",
+                    provider: :openai, fixture: "images_generate.json")
+
+      capture_sdk_events do |events|
+        client.images.create_variation(image: image_io, model: "dall-e-2")
+
+        expect(events.first).to include(
+          provider: "openai",
+          model: "dall-e-2",
           input_tokens: 10,
           image_input_tokens: 15,
           output_tokens: 0,
@@ -278,6 +319,74 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           provider: "openai", stream: true,
           input_tokens: 20, output_tokens: 7,
           provider_response_id: "resp_retrieve"
+        )
+      end
+    end
+  end
+
+  describe "images streaming" do
+    def image_sse_body(type)
+      <<~SSE
+        event: #{type}
+        data: {"type":"#{type}","b64_json":"","background":"opaque","created_at":1700000000,"output_format":"png","quality":"high","size":"1024x1024","usage":{"input_tokens":10,"output_tokens":1500,"total_tokens":1510,"input_tokens_details":{"image_tokens":0,"text_tokens":10}}}
+
+      SSE
+    end
+
+    it "records token usage from images.generate_stream_raw" do
+      stub_sdk_sse(:post, "https://api.openai.com/v1/images/generations",
+                   body: image_sse_body("image_generation.completed"))
+
+      capture_sdk_events do |events|
+        stream = client.images.generate_stream_raw(
+          prompt: "a cat", model: "gpt-image-1", partial_images: 1
+        )
+        stream.each { |_| }
+
+        expect(events.first).to include(
+          provider: "openai", model: "gpt-image-1", stream: true,
+          input_tokens: 10, image_output_tokens: 1500, output_tokens: 0, usage_source: :stream_final
+        )
+      end
+    end
+
+    it "records token usage from images.edit_stream_raw" do
+      stub_sdk_sse(:post, "https://api.openai.com/v1/images/edits",
+                   body: image_sse_body("image_edit.completed"))
+
+      capture_sdk_events do |events|
+        stream = client.images.edit_stream_raw(
+          image: image_io, prompt: "make it blue", model: "gpt-image-1", partial_images: 1
+        )
+        stream.each { |_| }
+
+        expect(events.first).to include(
+          provider: "openai", model: "gpt-image-1", stream: true,
+          input_tokens: 10, image_output_tokens: 1500, output_tokens: 0, usage_source: :stream_final
+        )
+      end
+    end
+  end
+
+  describe "audio.transcriptions.create_streaming" do
+    let(:transcription_sse_body) do
+      <<~SSE
+        event: transcript.text.done
+        data: {"type":"transcript.text.done","text":"hello world","usage":{"type":"tokens","input_tokens":4,"output_tokens":3,"total_tokens":7,"input_token_details":{"audio_tokens":4,"text_tokens":0}}}
+
+      SSE
+    end
+
+    it "records token usage from streaming transcription" do
+      stub_sdk_sse(:post, "https://api.openai.com/v1/audio/transcriptions", body: transcription_sse_body)
+
+      capture_sdk_events do |events|
+        stream = client.audio.transcriptions.create_streaming(file: audio_io, model: "gpt-4o-transcribe")
+        stream.each { |_| }
+
+        expect(events.first).to include(
+          provider: "openai", model: "gpt-4o-transcribe", stream: true,
+          input_tokens: 0, audio_input_tokens: 4, output_tokens: 3, usage_source: :stream_final
         )
       end
     end
