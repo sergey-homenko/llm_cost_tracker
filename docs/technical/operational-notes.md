@@ -9,7 +9,7 @@ Hot-path code includes:
 - Faraday middleware request and response handling
 - stream collection
 - `Tracker.record`
-- `Pricing.cost_and_snapshot_for`
+- `Pricing.calculate`
 - `Pricing.charge_rate`
 - ActiveRecord event persistence
 - budget checks

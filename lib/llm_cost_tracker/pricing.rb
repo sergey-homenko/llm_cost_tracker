@@ -46,15 +46,6 @@ module LlmCostTracker
         [cost_data, snapshot, priced]
       end
 
-      def price_line_items(provider:, model:, line_items:, pricing_mode: nil)
-        token_usage = TokenUsage.build_from_tokens(token_attributes_from(line_items))
-        calculation = calculation_for(provider: provider, model: model, tokens: token_usage, pricing_mode: pricing_mode)
-        snapshot = calculation && snapshot_from(calculation)
-        priced = apply_calculation_to_line_items(line_items, calculation,
-                                                 provider: provider, pricing_mode: pricing_mode)
-        [priced, snapshot]
-      end
-
       def explain(provider:, model:, tokens:, pricing_mode: nil)
         Explainer.call(
           provider: provider,
@@ -182,17 +173,6 @@ module LlmCostTracker
                                          provider: provider,
                                          calculation: calculation,
                                          pricing_mode: pricing_mode)
-        end
-      end
-
-      def token_attributes_from(line_items)
-        line_items.each_with_object({}) do |line_item, totals|
-          next unless line_item.unit == :token
-
-          component = component_for_line_item(line_item)
-          next unless component
-
-          totals[component.key] = (totals[component.key] || 0) + line_item.quantity.to_i
         end
       end
 

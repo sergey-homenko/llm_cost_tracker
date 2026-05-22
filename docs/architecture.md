@@ -66,7 +66,7 @@ discount.
 Tokens and tool/runtime charges share one shape: `Billing::LineItem`. Parsers
 emit token line items from provider usage data and service line items from
 tool calls (web search, code execution, grounding, container sessions, file
-search). `Pricing.price_line_items` applies provider/model token rates to
+search). `Pricing.calculate` applies provider/model token rates to
 token line items and falls back to per-component rates from
 `Pricing.charge_rate` for the rest.
 

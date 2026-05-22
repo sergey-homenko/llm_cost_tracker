@@ -37,13 +37,12 @@ Normal path from an application LLM call to stored ledger data:
 
 1. Blank model identifiers become `unknown`.
 2. `UsageCapture` carries provider identity, model identity, stream metadata, response identity, provider grouping dimensions, `pricing_mode`, and `TokenUsage`.
-3. `Pricing.cost_and_snapshot_for` prices token counters with the normalized `pricing_mode` and returns the header total or `nil` for unknown pricing.
-4. `Pricing.price_line_items` applies the same token rates to token line items, then `Pricing.charge_rate` prices service line items when the registry has a reliable rate for the captured quantity basis.
-5. `Billing::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
-6. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
-7. An `Event` is created around `TokenUsage` and emitted through `ActiveSupport::Notifications`.
-8. Persistence runs through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion = :async`.
-9. Budget checks run after the event is persisted.
+3. `Pricing.calculate` prices token counters with the normalized `pricing_mode`, applies the same rates to token line items, and falls back to `Pricing.charge_rate` for service line items when the registry has a reliable rate for the captured quantity basis. It returns the header total (or `nil` for unknown pricing), the rate snapshot, and the priced line items.
+4. `Billing::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
+5. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
+6. An `Event` is created around `TokenUsage` and emitted through `ActiveSupport::Notifications`.
+7. Persistence runs through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion = :async`.
+8. Budget checks run after the event is persisted.
 
 ## Ledger Storage
 
