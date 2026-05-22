@@ -175,6 +175,114 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "chat.completions streaming" do
+    let(:chat_sse_body) do
+      <<~SSE
+        data: {"id":"chatcmpl_s","object":"chat.completion.chunk","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"hi"}}]}
+
+        data: {"id":"chatcmpl_s","object":"chat.completion.chunk","model":"gpt-4o","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
+
+        data: [DONE]
+
+      SSE
+    end
+
+    it "records token usage from chat.completions.stream" do
+      stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: chat_sse_body)
+
+      capture_sdk_events do |events|
+        stream = client.chat.completions.stream(
+          model: "gpt-4o", messages: [{ role: "user", content: "hi" }]
+        )
+        stream.each { |_| }
+
+        expect(events.first).to include(
+          provider: "openai", model: "gpt-4o", stream: true,
+          input_tokens: 10, output_tokens: 5,
+          usage_source: :stream_final, provider_response_id: "chatcmpl_s"
+        )
+      end
+    end
+
+    it "records token usage from chat.completions.stream_raw" do
+      stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: chat_sse_body)
+
+      capture_sdk_events do |events|
+        stream = client.chat.completions.stream_raw(
+          model: "gpt-4o", messages: [{ role: "user", content: "hi" }]
+        )
+        stream.each { |_| }
+
+        expect(events.first).to include(
+          provider: "openai", stream: true, input_tokens: 10, output_tokens: 5
+        )
+      end
+    end
+  end
+
+  describe "responses streaming" do
+    let(:responses_sse_body) do
+      <<~SSE
+        event: response.created
+        data: {"type":"response.created","response":{"id":"resp_stream","model":"gpt-4o"}}
+
+        event: response.completed
+        data: {"type":"response.completed","response":{"id":"resp_stream","model":"gpt-4o","usage":{"input_tokens":20,"output_tokens":7,"total_tokens":27}}}
+
+      SSE
+    end
+
+    it "records token usage from responses.stream" do
+      stub_sdk_sse(:post, "https://api.openai.com/v1/responses", body: responses_sse_body)
+
+      capture_sdk_events do |events|
+        stream = client.responses.stream(model: "gpt-4o", input: "hi")
+        stream.each { |_| }
+
+        expect(events.first).to include(
+          provider: "openai", model: "gpt-4o", stream: true,
+          input_tokens: 20, output_tokens: 7,
+          usage_source: :stream_final, provider_response_id: "resp_stream"
+        )
+      end
+    end
+
+    it "records token usage from responses.stream_raw" do
+      stub_sdk_sse(:post, "https://api.openai.com/v1/responses", body: responses_sse_body)
+
+      capture_sdk_events do |events|
+        stream = client.responses.stream_raw(model: "gpt-4o", input: "hi")
+        stream.each { |_| }
+
+        expect(events.first).to include(
+          provider: "openai", model: "gpt-4o", stream: true,
+          input_tokens: 20, output_tokens: 7,
+          provider_response_id: "resp_stream"
+        )
+      end
+    end
+
+    it "records token usage from responses.retrieve_streaming, falling back to the URL response id when SSE chunks omit it" do
+      idless_sse = <<~SSE
+        event: response.completed
+        data: {"type":"response.completed","response":{"model":"gpt-4o","usage":{"input_tokens":20,"output_tokens":7,"total_tokens":27}}}
+
+      SSE
+      stub_sdk_sse(:get, "https://api.openai.com/v1/responses/resp_retrieve", body: idless_sse)
+
+      capture_sdk_events do |events|
+        stream = client.responses.retrieve_streaming("resp_retrieve")
+        stream.each { |_| }
+
+        expect(events.first).to include(
+          provider: "openai", stream: true,
+          input_tokens: 20, output_tokens: 7,
+          provider_response_id: "resp_retrieve"
+        )
+      end
+    end
+  end
+
   describe "responses.create extras" do
     it "captures audio input/output tokens split from text input/output" do
       stub_sdk_json(:post, "https://api.openai.com/v1/responses",

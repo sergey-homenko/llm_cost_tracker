@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "openai"
 
 ENV["RAILS_ENV"] ||= "test"
 
@@ -37,27 +38,6 @@ RSpec.describe LlmCostTracker::Doctor::CaptureVerifier do
   end
 
   it "reports enabled SDK integration checks" do
-    stub_const("OpenAI", Module.new)
-    stub_const("OpenAI::VERSION", "0.59.0")
-    stub_const("OpenAI::Resources", Module.new)
-    stub_const("OpenAI::Resources::Chat", Module.new)
-    stub_const("OpenAI::Resources::Responses", Class.new do
-      def create(**); end
-
-      def stream(**); end
-
-      def stream_raw(**); end
-
-      def retrieve_streaming(*); end
-    end)
-    stub_const("OpenAI::Resources::Chat::Completions", Class.new do
-      def create(**); end
-
-      def stream(**); end
-
-      def stream_raw(**); end
-    end)
-
     LlmCostTracker.configure { |config| config.instrument :openai }
 
     expect(described_class.call).to include(
