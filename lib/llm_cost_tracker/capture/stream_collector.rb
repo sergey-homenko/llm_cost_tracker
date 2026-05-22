@@ -183,12 +183,8 @@ module LlmCostTracker
       end
 
       def present_model(value)
-        return nil if value.nil?
-
         string = value.to_s.presence
-        return nil if string.nil? || string == Event::UNKNOWN_MODEL
-
-        string
+        string unless string == Event::UNKNOWN_MODEL
       end
 
       def build_from_explicit_usage(snapshot)

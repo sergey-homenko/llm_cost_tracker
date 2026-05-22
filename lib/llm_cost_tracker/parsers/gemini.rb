@@ -152,7 +152,7 @@ module LlmCostTracker
 
       def modality_tokens(details, modality)
         Array(details).sum do |detail|
-          next 0 unless detail.is_a?(Hash) && detail["modality"] == modality
+          next 0 unless detail["modality"] == modality
 
           (detail["tokenCount"] || detail["token_count"]).to_i
         end
@@ -198,8 +198,6 @@ module LlmCostTracker
 
       def grounding_request_count(candidates)
         Array(candidates).sum do |candidate|
-          next 0 unless candidate.is_a?(Hash)
-
           metadata = candidate["groundingMetadata"] || candidate["grounding_metadata"] || {}
           queries = metadata["webSearchQueries"] || metadata["web_search_queries"] || []
           Array(queries).size
