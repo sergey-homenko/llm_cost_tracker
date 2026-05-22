@@ -5,7 +5,6 @@ require "json"
 require_relative "ledger/schema/provider_invoices"
 require_relative "ledger/schema/provider_invoice_imports"
 require_relative "providers"
-require_relative "reconciliation/constants"
 require_relative "reconciliation/import_result"
 require_relative "reconciliation/importer"
 require_relative "reconciliation/diff_result"
@@ -14,6 +13,21 @@ require_relative "reconciliation/fingerprint"
 
 module LlmCostTracker
   module Reconciliation
+    DEFAULT_THRESHOLD_PERCENT = 5.0
+    INVOICE_FRESHNESS_DAYS = 14
+    SOURCE_TO_PROVIDER = {
+      "openai" => "openai",
+      "openai_usage" => "openai",
+      "anthropic" => "anthropic",
+      "anthropic_usage" => "anthropic",
+      "gemini" => "gemini"
+    }.freeze
+    BASIS_DIMENSIONS = [
+      ["project",   :provider_project_id],
+      ["api_key",   :provider_api_key_id],
+      ["workspace", :provider_workspace_id],
+      ["model",     :model]
+    ].freeze
     SCHEMA_TABLES = {
       Ledger::Schema::ProviderInvoices => "llm_cost_tracker_provider_invoices",
       Ledger::Schema::ProviderInvoiceImports => "llm_cost_tracker_provider_invoice_imports"
