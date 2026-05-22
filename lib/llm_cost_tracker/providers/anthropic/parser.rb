@@ -2,7 +2,7 @@
 
 require "active_support/core_ext/hash/keys"
 
-require_relative "../../parsers/base"
+require_relative "../../parsers"
 require_relative "usage_extractor"
 
 module LlmCostTracker

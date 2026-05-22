@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../parsers/base"
+require_relative "../../parsers"
 require_relative "usage_parser"
 require_relative "hosts"
 
