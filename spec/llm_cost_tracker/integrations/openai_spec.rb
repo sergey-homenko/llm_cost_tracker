@@ -283,6 +283,53 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "chat.completions search line items" do
+    it "synthesizes a web_search line item from a url_citation annotation" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions").to_return(
+        status: 200,
+        body: {
+          id: "chatcmpl_a", object: "chat.completion", model: "gpt-4o",
+          choices: [{
+            index: 0,
+            message: {
+              role: "assistant", content: "see source",
+              annotations: [{ type: "url_citation",
+                              url_citation: { url: "https://example.com", title: "x" } }]
+            },
+            finish_reason: "stop"
+          }],
+          usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 }
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        client.chat.completions.create(model: "gpt-4o", messages: [{ role: "user", content: "x" }])
+        kinds = events.first[:line_items].reject { |item| item[:unit] == :token }.map { |item| item[:kind] }
+        expect(kinds).to contain_exactly(:web_search_request)
+      end
+    end
+
+    it "synthesizes a search-preview line item for a *-search-preview model with no annotations" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions").to_return(
+        status: 200,
+        body: {
+          id: "chatcmpl_b", object: "chat.completion", model: "gpt-4o-search-preview",
+          choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 }
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        client.chat.completions.create(model: "gpt-4o-search-preview",
+                                       messages: [{ role: "user", content: "x" }])
+        kinds = events.first[:line_items].reject { |item| item[:unit] == :token }.map { |item| item[:kind] }
+        expect(kinds).to contain_exactly(:web_search_preview_request_non_reasoning)
+      end
+    end
+  end
+
   describe "responses.create extras" do
     it "captures audio input/output tokens split from text input/output" do
       stub_sdk_json(:post, "https://api.openai.com/v1/responses",

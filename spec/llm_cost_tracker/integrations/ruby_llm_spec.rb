@@ -54,7 +54,25 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
 
-    it "drops the priority service tier to nil pricing_mode for Anthropic completions" do
+    it "captures Anthropic batch service tier as pricing_mode :batch" do
+      WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
+        status: 200,
+        body: {
+          id: "msg_b", type: "message", role: "assistant", model: "claude-sonnet-4-5",
+          content: [{ type: "text", text: "hi" }], stop_reason: "end_turn",
+          service_tier: "batch",
+          usage: { input_tokens: 10, output_tokens: 5 }
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "claude-sonnet-4-5").ask("hi")
+        expect(events.first).to include(provider: "anthropic", pricing_mode: :batch)
+      end
+    end
+
+    it "drops Anthropic priority service tier (committed throughput, not a surcharge) to nil pricing_mode" do
       WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
         status: 200,
         body: {

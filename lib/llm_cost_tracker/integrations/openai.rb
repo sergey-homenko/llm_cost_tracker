@@ -57,6 +57,12 @@ module LlmCostTracker
           track_stream(stream, collector: collector)
         end
 
+        def normalize_sdk_args(args, kwargs)
+          return args if args.any? || kwargs.empty?
+
+          [kwargs]
+        end
+
         def client_host_for(resource)
           client = resource.instance_variable_get(:@client)
           return nil unless client
@@ -246,10 +252,9 @@ module LlmCostTracker
           end
         end
 
-        def service_line_items_from(response, request: nil)
-          model = response_field(response, :model) || request&.dig(:model)
-          output = response_field(response, :output)
-          output_items = Array(output).map { |item| normalize_output_item(item) }.compact
+        def service_line_items_from(response, request:)
+          model = response.try(:model) || request[:model]
+          output_items = Array(response.try(:output)).map { |item| normalize_output_item(item) }
           chat_search = output_items.empty? ? chat_completions_search_item(response, model: model) : nil
           output_items << chat_search if chat_search
           return [] if output_items.empty?
@@ -260,7 +265,7 @@ module LlmCostTracker
         end
 
         def chat_completions_search_item(response, model: nil)
-          choices = response_field(response, :choices)
+          choices = response.try(:choices)
           return nil if choices.nil?
 
           provider_field = if choices.any? { |choice| choice_used_url_citation?(choice) }
@@ -270,21 +275,18 @@ module LlmCostTracker
                            end
           return nil unless provider_field
 
-          { "type" => "web_search_call", "id" => response_field(response, :id),
+          { "type" => "web_search_call", "id" => response.try(:id),
             "action" => { "type" => "search" }, "provider_field" => provider_field }
         end
 
         def choice_used_url_citation?(choice)
-          message = response_field(choice, :message)
-          annotations = response_field(message, :annotations)
+          annotations = choice.message.annotations
           return false if annotations.nil?
 
-          annotations.any? { |annotation| response_field(annotation, :type).to_s == "url_citation" }
+          annotations.any? { |annotation| annotation.type.to_s == "url_citation" }
         end
 
         def normalize_output_item(item)
-          return nil if item.nil?
-
           hash = (item.is_a?(Hash) ? item : item.deep_to_h).deep_stringify_keys
           hash["type"] = hash["type"]&.to_s
           hash["status"] = hash["status"]&.to_s if hash.key?("status")
@@ -292,19 +294,8 @@ module LlmCostTracker
           hash
         end
 
-        def response_field(object, key)
-          return nil if object.nil?
-          return object[key] || object[key.to_s] if object.is_a?(Hash)
-
-          object.try(key)
-        end
-
         def usage_hash_from(response)
-          usage = response&.try(:usage)
-          return nil unless usage
-          return usage.deep_symbolize_keys if usage.is_a?(Hash)
-
-          usage.deep_to_h
+          response.try(:usage)&.deep_to_h
         end
       end
 

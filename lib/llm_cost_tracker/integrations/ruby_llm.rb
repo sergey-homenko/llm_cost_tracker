@@ -63,21 +63,19 @@ module LlmCostTracker
         end
 
         def record_image(provider, response, request:, latency_ms:)
-          usage = response.usage.is_a?(Hash) ? response.usage.with_indifferent_access : {}
+          usage = response.usage.with_indifferent_access
           raw_input = usage[:input_tokens].to_i
           raw_output = usage[:output_tokens].to_i
           image_input = image_token_detail(usage, :input)
           image_output = image_token_detail(usage, :output)
-          text_input = [raw_input - image_input, 0].max
-          text_output = [raw_output - image_output, 0].max
           record_passthrough(
             provider: provider.slug.to_s,
             model: response_model_id(response) || model_id_from_request(request[:model]),
             response: response,
             latency_ms: latency_ms,
-            input_tokens: text_input,
+            input_tokens: [raw_input - image_input, 0].max,
             image_input_tokens: image_input,
-            output_tokens: text_output,
+            output_tokens: [raw_output - image_output, 0].max,
             image_output_tokens: image_output
           )
         end
@@ -169,11 +167,11 @@ module LlmCostTracker
         end
 
         def pricing_mode_for(provider:, response:)
-          raw = response.try(:pricing_mode) || response.try(:service_tier)
+          tier = response.try(:raw)&.body&.dig("service_tier")
           return nil if provider == "anthropic" &&
-                        LlmCostTracker::Providers::Anthropic::TierClassification.standard_equivalent_tier?(raw)
+                        LlmCostTracker::Providers::Anthropic::TierClassification.standard_equivalent_tier?(tier)
 
-          raw
+          tier
         end
 
         def wrap_blocking_call(args, kwargs, resource, record_method:, **extras)

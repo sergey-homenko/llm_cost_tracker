@@ -71,12 +71,6 @@ module LlmCostTracker
         kwargs.to_h.with_indifferent_access
       end
 
-      def normalize_sdk_args(args, kwargs)
-        return args if args.any? || kwargs.empty?
-
-        [kwargs]
-      end
-
       def track_stream(stream, collector:)
         return stream unless active?
 
