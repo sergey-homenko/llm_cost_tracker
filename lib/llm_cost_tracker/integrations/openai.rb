@@ -38,7 +38,7 @@ module LlmCostTracker
           request = request_params(args, kwargs)
           enforce_budget!(request: request)
           started_at = LlmCostTracker::Timing.now_monotonic
-          response = yield(normalize_sdk_args(args, kwargs))
+          response = yield
           public_send(
             record_method, response,
             request: request,
@@ -53,14 +53,8 @@ module LlmCostTracker
           enforce_budget!(request: request)
           host = client_host_for(resource)
           collector = stream_collector(request, host: host)
-          stream = yield(normalize_sdk_args(args, kwargs), collector)
+          stream = yield(collector)
           track_stream(stream, collector: collector)
-        end
-
-        def normalize_sdk_args(args, kwargs)
-          return args if args.any? || kwargs.empty?
-
-          [kwargs]
         end
 
         def client_host_for(resource)
@@ -318,14 +312,14 @@ module LlmCostTracker
           mod.define_method(method_name) do |*args, **kwargs, &block|
             LlmCostTracker::Integrations::Openai.wrap_blocking_call(
               args, kwargs, self, record_method: record_method
-            ) { |normalized| super(*normalized, &block) }
+            ) { super(*args, **kwargs, &block) }
           end
         end
 
         def define_stream_method(mod, method_name)
           mod.define_method(method_name) do |*args, **kwargs|
-            LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |normalized, _|
-              super(*normalized)
+            LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |_collector|
+              super(*args, **kwargs)
             end
           end
         end
@@ -336,9 +330,9 @@ module LlmCostTracker
         include PatchBuilder.build_stream(methods: %i[stream stream_raw])
 
         def retrieve_streaming(response_id, *args, **kwargs)
-          LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |normalized, collector|
+          LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |collector|
             collector.provider_response_id = response_id
-            super(response_id, *normalized)
+            super(response_id, *args, **kwargs)
           end
         end
       end
