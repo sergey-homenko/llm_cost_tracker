@@ -13,7 +13,6 @@ require_relative "reconciliation/fingerprint"
 
 module LlmCostTracker
   module Reconciliation
-    SUPPORTED_SOURCES = %i[openai anthropic gemini csv].freeze
     DEFAULT_THRESHOLD_PERCENT = 5.0
     INVOICE_FRESHNESS_DAYS = 14
     SOURCE_TO_PROVIDER = {

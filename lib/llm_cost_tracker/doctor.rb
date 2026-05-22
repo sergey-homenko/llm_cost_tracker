@@ -5,7 +5,6 @@ require_relative "doctor/check"
 require_relative "doctor/probe"
 require_relative "doctor/ingestion_check"
 require_relative "doctor/legacy_audit_check"
-require_relative "doctor/legacy_billing_status_check"
 require_relative "doctor/price_check"
 require_relative "doctor/schema_check"
 require_relative "doctor/cost_drift_check"
@@ -34,7 +33,6 @@ module LlmCostTracker
       "cost drift" => "Data integrity",
       "pricing snapshot drift" => "Data integrity",
       "pricing snapshot audit" => "Data integrity",
-      "cost status" => "Data integrity",
       "invoice reconciliation" => "Data integrity",
       "call rollups" => "Operations",
       "inline ingestion" => "Operations",
@@ -107,7 +105,6 @@ module LlmCostTracker
         CostDriftCheck.new.call,
         PricingSnapshotDriftCheck.new.call,
         *reconciliation_invoice_check,
-        LegacyBillingStatusCheck.new.call,
         LegacyAuditCheck.new.call,
         call_rollups_check,
         IngestionCheck.new.call,

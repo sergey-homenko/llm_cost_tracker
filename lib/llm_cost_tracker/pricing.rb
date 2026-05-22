@@ -14,8 +14,6 @@ require_relative "pricing/estimator"
 
 module LlmCostTracker
   module Pricing
-    extend ServiceCharges
-
     RATE_DENOMINATOR_TOKENS = 1_000_000
     private_constant :RATE_DENOMINATOR_TOKENS
 
@@ -203,7 +201,7 @@ module LlmCostTracker
         return line_item unless line_item.billable?
 
         rate = model_rate_for(line_item, calculation) ||
-               charge_rate(provider: provider, component: line_item.kind, pricing_mode: pricing_mode)
+               ServiceCharges.charge_rate(provider: provider, component: line_item.kind, pricing_mode: pricing_mode)
         return line_item unless rate
 
         line_item.with_rate(rate)

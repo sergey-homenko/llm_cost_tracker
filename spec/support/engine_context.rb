@@ -49,7 +49,7 @@ module LlmCostTrackerEngineContext
 
     call = LlmCostTracker::Call.create!(attrs)
     create_call_tag_rows(call, raw_tags)
-    LlmCostTracker::Ledger::Rollups.increment!(call)
+    LlmCostTracker::Ledger::Rollups.increment_many!([call])
     call
   end
 

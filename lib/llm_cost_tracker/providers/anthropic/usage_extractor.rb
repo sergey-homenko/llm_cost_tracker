@@ -1,12 +1,18 @@
 # frozen_string_literal: true
 
-require_relative "server_tools"
 require_relative "tier_classification"
 
 module LlmCostTracker
   module Providers
     module Anthropic
       module UsageExtractor
+        SERVER_TOOL_LINE_ITEMS = {
+          web_search_request: :web_search_requests,
+          web_fetch_request: :web_fetch_requests,
+          code_execution_request: :code_execution_requests
+        }.freeze
+        private_constant :SERVER_TOOL_LINE_ITEMS
+
         def self.token_usage(usage)
           input = usage[:input_tokens].to_i
           output = usage[:output_tokens].to_i
@@ -40,7 +46,7 @@ module LlmCostTracker
           server_tool_use = usage[:server_tool_use]
           return [] unless server_tool_use.is_a?(Hash)
 
-          ServerTools::LINE_ITEMS.filter_map do |component_key, count_key|
+          SERVER_TOOL_LINE_ITEMS.filter_map do |component_key, count_key|
             quantity = server_tool_use[count_key].to_i
             next if quantity.zero?
 

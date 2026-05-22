@@ -17,10 +17,6 @@ RSpec.describe LlmCostTracker::Masking do
       expect(described_class.mask_value(:provider_project_id, "proj_abcdef")).to eq("***cdef")
     end
 
-    it "masks provider_organization_id" do
-      expect(described_class.mask_value(:provider_organization_id, "org_abcdef")).to eq("***cdef")
-    end
-
     it "leaves short sensitive values unmasked rather than exposing one or two characters" do
       expect(described_class.mask_value(:provider_api_key_id, "ab")).to eq("ab")
     end

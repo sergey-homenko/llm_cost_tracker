@@ -61,10 +61,10 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       pricing_basis: "rate_table",
       details: {}
     )
-    LlmCostTracker::Ledger::Rollups.increment!(
+    LlmCostTracker::Ledger::Rollups.increment_many!([
       Struct.new(:provider, :total_cost, :tracked_at, :pricing_snapshot)
             .new(provider, total_cost, tracked_at, { "currency" => currency })
-    )
+    ])
     call
   end
 

@@ -68,7 +68,7 @@ emit token line items from provider usage data and service line items from
 tool calls (web search, code execution, grounding, container sessions, file
 search). `Pricing.calculate` applies provider/model token rates to
 token line items and falls back to per-component rates from
-`Pricing.charge_rate` for the rest.
+`Pricing::ServiceCharges.charge_rate` for the rest.
 
 Line items with no matching rate stay `unknown`. They keep the parent call
 `partial` when token cost is known, or `unknown` when no reliable cost exists.

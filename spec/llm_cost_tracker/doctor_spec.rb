@@ -81,7 +81,6 @@ RSpec.describe LlmCostTracker::Doctor do
 
     expect(described_class::IngestionCheck.new.call).to be_nil
     expect(described_class::LegacyAuditCheck.new.call).to be_nil
-    expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil
     expect(
       described_class::SchemaCheck.new(
         name: "call line items",
@@ -262,22 +261,10 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("1 recorded")
     end
 
-    it "warns when legacy rows without cost status remain" do
-      ActiveRecord::Base.connection.change_column_null(:llm_cost_tracker_calls, :cost_status, true)
-      LlmCostTracker::Call.reset_column_information
-      create_call(model: "legacy-status", cost_status: nil)
-
-      check = described_class.call.find { |item| item.name == "cost status" }
-
-      expect(check).to have_attributes(status: :warn)
-      expect(check.message).to include("legacy rows without cost_status remain")
-    end
-
     it "skips legacy checks before billing audit columns exist" do
       allow(LlmCostTracker::Call).to receive(:column_names).and_return([])
 
       expect(described_class::LegacyAuditCheck.new.call).to be_nil
-      expect(described_class::LegacyBillingStatusCheck.new.call).to be_nil
     end
 
     it "warns when legacy rows without pricing snapshots exceed the audit threshold" do

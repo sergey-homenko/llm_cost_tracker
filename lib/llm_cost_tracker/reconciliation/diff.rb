@@ -127,15 +127,6 @@ module LlmCostTracker
         end
       end
 
-      def cost_row?(invoice)
-        row_type = invoice.metadata["row_type"]
-        row_type.nil? || row_type.to_s == COST_ROW_TYPE
-      end
-
-      def fully_contained?(invoice)
-        invoice.period_start >= period_start && invoice.period_end <= period_end
-      end
-
       def sum_local_total
         return line_items_total unless rollup_fast_path?
 

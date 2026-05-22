@@ -30,7 +30,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
     call = LlmCostTracker::Call.create!(attrs)
     create_call_tag_rows(call, raw_tags)
-    LlmCostTracker::Ledger::Rollups.increment!(call)
+    LlmCostTracker::Ledger::Rollups.increment_many!([call])
     call
   end
 
@@ -53,7 +53,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
       usage_source: nil,
       provider_response_id: nil,
       pricing_mode: nil,
-      event_id: nil,
       tags: {},
       tracked_at: Time.utc(2026, 4, 18, 12)
     }

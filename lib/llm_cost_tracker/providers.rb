@@ -5,7 +5,6 @@ module LlmCostTracker
     module Anthropic
       autoload :Parser,               "llm_cost_tracker/providers/anthropic/parser"
       autoload :ReconciliationSource, "llm_cost_tracker/providers/anthropic/reconciliation_source"
-      autoload :ServerTools,          "llm_cost_tracker/providers/anthropic/server_tools"
       autoload :TierClassification,   "llm_cost_tracker/providers/anthropic/tier_classification"
       autoload :UsageExtractor,       "llm_cost_tracker/providers/anthropic/usage_extractor"
     end
