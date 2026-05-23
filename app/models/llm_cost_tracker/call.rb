@@ -102,14 +102,7 @@ module LlmCostTracker
       end
 
       def period_group_expression(period, column:)
-        Ledger::Schema::Adapter.date_truncated_sql(connection, validated_period(period),
-                                                   period_column_expression(column))
-      end
-
-      def validated_period(period)
-        return period.to_sym if Ledger::Schema::Adapter.supported_periods.include?(period.to_sym)
-
-        raise ArgumentError, "invalid period: #{period.inspect}"
+        Ledger::Schema::Adapter.date_truncated_sql(connection, period, period_column_expression(column))
       end
 
       def period_column_expression(column)

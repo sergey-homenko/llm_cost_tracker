@@ -140,6 +140,16 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Adapter do
       expect { described_class.date_truncated_sql("SQLite3", :day, "calls.tracked_at") }
         .to raise_error(LlmCostTracker::Error, /Use PostgreSQL or MySQL/)
     end
+
+    it "raises ArgumentError for unknown period on Postgres" do
+      expect { described_class.date_truncated_sql("PostgreSQL", :year, "calls.tracked_at") }
+        .to raise_error(ArgumentError, /invalid period/)
+    end
+
+    it "raises ArgumentError for unknown period on MySQL" do
+      expect { described_class.date_truncated_sql("Trilogy", :year, "calls.tracked_at") }
+        .to raise_error(ArgumentError, /invalid period/)
+    end
   end
 
   describe ".apply_json_contains" do

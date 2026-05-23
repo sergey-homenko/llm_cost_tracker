@@ -85,10 +85,6 @@ module LlmCostTracker
           MYSQL_PERIOD_FORMATS = { day: "%Y-%m-%d", month: "%Y-%m" }.freeze
           private_constant :PG_PERIOD_FORMATS, :MYSQL_PERIOD_FORMATS
 
-          def supported_periods
-            PG_PERIOD_FORMATS.keys
-          end
-
           def date_truncated_sql(connection, period, column)
             period = period.to_sym
             if postgresql?(connection)
@@ -98,6 +94,8 @@ module LlmCostTracker
             else
               ensure_supported!(connection)
             end
+          rescue KeyError
+            raise ArgumentError, "invalid period: #{period.inspect}"
           end
 
           def json_column_errors(column, adapter_value, column_name)
