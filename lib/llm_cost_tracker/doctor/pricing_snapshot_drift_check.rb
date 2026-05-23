@@ -54,18 +54,18 @@ module LlmCostTracker
       end
 
       def rates_for(snapshot)
-        rates = snapshot.is_a?(Hash) ? (snapshot["rates"] || snapshot[:rates]) : nil
+        rates = snapshot.is_a?(Hash) ? snapshot["rates"] : nil
         rates.is_a?(Hash) ? rates : nil
       end
 
       def drift_message_for(line_item, rates, call_id:)
         return nil unless line_item.price_key
 
-        rate = rates[line_item.price_key.to_s] || rates[line_item.price_key.to_sym]
+        rate = rates[line_item.price_key]
         return nil unless rate.is_a?(Hash)
 
-        rate_amount = decimal(rate["amount"] || rate[:amount])
-        rate_quantity = decimal(rate["quantity"] || rate[:quantity])
+        rate_amount = decimal(rate["amount"])
+        rate_quantity = decimal(rate["quantity"])
         return nil if rate_amount.nil? || rate_quantity.nil? || rate_quantity.zero?
 
         expected = (decimal(line_item.quantity) * rate_amount) / rate_quantity
