@@ -349,7 +349,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_123 ws_126])
     end
 
-    it "tags non-streaming usage with a :response source" do
+    it "tags non-streaming usage with a response source" do
       result = parser.parse(
         request_url: chat_completions_url,
         request_body: request_body,
