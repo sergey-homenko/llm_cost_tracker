@@ -9,7 +9,7 @@ module LlmCostTracker
       def self.symbolize(hash)
         return hash if hash.is_a?(Hash) && hash.keys.all?(Symbol)
 
-        hash.to_h.transform_keys { |key| key.to_s.to_sym }
+        hash.to_h.transform_keys(&:to_sym)
       end
 
       def self.normalized_epoch(value)

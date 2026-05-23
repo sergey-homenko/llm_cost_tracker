@@ -22,7 +22,7 @@ module LlmCostTracker
         @provider = provider.to_s
         @period_start = parse_date(period_start)
         @period_end = parse_date(period_end)
-        @scope = (scope || {}).to_h.transform_keys { |key| key.to_s.to_sym }.slice(*SCOPE_KEYS)
+        @scope = (scope || {}).to_h.transform_keys(&:to_sym).slice(*SCOPE_KEYS)
         @currency = (currency || Ledger::Rollups::DEFAULT_CURRENCY).to_s.upcase
         @drilldown_limit = drilldown_limit
         raise ArgumentError, "source must be present" if @source.empty?

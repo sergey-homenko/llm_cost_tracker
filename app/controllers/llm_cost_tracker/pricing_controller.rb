@@ -4,7 +4,7 @@ module LlmCostTracker
   class PricingController < ApplicationController
     def index
       @overview = Dashboard::PricingOverview.call
-      requested = params[:source].to_s.to_sym
+      requested = params[:source]&.to_sym
       @active_source = @overview.fetch(:sources).key?(requested) ? requested : @overview.fetch(:effective_source)
       @source_data = @overview.fetch(:sources).fetch(@active_source)
       @provider_filter = params[:provider].to_s.presence

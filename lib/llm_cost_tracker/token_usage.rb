@@ -26,7 +26,7 @@ module LlmCostTracker
       return tokens if tokens.is_a?(self)
       raise ArgumentError, "tokens must be a Hash, got #{tokens.class}" unless tokens.respond_to?(:to_h)
 
-      values = tokens.to_h.transform_keys { |key| key.to_s.to_sym }
+      values = tokens.to_h.transform_keys(&:to_sym)
       warn_on_unknown_keys(values)
       token_attributes = Billing::Components::TOKEN_PRICED.to_h do |component|
         [component.token_key, values.fetch(component.key, 0)]

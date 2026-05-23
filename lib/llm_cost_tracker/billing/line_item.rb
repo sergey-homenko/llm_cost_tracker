@@ -92,9 +92,7 @@ module LlmCostTracker
       end
 
       def self.symbol_or_nil(value)
-        return nil if value.nil?
-
-        value.to_s.to_sym
+        value&.to_sym
       end
 
       def self.decimal_or_nil(value)
