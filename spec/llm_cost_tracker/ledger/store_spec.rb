@@ -309,18 +309,6 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(received_rows.map { |row| row[:period] }).to contain_exactly("month", "day")
   end
 
-  it "skips duplicate event ids within one insert batch before incrementing rollups" do
-    event = build_event(event_id: "duplicate-event")
-
-    LlmCostTracker::Ledger::Store.insert([event, event])
-
-    expect(LlmCostTracker::Call.where(event_id: "duplicate-event").count).to eq(1)
-    expect(LlmCostTracker::Ledger::Period::Totals.call(%i[day month], time: event.tracked_at)).to eq(
-      day: 0.0025,
-      month: 0.0025
-    )
-  end
-
   it "keeps the header total_cost in sync with the sum of priced line items" do
     track_and_flush(
       provider: :openai,
@@ -988,7 +976,7 @@ RSpec.describe "ActiveRecord storage integration" do
     end
 
     expect do
-      LlmCostTracker::Tracker.enforce_budget!
+      LlmCostTracker::Budget.enforce!
     end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
       expect(error.budget_type).to eq(:monthly)
       expect(error.total).to eq(0.0025)
@@ -1009,7 +997,7 @@ RSpec.describe "ActiveRecord storage integration" do
     end
 
     expect do
-      LlmCostTracker::Tracker.enforce_budget!
+      LlmCostTracker::Budget.enforce!
     end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
       expect(error.budget_type).to eq(:daily)
       expect(error.total).to eq(0.0025)

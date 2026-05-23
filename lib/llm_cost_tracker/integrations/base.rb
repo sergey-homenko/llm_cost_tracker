@@ -44,7 +44,7 @@ module LlmCostTracker
       def enforce_budget!(request:)
         return unless active?
 
-        LlmCostTracker::Tracker.enforce_budget!(
+        LlmCostTracker::Budget.enforce!(
           provider: integration_name.to_s,
           model: request[:model],
           request: request

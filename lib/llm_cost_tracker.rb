@@ -91,7 +91,7 @@ module LlmCostTracker
               usage_source: :manual, enforce_budget: false,
               provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
               provider_workspace_id: nil, batch: nil, pricing_mode: nil, service_line_items: [])
-      Tracker.enforce_budget! if enforce_budget
+      Budget.enforce! if enforce_budget
 
       Tracker.record(
         event: Event.build(
@@ -118,7 +118,7 @@ module LlmCostTracker
                      provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
                      provider_workspace_id: nil, batch: nil, pricing_mode: nil)
       require_relative "llm_cost_tracker/capture/stream_collector"
-      Tracker.enforce_budget! if enforce_budget
+      Budget.enforce! if enforce_budget
       collector = Capture::StreamCollector.new(
         provider: provider.to_s,
         model: model,

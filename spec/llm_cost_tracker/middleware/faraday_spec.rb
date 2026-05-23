@@ -841,7 +841,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     error = LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 1.0)
     requests = 0
 
-    allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(error)
+    allow(LlmCostTracker::Budget).to receive(:enforce!).and_raise(error)
 
     conn = Faraday.new(url: "https://api.openai.com") do |f|
       f.use :llm_cost_tracker
@@ -859,8 +859,8 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(requests).to eq(0)
   end
 
-  it "passes provider, model, and parsed request body to Tracker.enforce_budget! for pre-send estimation" do
-    allow(LlmCostTracker::Tracker).to receive(:enforce_budget!)
+  it "passes provider, model, and parsed request body to Budget.enforce! for pre-send estimation" do
+    allow(LlmCostTracker::Budget).to receive(:enforce!)
 
     conn = Faraday.new(url: "https://api.openai.com") do |f|
       f.use :llm_cost_tracker
@@ -873,7 +873,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
     conn.post("/v1/chat/completions", { "model" => "gpt-4o", "messages" => [{ "role" => "user", "content" => "hi" }] }.to_json)
 
-    expect(LlmCostTracker::Tracker).to have_received(:enforce_budget!).with(
+    expect(LlmCostTracker::Budget).to have_received(:enforce!).with(
       provider: "openai",
       model: "gpt-4o",
       request: include("model" => "gpt-4o", "messages" => [{ "role" => "user", "content" => "hi" }])
@@ -881,7 +881,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   it "resolves Gemini's model from the request URL path for pre-send estimation" do
-    allow(LlmCostTracker::Tracker).to receive(:enforce_budget!)
+    allow(LlmCostTracker::Budget).to receive(:enforce!)
 
     conn = Faraday.new(url: "https://generativelanguage.googleapis.com") do |f|
       f.use :llm_cost_tracker
@@ -894,7 +894,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
     conn.post("/v1beta/models/gemini-2.0-flash:generateContent", { "contents" => [] }.to_json)
 
-    expect(LlmCostTracker::Tracker).to have_received(:enforce_budget!).with(
+    expect(LlmCostTracker::Budget).to have_received(:enforce!).with(
       hash_including(provider: "gemini", model: "gemini-2.0-flash")
     )
   end

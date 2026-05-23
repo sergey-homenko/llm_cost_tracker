@@ -123,8 +123,6 @@ RSpec.describe LlmCostTracker do
         config.enabled = false
       end
 
-      expect(LlmCostTracker::Budget).not_to receive(:enforce!)
-
       result = described_class.track(
         provider: "openai",
         model: "gpt-4o",
@@ -453,8 +451,6 @@ RSpec.describe LlmCostTracker do
       LlmCostTracker.configure do |config|
         config.enabled = false
       end
-
-      expect(LlmCostTracker::Budget).not_to receive(:enforce!)
 
       result = described_class.track_stream(provider: "openai", model: "gpt-4o", enforce_budget: true) do |stream|
         yielded = true

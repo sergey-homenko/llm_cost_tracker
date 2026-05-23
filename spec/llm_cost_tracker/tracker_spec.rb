@@ -616,7 +616,7 @@ RSpec.describe LlmCostTracker::Tracker do
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 12.5, day: 12.5)
 
       expect do
-        described_class.enforce_budget!
+        LlmCostTracker::Budget.enforce!
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
         expect(error.budget_type).to eq(:monthly)
         expect(error.total).to eq(12.5)
@@ -632,7 +632,7 @@ RSpec.describe LlmCostTracker::Tracker do
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 12.5)
 
-      expect { described_class.enforce_budget! }.to raise_error(LlmCostTracker::BudgetExceededError)
+      expect { LlmCostTracker::Budget.enforce! }.to raise_error(LlmCostTracker::BudgetExceededError)
       expect(callback_calls).to be_empty
     end
 
@@ -643,7 +643,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
       expect(LlmCostTracker::Ledger::Period::Totals).not_to receive(:call)
 
-      described_class.enforce_budget!
+      LlmCostTracker::Budget.enforce!
     end
 
     it "blocks pre-send when prior spend plus the estimate exceeds the daily budget" do
@@ -654,7 +654,7 @@ RSpec.describe LlmCostTracker::Tracker do
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 8.0)
 
       expect do
-        described_class.enforce_budget!(
+        LlmCostTracker::Budget.enforce!(
           provider: "openai",
           model: "gpt-4o",
           request: { input: "x" * 4_000_000 }
@@ -675,7 +675,7 @@ RSpec.describe LlmCostTracker::Tracker do
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 1.0)
 
       expect do
-        described_class.enforce_budget!(
+        LlmCostTracker::Budget.enforce!(
           provider: "openai",
           model: "gpt-4o",
           request: { input: "x" * 4_000_000 }
@@ -690,7 +690,7 @@ RSpec.describe LlmCostTracker::Tracker do
       end
 
       expect do
-        described_class.enforce_budget!(
+        LlmCostTracker::Budget.enforce!(
           provider: "openai",
           model: "gpt-4o",
           request: { input: "x" * 4_000_000 }
@@ -709,7 +709,7 @@ RSpec.describe LlmCostTracker::Tracker do
       end
 
       expect do
-        described_class.enforce_budget!(
+        LlmCostTracker::Budget.enforce!(
           provider: "openai",
           model: "gpt-4o",
           request: { input: "x" * 400 }
@@ -725,7 +725,7 @@ RSpec.describe LlmCostTracker::Tracker do
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 0.0)
 
       expect do
-        described_class.enforce_budget!(
+        LlmCostTracker::Budget.enforce!(
           provider: "openai",
           model: "no-such-model",
           request: { input: "x" * 4_000_000 }

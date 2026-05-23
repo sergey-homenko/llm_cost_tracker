@@ -163,6 +163,21 @@ RSpec.describe "ActiveRecord async inbox" do
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
   end
 
+  it "persists fresh events in a mixed batch where one event_id already reached the ledger" do
+    stale_event = LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input: 1_000, output: 0 })
+    fresh_event = LlmCostTracker.track(provider: :openai, model: "gpt-4o-mini", tokens: { input: 500, output: 0 })
+    rows = LlmCostTracker::Ingestion::InboxEntry.order(:id).to_a
+
+    LlmCostTracker::Call.transaction do
+      LlmCostTracker::Ledger::Store.insert([LlmCostTracker::Ingestion::Inbox.event_from_row(rows.first)])
+    end
+    LlmCostTracker::Ingestion::Worker.flush!
+
+    persisted = LlmCostTracker::Call.where(event_id: [stale_event.event_id, fresh_event.event_id]).pluck(:event_id)
+    expect(persisted).to contain_exactly(stale_event.event_id, fresh_event.event_id)
+    expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
+  end
+
   it "does not increment rollups when a concurrent duplicate insert wins the race" do
     LlmCostTracker.track(
       provider: :openai,

@@ -280,7 +280,7 @@ RSpec.describe "concurrency", :aggregate_failures do
     end
 
     it "raises before tracking when track opts in" do
-      allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(
+      allow(LlmCostTracker::Budget).to receive(:enforce!).and_raise(
         LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 0.01)
       )
 
@@ -300,7 +300,7 @@ RSpec.describe "concurrency", :aggregate_failures do
         config.budget_exceeded_behavior = :block_requests
       end
 
-      allow(LlmCostTracker::Tracker).to receive(:enforce_budget!).and_raise(
+      allow(LlmCostTracker::Budget).to receive(:enforce!).and_raise(
         LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 0.01)
       )
 
@@ -319,7 +319,7 @@ RSpec.describe "concurrency", :aggregate_failures do
     end
 
     it "does not preflight by default" do
-      expect(LlmCostTracker::Tracker).not_to receive(:enforce_budget!)
+      expect(LlmCostTracker::Budget).not_to receive(:enforce!)
 
       LlmCostTracker.track(
         provider: "openai",
@@ -334,7 +334,7 @@ RSpec.describe "concurrency", :aggregate_failures do
         recorded << payload
       end
 
-      allow(LlmCostTracker::Tracker).to receive(:enforce_budget!)
+      allow(LlmCostTracker::Budget).to receive(:enforce!)
 
       LlmCostTracker.track(
         provider: "openai",

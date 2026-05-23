@@ -31,7 +31,7 @@ module LlmCostTracker
         stream_buffer = install_stream_tap(request_env) if streaming
 
         if parser
-          Tracker.enforce_budget!(
+          Budget.enforce!(
             provider: parser.provider_for(request_url),
             model: parser.model_for(request_url, request_parsed),
             request: request_parsed

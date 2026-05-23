@@ -9,20 +9,17 @@ module LlmCostTracker
   module Ledger
     class Store
       class << self
-        def insert(events, skip_existence_check: false)
+        def insert(events)
           events = Array(events)
           return if events.empty?
 
-          insertable = skip_existence_check ? events : insertable_events(events)
-          return unless insertable.any?
-
           LlmCostTracker::Call.transaction do
-            rows = insertable.map { |event| attributes_for(event) }
-            call_ids = insert_calls_returning_ids(rows, insertable)
-            insert_line_items(insertable, call_ids)
-            insert_call_tags(insertable, call_ids)
+            rows = events.map { |event| attributes_for(event) }
+            call_ids = insert_calls_returning_ids(rows, events)
+            insert_line_items(events, call_ids)
+            insert_call_tags(events, call_ids)
           end
-          increment_rollups_safely(insertable) if LlmCostTracker.configuration.cache_rollups
+          increment_rollups_safely(events) if LlmCostTracker.configuration.cache_rollups
         end
 
         private
@@ -136,16 +133,6 @@ module LlmCostTracker
           LlmCostTracker::Logging.warn(
             "Rollup increment failed for #{events.size} events after ledger commit: #{e.class}: #{e.message}"
           )
-        end
-
-        def insertable_events(events)
-          existing_ids = LlmCostTracker::Call.where(event_id: events.map(&:event_id)).pluck(:event_id).to_set
-          seen_ids = Set.new
-
-          events.select do |event|
-            event_id = event.event_id
-            !existing_ids.include?(event_id) && seen_ids.add?(event_id)
-          end
         end
       end
     end
