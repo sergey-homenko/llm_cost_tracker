@@ -35,20 +35,20 @@ module LlmCostTracker
         attributes = attributes.to_h
         component = component_for(attributes)
         new(
-          kind: symbol_or_nil(attributes[:kind]) || component&.kind,
-          direction: symbol_or_nil(attributes[:direction]) || component&.direction,
-          modality: symbol_or_nil(attributes[:modality]) || component&.modality,
-          cache_state: symbol_or_nil(attributes[:cache_state]) || component&.cache_state,
-          quantity: decimal_or_zero(attributes[:quantity]),
-          unit: symbol_or_nil(attributes[:unit]) || component&.unit,
+          kind: attributes[:kind]&.to_sym || component&.kind,
+          direction: attributes[:direction]&.to_sym || component&.direction,
+          modality: attributes[:modality]&.to_sym || component&.modality,
+          cache_state: attributes[:cache_state]&.to_sym || component&.cache_state,
+          quantity: decimal_or_nil(attributes[:quantity]) || BigDecimal("0"),
+          unit: attributes[:unit]&.to_sym || component&.unit,
           rate_amount: decimal_or_nil(attributes[:rate_amount]),
           rate_quantity: decimal_or_nil(attributes[:rate_quantity]) || BigDecimal("1"),
           cost: decimal_or_nil(attributes[:cost]),
           currency: attributes[:currency] || USD,
           cost_status: cost_status_for(attributes),
-          pricing_basis: symbol_or_nil(attributes[:pricing_basis]),
+          pricing_basis: attributes[:pricing_basis]&.to_sym,
           price_key: attributes[:price_key],
-          price_source: symbol_or_nil(attributes[:price_source]),
+          price_source: attributes[:price_source]&.to_sym,
           price_source_version: attributes[:price_source_version],
           provider_field: attributes[:provider_field],
           provider_item_id: attributes[:provider_item_id],
@@ -91,21 +91,13 @@ module LlmCostTracker
         Components::BY_KEY[component_key.to_sym]
       end
 
-      def self.symbol_or_nil(value)
-        value&.to_sym
-      end
-
       def self.decimal_or_nil(value)
         return nil if value.nil? || value == ""
 
         BigDecimal(value.to_s)
       end
 
-      def self.decimal_or_zero(value)
-        decimal_or_nil(value) || BigDecimal("0")
-      end
-
-      private_class_method :cost_status_for, :component_for, :symbol_or_nil, :decimal_or_nil, :decimal_or_zero
+      private_class_method :cost_status_for, :component_for, :decimal_or_nil
 
       def billable?
         quantity.positive?

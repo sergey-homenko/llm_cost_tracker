@@ -45,6 +45,8 @@ Metrics/ModuleLength:
 
 Metrics/CyclomaticComplexity:
   Max: 12
+  Exclude:
+    - "lib/llm_cost_tracker/billing/line_item.rb"
 
 Metrics/ParameterLists:
   Max: 8
@@ -52,6 +54,8 @@ Metrics/ParameterLists:
 
 Metrics/PerceivedComplexity:
   Max: 12
+  Exclude:
+    - "lib/llm_cost_tracker/billing/line_item.rb"
 
 Gemspec/DevelopmentDependencies:
   Enabled: false

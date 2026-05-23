@@ -15,7 +15,7 @@
     <% end %>
     <div class="lct-filter-pop-field">
       <label for="lct-filter-model">Model</label>
-      <%= select_tag :model, options_for_select(model_filter_options, active), include_blank: "All models", id: "lct-filter-model" %>
+      <%= select_tag :model, options_for_select(filter_options_for(:model), active), include_blank: "All models", id: "lct-filter-model" %>
     </div>
     <button type="submit" class="lct-button lct-button-primary">Apply</button>
   <% end %>

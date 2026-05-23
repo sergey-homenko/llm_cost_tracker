@@ -15,7 +15,7 @@
     <% end %>
     <div class="lct-filter-pop-field">
       <label for="lct-filter-provider">Provider</label>
-      <%= select_tag :provider, options_for_select(provider_filter_options, active), include_blank: "All providers", id: "lct-filter-provider" %>
+      <%= select_tag :provider, options_for_select(filter_options_for(:provider), active), include_blank: "All providers", id: "lct-filter-provider" %>
     </div>
     <button type="submit" class="lct-button lct-button-primary">Apply</button>
   <% end %>

@@ -4,17 +4,7 @@ module LlmCostTracker
   module DashboardFilterOptionsHelper
     MAX_FILTER_OPTIONS = 100
 
-    def provider_filter_options(filter_params: params)
-      filter_options_for(:provider, filter_params: filter_params)
-    end
-
-    def model_filter_options(filter_params: params)
-      filter_options_for(:model, filter_params: filter_params)
-    end
-
-    private
-
-    def filter_options_for(column, filter_params:)
+    def filter_options_for(column, filter_params: params)
       source = LlmCostTracker::Dashboard::Params.to_hash(filter_params).symbolize_keys
       scope_params = source.merge(
         column => nil, format: nil, page: nil, per: nil, sort: nil
