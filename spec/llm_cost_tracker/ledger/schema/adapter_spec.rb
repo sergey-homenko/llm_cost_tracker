@@ -56,6 +56,38 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Adapter do
     end
   end
 
+  describe ".json_extract" do
+    it "emits Postgres ->> operator for a static key" do
+      expect(described_class.json_extract("PostgreSQL", :metadata, "provider")).to eq("metadata->>'provider'")
+    end
+
+    it "emits MySQL JSON_UNQUOTE/JSON_EXTRACT for a static key" do
+      expect(described_class.json_extract("Trilogy", :metadata, "row_type"))
+        .to eq("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type'))")
+    end
+  end
+
+  describe ".json_extract_param" do
+    it "emits Postgres ->>? template" do
+      expect(described_class.json_extract_param("PostgreSQL", :metadata)).to eq("metadata->>?")
+    end
+
+    it "emits MySQL JSON_UNQUOTE/JSON_EXTRACT(?) template" do
+      expect(described_class.json_extract_param("Trilogy", :metadata))
+        .to eq("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?))")
+    end
+  end
+
+  describe ".json_path_param" do
+    it "returns the bare key for Postgres" do
+      expect(described_class.json_path_param("PostgreSQL", "provider_project_id")).to eq("provider_project_id")
+    end
+
+    it "prefixes the key with $. for MySQL" do
+      expect(described_class.json_path_param("Trilogy", "provider_project_id")).to eq("$.provider_project_id")
+    end
+  end
+
   def connection_instance(adapter_class, adapter_name)
     Class.new(adapter_class) do
       define_method(:adapter_name) { adapter_name }

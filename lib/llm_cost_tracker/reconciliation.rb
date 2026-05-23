@@ -64,7 +64,8 @@ module LlmCostTracker
       end
 
       def invoice_scopes
-        provider_expr = Arel.sql(metadata_provider_sql)
+        connection = LlmCostTracker::ProviderInvoice.connection
+        provider_expr = Arel.sql(Ledger::Schema::Adapter.json_extract(connection, :metadata, "provider"))
         LlmCostTracker::ProviderInvoice
           .group(:source, provider_expr, :currency)
           .order(:source, :currency)
@@ -78,7 +79,8 @@ module LlmCostTracker
         provider = scope[:provider]
         return relation if provider.nil? || provider.to_s.empty?
 
-        relation.where("#{metadata_provider_sql} = ?", provider)
+        connection = LlmCostTracker::ProviderInvoice.connection
+        relation.where("#{Ledger::Schema::Adapter.json_extract(connection, :metadata, 'provider')} = ?", provider)
       end
 
       def ensure_source_present!(source)
@@ -133,17 +135,6 @@ module LlmCostTracker
         raise Error,
               "reconciliation is disabled; set `config.reconciliation_enabled = true` in your initializer " \
               "(requires admin/org-level provider API keys; see docs/upgrading.md)"
-      end
-
-      private
-
-      def metadata_provider_sql
-        connection = LlmCostTracker::ProviderInvoice.connection
-        if Ledger::Schema::Adapter.postgresql?(connection)
-          "metadata->>'provider'"
-        else
-          "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.provider'))"
-        end
       end
     end
   end

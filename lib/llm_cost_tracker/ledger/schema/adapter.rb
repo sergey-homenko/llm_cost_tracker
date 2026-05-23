@@ -32,6 +32,26 @@ module LlmCostTracker
             raise Error, "Unsupported database adapter: #{adapter_name(value)}. Use PostgreSQL or MySQL."
           end
 
+          def json_extract(connection, column, key)
+            if postgresql?(connection)
+              "#{column}->>'#{key}'"
+            else
+              "JSON_UNQUOTE(JSON_EXTRACT(#{column}, '$.#{key}'))"
+            end
+          end
+
+          def json_extract_param(connection, column)
+            if postgresql?(connection)
+              "#{column}->>?"
+            else
+              "JSON_UNQUOTE(JSON_EXTRACT(#{column}, ?))"
+            end
+          end
+
+          def json_path_param(connection, key)
+            postgresql?(connection) ? key : "$.#{key}"
+          end
+
           def json_column_errors(column, adapter_value, column_name)
             return [] unless column
 

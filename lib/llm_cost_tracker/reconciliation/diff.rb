@@ -297,39 +297,28 @@ module LlmCostTracker
 
       def where_match_basis_eq(relation, basis)
         connection = ProviderInvoice.connection
-        if Ledger::Schema::Adapter.postgresql?(connection)
-          relation.where("metadata->>'match_basis' = ?", basis)
-        else
-          relation.where("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.match_basis')) = ?", basis)
-        end
+        relation.where("#{Ledger::Schema::Adapter.json_extract(connection, :metadata, 'match_basis')} = ?", basis)
       end
 
       def where_metadata_present(relation, column)
         connection = ProviderInvoice.connection
-        if Ledger::Schema::Adapter.postgresql?(connection)
-          relation.where("metadata->>? IS NOT NULL", column)
-        else
-          relation.where("JSON_EXTRACT(metadata, ?) IS NOT NULL", "$.#{column}")
-        end
+        relation.where(
+          "#{Ledger::Schema::Adapter.json_extract_param(connection, :metadata)} IS NOT NULL",
+          Ledger::Schema::Adapter.json_path_param(connection, column)
+        )
       end
 
       def where_metadata_not_in(relation, column, values)
         connection = ProviderInvoice.connection
-        if Ledger::Schema::Adapter.postgresql?(connection)
-          relation.where.not("metadata->>? IN (?)", column, values)
-        else
-          relation.where.not("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?)) IN (?)", "$.#{column}", values)
-        end
+        relation.where.not(
+          "#{Ledger::Schema::Adapter.json_extract_param(connection, :metadata)} IN (?)",
+          Ledger::Schema::Adapter.json_path_param(connection, column), values
+        )
       end
 
       def pluck_metadata_distinct(relation, column)
         connection = ProviderInvoice.connection
-        expr =
-          if Ledger::Schema::Adapter.postgresql?(connection)
-            Arel.sql("metadata->>'#{column}'")
-          else
-            Arel.sql("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.#{column}'))")
-          end
+        expr = Arel.sql(Ledger::Schema::Adapter.json_extract(connection, :metadata, column))
         relation.distinct.pluck(expr).compact
       end
 
