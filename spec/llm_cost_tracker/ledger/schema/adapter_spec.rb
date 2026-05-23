@@ -88,6 +88,54 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Adapter do
     end
   end
 
+  describe ".json_null_sql" do
+    it "emits a single IS NULL check for Postgres" do
+      expect(described_class.json_null_sql("PostgreSQL", :metadata, "row_type")).to eq("metadata->>'row_type' IS NULL")
+    end
+
+    it "covers both missing key and JSON null for MySQL" do
+      expect(described_class.json_null_sql("Trilogy", :metadata, "row_type")).to eq(
+        "JSON_EXTRACT(metadata, '$.row_type') IS NULL OR " \
+        "JSON_TYPE(JSON_EXTRACT(metadata, '$.row_type')) = 'NULL'"
+      )
+    end
+  end
+
+  describe ".json_present_sql" do
+    it "emits a single IS NOT NULL check for Postgres" do
+      expect(described_class.json_present_sql("PostgreSQL", :metadata, "row_type"))
+        .to eq("metadata->>'row_type' IS NOT NULL")
+    end
+
+    it "excludes JSON null for MySQL" do
+      expect(described_class.json_present_sql("Trilogy", :metadata, "row_type")).to eq(
+        "JSON_EXTRACT(metadata, '$.row_type') IS NOT NULL AND " \
+        "JSON_TYPE(JSON_EXTRACT(metadata, '$.row_type')) <> 'NULL'"
+      )
+    end
+  end
+
+  describe ".apply_json_contains" do
+    it "uses Postgres @> containment operator with a single jsonb-cast parameter" do
+      relation = double("relation")
+      expect(relation).to receive(:where).with("metadata @> ?::jsonb", '{"provider":"openai"}').and_return(:next)
+      result = described_class.apply_json_contains("PostgreSQL", relation, :metadata, "provider" => "openai")
+      expect(result).to eq(:next)
+    end
+
+    it "chains per-key extract equality on MySQL" do
+      step1 = double("step1")
+      step2 = double("step2")
+      expect(step1).to receive(:where)
+        .with("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?)) = ?", "$.provider", "openai").and_return(step2)
+      expect(step2).to receive(:where)
+        .with("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?)) = ?", "$.source", "csv").and_return(:final)
+      result = described_class.apply_json_contains("Trilogy", step1, :metadata,
+                                                   "provider" => "openai", "source" => "csv")
+      expect(result).to eq(:final)
+    end
+  end
+
   def connection_instance(adapter_class, adapter_name)
     Class.new(adapter_class) do
       define_method(:adapter_name) { adapter_name }

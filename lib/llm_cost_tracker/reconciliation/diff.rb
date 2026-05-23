@@ -86,19 +86,12 @@ module LlmCostTracker
         relation = scoped_invoices_relation
                    .where(period_start: period_start..)
                    .where(period_end: ..period_end)
-
-        connection = ProviderInvoice.connection
-        if Ledger::Schema::Adapter.postgresql?(connection)
-          relation.where(
-            "metadata->>'row_type' IS NULL OR metadata->>'row_type' = ?", COST_ROW_TYPE
-          )
-        else
-          relation.where(
-            "JSON_EXTRACT(metadata, '$.row_type') IS NULL OR " \
-            "JSON_TYPE(JSON_EXTRACT(metadata, '$.row_type')) = 'NULL' OR " \
-            "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type')) = ?", COST_ROW_TYPE
-          )
-        end
+        args = [ProviderInvoice.connection, :metadata, "row_type"]
+        relation.where(
+          "#{Ledger::Schema::Adapter.json_null_sql(*args)} OR " \
+          "#{Ledger::Schema::Adapter.json_extract(*args)} = ?",
+          COST_ROW_TYPE
+        )
       end
 
       def scoped_invoices_relation
@@ -106,19 +99,11 @@ module LlmCostTracker
                    .where(source: source, currency: currency)
                    .where(period_start: ..period_end)
                    .where(period_end: period_start..)
-        relation = apply_metadata_scope(relation, "provider" => @provider)
-        scope.empty? ? relation : apply_metadata_scope(relation, scope.transform_keys(&:to_s))
-      end
-
-      def apply_metadata_scope(relation, criteria)
         connection = ProviderInvoice.connection
-        if Ledger::Schema::Adapter.postgresql?(connection)
-          relation.where("metadata @> ?::jsonb", criteria.to_json)
-        else
-          criteria.inject(relation) do |chain, (key, value)|
-            chain.where("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?)) = ?", "$.#{key}", value.to_s)
-          end
-        end
+        relation = Ledger::Schema::Adapter.apply_json_contains(connection, relation, :metadata, "provider" => @provider)
+        return relation if scope.empty?
+
+        Ledger::Schema::Adapter.apply_json_contains(connection, relation, :metadata, scope.transform_keys(&:to_s))
       end
 
       def sum_local_total
@@ -254,18 +239,12 @@ module LlmCostTracker
       end
 
       def scoped_non_cost_invoices_relation
-        connection = ProviderInvoice.connection
-        if Ledger::Schema::Adapter.postgresql?(connection)
-          scoped_invoices_relation.where(
-            "metadata->>'row_type' IS NOT NULL AND metadata->>'row_type' <> ?", COST_ROW_TYPE
-          )
-        else
-          scoped_invoices_relation.where(
-            "JSON_EXTRACT(metadata, '$.row_type') IS NOT NULL AND " \
-            "JSON_TYPE(JSON_EXTRACT(metadata, '$.row_type')) <> 'NULL' AND " \
-            "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type')) <> ?", COST_ROW_TYPE
-          )
-        end
+        args = [ProviderInvoice.connection, :metadata, "row_type"]
+        scoped_invoices_relation.where(
+          "#{Ledger::Schema::Adapter.json_present_sql(*args)} AND " \
+          "#{Ledger::Schema::Adapter.json_extract(*args)} <> ?",
+          COST_ROW_TYPE
+        )
       end
 
       def scoped_calls_relation

@@ -246,22 +246,6 @@ RSpec.describe LlmCostTracker::Reconciliation::Diff do
       expect(result.unmatched_provider_rows).to be_empty
     end
 
-    it "uses JSON_EXTRACT for invoice scope filtering on MySQL adapters" do
-      allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:postgresql?).and_return(false)
-      diff_instance = LlmCostTracker::Reconciliation::Diff.new(
-        source: :openai,
-        provider: "openai",
-        period_start: period_start,
-        period_end: period_end,
-        scope: { provider_project_id: "proj_a" }
-      )
-      base_relation = LlmCostTracker::ProviderInvoice.all
-
-      sql = diff_instance.send(:apply_metadata_scope, base_relation, { "provider_project_id" => "proj_a" }).to_sql
-
-      expect(sql).to include("JSON_EXTRACT(metadata")
-    end
-
     it "filters by attribution scope on both sides" do
       import_invoice(
         external_id: "row-a",

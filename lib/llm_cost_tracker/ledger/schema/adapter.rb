@@ -52,6 +52,35 @@ module LlmCostTracker
             postgresql?(connection) ? key : "$.#{key}"
           end
 
+          def json_null_sql(connection, column, key)
+            if postgresql?(connection)
+              "#{column}->>'#{key}' IS NULL"
+            else
+              extract = "JSON_EXTRACT(#{column}, '$.#{key}')"
+              "#{extract} IS NULL OR JSON_TYPE(#{extract}) = 'NULL'"
+            end
+          end
+
+          def json_present_sql(connection, column, key)
+            if postgresql?(connection)
+              "#{column}->>'#{key}' IS NOT NULL"
+            else
+              extract = "JSON_EXTRACT(#{column}, '$.#{key}')"
+              "#{extract} IS NOT NULL AND JSON_TYPE(#{extract}) <> 'NULL'"
+            end
+          end
+
+          def apply_json_contains(connection, relation, column, criteria)
+            if postgresql?(connection)
+              relation.where("#{column} @> ?::jsonb", criteria.to_json)
+            else
+              criteria.inject(relation) do |chain, (key, value)|
+                chain.where("#{json_extract_param(connection, column)} = ?",
+                            json_path_param(connection, key), value.to_s)
+              end
+            end
+          end
+
           def json_column_errors(column, adapter_value, column_name)
             return [] unless column
 
