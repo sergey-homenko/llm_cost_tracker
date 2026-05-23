@@ -89,7 +89,7 @@ module LlmCostTracker
         raise ArgumentError, "#{context} must be a hash" unless entries.is_a?(Hash)
 
         entries.each_with_object({}) do |(key, amount), rates|
-          key = key.name if key.is_a?(Symbol)
+          key = key.to_s
           component, tier = component_and_tier_for(key, context: context)
           amount = amount_for(key, amount, context: context)
 
@@ -139,7 +139,7 @@ module LlmCostTracker
       end
 
       def charge_rate_match(provider:, component:, pricing_mode:)
-        provider_name = provider.is_a?(Symbol) ? provider.name : provider.presence
+        provider_name = provider.to_s.presence
         return nil unless provider_name
 
         component_key = charge_component_key(component)
