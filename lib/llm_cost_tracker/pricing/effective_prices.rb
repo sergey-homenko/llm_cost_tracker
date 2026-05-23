@@ -9,7 +9,7 @@ module LlmCostTracker
       class << self
         def call(usage:, quantities:, prices:, pricing_mode:)
           context_tier = context_tier?(usage: usage, prices: prices)
-          orderings = pricing_mode && Mode.parse(pricing_mode).permutations
+          orderings = pricing_mode && Mode.permutations_for(pricing_mode)
 
           quantities.to_h do |price_key, tokens|
             price = if tokens.positive?

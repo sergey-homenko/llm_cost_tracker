@@ -5,10 +5,11 @@ require "bigdecimal"
 require "time"
 
 require_relative "version"
+require_relative "token_usage"
 require_relative "pricing/registry"
 require_relative "pricing/lookup"
 require_relative "pricing/effective_prices"
-require_relative "pricing/explainer"
+require_relative "pricing/explanation"
 require_relative "pricing/service_charges"
 require_relative "pricing/estimator"
 
@@ -45,11 +46,10 @@ module LlmCostTracker
       end
 
       def explain(provider:, model:, tokens:, pricing_mode: nil)
-        Explainer.call(
-          provider: provider,
-          model: model,
-          tokens: tokens,
-          pricing_mode: pricing_mode
+        computed = lookup_and_compute(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
+        Explanation.from_lookup(
+          provider: provider, model: model,
+          match: computed[:match], mode: computed[:mode], effective: computed[:effective]
         )
       end
 
@@ -134,18 +134,20 @@ module LlmCostTracker
       end
 
       def calculation_for(provider:, model:, tokens:, pricing_mode:)
+        computed = lookup_and_compute(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
+        return nil if computed[:match].nil? || !any_billable_priced?(computed[:quantities], computed[:effective])
+
+        computed.merge(costs: costs_for(computed[:quantities], computed[:effective]))
+      end
+
+      def lookup_and_compute(provider:, model:, tokens:, pricing_mode:)
         match = Lookup.call(provider: provider, model: model)
-        return nil unless match
-
         token_usage = TokenUsage.build_from_tokens(tokens)
-        quantities = token_usage.priced_quantities
         mode = Mode.normalize(pricing_mode)
-        effective = EffectivePrices.call(usage: token_usage, quantities: quantities, prices: match.prices,
-                                         pricing_mode: mode)
-        return nil unless any_billable_priced?(quantities, effective)
-
-        { match: match, effective: effective, token_usage: token_usage, quantities: quantities,
-          costs: costs_for(quantities, effective) }
+        quantities = token_usage.priced_quantities
+        effective = match && EffectivePrices.call(usage: token_usage, quantities: quantities,
+                                                  prices: match.prices, pricing_mode: mode)
+        { match: match, effective: effective, token_usage: token_usage, quantities: quantities, mode: mode }
       end
 
       def any_billable_priced?(quantities, effective)

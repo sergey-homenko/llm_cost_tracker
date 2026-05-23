@@ -2,11 +2,9 @@
 
 module LlmCostTracker
   module Pricing
-    class Mode
+    module Mode
       STANDARD_MODE_VALUES = %i[auto default standard standard_only].freeze
       COMPOUND_MODIFIERS = %i[data_residency].freeze
-
-      attr_reader :modifiers
 
       def self.normalize(value)
         return nil if value.nil?
@@ -26,21 +24,6 @@ module LlmCostTracker
         return nil if combined.empty?
 
         normalize(combined.join("_"))
-      end
-
-      def self.normalize_string(value)
-        normalized = value.strip
-        return nil if normalized.empty?
-
-        normalized.downcase.tr("-", "_").to_sym
-      end
-      private_class_method :normalize_string
-
-      def self.parse(value)
-        return value if value.is_a?(self)
-        return new([]) if value.nil?
-
-        new(tokenize(value.to_s))
       end
 
       def self.tokenize(value)
@@ -65,42 +48,21 @@ module LlmCostTracker
         tokens
       end
 
-      def initialize(modifiers)
-        @modifiers = Array(modifiers).map(&:to_sym).uniq.sort
-        freeze
-      end
-
-      def empty?
-        modifiers.empty?
-      end
-
-      def include?(modifier)
-        modifiers.include?(modifier.to_sym)
-      end
-
-      def canonical
-        modifiers.join("_")
-      end
-      alias to_s canonical
-
-      def to_sym
-        empty? ? nil : canonical.to_sym
-      end
-
-      def permutations
-        return [canonical] if modifiers.size <= 1
+      def self.permutations_for(value)
+        modifiers = tokenize(value).uniq.sort
+        return [""] if modifiers.empty?
+        return [modifiers.first.to_s] if modifiers.size == 1
 
         modifiers.permutation.map { |permutation| permutation.join("_") }.uniq
       end
 
-      def ==(other)
-        other.is_a?(self.class) && modifiers == other.modifiers
-      end
-      alias eql? ==
+      def self.normalize_string(value)
+        normalized = value.strip
+        return nil if normalized.empty?
 
-      def hash
-        modifiers.hash
+        normalized.downcase.tr("-", "_").to_sym
       end
+      private_class_method :normalize_string
     end
   end
 end
