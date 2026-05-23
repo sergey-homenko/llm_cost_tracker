@@ -42,7 +42,7 @@ module LlmCostTracker
     end
 
     def self.fetch(name)
-      const_name = INTEGRATION_CONSTANTS[name.to_sym]
+      const_name = INTEGRATION_CONSTANTS[name]
       unless const_name
         raise LlmCostTracker::Error,
               "Unknown integration: #{name.inspect}. Use one of: #{names.join(', ')}"

@@ -2,11 +2,11 @@
 
 module LlmCostTracker
   module Masking
-    SENSITIVE_KEYS = %i[provider_api_key_id provider_workspace_id provider_project_id].freeze
+    SENSITIVE_KEYS = %w[provider_api_key_id provider_workspace_id provider_project_id].freeze
     MASK_TAIL_LENGTH = 4
     def self.mask_value(key, value)
       string = value.to_s
-      return string unless SENSITIVE_KEYS.include?(key.to_sym)
+      return string unless SENSITIVE_KEYS.include?(key.to_s)
       return string if string.length <= MASK_TAIL_LENGTH
 
       "***#{string[-MASK_TAIL_LENGTH, MASK_TAIL_LENGTH]}"
