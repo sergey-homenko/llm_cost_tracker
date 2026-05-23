@@ -65,16 +65,17 @@ module LlmCostTracker
                                   import_id: nil)
         end
 
-        existing = existing_external_ids(normalized.map { |row| row[:external_id] })
-        rows_payload = normalized.map { |row| persistable_attributes(row) }
+        external_ids = normalized.map { |row| row[:external_id] }
+        pre_existing_ids = ProviderInvoice.where(external_id: external_ids).pluck(:external_id)
         upsert_options = { record_timestamps: true }
         upsert_options[:unique_by] = :external_id if ProviderInvoice.connection.supports_insert_conflict_target?
-        ProviderInvoice.upsert_all(rows_payload, **upsert_options)
+        ProviderInvoice.upsert_all(normalized.map { |row| persistable_attributes(row) }, **upsert_options)
 
-        inserted = normalized.count { |row| !existing.include?(row[:external_id]) }
-        updated = normalized.size - inserted
-        ImportResult.new(inserted: inserted, updated: updated, skipped: rows.size - normalized.size,
-                         errors: errors, import_id: nil)
+        inserted = (external_ids - pre_existing_ids).size
+        ImportResult.new(
+          inserted: inserted, updated: normalized.size - inserted,
+          skipped: rows.size - normalized.size, errors: errors, import_id: nil
+        )
       end
 
       def open_import_record
@@ -155,10 +156,6 @@ module LlmCostTracker
         raise ArgumentError, "window must be a Range of dates" unless window.is_a?(Range)
 
         Range.new(parse_date(window.first), parse_date(window.last))
-      end
-
-      def existing_external_ids(external_ids)
-        ProviderInvoice.where(external_id: external_ids).pluck(:external_id).to_set
       end
 
       def persistable_attributes(row)
