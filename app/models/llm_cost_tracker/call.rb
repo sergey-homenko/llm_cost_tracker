@@ -10,18 +10,8 @@ module LlmCostTracker
   class Call < ActiveRecord::Base
     before_validation :assign_event_id
 
-    PERIOD_FORMATS = {
-      day: {
-        postgres: "YYYY-MM-DD",
-        mysql: "%Y-%m-%d"
-      },
-      month: {
-        postgres: "YYYY-MM",
-        mysql: "%Y-%m"
-      }
-    }.freeze
-
-    private_constant :PERIOD_FORMATS
+    SUPPORTED_PERIODS = Ledger::Schema::Adapter.supported_periods.freeze
+    private_constant :SUPPORTED_PERIODS
 
     scope :with_cost, -> { where.not(total_cost: nil) }
     scope :without_cost, -> { where(total_cost: nil) }
@@ -115,28 +105,12 @@ module LlmCostTracker
       end
 
       def period_group_expression(period, column:)
-        period = validated_period(period)
-        column = period_column_expression(column)
-        formats = PERIOD_FORMATS.fetch(period)
-
-        if Ledger::Schema::Adapter.postgresql?(connection)
-          postgres_period_expression(period, column, formats)
-        elsif Ledger::Schema::Adapter.mysql?(connection)
-          "DATE_FORMAT(#{column}, #{connection.quote(formats.fetch(:mysql))})"
-        else
-          Ledger::Schema::Adapter.ensure_supported!(connection)
-        end
-      end
-
-      def postgres_period_expression(period, column, formats)
-        "TO_CHAR(" \
-          "DATE_TRUNC(#{connection.quote(period.name)}, #{column}), " \
-          "#{connection.quote(formats.fetch(:postgres))}" \
-          ")"
+        Ledger::Schema::Adapter.date_truncated_sql(connection, validated_period(period),
+                                                   period_column_expression(column))
       end
 
       def validated_period(period)
-        return period if PERIOD_FORMATS.key?(period)
+        return period.to_sym if SUPPORTED_PERIODS.include?(period.to_sym)
 
         raise ArgumentError, "invalid period: #{period.inspect}"
       end

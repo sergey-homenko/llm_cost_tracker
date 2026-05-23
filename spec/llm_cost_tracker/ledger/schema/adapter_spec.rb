@@ -115,6 +115,33 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Adapter do
     end
   end
 
+  describe ".date_truncated_sql" do
+    it "emits Postgres TO_CHAR(DATE_TRUNC(...)) for day" do
+      expect(described_class.date_truncated_sql("PostgreSQL", :day, "calls.tracked_at"))
+        .to eq("TO_CHAR(DATE_TRUNC('day', calls.tracked_at), 'YYYY-MM-DD')")
+    end
+
+    it "emits Postgres TO_CHAR(DATE_TRUNC(...)) for month" do
+      expect(described_class.date_truncated_sql("PostgreSQL", :month, "calls.tracked_at"))
+        .to eq("TO_CHAR(DATE_TRUNC('month', calls.tracked_at), 'YYYY-MM')")
+    end
+
+    it "emits MySQL DATE_FORMAT for day" do
+      expect(described_class.date_truncated_sql("Trilogy", :day, "calls.tracked_at"))
+        .to eq("DATE_FORMAT(calls.tracked_at, '%Y-%m-%d')")
+    end
+
+    it "emits MySQL DATE_FORMAT for month" do
+      expect(described_class.date_truncated_sql("Trilogy", :month, "calls.tracked_at"))
+        .to eq("DATE_FORMAT(calls.tracked_at, '%Y-%m')")
+    end
+
+    it "rejects unsupported adapter" do
+      expect { described_class.date_truncated_sql("SQLite3", :day, "calls.tracked_at") }
+        .to raise_error(LlmCostTracker::Error, /Use PostgreSQL or MySQL/)
+    end
+  end
+
   describe ".apply_json_contains" do
     it "uses Postgres @> containment operator with a single jsonb-cast parameter" do
       relation = double("relation")
