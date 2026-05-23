@@ -28,7 +28,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
           cache_read_input_tokens: 50,
           cache_write_input_tokens: 20,
           cache_write_extended_input_tokens: 10,
-          usage_source: :sdk_response,
+          usage_source: "sdk_response",
           provider_response_id: "msg_123"
         )
       end
@@ -108,7 +108,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
           input_tokens: 120,
           output_tokens: 64,
           stream: true,
-          usage_source: :stream_final,
+          usage_source: "stream_final",
           provider_response_id: "msg_stream_1"
         )
       end

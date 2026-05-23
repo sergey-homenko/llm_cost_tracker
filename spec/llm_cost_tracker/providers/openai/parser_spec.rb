@@ -358,7 +358,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       )
 
       expect(result.stream).to be false
-      expect(result.usage_source).to eq(:response)
+      expect(result.usage_source).to eq("response")
     end
 
     it "computes total tokens when the provider omits total_tokens" do
@@ -458,7 +458,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(result.token_usage.output_tokens).to eq(3)
       expect(result.token_usage.total_tokens).to eq(15)
       expect(result.stream).to be true
-      expect(result.usage_source).to eq(:stream_final)
+      expect(result.usage_source).to eq("stream_final")
       expect(result.provider_response_id).to be_nil
     end
 
@@ -541,7 +541,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(result.token_usage.output_tokens).to eq(2)
       expect(result.model).to eq("gpt-4o")
       expect(result.provider_response_id).to eq("chatcmpl_chunk")
-      expect(result.usage_source).to eq(:stream_final)
+      expect(result.usage_source).to eq("stream_final")
     end
 
     it "extracts response ids from chat completion stream chunks" do
@@ -645,7 +645,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(result.token_usage.input_tokens).to eq(50)
       expect(result.token_usage.output_tokens).to eq(7)
       expect(result.token_usage.total_tokens).to eq(57)
-      expect(result.usage_source).to eq(:stream_final)
+      expect(result.usage_source).to eq("stream_final")
       expect(result.provider_response_id).to eq("resp_456")
     end
 
@@ -775,7 +775,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       )
 
       expect(result.stream).to be true
-      expect(result.usage_source).to eq(:unknown)
+      expect(result.usage_source).to eq("unknown")
       expect(result.token_usage.input_tokens).to eq(0)
       expect(result.token_usage.output_tokens).to eq(0)
       expect(result.provider_response_id).to be_nil

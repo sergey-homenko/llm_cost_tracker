@@ -56,8 +56,8 @@ middleware, or `LlmCostTracker.track` lands in
 - `input_tokens`, `output_tokens`, `cache_read_input_tokens`, … plus
   `total_cost`, `cost_status`, and `pricing_snapshot` (the rate table
   applied at the time of the call)
-- `latency_ms`, `usage_source` (`:response`, `:stream_final`,
-  `:sdk_response`, `:unknown`)
+- `latency_ms`, `usage_source` (`"response"`, `"stream_final"`,
+  `"sdk_response"`, `"unknown"`)
 - `tags` (joined through `llm_cost_tracker_call_tags`) — your app's
   business context (e.g. `user_id`, `feature`, `decision_id`)
 - per-component pricing rows in `llm_cost_tracker_call_line_items`

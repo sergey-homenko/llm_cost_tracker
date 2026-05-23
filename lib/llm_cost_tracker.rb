@@ -88,7 +88,7 @@ module LlmCostTracker
     end
 
     def track(provider:, tokens:, model: nil, tags: {}, latency_ms: nil, stream: false,
-              usage_source: :manual, enforce_budget: false,
+              usage_source: "manual", enforce_budget: false,
               provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
               provider_workspace_id: nil, batch: nil, pricing_mode: nil, service_line_items: [])
       Budget.enforce! if enforce_budget

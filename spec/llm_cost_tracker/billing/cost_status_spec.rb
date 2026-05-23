@@ -17,7 +17,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
   it "ignores non-billable service charges" do
     status = described_class.call(
       token_usage: token_usage,
-      usage_source: :manual,
+      usage_source: "manual",
       token_cost: nil,
       service_line_items: [
         service_line_item(quantity: 0, cost_status: described_class::UNKNOWN)
@@ -31,7 +31,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
   it "stops scanning service charges after priced and unpriced usage are both known" do
     status = described_class.call(
       token_usage: token_usage,
-      usage_source: :manual,
+      usage_source: "manual",
       token_cost: nil,
       service_line_items: [
         service_line_item(cost: 0.01),
@@ -47,7 +47,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
   it "treats nil total cost with no billable usage as free" do
     status = described_class.call(
       token_usage: token_usage,
-      usage_source: :manual,
+      usage_source: "manual",
       token_cost: nil,
       service_line_items: [],
       total_cost: nil
@@ -61,7 +61,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
 
     status = described_class.call(
       token_usage: billable_usage,
-      usage_source: :response,
+      usage_source: "response",
       token_cost: { input_cost: 0.01, total_cost: 0.01 },
       token_pricing_partial: true,
       service_line_items: [],
@@ -76,7 +76,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
 
     status = described_class.call(
       token_usage: billable_usage,
-      usage_source: :response,
+      usage_source: "response",
       token_cost: { input_cost: 0.01, output_cost: 0.02, total_cost: 0.03 },
       service_line_items: [],
       total_cost: 0.03
@@ -88,7 +88,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
   it "returns unknown when usage source is unknown" do
     status = described_class.call(
       token_usage: token_usage,
-      usage_source: :unknown,
+      usage_source: "unknown",
       token_cost: nil,
       service_line_items: [],
       total_cost: nil
@@ -102,7 +102,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
 
     status = described_class.call(
       token_usage: billable_usage,
-      usage_source: :response,
+      usage_source: "response",
       token_cost: nil,
       service_line_items: [],
       total_cost: nil

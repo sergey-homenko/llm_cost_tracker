@@ -27,7 +27,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           output_tokens: 25,
           cache_read_input_tokens: 10,
           hidden_output_tokens: 5,
-          usage_source: :sdk_response,
+          usage_source: "sdk_response",
           provider_response_id: "resp_abc"
         )
       end
@@ -52,7 +52,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           input_tokens: 40,
           output_tokens: 25,
           cache_read_input_tokens: 10,
-          usage_source: :sdk_response,
+          usage_source: "sdk_response",
           provider_response_id: "chatcmpl_xyz"
         )
       end
@@ -72,7 +72,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           model: "text-embedding-3-large",
           input_tokens: 30,
           output_tokens: 0,
-          usage_source: :sdk_response
+          usage_source: "sdk_response"
         )
       end
     end
@@ -92,7 +92,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           input_tokens: 10,
           image_input_tokens: 15,
           output_tokens: 0,
-          usage_source: :sdk_response
+          usage_source: "sdk_response"
         )
       end
     end
@@ -112,7 +112,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           input_tokens: 10,
           image_input_tokens: 15,
           output_tokens: 0,
-          usage_source: :sdk_response
+          usage_source: "sdk_response"
         )
       end
     end
@@ -132,7 +132,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           input_tokens: 10,
           image_input_tokens: 15,
           output_tokens: 0,
-          usage_source: :sdk_response
+          usage_source: "sdk_response"
         )
       end
     end
@@ -152,7 +152,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           input_tokens: 4,
           audio_input_tokens: 8,
           output_tokens: 3,
-          usage_source: :sdk_response
+          usage_source: "sdk_response"
         )
       end
     end
@@ -166,7 +166,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       capture_sdk_events do |events|
         client.audio.translations.create(file: audio_io, model: "whisper-1")
 
-        expect(events.first).to include(provider: "openai", model: "whisper-1", usage_source: :sdk_response)
+        expect(events.first).to include(provider: "openai", model: "whisper-1", usage_source: "sdk_response")
       end
     end
   end
@@ -209,7 +209,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           model: "omni-moderation-latest",
           input_tokens: 0,
           output_tokens: 0,
-          usage_source: :sdk_response,
+          usage_source: "sdk_response",
           provider_response_id: "modr_abc"
         )
       end
@@ -240,7 +240,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         expect(events.first).to include(
           provider: "openai", model: "gpt-4o", stream: true,
           input_tokens: 10, output_tokens: 5,
-          usage_source: :stream_final, provider_response_id: "chatcmpl_s"
+          usage_source: "stream_final", provider_response_id: "chatcmpl_s"
         )
       end
     end
@@ -283,7 +283,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         expect(events.first).to include(
           provider: "openai", model: "gpt-4o", stream: true,
           input_tokens: 20, output_tokens: 7,
-          usage_source: :stream_final, provider_response_id: "resp_stream"
+          usage_source: "stream_final", provider_response_id: "resp_stream"
         )
       end
     end
@@ -345,7 +345,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
         expect(events.first).to include(
           provider: "openai", model: "gpt-image-1", stream: true,
-          input_tokens: 10, image_output_tokens: 1500, output_tokens: 0, usage_source: :stream_final
+          input_tokens: 10, image_output_tokens: 1500, output_tokens: 0, usage_source: "stream_final"
         )
       end
     end
@@ -362,7 +362,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
         expect(events.first).to include(
           provider: "openai", model: "gpt-image-1", stream: true,
-          input_tokens: 10, image_output_tokens: 1500, output_tokens: 0, usage_source: :stream_final
+          input_tokens: 10, image_output_tokens: 1500, output_tokens: 0, usage_source: "stream_final"
         )
       end
     end
@@ -386,7 +386,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
         expect(events.first).to include(
           provider: "openai", model: "gpt-4o-transcribe", stream: true,
-          input_tokens: 0, audio_input_tokens: 4, output_tokens: 3, usage_source: :stream_final
+          input_tokens: 0, audio_input_tokens: 4, output_tokens: 3, usage_source: "stream_final"
         )
       end
     end

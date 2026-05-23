@@ -46,7 +46,7 @@ module LlmCostTracker
             ),
             model: model,
             token_usage: UsageExtractor.token_usage(usage, model: model),
-            usage_source: :response,
+            usage_source: "response",
             service_line_items: service_line_items_for(response, request: request, model: response["model"])
           )
         end
@@ -98,7 +98,7 @@ module LlmCostTracker
             model: model,
             token_usage: UsageExtractor.token_usage(usage, model: model),
             stream: true,
-            usage_source: :stream_final,
+            usage_source: "stream_final",
             service_line_items: service_line_items
           )
         end

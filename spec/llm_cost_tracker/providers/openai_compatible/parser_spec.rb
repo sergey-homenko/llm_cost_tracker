@@ -207,7 +207,7 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
 
       expect(result.provider).to eq("deepseek")
       expect(result.model).to eq("deepseek-chat")
-      expect(result.usage_source).to eq(:stream_final)
+      expect(result.usage_source).to eq("stream_final")
       expect(result.token_usage.input_tokens).to eq(30)
       expect(result.token_usage.output_tokens).to eq(10)
       expect(result.provider_response_id).to eq("deepseek-1")
@@ -228,7 +228,7 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
       )
 
       expect(result.provider).to eq("groq")
-      expect(result.usage_source).to eq(:stream_final)
+      expect(result.usage_source).to eq("stream_final")
       expect(result.token_usage.input_tokens).to eq(30)
       expect(result.token_usage.output_tokens).to eq(10)
     end
@@ -264,7 +264,7 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
         events: events
       )
 
-      expect(result.usage_source).to eq(:unknown)
+      expect(result.usage_source).to eq("unknown")
     end
   end
 end

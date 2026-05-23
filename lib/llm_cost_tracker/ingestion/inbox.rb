@@ -42,7 +42,7 @@ module LlmCostTracker
             tags: payload.fetch(:tags),
             latency_ms: payload[:latency_ms],
             stream: payload.fetch(:stream),
-            usage_source: payload[:usage_source]&.to_sym,
+            usage_source: payload[:usage_source],
             provider_response_id: payload[:provider_response_id],
             provider_project_id: payload[:provider_project_id],
             provider_api_key_id: payload[:provider_api_key_id],

@@ -157,7 +157,7 @@ RSpec.describe LlmCostTracker::Providers::Azure::Parser do
       expect(result.provider).to eq("azure_openai")
       expect(result.token_usage.input_tokens).to eq(12)
       expect(result.token_usage.output_tokens).to eq(4)
-      expect(result.usage_source).to eq(:stream_final)
+      expect(result.usage_source).to eq("stream_final")
     end
   end
 

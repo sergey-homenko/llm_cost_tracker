@@ -93,7 +93,7 @@ module LlmCostTracker
           model: request["model"] || Event::UNKNOWN_MODEL,
           token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
-          usage_source: :unknown
+          usage_source: "unknown"
         )
         merged_metadata = (metadata || {}).merge(
           stream_interrupted: true,

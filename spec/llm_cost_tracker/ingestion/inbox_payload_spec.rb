@@ -20,7 +20,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       tags: { feature: "chat" },
       latency_ms: 25,
       stream: false,
-      usage_source: :manual,
+      usage_source: "manual",
       provider_response_id: "resp_payload_1",
       provider_project_id: "proj_payload_1",
       provider_api_key_id: "key_payload_1",
@@ -63,7 +63,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.tags).to eq(feature: "chat")
     expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
     expect(restored.pricing_snapshot.fetch(:schema_version)).to eq(1)
-    expect(restored.usage_source).to eq(:manual)
+    expect(restored.usage_source).to eq("manual")
     expect(restored.provider_project_id).to eq("proj_payload_1")
     expect(restored.provider_api_key_id).to eq("key_payload_1")
     expect(restored.provider_workspace_id).to eq("workspace_payload_1")

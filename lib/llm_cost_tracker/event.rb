@@ -42,7 +42,7 @@ module LlmCostTracker
         tags: attributes[:tags],
         latency_ms: attributes[:latency_ms],
         stream: attributes[:stream] || false,
-        usage_source: attributes[:usage_source],
+        usage_source: attributes[:usage_source]&.to_s,
         provider_response_id: attributes[:provider_response_id].to_s.strip.presence,
         provider_project_id: attributes[:provider_project_id].to_s.strip.presence,
         provider_api_key_id: attributes[:provider_api_key_id].to_s.strip.presence,

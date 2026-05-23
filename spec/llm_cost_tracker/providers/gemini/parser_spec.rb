@@ -85,7 +85,7 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(result.token_usage.hidden_output_tokens).to eq(50)
       expect(result.token_usage.total_tokens).to eq(175)
       expect(result.stream).to be false
-      expect(result.usage_source).to eq(:response)
+      expect(result.usage_source).to eq("response")
       expect(result.provider_response_id).to eq("gemini-resp-123")
     end
 
@@ -315,7 +315,7 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(result.token_usage.hidden_output_tokens).to eq(10)
       expect(result.token_usage.total_tokens).to eq(132)
       expect(result.stream).to be true
-      expect(result.usage_source).to eq(:stream_final)
+      expect(result.usage_source).to eq("stream_final")
       expect(result.provider_response_id).to eq("gemini-resp-456")
     end
 
@@ -436,7 +436,7 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       )
 
       expect(result.stream).to be true
-      expect(result.usage_source).to eq(:unknown)
+      expect(result.usage_source).to eq("unknown")
       expect(result.model).to eq("gemini-2.5-flash")
       expect(result.provider_response_id).to eq("gemini-resp-789")
     end
@@ -469,7 +469,7 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       )
 
       expect(result.stream).to be true
-      expect(result.usage_source).to eq(:unknown)
+      expect(result.usage_source).to eq("unknown")
       expect(result.model).to eq("unknown")
     end
   end

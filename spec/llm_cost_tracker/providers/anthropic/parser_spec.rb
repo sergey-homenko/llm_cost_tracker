@@ -63,7 +63,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
       expect(result.token_usage.cache_write_input_tokens).to eq(20)
       expect(result.token_usage.cache_write_extended_input_tokens).to eq(10)
       expect(result.stream).to be false
-      expect(result.usage_source).to eq(:response)
+      expect(result.usage_source).to eq("response")
       expect(result.provider_response_id).to be_nil
     end
 
@@ -254,7 +254,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
       expect(result.token_usage.cache_write_input_tokens).to eq(20)
       expect(result.token_usage.cache_write_extended_input_tokens).to eq(10)
       expect(result.stream).to be true
-      expect(result.usage_source).to eq(:stream_final)
+      expect(result.usage_source).to eq("stream_final")
       expect(result.provider_response_id).to eq("msg_456")
     end
 
@@ -277,7 +277,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
         events: events
       )
 
-      expect(result.usage_source).to eq(:unknown)
+      expect(result.usage_source).to eq("unknown")
       expect(result.token_usage.output_tokens).to eq(0)
     end
 
@@ -380,7 +380,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
       )
 
       expect(result.stream).to be true
-      expect(result.usage_source).to eq(:unknown)
+      expect(result.usage_source).to eq("unknown")
       expect(result.token_usage.input_tokens).to eq(0)
       expect(result.model).to eq("claude-sonnet-4-6")
     end

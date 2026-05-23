@@ -50,7 +50,7 @@ RSpec.describe "ActiveRecord storage integration" do
       tags: tags,
       latency_ms: nil,
       stream: false,
-      usage_source: :manual,
+      usage_source: "manual",
       provider_response_id: nil,
       provider_project_id: nil,
       provider_api_key_id: nil,

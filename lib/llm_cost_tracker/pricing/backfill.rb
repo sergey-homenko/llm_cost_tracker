@@ -64,7 +64,7 @@ module LlmCostTracker
             total_cost: total_cost,
             cost_status: Billing::CostStatus.call(
               token_usage: token_usage,
-              usage_source: call.usage_source&.to_sym,
+              usage_source: call.usage_source,
               token_cost: cost_data,
               token_pricing_partial: Pricing.token_pricing_partial?(token_usage, cost_data),
               service_line_items: priced.reject(&:token?),

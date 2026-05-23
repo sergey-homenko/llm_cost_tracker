@@ -18,7 +18,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       tags: {},
       latency_ms: nil,
       stream: false,
-      usage_source: :response,
+      usage_source: "response",
       provider_response_id: nil,
       provider_project_id: nil,
       provider_api_key_id: nil,

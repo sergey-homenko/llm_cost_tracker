@@ -33,7 +33,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
           provider: "openai", model: "gpt-4o",
           input_tokens: 75, output_tokens: 30,
           cache_read_input_tokens: 25, hidden_output_tokens: 8,
-          stream: false, usage_source: :sdk_response
+          stream: false, usage_source: "sdk_response"
         )
       end
     end
@@ -107,7 +107,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
         RubyLLM.embed("hi", model: "text-embedding-3-small")
         expect(events.first).to include(
           provider: "openai", model: "text-embedding-3-small",
-          input_tokens: 7, output_tokens: 0, usage_source: :sdk_response
+          input_tokens: 7, output_tokens: 0, usage_source: "sdk_response"
         )
       end
     end

@@ -43,7 +43,7 @@ module LlmCostTracker
             pricing_mode: event.pricing_mode&.name,
             latency_ms: event.latency_ms,
             stream: event.stream,
-            usage_source: event.usage_source&.name,
+            usage_source: event.usage_source,
             provider_response_id: event.provider_response_id,
             provider_project_id: event.provider_project_id,
             provider_api_key_id: event.provider_api_key_id,

@@ -177,7 +177,7 @@ RSpec.describe LlmCostTracker do
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(12)
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(3)
       expect(collected.first[:stream]).to be true
-      expect(collected.first[:usage_source]).to eq(:stream_final)
+      expect(collected.first[:usage_source]).to eq("stream_final")
       expect(collected.first[:tags]).to include(feature: "stream")
     end
 
@@ -190,7 +190,7 @@ RSpec.describe LlmCostTracker do
       end
 
       expect(collected.first[:model]).to eq("gpt-5.4-mini")
-      expect(collected.first[:usage_source]).to eq(:stream_final)
+      expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
     it "uses unknown when no stream model is available" do
@@ -201,7 +201,7 @@ RSpec.describe LlmCostTracker do
       end
 
       expect(collected.first[:model]).to eq("unknown")
-      expect(collected.first[:usage_source]).to eq(:stream_final)
+      expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
     it "parses built-in OpenAI-compatible providers like OpenRouter" do
@@ -217,7 +217,7 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:model]).to eq("gpt-4o")
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(12)
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(3)
-      expect(collected.first[:usage_source]).to eq(:stream_final)
+      expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
     it "parses configured OpenAI-compatible provider names" do
@@ -241,7 +241,7 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:model]).to eq("custom-chat")
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(9)
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(2)
-      expect(collected.first[:usage_source]).to eq(:stream_final)
+      expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
     it "uses explicit usage when provided even if events are empty" do
@@ -253,7 +253,7 @@ RSpec.describe LlmCostTracker do
 
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(50)
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(20)
-      expect(collected.first[:usage_source]).to eq(:manual)
+      expect(collected.first[:usage_source]).to eq("manual")
       expect(collected.first[:provider_response_id]).to eq("custom_resp_123")
       expect(collected.first[:stream]).to be true
     end
@@ -342,7 +342,7 @@ RSpec.describe LlmCostTracker do
 
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(0)
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(0)
-      expect(collected.first[:usage_source]).to eq(:unknown)
+      expect(collected.first[:usage_source]).to eq("unknown")
       expect(collected.first[:stream]).to be true
     end
 
@@ -356,7 +356,7 @@ RSpec.describe LlmCostTracker do
 
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(0)
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(0)
-      expect(collected.first[:usage_source]).to eq(:unknown)
+      expect(collected.first[:usage_source]).to eq("unknown")
     end
 
     it "keeps a stream event that fits the byte cap" do
@@ -369,7 +369,7 @@ RSpec.describe LlmCostTracker do
 
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(12)
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(3)
-      expect(collected.first[:usage_source]).to eq(:stream_final)
+      expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
     it "falls back to unknown usage when a stream event cannot be serialized" do
@@ -383,7 +383,7 @@ RSpec.describe LlmCostTracker do
 
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(0)
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(0)
-      expect(collected.first[:usage_source]).to eq(:unknown)
+      expect(collected.first[:usage_source]).to eq("unknown")
     end
 
     it "uses explicit usage when provided after the capture cap is exceeded" do
@@ -397,7 +397,7 @@ RSpec.describe LlmCostTracker do
 
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(7)
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(4)
-      expect(collected.first[:usage_source]).to eq(:manual)
+      expect(collected.first[:usage_source]).to eq("manual")
     end
 
     it "still records and then re-raises when the block raises" do
