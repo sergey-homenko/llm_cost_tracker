@@ -12,7 +12,7 @@ module LlmCostTracker
   module Reconciliation
     class Importer
       REQUIRED_FIELDS = %i[external_id period_start period_end].freeze
-      FORGIVING_METADATA_SOURCES = %i[csv].to_set.freeze
+      FORGIVING_METADATA_SOURCES = %i[csv].freeze
       ENVELOPE_KEYS = %w[row_type meter authority match_basis].freeze
 
       def initialize(source:, imported_at:, provider:, window: nil, strict_metadata: nil, cursor: nil)
