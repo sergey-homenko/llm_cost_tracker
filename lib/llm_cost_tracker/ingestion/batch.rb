@@ -78,28 +78,21 @@ module LlmCostTracker
         [valid_rows, events]
       end
 
-      def persist(rows, events)
+      def persist(rows, events, retry_on_conflict: true)
         LlmCostTracker::Call.transaction do
           Ledger::Store.insert(events)
           Ingestion::InboxEntry.where(id: rows.map(&:id), locked_by: identity).delete_all
         end
       rescue ActiveRecord::RecordNotUnique
-        recover_partial_persist(rows, events)
-      end
+        raise unless retry_on_conflict
 
-      def recover_partial_persist(rows, events)
-        already_persisted = LlmCostTracker::Call.where(event_id: events.map(&:event_id)).pluck(:event_id).to_set
+        already_persisted = LlmCostTracker::Call.where(event_id: events.map(&:event_id)).pluck(:event_id)
         fresh_events = events.reject { |event| already_persisted.include?(event.event_id) }
-
-        LlmCostTracker::Call.transaction do
-          Ledger::Store.insert(fresh_events) if fresh_events.any?
-          Ingestion::InboxEntry.where(id: rows.map(&:id), locked_by: identity).delete_all
-        end
-
         LlmCostTracker::Logging.warn(
           "Ingestion::Batch#persist: #{already_persisted.size} event_id(s) already in ledger; " \
           "skipped duplicates and persisted #{fresh_events.size} fresh event(s)"
         )
+        persist(rows, fresh_events, retry_on_conflict: false)
       end
 
       def claimable_scope(cutoff)
