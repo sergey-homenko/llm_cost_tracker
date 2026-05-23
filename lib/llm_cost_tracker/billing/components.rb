@@ -30,19 +30,11 @@ module LlmCostTracker
 
     module Components
       Component = Data.define(
-        :key,
-        :kind,
-        :direction,
-        :modality,
-        :cache_state,
-        :unit,
-        :category,
-        :token_key,
-        :cost_key,
-        :rate_basis
+        :key, :kind, :direction, :modality, :cache_state, :unit,
+        :token_key, :cost_key, :rate_basis
       )
 
-      REQUIRED_FIELDS = %i[key kind direction modality cache_state unit category].freeze
+      REQUIRED_FIELDS = %i[key kind direction modality cache_state unit].freeze
       DEFINITIONS_PATH = File.expand_path("components.yml", __dir__)
 
       def self.load_registry
@@ -64,23 +56,23 @@ module LlmCostTracker
           raise Error, "components.yml entry has unknown rate_basis #{rate_basis.inspect}: #{attributes.inspect}"
         end
 
+        key = attributes.fetch(:key).to_sym
         Component.new(
-          key: attributes.fetch(:key).to_sym,
+          key: key,
           kind: attributes.fetch(:kind).to_sym,
           direction: attributes.fetch(:direction).to_sym,
           modality: attributes.fetch(:modality).to_sym,
           cache_state: attributes.fetch(:cache_state).to_sym,
           unit: unit,
-          category: attributes.fetch(:category).to_sym,
-          token_key: attributes[:token_key]&.to_sym,
-          cost_key: attributes[:cost_key]&.to_sym,
-          rate_basis: rate_basis
+          rate_basis: rate_basis,
+          token_key: unit == :token ? :"#{key}_tokens" : nil,
+          cost_key: unit == :token ? :"#{key}_cost" : nil
         )
       end
 
       REGISTRY = load_registry
       BY_KEY = REGISTRY.to_h { |component| [component.key, component] }.freeze
-      TOKEN_PRICED = REGISTRY.select { |component| component.token_key && component.cost_key }.freeze
+      TOKEN_PRICED = REGISTRY.select(&:token_key).freeze
     end
   end
 end

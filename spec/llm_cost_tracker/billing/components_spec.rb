@@ -31,7 +31,6 @@ RSpec.describe LlmCostTracker::Billing::Components do
       modality: :text,
       cache_state: :none,
       unit: :request,
-      category: :tool,
       token_key: nil,
       cost_key: nil,
       rate_basis: :per_1k_requests
@@ -54,7 +53,7 @@ RSpec.describe LlmCostTracker::Billing::Components do
     it "raises when rate_basis is not in the supported enum" do
       attributes = {
         key: :weird, kind: :weird, direction: :neither, modality: :text,
-        cache_state: :none, unit: :widget, category: :tool, rate_basis: :per_widget
+        cache_state: :none, unit: :widget, rate_basis: :per_widget
       }
 
       expect { described_class.build(attributes) }
@@ -64,7 +63,7 @@ RSpec.describe LlmCostTracker::Billing::Components do
     it "raises when an unknown unit has no rate_basis to fall back on" do
       attributes = {
         key: :unknown_unit, kind: :unknown_unit, direction: :neither, modality: :text,
-        cache_state: :none, unit: :widget, category: :tool
+        cache_state: :none, unit: :widget
       }
 
       expect { described_class.build(attributes) }

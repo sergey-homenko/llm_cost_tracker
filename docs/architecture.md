@@ -28,8 +28,7 @@ boundary, code should use canonical terms.
 ## Component Ownership
 
 `Billing::Components` is the master registry for billable components. It owns
-component keys, units, categories, directions, modalities, token keys, and cost
-keys.
+component keys, units, directions, modalities, cache states, and rate bases.
 
 Pricing, ledger schema checks, dashboards, reports, and generator templates must
 derive component knowledge from `Billing::Components` when the contract is

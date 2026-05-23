@@ -4,9 +4,6 @@
   modality: text
   cache_state: none
   unit: token
-  category: token
-  token_key: input_tokens
-  cost_key: input_cost
 
 - key: cache_read_input
   kind: text_token
@@ -14,9 +11,6 @@
   modality: text
   cache_state: read
   unit: token
-  category: token
-  token_key: cache_read_input_tokens
-  cost_key: cache_read_input_cost
 
 - key: cache_write_input
   kind: text_token
@@ -24,9 +18,6 @@
   modality: text
   cache_state: write_default
   unit: token
-  category: token
-  token_key: cache_write_input_tokens
-  cost_key: cache_write_input_cost
 
 - key: cache_write_extended_input
   kind: text_token
@@ -34,9 +25,6 @@
   modality: text
   cache_state: write_extended
   unit: token
-  category: token
-  token_key: cache_write_extended_input_tokens
-  cost_key: cache_write_extended_input_cost
 
 - key: output
   kind: text_token
@@ -44,9 +32,6 @@
   modality: text
   cache_state: none
   unit: token
-  category: token
-  token_key: output_tokens
-  cost_key: output_cost
 
 - key: audio_input
   kind: audio_token
@@ -54,9 +39,6 @@
   modality: audio
   cache_state: none
   unit: token
-  category: token
-  token_key: audio_input_tokens
-  cost_key: audio_input_cost
 
 - key: audio_output
   kind: audio_token
@@ -64,9 +46,6 @@
   modality: audio
   cache_state: none
   unit: token
-  category: token
-  token_key: audio_output_tokens
-  cost_key: audio_output_cost
 
 - key: image_input
   kind: image_token
@@ -74,9 +53,6 @@
   modality: image
   cache_state: none
   unit: token
-  category: token
-  token_key: image_input_tokens
-  cost_key: image_input_cost
 
 - key: image_output
   kind: image_token
@@ -84,9 +60,6 @@
   modality: image
   cache_state: none
   unit: token
-  category: token
-  token_key: image_output_tokens
-  cost_key: image_output_cost
 
 - key: web_search_request
   kind: web_search_request
@@ -94,7 +67,6 @@
   modality: text
   cache_state: none
   unit: request
-  category: tool
   rate_basis: per_1k_requests
 
 - key: web_search_preview_request_reasoning
@@ -103,7 +75,6 @@
   modality: text
   cache_state: none
   unit: request
-  category: tool
   rate_basis: per_1k_requests
 
 - key: web_search_preview_request_non_reasoning
@@ -112,7 +83,6 @@
   modality: text
   cache_state: none
   unit: request
-  category: tool
   rate_basis: per_1k_requests
 
 - key: web_fetch_request
@@ -121,7 +91,6 @@
   modality: text
   cache_state: none
   unit: request
-  category: tool
   rate_basis: per_1k_requests
 
 - key: file_search_call
@@ -130,7 +99,6 @@
   modality: text
   cache_state: none
   unit: request
-  category: tool
   rate_basis: per_1k_requests
 
 - key: container_session
@@ -139,7 +107,6 @@
   modality: none
   cache_state: none
   unit: session
-  category: runtime
   rate_basis: per_session
 
 - key: code_execution_request
@@ -148,7 +115,6 @@
   modality: none
   cache_state: none
   unit: request
-  category: runtime
   rate_basis: per_1k_requests
 
 - key: code_execution_hour
@@ -157,7 +123,6 @@
   modality: none
   cache_state: none
   unit: hour
-  category: runtime
   rate_basis: per_hour
 
 - key: grounding_request
@@ -166,7 +131,6 @@
   modality: text
   cache_state: none
   unit: request
-  category: tool
   rate_basis: per_1k_requests
 
 - key: text_to_speech_character
@@ -175,7 +139,6 @@
   modality: audio
   cache_state: none
   unit: character
-  category: tool
   rate_basis: per_million_characters
 
 - key: mcp_call
@@ -184,5 +147,4 @@
   modality: text
   cache_state: none
   unit: request
-  category: tool
   rate_basis: per_request
