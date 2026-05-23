@@ -10,9 +10,6 @@ module LlmCostTracker
   class Call < ActiveRecord::Base
     before_validation :assign_event_id
 
-    SUPPORTED_PERIODS = Ledger::Schema::Adapter.supported_periods.freeze
-    private_constant :SUPPORTED_PERIODS
-
     scope :with_cost, -> { where.not(total_cost: nil) }
     scope :without_cost, -> { where(total_cost: nil) }
     scope :unknown_pricing, lambda {
@@ -110,7 +107,7 @@ module LlmCostTracker
       end
 
       def validated_period(period)
-        return period.to_sym if SUPPORTED_PERIODS.include?(period.to_sym)
+        return period.to_sym if Ledger::Schema::Adapter.supported_periods.include?(period.to_sym)
 
         raise ArgumentError, "invalid period: #{period.inspect}"
       end
