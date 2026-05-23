@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-05-15"
+    "updated_at": "2026-05-23"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -215,6 +215,20 @@
       "priority_cache_read_input": 0.045,
       "priority_input": 0.45,
       "priority_output": 2.7
+    },
+    "gemini/gemini-3.5-flash": {
+      "batch_cache_read_input": 0.075,
+      "batch_input": 0.75,
+      "batch_output": 4.5,
+      "cache_read_input": 0.15,
+      "flex_cache_read_input": 0.08,
+      "flex_input": 0.75,
+      "flex_output": 4.5,
+      "input": 1.5,
+      "output": 9.0,
+      "priority_cache_read_input": 0.27,
+      "priority_input": 2.7,
+      "priority_output": 16.2
     },
     "groq/llama-3.1-8b-instant": {
       "flex_input": 0.05,
