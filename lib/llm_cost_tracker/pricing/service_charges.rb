@@ -31,7 +31,7 @@ module LlmCostTracker
         MUTEX.synchronize do
           @builtin_rates ||= begin
             registry = YAML.safe_load_file(Registry::DEFAULT_PRICES_PATH, aliases: false) || {}
-            rates_from_registry(registry).freeze
+            rates_from_registry(registry, context: Registry::DEFAULT_PRICES_PATH).freeze
           end
         end
       end
@@ -56,7 +56,7 @@ module LlmCostTracker
         raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
       end
 
-      def rates_from_registry(registry, context: "price registry")
+      def rates_from_registry(registry, context:)
         data = registry.fetch("service_charges", EMPTY_RATES)
         raise ArgumentError, "#{context} service_charges must be a hash" unless data.is_a?(Hash)
 

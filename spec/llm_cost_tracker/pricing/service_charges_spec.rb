@@ -187,18 +187,18 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
   describe ".rates_from_registry" do
     it "ignores registries without tool price sections" do
-      expect(described_class.rates_from_registry({ "models" => {} })).to eq({})
+      expect(described_class.rates_from_registry({ "models" => {} }, context: "spec")).to eq({})
     end
 
     it "rejects non-hash service charge sections" do
       expect do
-        described_class.rates_from_registry({ "service_charges" => [] })
+        described_class.rates_from_registry({ "service_charges" => [] }, context: "spec")
       end.to raise_error(ArgumentError, /service_charges must be a hash/)
     end
 
     it "rejects non-hash provider sections" do
       expect do
-        described_class.rates_from_registry({ "service_charges" => { "openai" => [] } })
+        described_class.rates_from_registry({ "service_charges" => { "openai" => [] } }, context: "spec")
       end.to raise_error(ArgumentError, /service_charges\.openai must be a hash/)
     end
 
@@ -211,7 +211,8 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
                 "web_search_request" => 10.0
               }
             }
-          }
+          },
+          context: "spec"
         )
       ).to eq(
         "anthropic" => {
@@ -237,7 +238,8 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
                 priority_web_search_request: 12.0
               }
             }
-          }
+          },
+          context: "spec"
         )
       ).to eq(
         "openai" => {
@@ -264,7 +266,8 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
                 "_web_search_request" => 10.0
               }
             }
-          }
+          },
+          context: "spec"
         )
       end.to raise_error(ArgumentError, /unknown billing component/)
     end
