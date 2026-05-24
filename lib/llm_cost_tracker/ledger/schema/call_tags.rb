@@ -1,40 +1,26 @@
 # frozen_string_literal: true
 
+require_relative "base"
+
 module LlmCostTracker
   module Ledger
     module Schema
       module CallTags
-        REQUIRED_COLUMNS = %w[llm_cost_tracker_call_id key value].freeze
+        extend Base
 
+        REQUIRED_COLUMNS = %w[llm_cost_tracker_call_id key value].freeze
         REQUIRED_INDEX_COLUMNS = [
           %w[key value],
           %w[llm_cost_tracker_call_id]
         ].freeze
 
         class << self
-          def current_schema_errors
-            connection = LlmCostTracker::Call.connection
-            Ledger::Schema::Adapter.ensure_supported!(connection)
-            table_name = LlmCostTracker::CallTag.table_name
-            return ["#{table_name} table is missing"] unless connection.data_source_exists?(table_name)
-
-            columns = LlmCostTracker::CallTag.columns_hash
-            cache = @schema_capabilities
-            return cache.fetch(:errors) if cache && cache.fetch(:columns).equal?(columns)
-
-            errors = compute_errors(connection, table_name, columns)
-            @schema_capabilities = { columns: columns, errors: errors }
-            errors
-          end
+          def model = LlmCostTracker::CallTag
 
           private
 
           def compute_errors(connection, table_name, columns)
-            errors = []
-            missing = REQUIRED_COLUMNS - columns.keys
-            errors << "missing columns: #{missing.join(', ')}" if missing.any?
-            errors.concat(missing_index_errors(connection, table_name))
-            errors
+            column_errors(columns) + missing_index_errors(connection, table_name)
           end
 
           def missing_index_errors(connection, table_name)

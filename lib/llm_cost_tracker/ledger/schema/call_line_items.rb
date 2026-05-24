@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
-require_relative "adapter"
+require_relative "base"
 
 module LlmCostTracker
   module Ledger
     module Schema
       module CallLineItems
+        extend Base
+
         REQUIRED_COLUMNS = %w[
           llm_cost_tracker_call_id
           position
@@ -29,37 +31,21 @@ module LlmCostTracker
           details
           created_at
         ].freeze
-
         REQUIRED_INDEX_COLUMNS = [
           %w[llm_cost_tracker_call_id position]
         ].freeze
 
         class << self
-          def current_schema_errors
-            connection = LlmCostTracker::Call.connection
-            Adapter.ensure_supported!(connection)
-            table_name = LlmCostTracker::CallLineItem.table_name
-            return ["#{table_name} table is missing"] unless connection.data_source_exists?(table_name)
-
-            columns = LlmCostTracker::CallLineItem.columns_hash
-            cache = @schema_capabilities
-            return cache.fetch(:errors) if cache && cache.fetch(:columns).equal?(columns)
-
-            errors = compute_errors(connection, table_name, columns)
-            @schema_capabilities = { columns: columns, errors: errors }
-            errors
-          end
+          def model = LlmCostTracker::CallLineItem
 
           private
 
           def compute_errors(connection, table_name, columns)
-            errors = []
-            missing = REQUIRED_COLUMNS - columns.keys
-            errors << "missing columns: #{missing.join(', ')}" if missing.any?
+            errors = column_errors(columns)
             errors.concat(Adapter.json_column_errors(columns["details"], connection, "details"))
             errors.concat(missing_index_errors(connection, table_name))
-            errors << missing_fk_error(connection, table_name) if missing_fk?(connection, table_name)
-            errors.compact
+            errors << missing_fk_error if missing_fk?(connection, table_name)
+            errors
           end
 
           def missing_index_errors(connection, table_name)
@@ -80,7 +66,7 @@ module LlmCostTracker
             false
           end
 
-          def missing_fk_error(_connection, _table_name)
+          def missing_fk_error
             "missing foreign key on llm_cost_tracker_call_id referencing llm_cost_tracker_calls"
           end
         end

@@ -1,44 +1,27 @@
 # frozen_string_literal: true
 
-require_relative "adapter"
+require_relative "base"
 
 module LlmCostTracker
   module Ledger
     module Schema
       module CallRollups
+        extend Base
+
         REQUIRED_COLUMNS = %w[period period_start currency provider total_cost created_at updated_at].freeze
         UNIQUE_COLUMNS = %i[period period_start currency provider].freeze
 
         class << self
-          def current_schema_errors
-            connection = LlmCostTracker::CallRollup.connection
-            Adapter.ensure_supported!(connection)
-            table_name = LlmCostTracker::CallRollup.table_name
-            return ["#{table_name} table is missing"] unless connection.data_source_exists?(table_name)
-
-            columns = LlmCostTracker::CallRollup.columns_hash
-            cache = @schema_capabilities
-            return cache.fetch(:errors) if cache && cache.fetch(:columns).equal?(columns)
-
-            errors = compute_errors(connection, table_name, columns)
-            @schema_capabilities = { columns: columns, errors: errors }
-            errors
-          end
+          def model = LlmCostTracker::CallRollup
 
           private
 
           def compute_errors(connection, table_name, columns)
-            errors = []
-            missing = REQUIRED_COLUMNS - columns.keys
-            errors << "missing columns: #{missing.join(', ')}" if missing.any?
-            unless unique_period_index?(connection, table_name)
+            errors = column_errors(columns)
+            unless connection.index_exists?(table_name, UNIQUE_COLUMNS, unique: true)
               errors << "missing unique index: period, period_start, currency, provider"
             end
             errors
-          end
-
-          def unique_period_index?(connection, table_name)
-            connection.index_exists?(table_name, UNIQUE_COLUMNS, unique: true)
           end
         end
       end
