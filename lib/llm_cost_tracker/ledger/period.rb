@@ -3,12 +3,10 @@
 module LlmCostTracker
   module Ledger
     module Period
-      PERIODS = {
-        month: "month",
-        day:   "day"
-      }.freeze
+      PERIODS = %i[month day].freeze
+
       def self.valid_keys(periods)
-        periods.select { |period| PERIODS.key?(period) }
+        PERIODS & periods
       end
 
       def self.range_start(period, time)

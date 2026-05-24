@@ -41,8 +41,8 @@ module LlmCostTracker
           events.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |event, totals|
             currency = currency_from_snapshot(event.pricing_snapshot)
             provider = event.provider.to_s
-            Period::PERIODS.each do |period, name|
-              key = [name, Period.bucket(period, event.tracked_at), currency, provider]
+            Period::PERIODS.each do |period|
+              key = [period.to_s, Period.bucket(period, event.tracked_at), currency, provider]
               totals[key] += BigDecimal(event.total_cost.to_s)
             end
           end
@@ -55,7 +55,7 @@ module LlmCostTracker
 
             currency = currency_from_snapshot(pricing_snapshot)
             provider_key = provider.to_s
-            Period::PERIODS.each_key do |period|
+            Period::PERIODS.each do |period|
               totals[[period, Period.bucket(period, tracked_at), currency, provider_key]] += total_cost
             end
           end
@@ -88,7 +88,7 @@ module LlmCostTracker
               "UPDATE #{table} " \
               "SET #{total_col} = GREATEST(0, #{total_col} - CASE #{case_clauses} ELSE 0 END), " \
               "#{updated_col} = #{conn.quote(now)} " \
-              "WHERE #{period_col} = #{conn.quote(Period::PERIODS.fetch(period))} " \
+              "WHERE #{period_col} = #{conn.quote(period.to_s)} " \
               "AND #{currency_col} = #{conn.quote(currency)} " \
               "AND #{provider_col} = #{conn.quote(provider)} " \
               "AND #{start_col} IN (#{starts})"

@@ -57,7 +57,7 @@ module LlmCostTracker
         def rollup_sum_sql(period)
           table = connection.quote_table_name("llm_cost_tracker_call_rollups")
           "(SELECT SUM(total_cost) FROM #{table} " \
-            "WHERE period = #{connection.quote(Period::PERIODS.fetch(period))} " \
+            "WHERE period = #{connection.quote(period.to_s)} " \
             "AND period_start = #{connection.quote(Period.bucket(period, time))})"
         end
 
