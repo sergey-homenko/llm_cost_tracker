@@ -31,7 +31,7 @@ module LlmCostTracker
                 rollup_events << rollup_event_for(call, outcome)
                 recomputed += 1
               end
-              Ledger::Rollups.increment_many!(rollup_events) if rollup_events.any?
+              Ledger::Rollups.increment!(rollup_events) if rollup_events.any?
             end
           end
 

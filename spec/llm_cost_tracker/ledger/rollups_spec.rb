@@ -31,11 +31,11 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
     )
   end
 
-  describe ".increment_many!" do
+  describe ".increment!" do
     it "writes a separate rollup row per currency" do
       time = Time.utc(2026, 5, 7, 12)
-      described_class.increment_many!([build_event(total_cost: 1.5, currency: "USD", tracked_at: time)])
-      described_class.increment_many!([build_event(total_cost: 2.0, currency: "EUR", tracked_at: time)])
+      described_class.increment!([build_event(total_cost: 1.5, currency: "USD", tracked_at: time)])
+      described_class.increment!([build_event(total_cost: 2.0, currency: "EUR", tracked_at: time)])
 
       rollups = LlmCostTracker::CallRollup.where(period: "month").order(:currency).pluck(:currency, :total_cost)
 
@@ -47,7 +47,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       event = build_event(total_cost: 1.0, tracked_at: time)
       event = event.with(pricing_snapshot: nil)
 
-      described_class.increment_many!([event])
+      described_class.increment!([event])
 
       rollup = LlmCostTracker::CallRollup.find_by(period: "month")
       expect(rollup.currency).to eq("USD")
@@ -57,8 +57,8 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
   describe ".decrement!" do
     it "scopes the deduction to the snapshot currency, leaving other currency rows untouched" do
       time = Time.utc(2026, 5, 7, 12)
-      described_class.increment_many!([build_event(total_cost: 5.0, currency: "USD", tracked_at: time)])
-      described_class.increment_many!([build_event(total_cost: 3.0, currency: "EUR", tracked_at: time)])
+      described_class.increment!([build_event(total_cost: 5.0, currency: "USD", tracked_at: time)])
+      described_class.increment!([build_event(total_cost: 3.0, currency: "EUR", tracked_at: time)])
 
       described_class.decrement!([[1, time, BigDecimal("3.0"), { "currency" => "EUR" }, "openai"]])
 
@@ -71,8 +71,8 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
     it "sums rollups across all currencies when cache_rollups is enabled" do
       LlmCostTracker.configure { |config| config.cache_rollups = true }
       time = Time.utc(2026, 5, 7, 12)
-      described_class.increment_many!([build_event(total_cost: 4.5, currency: "USD", tracked_at: time)])
-      described_class.increment_many!([build_event(total_cost: 99.0, currency: "EUR", tracked_at: time)])
+      described_class.increment!([build_event(total_cost: 4.5, currency: "USD", tracked_at: time)])
+      described_class.increment!([build_event(total_cost: 99.0, currency: "EUR", tracked_at: time)])
 
       totals = LlmCostTracker::Ledger::Period::Totals.call(%i[day month], time: time)
 

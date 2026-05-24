@@ -343,7 +343,7 @@ RSpec.describe "ActiveRecord storage integration" do
   it "preserves the ledger write when the rollup increment raises" do
     LlmCostTracker.configure { |config| config.cache_rollups = true }
     allow(LlmCostTracker::Logging).to receive(:warn)
-    allow(LlmCostTracker::Ledger::Rollups).to receive(:increment_many!).and_raise("rollup contention")
+    allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!).and_raise("rollup contention")
     event = build_event(event_id: "rollup-failure")
 
     expect { LlmCostTracker::Ledger::Store.insert([event]) }.not_to raise_error

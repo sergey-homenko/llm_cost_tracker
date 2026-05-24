@@ -126,7 +126,7 @@ module LlmCostTracker
         end
 
         def increment_rollups_safely(events)
-          Ledger::Rollups.increment_many!(events)
+          Ledger::Rollups.increment!(events)
         rescue StandardError => e
           raise if LlmCostTracker::Call.connection.open_transactions.positive?
 

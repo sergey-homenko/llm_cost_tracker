@@ -60,7 +60,7 @@ RSpec.describe LlmCostTracker::Doctor::InvoiceReconciliationCheck do
       pricing_basis: "rate_table",
       details: {}
     )
-    LlmCostTracker::Ledger::Rollups.increment_many!([
+    LlmCostTracker::Ledger::Rollups.increment!([
       Struct.new(:provider, :total_cost, :tracked_at, :pricing_snapshot)
             .new("openai", total_cost, tracked_at, { "currency" => "USD" })
     ])

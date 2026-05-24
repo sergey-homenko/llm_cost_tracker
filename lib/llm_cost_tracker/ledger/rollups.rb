@@ -9,7 +9,7 @@ module LlmCostTracker
   module Ledger
     class Rollups
       class << self
-        def increment_many!(events)
+        def increment!(events)
           events = Array(events).select(&:total_cost)
           return if events.empty?
 
