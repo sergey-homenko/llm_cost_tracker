@@ -18,7 +18,7 @@ module LlmCostTracker
         return Check.new(:ok, "invoice reconciliation", "no provider invoices imported yet") if scopes.empty?
 
         non_canonical = non_canonical_currency_check
-        checks = scopes.map { |scope| check_scope_safely(scope) }
+        checks = scopes.filter_map { |scope| check_scope_safely(scope) }
         checks << non_canonical if non_canonical
         checks
       rescue StandardError => e
@@ -92,7 +92,7 @@ module LlmCostTracker
 
       def stale_check(scope)
         latest = Reconciliation.scope_relation(scope).maximum(:period_end)
-        return scope_unreachable_check(scope) if latest.nil?
+        return nil if latest.nil?
 
         days = (Time.now.utc.to_date - latest).to_i
         Check.new(
@@ -100,15 +100,6 @@ module LlmCostTracker
           "invoice reconciliation: #{scope_label(scope)}",
           "no invoice imported in #{days} days (threshold #{Reconciliation::INVOICE_FRESHNESS_DAYS} days); " \
           "run reconciliation import"
-        )
-      end
-
-      def scope_unreachable_check(scope)
-        Check.new(
-          :warn,
-          "invoice reconciliation: #{scope_label(scope)}",
-          "scope grouped invoices but the filter (likely currency case mismatch) matches zero rows; " \
-          "the currency-canonicalisation check below points at the backfill SQL"
         )
       end
 

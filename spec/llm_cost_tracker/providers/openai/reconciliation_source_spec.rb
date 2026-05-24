@@ -163,14 +163,14 @@ RSpec.describe LlmCostTracker::Providers::Openai::ReconciliationSource do
         .to eq(described_class.parse(string_response).first[:external_id])
     end
 
-    it "falls back to the raw value when a timestamp cannot be parsed" do
+    it "drops the bucket when a timestamp cannot be parsed" do
       response[:data] = [{
         "start_time" => "garbage",
         "end_time" => "garbage",
         "results" => [{ "amount" => { "value" => 1.0, "currency" => "usd" }, "line_item" => "tokens" }]
       }]
 
-      expect { described_class.parse(response) }.not_to raise_error
+      expect(described_class.parse(response)).to eq([])
     end
 
     it "differentiates rows that share a line item across different models" do

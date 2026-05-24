@@ -54,7 +54,6 @@ module LlmCostTracker
 
     def pricing_status(call)
       return "Unknown" if call.total_cost.nil?
-      return "Estimated" unless call.has_attribute?(:cost_status)
 
       {
         LlmCostTracker::Billing::CostStatus::COMPLETE => "Estimated",

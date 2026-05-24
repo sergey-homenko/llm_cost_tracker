@@ -16,8 +16,6 @@ module LlmCostTracker
         return value.to_i if value.is_a?(Numeric)
 
         Time.parse(value.to_s).utc.to_i
-      rescue ArgumentError
-        value.to_s
       end
 
       def self.coerce_hash(response, label:)

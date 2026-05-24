@@ -129,13 +129,13 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::ReconciliationSource do
       expect(described_class.parse(response)).to be_empty
     end
 
-    it "falls back to the raw value when a timestamp cannot be parsed" do
+    it "drops the bucket when a timestamp cannot be parsed" do
       response[:data] = [{
         "starting_at" => "garbage", "ending_at" => bucket_ending_at,
         "results" => [{ "amount" => "1.00", "cost_type" => "tokens", "token_type" => "uncached_input_tokens" }]
       }]
 
-      expect { described_class.parse(response) }.not_to raise_error
+      expect(described_class.parse(response)).to eq([])
     end
 
     it "differentiates rows that share a model but differ on workspace" do
