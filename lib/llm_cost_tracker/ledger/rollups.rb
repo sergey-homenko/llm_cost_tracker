@@ -11,12 +11,6 @@ module LlmCostTracker
       DEFAULT_CURRENCY = "USD"
 
       class << self
-        def increment!(event)
-          return unless event.total_cost
-
-          upsert_call_rollups(period_rows(event))
-        end
-
         def increment_many!(events)
           events = Array(events).select(&:total_cost)
           return if events.empty?
@@ -32,20 +26,6 @@ module LlmCostTracker
         end
 
         private
-
-        def period_rows(event)
-          currency = currency_from_snapshot(event.pricing_snapshot)
-          provider = event.provider.to_s
-          Period::PERIODS.map do |period, name|
-            {
-              period: name,
-              period_start: Period.bucket(period, event.tracked_at),
-              currency: currency,
-              provider: provider,
-              total_cost: event.total_cost
-            }
-          end
-        end
 
         def period_rows_for_events(events)
           call_rollups(events).map do |(period, period_start, currency, provider), total_cost|
