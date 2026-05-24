@@ -35,7 +35,7 @@ module LlmCostTracker
           MUTEX.synchronize do
             @builtin_prices ||= begin
               registry = @raw_registry ||= load_raw_registry
-              normalize_price_table(registry.fetch("models", {})).freeze
+              normalize_price_entries(registry.fetch("models", {}), context: "bundled prices").freeze
             end
           end
         end
@@ -65,10 +65,6 @@ module LlmCostTracker
           raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
         end
 
-        def normalize_price_table(table)
-          normalize_price_entries(table, context: "price table")
-        end
-
         def file_prices(path)
           return EMPTY_PRICES unless path
 
@@ -87,6 +83,17 @@ module LlmCostTracker
           end
         rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
           raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+        end
+
+        def normalize_price_entries(table, context:)
+          table = {} if table.nil?
+          raise ArgumentError, "#{context} must be a hash of models" unless table.is_a?(Hash)
+
+          table.each_with_object({}) do |(model, price), normalized|
+            price = validate_price_entry(price, model: model, context: context)
+            warn_unknown_keys(model, price, context)
+            normalized[model.to_s] = normalize_price_entry(price)
+          end
         end
 
         private
@@ -112,17 +119,6 @@ module LlmCostTracker
           raise ArgumentError, "price for #{key.inspect} must be non-negative (got #{rate})" if rate.negative?
 
           rate
-        end
-
-        def normalize_price_entries(table, context:)
-          table = {} if table.nil?
-          raise ArgumentError, "#{context} must be a hash of models" unless table.is_a?(Hash)
-
-          table.each_with_object({}) do |(model, price), normalized|
-            price = validate_price_entry(price, model: model, context: context)
-            warn_unknown_keys(model, price, context)
-            normalized[model.to_s] = normalize_price_entry(price)
-          end
         end
 
         def warn_unknown_keys(model, price, path)

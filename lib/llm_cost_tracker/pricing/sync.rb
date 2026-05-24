@@ -119,7 +119,8 @@ module LlmCostTracker
           end
 
           raw_models = registry.fetch("models", {})
-          models = Registry.normalize_price_table(raw_models).each_with_object({}) do |(model, prices), normalized|
+          models = Registry.normalize_price_entries(raw_models, context: "remote pricing snapshot")
+                           .each_with_object({}) do |(model, prices), normalized|
             model_metadata = (raw_models[model] || {}).slice(*Registry::METADATA_KEYS)
             normalized[model] = model_metadata.merge(prices)
           end

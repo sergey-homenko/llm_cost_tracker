@@ -6,8 +6,8 @@ module LlmCostTracker
       module RegistryDiff
         class << self
           def call(current_models, updated_models)
-            current_models = Registry.normalize_price_table(current_models)
-            updated_models = Registry.normalize_price_table(updated_models)
+            current_models = Registry.normalize_price_entries(current_models, context: "current price table")
+            updated_models = Registry.normalize_price_entries(updated_models, context: "updated price table")
 
             (current_models.keys | updated_models.keys).sort.each_with_object({}) do |model, changes|
               fields = price_field_changes(current_models[model], updated_models[model])
