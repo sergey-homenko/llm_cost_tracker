@@ -31,9 +31,7 @@ module LlmCostTracker
           end
 
           def normalize_models(models)
-            Registry.normalize_price_table(models).transform_values do |price|
-              price.to_h { |key, value| [key.name, value] }
-            end
+            Registry.normalize_price_table(models)
           rescue ArgumentError, TypeError => e
             raise Error, e.message
           end

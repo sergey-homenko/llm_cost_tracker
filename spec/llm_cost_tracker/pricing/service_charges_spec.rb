@@ -32,7 +32,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
   describe ".builtin_rates" do
     it "loads bundled service charge rates once" do
-      expect(described_class.builtin_rates.dig("anthropic", :web_search_request, :default)).to include(
+      expect(described_class.builtin_rates.dig("anthropic", "web_search_request", :default)).to include(
         amount: BigDecimal("10.0"),
         quantity: BigDecimal("1000"),
         currency: "USD",
@@ -45,7 +45,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
       registry = YAML.safe_load_file(LlmCostTracker::Pricing::Registry::DEFAULT_PRICES_PATH, aliases: false)
       tool_keys = registry.fetch("service_charges").values.flat_map(&:keys)
       components = LlmCostTracker::Billing::Components::REGISTRY.filter_map do |component|
-        component.key.name if component.token_key.nil?
+        component.key if component.token_key.nil?
       end
 
       expect(tool_keys - components).to eq([])
@@ -68,7 +68,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
         expect(described_class.file_rates(file.path)).to eq(
           "openai" => {
-            web_search_request: {
+            "web_search_request" => {
               tiers: {},
               default: {
                 amount: BigDecimal("10.0"),
@@ -77,7 +77,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
                 source_key: "web_search_request"
               }
             },
-            container_session: {
+            "container_session" => {
               tiers: {},
               default: {
                 amount: BigDecimal("0.03"),
@@ -106,7 +106,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
         expect(described_class.file_rates(file.path)).to eq(
           "openai" => {
-            web_search_request: {
+            "web_search_request" => {
               tiers: {
                 priority: {
                   amount: BigDecimal("12.0"),
@@ -215,7 +215,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         )
       ).to eq(
         "anthropic" => {
-          web_search_request: {
+          "web_search_request" => {
             tiers: {},
             default: {
               amount: BigDecimal("10.0"),
@@ -241,7 +241,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         )
       ).to eq(
         "openai" => {
-          web_search_request: {
+          "web_search_request" => {
             tiers: {
               priority: {
                 amount: BigDecimal("12.0"),
@@ -272,11 +272,11 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
   describe ".charge_rate" do
     it "returns nil when no service charge rate exists" do
-      expect(described_class.charge_rate(provider: "gemini", component: :grounding_request, pricing_mode: nil)).to be_nil
+      expect(described_class.charge_rate(provider: "gemini", component: "grounding_request", pricing_mode: nil)).to be_nil
     end
 
     it "returns nil when the provider is missing" do
-      expect(described_class.charge_rate(provider: nil, component: :web_search_request, pricing_mode: nil)).to be_nil
+      expect(described_class.charge_rate(provider: nil, component: "web_search_request", pricing_mode: nil)).to be_nil
     end
 
     it "loads provider service charge rates from the configured prices file" do
@@ -294,13 +294,13 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: :web_search_request, pricing_mode: nil)
+        rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: nil)
 
         expect(rate).to include(
           amount: BigDecimal("10.0"),
           quantity: BigDecimal("1000"),
           currency: "USD",
-          source: :prices_file,
+          source: "prices_file",
           source_key: "service_charges.openai.web_search_request"
         )
         expect(rate.fetch(:source_version)).to be_a(String)
@@ -323,7 +323,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: :web_search_request, pricing_mode: :priority)
+        rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: :priority)
 
         expect(rate).to include(
           amount: BigDecimal("12.0"),
@@ -344,9 +344,9 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: :web_search_request, pricing_mode: nil)
+        rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: nil)
 
-        expect(rate).to include(amount: BigDecimal("10.0"), currency: "EUR", source: :prices_file)
+        expect(rate).to include(amount: BigDecimal("10.0"), currency: "EUR", source: "prices_file")
       end
     end
 
@@ -366,7 +366,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: :web_search_request,
+        rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
                                            pricing_mode: :batch_data_residency)
 
         expect(rate).to include(
@@ -391,7 +391,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: :web_search_request,
+        rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
                                            pricing_mode: :batch_data_residency)
 
         expect(rate).to include(
@@ -417,7 +417,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: :web_search_request,
+        rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
                                            pricing_mode: :batch_data_residency)
 
         expect(rate).to include(
@@ -430,7 +430,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
     it "falls back to bundled service charge rates" do
       allow(described_class).to receive(:builtin_rates).and_return(
         "anthropic" => {
-          web_search_request: {
+          "web_search_request" => {
             tiers: {},
             default: {
               amount: BigDecimal("5.0"),
@@ -442,12 +442,12 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         }
       )
 
-      rate = described_class.charge_rate(provider: "anthropic", component: :web_search_request, pricing_mode: nil)
+      rate = described_class.charge_rate(provider: "anthropic", component: "web_search_request", pricing_mode: nil)
 
       expect(rate).to include(
         amount: BigDecimal("5.0"),
         quantity: BigDecimal("1000"),
-        source: :bundled,
+        source: "bundled",
         source_key: "service_charges.anthropic.web_search_request",
         source_version: LlmCostTracker::VERSION
       )
@@ -456,7 +456,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
     it "accepts provider symbols at the call boundary" do
       allow(described_class).to receive(:builtin_rates).and_return(
         "anthropic" => {
-          web_search_request: {
+          "web_search_request" => {
             tiers: {},
             default: {
               amount: BigDecimal("5.0"),
@@ -468,9 +468,9 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         }
       )
 
-      rate = described_class.charge_rate(provider: :anthropic, component: :web_search_request, pricing_mode: nil)
+      rate = described_class.charge_rate(provider: :anthropic, component: "web_search_request", pricing_mode: nil)
 
-      expect(rate).to include(source: :bundled)
+      expect(rate).to include(source: "bundled")
     end
 
     it "rejects unknown billing components" do

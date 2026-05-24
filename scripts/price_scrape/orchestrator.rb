@@ -134,7 +134,7 @@ module LlmCostTracker
       end
 
       def preserved_model_field?(field)
-        field.start_with?("_") && field != LlmCostTracker::Pricing::Registry::CONTEXT_THRESHOLD_KEY.name
+        field.start_with?("_") && field != LlmCostTracker::Pricing::Registry::CONTEXT_THRESHOLD_KEY
       end
 
       def registry_key(provider, model_id)

@@ -7,10 +7,10 @@ module LlmCostTracker
     module Openai
       module ServiceCharges
         RESPONSE_OUTPUT_COMPONENTS = {
-          "web_search_call" => :web_search_request,
-          "file_search_call" => :file_search_call,
-          "code_interpreter_call" => :container_session,
-          "mcp_call" => :mcp_call
+          "web_search_call" => "web_search_request",
+          "file_search_call" => "file_search_call",
+          "code_interpreter_call" => "container_session",
+          "mcp_call" => "mcp_call"
         }.freeze
 
         module_function
@@ -62,7 +62,7 @@ module LlmCostTracker
 
           component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
           return false unless component
-          return true unless component == :web_search_request
+          return true unless component == "web_search_request"
 
           action_type = item.dig("action", "type")
           action_type.nil? || action_type == "search"
@@ -72,7 +72,7 @@ module LlmCostTracker
           return unless item.is_a?(Hash) && RESPONSE_OUTPUT_COMPONENTS.key?(item["type"])
 
           component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
-          key = if component == :container_session && item["container_id"]
+          key = if component == "container_session" && item["container_id"]
                   "#{component}:#{item['container_id']}"
                 else
                   item["id"] || "#{item['type']}:#{output_items.length}"
@@ -86,7 +86,7 @@ module LlmCostTracker
           component_key = component_key_for(item, request: request, model: model)
           return nil unless component_key
 
-          provider_item_id = if component_key == :container_session
+          provider_item_id = if component_key == "container_session"
                                item["container_id"] || item["id"]
                              else
                                item["id"]
@@ -95,7 +95,7 @@ module LlmCostTracker
             component_key: component_key,
             quantity: 1,
             cost_status: Billing::CostStatus::UNKNOWN,
-            pricing_basis: :provider_usage,
+            pricing_basis: "provider_usage",
             provider_field: item["provider_field"] || "response.output.#{item['type']}",
             provider_item_id: provider_item_id,
             details: line_item_details(item)
@@ -104,10 +104,10 @@ module LlmCostTracker
 
         def component_key_for(item, request:, model:)
           component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
-          return component unless component == :web_search_request
+          return component unless component == "web_search_request"
           return component unless web_search_preview_used?(request) || chat_completions_search_model?(model)
 
-          reasoning_model?(model) ? :web_search_preview_request_reasoning : :web_search_preview_request_non_reasoning
+          reasoning_model?(model) ? "web_search_preview_request_reasoning" : "web_search_preview_request_non_reasoning"
         end
 
         def web_search_preview_used?(request)

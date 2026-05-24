@@ -10,11 +10,11 @@ module LlmCostTracker
     module Registry
       DEFAULT_PRICES_PATH = File.expand_path("../prices.json", __dir__)
       EMPTY_PRICES = {}.freeze
-      CONTEXT_THRESHOLD_KEY = :_context_price_threshold_tokens
-      PRICE_KEYS = Billing::Components::TOKEN_PRICED.map { |component| component.key.name }.freeze
+      CONTEXT_THRESHOLD_KEY = "_context_price_threshold_tokens"
+      PRICE_KEYS = Billing::Components::TOKEN_PRICED.map(&:key).freeze
       METADATA_KEYS = [
         "_source", "_source_version", "_fetched_at", "_updated", "_notes", "_validator_override",
-        CONTEXT_THRESHOLD_KEY.name
+        CONTEXT_THRESHOLD_KEY
       ].freeze
       MUTEX = Mutex.new
 
@@ -140,21 +140,21 @@ module LlmCostTracker
         def price_key_for(key)
           name = key.to_s
           Billing::Components::REGISTRY.each do |candidate|
-            return candidate.key if candidate.key.name == name
+            return candidate.key if candidate.key == name
             next unless candidate.token_key
 
-            suffix = "_#{candidate.key.name}"
+            suffix = "_#{candidate.key}"
             next unless name.end_with?(suffix)
 
             prefix = name.delete_suffix(suffix)
-            return :"#{prefix}_#{candidate.key.name}" unless prefix.empty?
+            return "#{prefix}_#{candidate.key}" unless prefix.empty?
           end
 
           nil
         end
 
         def registry_key_for(key)
-          return CONTEXT_THRESHOLD_KEY if key == CONTEXT_THRESHOLD_KEY || key == CONTEXT_THRESHOLD_KEY.name
+          return CONTEXT_THRESHOLD_KEY if key.to_s == CONTEXT_THRESHOLD_KEY
 
           price_key_for(key)
         end

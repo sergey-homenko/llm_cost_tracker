@@ -2,7 +2,7 @@
 
 module LlmCostTracker
   KNOWN_TOKEN_KEYS = (
-    Billing::Components::TOKEN_PRICED.map(&:key) + %i[total hidden_output]
+    Billing::Components::TOKEN_PRICED.map(&:key) + %w[total hidden_output]
   ).freeze
 
   TokenUsage = Data.define(
@@ -26,7 +26,7 @@ module LlmCostTracker
       return tokens if tokens.is_a?(self)
       raise ArgumentError, "tokens must be a Hash, got #{tokens.class}" unless tokens.respond_to?(:to_h)
 
-      values = tokens.to_h.transform_keys(&:to_sym)
+      values = tokens.to_h.transform_keys(&:to_s)
       warn_on_unknown_keys(values)
       token_attributes = Billing::Components::TOKEN_PRICED.to_h do |component|
         [component.token_key, values.fetch(component.key, 0)]
@@ -34,8 +34,8 @@ module LlmCostTracker
 
       build(
         **token_attributes,
-        total_tokens: values[:total],
-        hidden_output_tokens: values.fetch(:hidden_output, 0)
+        total_tokens: values["total"],
+        hidden_output_tokens: values.fetch("hidden_output", 0)
       )
     end
 

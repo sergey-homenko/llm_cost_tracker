@@ -34,6 +34,6 @@ RSpec.describe LlmCostTracker::TokenUsageHelper do
 
     costs = helper.call_line_item_costs_by_component(call)
 
-    expect(costs).to include(input: BigDecimal("0.0025"))
+    expect(costs).to include("input" => BigDecimal("0.0025"))
   end
 end

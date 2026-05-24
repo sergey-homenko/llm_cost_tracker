@@ -105,9 +105,9 @@ module LlmCostTracker
 
         def ordered_table_lookups(current)
           [
-            [:pricing_overrides, current.fetch(:pricing_overrides)],
-            [:prices_file, current.fetch(:file_prices)],
-            [:bundled, Registry.builtin_prices]
+            ["pricing_overrides", current.fetch(:pricing_overrides)],
+            ["prices_file", current.fetch(:file_prices)],
+            ["bundled", Registry.builtin_prices]
           ]
         end
 
@@ -199,8 +199,8 @@ module LlmCostTracker
 
         def source_currency(source)
           case source
-          when :bundled then Registry.metadata["currency"] || DEFAULT_CURRENCY
-          when :prices_file
+          when "bundled" then Registry.metadata["currency"] || DEFAULT_CURRENCY
+          when "prices_file"
             Registry.file_metadata(LlmCostTracker.configuration.prices_file)["currency"] || DEFAULT_CURRENCY
           else DEFAULT_CURRENCY
           end

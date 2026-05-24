@@ -203,8 +203,8 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
         }.to_json
       )
 
-      service_lines = result.line_items.reject { |item| item.unit == :token }
-      expect(service_lines.map(&:kind)).to eq(%i[web_search_request code_execution_request])
+      service_lines = result.line_items.reject { |item| item.unit == "token" }
+      expect(service_lines.map(&:kind)).to eq(%w[web_search_request code_execution_request])
       expect(service_lines.map(&:quantity).map(&:to_i)).to eq([2, 1])
       expect(service_lines.map(&:cost_status).uniq).to eq([LlmCostTracker::Billing::CostStatus::UNKNOWN])
     end

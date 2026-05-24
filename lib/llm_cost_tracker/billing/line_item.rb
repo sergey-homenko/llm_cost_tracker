@@ -35,20 +35,20 @@ module LlmCostTracker
         attributes = attributes.to_h
         component = component_for(attributes)
         new(
-          kind: attributes[:kind]&.to_sym || component&.kind,
-          direction: attributes[:direction]&.to_sym || component&.direction,
-          modality: attributes[:modality]&.to_sym || component&.modality,
-          cache_state: attributes[:cache_state]&.to_sym || component&.cache_state,
+          kind: attributes[:kind]&.to_s || component&.kind,
+          direction: attributes[:direction]&.to_s || component&.direction,
+          modality: attributes[:modality]&.to_s || component&.modality,
+          cache_state: attributes[:cache_state]&.to_s || component&.cache_state,
           quantity: decimal_or_nil(attributes[:quantity]) || BigDecimal("0"),
-          unit: attributes[:unit]&.to_sym || component&.unit,
+          unit: attributes[:unit]&.to_s || component&.unit,
           rate_amount: decimal_or_nil(attributes[:rate_amount]),
           rate_quantity: decimal_or_nil(attributes[:rate_quantity]) || BigDecimal("1"),
           cost: decimal_or_nil(attributes[:cost]),
           currency: attributes[:currency] || USD,
           cost_status: cost_status_for(attributes),
-          pricing_basis: attributes[:pricing_basis]&.to_sym,
-          price_key: attributes[:price_key],
-          price_source: attributes[:price_source]&.to_sym,
+          pricing_basis: attributes[:pricing_basis]&.to_s,
+          price_key: attributes[:price_key]&.to_s,
+          price_source: attributes[:price_source]&.to_s,
           price_source_version: attributes[:price_source_version],
           provider_field: attributes[:provider_field],
           provider_item_id: attributes[:provider_item_id],
@@ -88,7 +88,7 @@ module LlmCostTracker
         component_key = attributes[:component_key] || attributes[:price_key]
         return nil unless component_key
 
-        Components::BY_KEY[component_key.to_sym]
+        Components::BY_KEY[component_key.to_s]
       end
 
       def self.decimal_or_nil(value)
@@ -112,7 +112,7 @@ module LlmCostTracker
       end
 
       def token?
-        unit == :token
+        unit == "token"
       end
 
       def cost_value

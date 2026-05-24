@@ -181,7 +181,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       capture_sdk_events do |events|
         client.audio.speech.create(model: "tts-1", voice: "alloy", input: "hello world")
 
-        line_item = events.first[:line_items].find { |item| item[:kind] == :text_to_speech_character }
+        line_item = events.first[:line_items].find { |item| item[:kind] == "text_to_speech_character" }
         expect(line_item[:quantity].to_i).to eq("hello world".length)
       end
     end
@@ -191,7 +191,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         client.audio.speech.create(model: "gpt-4o-mini-tts", voice: "alloy", input: "hello world")
 
         kinds = events.first[:line_items].map { |item| item[:kind] }
-        expect(kinds).not_to include(:text_to_speech_character)
+        expect(kinds).not_to include("text_to_speech_character")
       end
     end
   end
@@ -414,8 +414,8 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
       capture_sdk_events do |events|
         client.chat.completions.create(model: "gpt-4o", messages: [{ role: "user", content: "x" }])
-        kinds = events.first[:line_items].reject { |item| item[:unit] == :token }.map { |item| item[:kind] }
-        expect(kinds).to contain_exactly(:web_search_request)
+        kinds = events.first[:line_items].reject { |item| item[:unit] == "token" }.map { |item| item[:kind] }
+        expect(kinds).to contain_exactly("web_search_request")
       end
     end
 
@@ -433,8 +433,8 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       capture_sdk_events do |events|
         client.chat.completions.create(model: "gpt-4o-search-preview",
                                        messages: [{ role: "user", content: "x" }])
-        kinds = events.first[:line_items].reject { |item| item[:unit] == :token }.map { |item| item[:kind] }
-        expect(kinds).to contain_exactly(:web_search_preview_request_non_reasoning)
+        kinds = events.first[:line_items].reject { |item| item[:unit] == "token" }.map { |item| item[:kind] }
+        expect(kinds).to contain_exactly("web_search_preview_request_non_reasoning")
       end
     end
   end
@@ -471,8 +471,8 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
       capture_sdk_events do |events|
         client.responses.create(model: "gpt-4o", input: "hi")
-        kinds = events.first[:line_items].reject { |item| item[:unit] == :token }.map { |item| item[:kind] }
-        expect(kinds).to contain_exactly(:web_search_request, :file_search_call, :container_session)
+        kinds = events.first[:line_items].reject { |item| item[:unit] == "token" }.map { |item| item[:kind] }
+        expect(kinds).to contain_exactly("web_search_request", "file_search_call", "container_session")
       end
     end
   end

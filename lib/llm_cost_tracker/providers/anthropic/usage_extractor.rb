@@ -7,9 +7,9 @@ module LlmCostTracker
     module Anthropic
       module UsageExtractor
         SERVER_TOOL_LINE_ITEMS = {
-          web_search_request: :web_search_requests,
-          web_fetch_request: :web_fetch_requests,
-          code_execution_request: :code_execution_requests
+          "web_search_request" => :web_search_requests,
+          "web_fetch_request" => :web_fetch_requests,
+          "code_execution_request" => :code_execution_requests
         }.freeze
         private_constant :SERVER_TOOL_LINE_ITEMS
 
@@ -54,7 +54,7 @@ module LlmCostTracker
               component_key: component_key,
               quantity: quantity,
               cost_status: Billing::CostStatus::UNKNOWN,
-              pricing_basis: :provider_usage,
+              pricing_basis: "provider_usage",
               provider_field: "usage.server_tool_use.#{count_key}"
             )
           end

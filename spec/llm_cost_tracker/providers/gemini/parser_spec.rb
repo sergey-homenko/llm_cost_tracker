@@ -237,13 +237,13 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
         }.to_json
       )
 
-      service_lines = result.line_items.reject { |item| item.unit == :token }
+      service_lines = result.line_items.reject { |item| item.unit == "token" }
       expect(service_lines.size).to eq(1)
-      expect(service_lines.first.kind).to eq(:grounding_request)
+      expect(service_lines.first.kind).to eq("grounding_request")
       expect(service_lines.first.quantity).to eq(1)
       expect(service_lines.first.details).to include(web_search_queries: 2)
       expect(service_lines.first.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
-      expect(service_lines.first.pricing_basis).to eq(:provider_usage)
+      expect(service_lines.first.pricing_basis).to eq("provider_usage")
     end
 
     it "bills grounding per query for Gemini 3" do
@@ -263,7 +263,7 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
         }.to_json
       )
 
-      service_lines = result.line_items.reject { |item| item.unit == :token }
+      service_lines = result.line_items.reject { |item| item.unit == "token" }
       expect(service_lines.first.quantity).to eq(3)
       expect(service_lines.first.details).to include(web_search_queries: 3)
     end
@@ -397,9 +397,9 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
         events: events
       )
 
-      service_lines = result.line_items.reject { |item| item.unit == :token }
+      service_lines = result.line_items.reject { |item| item.unit == "token" }
       expect(service_lines.size).to eq(1)
-      expect(service_lines.first.kind).to eq(:grounding_request)
+      expect(service_lines.first.kind).to eq("grounding_request")
       expect(service_lines.first.quantity).to eq(1)
       expect(service_lines.first.details).to include(web_search_queries: 2)
     end
@@ -424,7 +424,7 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
         events: events
       )
 
-      service_lines = result.line_items.reject { |item| item.unit == :token }
+      service_lines = result.line_items.reject { |item| item.unit == "token" }
       expect(service_lines.first.quantity).to eq(3)
     end
 

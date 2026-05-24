@@ -4,7 +4,7 @@ module LlmCostTracker
   module Dashboard
     class PricingOverview
       SOURCES = %i[overrides file bundled].freeze
-      RATE_COLUMNS = %i[input output cache_read_input cache_write_input batch_input batch_output].freeze
+      RATE_COLUMNS = %w[input output cache_read_input cache_write_input batch_input batch_output].freeze
       Row = Data.define(:provider, :model, :rates)
 
       class << self

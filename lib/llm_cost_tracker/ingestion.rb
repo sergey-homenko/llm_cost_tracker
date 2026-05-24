@@ -162,7 +162,7 @@ module LlmCostTracker
 
       def sample_priced_identity
         key = LlmCostTracker::Pricing::Registry.builtin_prices.find do |model_id, prices|
-          model_id.include?("/") && prices[:input] && prices[:output]
+          model_id.include?("/") && prices["input"] && prices["output"]
         end&.first
         provider, model = key.to_s.split("/", 2)
         [provider || "openai", model || "gpt-4o-mini"]

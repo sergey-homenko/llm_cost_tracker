@@ -65,7 +65,7 @@ RSpec.describe LlmCostTracker::Tracker do
     it "drops service line items in a different currency from the header total and warns" do
       allow(LlmCostTracker::Logging).to receive(:warn)
       euro_line = LlmCostTracker::Billing::LineItem.build(
-        kind: :web_search_request,
+        kind: "web_search_request",
         direction: :service,
         modality: :request,
         unit: :request,
@@ -73,7 +73,7 @@ RSpec.describe LlmCostTracker::Tracker do
         cost: BigDecimal("0.50"),
         currency: "EUR",
         cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
-        component_key: :web_search_request
+        component_key: "web_search_request"
       )
 
       event = record(
@@ -91,7 +91,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "sums service line items into the header total when currency matches" do
       usd_line = LlmCostTracker::Billing::LineItem.build(
-        kind: :web_search_request,
+        kind: "web_search_request",
         direction: :service,
         modality: :request,
         unit: :request,
@@ -99,7 +99,7 @@ RSpec.describe LlmCostTracker::Tracker do
         cost: BigDecimal("0.30"),
         currency: "USD",
         cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
-        component_key: :web_search_request
+        component_key: "web_search_request"
       )
 
       event = record(
@@ -142,7 +142,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event[:provider_api_key_id]).to eq("key_notify")
       expect(event[:provider_workspace_id]).to eq("workspace_notify")
       expect(event[:batch]).to eq(true)
-      expect(event.dig(:pricing_snapshot, :rates, :input, :quantity)).to eq(1_000_000)
+      expect(event.dig(:pricing_snapshot, :rates, "input", :quantity)).to eq(1_000_000)
       expect(event[:tags]).to include(feature: "chat", user_id: 42)
       expect(event[:tracked_at]).to be_a(Time)
     end
@@ -330,10 +330,10 @@ RSpec.describe LlmCostTracker::Tracker do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "batchable-model" => {
-            input: 1.0,
-            output: 2.0,
-            batch_input: 0.5,
-            batch_output: 1.0
+            "input" => 1.0,
+            "output" => 2.0,
+            "batch_input" => 0.5,
+            "batch_output" => 1.0
           }
         }
       end
@@ -349,7 +349,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.pricing_mode).to eq(:batch)
       expect(event.total_cost).to eq(1.5)
       expect(event.tags).to eq(feature: "bulk")
-      expect(event.pricing_snapshot.fetch(:rates).fetch(:input).fetch(:amount)).to eq(0.5)
+      expect(event.pricing_snapshot.fetch(:rates).fetch("input").fetch(:amount)).to eq(0.5)
     end
 
     it "marks known token costs with unknown service charges as partial" do
@@ -359,7 +359,7 @@ RSpec.describe LlmCostTracker::Tracker do
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
         service_line_items: [
           {
-            component_key: :grounding_request,
+            component_key: "grounding_request",
             quantity: 1,
             cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
           }
@@ -368,7 +368,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
       expect(event.total_cost).to eq(0.0025)
       expect(event.cost_status).to eq(LlmCostTracker::Billing::CostStatus::PARTIAL)
-      service_line = event.line_items.find { |item| item.kind == :grounding_request }
+      service_line = event.line_items.find { |item| item.kind == "grounding_request" }
       expect(service_line).not_to be_nil
     end
 
@@ -379,16 +379,16 @@ RSpec.describe LlmCostTracker::Tracker do
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
         service_line_items: [
           {
-            component_key: :web_search_request,
+            component_key: "web_search_request",
             quantity: 2,
             cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN,
-            pricing_basis: :provider_usage,
+            pricing_basis: "provider_usage",
             provider_field: "usage.server_tool_use.web_search_requests"
           }
         ]
       )
 
-      line_item = event.line_items.find { |item| item.kind == :web_search_request }
+      line_item = event.line_items.find { |item| item.kind == "web_search_request" }
       expect(event.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
       expect(event.total_cost).to eq(0.023)
       expect(line_item.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
@@ -396,7 +396,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(line_item.rate_amount).to eq(BigDecimal("10.0"))
       expect(line_item.rate_quantity).to eq(BigDecimal("1000"))
       expect(line_item.price_key).to eq("service_charges.anthropic.web_search_request")
-      expect(line_item.price_source).to eq(:bundled)
+      expect(line_item.price_source).to eq("bundled")
       expect(line_item.provider_field).to eq("usage.server_tool_use.web_search_requests")
     end
 
@@ -409,7 +409,7 @@ RSpec.describe LlmCostTracker::Tracker do
           model: "unrecognized-model",
           token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 0, output_tokens: 0),
           service_line_items: [
-            { component_key: :web_search_request, quantity: 1, cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN }
+            { component_key: "web_search_request", quantity: 1, cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN }
           ]
         )
       end.not_to raise_error
@@ -422,7 +422,7 @@ RSpec.describe LlmCostTracker::Tracker do
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 0, output_tokens: 0),
         service_line_items: [
           {
-            component_key: :web_search_request,
+            component_key: "web_search_request",
             quantity: 1,
             cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
           }
@@ -438,10 +438,10 @@ RSpec.describe LlmCostTracker::Tracker do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "priority-model" => {
-            input: 1.0,
-            output: 2.0,
-            priority_input: 3.0,
-            priority_output: 4.0
+            "input" => 1.0,
+            "output" => 2.0,
+            "priority_input" => 3.0,
+            "priority_output" => 4.0
           }
         }
       end
@@ -461,12 +461,12 @@ RSpec.describe LlmCostTracker::Tracker do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "multi-mode-model" => {
-            input: 1.0,
-            output: 2.0,
-            batch_input: 0.5,
-            batch_output: 1.0,
-            priority_input: 3.0,
-            priority_output: 4.0
+            "input" => 1.0,
+            "output" => 2.0,
+            "batch_input" => 0.5,
+            "batch_output" => 1.0,
+            "priority_input" => 3.0,
+            "priority_output" => 4.0
           }
         }
       end
@@ -487,10 +487,10 @@ RSpec.describe LlmCostTracker::Tracker do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "metadata-mode-model" => {
-            input: 1.0,
-            output: 2.0,
-            batch_input: 0.5,
-            batch_output: 1.0
+            "input" => 1.0,
+            "output" => 2.0,
+            "batch_input" => 0.5,
+            "batch_output" => 1.0
           }
         }
       end

@@ -207,10 +207,10 @@ module LlmCostTracker
           billed_quantity = grounding_billed_quantity(query_count, model: model)
           [
             Billing::LineItem.build(
-              component_key: :grounding_request,
+              component_key: "grounding_request",
               quantity: billed_quantity,
               cost_status: Billing::CostStatus::UNKNOWN,
-              pricing_basis: :provider_usage,
+              pricing_basis: "provider_usage",
               provider_field: "response.candidates.groundingMetadata.webSearchQueries",
               details: { web_search_queries: query_count }
             )

@@ -78,7 +78,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::UsageExtractor do
         server_tool_use: { web_search_requests: 2, web_fetch_requests: 1, code_execution_requests: 0 }
       )
 
-      expect(items.map(&:kind)).to eq(%i[web_search_request web_fetch_request])
+      expect(items.map(&:kind)).to eq(%w[web_search_request web_fetch_request])
       expect(items.map(&:quantity).map(&:to_i)).to eq([2, 1])
       expect(items.map(&:cost_status).uniq).to eq([LlmCostTracker::Billing::CostStatus::UNKNOWN])
     end

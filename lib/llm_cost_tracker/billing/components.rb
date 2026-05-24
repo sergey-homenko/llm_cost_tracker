@@ -7,25 +7,25 @@ require_relative "../errors"
 module LlmCostTracker
   module Billing
     RATE_BASIS_QUANTITIES = {
-      per_million_tokens: 1_000_000,
-      per_million_characters: 1_000_000,
-      per_request: 1,
-      per_1k_requests: 1_000,
-      per_session: 1,
-      per_hour: 1,
-      per_gb_day: 1,
-      per_image: 1
+      "per_million_tokens" => 1_000_000,
+      "per_million_characters" => 1_000_000,
+      "per_request" => 1,
+      "per_1k_requests" => 1_000,
+      "per_session" => 1,
+      "per_hour" => 1,
+      "per_gb_day" => 1,
+      "per_image" => 1
     }.freeze
 
     RATE_BASES = RATE_BASIS_QUANTITIES.keys.freeze
 
     DEFAULT_RATE_BASIS_BY_UNIT = {
-      token: :per_million_tokens,
-      character: :per_million_characters,
-      request: :per_request,
-      session: :per_session,
-      hour: :per_hour,
-      image: :per_image
+      "token" => "per_million_tokens",
+      "character" => "per_million_characters",
+      "request" => "per_request",
+      "session" => "per_session",
+      "hour" => "per_hour",
+      "image" => "per_image"
     }.freeze
 
     module Components
@@ -47,8 +47,8 @@ module LlmCostTracker
         missing = REQUIRED_FIELDS - attributes.keys
         raise Error, "components.yml entry missing #{missing.join(', ')}: #{attributes.inspect}" if missing.any?
 
-        unit = attributes.fetch(:unit).to_sym
-        rate_basis = attributes[:rate_basis]&.to_sym || Billing::DEFAULT_RATE_BASIS_BY_UNIT[unit]
+        unit = attributes.fetch(:unit)
+        rate_basis = attributes[:rate_basis] || Billing::DEFAULT_RATE_BASIS_BY_UNIT[unit]
         if rate_basis.nil?
           raise Error, "components.yml entry needs rate_basis for unit #{unit.inspect}: #{attributes.inspect}"
         end
@@ -56,17 +56,12 @@ module LlmCostTracker
           raise Error, "components.yml entry has unknown rate_basis #{rate_basis.inspect}: #{attributes.inspect}"
         end
 
-        key = attributes.fetch(:key).to_sym
+        key = attributes.fetch(:key)
         Component.new(
-          key: key,
-          kind: attributes.fetch(:kind).to_sym,
-          direction: attributes.fetch(:direction).to_sym,
-          modality: attributes.fetch(:modality).to_sym,
-          cache_state: attributes.fetch(:cache_state).to_sym,
-          unit: unit,
+          **attributes.slice(*REQUIRED_FIELDS),
           rate_basis: rate_basis,
-          token_key: unit == :token ? :"#{key}_tokens" : nil,
-          cost_key: unit == :token ? :"#{key}_cost" : nil
+          token_key: unit == "token" ? :"#{key}_tokens" : nil,
+          cost_key: unit == "token" ? :"#{key}_cost" : nil
         )
       end
 

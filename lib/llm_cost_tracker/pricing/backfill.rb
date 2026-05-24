@@ -89,7 +89,7 @@ module LlmCostTracker
               currency: priced.currency,
               cost_status: priced.cost_status,
               price_key: priced.price_key,
-              price_source: priced.price_source&.to_s,
+              price_source: priced.price_source,
               price_source_version: priced.price_source_version
             )
           end

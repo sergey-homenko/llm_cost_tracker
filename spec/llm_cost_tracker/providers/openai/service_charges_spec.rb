@@ -34,7 +34,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
         request: { tools: [{ type: "web_search_preview" }] },
         model: "gpt-4o"
       )
-      expect(result.kind).to eq(:web_search_preview_request_non_reasoning)
+      expect(result.kind).to eq("web_search_preview_request_non_reasoning")
     end
 
     it "build_line_item dispatches web_search_call to the preview-reasoning component when the request used the preview tool with a reasoning model" do
@@ -43,7 +43,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
         request: { tools: [{ type: "web_search_preview" }] },
         model: "gpt-5-mini"
       )
-      expect(result.kind).to eq(:web_search_preview_request_reasoning)
+      expect(result.kind).to eq("web_search_preview_request_reasoning")
     end
 
     it "build_line_item keeps the standard web_search_request component when the request did not use the preview tool" do
@@ -52,7 +52,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
         request: { tools: [{ type: "web_search" }] },
         model: "gpt-4o"
       )
-      expect(result.kind).to eq(:web_search_request)
+      expect(result.kind).to eq("web_search_request")
     end
 
     it "classifies gpt-5-chat-latest as non-reasoning even though it starts with gpt-5" do
@@ -61,7 +61,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
         request: { tools: [{ type: "web_search_preview" }] },
         model: "gpt-5-chat-latest"
       )
-      expect(result.kind).to eq(:web_search_preview_request_non_reasoning)
+      expect(result.kind).to eq("web_search_preview_request_non_reasoning")
     end
 
     it "classifies dotted gpt-5 chat variants (5.1/5.2-chat-latest) as non-reasoning" do
@@ -71,7 +71,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
           request: { tools: [{ type: "web_search_preview" }] },
           model: model
         )
-        expect(result.kind).to eq(:web_search_preview_request_non_reasoning), "expected #{model} to be non-reasoning"
+        expect(result.kind).to eq("web_search_preview_request_non_reasoning"), "expected #{model} to be non-reasoning"
       end
     end
 
@@ -81,7 +81,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
         request: { tools: [{ type: "web_search_preview" }] },
         model: "o10"
       )
-      expect(result.kind).to eq(:web_search_preview_request_reasoning)
+      expect(result.kind).to eq("web_search_preview_request_reasoning")
     end
   end
 
@@ -105,7 +105,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
       items = described_class.service_line_items_for(response, request: {}, model: "gpt-4o-search-preview")
 
       expect(items.size).to eq(1)
-      expect(items.first.kind).to eq(:web_search_preview_request_non_reasoning)
+      expect(items.first.kind).to eq("web_search_preview_request_non_reasoning")
       expect(items.first.provider_item_id).to eq("chatcmpl_search_1")
       expect(items.first.provider_field).to eq("choices.message.annotations.url_citation")
     end
@@ -130,7 +130,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
       items = described_class.service_line_items_for(response, request: {}, model: "gpt-4o-search-preview")
 
       expect(items.size).to eq(1)
-      expect(items.first.kind).to eq(:web_search_preview_request_non_reasoning)
+      expect(items.first.kind).to eq("web_search_preview_request_non_reasoning")
       expect(items.first.provider_item_id).to eq("chatcmpl_no_cite_1")
       expect(items.first.provider_field).to eq("request.model")
     end
@@ -144,7 +144,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
       items = described_class.service_line_items_for(response, request: {}, model: "gpt-4o")
 
       expect(items.size).to eq(1)
-      expect(items.first.kind).to eq(:web_search_request)
+      expect(items.first.kind).to eq("web_search_request")
     end
   end
 
@@ -155,7 +155,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
         request: {},
         model: "gpt-4o-search-preview"
       )
-      expect(result.kind).to eq(:web_search_preview_request_non_reasoning)
+      expect(result.kind).to eq("web_search_preview_request_non_reasoning")
     end
 
     it "routes gpt-4o-mini-search-preview to the preview-non-reasoning rate" do
@@ -164,7 +164,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
         request: {},
         model: "gpt-4o-mini-search-preview"
       )
-      expect(result.kind).to eq(:web_search_preview_request_non_reasoning)
+      expect(result.kind).to eq("web_search_preview_request_non_reasoning")
     end
 
     it "routes gpt-5-search-api to the preview-reasoning rate (gpt-5 family is reasoning)" do
@@ -173,7 +173,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
         request: {},
         model: "gpt-5-search-api"
       )
-      expect(result.kind).to eq(:web_search_preview_request_reasoning)
+      expect(result.kind).to eq("web_search_preview_request_reasoning")
     end
 
     it "leaves a plain gpt-4o (no search model name, no preview tool) on the standard web_search_request rate" do
@@ -182,7 +182,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
         request: {},
         model: "gpt-4o"
       )
-      expect(result.kind).to eq(:web_search_request)
+      expect(result.kind).to eq("web_search_request")
     end
   end
 

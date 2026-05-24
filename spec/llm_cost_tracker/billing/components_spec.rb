@@ -23,51 +23,54 @@ RSpec.describe LlmCostTracker::Billing::Components do
   end
 
   it "loads identity fields from the YAML registry" do
-    grounding = described_class::BY_KEY.fetch(:grounding_request)
+    grounding = described_class::BY_KEY.fetch("grounding_request")
 
     expect(grounding).to have_attributes(
-      kind: :grounding_request,
-      direction: :neither,
-      modality: :text,
-      cache_state: :none,
-      unit: :request,
+      kind: "grounding_request",
+      direction: "neither",
+      modality: "text",
+      cache_state: "none",
+      unit: "request",
       token_key: nil,
       cost_key: nil,
-      rate_basis: :per_1k_requests
+      rate_basis: "per_1k_requests"
     )
+
+    input = described_class::BY_KEY.fetch("input")
+    expect(input).to have_attributes(token_key: :input_tokens, cost_key: :input_cost)
   end
 
   it "defaults the rate_basis from the unit when YAML omits the field" do
-    expect(described_class::BY_KEY.fetch(:input).rate_basis).to eq(:per_million_tokens)
-    expect(described_class::BY_KEY.fetch(:container_session).rate_basis).to eq(:per_session)
-    expect(described_class::BY_KEY.fetch(:code_execution_hour).rate_basis).to eq(:per_hour)
+    expect(described_class::BY_KEY.fetch("input").rate_basis).to eq("per_million_tokens")
+    expect(described_class::BY_KEY.fetch("container_session").rate_basis).to eq("per_session")
+    expect(described_class::BY_KEY.fetch("code_execution_hour").rate_basis).to eq("per_hour")
   end
 
   describe ".build" do
     it "raises when a required field is missing in the YAML entry" do
-      expect { described_class.build(key: :broken) }
+      expect { described_class.build(key: "broken") }
         .to raise_error(LlmCostTracker::Error,
                         include("components.yml entry missing kind"))
     end
 
     it "raises when rate_basis is not in the supported enum" do
       attributes = {
-        key: :weird, kind: :weird, direction: :neither, modality: :text,
-        cache_state: :none, unit: :widget, rate_basis: :per_widget
+        key: "weird", kind: "weird", direction: "neither", modality: "text",
+        cache_state: "none", unit: "widget", rate_basis: "per_widget"
       }
 
       expect { described_class.build(attributes) }
-        .to raise_error(LlmCostTracker::Error, /unknown rate_basis :per_widget/)
+        .to raise_error(LlmCostTracker::Error, /unknown rate_basis "per_widget"/)
     end
 
     it "raises when an unknown unit has no rate_basis to fall back on" do
       attributes = {
-        key: :unknown_unit, kind: :unknown_unit, direction: :neither, modality: :text,
-        cache_state: :none, unit: :widget
+        key: "unknown_unit", kind: "unknown_unit", direction: "neither", modality: "text",
+        cache_state: "none", unit: "widget"
       }
 
       expect { described_class.build(attributes) }
-        .to raise_error(LlmCostTracker::Error, /needs rate_basis for unit :widget/)
+        .to raise_error(LlmCostTracker::Error, /needs rate_basis for unit "widget"/)
     end
   end
 end

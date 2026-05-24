@@ -283,14 +283,14 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
         response_body: response_body
       )
 
-      service_lines = result.line_items.reject { |item| item.unit == :token }
+      service_lines = result.line_items.reject { |item| item.unit == "token" }
       expect(service_lines.map(&:kind)).to eq(
-        %i[web_search_request file_search_call container_session]
+        %w[web_search_request file_search_call container_session]
       )
       expect(service_lines.map(&:cost_status)).to all(
         eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
       )
-      expect(service_lines.map(&:pricing_basis)).to all(eq(:provider_usage))
+      expect(service_lines.map(&:pricing_basis)).to all(eq("provider_usage"))
       expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_123 fs_123 cntr_123])
       expect(service_lines.first.details).to include("action_type" => "search", "status" => "completed")
       expect(service_lines.last.details).to include("container_id" => "cntr_123")
@@ -344,8 +344,8 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
         response_body: response_body
       )
 
-      service_lines = result.line_items.reject { |item| item.unit == :token }
-      expect(service_lines.map(&:kind)).to eq(%i[web_search_request web_search_request])
+      service_lines = result.line_items.reject { |item| item.unit == "token" }
+      expect(service_lines.map(&:kind)).to eq(%w[web_search_request web_search_request])
       expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_123 ws_126])
     end
 
@@ -736,8 +736,8 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
         events: events
       )
 
-      service_lines = result.line_items.reject { |item| item.unit == :token }
-      expect(service_lines.map(&:kind)).to eq(%i[web_search_request file_search_call])
+      service_lines = result.line_items.reject { |item| item.unit == "token" }
+      expect(service_lines.map(&:kind)).to eq(%w[web_search_request file_search_call])
       expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_456 fs_456])
     end
 

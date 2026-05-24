@@ -129,12 +129,12 @@ RSpec.describe "ActiveRecord storage integration" do
       tokens: { input: 1_000, output: 0 },
       service_line_items: [
         {
-          component_key: :web_search_request,
+          component_key: "web_search_request",
           quantity: 1,
           rate_amount: 10,
           rate_quantity: 1_000,
           cost: 0.01,
-          pricing_basis: :provider_usage
+          pricing_basis: "provider_usage"
         }
       ]
     )
@@ -156,7 +156,7 @@ RSpec.describe "ActiveRecord storage integration" do
       tokens: { input: 1_000, output: 0 },
       service_line_items: [
         {
-          component_key: :grounding_request,
+          component_key: "grounding_request",
           quantity: 1,
           cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
         }

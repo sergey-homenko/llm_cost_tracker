@@ -108,9 +108,9 @@ module LlmCostTracker
         Billing::Components::REGISTRY.each do |component|
           next if component.token_key
 
-          return [component, nil] if key == component.key.name
+          return [component, nil] if key == component.key
 
-          suffix = "_#{component.key.name}"
+          suffix = "_#{component.key}"
           next unless key.end_with?(suffix)
 
           tier = key.delete_suffix(suffix)
@@ -149,7 +149,7 @@ module LlmCostTracker
         rate = rate_for(provider_table, component_key: component_key, pricing_mode: pricing_mode)
         if rate
           return {
-            source: :prices_file,
+            source: "prices_file",
             key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
             rate: rate
           }
@@ -161,7 +161,7 @@ module LlmCostTracker
         return unless rate
 
         {
-          source: :bundled,
+          source: "bundled",
           key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
           rate: rate
         }
@@ -197,7 +197,7 @@ module LlmCostTracker
       end
 
       def rate_source_version_for(source)
-        return LlmCostTracker::VERSION if source == :bundled
+        return LlmCostTracker::VERSION if source == "bundled"
 
         Lookup.prices_file_mtime_iso
       end

@@ -32,10 +32,10 @@ module LlmCostTracker
           return contextual_price(prices: prices, key: key, context_tier: context_tier) unless orderings
 
           orderings.each do |mode|
-            direct = contextual_price(prices: prices, key: :"#{mode}_#{key}", context_tier: context_tier)
+            direct = contextual_price(prices: prices, key: "#{mode}_#{key}", context_tier: context_tier)
             return direct if direct
           end
-          return nil if %i[input output].include?(key)
+          return nil if %w[input output].include?(key)
 
           derived_mode_price(prices: prices, key: key, modes: orderings, context_tier: context_tier)
         end
@@ -43,24 +43,24 @@ module LlmCostTracker
         def contextual_price(prices:, key:, context_tier:)
           return prices[key] unless context_tier
 
-          prices[:"above_context_#{key}"]
+          prices["above_context_#{key}"]
         end
 
         def derived_mode_price(prices:, key:, modes:, context_tier:)
           standard_price = contextual_price(prices: prices, key: key, context_tier: context_tier)
-          base_price = contextual_price(prices: prices, key: :input, context_tier: context_tier)
+          base_price = contextual_price(prices: prices, key: "input", context_tier: context_tier)
           return nil unless standard_price && base_price
           return nil if base_price.zero?
 
           modes.each do |mode|
-            mode_base_price = contextual_price(prices: prices, key: :"#{mode}_input", context_tier: context_tier)
+            mode_base_price = contextual_price(prices: prices, key: "#{mode}_input", context_tier: context_tier)
             return standard_price * (mode_base_price / base_price) if mode_base_price
           end
           nil
         end
 
         def context_tier?(usage:, prices:)
-          threshold = prices[:_context_price_threshold_tokens]
+          threshold = prices[Registry::CONTEXT_THRESHOLD_KEY]
           return false unless threshold
 
           input_tokens = usage.input_tokens +

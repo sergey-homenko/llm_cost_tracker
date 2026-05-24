@@ -33,12 +33,12 @@ RSpec.describe LlmCostTracker::TokenUsage do
   it "builds from public token component keys" do
     usage = described_class.build_from_tokens(
       input: 10,
-      cache_read_input: 2,
-      cache_write_input: 3,
-      cache_write_extended_input: 4,
-      audio_input: 7,
-      output: 5,
-      audio_output: 8,
+      "cache_read_input" => 2,
+      "cache_write_input" => 3,
+      "cache_write_extended_input" => 4,
+      "audio_input" => 7,
+      "output" => 5,
+      "audio_output" => 8,
       hidden_output: 6
     )
 

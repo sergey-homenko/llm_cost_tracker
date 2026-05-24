@@ -5,7 +5,7 @@ require "spec_helper"
 RSpec.describe LlmCostTracker::Billing::CostStatus do
   let(:token_usage) { LlmCostTracker::TokenUsage.build(input_tokens: 0, output_tokens: 0) }
 
-  def service_line_item(component_key: :web_search_request, quantity: 1, cost: nil, cost_status: nil)
+  def service_line_item(component_key: "web_search_request", quantity: 1, cost: nil, cost_status: nil)
     LlmCostTracker::Billing::LineItem.build(
       component_key: component_key,
       quantity: quantity,

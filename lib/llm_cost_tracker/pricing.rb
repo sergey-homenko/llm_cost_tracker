@@ -167,7 +167,7 @@ module LlmCostTracker
 
       def apply_calculation_to_line_items(line_items, calculation, provider:, pricing_mode:)
         line_items.map do |line_item|
-          next price_token_line_item(line_item, calculation) if line_item.unit == :token
+          next price_token_line_item(line_item, calculation) if line_item.unit == "token"
 
           price_service_charge_line_item(line_item,
                                          provider: provider,
@@ -213,7 +213,7 @@ module LlmCostTracker
         return nil unless calculation
 
         match = calculation[:match]
-        amount = match.prices[line_item.kind] || match.prices[line_item.kind.to_s]
+        amount = match.prices[line_item.kind]
         return nil unless amount.is_a?(Numeric)
 
         component = Billing::Components::BY_KEY[line_item.kind]
@@ -239,11 +239,11 @@ module LlmCostTracker
 
       def source_version_for(source)
         case source
-        when :bundled
+        when "bundled"
           LlmCostTracker::VERSION
-        when :prices_file
+        when "prices_file"
           Lookup.prices_file_mtime_iso
-        when :pricing_overrides
+        when "pricing_overrides"
           "configuration"
         end
       end
