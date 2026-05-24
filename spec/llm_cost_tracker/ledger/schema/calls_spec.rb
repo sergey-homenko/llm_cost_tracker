@@ -3,8 +3,8 @@
 require "spec_helper"
 
 RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
-  describe "CURRENT_SCHEMA_COLUMNS" do
-    let(:schema_columns) { described_class::CURRENT_SCHEMA_COLUMNS }
+  describe "REQUIRED_COLUMNS" do
+    let(:schema_columns) { described_class::REQUIRED_COLUMNS }
     let(:fixed_schema_columns) do
       %w[
         event_id
@@ -29,7 +29,7 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
     it "includes every TokenUsage field" do
       missing = LlmCostTracker::TokenUsage.members.map(&:to_s) - schema_columns
       message = "TokenUsage members not declared in schema: #{missing.join(', ')}; " \
-                "add migration and update CURRENT_SCHEMA_COLUMNS"
+                "add migration and update REQUIRED_COLUMNS"
 
       expect(missing).to be_empty, message
     end

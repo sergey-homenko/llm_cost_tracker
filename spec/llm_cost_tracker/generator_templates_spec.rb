@@ -350,7 +350,7 @@ RSpec.describe "generator templates" do
     end
 
     it "covers every Calls schema column in the install migration" do
-      columns = LlmCostTracker::Ledger::Schema::Calls::CURRENT_SCHEMA_COLUMNS - auto_columns
+      columns = LlmCostTracker::Ledger::Schema::Calls::REQUIRED_COLUMNS - auto_columns
       expect_columns_in(install_migration, columns)
     end
 

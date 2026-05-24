@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- Dashboard "Setup required" page now flags missing `llm_cost_tracker_ingestion_inbox_entries` and `llm_cost_tracker_ingestion_leases` tables when `ingestion: :async` is configured — previously the drift only surfaced as a worker boot crash.
 - RubyLLM SDK integration over-subtracted cache-read tokens from recorded `input_tokens` on chat completions, so the figure landed in the ledger short by the cache-read amount; the gem now passes RubyLLM's net `input_tokens` through unchanged.
 - RubyLLM SDK integration recorded `pricing_mode` as nil for every call regardless of the provider's `service_tier`. Anthropic batch-mode chat completions now land with `pricing_mode: :batch` (and price against batch rates) instead of falling to standard rates.
 

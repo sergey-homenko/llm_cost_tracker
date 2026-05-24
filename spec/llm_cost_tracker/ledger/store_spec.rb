@@ -200,7 +200,7 @@ RSpec.describe "ActiveRecord storage integration" do
     ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_calls, :pricing_mode)
     LlmCostTracker::Call.reset_column_information
 
-    expect(LlmCostTracker::Ledger::Schema::Calls.missing_current_schema_columns).to include("pricing_mode")
+    expect(LlmCostTracker::Ledger::Schema::Calls.missing_required_columns).to include("pricing_mode")
     expect(LlmCostTracker::Ledger::Schema::Calls.current_schema_errors.join).to include("missing columns: pricing_mode")
   end
 
@@ -859,7 +859,7 @@ RSpec.describe "ActiveRecord storage integration" do
     ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_calls, :latency_ms)
     LlmCostTracker::Call.reset_column_information
 
-    expect(LlmCostTracker::Ledger::Schema::Calls.missing_current_schema_columns).to include("latency_ms")
+    expect(LlmCostTracker::Ledger::Schema::Calls.missing_required_columns).to include("latency_ms")
     expect(LlmCostTracker::Ledger::Schema::Calls.current_schema_errors.join).to include("missing columns: latency_ms")
   end
 

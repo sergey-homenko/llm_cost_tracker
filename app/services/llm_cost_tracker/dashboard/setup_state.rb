@@ -48,17 +48,11 @@ module LlmCostTracker
           LlmCostTracker::Logging.debug("Dashboard::SetupState recomputing")
           return calls_table_missing unless LlmCostTracker::Call.table_exists?
 
-          core_drift = drift_in(schema_checks_for_current_config)
+          core_drift = drift_in(LlmCostTracker::Ingestion.guards_for_current_config)
           return core_drift if core_drift
           return nil unless LlmCostTracker.reconciliation_enabled?
 
           reconciliation_drift
-        end
-
-        def schema_checks_for_current_config
-          return LlmCostTracker::Ledger::Schema::CORE_SCHEMAS unless LlmCostTracker.configuration.cache_rollups
-
-          LlmCostTracker::Ledger::Schema::CORE_SCHEMAS + [LlmCostTracker::Ledger::Schema::CACHE_ROLLUPS_SCHEMA]
         end
 
         def drift_in(checks)

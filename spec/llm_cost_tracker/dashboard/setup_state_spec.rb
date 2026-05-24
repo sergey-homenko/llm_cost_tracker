@@ -46,5 +46,18 @@ RSpec.describe LlmCostTracker::Dashboard::SetupState do
 
       expect(drift.message).to include("not available yet")
     end
+
+    it "reports drift on async ingestion tables when ingestion is async" do
+      described_class.reset!
+      allow(LlmCostTracker::Ingestion).to receive(:async?).and_return(true)
+      allow(LlmCostTracker::Ledger::Schema::IngestionInboxEntries)
+        .to receive(:current_schema_errors)
+        .and_return(["missing columns: payload"])
+
+      drift = described_class.current
+
+      expect(drift.message).to include("llm_cost_tracker_ingestion_inbox_entries")
+      expect(drift.details).to include("missing columns: payload")
+    end
   end
 end

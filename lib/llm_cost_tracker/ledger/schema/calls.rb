@@ -6,7 +6,7 @@ module LlmCostTracker
   module Ledger
     module Schema
       module Calls
-        CURRENT_SCHEMA_COLUMNS = %w[
+        REQUIRED_COLUMNS = %w[
           event_id
           provider
           model
@@ -51,8 +51,8 @@ module LlmCostTracker
             schema_capabilities.fetch(:current_schema_errors)
           end
 
-          def missing_current_schema_columns
-            schema_capabilities.fetch(:missing_current_schema_columns)
+          def missing_required_columns
+            schema_capabilities.fetch(:missing_required_columns)
           end
 
           private
@@ -74,7 +74,7 @@ module LlmCostTracker
             Ledger::Schema::Adapter.ensure_supported!(adapter_name)
 
             {
-              missing_current_schema_columns: missing_columns_for(columns),
+              missing_required_columns: missing_columns_for(columns),
               current_schema_errors: schema_errors_for(columns, adapter_name)
             }
           end
@@ -99,7 +99,7 @@ module LlmCostTracker
           end
 
           def missing_columns_for(columns)
-            CURRENT_SCHEMA_COLUMNS - columns.keys
+            REQUIRED_COLUMNS - columns.keys
           end
         end
       end
