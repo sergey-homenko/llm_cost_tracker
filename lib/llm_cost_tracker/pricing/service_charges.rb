@@ -135,7 +135,7 @@ module LlmCostTracker
       end
 
       def rate_quantity(component)
-        BigDecimal(Billing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis, 1).to_s)
+        BigDecimal(Billing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis).to_s)
       end
 
       def charge_rate_match(provider:, component:, pricing_mode:)

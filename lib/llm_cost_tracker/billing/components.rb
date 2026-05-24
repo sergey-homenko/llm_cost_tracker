@@ -17,8 +17,6 @@ module LlmCostTracker
       "per_image" => 1
     }.freeze
 
-    RATE_BASES = RATE_BASIS_QUANTITIES.keys.freeze
-
     DEFAULT_RATE_BASIS_BY_UNIT = {
       "token" => "per_million_tokens",
       "character" => "per_million_characters",
@@ -44,22 +42,11 @@ module LlmCostTracker
       end
 
       def self.build(attributes)
-        missing = REQUIRED_FIELDS - attributes.keys
-        raise Error, "components.yml entry missing #{missing.join(', ')}: #{attributes.inspect}" if missing.any?
-
         unit = attributes.fetch(:unit)
-        rate_basis = attributes[:rate_basis] || Billing::DEFAULT_RATE_BASIS_BY_UNIT[unit]
-        if rate_basis.nil?
-          raise Error, "components.yml entry needs rate_basis for unit #{unit.inspect}: #{attributes.inspect}"
-        end
-        unless Billing::RATE_BASES.include?(rate_basis)
-          raise Error, "components.yml entry has unknown rate_basis #{rate_basis.inspect}: #{attributes.inspect}"
-        end
-
         key = attributes.fetch(:key)
         Component.new(
           **attributes.slice(*REQUIRED_FIELDS),
-          rate_basis: rate_basis,
+          rate_basis: attributes[:rate_basis] || Billing::DEFAULT_RATE_BASIS_BY_UNIT.fetch(unit),
           token_key: unit == "token" ? :"#{key}_tokens" : nil,
           cost_key: unit == "token" ? :"#{key}_cost" : nil
         )

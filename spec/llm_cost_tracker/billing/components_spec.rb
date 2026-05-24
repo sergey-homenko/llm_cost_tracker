@@ -46,31 +46,10 @@ RSpec.describe LlmCostTracker::Billing::Components do
     expect(described_class::BY_KEY.fetch("code_execution_hour").rate_basis).to eq("per_hour")
   end
 
-  describe ".build" do
-    it "raises when a required field is missing in the YAML entry" do
-      expect { described_class.build(key: "broken") }
-        .to raise_error(LlmCostTracker::Error,
-                        include("components.yml entry missing kind"))
-    end
-
-    it "raises when rate_basis is not in the supported enum" do
-      attributes = {
-        key: "weird", kind: "weird", direction: "neither", modality: "text",
-        cache_state: "none", unit: "widget", rate_basis: "per_widget"
-      }
-
-      expect { described_class.build(attributes) }
-        .to raise_error(LlmCostTracker::Error, /unknown rate_basis "per_widget"/)
-    end
-
-    it "raises when an unknown unit has no rate_basis to fall back on" do
-      attributes = {
-        key: "unknown_unit", kind: "unknown_unit", direction: "neither", modality: "text",
-        cache_state: "none", unit: "widget"
-      }
-
-      expect { described_class.build(attributes) }
-        .to raise_error(LlmCostTracker::Error, /needs rate_basis for unit "widget"/)
+  it "uses only rate_basis values that the pricing engine knows how to quantify" do
+    described_class::REGISTRY.each do |component|
+      expect(LlmCostTracker::Billing::RATE_BASIS_QUANTITIES).to have_key(component.rate_basis),
+        -> { "#{component.key} declares unknown rate_basis #{component.rate_basis.inspect}" }
     end
   end
 end
