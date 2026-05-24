@@ -39,11 +39,11 @@ module LlmCostTracker
             total, unknown_pricing_count, untagged_calls_count, missing_latency_count, streaming_count,
             streaming_missing_usage, missing_provider_response_id_count, calls_with_pricing, tagged_calls,
             calls_with_latency, streams_with_usage, calls_with_provider_response_id,
-            Percent.of(unknown_pricing_count, total), Percent.of(untagged_calls_count, total),
-            Percent.of(missing_latency_count, total), Percent.of(streaming_count, total),
-            Percent.of(streaming_missing_usage, streaming_count), Percent.of(calls_with_pricing, total),
-            Percent.of(tagged_calls, total), Percent.of(calls_with_latency, total),
-            Percent.of(streams_with_usage, streaming_count), Percent.of(calls_with_provider_response_id, total)
+            percentage(unknown_pricing_count, total), percentage(untagged_calls_count, total),
+            percentage(missing_latency_count, total), percentage(streaming_count, total),
+            percentage(streaming_missing_usage, streaming_count), percentage(calls_with_pricing, total),
+            percentage(tagged_calls, total), percentage(calls_with_latency, total),
+            percentage(streams_with_usage, streaming_count), percentage(calls_with_provider_response_id, total)
           )
         end
 
@@ -56,7 +56,7 @@ module LlmCostTracker
                .map do |row|
                  calls = row.calls.to_i
                  UnknownPricingRow.new(provider: row.provider, model: row.model, calls: calls,
-                                       share_percent: Percent.of(calls, total_calls))
+                                       share_percent: percentage(calls, total_calls))
                end
         end
 
@@ -94,7 +94,7 @@ module LlmCostTracker
               cost_key: component.cost_key,
               token_value: token_value,
               cost_value: component_costs[component.key],
-              share_percent: Percent.of(token_value, billable_tokens),
+              share_percent: percentage(token_value, billable_tokens),
               share_basis: nil
             }
           end
@@ -149,7 +149,7 @@ module LlmCostTracker
               streams: streams_count,
               with_usage: streams_count - unknown_count,
               unknown: unknown_count,
-              unknown_share: Percent.of(unknown_count, streams_count)
+              unknown_share: percentage(unknown_count, streams_count)
             )
           end
         end
@@ -176,6 +176,12 @@ module LlmCostTracker
             end
             accumulator[component.key] = cost if component
           end
+        end
+
+        def percentage(numerator, denominator)
+          return 0.0 unless denominator.positive?
+
+          (numerator.to_f / denominator) * 100.0
         end
 
         def aggregate_selects(scope)
