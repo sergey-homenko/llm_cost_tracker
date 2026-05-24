@@ -44,10 +44,6 @@ module LlmCostTracker
         )
       end
 
-      def threshold
-        Reconciliation::DEFAULT_THRESHOLD_PERCENT
-      end
-
       def scope_label(scope)
         "#{scope[:source]}/#{scope[:provider]}/#{scope[:currency]}"
       end
@@ -63,7 +59,9 @@ module LlmCostTracker
         return stale_check(scope) if window.nil?
 
         diff = run_diff(scope, window)
-        return ok_check(scope, window, diff) if diff.aligned?(threshold_percent: threshold)
+        if diff.aligned?(threshold_percent: Reconciliation::DEFAULT_THRESHOLD_PERCENT)
+          return ok_check(scope, window, diff)
+        end
 
         warn_check(scope, window, diff)
       end
@@ -118,7 +116,7 @@ module LlmCostTracker
           "invoice reconciliation: #{scope_label(scope)}",
           "#{window.period_start}..#{window.period_end} drift " \
           "delta=#{diff.delta_amount.to_s('F')} (#{diff.delta_percent}%) " \
-          "exceeds #{threshold}% threshold"
+          "exceeds #{Reconciliation::DEFAULT_THRESHOLD_PERCENT}% threshold"
         )
       end
     end

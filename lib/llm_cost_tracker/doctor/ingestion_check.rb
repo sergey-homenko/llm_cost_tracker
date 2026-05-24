@@ -16,13 +16,13 @@ module LlmCostTracker
         missing = missing_parts
         if missing.empty?
           inbox = inbox_snapshot
-          quarantined = inbox.try(:quarantined_count).to_i
+          quarantined = inbox.quarantined_count.to_i
           if quarantined.positive?
             return Check.new(:warn, "async ingestion", "#{quarantined} inbox entries quarantined after retries")
           end
 
-          pending_count = inbox.try(:pending_count).to_i
-          oldest_pending_at = inbox.try(:oldest_pending_at)&.to_time&.utc
+          pending_count = inbox.pending_count.to_i
+          oldest_pending_at = inbox.oldest_pending_at&.to_time&.utc
           pending_age = oldest_pending_at && (Time.now.utc - oldest_pending_at)
           if pending_count.positive? && pending_age && pending_age >= PENDING_AGE_WARNING_SECONDS
             return Check.new(
@@ -40,6 +40,8 @@ module LlmCostTracker
           "async ingestion",
           "missing #{missing.join(', ')}; see docs/upgrading.md for the recovery steps"
         )
+      rescue ActiveRecord::ActiveRecordError => e
+        Check.new(:error, "async ingestion", "#{e.class}: #{e.message}")
       end
 
       private
@@ -88,8 +90,6 @@ module LlmCostTracker
             "THEN created_at ELSE NULL END) AS oldest_pending_at"
           )
           .take
-      rescue StandardError
-        nil
       end
     end
   end

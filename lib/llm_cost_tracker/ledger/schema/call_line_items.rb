@@ -62,8 +62,6 @@ module LlmCostTracker
               fk.column.to_s == "llm_cost_tracker_call_id" &&
                 fk.to_table.to_s == "llm_cost_tracker_calls"
             end
-          rescue NotImplementedError, NoMethodError
-            false
           end
 
           def missing_fk_error

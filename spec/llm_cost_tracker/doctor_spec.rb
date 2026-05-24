@@ -107,6 +107,17 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(checks.map(&:name)).not_to include("provider invoices")
     end
 
+    it "surfaces an inbox-query failure as :error instead of falsely reporting :ok" do
+      allow(LlmCostTracker::Ingestion).to receive(:async?).and_return(true)
+      allow(LlmCostTracker::Ingestion::InboxEntry).to receive(:select)
+        .and_raise(ActiveRecord::StatementInvalid.new("connection lost"))
+
+      check = described_class::IngestionCheck.new.call
+
+      expect(check.status).to eq(:error)
+      expect(check.message).to include("ActiveRecord::StatementInvalid", "connection lost")
+    end
+
     context "with reconciliation enabled" do
       include_context "with reconciliation enabled"
 
