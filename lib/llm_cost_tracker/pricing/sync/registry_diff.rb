@@ -6,13 +6,15 @@ module LlmCostTracker
       module RegistryDiff
         class << self
           def call(current_models, updated_models)
-            current_models = normalize_models(current_models)
-            updated_models = normalize_models(updated_models)
+            current_models = Registry.normalize_price_table(current_models)
+            updated_models = Registry.normalize_price_table(updated_models)
 
             (current_models.keys | updated_models.keys).sort.each_with_object({}) do |model, changes|
               fields = price_field_changes(current_models[model], updated_models[model])
               changes[model] = fields if fields.any?
             end
+          rescue ArgumentError, TypeError => e
+            raise Error, e.message
           end
 
           private
@@ -28,12 +30,6 @@ module LlmCostTracker
 
               changes[field] = { "from" => from, "to" => to }
             end
-          end
-
-          def normalize_models(models)
-            Registry.normalize_price_table(models)
-          rescue ArgumentError, TypeError => e
-            raise Error, e.message
           end
         end
       end
