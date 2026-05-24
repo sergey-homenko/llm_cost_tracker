@@ -63,9 +63,7 @@ module LlmCostTracker
 
       yield(config)
       config.finalize!
-      Pricing::Lookup.reset!
-      Pricing::Registry.reset!
-      Pricing::ServiceCharges.reset!
+      Pricing.reset_caches!
       Integrations.install!
       config
     end
@@ -74,9 +72,7 @@ module LlmCostTracker
       Ingestion::Worker.shutdown!(drain: false)
       Ingestion::Pool.reset!
       @configuration = Configuration.new
-      Pricing::Lookup.reset!
-      Pricing::Registry.reset!
-      Pricing::ServiceCharges.reset!
+      Pricing.reset_caches!
       Pricing::Unknown.reset!
       Ingestion::Worker.reset!
       Tags::Context.clear!

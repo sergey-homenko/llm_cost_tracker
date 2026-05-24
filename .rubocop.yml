@@ -42,6 +42,8 @@ Metrics/ClassLength:
 
 Metrics/ModuleLength:
   Max: 200
+  Exclude:
+    - "lib/llm_cost_tracker/pricing.rb"
 
 Metrics/CyclomaticComplexity:
   Max: 12

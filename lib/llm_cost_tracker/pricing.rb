@@ -19,6 +19,12 @@ module LlmCostTracker
     private_constant :RATE_DENOMINATOR_TOKENS
 
     class << self
+      def reset_caches!
+        Lookup.reset!
+        Registry.reset!
+        ServiceCharges.reset!
+      end
+
       def cost_for(provider:, model:, tokens:, pricing_mode: nil)
         calculation = calculation_for(
           provider: provider,
