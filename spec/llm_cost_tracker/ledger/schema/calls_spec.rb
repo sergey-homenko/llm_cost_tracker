@@ -72,11 +72,11 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
       expect(described_class.current_schema_errors).to include("missing index: provider, tracked_at")
     end
 
-    it "swallows index lookup failures so doctor never crashes the boot path" do
+    it "surfaces index lookup failures instead of reporting a false green" do
       allow(LlmCostTracker::Call.connection).to receive(:index_exists?).and_raise("connection lost")
       described_class.instance_variable_set(:@schema_capabilities, nil)
 
-      expect { described_class.current_schema_errors }.not_to raise_error
+      expect { described_class.current_schema_errors }.to raise_error("connection lost")
     end
   end
 end

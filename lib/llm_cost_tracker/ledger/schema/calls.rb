@@ -96,8 +96,6 @@ module LlmCostTracker
               prefix = spec[:unique] ? "unique " : ""
               "missing #{prefix}index: #{Array(spec[:columns]).join(', ')}"
             end
-          rescue StandardError
-            []
           end
 
           def missing_columns_for(columns)
