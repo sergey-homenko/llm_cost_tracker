@@ -26,7 +26,7 @@ module LlmCostTracker
 
         line_item_totals = LlmCostTracker::CallLineItem
                            .where(llm_cost_tracker_call_id: sampled.map(&:first))
-                           .where(currency: Ledger::Rollups::DEFAULT_CURRENCY)
+                           .where(currency: Billing::DEFAULT_CURRENCY)
                            .group(:llm_cost_tracker_call_id)
                            .sum(:cost)
 

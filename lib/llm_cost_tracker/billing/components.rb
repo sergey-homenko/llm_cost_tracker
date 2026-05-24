@@ -6,6 +6,8 @@ require_relative "../errors"
 
 module LlmCostTracker
   module Billing
+    DEFAULT_CURRENCY = "USD"
+
     RATE_BASIS_QUANTITIES = {
       "per_million_tokens" => 1_000_000,
       "per_million_characters" => 1_000_000,

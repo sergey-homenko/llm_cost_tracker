@@ -29,8 +29,6 @@ module LlmCostTracker
     )
 
     class LineItem
-      USD = "USD"
-
       def self.build(attributes)
         attributes = attributes.to_h
         component = component_for(attributes)
@@ -44,7 +42,7 @@ module LlmCostTracker
           rate_amount: decimal_or_nil(attributes[:rate_amount]),
           rate_quantity: decimal_or_nil(attributes[:rate_quantity]) || BigDecimal("1"),
           cost: decimal_or_nil(attributes[:cost]),
-          currency: attributes[:currency] || USD,
+          currency: attributes[:currency] || DEFAULT_CURRENCY,
           cost_status: cost_status_for(attributes),
           pricing_basis: attributes[:pricing_basis]&.to_s,
           price_key: attributes[:price_key]&.to_s,

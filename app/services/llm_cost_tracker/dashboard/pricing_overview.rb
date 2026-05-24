@@ -59,7 +59,7 @@ module LlmCostTracker
           label: "Custom file",
           subtitle: path.to_s,
           updated_at: meta["updated_at"] || Pricing::Lookup.prices_file_mtime_iso,
-          currency: meta["currency"] || Pricing::Lookup::DEFAULT_CURRENCY,
+          currency: meta["currency"] || Billing::DEFAULT_CURRENCY,
           rows: build_rows(prices)
         }
       end
@@ -71,7 +71,7 @@ module LlmCostTracker
           label: "Bundled",
           subtitle: "ships with the gem",
           updated_at: meta["updated_at"],
-          currency: meta["currency"] || Pricing::Lookup::DEFAULT_CURRENCY,
+          currency: meta["currency"] || Billing::DEFAULT_CURRENCY,
           rows: build_rows(prices)
         }
       end

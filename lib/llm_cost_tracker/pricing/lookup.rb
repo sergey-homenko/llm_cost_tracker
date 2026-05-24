@@ -4,7 +4,6 @@ module LlmCostTracker
   module Pricing
     module Lookup
       Match = Data.define(:source, :key, :prices, :matched_by, :currency)
-      DEFAULT_CURRENCY = "USD"
       MUTEX = Mutex.new
       CACHE_MISS = Object.new.freeze
       NO_MATCH = Object.new.freeze
@@ -199,10 +198,10 @@ module LlmCostTracker
 
         def source_currency(source)
           case source
-          when "bundled" then Registry.metadata["currency"] || DEFAULT_CURRENCY
+          when "bundled" then Registry.metadata["currency"] || Billing::DEFAULT_CURRENCY
           when "prices_file"
-            Registry.file_metadata(LlmCostTracker.configuration.prices_file)["currency"] || DEFAULT_CURRENCY
-          else DEFAULT_CURRENCY
+            Registry.file_metadata(LlmCostTracker.configuration.prices_file)["currency"] || Billing::DEFAULT_CURRENCY
+          else Billing::DEFAULT_CURRENCY
           end
         end
 

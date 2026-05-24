@@ -89,7 +89,7 @@ module LlmCostTracker
       private
 
       def base_currency_for(cost_data, priced_services)
-        (cost_data && cost_data[:currency]) || priced_services.first.currency || Billing::LineItem::USD
+        (cost_data && cost_data[:currency]) || priced_services.first.currency || Billing::DEFAULT_CURRENCY
       end
 
       def warn_currency_mismatch(lines, base_currency)

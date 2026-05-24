@@ -55,7 +55,7 @@ module LlmCostTracker
             period_start: period_start,
             period_end: period_end,
             billed_amount: dollars_from_cents(raw_amount),
-            currency: (result[:currency] || "USD").to_s.upcase,
+            currency: (result[:currency] || LlmCostTracker::Billing::DEFAULT_CURRENCY).to_s.upcase,
             metadata: metadata_for(result, authority: authority, row_type: row_type)
           }
         end

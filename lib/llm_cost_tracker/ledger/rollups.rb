@@ -8,8 +8,6 @@ require_relative "rollups/upsert_sql"
 module LlmCostTracker
   module Ledger
     class Rollups
-      DEFAULT_CURRENCY = "USD"
-
       class << self
         def increment_many!(events)
           events = Array(events).select(&:total_cost)
@@ -99,7 +97,7 @@ module LlmCostTracker
         end
 
         def currency_from_snapshot(snapshot)
-          value = (snapshot.is_a?(Hash) && (snapshot["currency"] || snapshot[:currency])) || DEFAULT_CURRENCY
+          value = (snapshot.is_a?(Hash) && (snapshot["currency"] || snapshot[:currency])) || Billing::DEFAULT_CURRENCY
           value.to_s.upcase
         end
 
