@@ -19,25 +19,12 @@ module LlmCostTracker
         "llm_cost_tracker_ingestion_"
       end
 
-      CORE_SCHEMA_GUARDS = [
-        ["llm_cost_tracker_calls",           Ledger::Schema::Calls],
-        ["llm_cost_tracker_call_line_items", Ledger::Schema::CallLineItems],
-        ["llm_cost_tracker_call_tags",       Ledger::Schema::CallTags]
-      ].freeze
-
-      ROLLUPS_SCHEMA_GUARD = ["llm_cost_tracker_call_rollups", Ledger::Schema::CallRollups].freeze
-
-      ASYNC_SCHEMA_GUARDS = [
-        ["llm_cost_tracker_ingestion_inbox_entries", Ledger::Schema::IngestionInboxEntries],
-        ["llm_cost_tracker_ingestion_leases",        Ledger::Schema::IngestionLeases]
-      ].freeze
-
       def ensure_current_schema!
         unless LlmCostTracker::Call.table_exists?
           raise Error, "llm_cost_tracker_calls table is missing; run install generator and migrate"
         end
 
-        guards_for_current_config.each do |table_name, schema_module|
+        guards_for_current_config.each do |schema_module, table_name|
           errors = schema_module.current_schema_errors
           next if errors.empty?
 
@@ -55,9 +42,9 @@ module LlmCostTracker
       end
 
       def guards_for_current_config
-        guards = CORE_SCHEMA_GUARDS.dup
-        guards << ROLLUPS_SCHEMA_GUARD if cache_rollups?
-        guards += ASYNC_SCHEMA_GUARDS if async?
+        guards = Ledger::Schema::CORE_SCHEMAS.dup
+        guards << Ledger::Schema::CACHE_ROLLUPS_SCHEMA if cache_rollups?
+        guards += Ledger::Schema::ASYNC_SCHEMAS if async?
         guards
       end
 

@@ -24,6 +24,10 @@ module LlmCostTracker
         [CallTags, "llm_cost_tracker_call_tags"]
       ].freeze
       CACHE_ROLLUPS_SCHEMA = [CallRollups, "llm_cost_tracker_call_rollups"].freeze
+      ASYNC_SCHEMAS = [
+        [IngestionInboxEntries, "llm_cost_tracker_ingestion_inbox_entries"],
+        [IngestionLeases, "llm_cost_tracker_ingestion_leases"]
+      ].freeze
     end
   end
 end
