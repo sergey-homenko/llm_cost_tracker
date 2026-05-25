@@ -51,6 +51,17 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
       expect(described_class.normalize(nil)).to be_nil
       expect(described_class.normalize("")).to be_nil
     end
+
+    it "warns once per unrecognized pricing_mode token so misspellings (e.g. `:bach` for `:batch`) don't silently land as cost_status: unknown" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      described_class.const_get(:WARNED_TOKENS).clear
+
+      described_class.normalize("bach")
+      described_class.normalize("bach")
+
+      expect(LlmCostTracker::Logging).to have_received(:warn).once
+        .with(include("[:bach]").and(include("cost_status: unknown")))
+    end
   end
 
   describe ".permutations_for" do

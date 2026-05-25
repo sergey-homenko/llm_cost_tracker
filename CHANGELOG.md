@@ -15,6 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Anthropic SDK batch results (`client.messages.batches.results_streaming(id).each`) land in the ledger with `pricing_mode: :batch` and the per-result `provider_response_id` — previously batch-completed messages were invisible to capture and only the live `messages.create`/`stream` path was recorded.
 - OpenAI SDK batch processing auto-captures: `client.batches.retrieve(id)` on a completed batch triggers a one-time download of the output JSONL and emits one ledger event per response with `pricing_mode: :batch` and the per-response `provider_response_id`.
 - OpenRouter pricing is now scraped via `openrouter.ai/api/v1/models`, so RubyLLM-routed OpenRouter calls (e.g. `openrouter/openai/gpt-4o`) get a real `total_cost` from the next `prices_file` refresh instead of landing as `cost_status: unknown`.
+- Misspelled `pricing_mode:` values now log a `Logging.warn` listing the unrecognized token instead of silently landing the call with `cost_status: unknown` — catches typos like `:bach` for `:batch` once per unique token.
 - Whisper-style transcriptions whose response carries `usage.type = "duration"` now emit a `transcription_minute` line item (quantity = `ceil(seconds / 60)`); the call previously recorded with zero tokens and no line item, so audio-minute usage was invisible.
 - OpenAI Responses-API `image_generation_call` and `computer_call` output items now emit line items so per-call hosted-tool usage shows up on the dashboard alongside the existing `web_search_call` / `file_search_call` / `code_interpreter_call` coverage.
 - `LlmCostTracker.track(..., enforce_budget: true)` now actually raises `BudgetExceededError` pre-call when the estimated cost overshoots the budget, even when `budget_exceeded_behavior: :notify` is configured — previously the kwarg silently no-op'd unless policy was already `:block_requests`.
@@ -30,7 +31,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Dashboard "Setup required" page now flags missing `llm_cost_tracker_ingestion_inbox_entries` and `llm_cost_tracker_ingestion_leases` tables when `ingestion: :async` is configured — previously the drift only surfaced as a worker boot crash.
 - RubyLLM SDK integration over-subtracted cache-read tokens from recorded `input_tokens` on chat completions, so the figure landed in the ledger short by the cache-read amount; the gem now passes RubyLLM's net `input_tokens` through unchanged.
 - RubyLLM SDK integration captures `service_tier` from response bodies across Anthropic, OpenAI, and Gemini — previously the field was read from the wrong JSON path so batch and flex modes silently priced against standard rates.
-- RubyLLM SDK integration records the provider's response id in `provider_response_id` (previously always nil), enabling reconciliation matching against provider invoice line items.
+- RubyLLM SDK integration records the provider's response id in `provider_response_id` (previously always nil), so each ledger row carries the upstream id you can cross-reference against provider invoices and logs.
 - RubyLLM Anthropic chat completions split 1-hour and 5-minute cache writes into separate token buckets so 1h writes bill at the 2x extended rate instead of being lumped into the 5m bucket at 1.25x.
 
 ## [0.11.0] - 2026-05-21

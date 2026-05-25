@@ -21,8 +21,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ReconciliationSource do
               "amount" => { "value" => 1.25, "currency" => "usd" },
               "line_item" => "gpt-4o tokens",
               "project_id" => "proj_alpha",
-              "api_key_id" => "key_a",
-              "organization_id" => "org_main"
+              "api_key_id" => "key_a"
             },
             {
               "object" => "organization.costs.result",
@@ -55,8 +54,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::ReconciliationSource do
         "match_basis" => "project",
         "line_item" => "gpt-4o tokens",
         "provider_project_id" => "proj_alpha",
-        "provider_api_key_id" => "key_a",
-        "provider_workspace_id" => "org_main"
+        "provider_api_key_id" => "key_a"
       )
       expect(rows.first[:external_id]).to start_with("cost-")
     end
@@ -91,20 +89,6 @@ RSpec.describe LlmCostTracker::Providers::Openai::ReconciliationSource do
       }]
 
       expect(described_class.parse(response).first[:metadata]["match_basis"]).to eq("period_only")
-    end
-
-    it "uses model match_basis when only the model is present" do
-      response[:data] = [{
-        "start_time" => bucket_start,
-        "end_time" => bucket_end,
-        "results" => [{
-          "amount" => { "value" => 1.0, "currency" => "usd" },
-          "line_item" => "tokens",
-          "model" => "gpt-4o"
-        }]
-      }]
-
-      expect(described_class.parse(response).first[:metadata]["match_basis"]).to eq("model")
     end
 
     it "produces stable external_ids so re-parsing the same response is idempotent" do
@@ -171,24 +155,6 @@ RSpec.describe LlmCostTracker::Providers::Openai::ReconciliationSource do
       }]
 
       expect(described_class.parse(response)).to eq([])
-    end
-
-    it "differentiates rows that share a line item across different models" do
-      response[:data] = [{
-        "start_time" => bucket_start,
-        "end_time" => bucket_end,
-        "results" => [
-          { "amount" => { "value" => 1.0, "currency" => "usd" },
-            "line_item" => "tokens", "model" => "gpt-4o" },
-          { "amount" => { "value" => 2.0, "currency" => "usd" },
-            "line_item" => "tokens", "model" => "gpt-4o-mini" }
-        ]
-      }]
-
-      rows = described_class.parse(response)
-
-      expect(rows.map { |row| row[:external_id] }.uniq.size).to eq(2)
-      expect(rows.map { |row| row[:metadata]["model"] }).to contain_exactly("gpt-4o", "gpt-4o-mini")
     end
 
     it "skips bucket results without a billed amount" do

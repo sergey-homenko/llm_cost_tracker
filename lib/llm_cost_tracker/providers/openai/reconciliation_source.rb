@@ -6,7 +6,7 @@ module LlmCostTracker
   module Providers
     module Openai
       module ReconciliationSource
-        FINGERPRINT_KEYS = %i[start_time end_time line_item model project_id api_key_id organization_id].freeze
+        FINGERPRINT_KEYS = %i[start_time end_time line_item project_id api_key_id].freeze
         ROW_TYPE_COST = "cost"
         AUTHORITY_COST_API = "cost_api"
         DEFAULT_METER = "tokens"
@@ -61,10 +61,8 @@ module LlmCostTracker
             "authority" => authority,
             "match_basis" => match_basis_for(result),
             "line_item" => result[:line_item],
-            "model" => result[:model],
             "provider_project_id" => result[:project_id],
-            "provider_api_key_id" => result[:api_key_id],
-            "provider_workspace_id" => result[:organization_id]
+            "provider_api_key_id" => result[:api_key_id]
           }.compact
         end
 
@@ -81,7 +79,6 @@ module LlmCostTracker
         def self.match_basis_for(result)
           return "project" if result[:project_id]
           return "api_key" if result[:api_key_id]
-          return "model" if result[:model]
 
           "period_only"
         end

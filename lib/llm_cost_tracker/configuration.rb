@@ -150,6 +150,12 @@ module LlmCostTracker
         Array(@redacted_tag_keys).map { |key| Tags::Sanitizer.normalized_key(key) }.freeze
     end
 
+    def static_sanitized_default_tags
+      return nil if @default_tags.respond_to?(:call)
+
+      @static_sanitized_default_tags ||= Tags::Sanitizer.call((@default_tags || {}).to_h).freeze
+    end
+
     def finalized?
       @finalized
     end
