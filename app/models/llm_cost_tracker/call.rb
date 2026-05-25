@@ -44,7 +44,7 @@ module LlmCostTracker
 
     class << self
       def already_recorded?(provider:, provider_response_id:)
-        return false unless provider_response_id
+        return false if provider_response_id.to_s.empty?
 
         where(provider: provider, provider_response_id: provider_response_id).exists?
       end

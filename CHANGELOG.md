@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - The RubyLLM SDK integration now requires `ruby_llm >= 1.15.0` (was `>= 1.14.1`).
+- BREAKING for app code that references internal parser/reconciliation constants directly: vendor-specific parsers and reconciliation sources moved under `LlmCostTracker::Providers::<Vendor>::*` and the `LlmCostTracker::Reconciliation::Sources` namespace is removed. See [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased) for the constant rename table.
 - Engine no longer adds `tag` / `tag_value` to Rails `filter_parameters` — the Symbol filter was substring-matching unrelated host-app params (`tags`, `meta_tag`, etc.) into `[FILTERED]`. `Tags::Sanitizer` continues redacting secret-shaped tag values at storage.
 
 ### Fixed

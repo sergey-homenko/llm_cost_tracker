@@ -71,7 +71,7 @@ RSpec.describe LlmCostTracker::Doctor do
   end
 
   it "treats a missing AR connection as absent tables so Doctor stays usable before db:migrate" do
-    allow(LlmCostTracker::Call).to receive(:connection).and_raise(ActiveRecord::ConnectionNotDefined)
+    allow(LlmCostTracker::Call).to receive(:connection).and_raise(ActiveRecord::ConnectionNotEstablished)
 
     expect(described_class::Probe.table_exists?("llm_cost_tracker_calls")).to be false
   end

@@ -343,7 +343,7 @@ module LlmCostTracker
       module BatchesPatch
         def retrieve(batch_id, *args, **kwargs)
           batch = super
-          LlmCostTracker::Integrations::Openai.maybe_capture_batch(batch, client: @client)
+          LlmCostTracker::Integrations::Openai.maybe_capture_batch(batch, resource: self)
           batch
         end
       end
@@ -353,7 +353,7 @@ module LlmCostTracker
         BATCH_CAPTURE_MUTEX = Mutex.new
         private_constant :BATCH_CAPTURE_DEDUP, :BATCH_CAPTURE_MUTEX
 
-        def maybe_capture_batch(batch, client:)
+        def maybe_capture_batch(batch, resource:)
           return unless active?
           return unless batch.respond_to?(:status) && batch.status.to_s == "completed"
 
@@ -363,9 +363,11 @@ module LlmCostTracker
           batch_id = batch.respond_to?(:id) ? batch.id : nil
           return unless batch_id && claim_batch_capture(batch_id)
 
+          host = client_host_for(resource)
+          client = resource.instance_variable_get(:@client)
           record_safely do
             io = client.files.content(output_file_id)
-            capture_batch_jsonl(io.respond_to?(:read) ? io.read : io.to_s)
+            capture_batch_jsonl(io.respond_to?(:read) ? io.read : io.to_s, host: host)
           end
         end
 
@@ -378,7 +380,7 @@ module LlmCostTracker
           end
         end
 
-        def capture_batch_jsonl(jsonl)
+        def capture_batch_jsonl(jsonl, host: nil)
           jsonl.each_line do |line|
             line = line.strip
             next if line.empty?
@@ -389,7 +391,7 @@ module LlmCostTracker
             response = entry.dig("response", "body")
             next unless response.is_a?(Hash) && response["usage"]
 
-            record_batch_response(response)
+            record_batch_response(response, host: host)
           end
         end
 
@@ -399,16 +401,17 @@ module LlmCostTracker
           nil
         end
 
-        def record_batch_response(response)
+        def record_batch_response(response, host: nil)
+          provider = provider_for_host(host)
           provider_response_id = response["id"]
-          return if LlmCostTracker::Call.already_recorded?(provider: "openai",
+          return if LlmCostTracker::Call.already_recorded?(provider: provider,
                                                            provider_response_id: provider_response_id)
 
           usage = response["usage"].deep_symbolize_keys
           model = response["model"]
           LlmCostTracker::Tracker.record(
             event: Event.build(
-              provider: "openai",
+              provider: provider,
               model: model,
               pricing_mode: :batch,
               token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),

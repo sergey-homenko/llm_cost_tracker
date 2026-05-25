@@ -194,6 +194,33 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.total_cost.to_f).to eq(1.5)
   end
 
+  describe "LlmCostTracker::Call.already_recorded?" do
+    let(:request_attrs) do
+      { event_id: SecureRandom.uuid, provider: "anthropic", model: "claude-sonnet-4-5",
+        provider_response_id: "msg_recorded", input_tokens: 5, output_tokens: 5,
+        total_tokens: 10, cache_read_input_tokens: 0, cache_write_input_tokens: 0,
+        cache_write_extended_input_tokens: 0, audio_input_tokens: 0, audio_output_tokens: 0,
+        image_input_tokens: 0, image_output_tokens: 0, hidden_output_tokens: 0,
+        stream: false, usage_source: "sdk_response", batch: false, cost_status: "unknown",
+        pricing_snapshot: nil, tracked_at: Time.now.utc }
+    end
+
+    before { LlmCostTracker::Call.create!(request_attrs) }
+
+    it "is true for an exact provider + provider_response_id match" do
+      expect(LlmCostTracker::Call.already_recorded?(provider: "anthropic", provider_response_id: "msg_recorded")).to be true
+    end
+
+    it "is false when the same provider_response_id was recorded under a different provider" do
+      expect(LlmCostTracker::Call.already_recorded?(provider: "openai", provider_response_id: "msg_recorded")).to be false
+    end
+
+    it "is false for nil or empty provider_response_id so historic rows with blank ids never collide" do
+      expect(LlmCostTracker::Call.already_recorded?(provider: "anthropic", provider_response_id: nil)).to be false
+      expect(LlmCostTracker::Call.already_recorded?(provider: "anthropic", provider_response_id: "")).to be false
+    end
+  end
+
   it "refreshes current schema checks after reset_column_information" do
     expect(LlmCostTracker::Ledger::Schema::Calls.current_schema_errors).to be_empty
 
