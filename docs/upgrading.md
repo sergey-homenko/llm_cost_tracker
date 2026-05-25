@@ -158,20 +158,6 @@ tables).
 > from v0.8 to v0.10, use the v0.10 names from the
 > [v0.9.x → v0.10](#v09x--v010) section above.
 
-If you imported reconciliation invoices on a rolling-preview build,
-back-fill the data shape changes before running the diff or the
-dashboard reports zero matches:
-
-```sql
-UPDATE llm_cost_tracker_provider_invoices SET currency = UPPER(currency);
-```
-
-The other two pre-release shape changes — `external_id` now namespaces
-`source/provider` for cross-provider sources, and the OpenAI Cost API
-tags the organization id under `provider_workspace_id` instead of
-`provider_organization_id` — are easier to handle via
-`LlmCostTracker::ProviderInvoice.delete_all` + a re-import.
-
 ### Fresh installs that need the opt-in tables
 
 Run the matching generators only for the optional capabilities you
@@ -230,14 +216,20 @@ The migration only adds columns (defaults to 0); it does not rewrite
 existing rows. Independent of the rollups upgrade — order doesn't
 matter.
 
-### Optional invoice reconciliation
+### Invoice reconciliation (removed in v0.12 — skip)
 
-Reconciliation stays a separate opt-in (config flag plus its own
-generator). It needs admin/org-level provider API keys (`sk-admin-…`,
-GCP `billing.viewer`, etc.) that runtime apps typically don't have —
-skip it entirely if you only use the gem for runtime tracking.
+The opt-in reconciliation subsystem was removed in v0.12. Skip every
+reconciliation step that was in this section. If you already created the
+`llm_cost_tracker_provider_invoices` / `_provider_invoice_imports` tables on a
+v0.9 install, see [v0.11 → v0.12](#v011--v012-unreleased) for the drop
+migration.
 
-### Optional migration: invoice reconciliation
+<!--
+HISTORICAL ONLY — left for context; do not run on v0.12+. The reconciliation
+generator, `llm_cost_tracker:reconcile:*` rake tasks, `Reconciliation.import` /
+`.diff`, `register_reconciliation_importer`, and the two provider invoice
+tables were all removed in v0.12. If invoice-vs-ledger reconciliation ships
+again it will live in a separate gem.
 
 Run only if you plan to import provider-side invoices:
 
@@ -353,6 +345,8 @@ bin/rails db:migrate
 
 The migration is a no-op on MySQL.
 
+-->
+
 ### Schema drift cache for the dashboard
 
 The engine schema check (which renders the "Setup required" page when
@@ -362,21 +356,6 @@ on first request and reuses it; development re-checks on each code
 reload. **Host test suites that mutate engine tables mid-suite** (e.g.
 swapping schema between examples) should call
 `LlmCostTracker::Dashboard::SetupState.reset!` to invalidate the cache.
-
-### Re-import dashboard button
-
-`LlmCostTracker.configuration.reconciliation_importers` accepts callables
-that the dashboard exposes as a `Re-import <source>` button. **Register
-importers that enqueue work (`MyImportJob.perform_later`), not callables
-that block on the provider's API.** The button posts synchronously, so a
-slow inline importer holds the request and dies on the first proxy /
-Heroku 30-second cap.
-
-```ruby
-LlmCostTracker.configure do |config|
-  config.register_reconciliation_importer(:openai) { OpenaiCostsImportJob.perform_later }
-end
-```
 
 ## v0.7.x → v0.8
 
