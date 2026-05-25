@@ -30,23 +30,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::UsageExtractor do
       expect(LlmCostTracker::Logging).to have_received(:warn).with(include("String"))
     end
 
-    it "extracts thinking_tokens as hidden_output_tokens" do
-      result = described_class.token_usage(input_tokens: 200, output_tokens: 80, thinking_tokens: 6)
-      expect(result.hidden_output_tokens).to eq(6)
-    end
-
-    it "uses thinking_output_tokens as a fallback for hidden_output_tokens" do
-      result = described_class.token_usage(input_tokens: 200, output_tokens: 80, thinking_output_tokens: 7)
-      expect(result.hidden_output_tokens).to eq(7)
-    end
-
-    it "uses output_tokens_details.reasoning_tokens as a final hidden_output fallback" do
-      result = described_class.token_usage(
-        input_tokens: 200, output_tokens: 80,
-        output_tokens_details: { reasoning_tokens: 8 }
-      )
-      expect(result.hidden_output_tokens).to eq(8)
-    end
   end
 
   describe ".pricing_mode" do

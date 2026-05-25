@@ -8,8 +8,7 @@ module LlmCostTracker
       module UsageExtractor
         SERVER_TOOL_LINE_ITEMS = {
           "web_search_request" => :web_search_requests,
-          "web_fetch_request" => :web_fetch_requests,
-          "code_execution_request" => :code_execution_requests
+          "web_fetch_request" => :web_fetch_requests
         }.freeze
         private_constant :SERVER_TOOL_LINE_ITEMS
 
@@ -18,15 +17,13 @@ module LlmCostTracker
           output = usage[:output_tokens].to_i
           cache_read = usage[:cache_read_input_tokens].to_i
           cache_write, cache_write_extended = cache_writes(usage)
-          hidden_output = hidden_output_tokens(usage)
 
           TokenUsage.build(
             input_tokens: input,
             output_tokens: output,
             cache_read_input_tokens: cache_read,
             cache_write_input_tokens: cache_write,
-            cache_write_extended_input_tokens: cache_write_extended,
-            hidden_output_tokens: hidden_output
+            cache_write_extended_input_tokens: cache_write_extended
           )
         end
 
@@ -68,13 +65,6 @@ module LlmCostTracker
             warn_unexpected_cache_creation(cache_creation, usage)
             [usage[:cache_creation_input_tokens].to_i, 0]
           end
-        end
-
-        def self.hidden_output_tokens(usage)
-          value = usage[:thinking_tokens] ||
-                  usage[:thinking_output_tokens] ||
-                  usage.dig(:output_tokens_details, :reasoning_tokens)
-          value.to_i
         end
 
         def self.warn_unexpected_cache_creation(cache_creation, usage)

@@ -9,6 +9,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The RubyLLM SDK integration now requires `ruby_llm >= 1.15.0` (was `>= 1.14.1`).
 - Vendor-specific parsers and reconciliation sources moved under `LlmCostTracker::Providers::<Vendor>::*`; the `LlmCostTracker::Reconciliation::Sources` namespace is removed (its `Coercion` and `Fingerprint` helpers moved up to `LlmCostTracker::Reconciliation::*`). Custom code referencing the old constants — `LlmCostTracker::Parsers::Anthropic`/`Openai`/`Azure`/`Gemini`/`OpenaiCompatible`/`OpenaiUsage`, `LlmCostTracker::Reconciliation::Sources::OpenaiUsage`/`AnthropicUsage`/`Coercion`/`Fingerprint` — has to update to the new names.
 
+### Changed
+
+- Anthropic chat completions no longer emit a per-call `code_execution_request` line item — Anthropic prices code execution per container-hour, and the actual cost is captured by reconciliation against the cost report instead.
+
 ### Fixed
 
 - Line-item and pricing-snapshot `currency` is now stored uppercase regardless of what `prices_file` or a manual `service_line_items:` argument supplied — previously a `prices_file` with `currency: "eur"` stranded rows from `Reconciliation::Diff`, dashboard currency filters, and `cost_drift_check` (all of which read the canonical UPPER form).
