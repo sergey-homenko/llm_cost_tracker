@@ -74,8 +74,8 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         client.messages.create(**request_params)
 
         service_lines = events.first[:line_items].reject { |item| item[:unit] == "token" }
-        expect(service_lines.map { |item| item[:kind] }).to contain_exactly("web_search_request")
-        expect(service_lines.map { |item| item[:quantity].to_i }).to contain_exactly(2)
+        expect(service_lines.map { |item| item[:kind] }).to contain_exactly("web_search_request", "code_execution_request")
+        expect(service_lines.map { |item| item[:quantity].to_i }).to contain_exactly(2, 1)
       end
     end
   end

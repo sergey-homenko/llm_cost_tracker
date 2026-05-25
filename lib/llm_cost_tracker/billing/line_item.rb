@@ -125,7 +125,7 @@ module LlmCostTracker
           rate_amount: rate_amount,
           rate_quantity: rate_quantity,
           cost: applied_cost,
-          currency: rate.fetch(:currency).to_s.upcase,
+          currency: rate.fetch(:currency).upcase,
           cost_status: applied_cost.zero? ? CostStatus::FREE : CostStatus::COMPLETE,
           price_key: rate.fetch(:source_key),
           price_source: rate.fetch(:source),

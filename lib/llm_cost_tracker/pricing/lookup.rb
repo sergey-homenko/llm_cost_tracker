@@ -202,7 +202,7 @@ module LlmCostTracker
                 when "prices_file"
                   Registry.file_metadata(LlmCostTracker.configuration.prices_file)["currency"]
                 end
-          (raw || Billing::DEFAULT_CURRENCY).to_s.upcase
+          (raw || Billing::DEFAULT_CURRENCY).upcase
         end
 
         def snapshot_variant?(model, key)

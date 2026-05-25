@@ -9,10 +9,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The RubyLLM SDK integration now requires `ruby_llm >= 1.15.0` (was `>= 1.14.1`).
 - Vendor-specific parsers and reconciliation sources moved under `LlmCostTracker::Providers::<Vendor>::*`; the `LlmCostTracker::Reconciliation::Sources` namespace is removed (its `Coercion` and `Fingerprint` helpers moved up to `LlmCostTracker::Reconciliation::*`). Custom code referencing the old constants — `LlmCostTracker::Parsers::Anthropic`/`Openai`/`Azure`/`Gemini`/`OpenaiCompatible`/`OpenaiUsage`, `LlmCostTracker::Reconciliation::Sources::OpenaiUsage`/`AnthropicUsage`/`Coercion`/`Fingerprint` — has to update to the new names.
 
-### Changed
-
-- Anthropic chat completions no longer emit a per-call `code_execution_request` line item — Anthropic prices code execution per container-hour, and the actual cost is captured by reconciliation against the cost report instead.
-
 ### Fixed
 
 - Gemini preview-dated models (e.g. `gemini-2.5-flash-preview-04-17`) now resolve to the stable entry's pricing — previously the `preview-MM-DD` suffix didn't match the dated-snapshot regex so the call landed as `cost_status: unknown`.
