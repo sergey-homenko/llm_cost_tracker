@@ -343,16 +343,16 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(result.token_usage.total_tokens).to eq(130)
     end
 
-    it "separates streamed Gemini Live audio response token details" do
+    it "separates streamed audio response token details from the candidates fields" do
       events = [
         { event: nil, data: {
           "usageMetadata" => {
             "promptTokenCount" => 100,
-            "responseTokenCount" => 60,
+            "candidatesTokenCount" => 60,
             "promptTokensDetails" => [
               { "modality" => "AUDIO", "tokenCount" => 25 }
             ],
-            "responseTokensDetails" => [
+            "candidatesTokensDetails" => [
               { "modality" => "AUDIO", "tokenCount" => 60 }
             ]
           }

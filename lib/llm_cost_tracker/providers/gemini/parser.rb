@@ -38,7 +38,7 @@ module LlmCostTracker
             usage: usage,
             usage_source: "response",
             provider_response_id: response["responseId"],
-            pricing_mode: pricing_mode(request: request, response_headers: response_headers),
+            pricing_mode: pricing_mode(request: request, usage: usage, response_headers: response_headers),
             service_line_items: grounding_line_items(grounding_request_count(response["candidates"]), model: model)
           )
         end
@@ -50,7 +50,7 @@ module LlmCostTracker
           usage = merged_stream_usage(events)
           model = extract_model_from_url(request_url)
           response_id = stream_response_id(events)
-          mode = pricing_mode(request: request, response_headers: response_headers)
+          mode = pricing_mode(request: request, usage: usage, response_headers: response_headers)
           service_line_items = grounding_line_items_for_stream(events, model: model)
 
           if usage
@@ -120,7 +120,7 @@ module LlmCostTracker
         end
 
         def output_tokens(usage)
-          (usage["candidatesTokenCount"] || usage["responseTokenCount"]).to_i + usage["thoughtsTokenCount"].to_i
+          usage["candidatesTokenCount"].to_i + usage["thoughtsTokenCount"].to_i
         end
 
         def regular_input_tokens(usage:, cache_read:, audio_input:)
@@ -132,26 +132,20 @@ module LlmCostTracker
         end
 
         def audio_input_tokens(usage)
-          prompt_audio = modality_tokens(usage["promptTokensDetails"] || usage["prompt_tokens_details"], "AUDIO")
-          cache_audio = modality_tokens(usage["cacheTokensDetails"] || usage["cache_tokens_details"], "AUDIO")
+          prompt_audio = modality_tokens(usage["promptTokensDetails"], "AUDIO")
+          cache_audio = modality_tokens(usage["cacheTokensDetails"], "AUDIO")
           [prompt_audio - cache_audio, 0].max
         end
 
         def audio_output_tokens(usage)
-          modality_tokens(
-            usage["candidatesTokensDetails"] ||
-              usage["candidates_tokens_details"] ||
-              usage["responseTokensDetails"] ||
-              usage["response_tokens_details"],
-            "AUDIO"
-          )
+          modality_tokens(usage["candidatesTokensDetails"], "AUDIO")
         end
 
         def modality_tokens(details, modality)
           Array(details).sum do |detail|
             next 0 unless detail["modality"] == modality
 
-            (detail["tokenCount"] || detail["token_count"]).to_i
+            detail["tokenCount"].to_i
           end
         end
 
@@ -167,17 +161,14 @@ module LlmCostTracker
           match && match[1]
         end
 
-        def pricing_mode(request:, response_headers:)
-          response_tier = response_header(response_headers, "x-gemini-service-tier")
-          response_mode = Pricing::Mode.normalize(response_tier)
-          return response_mode if response_mode
+        def pricing_mode(request:, usage:, response_headers:)
+          body_mode = Pricing::Mode.normalize(usage && usage["serviceTier"])
+          return body_mode if body_mode
 
-          request_mode = Pricing::Mode.normalize(
-            request["service_tier"] ||
-            request["serviceTier"] ||
-            request.dig("config", "service_tier") ||
-            request.dig("config", "serviceTier")
-          )
+          header_mode = Pricing::Mode.normalize(response_header(response_headers, "x-gemini-service-tier"))
+          return header_mode if header_mode
+
+          request_mode = Pricing::Mode.normalize(request["service_tier"] || request["serviceTier"])
           request_mode == :flex ? request_mode : nil
         end
 
@@ -195,8 +186,7 @@ module LlmCostTracker
 
         def grounding_request_count(candidates)
           Array(candidates).sum do |candidate|
-            metadata = candidate["groundingMetadata"] || candidate["grounding_metadata"] || {}
-            queries = metadata["webSearchQueries"] || metadata["web_search_queries"] || []
+            queries = candidate.dig("groundingMetadata", "webSearchQueries") || []
             Array(queries).size
           end
         end

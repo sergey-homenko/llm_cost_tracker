@@ -15,6 +15,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- Gemini preview-dated models (e.g. `gemini-2.5-flash-preview-04-17`) now resolve to the stable entry's pricing — previously the `preview-MM-DD` suffix didn't match the dated-snapshot regex so the call landed as `cost_status: unknown`.
+- Gemini parser now reads `usageMetadata.serviceTier` from the response body in addition to the `x-gemini-service-tier` header, so tier-aware pricing applies when only the body carries the tier signal.
 - Line-item and pricing-snapshot `currency` is now stored uppercase regardless of what `prices_file` or a manual `service_line_items:` argument supplied — previously a `prices_file` with `currency: "eur"` stranded rows from `Reconciliation::Diff`, dashboard currency filters, and `cost_drift_check` (all of which read the canonical UPPER form).
 - `bin/rails llm_cost_tracker:doctor` reports the underlying ActiveRecord error when the async-ingestion check can't read the inbox; previously a transient DB failure silently rendered the path as `:ok`.
 - Dashboard "Setup required" page now flags missing `llm_cost_tracker_ingestion_inbox_entries` and `llm_cost_tracker_ingestion_leases` tables when `ingestion: :async` is configured — previously the drift only surfaced as a worker boot crash.

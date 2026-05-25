@@ -45,6 +45,14 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(match.key).to eq("openai/gpt-4o")
       expect(match.matched_by).to eq(:unique_providerless_dated_snapshot)
     end
+
+    it "resolves Gemini preview-dated snapshots (preview-MM-DD) to the stable model entry" do
+      match = LlmCostTracker::Pricing::Lookup.call(provider: "gemini", model: "gemini-2.5-flash-preview-04-17")
+
+      expect(match).not_to be_nil
+      expect(match.key).to eq("gemini/gemini-2.5-flash")
+      expect(match.matched_by).to eq(:dated_snapshot)
+    end
   end
 
   describe ".stored_cost_attributes" do

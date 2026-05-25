@@ -209,7 +209,7 @@ module LlmCostTracker
           suffix = model.delete_prefix("#{key}-")
           return false if suffix == model
 
-          suffix.match?(/\A(?:\d{4}-\d{2}-\d{2}|\d{8})\z/)
+          suffix.match?(/\A(?:\d{4}-\d{2}-\d{2}|\d{8}|(?:preview|exp)-\d{2}-\d{2})\z/)
         end
 
         def sorted_price_keys(table)
