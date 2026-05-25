@@ -80,7 +80,6 @@ RSpec.describe LlmCostTracker::Doctor do
     allow(described_class::Probe).to receive(:table_exists?).with("llm_cost_tracker_calls").and_return(false)
 
     expect(described_class::IngestionCheck.new.call).to be_nil
-    expect(described_class::LegacyAuditCheck.new.call).to be_nil
     expect(
       described_class::SchemaCheck.new(
         name: "call line items",
@@ -107,9 +106,11 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(checks.map(&:name)).not_to include("provider invoices")
     end
 
-    it "surfaces an inbox-query failure as :error instead of falsely reporting :ok" do
+    it "surfaces an inbox-table probe failure as :error instead of falsely reporting :ok" do
       allow(LlmCostTracker::Ingestion).to receive(:async?).and_return(true)
-      allow(LlmCostTracker::Ingestion::InboxEntry).to receive(:select)
+      allow(described_class::Probe).to receive(:table_exists?).with("llm_cost_tracker_calls").and_return(true)
+      allow(described_class::Probe).to receive(:table_exists?)
+        .with(LlmCostTracker::Ingestion::InboxEntry.table_name)
         .and_raise(ActiveRecord::StatementInvalid.new("connection lost"))
 
       check = described_class::IngestionCheck.new.call
@@ -160,31 +161,6 @@ RSpec.describe LlmCostTracker::Doctor do
       check = described_class.call.find { |item| item.name == "inline ingestion" }
 
       expect(check).to have_attributes(status: :ok, message: include("events write directly to the ledger"))
-    end
-
-    it "warns when call rollups drift more than 1% from today's calls SUM" do
-      tracked_at = Time.now.utc.beginning_of_day + 1.hour
-      LlmCostTracker::Call.create!(event_id: "drift-1", provider: "openai", model: "gpt-4o", total_cost: 10.0,
-                                   tracked_at: tracked_at, cost_status: "complete")
-      LlmCostTracker::CallRollup.create!(period: "day", period_start: tracked_at.to_date, currency: "USD",
-                                         provider: "openai", total_cost: 0.0)
-
-      check = described_class.call.find { |item| item.name == "call rollups" }
-
-      expect(check).to have_attributes(status: :warn)
-      expect(check.message).to include("rollups drift detected")
-    end
-
-    it "passes call rollups when today's calls and rollups SUM agree" do
-      tracked_at = Time.now.utc.beginning_of_day + 1.hour
-      LlmCostTracker::Call.create!(event_id: "match-1", provider: "openai", model: "gpt-4o", total_cost: 10.0,
-                                   tracked_at: tracked_at, cost_status: "complete")
-      LlmCostTracker::CallRollup.create!(period: "day", period_start: tracked_at.to_date, currency: "USD",
-                                         provider: "openai", total_cost: 10.0)
-
-      check = described_class.call.find { |item| item.name == "call rollups" }
-
-      expect(check).to have_attributes(status: :ok)
     end
 
     it "fails when call rollups lack the current unique index" do
@@ -242,30 +218,6 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("1 recorded")
     end
 
-    it "skips legacy checks before billing audit columns exist" do
-      allow(LlmCostTracker::Call).to receive(:column_names).and_return([])
-
-      expect(described_class::LegacyAuditCheck.new.call).to be_nil
-    end
-
-    it "warns when legacy rows without pricing snapshots exceed the audit threshold" do
-      2.times { |index| create_call(model: "legacy-#{index}", pricing_snapshot: nil) }
-      9.times { |index| create_call(model: "current-#{index}") }
-
-      check = described_class.call.find { |item| item.name == "pricing snapshot audit" }
-
-      expect(check).to have_attributes(status: :warn)
-      expect(check.message).to include("2/11 tracked calls")
-    end
-
-    it "does not warn when pricing snapshot legacy rows stay at the audit threshold" do
-      create_call(model: "legacy-snapshot", pricing_snapshot: nil)
-      9.times { |index| create_call(model: "current-#{index}") }
-
-      check = described_class.call.find { |item| item.name == "pricing snapshot audit" }
-
-      expect(check).to be_nil
-    end
   end
 
   describe ".report" do

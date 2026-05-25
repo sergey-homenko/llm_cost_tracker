@@ -290,34 +290,21 @@ RSpec.describe "ActiveRecord async inbox" do
     expect(total).to eq(0.0)
   end
 
-  it "reports quarantined inbox entries in doctor output" do
-    LlmCostTracker::Ingestion::InboxEntry.create!(
+  it "warns to Logging when an inbox row reaches MAX_ATTEMPTS so production sees the quarantine at the moment it happens" do
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    row = LlmCostTracker::Ingestion::InboxEntry.create!(
       event_id: "bad-event",
       total_cost: 1.0,
       tracked_at: Time.utc(2026, 4, 18, 12),
       payload: "{",
-      attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
+      attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE,
+      locked_by: "worker-x"
     )
 
-    check = LlmCostTracker::Doctor.call.find { |item| item.name == "async ingestion" }
+    LlmCostTracker::Ingestion::Batch.new(identity: "worker-x").mark_failed([row], RuntimeError.new("boom"))
 
-    expect(check).to have_attributes(status: :warn, message: include("quarantined"))
-  end
-
-  it "reports stale pending inbox entries in doctor output" do
-    time = Time.now.utc - 120
-    LlmCostTracker::Ingestion::InboxEntry.create!(
-      event_id: "pending-event",
-      total_cost: 1.0,
-      tracked_at: time,
-      payload: "{}",
-      created_at: time,
-      updated_at: time
-    )
-
-    check = LlmCostTracker::Doctor.call.find { |item| item.name == "async ingestion" }
-
-    expect(check).to have_attributes(status: :warn, message: include("pending"))
+    expect(LlmCostTracker::Logging).to have_received(:warn)
+      .with(include("MAX_ATTEMPTS_BEFORE_QUARANTINE").and(include(row.id.to_s)))
   end
 
   it "times out flush when every row is leased by another worker" do

@@ -7,33 +7,12 @@ require_relative "../ingestion"
 module LlmCostTracker
   class Doctor
     class IngestionCheck
-      PENDING_AGE_WARNING_SECONDS = 60
-
       def call
         return unless Probe.table_exists?("llm_cost_tracker_calls")
         return inline_check unless LlmCostTracker::Ingestion.async?
 
         missing = missing_parts
-        if missing.empty?
-          inbox = inbox_snapshot
-          quarantined = inbox.quarantined_count.to_i
-          if quarantined.positive?
-            return Check.new(:warn, "async ingestion", "#{quarantined} inbox entries quarantined after retries")
-          end
-
-          pending_count = inbox.pending_count.to_i
-          oldest_pending_at = inbox.oldest_pending_at&.to_time&.utc
-          pending_age = oldest_pending_at && (Time.now.utc - oldest_pending_at)
-          if pending_count.positive? && pending_age && pending_age >= PENDING_AGE_WARNING_SECONDS
-            return Check.new(
-              :warn,
-              "async ingestion",
-              "#{pending_count} inbox entries pending; oldest pending age #{pending_age.round}s"
-            )
-          end
-
-          return Check.new(:ok, "async ingestion", "inbox and ingestion lease tables available")
-        end
+        return async_ok if missing.empty?
 
         Check.new(
           :error,
@@ -46,14 +25,15 @@ module LlmCostTracker
 
       private
 
+      def async_ok
+        Check.new(:ok, "async ingestion", "inbox and ingestion lease tables available")
+      end
+
       def inline_check
         leftovers = inline_leftover_tables
         if leftovers.empty?
-          return Check.new(
-            :ok,
-            "inline ingestion",
-            "config.ingestion = :inline; events write directly to the ledger"
-          )
+          return Check.new(:ok, "inline ingestion",
+                           "config.ingestion = :inline; events write directly to the ledger")
         end
 
         Check.new(
@@ -65,31 +45,18 @@ module LlmCostTracker
       end
 
       def inline_leftover_tables
-        [
-          LlmCostTracker::Ingestion::InboxEntry.table_name,
-          LlmCostTracker::Ingestion::Lease.table_name
-        ].select { |table| Probe.table_exists?(table) }
+        async_tables.select { |table| Probe.table_exists?(table) }
       end
 
       def missing_parts
+        async_tables.reject { |table| Probe.table_exists?(table) }
+      end
+
+      def async_tables
         [
           LlmCostTracker::Ingestion::InboxEntry.table_name,
           LlmCostTracker::Ingestion::Lease.table_name
-        ].reject { |table| Probe.table_exists?(table) }
-      end
-
-      def inbox_snapshot
-        max_attempts = LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
-        LlmCostTracker::Ingestion::InboxEntry
-          .select(
-            "COALESCE(SUM(CASE WHEN attempts >= #{max_attempts} " \
-            "THEN 1 ELSE 0 END), 0) AS quarantined_count, " \
-            "COALESCE(SUM(CASE WHEN attempts < #{max_attempts} " \
-            "THEN 1 ELSE 0 END), 0) AS pending_count, " \
-            "MIN(CASE WHEN attempts < #{max_attempts} " \
-            "THEN created_at ELSE NULL END) AS oldest_pending_at"
-          )
-          .take
+        ]
       end
     end
   end

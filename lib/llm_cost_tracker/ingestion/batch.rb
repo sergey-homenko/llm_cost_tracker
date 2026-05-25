@@ -40,11 +40,29 @@ module LlmCostTracker
         Ingestion::InboxEntry
           .where(id: rows.map(&:id), locked_by: identity)
           .update_all(last_error: message, locked_at: now, locked_by: nil, updated_at: now)
+        warn_on_quarantine(rows)
       rescue StandardError => e
         LlmCostTracker::Logging.warn(
           "Inbox mark_failed failed for #{rows.size} rows: #{e.class}: #{e.message} (original error: #{error.class})"
         )
         nil
+      end
+
+      def warn_on_quarantine(rows)
+        threshold = Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
+        quarantined_ids = Ingestion::InboxEntry
+                          .where(id: rows.map(&:id))
+                          .where("attempts >= ?", threshold)
+                          .pluck(:id)
+        return if quarantined_ids.empty?
+
+        sample = quarantined_ids.first(10).join(", ")
+        sample += "..." if quarantined_ids.size > 10
+        LlmCostTracker::Logging.warn(
+          "Ingestion::Batch: #{quarantined_ids.size} inbox row(s) reached " \
+          "MAX_ATTEMPTS_BEFORE_QUARANTINE=#{threshold} and will be skipped " \
+          "on the next claim cycle (ids: #{sample})"
+        )
       end
 
       private

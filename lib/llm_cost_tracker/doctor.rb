@@ -4,11 +4,8 @@ require_relative "ledger"
 require_relative "doctor/check"
 require_relative "doctor/probe"
 require_relative "doctor/ingestion_check"
-require_relative "doctor/legacy_audit_check"
 require_relative "doctor/price_check"
 require_relative "doctor/schema_check"
-require_relative "doctor/cost_drift_check"
-require_relative "doctor/pricing_snapshot_drift_check"
 
 module LlmCostTracker
   class Doctor
@@ -17,7 +14,7 @@ module LlmCostTracker
     STATUS_GLYPHS = { ok: "✓", warn: "!", error: "x" }.freeze
     STATUS_COLORS = { ok: 32, warn: 33, error: 31 }.freeze
 
-    SECTIONS = ["Setup", "Schema", "Data integrity", "Operations"].freeze
+    SECTIONS = %w[Setup Schema Operations].freeze
 
     SECTION_FOR_CHECK = {
       "configuration" => "Setup",
@@ -27,9 +24,6 @@ module LlmCostTracker
       "llm_cost_tracker_calls columns" => "Schema",
       "call line items" => "Schema",
       "call tags" => "Schema",
-      "cost drift" => "Data integrity",
-      "pricing snapshot drift" => "Data integrity",
-      "pricing snapshot audit" => "Data integrity",
       "call rollups" => "Operations",
       "inline ingestion" => "Operations",
       "async ingestion" => "Operations",
@@ -97,9 +91,6 @@ module LlmCostTracker
         table_check,
         column_check,
         *dependent_core_schema_checks,
-        CostDriftCheck.new.call,
-        PricingSnapshotDriftCheck.new.call,
-        LegacyAuditCheck.new.call,
         call_rollups_check,
         IngestionCheck.new.call,
         PriceCheck.new.call,
@@ -177,42 +168,13 @@ module LlmCostTracker
       return live_rollups_check unless LlmCostTracker.configuration.cache_rollups
 
       errors = LlmCostTracker::Ledger::Schema::CallRollups.current_schema_errors
-      return rollups_drift_check if errors.empty?
+      return Check.new(:ok, "call rollups", "llm_cost_tracker_call_rollups exists") if errors.empty?
 
       Check.new(
         :error,
         "call rollups",
         "schema mismatch: #{errors.join('; ')}; see docs/upgrading.md"
       )
-    end
-
-    ROLLUPS_DRIFT_TOLERANCE_PERCENT = 1.0
-    private_constant :ROLLUPS_DRIFT_TOLERANCE_PERCENT
-
-    def rollups_drift_check
-      drift_window = Time.now.utc.beginning_of_day
-      calls_total = LlmCostTracker::Call
-                    .where(tracked_at: drift_window..)
-                    .where.not(total_cost: nil)
-                    .sum(:total_cost)
-      rollup_total = LlmCostTracker::CallRollup
-                     .where(period: "day", period_start: drift_window.to_date)
-                     .sum(:total_cost)
-      return Check.new(:ok, "call rollups", "llm_cost_tracker_call_rollups exists") if calls_total.zero?
-
-      drift_percent = ((calls_total - rollup_total).abs * 100.0 / calls_total)
-      if drift_percent > ROLLUPS_DRIFT_TOLERANCE_PERCENT
-        return Check.new(
-          :warn, "call rollups",
-          "rollups drift detected: today's calls SUM=#{calls_total} vs rollups SUM=#{rollup_total} " \
-          "(#{drift_percent.round(2)}% > #{ROLLUPS_DRIFT_TOLERANCE_PERCENT}% threshold). " \
-          "Cached budget reads may understate spend until a rebuild."
-        )
-      end
-
-      Check.new(:ok, "call rollups", "llm_cost_tracker_call_rollups exists")
-    rescue StandardError => e
-      Check.new(:warn, "call rollups", "rollups drift check failed: #{e.class}: #{e.message}")
     end
 
     def live_rollups_check
