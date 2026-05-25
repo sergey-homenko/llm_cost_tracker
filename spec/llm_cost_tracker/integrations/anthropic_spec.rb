@@ -80,6 +80,42 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
     end
   end
 
+  describe "messages.batches.results_streaming" do
+    let(:jsonl_body) do
+      [
+        { custom_id: "req_a",
+          result: { type: "succeeded",
+                    message: { id: "msg_a", type: "message", role: "assistant",
+                               model: "claude-sonnet-4-5", content: [{ type: "text", text: "hi" }],
+                               stop_reason: "end_turn", usage: { input_tokens: 10, output_tokens: 5 } } } },
+        { custom_id: "req_b",
+          result: { type: "errored",
+                    error: { type: "invalid_request_error", message: "bad" } } }
+      ].map(&:to_json).join("\n")
+    end
+
+    it "records each succeeded batch result as a ledger event with pricing_mode: :batch and skips errored ones" do
+      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
+        status: 200,
+        body: jsonl_body,
+        headers: { "Content-Type" => "application/x-jsonl" }
+      )
+
+      capture_sdk_events do |events|
+        client.messages.batches.results_streaming("batch_xyz").each { |_| }
+
+        expect(events.size).to eq(1)
+        expect(events.first).to include(
+          provider: "anthropic",
+          model: "claude-sonnet-4-5",
+          pricing_mode: :batch,
+          provider_response_id: "msg_a",
+          usage_source: "sdk_batch_result"
+        )
+      end
+    end
+  end
+
   describe "messages.stream / stream_raw" do
     let(:sse_body) do
       <<~SSE
