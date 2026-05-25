@@ -351,6 +351,23 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Logging).to have_received(:warn).with(include("Rollup increment failed"))
   end
 
+  it "retries a transient rollup increment failure before warning so transient DB hiccups don't permanently strand the rollup" do
+    LlmCostTracker.configure { |config| config.cache_rollups = true }
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    allow(LlmCostTracker::Ledger::Store).to receive(:sleep)
+    increment_call_count = 0
+    allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!) do |events|
+      increment_call_count += 1
+      raise "transient" if increment_call_count < 3
+    end
+    event = build_event(event_id: "rollup-retry")
+
+    LlmCostTracker::Ledger::Store.insert([event])
+
+    expect(increment_call_count).to eq(3)
+    expect(LlmCostTracker::Logging).not_to have_received(:warn)
+  end
+
   it "qualifies PostgreSQL rollup upsert totals" do
     connection = double(adapter_name: "PostgreSQL")
     allow(connection).to receive(:quote_column_name) { |name| %("#{name}") }

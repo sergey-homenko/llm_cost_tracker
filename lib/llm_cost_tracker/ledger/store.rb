@@ -125,14 +125,28 @@ module LlmCostTracker
           (details || {}).transform_keys(&:to_s).transform_values { |value| Tags::Encoding.normalize_value(value) }
         end
 
-        def increment_rollups_safely(events)
-          Ledger::Rollups.increment!(events)
-        rescue StandardError => e
-          raise if LlmCostTracker::Call.connection.open_transactions.positive?
+        ROLLUP_INCREMENT_ATTEMPTS = 3
+        ROLLUP_INCREMENT_BASE_DELAY_SECONDS = 0.05
+        private_constant :ROLLUP_INCREMENT_ATTEMPTS, :ROLLUP_INCREMENT_BASE_DELAY_SECONDS
 
-          LlmCostTracker::Logging.warn(
-            "Rollup increment failed for #{events.size} events after ledger commit: #{e.class}: #{e.message}"
-          )
+        def increment_rollups_safely(events)
+          attempt = 0
+          begin
+            attempt += 1
+            Ledger::Rollups.increment!(events)
+          rescue StandardError => e
+            raise if LlmCostTracker::Call.connection.open_transactions.positive?
+
+            if attempt < ROLLUP_INCREMENT_ATTEMPTS
+              sleep(ROLLUP_INCREMENT_BASE_DELAY_SECONDS * (2**(attempt - 1)))
+              retry
+            end
+
+            LlmCostTracker::Logging.warn(
+              "Rollup increment failed for #{events.size} events after #{attempt} attempts: " \
+              "#{e.class}: #{e.message}"
+            )
+          end
         end
       end
     end

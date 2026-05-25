@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- `Ledger::Store` retries a transient rollup-increment failure twice with short exponential backoff before warning, so a brief DB hiccup mid-write no longer leaves the call-rollups row permanently short of the actual ledger total.
 - `Call#pricing_snapshot.rates` now includes per-charge rates for non-token service line items (web search, MCP calls, TTS character billing, etc.) — previously only token rates were captured, so audit/replay of service-charge pricing had no record of the rate that was actually applied.
 - Tags with invalid keys (e.g. containing whitespace or characters outside `[\w.-]`) are now skipped at write with a `Logging.warn` instead of being silently written and then raising `InvalidFilterError` on dashboard read.
 - A raising `default_tags` proc is now captured by `Logging.warn` and falls back to empty default tags, so a broken user callback doesn't take down every tracked call.
