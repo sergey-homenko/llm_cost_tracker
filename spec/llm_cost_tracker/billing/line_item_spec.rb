@@ -37,6 +37,14 @@ RSpec.describe LlmCostTracker::Billing::LineItem do
       expect(line_item.kind).to eq("text_token")
       expect(line_item.price_source).to eq("bundled")
     end
+
+    it "uppercases currency so reads against canonical UPPER form don't strand the row" do
+      line_item = described_class.build(
+        kind: "text_token", direction: "input", modality: "text", cache_state: "none",
+        quantity: 1, unit: "token", currency: "eur"
+      )
+      expect(line_item.currency).to eq("EUR")
+    end
   end
 
   describe "predicates" do

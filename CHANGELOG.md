@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- Line-item and pricing-snapshot `currency` is now stored uppercase regardless of what `prices_file` or a manual `service_line_items:` argument supplied — previously a `prices_file` with `currency: "eur"` stranded rows from `Reconciliation::Diff`, dashboard currency filters, and `cost_drift_check` (all of which read the canonical UPPER form).
 - `bin/rails llm_cost_tracker:doctor` reports the underlying ActiveRecord error when the async-ingestion check can't read the inbox; previously a transient DB failure silently rendered the path as `:ok`.
 - Dashboard "Setup required" page now flags missing `llm_cost_tracker_ingestion_inbox_entries` and `llm_cost_tracker_ingestion_leases` tables when `ingestion: :async` is configured — previously the drift only surfaced as a worker boot crash.
 - RubyLLM SDK integration over-subtracted cache-read tokens from recorded `input_tokens` on chat completions, so the figure landed in the ledger short by the cache-read amount; the gem now passes RubyLLM's net `input_tokens` through unchanged.

@@ -197,12 +197,12 @@ module LlmCostTracker
         end
 
         def source_currency(source)
-          case source
-          when "bundled" then Registry.metadata["currency"] || Billing::DEFAULT_CURRENCY
-          when "prices_file"
-            Registry.file_metadata(LlmCostTracker.configuration.prices_file)["currency"] || Billing::DEFAULT_CURRENCY
-          else Billing::DEFAULT_CURRENCY
-          end
+          raw = case source
+                when "bundled" then Registry.metadata["currency"]
+                when "prices_file"
+                  Registry.file_metadata(LlmCostTracker.configuration.prices_file)["currency"]
+                end
+          (raw || Billing::DEFAULT_CURRENCY).to_s.upcase
         end
 
         def snapshot_variant?(model, key)
