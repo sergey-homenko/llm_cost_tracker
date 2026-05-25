@@ -14,7 +14,9 @@ module LlmCostTracker
       "per_request" => 1,
       "per_1k_requests" => 1_000,
       "per_session" => 1,
-      "per_hour" => 1
+      "per_hour" => 1,
+      "per_minute" => 1,
+      "per_image" => 1
     }.freeze
 
     DEFAULT_RATE_BASIS_BY_UNIT = {
@@ -22,7 +24,9 @@ module LlmCostTracker
       "character" => "per_million_characters",
       "request" => "per_request",
       "session" => "per_session",
-      "hour" => "per_hour"
+      "hour" => "per_hour",
+      "minute" => "per_minute",
+      "image" => "per_image"
     }.freeze
 
     module Components

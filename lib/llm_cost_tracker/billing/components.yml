@@ -141,6 +141,30 @@
   unit: character
   rate_basis: per_million_characters
 
+- key: transcription_minute
+  kind: transcription_minute
+  direction: input
+  modality: audio
+  cache_state: none
+  unit: minute
+  rate_basis: per_minute
+
+- key: image_generation_call
+  kind: image_generation_call
+  direction: output
+  modality: image
+  cache_state: none
+  unit: image
+  rate_basis: per_image
+
+- key: computer_call
+  kind: computer_call
+  direction: neither
+  modality: text
+  cache_state: none
+  unit: request
+  rate_basis: per_request
+
 - key: mcp_call
   kind: mcp_call
   direction: neither

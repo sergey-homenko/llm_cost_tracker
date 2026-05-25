@@ -156,6 +156,23 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         )
       end
     end
+
+    it "emits a transcription_minute line item when whisper-1 returns duration usage instead of token usage" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
+        status: 200,
+        body: { text: "hello", usage: { type: "duration", seconds: 125.5 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        client.audio.transcriptions.create(file: audio_io, model: "whisper-1")
+
+        line = events.first[:line_items].find { |item| item[:kind] == "transcription_minute" }
+        expect(line).not_to be_nil
+        expect(line[:quantity].to_i).to eq(3)
+        expect(line[:cost_status]).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+      end
+    end
   end
 
   describe "audio.translations.create" do

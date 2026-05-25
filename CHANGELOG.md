@@ -12,6 +12,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- Whisper-style transcriptions whose response carries `usage.type = "duration"` now emit a `transcription_minute` line item (quantity = `ceil(seconds / 60)`); the call previously recorded with zero tokens and no line item, so audio-minute usage was invisible.
+- OpenAI Responses-API `image_generation_call` and `computer_call` output items now emit line items so per-call hosted-tool usage shows up on the dashboard alongside the existing `web_search_call` / `file_search_call` / `code_interpreter_call` coverage.
 - `LlmCostTracker.track(..., enforce_budget: true)` now actually raises `BudgetExceededError` pre-call when the estimated cost overshoots the budget, even when `budget_exceeded_behavior: :notify` is configured — previously the kwarg silently no-op'd unless policy was already `:block_requests`.
 - `Ledger::Store` retries a transient rollup-increment failure twice with short exponential backoff before warning, so a brief DB hiccup mid-write no longer leaves the call-rollups row permanently short of the actual ledger total.
 - `Call#pricing_snapshot.rates` now includes per-charge rates for non-token service line items (web search, MCP calls, TTS character billing, etc.) — previously only token rates were captured, so audit/replay of service-charge pricing had no record of the rate that was actually applied.

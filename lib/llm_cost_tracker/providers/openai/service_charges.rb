@@ -10,7 +10,9 @@ module LlmCostTracker
           "web_search_call" => "web_search_request",
           "file_search_call" => "file_search_call",
           "code_interpreter_call" => "container_session",
-          "mcp_call" => "mcp_call"
+          "mcp_call" => "mcp_call",
+          "image_generation_call" => "image_generation_call",
+          "computer_call" => "computer_call"
         }.freeze
 
         module_function

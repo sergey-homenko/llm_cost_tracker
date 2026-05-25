@@ -158,12 +158,14 @@ module LlmCostTracker
         end
 
         def record_transcription(response, request:, latency_ms:, host: nil)
+          usage = usage_hash_from(response)
           record_passthrough(
             model: request[:model],
             response: response,
             latency_ms: latency_ms,
             host: host,
-            **transcription_token_attributes(usage_hash_from(response))
+            service_line_items: transcription_service_line_items(usage),
+            **transcription_token_attributes(usage)
           )
         end
 
@@ -177,6 +179,22 @@ module LlmCostTracker
             audio_input_tokens: audio_input,
             output_tokens: usage[:output_tokens].to_i
           }
+        end
+
+        def transcription_service_line_items(usage)
+          return [] unless usage && usage[:type].to_s == "duration"
+
+          seconds = usage[:seconds].to_f
+          return [] unless seconds.positive?
+
+          [LlmCostTracker::Billing::LineItem.build(
+            component_key: "transcription_minute",
+            quantity: (seconds / 60.0).ceil,
+            cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN,
+            pricing_basis: "provider_usage",
+            provider_field: "usage.seconds",
+            details: { seconds: seconds }
+          )]
         end
 
         def record_speech(_response, request:, latency_ms:, host: nil)
