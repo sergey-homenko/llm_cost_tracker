@@ -77,13 +77,6 @@ fixtures. Each item still has to clear the three filters above.
    public bug reports (OpenAI forum blake24 thread: `$4.41` charged
    when `$1.71` expected).
 
-3. **Pricing snapshot drift detection in doctor.**
-   Upgrade-time check, not runtime alert. When bundled prices change
-   between gem releases, `llm_cost_tracker:doctor` surfaces calls
-   priced under the previous snapshot so operators decide whether to
-   re-price through the existing `backfill_unknown_pricing` pattern.
-   Local / CI tool only.
-
 ## v1.x+ — reactive
 
 Not planned in advance. Each item ships only against verified demand.

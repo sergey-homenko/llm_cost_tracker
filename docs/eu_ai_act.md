@@ -107,10 +107,9 @@ persist credentials alongside attribution.
 
 `cost_status` (`complete` / `partial` / `unknown` / `free`) records
 whether the rate table fully priced the call. An auditor looking at
-tokens/cost reconciliation should know which rows are estimates. Doctor
-flags drift between `total_cost` and `SUM(line_items.cost)` —
-`bin/rails llm_cost_tracker:doctor` is the right place to catch it
-before an audit does.
+tokens / cost reconciliation should know which rows are estimates;
+filter or aggregate by `cost_status` to separate measured cost from
+gap-pricing estimates.
 
 ### Provider invoice cross-reference
 

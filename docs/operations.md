@@ -101,15 +101,14 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` checks current schema (calls, line items, tags), the optional
-inbox/leases/rollups/provider-invoice tables that match your config
-flags, stale prices, integration setup, legacy audit columns, and two
-sample-based drift checks: header `total_cost` vs
-`SUM(line_items.cost)` and stored line item cost vs the call's
-`pricing_snapshot.rates`. Drift surfaces as a `:warn` so transient
-mismatches during a deploy don't fail the gate. Mismatches between
+`doctor` is a dev/install-time signal. It checks current schema (calls,
+line items, tags), the optional inbox/leases/rollups tables that match
+your config flags, stale prices, and integration setup. Mismatches between
 config flags and present tables (e.g. inbox table exists but
-`ingestion = :inline`) also surface as `:warn`.
+`ingestion = :inline`) surface as `:warn`. Runtime data conditions
+(quarantined inbox rows, rollup drift) log to `Rails.logger` from the
+write path at the moment they occur — production never runs `doctor` so
+those signals must reach the host's own logger.
 
 `verify_capture` records a synthetic event and verifies both notifications and
 ActiveRecord persistence.
