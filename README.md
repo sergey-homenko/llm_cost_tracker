@@ -32,15 +32,16 @@ gem "openai"
 bin/rails llm_cost_tracker:setup
 ```
 
-Runs the install generator, drops a price snapshot, migrates the database, and verifies via `llm_cost_tracker:doctor`.
+Runs the install generator, drops a price snapshot, migrates the database, and verifies via `llm_cost_tracker:doctor`. The generated `config/initializers/llm_cost_tracker.rb` looks like:
 
 ```ruby
-# config/initializers/llm_cost_tracker.rb
 LlmCostTracker.configure do |config|
   config.default_tags = -> { { environment: Rails.env } }
   config.instrument :openai
 end
 ```
+
+Edit it in place to add tags, switch on async ingestion, enable reconciliation, etc.
 
 Tag your calls to attribute spend:
 
@@ -85,7 +86,9 @@ The engine ships without authentication on purpose.
 | Anything else | `LlmCostTracker.track` |
 
 Streams capture when the provider emits final usage. OpenAI Faraday streams
-need `stream_options: { include_usage: true }`.
+get `stream_options: { include_usage: true }` auto-injected so the final
+usage chunk lands in the ledger (opt out via
+`config.auto_enable_stream_usage = false`).
 
 ## What it isn't
 

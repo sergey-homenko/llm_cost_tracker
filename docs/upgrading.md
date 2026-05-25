@@ -1,5 +1,42 @@
 # Upgrading
 
+## v0.11 → v0.12 (Unreleased)
+
+v0.12 reshuffles the internal namespace for vendor parsers and reconciliation
+sources, drops the engine-side `filter_parameters` entries that were
+substring-matching unrelated host-app params, makes `enforce_budget: true` on
+`LlmCostTracker.track` actually raise pre-call when over budget regardless of
+the global policy, and tightens RubyLLM SDK capture (proper `service_tier`
+JSON path, 1-hour vs 5-minute cache split, response id from raw body). One
+BREAKING change for custom code that referenced the old parser/source
+constants directly.
+
+### Required: rename constants if you referenced internals (BREAKING)
+
+Capture is automatic via Faraday and SDK patches, so most apps do nothing.
+If your code explicitly references the parser or reconciliation source classes,
+update the names:
+
+| Old | New |
+| --- | --- |
+| `LlmCostTracker::Parsers::Openai` | `LlmCostTracker::Providers::Openai::Parser` |
+| `LlmCostTracker::Parsers::Anthropic` | `LlmCostTracker::Providers::Anthropic::Parser` |
+| `LlmCostTracker::Parsers::Azure` | `LlmCostTracker::Providers::Azure::Parser` |
+| `LlmCostTracker::Parsers::Gemini` | `LlmCostTracker::Providers::Gemini::Parser` |
+| `LlmCostTracker::Parsers::OpenaiCompatible` | `LlmCostTracker::Providers::OpenaiCompatible::Parser` |
+| `LlmCostTracker::Parsers::OpenaiUsage` | `LlmCostTracker::Providers::Openai::UsageParser` |
+| `LlmCostTracker::Reconciliation::Sources::OpenaiUsage` | `LlmCostTracker::Providers::Openai::ReconciliationSource` |
+| `LlmCostTracker::Reconciliation::Sources::AnthropicUsage` | `LlmCostTracker::Providers::Anthropic::ReconciliationSource` |
+| `LlmCostTracker::Reconciliation::Sources::Coercion` | `LlmCostTracker::Reconciliation::Coercion` |
+| `LlmCostTracker::Reconciliation::Sources::Fingerprint` | `LlmCostTracker::Reconciliation::Fingerprint` |
+
+### Optional: host-app `filter_parameters` cleanup
+
+The engine no longer adds `:tag` / `:tag_value` to
+`Rails.application.config.filter_parameters` at boot. If your host app was
+relying on that side effect to redact tag values in Rails request logs, add
+the entries to your own initializer; otherwise no change is required.
+
 ## v0.9.x → v0.10
 
 v0.10 sharpens the v0.9 line: a pre-send budget gate, multi-currency-aware
