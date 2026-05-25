@@ -20,8 +20,7 @@ module LlmCostTracker
           "input_cache_read" => "cache_read_input",
           "input_cache_write" => "cache_write_input",
           "image" => "image_input",
-          "audio" => "audio_input",
-          "internal_reasoning" => "hidden_output"
+          "audio" => "audio_input"
         }.freeze
 
         Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)

@@ -16,7 +16,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
         { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash",
           pricing: { prompt: "0.0000003", completion: "0.0000025",
                      image: "0.0000003", audio: "0.0000006",
-                     internal_reasoning: "0.0000025" } },
+                     web_search: "0.014" } },
         { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B",
           pricing: { prompt: "0.00000023", completion: "0.0000004" } },
         { id: "free/model", name: "Free Model",
@@ -37,7 +37,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
       ),
       "google/gemini-2.5-flash" => a_hash_including(
         "input" => 0.3, "output" => 2.5,
-        "image_input" => 0.3, "audio_input" => 0.6, "hidden_output" => 2.5
+        "image_input" => 0.3, "audio_input" => 0.6
       ),
       "meta-llama/llama-3.3-70b-instruct" => a_hash_including("input" => 0.23, "output" => 0.4)
     )
@@ -48,6 +48,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
     result = described_class.new.call(html: payload)
 
     expect(result.models).not_to have_key("free/model")
+  end
+
+  it "ignores per-request pricing fields like web_search so a $0.014/call rate isn't misread as $14000/Mtok" do
+    stub_const("#{described_class}::MIN_MODELS_EXPECTED", 4)
+    result = described_class.new.call(html: payload)
+
+    gemini = result.models.fetch("google/gemini-2.5-flash")
+    expect(gemini.keys).not_to include("web_search", "web_search_request")
   end
 
   it "raises when the API returns fewer models than the minimum threshold (catches API breakage)" do
