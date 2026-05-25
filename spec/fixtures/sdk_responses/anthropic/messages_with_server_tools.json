@@ -10,8 +10,7 @@
     "output_tokens": 30,
     "server_tool_use": {
       "web_search_requests": 2,
-      "web_fetch_requests": 0,
-      "code_execution_requests": 1
+      "web_fetch_requests": 1
     }
   }
 }

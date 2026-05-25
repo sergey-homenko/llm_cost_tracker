@@ -419,6 +419,24 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(result.token_usage.image_output_tokens).to eq(1568)
       expect(result.token_usage.output_tokens).to eq(0)
     end
+
+    it "emits a transcription_minute line item for Whisper duration-typed usage on the Faraday path" do
+      transcription_url = URI::HTTPS.build(host: "api.openai.com", path: "/v1/audio/transcriptions").to_s
+
+      result = parser.parse(
+        request_url: transcription_url,
+        request_body: { model: "whisper-1" }.to_json,
+        response_status: 200,
+        response_body: {
+          text: "hello world",
+          usage: { type: "duration", seconds: 75.0 }
+        }.to_json
+      )
+
+      transcription_line = result.line_items.find { |line| line.kind == "transcription_minute" }
+      expect(transcription_line).not_to be_nil
+      expect(transcription_line.quantity).to eq(2)
+    end
   end
 
   describe "#streaming_request?" do

@@ -252,6 +252,30 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         )
       end
     end
+
+    it "skips a batch result whose provider_response_id already lives in the ledger so a second-process retrieve is a no-op" do
+      LlmCostTracker::Integrations::Openai.singleton_class.const_get(:BATCH_CAPTURE_DEDUP).clear
+      WebMock.stub_request(:get, "https://api.openai.com/v1/batches/batch_done").to_return(
+        status: 200,
+        body: { id: "batch_done", object: "batch", status: "completed",
+                input_file_id: "file_in", output_file_id: "file_out",
+                endpoint: "/v1/chat/completions" }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+      WebMock.stub_request(:get, "https://api.openai.com/v1/files/file_out/content").to_return(
+        status: 200, body: jsonl_body,
+        headers: { "Content-Type" => "application/binary" }
+      )
+      allow(LlmCostTracker::Call).to receive(:where)
+        .with(provider: "openai", provider_response_id: "chatcmpl_b1")
+        .and_return(double(exists?: true))
+
+      capture_sdk_events do |events|
+        client.batches.retrieve("batch_done")
+
+        expect(events).to be_empty
+      end
+    end
   end
 
   describe "moderations.create" do

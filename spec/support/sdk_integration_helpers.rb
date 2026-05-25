@@ -6,6 +6,7 @@ module SdkIntegrationHelpers
   def configure_sdk_integration(name)
     allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_return(true)
     allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
+    allow(LlmCostTracker::Call).to receive(:where).and_return(double(exists?: false))
     LlmCostTracker.configure do |config|
       config.unknown_pricing_behavior = :ignore
       config.instrument(name)

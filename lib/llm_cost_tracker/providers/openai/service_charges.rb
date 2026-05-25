@@ -152,6 +152,25 @@ module LlmCostTracker
           end
           line_items_from_output(output_items, request: request, model: model)
         end
+
+        def transcription_line_items(usage)
+          return [] unless usage
+
+          type = (usage[:type] || usage["type"]).to_s
+          return [] unless type == "duration"
+
+          seconds = (usage[:seconds] || usage["seconds"]).to_f
+          return [] unless seconds.positive?
+
+          [Billing::LineItem.build(
+            component_key: "transcription_minute",
+            quantity: (seconds / 60.0).ceil,
+            cost_status: Billing::CostStatus::UNKNOWN,
+            pricing_basis: "provider_usage",
+            provider_field: "usage.seconds",
+            details: { seconds: seconds }
+          )]
+        end
       end
     end
   end

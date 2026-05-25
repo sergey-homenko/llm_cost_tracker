@@ -34,13 +34,13 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       end
     end
 
-    it "treats priority service tier as standard pricing (throughput, not per-token uplift)" do
+    it "preserves priority service tier as its own pricing mode so committed pricing isn't billed as standard" do
       stub_sdk_json(:post, "https://api.anthropic.com/v1/messages",
                     provider: :anthropic, fixture: "messages_priority_tier.json")
 
       capture_sdk_events do |events|
         client.messages.create(**request_params)
-        expect(events.first[:pricing_mode]).to be_nil
+        expect(events.first[:pricing_mode]).to eq(:priority)
       end
     end
 
@@ -74,7 +74,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         client.messages.create(**request_params)
 
         service_lines = events.first[:line_items].reject { |item| item[:unit] == "token" }
-        expect(service_lines.map { |item| item[:kind] }).to contain_exactly("web_search_request", "code_execution_request")
+        expect(service_lines.map { |item| item[:kind] }).to contain_exactly("web_search_request", "web_fetch_request")
         expect(service_lines.map { |item| item[:quantity].to_i }).to contain_exactly(2, 1)
       end
     end
@@ -112,6 +112,23 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
           provider_response_id: "msg_a",
           usage_source: "sdk_batch_result"
         )
+      end
+    end
+
+    it "skips a batch result whose provider_response_id already lives in the ledger so a second iteration is a no-op" do
+      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
+        status: 200,
+        body: jsonl_body,
+        headers: { "Content-Type" => "application/x-jsonl" }
+      )
+      allow(LlmCostTracker::Call).to receive(:where)
+        .with(provider: "anthropic", provider_response_id: "msg_a")
+        .and_return(double(exists?: true))
+
+      capture_sdk_events do |events|
+        client.messages.batches.results_streaming("batch_xyz").each { |_| }
+
+        expect(events).to be_empty
       end
     end
   end

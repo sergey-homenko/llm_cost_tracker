@@ -34,7 +34,11 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::UsageExtractor do
 
   describe ".pricing_mode" do
     it "returns nil for standard-equivalent service tiers" do
-      expect(described_class.pricing_mode(request: {}, usage: { input_tokens: 1, output_tokens: 1, service_tier: "priority" })).to be_nil
+      expect(described_class.pricing_mode(request: {}, usage: { input_tokens: 1, output_tokens: 1, service_tier: "standard" })).to be_nil
+    end
+
+    it "preserves priority tier as :priority so committed pricing isn't billed as standard" do
+      expect(described_class.pricing_mode(request: {}, usage: { input_tokens: 1, output_tokens: 1, service_tier: "priority" })).to eq("priority")
     end
 
     it "captures the batch service tier as :batch" do

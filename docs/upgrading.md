@@ -37,6 +37,30 @@ The engine no longer adds `:tag` / `:tag_value` to
 relying on that side effect to redact tag values in Rails request logs, add
 the entries to your own initializer; otherwise no change is required.
 
+## v0.10 → v0.11
+
+v0.11 is a dashboard-UX release: sortable column headers replace the
+per-page sort buttons. No code, schema, or initializer changes.
+
+### Dashboard URL changes
+
+The Calls page used to expose sort buttons that emitted `?sort=expensive`,
+`?sort=recent`, `?sort=largest`, `?sort=slowest`. Those values are gone.
+Sort by clicking a column header instead; the URL becomes
+`?sort=<column>&dir=asc|desc`. Equivalents:
+
+- `?sort=expensive` → `?sort=cost&dir=desc`
+- `?sort=recent`    → `?sort=tracked_at&dir=desc` (the default)
+- `?sort=largest`   → `?sort=input&dir=desc`
+- `?sort=slowest`   → `?sort=latency&dir=desc`
+
+The `?sort=unknown_pricing` shortcut on `/calls` is replaced by the
+explicit `?cost_status=incomplete` filter; the Data Quality page's
+"Incomplete pricing by model" panel points at the new URL.
+
+If your runbook, bookmarks, or saved dashboards reference the old URLs,
+update them to the new column-keyed form.
+
 ## v0.9.x → v0.10
 
 v0.10 sharpens the v0.9 line: a pre-send budget gate, multi-currency-aware

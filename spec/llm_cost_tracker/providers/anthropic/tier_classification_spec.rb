@@ -23,8 +23,8 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::TierClassification do
   end
 
   describe ".standard_equivalent_tier?" do
-    it "treats Priority Tier as standard pricing because it is throughput-only, not a per-token surcharge" do
-      expect(described_class.standard_equivalent_tier?("priority")).to be true
+    it "preserves Priority Tier as its own mode so committed pricing isn't billed at standard rates" do
+      expect(described_class.standard_equivalent_tier?("priority")).to be false
     end
 
     it "treats standard / standard_only as themselves" do

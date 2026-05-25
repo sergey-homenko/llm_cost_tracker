@@ -165,7 +165,7 @@ module LlmCostTracker
             response: response,
             latency_ms: latency_ms,
             host: host,
-            service_line_items: transcription_service_line_items(usage),
+            service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.transcription_line_items(usage),
             **transcription_token_attributes(usage)
           )
         end
@@ -180,22 +180,6 @@ module LlmCostTracker
             audio_input_tokens: audio_input,
             output_tokens: usage[:output_tokens].to_i
           }
-        end
-
-        def transcription_service_line_items(usage)
-          return [] unless usage && usage[:type].to_s == "duration"
-
-          seconds = usage[:seconds].to_f
-          return [] unless seconds.positive?
-
-          [LlmCostTracker::Billing::LineItem.build(
-            component_key: "transcription_minute",
-            quantity: (seconds / 60.0).ceil,
-            cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN,
-            pricing_basis: "provider_usage",
-            provider_field: "usage.seconds",
-            details: { seconds: seconds }
-          )]
         end
 
         def record_speech(_response, request:, latency_ms:, host: nil)
@@ -416,6 +400,9 @@ module LlmCostTracker
         end
 
         def record_batch_response(response)
+          provider_response_id = response["id"]
+          return if batch_response_already_recorded?(provider_response_id: provider_response_id)
+
           usage = response["usage"].deep_symbolize_keys
           model = response["model"]
           LlmCostTracker::Tracker.record(
@@ -425,12 +412,18 @@ module LlmCostTracker
               pricing_mode: :batch,
               token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
               usage_source: "sdk_batch_result",
-              provider_response_id: response["id"],
+              provider_response_id: provider_response_id,
               service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.service_line_items_for(
                 response, request: nil, model: model
               )
             )
           )
+        end
+
+        def batch_response_already_recorded?(provider_response_id:)
+          return false unless provider_response_id
+
+          LlmCostTracker::Call.where(provider: "openai", provider_response_id: provider_response_id).exists?
         end
       end
     end

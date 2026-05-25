@@ -111,7 +111,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
 
-    it "drops Anthropic priority service tier (committed throughput, not a surcharge) to nil pricing_mode" do
+    it "preserves Anthropic priority service tier as :priority so committed pricing isn't billed at standard rates" do
       WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
         status: 200,
         body: {
@@ -124,7 +124,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
 
       capture_sdk_events do |events|
         RubyLLM.chat(model: "claude-sonnet-4-5").ask("hi")
-        expect(events.first).to include(provider: "anthropic", pricing_mode: nil)
+        expect(events.first).to include(provider: "anthropic", pricing_mode: :priority)
       end
     end
   end

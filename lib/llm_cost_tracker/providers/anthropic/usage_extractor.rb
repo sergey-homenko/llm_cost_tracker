@@ -8,8 +8,7 @@ module LlmCostTracker
       module UsageExtractor
         SERVER_TOOL_LINE_ITEMS = {
           "web_search_request" => :web_search_requests,
-          "web_fetch_request" => :web_fetch_requests,
-          "code_execution_request" => :code_execution_requests
+          "web_fetch_request" => :web_fetch_requests
         }.freeze
         private_constant :SERVER_TOOL_LINE_ITEMS
 

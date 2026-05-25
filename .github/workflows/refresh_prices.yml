@@ -7,7 +7,7 @@ on:
     inputs:
       providers:
         description: "Comma-separated provider names to refresh"
-        default: "anthropic,gemini,groq,openai"
+        default: "anthropic,gemini,groq,openai,openrouter"
       dry_run:
         description: "Run without writing or opening a PR"
         type: boolean

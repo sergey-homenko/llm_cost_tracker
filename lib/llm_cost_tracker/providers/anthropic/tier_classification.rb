@@ -5,7 +5,7 @@ module LlmCostTracker
     module Anthropic
       module TierClassification
         DATA_RESIDENCY_GEOS = %w[us].freeze
-        STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only priority].freeze
+        STANDARD_EQUIVALENT_SERVICE_TIERS = %w[standard standard_only].freeze
         def self.data_residency_geo?(geo)
           DATA_RESIDENCY_GEOS.include?(geo.to_s.downcase)
         end

@@ -109,14 +109,6 @@
   unit: session
   rate_basis: per_session
 
-- key: code_execution_request
-  kind: code_execution_request
-  direction: neither
-  modality: none
-  cache_state: none
-  unit: request
-  rate_basis: per_1k_requests
-
 - key: code_execution_hour
   kind: code_execution_hour
   direction: neither

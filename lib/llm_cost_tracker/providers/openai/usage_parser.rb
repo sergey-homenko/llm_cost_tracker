@@ -47,7 +47,8 @@ module LlmCostTracker
             model: model,
             token_usage: UsageExtractor.token_usage(usage, model: model),
             usage_source: "response",
-            service_line_items: service_line_items_for(response, request: request, model: response["model"])
+            service_line_items: service_line_items_for(response, request: request, model: response["model"]) +
+                                transcription_line_items(usage)
           )
         end
 

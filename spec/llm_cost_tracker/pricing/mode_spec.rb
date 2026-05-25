@@ -62,6 +62,23 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
       expect(LlmCostTracker::Logging).to have_received(:warn).once
         .with(include("[:bach]").and(include("cost_status: unknown")))
     end
+
+    it "recognizes OpenAI's `scale` enterprise tier and Anthropic's `priority` tier without warning" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      described_class.const_get(:WARNED_TOKENS).clear
+
+      expect(described_class.normalize("scale")).to eq(:scale)
+      expect(described_class.normalize("priority")).to eq(:priority)
+      expect(LlmCostTracker::Logging).not_to have_received(:warn)
+    end
+
+    it "treats Gemini's default `unspecified` service tier as standard (returns nil)" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      described_class.const_get(:WARNED_TOKENS).clear
+
+      expect(described_class.normalize("unspecified")).to be_nil
+      expect(LlmCostTracker::Logging).not_to have_received(:warn)
+    end
   end
 
   describe ".permutations_for" do

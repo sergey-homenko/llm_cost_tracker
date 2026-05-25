@@ -200,7 +200,6 @@ RSpec.describe "ActiveRecord storage integration" do
     ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_calls, :pricing_mode)
     LlmCostTracker::Call.reset_column_information
 
-    expect(LlmCostTracker::Ledger::Schema::Calls.missing_required_columns).to include("pricing_mode")
     expect(LlmCostTracker::Ledger::Schema::Calls.current_schema_errors.join).to include("missing columns: pricing_mode")
   end
 
@@ -209,13 +208,9 @@ RSpec.describe "ActiveRecord storage integration" do
       ["PostgreSQL", double(type: :json, sql_type: "json"), /pricing_snapshot column must use jsonb/],
       ["Mysql2", double(type: :text, sql_type: "text"), /pricing_snapshot column must use json/]
     ].each do |adapter_name, column, pattern|
-      capabilities = LlmCostTracker::Ledger::Schema::Calls.send(
-        :build_schema_capabilities,
-        { "pricing_snapshot" => column },
-        adapter_name
-      )
+      errors = LlmCostTracker::Ledger::Schema::Adapter.json_column_errors(column, adapter_name, "pricing_snapshot")
 
-      expect(capabilities.fetch(:current_schema_errors).join).to match(pattern)
+      expect(errors.join).to match(pattern)
     end
   end
 
@@ -876,7 +871,6 @@ RSpec.describe "ActiveRecord storage integration" do
     ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_calls, :latency_ms)
     LlmCostTracker::Call.reset_column_information
 
-    expect(LlmCostTracker::Ledger::Schema::Calls.missing_required_columns).to include("latency_ms")
     expect(LlmCostTracker::Ledger::Schema::Calls.current_schema_errors.join).to include("missing columns: latency_ms")
   end
 

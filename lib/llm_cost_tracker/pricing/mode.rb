@@ -1,13 +1,11 @@
 # frozen_string_literal: true
 
-require "set"
-
 module LlmCostTracker
   module Pricing
     module Mode
-      STANDARD_MODE_VALUES = %i[auto default standard standard_only].freeze
+      STANDARD_MODE_VALUES = %i[auto default standard standard_only unspecified].freeze
       COMPOUND_MODIFIERS = %i[data_residency].freeze
-      KNOWN_MODIFIERS = %i[batch flex priority fast on_demand data_residency].freeze
+      KNOWN_MODIFIERS = %i[batch flex priority scale fast on_demand data_residency].freeze
       WARNED_TOKENS = Set.new
       private_constant :WARNED_TOKENS
 

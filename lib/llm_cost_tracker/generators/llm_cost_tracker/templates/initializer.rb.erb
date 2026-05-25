@@ -57,8 +57,9 @@ LlmCostTracker.configure do |config|
   # thread. Set to :async for a write-ahead inbox + background worker that batches
   # inserts and survives caller transaction rollbacks. Requires the optional
   # inbox/leases tables created by `bin/rails generate llm_cost_tracker:async_ingestion`.
-  # The worker uses a dedicated ActiveRecord pool (defaults to 2 connections) so it
-  # doesn't compete with request threads — bump ingestion_pool_size if your Puma
+  # Synchronous inbox writes use a dedicated ActiveRecord pool (defaults to 2 connections)
+  # so they don't compete with request threads for the default pool when a tracked call
+  # happens inside an open caller transaction. Bump ingestion_pool_size if your Puma
   # worker count outgrows that.
   # config.ingestion          = :async
   # config.ingestion_pool_size = 5

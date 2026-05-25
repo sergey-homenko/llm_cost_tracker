@@ -111,7 +111,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
       expect(result.provider_response_id).to eq("msg_123")
     end
 
-    it "treats Anthropic Priority Tier as standard pricing because it's a throughput commitment, not a per-token surcharge" do
+    it "preserves Anthropic Priority Tier as :priority so committed pricing isn't billed at standard rates" do
       result = parser.parse(
         request_url: anthropic_messages_url,
         request_body: request_body,
@@ -127,7 +127,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
         }.to_json
       )
 
-      expect(result.pricing_mode).to be_nil
+      expect(result.pricing_mode).to eq(:priority)
     end
 
     it "captures the batch service tier as a pricing mode" do
@@ -197,14 +197,14 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
             output_tokens: 80,
             server_tool_use: {
               web_search_requests: 2,
-              code_execution_requests: 1
+              web_fetch_requests: 1
             }
           }
         }.to_json
       )
 
       service_lines = result.line_items.reject { |item| item.unit == "token" }
-      expect(service_lines.map(&:kind)).to eq(%w[web_search_request code_execution_request])
+      expect(service_lines.map(&:kind)).to eq(%w[web_search_request web_fetch_request])
       expect(service_lines.map(&:quantity).map(&:to_i)).to eq([2, 1])
       expect(service_lines.map(&:cost_status).uniq).to eq([LlmCostTracker::Billing::CostStatus::UNKNOWN])
     end
@@ -281,7 +281,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
       expect(result.token_usage.output_tokens).to eq(0)
     end
 
-    it "treats Anthropic Priority Tier in stream usage as standard (throughput, not per-token surcharge)" do
+    it "preserves Anthropic Priority Tier in stream usage as :priority" do
       events = [
         { event: "message_start", data: {
           "type" => "message_start",
@@ -308,7 +308,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
         events: events
       )
 
-      expect(result.pricing_mode).to be_nil
+      expect(result.pricing_mode).to eq(:priority)
     end
 
     it "captures the batch service tier in stream usage" do

@@ -97,7 +97,7 @@ Not planned in advance. Each item ships only against verified demand.
   (`workflow_id`, `run_id`, `user_action_id`, `agent_name`). No schema
   change — aggregations against `call_tags`. Gated on real demand.
 - Automated price scraper polish (foundations exist in
-  `pricing/sync.rb`, `pricing/scrape/runner.rb`).
+  `lib/llm_cost_tracker/pricing/sync.rb`, `scripts/price_scrape/runner.rb`).
 - Optional OpenTelemetry GenAI emitter, when the semantic conventions
   stabilize (likely 2027). Dual-emit: keep the local ledger, also
   publish to whatever OTel backend the host app runs.

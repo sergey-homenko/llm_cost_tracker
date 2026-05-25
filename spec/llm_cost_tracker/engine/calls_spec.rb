@@ -126,11 +126,11 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     create_call(model: "high-cost", total_cost: 5.0, tracked_at: Time.utc(2026, 4, 18, 12, 0, 0))
     create_call(model: "unknown-cost", total_cost: nil, tracked_at: Time.utc(2026, 4, 18, 13, 0, 0))
 
-    response = get("/llm-costs/calls?sort=expensive")
+    response = get("/llm-costs/calls?sort=cost&dir=desc")
+    rows = response.body.scan(%r{<td><code class="lct-code-id">([^<]+)</code></td>}).flatten
 
     expect(response.status).to eq(200)
-    expect(response.body.index("high-cost")).to be < response.body.index("mid-cost")
-    expect(response.body.index("mid-cost")).to be < response.body.index("unknown-cost")
+    expect(rows).to eq(%w[high-cost mid-cost unknown-cost])
   end
 
   it "sorts calls by latency with missing latency last" do
