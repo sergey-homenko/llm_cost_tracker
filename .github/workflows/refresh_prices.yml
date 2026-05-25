@@ -34,7 +34,7 @@ jobs:
 
       - name: Run price scrape
         env:
-          PROVIDERS: ${{ github.event.inputs.providers || 'anthropic,gemini,groq,openai' }}
+          PROVIDERS: ${{ github.event.inputs.providers || 'anthropic,gemini,groq,openai,openrouter' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
         run: |
           set -o pipefail
