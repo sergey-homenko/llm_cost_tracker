@@ -7,7 +7,7 @@
     <%= link_to "× Clear filters", tags_path(current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
   <% end %>
 
-  <span class="lct-filter-row-meta"><%= number(@rows.size) %> tag key<%= "s" unless @rows.size == 1 %></span>
+  <span class="lct-filter-row-meta"><%= number_with_delimiter(@rows.size) %> tag key<%= "s" unless @rows.size == 1 %></span>
 </div>
 
 <% if @rows.empty? %>
@@ -30,8 +30,8 @@
         <% @rows.each do |row| %>
           <tr>
             <td><code class="lct-code-id"><%= row.key %></code></td>
-            <td class="lct-num"><%= number(row.calls_count) %></td>
-            <td class="lct-num"><%= number(row.distinct_values) %></td>
+            <td class="lct-num"><%= number_with_delimiter(row.calls_count) %></td>
+            <td class="lct-num"><%= number_with_delimiter(row.distinct_values) %></td>
             <td class="lct-num"><%= link_to "Breakdown", tag_path(row.key, current_query), class: "lct-page-link" %></td>
           </tr>
         <% end %>

@@ -401,7 +401,8 @@ module LlmCostTracker
 
         def record_batch_response(response)
           provider_response_id = response["id"]
-          return if batch_response_already_recorded?(provider_response_id: provider_response_id)
+          return if LlmCostTracker::Call.already_recorded?(provider: "openai",
+                                                           provider_response_id: provider_response_id)
 
           usage = response["usage"].deep_symbolize_keys
           model = response["model"]
@@ -418,12 +419,6 @@ module LlmCostTracker
               )
             )
           )
-        end
-
-        def batch_response_already_recorded?(provider_response_id:)
-          return false unless provider_response_id
-
-          LlmCostTracker::Call.where(provider: "openai", provider_response_id: provider_response_id).exists?
         end
       end
     end

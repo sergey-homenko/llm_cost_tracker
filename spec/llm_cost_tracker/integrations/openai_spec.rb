@@ -214,6 +214,10 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
   end
 
   describe "batches.retrieve" do
+    before do
+      LlmCostTracker::Integrations::Openai.singleton_class.const_get(:BATCH_CAPTURE_DEDUP).clear
+    end
+
     let(:jsonl_body) do
       [
         { id: "batch_req_a", custom_id: "u1",
@@ -254,7 +258,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
 
     it "skips a batch result whose provider_response_id already lives in the ledger so a second-process retrieve is a no-op" do
-      LlmCostTracker::Integrations::Openai.singleton_class.const_get(:BATCH_CAPTURE_DEDUP).clear
       WebMock.stub_request(:get, "https://api.openai.com/v1/batches/batch_done").to_return(
         status: 200,
         body: { id: "batch_done", object: "batch", status: "completed",
@@ -266,8 +269,8 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         status: 200, body: jsonl_body,
         headers: { "Content-Type" => "application/binary" }
       )
-      allow(LlmCostTracker::Integrations::Openai).to receive(:batch_response_already_recorded?)
-        .with(provider_response_id: "chatcmpl_b1")
+      allow(LlmCostTracker::Call).to receive(:already_recorded?)
+        .with(provider: "openai", provider_response_id: "chatcmpl_b1")
         .and_return(true)
 
       capture_sdk_events do |events|

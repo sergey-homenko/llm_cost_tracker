@@ -92,6 +92,17 @@ module LlmCostTracker
         end
       end
 
+      def source_version_for(source)
+        case source
+        when "bundled"
+          LlmCostTracker::VERSION
+        when "prices_file"
+          Lookup.prices_file_mtime_iso
+        when "pricing_overrides"
+          "configuration"
+        end
+      end
+
       private
 
       def base_currency_for(cost_data, priced_services)
@@ -215,8 +226,7 @@ module LlmCostTracker
       end
 
       def price_service_charge_line_item(line_item, provider:, calculation:, pricing_mode:)
-        return line_item if line_item.priced?
-        return line_item unless line_item.billable?
+        return line_item if line_item.priced? || !line_item.billable?
 
         rate = model_rate_for(line_item, calculation) ||
                ServiceCharges.charge_rate(provider: provider, component: line_item.kind, pricing_mode: pricing_mode)
@@ -250,17 +260,6 @@ module LlmCostTracker
             component.modality == line_item.modality &&
             component.cache_state == line_item.cache_state &&
             component.unit == line_item.unit
-        end
-      end
-
-      def source_version_for(source)
-        case source
-        when "bundled"
-          LlmCostTracker::VERSION
-        when "prices_file"
-          Lookup.prices_file_mtime_iso
-        when "pricing_overrides"
-          "configuration"
         end
       end
 

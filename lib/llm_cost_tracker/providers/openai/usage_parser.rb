@@ -16,13 +16,9 @@ module LlmCostTracker
         class << self
           def combined_pricing_mode(host:, model:, service_tier:)
             modes = [Pricing::Mode.normalize(service_tier)]
-            modes << "data_residency" if regional_processing?(host: host, model: model)
+            modes << "data_residency" if Hosts.data_residency?(host) && ModelFamilies.data_residency?(model)
             modes = modes.compact.uniq
             modes.empty? ? nil : modes.join("_")
-          end
-
-          def regional_processing?(host:, model:)
-            Hosts.data_residency?(host) && ModelFamilies.data_residency?(model)
           end
         end
 

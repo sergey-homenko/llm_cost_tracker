@@ -8,7 +8,7 @@
     <%= link_to "× Clear filters", models_path(current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
   <% end %>
 
-  <span class="lct-filter-row-meta"><%= number(rows.size) %> model<%= "s" unless rows.size == 1 %></span>
+  <span class="lct-filter-row-meta"><%= number_with_delimiter(rows.size) %> model<%= "s" unless rows.size == 1 %></span>
 </div>
 
 <% if rows.empty? %>
@@ -36,10 +36,10 @@
           <tr>
             <td><span class="lct-model-cell"><span class="lct-provider-dot lct-provider-dot-<%= row.provider %>"></span><%= row.provider %></span></td>
             <td><code class="lct-code-id"><%= row.model %></code></td>
-            <td class="lct-num"><%= number(row.calls) %></td>
-            <td class="lct-num"><%= number(row.total_tokens) %></td>
+            <td class="lct-num"><%= number_with_delimiter(row.calls) %></td>
+            <td class="lct-num"><%= number_with_delimiter(row.total_tokens) %></td>
             <% avg_latency = row.average_latency_ms %>
-            <td class="lct-num<%= ' lct-num-muted' if avg_latency.nil? %>"><%= avg_latency ? "#{number(avg_latency.round)}ms" : "n/a" %></td>
+            <td class="lct-num<%= ' lct-num-muted' if avg_latency.nil? %>"><%= avg_latency ? "#{number_with_delimiter(avg_latency.round)}ms" : "n/a" %></td>
             <td class="lct-num"><%= money(row.average_cost_per_call) %></td>
             <td class="lct-num"><%= money(row.total_cost) %></td>
             <td class="lct-num"><%= link_to "Calls", calls_path(calls_query_for_model(provider: row.provider, model: row.model)), class: "lct-page-link" %></td>

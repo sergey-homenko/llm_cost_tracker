@@ -13,7 +13,7 @@
       <%= link_to "× Clear filters", tag_path(params[:key], current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
     <% end %>
 
-    <span class="lct-filter-row-meta"><%= number(@value_calls) %> call<%= "s" unless @value_calls == 1 %> · <%= money(@value_total_cost) %></span>
+    <span class="lct-filter-row-meta"><%= number_with_delimiter(@value_calls) %> call<%= "s" unless @value_calls == 1 %> · <%= money(@value_total_cost) %></span>
   </div>
 
   <% if @value_calls.zero? %>
@@ -26,11 +26,11 @@
       <div class="lct-stat">
         <div class="lct-stat-head"><p class="lct-stat-label">Total cost</p></div>
         <p class="lct-stat-value"><%= money(@value_total_cost) %></p>
-        <p class="lct-stat-foot">Across <%= number(@value_calls) %> calls</p>
+        <p class="lct-stat-foot">Across <%= number_with_delimiter(@value_calls) %> calls</p>
       </div>
       <div class="lct-stat">
         <div class="lct-stat-head"><p class="lct-stat-label">Calls</p></div>
-        <p class="lct-stat-value"><%= number(@value_calls) %></p>
+        <p class="lct-stat-value"><%= number_with_delimiter(@value_calls) %></p>
         <p class="lct-stat-foot">Tagged with <code class="lct-code-id"><%= @value %></code></p>
       </div>
       <div class="lct-stat">
@@ -62,7 +62,7 @@
       <%= link_to "× Clear filters", tag_path(params[:key], current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
     <% end %>
 
-    <span class="lct-filter-row-meta"><%= number(@breakdown.tagged_calls) %> tagged call<%= "s" unless @breakdown.tagged_calls == 1 %> · <%= percent(coverage_percent(@breakdown.tagged_calls, @breakdown.total_calls)) %> coverage · <%= number(@breakdown.distinct_values) %> distinct value<%= "s" unless @breakdown.distinct_values == 1 %></span>
+    <span class="lct-filter-row-meta"><%= number_with_delimiter(@breakdown.tagged_calls) %> tagged call<%= "s" unless @breakdown.tagged_calls == 1 %> · <%= percent(coverage_percent(@breakdown.tagged_calls, @breakdown.total_calls)) %> coverage · <%= number_with_delimiter(@breakdown.distinct_values) %> distinct value<%= "s" unless @breakdown.distinct_values == 1 %></span>
   </div>
 
   <% if @breakdown.rows.empty? %>
@@ -74,23 +74,23 @@
     <div class="lct-stat-grid">
       <div class="lct-stat">
         <div class="lct-stat-head"><p class="lct-stat-label">Tagged calls</p></div>
-        <p class="lct-stat-value"><%= number(@breakdown.tagged_calls) %></p>
+        <p class="lct-stat-value"><%= number_with_delimiter(@breakdown.tagged_calls) %></p>
         <p class="lct-stat-foot">Rows that include <code class="lct-code-id"><%= params[:key] %></code></p>
       </div>
       <div class="lct-stat">
         <div class="lct-stat-head"><p class="lct-stat-label">Coverage</p></div>
         <p class="lct-stat-value"><%= percent(coverage_percent(@breakdown.tagged_calls, @breakdown.total_calls)) %></p>
-        <p class="lct-stat-foot"><%= number(@breakdown.total_calls) %> total calls in this slice</p>
+        <p class="lct-stat-foot"><%= number_with_delimiter(@breakdown.total_calls) %> total calls in this slice</p>
       </div>
       <div class="lct-stat">
         <div class="lct-stat-head"><p class="lct-stat-label">Distinct values</p></div>
-        <p class="lct-stat-value"><%= number(@breakdown.distinct_values) %></p>
+        <p class="lct-stat-value"><%= number_with_delimiter(@breakdown.distinct_values) %></p>
       </div>
     </div>
 
     <% if @breakdown.distinct_values > @breakdown.rows.size %>
       <div class="lct-alert lct-alert-info">
-        <span>Showing top <%= number(@breakdown.limit) %> values by spend.</span>
+        <span>Showing top <%= number_with_delimiter(@breakdown.limit) %> values by spend.</span>
       </div>
     <% end %>
 
@@ -110,7 +110,7 @@
           <% @breakdown.rows.each do |row| %>
             <tr>
               <td><code class="lct-code-id"><%= row.value %></code></td>
-              <td class="lct-num"><%= number(row.calls) %></td>
+              <td class="lct-num"><%= number_with_delimiter(row.calls) %></td>
               <td class="lct-num"><%= percent(row.share_percent) %></td>
               <td class="lct-num"><%= money(row.total_cost) %></td>
               <td class="lct-num"><%= money(row.average_cost_per_call) %></td>

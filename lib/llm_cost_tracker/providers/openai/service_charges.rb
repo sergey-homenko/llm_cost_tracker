@@ -114,26 +114,26 @@ module LlmCostTracker
 
         def web_search_preview_used?(request)
           tools = request && (request[:tools] || request["tools"])
-          return false unless tools.respond_to?(:each)
-
-          tools.any? do |tool|
+          Array(tools).any? do |tool|
             type = tool.is_a?(Hash) ? (tool[:type] || tool["type"]) : tool
             type.to_s.include?("web_search_preview")
           end
         end
 
         def chat_completions_search_model?(model)
-          return false unless model
-
-          name = model.to_s.split("/", 2).last
-          ModelFamilies.chat_completions_search?(name)
+          name = local_model_name(model)
+          name && ModelFamilies.chat_completions_search?(name)
         end
 
         def reasoning_model?(model)
-          return false unless model
+          name = local_model_name(model)
+          name && ModelFamilies.reasoning?(name)
+        end
 
-          name = model.to_s.split("/", 2).last
-          ModelFamilies.reasoning?(name)
+        def local_model_name(model)
+          return nil unless model
+
+          model.to_s.split("/", 2).last
         end
 
         def line_item_details(item)

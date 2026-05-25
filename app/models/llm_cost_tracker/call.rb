@@ -43,6 +43,12 @@ module LlmCostTracker
     scope :between,     ->(from, to) { where(tracked_at: from..to) }
 
     class << self
+      def already_recorded?(provider:, provider_response_id:)
+        return false unless provider_response_id
+
+        where(provider: provider, provider_response_id: provider_response_id).exists?
+      end
+
       def by_tag(key, value) = by_tags(key => value)
 
       def by_tags(tags) = Ledger::Tags::Query.apply(tags)

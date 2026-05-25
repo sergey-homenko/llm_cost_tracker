@@ -44,12 +44,10 @@ module LlmCostTracker
       value.nil? ? "n/a" : money(value)
     end
 
-    def number(value)
-      number_with_delimiter(value)
-    end
-
     def format_date(value)
-      value.try(:strftime, "%Y-%m-%d %H:%M") || value.to_s
+      return "" if value.nil?
+
+      value.strftime("%Y-%m-%d %H:%M")
     end
 
     def pricing_status(call)

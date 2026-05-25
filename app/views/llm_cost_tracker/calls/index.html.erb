@@ -18,8 +18,8 @@
     <%= link_to "× Clear filters", calls_path(current_query(provider: nil, model: nil, stream: nil, cost_status: nil, page: nil)), class: "lct-filter-clear" %>
   <% end %>
 
-  <span class="lct-filter-row-meta"><%= number(@calls_count) %> call<%= "s" unless @calls_count == 1 %> · <%= money(@calls_total_cost) %></span>
-  <%= link_to "Export CSV", calls_path(current_query(format: :csv)), class: "lct-page-link", title: "Capped at #{number(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT)} rows per request" %>
+  <span class="lct-filter-row-meta"><%= number_with_delimiter(@calls_count) %> call<%= "s" unless @calls_count == 1 %> · <%= money(@calls_total_cost) %></span>
+  <%= link_to "Export CSV", calls_path(current_query(format: :csv)), class: "lct-page-link", title: "Capped at #{number_with_delimiter(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT)} rows per request" %>
 </div>
 
 <% if @calls_count.zero? %>
@@ -49,10 +49,10 @@
             <td><%= format_date(call.tracked_at) %></td>
             <td><span class="lct-model-cell"><span class="lct-provider-dot lct-provider-dot-<%= call.provider %>"></span><%= call.provider %></span></td>
             <td><code class="lct-code-id"><%= call.model %></code></td>
-            <td class="lct-num"><%= number(call.input_tokens) %></td>
-            <td class="lct-num"><%= number(call.output_tokens) %></td>
+            <td class="lct-num"><%= number_with_delimiter(call.input_tokens) %></td>
+            <td class="lct-num"><%= number_with_delimiter(call.output_tokens) %></td>
             <td class="lct-num<%= ' lct-num-muted' if call.total_cost.nil? %>"><%= optional_money(call.total_cost) %></td>
-            <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number(call.latency_ms)}ms" : "n/a" %></td>
+            <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number_with_delimiter(call.latency_ms)}ms" : "n/a" %></td>
             <td><%= render "llm_cost_tracker/shared/tag_chips", tags: call.parsed_tags %></td>
             <td class="lct-num"><%= link_to "Details", call_path(call), class: "lct-page-link" %></td>
           </tr>
@@ -64,7 +64,7 @@
     <% last_row = [@page.offset + @calls.length, @calls_count].min %>
     <% total_pages = @page.total_pages(@calls_count) %>
     <div class="lct-pagination">
-      <span class="lct-pagination-info">Showing <strong><%= number(first_row) %></strong>–<strong><%= number(last_row) %></strong> of <strong><%= number(@calls_count) %></strong></span>
+      <span class="lct-pagination-info">Showing <strong><%= number_with_delimiter(first_row) %></strong>–<strong><%= number_with_delimiter(last_row) %></strong> of <strong><%= number_with_delimiter(@calls_count) %></strong></span>
       <span class="lct-seg lct-pagination-perpage" title="Rows per page">
         <% LlmCostTracker::PaginationHelper::PER_PAGE_CHOICES.each do |choice| %>
           <% if choice == @page.per %>

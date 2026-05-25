@@ -121,8 +121,8 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         body: jsonl_body,
         headers: { "Content-Type" => "application/x-jsonl" }
       )
-      allow(LlmCostTracker::Integrations::Anthropic).to receive(:batch_response_already_recorded?)
-        .with(provider_response_id: "msg_a")
+      allow(LlmCostTracker::Call).to receive(:already_recorded?)
+        .with(provider: "anthropic", provider_response_id: "msg_a")
         .and_return(true)
 
       capture_sdk_events do |events|

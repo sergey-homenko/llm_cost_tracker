@@ -7,7 +7,7 @@
     <%= link_to "× Clear filters", data_quality_path(current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
   <% end %>
 
-  <span class="lct-filter-row-meta"><%= number(@summary.total) %> call<%= "s" unless @summary.total == 1 %> inspected</span>
+  <span class="lct-filter-row-meta"><%= number_with_delimiter(@summary.total) %> call<%= "s" unless @summary.total == 1 %> inspected</span>
 </div>
 
 <% if @summary.total.zero? %>
@@ -20,19 +20,19 @@
   <div class="lct-stat-grid">
     <div class="lct-stat">
       <div class="lct-stat-head"><p class="lct-stat-label">Calls inspected</p></div>
-      <p class="lct-stat-value"><%= number(@summary.total) %></p>
+      <p class="lct-stat-value"><%= number_with_delimiter(@summary.total) %></p>
       <p class="lct-stat-foot">in current slice</p>
     </div>
 
     <div class="lct-stat">
       <div class="lct-stat-head"><p class="lct-stat-label">Streaming calls</p></div>
-      <p class="lct-stat-value"><%= number(@summary.streaming_count) %></p>
+      <p class="lct-stat-value"><%= number_with_delimiter(@summary.streaming_count) %></p>
       <p class="lct-stat-foot"><%= percent(@summary.streaming_share) %> of calls</p>
     </div>
 
     <div class="lct-stat">
       <div class="lct-stat-head"><p class="lct-stat-label">Calls with provider response ID</p></div>
-      <p class="lct-stat-value"><%= number(@summary.calls_with_provider_response_id) %></p>
+      <p class="lct-stat-value"><%= number_with_delimiter(@summary.calls_with_provider_response_id) %></p>
       <p class="lct-stat-foot"><%= percent(@summary.provider_response_id_coverage) %> of calls</p>
     </div>
   </div>
@@ -50,7 +50,7 @@
       <% if incomplete_pricing.positive? %>
         <div class="lct-stat lct-stat-warn">
           <div class="lct-stat-head"><p class="lct-stat-label">Incomplete pricing</p></div>
-          <p class="lct-stat-value"><%= number(incomplete_pricing) %></p>
+          <p class="lct-stat-value"><%= number_with_delimiter(incomplete_pricing) %></p>
           <p class="lct-stat-foot"><%= percent(@summary.unknown_pricing_share) %> of calls</p>
         </div>
       <% end %>
@@ -58,7 +58,7 @@
       <% if untagged.positive? %>
         <div class="lct-stat lct-stat-warn">
           <div class="lct-stat-head"><p class="lct-stat-label">Calls without tags</p></div>
-          <p class="lct-stat-value"><%= number(untagged) %></p>
+          <p class="lct-stat-value"><%= number_with_delimiter(untagged) %></p>
           <p class="lct-stat-foot"><%= percent(@summary.untagged_share) %> of calls</p>
         </div>
       <% end %>
@@ -66,7 +66,7 @@
       <% if missing_latency.positive? %>
         <div class="lct-stat lct-stat-warn">
           <div class="lct-stat-head"><p class="lct-stat-label">Missing latency</p></div>
-          <p class="lct-stat-value"><%= number(missing_latency) %></p>
+          <p class="lct-stat-value"><%= number_with_delimiter(missing_latency) %></p>
           <p class="lct-stat-foot"><%= percent(@summary.missing_latency_share) %> of calls</p>
         </div>
       <% end %>
@@ -74,7 +74,7 @@
       <% if streams_missing_usage.positive? %>
         <div class="lct-stat lct-stat-warn">
           <div class="lct-stat-head"><p class="lct-stat-label">Streams without usage</p></div>
-          <p class="lct-stat-value"><%= number(streams_missing_usage) %></p>
+          <p class="lct-stat-value"><%= number_with_delimiter(streams_missing_usage) %></p>
           <p class="lct-stat-foot"><%= percent(@summary.streaming_missing_usage_share) %> of streams</p>
         </div>
       <% end %>
@@ -83,7 +83,7 @@
         <div class="lct-stat lct-stat-warn">
           <div class="lct-stat-head"><p class="lct-stat-label">Hidden output share</p></div>
           <p class="lct-stat-value"><%= percent(hidden_output_share) %></p>
-          <p class="lct-stat-foot"><%= number(@hidden_output_summary.fetch(:hidden_output_tokens)) %> of <%= number(@hidden_output_summary.fetch(:output_tokens)) %> output tokens</p>
+          <p class="lct-stat-foot"><%= number_with_delimiter(@hidden_output_summary.fetch(:hidden_output_tokens)) %> of <%= number_with_delimiter(@hidden_output_summary.fetch(:output_tokens)) %> output tokens</p>
         </div>
       <% end %>
     </div>
@@ -158,21 +158,21 @@
           <tr>
             <td>Cost (pricing known)</td>
             <td class="lct-num"><%= percent(@summary.cost_coverage) %></td>
-            <td class="lct-num"><%= number(@summary.calls_with_pricing) %></td>
+            <td class="lct-num"><%= number_with_delimiter(@summary.calls_with_pricing) %></td>
             <td><%= render "llm_cost_tracker/shared/bar", value: @summary.cost_coverage, max: 100.0 %></td>
           </tr>
 
           <tr>
             <td>Tags (at least one tag)</td>
             <td class="lct-num"><%= percent(@summary.tag_coverage) %></td>
-            <td class="lct-num"><%= number(@summary.tagged_calls) %></td>
+            <td class="lct-num"><%= number_with_delimiter(@summary.tagged_calls) %></td>
             <td><%= render "llm_cost_tracker/shared/bar", value: @summary.tag_coverage, max: 100.0 %></td>
           </tr>
 
           <tr>
             <td>Latency</td>
             <td class="lct-num"><%= percent(@summary.latency_coverage) %></td>
-            <td class="lct-num"><%= number(@summary.calls_with_latency) %></td>
+            <td class="lct-num"><%= number_with_delimiter(@summary.calls_with_latency) %></td>
             <td><%= render "llm_cost_tracker/shared/bar", value: @summary.latency_coverage, max: 100.0 %></td>
           </tr>
 
@@ -180,7 +180,7 @@
             <tr>
               <td>Streaming usage captured</td>
               <td class="lct-num"><%= percent(@summary.stream_coverage) %></td>
-              <td class="lct-num"><%= number(@summary.streams_with_usage) %> / <%= number(@summary.streaming_count) %></td>
+              <td class="lct-num"><%= number_with_delimiter(@summary.streams_with_usage) %> / <%= number_with_delimiter(@summary.streaming_count) %></td>
               <td><%= render "llm_cost_tracker/shared/bar", value: @summary.stream_coverage, max: 100.0 %></td>
             </tr>
           <% end %>
@@ -188,7 +188,7 @@
           <tr>
             <td>Provider response ID</td>
             <td class="lct-num"><%= percent(@summary.provider_response_id_coverage) %></td>
-            <td class="lct-num"><%= number(@summary.calls_with_provider_response_id) %></td>
+            <td class="lct-num"><%= number_with_delimiter(@summary.calls_with_provider_response_id) %></td>
             <td><%= render "llm_cost_tracker/shared/bar", value: @summary.provider_response_id_coverage, max: 100.0 %></td>
           </tr>
         </tbody>
@@ -216,7 +216,7 @@
             <% cost_value = row.fetch(:cost_value) %>
             <tr>
               <td><%= LlmCostTracker::TokenUsageHelper::QUALITY_LABELS.fetch(token_key) %></td>
-              <td class="lct-num"><%= number(row.fetch(:token_value)) %></td>
+              <td class="lct-num"><%= number_with_delimiter(row.fetch(:token_value)) %></td>
               <% if row.fetch(:share_basis) == :output %>
                 <td class="lct-num"><%= percent(row.fetch(:share_percent)) %> of output</td>
               <% else %>
@@ -255,8 +255,8 @@
                 <td><code class="lct-code-id"><%= row.provider %></code></td>
                 <td><code class="lct-code-id"><%= row.component %></code></td>
                 <td><%= row.cost_status %></td>
-                <td class="lct-num"><%= number(row.charges_count) %></td>
-                <td class="lct-num"><%= number(row.quantity) %></td>
+                <td class="lct-num"><%= number_with_delimiter(row.charges_count) %></td>
+                <td class="lct-num"><%= number_with_delimiter(row.quantity) %></td>
                 <td class="lct-num<%= ' lct-num-muted' if unknown_cost %>"><%= unknown_cost ? "n/a" : money(row.total_cost) %></td>
               </tr>
             <% end %>
@@ -286,9 +286,9 @@
             <% @streaming_health_rows.each do |row| %>
               <tr>
                 <td><code class="lct-code-id"><%= row.provider %></code></td>
-                <td class="lct-num"><%= number(row.streams) %></td>
-                <td class="lct-num"><%= number(row.with_usage) %></td>
-                <td class="lct-num"><%= number(row.unknown) %></td>
+                <td class="lct-num"><%= number_with_delimiter(row.streams) %></td>
+                <td class="lct-num"><%= number_with_delimiter(row.with_usage) %></td>
+                <td class="lct-num"><%= number_with_delimiter(row.unknown) %></td>
                 <td class="lct-num"><%= percent(row.unknown_share) %></td>
               </tr>
             <% end %>
@@ -321,7 +321,7 @@
               <tr>
                 <td><code class="lct-code-id"><%= row.provider %></code></td>
                 <td><code class="lct-code-id"><%= row.model %></code></td>
-                <td class="lct-num"><%= number(row.calls) %></td>
+                <td class="lct-num"><%= number_with_delimiter(row.calls) %></td>
                 <td class="lct-num"><%= percent(row.share_percent) %></td>
               </tr>
             <% end %>

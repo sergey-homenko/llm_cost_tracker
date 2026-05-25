@@ -8,7 +8,7 @@
   <% end %>
 
   <span class="lct-filter-row-meta">
-    <%= number(@stats.total_calls) %> call<%= "s" unless @stats.total_calls.to_i == 1 %> · <%= money(@stats.total_cost) %>
+    <%= number_with_delimiter(@stats.total_calls) %> call<%= "s" unless @stats.total_calls.to_i == 1 %> · <%= money(@stats.total_cost) %>
   </span>
 </div>
 
@@ -22,7 +22,7 @@
     <div class="lct-alert lct-alert-warn">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
       <span>
-        <strong><%= number(@stats.unknown_pricing_count) %> call<%= "s" unless @stats.unknown_pricing_count.to_i == 1 %> with incomplete pricing</strong>
+        <strong><%= number_with_delimiter(@stats.unknown_pricing_count) %> call<%= "s" unless @stats.unknown_pricing_count.to_i == 1 %> with incomplete pricing</strong>
         · <%= percent(coverage_percent(@stats.unknown_pricing_count, @stats.total_calls)) %> of slice
         — update <code>pricing_overrides</code> or <code>prices_file</code>.
       </span>
@@ -64,12 +64,12 @@
         <% badge = delta_badge(@stats.calls_delta_percent, mode: :neutral) %>
         <span class="<%= badge[:css_class] %>"><%= badge[:text] %></span>
       </div>
-      <p class="lct-stat-value"><%= number(@stats.total_calls) %></p>
+      <p class="lct-stat-value"><%= number_with_delimiter(@stats.total_calls) %></p>
     </div>
     <% if @stats.average_latency_ms %>
       <div class="lct-stat lct-stat-ok">
         <div class="lct-stat-head"><p class="lct-stat-label">Avg latency</p></div>
-        <p class="lct-stat-value"><%= number(@stats.average_latency_ms.round) %><span class="lct-stat-unit">ms</span></p>
+        <p class="lct-stat-value"><%= number_with_delimiter(@stats.average_latency_ms.round) %><span class="lct-stat-unit">ms</span></p>
       </div>
     <% else %>
       <div class="lct-stat">
@@ -79,7 +79,7 @@
     <% end %>
     <div class="lct-stat <%= @stats.unknown_pricing_count.to_i.positive? ? 'lct-stat-warn' : 'lct-stat-ok' %>">
       <div class="lct-stat-head"><p class="lct-stat-label">Incomplete pricing</p></div>
-      <p class="lct-stat-value"><%= number(@stats.unknown_pricing_count) %></p>
+      <p class="lct-stat-value"><%= number_with_delimiter(@stats.unknown_pricing_count) %></p>
       <p class="lct-stat-foot"><%= percent(coverage_percent(@stats.unknown_pricing_count, @stats.total_calls)) %> of slice</p>
     </div>
   </div>
@@ -115,7 +115,7 @@
       <h2 class="lct-panel-title">Daily spend</h2>
       <span class="lct-panel-meta">
         <span class="lct-legend"><span class="lct-legend-dot lct-legend-dot-current"></span>current</span>
-        <% if @comparison_series.any? %><span class="lct-legend"><span class="lct-legend-dot lct-legend-dot-prior"></span>prior <%= number(@comparison_series.size) %>d</span><% end %>
+        <% if @comparison_series.any? %><span class="lct-legend"><span class="lct-legend-dot lct-legend-dot-prior"></span>prior <%= number_with_delimiter(@comparison_series.size) %>d</span><% end %>
       </span>
     </div>
     <%= render "llm_cost_tracker/shared/spend_chart", series: @time_series, comparison_series: @comparison_series %>
@@ -133,7 +133,7 @@
           <% @top_models.first(5).each do |row| %>
             <tr>
               <td><span class="lct-model-cell"><span class="lct-provider-dot lct-provider-dot-<%= row.provider %>"></span><%= link_to calls_path(calls_query_for_model(provider: row.provider, model: row.model)), class: "lct-code-id" do %><%= row.model %><% end %></span></td>
-              <td class="lct-num"><%= number(row.calls) %></td>
+              <td class="lct-num"><%= number_with_delimiter(row.calls) %></td>
               <td class="lct-num"><%= money(row.total_cost) %></td>
             </tr>
           <% end %>
@@ -150,7 +150,7 @@
             <% @providers.each do |row| %>
               <tr>
                 <td><span class="lct-model-cell"><span class="lct-provider-dot lct-provider-dot-<%= row.provider %>"></span><%= row.provider %></span></td>
-                <td class="lct-num"><%= number(row.calls) %></td>
+                <td class="lct-num"><%= number_with_delimiter(row.calls) %></td>
                 <td class="lct-num"><%= money(row.total_cost) %></td>
                 <td class="lct-num"><%= percent(row.share_percent) %></td>
               </tr>

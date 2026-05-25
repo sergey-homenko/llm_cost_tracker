@@ -78,7 +78,7 @@ module LlmCostTracker
           currency: rate.fetch(:currency),
           source: match.fetch(:source),
           source_key: match.fetch(:key),
-          source_version: rate_source_version_for(match.fetch(:source))
+          source_version: Pricing.source_version_for(match.fetch(:source))
         }
       end
 
@@ -193,12 +193,6 @@ module LlmCostTracker
         return billing_component.key if billing_component && billing_component.token_key.nil?
 
         raise Error, "Unknown billing component: #{component.inspect}"
-      end
-
-      def rate_source_version_for(source)
-        return LlmCostTracker::VERSION if source == "bundled"
-
-        Lookup.prices_file_mtime_iso
       end
     end
   end

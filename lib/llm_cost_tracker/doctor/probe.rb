@@ -7,7 +7,7 @@ module LlmCostTracker
     module Probe
       def self.table_exists?(name)
         LlmCostTracker::Call.connection.data_source_exists?(name)
-      rescue StandardError
+      rescue ActiveRecord::ConnectionNotDefined, ActiveRecord::NoDatabaseError
         false
       end
     end

@@ -138,7 +138,7 @@ bin/rails db:migrate</pre>
             <% diff.unmatched_local_calls.each do |row| %>
               <tr>
                 <td><%= LlmCostTracker::Masking.format_attribution(row[:attribution]) %></td>
-                <td class="lct-num"><%= number(row[:count]) %></td>
+                <td class="lct-num"><%= number_with_delimiter(row[:count]) %></td>
                 <td class="lct-num"><%= money(row[:total_cost]) %></td>
               </tr>
             <% end %>

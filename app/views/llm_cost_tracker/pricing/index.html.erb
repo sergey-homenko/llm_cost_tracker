@@ -4,7 +4,7 @@
     <% next unless data %>
     <% active = source == @active_source %>
     <%= link_to pricing_path(source: source), class: "lct-tab#{' lct-active' if active}", aria: (active ? { current: "page" } : {}) do %>
-      <%= data.fetch(:label) %><span class="lct-tab-count"><%= number(data.fetch(:rows).size) %></span>
+      <%= data.fetch(:label) %><span class="lct-tab-count"><%= number_with_delimiter(data.fetch(:rows).size) %></span>
     <% end %>
   <% end %>
 </nav>
@@ -46,7 +46,7 @@
   <% end %>
 
   <span class="lct-filter-row-meta">
-    <%= number(@rows.size) %> entr<%= @rows.size == 1 ? "y" : "ies" %><% if @source_data.fetch(:currency) %> · <%= @source_data.fetch(:currency) %><% end %><% if @source_data.fetch(:updated_at) %> · Updated <%= @source_data.fetch(:updated_at) %><% end %>
+    <%= number_with_delimiter(@rows.size) %> entr<%= @rows.size == 1 ? "y" : "ies" %><% if @source_data.fetch(:currency) %> · <%= @source_data.fetch(:currency) %><% end %><% if @source_data.fetch(:updated_at) %> · Updated <%= @source_data.fetch(:updated_at) %><% end %>
   </span>
 </div>
 

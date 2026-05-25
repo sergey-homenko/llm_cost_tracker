@@ -64,7 +64,7 @@ module LlmCostTracker
 
           message = result.respond_to?(:message) ? result.message : nil
           return unless message
-          return if batch_response_already_recorded?(provider_response_id: message.id)
+          return if LlmCostTracker::Call.already_recorded?(provider: "anthropic", provider_response_id: message.id)
 
           record_safely do
             usage = message.usage
@@ -84,12 +84,6 @@ module LlmCostTracker
               )
             )
           end
-        end
-
-        def batch_response_already_recorded?(provider_response_id:)
-          return false unless provider_response_id
-
-          LlmCostTracker::Call.where(provider: "anthropic", provider_response_id: provider_response_id).exists?
         end
 
         def stream_pricing_mode(request)
