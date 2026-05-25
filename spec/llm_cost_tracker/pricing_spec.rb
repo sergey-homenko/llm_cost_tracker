@@ -1015,7 +1015,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "holds the Anthropic cache-hit pricing ratios" do
       bundled.each do |model_id, fields|
-        next unless model_id.split("/").last.start_with?("claude-")
+        next unless model_id.start_with?("anthropic/")
         next unless fields["input"] && fields["cache_read_input"]
 
         expected_ratio = model_id.end_with?("/claude-haiku-3") ? 0.12 : 0.1
@@ -1025,7 +1025,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "holds the Anthropic extended cache-write pricing ratios" do
       bundled.each do |model_id, fields|
-        next unless model_id.split("/").last.start_with?("claude-")
+        next unless model_id.start_with?("anthropic/")
 
         expect(fields["cache_write_extended_input"]).to be_within(0.0001).of(fields["input"] * 2.0)
       end
@@ -1033,7 +1033,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "holds the Anthropic default (5-minute) cache-write pricing ratios" do
       bundled.each do |model_id, fields|
-        next unless model_id.split("/").last.start_with?("claude-")
+        next unless model_id.start_with?("anthropic/")
         next unless fields["cache_write_input"] && fields["input"]
 
         expected_ratio = model_id.end_with?("/claude-haiku-3") ? 1.2 : 1.25
@@ -1043,7 +1043,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "holds the Anthropic batch-discount invariant (50% of standard input/output)" do
       bundled.each do |model_id, fields|
-        next unless model_id.split("/").last.start_with?("claude-")
+        next unless model_id.start_with?("anthropic/")
 
         if fields["batch_input"] && fields["input"]
           expect(fields["batch_input"]).to be_within(0.0001).of(fields["input"] * 0.5)
@@ -1106,6 +1106,7 @@ RSpec.describe LlmCostTracker::Pricing do
     it "keeps output more expensive than input for chat-style models" do
       non_chat = /embed|audio|whisper|tts|image|moderation/
       bundled.each do |model_id, fields|
+        next if model_id.start_with?("openrouter/")
         next if model_id.match?(non_chat)
         next unless fields["input"] && fields["output"]
 

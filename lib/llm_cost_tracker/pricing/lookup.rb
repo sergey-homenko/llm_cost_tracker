@@ -159,14 +159,14 @@ module LlmCostTracker
         end
 
         def unique_providerless_lookup(model:, table:, source:)
-          matches = sorted_price_keys(table).select { |key| normalize_model_name(key) == model }
+          matches = native_keys(table).select { |key| normalize_model_name(key) == model }
           return unless matches.one?
 
           match(table: table, source: source, key: matches.first, matched_by: :unique_providerless_model)
         end
 
         def fuzzy_match(model:, normalized_model:, table:, source:)
-          sorted_price_keys(table).each do |key|
+          native_keys(table).each do |key|
             if snapshot_variant?(model, key) || snapshot_variant?(normalized_model, key)
               return match(table: table, source: source, key: key, matched_by: :dated_snapshot)
             end
@@ -176,10 +176,14 @@ module LlmCostTracker
         end
 
         def unique_providerless_fuzzy_match(model:, table:, source:)
-          matches = sorted_price_keys(table).select { |key| snapshot_variant?(model, normalize_model_name(key)) }
+          matches = native_keys(table).select { |key| snapshot_variant?(model, normalize_model_name(key)) }
           return unless matches.one?
 
           match(table: table, source: source, key: matches.first, matched_by: :unique_providerless_dated_snapshot)
+        end
+
+        def native_keys(table)
+          sorted_price_keys(table).reject { |key| key.count("/") > 1 }
         end
 
         def direct_match(table:, source:, key:, matched_by:)
