@@ -2,20 +2,41 @@
 
 ## v0.11 → v0.12 (Unreleased)
 
-v0.12 reshuffles the internal namespace for vendor parsers and reconciliation
-sources, drops the engine-side `filter_parameters` entries that were
-substring-matching unrelated host-app params, makes `enforce_budget: true` on
-`LlmCostTracker.track` actually raise pre-call when over budget regardless of
-the global policy, and tightens RubyLLM SDK capture (proper `service_tier`
-JSON path, 1-hour vs 5-minute cache split, response id from raw body). One
-BREAKING change for custom code that referenced the old parser/source
-constants directly.
+v0.12 drops the experimental Reconciliation subsystem, reshuffles the internal
+namespace for vendor parsers, drops the engine-side `filter_parameters` entries
+that were substring-matching unrelated host-app params, makes
+`enforce_budget: true` on `LlmCostTracker.track` actually raise pre-call when
+over budget regardless of the global policy, and tightens RubyLLM SDK capture
+(proper `service_tier` JSON path, 1-hour vs 5-minute cache split, response id
+from raw body). Two BREAKING changes: Reconciliation removal and parser
+constant rename for custom code that referenced internals.
+
+### Required: drop Reconciliation tables if you opted in (BREAKING)
+
+The experimental `Reconciliation` subsystem (provider invoice import + diff)
+was removed because it was never finished and never billing-accurate. If you
+ran `bin/rails generate llm_cost_tracker:reconciliation` on an earlier version
+your DB has `llm_cost_tracker_provider_invoices` and
+`llm_cost_tracker_provider_invoice_imports` tables; the gem no longer touches
+them. Drop them when convenient:
+
+```ruby
+class DropLlmCostTrackerReconciliation < ActiveRecord::Migration[7.1]
+  def change
+    drop_table :llm_cost_tracker_provider_invoices, if_exists: true
+    drop_table :llm_cost_tracker_provider_invoice_imports, if_exists: true
+  end
+end
+```
+
+Provider-side `provider_response_id` (already captured on every call) plus
+`rake llm_cost_tracker:report` cover the original use case. If we revisit
+invoice-vs-ledger reconciliation it'll ship as a separate gem.
 
 ### Required: rename constants if you referenced internals (BREAKING)
 
 Capture is automatic via Faraday and SDK patches, so most apps do nothing.
-If your code explicitly references the parser or reconciliation source classes,
-update the names:
+If your code explicitly references the parser classes, update the names:
 
 | Old | New |
 | --- | --- |
@@ -25,10 +46,6 @@ update the names:
 | `LlmCostTracker::Parsers::Gemini` | `LlmCostTracker::Providers::Gemini::Parser` |
 | `LlmCostTracker::Parsers::OpenaiCompatible` | `LlmCostTracker::Providers::OpenaiCompatible::Parser` |
 | `LlmCostTracker::Parsers::OpenaiUsage` | `LlmCostTracker::Providers::Openai::UsageParser` |
-| `LlmCostTracker::Reconciliation::Sources::OpenaiUsage` | `LlmCostTracker::Providers::Openai::ReconciliationSource` |
-| `LlmCostTracker::Reconciliation::Sources::AnthropicUsage` | `LlmCostTracker::Providers::Anthropic::ReconciliationSource` |
-| `LlmCostTracker::Reconciliation::Sources::Coercion` | `LlmCostTracker::Reconciliation::Coercion` |
-| `LlmCostTracker::Reconciliation::Sources::Fingerprint` | `LlmCostTracker::Reconciliation::Fingerprint` |
 
 ### Optional: host-app `filter_parameters` cleanup
 
@@ -108,16 +125,6 @@ bin/rails llm_cost_tracker:backfill_unknown_pricing
 The task recomputes `total_cost`, the pricing snapshot, per-component
 costs, and the rollup buckets for every call still missing a cost.
 Idempotent — calls that already have a cost are skipped.
-
-### Optional: reconciliation schema generators
-
-If `config.reconciliation_enabled = true` and you have invoices
-imported on a v0.9 install, the two reconciliation upgrade migrations
-listed under `v0.8.x → v0.9` below now ship as separate generators
-(`upgrade_provider_invoice_imports_provider`,
-`upgrade_provider_invoices_metadata_index`). Run them in order on
-existing installs. Doctor surfaces the missing `provider` column and
-the missing GIN index on `provider_invoices.metadata` (PostgreSQL).
 
 ## v0.8.x → v0.9
 

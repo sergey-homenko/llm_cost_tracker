@@ -4,10 +4,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Removed
+
+- BREAKING: the experimental `Reconciliation` subsystem (provider invoice import + diff, the `/reconciliation` dashboard page, `bin/rails llm_cost_tracker:reconcile:*` rake tasks, `config.reconciliation_enabled`, `config.reconciliation_importers`, the `llm_cost_tracker:reconciliation` generator, and the `llm_cost_tracker_provider_invoices` / `_provider_invoice_imports` tables) is gone. It was never finished and never billing-accurate. `calls.provider_response_id` (captured on every call) already covers invoice cross-reference; if invoice-vs-ledger reconciliation ships again it lives in a separate gem. Existing installs can drop the two tables — see [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased).
+
 ### Changed
 
 - The RubyLLM SDK integration now requires `ruby_llm >= 1.15.0` (was `>= 1.14.1`).
-- BREAKING for app code that references internal parser/reconciliation constants directly: vendor-specific parsers and reconciliation sources moved under `LlmCostTracker::Providers::<Vendor>::*` and the `LlmCostTracker::Reconciliation::Sources` namespace is removed. See [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased) for the constant rename table.
+- BREAKING for app code that references internal parser constants directly: vendor-specific parsers moved under `LlmCostTracker::Providers::<Vendor>::*`. See [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased) for the constant rename table.
 - Engine no longer adds `tag` / `tag_value` to Rails `filter_parameters` — the Symbol filter was substring-matching unrelated host-app params (`tags`, `meta_tag`, etc.) into `[FILTERED]`. `Tags::Sanitizer` continues redacting secret-shaped tag values at storage.
 
 ### Fixed

@@ -78,54 +78,6 @@ RSpec.describe LlmCostTracker::Retention do
     expect(LlmCostTracker::CallRollup.find_by!(period: "month").total_cost.to_f).to eq(3.0)
   end
 
-  describe ".prune_invoice_imports" do
-    before do
-      require_relative "../../app/models/llm_cost_tracker/provider_invoice_import"
-      create_lct_reconciliation_tables!
-      LlmCostTracker::ProviderInvoiceImport.reset_column_information
-    end
-
-    it "deletes completed and failed import rows past the cutoff" do
-      now = Time.utc(2026, 6, 1, 12)
-      LlmCostTracker::ProviderInvoiceImport.create!(
-        source: "openai",
-        state: "completed",
-        started_at: now - 100.days,
-        finished_at: now - 100.days
-      )
-      LlmCostTracker::ProviderInvoiceImport.create!(
-        source: "openai",
-        state: "failed",
-        started_at: now - 95.days,
-        finished_at: now - 95.days
-      )
-      LlmCostTracker::ProviderInvoiceImport.create!(
-        source: "openai",
-        state: "running",
-        started_at: now - 100.days
-      )
-      LlmCostTracker::ProviderInvoiceImport.create!(
-        source: "openai",
-        state: "completed",
-        started_at: now - 1.day,
-        finished_at: now - 1.day
-      )
-
-      deleted = described_class.prune_invoice_imports(older_than: 90, now: now)
-
-      expect(deleted).to eq(2)
-      remaining = LlmCostTracker::ProviderInvoiceImport.pluck(:state).sort
-      expect(remaining).to eq(%w[completed running])
-    end
-
-    it "returns 0 without querying when the table does not exist" do
-      allow(LlmCostTracker::ProviderInvoiceImport).to receive(:table_exists?).and_return(false)
-      expect(LlmCostTracker::ProviderInvoiceImport).not_to receive(:where)
-
-      expect(described_class.prune_invoice_imports(older_than: 90)).to eq(0)
-    end
-  end
-
   describe ".prune_inbox" do
     before { LlmCostTracker::Ingestion::InboxEntry.reset_column_information }
 

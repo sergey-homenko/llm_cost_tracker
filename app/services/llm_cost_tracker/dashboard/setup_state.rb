@@ -48,34 +48,11 @@ module LlmCostTracker
           LlmCostTracker::Logging.debug("Dashboard::SetupState recomputing")
           return calls_table_missing unless LlmCostTracker::Call.table_exists?
 
-          core_drift = drift_in(LlmCostTracker::Ingestion.guards_for_current_config)
-          return core_drift if core_drift
-          return nil unless LlmCostTracker.reconciliation_enabled?
-
-          reconciliation_drift
+          drift_in(LlmCostTracker::Ingestion.guards_for_current_config)
         end
 
         def drift_in(checks)
           checks.each do |schema, table|
-            errors = schema.current_schema_errors
-            next if errors.empty?
-
-            message = "The #{table} table does not match the current LLM Cost Tracker schema."
-            return SetupRequired.new(message: message, details: errors)
-          end
-          nil
-        end
-
-        def reconciliation_drift
-          connection = ActiveRecord::Base.connection
-          LlmCostTracker::Reconciliation::SCHEMA_TABLES.each do |schema, table|
-            unless connection.data_source_exists?(table)
-              return SetupRequired.new(
-                message: "The #{table} table is required when reconciliation is enabled.",
-                details: ["bin/rails generate llm_cost_tracker:reconciliation && bin/rails db:migrate"]
-              )
-            end
-
             errors = schema.current_schema_errors
             next if errors.empty?
 

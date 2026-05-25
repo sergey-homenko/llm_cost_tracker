@@ -112,12 +112,12 @@ flags drift between `total_cost` and `SUM(line_items.cost)` —
 `bin/rails llm_cost_tracker:doctor` is the right place to catch it
 before an audit does.
 
-### Provider invoice reconciliation
+### Provider invoice cross-reference
 
 If your auditor asks "do your local records match what the provider
-billed", `LlmCostTracker::Reconciliation` covers that path. See
-[Configuration → Reconciliation](configuration.md#reconciliation-experimental-opt-in)
-for the opt-in flow.
+billed", `calls.provider_response_id` is captured on every call and
+gives you the id you can cross-reference against the provider's invoice
+or admin-API export.
 
 ## What this gem does NOT do
 

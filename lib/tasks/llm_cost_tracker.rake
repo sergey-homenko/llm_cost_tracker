@@ -66,8 +66,6 @@ namespace :llm_cost_tracker do
     puts "llm_cost_tracker: pruned #{deleted} calls older than #{days} days"
     inbox_pruned = LlmCostTracker::Retention.prune_inbox(older_than: days)
     puts "llm_cost_tracker: pruned #{inbox_pruned} inbox entries older than #{days} days"
-    invoice_imports_pruned = LlmCostTracker::Retention.prune_invoice_imports(older_than: days)
-    puts "llm_cost_tracker: pruned #{invoice_imports_pruned} provider invoice imports older than #{days} days"
   end
 
   namespace :prices do
@@ -130,24 +128,8 @@ namespace :llm_cost_tracker do
       abort("llm_cost_tracker: price is incomplete or unknown") unless explanation.complete?
     end
   end
-
-  namespace :reconcile do
-    desc "Import provider invoice rows from a JSON INPUT file. " \
-         "Use SOURCE=openai INPUT=path/to/file.json. Pass PROVIDER=openai for unmapped sources (csv, ...)."
-    task(:import) { reconcile_run(:run_import) }
-
-    desc "Print a reconciliation diff. " \
-         "Use SOURCE=openai PERIOD_START=YYYY-MM-DD PERIOD_END=YYYY-MM-DD. PROVIDER=openai for unmapped sources."
-    task(:diff) { reconcile_run(:run_diff) }
-  end
 end
 # rubocop:enable Metrics/BlockLength
-
-def reconcile_run(method)
-  Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
-  require_relative "../llm_cost_tracker"
-  LlmCostTracker::ReconcileTasks.public_send(method, env: ENV)
-end
 
 def print_changes(changes)
   LlmCostTracker::Pricing::Sync::ChangePrinter.call(changes)

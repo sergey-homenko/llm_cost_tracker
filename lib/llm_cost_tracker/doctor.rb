@@ -12,7 +12,6 @@ require_relative "doctor/pricing_snapshot_drift_check"
 
 module LlmCostTracker
   class Doctor
-    autoload :InvoiceReconciliationCheck, "llm_cost_tracker/doctor/invoice_reconciliation_check"
     autoload :CaptureVerifier,            "llm_cost_tracker/doctor/capture_verifier"
 
     STATUS_GLYPHS = { ok: "✓", warn: "!", error: "x" }.freeze
@@ -28,12 +27,9 @@ module LlmCostTracker
       "llm_cost_tracker_calls columns" => "Schema",
       "call line items" => "Schema",
       "call tags" => "Schema",
-      "provider invoices" => "Schema",
-      "provider invoice imports" => "Schema",
       "cost drift" => "Data integrity",
       "pricing snapshot drift" => "Data integrity",
       "pricing snapshot audit" => "Data integrity",
-      "invoice reconciliation" => "Data integrity",
       "call rollups" => "Operations",
       "inline ingestion" => "Operations",
       "async ingestion" => "Operations",
@@ -101,10 +97,8 @@ module LlmCostTracker
         table_check,
         column_check,
         *dependent_core_schema_checks,
-        *reconciliation_schema_checks,
         CostDriftCheck.new.call,
         PricingSnapshotDriftCheck.new.call,
-        *reconciliation_invoice_check,
         LegacyAuditCheck.new.call,
         call_rollups_check,
         IngestionCheck.new.call,
@@ -120,22 +114,6 @@ module LlmCostTracker
         SchemaCheck.new(name: table.delete_prefix("llm_cost_tracker_").tr("_", " "),
                         schema: schema, table: table).call
       end
-    end
-
-    def reconciliation_schema_checks
-      return [] unless LlmCostTracker.reconciliation_enabled?
-
-      Reconciliation::SCHEMA_TABLES.map do |schema, table|
-        SchemaCheck.new(name: table.delete_prefix("llm_cost_tracker_").tr("_", " "),
-                        schema: schema, table: table,
-                        optional: false, install_command: "llm_cost_tracker:reconciliation").call
-      end.compact
-    end
-
-    def reconciliation_invoice_check
-      return [] unless LlmCostTracker.reconciliation_enabled?
-
-      Array(InvoiceReconciliationCheck.new.call)
     end
 
     def configuration_check

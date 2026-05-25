@@ -17,8 +17,7 @@ module LlmCostTracker
     INGESTION_MODES = %i[inline async].freeze
     SCALAR_ATTRIBUTES = %i[enabled default_tags on_budget_exceeded monthly_budget daily_budget per_call_budget
                            log_level prices_file max_tag_count max_tag_value_bytesize
-                           ingestion_pool_size auto_enable_stream_usage cache_rollups
-                           reconciliation_enabled].freeze
+                           ingestion_pool_size auto_enable_stream_usage cache_rollups].freeze
     ENUM_ATTRIBUTES = {
       budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
       unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn],
@@ -35,8 +34,7 @@ module LlmCostTracker
       :report_tag_breakdowns,
       :redacted_tag_keys,
       :unknown_pricing_behavior,
-      :openai_compatible_providers,
-      :reconciliation_importers
+      :openai_compatible_providers
     )
 
     def initialize
@@ -58,35 +56,11 @@ module LlmCostTracker
       @report_tag_breakdowns = []
       @redacted_tag_keys = DEFAULT_REDACTED_TAG_KEYS.dup
       self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
-      @reconciliation_importers = {}
-      @reconciliation_enabled = false
       @auto_enable_stream_usage = true
       self.ingestion = :inline
       @cache_rollups = false
       @finalized = false
     end
-
-    def reconciliation_importers=(importers)
-      ensure_mutable!
-      raise Error, RECONCILIATION_DISABLED_MESSAGE unless @reconciliation_enabled
-
-      @reconciliation_importers = (importers || {}).to_h do |source, importer|
-        raise Error, "reconciliation_importers[#{source}] must respond to call" unless importer.respond_to?(:call)
-
-        [source.to_sym, importer]
-      end
-    end
-
-    def register_reconciliation_importer(source, &block)
-      ensure_mutable!
-      raise Error, RECONCILIATION_DISABLED_MESSAGE unless @reconciliation_enabled
-      raise Error, "register_reconciliation_importer requires a block" unless block
-
-      @reconciliation_importers[source.to_sym] = block
-    end
-
-    RECONCILIATION_DISABLED_MESSAGE = "reconciliation is disabled; set config.reconciliation_enabled = true first"
-    private_constant :RECONCILIATION_DISABLED_MESSAGE
 
     def openai_compatible_providers=(providers)
       ensure_mutable!

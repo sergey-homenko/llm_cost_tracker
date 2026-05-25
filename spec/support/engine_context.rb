@@ -55,18 +55,6 @@ module LlmCostTrackerEngineContext
 
 end
 
-RSpec.shared_context "with reconciliation enabled" do
-  before do
-    require "llm_cost_tracker/reconciliation"
-    require_relative "../../app/models/llm_cost_tracker/provider_invoice"
-    require_relative "../../app/models/llm_cost_tracker/provider_invoice_import"
-    LlmCostTracker.configuration.reconciliation_enabled = true
-    create_lct_reconciliation_tables!
-    LlmCostTracker::ProviderInvoice.reset_column_information
-    LlmCostTracker::ProviderInvoiceImport.reset_column_information
-  end
-end
-
 RSpec.shared_context "with mounted llm cost tracker engine" do
   require "active_record"
   require "json"

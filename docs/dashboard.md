@@ -54,7 +54,6 @@ The dashboard reads:
 | Tags | `/tags` and `/tags/:key` | Tag key explorer and tag value breakdowns |
 | Data Quality | `/data_quality` | Incomplete pricing, partial costs, missing latency, incomplete streams, tool/runtime charge coverage |
 | Pricing | `/pricing` | Per-model rates from `pricing_overrides`, `prices_file`, and the bundled fallback as separate tabs; the active source (first non-empty in priority order) is highlighted, with last-updated date and currency next to the row count. |
-| Reconciliation | `/reconciliation` | Experimental opt-in. Hidden unless `config.reconciliation_enabled = true` and the optional generator has been run. See [Configuration](configuration.md#reconciliation-experimental-opt-in). |
 
 ## Filters
 

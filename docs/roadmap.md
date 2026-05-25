@@ -129,10 +129,10 @@ Explicit rejections. Every item below was considered and ruled out:
   Acme Corp cost us last month". A resolver hook for human-readable
   tag-value labels is a one-PR addition whenever someone asks — not a
   milestone-level feature.
-- **Reconciliation expansion.** v0.9 ships an experimental opt-in
-  side mode (admin-key security plane, lazy-loaded, isolated). Stays
-  experimental until validated user demand surfaces; no expansion
-  otherwise.
+- **Reconciliation.** Removed in v0.12 — never finished, never
+  billing-accurate. Provider-side `provider_response_id` (captured on
+  every call) covers the cross-reference use case. If we revisit
+  invoice-vs-ledger reconciliation it ships as a separate gem.
 - **Cost forecasting.** Vendor blog posts only; no developer demand.
 - **Cross-provider price comparison** ("compare gpt-4o vs claude on
   the same workload by cost"). Vendors talk about it, developers
@@ -178,10 +178,6 @@ conventions — promoting them to schema columns is in the anti-roadmap.
 - Header is a projection. Per-component costs live in
   `llm_cost_tracker_call_line_items`; rollups stay a hot-path cache.
 - Postgres and MySQL parity. Every ledger query must run on both.
-- Reconciliation must stay isolated from core (autoload, gated proxy
-  via `LlmCostTracker.reconciliation_enabled?`, no constant references
-  from core paths). See the isolation contract in
-  [Architecture](architecture.md).
 - No silent migrations. Schema changes ship behind generators with
   upgrade notes; doctor surfaces missing schema before per-event
   branching is introduced.

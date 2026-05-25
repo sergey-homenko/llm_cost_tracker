@@ -143,8 +143,6 @@ decremented in the same transaction.
 | Call rollups (opt-in) | `llm_cost_tracker_call_rollups` |
 | Async inbox (opt-in) | `llm_cost_tracker_ingestion_inbox_entries` |
 | Worker lease (opt-in) | `llm_cost_tracker_ingestion_leases` |
-| Provider invoices (opt-in) | `llm_cost_tracker_provider_invoices` |
-| Provider invoice imports (opt-in) | `llm_cost_tracker_provider_invoice_imports` |
 
 Column and index details are documented in [Data Model](data-model.md).
 

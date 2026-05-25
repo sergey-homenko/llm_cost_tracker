@@ -20,13 +20,6 @@ module LlmCostTrackerDatabaseSpecHelpers
     create_lct_indexes(connection)
   end
 
-  def create_lct_reconciliation_tables!
-    connection = ActiveRecord::Base.connection
-    create_provider_invoices_table(connection)
-    create_provider_invoice_imports_table(connection)
-    create_lct_reconciliation_indexes(connection)
-  end
-
   def tags_for_database(tags)
     tags.transform_keys(&:to_s).transform_values(&:to_s)
   end
@@ -55,8 +48,6 @@ module LlmCostTrackerDatabaseSpecHelpers
     %w[
       llm_cost_tracker_ingestion_leases
       llm_cost_tracker_ingestion_inbox_entries
-      llm_cost_tracker_provider_invoice_imports
-      llm_cost_tracker_provider_invoices
       llm_cost_tracker_call_tags
       llm_cost_tracker_call_line_items
       llm_cost_tracker_call_rollups
@@ -159,42 +150,6 @@ module LlmCostTrackerDatabaseSpecHelpers
     end
   end
 
-  def create_provider_invoices_table(connection)
-    connection.create_table :llm_cost_tracker_provider_invoices, force: true do |table|
-      table.string :source, null: false
-      table.date :period_start, null: false
-      table.date :period_end, null: false
-      table.string :external_id, null: false
-      table.decimal :billed_amount, precision: 20, scale: 8
-      table.string :currency, null: false, default: "USD"
-      if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
-        table.jsonb :metadata, null: false, default: {}
-      elsif LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)
-        table.json :metadata, null: false
-      else
-        LlmCostTracker::Ledger::Schema::Adapter.ensure_supported!(connection)
-      end
-      table.datetime :imported_at, null: false
-      table.timestamps
-    end
-  end
-
-  def create_provider_invoice_imports_table(connection)
-    connection.create_table :llm_cost_tracker_provider_invoice_imports, force: true do |table|
-      table.string :source, null: false
-      table.string :provider, null: false, default: ""
-      table.string :cursor
-      table.date :window_start
-      table.date :window_end
-      table.string :state, null: false
-      table.text :last_error
-      table.integer :rows_imported, null: false, default: 0
-      table.datetime :started_at, null: false
-      table.datetime :finished_at
-      table.timestamps
-    end
-  end
-
   def create_ingestion_tables(connection)
     connection.create_table :llm_cost_tracker_ingestion_inbox_entries, force: true do |table|
       table.string :event_id, null: false
@@ -235,12 +190,4 @@ module LlmCostTrackerDatabaseSpecHelpers
     connection.add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
   end
 
-  def create_lct_reconciliation_indexes(connection)
-    connection.add_index :llm_cost_tracker_provider_invoices, :external_id, unique: true
-    connection.add_index :llm_cost_tracker_provider_invoices, %i[source currency period_start]
-    if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
-      connection.add_index :llm_cost_tracker_provider_invoices, :metadata, using: :gin
-    end
-    connection.add_index :llm_cost_tracker_provider_invoice_imports, %i[source provider started_at]
-  end
 end

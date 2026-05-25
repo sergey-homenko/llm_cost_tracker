@@ -21,7 +21,6 @@ module LlmCostTracker
       return :tags if path.start_with?(tags_path)
       return :data_quality if path.start_with?(data_quality_path)
       return :pricing if path.start_with?(pricing_path)
-      return :reconciliation if LlmCostTracker.reconciliation_enabled? && path.start_with?(reconciliation_path)
 
       :overview
     end

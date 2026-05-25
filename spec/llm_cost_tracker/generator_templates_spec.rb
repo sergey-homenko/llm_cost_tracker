@@ -10,11 +10,8 @@ require "yaml"
 require "llm_cost_tracker/pricing/registry"
 require "llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
-require "llm_cost_tracker/generators/llm_cost_tracker/reconciliation_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_rollups_provider_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_image_tokens_generator"
-require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_provider_invoice_imports_provider_generator"
-require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_provider_invoices_metadata_index_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/async_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/call_rollups_generator"
 
@@ -165,26 +162,6 @@ RSpec.describe "generator templates" do
     end
   end
 
-  it "generates the optional reconciliation migration with provider invoices and imports tables" do
-    Dir.mktmpdir do |dir|
-      LlmCostTracker::Generators::ReconciliationGenerator.start([], destination_root: dir)
-
-      migration_path = Dir[File.join(dir, "db/migrate/*_create_llm_cost_tracker_reconciliation.rb")].first
-      expect(migration_path).not_to be_nil
-
-      migration = File.read(migration_path)
-      expect(migration).to include("create_table :llm_cost_tracker_provider_invoices, if_not_exists: true")
-      expect(migration).to include("create_table :llm_cost_tracker_provider_invoice_imports, if_not_exists: true")
-      expect(migration).to include("t.string :provider, null: false, default: \"\"")
-      expect(migration).to include("add_index :llm_cost_tracker_provider_invoices, :external_id")
-      expect(migration).to include("%i[source provider started_at]")
-      expect(migration).to include("%i[source currency period_start]")
-      expect(migration).to include(":metadata, using: :gin")
-      expect(migration).to include("if postgresql?")
-      expect(migration).to include("if_not_exists: true")
-    end
-  end
-
   describe "upgrade_call_rollups_provider generator" do
     it "writes a guarded provider-column migration" do
       Dir.mktmpdir do |dir|
@@ -245,51 +222,6 @@ RSpec.describe "generator templates" do
     end
   end
 
-  describe "upgrade_provider_invoice_imports_provider generator" do
-    it "writes a guarded provider-column migration that also swaps the source-started_at index" do
-      Dir.mktmpdir do |dir|
-        LlmCostTracker::Generators::UpgradeProviderInvoiceImportsProviderGenerator.start([], destination_root: dir)
-
-        migration_path = Dir[
-          File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_provider_invoice_imports_provider.rb")
-        ].first
-        expect(migration_path).not_to be_nil
-
-        migration = File.read(migration_path)
-        expect(migration).to include("class UpgradeLlmCostTrackerProviderInvoiceImportsProvider")
-        expect(migration).to include("TABLE = :llm_cost_tracker_provider_invoice_imports")
-        expect(migration).to include("OLD_INDEX = %i[source started_at].freeze")
-        expect(migration).to include("NEW_INDEX = %i[source provider started_at].freeze")
-        expect(migration).to include('add_column TABLE, :provider, :string, null: false, default: ""')
-        expect(migration).to include("unless column_exists?(TABLE, :provider)")
-        expect(migration).to include("remove_index TABLE, column: OLD_INDEX")
-        expect(migration).to include("add_index TABLE, NEW_INDEX")
-        expect(migration).to include("return unless table_exists?(TABLE)")
-      end
-    end
-  end
-
-  describe "upgrade_provider_invoices_metadata_index generator" do
-    it "writes a guarded PostgreSQL-only GIN-index migration" do
-      Dir.mktmpdir do |dir|
-        LlmCostTracker::Generators::UpgradeProviderInvoicesMetadataIndexGenerator.start([], destination_root: dir)
-
-        migration_path = Dir[
-          File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_provider_invoices_metadata_index.rb")
-        ].first
-        expect(migration_path).not_to be_nil
-
-        migration = File.read(migration_path)
-        expect(migration).to include("class UpgradeLlmCostTrackerProviderInvoicesMetadataIndex")
-        expect(migration).to include("TABLE = :llm_cost_tracker_provider_invoices")
-        expect(migration).to include("return unless postgresql?")
-        expect(migration).to include("return unless table_exists?(TABLE)")
-        expect(migration).to include("add_index TABLE, :metadata, using: :gin")
-        expect(migration).to include("LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)")
-      end
-    end
-  end
-
   describe "call_rollups generator" do
     it "creates the optional llm_cost_tracker_call_rollups table" do
       Dir.mktmpdir do |dir|
@@ -335,10 +267,6 @@ RSpec.describe "generator templates" do
   describe "schema drift detection" do
     let(:install_migration) { render_migration_template("create_llm_cost_tracker_calls.rb.erb") }
 
-    let(:reconciliation_migration) do
-      render_migration_template("create_llm_cost_tracker_reconciliation.rb.erb")
-    end
-
     let(:auto_columns) { %w[id created_at updated_at llm_cost_tracker_call_id] }
 
     def expect_columns_in(migration, columns)
@@ -383,18 +311,6 @@ RSpec.describe "generator templates" do
     it "covers every IngestionLeases required column in the async_ingestion migration" do
       columns = LlmCostTracker::Ledger::Schema::IngestionLeases::REQUIRED_COLUMNS - auto_columns
       expect_columns_in(async_ingestion_migration, columns)
-    end
-
-    it "covers every ProviderInvoices required column in the reconciliation migration" do
-      LlmCostTracker.const_get(:Reconciliation)
-      columns = LlmCostTracker::Ledger::Schema::ProviderInvoices::REQUIRED_COLUMNS - auto_columns
-      expect_columns_in(reconciliation_migration, columns)
-    end
-
-    it "covers every ProviderInvoiceImports required column in the reconciliation migration" do
-      LlmCostTracker.const_get(:Reconciliation)
-      columns = LlmCostTracker::Ledger::Schema::ProviderInvoiceImports::REQUIRED_COLUMNS - auto_columns
-      expect_columns_in(reconciliation_migration, columns)
     end
   end
 

@@ -94,7 +94,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
 
-    it "records the raw-body response id so reconciliation can match the call to the provider's invoice" do
+    it "records the raw-body response id so each ledger row carries the upstream id for invoice cross-reference" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions").to_return(
         status: 200,
         body: {

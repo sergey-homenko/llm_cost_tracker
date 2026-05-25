@@ -146,7 +146,7 @@ tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
 | --- | --- | --- |
 | `ingestion` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
 | `ingestion_pool_size` | `2` | Size of the dedicated ActiveRecord connection pool the async ingestion worker uses for inbox writes (kept isolated from the request connection pool so a busy app doesn't deadlock its own tracking). Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion = :inline`. |
-| `cache_rollups` | `false` | When `true`, `Tracker.record` maintains daily/monthly aggregates in `llm_cost_tracker_call_rollups`; budget reads and reconciliation diffs use the rollups fast path. When `false` (default), budget reads aggregate live from `llm_cost_tracker_calls`. |
+| `cache_rollups` | `false` | When `true`, `Tracker.record` maintains daily/monthly aggregates in `llm_cost_tracker_call_rollups`; budget reads use the rollups fast path. When `false` (default), budget reads aggregate live from `llm_cost_tracker_calls`. |
 
 Each opt-in needs a matching generator before flipping the flag:
 
@@ -159,54 +159,6 @@ bin/rails db:migrate
 `bin/rails llm_cost_tracker:doctor` warns when a table exists without
 the matching flag (or vice versa) so the schema and config stay in
 sync.
-
-## Reconciliation (Experimental, Opt-In)
-
-Provider invoice reconciliation is off by default. Enable it explicitly
-when you have admin/org-level provider keys (`sk-admin-…`, Anthropic
-admin keys, GCP `billing.viewer`) and a separate place to run them —
-not the runtime app server.
-
-| Option | Default | Purpose |
-| --- | --- | --- |
-| `reconciliation_enabled` | `false` | Master switch. When `false`, `Reconciliation.import` / `.diff` raise, the dashboard tab is hidden, doctor ignores reconciliation schema, and the `Reconciliation` namespace is not loaded at all. |
-| `reconciliation_importers` | `{}` | Hash of callable importers per source. Used by the dashboard re-import button. Set via `register_reconciliation_importer(:source) { ... }`. |
-
-Two opt-ins are required — the config flag and a separate generator:
-
-```ruby
-LlmCostTracker.configure do |config|
-  config.reconciliation_enabled = true
-  config.register_reconciliation_importer(:openai) { OpenaiCostsImportJob.perform_later }
-end
-```
-
-```bash
-bin/rails generate llm_cost_tracker:reconciliation
-bin/rails db:migrate
-```
-
-Each invoice row is anchored to a `provider`. Built-in `source:` values
-map automatically (`openai` → `openai`, `openai_usage` → `openai`,
-`anthropic` → `anthropic`, `anthropic_usage` → `anthropic`,
-`gemini` → `gemini`). For unmapped sources (e.g. `csv` or any custom
-source) pass an explicit `provider:` so reconciliation diffs filter
-local calls to that provider only:
-
-```ruby
-LlmCostTracker::Reconciliation.import(source: :csv, provider: :openai, rows: rows)
-LlmCostTracker::Reconciliation.diff(source: :csv, provider: :openai,
-                                    period_start: ..., period_end: ...)
-```
-
-The rake tasks accept `PROVIDER=...`:
-
-```bash
-bin/rails llm_cost_tracker:reconcile:import SOURCE=csv PROVIDER=openai INPUT=invoice.json
-```
-
-Without both opt-ins, the gem stays a pure runtime tracker. See
-[Upgrading](upgrading.md) for the migration path.
 
 ## Capture Verification
 

@@ -35,8 +35,6 @@ require_relative "llm_cost_tracker/tracker"
 
 module LlmCostTracker
   autoload :Engine,         "llm_cost_tracker/engine"
-  autoload :Reconciliation, "llm_cost_tracker/reconciliation"
-  autoload :ReconcileTasks, "llm_cost_tracker/reconcile_tasks"
   autoload :Doctor,         "llm_cost_tracker/doctor"
   autoload :Report,         "llm_cost_tracker/report"
   autoload :Retention,      "llm_cost_tracker/retention"
@@ -52,10 +50,6 @@ module LlmCostTracker
 
     def table_name_prefix
       "llm_cost_tracker_"
-    end
-
-    def reconciliation_enabled?
-      configuration.reconciliation_enabled
     end
 
     def configure

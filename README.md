@@ -41,7 +41,7 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-Edit it in place to add tags, switch on async ingestion, enable reconciliation, etc.
+Edit it in place to add tags, switch on async ingestion, etc.
 
 Tag your calls to attribute spend:
 
