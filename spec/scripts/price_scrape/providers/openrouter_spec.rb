@@ -14,7 +14,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
           pricing: { prompt: "0.000003", completion: "0.000015",
                      input_cache_read: "0.0000003", input_cache_write: "0.00000375" } },
         { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash",
-          pricing: { prompt: "0.0000003", completion: "0.0000025" } },
+          pricing: { prompt: "0.0000003", completion: "0.0000025",
+                     image: "0.0000003", audio: "0.0000006",
+                     internal_reasoning: "0.0000025" } },
         { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B",
           pricing: { prompt: "0.00000023", completion: "0.0000004" } },
         { id: "free/model", name: "Free Model",
@@ -33,7 +35,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
         "input" => 3.0, "output" => 15.0,
         "cache_read_input" => 0.3, "cache_write_input" => 3.75
       ),
-      "google/gemini-2.5-flash" => a_hash_including("input" => 0.3, "output" => 2.5),
+      "google/gemini-2.5-flash" => a_hash_including(
+        "input" => 0.3, "output" => 2.5,
+        "image_input" => 0.3, "audio_input" => 0.6, "hidden_output" => 2.5
+      ),
       "meta-llama/llama-3.3-70b-instruct" => a_hash_including("input" => 0.23, "output" => 0.4)
     )
   end
