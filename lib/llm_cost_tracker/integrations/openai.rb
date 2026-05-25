@@ -97,7 +97,8 @@ module LlmCostTracker
                                                                      optional: true, skip_when_methods_missing: true),
             patch_target("OpenAI::Resources::Audio::Translations", with: TranslationsPatch, optional: true),
             patch_target("OpenAI::Resources::Audio::Speech", with: SpeechPatch, optional: true),
-            patch_target("OpenAI::Resources::Moderations", with: ModerationsPatch, optional: true)
+            patch_target("OpenAI::Resources::Moderations", with: ModerationsPatch, optional: true),
+            patch_target("OpenAI::Resources::Batches", with: BatchesPatch, optional: true)
           ]
         end
 
@@ -354,6 +355,84 @@ module LlmCostTracker
       ModerationsPatch = PatchBuilder.build(record_method: :record_moderation, methods: %i[create])
       StreamingImagesPatch = PatchBuilder.build_stream(methods: %i[generate_stream_raw edit_stream_raw])
       StreamingTranscriptionsPatch = PatchBuilder.build_stream(methods: %i[create_streaming])
+
+      module BatchesPatch
+        def retrieve(batch_id, *args, **kwargs)
+          batch = super
+          LlmCostTracker::Integrations::Openai.maybe_capture_batch(batch, client: @client)
+          batch
+        end
+      end
+
+      class << self
+        BATCH_CAPTURE_DEDUP = Set.new
+        BATCH_CAPTURE_MUTEX = Mutex.new
+        private_constant :BATCH_CAPTURE_DEDUP, :BATCH_CAPTURE_MUTEX
+
+        def maybe_capture_batch(batch, client:)
+          return unless active?
+          return unless batch.respond_to?(:status) && batch.status.to_s == "completed"
+
+          output_file_id = batch.respond_to?(:output_file_id) ? batch.output_file_id : nil
+          return unless output_file_id
+
+          batch_id = batch.respond_to?(:id) ? batch.id : nil
+          return unless batch_id && claim_batch_capture(batch_id)
+
+          record_safely do
+            io = client.files.content(output_file_id)
+            capture_batch_jsonl(io.respond_to?(:read) ? io.read : io.to_s)
+          end
+        end
+
+        def claim_batch_capture(batch_id)
+          BATCH_CAPTURE_MUTEX.synchronize do
+            next false if BATCH_CAPTURE_DEDUP.include?(batch_id)
+
+            BATCH_CAPTURE_DEDUP.add(batch_id)
+            true
+          end
+        end
+
+        def capture_batch_jsonl(jsonl)
+          jsonl.each_line do |line|
+            line = line.strip
+            next if line.empty?
+
+            entry = safe_parse_jsonl(line)
+            next unless entry
+
+            response = entry.dig("response", "body")
+            next unless response.is_a?(Hash) && response["usage"]
+
+            record_batch_response(response)
+          end
+        end
+
+        def safe_parse_jsonl(line)
+          JSON.parse(line)
+        rescue JSON::ParserError
+          nil
+        end
+
+        def record_batch_response(response)
+          usage = response["usage"].deep_symbolize_keys
+          model = response["model"]
+          LlmCostTracker::Tracker.record(
+            event: Event.build(
+              provider: "openai",
+              model: model,
+              pricing_mode: :batch,
+              token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
+              usage_source: "sdk_batch_result",
+              provider_response_id: response["id"],
+              service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.service_line_items_for(
+                response, request: nil, model: model
+              )
+            )
+          )
+        end
+      end
     end
   end
 end

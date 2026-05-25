@@ -213,6 +213,47 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "batches.retrieve" do
+    let(:jsonl_body) do
+      [
+        { id: "batch_req_a", custom_id: "u1",
+          response: { status_code: 200, body: {
+            id: "chatcmpl_b1", object: "chat.completion", model: "gpt-4o",
+            choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
+            usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+          } } },
+        { id: "batch_req_b", custom_id: "u2", error: { code: "rate_limit", message: "slow down" }, response: nil }
+      ].map(&:to_json).join("\n")
+    end
+
+    it "captures per-request usage from a completed batch and skips errored entries" do
+      WebMock.stub_request(:get, "https://api.openai.com/v1/batches/batch_done").to_return(
+        status: 200,
+        body: { id: "batch_done", object: "batch", status: "completed",
+                input_file_id: "file_in", output_file_id: "file_out",
+                endpoint: "/v1/chat/completions" }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+      WebMock.stub_request(:get, "https://api.openai.com/v1/files/file_out/content").to_return(
+        status: 200, body: jsonl_body,
+        headers: { "Content-Type" => "application/binary" }
+      )
+
+      capture_sdk_events do |events|
+        client.batches.retrieve("batch_done")
+
+        expect(events.size).to eq(1)
+        expect(events.first).to include(
+          provider: "openai",
+          model: "gpt-4o",
+          pricing_mode: :batch,
+          provider_response_id: "chatcmpl_b1",
+          usage_source: "sdk_batch_result"
+        )
+      end
+    end
+  end
+
   describe "moderations.create" do
     it "records moderation as a zero-token event from real SDK response" do
       stub_sdk_json(:post, "https://api.openai.com/v1/moderations",
