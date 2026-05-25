@@ -339,12 +339,9 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.total_calls.to_i).to eq(0)
       expect(stats.average_cost_per_call.to_f).to eq(0.0)
       expect(stats.average_latency_ms).to be_nil
-      expect(described_class.monthly_budget_status).to be_nil
     end
 
-    it "aggregates total cost, calls, average cost, latency, and budget status" do
-      allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 16, 0, 0, 0))
-      LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
+    it "aggregates total cost, calls, average cost, and latency" do
       create_call(total_cost: 2.0, latency_ms: 100, tracked_at: Time.utc(2026, 4, 15, 12))
       create_call(total_cost: 4.0, latency_ms: 300, tracked_at: Time.utc(2026, 4, 15, 13))
 
@@ -354,7 +351,21 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(stats.total_calls.to_i).to eq(2)
       expect(stats.average_cost_per_call.to_f).to eq(3.0)
       expect(stats.average_latency_ms.to_f).to eq(200.0)
-      budget = described_class.monthly_budget_status
+    end
+  end
+
+  describe LlmCostTracker::Dashboard::MonthlyBudget do
+    it "returns nil when no monthly_budget is configured" do
+      expect(described_class.status).to be_nil
+    end
+
+    it "reports budget, spent, percent, projection, and end label" do
+      allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 16, 0, 0, 0))
+      LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
+      create_call(total_cost: 2.0, tracked_at: Time.utc(2026, 4, 15, 12))
+      create_call(total_cost: 4.0, tracked_at: Time.utc(2026, 4, 15, 13))
+
+      budget = described_class.status
 
       expect(budget).to include(budget: 10.0, spent: 6.0, percent_used: 60.0)
       expect(budget[:projected_spent]).to be_within(0.01).of(12.0)
@@ -369,7 +380,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 7.5)
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
 
-      budget = described_class.monthly_budget_status
+      budget = described_class.status
 
       expect(LlmCostTracker::Ledger::Period::Totals).to have_received(:call).with(%i[month], time: now)
       expect(budget).to include(spent: 7.5, percent_used: 75.0)
@@ -381,7 +392,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 7.5)
       LlmCostTracker.configure { |config| config.monthly_budget = 0.0 }
 
-      budget = described_class.monthly_budget_status
+      budget = described_class.status
 
       expect(budget).to include(spent: 7.5, percent_used: 0.0, projected_percent_used: 0.0)
       expect(budget[:projected_delta]).to be > 0
@@ -393,7 +404,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 0.0)
       LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
 
-      budget = described_class.monthly_budget_status
+      budget = described_class.status
 
       expect(budget).to include(
         projected_spent: 0.0,
@@ -405,7 +416,9 @@ RSpec.describe "LlmCostTracker dashboard services" do
         projected_marker_percent: 0.0
       )
     end
+  end
 
+  describe LlmCostTracker::Dashboard::OverviewStats, "delta comparison" do
     it "returns nil deltas when no previous scope is given" do
       create_call(total_cost: 2.0)
 

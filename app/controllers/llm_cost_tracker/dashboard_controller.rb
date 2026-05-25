@@ -13,7 +13,7 @@ module LlmCostTracker
       )
 
       @stats = Dashboard::OverviewStats.call(scope: scope, previous_scope: previous_scope)
-      @monthly_budget_status = Dashboard::OverviewStats.monthly_budget_status
+      @monthly_budget_status = Dashboard::MonthlyBudget.status
       @time_series = Dashboard::TimeSeries.call(scope: scope, from: @from_date, to: @to_date)
       @comparison_series = Dashboard::TimeSeries.call(scope: previous_scope, from: prev_from, to: prev_to)
       @spend_anomaly = Dashboard::SpendAnomaly.call(from: @from_date, to: @to_date, scope: scope)

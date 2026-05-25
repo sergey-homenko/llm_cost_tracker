@@ -35,17 +35,24 @@ module LlmCostTracker
       end
 
       def mark_failed(rows, error)
-        message = "#{error.class}: #{error.message}".byteslice(0, 1_000)
-        now = Time.now.utc
-        Ingestion::InboxEntry
-          .where(id: rows.map(&:id), locked_by: identity)
-          .update_all(last_error: message, locked_at: now, locked_by: nil, updated_at: now)
-        warn_on_quarantine(rows)
+        mark_failed_with_message(rows, error_message_for(error))
       rescue StandardError => e
         LlmCostTracker::Logging.warn(
           "Inbox mark_failed failed for #{rows.size} rows: #{e.class}: #{e.message} (original error: #{error.class})"
         )
         nil
+      end
+
+      def mark_failed_with_message(rows, message)
+        now = Time.now.utc
+        Ingestion::InboxEntry
+          .where(id: rows.map(&:id), locked_by: identity)
+          .update_all(last_error: message, locked_at: now, locked_by: nil, updated_at: now)
+        warn_on_quarantine(rows)
+      end
+
+      def error_message_for(error)
+        "#{error.class}: #{error.message}".byteslice(0, 1_000)
       end
 
       def warn_on_quarantine(rows)
@@ -84,12 +91,14 @@ module LlmCostTracker
       def decode(rows)
         valid_rows = []
         events = []
+        failures = Hash.new { |h, k| h[k] = [] }
         rows.each do |row|
           events << Ingestion::Inbox.event_from_row(row)
           valid_rows << row
         rescue StandardError => e
-          mark_failed([row], e)
+          failures[error_message_for(e)] << row
         end
+        failures.each { |message, failed_rows| mark_failed_with_message(failed_rows, message) }
         [valid_rows, events]
       end
 
