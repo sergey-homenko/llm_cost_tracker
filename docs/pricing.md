@@ -197,7 +197,6 @@ quantity the published rate uses.
 | OpenAI Code Interpreter containers | `code_interpreter_call` output items deduplicated by container id | Stored as unknown-cost `container_session` rows unless a custom rate matches the captured quantity basis |
 | OpenAI MCP tool calls | `mcp_call` output items | Stored as unknown-cost `mcp_call` rows for visibility (no published per-call rate from OpenAI) |
 | Anthropic server web search | `server_tool_use.web_search_requests` | Priced from `service_charges.anthropic.web_search_request` when present |
-| Anthropic code execution | `server_tool_use.code_execution_requests` | Stored as unknown-cost `code_execution_request` rows because the published rate is hourly |
 | Anthropic web fetch | `server_tool_use.web_fetch_requests` | Priced at `$0` from registry — Anthropic bills web fetch through standard tokens, not per fetch |
 | Gemini modality tokens | `usageMetadata.promptTokensDetails` and response token details | Audio token rates price captured buckets when the model has registry rates |
 | Gemini grounding | `groundingMetadata.webSearchQueries` | Stored as unknown-cost `grounding_request` rows because free-tier and query reconciliation are account-level |

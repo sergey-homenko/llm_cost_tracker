@@ -62,12 +62,21 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::UsageExtractor do
     it "emits one line item per non-zero server_tool_use count" do
       items = described_class.service_line_items(
         input_tokens: 1, output_tokens: 1,
-        server_tool_use: { web_search_requests: 2, web_fetch_requests: 1, code_execution_requests: 0 }
+        server_tool_use: { web_search_requests: 2, web_fetch_requests: 1 }
       )
 
       expect(items.map(&:kind)).to eq(%w[web_search_request web_fetch_request])
       expect(items.map(&:quantity).map(&:to_i)).to eq([2, 1])
       expect(items.map(&:cost_status).uniq).to eq([LlmCostTracker::Billing::CostStatus::UNKNOWN])
+    end
+
+    it "ignores server_tool_use fields the documented Anthropic API never returns so synthetic future keys don't emit phantom line items" do
+      items = described_class.service_line_items(
+        input_tokens: 1, output_tokens: 1,
+        server_tool_use: { web_search_requests: 1, code_execution_requests: 7, mystery_future_tool: 99 }
+      )
+
+      expect(items.map(&:kind)).to eq(%w[web_search_request])
     end
 
     it "returns an empty array when server_tool_use is absent" do

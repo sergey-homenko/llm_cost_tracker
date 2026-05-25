@@ -82,7 +82,7 @@ the same shape.
 | --- | --- | --- |
 | `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
 | `position` | smallint, default `0` | Stable order within a call |
-| `kind` | string, not null | `text_token`, `audio_token`, `web_search_request`, `code_execution_request`, `code_execution_hour`, `grounding_request`, `container_session`, `file_search_call` |
+| `kind` | string, not null | `text_token`, `audio_token`, `web_search_request`, `web_fetch_request`, `grounding_request`, `container_session`, `file_search_call`, `transcription_minute` |
 | `direction` | string, not null | `input`, `output`, `neither` |
 | `modality` | string, not null | `text`, `audio`, `none` |
 | `cache_state` | string, default `none` | `none`, `read`, `write_default`, `write_extended` |

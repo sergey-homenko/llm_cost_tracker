@@ -266,9 +266,9 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         status: 200, body: jsonl_body,
         headers: { "Content-Type" => "application/binary" }
       )
-      allow(LlmCostTracker::Call).to receive(:where)
-        .with(provider: "openai", provider_response_id: "chatcmpl_b1")
-        .and_return(double(exists?: true))
+      allow(LlmCostTracker::Integrations::Openai).to receive(:batch_response_already_recorded?)
+        .with(provider_response_id: "chatcmpl_b1")
+        .and_return(true)
 
       capture_sdk_events do |events|
         client.batches.retrieve("batch_done")
