@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "bigdecimal"
 require "rails"
 require "active_support"
 require "active_support/core_ext/object/blank"
@@ -87,7 +88,11 @@ module LlmCostTracker
               usage_source: "manual", enforce_budget: false,
               provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
               provider_workspace_id: nil, batch: nil, pricing_mode: nil, service_line_items: [])
-      Budget.enforce! if enforce_budget
+      if enforce_budget
+        cost_data = Pricing.cost_for(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
+        estimate = cost_data && BigDecimal(cost_data[:total_cost].to_s)
+        Budget.enforce!(provider: provider, model: model, estimate: estimate, force: true)
+      end
 
       Tracker.record(
         event: Event.build(
@@ -114,7 +119,7 @@ module LlmCostTracker
                      provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
                      provider_workspace_id: nil, batch: nil, pricing_mode: nil)
       require_relative "llm_cost_tracker/capture/stream_collector"
-      Budget.enforce! if enforce_budget
+      Budget.enforce!(provider: provider, model: model, force: true) if enforce_budget
       collector = Capture::StreamCollector.new(
         provider: provider.to_s,
         model: model,

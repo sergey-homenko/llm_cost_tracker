@@ -10,11 +10,12 @@ module LlmCostTracker
     BUDGET_TYPE_TO_PERIOD = { monthly: :month, daily: :day }.freeze
 
     class << self
-      def enforce!(provider: nil, model: nil, request: nil)
+      def enforce!(provider: nil, model: nil, request: nil, estimate: nil, force: false)
         config = LlmCostTracker.configuration
-        return unless config.enabled && config.budget_exceeded_behavior == :block_requests
+        return unless config.enabled
+        return unless force || config.budget_exceeded_behavior == :block_requests
 
-        estimate = estimate_cost(provider: provider, model: model, request: request)
+        estimate ||= estimate_cost(provider: provider, model: model, request: request)
         raise_per_call_pre_send(estimate, config.per_call_budget) if config.per_call_budget && estimate.positive?
 
         budgets = { monthly: config.monthly_budget, daily: config.daily_budget }.compact

@@ -733,6 +733,24 @@ RSpec.describe LlmCostTracker::Tracker do
       end.not_to raise_error
     end
 
+    it "honors `enforce_budget: true` on `LlmCostTracker.track` even when the global policy is :notify, so per-call DSL can opt into pre-send fail-fast" do
+      LlmCostTracker.configure do |c|
+        c.per_call_budget = 0.0001
+        c.budget_exceeded_behavior = :notify
+      end
+
+      expect do
+        LlmCostTracker.track(
+          provider: "openai", model: "gpt-4o",
+          tokens: { input: 10_000, output: 10_000 },
+          enforce_budget: true
+        )
+      end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error.budget_type).to eq(:per_call)
+        expect(error.stage).to eq(:pre_send)
+      }
+    end
+
     it "does not pre-send block on unknown models — falls through to the post-spend gate" do
       LlmCostTracker.configure do |c|
         c.daily_budget = 0.0001

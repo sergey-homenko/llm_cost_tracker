@@ -42,7 +42,7 @@ module LlmCostTracker
           rate_amount: decimal_or_nil(attributes[:rate_amount]),
           rate_quantity: decimal_or_nil(attributes[:rate_quantity]) || BigDecimal("1"),
           cost: decimal_or_nil(attributes[:cost]),
-          currency: (attributes[:currency] || DEFAULT_CURRENCY).to_s.upcase,
+          currency: canonical_currency(attributes[:currency]),
           cost_status: cost_status_for(attributes),
           pricing_basis: attributes[:pricing_basis]&.to_s,
           price_key: attributes[:price_key]&.to_s,
@@ -95,7 +95,11 @@ module LlmCostTracker
         BigDecimal(value.to_s)
       end
 
-      private_class_method :cost_status_for, :component_for, :decimal_or_nil
+      def self.canonical_currency(value)
+        (value || DEFAULT_CURRENCY).to_s.upcase
+      end
+
+      private_class_method :cost_status_for, :component_for, :decimal_or_nil, :canonical_currency
 
       def billable?
         quantity.positive?

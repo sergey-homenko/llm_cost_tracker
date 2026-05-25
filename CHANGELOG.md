@@ -8,9 +8,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - The RubyLLM SDK integration now requires `ruby_llm >= 1.15.0` (was `>= 1.14.1`).
 - Vendor-specific parsers and reconciliation sources moved under `LlmCostTracker::Providers::<Vendor>::*`; the `LlmCostTracker::Reconciliation::Sources` namespace is removed (its `Coercion` and `Fingerprint` helpers moved up to `LlmCostTracker::Reconciliation::*`). Custom code referencing the old constants — `LlmCostTracker::Parsers::Anthropic`/`Openai`/`Azure`/`Gemini`/`OpenaiCompatible`/`OpenaiUsage`, `LlmCostTracker::Reconciliation::Sources::OpenaiUsage`/`AnthropicUsage`/`Coercion`/`Fingerprint` — has to update to the new names.
+- Engine no longer adds `tag` / `tag_value` to Rails `filter_parameters` — the Symbol filter was substring-matching unrelated host-app params (`tags`, `meta_tag`, etc.) into `[FILTERED]`. `Tags::Sanitizer` continues redacting secret-shaped tag values at storage.
 
 ### Fixed
 
+- `LlmCostTracker.track(..., enforce_budget: true)` now actually raises `BudgetExceededError` pre-call when the estimated cost overshoots the budget, even when `budget_exceeded_behavior: :notify` is configured — previously the kwarg silently no-op'd unless policy was already `:block_requests`.
 - `Ledger::Store` retries a transient rollup-increment failure twice with short exponential backoff before warning, so a brief DB hiccup mid-write no longer leaves the call-rollups row permanently short of the actual ledger total.
 - `Call#pricing_snapshot.rates` now includes per-charge rates for non-token service line items (web search, MCP calls, TTS character billing, etc.) — previously only token rates were captured, so audit/replay of service-charge pricing had no record of the rate that was actually applied.
 - Tags with invalid keys (e.g. containing whitespace or characters outside `[\w.-]`) are now skipped at write with a `Logging.warn` instead of being silently written and then raising `InvalidFilterError` on dashboard read.
