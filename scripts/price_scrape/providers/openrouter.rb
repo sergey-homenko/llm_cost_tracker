@@ -86,7 +86,7 @@ module LlmCostTracker
           return nil if text.empty?
 
           per_token = Float(text)
-          return nil if per_token.zero?
+          return nil unless per_token.positive?
 
           (per_token * 1_000_000).round(6)
         rescue ArgumentError, TypeError

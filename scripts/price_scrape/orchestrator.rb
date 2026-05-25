@@ -55,8 +55,10 @@ module LlmCostTracker
         deprecated = provider_result.deprecated_models
         active = provider_result.models.except(*deprecated)
         active_keys = active.keys.map { |id| registry_key(provider, id) }
-        legacy_active_keys = active.keys.select { |id| current_models.key?(id) }
-        deprecated_keys = deprecated.flat_map { |id| [registry_key(provider, id), id] }
+        legacy_active_keys = active.keys.select { |id| bare?(id) && current_models.key?(id) }
+        deprecated_keys = deprecated.flat_map do |id|
+          bare?(id) ? [registry_key(provider, id), id] : [registry_key(provider, id)]
+        end
         removed = Set.new(legacy_active_keys)
         deprecated_keys.each { |id| removed.add(id) if current_models.key?(id) }
 
@@ -97,8 +99,12 @@ module LlmCostTracker
         removed_ids.each { |id| next_models.delete(id) }
         active.each do |id, scraped_fields|
           key = registry_key(provider, id)
-          existing = next_models[key] || current_models[id] || {}
-          next_models.delete(id)
+          if bare?(id)
+            existing = next_models[key] || current_models[id] || {}
+            next_models.delete(id)
+          else
+            existing = next_models[key] || {}
+          end
           next_models[key] = preserved_model_fields(existing).merge(scraped_fields)
         end
         next_models
@@ -139,6 +145,10 @@ module LlmCostTracker
 
       def registry_key(provider, model_id)
         "#{provider}/#{model_id}"
+      end
+
+      def bare?(model_id)
+        !model_id.to_s.include?("/")
       end
 
       def normalize_provider(provider)

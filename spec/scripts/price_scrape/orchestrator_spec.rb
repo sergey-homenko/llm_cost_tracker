@@ -63,6 +63,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     end
   end
 
+  it "does not delete another provider's namespaced model when an aggregator scrape's id matches (e.g. OpenRouter reporting `openai/gpt-4o` does not nuke the direct openai entry)" do
+    registry = build_registry(models: {
+                                "openai/gpt-4o" => { "input" => 2.5, "output" => 10.0 }
+                              })
+    provider_result = build_result(
+      models: { "openai/gpt-4o" => { "input" => 2.5, "output" => 10.0 } }
+    )
+
+    with_registry(registry) do |path|
+      result = described_class.new.call(
+        provider: "openrouter", provider_result: provider_result, registry_path: path
+      )
+
+      expect(result.removed).to eq([])
+      models = JSON.parse(File.read(path)).fetch("models")
+      expect(models).to have_key("openai/gpt-4o")
+      expect(models).to have_key("openrouter/openai/gpt-4o")
+    end
+  end
+
   it "migrates legacy unqualified model keys to provider-qualified keys" do
     registry = build_registry(models: { "claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } })
     provider_result = build_result(
