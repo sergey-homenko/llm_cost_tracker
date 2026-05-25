@@ -11,6 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- Tags with invalid keys (e.g. containing whitespace or characters outside `[\w.-]`) are now skipped at write with a `Logging.warn` instead of being silently written and then raising `InvalidFilterError` on dashboard read.
+- A raising `default_tags` proc is now captured by `Logging.warn` and falls back to empty default tags, so a broken user callback doesn't take down every tracked call.
+- `LlmCostTracker::Ingestion::Worker.shutdown!(drain: true)` always attempts the final inbox flush even if waking the worker thread raises, so pending inbox rows aren't left when the host process exits.
 - Gemini preview-dated models (e.g. `gemini-2.5-flash-preview-04-17`) now resolve to the stable entry's pricing — previously the `preview-MM-DD` suffix didn't match the dated-snapshot regex so the call landed as `cost_status: unknown`.
 - Gemini parser now reads `usageMetadata.serviceTier` from the response body in addition to the `x-gemini-service-tier` header, so tier-aware pricing applies when only the body carries the tier signal.
 - Line-item and pricing-snapshot `currency` is now stored uppercase regardless of `prices_file` casing, so a `prices_file` with `currency: "eur"` shows up as `EUR` everywhere (matches the existing `ProviderInvoice` write-side normalization) and service-line items don't get partitioned out of header totals on a case mismatch with cost-data currency.

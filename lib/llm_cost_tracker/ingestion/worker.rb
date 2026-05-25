@@ -65,8 +65,12 @@ module LlmCostTracker
             @generation = @generation.to_i + 1
             @thread
           end
-          wake_thread(thread)
-          thread&.join(timeout)
+          begin
+            wake_thread(thread)
+            thread&.join(timeout)
+          rescue StandardError => e
+            handle_error(e)
+          end
           drain ? flush!(timeout: timeout, require_lease: true) : true
         rescue StandardError => e
           handle_error(e)

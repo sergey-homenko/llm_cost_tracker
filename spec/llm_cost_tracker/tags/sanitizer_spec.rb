@@ -21,6 +21,15 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
     expect(tags).to eq(second: "2", third: "3")
   end
 
+  it "skips tag keys that fail Tags::Key validation so storage doesn't write a row the dashboard read would reject" do
+    allow(LlmCostTracker::Logging).to receive(:warn)
+
+    tags = described_class.call({ "weird key!" => "v", valid_key: "v" }, config: config)
+
+    expect(tags).to eq(valid_key: "v")
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(include("weird key!"))
+  end
+
   it "redacts a secret-shaped value before truncation so a small max_tag_value_bytesize cannot leave the leading bytes of the secret in the tag" do
     tiny_config = build_config(max_tag_count: 10, max_tag_value_bytesize: 6, redacted_tag_keys: [])
 

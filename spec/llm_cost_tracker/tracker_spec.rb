@@ -248,6 +248,22 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(second.tags).to include(request_id: "second")
     end
 
+    it "swallows a raising default_tags proc with a Logging.warn so a broken user callback doesn't crash every Tracker.record" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      LlmCostTracker.configure do |c|
+        c.default_tags = -> { raise "user proc blew up" }
+      end
+
+      event = record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+      )
+
+      expect(event).not_to be_nil
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(include("default_tags proc raised"))
+    end
+
     it "merges scoped tags between default tags and explicit metadata" do
       LlmCostTracker.configure do |c|
         c.default_tags = { env: "test", feature: "default" }

@@ -27,8 +27,18 @@ module LlmCostTracker
           limit = [config.max_tag_value_bytesize.to_i, 0].max
           max_count = [config.max_tag_count.to_i, 0].max
           tags.to_a.last(max_count).each_with_object({}) do |(key, value), sanitized|
+            next unless valid_key?(key)
+
             sanitized[key] = sanitized_value(key, value, redacted, limit)
           end
+        end
+
+        def valid_key?(key)
+          Tags::Key.validate!(key)
+          true
+        rescue ArgumentError => e
+          Logging.warn("LlmCostTracker tag key invalid: #{e.message}; skipping")
+          false
         end
 
         def cap(tags, config: LlmCostTracker.configuration)
