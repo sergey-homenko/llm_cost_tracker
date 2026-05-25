@@ -124,6 +124,7 @@ module LlmCostTracker
             output_tokens = response.output_tokens if output_tokens.nil?
             next if input_tokens.nil? && output_tokens.nil?
 
+            cache_write_5m, cache_write_1h = cache_creation_split(provider, response)
             LlmCostTracker::Tracker.record(
               event: Event.build(
                 provider: provider,
@@ -133,7 +134,8 @@ module LlmCostTracker
                   input_tokens: input_tokens.to_i,
                   output_tokens: output_tokens.to_i,
                   cache_read_input_tokens: response.try(:cached_tokens).to_i,
-                  cache_write_input_tokens: response.try(:cache_creation_tokens).to_i,
+                  cache_write_input_tokens: cache_write_5m,
+                  cache_write_extended_input_tokens: cache_write_1h,
                   hidden_output_tokens: response.try(:thinking_tokens).to_i
                 ),
                 stream: stream,
@@ -145,6 +147,15 @@ module LlmCostTracker
           end
         end
 
+        def cache_creation_split(provider, response)
+          return [response.try(:cache_creation_tokens).to_i, 0] unless provider == "anthropic"
+
+          cache = response.try(:raw)&.body&.dig("usage", "cache_creation")
+          return [response.try(:cache_creation_tokens).to_i, 0] unless cache.is_a?(Hash)
+
+          [cache["ephemeral_5m_input_tokens"].to_i, cache["ephemeral_1h_input_tokens"].to_i]
+        end
+
         def model_id_from_request(value)
           return nil if value.nil?
           return value.to_s if value.is_a?(String) || value.is_a?(Symbol)
@@ -153,7 +164,8 @@ module LlmCostTracker
         end
 
         def provider_response_id_for(response)
-          response.try(:id) || response.try(:provider_response_id)
+          body = response.try(:raw)&.body || {}
+          body["id"] || body["responseId"]
         end
 
         def response_model_id(response)
@@ -161,7 +173,12 @@ module LlmCostTracker
         end
 
         def pricing_mode_for(provider:, response:)
-          tier = response.try(:raw)&.body&.dig("service_tier")
+          body = response.try(:raw)&.body || {}
+          tier = case provider
+                 when "anthropic" then body.dig("usage", "service_tier")
+                 when "gemini" then body.dig("usageMetadata", "serviceTier")
+                 else body["service_tier"]
+                 end
           return nil if provider == "anthropic" &&
                         LlmCostTracker::Providers::Anthropic::TierClassification.standard_equivalent_tier?(tier)
 

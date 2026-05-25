@@ -60,8 +60,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
         body: {
           id: "msg_b", type: "message", role: "assistant", model: "claude-sonnet-4-5",
           content: [{ type: "text", text: "hi" }], stop_reason: "end_turn",
-          service_tier: "batch",
-          usage: { input_tokens: 10, output_tokens: 5 }
+          usage: { input_tokens: 10, output_tokens: 5, service_tier: "batch" }
         }.to_json,
         headers: { "Content-Type" => "application/json" }
       )
@@ -72,14 +71,53 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
 
+    it "splits Anthropic ephemeral 1h cache writes from the 5m bucket so 1h rates apply at 2x base instead of 1.25x" do
+      WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
+        status: 200,
+        body: {
+          id: "msg_c", type: "message", role: "assistant", model: "claude-sonnet-4-5",
+          content: [{ type: "text", text: "hi" }], stop_reason: "end_turn",
+          usage: {
+            input_tokens: 10, output_tokens: 5,
+            cache_creation: { ephemeral_5m_input_tokens: 100, ephemeral_1h_input_tokens: 200 }
+          }
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "claude-sonnet-4-5").ask("hi")
+        expect(events.first).to include(
+          cache_write_input_tokens: 100,
+          cache_write_extended_input_tokens: 200
+        )
+      end
+    end
+
+    it "records the raw-body response id so reconciliation can match the call to the provider's invoice" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions").to_return(
+        status: 200,
+        body: {
+          id: "chatcmpl_with_id", object: "chat.completion", model: "gpt-4o",
+          choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "gpt-4o").ask("hi")
+        expect(events.first[:provider_response_id]).to eq("chatcmpl_with_id")
+      end
+    end
+
     it "drops Anthropic priority service tier (committed throughput, not a surcharge) to nil pricing_mode" do
       WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
         status: 200,
         body: {
           id: "msg_p", type: "message", role: "assistant", model: "claude-sonnet-4-5",
           content: [{ type: "text", text: "hi" }], stop_reason: "end_turn",
-          service_tier: "priority",
-          usage: { input_tokens: 10, output_tokens: 5 }
+          usage: { input_tokens: 10, output_tokens: 5, service_tier: "priority" }
         }.to_json,
         headers: { "Content-Type" => "application/json" }
       )

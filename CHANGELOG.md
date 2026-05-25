@@ -15,7 +15,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `bin/rails llm_cost_tracker:doctor` reports the underlying ActiveRecord error when the async-ingestion check can't read the inbox; previously a transient DB failure silently rendered the path as `:ok`.
 - Dashboard "Setup required" page now flags missing `llm_cost_tracker_ingestion_inbox_entries` and `llm_cost_tracker_ingestion_leases` tables when `ingestion: :async` is configured — previously the drift only surfaced as a worker boot crash.
 - RubyLLM SDK integration over-subtracted cache-read tokens from recorded `input_tokens` on chat completions, so the figure landed in the ledger short by the cache-read amount; the gem now passes RubyLLM's net `input_tokens` through unchanged.
-- RubyLLM SDK integration recorded `pricing_mode` as nil for every call regardless of the provider's `service_tier`. Anthropic batch-mode chat completions now land with `pricing_mode: :batch` (and price against batch rates) instead of falling to standard rates.
+- RubyLLM SDK integration captures `service_tier` from response bodies across Anthropic, OpenAI, and Gemini — previously the field was read from the wrong JSON path so batch and flex modes silently priced against standard rates.
+- RubyLLM SDK integration records the provider's response id in `provider_response_id` (previously always nil), enabling reconciliation matching against provider invoice line items.
+- RubyLLM Anthropic chat completions split 1-hour and 5-minute cache writes into separate token buckets so 1h writes bill at the 2x extended rate instead of being lumped into the 5m bucket at 1.25x.
 
 ## [0.11.0] - 2026-05-21
 
