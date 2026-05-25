@@ -19,8 +19,6 @@ module LlmCostTracker
           "async ingestion",
           "missing #{missing.join(', ')}; see docs/upgrading.md for the recovery steps"
         )
-      rescue ActiveRecord::ActiveRecordError => e
-        Check.new(:error, "async ingestion", "#{e.class}: #{e.message}")
       end
 
       private

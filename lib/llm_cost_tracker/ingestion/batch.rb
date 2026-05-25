@@ -50,16 +50,13 @@ module LlmCostTracker
 
       def warn_on_quarantine(rows)
         threshold = Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
-        quarantined_ids = Ingestion::InboxEntry
-                          .where(id: rows.map(&:id))
-                          .where("attempts >= ?", threshold)
-                          .pluck(:id)
-        return if quarantined_ids.empty?
+        quarantined = rows.select { |row| row.attempts.to_i + 1 >= threshold }
+        return if quarantined.empty?
 
-        sample = quarantined_ids.first(10).join(", ")
-        sample += "..." if quarantined_ids.size > 10
+        sample = quarantined.first(10).map(&:id).join(", ")
+        sample += "..." if quarantined.size > 10
         LlmCostTracker::Logging.warn(
-          "Ingestion::Batch: #{quarantined_ids.size} inbox row(s) reached " \
+          "Ingestion::Batch: #{quarantined.size} inbox row(s) reached " \
           "MAX_ATTEMPTS_BEFORE_QUARANTINE=#{threshold} and will be skipped " \
           "on the next claim cycle (ids: #{sample})"
         )

@@ -290,21 +290,32 @@ RSpec.describe "ActiveRecord async inbox" do
     expect(total).to eq(0.0)
   end
 
-  it "warns to Logging when an inbox row reaches MAX_ATTEMPTS so production sees the quarantine at the moment it happens" do
+  it "warns to Logging when an inbox row's post-claim attempts crosses MAX_ATTEMPTS so production sees the quarantine at the moment it happens" do
     allow(LlmCostTracker::Logging).to receive(:warn)
+    max = LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
     row = LlmCostTracker::Ingestion::InboxEntry.create!(
-      event_id: "bad-event",
-      total_cost: 1.0,
-      tracked_at: Time.utc(2026, 4, 18, 12),
-      payload: "{",
-      attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE,
-      locked_by: "worker-x"
+      event_id: "bad-event", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 18, 12),
+      payload: "{", attempts: max - 1, locked_by: "worker-x"
     )
 
     LlmCostTracker::Ingestion::Batch.new(identity: "worker-x").mark_failed([row], RuntimeError.new("boom"))
 
     expect(LlmCostTracker::Logging).to have_received(:warn)
       .with(include("MAX_ATTEMPTS_BEFORE_QUARANTINE").and(include(row.id.to_s)))
+  end
+
+  it "does not warn on the attempt before quarantine so the message fires once per row, not at every failure" do
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    max = LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
+    row = LlmCostTracker::Ingestion::InboxEntry.create!(
+      event_id: "bad-event", total_cost: 1.0, tracked_at: Time.utc(2026, 4, 18, 12),
+      payload: "{", attempts: max - 2, locked_by: "worker-x"
+    )
+
+    LlmCostTracker::Ingestion::Batch.new(identity: "worker-x").mark_failed([row], RuntimeError.new("boom"))
+
+    expect(LlmCostTracker::Logging).not_to have_received(:warn)
+      .with(include("MAX_ATTEMPTS_BEFORE_QUARANTINE"))
   end
 
   it "times out flush when every row is leased by another worker" do

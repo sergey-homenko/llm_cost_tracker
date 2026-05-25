@@ -92,7 +92,7 @@ RSpec.describe LlmCostTracker::Doctor do
   context "with ActiveRecord storage" do
     include_context "with mounted llm cost tracker engine"
 
-    it "reports table, column, call rollup, and call status" do
+    it "reports table, column, call rollup, async ingestion, and call status" do
       checks = described_class.call
 
       expect(checks).to include(
@@ -101,23 +101,12 @@ RSpec.describe LlmCostTracker::Doctor do
         have_attributes(status: :ok, name: "call line items"),
         have_attributes(status: :ok, name: "call tags"),
         have_attributes(status: :ok, name: "call rollups"),
+        have_attributes(status: :ok, name: "async ingestion"),
         have_attributes(status: :warn, name: "tracked calls")
       )
       expect(checks.map(&:name)).not_to include("provider invoices")
     end
 
-    it "surfaces an inbox-table probe failure as :error instead of falsely reporting :ok" do
-      allow(LlmCostTracker::Ingestion).to receive(:async?).and_return(true)
-      allow(described_class::Probe).to receive(:table_exists?).with("llm_cost_tracker_calls").and_return(true)
-      allow(described_class::Probe).to receive(:table_exists?)
-        .with(LlmCostTracker::Ingestion::InboxEntry.table_name)
-        .and_raise(ActiveRecord::StatementInvalid.new("connection lost"))
-
-      check = described_class::IngestionCheck.new.call
-
-      expect(check.status).to eq(:error)
-      expect(check.message).to include("ActiveRecord::StatementInvalid", "connection lost")
-    end
 
     it "fails when call rollups are missing" do
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups)
