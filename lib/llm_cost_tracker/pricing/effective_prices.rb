@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "bigdecimal"
+
 require_relative "../billing/components"
 require_relative "mode"
 
@@ -54,7 +56,9 @@ module LlmCostTracker
 
           modes.each do |mode|
             mode_base_price = contextual_price(prices: prices, key: "#{mode}_input", context_tier: context_tier)
-            return standard_price * (mode_base_price / base_price) if mode_base_price
+            next unless mode_base_price
+
+            return BigDecimal(standard_price.to_s) * BigDecimal(mode_base_price.to_s) / BigDecimal(base_price.to_s)
           end
           nil
         end
