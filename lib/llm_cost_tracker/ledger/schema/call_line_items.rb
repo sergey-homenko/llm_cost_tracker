@@ -34,10 +34,6 @@ module LlmCostTracker
 
         JSON_COLUMNS = %i[details].freeze
 
-        REQUIRED_INDEXES = [
-          { columns: %i[llm_cost_tracker_call_id position] }
-        ].freeze
-
         FOREIGN_KEYS = [
           { column: :llm_cost_tracker_call_id, references: :llm_cost_tracker_calls }
         ].freeze

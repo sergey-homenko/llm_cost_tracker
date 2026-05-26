@@ -26,7 +26,6 @@ module LlmCostTracker
         def compute_errors(connection, table_name, columns)
           column_errors(columns) +
             json_column_errors(connection, columns) +
-            index_errors(connection, table_name) +
             foreign_key_errors(connection, table_name)
         end
 
@@ -40,17 +39,6 @@ module LlmCostTracker
 
           self::JSON_COLUMNS.flat_map do |name|
             Adapter.json_column_errors(columns[name.to_s], connection, name.to_s)
-          end
-        end
-
-        def index_errors(connection, table_name)
-          return [] unless const_defined?(:REQUIRED_INDEXES)
-
-          self::REQUIRED_INDEXES.filter_map do |spec|
-            next if connection.index_exists?(table_name, spec[:columns], **spec.except(:columns))
-
-            prefix = spec[:unique] ? "unique " : ""
-            "missing #{prefix}index: #{Array(spec[:columns]).join(', ')}"
           end
         end
 

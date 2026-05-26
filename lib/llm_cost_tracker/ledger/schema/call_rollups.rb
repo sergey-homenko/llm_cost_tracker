@@ -10,10 +10,6 @@ module LlmCostTracker
 
         REQUIRED_COLUMNS = %w[period period_start currency provider total_cost created_at updated_at].freeze
 
-        REQUIRED_INDEXES = [
-          { columns: %i[period period_start currency provider], unique: true }
-        ].freeze
-
         def self.model = LlmCostTracker::CallRollup
       end
     end

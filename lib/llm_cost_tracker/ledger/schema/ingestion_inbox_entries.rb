@@ -21,10 +21,6 @@ module LlmCostTracker
           updated_at
         ].freeze
 
-        REQUIRED_INDEXES = [
-          { columns: :event_id, unique: true }
-        ].freeze
-
         def self.model = LlmCostTracker::Ingestion::InboxEntry
       end
     end

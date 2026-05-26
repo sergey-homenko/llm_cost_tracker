@@ -40,15 +40,6 @@ module LlmCostTracker
 
         JSON_COLUMNS = %i[pricing_snapshot].freeze
 
-        REQUIRED_INDEXES = [
-          { columns: :event_id, unique: true },
-          { columns: :tracked_at },
-          { columns: %i[provider tracked_at] },
-          { columns: %i[model tracked_at] },
-          { columns: :cost_status },
-          { columns: :provider_response_id }
-        ].freeze
-
         def self.model = LlmCostTracker::Call
       end
     end

@@ -151,18 +151,6 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check).to have_attributes(status: :ok, message: include("events write directly to the ledger"))
     end
 
-    it "fails when call rollups lack the current unique index" do
-      ActiveRecord::Base.connection.remove_index(
-        :llm_cost_tracker_call_rollups, %i[period period_start currency provider]
-      )
-
-      check = described_class.call.find { |item| item.name == "call rollups" }
-
-      expect(check).to have_attributes(status: :error)
-      expect(check.message).to include("missing unique index: period, period_start, currency, provider")
-      expect(check.message).to include("docs/upgrading.md")
-    end
-
     it "fails when the ledger table does not match the current schema" do
       ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_calls, :pricing_mode)
       LlmCostTracker::Call.reset_column_information
