@@ -8,15 +8,10 @@ module LlmCostTracker
     module Anthropic
       extend Base
 
+      minimum_version "1.36.0"
+      version_constant "Anthropic::VERSION"
+
       class << self
-        def minimum_version
-          "1.36.0"
-        end
-
-        def version_constant
-          "Anthropic::VERSION"
-        end
-
         def patch_targets
           [
             patch_target("Anthropic::Resources::Messages", with: MessagesPatch),

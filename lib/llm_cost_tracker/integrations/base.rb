@@ -104,9 +104,15 @@ module LlmCostTracker
         nil
       end
 
-      def minimum_version = nil
+      def minimum_version(value = nil)
+        @minimum_version = value if value
+        @minimum_version
+      end
 
-      def version_constant = nil
+      def version_constant(value = nil)
+        @version_constant = value if value
+        @version_constant
+      end
 
       def patch_targets = []
 

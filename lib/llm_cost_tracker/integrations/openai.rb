@@ -12,6 +12,9 @@ module LlmCostTracker
     module Openai # rubocop:disable Metrics/ModuleLength
       extend Base
 
+      minimum_version "0.59.0"
+      version_constant "OpenAI::VERSION"
+
       class << self
         def stream_pricing_mode(request, host: nil)
           LlmCostTracker::Providers::Openai::UsageParser.combined_pricing_mode(
@@ -65,14 +68,6 @@ module LlmCostTracker
 
         def provider_for_host(host)
           LlmCostTracker::Providers::Azure::Hosts.openai?(host) ? "azure_openai" : "openai"
-        end
-
-        def minimum_version
-          "0.59.0"
-        end
-
-        def version_constant
-          "OpenAI::VERSION"
         end
 
         def patch_targets
