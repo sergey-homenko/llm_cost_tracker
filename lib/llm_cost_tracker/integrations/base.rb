@@ -18,6 +18,11 @@ module LlmCostTracker
         @integration_name ||= name.demodulize.underscore.to_sym
       end
 
+      def provider(value = nil)
+        @provider = value.to_s if value
+        @provider ||= integration_name.to_s
+      end
+
       def active?
         LlmCostTracker.configuration.instrumented?(integration_name)
       end
@@ -45,11 +50,11 @@ module LlmCostTracker
         Result.new(:warn, name, "#{name} integration is enabled but not installed")
       end
 
-      def enforce_budget!(request:)
+      def enforce_budget!(request:, provider: self.provider)
         return unless active?
 
         LlmCostTracker::Budget.enforce!(
-          provider: integration_name.to_s,
+          provider: provider,
           model: request[:model],
           request: request
         )
@@ -86,9 +91,9 @@ module LlmCostTracker
         ).wrap
       end
 
-      def stream_collector(request)
+      def stream_collector(request, provider: self.provider)
         LlmCostTracker::Capture::StreamCollector.new(
-          provider: integration_name.to_s,
+          provider: provider,
           model: request[:model],
           pricing_mode: stream_pricing_mode(request),
           request: request

@@ -14,10 +14,46 @@ RSpec.describe LlmCostTracker::Integrations::Base do
         end
       end
 
-      collector = integration.stream_collector(model: "test-model")
+      collector = integration.stream_collector({ model: "test-model" })
 
       expect(collector.instance_variable_get(:@pricing_mode)).to be_nil
       expect(collector.provider).to eq("test_integration")
+    end
+  end
+
+  describe ".provider DSL" do
+    it "defaults to integration_name.to_s when no override is declared" do
+      integration = Module.new do
+        extend LlmCostTracker::Integrations::Base
+        def self.integration_name = :gemini_ai
+      end
+
+      expect(integration.provider).to eq("gemini_ai")
+    end
+
+    it "returns the declared override when set via `provider :slug`" do
+      integration = Module.new do
+        extend LlmCostTracker::Integrations::Base
+        def self.integration_name = :gemini_ai
+        provider :gemini
+      end
+
+      expect(integration.provider).to eq("gemini")
+    end
+
+    it "lets callers pass a per-call provider override into enforce_budget!" do
+      integration = Module.new do
+        extend LlmCostTracker::Integrations::Base
+        def self.integration_name = :ruby_llm
+      end
+      allow(LlmCostTracker.configuration).to receive(:instrumented?).and_return(true)
+      allow(LlmCostTracker::Budget).to receive(:enforce!)
+
+      integration.enforce_budget!(request: { model: "gpt-4o" }, provider: "openai")
+
+      expect(LlmCostTracker::Budget).to have_received(:enforce!).with(
+        provider: "openai", model: "gpt-4o", request: { model: "gpt-4o" }
+      )
     end
   end
 

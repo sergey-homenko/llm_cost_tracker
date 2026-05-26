@@ -183,7 +183,7 @@ module LlmCostTracker
 
         def wrap_blocking_call(args, kwargs, resource, record_method:, **extras)
           request = request_params(args, kwargs)
-          enforce_budget!(request: request)
+          enforce_budget!(request: request, provider: resource.slug.to_s)
           started_at = LlmCostTracker::Timing.now_monotonic
           response = yield
           public_send(
