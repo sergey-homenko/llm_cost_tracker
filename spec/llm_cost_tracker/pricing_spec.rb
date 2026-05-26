@@ -653,6 +653,34 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result).to be_nil
     end
 
+    it "counts image_input_tokens toward the context threshold so image-heavy inputs trigger above-context rates" do
+      LlmCostTracker.configure do |c|
+        c.pricing_overrides = {
+          "tiered-image-model" => {
+            "input" => 1.0,
+            "output" => 2.0,
+            "image_input" => 0.5,
+            "_context_price_threshold_tokens" => 100_000,
+            "above_context_input" => 3.0,
+            "above_context_output" => 4.0,
+            "above_context_image_input" => 1.5
+          }
+        }
+      end
+
+      result = cost_for(
+        provider: "custom",
+        model: "tiered-image-model",
+        input_tokens: 20_000,
+        image_input_tokens: 120_000,
+        output_tokens: 1_000
+      )
+
+      expect(result.fetch(:input_cost)).to eq(0.06)
+      expect(result.fetch(:image_input_cost)).to eq(0.18)
+      expect(result.fetch(:output_cost)).to eq(0.004)
+    end
+
     it "uses above-context rates when input-side tokens cross the pricing threshold" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
