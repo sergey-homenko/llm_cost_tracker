@@ -22,7 +22,7 @@ module LlmCostTracker
         rows.size
       rescue StandardError => e
         rows_to_mark = valid_rows&.any? ? valid_rows : rows
-        mark_failed(rows_to_mark, e) if rows_to_mark&.any?
+        mark_failed_with_message(rows_to_mark, error_message_for(e)) if rows_to_mark&.any?
         raise
       end
 
@@ -34,21 +34,18 @@ module LlmCostTracker
         claimable_scope(Time.now.utc - LOCK_TIMEOUT_SECONDS).exists?
       end
 
-      def mark_failed(rows, error)
-        mark_failed_with_message(rows, error_message_for(error))
-      rescue StandardError => e
-        LlmCostTracker::Logging.warn(
-          "Inbox mark_failed failed for #{rows.size} rows: #{e.class}: #{e.message} (original error: #{error.class})"
-        )
-        nil
-      end
-
       def mark_failed_with_message(rows, message)
         now = Time.now.utc
         Ingestion::InboxEntry
           .where(id: rows.map(&:id), locked_by: identity)
           .update_all(last_error: message, locked_at: now, locked_by: nil, updated_at: now)
         warn_on_quarantine(rows)
+      rescue StandardError => e
+        LlmCostTracker::Logging.warn(
+          "Inbox mark_failed_with_message failed for #{rows.size} rows: #{e.class}: #{e.message} " \
+          "(attempted message: #{message.to_s.byteslice(0, 200)})"
+        )
+        nil
       end
 
       def error_message_for(error)

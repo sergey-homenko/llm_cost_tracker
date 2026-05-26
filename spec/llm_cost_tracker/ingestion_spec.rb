@@ -317,10 +317,11 @@ RSpec.describe "ActiveRecord async inbox" do
       payload: "{", attempts: max - 1, locked_by: "worker-x"
     )
 
-    LlmCostTracker::Ingestion::Batch.new(identity: "worker-x").mark_failed([row], RuntimeError.new("boom"))
+    LlmCostTracker::Ingestion::Batch.new(identity: "worker-x").mark_failed_with_message([row], "boom")
 
     expect(LlmCostTracker::Logging).to have_received(:warn)
       .with(include("MAX_ATTEMPTS_BEFORE_QUARANTINE").and(include(row.id.to_s)))
+      .once
   end
 
   it "does not warn on the attempt before quarantine so the message fires once per row, not at every failure" do
@@ -331,7 +332,7 @@ RSpec.describe "ActiveRecord async inbox" do
       payload: "{", attempts: max - 2, locked_by: "worker-x"
     )
 
-    LlmCostTracker::Ingestion::Batch.new(identity: "worker-x").mark_failed([row], RuntimeError.new("boom"))
+    LlmCostTracker::Ingestion::Batch.new(identity: "worker-x").mark_failed_with_message([row], "boom")
 
     expect(LlmCostTracker::Logging).not_to have_received(:warn)
       .with(include("MAX_ATTEMPTS_BEFORE_QUARANTINE"))
@@ -749,12 +750,8 @@ RSpec.describe "ActiveRecord async inbox" do
   it "ignores failures while marking failed rows" do
     allow(LlmCostTracker::Ingestion::InboxEntry).to receive(:where).and_raise("write failed")
     batch = LlmCostTracker::Ingestion::Batch.new(identity: "test")
+    row = instance_double(LlmCostTracker::Ingestion::InboxEntry, id: 1)
 
-    expect do
-      batch.mark_failed(
-        [instance_double(LlmCostTracker::Ingestion::InboxEntry, id: 1)],
-        RuntimeError.new("boom")
-      )
-    end.not_to raise_error
+    expect { batch.mark_failed_with_message([row], "boom") }.not_to raise_error
   end
 end
