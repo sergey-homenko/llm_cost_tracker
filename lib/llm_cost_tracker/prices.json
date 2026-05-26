@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-05-25"
+    "updated_at": "2026-05-26"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -2160,8 +2160,9 @@
       "output": 1.8
     },
     "openrouter/qwen/qwen3.6-27b": {
+      "cache_read_input": 0.15,
       "input": 0.3,
-      "output": 3.2
+      "output": 2.0
     },
     "openrouter/qwen/qwen3.6-35b-a3b": {
       "input": 0.15,
