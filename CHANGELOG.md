@@ -7,7 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Removed
 
 - BREAKING: the experimental `Reconciliation` subsystem (provider invoice import + diff, the `/reconciliation` dashboard page, `bin/rails llm_cost_tracker:reconcile:*` rake tasks, `config.reconciliation_enabled`, `config.reconciliation_importers`, the `llm_cost_tracker:reconciliation` generator, and the `llm_cost_tracker_provider_invoices` / `_provider_invoice_imports` tables) is gone. It was never finished and never billing-accurate. `calls.provider_response_id` (captured on every call) already covers invoice cross-reference; if invoice-vs-ledger reconciliation ships again it lives in a separate gem. Existing installs can drop the two tables — see [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased).
-- `bin/rails llm_cost_tracker:doctor` no longer runs the cost-drift, pricing-snapshot-drift, legacy-audit, or rollups-drift checks — production never runs `doctor` so those data inspections were dead signals. Quarantined-inbox-row conditions now log via `Logging.warn` at the moment they happen instead.
+- `bin/rails llm_cost_tracker:doctor` no longer runs cost-drift, pricing-snapshot-drift, legacy-audit, or rollups-drift checks; quarantined-inbox-row conditions now log via `Logging.warn` at the moment they happen instead.
 
 ### Changed
 
