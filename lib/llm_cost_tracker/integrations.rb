@@ -1,27 +1,39 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/string/inflections"
 require_relative "errors"
 
 module LlmCostTracker
   module Integrations
     autoload :Base, "llm_cost_tracker/integrations/base"
-    autoload :Openai, "llm_cost_tracker/integrations/openai"
-    autoload :Anthropic, "llm_cost_tracker/integrations/anthropic"
-    autoload :RubyLlm, "llm_cost_tracker/integrations/ruby_llm"
 
-    INTEGRATION_CONSTANTS = { openai: :Openai, anthropic: :Anthropic, ruby_llm: :RubyLlm }.freeze
-    DOUBLE_INSTRUMENTATION_OVERLAPS = %i[openai anthropic].freeze
-    private_constant :DOUBLE_INSTRUMENTATION_OVERLAPS
+    Dir.glob(File.join(__dir__, "integrations", "*.rb")).each do |path|
+      basename = File.basename(path, ".rb")
+      next if basename == "base"
+
+      autoload basename.camelize.to_sym, "llm_cost_tracker/integrations/#{basename}"
+    end
+
     def self.install!(names = LlmCostTracker.configuration.instrumented_integrations)
       normalized = normalize(names)
       warn_double_instrumentation(normalized)
-      normalized.each { |name| fetch(name).install }
+      normalized.each do |name|
+        integration = fetch(name)
+        next integration.install if integration
+
+        Logging.warn("Unknown integration: #{name.inspect}. Known: #{self.names.map(&:inspect).join(', ')}")
+      end
     end
 
     def self.checks(names = LlmCostTracker.configuration.instrumented_integrations)
       return [Base::Result.new(:ok, "integrations", "no SDK integrations enabled")] if names.empty?
 
-      normalize(names).map { |name| fetch(name).status }
+      normalize(names).map do |name|
+        integration = fetch(name)
+        next integration.status if integration
+
+        Base::Result.new(:warn, name.to_s, "unknown integration; check your config.instrument(...) call")
+      end
     end
 
     def self.normalize(names)
@@ -31,7 +43,7 @@ module LlmCostTracker
     def self.warn_double_instrumentation(names)
       return unless names.include?(:ruby_llm)
 
-      overlapping = names & DOUBLE_INSTRUMENTATION_OVERLAPS
+      overlapping = names - [:ruby_llm]
       return if overlapping.empty?
 
       Logging.warn(
@@ -42,17 +54,15 @@ module LlmCostTracker
     end
 
     def self.fetch(name)
-      const_name = INTEGRATION_CONSTANTS[name]
-      unless const_name
-        raise LlmCostTracker::Error,
-              "Unknown integration: #{name.inspect}. Use one of: #{names.join(', ')}"
-      end
+      const_name = name.to_s.camelize
+      return nil unless const_name.match?(/\A[A-Z]\w*\z/)
+      return nil unless const_defined?(const_name, false)
 
-      const_get(const_name)
+      const_get(const_name, false)
     end
 
     def self.names
-      INTEGRATION_CONSTANTS.keys
+      constants(false).reject { |c| c == :Base }.map { |c| c.to_s.underscore.to_sym }.sort
     end
   end
 end

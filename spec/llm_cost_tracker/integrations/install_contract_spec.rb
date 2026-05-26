@@ -69,16 +69,16 @@ RSpec.describe LlmCostTracker::Integrations do
     expect { LlmCostTracker.configuration.instrumented_integrations.add(:gemini) }.to raise_error(FrozenError)
   end
 
-  it "rejects unknown integrations" do
-    expect do
-      LlmCostTracker.configure { |c| c.instrument(:gemini) }
-    end.to raise_error(LlmCostTracker::Error, /Unknown integration: :gemini/)
+  it "warns and skips unknown integrations on install instead of raising" do
+    LlmCostTracker.configure { |c| c.instrument(:gemini) }
+    allow(LlmCostTracker::Logging).to receive(:warn)
+
+    expect { described_class.install! }.not_to raise_error
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(/Unknown integration: :gemini/)
   end
 
-  it "rejects unknown integration fetches" do
-    expect do
-      described_class.fetch(:gemini)
-    end.to raise_error(LlmCostTracker::Error, /Unknown integration: :gemini/)
+  it "returns nil from fetch for an unknown integration so install! can skip it" do
+    expect(described_class.fetch(:gemini)).to be_nil
   end
 
   it "installs idempotently" do

@@ -44,9 +44,12 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-`config.instrument :all` enables every built-in integration. Enabled
-integrations are fail-fast: the SDK gem must already be loaded, satisfy the
-minimum supported version, and expose the expected resource classes and methods.
+`config.instrument :all` enables every built-in integration. The SDK
+gem must already be loaded, satisfy the minimum supported version, and
+expose the expected resource classes and methods, or `install!` raises.
+Unknown integration names (typos like `:gemnii`) are accepted at config
+time and logged once via `Logging.warn` at install time — they don't
+crash boot, but the dashboard stays empty for that name.
 
 Built-in integration names:
 

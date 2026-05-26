@@ -86,7 +86,9 @@ module LlmCostTracker
 
     def instrument(*names)
       ensure_mutable!
-      @instrumented_integrations.merge(normalize_instrumentation_names(names))
+      names = names.flatten
+      names = Integrations.names if names == [:all]
+      @instrumented_integrations.merge(names)
     end
 
     def instrumented?(name)
@@ -147,19 +149,6 @@ module LlmCostTracker
       (providers || {}).each_with_object({}) do |(host, provider), normalized|
         normalized[host.to_s.downcase] = provider.to_s
       end
-    end
-
-    def normalize_instrumentation_names(names)
-      names = names.flatten
-      integrations = Integrations.names
-      return integrations if names == [:all]
-
-      names.each do |name|
-        next if integrations.include?(name)
-
-        raise Error, "Unknown integration: #{name.inspect}. Use one of: #{integrations.join(', ')}"
-      end
-      names
     end
 
     def ensure_mutable!
