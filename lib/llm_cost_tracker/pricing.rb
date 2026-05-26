@@ -162,7 +162,7 @@ module LlmCostTracker
 
       def calculation_for(provider:, model:, tokens:, pricing_mode:)
         computed = lookup_and_compute(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
-        return nil if computed[:match].nil? || !any_billable_priced?(computed[:quantities], computed[:effective])
+        return nil if computed[:match].nil? || all_billable_unpriced?(computed[:quantities], computed[:effective])
 
         computed.merge(costs: costs_for(computed[:quantities], computed[:effective]))
       end
@@ -177,15 +177,15 @@ module LlmCostTracker
         { match: match, effective: effective, token_usage: token_usage, quantities: quantities, mode: mode }
       end
 
-      def any_billable_priced?(quantities, effective)
+      def all_billable_unpriced?(quantities, effective)
         any_billable = false
         quantities.each_pair do |key, quantity|
           next unless quantity.positive?
-          return true if effective[key]
+          return false if effective[key]
 
           any_billable = true
         end
-        !any_billable
+        any_billable
       end
 
       def costs_for(quantities, effective)

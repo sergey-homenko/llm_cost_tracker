@@ -7,7 +7,8 @@ module LlmCostTracker
       COMPOUND_MODIFIERS = %i[data_residency].freeze
       KNOWN_MODIFIERS = %i[batch flex priority scale fast on_demand data_residency].freeze
       WARNED_TOKENS = Set.new
-      private_constant :WARNED_TOKENS
+      WARNED_TOKENS_MUTEX = Mutex.new
+      private_constant :WARNED_TOKENS, :WARNED_TOKENS_MUTEX
 
       def self.normalize(value)
         return nil if value.nil?
@@ -70,8 +71,8 @@ module LlmCostTracker
       private_class_method :normalize_string
 
       def self.warn_unknown_tokens(symbol)
-        new_tokens = (tokenize(symbol) - KNOWN_MODIFIERS - STANDARD_MODE_VALUES).select do |token|
-          WARNED_TOKENS.add?(token)
+        new_tokens = WARNED_TOKENS_MUTEX.synchronize do
+          (tokenize(symbol) - KNOWN_MODIFIERS - STANDARD_MODE_VALUES).select { |token| WARNED_TOKENS.add?(token) }
         end
         return if new_tokens.empty?
 
