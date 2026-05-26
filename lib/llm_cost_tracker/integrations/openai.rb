@@ -32,22 +32,23 @@ module LlmCostTracker
 
         def wrap_blocking_call(args, kwargs, resource, record_method:)
           request = request_params(args, kwargs)
-          enforce_budget!(request: request)
+          host = client_host_for(resource)
+          enforce_budget!(request: request, provider: provider_for_host(host))
           started_at = LlmCostTracker::Timing.now_monotonic
           response = yield
           public_send(
             record_method, response,
             request: request,
             latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
-            host: client_host_for(resource)
+            host: host
           )
           response
         end
 
         def wrap_stream_call(args, kwargs, resource)
           request = request_params(args, kwargs)
-          enforce_budget!(request: request)
           host = client_host_for(resource)
+          enforce_budget!(request: request, provider: provider_for_host(host))
           collector = stream_collector(request, host: host)
           stream = yield(collector)
           track_stream(stream, collector: collector)

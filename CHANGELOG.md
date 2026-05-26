@@ -10,6 +10,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `bin/rails llm_cost_tracker:doctor` no longer runs cost-drift, pricing-snapshot-drift, legacy-audit, or rollups-drift checks; quarantined-inbox-row conditions now log via `Logging.warn` at the moment they happen instead.
 - Schema drift detection (Doctor, Setup-required page, async-worker boot guard) no longer checks indexes, JSON column types, or foreign keys — only column presence. Missing performance indexes won't block the worker; bad column types / dropped FKs surface as adapter errors at first use instead of doctor signals.
 - `config.instrument :gemnii` (or any other typo / unknown integration name) no longer raises at config time — it now logs `Logging.warn("Unknown integration: :gemnii. Known: ...")` once when integrations install, and `bin/rails llm_cost_tracker:doctor` shows the unknown name as a `:warn` row so the typo is visible without crashing boot.
+- Pre-call budget enforcement for Azure-hosted OpenAI calls now keys on `"azure_openai"` (matching the recorded `Call.provider`), so `pricing_overrides` for Azure rates actually gate the call. Previously it always keyed on `"openai"` regardless of the SDK client's `base_url`.
 
 ### Changed
 

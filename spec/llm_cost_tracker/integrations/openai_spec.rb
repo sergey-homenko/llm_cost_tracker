@@ -577,6 +577,40 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
+    it "enforces budget against the azure_openai provider key so Azure-specific rates apply pre-call" do
+      stub_sdk_json(:post, "https://my-resource.openai.azure.com/openai/v1/responses",
+                    provider: :openai, fixture: "responses_create.json")
+      allow(LlmCostTracker::Budget).to receive(:enforce!)
+
+      azure_client.responses.create(model: "gpt-4o", input: "hi")
+
+      expect(LlmCostTracker::Budget).to have_received(:enforce!).with(
+        hash_including(provider: "azure_openai", model: "gpt-4o")
+      )
+    end
+
+    it "enforces budget against azure_openai on streaming Azure calls too" do
+      sse = <<~SSE
+        data: {"id":"chatcmpl_s","object":"chat.completion.chunk","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"hi"}}]}
+
+        data: {"id":"chatcmpl_s","object":"chat.completion.chunk","model":"gpt-4o","choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}
+
+        data: [DONE]
+
+      SSE
+      stub_sdk_sse(:post, "https://my-resource.openai.azure.com/openai/v1/chat/completions", body: sse)
+      allow(LlmCostTracker::Budget).to receive(:enforce!)
+
+      stream = azure_client.chat.completions.stream(
+        model: "gpt-4o", messages: [{ role: "user", content: "hi" }]
+      )
+      stream.each { |_| }
+
+      expect(LlmCostTracker::Budget).to have_received(:enforce!).with(
+        hash_including(provider: "azure_openai", model: "gpt-4o")
+      )
+    end
+
     it "tags chat.completions.create as azure_openai under the same base_url" do
       stub_sdk_json(:post, "https://my-resource.openai.azure.com/openai/v1/chat/completions",
                     provider: :openai, fixture: "chat_completions_create.json")
