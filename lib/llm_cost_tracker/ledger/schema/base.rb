@@ -41,10 +41,7 @@ module LlmCostTracker
         end
 
         def detect_model_name
-          name.sub(/\ALlmCostTracker::Ledger::Schema::/, "")
-              .split("::")
-              .map(&:singularize)
-              .join("::")
+          name.delete_prefix("#{Schema.name}::").singularize
         end
       end
     end
