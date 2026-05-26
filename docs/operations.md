@@ -106,9 +106,9 @@ line items, tags), the optional inbox/leases/rollups tables that match
 your config flags, stale prices, and integration setup. Mismatches between
 config flags and present tables (e.g. inbox table exists but
 `ingestion = :inline`) surface as `:warn`. Runtime data conditions
-(quarantined inbox rows, rollup drift) log to `Rails.logger` from the
-write path at the moment they occur — production never runs `doctor` so
-those signals must reach the host's own logger.
+(quarantined inbox rows) log to `Rails.logger` from the write path at
+the moment they occur — production never runs `doctor` so those signals
+must reach the host's own logger.
 
 `verify_capture` records a synthetic event and verifies both notifications and
 ActiveRecord persistence.

@@ -276,6 +276,25 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker::Ingestion::InboxEntry.delete_all
   end
 
+  it "groups decode failures by error message so N invalid rows produce one DB update instead of N" do
+    now = Time.utc(2026, 4, 18, 12)
+    3.times do |i|
+      LlmCostTracker::Ingestion::InboxEntry.create!(
+        event_id: "bad-event-#{i}", total_cost: 1.0, tracked_at: now, payload: "{"
+      )
+    end
+
+    batch = LlmCostTracker::Ingestion::Batch.new(identity: "worker-x")
+    allow(batch).to receive(:mark_failed_with_message).and_call_original
+
+    batch.ingest
+
+    expect(batch).to have_received(:mark_failed_with_message).once
+    expect(LlmCostTracker::Ingestion::InboxEntry.where("last_error IS NOT NULL").count).to eq(3)
+
+    LlmCostTracker::Ingestion::InboxEntry.delete_all
+  end
+
   it "excludes quarantined inbox entries from pending budget totals" do
     time = Time.utc(2026, 4, 18, 12)
     LlmCostTracker::Ingestion::InboxEntry.create!(

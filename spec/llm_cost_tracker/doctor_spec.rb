@@ -107,7 +107,6 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(checks.map(&:name)).not_to include("provider invoices")
     end
 
-
     it "fails when call rollups are missing" do
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups)
 
