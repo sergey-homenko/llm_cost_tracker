@@ -42,10 +42,11 @@ module LlmCostTracker
             batch_table = find_batch_table(tabs)
             raise Error, "Gemini batch pricing table not found for #{model_id}" unless batch_table
 
-            models[model_id] = extract_text_pricing(standard_table)
-            models[model_id] = models.fetch(model_id).merge(extract_batch_pricing(batch_table))
-            models[model_id] = models.fetch(model_id).merge(extract_flex_pricing(tabs))
-            models[model_id] = models.fetch(model_id).merge(extract_priority_pricing(tabs))
+            image = model_id.include?("-image")
+            models[model_id] = extract_text_pricing(standard_table, image: image)
+            models[model_id] = models.fetch(model_id).merge(extract_batch_pricing(batch_table, image: image))
+            models[model_id] = models.fetch(model_id).merge(extract_flex_pricing(tabs, image: image))
+            models[model_id] = models.fetch(model_id).merge(extract_priority_pricing(tabs, image: image))
           end
         end
 
@@ -83,28 +84,30 @@ module LlmCostTracker
           tabs.css("section").find { |sec| sec.at_css("h3")&.text&.strip == heading }&.at_css("table")
         end
 
-        def extract_text_pricing(table)
-          extract_pricing(table, input: "input", output: "output", cache_read_input: "cache_read_input")
+        def extract_text_pricing(table, image: false)
+          extract_pricing(table, input: "input", output: image ? "image_output" : "output",
+                          cache_read_input: "cache_read_input")
         end
 
-        def extract_batch_pricing(table)
-          extract_pricing(table, input: "batch_input", output: "batch_output",
+        def extract_batch_pricing(table, image: false)
+          extract_pricing(table, input: "batch_input", output: image ? "batch_image_output" : "batch_output",
                           cache_read_input: "batch_cache_read_input")
         end
 
-        def extract_flex_pricing(tabs)
+        def extract_flex_pricing(tabs, image: false)
           table = find_table(tabs, "Flex")
           return {} unless table
 
-          extract_pricing(table, input: "flex_input", output: "flex_output",
+          extract_pricing(table, input: "flex_input", output: image ? "flex_image_output" : "flex_output",
                           cache_read_input: "flex_cache_read_input")
         end
 
-        def extract_priority_pricing(tabs)
+        def extract_priority_pricing(tabs, image: false)
           table = find_table(tabs, "Priority")
           return {} unless table
 
-          extract_pricing(table, input: "priority_input", output: "priority_output",
+          extract_pricing(table, input: "priority_input",
+                          output: image ? "priority_image_output" : "priority_output",
                           cache_read_input: "priority_cache_read_input")
         end
 
@@ -164,8 +167,7 @@ module LlmCostTracker
         def normalize_model_id(raw_id)
           id = raw_id.to_s.split(/\s+and\s+|\s*,\s*/).first&.strip.to_s
           return nil unless id.match?(/\Agemini-/)
-          return nil if id.include?("-preview")
-          return nil if id.match?(/-(?:tts|image|embedding|live|robotics|computer|native-audio)/)
+          return nil if id.match?(/-(?:tts|embedding|live|robotics|computer)/)
           return nil unless id.match?(/\Agemini-\d+(?:\.\d+)?-(?:pro|flash(?:-lite)?)/)
 
           id

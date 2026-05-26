@@ -90,19 +90,25 @@ module LlmCostTracker
           tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
           audio_input = audio_input_tokens(usage)
           audio_output = audio_output_tokens(usage)
+          image_input = image_input_tokens(usage)
+          image_output = image_output_tokens(usage)
 
           Event.build(
             provider: "gemini",
             model: extract_model_from_url(request_url),
             pricing_mode: pricing_mode,
             token_usage: TokenUsage.build(
-              input_tokens: regular_input_tokens(usage: usage, cache_read: cache_read, audio_input: audio_input) +
+              input_tokens: regular_input_tokens(usage: usage, cache_read: cache_read,
+                                                 audio_input: audio_input, image_input: image_input) +
                             tool_use_prompt,
-              output_tokens: regular_output_tokens(usage: usage, audio_output: audio_output),
+              output_tokens: regular_output_tokens(usage: usage, audio_output: audio_output,
+                                                   image_output: image_output),
               total_tokens: usage["totalTokenCount"],
               cache_read_input_tokens: cache_read,
               audio_input_tokens: audio_input,
               audio_output_tokens: audio_output,
+              image_input_tokens: image_input,
+              image_output_tokens: image_output,
               hidden_output_tokens: usage["thoughtsTokenCount"]
             ),
             stream: stream,
@@ -123,12 +129,12 @@ module LlmCostTracker
           usage["candidatesTokenCount"].to_i + usage["thoughtsTokenCount"].to_i
         end
 
-        def regular_input_tokens(usage:, cache_read:, audio_input:)
-          [usage["promptTokenCount"].to_i - cache_read - audio_input, 0].max
+        def regular_input_tokens(usage:, cache_read:, audio_input:, image_input:)
+          [usage["promptTokenCount"].to_i - cache_read - audio_input - image_input, 0].max
         end
 
-        def regular_output_tokens(usage:, audio_output:)
-          [output_tokens(usage) - audio_output, 0].max
+        def regular_output_tokens(usage:, audio_output:, image_output:)
+          [output_tokens(usage) - audio_output - image_output, 0].max
         end
 
         def audio_input_tokens(usage)
@@ -139,6 +145,16 @@ module LlmCostTracker
 
         def audio_output_tokens(usage)
           modality_tokens(usage["candidatesTokensDetails"], "AUDIO")
+        end
+
+        def image_input_tokens(usage)
+          prompt_image = modality_tokens(usage["promptTokensDetails"], "IMAGE")
+          cache_image = modality_tokens(usage["cacheTokensDetails"], "IMAGE")
+          [prompt_image - cache_image, 0].max
+        end
+
+        def image_output_tokens(usage)
+          modality_tokens(usage["candidatesTokensDetails"], "IMAGE")
         end
 
         def modality_tokens(details, modality)

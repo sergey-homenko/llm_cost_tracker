@@ -153,6 +153,16 @@
       "priority_input": 0.54,
       "priority_output": 4.5
     },
+    "gemini/gemini-2.5-flash-image": {
+      "batch_image_output": 0.0195,
+      "batch_input": 0.15,
+      "flex_image_output": 0.0195,
+      "flex_input": 0.15,
+      "image_output": 0.039,
+      "input": 0.3,
+      "priority_image_output": 0.0702,
+      "priority_input": 0.54
+    },
     "gemini/gemini-2.5-flash-lite": {
       "audio_input": 0.3,
       "batch_audio_input": 0.15,
@@ -170,6 +180,16 @@
       "priority_cache_read_input": 0.018,
       "priority_input": 0.18,
       "priority_output": 0.72
+    },
+    "gemini/gemini-2.5-flash-lite-preview-09-2025": {
+      "audio_input": 0.3,
+      "batch_audio_input": 0.15,
+      "batch_cache_read_input": 0.01,
+      "batch_input": 0.05,
+      "batch_output": 0.2,
+      "cache_read_input": 0.01,
+      "input": 0.1,
+      "output": 0.4
     },
     "gemini/gemini-2.5-pro": {
       "_context_price_threshold_tokens": 200000,
@@ -198,6 +218,40 @@
       "priority_input": 2.25,
       "priority_output": 18.0
     },
+    "gemini/gemini-3-flash-preview": {
+      "audio_input": 1.0,
+      "batch_audio_input": 0.5,
+      "batch_cache_read_input": 0.05,
+      "batch_input": 0.25,
+      "batch_output": 1.5,
+      "cache_read_input": 0.05,
+      "flex_audio_input": 0.5,
+      "flex_cache_read_input": 0.05,
+      "flex_input": 0.25,
+      "flex_output": 1.5,
+      "input": 0.5,
+      "output": 3.0,
+      "priority_audio_input": 1.8,
+      "priority_cache_read_input": 0.09,
+      "priority_input": 0.9,
+      "priority_output": 5.4
+    },
+    "gemini/gemini-3-pro-image-preview": {
+      "batch_image_output": 6.0,
+      "batch_input": 1.0,
+      "flex_image_output": 6.0,
+      "flex_input": 1.0,
+      "image_output": 12.0,
+      "input": 2.0,
+      "priority_image_output": 21.6,
+      "priority_input": 3.6
+    },
+    "gemini/gemini-3.1-flash-image-preview": {
+      "batch_image_output": 1.5,
+      "batch_input": 0.25,
+      "image_output": 3.0,
+      "input": 0.5
+    },
     "gemini/gemini-3.1-flash-lite": {
       "audio_input": 0.5,
       "batch_audio_input": 0.25,
@@ -215,6 +269,51 @@
       "priority_cache_read_input": 0.045,
       "priority_input": 0.45,
       "priority_output": 2.7
+    },
+    "gemini/gemini-3.1-flash-lite-preview": {
+      "audio_input": 0.5,
+      "batch_audio_input": 0.25,
+      "batch_cache_read_input": 0.0125,
+      "batch_input": 0.125,
+      "batch_output": 0.75,
+      "cache_read_input": 0.025,
+      "flex_audio_input": 0.25,
+      "flex_cache_read_input": 0.0125,
+      "flex_input": 0.125,
+      "flex_output": 0.75,
+      "input": 0.25,
+      "output": 1.5,
+      "priority_audio_input": 0.9,
+      "priority_cache_read_input": 0.045,
+      "priority_input": 0.45,
+      "priority_output": 2.7
+    },
+    "gemini/gemini-3.1-pro-preview": {
+      "_context_price_threshold_tokens": 200000,
+      "above_context_batch_cache_read_input": 0.4,
+      "above_context_batch_input": 2.0,
+      "above_context_batch_output": 9.0,
+      "above_context_cache_read_input": 0.4,
+      "above_context_flex_cache_read_input": 0.4,
+      "above_context_flex_input": 2.0,
+      "above_context_flex_output": 9.0,
+      "above_context_input": 4.0,
+      "above_context_output": 18.0,
+      "above_context_priority_cache_read_input": 0.72,
+      "above_context_priority_input": 7.2,
+      "above_context_priority_output": 32.4,
+      "batch_cache_read_input": 0.2,
+      "batch_input": 1.0,
+      "batch_output": 6.0,
+      "cache_read_input": 0.2,
+      "flex_cache_read_input": 0.2,
+      "flex_input": 1.0,
+      "flex_output": 6.0,
+      "input": 2.0,
+      "output": 12.0,
+      "priority_cache_read_input": 0.36,
+      "priority_input": 3.6,
+      "priority_output": 21.6
     },
     "gemini/gemini-3.5-flash": {
       "batch_cache_read_input": 0.075,

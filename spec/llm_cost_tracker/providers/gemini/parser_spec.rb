@@ -167,6 +167,34 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(result.token_usage.total_tokens).to eq(170)
     end
 
+    it "separates Gemini image token details so image-output billing routes to image_output rate" do
+      result = parser.parse(
+        request_url: generate_content_url,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
+          usageMetadata: {
+            promptTokenCount: 100,
+            candidatesTokenCount: 1290,
+            totalTokenCount: 1390,
+            promptTokensDetails: [
+              { modality: "TEXT", tokenCount: 70 },
+              { modality: "IMAGE", tokenCount: 30 }
+            ],
+            candidatesTokensDetails: [
+              { modality: "IMAGE", tokenCount: 1290 }
+            ]
+          }
+        }.to_json
+      )
+
+      expect(result.token_usage.input_tokens).to eq(70)
+      expect(result.token_usage.image_input_tokens).to eq(30)
+      expect(result.token_usage.output_tokens).to eq(0)
+      expect(result.token_usage.image_output_tokens).to eq(1290)
+      expect(result.token_usage.total_tokens).to eq(1390)
+    end
+
     it "captures Flex pricing from the request body" do
       result = parser.parse(
         request_url: generate_content_url,

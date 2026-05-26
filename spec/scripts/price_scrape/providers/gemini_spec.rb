@@ -92,10 +92,20 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
       expect(result.deprecated_models).to eq([])
     end
 
-    it "skips preview and dated snapshot models" do
+    it "includes preview models alongside stable text models so dated/preview snapshots get priced" do
       result = described_class.new.call(html: html)
 
-      expect(result.models.keys).to all(satisfy { |id| !id.include?("-preview") })
+      preview_ids = result.models.keys.select { |id| id.include?("-preview") }
+      expect(preview_ids).not_to be_empty
+    end
+
+    it "routes image-model output rates to image_output keys so text output rate stays clean" do
+      result = described_class.new.call(html: html)
+
+      image_model = result.models["gemini-2.5-flash-image"]
+      expect(image_model).to include("input", "image_output", "batch_image_output", "flex_image_output",
+                                     "priority_image_output")
+      expect(image_model).not_to include("output", "batch_output", "flex_output", "priority_output")
     end
 
     it "raises when the pricing article body is missing" do
