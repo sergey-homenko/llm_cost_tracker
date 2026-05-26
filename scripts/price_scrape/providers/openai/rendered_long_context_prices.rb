@@ -2,10 +2,12 @@
 
 require "active_support/core_ext/object/blank"
 
+require_relative "../base"
+
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      class Openai
+      class Openai < Base
         class RenderedLongContextPrices
           def initialize(doc, tier:, fields:, model_ids:)
             @doc = doc

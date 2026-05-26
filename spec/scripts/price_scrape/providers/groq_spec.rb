@@ -26,7 +26,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
 
   def html_pages(overrides = {})
     {
-      described_class::SOURCE_URL => models_html,
+      described_class.source_url => models_html,
       described_class::PROMPT_CACHING_SOURCE_URL => prompt_caching_html,
       described_class::FLEX_PROCESSING_SOURCE_URL => flex_processing_html
     }.merge(overrides)
@@ -71,7 +71,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
     it "extracts production text model prices and derived Groq mode rates" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-05-01T00:00:00Z")
 
-      expect(result.source_url).to eq(described_class::SOURCE_URL)
+      expect(result.source_url).to eq(described_class.source_url)
       expect(result.scraped_at).to eq("2026-05-01T00:00:00Z")
       expect(result.models.fetch("llama-3.1-8b-instant")).to eq(
         "input" => 0.05,
@@ -107,7 +107,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
 
     it "finds the production table by headers when the heading is absent" do
       result = described_class.new.call(
-        html: html_pages(described_class::SOURCE_URL => "<html><body>#{minimal_models_table}</body></html>")
+        html: html_pages(described_class.source_url => "<html><body>#{minimal_models_table}</body></html>")
       )
 
       expect(result.models.fetch("llama-3.1-8b-instant")).to include(
@@ -118,7 +118,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
 
     it "returns at least the minimum expected number of models" do
       result = described_class.new.call(html: html_pages)
-      expect(result.models.size).to be >= described_class::MIN_MODELS_EXPECTED
+      expect(result.models.size).to be >= described_class.min_models
     end
 
     it "sets deprecated_models to empty" do
@@ -128,7 +128,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
 
     it "raises when the production models table is missing" do
       expect do
-        described_class.new.call(html: html_pages(described_class::SOURCE_URL => "<html><body></body></html>"))
+        described_class.new.call(html: html_pages(described_class.source_url => "<html><body></body></html>"))
       end.to raise_error(described_class::Error, /production models pricing table not found/)
     end
 
@@ -144,7 +144,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       HTML
 
       expect do
-        described_class.new.call(html: html_pages(described_class::SOURCE_URL => models_html))
+        described_class.new.call(html: html_pages(described_class.source_url => models_html))
       end.to raise_error(described_class::Error, /production models pricing table not found/)
     end
 
@@ -177,7 +177,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       broken_html = models_html.sub("$0.075", "TBD")
 
       expect do
-        described_class.new.call(html: html_pages(described_class::SOURCE_URL => broken_html))
+        described_class.new.call(html: html_pages(described_class.source_url => broken_html))
       end.to raise_error(described_class::Error, /unable to parse input price/)
     end
   end

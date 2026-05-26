@@ -3,16 +3,17 @@
 require "nokogiri"
 require "time"
 
-require_relative "../price_fields_validator"
+require_relative "base"
 
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      class Anthropic
-        SOURCE_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
-        MIN_MODELS_EXPECTED = 10
-        ANCHOR_MODELS = %w[claude-opus-4-7 claude-sonnet-4-6].freeze
-        MAX_PRICE_PER_MTOK = 1000.0
+      class Anthropic < Base
+        source_url "https://platform.claude.com/docs/en/about-claude/pricing"
+        min_models 10
+        max_price 1000.0
+        anchors "claude-opus-4-7", "claude-sonnet-4-6"
+
         SERVICE_CHARGE_PATTERNS = {
           "web_search_request" => /Web search is available.*?\$\s*(\d+(?:\.\d+)?)\s+per 1,000 searches/i,
           "code_execution_hour" => /Additional usage beyond .*? billed at \$\s*(\d+(?:\.\d+)?)\s+per hour/i
@@ -21,11 +22,7 @@ module LlmCostTracker
           "web_fetch_request" => /Web fetch usage has no additional charges/i
         }.freeze
 
-        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
-
-        class Error < StandardError; end
-
-        def call(html:, source_url: SOURCE_URL, scraped_at: Time.now.utc.iso8601)
+        def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
           base_table = find_table(doc, ["Base Input Tokens", "5m Cache Writes", "Cache Hits", "Output Tokens"])
           raise Error, "Anthropic base pricing table not found" unless base_table
@@ -196,16 +193,6 @@ module LlmCostTracker
           raise Error, "unable to parse price #{text.inspect}" unless match
 
           Float(match[1])
-        end
-
-        def validate!(models)
-          PriceFieldsValidator.call(
-            models,
-            minimum: MIN_MODELS_EXPECTED,
-            maximum: MAX_PRICE_PER_MTOK,
-            anchors: ANCHOR_MODELS,
-            error_class: Error
-          )
         end
       end
     end

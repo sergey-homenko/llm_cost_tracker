@@ -4,6 +4,13 @@ require "spec_helper"
 require "price_scrape/providers/openrouter"
 
 RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
+  around do |example|
+    original = described_class.min_models
+    example.run
+  ensure
+    described_class.instance_variable_set(:@min_models, original)
+  end
+
   let(:payload) do
     {
       data: [
@@ -26,7 +33,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
   end
 
   it "converts OpenRouter per-token prices to per-million for input/output and cache fields" do
-    stub_const("#{described_class}::MIN_MODELS_EXPECTED", 4)
+    described_class.instance_variable_set(:@min_models, 4)
     result = described_class.new.call(html: payload)
 
     expect(result.models).to include(
@@ -44,14 +51,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
   end
 
   it "skips zero-priced (free-tier) entries so they don't pollute the registry with 0.0 rates" do
-    stub_const("#{described_class}::MIN_MODELS_EXPECTED", 4)
+    described_class.instance_variable_set(:@min_models, 4)
     result = described_class.new.call(html: payload)
 
     expect(result.models).not_to have_key("free/model")
   end
 
   it "ignores per-request pricing fields like web_search so a $0.014/call rate isn't misread as $14000/Mtok" do
-    stub_const("#{described_class}::MIN_MODELS_EXPECTED", 4)
+    described_class.instance_variable_set(:@min_models, 4)
     result = described_class.new.call(html: payload)
 
     gemini = result.models.fetch("google/gemini-2.5-flash")

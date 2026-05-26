@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
+require_relative "../base"
+
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      class Openai
+      class Openai < Base
         module DataResidencyPrices
           MODELS = %w[gpt-5.5 gpt-5.5-pro gpt-5.4 gpt-5.4-mini gpt-5.4-nano gpt-5.4-pro].freeze
 

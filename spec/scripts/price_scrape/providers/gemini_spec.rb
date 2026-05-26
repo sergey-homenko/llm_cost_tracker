@@ -11,7 +11,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     it "extracts standard and batch text input/output rates for current models" do
       result = described_class.new.call(html: html, scraped_at: "2026-04-26T00:00:00Z")
 
-      expect(result.source_url).to eq(described_class::SOURCE_URL)
+      expect(result.source_url).to eq(described_class.source_url)
       expect(result.scraped_at).to eq("2026-04-26T00:00:00Z")
       expect(result.models.fetch("gemini-2.5-pro")).to eq(
         "input" => 1.25,
@@ -84,7 +84,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
 
     it "returns at least the minimum expected number of models" do
       result = described_class.new.call(html: html)
-      expect(result.models.size).to be >= described_class::MIN_MODELS_EXPECTED
+      expect(result.models.size).to be >= described_class.min_models
     end
 
     it "sets deprecated_models to empty" do

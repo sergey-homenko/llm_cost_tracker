@@ -3,27 +3,24 @@
 require "nokogiri"
 require "time"
 
-require_relative "../price_fields_validator"
+require_relative "base"
 
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      class Groq
-        SOURCE_URL = "https://console.groq.com/docs/models"
+      class Groq < Base
+        source_url "https://console.groq.com/docs/models"
+        min_models 4
+        max_price 1000.0
+        anchors "llama-3.1-8b-instant", "openai/gpt-oss-20b"
+
         PROMPT_CACHING_SOURCE_URL = "https://console.groq.com/docs/prompt-caching"
         FLEX_PROCESSING_SOURCE_URL = "https://console.groq.com/docs/flex-processing"
-        SOURCE_URLS = [SOURCE_URL, PROMPT_CACHING_SOURCE_URL, FLEX_PROCESSING_SOURCE_URL].freeze
-        MIN_MODELS_EXPECTED = 4
-        MAX_PRICE_PER_MTOK = 1000.0
-        ANCHOR_MODELS = %w[llama-3.1-8b-instant openai/gpt-oss-20b].freeze
+        SOURCE_URLS = [source_url, PROMPT_CACHING_SOURCE_URL, FLEX_PROCESSING_SOURCE_URL].freeze
 
-        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
-
-        class Error < StandardError; end
-
-        def call(html:, source_url: SOURCE_URL, scraped_at: Time.now.utc.iso8601)
+        def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           pages = pages_from(html)
-          models_doc = Nokogiri::HTML(pages.fetch(SOURCE_URL))
+          models_doc = Nokogiri::HTML(pages.fetch(self.class.source_url))
           prompt_caching_doc = Nokogiri::HTML(pages.fetch(PROMPT_CACHING_SOURCE_URL))
           flex_doc = Nokogiri::HTML(pages.fetch(FLEX_PROCESSING_SOURCE_URL))
 
@@ -32,13 +29,7 @@ module LlmCostTracker
 
           cache_models = extract_prompt_cache_models(prompt_caching_doc)
           models = extract_models(models_doc, cache_models: cache_models)
-          PriceFieldsValidator.call(
-            models,
-            minimum: MIN_MODELS_EXPECTED,
-            maximum: MAX_PRICE_PER_MTOK,
-            anchors: ANCHOR_MODELS,
-            error_class: Error
-          )
+          validate!(models)
           Result.new(
             source_url: source_url,
             scraped_at: scraped_at,
@@ -53,7 +44,7 @@ module LlmCostTracker
         def pages_from(html)
           return html.transform_keys(&:to_s) if html.is_a?(Hash)
 
-          SOURCE_URLS.to_h { |url| [url, html.to_s] }
+          self.class::SOURCE_URLS.to_h { |url| [url, html.to_s] }
         end
 
         def extract_models(doc, cache_models:)

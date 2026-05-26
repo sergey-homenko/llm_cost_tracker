@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
+require_relative "../base"
+
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      class Openai
+      class Openai < Base
         MODEL_ID_BY_DISPLAY_NAME = {
           "chatgpt-4o-latest" => "chatgpt-4o-latest", "codex-mini-latest" => "codex-mini-latest",
           "gpt-3.5-turbo" => "gpt-3.5-turbo", "gpt-4" => "gpt-4", "gpt-4-0613" => "gpt-4",

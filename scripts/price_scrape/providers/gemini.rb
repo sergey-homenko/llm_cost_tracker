@@ -3,31 +3,21 @@
 require "nokogiri"
 require "time"
 
-require_relative "../price_fields_validator"
+require_relative "base"
 
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      class Gemini
-        SOURCE_URL = "https://ai.google.dev/gemini-api/docs/pricing"
-        MIN_MODELS_EXPECTED = 5
-        MAX_PRICE_PER_MTOK = 1000.0
-        ANCHOR_MODELS = %w[gemini-2.5-pro gemini-2.5-flash].freeze
+      class Gemini < Base
+        source_url "https://ai.google.dev/gemini-api/docs/pricing"
+        min_models 5
+        max_price 1000.0
+        anchors "gemini-2.5-pro", "gemini-2.5-flash"
 
-        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
-
-        class Error < StandardError; end
-
-        def call(html:, source_url: SOURCE_URL, scraped_at: Time.now.utc.iso8601)
+        def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
           models = extract_models(doc)
-          PriceFieldsValidator.call(
-            models,
-            minimum: MIN_MODELS_EXPECTED,
-            maximum: MAX_PRICE_PER_MTOK,
-            anchors: ANCHOR_MODELS,
-            error_class: Error
-          )
+          validate!(models)
           Result.new(
             source_url: source_url,
             scraped_at: scraped_at,

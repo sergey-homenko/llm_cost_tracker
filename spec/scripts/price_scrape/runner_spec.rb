@@ -21,7 +21,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   end
 
   before do
-    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic::SOURCE_URL)
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic.source_url)
       .to_return(status: 200, body: html, headers: { "Content-Type" => "text/html; charset=utf-8" })
   end
 
@@ -65,7 +65,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   end
 
   it "fetches all configured source pages for Groq" do
-    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Groq::SOURCE_URL)
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Groq.source_url)
       .to_return(status: 200, body: groq_models_html, headers: { "Content-Type" => "text/html; charset=utf-8" })
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Groq::PROMPT_CACHING_SOURCE_URL)
       .to_return(status: 200, body: groq_prompt_caching_html,
@@ -83,7 +83,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
 
       expect(runs.first.scraped.models).to include("openai/gpt-oss-20b")
       expect(runs.first.orchestrator.added).to include("groq/openai/gpt-oss-20b")
-      expect(io.string).to include("[groq] fetching #{LlmCostTracker::Pricing::Scrape::Providers::Groq::SOURCE_URL}")
+      expect(io.string).to include("[groq] fetching #{LlmCostTracker::Pricing::Scrape::Providers::Groq.source_url}")
       expect(io.string).to include(
         "[groq] fetching #{LlmCostTracker::Pricing::Scrape::Providers::Groq::PROMPT_CACHING_SOURCE_URL}"
       )
@@ -100,7 +100,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   end
 
   it "marks a provider run as failed and raises after the loop when its parser breaks" do
-    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic::SOURCE_URL)
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic.source_url)
       .to_return(status: 200, body: "<html><body></body></html>",
                  headers: { "Content-Type" => "text/html; charset=utf-8" })
 
@@ -118,7 +118,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   end
 
   it "continues running remaining providers when one fails" do
-    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini::SOURCE_URL)
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini.source_url)
       .to_return(status: 200, body: "<html><body></body></html>",
                  headers: { "Content-Type" => "text/html; charset=utf-8" })
 

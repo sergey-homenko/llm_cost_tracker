@@ -5,7 +5,7 @@ require "json"
 require "nokogiri"
 require "time"
 
-require_relative "../price_fields_validator"
+require_relative "base"
 require_relative "openai/data_residency_prices"
 require_relative "openai/model_ids"
 require_relative "openai/rendered_long_context_prices"
@@ -13,11 +13,12 @@ require_relative "openai/rendered_long_context_prices"
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      class Openai
-        SOURCE_URL = "https://developers.openai.com/api/docs/pricing"
-        MIN_MODELS_EXPECTED = 25
-        MAX_PRICE_PER_MTOK = 1000.0
-        ANCHOR_MODELS = %w[gpt-5.5 gpt-5.4-mini].freeze
+      class Openai < Base
+        source_url "https://developers.openai.com/api/docs/pricing"
+        min_models 25
+        max_price 1000.0
+        anchors "gpt-5.5", "gpt-5.4-mini"
+
         STANDARD_FIELDS = { input: "input", cache_read_input: "cache_read_input", output: "output" }.freeze
         BATCH_FIELDS = {
           input: "batch_input", cache_read_input: "batch_cache_read_input", output: "batch_output"
@@ -39,11 +40,7 @@ module LlmCostTracker
         }.freeze
         TIER_IMAGE_FIELDS = { STANDARD_FIELDS => IMAGE_FIELDS, BATCH_FIELDS => BATCH_IMAGE_FIELDS }.freeze
 
-        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
-
-        class Error < StandardError; end
-
-        def call(html:, source_url: SOURCE_URL, scraped_at: Time.now.utc.iso8601)
+        def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
           models = TIER_FIELDS.each_with_object({}) do |(tier, fields), collected|
             tier_models = extract_tier_models(doc, tier: tier, fields: fields)
@@ -52,13 +49,7 @@ module LlmCostTracker
             collected.replace(merge_model_fields(collected, tier_models))
           end
           models = DataResidencyPrices.call(models)
-          PriceFieldsValidator.call(
-            models,
-            minimum: MIN_MODELS_EXPECTED,
-            maximum: MAX_PRICE_PER_MTOK,
-            anchors: ANCHOR_MODELS,
-            error_class: Error
-          )
+          validate!(models)
           Result.new(
             source_url: source_url,
             scraped_at: scraped_at,

@@ -54,7 +54,7 @@ module LlmCostTracker
         provider_class = PROVIDERS.fetch(name)
 
         responses = fetch_provider_responses(name, provider_class)
-        primary_response = responses.fetch(provider_class::SOURCE_URL)
+        primary_response = responses.fetch(provider_class.source_url)
 
         scraped = provider_class.new.call(
           html: provider_html(responses),
@@ -95,7 +95,7 @@ module LlmCostTracker
       def source_urls(provider_class)
         return provider_class::SOURCE_URLS if provider_class.const_defined?(:SOURCE_URLS)
 
-        [provider_class::SOURCE_URL]
+        [provider_class.source_url]
       end
 
       def log_provider_result(name, result, dry_run:)

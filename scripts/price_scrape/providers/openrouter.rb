@@ -4,16 +4,17 @@ require "active_support/core_ext/object/blank"
 require "json"
 require "time"
 
-require_relative "../price_fields_validator"
+require_relative "base"
 
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
-      class Openrouter
-        SOURCE_URL = "https://openrouter.ai/api/v1/models"
-        MIN_MODELS_EXPECTED = 30
-        MAX_PRICE_PER_MTOK = 5000.0
-        ANCHOR_MODELS = %w[openai/gpt-4o anthropic/claude-sonnet-4].freeze
+      class Openrouter < Base
+        source_url "https://openrouter.ai/api/v1/models"
+        min_models 30
+        max_price 5000.0
+        anchors "openai/gpt-4o", "anthropic/claude-sonnet-4"
+
         PER_TOKEN_FIELDS = {
           "prompt" => "input",
           "completion" => "output",
@@ -23,11 +24,7 @@ module LlmCostTracker
           "audio" => "audio_input"
         }.freeze
 
-        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
-
-        class Error < StandardError; end
-
-        def call(html:, source_url: SOURCE_URL, scraped_at: Time.now.utc.iso8601)
+        def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           payload = parse_json(html)
           data = Array(payload["data"])
           raise Error, "OpenRouter API returned no models" if data.empty?
@@ -37,13 +34,7 @@ module LlmCostTracker
             collected[model_id] = fields if model_id && fields.any?
           end
 
-          PriceFieldsValidator.call(
-            models,
-            minimum: MIN_MODELS_EXPECTED,
-            maximum: MAX_PRICE_PER_MTOK,
-            anchors: ANCHOR_MODELS,
-            error_class: Error
-          )
+          validate!(models)
 
           Result.new(
             source_url: source_url,
