@@ -23,9 +23,52 @@ module LlmCostTracker
 
         private
 
+        def compute_errors(connection, table_name, columns)
+          column_errors(columns) +
+            json_column_errors(connection, columns) +
+            index_errors(connection, table_name) +
+            foreign_key_errors(connection, table_name)
+        end
+
         def column_errors(columns)
           missing = self::REQUIRED_COLUMNS - columns.keys
           missing.any? ? ["missing columns: #{missing.join(', ')}"] : []
+        end
+
+        def json_column_errors(connection, columns)
+          return [] unless const_defined?(:JSON_COLUMNS)
+
+          self::JSON_COLUMNS.flat_map do |name|
+            Adapter.json_column_errors(columns[name.to_s], connection, name.to_s)
+          end
+        end
+
+        def index_errors(connection, table_name)
+          return [] unless const_defined?(:REQUIRED_INDEXES)
+
+          self::REQUIRED_INDEXES.filter_map do |spec|
+            next if connection.index_exists?(table_name, spec[:columns], **spec.except(:columns))
+
+            prefix = spec[:unique] ? "unique " : ""
+            "missing #{prefix}index: #{Array(spec[:columns]).join(', ')}"
+          end
+        end
+
+        def foreign_key_errors(connection, table_name)
+          return [] unless const_defined?(:FOREIGN_KEYS)
+
+          self::FOREIGN_KEYS.filter_map do |spec|
+            next if foreign_key?(connection, table_name, spec)
+
+            "missing foreign key on #{spec[:column]} referencing #{spec[:references]}"
+          end
+        end
+
+        def foreign_key?(connection, table_name, spec)
+          connection.foreign_keys(table_name).any? do |fk|
+            fk.column.to_s == spec[:column].to_s &&
+              fk.to_table.to_s == spec[:references].to_s
+          end
         end
       end
     end

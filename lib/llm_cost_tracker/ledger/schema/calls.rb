@@ -38,6 +38,8 @@ module LlmCostTracker
           tracked_at
         ].freeze
 
+        JSON_COLUMNS = %i[pricing_snapshot].freeze
+
         REQUIRED_INDEXES = [
           { columns: :event_id, unique: true },
           { columns: :tracked_at },
@@ -47,27 +49,7 @@ module LlmCostTracker
           { columns: :provider_response_id }
         ].freeze
 
-        class << self
-          def model = LlmCostTracker::Call
-
-          private
-
-          def compute_errors(connection, table_name, columns)
-            errors = column_errors(columns)
-            errors.concat(Adapter.json_column_errors(columns["pricing_snapshot"], connection, "pricing_snapshot"))
-            errors.concat(missing_index_errors(connection, table_name))
-            errors
-          end
-
-          def missing_index_errors(connection, table_name)
-            REQUIRED_INDEXES.filter_map do |spec|
-              next if connection.index_exists?(table_name, spec[:columns], **spec.except(:columns))
-
-              prefix = spec[:unique] ? "unique " : ""
-              "missing #{prefix}index: #{Array(spec[:columns]).join(', ')}"
-            end
-          end
-        end
+        def self.model = LlmCostTracker::Call
       end
     end
   end

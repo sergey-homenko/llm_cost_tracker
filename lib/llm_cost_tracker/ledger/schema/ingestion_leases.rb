@@ -9,21 +9,12 @@ module LlmCostTracker
         extend Base
 
         REQUIRED_COLUMNS = %w[name locked_by locked_until created_at updated_at].freeze
-        UNIQUE_COLUMNS = %i[name].freeze
 
-        class << self
-          def model = LlmCostTracker::Ingestion::Lease
+        REQUIRED_INDEXES = [
+          { columns: :name, unique: true }
+        ].freeze
 
-          private
-
-          def compute_errors(connection, table_name, columns)
-            errors = column_errors(columns)
-            unless connection.index_exists?(table_name, UNIQUE_COLUMNS, unique: true)
-              errors << "missing unique index: name"
-            end
-            errors
-          end
-        end
+        def self.model = LlmCostTracker::Ingestion::Lease
       end
     end
   end

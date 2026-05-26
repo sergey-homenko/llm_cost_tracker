@@ -20,21 +20,12 @@ module LlmCostTracker
           created_at
           updated_at
         ].freeze
-        UNIQUE_COLUMNS = %i[event_id].freeze
 
-        class << self
-          def model = LlmCostTracker::Ingestion::InboxEntry
+        REQUIRED_INDEXES = [
+          { columns: :event_id, unique: true }
+        ].freeze
 
-          private
-
-          def compute_errors(connection, table_name, columns)
-            errors = column_errors(columns)
-            unless connection.index_exists?(table_name, UNIQUE_COLUMNS, unique: true)
-              errors << "missing unique index: event_id"
-            end
-            errors
-          end
-        end
+        def self.model = LlmCostTracker::Ingestion::InboxEntry
       end
     end
   end
