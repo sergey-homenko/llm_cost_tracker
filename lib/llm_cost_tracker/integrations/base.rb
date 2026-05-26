@@ -14,6 +14,10 @@ module LlmCostTracker
     module Base
       Result = LlmCostTracker::Doctor::Check
 
+      def integration_name
+        @integration_name ||= name.demodulize.underscore.to_sym
+      end
+
       def active?
         LlmCostTracker.configuration.instrumented?(integration_name)
       end

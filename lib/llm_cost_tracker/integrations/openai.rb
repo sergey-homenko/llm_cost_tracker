@@ -13,10 +13,6 @@ module LlmCostTracker
       extend Base
 
       class << self
-        def integration_name
-          :openai
-        end
-
         def stream_pricing_mode(request, host: nil)
           LlmCostTracker::Providers::Openai::UsageParser.combined_pricing_mode(
             host: host,
