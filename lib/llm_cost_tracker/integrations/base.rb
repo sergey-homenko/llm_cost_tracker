@@ -109,9 +109,8 @@ module LlmCostTracker
         @minimum_version
       end
 
-      def version_constant(value = nil)
-        @version_constant = value if value
-        @version_constant
+      def gem_version
+        Gem.loaded_specs[integration_name.to_s]&.version
       end
 
       def patch_targets = []
@@ -139,20 +138,11 @@ module LlmCostTracker
         return [] unless minimum_version
 
         name = integration_name.to_s
-        version = Gem.loaded_specs[integration_name.to_s]&.version || constant_version
+        version = gem_version
         return ["#{name} >= #{minimum_version} is required, but #{name} is not loaded"] unless version
         return [] if version >= Gem::Version.new(minimum_version)
 
         ["#{name} >= #{minimum_version} is required, detected #{version}"]
-      end
-
-      def constant_version
-        return nil unless version_constant
-
-        value = version_constant.to_s.safe_constantize
-        value ? Gem::Version.new(value.to_s) : nil
-      rescue ArgumentError
-        nil
       end
 
       def target_problems

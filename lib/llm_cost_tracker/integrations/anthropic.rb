@@ -9,7 +9,6 @@ module LlmCostTracker
       extend Base
 
       minimum_version "1.36.0"
-      version_constant "Anthropic::VERSION"
 
       class << self
         def patch_targets

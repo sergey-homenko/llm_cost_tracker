@@ -19,27 +19,41 @@ RSpec.describe LlmCostTracker::Integrations do
     expect(check.message).to eq("ruby_llm integration installed")
   end
 
-  it "raises when an enabled integration cannot satisfy its install contract" do
-    stub_const("RubyLLM::VERSION", "1.14.1")
-    allow(Gem.loaded_specs).to receive(:[]).and_call_original
-    allow(Gem.loaded_specs).to receive(:[]).with("ruby_llm").and_return(nil)
+  it "raises when minimum_version exceeds the actually installed gem version" do
+    ruby_llm = LlmCostTracker::Integrations::RubyLlm
+    installed = Gem.loaded_specs["ruby_llm"].version
+    too_high = "#{installed.segments[0] + 1}.0.0"
+    original = ruby_llm.minimum_version
+    ruby_llm.instance_variable_set(:@minimum_version, too_high)
 
     expect do
       LlmCostTracker.configure { |c| c.instrument(:ruby_llm) }
     end.to raise_error(
       LlmCostTracker::Error,
-      /ruby_llm integration cannot be installed: ruby_llm >= 1\.15\.0 is required, detected 1\.14\.1/
+      /ruby_llm >= #{Regexp.escape(too_high)} is required, detected #{Regexp.escape(installed.to_s)}/
     )
+  ensure
+    ruby_llm.instance_variable_set(:@minimum_version, original)
   end
 
-  it "reports incompatible integrations with invalid SDK version constants" do
-    stub_const("RubyLLM::VERSION", "not-a-version")
-    allow(Gem.loaded_specs).to receive(:[]).and_call_original
-    allow(Gem.loaded_specs).to receive(:[]).with("ruby_llm").and_return(nil)
+  it "reports the SDK gem as not loaded when Gem.loaded_specs has no entry under integration_name" do
+    ghost = Module.new do
+      extend LlmCostTracker::Integrations::Base
+      def self.integration_name = :totally_made_up_gem_name_xyz
+      minimum_version "1.0.0"
+    end
 
-    check = described_class.checks([:ruby_llm]).first
-    expect(check.status).to eq(:warn)
-    expect(check.message).to include("ruby_llm >= 1.15.0 is required, but ruby_llm is not loaded")
+    expect(ghost.send(:version_problems))
+      .to include(match(/totally_made_up_gem_name_xyz >= 1\.0\.0 is required, but .* is not loaded/))
+  end
+
+  it "resolves the installed version via Gem.loaded_specs for the default gem_version" do
+    expect(LlmCostTracker::Integrations::RubyLlm.gem_version)
+      .to eq(Gem.loaded_specs["ruby_llm"].version)
+    expect(LlmCostTracker::Integrations::Anthropic.gem_version)
+      .to eq(Gem.loaded_specs["anthropic"].version)
+    expect(LlmCostTracker::Integrations::Openai.gem_version)
+      .to eq(Gem.loaded_specs["openai"].version)
   end
 
   it "reports missing enabled SDK integrations in doctor" do

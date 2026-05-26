@@ -13,7 +13,6 @@ module LlmCostTracker
       extend Base
 
       minimum_version "0.59.0"
-      version_constant "OpenAI::VERSION"
 
       class << self
         def stream_pricing_mode(request, host: nil)

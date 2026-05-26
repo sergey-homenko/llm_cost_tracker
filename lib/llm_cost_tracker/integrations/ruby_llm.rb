@@ -9,7 +9,6 @@ module LlmCostTracker
       extend Base
 
       minimum_version "1.15.0"
-      version_constant "RubyLLM::VERSION"
 
       class << self
         def patch_targets
