@@ -216,6 +216,21 @@
       "priority_input": 0.45,
       "priority_output": 2.7
     },
+    "gemini/gemini-2.5-flash-image": {
+      "audio_input": 1.0,
+      "batch_image_output": 15.0,
+      "batch_input": 0.15,
+      "cache_read_input": 0.03,
+      "image_output": 30.0,
+      "input": 0.3,
+      "output": 2.5
+    },
+    "gemini/gemini-3.1-flash-image-preview": {
+      "batch_image_output": 30.0,
+      "batch_input": 0.25,
+      "image_output": 60.0,
+      "input": 0.5
+    },
     "gemini/gemini-3.5-flash": {
       "batch_cache_read_input": 0.075,
       "batch_input": 0.75,
