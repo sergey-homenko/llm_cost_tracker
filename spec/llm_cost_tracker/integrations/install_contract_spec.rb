@@ -2,6 +2,7 @@
 
 require "spec_helper"
 require "anthropic"
+require "gemini-ai"
 require "openai"
 require "ruby_llm"
 
@@ -65,7 +66,7 @@ RSpec.describe LlmCostTracker::Integrations do
 
   it "expands the all instrumentation alias" do
     LlmCostTracker.configure { |c| c.instrument(:all) }
-    expect(LlmCostTracker.configuration.instrumented_integrations).to contain_exactly(:openai, :anthropic, :ruby_llm)
+    expect(LlmCostTracker.configuration.instrumented_integrations).to contain_exactly(:openai, :anthropic, :ruby_llm, :gemini_ai)
     expect { LlmCostTracker.configuration.instrumented_integrations.add(:gemini) }.to raise_error(FrozenError)
   end
 

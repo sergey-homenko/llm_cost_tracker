@@ -1,0 +1,23 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Hello! How can I help you today?"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 10,
+    "candidatesTokenCount": 9,
+    "totalTokenCount": 19
+  },
+  "responseId": "gemini-sdk-resp-001",
+  "modelVersion": "gemini-2.5-flash-preview-05-20"
+}

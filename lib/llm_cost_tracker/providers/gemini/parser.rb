@@ -35,6 +35,7 @@ module LlmCostTracker
           model = extract_model_from_url(request_url)
           build_event(
             request_url: request_url,
+            model_version: response["modelVersion"],
             usage: usage,
             usage_source: "response",
             provider_response_id: response["responseId"],
@@ -56,6 +57,7 @@ module LlmCostTracker
           if usage
             build_event(
               request_url: request_url,
+              model_version: stream_model_version(events),
               usage: usage,
               stream: true,
               usage_source: "stream_final",
@@ -84,16 +86,18 @@ module LlmCostTracker
 
         private
 
-        def build_event(request_url:, usage:, usage_source:, stream: false, provider_response_id: nil,
-                        pricing_mode: nil, service_line_items: nil)
+        def build_event(request_url:, usage:, usage_source:, model_version: nil, stream: false,
+                        provider_response_id: nil, pricing_mode: nil, service_line_items: nil)
           cache_read = usage["cachedContentTokenCount"].to_i
           tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
           audio_input = audio_input_tokens(usage)
           audio_output = audio_output_tokens(usage)
 
+          resolved_model = model_version.to_s.strip.presence || extract_model_from_url(request_url)
+
           Event.build(
             provider: "gemini",
-            model: extract_model_from_url(request_url),
+            model: resolved_model,
             pricing_mode: pricing_mode,
             token_usage: TokenUsage.build(
               input_tokens: regular_input_tokens(usage: usage, cache_read: cache_read, audio_input: audio_input) +
@@ -151,6 +155,10 @@ module LlmCostTracker
 
         def stream_response_id(events)
           find_event_value(events) { |data| data["responseId"] }
+        end
+
+        def stream_model_version(events)
+          find_event_value(events, reverse: true) { |data| data["modelVersion"].presence }
         end
 
         def extract_model_from_url(url)

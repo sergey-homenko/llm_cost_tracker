@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- `gemini-ai` SDK integration (`:gemini_ai`): `generate_content` and `stream_generate_content` calls are now automatically captured, including SSE streaming calls. Instrument with `config.instrument :gemini_ai`. Requires `gemini-ai >= 4.0.0`.
+
 ### Removed
 
 - BREAKING: the experimental `Reconciliation` subsystem (provider invoice import + diff, the `/reconciliation` dashboard page, `bin/rails llm_cost_tracker:reconcile:*` rake tasks, `config.reconciliation_enabled`, `config.reconciliation_importers`, the `llm_cost_tracker:reconciliation` generator, and the `llm_cost_tracker_provider_invoices` / `_provider_invoice_imports` tables) is gone. It was never finished and never billing-accurate. `calls.provider_response_id` (captured on every call) already covers invoice cross-reference; if invoice-vs-ledger reconciliation ships again it lives in a separate gem. Existing installs can drop the two tables — see [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased).

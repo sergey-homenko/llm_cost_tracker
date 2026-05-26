@@ -8,9 +8,11 @@ module LlmCostTracker
     autoload :Openai, "llm_cost_tracker/integrations/openai"
     autoload :Anthropic, "llm_cost_tracker/integrations/anthropic"
     autoload :RubyLlm, "llm_cost_tracker/integrations/ruby_llm"
+    autoload :GeminiAi, "llm_cost_tracker/integrations/gemini_ai"
 
-    INTEGRATION_CONSTANTS = { openai: :Openai, anthropic: :Anthropic, ruby_llm: :RubyLlm }.freeze
-    DOUBLE_INSTRUMENTATION_OVERLAPS = %i[openai anthropic].freeze
+    INTEGRATION_CONSTANTS = { openai: :Openai, anthropic: :Anthropic, ruby_llm: :RubyLlm,
+                               gemini_ai: :GeminiAi }.freeze
+    DOUBLE_INSTRUMENTATION_OVERLAPS = %i[openai anthropic gemini_ai].freeze
     private_constant :DOUBLE_INSTRUMENTATION_OVERLAPS
     def self.install!(names = LlmCostTracker.configuration.instrumented_integrations)
       normalized = normalize(names)

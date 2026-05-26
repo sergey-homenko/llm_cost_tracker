@@ -167,6 +167,46 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(result.token_usage.total_tokens).to eq(170)
     end
 
+    it "prefers modelVersion from the response body over the request URL model alias" do
+      alias_url = URI::HTTPS.build(
+        host: "generativelanguage.googleapis.com",
+        path: "/v1beta/models/gemini-2.5-flash-latest:generateContent"
+      ).to_s
+
+      result = parser.parse(
+        request_url: alias_url,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
+          modelVersion: "gemini-2.5-flash-001",
+          usageMetadata: {
+            promptTokenCount: 50,
+            candidatesTokenCount: 10,
+            totalTokenCount: 60
+          }
+        }.to_json
+      )
+
+      expect(result.model).to eq("gemini-2.5-flash-001")
+    end
+
+    it "falls back to the URL model when modelVersion is absent" do
+      result = parser.parse(
+        request_url: generate_content_url,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
+          usageMetadata: {
+            promptTokenCount: 50,
+            candidatesTokenCount: 10,
+            totalTokenCount: 60
+          }
+        }.to_json
+      )
+
+      expect(result.model).to eq("gemini-2.5-flash")
+    end
+
     it "captures Flex pricing from the request body" do
       result = parser.parse(
         request_url: generate_content_url,
@@ -287,6 +327,32 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
 
   describe "#parse_stream" do
     let(:url) { stream_generate_content_url }
+
+    it "prefers modelVersion from the last stream chunk over the request URL model alias" do
+      alias_url = URI::HTTPS.build(
+        host: "generativelanguage.googleapis.com",
+        path: "/v1beta/models/gemini-2.5-flash-latest:streamGenerateContent"
+      ).to_s
+
+      events = [
+        { event: nil, data: {
+          "modelVersion" => "gemini-2.5-flash-001",
+          "usageMetadata" => {
+            "promptTokenCount" => 80,
+            "candidatesTokenCount" => 20,
+            "totalTokenCount" => 100
+          }
+        } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: alias_url,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.model).to eq("gemini-2.5-flash-001")
+    end
 
     it "takes the last usageMetadata block across streamed chunks" do
       events = [

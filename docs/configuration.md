@@ -54,6 +54,7 @@ Built-in integration names:
 | --- | --- | --- |
 | `:openai` | `openai >= 0.59.0` | Responses, Chat Completions, streaming helpers |
 | `:anthropic` | `anthropic >= 1.36.0` | Messages and beta Messages helpers |
+| `:gemini_ai` | `gemini-ai >= 4.0.0` | `generate_content` and `stream_generate_content`, including SSE streaming |
 | `:ruby_llm` | `ruby_llm >= 1.15.0` | Provider chat, embedding, transcription, image, and moderation calls |
 
 ## OpenAI-Compatible Hosts
