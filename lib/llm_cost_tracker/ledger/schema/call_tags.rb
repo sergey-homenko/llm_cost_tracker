@@ -8,9 +8,7 @@ module LlmCostTracker
       module CallTags
         extend Base
 
-        REQUIRED_COLUMNS = %w[llm_cost_tracker_call_id key value].freeze
-
-        def self.model = LlmCostTracker::CallTag
+        columns :llm_cost_tracker_call_id, :key, :value
       end
     end
   end

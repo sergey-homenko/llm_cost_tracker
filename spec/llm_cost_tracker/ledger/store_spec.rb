@@ -230,17 +230,6 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Ledger::Schema::Calls.current_schema_errors.join).to include("missing columns: pricing_mode")
   end
 
-  it "reports adapter-specific pricing_snapshot column type errors" do
-    [
-      ["PostgreSQL", double(type: :json, sql_type: "json"), /pricing_snapshot column must use jsonb/],
-      ["Mysql2", double(type: :text, sql_type: "text"), /pricing_snapshot column must use json/]
-    ].each do |adapter_name, column, pattern|
-      errors = LlmCostTracker::Ledger::Schema::Adapter.json_column_errors(column, adapter_name, "pricing_snapshot")
-
-      expect(errors.join).to match(pattern)
-    end
-  end
-
   it "keeps persisted historical costs when the price file changes for later requests" do
     Tempfile.create(["llm-prices-old", ".json"]) do |old_file|
       Tempfile.create(["llm-prices-new", ".json"]) do |new_file|

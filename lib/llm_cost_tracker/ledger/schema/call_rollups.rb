@@ -8,9 +8,7 @@ module LlmCostTracker
       module CallRollups
         extend Base
 
-        REQUIRED_COLUMNS = %w[period period_start currency provider total_cost created_at updated_at].freeze
-
-        def self.model = LlmCostTracker::CallRollup
+        columns :period, :period_start, :currency, :provider, :total_cost, :created_at, :updated_at
       end
     end
   end

@@ -98,24 +98,6 @@ module LlmCostTracker
             raise ArgumentError, "invalid period: #{period.inspect}"
           end
 
-          def json_column_errors(column, adapter_value, column_name)
-            return [] unless column
-
-            expected_type = postgresql?(adapter_value) ? "jsonb" : "json"
-            return [] if json_column_type?(column, adapter_value)
-
-            ["#{column_name} column must use #{expected_type} (got #{column.sql_type})"]
-          end
-
-          def json_column_type?(column, adapter_value)
-            sql_type = column.sql_type.to_s.downcase
-            if postgresql?(adapter_value)
-              column.type == :jsonb || sql_type == "jsonb"
-            else
-              column.type == :json || sql_type == "json" || sql_type == "longtext"
-            end
-          end
-
           private
 
           def adapter_instance?(value, class_names)

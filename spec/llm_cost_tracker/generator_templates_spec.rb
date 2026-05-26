@@ -278,17 +278,17 @@ RSpec.describe "generator templates" do
     end
 
     it "covers every Calls schema column in the install migration" do
-      columns = LlmCostTracker::Ledger::Schema::Calls::REQUIRED_COLUMNS - auto_columns
+      columns = LlmCostTracker::Ledger::Schema::Calls.required_columns - auto_columns
       expect_columns_in(install_migration, columns)
     end
 
     it "covers every CallLineItems required column in the install migration" do
-      columns = LlmCostTracker::Ledger::Schema::CallLineItems::REQUIRED_COLUMNS - auto_columns
+      columns = LlmCostTracker::Ledger::Schema::CallLineItems.required_columns - auto_columns
       expect_columns_in(install_migration, columns)
     end
 
     it "covers every CallTags required column in the install migration" do
-      columns = LlmCostTracker::Ledger::Schema::CallTags::REQUIRED_COLUMNS - auto_columns
+      columns = LlmCostTracker::Ledger::Schema::CallTags.required_columns - auto_columns
       expect_columns_in(install_migration, columns)
     end
 
@@ -299,17 +299,17 @@ RSpec.describe "generator templates" do
     end
 
     it "covers every CallRollups required column in the call_rollups migration" do
-      columns = LlmCostTracker::Ledger::Schema::CallRollups::REQUIRED_COLUMNS - auto_columns
+      columns = LlmCostTracker::Ledger::Schema::CallRollups.required_columns - auto_columns
       expect_columns_in(call_rollups_migration, columns)
     end
 
-    it "covers every IngestionInboxEntries required column in the async_ingestion migration" do
-      columns = LlmCostTracker::Ledger::Schema::IngestionInboxEntries::REQUIRED_COLUMNS - auto_columns
+    it "covers every Ingestion::InboxEntries required column in the async_ingestion migration" do
+      columns = LlmCostTracker::Ledger::Schema::Ingestion::InboxEntries.required_columns - auto_columns
       expect_columns_in(async_ingestion_migration, columns)
     end
 
-    it "covers every IngestionLeases required column in the async_ingestion migration" do
-      columns = LlmCostTracker::Ledger::Schema::IngestionLeases::REQUIRED_COLUMNS - auto_columns
+    it "covers every Ingestion::Leases required column in the async_ingestion migration" do
+      columns = LlmCostTracker::Ledger::Schema::Ingestion::Leases.required_columns - auto_columns
       expect_columns_in(async_ingestion_migration, columns)
     end
   end

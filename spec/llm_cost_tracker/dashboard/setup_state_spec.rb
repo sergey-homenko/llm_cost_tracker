@@ -50,7 +50,7 @@ RSpec.describe LlmCostTracker::Dashboard::SetupState do
     it "reports drift on async ingestion tables when ingestion is async" do
       described_class.reset!
       allow(LlmCostTracker::Ingestion).to receive(:async?).and_return(true)
-      allow(LlmCostTracker::Ledger::Schema::IngestionInboxEntries)
+      allow(LlmCostTracker::Ledger::Schema::Ingestion::InboxEntries)
         .to receive(:current_schema_errors)
         .and_return(["missing columns: payload"])
 

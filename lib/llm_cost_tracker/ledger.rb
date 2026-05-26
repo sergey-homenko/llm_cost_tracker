@@ -5,8 +5,8 @@ require_relative "ledger/schema/calls"
 require_relative "ledger/schema/call_rollups"
 require_relative "ledger/schema/call_line_items"
 require_relative "ledger/schema/call_tags"
-require_relative "ledger/schema/ingestion_inbox_entries"
-require_relative "ledger/schema/ingestion_leases"
+require_relative "ledger/schema/ingestion/inbox_entries"
+require_relative "ledger/schema/ingestion/leases"
 require_relative "ledger/tags/query"
 require_relative "ledger/tags/sql"
 require_relative "ledger/period"
@@ -25,8 +25,8 @@ module LlmCostTracker
       ].freeze
       CACHE_ROLLUPS_SCHEMA = [CallRollups, "llm_cost_tracker_call_rollups"].freeze
       ASYNC_SCHEMAS = [
-        [IngestionInboxEntries, "llm_cost_tracker_ingestion_inbox_entries"],
-        [IngestionLeases, "llm_cost_tracker_ingestion_leases"]
+        [Ingestion::InboxEntries, "llm_cost_tracker_ingestion_inbox_entries"],
+        [Ingestion::Leases, "llm_cost_tracker_ingestion_leases"]
       ].freeze
     end
   end
