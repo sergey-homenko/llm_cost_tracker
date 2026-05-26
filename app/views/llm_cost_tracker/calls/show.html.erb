@@ -102,11 +102,11 @@ end %>
 <section class="lct-panel">
   <div class="lct-panel-head"><h2 class="lct-panel-title">Tags</h2></div>
   <div class="lct-panel-body">
-    <% if @call.parsed_tags.empty? %>
+    <% if @call.tag_pairs.empty? %>
       <p class="lct-stack-empty">(untagged)</p>
     <% else %>
       <span class="lct-tag-chips">
-        <% @call.parsed_tags.each do |k, v| %>
+        <% @call.tag_pairs.each do |k, v| %>
           <span class="lct-tag-chip"><span class="lct-tag-chip-key"><%= k %></span>=<%= v %></span>
         <% end %>
       </span>

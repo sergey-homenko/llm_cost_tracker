@@ -101,7 +101,7 @@ module LlmCostTracker
       when :pricing_snapshot
         csv_safe(csv_json(call.pricing_snapshot))
       when :tags
-        csv_safe(call.parsed_tags.to_json)
+        csv_safe(call.tag_pairs.to_json)
       else
         call[field]
       end

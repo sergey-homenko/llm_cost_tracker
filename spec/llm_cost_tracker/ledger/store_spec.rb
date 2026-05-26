@@ -90,7 +90,7 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.provider_api_key_id).to eq("key_456")
     expect(call.provider_workspace_id).to eq("workspace_789")
     expect(call.batch).to eq(true)
-    expect(call.parsed_tags).to include("user_id" => "42", "feature" => "chat")
+    expect(call.tag_pairs).to include("user_id" => "42", "feature" => "chat")
   end
 
   it "persists canonical usage and cost breakdowns" do
@@ -338,7 +338,7 @@ RSpec.describe "ActiveRecord storage integration" do
     event = build_event(event_id: "nil-tag", tags: { "feature" => nil })
 
     expect { LlmCostTracker::Ledger::Store.insert([event]) }.not_to raise_error
-    expect(LlmCostTracker::Call.first.parsed_tags).to eq("feature" => "")
+    expect(LlmCostTracker::Call.first.tag_pairs).to eq("feature" => "")
   end
 
   it "serializes nested tag values as JSON strings in llm_cost_tracker_call_tags" do
@@ -346,7 +346,7 @@ RSpec.describe "ActiveRecord storage integration" do
 
     LlmCostTracker::Ledger::Store.insert([event])
 
-    expect(LlmCostTracker::Call.first.parsed_tags).to eq(
+    expect(LlmCostTracker::Call.first.tag_pairs).to eq(
       "metadata" => '{"active":"true","user_id":"42"}'
     )
   end
@@ -467,7 +467,7 @@ RSpec.describe "ActiveRecord storage integration" do
       latency_ms: 123
     )
 
-    expect(LlmCostTracker::Call.first.parsed_tags).not_to have_key("latency_ms")
+    expect(LlmCostTracker::Call.first.tag_pairs).not_to have_key("latency_ms")
   end
 
   it "persists provider capture dimensions without treating them as tags" do
@@ -489,7 +489,7 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.provider_api_key_id).to eq("key_123")
     expect(call.provider_workspace_id).to eq("workspace_123")
     expect(call.batch).to eq(true)
-    expect(call.parsed_tags).not_to include(
+    expect(call.tag_pairs).not_to include(
       "provider_response_id",
       "provider_project_id",
       "provider_api_key_id",
@@ -544,7 +544,7 @@ RSpec.describe "ActiveRecord storage integration" do
     matching_calls = LlmCostTracker::Call.by_tags(user_id: 42, feature: "chat")
 
     expect(matching_calls.count).to eq(1)
-    expect(matching_calls.first.parsed_tags["feature"]).to eq("chat")
+    expect(matching_calls.first.tag_pairs["feature"]).to eq("chat")
   end
 
   it "aggregates cost by any tag key" do

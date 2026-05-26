@@ -44,7 +44,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(call.input_tokens).to eq(10)
     expect(call.output_tokens).to eq(5)
     expect(call.total_cost).not_to be_nil
-    expect(call.parsed_tags).to include("feature" => "real-storage")
+    expect(call.tag_pairs).to include("feature" => "real-storage")
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
   end
 end

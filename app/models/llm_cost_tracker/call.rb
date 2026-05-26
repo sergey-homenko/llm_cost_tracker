@@ -119,7 +119,7 @@ module LlmCostTracker
       end
     end
 
-    def parsed_tags
+    def tag_pairs
       tag_records.to_h do |record|
         [record.key, record.value]
       end

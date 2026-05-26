@@ -50,7 +50,7 @@ RSpec.describe "ActiveRecord async inbox" do
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
     expect(call.event_id).to eq(event.event_id)
     expect(call.total_cost.to_f).to eq(0.0025)
-    expect(call.parsed_tags).to include("feature" => "chat")
+    expect(call.tag_pairs).to include("feature" => "chat")
   end
 
   it "wakes the worker from Tracker.record in async mode" do

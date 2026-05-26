@@ -30,7 +30,17 @@ module LlmCostTracker
             iterator_wrapped = true
           end
         end
-        wrap_each if !iterator_wrapped && @stream.respond_to?(:each)
+        each_wrapped = false
+        if !iterator_wrapped && @stream.respond_to?(:each)
+          wrap_each
+          each_wrapped = true
+        end
+        unless iterator_wrapped || each_wrapped
+          Logging.warn(
+            "stream integration found no wrappable iterator on #{@stream.class} " \
+            "(missing both `@iterator` ivar and `#each`); usage will not be captured"
+          )
+        end
 
         register_orphan_finalizer
         @stream

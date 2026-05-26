@@ -53,7 +53,7 @@
             <td class="lct-num"><%= number_with_delimiter(call.output_tokens) %></td>
             <td class="lct-num<%= ' lct-num-muted' if call.total_cost.nil? %>"><%= optional_money(call.total_cost) %></td>
             <td class="lct-num<%= ' lct-num-muted' if call.latency_ms.nil? %>"><%= call.latency_ms ? "#{number_with_delimiter(call.latency_ms)}ms" : "n/a" %></td>
-            <td><%= render "llm_cost_tracker/shared/tag_chips", tags: call.parsed_tags %></td>
+            <td><%= render "llm_cost_tracker/shared/tag_chips", tags: call.tag_pairs %></td>
             <td class="lct-num"><%= link_to "Details", call_path(call), class: "lct-page-link" %></td>
           </tr>
         <% end %>
