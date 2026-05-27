@@ -81,7 +81,7 @@ module LlmCostTracker
     def track(provider:, tokens:, model: nil, tags: {}, latency_ms: nil, stream: false,
               usage_source: "manual", enforce_budget: false,
               provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
-              provider_workspace_id: nil, batch: nil, pricing_mode: nil, service_line_items: [])
+              provider_workspace_id: nil, pricing_mode: nil, service_line_items: [])
       if enforce_budget
         cost_data = Pricing.cost_for(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
         estimate = cost_data && BigDecimal(cost_data[:total_cost].to_s)
@@ -99,7 +99,6 @@ module LlmCostTracker
           provider_project_id: provider_project_id,
           provider_api_key_id: provider_api_key_id,
           provider_workspace_id: provider_workspace_id,
-          batch: batch,
           pricing_mode: pricing_mode,
           service_line_items: service_line_items
         ),
@@ -111,7 +110,7 @@ module LlmCostTracker
 
     def track_stream(provider:, model: nil, tags: {}, latency_ms: nil, enforce_budget: false,
                      provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
-                     provider_workspace_id: nil, batch: nil, pricing_mode: nil)
+                     provider_workspace_id: nil, pricing_mode: nil)
       require_relative "llm_cost_tracker/capture/stream_collector"
       Budget.enforce!(provider: provider, model: model, force: true) if enforce_budget
       collector = Capture::StreamCollector.new(
@@ -122,7 +121,6 @@ module LlmCostTracker
         provider_project_id: provider_project_id,
         provider_api_key_id: provider_api_key_id,
         provider_workspace_id: provider_workspace_id,
-        batch: batch,
         pricing_mode: pricing_mode,
         metadata: tags
       )

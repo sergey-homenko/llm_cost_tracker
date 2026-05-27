@@ -11,7 +11,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       provider: "openai",
       model: "gpt-4o",
       token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50),
-      pricing_mode: nil,
+      pricing_mode: :batch,
       cost: {
         input_cost: 0.10,
         output_cost: 0.20,
@@ -25,7 +25,6 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       provider_project_id: "proj_payload_1",
       provider_api_key_id: "key_payload_1",
       provider_workspace_id: "workspace_payload_1",
-      batch: true,
       tracked_at: Time.utc(2026, 4, 18, 12, 0, 0),
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       pricing_snapshot: {
@@ -67,7 +66,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.provider_project_id).to eq("proj_payload_1")
     expect(restored.provider_api_key_id).to eq("key_payload_1")
     expect(restored.provider_workspace_id).to eq("workspace_payload_1")
-    expect(restored.batch).to eq(true)
+    expect(restored.batch?).to be true
     expect(restored.line_items.first.kind).to eq("web_search_request")
   end
 

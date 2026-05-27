@@ -55,7 +55,6 @@ RSpec.describe "ActiveRecord storage integration" do
       provider_project_id: nil,
       provider_api_key_id: nil,
       provider_workspace_id: nil,
-      batch: false,
       tracked_at: tracked_at,
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       pricing_snapshot: nil,
@@ -72,7 +71,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider_project_id: "proj_123",
       provider_api_key_id: "key_456",
       provider_workspace_id: "workspace_789",
-      batch: true,
+      pricing_mode: :batch,
       tags: {
         user_id: 42,
         feature: "chat"
@@ -84,11 +83,12 @@ RSpec.describe "ActiveRecord storage integration" do
     call = LlmCostTracker::Call.first
     expect(call.provider).to eq("openai")
     expect(call.model).to eq("gpt-4o")
-    expect(call.total_cost.to_f).to eq(0.0075)
+    expect(call.total_cost.to_f).to eq(0.00375)
     expect(call.latency_ms).to eq(250)
     expect(call.provider_project_id).to eq("proj_123")
     expect(call.provider_api_key_id).to eq("key_456")
     expect(call.provider_workspace_id).to eq("workspace_789")
+    expect(call.pricing_mode).to eq("batch")
     expect(call.batch).to eq(true)
     expect(call.tag_pairs).to include("user_id" => "42", "feature" => "chat")
   end
@@ -479,7 +479,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider_project_id: "proj_123",
       provider_api_key_id: "key_123",
       provider_workspace_id: "workspace_123",
-      batch: true
+      pricing_mode: :batch
     )
 
     call = LlmCostTracker::Call.first

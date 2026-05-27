@@ -11,7 +11,7 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     def record(provider:, model:, token_usage:, stream: false, usage_source: nil, provider_response_id: nil,
-               provider_project_id: nil, provider_api_key_id: nil, provider_workspace_id: nil, batch: nil,
+               provider_project_id: nil, provider_api_key_id: nil, provider_workspace_id: nil,
                capture_pricing_mode: nil, service_line_items: [], **options)
       described_class.record(
         event: LlmCostTracker::Event.build(
@@ -24,7 +24,6 @@ RSpec.describe LlmCostTracker::Tracker do
           provider_project_id: provider_project_id,
           provider_api_key_id: provider_api_key_id,
           provider_workspace_id: provider_workspace_id,
-          batch: batch,
           pricing_mode: capture_pricing_mode,
           service_line_items: service_line_items
         ),
@@ -125,7 +124,7 @@ RSpec.describe LlmCostTracker::Tracker do
         provider_project_id: "proj_notify",
         provider_api_key_id: "key_notify",
         provider_workspace_id: "workspace_notify",
-        batch: true,
+        capture_pricing_mode: :batch,
         metadata: { feature: "chat", user_id: 42 }
       )
 
@@ -141,7 +140,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event[:provider_project_id]).to eq("proj_notify")
       expect(event[:provider_api_key_id]).to eq("key_notify")
       expect(event[:provider_workspace_id]).to eq("workspace_notify")
-      expect(event[:batch]).to eq(true)
+      expect(event[:pricing_mode]).to eq(:batch)
       expect(event.dig(:pricing_snapshot, :rates, "input", :quantity)).to eq(1_000_000)
       expect(event[:tags]).to include(feature: "chat", user_id: 42)
       expect(event[:tracked_at]).to be_a(Time)
@@ -201,6 +200,26 @@ RSpec.describe LlmCostTracker::Tracker do
           token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50)
         )
       end.to raise_error(RuntimeError, "storage down")
+    end
+
+    it "derives the persisted batch flag from the merged pricing_mode so the two cannot drift" do
+      stored = []
+      allow(LlmCostTracker::Ledger::Store).to receive(:insert) do |event|
+        stored << event
+      end
+
+      parsed_event = LlmCostTracker::Event.build(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 10, output_tokens: 5),
+        pricing_mode: nil
+      )
+      expect(parsed_event.batch?).to be false
+
+      described_class.record(event: parsed_event, pricing_mode: :batch_flex)
+
+      expect(stored.last.pricing_mode).to eq(:batch_flex)
+      expect(stored.last.batch?).to be true
     end
 
     it "merges default_tags with metadata" do

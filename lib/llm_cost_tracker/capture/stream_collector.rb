@@ -13,7 +13,7 @@ module LlmCostTracker
       attr_reader :provider
 
       def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, provider_project_id: nil,
-                     provider_api_key_id: nil, provider_workspace_id: nil, batch: nil, pricing_mode: nil,
+                     provider_api_key_id: nil, provider_workspace_id: nil, pricing_mode: nil,
                      metadata: {}, context_tags: nil, request: nil)
         @provider = provider.to_s
         @model = model
@@ -22,7 +22,6 @@ module LlmCostTracker
         @provider_project_id = provider_project_id
         @provider_api_key_id = provider_api_key_id
         @provider_workspace_id = provider_workspace_id
-        @batch = batch
         @pricing_mode = pricing_mode
         @metadata = (metadata || {}).deep_dup
         @context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).deep_dup
@@ -71,14 +70,16 @@ module LlmCostTracker
       end
 
       def usage(input_tokens:, output_tokens:, **extra)
+        if extra.key?(:batch)
+          raise ArgumentError, "`batch:` is no longer accepted by stream.usage; pass `pricing_mode: :batch` to track_stream"
+        end
+
         @mutex.synchronize do
           ensure_open!
           @provider_response_id = extra.delete(:provider_response_id) || @provider_response_id
           @provider_project_id = extra.delete(:provider_project_id) || @provider_project_id
           @provider_api_key_id = extra.delete(:provider_api_key_id) || @provider_api_key_id
           @provider_workspace_id = extra.delete(:provider_workspace_id) || @provider_workspace_id
-          batch = extra.delete(:batch)
-          @batch = batch unless batch.nil?
           @explicit_usage = TokenUsage.build(
             **extra.slice(*TokenUsage.members),
             input_tokens: input_tokens,
@@ -109,7 +110,7 @@ module LlmCostTracker
             model: @model,
             latency_ms: @latency_ms,
             provider_response_id: @provider_response_id,
-            capture_dimensions: capture_dimensions(pricing_mode),
+            capture_dimensions: capture_dimensions,
             pricing_mode: pricing_mode,
             metadata: @metadata.deep_dup,
             context_tags: @context_tags.deep_dup,
@@ -140,13 +141,11 @@ module LlmCostTracker
         end
       end
 
-      def capture_dimensions(pricing_mode)
-        batch = @batch.nil? ? Event.batch_from_pricing_mode?(pricing_mode).presence : @batch
+      def capture_dimensions
         {
           provider_project_id: @provider_project_id.to_s.strip.presence,
           provider_api_key_id: @provider_api_key_id.to_s.strip.presence,
-          provider_workspace_id: @provider_workspace_id.to_s.strip.presence,
-          batch: batch
+          provider_workspace_id: @provider_workspace_id.to_s.strip.presence
         }.compact
       end
 

@@ -97,14 +97,17 @@ If the client already knows totals, pass explicit usage instead of provider
 events:
 
 ```ruby
-LlmCostTracker.track_stream(provider: "custom", model: "gateway-model") do |stream|
+LlmCostTracker.track_stream(
+  provider: "custom",
+  model: "gateway-model",
+  pricing_mode: :batch
+) do |stream|
   stream.usage(
     input_tokens: 120,
     output_tokens: 45,
     cache_read_input_tokens: 20,
     provider_response_id: "resp_123",
-    provider_project_id: "proj_123",
-    batch: true
+    provider_project_id: "proj_123"
   )
 end
 ```
@@ -121,7 +124,8 @@ Stream rows include:
 | `stream` | `true` for captured streaming calls |
 | `usage_source` | `stream_final`, `manual`, or `unknown` |
 | `provider_response_id` | Provider ID when exposed |
-| `provider_project_id`, `provider_api_key_id`, `provider_workspace_id`, `batch` | Provider grouping dimensions when captured |
+| `provider_project_id`, `provider_api_key_id`, `provider_workspace_id` | Provider grouping dimensions when captured |
+| `batch` | Derived from `pricing_mode` (true when the mode contains the `batch` token); set `pricing_mode: :batch` on `track_stream` to flag a batch-tier call |
 | `cost_status` | `free`, `complete`, `partial`, or `unknown` |
 
 The collector caps captured event bytes so a long stream can't grow memory

@@ -8,8 +8,10 @@ that were substring-matching unrelated host-app params, makes
 `enforce_budget: true` on `LlmCostTracker.track` actually raise pre-call when
 over budget regardless of the global policy, and tightens RubyLLM SDK capture
 (proper `service_tier` JSON path, 1-hour vs 5-minute cache split, response id
-from raw body). Two BREAKING changes: Reconciliation removal and parser
-constant rename for custom code that referenced internals.
+from raw body). Three BREAKING changes: Reconciliation removal, parser
+constant rename for custom code that referenced internals, and removal of
+the `batch:` keyword argument from `track` / `track_stream` / `stream.usage`
+(use `pricing_mode: :batch` instead).
 
 ### Required: drop Reconciliation tables if you opted in (BREAKING)
 
@@ -46,6 +48,30 @@ If your code explicitly references the parser classes, update the names:
 | `LlmCostTracker::Parsers::Gemini` | `LlmCostTracker::Providers::Gemini::Parser` |
 | `LlmCostTracker::Parsers::OpenaiCompatible` | `LlmCostTracker::Providers::OpenaiCompatible::Parser` |
 | `LlmCostTracker::Parsers::OpenaiUsage` | `LlmCostTracker::Providers::Openai::UsageParser` |
+
+### Required: replace `batch:` with `pricing_mode:` (BREAKING)
+
+`LlmCostTracker.track`, `LlmCostTracker.track_stream`, and `stream.usage`
+no longer accept a `batch:` keyword argument. Signal a batch-tier call via
+`pricing_mode: :batch` (or any `pricing_mode` containing the `batch` token
+like `:batch_flex`); the stored `calls.batch` column is now derived from
+`pricing_mode` at write time. Before:
+
+```ruby
+LlmCostTracker.track(provider: "openai", model: "gpt-4o",
+                     tokens: { input: 100, output: 50 }, batch: true)
+```
+
+After:
+
+```ruby
+LlmCostTracker.track(provider: "openai", model: "gpt-4o",
+                     tokens: { input: 100, output: 50 }, pricing_mode: :batch)
+```
+
+The top-level APIs raise `ArgumentError: unknown keyword: :batch` if you miss
+a callsite. `stream.usage(batch: …)` raises with a pointer to the new
+spelling.
 
 ### Optional: host-app `filter_parameters` cleanup
 

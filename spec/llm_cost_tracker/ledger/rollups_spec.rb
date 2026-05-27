@@ -23,7 +23,6 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       provider_project_id: nil,
       provider_api_key_id: nil,
       provider_workspace_id: nil,
-      batch: false,
       tracked_at: tracked_at,
       cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
       pricing_snapshot: { "currency" => currency },

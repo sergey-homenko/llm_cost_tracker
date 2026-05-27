@@ -48,7 +48,7 @@ module LlmCostTracker
             provider_project_id: event.provider_project_id,
             provider_api_key_id: event.provider_api_key_id,
             provider_workspace_id: event.provider_workspace_id,
-            batch: event.batch,
+            batch: event.batch?,
             cost_status: event.cost_status,
             pricing_snapshot: event.pricing_snapshot
           }

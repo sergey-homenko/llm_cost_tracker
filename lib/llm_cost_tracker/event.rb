@@ -16,20 +16,14 @@ module LlmCostTracker
     :provider_project_id,
     :provider_api_key_id,
     :provider_workspace_id,
-    :batch,
     :tracked_at,
     :cost_status,
     :pricing_snapshot,
     :line_items
   ) do
-    def self.batch_from_pricing_mode?(pricing_mode)
-      pricing_mode.to_s.split("_").include?("batch")
-    end
-
     def self.build(**attributes)
       pricing_mode = Pricing::Mode.normalize(attributes[:pricing_mode])
       token_usage = attributes.fetch(:token_usage)
-      batch = attributes[:batch].nil? ? batch_from_pricing_mode?(pricing_mode) : attributes[:batch]
       line_items = attributes[:line_items] || resolve_line_items(attributes[:service_line_items], token_usage)
 
       new(
@@ -47,12 +41,15 @@ module LlmCostTracker
         provider_project_id: attributes[:provider_project_id].to_s.strip.presence,
         provider_api_key_id: attributes[:provider_api_key_id].to_s.strip.presence,
         provider_workspace_id: attributes[:provider_workspace_id].to_s.strip.presence,
-        batch: batch,
         tracked_at: attributes[:tracked_at],
         cost_status: attributes[:cost_status],
         pricing_snapshot: attributes[:pricing_snapshot],
         line_items: line_items
       )
+    end
+
+    def batch?
+      pricing_mode.to_s.split("_").include?("batch")
     end
 
     def self.resolve_line_items(service_items, token_usage)

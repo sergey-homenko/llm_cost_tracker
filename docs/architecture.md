@@ -18,7 +18,7 @@ Core vocabulary uses provider-neutral terms:
 | Pricing tier | `pricing_mode` |
 | Pricing audit | `pricing_snapshot`, `cost_status` |
 | Provider identity | `provider`, `model`, `provider_response_id`, `provider_project_id`, `provider_api_key_id`, `provider_workspace_id` |
-| Provider grouping | `batch`, `pricing_mode` |
+| Provider grouping | `pricing_mode` (and `batch`, derived from it) |
 | Per-component charges | `Billing::LineItem` (token line items + tool/runtime line items) |
 
 Provider names such as `service_tier`, `prompt_tokens_details`, `server_tool_use`,

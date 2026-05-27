@@ -47,7 +47,6 @@ module LlmCostTracker
             provider_project_id: payload[:provider_project_id],
             provider_api_key_id: payload[:provider_api_key_id],
             provider_workspace_id: payload[:provider_workspace_id],
-            batch: payload.fetch(:batch),
             tracked_at: Time.iso8601(payload.fetch(:tracked_at)),
             cost_status: payload.fetch(:cost_status),
             pricing_snapshot: payload[:pricing_snapshot],
