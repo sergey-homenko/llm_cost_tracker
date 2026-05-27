@@ -115,7 +115,7 @@ module LlmCostTracker
                   host: host, model: model, service_tier: service_tier
                 ),
                 token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
-                usage_source: "sdk_response",
+                usage_source: LlmCostTracker::Billing::UsageSource::SDK_RESPONSE,
                 provider_response_id: response.try(:id),
                 service_line_items: service_line_items_from(response, request: request)
               ),
@@ -219,7 +219,7 @@ module LlmCostTracker
                 provider: provider_for_host(host),
                 model: model,
                 token_usage: TokenUsage.build(**token_attributes),
-                usage_source: "sdk_response",
+                usage_source: LlmCostTracker::Billing::UsageSource::SDK_RESPONSE,
                 provider_response_id: response&.try(:id),
                 service_line_items: service_line_items
               ),
@@ -406,7 +406,7 @@ module LlmCostTracker
               model: model,
               pricing_mode: :batch,
               token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
-              usage_source: "sdk_batch_result",
+              usage_source: LlmCostTracker::Billing::UsageSource::SDK_BATCH_RESULT,
               provider_response_id: provider_response_id,
               service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.service_line_items_for(
                 response, request: nil, model: model

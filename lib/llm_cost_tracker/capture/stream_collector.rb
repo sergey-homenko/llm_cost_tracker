@@ -71,7 +71,9 @@ module LlmCostTracker
 
       def usage(input_tokens:, output_tokens:, **extra)
         if extra.key?(:batch)
-          raise ArgumentError, "`batch:` is no longer accepted by stream.usage; pass `pricing_mode: :batch` to track_stream"
+          raise ArgumentError,
+                "`batch:` is no longer accepted by stream.usage; " \
+                "pass `pricing_mode: :batch` to track_stream"
         end
 
         @mutex.synchronize do
@@ -191,7 +193,7 @@ module LlmCostTracker
           model: snapshot[:model] || Event::UNKNOWN_MODEL,
           token_usage: snapshot[:explicit_usage],
           stream: true,
-          usage_source: "manual",
+          usage_source: Billing::UsageSource::MANUAL,
           pricing_mode: snapshot[:pricing_mode],
           **snapshot.fetch(:capture_dimensions)
         )
@@ -203,7 +205,7 @@ module LlmCostTracker
           model: snapshot[:model] || Event::UNKNOWN_MODEL,
           token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
-          usage_source: "unknown",
+          usage_source: Billing::UsageSource::UNKNOWN,
           pricing_mode: snapshot[:pricing_mode],
           **snapshot.fetch(:capture_dimensions)
         )

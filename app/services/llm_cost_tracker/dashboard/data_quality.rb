@@ -130,7 +130,7 @@ module LlmCostTracker
         def streaming_health_rows(scope, total_streaming:)
           return [] unless total_streaming.positive?
 
-          unknown_predicate = "usage_source = 'unknown' OR usage_source IS NULL"
+          unknown_predicate = unknown_usage_source_predicate(scope)
           rows = scope.unscope(:select, :order, :group)
                       .where(stream: true)
                       .group(:provider)
@@ -192,7 +192,7 @@ module LlmCostTracker
             "COUNT(*) - #{tagged_calls_sql(scope)} AS untagged_calls_count",
             "#{conditional_count_sql('latency_ms IS NULL')} AS missing_latency_count",
             "#{conditional_count_sql('stream')} AS streaming_count",
-            "#{streaming_missing_usage_select} AS streaming_missing_usage_count",
+            "#{streaming_missing_usage_select(scope)} AS streaming_missing_usage_count",
             "#{provider_response_id_select} AS missing_provider_response_id_count"
           ]
 
@@ -230,6 +230,11 @@ module LlmCostTracker
           "total_cost IS NULL OR cost_status IN (#{values.join(', ')})"
         end
 
+        def unknown_usage_source_predicate(scope)
+          quoted = scope.connection.quote(LlmCostTracker::Billing::UsageSource::UNKNOWN)
+          "usage_source = #{quoted} OR usage_source IS NULL"
+        end
+
         def column_sum(scope, column)
           "COALESCE(SUM(#{scope.connection.quote_column_name(column)}), 0)"
         end
@@ -238,9 +243,8 @@ module LlmCostTracker
           "COALESCE(SUM(CASE WHEN #{predicate} THEN 1 ELSE 0 END), 0)"
         end
 
-        def streaming_missing_usage_select
-          predicate = "stream AND (usage_source = 'unknown' OR usage_source IS NULL)"
-          conditional_count_sql(predicate)
+        def streaming_missing_usage_select(scope)
+          conditional_count_sql("stream AND (#{unknown_usage_source_predicate(scope)})")
         end
 
         def provider_response_id_select

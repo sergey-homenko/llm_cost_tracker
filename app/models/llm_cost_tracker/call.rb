@@ -22,7 +22,7 @@ module LlmCostTracker
     scope :with_provider_response_id, -> { where.not(provider_response_id: [nil, ""]) }
     scope :missing_provider_response_id, -> { where(provider_response_id: [nil, ""]) }
     scope :streaming_missing_usage, lambda {
-      where(stream: true).where(usage_source: ["unknown", nil])
+      where(stream: true).where(usage_source: [Billing::UsageSource::UNKNOWN, nil])
     }
 
     has_many :line_items,

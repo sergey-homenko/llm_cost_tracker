@@ -42,7 +42,7 @@ module LlmCostTracker
             ),
             model: model,
             token_usage: UsageExtractor.token_usage(usage, model: model),
-            usage_source: "response",
+            usage_source: Billing::UsageSource::RESPONSE,
             service_line_items: service_line_items_for(response, request: request, model: response["model"]) +
                                 transcription_line_items(usage)
           )
@@ -95,7 +95,7 @@ module LlmCostTracker
             model: model,
             token_usage: UsageExtractor.token_usage(usage, model: model),
             stream: true,
-            usage_source: "stream_final",
+            usage_source: Billing::UsageSource::STREAM_FINAL,
             service_line_items: service_line_items
           )
         end
@@ -108,7 +108,7 @@ module LlmCostTracker
           Logging.warn(
             "OpenAI-compatible chat-completions stream finished without a final usage chunk. " \
             "Set `stream_options: { include_usage: true }` in your request body so the gem can " \
-            "record token counts. This call was stored with usage_source=unknown."
+            "record token counts. This call was stored with usage_source=#{Billing::UsageSource::UNKNOWN}."
           )
         end
 
