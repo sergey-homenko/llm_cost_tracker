@@ -136,7 +136,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.dig(:token_usage, :input_tokens)).to eq(100)
       expect(event.dig(:token_usage, :output_tokens)).to eq(50)
       expect(event.dig(:token_usage, :total_tokens)).to eq(150)
-      expect(event[:cost][:total_cost]).to be > 0
+      expect(BigDecimal(event[:cost][:total_cost])).to be > 0
       expect(event[:cost_status]).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
       expect(event[:provider_project_id]).to eq("proj_notify")
       expect(event[:provider_api_key_id]).to eq("key_notify")

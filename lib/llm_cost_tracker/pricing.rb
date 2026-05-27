@@ -61,7 +61,9 @@ module LlmCostTracker
 
       def stored_cost_attributes(attributes)
         value = attributes.to_h[:total_cost]
-        value ? { total_cost: value } : {}
+        return {} if value.nil?
+
+        { total_cost: value.is_a?(BigDecimal) ? value : BigDecimal(value.to_s) }
       end
 
       def combine_with_service_lines(cost_data, line_items)

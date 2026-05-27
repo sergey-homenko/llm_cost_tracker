@@ -71,6 +71,16 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.line_items.first.kind).to eq("web_search_request")
   end
 
+  it "preserves BigDecimal cost precision through the JSON payload round-trip" do
+    high_precision_event = event.with(cost: { total_cost: BigDecimal("0.0001234567890123456789") })
+
+    row = described_class.send(:row_for, high_precision_event)
+    restored = described_class.event_from_row(row_class.new(row.fetch(:payload)))
+
+    expect(restored.total_cost).to eq(BigDecimal("0.0001234567890123456789"))
+    expect(restored.total_cost).to be_a(BigDecimal)
+  end
+
   it "rejects payloads from older schema versions" do
     row = described_class.send(:row_for, event)
     payload = JSON.parse(row.fetch(:payload)).merge("schema_version" => 1)

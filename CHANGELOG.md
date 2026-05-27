@@ -46,6 +46,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - RubyLLM SDK integration captures `service_tier` from response bodies across Anthropic, OpenAI, and Gemini — previously the field was read from the wrong JSON path so batch and flex modes silently priced against standard rates.
 - RubyLLM SDK integration records the provider's response id in `provider_response_id` (previously always nil), so each ledger row carries the upstream id you can cross-reference against provider invoices and logs.
 - RubyLLM Anthropic chat completions split 1-hour and 5-minute cache writes into separate token buckets so 1h writes bill at the 2x extended rate instead of being lumped into the 5m bucket at 1.25x.
+- Async-inbox `total_cost` now round-trips through the JSON payload without losing precision; previously the payload coerced `BigDecimal` to `Float` and dropped digits past ~15 significant figures, so high-volume aggregate billing under `ingestion: :async` came out systematically short. BREAKING for subscribers to the `llm_request.llm_cost_tracker` `ActiveSupport::Notifications` event: `payload[:cost]` numeric values are now decimal strings (was `Float`) — wrap with `BigDecimal(value)` before arithmetic.
 
 ## [0.11.0] - 2026-05-21
 

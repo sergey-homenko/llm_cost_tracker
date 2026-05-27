@@ -56,15 +56,14 @@ RSpec.describe LlmCostTracker::Pricing do
   end
 
   describe ".stored_cost_attributes" do
-    it "returns the persisted total_cost column" do
-      attributes = {
-        input_cost: 0.01,
-        output_cost: 0.05,
-        total_cost: 0.27,
-        currency: "USD"
-      }
+    it "returns the persisted total_cost as BigDecimal regardless of input type" do
+      from_decimal = described_class.stored_cost_attributes(total_cost: BigDecimal("0.27"))
+      from_string = described_class.stored_cost_attributes(total_cost: "0.0001234567890123456789")
+      from_float = described_class.stored_cost_attributes(total_cost: 0.27)
 
-      expect(described_class.stored_cost_attributes(attributes)).to eq(total_cost: 0.27)
+      expect(from_decimal[:total_cost]).to be_a(BigDecimal).and eq(BigDecimal("0.27"))
+      expect(from_string[:total_cost]).to be_a(BigDecimal).and eq(BigDecimal("0.0001234567890123456789"))
+      expect(from_float[:total_cost]).to be_a(BigDecimal).and eq(BigDecimal("0.27"))
     end
 
     it "returns an empty hash when total_cost is missing" do
