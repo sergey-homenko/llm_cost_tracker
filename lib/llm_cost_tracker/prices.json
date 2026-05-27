@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-05-26"
+    "updated_at": "2026-05-27"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -2101,7 +2101,6 @@
       "output": 0.78
     },
     "openrouter/qwen/qwen-plus-2025-07-28": {
-      "cache_write_input": 0.325,
       "input": 0.26,
       "output": 0.78
     },
@@ -2245,26 +2244,24 @@
       "output": 0.15
     },
     "openrouter/qwen/qwen3.5-flash-02-23": {
-      "cache_write_input": 0.08125,
       "input": 0.065,
       "output": 0.26
     },
     "openrouter/qwen/qwen3.5-plus-02-15": {
-      "cache_write_input": 0.325,
       "input": 0.26,
       "output": 1.56
     },
     "openrouter/qwen/qwen3.5-plus-20260420": {
+      "cache_write_input": 0.375,
       "input": 0.3,
       "output": 1.8
     },
     "openrouter/qwen/qwen3.6-27b": {
-      "cache_read_input": 0.15,
-      "input": 0.3,
-      "output": 2.0
+      "input": 0.29,
+      "output": 3.2
     },
     "openrouter/qwen/qwen3.6-35b-a3b": {
-      "input": 0.15,
+      "input": 0.14,
       "output": 1.0
     },
     "openrouter/qwen/qwen3.6-flash": {
@@ -2283,9 +2280,10 @@
       "output": 1.95
     },
     "openrouter/qwen/qwen3.7-max": {
-      "cache_write_input": 3.125,
-      "input": 2.5,
-      "output": 7.5
+      "cache_read_input": 0.25,
+      "cache_write_input": 1.5625,
+      "input": 1.25,
+      "output": 3.75
     },
     "openrouter/rekaai/reka-edge": {
       "input": 0.1,
@@ -2408,14 +2406,14 @@
       "output": 3.0
     },
     "openrouter/xiaomi/mimo-v2.5": {
-      "cache_read_input": 0.08,
-      "input": 0.4,
-      "output": 2.0
+      "cache_read_input": 0.0028,
+      "input": 0.14,
+      "output": 0.28
     },
     "openrouter/xiaomi/mimo-v2.5-pro": {
-      "cache_read_input": 0.2,
-      "input": 1.0,
-      "output": 3.0
+      "cache_read_input": 0.0036,
+      "input": 0.435,
+      "output": 0.87
     },
     "openrouter/z-ai/glm-4-32b": {
       "input": 0.1,
@@ -2427,9 +2425,8 @@
       "output": 2.2
     },
     "openrouter/z-ai/glm-4.5-air": {
-      "cache_read_input": 0.025,
-      "input": 0.13,
-      "output": 0.85
+      "input": 0.125,
+      "output": 0.84
     },
     "openrouter/z-ai/glm-4.5v": {
       "cache_read_input": 0.11,
