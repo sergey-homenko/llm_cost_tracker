@@ -2,8 +2,6 @@
 
 require "active_support/core_ext/object/blank"
 require "bigdecimal"
-require "time"
-require "yaml"
 
 require_relative "../billing/components"
 require_relative "registry"
@@ -21,10 +19,9 @@ module LlmCostTracker
       end
 
       def builtin_rates
-        @builtin_rates ||= begin
-          registry = YAML.safe_load_file(Registry::DEFAULT_PRICES_PATH, aliases: false) || {}
-          rates_from_registry(registry, context: Registry::DEFAULT_PRICES_PATH).freeze
-        end
+        @builtin_rates ||= rates_from_registry(
+          Registry.raw_registry, context: Registry::DEFAULT_PRICES_PATH
+        ).freeze
       end
 
       def file_rates(path)
@@ -63,9 +60,8 @@ module LlmCostTracker
       private
 
       def load_file_rates(path)
-        registry = YAML.safe_load_file(path, aliases: false) || {}
-        rates_from_registry(registry, context: path).freeze
-      rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
+        rates_from_registry(Registry.raw_file_registry(path), context: path).freeze
+      rescue ArgumentError, TypeError => e
         raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
       end
 

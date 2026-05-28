@@ -21,6 +21,7 @@ module LlmCostTracker
           @builtin_prices = nil
           @metadata = nil
           @raw_registry = nil
+          @raw_file_registries = nil
           @file_prices = nil
         end
 
@@ -37,13 +38,11 @@ module LlmCostTracker
         def file_metadata(path)
           return {} unless path
 
-          registry = YAML.safe_load_file(path, aliases: false) || {}
-
-          metadata = registry.fetch("metadata", {})
+          metadata = raw_file_registry(path).fetch("metadata", {})
           raise ArgumentError, "prices_file metadata must be a hash" unless metadata.is_a?(Hash)
 
           metadata
-        rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
+        rescue ArgumentError, TypeError => e
           raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
         end
 
@@ -64,17 +63,27 @@ module LlmCostTracker
           end
         end
 
+        def raw_registry
+          @raw_registry ||= YAML.safe_load_file(DEFAULT_PRICES_PATH, aliases: false).freeze
+        end
+
+        def raw_file_registry(path)
+          (@raw_file_registries ||= {})[path] ||= load_raw_file_registry(path)
+        end
+
         private
 
-        def load_file_prices(path)
-          registry = YAML.safe_load_file(path, aliases: false) || {}
-          normalize_price_entries(registry.fetch("models", registry), context: path).freeze
-        rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
+        def load_raw_file_registry(path)
+          (YAML.safe_load_file(path, aliases: false) || {}).freeze
+        rescue Errno::ENOENT, Psych::Exception => e
           raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
         end
 
-        def raw_registry
-          @raw_registry ||= YAML.safe_load_file(DEFAULT_PRICES_PATH, aliases: false).freeze
+        def load_file_prices(path)
+          doc = raw_file_registry(path)
+          normalize_price_entries(doc.fetch("models", doc), context: path).freeze
+        rescue ArgumentError, TypeError => e
+          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
         end
 
         def normalize_price_entry(price)
