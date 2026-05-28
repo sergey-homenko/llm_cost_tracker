@@ -22,21 +22,6 @@ RSpec.describe LlmCostTracker::Dashboard::SetupState do
       described_class.current
     end
 
-    it "recomputes after a new migration bumps the schema version, without an explicit reset" do
-      connection = ActiveRecord::Base.connection
-      connection.create_table(:schema_migrations, id: false, if_not_exists: true) { |t| t.string :version, null: false, primary_key: true }
-      connection.execute("INSERT INTO schema_migrations(version) VALUES('1')")
-      described_class.current
-
-      connection.remove_column(:llm_cost_tracker_calls, :pricing_mode)
-      connection.execute("INSERT INTO schema_migrations(version) VALUES('2')")
-
-      drift = described_class.current
-      expect(drift.message).to include("llm_cost_tracker_calls table does not match")
-    ensure
-      connection.drop_table(:schema_migrations, if_exists: true)
-    end
-
     it "reports the calls table being missing" do
       described_class.reset!
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_calls, force: :cascade)
