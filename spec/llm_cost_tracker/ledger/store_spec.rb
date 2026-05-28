@@ -365,7 +365,7 @@ RSpec.describe "ActiveRecord storage integration" do
   it "retries a transient rollup increment failure before warning so transient DB hiccups don't permanently strand the rollup" do
     LlmCostTracker.configure { |config| config.cache_rollups = true }
     allow(LlmCostTracker::Logging).to receive(:warn)
-    allow(LlmCostTracker::Ledger::Store).to receive(:sleep)
+    allow(LlmCostTracker::Ledger::Rollups).to receive(:sleep)
     increment_call_count = 0
     allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!) do |events|
       increment_call_count += 1

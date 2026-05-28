@@ -16,6 +16,30 @@ module LlmCostTracker
           upsert_call_rollups(period_rows_for_events(events))
         end
 
+        ROLLUP_INCREMENT_ATTEMPTS = 3
+        ROLLUP_INCREMENT_BASE_DELAY_SECONDS = 0.05
+        private_constant :ROLLUP_INCREMENT_ATTEMPTS, :ROLLUP_INCREMENT_BASE_DELAY_SECONDS
+
+        def increment_safely!(events)
+          attempt = 0
+          begin
+            attempt += 1
+            increment!(events)
+          rescue StandardError => e
+            raise if LlmCostTracker::Call.connection.open_transactions.positive?
+
+            if attempt < ROLLUP_INCREMENT_ATTEMPTS
+              sleep(ROLLUP_INCREMENT_BASE_DELAY_SECONDS * (2**(attempt - 1)))
+              retry
+            end
+
+            LlmCostTracker::Logging.warn(
+              "Rollup increment failed for #{events.size} events after #{attempt} attempts: " \
+              "#{e.class}: #{e.message}"
+            )
+          end
+        end
+
         def decrement!(call_rows)
           totals = period_decrement_totals(call_rows)
           return if totals.empty?

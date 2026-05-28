@@ -19,7 +19,7 @@ module LlmCostTracker
             insert_line_items(events, call_ids)
             insert_call_tags(events, call_ids)
           end
-          increment_rollups_safely(events) if LlmCostTracker.configuration.cache_rollups
+          Ledger::Rollups.increment_safely!(events) if LlmCostTracker.configuration.cache_rollups
         end
 
         private
@@ -123,30 +123,6 @@ module LlmCostTracker
 
         def stored_details(details)
           (details || {}).transform_keys(&:to_s).transform_values { |value| Tags::Encoding.normalize_value(value) }
-        end
-
-        ROLLUP_INCREMENT_ATTEMPTS = 3
-        ROLLUP_INCREMENT_BASE_DELAY_SECONDS = 0.05
-        private_constant :ROLLUP_INCREMENT_ATTEMPTS, :ROLLUP_INCREMENT_BASE_DELAY_SECONDS
-
-        def increment_rollups_safely(events)
-          attempt = 0
-          begin
-            attempt += 1
-            Ledger::Rollups.increment!(events)
-          rescue StandardError => e
-            raise if LlmCostTracker::Call.connection.open_transactions.positive?
-
-            if attempt < ROLLUP_INCREMENT_ATTEMPTS
-              sleep(ROLLUP_INCREMENT_BASE_DELAY_SECONDS * (2**(attempt - 1)))
-              retry
-            end
-
-            LlmCostTracker::Logging.warn(
-              "Rollup increment failed for #{events.size} events after #{attempt} attempts: " \
-              "#{e.class}: #{e.message}"
-            )
-          end
         end
       end
     end
