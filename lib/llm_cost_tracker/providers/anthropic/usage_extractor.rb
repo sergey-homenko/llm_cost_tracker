@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "tier_classification"
-
 module LlmCostTracker
   module Providers
     module Anthropic
@@ -10,7 +8,8 @@ module LlmCostTracker
           "web_search_request" => :web_search_requests,
           "web_fetch_request" => :web_fetch_requests
         }.freeze
-        private_constant :SERVER_TOOL_LINE_ITEMS
+        DATA_RESIDENCY_GEOS = %w[us].freeze
+        private_constant :SERVER_TOOL_LINE_ITEMS, :DATA_RESIDENCY_GEOS
 
         def self.token_usage(usage)
           input = usage[:input_tokens].to_i
@@ -33,7 +32,7 @@ module LlmCostTracker
           geo = (usage&.dig(:inference_geo) || request&.dig(:inference_geo)).to_s.downcase
 
           modes = [Pricing::Mode.normalize(speed), Pricing::Mode.normalize(service_tier)]
-          modes << "data_residency" if TierClassification.data_residency_geo?(geo)
+          modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(geo)
           modes = modes.compact.uniq
           modes.empty? ? nil : modes.join("_")
         end

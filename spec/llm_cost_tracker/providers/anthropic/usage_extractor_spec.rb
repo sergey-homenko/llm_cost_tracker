@@ -49,6 +49,10 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::UsageExtractor do
       expect(described_class.pricing_mode(request: {}, usage: { input_tokens: 1, output_tokens: 1, speed: "fast", inference_geo: "us" })).to eq("fast_data_residency")
     end
 
+    it "matches the inference_geo uplift case-insensitively" do
+      expect(described_class.pricing_mode(request: {}, usage: { input_tokens: 1, output_tokens: 1, inference_geo: "US" })).to eq("data_residency")
+    end
+
     it "ignores inference_geo values outside the documented uplift list" do
       expect(described_class.pricing_mode(request: {}, usage: { input_tokens: 1, output_tokens: 1, inference_geo: "global" })).to be_nil
     end

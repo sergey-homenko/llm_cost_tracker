@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "../providers/anthropic/tier_classification"
 
 module LlmCostTracker
   module Integrations
@@ -164,15 +163,11 @@ module LlmCostTracker
 
         def pricing_mode_for(provider:, response:)
           body = response.try(:raw)&.body || {}
-          tier = case provider
-                 when "anthropic" then body.dig("usage", "service_tier")
-                 when "gemini" then body.dig("usageMetadata", "serviceTier")
-                 else body["service_tier"]
-                 end
-          return nil if provider == "anthropic" &&
-                        LlmCostTracker::Providers::Anthropic::TierClassification.standard_equivalent_tier?(tier)
-
-          tier
+          case provider
+          when "anthropic" then body.dig("usage", "service_tier")
+          when "gemini" then body.dig("usageMetadata", "serviceTier")
+          else body["service_tier"]
+          end
         end
 
         def wrap_blocking_call(args, kwargs, resource, record_method:, **extras)

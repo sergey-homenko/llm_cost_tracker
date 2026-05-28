@@ -4,7 +4,6 @@ module LlmCostTracker
   module Providers
     module Anthropic
       autoload :Parser,               "llm_cost_tracker/providers/anthropic/parser"
-      autoload :TierClassification,   "llm_cost_tracker/providers/anthropic/tier_classification"
       autoload :UsageExtractor,       "llm_cost_tracker/providers/anthropic/usage_extractor"
     end
 
