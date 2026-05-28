@@ -340,9 +340,9 @@ module LlmCostTracker
       end
 
       class << self
-        BATCH_CAPTURE_DEDUP = Set.new
         BATCH_CAPTURE_MUTEX = Mutex.new
-        private_constant :BATCH_CAPTURE_DEDUP, :BATCH_CAPTURE_MUTEX
+        BATCH_CAPTURE_DEDUP_LIMIT = 1024
+        private_constant :BATCH_CAPTURE_MUTEX, :BATCH_CAPTURE_DEDUP_LIMIT
 
         def maybe_capture_batch(batch, resource:)
           return unless active?
@@ -364,9 +364,11 @@ module LlmCostTracker
 
         def claim_batch_capture(batch_id)
           BATCH_CAPTURE_MUTEX.synchronize do
-            next false if BATCH_CAPTURE_DEDUP.include?(batch_id)
+            @batch_capture_dedup ||= Set.new
+            next false if @batch_capture_dedup.include?(batch_id)
 
-            BATCH_CAPTURE_DEDUP.add(batch_id)
+            @batch_capture_dedup.clear if @batch_capture_dedup.size >= BATCH_CAPTURE_DEDUP_LIMIT
+            @batch_capture_dedup.add(batch_id)
             true
           end
         end

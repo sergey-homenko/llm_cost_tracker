@@ -54,7 +54,7 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
 
     it "warns once per unrecognized pricing_mode token so misspellings (e.g. `:bach` for `:batch`) don't silently land as cost_status: unknown" do
       allow(LlmCostTracker::Logging).to receive(:warn)
-      described_class.const_get(:WARNED_TOKENS).clear
+      described_class.instance_variable_set(:@warned_tokens, nil)
 
       described_class.normalize("bach")
       described_class.normalize("bach")
@@ -65,7 +65,7 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
 
     it "recognizes OpenAI's `scale` enterprise tier and Anthropic's `priority` tier without warning" do
       allow(LlmCostTracker::Logging).to receive(:warn)
-      described_class.const_get(:WARNED_TOKENS).clear
+      described_class.instance_variable_set(:@warned_tokens, nil)
 
       expect(described_class.normalize("scale")).to eq(:scale)
       expect(described_class.normalize("priority")).to eq(:priority)
@@ -74,7 +74,7 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
 
     it "treats Gemini's default `unspecified` service tier as standard (returns nil)" do
       allow(LlmCostTracker::Logging).to receive(:warn)
-      described_class.const_get(:WARNED_TOKENS).clear
+      described_class.instance_variable_set(:@warned_tokens, nil)
 
       expect(described_class.normalize("unspecified")).to be_nil
       expect(LlmCostTracker::Logging).not_to have_received(:warn)

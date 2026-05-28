@@ -6,9 +6,6 @@ module LlmCostTracker
       STANDARD_MODE_VALUES = %i[auto default standard standard_only unspecified].freeze
       COMPOUND_MODIFIERS = %i[data_residency].freeze
       KNOWN_MODIFIERS = %i[batch flex priority scale fast on_demand data_residency].freeze
-      WARNED_TOKENS = Set.new
-      WARNED_TOKENS_MUTEX = Mutex.new
-      private_constant :WARNED_TOKENS, :WARNED_TOKENS_MUTEX
 
       def self.normalize(value)
         return nil if value.nil?
@@ -71,13 +68,16 @@ module LlmCostTracker
       private_class_method :normalize_string
 
       def self.warn_unknown_tokens(symbol)
-        new_tokens = WARNED_TOKENS_MUTEX.synchronize do
-          (tokenize(symbol) - KNOWN_MODIFIERS - STANDARD_MODE_VALUES).select { |token| WARNED_TOKENS.add?(token) }
-        end
-        return if new_tokens.empty?
+        unknown = tokenize(symbol) - KNOWN_MODIFIERS - STANDARD_MODE_VALUES
+        return if unknown.empty?
 
+        @warned_tokens ||= Set.new
+        fresh = unknown.uniq.reject { |token| @warned_tokens.include?(token) }
+        return if fresh.empty?
+
+        @warned_tokens.merge(fresh)
         Logging.warn(
-          "Unrecognized pricing_mode token(s) #{new_tokens.inspect} in #{symbol.inspect}; " \
+          "Unrecognized pricing_mode token(s) #{fresh.inspect} in #{symbol.inspect}; " \
           "the call will land with cost_status: unknown. " \
           "Known pricing_mode tokens: #{KNOWN_MODIFIERS.inspect}"
         )
