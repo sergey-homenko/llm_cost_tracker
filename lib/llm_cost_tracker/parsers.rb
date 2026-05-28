@@ -8,7 +8,6 @@ require_relative "providers"
 
 module LlmCostTracker
   module Parsers
-    MUTEX = Mutex.new
     PARSER_PROVIDERS = %i[Openai Azure OpenaiCompatible Anthropic Gemini].freeze
 
     def self.find_for(url)
@@ -32,12 +31,7 @@ module LlmCostTracker
     private_class_method :parser_classes
 
     def self.instance_for(klass)
-      cached = (@instances ||= {})[klass]
-      return cached if cached
-
-      MUTEX.synchronize do
-        @instances[klass] ||= klass.new
-      end
+      (@instances ||= {})[klass] ||= klass.new
     end
     private_class_method :instance_for
 
