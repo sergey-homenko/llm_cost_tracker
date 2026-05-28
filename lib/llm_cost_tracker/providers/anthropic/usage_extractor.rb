@@ -33,8 +33,7 @@ module LlmCostTracker
 
           modes = [Pricing::Mode.normalize(speed), Pricing::Mode.normalize(service_tier)]
           modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(geo)
-          modes = modes.compact.uniq
-          modes.empty? ? nil : modes.join("_")
+          Pricing::Mode.compose(modes)
         end
 
         def self.service_line_items(usage)

@@ -29,6 +29,11 @@ module LlmCostTracker
         normalize(combined.join("_"))
       end
 
+      def self.compose(tokens)
+        tokens = Array(tokens).compact.uniq
+        tokens.empty? ? nil : tokens.join("_")
+      end
+
       def self.tokenize(value)
         remaining = value.to_s.downcase.tr("-", "_")
         tokens = []

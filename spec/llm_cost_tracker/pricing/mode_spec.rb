@@ -113,4 +113,19 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
         .to contain_exactly("batch_priority", "priority_batch")
     end
   end
+
+  describe ".compose" do
+    it "joins tokens, dropping nils and duplicates" do
+      expect(described_class.compose([:fast, nil, :fast, "data_residency"])).to eq("fast_data_residency")
+    end
+
+    it "preserves token order rather than sorting" do
+      expect(described_class.compose([:priority, "data_residency"])).to eq("priority_data_residency")
+    end
+
+    it "returns nil when no tokens survive" do
+      expect(described_class.compose([nil, nil])).to be_nil
+      expect(described_class.compose([])).to be_nil
+    end
+  end
 end
