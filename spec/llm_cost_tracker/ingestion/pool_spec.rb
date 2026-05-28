@@ -11,11 +11,12 @@ RSpec.describe LlmCostTracker::Ingestion::Pool do
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker.configuration.ingestion = :async
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
-    described_class.reset!
   end
 
   after do
-    described_class.reset!
+    described_class.instance_variable_get(:@pool)&.disconnect!
+    described_class.instance_variable_set(:@pool, nil)
+    described_class.instance_variable_set(:@handler, nil)
     disconnect_database!
   end
 
@@ -39,17 +40,8 @@ RSpec.describe LlmCostTracker::Ingestion::Pool do
   end
 
   it "honors ingestion_pool_size when configured" do
-    described_class.reset!
     LlmCostTracker.configuration.ingestion_pool_size = 3
 
     expect(described_class.pool.size).to eq(3)
-  end
-
-  it "rebuilds the pool after reset!" do
-    initial_pool = described_class.pool
-    described_class.reset!
-    rebuilt_pool = described_class.pool
-
-    expect(rebuilt_pool).not_to equal(initial_pool)
   end
 end

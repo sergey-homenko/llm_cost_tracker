@@ -36,18 +36,6 @@ module LlmCostTracker
         @mutex = Mutex.new
       end
 
-      def model
-        @mutex.synchronize { @model }
-      end
-
-      def metadata
-        @mutex.synchronize { @metadata.deep_dup }
-      end
-
-      def provider_response_id
-        @mutex.synchronize { @provider_response_id }
-      end
-
       def model=(value)
         @mutex.synchronize do
           ensure_open!

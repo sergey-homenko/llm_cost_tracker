@@ -22,10 +22,6 @@ module LlmCostTracker
           end
         end
 
-        def reset!
-          MUTEX.synchronize { @warned_models = Set.new }
-        end
-
         private
 
         def warn_missing(model)

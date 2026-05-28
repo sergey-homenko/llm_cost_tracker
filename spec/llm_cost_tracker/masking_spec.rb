@@ -54,18 +54,4 @@ RSpec.describe LlmCostTracker::Masking do
       expect(described_class.mask_hash("not-a-hash")).to eq("not-a-hash")
     end
   end
-
-  describe ".format_attribution" do
-    it "renders empty string for nil/empty attribution" do
-      expect(described_class.format_attribution(nil)).to eq("")
-      expect(described_class.format_attribution({})).to eq("")
-    end
-
-    it "joins masked key=value pairs with the default separator" do
-      summary = described_class.format_attribution(
-        { provider_api_key_id: "sk-live-ABCDEF", model: "gpt-4o" }
-      )
-      expect(summary).to eq("provider_api_key_id=***CDEF, model=gpt-4o")
-    end
-  end
 end

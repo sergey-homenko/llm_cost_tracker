@@ -68,7 +68,7 @@ RSpec.configure do |config|
 
   config.before(:each) do
     Rails.logger = nil
-    LlmCostTracker.reset_configuration!
+    LlmCostTrackerReset.call
   end
 
   config.after(:each) do

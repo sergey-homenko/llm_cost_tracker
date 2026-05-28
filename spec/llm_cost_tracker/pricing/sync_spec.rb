@@ -52,8 +52,7 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       body: body,
       etag: etag,
       last_modified: nil,
-      not_modified: not_modified,
-      fetched_at: "2026-04-25T12:00:00Z"
+      not_modified: not_modified
     )
   end
 

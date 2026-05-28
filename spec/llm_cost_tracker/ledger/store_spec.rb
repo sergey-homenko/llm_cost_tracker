@@ -257,7 +257,7 @@ RSpec.describe "ActiveRecord storage integration" do
           tokens: { input: 1_000_000, output: 1_000_000 },
         )
 
-        LlmCostTracker.reset_configuration!
+        LlmCostTrackerReset.call
         LlmCostTracker.configure do |config|
           config.prices_file = new_file.path
         end

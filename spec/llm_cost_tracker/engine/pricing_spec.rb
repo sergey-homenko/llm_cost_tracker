@@ -20,7 +20,7 @@ RSpec.describe "LlmCostTracker::Engine pricing" do
   end
 
   it "shows an Overrides tab and selects it as effective when pricing_overrides is set" do
-    LlmCostTracker.reset_configuration!
+    LlmCostTrackerReset.call
     LlmCostTracker.configure do |config|
       config.pricing_overrides = { "openai/gpt-4o" => { input: 2.0, output: 8.0 } }
     end
@@ -31,7 +31,7 @@ RSpec.describe "LlmCostTracker::Engine pricing" do
     expect(response.body).to include("Overrides")
     expect(response.body).to match(/<a [^>]*class="lct-tab lct-active"[^>]*>\s*Overrides/m)
   ensure
-    LlmCostTracker.reset_configuration!
+    LlmCostTrackerReset.call
   end
 
   it "filters rows by provider within the active source" do

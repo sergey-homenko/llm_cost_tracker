@@ -6,7 +6,5 @@ module LlmCostTracker
                class_name: "LlmCostTracker::Call",
                foreign_key: :llm_cost_tracker_call_id,
                inverse_of: :tag_records
-
-    scope :with_key, ->(key) { where(key: key.to_s) }
   end
 end

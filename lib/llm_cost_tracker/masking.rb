@@ -12,12 +12,6 @@ module LlmCostTracker
       "***#{string[-MASK_TAIL_LENGTH, MASK_TAIL_LENGTH]}"
     end
 
-    def self.format_attribution(attribution, separator: ", ")
-      return "" if attribution.nil? || attribution.empty?
-
-      attribution.map { |key, value| "#{key}=#{mask_value(key, value)}" }.join(separator)
-    end
-
     def self.mask_hash(hash)
       return hash unless hash.is_a?(Hash)
 

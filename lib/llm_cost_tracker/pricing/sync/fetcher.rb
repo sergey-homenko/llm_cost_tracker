@@ -13,7 +13,7 @@ module LlmCostTracker
   module Pricing
     module Sync
       class Fetcher
-        Response = Data.define(:body, :etag, :last_modified, :not_modified, :fetched_at) do
+        Response = Data.define(:body, :etag, :last_modified, :not_modified) do
           def source_version
             etag || last_modified || Digest::SHA256.hexdigest(body.to_s)
           end
@@ -106,8 +106,7 @@ module LlmCostTracker
             body: body,
             etag: response["etag"],
             last_modified: response["last-modified"],
-            not_modified: not_modified,
-            fetched_at: Time.now.utc.iso8601
+            not_modified: not_modified
           )
         end
       end

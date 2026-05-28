@@ -81,19 +81,6 @@ module LlmCostTracker
           end
         end
 
-        def reset!
-          thread = MUTEX.synchronize do
-            @stop_requested = false
-            @generation = @generation.to_i + 1
-            thread = @thread
-            @thread = nil
-            @pid = nil
-            @identity = nil
-            thread
-          end
-          wake_thread(thread)
-        end
-
         def flush_timeout_seconds(timeout)
           numeric = Float(timeout, exception: false)
           return FLUSH_TIMEOUT_SECONDS unless numeric&.finite? && numeric.positive?

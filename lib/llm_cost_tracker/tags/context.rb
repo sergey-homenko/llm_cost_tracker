@@ -29,10 +29,6 @@ module LlmCostTracker
           Logging.warn("LlmCostTracker default_tags proc raised: #{e.class}: #{e.message}; using empty default tags")
           {}
         end
-
-        def clear!
-          ActiveSupport::IsolatedExecutionState[KEY] = []
-        end
       end
     end
   end

@@ -149,21 +149,6 @@ RSpec.describe LlmCostTracker do
       captured
     end
 
-    it "exposes stream state while open" do
-      stream = LlmCostTracker::Capture::StreamCollector.new(
-        provider: "custom",
-        model: "initial-model",
-        provider_response_id: "resp_initial",
-        metadata: { feature: "stream" }
-      )
-
-      stream.model = "updated-model"
-
-      expect(stream.model).to eq("updated-model")
-      expect(stream.provider_response_id).to eq("resp_initial")
-      expect(stream.metadata).to eq(feature: "stream")
-    end
-
     it "parses OpenAI-shaped chunks via the matching provider parser" do
       collected = events
 

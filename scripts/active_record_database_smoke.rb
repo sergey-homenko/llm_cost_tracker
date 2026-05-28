@@ -6,6 +6,8 @@ require "json"
 require "securerandom"
 require "time"
 
+require_relative "../spec/support/llm_cost_tracker_reset"
+
 adapter = ENV.fetch("LCT_SMOKE_ADAPTER")
 
 case adapter
@@ -68,7 +70,7 @@ def reset_models!
     LlmCostTracker::Ingestion::Lease,
     LlmCostTracker::CallRollup
   ].each(&:reset_column_information)
-  LlmCostTracker::Ingestion::Worker.reset!
+  LlmCostTrackerReset.call
 end
 
 def create_schema!
@@ -299,7 +301,7 @@ begin
     adapter != "trilogy" || LlmCostTracker::Ledger::Schema::Adapter.mysql?(ActiveRecord::Base.connection)
   end
 
-  LlmCostTracker.reset_configuration!
+  LlmCostTrackerReset.call
   LlmCostTracker.configure do |config|
     config.ingestion = :async
     config.cache_rollups = true

@@ -48,7 +48,7 @@ RSpec.describe LlmCostTracker::Parsers do
       expect(described_class.find_for_provider("INTERNAL_GATEWAY"))
         .to be_a(LlmCostTracker::Providers::OpenaiCompatible::Parser)
 
-      LlmCostTracker.reset_configuration!
+      LlmCostTrackerReset.call
       LlmCostTracker.configure do |config|
         config.openai_compatible_providers["llm.example.com"] = "other_gateway"
       end

@@ -15,14 +15,6 @@ module LlmCostTracker
           @pool || MUTEX.synchronize { @pool ||= connect! }
         end
 
-        def reset!
-          MUTEX.synchronize do
-            @pool&.disconnect!
-            @pool = nil
-            @handler = nil
-          end
-        end
-
         private
 
         def connect!

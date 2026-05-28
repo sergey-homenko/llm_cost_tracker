@@ -63,17 +63,6 @@ module LlmCostTracker
       config
     end
 
-    def reset_configuration!
-      Ingestion::Worker.shutdown!(drain: false)
-      Ingestion::Pool.reset!
-      @configuration = Configuration.new
-      Pricing.reset_caches!
-      Pricing::Unknown.reset!
-      Ingestion::Worker.reset!
-      Tags::Context.clear!
-      Dashboard::SetupState.reset!
-    end
-
     def with_tags(tags = nil, **kwargs, &)
       Tags::Context.with((tags || {}).merge(kwargs), &)
     end

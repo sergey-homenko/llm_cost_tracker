@@ -933,7 +933,7 @@ RSpec.describe LlmCostTracker::Pricing do
         cost_for(provider: "custom", model: "cached-model", input_tokens: 1_000_000, output_tokens: 0)
       ).to include(input_cost: 1.0)
 
-      LlmCostTracker.reset_configuration!
+      LlmCostTrackerReset.call
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
           "custom/cached-model" => { "input" => 3.0, "output" => 4.0 }
