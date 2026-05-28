@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "ledger"
-require_relative "doctor/check"
+require_relative "check"
 require_relative "doctor/probe"
 require_relative "doctor/ingestion_check"
 require_relative "doctor/price_check"

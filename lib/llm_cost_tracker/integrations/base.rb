@@ -3,7 +3,7 @@
 require "active_support/core_ext/hash/indifferent_access"
 require "active_support/core_ext/string/inflections"
 
-require_relative "../doctor/check"
+require_relative "../check"
 require_relative "../logging"
 require_relative "../timing"
 require_relative "../capture/stream_collector"
@@ -12,7 +12,7 @@ require_relative "../capture/stream_tracker"
 module LlmCostTracker
   module Integrations
     module Base
-      Result = LlmCostTracker::Doctor::Check
+      Result = LlmCostTracker::Check
 
       def integration_name
         @integration_name ||= name.demodulize.underscore.to_sym

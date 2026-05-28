@@ -3,6 +3,7 @@
 require "securerandom"
 
 require_relative "errors"
+require_relative "check"
 require_relative "ledger"
 require_relative "ingestion/lease_claim"
 require_relative "ingestion/pool"
@@ -51,7 +52,7 @@ module LlmCostTracker
       def verify
         unless LlmCostTracker::Call.table_exists?
           return [
-            LlmCostTracker::Doctor::Check.new(
+            LlmCostTracker::Check.new(
               :error,
               "active_record",
               "llm_cost_tracker_calls table is missing; run install generator and migrate"
@@ -61,7 +62,7 @@ module LlmCostTracker
 
         [capture_check]
       rescue StandardError => e
-        [LlmCostTracker::Doctor::Check.new(:error, "active_record", "#{e.class}: #{e.message}")]
+        [LlmCostTracker::Check.new(:error, "active_record", "#{e.class}: #{e.message}")]
       end
 
       private
@@ -84,17 +85,17 @@ module LlmCostTracker
 
         return capture_success if persisted && notifications.any?
 
-        LlmCostTracker::Doctor::Check.new(
+        LlmCostTracker::Check.new(
           :error,
           "active_record capture",
           capture_failure_message(persisted, notifications)
         )
       rescue LlmCostTracker::BudgetExceededError => e
-        LlmCostTracker::Doctor::Check.new(:error, "active_record capture", "blocked by budget guardrail: #{e.message}")
+        LlmCostTracker::Check.new(:error, "active_record capture", "blocked by budget guardrail: #{e.message}")
       rescue LlmCostTracker::Error => e
-        LlmCostTracker::Doctor::Check.new(:error, "active_record capture", e.message)
+        LlmCostTracker::Check.new(:error, "active_record capture", e.message)
       rescue StandardError => e
-        LlmCostTracker::Doctor::Check.new(:error, "active_record capture", "#{e.class}: #{e.message}")
+        LlmCostTracker::Check.new(:error, "active_record capture", "#{e.class}: #{e.message}")
       ensure
         cleanup_verification_call(response_id) if response_id
         cleanup_verification_inbox(event: event, response_id: response_id)
@@ -109,7 +110,7 @@ module LlmCostTracker
 
       def capture_success
         path = async? ? "async inbox" : "inline writer"
-        LlmCostTracker::Doctor::Check.new(
+        LlmCostTracker::Check.new(
           :ok,
           "active_record capture",
           "manual event emitted and persisted through #{path}"

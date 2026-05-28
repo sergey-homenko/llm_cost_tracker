@@ -2,7 +2,7 @@
 
 require "date"
 
-require_relative "check"
+require_relative "../check"
 
 module LlmCostTracker
   class Doctor

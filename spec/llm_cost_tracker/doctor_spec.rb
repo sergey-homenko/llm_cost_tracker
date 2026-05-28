@@ -199,9 +199,9 @@ RSpec.describe LlmCostTracker::Doctor do
   describe ".report" do
     let(:checks) do
       [
-        LlmCostTracker::Doctor::Check.new(:ok, "configuration", "enabled=true"),
-        LlmCostTracker::Doctor::Check.new(:warn, "prices", "using bundled prices"),
-        LlmCostTracker::Doctor::Check.new(:error, "llm_cost_tracker_calls", "missing")
+        LlmCostTracker::Check.new(:ok, "configuration", "enabled=true"),
+        LlmCostTracker::Check.new(:warn, "prices", "using bundled prices"),
+        LlmCostTracker::Check.new(:error, "llm_cost_tracker_calls", "missing")
       ]
     end
 
