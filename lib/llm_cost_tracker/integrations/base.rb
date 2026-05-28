@@ -12,8 +12,6 @@ require_relative "../capture/stream_tracker"
 module LlmCostTracker
   module Integrations
     module Base
-      Result = LlmCostTracker::Check
-
       def integration_name
         @integration_name ||= name.demodulize.underscore.to_sym
       end
@@ -39,15 +37,15 @@ module LlmCostTracker
         name = integration_name.to_s
         problems = version_problems + target_problems
         if problems.any?
-          return Result.new(:warn, name, "#{name} integration cannot be installed: #{problems.join('; ')}")
+          return Check.new(:warn, name, "#{name} integration cannot be installed: #{problems.join('; ')}")
         end
 
         installed = patch_targets.reject { |target| target.fetch(:optional) }.all? do |target|
           target.fetch(:constant_name).to_s.safe_constantize&.ancestors&.include?(target.fetch(:patch))
         end
-        return Result.new(:ok, name, "#{name} integration installed") if installed
+        return Check.new(:ok, name, "#{name} integration installed") if installed
 
-        Result.new(:warn, name, "#{name} integration is enabled but not installed")
+        Check.new(:warn, name, "#{name} integration is enabled but not installed")
       end
 
       def enforce_budget!(request:, provider: self.provider)

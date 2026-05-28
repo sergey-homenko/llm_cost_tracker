@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/string/inflections"
+require_relative "check"
 require_relative "errors"
 
 module LlmCostTracker
@@ -26,13 +27,13 @@ module LlmCostTracker
     end
 
     def self.checks(names = LlmCostTracker.configuration.instrumented_integrations)
-      return [Base::Result.new(:ok, "integrations", "no SDK integrations enabled")] if names.empty?
+      return [Check.new(:ok, "integrations", "no SDK integrations enabled")] if names.empty?
 
       normalize(names).map do |name|
         integration = fetch(name)
         next integration.status if integration
 
-        Base::Result.new(:warn, name.to_s, "unknown integration; check your config.instrument(...) call")
+        Check.new(:warn, name.to_s, "unknown integration; check your config.instrument(...) call")
       end
     end
 
