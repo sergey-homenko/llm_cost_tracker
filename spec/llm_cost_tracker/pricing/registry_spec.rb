@@ -15,12 +15,6 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
     $stderr = original_stderr
   end
 
-  before do
-    if described_class.instance_variable_defined?(:@file_prices_cache)
-      described_class.remove_instance_variable(:@file_prices_cache)
-    end
-  end
-
   describe ".file_metadata" do
     it "loads registry metadata from a local prices file" do
       Tempfile.create(["llm-prices", ".json"]) do |file|

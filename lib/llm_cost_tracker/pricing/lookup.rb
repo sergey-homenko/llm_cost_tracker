@@ -8,16 +8,12 @@ module LlmCostTracker
       CACHE_MISS = Object.new.freeze
       NO_MATCH = Object.new.freeze
       LOOKUP_CACHE_LIMIT = 2_048
-      PRICE_FILE_RECHECK_INTERVAL = 1.0
-      private_constant :PRICE_FILE_RECHECK_INTERVAL
 
       class << self
         def call(provider:, model:)
           provider_name = provider.to_s.presence
           model_name = model.to_s
           return nil if model_name.empty?
-
-          invalidate_cache_if_prices_file_changed!
 
           cache_key = [provider_name, model_name]
           cached = cached_lookup(cache_key)
@@ -30,59 +26,21 @@ module LlmCostTracker
 
         def reset!
           MUTEX.synchronize do
-            reset_prices_caches!(signature: nil)
-            @prices_file_last_check_at = nil
+            @prices_cache = nil
+            @lookup_cache = nil
+            @sorted_price_keys_cache = nil
+            @prices_file_mtime_iso = nil
           end
         end
 
         def prices_file_mtime_iso
-          invalidate_cache_if_prices_file_changed!
-          signature = @prices_file_signature
-          return nil unless signature
+          path = LlmCostTracker.configuration.prices_file
+          return nil unless path && File.exist?(path)
 
-          cached = @prices_file_iso_cache
-          return cached[:value] if cached && cached[:mtime] == signature
-
-          MUTEX.synchronize do
-            cached = @prices_file_iso_cache
-            return cached[:value] if cached && cached[:mtime] == signature
-
-            iso = signature.utc.iso8601
-            @prices_file_iso_cache = { mtime: signature, value: iso }.freeze
-            iso
-          end
+          @prices_file_mtime_iso ||= File.mtime(path).utc.iso8601
         end
 
         private
-
-        def invalidate_cache_if_prices_file_changed!
-          path = LlmCostTracker.configuration.prices_file
-
-          unless path
-            return if @prices_file_signature.nil?
-
-            MUTEX.synchronize { reset_prices_caches!(signature: nil) unless @prices_file_signature.nil? }
-            return
-          end
-
-          now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          last_check = @prices_file_last_check_at
-          return if last_check && (now - last_check) < PRICE_FILE_RECHECK_INTERVAL
-
-          signature = File.exist?(path) ? File.mtime(path) : nil
-          MUTEX.synchronize do
-            @prices_file_last_check_at = now
-            reset_prices_caches!(signature: signature) if @prices_file_signature != signature
-          end
-        end
-
-        def reset_prices_caches!(signature:)
-          @prices_cache = nil
-          @lookup_cache = nil
-          @sorted_price_keys_cache = nil
-          @prices_file_iso_cache = nil
-          @prices_file_signature = signature
-        end
 
         def lookup_match(provider_name:, model_name:)
           provider_model = provider_name ? "#{provider_name}/#{model_name}" : model_name

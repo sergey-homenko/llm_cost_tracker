@@ -12,5 +12,9 @@ module LlmCostTracker
     initializer "llm_cost_tracker.dashboard_setup_state" do |app|
       app.reloader.to_prepare { LlmCostTracker::Dashboard::SetupState.reset! }
     end
+
+    initializer "llm_cost_tracker.pricing_cache" do |app|
+      app.reloader.to_prepare { LlmCostTracker::Pricing.reset_caches! }
+    end
   end
 end

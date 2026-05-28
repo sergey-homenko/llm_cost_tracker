@@ -16,36 +16,22 @@ module LlmCostTracker
         "_source", "_source_version", "_fetched_at", "_updated", "_notes", "_validator_override",
         CONTEXT_THRESHOLD_KEY
       ].freeze
-      MUTEX = Mutex.new
-
       class << self
         def reset!
-          MUTEX.synchronize do
-            @builtin_prices = nil
-            @metadata = nil
-            @raw_registry = nil
-            @file_prices_cache = nil
-          end
+          @builtin_prices = nil
+          @metadata = nil
+          @raw_registry = nil
+          @file_prices = nil
         end
 
         def builtin_prices
-          cached = @builtin_prices
-          return cached if cached
-
-          MUTEX.synchronize do
-            @builtin_prices ||= normalize_price_entries(
-              raw_registry.fetch("models", {}), context: "bundled prices"
-            ).freeze
-          end
+          @builtin_prices ||= normalize_price_entries(
+            raw_registry.fetch("models", {}), context: "bundled prices"
+          ).freeze
         end
 
         def metadata
-          cached = @metadata
-          return cached if cached
-
-          MUTEX.synchronize do
-            @metadata ||= raw_registry.fetch("metadata", {}).freeze
-          end
+          @metadata ||= raw_registry.fetch("metadata", {}).freeze
         end
 
         def file_metadata(path)
@@ -64,21 +50,7 @@ module LlmCostTracker
         def file_prices(path)
           return EMPTY_PRICES unless path
 
-          cache_key = [path, File.mtime(path)]
-          cached = @file_prices_cache
-          return cached[:value] if cached && cached[:key] == cache_key
-
-          MUTEX.synchronize do
-            cached = @file_prices_cache
-            return cached[:value] if cached && cached[:key] == cache_key
-
-            registry = YAML.safe_load_file(path, aliases: false) || {}
-            value = normalize_price_entries(registry.fetch("models", registry), context: path).freeze
-            @file_prices_cache = { key: cache_key, value: value }.freeze
-            value
-          end
-        rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
-          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+          (@file_prices ||= {})[path] ||= load_file_prices(path)
         end
 
         def normalize_price_entries(table, context:)
@@ -93,6 +65,13 @@ module LlmCostTracker
         end
 
         private
+
+        def load_file_prices(path)
+          registry = YAML.safe_load_file(path, aliases: false) || {}
+          normalize_price_entries(registry.fetch("models", registry), context: path).freeze
+        rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
+          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+        end
 
         def raw_registry
           @raw_registry ||= YAML.safe_load_file(DEFAULT_PRICES_PATH, aliases: false).freeze

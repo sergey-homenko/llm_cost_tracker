@@ -22,10 +22,10 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         file.write({ "service_charges" => { "openai" => { "web_search_request" => 25.0 } } }.to_yaml)
         file.close
         described_class.file_rates(file.path)
-        expect(described_class.instance_variable_get(:@file_rates_cache)).not_to be_nil
+        expect(described_class.instance_variable_get(:@file_rates)).not_to be_nil
 
         described_class.reset!
-        expect(described_class.instance_variable_get(:@file_rates_cache)).to be_nil
+        expect(described_class.instance_variable_get(:@file_rates)).to be_nil
       end
     end
   end

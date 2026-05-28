@@ -14,45 +14,23 @@ module LlmCostTracker
       extend self
 
       EMPTY_RATES = {}.freeze
-      MUTEX = Mutex.new
 
       def reset!
-        MUTEX.synchronize do
-          @builtin_rates = nil
-          @file_rates_cache = nil
-        end
+        @builtin_rates = nil
+        @file_rates = nil
       end
 
       def builtin_rates
-        cached = @builtin_rates
-        return cached if cached
-
-        MUTEX.synchronize do
-          @builtin_rates ||= begin
-            registry = YAML.safe_load_file(Registry::DEFAULT_PRICES_PATH, aliases: false) || {}
-            rates_from_registry(registry, context: Registry::DEFAULT_PRICES_PATH).freeze
-          end
+        @builtin_rates ||= begin
+          registry = YAML.safe_load_file(Registry::DEFAULT_PRICES_PATH, aliases: false) || {}
+          rates_from_registry(registry, context: Registry::DEFAULT_PRICES_PATH).freeze
         end
       end
 
       def file_rates(path)
         return EMPTY_RATES unless path
 
-        cache_key = [path, File.mtime(path)]
-        cached = @file_rates_cache
-        return cached[:value] if cached && cached[:key] == cache_key
-
-        MUTEX.synchronize do
-          cached = @file_rates_cache
-          return cached[:value] if cached && cached[:key] == cache_key
-
-          registry = YAML.safe_load_file(path, aliases: false) || {}
-          value = rates_from_registry(registry, context: path).freeze
-          @file_rates_cache = { key: cache_key, value: value }.freeze
-          value
-        end
-      rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
-        raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+        (@file_rates ||= {})[path] ||= load_file_rates(path)
       end
 
       def rates_from_registry(registry, context:)
@@ -83,6 +61,13 @@ module LlmCostTracker
       end
 
       private
+
+      def load_file_rates(path)
+        registry = YAML.safe_load_file(path, aliases: false) || {}
+        rates_from_registry(registry, context: path).freeze
+      rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
+        raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+      end
 
       def rates_from_section(entries, currency:, context:)
         raise ArgumentError, "#{context} must be a hash" unless entries.is_a?(Hash)
