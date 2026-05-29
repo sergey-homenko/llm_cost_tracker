@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "../pricing"
-require_relative "../billing/cost_status"
 require_relative "../billing/line_item"
 require_relative "../ledger/rollups"
 require_relative "../token_usage"
@@ -24,11 +23,11 @@ module LlmCostTracker
             LlmCostTracker::Call.transaction do
               batch.each do |call|
                 examined += 1
-                outcome = recompute_for(call)
-                next unless outcome
+                calculation = recompute_for(call)
+                next unless calculation
 
-                persist!(call, outcome)
-                rollup_events << rollup_event_for(call, outcome)
+                persist!(call, calculation)
+                rollup_events << rollup_event_for(call, calculation)
                 recomputed += 1
               end
               Ledger::Rollups.increment!(rollup_events) if rollup_events.any?
@@ -45,41 +44,21 @@ module LlmCostTracker
         private
 
         def recompute_for(call)
-          token_usage = token_usage_from(call)
-          billing_items = billing_line_items_from(call)
-          cost_data, snapshot, priced = Pricing.calculate(
-            provider: call.provider, model: call.model,
-            tokens: token_usage, line_items: billing_items,
-            pricing_mode: call.pricing_mode
+          calculation = Pricing.assess(
+            provider: call.provider, model: call.model, tokens: token_usage_from(call),
+            line_items: billing_line_items_from(call), pricing_mode: call.pricing_mode,
+            usage_source: call.usage_source
           )
-          return nil unless cost_data
-
-          full_cost = Pricing.combine_with_service_lines(cost_data, priced)
-          total_cost = full_cost.total
-          return nil if total_cost.nil?
-
-          {
-            snapshot: snapshot,
-            priced_line_items: priced,
-            total_cost: total_cost,
-            cost_status: Billing::CostStatus.call(
-              token_usage: token_usage,
-              usage_source: call.usage_source,
-              token_cost: cost_data,
-              token_pricing_partial: Pricing.token_pricing_partial?(token_usage, cost_data),
-              service_line_items: priced.reject(&:token?),
-              total_cost: total_cost
-            )
-          }
+          calculation if calculation.token_cost
         end
 
-        def persist!(call, outcome)
+        def persist!(call, calculation)
           call.update!(
-            total_cost: outcome[:total_cost],
-            pricing_snapshot: outcome[:snapshot],
-            cost_status: outcome[:cost_status]
+            total_cost: calculation.cost.total,
+            pricing_snapshot: calculation.snapshot,
+            cost_status: calculation.cost_status
           )
-          call.line_items.to_a.zip(outcome[:priced_line_items]).each do |record, priced|
+          call.line_items.to_a.zip(calculation.priced_line_items).each do |record, priced|
             next if priced.nil?
 
             record.update!(
@@ -95,12 +74,12 @@ module LlmCostTracker
           end
         end
 
-        def rollup_event_for(call, outcome)
+        def rollup_event_for(call, calculation)
           RollupEvent.new(
             provider: call.provider,
             tracked_at: call.tracked_at,
-            pricing_snapshot: outcome[:snapshot],
-            total_cost: outcome[:total_cost]
+            pricing_snapshot: calculation.snapshot,
+            total_cost: calculation.cost.total
           )
         end
 

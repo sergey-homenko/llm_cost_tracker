@@ -6,7 +6,6 @@ require "securerandom"
 require_relative "ingestion"
 require_relative "ledger"
 require_relative "pricing"
-require_relative "billing/cost_status"
 
 module LlmCostTracker
   class Tracker
@@ -17,24 +16,24 @@ module LlmCostTracker
         return unless LlmCostTracker.configuration.enabled
 
         pricing_mode = Pricing::Mode.normalize(pricing_mode) || event.pricing_mode
-        cost_data, pricing_snapshot, priced_line_items = Pricing.calculate(
+        calculation = Pricing.assess(
           provider: event.provider,
           model: event.model,
           tokens: event.token_usage,
           line_items: event.line_items,
-          pricing_mode: pricing_mode
+          pricing_mode: pricing_mode,
+          usage_source: event.usage_source
         )
 
-        if cost_data.nil? && event.token_usage.total_tokens.positive? && priced_line_items.none?(&:priced?)
+        if calculation.token_cost.nil? && event.token_usage.total_tokens.positive? &&
+           calculation.priced_line_items.none?(&:priced?)
           Pricing::Unknown.process(event.model)
         end
 
         event = build_event(
           event: event,
           pricing_mode: pricing_mode,
-          cost_data: cost_data,
-          pricing_snapshot: pricing_snapshot,
-          line_items: priced_line_items,
+          calculation: calculation,
           metadata: metadata,
           latency_ms: latency_ms,
           context_tags: context_tags
@@ -64,29 +63,18 @@ module LlmCostTracker
         Logging.warn("Subscriber raised on #{EVENT_NAME}: #{e.class}: #{e.message}")
       end
 
-      def build_event(event:, pricing_mode:, cost_data:, pricing_snapshot:, line_items:,
-                      metadata:, latency_ms:, context_tags:)
+      def build_event(event:, pricing_mode:, calculation:, metadata:, latency_ms:, context_tags:)
         context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
-        cost = Pricing.combine_with_service_lines(cost_data, line_items)
-        cost_status = Billing::CostStatus.call(
-          token_usage: event.token_usage,
-          usage_source: event.usage_source,
-          token_cost: cost_data,
-          token_pricing_partial: Pricing.token_pricing_partial?(event.token_usage, cost_data),
-          service_line_items: line_items.reject(&:token?),
-          total_cost: cost&.total
-        )
-
         event.with(
           event_id: SecureRandom.uuid,
           pricing_mode: pricing_mode,
-          cost: cost,
+          cost: calculation.cost,
           tags: build_tags(context_tags: context_tags, metadata: metadata),
           latency_ms: finite_latency_ms(latency_ms),
           tracked_at: Time.now.utc,
-          cost_status: cost_status,
-          pricing_snapshot: pricing_snapshot,
-          line_items: line_items
+          cost_status: calculation.cost_status,
+          pricing_snapshot: calculation.snapshot,
+          line_items: calculation.priced_line_items
         )
       end
 

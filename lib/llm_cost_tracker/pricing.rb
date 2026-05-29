@@ -7,6 +7,7 @@ require "time"
 require_relative "version"
 require_relative "token_usage"
 require_relative "billing/cost"
+require_relative "billing/cost_status"
 require_relative "pricing/registry"
 require_relative "pricing/lookup"
 require_relative "pricing/effective_prices"
@@ -20,17 +21,18 @@ module LlmCostTracker
     private_constant :RATE_DENOMINATOR_TOKENS
 
     class Calculation
-      def self.assess(provider:, model:, tokens:, pricing_mode:, line_items: [])
+      def self.assess(provider:, model:, tokens:, pricing_mode:, line_items: [], usage_source: nil)
         new(provider: provider, model: model, token_usage: TokenUsage.build_from_tokens(tokens),
-            line_items: line_items, mode: Mode.normalize(pricing_mode))
+            line_items: line_items, mode: Mode.normalize(pricing_mode), usage_source: usage_source)
       end
 
-      def initialize(provider:, model:, token_usage:, line_items:, mode:)
+      def initialize(provider:, model:, token_usage:, line_items:, mode:, usage_source: nil)
         @provider = provider
         @model = model
         @token_usage = token_usage
         @line_items = line_items
         @mode = mode
+        @usage_source = usage_source
       end
 
       attr_reader :mode
@@ -65,6 +67,23 @@ module LlmCostTracker
         return @snapshot if defined?(@snapshot)
 
         @snapshot = priceable? ? build_snapshot : nil
+      end
+
+      def cost
+        return @cost if defined?(@cost)
+
+        @cost = combine_service_lines
+      end
+
+      def cost_status
+        @cost_status ||= Billing::CostStatus.call(
+          token_usage: @token_usage,
+          usage_source: @usage_source,
+          token_cost: token_cost,
+          token_pricing_partial: token_pricing_partial?,
+          service_line_items: priced_line_items.reject(&:token?),
+          total_cost: cost&.total
+        )
       end
 
       private
@@ -197,36 +216,10 @@ module LlmCostTracker
             component.unit == line_item.unit
         end
       end
-    end
-    private_constant :Calculation
 
-    class << self
-      def reset_caches!
-        Lookup.reset!
-        Registry.reset!
-        ServiceCharges.reset!
-      end
-
-      def cost_for(provider:, model:, tokens:, pricing_mode: nil)
-        Calculation.assess(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode).token_cost
-      end
-
-      def calculate(provider:, model:, tokens:, line_items:, pricing_mode: nil)
-        calculation = Calculation.assess(provider: provider, model: model, tokens: tokens,
-                                         line_items: line_items, pricing_mode: pricing_mode)
-        [calculation.token_cost, calculation.snapshot, calculation.priced_line_items]
-      end
-
-      def explain(provider:, model:, tokens:, pricing_mode: nil)
-        calculation = Calculation.assess(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
-        Explanation.from_lookup(
-          provider: provider, model: model,
-          match: calculation.match, mode: calculation.mode, effective: calculation.effective
-        )
-      end
-
-      def combine_with_service_lines(cost, line_items)
-        priced_services = line_items.reject(&:token?).select(&:priced?)
+      def combine_service_lines
+        cost = token_cost
+        priced_services = priced_line_items.reject(&:token?).select(&:priced?)
         return cost if priced_services.empty?
 
         base_currency = base_currency_for(cost, priced_services)
@@ -241,29 +234,6 @@ module LlmCostTracker
         )
       end
 
-      def token_pricing_partial?(token_usage, token_cost)
-        return false unless token_cost
-
-        token_usage.priced_quantities.any? do |key, quantity|
-          next false unless quantity.positive?
-
-          token_cost.components[Billing::Components::BY_KEY.fetch(key).cost_key].nil?
-        end
-      end
-
-      def source_version_for(source)
-        case source
-        when "bundled"
-          LlmCostTracker::VERSION
-        when "prices_file"
-          Lookup.prices_file_mtime_iso
-        when "pricing_overrides"
-          "configuration"
-        end
-      end
-
-      private
-
       def base_currency_for(cost, priced_services)
         cost&.currency || priced_services.first.currency || Billing::DEFAULT_CURRENCY
       end
@@ -275,6 +245,53 @@ module LlmCostTracker
           "#{lines.size} priced line(s) in #{currencies.join(', ')} from header total. " \
           "Per-line costs are still recorded; header total reflects #{base_currency} only."
         )
+      end
+
+      def token_pricing_partial?
+        return false unless token_cost
+
+        @token_usage.priced_quantities.any? do |key, quantity|
+          next false unless quantity.positive?
+
+          token_cost.components[Billing::Components::BY_KEY.fetch(key).cost_key].nil?
+        end
+      end
+    end
+    private_constant :Calculation
+
+    class << self
+      def reset_caches!
+        Lookup.reset!
+        Registry.reset!
+        ServiceCharges.reset!
+      end
+
+      def assess(provider:, model:, tokens:, line_items: [], pricing_mode: nil, usage_source: nil)
+        Calculation.assess(provider: provider, model: model, tokens: tokens, line_items: line_items,
+                           pricing_mode: pricing_mode, usage_source: usage_source)
+      end
+
+      def cost_for(provider:, model:, tokens:, pricing_mode: nil)
+        assess(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode).token_cost
+      end
+
+      def explain(provider:, model:, tokens:, pricing_mode: nil)
+        calculation = assess(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
+        Explanation.from_lookup(
+          provider: provider, model: model,
+          match: calculation.match, mode: calculation.mode, effective: calculation.effective
+        )
+      end
+
+      def source_version_for(source)
+        case source
+        when "bundled"
+          LlmCostTracker::VERSION
+        when "prices_file"
+          Lookup.prices_file_mtime_iso
+        when "pricing_overrides"
+          "configuration"
+        end
       end
     end
   end
