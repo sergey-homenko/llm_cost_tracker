@@ -92,7 +92,6 @@ module LlmCostTracker
           service_line_items: service_line_items
         ),
         latency_ms: latency_ms,
-        pricing_mode: pricing_mode,
         metadata: tags
       )
     end
