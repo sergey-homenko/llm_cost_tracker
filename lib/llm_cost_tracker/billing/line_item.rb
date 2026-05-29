@@ -122,18 +122,16 @@ module LlmCostTracker
       end
 
       def with_rate(rate)
-        rate_amount = rate.fetch(:amount)
-        rate_quantity = rate.fetch(:quantity)
-        applied_cost = (quantity / rate_quantity) * rate_amount
+        applied_cost = (quantity / rate.quantity) * rate.amount
         with(
-          rate_amount: rate_amount,
-          rate_quantity: rate_quantity,
+          rate_amount: rate.amount,
+          rate_quantity: rate.quantity,
           cost: applied_cost,
-          currency: rate.fetch(:currency).upcase,
+          currency: rate.currency.upcase,
           cost_status: applied_cost.zero? ? CostStatus::FREE : CostStatus::COMPLETE,
-          price_key: rate.fetch(:source_key),
-          price_source: rate.fetch(:source),
-          price_source_version: rate.fetch(:source_version)
+          price_key: rate.source_key,
+          price_source: rate.source,
+          price_source_version: rate.source_version
         )
       end
 

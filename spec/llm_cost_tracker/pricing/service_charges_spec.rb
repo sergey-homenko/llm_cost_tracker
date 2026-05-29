@@ -299,14 +299,14 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
         rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: nil)
 
-        expect(rate).to include(
+        expect(rate).to have_attributes(
           amount: BigDecimal("10.0"),
           quantity: BigDecimal("1000"),
           currency: "USD",
           source: "prices_file",
           source_key: "service_charges.openai.web_search_request"
         )
-        expect(rate.fetch(:source_version)).to be_a(String)
+        expect(rate.source_version).to be_a(String)
       end
     end
 
@@ -328,7 +328,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
         rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: :priority)
 
-        expect(rate).to include(
+        expect(rate).to have_attributes(
           amount: BigDecimal("12.0"),
           source_key: "service_charges.openai.priority_web_search_request"
         )
@@ -349,7 +349,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
         rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: nil)
 
-        expect(rate).to include(amount: BigDecimal("10.0"), currency: "EUR", source: "prices_file")
+        expect(rate).to have_attributes(amount: BigDecimal("10.0"), currency: "EUR", source: "prices_file")
       end
     end
 
@@ -372,7 +372,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
                                            pricing_mode: :batch_data_residency)
 
-        expect(rate).to include(
+        expect(rate).to have_attributes(
           amount: BigDecimal("8.0"),
           source_key: "service_charges.openai.batch_web_search_request"
         )
@@ -397,7 +397,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
                                            pricing_mode: :batch_data_residency)
 
-        expect(rate).to include(
+        expect(rate).to have_attributes(
           amount: BigDecimal("10.0"),
           source_key: "service_charges.openai.web_search_request"
         )
@@ -423,7 +423,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
                                            pricing_mode: :batch_data_residency)
 
-        expect(rate).to include(
+        expect(rate).to have_attributes(
           amount: BigDecimal("10.0"),
           source_key: "service_charges.openai.web_search_request"
         )
@@ -447,7 +447,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
       rate = described_class.charge_rate(provider: "anthropic", component: "web_search_request", pricing_mode: nil)
 
-      expect(rate).to include(
+      expect(rate).to have_attributes(
         amount: BigDecimal("5.0"),
         quantity: BigDecimal("1000"),
         source: "bundled",
@@ -473,7 +473,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
 
       rate = described_class.charge_rate(provider: :anthropic, component: "web_search_request", pricing_mode: nil)
 
-      expect(rate).to include(source: "bundled")
+      expect(rate).to have_attributes(source: "bundled")
     end
 
     it "rejects unknown billing components" do

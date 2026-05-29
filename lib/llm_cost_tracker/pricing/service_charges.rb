@@ -4,6 +4,7 @@ require "active_support/core_ext/object/blank"
 require "bigdecimal"
 
 require_relative "../billing/components"
+require_relative "../billing/rate"
 require_relative "registry"
 
 module LlmCostTracker
@@ -47,14 +48,14 @@ module LlmCostTracker
         return nil unless match
 
         rate = match.fetch(:rate)
-        {
+        Billing::Rate.new(
           amount: rate.fetch(:amount),
           quantity: rate.fetch(:quantity),
           currency: rate.fetch(:currency),
           source: match.fetch(:source),
           source_key: match.fetch(:key),
           source_version: Pricing.source_version_for(match.fetch(:source))
-        }
+        )
       end
 
       private

@@ -246,14 +246,14 @@ module LlmCostTracker
         return nil unless amount.is_a?(Numeric)
 
         component = Billing::Components::BY_KEY[line_item.kind]
-        {
+        Billing::Rate.new(
           amount: BigDecimal(amount.to_s),
           quantity: BigDecimal(Billing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis).to_s),
           currency: match.currency,
           source: match.source,
           source_key: "#{match.key}.#{line_item.kind}",
           source_version: source_version_for(match.source)
-        }
+        )
       end
 
       def component_for_line_item(line_item)
