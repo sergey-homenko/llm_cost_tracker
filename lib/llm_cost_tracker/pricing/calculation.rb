@@ -102,7 +102,11 @@ module LlmCostTracker
         return BigDecimal("0") if tokens.zero?
         return nil if per_million_price.nil?
 
-        (BigDecimal(tokens.to_s) * BigDecimal(per_million_price.to_s)) / RATE_DENOMINATOR_TOKENS
+        cost_of_tokens(tokens, per_million_price)
+      end
+
+      def cost_of_tokens(quantity, price)
+        (BigDecimal(quantity.to_s) * BigDecimal(price.to_s)) / RATE_DENOMINATOR_TOKENS
       end
 
       def build_token_cost
@@ -154,7 +158,7 @@ module LlmCostTracker
         price = effective[component.key]
         return line_item.with(cost_status: Billing::CostStatus::UNKNOWN) if price.nil?
 
-        cost = (line_item.quantity * BigDecimal(price.to_s)) / RATE_DENOMINATOR_TOKENS
+        cost = cost_of_tokens(line_item.quantity, price)
         line_item.with(
           rate_amount: BigDecimal(price.to_s),
           rate_quantity: BigDecimal(RATE_DENOMINATOR_TOKENS),
