@@ -75,8 +75,7 @@ module LlmCostTracker
               provider_workspace_id: nil, pricing_mode: nil, service_line_items: [])
       if enforce_budget
         cost_data = Pricing.cost_for(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
-        estimate = cost_data && BigDecimal(cost_data[:total_cost].to_s)
-        Budget.enforce!(provider: provider, model: model, estimate: estimate, force: true)
+        Budget.enforce!(provider: provider, model: model, estimate: cost_data&.total, force: true)
       end
 
       Tracker.record(

@@ -84,6 +84,17 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.total_cost).to be_a(BigDecimal)
   end
 
+  it "reads a legacy flat cost payload through the format transition" do
+    row = described_class.send(:row_for, event)
+    payload = JSON.parse(row.fetch(:payload)).merge(
+      "cost" => { "input_cost" => "0.10", "output_cost" => "0.20", "total_cost" => "0.30", "currency" => "USD" }
+    )
+    restored = described_class.event_from_row(row_class.new(JSON.generate(payload)))
+
+    expect(restored.total_cost).to eq(BigDecimal("0.30"))
+    expect(restored.cost.components.fetch(:input_cost)).to eq(BigDecimal("0.10"))
+  end
+
   it "rejects payloads from older schema versions" do
     row = described_class.send(:row_for, event)
     payload = JSON.parse(row.fetch(:payload)).merge("schema_version" => 1)

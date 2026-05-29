@@ -55,7 +55,7 @@ module LlmCostTracker
 
           attributes
             .merge(event.token_usage.to_h)
-            .merge(Pricing.stored_cost_attributes(event.cost || {}))
+            .merge(total_cost: event.cost&.total)
         end
 
         def call_ids_for(events)

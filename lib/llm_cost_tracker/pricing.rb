@@ -36,7 +36,7 @@ module LlmCostTracker
         )
         return nil unless calculation
 
-        cost_from(calculation).to_h
+        cost_from(calculation)
       end
 
       def calculate(provider:, model:, tokens:, line_items:, pricing_mode: nil)
@@ -59,13 +59,6 @@ module LlmCostTracker
           provider: provider, model: model,
           match: computed.match, mode: computed.mode, effective: computed.effective
         )
-      end
-
-      def stored_cost_attributes(attributes)
-        value = attributes.to_h[:total_cost]
-        return {} if value.nil?
-
-        { total_cost: value.is_a?(BigDecimal) ? value : BigDecimal(value.to_s) }
       end
 
       def combine_with_service_lines(cost, line_items)

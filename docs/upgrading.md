@@ -80,6 +80,15 @@ The engine no longer adds `:tag` / `:tag_value` to
 relying on that side effect to redact tag values in Rails request logs, add
 the entries to your own initializer; otherwise no change is required.
 
+### Recommended for `ingestion: :async` rolling deploys: drain the inbox first
+
+The serialized event `cost` payload changed shape this release. A worker still
+running the previous version cannot parse a payload written by v0.12 and will
+quarantine those inbox rows (quarantined rows are not retried). A stop/start
+deploy avoids this entirely; on a rolling deploy, drain the async inbox — or
+stop the old workers — before booting v0.12 workers. v0.12 workers read both
+the old and new payload, so rows written before the upgrade ingest normally.
+
 ## v0.10 → v0.11
 
 v0.11 is a dashboard-UX release: sortable column headers replace the

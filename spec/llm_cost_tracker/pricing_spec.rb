@@ -55,22 +55,6 @@ RSpec.describe LlmCostTracker::Pricing do
     end
   end
 
-  describe ".stored_cost_attributes" do
-    it "returns the persisted total_cost as BigDecimal regardless of input type" do
-      from_decimal = described_class.stored_cost_attributes(total_cost: BigDecimal("0.27"))
-      from_string = described_class.stored_cost_attributes(total_cost: "0.0001234567890123456789")
-      from_float = described_class.stored_cost_attributes(total_cost: 0.27)
-
-      expect(from_decimal[:total_cost]).to be_a(BigDecimal).and eq(BigDecimal("0.27"))
-      expect(from_string[:total_cost]).to be_a(BigDecimal).and eq(BigDecimal("0.0001234567890123456789"))
-      expect(from_float[:total_cost]).to be_a(BigDecimal).and eq(BigDecimal("0.27"))
-    end
-
-    it "returns an empty hash when total_cost is missing" do
-      expect(described_class.stored_cost_attributes(input_cost: 0.01)).to eq({})
-    end
-  end
-
   describe ".cost_for" do
     it "calculates cost for a known model" do
       result = cost_for(
@@ -80,10 +64,10 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 500
       )
 
-      expect(result).to be_a(Hash)
-      expect(result.fetch(:input_cost)).to be > 0
-      expect(result.fetch(:output_cost)).to be > 0
-      expect(result.fetch(:total_cost)).to eq(result.fetch(:input_cost) + result.fetch(:output_cost))
+      expect(result).to be_a(LlmCostTracker::Billing::Cost)
+      expect(result.components.fetch(:input_cost)).to be > 0
+      expect(result.components.fetch(:output_cost)).to be > 0
+      expect(result.total).to eq(result.components.fetch(:input_cost) + result.components.fetch(:output_cost))
     end
 
     it "calculates Groq GPT OSS cached token costs" do
@@ -95,10 +79,10 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000_000
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.075)
-      expect(result.fetch(:cache_read_input_cost)).to eq(0.0375)
-      expect(result.fetch(:output_cost)).to eq(0.3)
-      expect(result.fetch(:total_cost)).to eq(0.4125)
+      expect(result.components.fetch(:input_cost)).to eq(0.075)
+      expect(result.components.fetch(:cache_read_input_cost)).to eq(0.0375)
+      expect(result.components.fetch(:output_cost)).to eq(0.3)
+      expect(result.total).to eq(0.4125)
     end
 
     it "prices OpenAI Realtime audio tokens separately from text tokens" do
@@ -112,12 +96,12 @@ RSpec.describe LlmCostTracker::Pricing do
         audio_output_tokens: 1_000_000
       )
 
-      expect(result.fetch(:input_cost)).to eq(4.0)
-      expect(result.fetch(:cache_read_input_cost)).to eq(0.4)
-      expect(result.fetch(:audio_input_cost)).to eq(32.0)
-      expect(result.fetch(:output_cost)).to eq(16.0)
-      expect(result.fetch(:audio_output_cost)).to eq(64.0)
-      expect(result.fetch(:total_cost)).to eq(116.4)
+      expect(result.components.fetch(:input_cost)).to eq(4.0)
+      expect(result.components.fetch(:cache_read_input_cost)).to eq(0.4)
+      expect(result.components.fetch(:audio_input_cost)).to eq(32.0)
+      expect(result.components.fetch(:output_cost)).to eq(16.0)
+      expect(result.components.fetch(:audio_output_cost)).to eq(64.0)
+      expect(result.total).to eq(116.4)
     end
 
     it "prices OpenAI audio model tokens separately from text tokens" do
@@ -130,11 +114,11 @@ RSpec.describe LlmCostTracker::Pricing do
         audio_output_tokens: 1_000_000
       )
 
-      expect(result.fetch(:input_cost)).to eq(2.5)
-      expect(result.fetch(:audio_input_cost)).to eq(32.0)
-      expect(result.fetch(:output_cost)).to eq(10.0)
-      expect(result.fetch(:audio_output_cost)).to eq(64.0)
-      expect(result.fetch(:total_cost)).to eq(108.5)
+      expect(result.components.fetch(:input_cost)).to eq(2.5)
+      expect(result.components.fetch(:audio_input_cost)).to eq(32.0)
+      expect(result.components.fetch(:output_cost)).to eq(10.0)
+      expect(result.components.fetch(:audio_output_cost)).to eq(64.0)
+      expect(result.total).to eq(108.5)
     end
 
     it "prices Gemini audio input tokens separately from text tokens" do
@@ -146,10 +130,10 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000_000
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.3)
-      expect(result.fetch(:audio_input_cost)).to eq(1.0)
-      expect(result.fetch(:output_cost)).to eq(2.5)
-      expect(result.fetch(:total_cost)).to eq(3.8)
+      expect(result.components.fetch(:input_cost)).to eq(0.3)
+      expect(result.components.fetch(:audio_input_cost)).to eq(1.0)
+      expect(result.components.fetch(:output_cost)).to eq(2.5)
+      expect(result.total).to eq(3.8)
     end
 
     it "calculates Groq flex costs at on-demand token rates" do
@@ -161,9 +145,9 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000_000
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.59)
-      expect(result.fetch(:output_cost)).to eq(0.79)
-      expect(result.fetch(:total_cost)).to eq(1.38)
+      expect(result.components.fetch(:input_cost)).to eq(0.59)
+      expect(result.components.fetch(:output_cost)).to eq(0.79)
+      expect(result.total).to eq(1.38)
     end
 
     it "keeps Groq provisioned performance pricing unknown" do
@@ -201,7 +185,7 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result.fetch(:input_cost)).to eq(1.0)
+      expect(result.components.fetch(:input_cost)).to eq(1.0)
     end
 
     it "matches provider-prefixed model names from gateways" do
@@ -216,7 +200,7 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.1)
+      expect(result.components.fetch(:input_cost)).to eq(0.1)
     end
 
     it "matches unique provider-qualified prices for gateway model names" do
@@ -231,7 +215,7 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.1)
+      expect(result.components.fetch(:input_cost)).to eq(0.1)
     end
 
     it "does not match ambiguous provider-qualified prices by model name alone" do
@@ -267,7 +251,7 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.5)
+      expect(result.components.fetch(:input_cost)).to eq(0.5)
     end
 
     it "does not fuzzy-match unknown model families to older prices" do
@@ -312,9 +296,9 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.15)
-      expect(result.fetch(:cache_read_input_cost)).to eq(0.01)
-      expect(result.fetch(:total_cost)).to eq(0.16)
+      expect(result.components.fetch(:input_cost)).to eq(0.15)
+      expect(result.components.fetch(:cache_read_input_cost)).to eq(0.01)
+      expect(result.total).to eq(0.16)
     end
 
     it "prices cache read and write tokens separately and sums into total" do
@@ -338,14 +322,14 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 10_000
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.3)
-      expect(result.fetch(:cache_read_input_cost)).to eq(0.06)
-      expect(result.fetch(:cache_write_input_cost)).to eq(1.125)
-      expect(result.fetch(:cache_write_extended_input_cost)).to eq(0.0)
-      expect(result.fetch(:output_cost)).to eq(0.15)
-      expect(result.fetch(:total_cost)).to be_within(0.0001).of(
-        result.fetch(:input_cost) + result.fetch(:cache_read_input_cost) +
-          result.fetch(:cache_write_input_cost) + result.fetch(:cache_write_extended_input_cost) + result.fetch(:output_cost)
+      expect(result.components.fetch(:input_cost)).to eq(0.3)
+      expect(result.components.fetch(:cache_read_input_cost)).to eq(0.06)
+      expect(result.components.fetch(:cache_write_input_cost)).to eq(1.125)
+      expect(result.components.fetch(:cache_write_extended_input_cost)).to eq(0.0)
+      expect(result.components.fetch(:output_cost)).to eq(0.15)
+      expect(result.total).to be_within(0.0001).of(
+        result.components.fetch(:input_cost) + result.components.fetch(:cache_read_input_cost) +
+          result.components.fetch(:cache_write_input_cost) + result.components.fetch(:cache_write_extended_input_cost) + result.components.fetch(:output_cost)
       )
     end
 
@@ -370,9 +354,9 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result.fetch(:cache_write_input_cost)).to eq(1.125)
-      expect(result.fetch(:cache_write_extended_input_cost)).to eq(0.6)
-      expect(result.fetch(:total_cost)).to eq(1.725)
+      expect(result.components.fetch(:cache_write_input_cost)).to eq(1.125)
+      expect(result.components.fetch(:cache_write_extended_input_cost)).to eq(0.6)
+      expect(result.total).to eq(1.725)
     end
 
     it "derives batch cache rates from the batch input discount when the provider stacks modifiers" do
@@ -401,12 +385,12 @@ RSpec.describe LlmCostTracker::Pricing do
         pricing_mode: :batch
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.15)
-      expect(result.fetch(:cache_read_input_cost)).to eq(0.015)
-      expect(result.fetch(:cache_write_input_cost)).to eq(0.1875)
-      expect(result.fetch(:cache_write_extended_input_cost)).to eq(0.3)
-      expect(result.fetch(:output_cost)).to eq(0.75)
-      expect(result.fetch(:total_cost)).to eq(1.4025)
+      expect(result.components.fetch(:input_cost)).to eq(0.15)
+      expect(result.components.fetch(:cache_read_input_cost)).to eq(0.015)
+      expect(result.components.fetch(:cache_write_input_cost)).to eq(0.1875)
+      expect(result.components.fetch(:cache_write_extended_input_cost)).to eq(0.3)
+      expect(result.components.fetch(:output_cost)).to eq(0.75)
+      expect(result.total).to eq(1.4025)
     end
 
     it "derives cache rates for any mode with a documented input multiplier" do
@@ -433,11 +417,11 @@ RSpec.describe LlmCostTracker::Pricing do
         pricing_mode: :data_residency
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.33)
-      expect(result.fetch(:cache_read_input_cost)).to eq(0.033)
-      expect(result.fetch(:cache_write_input_cost)).to eq(0.4125)
-      expect(result.fetch(:output_cost)).to eq(1.65)
-      expect(result.fetch(:total_cost)).to eq(2.4255)
+      expect(result.components.fetch(:input_cost)).to eq(0.33)
+      expect(result.components.fetch(:cache_read_input_cost)).to eq(0.033)
+      expect(result.components.fetch(:cache_write_input_cost)).to eq(0.4125)
+      expect(result.components.fetch(:output_cost)).to eq(1.65)
+      expect(result.total).to eq(2.4255)
     end
 
     it "prices priced cache components and omits the missing extended cache rate" do
@@ -460,8 +444,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result).to include(cache_write_input_cost: 0.375, total_cost: 0.375)
-      expect(result).not_to have_key(:cache_write_extended_input_cost)
+      expect(result).to have_attributes(total: 0.375, components: include(cache_write_input_cost: 0.375))
+      expect(result.components).not_to have_key(:cache_write_extended_input_cost)
     end
 
     it "treats cache writes as unknown pricing when no cache-write rate exists" do
@@ -500,8 +484,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000_000
       )
 
-      expect(result.fetch(:input_cost)).to eq(1.0)
-      expect(result.fetch(:output_cost)).to eq(2.0)
+      expect(result.components.fetch(:input_cost)).to eq(1.0)
+      expect(result.components.fetch(:output_cost)).to eq(2.0)
     end
 
     it "prices billable components when a matched price is missing a required component" do
@@ -518,8 +502,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000_000
       )
 
-      expect(result).to include(input_cost: 1.0, total_cost: 1.0)
-      expect(result).not_to have_key(:output_cost)
+      expect(result).to have_attributes(total: 1.0, components: include(input_cost: 1.0))
+      expect(result.components).not_to have_key(:output_cost)
     end
 
     it "prices zero-token missing components as zero" do
@@ -536,9 +520,9 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 0
       )
 
-      expect(result.fetch(:input_cost)).to eq(1.0)
-      expect(result.fetch(:output_cost)).to eq(0.0)
-      expect(result.fetch(:total_cost)).to eq(1.0)
+      expect(result.components.fetch(:input_cost)).to eq(1.0)
+      expect(result.components.fetch(:output_cost)).to eq(0.0)
+      expect(result.total).to eq(1.0)
     end
 
     it "uses mode-specific price keys when pricing_mode is provided" do
@@ -561,9 +545,9 @@ RSpec.describe LlmCostTracker::Pricing do
         pricing_mode: :batch
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.5)
-      expect(result.fetch(:output_cost)).to eq(1.0)
-      expect(result.fetch(:total_cost)).to eq(1.5)
+      expect(result.components.fetch(:input_cost)).to eq(0.5)
+      expect(result.components.fetch(:output_cost)).to eq(1.0)
+      expect(result.total).to eq(1.5)
     end
 
     it "prices OpenAI Priority mode from bundled rates" do
@@ -575,9 +559,9 @@ RSpec.describe LlmCostTracker::Pricing do
         pricing_mode: :priority
       )
 
-      expect(result.fetch(:input_cost)).to eq(1.25)
-      expect(result.fetch(:output_cost)).to eq(7.5)
-      expect(result.fetch(:total_cost)).to eq(8.75)
+      expect(result.components.fetch(:input_cost)).to eq(1.25)
+      expect(result.components.fetch(:output_cost)).to eq(7.5)
+      expect(result.total).to eq(8.75)
     end
 
     it "prices OpenAI regional Priority mode from bundled rates" do
@@ -589,9 +573,9 @@ RSpec.describe LlmCostTracker::Pricing do
         pricing_mode: :priority_data_residency
       )
 
-      expect(result.fetch(:input_cost)).to eq(1.375)
-      expect(result.fetch(:output_cost)).to eq(8.25)
-      expect(result.fetch(:total_cost)).to eq(9.625)
+      expect(result.components.fetch(:input_cost)).to eq(1.375)
+      expect(result.components.fetch(:output_cost)).to eq(8.25)
+      expect(result.total).to eq(9.625)
     end
 
     it "prices Anthropic fast data residency mode from bundled rates" do
@@ -603,9 +587,9 @@ RSpec.describe LlmCostTracker::Pricing do
         pricing_mode: :fast_data_residency
       )
 
-      expect(result.fetch(:input_cost)).to eq(33.0)
-      expect(result.fetch(:output_cost)).to eq(165.0)
-      expect(result.fetch(:total_cost)).to eq(198.0)
+      expect(result.components.fetch(:input_cost)).to eq(33.0)
+      expect(result.components.fetch(:output_cost)).to eq(165.0)
+      expect(result.total).to eq(198.0)
     end
 
     it "prices billable components when a positive-token pricing mode is missing a required rate" do
@@ -627,8 +611,8 @@ RSpec.describe LlmCostTracker::Pricing do
         pricing_mode: :batch
       )
 
-      expect(result).to include(input_cost: 0.5, total_cost: 0.5)
-      expect(result).not_to have_key(:output_cost)
+      expect(result).to have_attributes(total: 0.5, components: include(input_cost: 0.5))
+      expect(result.components).not_to have_key(:output_cost)
     end
 
     it "does not price unsupported pricing modes with standard rates" do
@@ -675,9 +659,9 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.06)
-      expect(result.fetch(:image_input_cost)).to eq(0.18)
-      expect(result.fetch(:output_cost)).to eq(0.004)
+      expect(result.components.fetch(:input_cost)).to eq(0.06)
+      expect(result.components.fetch(:image_input_cost)).to eq(0.18)
+      expect(result.components.fetch(:output_cost)).to eq(0.004)
     end
 
     it "uses above-context rates when input-side tokens cross the pricing threshold" do
@@ -703,10 +687,10 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 100_000
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.45)
-      expect(result.fetch(:cache_read_input_cost)).to eq(0.018)
-      expect(result.fetch(:output_cost)).to eq(0.4)
-      expect(result.fetch(:total_cost)).to eq(0.868)
+      expect(result.components.fetch(:input_cost)).to eq(0.45)
+      expect(result.components.fetch(:cache_read_input_cost)).to eq(0.018)
+      expect(result.components.fetch(:output_cost)).to eq(0.4)
+      expect(result.total).to eq(0.868)
     end
 
     it "uses above-context mode rates for batch pricing" do
@@ -739,10 +723,10 @@ RSpec.describe LlmCostTracker::Pricing do
         pricing_mode: :batch
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.3)
-      expect(result.fetch(:cache_read_input_cost)).to eq(0.012)
-      expect(result.fetch(:output_cost)).to eq(0.6)
-      expect(result.fetch(:total_cost)).to eq(0.912)
+      expect(result.components.fetch(:input_cost)).to eq(0.3)
+      expect(result.components.fetch(:cache_read_input_cost)).to eq(0.012)
+      expect(result.components.fetch(:output_cost)).to eq(0.6)
+      expect(result.total).to eq(0.912)
     end
 
     it "prices the long-context input only when the long-context output rate is missing" do
@@ -764,8 +748,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 100_000
       )
 
-      expect(result).to include(input_cost: 0.75, total_cost: 0.75)
-      expect(result).not_to have_key(:output_cost)
+      expect(result).to have_attributes(total: 0.75, components: include(input_cost: 0.75))
+      expect(result.components).not_to have_key(:output_cost)
     end
 
     it "loads local JSON pricing files ahead of built-in prices" do
@@ -786,7 +770,7 @@ RSpec.describe LlmCostTracker::Pricing do
           output_tokens: 0
         )
 
-        expect(result.fetch(:input_cost)).to eq(9.0)
+        expect(result.components.fetch(:input_cost)).to eq(9.0)
       end
     end
 
@@ -811,8 +795,8 @@ RSpec.describe LlmCostTracker::Pricing do
           output_tokens: 1_000_000
         )
 
-        expect(result.fetch(:input_cost)).to eq(1.0)
-        expect(result.fetch(:output_cost)).to eq(2.0)
+        expect(result.components.fetch(:input_cost)).to eq(1.0)
+        expect(result.components.fetch(:output_cost)).to eq(2.0)
       end
     end
 
@@ -837,8 +821,8 @@ RSpec.describe LlmCostTracker::Pricing do
           output_tokens: 1_000_000
         )
 
-        expect(result.fetch(:input_cost)).to eq(3.0)
-        expect(result.fetch(:output_cost)).to eq(4.0)
+        expect(result.components.fetch(:input_cost)).to eq(3.0)
+        expect(result.components.fetch(:output_cost)).to eq(4.0)
       end
     end
 
@@ -872,8 +856,8 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 1_000_000
       )
 
-      expect(result.fetch(:input_cost)).to eq(0.2)
-      expect(result.fetch(:output_cost)).to eq(0.9)
+      expect(result.components.fetch(:input_cost)).to eq(0.2)
+      expect(result.components.fetch(:output_cost)).to eq(0.9)
     end
   end
 
@@ -904,7 +888,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
       expect(
         cost_for(provider: "custom", model: "cached-model", input_tokens: 1_000_000, output_tokens: 0)
-      ).to include(input_cost: 1.0)
+      ).to have_attributes(components: include(input_cost: 1.0))
 
       LlmCostTrackerReset.call
       LlmCostTracker.configure do |c|
@@ -915,7 +899,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
       expect(
         cost_for(provider: "custom", model: "cached-model", input_tokens: 1_000_000, output_tokens: 0)
-      ).to include(input_cost: 3.0)
+      ).to have_attributes(components: include(input_cost: 3.0))
     end
 
     it "caches configured price files between lookups" do

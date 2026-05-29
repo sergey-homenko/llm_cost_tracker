@@ -17,7 +17,7 @@ module LlmCostTracker
           model: model,
           tokens: { input: estimated_tokens }
         )
-        cost_data && BigDecimal(cost_data[:total_cost].to_s)
+        cost_data&.total
       end
 
       def self.char_count(value)
