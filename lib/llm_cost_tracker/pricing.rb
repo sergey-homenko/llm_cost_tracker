@@ -128,15 +128,6 @@ module LlmCostTracker
 
       def snapshot_from(calculation, line_items)
         match = calculation.match
-        effective = calculation.effective
-        rates = calculation.quantities.each_with_object({}) do |(key, quantity), values|
-          price = effective[key]
-          next if quantity.zero? || price.nil?
-
-          values[key] = { amount: price, quantity: RATE_DENOMINATOR_TOKENS }
-        end
-        merge_service_charge_rates!(rates, line_items)
-
         {
           schema_version: 1,
           source: match.source,
@@ -144,16 +135,25 @@ module LlmCostTracker
           source_version: source_version_for(match.source),
           matched_by: match.matched_by,
           currency: match.currency,
-          rates: rates
+          rates: service_charge_rates(line_items).merge(token_rates(calculation))
         }
       end
 
-      def merge_service_charge_rates!(rates, line_items)
-        line_items.each do |line_item|
-          next if line_item.token? || line_item.price_key.nil? || line_item.rate_amount.nil?
-          next if rates.key?(line_item.price_key)
+      def token_rates(calculation)
+        effective = calculation.effective
+        calculation.quantities.each_with_object({}) do |(key, quantity), rates|
+          price = effective[key]
+          next if quantity.zero? || price.nil?
 
-          rates[line_item.price_key] = { amount: line_item.rate_amount, quantity: line_item.rate_quantity }
+          rates[key] = { amount: price, quantity: RATE_DENOMINATOR_TOKENS }
+        end
+      end
+
+      def service_charge_rates(line_items)
+        line_items.each_with_object({}) do |line_item, rates|
+          next if line_item.token? || line_item.price_key.nil? || line_item.rate_amount.nil?
+
+          rates[line_item.price_key] ||= { amount: line_item.rate_amount, quantity: line_item.rate_quantity }
         end
       end
 
