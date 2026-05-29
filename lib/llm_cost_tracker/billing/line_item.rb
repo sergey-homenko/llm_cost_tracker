@@ -36,7 +36,7 @@ module LlmCostTracker
           kind: attributes[:kind]&.to_s || component&.kind,
           direction: attributes[:direction]&.to_s || component&.direction,
           modality: attributes[:modality]&.to_s || component&.modality,
-          cache_state: attributes[:cache_state]&.to_s || component&.cache_state,
+          cache_state: attributes[:cache_state]&.to_s || component&.cache_state || "none",
           quantity: decimal_or_nil(attributes[:quantity]) || BigDecimal("0"),
           unit: attributes[:unit]&.to_s || component&.unit,
           rate_amount: decimal_or_nil(attributes[:rate_amount]),

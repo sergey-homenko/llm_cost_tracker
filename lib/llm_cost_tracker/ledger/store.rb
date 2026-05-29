@@ -87,7 +87,7 @@ module LlmCostTracker
             kind: line_item.kind,
             direction: line_item.direction,
             modality: line_item.modality,
-            cache_state: line_item.cache_state || "none",
+            cache_state: line_item.cache_state,
             quantity: line_item.quantity,
             unit: line_item.unit,
             rate_amount: line_item.rate_amount,
