@@ -138,9 +138,9 @@ module LlmCostTracker
 
         def line_item_details(item)
           {
-            "status" => item["status"],
-            "action_type" => item.dig("action", "type"),
-            "container_id" => item["container_id"]
+            status: item["status"],
+            action_type: item.dig("action", "type"),
+            container_id: item["container_id"]
           }.compact
         end
 

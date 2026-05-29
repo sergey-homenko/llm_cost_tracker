@@ -292,8 +292,8 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       )
       expect(service_lines.map(&:pricing_basis)).to all(eq("provider_usage"))
       expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_123 fs_123 cntr_123])
-      expect(service_lines.first.details).to include("action_type" => "search", "status" => "completed")
-      expect(service_lines.last.details).to include("container_id" => "cntr_123")
+      expect(service_lines.first.details).to include(action_type: "search", status: "completed")
+      expect(service_lines.last.details).to include(container_id: "cntr_123")
     end
 
     it "ignores non-billable OpenAI web search page actions" do
