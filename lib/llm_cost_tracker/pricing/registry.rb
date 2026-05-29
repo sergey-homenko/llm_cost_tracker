@@ -118,19 +118,12 @@ module LlmCostTracker
         end
 
         def price_key_for(key)
-          name = key.to_s
-          Billing::Components::REGISTRY.each do |candidate|
-            return candidate.key if candidate.key == name
-            next unless candidate.token_key
+          component, prefix = Billing::Components.parse_key(key)
+          return nil unless component
+          return component.key if prefix.nil?
+          return nil unless component.token_key
 
-            suffix = "_#{candidate.key}"
-            next unless name.end_with?(suffix)
-
-            prefix = name.delete_suffix(suffix)
-            return "#{prefix}_#{candidate.key}" unless prefix.empty?
-          end
-
-          nil
+          "#{prefix}_#{component.key}"
         end
 
         def registry_key_for(key)

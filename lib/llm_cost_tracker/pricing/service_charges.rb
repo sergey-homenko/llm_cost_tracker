@@ -86,19 +86,12 @@ module LlmCostTracker
       end
 
       def component_and_tier_for(key, context:)
-        Billing::Components::REGISTRY.each do |component|
-          next if component.token_key
-
-          return [component, nil] if key == component.key
-
-          suffix = "_#{component.key}"
-          next unless key.end_with?(suffix)
-
-          tier = key.delete_suffix(suffix)
-          return [component, :"#{tier}"] unless tier.empty?
+        component, prefix = Billing::Components.parse_key(key)
+        unless component && component.token_key.nil?
+          raise ArgumentError, "service charge price key #{key.inspect} in #{context} uses unknown billing component"
         end
 
-        raise ArgumentError, "service charge price key #{key.inspect} in #{context} uses unknown billing component"
+        [component, prefix&.to_sym]
       end
 
       def amount_for(key, amount, context:)

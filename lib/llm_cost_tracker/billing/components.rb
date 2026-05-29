@@ -55,6 +55,20 @@ module LlmCostTracker
         )
       end
 
+      def self.parse_key(key)
+        name = key.to_s
+        REGISTRY.each do |component|
+          return [component, nil] if component.key == name
+
+          suffix = "_#{component.key}"
+          next unless name.end_with?(suffix)
+
+          prefix = name.delete_suffix(suffix)
+          return [component, prefix] unless prefix.empty?
+        end
+        nil
+      end
+
       REGISTRY = load_registry
       BY_KEY = REGISTRY.to_h { |component| [component.key, component] }.freeze
       TOKEN_PRICED = REGISTRY.select(&:token_key).freeze
