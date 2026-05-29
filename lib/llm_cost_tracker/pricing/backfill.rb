@@ -44,7 +44,7 @@ module LlmCostTracker
         private
 
         def recompute_for(call)
-          calculation = Pricing.assess(
+          calculation = Pricing::Calculation.for(
             provider: call.provider, model: call.model, tokens: token_usage_from(call),
             line_items: billing_line_items_from(call), pricing_mode: call.pricing_mode,
             usage_source: call.usage_source

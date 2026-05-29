@@ -16,7 +16,7 @@ module LlmCostTracker
         return unless LlmCostTracker.configuration.enabled
 
         pricing_mode = Pricing::Mode.normalize(pricing_mode) || event.pricing_mode
-        calculation = Pricing.assess(
+        calculation = Pricing::Calculation.for(
           provider: event.provider, model: event.model, tokens: event.token_usage,
           line_items: event.line_items, pricing_mode: pricing_mode, usage_source: event.usage_source
         )
