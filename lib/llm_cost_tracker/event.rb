@@ -24,7 +24,7 @@ module LlmCostTracker
     def self.build(**attributes)
       pricing_mode = Pricing::Mode.normalize(attributes[:pricing_mode])
       token_usage = attributes.fetch(:token_usage)
-      line_items = attributes[:line_items] || resolve_line_items(attributes[:service_line_items], token_usage)
+      line_items = attributes[:line_items] || resolve_line_items(attributes[:service_line_items])
 
       new(
         event_id: attributes[:event_id],
@@ -52,11 +52,10 @@ module LlmCostTracker
       pricing_mode.to_s.split("_").include?("batch")
     end
 
-    def self.resolve_line_items(service_items, token_usage)
-      service_line_items = Array(service_items).map do |item|
+    def self.resolve_line_items(service_items)
+      Array(service_items).map do |item|
         item.is_a?(Billing::LineItem) ? item : Billing::LineItem.build(item)
       end
-      Billing::LineItem.from_token_usage(token_usage) + service_line_items
     end
 
     def total_cost
