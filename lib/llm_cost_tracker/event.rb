@@ -22,7 +22,6 @@ module LlmCostTracker
     :line_items
   ) do
     def self.build(**attributes)
-      pricing_mode = Pricing::Mode.normalize(attributes[:pricing_mode])
       token_usage = attributes.fetch(:token_usage)
       line_items = attributes[:line_items] || resolve_line_items(attributes[:service_line_items])
 
@@ -31,7 +30,7 @@ module LlmCostTracker
         provider: attributes.fetch(:provider).to_s,
         model: attributes.fetch(:model).to_s.strip.presence || Event::UNKNOWN_MODEL,
         token_usage: token_usage,
-        pricing_mode: pricing_mode,
+        pricing_mode: attributes[:pricing_mode],
         cost: attributes[:cost],
         tags: attributes[:tags],
         latency_ms: attributes[:latency_ms],

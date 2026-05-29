@@ -384,7 +384,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.pricing_mode).to eq("batch")
       expect(event.total_cost).to eq(1.5)
       expect(event.tags).to eq(feature: "bulk")
-      expect(event.pricing_snapshot.fetch("rates").fetch("input").fetch("amount")).to eq("0.5")
+      expect(event.pricing_snapshot.dig("rates", "input", "amount")).to eq("0.5")
     end
 
     it "marks known token costs with unknown service charges as partial" do

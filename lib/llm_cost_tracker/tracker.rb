@@ -15,7 +15,7 @@ module LlmCostTracker
       def record(event:, latency_ms: nil, pricing_mode: nil, metadata: {}, context_tags: nil, enforce_budget: false)
         return unless LlmCostTracker.configuration.enabled
 
-        pricing_mode = Pricing::Mode.normalize(pricing_mode) || event.pricing_mode
+        pricing_mode ||= event.pricing_mode
         calculation = Pricing::Calculation.for(
           provider: event.provider, model: event.model, tokens: event.token_usage,
           line_items: resolved_line_items(event), pricing_mode: pricing_mode, usage_source: event.usage_source
@@ -33,7 +33,6 @@ module LlmCostTracker
 
         event = build_event(
           event: event,
-          pricing_mode: pricing_mode,
           calculation: calculation,
           metadata: metadata,
           latency_ms: latency_ms,
@@ -68,11 +67,11 @@ module LlmCostTracker
         Logging.warn("Subscriber raised on #{EVENT_NAME}: #{e.class}: #{e.message}")
       end
 
-      def build_event(event:, pricing_mode:, calculation:, metadata:, latency_ms:, context_tags:)
+      def build_event(event:, calculation:, metadata:, latency_ms:, context_tags:)
         context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
         event.with(
           event_id: SecureRandom.uuid,
-          pricing_mode: pricing_mode,
+          pricing_mode: calculation.mode,
           cost: calculation.cost,
           tags: build_tags(context_tags: context_tags, metadata: metadata),
           latency_ms: finite_latency_ms(latency_ms),
