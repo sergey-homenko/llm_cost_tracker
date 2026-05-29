@@ -41,7 +41,7 @@ module LlmCostTracker
         def snapshot_select(period)
           start = Period.range_start(period, time)
           components = [period_total_sql(period, start)]
-          components << pending_total_sql(start) if Ingestion.async?
+          components << Ingestion::InboxEntry.pending_total_sql(start: start, finish: time) if Ingestion.async?
           "SELECT #{connection.quote(period.name)} AS period_key, " \
             "(#{components.join(') + (')}) AS total_cost"
         end
@@ -66,16 +66,6 @@ module LlmCostTracker
           tracked_at = connection.quote_column_name("tracked_at")
           "(SELECT SUM(total_cost) FROM #{table} " \
             "WHERE #{tracked_at} BETWEEN #{connection.quote(start)} AND #{connection.quote(time)})"
-        end
-
-        def pending_total_sql(start)
-          table = connection.quote_table_name(Ingestion::InboxEntry.table_name)
-          total_cost = connection.quote_column_name("total_cost")
-          tracked_at = connection.quote_column_name("tracked_at")
-          attempts = connection.quote_column_name("attempts")
-          "COALESCE((SELECT SUM(#{total_cost}) FROM #{table} " \
-            "WHERE #{attempts} < #{Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE} " \
-            "AND #{tracked_at} BETWEEN #{connection.quote(start)} AND #{connection.quote(time)}), 0)"
         end
 
         def connection
