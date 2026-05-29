@@ -82,12 +82,14 @@ the entries to your own initializer; otherwise no change is required.
 
 ### Recommended for `ingestion: :async` rolling deploys: drain the inbox first
 
-The serialized event `cost` payload changed shape this release. A worker still
-running the previous version cannot parse a payload written by v0.12 and will
-quarantine those inbox rows (quarantined rows are not retried). A stop/start
-deploy avoids this entirely; on a rolling deploy, drain the async inbox — or
-stop the old workers — before booting v0.12 workers. v0.12 workers read both
-the old and new payload, so rows written before the upgrade ingest normally.
+The serialized event `cost` payload changed shape this release, and the inbox
+payload schema version was intentionally left unchanged so v0.12 workers can
+still read pre-upgrade rows. A worker still running the previous release reads a
+v0.12 payload without error but records the call with a NULL `total_cost` — the
+cost is silently lost. A stop/start deploy avoids this entirely; on a rolling
+deploy, drain the async inbox — or stop the old workers — before booting v0.12
+workers. v0.12 workers read both the old and new payload, so rows written before
+the upgrade ingest normally.
 
 ## v0.10 → v0.11
 
