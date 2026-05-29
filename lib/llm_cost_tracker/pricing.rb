@@ -16,7 +16,8 @@ require_relative "pricing/estimator"
 module LlmCostTracker
   module Pricing
     RATE_DENOMINATOR_TOKENS = 1_000_000
-    private_constant :RATE_DENOMINATOR_TOKENS
+    Calculation = Data.define(:match, :effective, :quantities, :mode, :costs)
+    private_constant :RATE_DENOMINATOR_TOKENS, :Calculation
 
     class << self
       def reset_caches!
@@ -55,7 +56,7 @@ module LlmCostTracker
         computed = lookup_and_compute(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
         Explanation.from_lookup(
           provider: provider, model: model,
-          match: computed[:match], mode: computed[:mode], effective: computed[:effective]
+          match: computed.match, mode: computed.mode, effective: computed.effective
         )
       end
 
@@ -121,20 +122,20 @@ module LlmCostTracker
       end
 
       def cost_from(calculation)
-        costs = calculation[:costs]
+        costs = calculation.costs
         values = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, result|
           cost = costs[component.key]
           result[component.cost_key] = cost.round(8) unless cost.nil?
         end
         values[:total_cost] = costs.values.compact.sum(BigDecimal("0")).round(8)
-        values[:currency] = calculation[:match].currency
+        values[:currency] = calculation.match.currency
         values
       end
 
       def snapshot_from(calculation, line_items)
-        match = calculation[:match]
-        effective = calculation[:effective]
-        rates = calculation[:quantities].each_with_object({}) do |(key, quantity), values|
+        match = calculation.match
+        effective = calculation.effective
+        rates = calculation.quantities.each_with_object({}) do |(key, quantity), values|
           price = effective[key]
           next if quantity.zero? || price.nil?
 
@@ -164,9 +165,9 @@ module LlmCostTracker
 
       def calculation_for(provider:, model:, tokens:, pricing_mode:)
         computed = lookup_and_compute(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
-        return nil if computed[:match].nil? || all_billable_unpriced?(computed[:quantities], computed[:effective])
+        return nil if computed.match.nil? || all_billable_unpriced?(computed.quantities, computed.effective)
 
-        computed.merge(costs: costs_for(computed[:quantities], computed[:effective]))
+        computed.with(costs: costs_for(computed.quantities, computed.effective))
       end
 
       def lookup_and_compute(provider:, model:, tokens:, pricing_mode:)
@@ -176,7 +177,7 @@ module LlmCostTracker
         quantities = token_usage.priced_quantities
         effective = match && EffectivePrices.call(usage: token_usage, quantities: quantities,
                                                   prices: match.prices, pricing_mode: mode)
-        { match: match, effective: effective, token_usage: token_usage, quantities: quantities, mode: mode }
+        Calculation.new(match: match, effective: effective, quantities: quantities, mode: mode, costs: nil)
       end
 
       def all_billable_unpriced?(quantities, effective)
@@ -210,11 +211,11 @@ module LlmCostTracker
         return line_item unless component
         return line_item.with(cost_status: Billing::CostStatus::UNKNOWN) unless calculation
 
-        effective_price = calculation[:effective][component.key]
+        effective_price = calculation.effective[component.key]
         return line_item.with(cost_status: Billing::CostStatus::UNKNOWN) if effective_price.nil?
 
         cost = (line_item.quantity * BigDecimal(effective_price.to_s)) / RATE_DENOMINATOR_TOKENS
-        match = calculation[:match]
+        match = calculation.match
         line_item.with(
           rate_amount: BigDecimal(effective_price.to_s),
           rate_quantity: BigDecimal(RATE_DENOMINATOR_TOKENS),
@@ -240,7 +241,7 @@ module LlmCostTracker
       def model_rate_for(line_item, calculation)
         return nil unless calculation
 
-        match = calculation[:match]
+        match = calculation.match
         amount = match.prices[line_item.kind]
         return nil unless amount.is_a?(Numeric)
 
