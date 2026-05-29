@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-05-28"
+    "updated_at": "2026-05-29"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -79,6 +79,22 @@
       "output": 25.0
     },
     "anthropic/claude-opus-4-7": {
+      "batch_input": 2.5,
+      "batch_output": 12.5,
+      "cache_read_input": 0.5,
+      "cache_write_extended_input": 10.0,
+      "cache_write_input": 6.25,
+      "data_residency_batch_input": 2.75,
+      "data_residency_batch_output": 13.75,
+      "data_residency_cache_read_input": 0.55,
+      "data_residency_cache_write_extended_input": 11.0,
+      "data_residency_cache_write_input": 6.875,
+      "data_residency_input": 5.5,
+      "data_residency_output": 27.5,
+      "input": 5.0,
+      "output": 25.0
+    },
+    "anthropic/claude-opus-4-8": {
       "batch_input": 2.5,
       "batch_output": 12.5,
       "cache_read_input": 0.5,
@@ -236,6 +252,16 @@
       "priority_input": 0.9,
       "priority_output": 5.4
     },
+    "gemini/gemini-3-pro-image": {
+      "batch_image_output": 6.0,
+      "batch_input": 1.0,
+      "flex_image_output": 6.0,
+      "flex_input": 1.0,
+      "image_output": 12.0,
+      "input": 2.0,
+      "priority_image_output": 21.6,
+      "priority_input": 3.6
+    },
     "gemini/gemini-3-pro-image-preview": {
       "batch_image_output": 6.0,
       "batch_input": 1.0,
@@ -245,6 +271,12 @@
       "input": 2.0,
       "priority_image_output": 21.6,
       "priority_input": 3.6
+    },
+    "gemini/gemini-3.1-flash-image": {
+      "batch_image_output": 1.5,
+      "batch_input": 0.25,
+      "image_output": 3.0,
+      "input": 0.5
     },
     "gemini/gemini-3.1-flash-image-preview": {
       "batch_image_output": 1.5,
@@ -1098,6 +1130,18 @@
       "cache_write_input": 37.5,
       "input": 30.0,
       "output": 150.0
+    },
+    "openrouter/anthropic/claude-opus-4.8": {
+      "cache_read_input": 0.5,
+      "cache_write_input": 6.25,
+      "input": 5.0,
+      "output": 25.0
+    },
+    "openrouter/anthropic/claude-opus-4.8-fast": {
+      "cache_read_input": 1.0,
+      "cache_write_input": 12.5,
+      "input": 10.0,
+      "output": 50.0
     },
     "openrouter/anthropic/claude-sonnet-4": {
       "cache_read_input": 0.3,
@@ -2326,6 +2370,11 @@
       "input": 0.09,
       "output": 0.3
     },
+    "openrouter/stepfun/step-3.7-flash": {
+      "cache_read_input": 0.04,
+      "input": 0.2,
+      "output": 1.15
+    },
     "openrouter/switchpoint/router": {
       "input": 0.85,
       "output": 3.4
@@ -2425,8 +2474,9 @@
       "output": 2.2
     },
     "openrouter/z-ai/glm-4.5-air": {
+      "cache_read_input": 0.06,
       "input": 0.125,
-      "output": 0.84
+      "output": 0.85
     },
     "openrouter/z-ai/glm-4.5v": {
       "cache_read_input": 0.11,
