@@ -55,7 +55,7 @@ module LlmCostTracker
           return nil unless cost_data
 
           full_cost = Pricing.combine_with_service_lines(cost_data, priced)
-          total_cost = full_cost[:total_cost]
+          total_cost = full_cost.total
           return nil if total_cost.nil?
 
           {

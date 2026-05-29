@@ -39,14 +39,7 @@ RSpec.describe "ActiveRecord storage integration" do
       model: "gpt-4o",
       token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
       pricing_mode: nil,
-      cost: {
-        input_cost: total_cost,
-        cache_read_input_cost: 0,
-        cache_write_input_cost: 0,
-        cache_write_extended_input_cost: 0,
-        output_cost: 0,
-        total_cost: total_cost
-      },
+      cost: LlmCostTracker::Billing::Cost.new(components: {}, total: total_cost, currency: "USD"),
       tags: tags,
       latency_ms: nil,
       stream: false,

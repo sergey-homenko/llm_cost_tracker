@@ -29,7 +29,7 @@ module LlmCostTracker
         private
 
         def event_attributes_from(payload)
-          cost = payload[:cost] && Pricing.stored_cost_attributes(payload[:cost])
+          cost = payload[:cost] && Billing::Cost.from_h(payload[:cost])
           token_usage = TokenUsage.build(**payload.fetch(:token_usage).slice(*TokenUsage.members))
 
           {

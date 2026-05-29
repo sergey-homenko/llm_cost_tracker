@@ -12,11 +12,11 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       model: "gpt-4o",
       token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50),
       pricing_mode: :batch,
-      cost: {
-        input_cost: 0.10,
-        output_cost: 0.20,
-        total_cost: 0.30
-      },
+      cost: LlmCostTracker::Billing::Cost.new(
+        components: { input_cost: BigDecimal("0.10"), output_cost: BigDecimal("0.20") },
+        total: BigDecimal("0.30"),
+        currency: "USD"
+      ),
       tags: { feature: "chat" },
       latency_ms: 25,
       stream: false,
@@ -71,7 +71,11 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
   end
 
   it "preserves BigDecimal cost precision through the JSON payload round-trip" do
-    high_precision_event = event.with(cost: { total_cost: BigDecimal("0.0001234567890123456789") })
+    high_precision_event = event.with(
+      cost: LlmCostTracker::Billing::Cost.new(
+        components: {}, total: BigDecimal("0.0001234567890123456789"), currency: "USD"
+      )
+    )
 
     row = described_class.send(:row_for, high_precision_event)
     restored = described_class.event_from_row(row_class.new(row.fetch(:payload)))

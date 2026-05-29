@@ -83,7 +83,7 @@ RSpec.describe LlmCostTracker::Tracker do
       )
 
       expect(LlmCostTracker::Logging).to have_received(:warn).with(/currency mismatch.*EUR/)
-      expect(event.cost[:currency]).to eq("USD")
+      expect(event.cost.currency).to eq("USD")
       expect(event.total_cost).to be > 0
       expect(event.total_cost).to be < 0.50
     end

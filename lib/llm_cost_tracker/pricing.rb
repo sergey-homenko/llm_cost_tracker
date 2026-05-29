@@ -6,6 +6,7 @@ require "time"
 
 require_relative "version"
 require_relative "token_usage"
+require_relative "billing/cost"
 require_relative "pricing/registry"
 require_relative "pricing/lookup"
 require_relative "pricing/effective_prices"
@@ -35,7 +36,7 @@ module LlmCostTracker
         )
         return nil unless calculation
 
-        cost_from(calculation)
+        cost_from(calculation).to_h
       end
 
       def calculate(provider:, model:, tokens:, line_items:, pricing_mode: nil)
@@ -67,31 +68,29 @@ module LlmCostTracker
         { total_cost: value.is_a?(BigDecimal) ? value : BigDecimal(value.to_s) }
       end
 
-      def combine_with_service_lines(cost_data, line_items)
+      def combine_with_service_lines(cost, line_items)
         priced_services = line_items.reject(&:token?).select(&:priced?)
-        return cost_data if priced_services.empty?
+        return cost if priced_services.empty?
 
-        base_currency = base_currency_for(cost_data, priced_services)
+        base_currency = base_currency_for(cost, priced_services)
         matching, mismatched = priced_services.partition { |line| line.currency.to_s == base_currency.to_s }
         warn_currency_mismatch(mismatched, base_currency) if mismatched.any?
 
-        cost = cost_data ? cost_data.dup : {}
-        cost[:currency] ||= base_currency.to_s
-        return cost if matching.empty?
-
         service_total = matching.sum(BigDecimal("0"), &:cost_value)
-        base_total = BigDecimal(cost.fetch(:total_cost, 0).to_s)
-        cost[:total_cost] = (base_total + service_total).round(8)
-        cost
+        Billing::Cost.new(
+          components: cost ? cost.components : {}.freeze,
+          total: ((cost&.total || BigDecimal("0")) + service_total).round(8),
+          currency: (cost&.currency || base_currency).to_s
+        )
       end
 
-      def token_pricing_partial?(token_usage, cost_data)
-        return false unless cost_data
+      def token_pricing_partial?(token_usage, token_cost)
+        return false unless token_cost
 
         token_usage.priced_quantities.any? do |key, quantity|
           next false unless quantity.positive?
 
-          cost_data[Billing::Components::BY_KEY.fetch(key).cost_key].nil?
+          token_cost.components[Billing::Components::BY_KEY.fetch(key).cost_key].nil?
         end
       end
 
@@ -108,8 +107,8 @@ module LlmCostTracker
 
       private
 
-      def base_currency_for(cost_data, priced_services)
-        (cost_data && cost_data[:currency]) || priced_services.first.currency || Billing::DEFAULT_CURRENCY
+      def base_currency_for(cost, priced_services)
+        cost&.currency || priced_services.first.currency || Billing::DEFAULT_CURRENCY
       end
 
       def warn_currency_mismatch(lines, base_currency)
@@ -123,13 +122,15 @@ module LlmCostTracker
 
       def cost_from(calculation)
         costs = calculation.costs
-        values = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, result|
+        components = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, result|
           cost = costs[component.key]
           result[component.cost_key] = cost.round(8) unless cost.nil?
         end
-        values[:total_cost] = costs.values.compact.sum(BigDecimal("0")).round(8)
-        values[:currency] = calculation.match.currency
-        values
+        Billing::Cost.new(
+          components: components.freeze,
+          total: costs.values.compact.sum(BigDecimal("0")).round(8),
+          currency: calculation.match.currency
+        )
       end
 
       def snapshot_from(calculation, line_items)

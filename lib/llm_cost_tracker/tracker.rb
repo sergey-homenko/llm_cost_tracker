@@ -74,7 +74,7 @@ module LlmCostTracker
           token_cost: cost_data,
           token_pricing_partial: Pricing.token_pricing_partial?(event.token_usage, cost_data),
           service_line_items: line_items.reject(&:token?),
-          total_cost: cost&.fetch(:total_cost, nil)
+          total_cost: cost&.total
         )
 
         event.with(

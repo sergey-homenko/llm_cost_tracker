@@ -14,7 +14,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       model: "gpt-4o",
       token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1),
       pricing_mode: nil,
-      cost: { total_cost: total_cost },
+      cost: LlmCostTracker::Billing::Cost.new(components: {}, total: total_cost, currency: currency),
       tags: {},
       latency_ms: nil,
       stream: false,

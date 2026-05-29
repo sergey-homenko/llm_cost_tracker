@@ -60,7 +60,7 @@ module LlmCostTracker
     end
 
     def total_cost
-      cost&.fetch(:total_cost, nil)
+      cost&.total
     end
 
     def to_h
