@@ -17,8 +17,70 @@ require_relative "pricing/estimator"
 module LlmCostTracker
   module Pricing
     RATE_DENOMINATOR_TOKENS = 1_000_000
-    Calculation = Data.define(:match, :effective, :quantities, :mode, :costs)
-    private_constant :RATE_DENOMINATOR_TOKENS, :Calculation
+    private_constant :RATE_DENOMINATOR_TOKENS
+
+    class Calculation
+      def self.assess(provider:, model:, tokens:, pricing_mode:)
+        new(provider: provider, model: model,
+            token_usage: TokenUsage.build_from_tokens(tokens), mode: Mode.normalize(pricing_mode))
+      end
+
+      def initialize(provider:, model:, token_usage:, mode:)
+        @provider = provider
+        @model = model
+        @token_usage = token_usage
+        @mode = mode
+      end
+
+      attr_reader :mode
+
+      def match
+        return @match if defined?(@match)
+
+        @match = Lookup.call(provider: @provider, model: @model)
+      end
+
+      def quantities
+        @quantities ||= @token_usage.priced_quantities
+      end
+
+      def effective
+        return @effective if defined?(@effective)
+
+        @effective = match && EffectivePrices.call(
+          usage: @token_usage, quantities: quantities, prices: match.prices, pricing_mode: @mode
+        )
+      end
+
+      def costs
+        @costs ||= quantities.to_h { |key, tokens| [key, token_cost(tokens, effective[key])] }
+      end
+
+      def priceable?
+        !match.nil? && !all_billable_unpriced?
+      end
+
+      private
+
+      def all_billable_unpriced?
+        any_billable = false
+        quantities.each_pair do |key, quantity|
+          next unless quantity.positive?
+          return false if effective[key]
+
+          any_billable = true
+        end
+        any_billable
+      end
+
+      def token_cost(tokens, per_million_price)
+        return BigDecimal("0") if tokens.zero?
+        return nil if per_million_price.nil?
+
+        (BigDecimal(tokens.to_s) * BigDecimal(per_million_price.to_s)) / RATE_DENOMINATOR_TOKENS
+      end
+    end
+    private_constant :Calculation
 
     class << self
       def reset_caches!
@@ -28,36 +90,27 @@ module LlmCostTracker
       end
 
       def cost_for(provider:, model:, tokens:, pricing_mode: nil)
-        calculation = calculation_for(
-          provider: provider,
-          model: model,
-          tokens: tokens,
-          pricing_mode: pricing_mode
-        )
-        return nil unless calculation
+        calculation = Calculation.assess(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
+        return nil unless calculation.priceable?
 
         cost_from(calculation)
       end
 
       def calculate(provider:, model:, tokens:, line_items:, pricing_mode: nil)
-        calculation = calculation_for(
-          provider: provider,
-          model: model,
-          tokens: tokens,
-          pricing_mode: pricing_mode
-        )
-        cost_data = calculation && cost_from(calculation)
-        priced = apply_calculation_to_line_items(line_items, calculation,
+        calculation = Calculation.assess(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
+        active = calculation if calculation.priceable?
+        cost_data = active && cost_from(active)
+        priced = apply_calculation_to_line_items(line_items, active,
                                                  provider: provider, pricing_mode: pricing_mode)
-        snapshot = calculation && snapshot_from(calculation, priced)
+        snapshot = active && snapshot_from(active, priced)
         [cost_data, snapshot, priced]
       end
 
       def explain(provider:, model:, tokens:, pricing_mode: nil)
-        computed = lookup_and_compute(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
+        calculation = Calculation.assess(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
         Explanation.from_lookup(
           provider: provider, model: model,
-          match: computed.match, mode: computed.mode, effective: computed.effective
+          match: calculation.match, mode: calculation.mode, effective: calculation.effective
         )
       end
 
@@ -157,38 +210,6 @@ module LlmCostTracker
         end
       end
 
-      def calculation_for(provider:, model:, tokens:, pricing_mode:)
-        computed = lookup_and_compute(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
-        return nil if computed.match.nil? || all_billable_unpriced?(computed.quantities, computed.effective)
-
-        computed.with(costs: costs_for(computed.quantities, computed.effective))
-      end
-
-      def lookup_and_compute(provider:, model:, tokens:, pricing_mode:)
-        match = Lookup.call(provider: provider, model: model)
-        token_usage = TokenUsage.build_from_tokens(tokens)
-        mode = Mode.normalize(pricing_mode)
-        quantities = token_usage.priced_quantities
-        effective = match && EffectivePrices.call(usage: token_usage, quantities: quantities,
-                                                  prices: match.prices, pricing_mode: mode)
-        Calculation.new(match: match, effective: effective, quantities: quantities, mode: mode, costs: nil)
-      end
-
-      def all_billable_unpriced?(quantities, effective)
-        any_billable = false
-        quantities.each_pair do |key, quantity|
-          next unless quantity.positive?
-          return false if effective[key]
-
-          any_billable = true
-        end
-        any_billable
-      end
-
-      def costs_for(quantities, effective)
-        quantities.to_h { |key, tokens| [key, token_cost(tokens, effective[key])] }
-      end
-
       def apply_calculation_to_line_items(line_items, calculation, provider:, pricing_mode:)
         line_items.map do |line_item|
           next price_token_line_item(line_item, calculation) if line_item.unit == "token"
@@ -258,13 +279,6 @@ module LlmCostTracker
             component.cache_state == line_item.cache_state &&
             component.unit == line_item.unit
         end
-      end
-
-      def token_cost(tokens, per_million_price)
-        return BigDecimal("0") if tokens.zero?
-        return nil if per_million_price.nil?
-
-        (BigDecimal(tokens.to_s) * BigDecimal(per_million_price.to_s)) / RATE_DENOMINATOR_TOKENS
       end
     end
   end
