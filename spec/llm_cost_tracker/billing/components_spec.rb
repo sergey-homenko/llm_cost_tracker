@@ -52,4 +52,11 @@ RSpec.describe LlmCostTracker::Billing::Components do
         -> { "#{component.key} declares unknown rate_basis #{component.rate_basis.inspect}" }
     end
   end
+
+  it "resolves every non-token key to itself, unshadowed by an earlier suffix match" do
+    described_class::REGISTRY.reject(&:token_key).each do |component|
+      expect(described_class.parse_key(component.key)).to eq([component, nil]),
+        -> { "#{component.key} is shadowed in parse_key by an earlier component" }
+    end
+  end
 end
