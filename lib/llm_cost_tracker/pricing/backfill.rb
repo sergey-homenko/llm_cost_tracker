@@ -84,33 +84,12 @@ module LlmCostTracker
         end
 
         def token_usage_from(call)
-          TokenUsage.build(
-            input_tokens: call.input_tokens,
-            output_tokens: call.output_tokens,
-            cache_read_input_tokens: call.cache_read_input_tokens,
-            cache_write_input_tokens: call.cache_write_input_tokens,
-            cache_write_extended_input_tokens: call.cache_write_extended_input_tokens,
-            audio_input_tokens: call.audio_input_tokens,
-            audio_output_tokens: call.audio_output_tokens,
-            image_input_tokens: call.image_input_tokens,
-            image_output_tokens: call.image_output_tokens,
-            hidden_output_tokens: call.hidden_output_tokens,
-            total_tokens: call.total_tokens
-          )
+          TokenUsage.build(**call.attributes.transform_keys(&:to_sym).slice(*TokenUsage.members))
         end
 
         def billing_line_items_from(call)
           call.line_items.map do |record|
-            Billing::LineItem.build(
-              kind: record.kind, direction: record.direction, modality: record.modality,
-              cache_state: record.cache_state, quantity: record.quantity, unit: record.unit,
-              rate_amount: record.rate_amount, rate_quantity: record.rate_quantity,
-              cost: record.cost, currency: record.currency, cost_status: record.cost_status,
-              pricing_basis: record.pricing_basis, price_key: record.price_key,
-              price_source: record.price_source, price_source_version: record.price_source_version,
-              provider_field: record.provider_field, provider_item_id: record.provider_item_id,
-              details: record.details
-            )
+            Billing::LineItem.build(record.attributes.transform_keys(&:to_sym).slice(*Billing::LineItem.members))
           end
         end
       end
