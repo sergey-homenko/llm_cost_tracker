@@ -61,7 +61,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.total_cost.to_f).to eq(0.3)
     expect(restored.tags).to eq(feature: "chat")
     expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
-    expect(restored.pricing_snapshot.fetch(:schema_version)).to eq(1)
+    expect(restored.pricing_snapshot.fetch("schema_version")).to eq(1)
     expect(restored.usage_source).to eq("manual")
     expect(restored.provider_project_id).to eq("proj_payload_1")
     expect(restored.provider_api_key_id).to eq("key_payload_1")

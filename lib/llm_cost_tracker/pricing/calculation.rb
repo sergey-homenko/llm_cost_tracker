@@ -123,13 +123,13 @@ module LlmCostTracker
 
       def build_snapshot
         {
-          schema_version: 1,
-          source: match.source,
-          source_key: match.key,
-          source_version: Pricing.source_version_for(match.source),
-          matched_by: match.matched_by,
-          currency: match.currency,
-          rates: service_charge_rates.merge(token_rates)
+          "schema_version" => 1,
+          "source" => match.source,
+          "source_key" => match.key,
+          "source_version" => Pricing.source_version_for(match.source),
+          "matched_by" => match.matched_by.to_s,
+          "currency" => match.currency,
+          "rates" => service_charge_rates.merge(token_rates)
         }
       end
 
@@ -138,7 +138,7 @@ module LlmCostTracker
           price = effective[key]
           next if quantity.zero? || price.nil?
 
-          rates[key] = { amount: price, quantity: RATE_DENOMINATOR_TOKENS }
+          rates[key] = rate_entry(price, RATE_DENOMINATOR_TOKENS)
         end
       end
 
@@ -146,8 +146,12 @@ module LlmCostTracker
         priced_line_items.each_with_object({}) do |line_item, rates|
           next if line_item.token? || line_item.price_key.nil? || line_item.rate_amount.nil?
 
-          rates[line_item.price_key] ||= { amount: line_item.rate_amount, quantity: line_item.rate_quantity }
+          rates[line_item.price_key] ||= rate_entry(line_item.rate_amount, line_item.rate_quantity)
         end
+      end
+
+      def rate_entry(amount, quantity)
+        { "amount" => BigDecimal(amount.to_s).to_s("F"), "quantity" => Integer(quantity) }
       end
 
       def price_token(line_item)

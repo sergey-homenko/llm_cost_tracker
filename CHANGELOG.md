@@ -20,6 +20,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Engine no longer adds `tag` / `tag_value` to Rails `filter_parameters` — the Symbol filter was substring-matching unrelated host-app params (`tags`, `meta_tag`, etc.) into `[FILTERED]`. `Tags::Sanitizer` continues redacting secret-shaped tag values at storage.
 - BREAKING: the serialized event `cost` (the `llm_request.llm_cost_tracker` notification payload and the async-ingestion inbox payload) is now `{ components: {...}, total:, currency: }` (was flat with a top-level `total_cost:`). Notification subscribers should read `cost[:total]`; `ingestion: :async` rolling deploys should drain the inbox first — see [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased).
 - BREAKING: `pricing_mode` in the `llm_request.llm_cost_tracker` notification payload is now a String (e.g. `"batch"`, `"fast_data_residency"`), not a Symbol — subscribers matching it against a Symbol must compare to the String.
+- BREAKING: the `pricing_snapshot` audit record (the `calls.pricing_snapshot` column and the notification payload) is now uniformly String-keyed with decimal-String rate `amount`s — the notification payload's keys were Symbols before, and token-rate `amount`s were JSON numbers. Parse it with String keys.
 
 ### Fixed
 

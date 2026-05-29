@@ -2,6 +2,7 @@
 
 require "json"
 require "time"
+require "active_support/core_ext/hash/keys"
 
 require_relative "../event"
 require_relative "../pricing"
@@ -49,7 +50,7 @@ module LlmCostTracker
             provider_workspace_id: payload[:provider_workspace_id],
             tracked_at: Time.iso8601(payload.fetch(:tracked_at)),
             cost_status: payload.fetch(:cost_status),
-            pricing_snapshot: payload[:pricing_snapshot],
+            pricing_snapshot: payload[:pricing_snapshot]&.deep_stringify_keys,
             line_items: (payload[:line_items] || []).map { |attrs| Billing::LineItem.build(attrs) }
           }
         end
