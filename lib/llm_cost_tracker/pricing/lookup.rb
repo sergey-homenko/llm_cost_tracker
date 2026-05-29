@@ -4,7 +4,6 @@ module LlmCostTracker
   module Pricing
     module Lookup
       Match = Data.define(:source, :key, :prices, :matched_by, :currency)
-      MUTEX = Mutex.new
       CACHE_MISS = Object.new.freeze
       NO_MATCH = Object.new.freeze
       LOOKUP_CACHE_LIMIT = 2_048
@@ -25,12 +24,10 @@ module LlmCostTracker
         end
 
         def reset!
-          MUTEX.synchronize do
-            @prices_cache = nil
-            @lookup_cache = nil
-            @sorted_price_keys_cache = nil
-            @prices_file_mtime_iso = nil
-          end
+          @current_price_tables = nil
+          @lookup_cache = nil
+          @sorted_price_keys_cache = nil
+          @prices_file_mtime_iso = nil
         end
 
         def prices_file_mtime_iso
@@ -69,18 +66,10 @@ module LlmCostTracker
         end
 
         def current_price_tables
-          cached = @prices_cache
-          return cached if cached
-
-          MUTEX.synchronize do
-            cached = @prices_cache
-            return cached if cached
-
+          @current_price_tables ||= begin
             config = LlmCostTracker.configuration
             file_prices = Registry.file_prices(config.prices_file)
-            value = { pricing_overrides: config.pricing_overrides, file_prices: file_prices }.freeze
-            @prices_cache = value
-            value
+            { pricing_overrides: config.pricing_overrides, file_prices: file_prices }.freeze
           end
         end
 
@@ -93,12 +82,10 @@ module LlmCostTracker
         end
 
         def cache_lookup(cache_key, match)
-          MUTEX.synchronize do
-            values = (@lookup_cache || {}).dup
-            values.shift while values.size >= LOOKUP_CACHE_LIMIT
-            values[cache_key] = match || NO_MATCH
-            @lookup_cache = values.freeze
-          end
+          values = (@lookup_cache || {}).dup
+          values.shift while values.size >= LOOKUP_CACHE_LIMIT
+          values[cache_key] = match || NO_MATCH
+          @lookup_cache = values.freeze
         end
 
         def explain_table(table:, source:, provider_model:, model_name:, normalized_model:)
@@ -179,17 +166,11 @@ module LlmCostTracker
           existing = cached && cached[table]
           return existing if existing
 
-          MUTEX.synchronize do
-            cached = @sorted_price_keys_cache
-            existing = cached && cached[table]
-            return existing if existing
-
-            keys = table.keys.sort_by { |key| -key.length }
-            next_cache = cached ? cached.dup : {}.compare_by_identity
-            next_cache[table] = keys
-            @sorted_price_keys_cache = next_cache.freeze
-            keys
-          end
+          keys = table.keys.sort_by { |key| -key.length }
+          next_cache = cached ? cached.dup : {}.compare_by_identity
+          next_cache[table] = keys
+          @sorted_price_keys_cache = next_cache.freeze
+          keys
         end
       end
     end
