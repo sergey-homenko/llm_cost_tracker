@@ -127,7 +127,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq(:priority)
+      expect(result.pricing_mode).to eq("priority")
     end
 
     it "captures the batch service tier as a pricing mode" do
@@ -146,7 +146,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq(:batch)
+      expect(result.pricing_mode).to eq("batch")
     end
 
     it "captures fast US inference as a combined pricing mode" do
@@ -166,7 +166,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq(:fast_data_residency)
+      expect(result.pricing_mode).to eq("fast_data_residency")
     end
 
     it "ignores inference_geo values that are not in the documented data-residency uplift list" do
@@ -308,7 +308,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
         events: events
       )
 
-      expect(result.pricing_mode).to eq(:priority)
+      expect(result.pricing_mode).to eq("priority")
     end
 
     it "captures the batch service tier in stream usage" do
@@ -338,7 +338,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
         events: events
       )
 
-      expect(result.pricing_mode).to eq(:batch)
+      expect(result.pricing_mode).to eq("batch")
     end
 
     it "captures stream usage speed and inference geo pricing modes" do
@@ -369,7 +369,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
         events: events
       )
 
-      expect(result.pricing_mode).to eq(:fast_data_residency)
+      expect(result.pricing_mode).to eq("fast_data_residency")
     end
 
     it "returns unknown usage when no message events are present" do

@@ -40,7 +40,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
 
       capture_sdk_events do |events|
         client.messages.create(**request_params)
-        expect(events.first[:pricing_mode]).to eq(:priority)
+        expect(events.first[:pricing_mode]).to eq("priority")
       end
     end
 
@@ -50,7 +50,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
 
       capture_sdk_events do |events|
         client.messages.create(**request_params)
-        expect(events.first[:pricing_mode]).to eq(:batch)
+        expect(events.first[:pricing_mode]).to eq("batch")
       end
     end
 
@@ -62,7 +62,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         client.messages.create(model: "claude-opus-4-6", max_tokens: 100,
                                messages: [{ role: "user", content: "hi" }],
                                speed: "fast", inference_geo: "us")
-        expect(events.first[:pricing_mode]).to eq(:fast_data_residency)
+        expect(events.first[:pricing_mode]).to eq("fast_data_residency")
       end
     end
 
@@ -94,7 +94,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       ].map(&:to_json).join("\n")
     end
 
-    it "records each succeeded batch result as a ledger event with pricing_mode: :batch and skips errored ones" do
+    it "records each succeeded batch result as a ledger event with batch pricing_mode and skips errored ones" do
       WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
         status: 200,
         body: jsonl_body,
@@ -108,7 +108,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         expect(events.first).to include(
           provider: "anthropic",
           model: "claude-sonnet-4-5",
-          pricing_mode: :batch,
+          pricing_mode: "batch",
           provider_response_id: "msg_a",
           usage_source: "sdk_batch_result"
         )

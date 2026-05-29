@@ -250,7 +250,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         expect(events.first).to include(
           provider: "openai",
           model: "gpt-4o",
-          pricing_mode: :batch,
+          pricing_mode: "batch",
           provider_response_id: "chatcmpl_b1",
           usage_source: "sdk_batch_result"
         )
@@ -546,7 +546,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
       capture_sdk_events do |events|
         client.responses.create(model: "gpt-4o", input: "hi")
-        expect(events.first[:pricing_mode]).to eq(:priority)
+        expect(events.first[:pricing_mode]).to eq("priority")
       end
     end
 
@@ -672,7 +672,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
       capture_sdk_events do |events|
         dr_client.responses.create(model: "gpt-5.4-mini", input: "hi")
-        expect(events.first).to include(provider: "openai", pricing_mode: :data_residency)
+        expect(events.first).to include(provider: "openai", pricing_mode: "data_residency")
       end
     end
 

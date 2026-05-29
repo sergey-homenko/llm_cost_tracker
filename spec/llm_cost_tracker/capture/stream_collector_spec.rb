@@ -250,7 +250,7 @@ RSpec.describe LlmCostTracker do
         provider: "custom",
         model: "local-7b",
         provider_project_id: "initial",
-        pricing_mode: :batch
+        pricing_mode: "batch"
       ) do |stream|
         stream.usage(
           input_tokens: 50,
@@ -264,7 +264,7 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:provider_project_id]).to eq("project-stream")
       expect(collected.first[:provider_api_key_id]).to eq("key-stream")
       expect(collected.first[:provider_workspace_id]).to eq("workspace-stream")
-      expect(collected.first[:pricing_mode]).to eq(:batch)
+      expect(collected.first[:pricing_mode]).to eq("batch")
     end
 
     it "normalizes provider capture dimensions from parsed stream usage" do
@@ -276,7 +276,7 @@ RSpec.describe LlmCostTracker do
         provider_project_id: " project-stream ",
         provider_api_key_id: " key-stream ",
         provider_workspace_id: " workspace-stream ",
-        pricing_mode: :batch
+        pricing_mode: "batch"
       ) do |stream|
         stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
       end
@@ -284,7 +284,7 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:provider_project_id]).to eq("project-stream")
       expect(collected.first[:provider_api_key_id]).to eq("key-stream")
       expect(collected.first[:provider_workspace_id]).to eq("workspace-stream")
-      expect(collected.first[:pricing_mode]).to eq(:batch)
+      expect(collected.first[:pricing_mode]).to eq("batch")
     end
 
     it "keeps provider parser batch capture when stream dimensions are not explicit" do
@@ -303,7 +303,7 @@ RSpec.describe LlmCostTracker do
         )
       end
 
-      expect(collected.first[:pricing_mode]).to eq(:batch)
+      expect(collected.first[:pricing_mode]).to eq("batch")
     end
 
     it "keeps scoped tags from when the stream started" do

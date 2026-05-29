@@ -382,7 +382,7 @@ RSpec.describe LlmCostTracker::Pricing do
         cache_write_input_tokens: 100_000,
         cache_write_extended_input_tokens: 100_000,
         output_tokens: 100_000,
-        pricing_mode: :batch
+        pricing_mode: "batch"
       )
 
       expect(result.components.fetch(:input_cost)).to eq(0.15)
@@ -414,7 +414,7 @@ RSpec.describe LlmCostTracker::Pricing do
         cache_read_input_tokens: 100_000,
         cache_write_input_tokens: 100_000,
         output_tokens: 100_000,
-        pricing_mode: :data_residency
+        pricing_mode: "data_residency"
       )
 
       expect(result.components.fetch(:input_cost)).to eq(0.33)
@@ -542,7 +542,7 @@ RSpec.describe LlmCostTracker::Pricing do
         model: "batchable-model",
         input_tokens: 1_000_000,
         output_tokens: 1_000_000,
-        pricing_mode: :batch
+        pricing_mode: "batch"
       )
 
       expect(result.components.fetch(:input_cost)).to eq(0.5)
@@ -556,7 +556,7 @@ RSpec.describe LlmCostTracker::Pricing do
         model: "gpt-5.5",
         input_tokens: 100_000,
         output_tokens: 100_000,
-        pricing_mode: :priority
+        pricing_mode: "priority"
       )
 
       expect(result.components.fetch(:input_cost)).to eq(1.25)
@@ -570,7 +570,7 @@ RSpec.describe LlmCostTracker::Pricing do
         model: "gpt-5.5",
         input_tokens: 100_000,
         output_tokens: 100_000,
-        pricing_mode: :priority_data_residency
+        pricing_mode: "priority_data_residency"
       )
 
       expect(result.components.fetch(:input_cost)).to eq(1.375)
@@ -584,7 +584,7 @@ RSpec.describe LlmCostTracker::Pricing do
         model: "claude-opus-4-6",
         input_tokens: 1_000_000,
         output_tokens: 1_000_000,
-        pricing_mode: :fast_data_residency
+        pricing_mode: "fast_data_residency"
       )
 
       expect(result.components.fetch(:input_cost)).to eq(33.0)
@@ -608,7 +608,7 @@ RSpec.describe LlmCostTracker::Pricing do
         model: "mixed-mode-model",
         input_tokens: 1_000_000,
         output_tokens: 1_000_000,
-        pricing_mode: :batch
+        pricing_mode: "batch"
       )
 
       expect(result).to have_attributes(total: 0.5, components: include(input_cost: 0.5))
@@ -630,7 +630,7 @@ RSpec.describe LlmCostTracker::Pricing do
         model: "fast-mode-model",
         input_tokens: 1_000_000,
         output_tokens: 0,
-        pricing_mode: :fast
+        pricing_mode: "fast"
       )
 
       expect(result).to be_nil
@@ -720,7 +720,7 @@ RSpec.describe LlmCostTracker::Pricing do
         input_tokens: 150_000,
         cache_read_input_tokens: 60_000,
         output_tokens: 100_000,
-        pricing_mode: :batch
+        pricing_mode: "batch"
       )
 
       expect(result.components.fetch(:input_cost)).to eq(0.3)
@@ -930,14 +930,14 @@ RSpec.describe LlmCostTracker::Pricing do
       result = explain(
         provider: "custom",
         model: "explained-model",
-        pricing_mode: :batch
+        pricing_mode: "batch"
       )
 
       expect(result).to have_attributes(
         source: "pricing_overrides",
         matched_key: "custom/explained-model",
         matched_by: :provider_model,
-        pricing_mode: :batch,
+        pricing_mode: "batch",
         missing_price_keys: []
       )
       expect(result.effective_prices).to include("input" => 0.5, "output" => 1.0)

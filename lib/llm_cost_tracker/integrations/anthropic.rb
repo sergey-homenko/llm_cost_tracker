@@ -66,7 +66,7 @@ module LlmCostTracker
               event: Event.build(
                 provider: "anthropic",
                 model: message.model,
-                pricing_mode: :batch,
+                pricing_mode: "batch",
                 token_usage: Providers::Anthropic::UsageExtractor.token_usage(usage_hash),
                 usage_source: Billing::UsageSource::SDK_BATCH_RESULT,
                 provider_response_id: message.id,

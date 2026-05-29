@@ -108,7 +108,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
           "openai" => {
             "web_search_request" => {
               tiers: {
-                priority: {
+                "priority" => {
                   amount: BigDecimal("12.0"),
                   quantity: BigDecimal("1000"),
                   currency: "USD",
@@ -245,7 +245,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         "openai" => {
           "web_search_request" => {
             tiers: {
-              priority: {
+              "priority" => {
                 amount: BigDecimal("12.0"),
                 quantity: BigDecimal("1000"),
                 currency: "USD",
@@ -326,7 +326,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: :priority)
+        rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: "priority")
 
         expect(rate).to have_attributes(
           amount: BigDecimal("12.0"),
@@ -370,7 +370,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
         rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
-                                           pricing_mode: :batch_data_residency)
+                                           pricing_mode: "batch_data_residency")
 
         expect(rate).to have_attributes(
           amount: BigDecimal("8.0"),
@@ -395,7 +395,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
         rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
-                                           pricing_mode: :batch_data_residency)
+                                           pricing_mode: "batch_data_residency")
 
         expect(rate).to have_attributes(
           amount: BigDecimal("10.0"),
@@ -421,7 +421,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
         rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
-                                           pricing_mode: :batch_data_residency)
+                                           pricing_mode: "batch_data_residency")
 
         expect(rate).to have_attributes(
           amount: BigDecimal("10.0"),

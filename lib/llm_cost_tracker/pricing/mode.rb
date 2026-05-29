@@ -3,19 +3,19 @@
 module LlmCostTracker
   module Pricing
     module Mode
-      STANDARD_MODE_VALUES = %i[auto default standard standard_only unspecified].freeze
-      COMPOUND_MODIFIERS = %i[data_residency].freeze
-      KNOWN_MODIFIERS = %i[batch flex priority scale fast on_demand data_residency].freeze
+      STANDARD_MODE_VALUES = %w[auto default standard standard_only unspecified].freeze
+      COMPOUND_MODIFIERS = %w[data_residency].freeze
+      KNOWN_MODIFIERS = %w[batch flex priority scale fast on_demand data_residency].freeze
 
       def self.normalize(value)
         return nil if value.nil?
 
-        symbol = normalize_string(value.to_s)
-        return nil unless symbol
-        return nil if STANDARD_MODE_VALUES.include?(symbol)
+        mode = normalize_string(value.to_s)
+        return nil unless mode
+        return nil if STANDARD_MODE_VALUES.include?(mode)
 
-        warn_unknown_tokens(symbol)
-        symbol
+        warn_unknown_tokens(mode)
+        mode
       end
 
       def self.merge(provider_mode, request_mode)
@@ -41,15 +41,14 @@ module LlmCostTracker
           break if remaining.empty?
 
           compound = COMPOUND_MODIFIERS.find do |token|
-            name = token.name
-            remaining == name || remaining.start_with?("#{name}_")
+            remaining == token || remaining.start_with?("#{token}_")
           end
           if compound
             tokens << compound
-            remaining = remaining.delete_prefix(compound.name).delete_prefix("_")
+            remaining = remaining.delete_prefix(compound).delete_prefix("_")
           else
             first, _, rest = remaining.partition("_")
-            tokens << first.to_sym unless first.empty?
+            tokens << first unless first.empty?
             remaining = rest
           end
         end
@@ -59,7 +58,7 @@ module LlmCostTracker
       def self.permutations_for(value)
         modifiers = tokenize(value).uniq.sort
         return [""] if modifiers.empty?
-        return [modifiers.first.to_s] if modifiers.size == 1
+        return [modifiers.first] if modifiers.size == 1
 
         modifiers.permutation.map { |permutation| permutation.join("_") }.uniq
       end
@@ -68,12 +67,12 @@ module LlmCostTracker
         normalized = value.strip
         return nil if normalized.empty?
 
-        normalized.downcase.tr("-", "_").to_sym
+        normalized.downcase.tr("-", "_")
       end
       private_class_method :normalize_string
 
-      def self.warn_unknown_tokens(symbol)
-        unknown = tokenize(symbol) - KNOWN_MODIFIERS - STANDARD_MODE_VALUES
+      def self.warn_unknown_tokens(mode)
+        unknown = tokenize(mode) - KNOWN_MODIFIERS - STANDARD_MODE_VALUES
         return if unknown.empty?
 
         @warned_tokens ||= Set.new
@@ -82,7 +81,7 @@ module LlmCostTracker
 
         @warned_tokens.merge(fresh)
         Logging.warn(
-          "Unrecognized pricing_mode token(s) #{fresh.inspect} in #{symbol.inspect}; " \
+          "Unrecognized pricing_mode token(s) #{fresh.inspect} in #{mode.inspect}; " \
           "the call will land with cost_status: unknown. " \
           "Known pricing_mode tokens: #{KNOWN_MODIFIERS.inspect}"
         )

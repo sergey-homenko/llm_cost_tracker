@@ -40,7 +40,7 @@ module LlmCostTracker
             provider: event.provider,
             model: event.model,
             tracked_at: event.tracked_at,
-            pricing_mode: event.pricing_mode&.name,
+            pricing_mode: event.pricing_mode,
             latency_ms: event.latency_ms,
             stream: event.stream,
             usage_source: event.usage_source,

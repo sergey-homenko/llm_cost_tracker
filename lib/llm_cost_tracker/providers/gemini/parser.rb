@@ -185,7 +185,7 @@ module LlmCostTracker
           return header_mode if header_mode
 
           request_mode = Pricing::Mode.normalize(request["service_tier"] || request["serviceTier"])
-          request_mode == :flex ? request_mode : nil
+          request_mode == "flex" ? request_mode : nil
         end
 
         def response_header(headers, name)

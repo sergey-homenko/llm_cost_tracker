@@ -116,7 +116,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq(:priority)
+      expect(result.pricing_mode).to eq("priority")
     end
 
     it "captures OpenAI regional processing for eligible models" do
@@ -134,7 +134,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq(:priority_data_residency)
+      expect(result.pricing_mode).to eq("priority_data_residency")
     end
 
     it "does not mark non-uplift OpenAI regional models as data residency pricing" do
@@ -166,7 +166,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
         }.to_json
       )
 
-      expect(result.pricing_mode).to eq(:priority_data_residency)
+      expect(result.pricing_mode).to eq("priority_data_residency")
     end
 
     it "ignores data residency mode when the request url cannot be parsed" do
@@ -627,7 +627,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
         events: events
       )
 
-      expect(result.pricing_mode).to eq(:priority)
+      expect(result.pricing_mode).to eq("priority")
     end
 
     it "extracts usage from Responses API completed events" do

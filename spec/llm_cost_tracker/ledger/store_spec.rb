@@ -64,7 +64,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider_project_id: "proj_123",
       provider_api_key_id: "key_456",
       provider_workspace_id: "workspace_789",
-      pricing_mode: :batch,
+      pricing_mode: "batch",
       tags: {
         user_id: 42,
         feature: "chat"
@@ -178,7 +178,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider: :custom,
       model: "batchable-model",
       tokens: { input: 1_000_000, output: 1_000_000 },
-      pricing_mode: :batch
+      pricing_mode: "batch"
     )
 
     call = LlmCostTracker::Call.first
@@ -472,7 +472,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider_project_id: "proj_123",
       provider_api_key_id: "key_123",
       provider_workspace_id: "workspace_123",
-      pricing_mode: :batch
+      pricing_mode: "batch"
     )
 
     call = LlmCostTracker::Call.first

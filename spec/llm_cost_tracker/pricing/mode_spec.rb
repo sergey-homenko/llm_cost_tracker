@@ -6,19 +6,19 @@ require "llm_cost_tracker/pricing/mode"
 RSpec.describe LlmCostTracker::Pricing::Mode do
   describe ".merge" do
     it "keeps host-derived data_residency from the request hint when provider only echoes the tier" do
-      expect(described_class.merge("priority", "priority_data_residency")).to eq(:priority_data_residency)
+      expect(described_class.merge("priority", "priority_data_residency")).to eq("priority_data_residency")
     end
 
     it "lets the provider override the tier while preserving host-derived data_residency" do
-      expect(described_class.merge("standard", "priority_data_residency")).to eq(:data_residency)
+      expect(described_class.merge("standard", "priority_data_residency")).to eq("data_residency")
     end
 
     it "falls back to the request hint when the provider returns no pricing mode" do
-      expect(described_class.merge(nil, "batch_data_residency")).to eq(:batch_data_residency)
+      expect(described_class.merge(nil, "batch_data_residency")).to eq("batch_data_residency")
     end
 
     it "uses the provider mode when the request had no hint" do
-      expect(described_class.merge("batch", nil)).to eq(:batch)
+      expect(described_class.merge("batch", nil)).to eq("batch")
     end
 
     it "drops standard tier tokens (normalize collapses them)" do
@@ -36,14 +36,14 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
     end
 
     it "keeps non-standard pricing modes" do
-      expect(described_class.normalize("priority")).to eq(:priority)
-      expect(described_class.normalize(:priority)).to eq(:priority)
-      expect(described_class.normalize("data-residency")).to eq(:data_residency)
+      expect(described_class.normalize("priority")).to eq("priority")
+      expect(described_class.normalize(:priority)).to eq("priority")
+      expect(described_class.normalize("data-residency")).to eq("data_residency")
     end
 
     it "matches provider tier strings regardless of case" do
-      expect(described_class.normalize("PRIORITY")).to eq(:priority)
-      expect(described_class.normalize(:Priority)).to eq(:priority)
+      expect(described_class.normalize("PRIORITY")).to eq("priority")
+      expect(described_class.normalize(:Priority)).to eq("priority")
       expect(described_class.normalize("Standard")).to be_nil
     end
 
@@ -60,15 +60,15 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
       described_class.normalize("bach")
 
       expect(LlmCostTracker::Logging).to have_received(:warn).once
-        .with(include("[:bach]").and(include("cost_status: unknown")))
+        .with(include("bach").and(include("cost_status: unknown")))
     end
 
     it "recognizes OpenAI's `scale` enterprise tier and Anthropic's `priority` tier without warning" do
       allow(LlmCostTracker::Logging).to receive(:warn)
       described_class.instance_variable_set(:@warned_tokens, nil)
 
-      expect(described_class.normalize("scale")).to eq(:scale)
-      expect(described_class.normalize("priority")).to eq(:priority)
+      expect(described_class.normalize("scale")).to eq("scale")
+      expect(described_class.normalize("priority")).to eq("priority")
       expect(LlmCostTracker::Logging).not_to have_received(:warn)
     end
 

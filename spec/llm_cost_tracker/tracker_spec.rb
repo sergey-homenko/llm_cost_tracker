@@ -124,7 +124,7 @@ RSpec.describe LlmCostTracker::Tracker do
         provider_project_id: "proj_notify",
         provider_api_key_id: "key_notify",
         provider_workspace_id: "workspace_notify",
-        capture_pricing_mode: :batch,
+        capture_pricing_mode: "batch",
         metadata: { feature: "chat", user_id: 42 }
       )
 
@@ -140,7 +140,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event[:provider_project_id]).to eq("proj_notify")
       expect(event[:provider_api_key_id]).to eq("key_notify")
       expect(event[:provider_workspace_id]).to eq("workspace_notify")
-      expect(event[:pricing_mode]).to eq(:batch)
+      expect(event[:pricing_mode]).to eq("batch")
       expect(event.dig(:pricing_snapshot, :rates, "input", :quantity)).to eq(1_000_000)
       expect(event[:tags]).to include(feature: "chat", user_id: 42)
       expect(event[:tracked_at]).to be_a(Time)
@@ -216,9 +216,9 @@ RSpec.describe LlmCostTracker::Tracker do
       )
       expect(parsed_event.batch?).to be false
 
-      described_class.record(event: parsed_event, pricing_mode: :batch_flex)
+      described_class.record(event: parsed_event, pricing_mode: "batch_flex")
 
-      expect(stored.last.pricing_mode).to eq(:batch_flex)
+      expect(stored.last.pricing_mode).to eq("batch_flex")
       expect(stored.last.batch?).to be true
     end
 
@@ -377,11 +377,11 @@ RSpec.describe LlmCostTracker::Tracker do
         provider: "custom",
         model: "batchable-model",
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000),
-        pricing_mode: :batch,
+        pricing_mode: "batch",
         metadata: { feature: "bulk" }
       )
 
-      expect(event.pricing_mode).to eq(:batch)
+      expect(event.pricing_mode).to eq("batch")
       expect(event.total_cost).to eq(1.5)
       expect(event.tags).to eq(feature: "bulk")
       expect(event.pricing_snapshot.fetch(:rates).fetch("input").fetch(:amount)).to eq(0.5)
@@ -485,10 +485,10 @@ RSpec.describe LlmCostTracker::Tracker do
         provider: "custom",
         model: "priority-model",
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000),
-        capture_pricing_mode: :priority
+        capture_pricing_mode: "priority"
       )
 
-      expect(event.pricing_mode).to eq(:priority)
+      expect(event.pricing_mode).to eq("priority")
       expect(event.total_cost).to eq(7.0)
     end
 
@@ -510,11 +510,11 @@ RSpec.describe LlmCostTracker::Tracker do
         provider: "custom",
         model: "multi-mode-model",
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000),
-        capture_pricing_mode: :priority,
-        pricing_mode: :batch
+        capture_pricing_mode: "priority",
+        pricing_mode: "batch"
       )
 
-      expect(event.pricing_mode).to eq(:batch)
+      expect(event.pricing_mode).to eq("batch")
       expect(event.total_cost).to eq(1.5)
     end
 
@@ -534,12 +534,12 @@ RSpec.describe LlmCostTracker::Tracker do
         provider: "custom",
         model: "metadata-mode-model",
         token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000),
-        metadata: { pricing_mode: :batch, feature: "bulk" }
+        metadata: { pricing_mode: "batch", feature: "bulk" }
       )
 
       expect(event.pricing_mode).to be_nil
       expect(event.total_cost).to eq(3.0)
-      expect(event.tags).to eq(pricing_mode: :batch, feature: "bulk")
+      expect(event.tags).to eq(pricing_mode: "batch", feature: "bulk")
     end
 
     it "triggers budget callback when exceeded" do

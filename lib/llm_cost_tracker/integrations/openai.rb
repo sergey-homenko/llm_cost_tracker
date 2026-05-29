@@ -406,7 +406,7 @@ module LlmCostTracker
             event: Event.build(
               provider: provider,
               model: model,
-              pricing_mode: :batch,
+              pricing_mode: "batch",
               token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
               usage_source: LlmCostTracker::Billing::UsageSource::SDK_BATCH_RESULT,
               provider_response_id: provider_response_id,

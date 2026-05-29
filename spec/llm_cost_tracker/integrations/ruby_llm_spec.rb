@@ -67,7 +67,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
 
       capture_sdk_events do |events|
         RubyLLM.chat(model: "claude-sonnet-4-5").ask("hi")
-        expect(events.first).to include(provider: "anthropic", pricing_mode: :batch)
+        expect(events.first).to include(provider: "anthropic", pricing_mode: "batch")
       end
     end
 
@@ -124,7 +124,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
 
       capture_sdk_events do |events|
         RubyLLM.chat(model: "claude-sonnet-4-5").ask("hi")
-        expect(events.first).to include(provider: "anthropic", pricing_mode: :priority)
+        expect(events.first).to include(provider: "anthropic", pricing_mode: "priority")
       end
     end
   end

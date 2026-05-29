@@ -11,7 +11,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       provider: "openai",
       model: "gpt-4o",
       token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50),
-      pricing_mode: :batch,
+      pricing_mode: "batch",
       cost: LlmCostTracker::Billing::Cost.new(
         components: { input_cost: BigDecimal("0.10"), output_cost: BigDecimal("0.20") },
         total: BigDecimal("0.30"),

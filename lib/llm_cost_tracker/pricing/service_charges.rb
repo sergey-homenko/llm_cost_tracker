@@ -91,7 +91,7 @@ module LlmCostTracker
           raise ArgumentError, "service charge price key #{key.inspect} in #{context} uses unknown billing component"
         end
 
-        [component, prefix&.to_sym]
+        [component, prefix]
       end
 
       def amount_for(key, amount, context:)
@@ -148,9 +148,8 @@ module LlmCostTracker
           rate = tier_rates[pricing_mode]
           return rate if rate
 
-          name = pricing_mode.name
           tier_rates.each do |candidate, candidate_rate|
-            return candidate_rate if tier_includes?(name, candidate.name)
+            return candidate_rate if tier_includes?(pricing_mode, candidate)
           end
         end
         component_rates[:default]
