@@ -770,6 +770,24 @@ RSpec.describe LlmCostTracker::Tracker do
       }
     end
 
+    it "includes priced service line items in the `enforce_budget` pre-send estimate" do
+      LlmCostTracker.configure do |c|
+        c.per_call_budget = 0.5
+        c.budget_exceeded_behavior = :notify
+      end
+
+      expect do
+        LlmCostTracker.track(
+          provider: "openai", model: "gpt-4o", tokens: { input: 0, output: 0 },
+          service_line_items: [
+            { kind: "web_search_request", quantity: 1, unit: "request", cost: 1.0,
+              currency: "USD", cost_status: "complete" }
+          ],
+          enforce_budget: true
+        )
+      end.to raise_error(LlmCostTracker::BudgetExceededError) { |error| expect(error.budget_type).to eq(:per_call) }
+    end
+
     it "does not pre-send block on unknown models — falls through to the post-spend gate" do
       LlmCostTracker.configure do |c|
         c.daily_budget = 0.0001

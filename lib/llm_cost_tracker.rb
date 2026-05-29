@@ -73,11 +73,6 @@ module LlmCostTracker
               usage_source: Billing::UsageSource::MANUAL, enforce_budget: false,
               provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
               provider_workspace_id: nil, pricing_mode: nil, service_line_items: [])
-      if enforce_budget
-        cost_data = Pricing.cost_for(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
-        Budget.enforce!(provider: provider, model: model, estimate: cost_data&.total, force: true)
-      end
-
       Tracker.record(
         event: Event.build(
           provider: provider,
@@ -93,7 +88,8 @@ module LlmCostTracker
           service_line_items: service_line_items
         ),
         latency_ms: latency_ms,
-        metadata: tags
+        metadata: tags,
+        enforce_budget: enforce_budget
       )
     end
 
