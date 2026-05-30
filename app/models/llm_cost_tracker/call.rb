@@ -2,10 +2,6 @@
 
 require "securerandom"
 
-require "llm_cost_tracker/billing/cost_status"
-require "llm_cost_tracker/ledger/schema/adapter"
-require "llm_cost_tracker/ledger/tags/sql"
-
 module LlmCostTracker
   class Call < ActiveRecord::Base
     before_validation :assign_event_id
