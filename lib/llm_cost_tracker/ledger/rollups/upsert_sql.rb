@@ -11,6 +11,7 @@ module LlmCostTracker
         end
 
         def call
+          connection = ActiveRecord::Base.connection
           return Arel.sql(mysql_sql) if Ledger::Schema::Adapter.mysql?(connection)
           return Arel.sql(postgres_sql) if Ledger::Schema::Adapter.postgresql?(connection)
 
@@ -20,6 +21,7 @@ module LlmCostTracker
         private
 
         def postgres_sql
+          connection = ActiveRecord::Base.connection
           total_cost = connection.quote_column_name("total_cost")
           updated_at = connection.quote_column_name("updated_at")
 
@@ -29,10 +31,6 @@ module LlmCostTracker
 
         def mysql_sql
           "total_cost = total_cost + VALUES(total_cost), updated_at = VALUES(updated_at)"
-        end
-
-        def connection
-          LlmCostTracker::CallRollup.connection
         end
       end
     end

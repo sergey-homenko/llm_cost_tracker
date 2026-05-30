@@ -388,8 +388,7 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "treats MySQL-family adapters consistently for rollup upserts" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
-      connection = double(adapter_name: adapter_name)
-      allow(LlmCostTracker::CallRollup).to receive(:connection).and_return(connection)
+      allow(ActiveRecord::Base.connection).to receive(:adapter_name).and_return(adapter_name)
 
       sql = LlmCostTracker::Ledger::Rollups::UpsertSql.call.to_s
 
