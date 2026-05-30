@@ -55,10 +55,8 @@ module LlmCostTracker
         end
 
         def calls_sum_sql(start)
-          table = connection.quote_table_name("llm_cost_tracker_calls")
-          tracked_at = connection.quote_column_name("tracked_at")
-          "(SELECT SUM(total_cost) FROM #{table} " \
-            "WHERE #{tracked_at} BETWEEN #{connection.quote(start)} AND #{connection.quote(time)})"
+          calls = LlmCostTracker::Call.where(tracked_at: start..time)
+          "(#{calls.select('SUM(total_cost)').to_sql})"
         end
 
         def connection
