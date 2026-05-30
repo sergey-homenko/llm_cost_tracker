@@ -99,8 +99,7 @@ module LlmCostTracker
       private
 
       def cost_by_column(column, limit:)
-        quoted_column = "#{quoted_table_name}.#{connection.quote_column_name(column)}"
-        relation = select("#{quoted_column} AS name, COALESCE(SUM(total_cost), 0) AS total_cost")
+        relation = select(arel_table[column].as("name"), "COALESCE(SUM(total_cost), 0) AS total_cost")
                    .group(column)
                    .order(Arel.sql("COALESCE(SUM(total_cost), 0) DESC"))
         relation = relation.limit(limit) if limit
