@@ -47,18 +47,11 @@ module LlmCostTracker
         end
 
         def period_total_sql(period, start)
-          if LlmCostTracker.configuration.cache_rollups
-            "GREATEST(COALESCE(#{rollup_sum_sql(period)}, 0), COALESCE(#{calls_sum_sql(start)}, 0))"
-          else
-            "COALESCE(#{calls_sum_sql(start)}, 0)"
-          end
-        end
+          calls = "COALESCE(#{calls_sum_sql(start)}, 0)"
+          return calls unless LlmCostTracker.configuration.cache_rollups
 
-        def rollup_sum_sql(period)
-          table = connection.quote_table_name("llm_cost_tracker_call_rollups")
-          "(SELECT SUM(total_cost) FROM #{table} " \
-            "WHERE period = #{connection.quote(period.to_s)} " \
-            "AND period_start = #{connection.quote(Period.bucket(period, time))})"
+          rollup = LlmCostTracker::CallRollup.total_sql(period: period, period_start: Period.bucket(period, time))
+          "GREATEST(COALESCE(#{rollup}, 0), #{calls})"
         end
 
         def calls_sum_sql(start)
