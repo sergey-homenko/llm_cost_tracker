@@ -270,7 +270,7 @@ def drop_database!(adapter, admin, database)
   end
 end
 
-def track!(provider_response_id:, tokens: { input: 100, output: 200 }, **tags)
+def track!(provider_response_id:, tokens: { input_tokens: 100, output_tokens: 200 }, **tags)
   LlmCostTracker.track(
     provider: "smoke",
     model: "small",

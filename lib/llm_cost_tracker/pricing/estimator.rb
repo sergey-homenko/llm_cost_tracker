@@ -15,7 +15,7 @@ module LlmCostTracker
         cost_data = Pricing.cost_for(
           provider: provider,
           model: model,
-          tokens: { input: estimated_tokens }
+          tokens: { input_tokens: estimated_tokens }
         )
         cost_data&.total
       end

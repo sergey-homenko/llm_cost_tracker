@@ -31,7 +31,7 @@ RSpec.describe LlmCostTracker::Ingestion::Pool do
     LlmCostTracker::Call.transaction do
       LlmCostTracker.track(
         provider: :openai, model: "gpt-4o",
-        tokens: { input: 1_000, output: 0 }, tags: { feature: "chat" }
+        tokens: { input_tokens: 1_000, output_tokens: 0 }, tags: { feature: "chat" }
       )
       raise ActiveRecord::Rollback
     end

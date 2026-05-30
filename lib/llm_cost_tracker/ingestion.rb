@@ -77,7 +77,7 @@ module LlmCostTracker
         event = LlmCostTracker.track(
           provider: provider,
           model: model,
-          tokens: { input: 1, output: 1 },
+          tokens: { input_tokens: 1, output_tokens: 1 },
           provider_response_id: response_id,
           tags: { feature: VERIFY_TAG }
         )

@@ -2,7 +2,7 @@
 
 module LlmCostTracker
   KNOWN_TOKEN_KEYS = (
-    Billing::Components::TOKEN_PRICED.map(&:key) + %w[total hidden_output]
+    Billing::Components::TOKEN_PRICED.map { |c| c.token_key.to_s } + %w[total_tokens hidden_output_tokens]
   ).freeze
 
   TokenUsage = Data.define(
@@ -29,13 +29,13 @@ module LlmCostTracker
       values = tokens.to_h.transform_keys(&:to_s)
       warn_on_unknown_keys(values)
       token_attributes = Billing::Components::TOKEN_PRICED.to_h do |component|
-        [component.token_key, values.fetch(component.key, 0)]
+        [component.token_key, values.fetch(component.token_key.to_s, 0)]
       end
 
       build(
         **token_attributes,
-        total_tokens: values["total"],
-        hidden_output_tokens: values.fetch("hidden_output", 0)
+        total_tokens: values["total_tokens"],
+        hidden_output_tokens: values.fetch("hidden_output_tokens", 0)
       )
     end
 

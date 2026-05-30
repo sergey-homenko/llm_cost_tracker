@@ -63,14 +63,14 @@ RSpec.describe LlmCostTracker::Report do
     track_and_flush(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
       latency_ms: 100,
       tags: { feature: "chat" }
     )
     track_and_flush(
       provider: :openai,
       model: "gpt-4o-mini",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
       latency_ms: 300,
       tags: { feature: "summarizer" }
     )
@@ -90,7 +90,7 @@ RSpec.describe LlmCostTracker::Report do
     track_and_flush(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
       tags: { feature: "chat" }
     )
 

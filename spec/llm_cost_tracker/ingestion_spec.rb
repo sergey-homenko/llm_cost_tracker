@@ -36,7 +36,7 @@ RSpec.describe "ActiveRecord async inbox" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
       tags: { feature: "chat" }
     )
 
@@ -56,7 +56,7 @@ RSpec.describe "ActiveRecord async inbox" do
   it "wakes the worker from Tracker.record in async mode" do
     expect(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started).at_least(:once)
 
-    LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input: 1, output: 0 })
+    LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1, output_tokens: 0 })
   end
 
   it "includes pending inbox costs in call rollups before ingesting" do
@@ -65,7 +65,7 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
 
     expect(LlmCostTracker::CallRollup.count).to eq(0)
@@ -129,7 +129,7 @@ RSpec.describe "ActiveRecord async inbox" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "unknown-model",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
 
     expect(LlmCostTracker::Ingestion::InboxEntry.first.total_cost).to be_nil
@@ -145,7 +145,7 @@ RSpec.describe "ActiveRecord async inbox" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
     row = LlmCostTracker::Ingestion::InboxEntry.first
     parsed = LlmCostTracker::Ingestion::Inbox.event_from_row(row)
@@ -164,8 +164,8 @@ RSpec.describe "ActiveRecord async inbox" do
   end
 
   it "persists fresh events in a mixed batch where one event_id already reached the ledger" do
-    stale_event = LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input: 1_000, output: 0 })
-    fresh_event = LlmCostTracker.track(provider: :openai, model: "gpt-4o-mini", tokens: { input: 500, output: 0 })
+    stale_event = LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 })
+    fresh_event = LlmCostTracker.track(provider: :openai, model: "gpt-4o-mini", tokens: { input_tokens: 500, output_tokens: 0 })
     rows = LlmCostTracker::Ingestion::InboxEntry.order(:id).to_a
 
     LlmCostTracker::Call.transaction do
@@ -182,7 +182,7 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
     row = LlmCostTracker::Ingestion::InboxEntry.first
     parsed = LlmCostTracker::Ingestion::Inbox.event_from_row(row)
@@ -213,7 +213,7 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
     LlmCostTracker::Ingestion::Lease.create!(
       name: "default",
@@ -234,7 +234,7 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
     allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_raise("write failed")
     allow(LlmCostTracker::Logging).to receive(:warn)
@@ -261,7 +261,7 @@ RSpec.describe "ActiveRecord async inbox" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
 
     expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(2)
@@ -342,7 +342,7 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
     LlmCostTracker::Ingestion::InboxEntry.update_all(locked_at: Time.now.utc, locked_by: "worker-a")
 
@@ -356,7 +356,7 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
     allow(ingestor).to receive(:ingest_once) do
       sleep 0.02
@@ -556,7 +556,7 @@ RSpec.describe "ActiveRecord async inbox" do
       LlmCostTracker.track(
         provider: :openai,
         model: "gpt-4o",
-        tokens: { input: 1_000, output: 0 },
+        tokens: { input_tokens: 1_000, output_tokens: 0 },
       )
       raise ActiveRecord::Rollback
     end
@@ -572,7 +572,7 @@ RSpec.describe "ActiveRecord async inbox" do
     event = LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
 
     expect(LlmCostTracker::Ingestion::InboxEntry.find_by!(event_id: event.event_id)).to be_present
@@ -587,7 +587,7 @@ RSpec.describe "ActiveRecord async inbox" do
       LlmCostTracker.track(
         provider: :openai,
         model: "gpt-4o",
-        tokens: { input: 1_000, output: 0 }
+        tokens: { input_tokens: 1_000, output_tokens: 0 }
       )
     end.to raise_error(LlmCostTracker::Error, /could not checkout/)
 
@@ -605,7 +605,7 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
-      tokens: { input: 1_000, output: 0 },
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
     flush_calls = 0
     allow(LlmCostTracker::Ingestion::Worker).to receive(:flush!) { flush_calls += 1 }

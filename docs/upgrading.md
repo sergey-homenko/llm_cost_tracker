@@ -8,10 +8,11 @@ that were substring-matching unrelated host-app params, makes
 `enforce_budget: true` on `LlmCostTracker.track` actually raise pre-call when
 over budget regardless of the global policy, and tightens RubyLLM SDK capture
 (proper `service_tier` JSON path, 1-hour vs 5-minute cache split, response id
-from raw body). Three BREAKING changes: Reconciliation removal, parser
-constant rename for custom code that referenced internals, and removal of
+from raw body). Four BREAKING changes: Reconciliation removal, parser
+constant rename for custom code that referenced internals, removal of
 the `batch:` keyword argument from `track` / `track_stream` / `stream.usage`
-(use `pricing_mode: :batch` instead).
+(use `pricing_mode: :batch` instead), and the `track(tokens:)` key rename to the
+`_tokens`-suffixed names that `stream.usage` already uses.
 
 ### Required: drop Reconciliation tables if you opted in (BREAKING)
 
@@ -59,19 +60,41 @@ like `:batch_flex`); the stored `calls.batch` column is now derived from
 
 ```ruby
 LlmCostTracker.track(provider: "openai", model: "gpt-4o",
-                     tokens: { input: 100, output: 50 }, batch: true)
+                     tokens: { input_tokens: 100, output_tokens: 50 }, batch: true)
 ```
 
 After:
 
 ```ruby
 LlmCostTracker.track(provider: "openai", model: "gpt-4o",
-                     tokens: { input: 100, output: 50 }, pricing_mode: :batch)
+                     tokens: { input_tokens: 100, output_tokens: 50 }, pricing_mode: :batch)
 ```
 
 The top-level APIs raise `ArgumentError: unknown keyword: :batch` if you miss
 a callsite. `stream.usage(batch: …)` raises with a pointer to the new
 spelling.
+
+### Required: rename `tokens:` keys to match `stream.usage` (BREAKING)
+
+`LlmCostTracker.track(tokens:)` now takes the same `_tokens`-suffixed keys that
+`stream.usage` and the persisted `calls` columns already use, so manual and
+streaming capture share one vocabulary. Rename the keys in every manual `track`:
+
+```ruby
+# Before
+LlmCostTracker.track(provider: "openai", model: "gpt-4o",
+                     tokens: { input: 1500, output: 320, cache_read_input: 100 })
+
+# After
+LlmCostTracker.track(provider: "openai", model: "gpt-4o",
+                     tokens: { input_tokens: 1500, output_tokens: 320, cache_read_input_tokens: 100 })
+```
+
+The pricing field names in `prices_file` / `pricing_overrides` are unchanged —
+they stay `input`, `output`, `cache_read_input`, … (those are per-component
+rates, a separate vocabulary). A `tokens:` hash with no recognized keys now logs
+`Logging.warn("tokens hash contains no recognized keys …")` and lands as zero
+tokens, so a missed callsite is visible.
 
 ### Optional: host-app `filter_parameters` cleanup
 

@@ -105,7 +105,7 @@ For batch jobs, internal gateways, or anything without an SDK/Faraday hook:
 LlmCostTracker.track(
   provider: :anthropic,
   model: "claude-sonnet-4-6",
-  tokens: { input: 1500, output: 320 },
+  tokens: { input_tokens: 1500, output_tokens: 320 },
   tags: { feature: "summarizer", user_id: current_user.id }
 )
 ```

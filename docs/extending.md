@@ -94,7 +94,7 @@ For unsupported non-streaming clients:
 LlmCostTracker.track(
   provider: "custom",
   model: "gateway-model",
-  tokens: { input: 1_000, output: 200 },
+  tokens: { input_tokens: 1_000, output_tokens: 200 },
   tags: { feature: "summarizer" }
 )
 ```
@@ -107,7 +107,7 @@ component:
 LlmCostTracker.track(
   provider: "custom",
   model: "gateway-model",
-  tokens: { input: 1_000, output: 200 },
+  tokens: { input_tokens: 1_000, output_tokens: 200 },
   service_line_items: [
     { component_key: :web_search_request, quantity: 3, provider_field: "tool_calls" }
   ],

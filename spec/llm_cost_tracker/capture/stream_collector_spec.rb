@@ -126,7 +126,7 @@ RSpec.describe LlmCostTracker do
       result = described_class.track(
         provider: "openai",
         model: "gpt-4o",
-        tokens: { input: 10, output: 5 },
+        tokens: { input_tokens: 10, output_tokens: 5 },
         enforce_budget: true
       )
 

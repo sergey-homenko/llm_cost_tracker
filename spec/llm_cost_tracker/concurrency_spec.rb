@@ -288,7 +288,7 @@ RSpec.describe "concurrency", :aggregate_failures do
         LlmCostTracker.track(
           provider: "openai",
           model: "gpt-4o",
-          tokens: { input: 1, output: 1 },
+          tokens: { input_tokens: 1, output_tokens: 1 },
           enforce_budget: true
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError)
@@ -324,7 +324,7 @@ RSpec.describe "concurrency", :aggregate_failures do
       LlmCostTracker.track(
         provider: "openai",
         model: "gpt-4o",
-        tokens: { input: 1, output: 1 },
+        tokens: { input_tokens: 1, output_tokens: 1 },
       )
     end
 
@@ -339,7 +339,7 @@ RSpec.describe "concurrency", :aggregate_failures do
       LlmCostTracker.track(
         provider: "openai",
         model: "gpt-4o",
-        tokens: { input: 1, output: 1 },
+        tokens: { input_tokens: 1, output_tokens: 1 },
         enforce_budget: true
       )
 

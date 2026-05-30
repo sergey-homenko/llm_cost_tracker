@@ -760,7 +760,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect do
         LlmCostTracker.track(
           provider: "openai", model: "gpt-4o",
-          tokens: { input: 10_000, output: 10_000 },
+          tokens: { input_tokens: 10_000, output_tokens: 10_000 },
           enforce_budget: true
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
@@ -777,7 +777,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
       expect do
         LlmCostTracker.track(
-          provider: "openai", model: "gpt-4o", tokens: { input: 0, output: 0 },
+          provider: "openai", model: "gpt-4o", tokens: { input_tokens: 0, output_tokens: 0 },
           service_line_items: [
             { kind: "web_search_request", quantity: 1, unit: "request", cost: 1.0,
               currency: "USD", cost_status: "complete" }
