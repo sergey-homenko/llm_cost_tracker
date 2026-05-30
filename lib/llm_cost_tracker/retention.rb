@@ -72,7 +72,7 @@ module LlmCostTracker
       def pluck_prunable(cutoff, batch_size, with_rollup_columns:)
         relation = LlmCostTracker::Call.where(tracked_at: ...cutoff).order(:id).limit(batch_size).lock
         if with_rollup_columns
-          relation.pluck(:id, :tracked_at, :total_cost, :pricing_snapshot, :provider)
+          relation.pluck(*LlmCostTracker::Ledger::Rollups::DECREMENT_COLUMNS)
         else
           relation.pluck(:id)
         end

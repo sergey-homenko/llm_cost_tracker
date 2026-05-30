@@ -127,7 +127,7 @@ module LlmCostTracker
 
       def cleanup_verification_call(response_id)
         relation = LlmCostTracker::Call.where(provider_response_id: response_id)
-        rows = relation.pluck(:id, :tracked_at, :total_cost, :pricing_snapshot, :provider)
+        rows = relation.pluck(*LlmCostTracker::Ledger::Rollups::DECREMENT_COLUMNS)
         return if rows.empty?
 
         relation.delete_all

@@ -8,6 +8,8 @@ require_relative "rollups/upsert_sql"
 module LlmCostTracker
   module Ledger
     class Rollups
+      DECREMENT_COLUMNS = %i[id tracked_at total_cost pricing_snapshot provider].freeze
+
       class << self
         def increment!(events)
           events = Array(events).select(&:total_cost)
@@ -50,7 +52,7 @@ module LlmCostTracker
         private
 
         def period_rows_for_events(events)
-          call_rollups(events).map do |(period, period_start, currency, provider), total_cost|
+          period_increment_totals(events).map do |(period, period_start, currency, provider), total_cost|
             {
               period: period,
               period_start: period_start,
@@ -61,7 +63,7 @@ module LlmCostTracker
           end
         end
 
-        def call_rollups(events)
+        def period_increment_totals(events)
           events.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |event, totals|
             currency = currency_from_snapshot(event.pricing_snapshot)
             provider = event.provider.to_s
@@ -73,14 +75,14 @@ module LlmCostTracker
         end
 
         def period_decrement_totals(call_rows)
-          call_rows.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |row, totals|
-            _id, tracked_at, total_cost, pricing_snapshot, provider = row
-            next unless total_cost
+          call_rows.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |columns, totals|
+            row = DECREMENT_COLUMNS.zip(columns).to_h
+            next unless row[:total_cost]
 
-            currency = currency_from_snapshot(pricing_snapshot)
-            provider_key = provider.to_s
+            currency = currency_from_snapshot(row[:pricing_snapshot])
+            provider_key = row[:provider].to_s
             Period::PERIODS.each do |period|
-              totals[[period, Period.bucket(period, tracked_at), currency, provider_key]] += total_cost
+              totals[[period, Period.bucket(period, row[:tracked_at]), currency, provider_key]] += row[:total_cost]
             end
           end
         end
