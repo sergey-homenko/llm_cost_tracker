@@ -32,55 +32,6 @@ module LlmCostTracker
             raise Error, "Unsupported database adapter: #{adapter_name(value)}. Use PostgreSQL or MySQL."
           end
 
-          def json_extract(connection, column, key)
-            if postgresql?(connection)
-              "#{column}->>'#{key}'"
-            else
-              "JSON_UNQUOTE(JSON_EXTRACT(#{column}, '$.#{key}'))"
-            end
-          end
-
-          def json_extract_param(connection, column)
-            if postgresql?(connection)
-              "#{column}->>?"
-            else
-              "JSON_UNQUOTE(JSON_EXTRACT(#{column}, ?))"
-            end
-          end
-
-          def json_path_param(connection, key)
-            postgresql?(connection) ? key : "$.#{key}"
-          end
-
-          def json_null_sql(connection, column, key)
-            if postgresql?(connection)
-              "#{column}->>'#{key}' IS NULL"
-            else
-              extract = "JSON_EXTRACT(#{column}, '$.#{key}')"
-              "#{extract} IS NULL OR JSON_TYPE(#{extract}) = 'NULL'"
-            end
-          end
-
-          def json_present_sql(connection, column, key)
-            if postgresql?(connection)
-              "#{column}->>'#{key}' IS NOT NULL"
-            else
-              extract = "JSON_EXTRACT(#{column}, '$.#{key}')"
-              "#{extract} IS NOT NULL AND JSON_TYPE(#{extract}) <> 'NULL'"
-            end
-          end
-
-          def apply_json_contains(connection, relation, column, criteria)
-            if postgresql?(connection)
-              relation.where("#{column} @> ?::jsonb", criteria.to_json)
-            else
-              criteria.inject(relation) do |chain, (key, value)|
-                chain.where("#{json_extract_param(connection, column)} = ?",
-                            json_path_param(connection, key), value.to_s)
-              end
-            end
-          end
-
           PG_PERIOD_FORMATS = { day: "YYYY-MM-DD", month: "YYYY-MM" }.freeze
           MYSQL_PERIOD_FORMATS = { day: "%Y-%m-%d", month: "%Y-%m" }.freeze
           private_constant :PG_PERIOD_FORMATS, :MYSQL_PERIOD_FORMATS

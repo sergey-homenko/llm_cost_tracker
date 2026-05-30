@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "llm_cost_tracker/billing/components"
-require "llm_cost_tracker/ledger/schema/adapter"
 
 module LlmCostTracker
   module Dashboard

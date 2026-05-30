@@ -33,65 +33,6 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Adapter do
       .to raise_error(LlmCostTracker::Error, /Use PostgreSQL or MySQL/)
   end
 
-  describe ".json_extract" do
-    it "emits Postgres ->> operator for a static key" do
-      expect(described_class.json_extract("PostgreSQL", :metadata, "provider")).to eq("metadata->>'provider'")
-    end
-
-    it "emits MySQL JSON_UNQUOTE/JSON_EXTRACT for a static key" do
-      expect(described_class.json_extract("Trilogy", :metadata, "row_type"))
-        .to eq("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.row_type'))")
-    end
-  end
-
-  describe ".json_extract_param" do
-    it "emits Postgres ->>? template" do
-      expect(described_class.json_extract_param("PostgreSQL", :metadata)).to eq("metadata->>?")
-    end
-
-    it "emits MySQL JSON_UNQUOTE/JSON_EXTRACT(?) template" do
-      expect(described_class.json_extract_param("Trilogy", :metadata))
-        .to eq("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?))")
-    end
-  end
-
-  describe ".json_path_param" do
-    it "returns the bare key for Postgres" do
-      expect(described_class.json_path_param("PostgreSQL", "provider_project_id")).to eq("provider_project_id")
-    end
-
-    it "prefixes the key with $. for MySQL" do
-      expect(described_class.json_path_param("Trilogy", "provider_project_id")).to eq("$.provider_project_id")
-    end
-  end
-
-  describe ".json_null_sql" do
-    it "emits a single IS NULL check for Postgres" do
-      expect(described_class.json_null_sql("PostgreSQL", :metadata, "row_type")).to eq("metadata->>'row_type' IS NULL")
-    end
-
-    it "covers both missing key and JSON null for MySQL" do
-      expect(described_class.json_null_sql("Trilogy", :metadata, "row_type")).to eq(
-        "JSON_EXTRACT(metadata, '$.row_type') IS NULL OR " \
-        "JSON_TYPE(JSON_EXTRACT(metadata, '$.row_type')) = 'NULL'"
-      )
-    end
-  end
-
-  describe ".json_present_sql" do
-    it "emits a single IS NOT NULL check for Postgres" do
-      expect(described_class.json_present_sql("PostgreSQL", :metadata, "row_type"))
-        .to eq("metadata->>'row_type' IS NOT NULL")
-    end
-
-    it "excludes JSON null for MySQL" do
-      expect(described_class.json_present_sql("Trilogy", :metadata, "row_type")).to eq(
-        "JSON_EXTRACT(metadata, '$.row_type') IS NOT NULL AND " \
-        "JSON_TYPE(JSON_EXTRACT(metadata, '$.row_type')) <> 'NULL'"
-      )
-    end
-  end
-
   describe ".date_truncated_sql" do
     it "emits Postgres TO_CHAR(DATE_TRUNC(...)) for day" do
       expect(described_class.date_truncated_sql("PostgreSQL", :day, "calls.tracked_at"))
@@ -126,27 +67,6 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Adapter do
     it "raises ArgumentError for unknown period on MySQL" do
       expect { described_class.date_truncated_sql("Trilogy", :year, "calls.tracked_at") }
         .to raise_error(ArgumentError, /invalid period/)
-    end
-  end
-
-  describe ".apply_json_contains" do
-    it "uses Postgres @> containment operator with a single jsonb-cast parameter" do
-      relation = double("relation")
-      expect(relation).to receive(:where).with("metadata @> ?::jsonb", '{"provider":"openai"}').and_return(:next)
-      result = described_class.apply_json_contains("PostgreSQL", relation, :metadata, "provider" => "openai")
-      expect(result).to eq(:next)
-    end
-
-    it "chains per-key extract equality on MySQL" do
-      step1 = double("step1")
-      step2 = double("step2")
-      expect(step1).to receive(:where)
-        .with("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?)) = ?", "$.provider", "openai").and_return(step2)
-      expect(step2).to receive(:where)
-        .with("JSON_UNQUOTE(JSON_EXTRACT(metadata, ?)) = ?", "$.source", "csv").and_return(:final)
-      result = described_class.apply_json_contains("Trilogy", step1, :metadata,
-                                                   "provider" => "openai", "source" => "csv")
-      expect(result).to eq(:final)
     end
   end
 
