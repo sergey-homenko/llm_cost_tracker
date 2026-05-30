@@ -2,12 +2,16 @@
 
 module LlmCostTracker
   module Logging
-    TAG = "LlmCostTracker"
-
     class << self
-      def debug(message) = Rails.logger.tagged(TAG).debug(message)
+      def debug(message) = tagged.debug(message)
 
-      def warn(message) = Rails.logger.tagged(TAG).warn(message)
+      def warn(message) = tagged.warn(message)
+
+      private
+
+      def tagged
+        Rails.logger.tagged(LlmCostTracker.name)
+      end
     end
   end
 end
