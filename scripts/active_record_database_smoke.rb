@@ -30,6 +30,10 @@ require_relative "../app/models/llm_cost_tracker/ingestion/inbox_entry"
 require_relative "../app/models/llm_cost_tracker/ingestion/lease"
 require_relative "../app/services/llm_cost_tracker/dashboard/setup_state"
 
+require "logger"
+require "active_support/tagged_logging"
+Rails.logger = ActiveSupport::TaggedLogging.new(Logger.new($stderr))
+
 admin = {
   adapter: adapter,
   host: ENV.fetch("LCT_SMOKE_HOST", "127.0.0.1"),
