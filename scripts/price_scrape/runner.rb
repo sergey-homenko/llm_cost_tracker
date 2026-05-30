@@ -128,6 +128,10 @@ module LlmCostTracker
 end
 
 if $PROGRAM_NAME == __FILE__
+  require "logger"
+  require "active_support/tagged_logging"
+  Rails.logger = ActiveSupport::TaggedLogging.new(Logger.new($stderr))
+
   providers = (ENV["PROVIDERS"] || LlmCostTracker::Pricing::Scrape::Runner::PROVIDERS.keys.join(","))
               .split(",")
               .map(&:strip)
