@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `config.instrument :gemnii` (or any other typo / unknown integration name) no longer raises at config time — it now logs `Logging.warn("Unknown integration: :gemnii. Known: ...")` once when integrations install, and `bin/rails llm_cost_tracker:doctor` shows the unknown name as a `:warn` row so the typo is visible without crashing boot.
 - Pre-call budget enforcement for Azure-hosted OpenAI calls now keys on `"azure_openai"` (matching the recorded `Call.provider`), so `pricing_overrides` for Azure rates actually gate the call. Previously it always keyed on `"openai"` regardless of the SDK client's `base_url`.
 - BREAKING: removed the `batch:` keyword argument from `LlmCostTracker.track`, `LlmCostTracker.track_stream`, and `stream.usage` (inside `track_stream` blocks). Signal a batch-tier call via `pricing_mode: :batch` (or any pricing_mode containing the `batch` token like `:batch_flex`) — that's the single source of truth now. Previously `batch:` and `pricing_mode:` could disagree, especially after request-side pricing_mode merge inside `Tracker.record` overwrote the parser's mode but left the stored `batch` flag stale, so `calls.batch` could read `true` while `calls.pricing_mode` read `flex` (or vice versa) for the same row.
+- The `bin/rails llm_cost_tracker:prices:explain` rake task (and `LlmCostTracker::Pricing.explain`) is removed — the dashboard's Data Quality page surfaces unknown-pricing models and their effective rates instead.
 
 ### Changed
 

@@ -14,16 +14,6 @@ RSpec.describe LlmCostTracker::Pricing do
     )
   end
 
-  def explain(provider:, model:, pricing_mode: nil, **usage)
-    usage = { input_tokens: 1, output_tokens: 1 }.merge(usage)
-    described_class.explain(
-      provider: provider,
-      model: model,
-      pricing_mode: pricing_mode,
-      tokens: LlmCostTracker::TokenUsage.build(**usage)
-    )
-  end
-
   context "model fallback resolution" do
     it "returns nil for an empty model lookup before touching the price tables" do
       expect(LlmCostTracker::Pricing::Lookup.call(provider: "openai", model: "")).to be_nil
@@ -916,60 +906,6 @@ RSpec.describe LlmCostTracker::Pricing do
 
         expect(LlmCostTracker::Pricing::Registry).to have_received(:file_prices).once
       end
-    end
-  end
-
-  describe ".explain" do
-    it "explains the matched pricing source and effective rates" do
-      LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
-          "custom/explained-model" => { "input" => 1.0, "output" => 2.0, "batch_input" => 0.5, "batch_output" => 1.0 }
-        }
-      end
-
-      result = explain(
-        provider: "custom",
-        model: "explained-model",
-        pricing_mode: "batch"
-      )
-
-      expect(result).to have_attributes(
-        source: "pricing_overrides",
-        matched_key: "custom/explained-model",
-        matched_by: :provider_model,
-        pricing_mode: "batch",
-        missing_price_keys: []
-      )
-      expect(result.effective_prices).to include("input" => 0.5, "output" => 1.0)
-      expect(result.message).to include("Matched custom/explained-model")
-    end
-
-    it "explains missing required price keys" do
-      LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
-          "input-only-model" => { "input" => 1.0 }
-        }
-      end
-
-      result = explain(
-        provider: "custom",
-        model: "input-only-model",
-        input_tokens: 1,
-        output_tokens: 1
-      )
-
-      expect(result.matched?).to be true
-      expect(result.complete?).to be false
-      expect(result.missing_price_keys).to eq(["output"])
-      expect(result.message).to include("missing output")
-    end
-
-    it "explains unknown models" do
-      result = explain(provider: "custom", model: "missing-model")
-
-      expect(result.matched?).to be false
-      expect(result.complete?).to be false
-      expect(result.message).to include("No price entry matched custom/missing-model")
     end
   end
 

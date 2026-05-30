@@ -11,7 +11,6 @@ require_relative "billing/cost_status"
 require_relative "pricing/registry"
 require_relative "pricing/lookup"
 require_relative "pricing/effective_prices"
-require_relative "pricing/explanation"
 require_relative "pricing/service_charges"
 require_relative "pricing/estimator"
 require_relative "pricing/calculation"
@@ -27,14 +26,6 @@ module LlmCostTracker
 
       def cost_for(provider:, model:, tokens:, pricing_mode: nil)
         Calculation.for(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode).token_cost
-      end
-
-      def explain(provider:, model:, tokens:, pricing_mode: nil)
-        calculation = Calculation.for(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode)
-        Explanation.from_lookup(
-          provider: provider, model: model,
-          match: calculation.match, mode: calculation.mode, effective: calculation.effective
-        )
       end
 
       def source_version_for(source)

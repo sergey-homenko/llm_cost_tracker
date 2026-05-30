@@ -22,7 +22,6 @@ charges.
 bin/rails generate llm_cost_tracker:prices
 bin/rails llm_cost_tracker:prices:refresh
 bin/rails llm_cost_tracker:prices:check
-PROVIDER=openai MODEL=gpt-4o bin/rails llm_cost_tracker:prices:explain
 ```
 
 The refresh task reads the maintained LLM Cost Tracker snapshot and writes to
@@ -107,24 +106,6 @@ the event is marked `partial` and only the priced components contribute to
 total cost; with no matching rates at all it stays `unknown` instead of
 silently using standard pricing. For batch mode, cache rates can be derived
 from the input discount when the provider documents that modifiers stack.
-
-## Price Explain
-
-Use `prices:explain` when Data Quality shows unknown pricing or a local override
-does not behave as expected:
-
-```bash
-PROVIDER=openai MODEL=gpt-4o PRICING_MODE=batch bin/rails llm_cost_tracker:prices:explain
-```
-
-Optional token env vars let the command check the exact buckets that a call used:
-
-```bash
-PROVIDER=custom MODEL=gateway-model INPUT_TOKENS=1000 OUTPUT_TOKENS=200 CACHE_READ_INPUT_TOKENS=50 CACHE_WRITE_EXTENDED_INPUT_TOKENS=25 AUDIO_INPUT_TOKENS=100 AUDIO_OUTPUT_TOKENS=20 bin/rails llm_cost_tracker:prices:explain
-```
-
-The command reports the matched source, matched key, match strategy, effective
-rates, and any missing rate needed to price the event.
 
 Provider-specific pricing pages belong in scrapers and snapshots. Runtime
 pricing should stay in canonical billing terms.

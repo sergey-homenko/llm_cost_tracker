@@ -97,7 +97,7 @@ namespace :llm_cost_tracker do
       puts "llm_cost_tracker: #{action} pricing file #{result.path}"
       puts "  source: #{result.source_url}"
       puts "  version: #{result.source_version.inspect}" if result.source_version
-      print_changes(result.changes)
+      LlmCostTracker::Pricing::Sync::ChangePrinter.call(result.changes)
     end
 
     desc "Compare the current pricing file with the maintained LLM Cost Tracker price snapshot."
@@ -112,64 +112,16 @@ namespace :llm_cost_tracker do
       puts "llm_cost_tracker: checked pricing file #{result.path}"
       puts "  source: #{result.source_url}"
       puts "  version: #{result.source_version.inspect}" if result.source_version
-      print_changes(result.changes)
+      LlmCostTracker::Pricing::Sync::ChangePrinter.call(result.changes)
       puts "  pricing is up to date" if result.up_to_date
       abort("llm_cost_tracker: pricing check failed") unless result.up_to_date
-    end
-
-    desc "Explain how a provider/model price is matched. Use PROVIDER=... MODEL=..."
-    task :explain do
-      Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
-      require_relative "../llm_cost_tracker"
-
-      explanation = price_explanation_from_env
-      puts "llm_cost_tracker: #{explanation.message}"
-      print_price_explanation(explanation)
-      abort("llm_cost_tracker: price is incomplete or unknown") unless explanation.complete?
     end
   end
 end
 # rubocop:enable Metrics/BlockLength
 
-def print_changes(changes)
-  LlmCostTracker::Pricing::Sync::ChangePrinter.call(changes)
-end
-
 def price_refresh_output_path
   path = LlmCostTracker::Pricing::Sync.configured_output_path
   FileUtils.mkdir_p(File.dirname(path))
   path
-end
-
-def price_explanation_from_env
-  provider = ENV["PROVIDER"].to_s.strip
-  model = ENV["MODEL"].to_s.strip
-  abort("llm_cost_tracker: use PROVIDER=... MODEL=...") if provider.empty? || model.empty?
-
-  LlmCostTracker::Pricing.explain(
-    provider: provider,
-    model: model,
-    pricing_mode: ENV.fetch("PRICING_MODE", nil),
-    tokens: {
-      input_tokens: ENV.fetch("INPUT_TOKENS", 1).to_i,
-      output_tokens: ENV.fetch("OUTPUT_TOKENS", 1).to_i,
-      cache_read_input_tokens: ENV.fetch("CACHE_READ_INPUT_TOKENS", 0).to_i,
-      cache_write_input_tokens: ENV.fetch("CACHE_WRITE_INPUT_TOKENS", 0).to_i,
-      cache_write_extended_input_tokens: ENV.fetch("CACHE_WRITE_EXTENDED_INPUT_TOKENS", 0).to_i,
-      audio_input_tokens: ENV.fetch("AUDIO_INPUT_TOKENS", 0).to_i,
-      audio_output_tokens: ENV.fetch("AUDIO_OUTPUT_TOKENS", 0).to_i
-    }
-  )
-end
-
-def print_price_explanation(explanation)
-  return unless explanation.matched?
-
-  puts "  source: #{explanation.source}"
-  puts "  matched_key: #{explanation.matched_key}"
-  puts "  matched_by: #{explanation.matched_by}"
-  puts "  pricing_mode: #{explanation.pricing_mode || 'standard'}"
-  explanation.effective_prices.each do |key, value|
-    puts "  #{key}: #{value.nil? ? 'missing' : value}"
-  end
 end
