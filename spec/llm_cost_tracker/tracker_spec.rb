@@ -832,23 +832,20 @@ RSpec.describe LlmCostTracker::Tracker do
     it "warns by default when model pricing is unknown" do
       event = nil
 
-      expect do
+      log = capture_log do
         event = record(
           provider: "openai",
           model: "unknown-chat-model",
           token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50)
         )
-      end.to output(/No pricing configured for model "unknown-chat-model"/).to_stderr
+      end
 
+      expect(log).to match(/No pricing configured for model "unknown-chat-model"/)
       expect(event.cost).to be_nil
     end
 
     it "warns once per unknown model" do
-      original_stderr = $stderr
-      fake_stderr = StringIO.new
-      $stderr = fake_stderr
-
-      begin
+      log = capture_log do
         2.times do
           record(
             provider: "openai",
@@ -856,21 +853,15 @@ RSpec.describe LlmCostTracker::Tracker do
             token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50)
           )
         end
-      ensure
-        $stderr = original_stderr
       end
 
-      expect(fake_stderr.string.scan('No pricing configured for model "unknown-model-dedup"').size).to eq(1)
+      expect(log.scan('No pricing configured for model "unknown-model-dedup"').size).to eq(1)
     end
 
     it "caps the unknown-model warn cache so user-controlled model strings can't grow it unbounded" do
       stub_const("LlmCostTracker::Pricing::Unknown::WARN_CACHE_LIMIT", 2)
 
-      original_stderr = $stderr
-      fake_stderr = StringIO.new
-      $stderr = fake_stderr
-
-      begin
+      log = capture_log do
         %w[unk-a unk-b unk-c].each do |model|
           record(
             provider: "openai",
@@ -878,11 +869,9 @@ RSpec.describe LlmCostTracker::Tracker do
             token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
           )
         end
-      ensure
-        $stderr = original_stderr
       end
 
-      expect(fake_stderr.string.scan(/No pricing configured for model "unk-[abc]"/).size).to eq(2)
+      expect(log.scan(/No pricing configured for model "unk-[abc]"/).size).to eq(2)
     end
 
     it "raises unknown pricing errors when configured" do

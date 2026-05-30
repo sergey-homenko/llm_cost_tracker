@@ -72,7 +72,7 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
   end
 
   before do
-    Rails.logger = Logger.new(nil)
+    Rails.logger = LlmCostTrackerLoggingHelpers.tagged_logger(nil)
     establish_database_connection!
     create_lct_tables!
     LlmCostTracker::Call.reset_column_information

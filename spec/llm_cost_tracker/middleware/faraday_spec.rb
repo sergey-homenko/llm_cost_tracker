@@ -143,11 +143,12 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       events << payload
     end
 
-    expect do
+    log = capture_log do
       response = conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
       expect(response.status).to eq(200)
-    end.to output(/Error resolving request tags: RuntimeError: missing request context/).to_stderr
+    end
 
+    expect(log).to match(/Error resolving request tags: RuntimeError: missing request context/)
     expect(events.first[:tags]).to eq({})
   end
 
@@ -206,9 +207,11 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       end
     end
 
-    expect do
+    log = capture_log do
       conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
-    end.to output(/known streaming responses are captured automatically/).to_stderr
+    end
+
+    expect(log).to match(/known streaming responses are captured automatically/)
   end
 
   it "removes query strings from warning URLs" do
@@ -221,14 +224,12 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       end
     end
 
-    expect do
+    log = capture_log do
       conn.post("/v1/chat/completions?api_key=secret-token", { model: "gpt-4o" }.to_json)
-    end.to output(
-      satisfy do |captured|
-        captured.include?("https://api.openai.com/v1/chat/completions;") &&
-          !captured.include?("secret-token")
-      end
-    ).to_stderr
+    end
+
+    expect(log).to include("https://api.openai.com/v1/chat/completions;")
+    expect(log).not_to include("secret-token")
   end
 
   it "raises budget errors from post-response enforcement" do
@@ -593,13 +594,15 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       events << payload
     end
 
-    expect do
+    log = capture_log do
       response = conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json) do |req|
         req.options.on_data = proc { |_chunk, _size, _env| }
       end
 
       expect(response.status).to eq(200)
-    end.to output(/exceeded 32 bytes/).to_stderr
+    end
+
+    expect(log).to match(/exceeded 32 bytes/)
 
     expect(events.size).to eq(1)
     expect(events.first[:stream]).to be true

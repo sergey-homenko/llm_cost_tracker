@@ -67,7 +67,7 @@ RSpec.configure do |config|
   config.include ActiveSupport::Testing::TimeHelpers
 
   config.before(:each) do
-    Rails.logger = nil
+    Rails.logger = LlmCostTrackerLoggingHelpers.tagged_logger(nil)
     LlmCostTrackerReset.call
   end
 

@@ -1,20 +1,9 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "stringio"
 require "tempfile"
 
 RSpec.describe LlmCostTracker::Pricing::Registry do
-  def capture_stderr
-    original_stderr = $stderr
-    fake_stderr = StringIO.new
-    $stderr = fake_stderr
-    yield
-    fake_stderr.string
-  ensure
-    $stderr = original_stderr
-  end
-
   describe ".file_metadata" do
     it "loads registry metadata from a local prices file" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
@@ -65,7 +54,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         file.write({ models: { "custom-model" => { "input" => 1.0, outpu: 2.0, _input: 2.0 } } }.to_json)
         file.close
 
-        output = capture_stderr do
+        output = capture_log do
           2.times { described_class.file_prices(file.path) }
         end
 
@@ -93,7 +82,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         }.to_json)
         file.close
 
-        output = capture_stderr { described_class.file_prices(file.path) }
+        output = capture_log { described_class.file_prices(file.path) }
 
         expect(output).to be_empty
       end
@@ -118,7 +107,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         }.to_json)
         file.close
 
-        output = capture_stderr do
+        output = capture_log do
           expect(described_class.file_prices(file.path)).to eq(
             "custom-model" => {
               "input" => 1.0,
