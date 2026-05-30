@@ -28,7 +28,15 @@ module LlmCostTracker
       def file_rates(path)
         return EMPTY_RATES unless path
 
-        (@file_rates ||= {})[path] ||= load_file_rates(path)
+        cached = @file_rates
+        existing = cached && cached[path]
+        return existing if existing
+
+        rates = load_file_rates(path)
+        next_cache = cached ? cached.dup : {}
+        next_cache[path] = rates
+        @file_rates = next_cache.freeze
+        rates
       end
 
       def rates_from_registry(registry, context:)
