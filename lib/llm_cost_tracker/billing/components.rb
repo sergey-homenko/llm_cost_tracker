@@ -69,6 +69,12 @@ module LlmCostTracker
         nil
       end
 
+      def self.token_priced_for(kind:, direction:, cache_state:)
+        TOKEN_PRICED.find do |component|
+          component.kind == kind && component.direction == direction && component.cache_state == cache_state
+        end
+      end
+
       REGISTRY = load_registry
       BY_KEY = REGISTRY.to_h { |component| [component.key, component] }.freeze
       TOKEN_PRICED = REGISTRY.select(&:token_key).freeze

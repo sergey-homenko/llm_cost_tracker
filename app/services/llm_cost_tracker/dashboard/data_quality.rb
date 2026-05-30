@@ -168,11 +168,7 @@ module LlmCostTracker
 
         def index_costs_by_component(rows)
           rows.each_with_object({}) do |(kind, direction, cache_state, cost), accumulator|
-            component = Billing::Components::TOKEN_PRICED.find do |item|
-              item.kind == kind &&
-                item.direction == direction &&
-                item.cache_state == cache_state
-            end
+            component = Billing::Components.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
             accumulator[component.key] = cost if component
           end
         end
