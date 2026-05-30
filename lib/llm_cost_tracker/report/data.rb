@@ -58,8 +58,7 @@ module LlmCostTracker
             "COALESCE(SUM(total_cost), 0) AS total_cost, " \
             "COUNT(*) AS requests_count, " \
             "AVG(latency_ms) AS average_latency_ms, " \
-            "COALESCE(SUM(CASE WHEN total_cost IS NULL " \
-            "OR cost_status IN ('#{Billing::CostStatus::INCOMPLETE.join("', '")}') " \
+            "COALESCE(SUM(CASE WHEN #{Billing::CostStatus.unknown_pricing_sql} " \
             "THEN 1 ELSE 0 END), 0) AS unknown_pricing_count"
           )
           .take

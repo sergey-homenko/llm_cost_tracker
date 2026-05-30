@@ -12,6 +12,11 @@ module LlmCostTracker
       UNKNOWN = "unknown"
       INCOMPLETE = [UNKNOWN, PARTIAL].freeze
 
+      def self.unknown_pricing_sql(total_cost: "total_cost", cost_status: "cost_status")
+        statuses = INCOMPLETE.map { |status| ActiveRecord::Base.connection.quote(status) }.join(", ")
+        "#{total_cost} IS NULL OR #{cost_status} IN (#{statuses})"
+      end
+
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def self.call(token_usage:, usage_source:, token_cost:, service_line_items:, total_cost:,
                     token_pricing_partial: false)

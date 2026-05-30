@@ -180,9 +180,10 @@ module LlmCostTracker
         end
 
         def aggregate_selects(scope)
+          unknown_pricing = Billing::CostStatus.unknown_pricing_sql
           selects = [
             "COUNT(*) AS total_calls",
-            "#{conditional_count_sql(unknown_pricing_predicate(scope))} AS unknown_pricing_count",
+            "#{conditional_count_sql(unknown_pricing)} AS unknown_pricing_count",
             "#{tagged_calls_sql(scope)} AS tagged_calls_count",
             "COUNT(*) - #{tagged_calls_sql(scope)} AS untagged_calls_count",
             "#{conditional_count_sql('latency_ms IS NULL')} AS missing_latency_count",
@@ -216,13 +217,6 @@ module LlmCostTracker
           output = column_sum(scope, :output_tokens)
 
           "CASE WHEN #{output} > 0 THEN #{hidden_output} * 100.0 / #{output} ELSE 0 END"
-        end
-
-        def unknown_pricing_predicate(scope)
-          values = LlmCostTracker::Billing::CostStatus::INCOMPLETE
-                   .map { |value| scope.connection.quote(value) }
-
-          "total_cost IS NULL OR cost_status IN (#{values.join(', ')})"
         end
 
         def unknown_usage_source_predicate(scope)
