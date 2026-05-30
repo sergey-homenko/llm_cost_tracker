@@ -70,7 +70,7 @@ module LlmCostTracker
     def pricing_overrides=(value)
       ensure_mutable!
       @pricing_overrides = Pricing::Registry.normalize_price_entries(value || {}, context: "pricing_overrides")
-    rescue ArgumentError => e
+    rescue ArgumentError, TypeError => e
       raise Error, "invalid pricing_overrides: #{e.message}"
     end
 

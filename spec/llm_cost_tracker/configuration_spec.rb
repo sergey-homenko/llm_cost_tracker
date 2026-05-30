@@ -25,4 +25,11 @@ RSpec.describe LlmCostTracker::Configuration do
       expect(config.ingestion).to eq(:inline)
     end
   end
+
+  describe "pricing_overrides=" do
+    it "raises a friendly error for a non-numeric price value" do
+      expect { config.pricing_overrides = { "demo" => { "input" => nil } } }
+        .to raise_error(LlmCostTracker::Error, /invalid pricing_overrides/)
+    end
+  end
 end
