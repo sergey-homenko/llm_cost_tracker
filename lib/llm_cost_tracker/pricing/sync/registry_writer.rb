@@ -79,7 +79,7 @@ module LlmCostTracker
           else
             JSON.parse(contents)
           end
-        rescue StandardError
+        rescue Errno::ENOENT, Psych::Exception, JSON::ParserError
           nil
         end
 

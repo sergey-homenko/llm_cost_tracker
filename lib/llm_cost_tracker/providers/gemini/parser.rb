@@ -125,7 +125,7 @@ module LlmCostTracker
           end
         end
 
-        def output_tokens(usage)
+        def gross_output_tokens(usage)
           usage["candidatesTokenCount"].to_i + usage["thoughtsTokenCount"].to_i
         end
 
@@ -134,7 +134,7 @@ module LlmCostTracker
         end
 
         def regular_output_tokens(usage:, audio_output:, image_output:)
-          [output_tokens(usage) - audio_output - image_output, 0].max
+          [gross_output_tokens(usage) - audio_output - image_output, 0].max
         end
 
         def audio_input_tokens(usage)

@@ -43,7 +43,7 @@ module LlmCostTracker
         data = registry.fetch("service_charges", EMPTY_RATES)
         raise ArgumentError, "#{context} service_charges must be a hash" unless data.is_a?(Hash)
 
-        currency = registry.dig("metadata", "currency") || Billing::DEFAULT_CURRENCY
+        currency = (registry.dig("metadata", "currency") || Billing::DEFAULT_CURRENCY).upcase
         data.each_with_object({}) do |(provider, entries), rates|
           section_context = "#{context} service_charges.#{provider}"
           rates[provider] = rates_from_section(entries, currency: currency, context: section_context)
