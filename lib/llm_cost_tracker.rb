@@ -1,14 +1,8 @@
 # frozen_string_literal: true
 
-require "bigdecimal"
 require "rails"
-require "active_support"
 require "active_support/core_ext/object/blank"
-require "active_support/core_ext/object/deep_dup"
 require "active_support/core_ext/object/try"
-require "active_support/core_ext/hash/indifferent_access"
-require "active_support/core_ext/string/inflections"
-require "active_support/notifications"
 
 require_relative "llm_cost_tracker/version"
 require_relative "llm_cost_tracker/configuration"

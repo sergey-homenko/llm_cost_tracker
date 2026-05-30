@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "active_support/notifications"
 require "securerandom"
 
 require_relative "errors"
