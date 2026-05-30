@@ -11,7 +11,6 @@ require_relative "billing/cost_status"
 require_relative "pricing/registry"
 require_relative "pricing/lookup"
 require_relative "pricing/effective_prices"
-require_relative "pricing/service_charges"
 require_relative "pricing/estimator"
 require_relative "pricing/calculation"
 
@@ -21,7 +20,6 @@ module LlmCostTracker
       def reset_caches!
         Lookup.reset!
         Registry.reset!
-        ServiceCharges.reset!
       end
 
       def cost_for(provider:, model:, tokens:, pricing_mode: nil)

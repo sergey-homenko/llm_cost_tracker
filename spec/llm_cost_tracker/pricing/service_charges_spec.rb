@@ -4,7 +4,7 @@ require "spec_helper"
 require "tempfile"
 require "yaml"
 
-RSpec.describe LlmCostTracker::Pricing::ServiceCharges do
+RSpec.describe LlmCostTracker::Pricing::Registry do
   before { described_class.reset! }
 
   describe ".reset!" do

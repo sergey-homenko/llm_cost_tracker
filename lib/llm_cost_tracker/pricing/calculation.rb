@@ -179,7 +179,7 @@ module LlmCostTracker
         return line_item if line_item.priced? || !line_item.billable?
 
         rate = model_rate(line_item) ||
-               ServiceCharges.charge_rate(provider: @provider, component: line_item.kind, pricing_mode: @mode)
+               Registry.charge_rate(provider: @provider, component: line_item.kind, pricing_mode: @mode)
         return line_item unless rate
 
         line_item.with_rate(rate)

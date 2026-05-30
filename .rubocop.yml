@@ -39,11 +39,13 @@ Metrics/ClassLength:
     - hash
   Exclude:
     - "scripts/price_scrape/providers/openai.rb"
+    - "lib/llm_cost_tracker/pricing/registry.rb"
 
 Metrics/ModuleLength:
   Max: 200
   Exclude:
     - "lib/llm_cost_tracker/pricing.rb"
+    - "lib/llm_cost_tracker/pricing/registry.rb"
 
 Metrics/CyclomaticComplexity:
   Max: 12

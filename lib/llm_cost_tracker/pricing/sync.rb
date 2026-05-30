@@ -119,7 +119,7 @@ module LlmCostTracker
             normalized[model] = model_metadata.merge(prices)
           end
           service_charges = registry["service_charges"]
-          ServiceCharges.rates_from_registry(registry, context: "remote pricing snapshot") if service_charges
+          Registry.rates_from_registry(registry, context: "remote pricing snapshot") if service_charges
 
           normalized = {
             "metadata" => metadata.merge(
