@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "stringio"
 
 RSpec.describe LlmCostTracker::Tracker do
   describe ".record" do
