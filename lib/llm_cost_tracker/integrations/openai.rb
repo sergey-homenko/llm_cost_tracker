@@ -231,8 +231,12 @@ module LlmCostTracker
         def service_line_items_from(response, request:)
           model = response.try(:model) || request[:model]
           output_items = Array(response.try(:output)).map { |item| normalize_output_item(item) }
-          chat_search = output_items.empty? ? chat_completions_search_item(response, model: model) : nil
-          output_items << chat_search if chat_search
+          if output_items.empty?
+            chat = { "choices" => normalized_choices(response), "id" => response.try(:id) }
+            output_items.concat(
+              LlmCostTracker::Providers::Openai::ServiceCharges.chat_completions_web_search_items(chat, model: model)
+            )
+          end
           return [] if output_items.empty?
 
           LlmCostTracker::Providers::Openai::ServiceCharges.line_items_from_output(
@@ -240,26 +244,11 @@ module LlmCostTracker
           )
         end
 
-        def chat_completions_search_item(response, model: nil)
+        def normalized_choices(response)
           choices = response.try(:choices)
           return nil if choices.nil?
 
-          provider_field = if choices.any? { |choice| choice_used_url_citation?(choice) }
-                             LlmCostTracker::Providers::Openai::ServiceCharges::CHAT_COMPLETIONS_ANNOTATION_PROVIDER_FIELD
-                           elsif LlmCostTracker::Providers::Openai::ModelFamilies.chat_completions_search?(model)
-                             LlmCostTracker::Providers::Openai::ServiceCharges::CHAT_COMPLETIONS_SEARCH_MODEL_PROVIDER_FIELD
-                           end
-          return nil unless provider_field
-
-          { "type" => "web_search_call", "id" => response.try(:id),
-            "action" => { "type" => "search" }, "provider_field" => provider_field }
-        end
-
-        def choice_used_url_citation?(choice)
-          annotations = choice.message.annotations
-          return false if annotations.nil?
-
-          annotations.any? { |annotation| annotation.type.to_s == "url_citation" }
+          Array(choices).map { |choice| choice.deep_to_h.deep_stringify_keys }
         end
 
         def normalize_output_item(item)
