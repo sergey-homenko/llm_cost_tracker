@@ -42,7 +42,7 @@ module LlmCostTracker
           start = Period.range_start(period, time)
           components = [period_total_sql(period, start)]
           components << Ingestion::InboxEntry.pending_total_sql(start: start, finish: time) if Ingestion.async?
-          "SELECT #{connection.quote(period.name)} AS period_key, " \
+          "SELECT #{ActiveRecord::Base.connection.quote(period.name)} AS period_key, " \
             "(#{components.join(') + (')}) AS total_cost"
         end
 
@@ -57,10 +57,6 @@ module LlmCostTracker
         def calls_sum_sql(start)
           calls = LlmCostTracker::Call.where(tracked_at: start..time)
           "(#{calls.select('SUM(total_cost)').to_sql})"
-        end
-
-        def connection
-          LlmCostTracker::Call.connection
         end
       end
     end
