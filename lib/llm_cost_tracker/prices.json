@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-05-29"
+    "updated_at": "2026-05-31"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1302,9 +1302,9 @@
       "output": 0.431
     },
     "openrouter/deepseek/deepseek-v4-flash": {
-      "cache_read_input": 0.02,
-      "input": 0.1,
-      "output": 0.2
+      "cache_read_input": 0.0197,
+      "input": 0.0983,
+      "output": 0.1966
     },
     "openrouter/deepseek/deepseek-v4-pro": {
       "cache_read_input": 0.003625,
@@ -1616,7 +1616,7 @@
       "output": 1.15
     },
     "openrouter/minimax/minimax-m2.7": {
-      "input": 0.279,
+      "input": 0.26,
       "output": 1.2
     },
     "openrouter/mistralai/codestral-2508": {
@@ -1752,9 +1752,9 @@
       "output": 1.9
     },
     "openrouter/moonshotai/kimi-k2.6": {
-      "cache_read_input": 0.25,
-      "input": 0.73,
-      "output": 3.49
+      "cache_read_input": 0.144,
+      "input": 0.684,
+      "output": 3.42
     },
     "openrouter/morph/morph-v3-fast": {
       "input": 0.8,
@@ -2042,7 +2042,7 @@
       "output": 0.18
     },
     "openrouter/openai/gpt-oss-20b": {
-      "input": 0.03,
+      "input": 0.029,
       "output": 0.14
     },
     "openrouter/openai/gpt-oss-safeguard-20b": {
@@ -2170,8 +2170,9 @@
       "output": 0.1
     },
     "openrouter/qwen/qwen3-235b-a22b-thinking-2507": {
-      "input": 0.1495,
-      "output": 1.495
+      "cache_read_input": 0.1,
+      "input": 0.1,
+      "output": 0.1
     },
     "openrouter/qwen/qwen3-30b-a3b": {
       "input": 0.09,
@@ -2276,7 +2277,8 @@
       "output": 1.56
     },
     "openrouter/qwen/qwen3.5-35b-a3b": {
-      "input": 0.139,
+      "cache_read_input": 0.05,
+      "input": 0.14,
       "output": 1.0
     },
     "openrouter/qwen/qwen3.5-397b-a17b": {
@@ -2558,9 +2560,9 @@
       "output": 12.0
     },
     "openrouter/~moonshotai/kimi-latest": {
-      "cache_read_input": 0.25,
-      "input": 0.73,
-      "output": 3.49
+      "cache_read_input": 0.144,
+      "input": 0.684,
+      "output": 3.42
     },
     "openrouter/~openai/gpt-latest": {
       "cache_read_input": 0.5,
