@@ -21,9 +21,6 @@ module LlmCostTracker
         CONTEXT_THRESHOLD_KEY
       ].freeze
       Match = Data.define(:source, :key, :prices, :matched_by, :currency)
-      CACHE_MISS = Object.new.freeze
-      NO_MATCH = Object.new.freeze
-      LOOKUP_CACHE_LIMIT = 2_048
       class << self
         def reset!
           @builtin_prices = nil
@@ -34,7 +31,6 @@ module LlmCostTracker
           @builtin_rates = nil
           @file_rates = nil
           @price_tables = nil
-          @lookup_cache = nil
           @sorted_price_keys_cache = nil
           @prices_file_mtime_iso = nil
         end
@@ -71,8 +67,7 @@ module LlmCostTracker
 
           table.each_with_object({}) do |(model, price), normalized|
             price = validate_price_entry(price, model: model, context: context)
-            warn_unknown_keys(model, price, context)
-            normalized[model.to_s] = normalize_price_entry(price)
+            normalized[model.to_s] = normalize_price_entry(model, price, context)
           end
         end
 
@@ -128,13 +123,7 @@ module LlmCostTracker
           model_name = model.to_s
           return nil if model_name.empty?
 
-          cache_key = [provider_name, model_name]
-          cached = cached_lookup(cache_key)
-          return cached unless cached.equal?(CACHE_MISS)
-
-          match = lookup_match(provider_name: provider_name, model_name: model_name)
-          cache_lookup(cache_key, match)
-          match
+          lookup_match(provider_name: provider_name, model_name: model_name)
         end
 
         def prices_file_mtime_iso
@@ -173,15 +162,20 @@ module LlmCostTracker
           end
         end
 
-        def normalize_price_entry(price)
-          price.each_with_object({}) do |(key, value), normalized|
-            key = registry_key_for(key)
-            if key == CONTEXT_THRESHOLD_KEY
-              normalized[key] = Integer(value)
-            elsif key
-              normalized[key] = non_negative_decimal(value, label: "price for #{key.inspect}")
+        def normalize_price_entry(model, price, context)
+          unknown = []
+          normalized = price.each_with_object({}) do |(key, value), acc|
+            registry_key = registry_key_for(key)
+            if registry_key == CONTEXT_THRESHOLD_KEY
+              acc[registry_key] = Integer(value)
+            elsif registry_key
+              acc[registry_key] = non_negative_decimal(value, label: "price for #{registry_key.inspect}")
+            elsif !METADATA_KEYS.include?(key)
+              unknown << key
             end
           end
+          warn_unknown_keys(model, unknown, context) unless unknown.empty?
+          normalized
         end
 
         def non_negative_decimal(value, label:)
@@ -192,12 +186,7 @@ module LlmCostTracker
           decimal
         end
 
-        def warn_unknown_keys(model, price, path)
-          unknown_keys = price.keys.reject do |key|
-            registry_key_for(key) || METADATA_KEYS.include?(key)
-          end
-          return if unknown_keys.empty?
-
+        def warn_unknown_keys(model, unknown_keys, path)
           Logging.warn(
             "Unknown price keys #{unknown_keys.inspect} for #{model.inspect} in #{path}; " \
             "ignored. Known keys: #{(PRICE_KEYS + METADATA_KEYS).inspect}; mode-specific keys use mode_input"
@@ -338,21 +327,6 @@ module LlmCostTracker
             return result if result
           end
           nil
-        end
-
-        def cached_lookup(cache_key)
-          cached = @lookup_cache
-          return CACHE_MISS unless cached&.key?(cache_key)
-
-          match = cached.fetch(cache_key)
-          match.equal?(NO_MATCH) ? nil : match
-        end
-
-        def cache_lookup(cache_key, match)
-          values = (@lookup_cache || {}).dup
-          values.shift while values.size >= LOOKUP_CACHE_LIMIT
-          values[cache_key] = match || NO_MATCH
-          @lookup_cache = values.freeze
         end
 
         def match_in_table(table, source, provider_model, model_name, normalized)
