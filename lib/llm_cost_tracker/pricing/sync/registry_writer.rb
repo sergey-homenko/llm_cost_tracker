@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "bigdecimal"
 require "fileutils"
 require "json"
 require "yaml"
@@ -30,6 +31,8 @@ module LlmCostTracker
             value.sort_by { |key, _| key.to_s }.to_h { |key, nested| [key, canonicalize(nested)] }
           when Array
             value.map { |element| canonicalize(element) }
+          when BigDecimal
+            value.to_f
           else
             value
           end

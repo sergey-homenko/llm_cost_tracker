@@ -151,7 +151,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
 
     it "rejects infinite token rates so an Infinity override cannot poison cost math downstream" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
-        file.write(%({"models":{"custom-model":{"input":1e400}}}))
+        file.write(%({"models":{"custom-model":{"input":.inf}}}))
         file.close
 
         expect do

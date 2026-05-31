@@ -22,7 +22,7 @@ module LlmCostTracker
                         context_tier: context_tier
                       )
                     else
-                      0.0
+                      BigDecimal("0")
                     end
             [price_key, price]
           end

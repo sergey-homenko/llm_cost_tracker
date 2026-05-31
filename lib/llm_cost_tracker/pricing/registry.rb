@@ -175,17 +175,17 @@ module LlmCostTracker
             if key == CONTEXT_THRESHOLD_KEY
               normalized[key] = Integer(value)
             elsif key
-              normalized[key] = non_negative_float(key, value)
+              normalized[key] = non_negative_decimal(value, label: "price for #{key.inspect}")
             end
           end
         end
 
-        def non_negative_float(key, value)
-          rate = Float(value)
-          raise ArgumentError, "price for #{key.inspect} must be finite (got #{rate})" unless rate.finite?
-          raise ArgumentError, "price for #{key.inspect} must be non-negative (got #{rate})" if rate.negative?
+        def non_negative_decimal(value, label:)
+          decimal = BigDecimal(value.to_s)
+          raise ArgumentError, "#{label} must be finite (got #{value})" unless decimal.finite?
+          raise ArgumentError, "#{label} must be non-negative (got #{value})" if decimal.negative?
 
-          rate
+          decimal
         end
 
         def warn_unknown_keys(model, price, path)
@@ -234,7 +234,7 @@ module LlmCostTracker
           entries.each_with_object({}) do |(key, amount), rates|
             key = key.to_s
             component, tier = component_and_tier_for(key, context: context)
-            amount = amount_for(key, amount, context: context)
+            amount = non_negative_decimal(amount, label: "service charge price amount for #{key.inspect} in #{context}")
 
             rate = {
               amount: amount,
@@ -254,20 +254,6 @@ module LlmCostTracker
           end
 
           [component, prefix]
-        end
-
-        def amount_for(key, amount, context:)
-          value = BigDecimal(amount.to_s)
-          if value.infinite? || value.nan?
-            raise ArgumentError,
-                  "service charge price amount for #{key.inspect} in #{context} must be finite"
-          end
-          if value.negative?
-            raise ArgumentError,
-                  "service charge price amount for #{key.inspect} in #{context} must be non-negative"
-          end
-
-          value
         end
 
         def rate_quantity(component)
