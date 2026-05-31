@@ -10,7 +10,7 @@ module LlmCostTrackerReset
     pool.instance_variable_set(:@handler, nil)
 
     LlmCostTracker.instance_variable_set(:@configuration, LlmCostTracker::Configuration.new)
-    LlmCostTracker::Pricing.reset_caches!
+    LlmCostTracker::Pricing::Registry.reset!
     LlmCostTracker::Pricing::Unknown.instance_variable_get(:@warned_models)&.clear
 
     worker = LlmCostTracker::Ingestion::Worker

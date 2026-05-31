@@ -14,7 +14,7 @@ module LlmCostTracker
     end
 
     initializer "llm_cost_tracker.pricing_cache" do |app|
-      app.reloader.to_prepare { LlmCostTracker::Pricing.reset_caches! }
+      app.reloader.to_prepare { LlmCostTracker::Pricing::Registry.reset! }
     end
   end
 end

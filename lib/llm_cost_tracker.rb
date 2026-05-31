@@ -54,7 +54,7 @@ module LlmCostTracker
 
       yield(config)
       config.finalize!
-      Pricing.reset_caches!
+      Pricing::Registry.reset!
       Integrations.install!
       config
     end

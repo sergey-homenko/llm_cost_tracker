@@ -16,10 +16,6 @@ require_relative "pricing/calculation"
 module LlmCostTracker
   module Pricing
     class << self
-      def reset_caches!
-        Registry.reset!
-      end
-
       def cost_for(provider:, model:, tokens:, pricing_mode: nil)
         Calculation.for(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode).token_cost
       end

@@ -56,7 +56,7 @@ module LlmCostTracker
           remote = normalize_remote_registry(response.body, url: url, response: response, today: today)
           unless preview
             RegistryWriter.new.call(path: path, registry: remote)
-            Pricing.reset_caches!
+            Pricing::Registry.reset!
           end
           refresh_result(
             path: path,
