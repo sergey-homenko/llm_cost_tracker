@@ -16,12 +16,12 @@ RSpec.describe LlmCostTracker::Pricing do
 
   context "model fallback resolution" do
     it "returns nil for an empty model lookup before touching the price tables" do
-      expect(LlmCostTracker::Pricing::Lookup.call(provider: "openai", model: "")).to be_nil
-      expect(LlmCostTracker::Pricing::Lookup.call(provider: "openai", model: nil)).to be_nil
+      expect(LlmCostTracker::Pricing::Registry.lookup(provider: "openai", model: "")).to be_nil
+      expect(LlmCostTracker::Pricing::Registry.lookup(provider: "openai", model: nil)).to be_nil
     end
 
     it "resolves azure_openai/<model> through the unique-providerless fallback to OpenAI direct entries" do
-      match = LlmCostTracker::Pricing::Lookup.call(provider: "azure_openai", model: "gpt-4o-mini")
+      match = LlmCostTracker::Pricing::Registry.lookup(provider: "azure_openai", model: "gpt-4o-mini")
 
       expect(match).not_to be_nil
       expect(match.key).to eq("openai/gpt-4o-mini")
@@ -29,7 +29,7 @@ RSpec.describe LlmCostTracker::Pricing do
     end
 
     it "resolves dated azure_openai snapshots through the unique-providerless dated-snapshot fallback" do
-      match = LlmCostTracker::Pricing::Lookup.call(provider: "azure_openai", model: "gpt-4o-2024-08-06")
+      match = LlmCostTracker::Pricing::Registry.lookup(provider: "azure_openai", model: "gpt-4o-2024-08-06")
 
       expect(match).not_to be_nil
       expect(match.key).to eq("openai/gpt-4o")
@@ -37,7 +37,7 @@ RSpec.describe LlmCostTracker::Pricing do
     end
 
     it "resolves Gemini preview-dated snapshots (preview-MM-DD) to the stable model entry" do
-      match = LlmCostTracker::Pricing::Lookup.call(provider: "gemini", model: "gemini-2.5-flash-preview-04-17")
+      match = LlmCostTracker::Pricing::Registry.lookup(provider: "gemini", model: "gemini-2.5-flash-preview-04-17")
 
       expect(match).not_to be_nil
       expect(match.key).to eq("gemini/gemini-2.5-flash")
@@ -853,8 +853,8 @@ RSpec.describe LlmCostTracker::Pricing do
 
   describe "lookup cache" do
     it "returns consistent sorted keys under concurrent lookup" do
-      if LlmCostTracker::Pricing::Lookup.instance_variable_defined?(:@sorted_price_keys_cache)
-        LlmCostTracker::Pricing::Lookup.remove_instance_variable(:@sorted_price_keys_cache)
+      if LlmCostTracker::Pricing::Registry.instance_variable_defined?(:@sorted_price_keys_cache)
+        LlmCostTracker::Pricing::Registry.remove_instance_variable(:@sorted_price_keys_cache)
       end
 
       table = {
@@ -863,7 +863,7 @@ RSpec.describe LlmCostTracker::Pricing do
       }
 
       results = 10.times.map do
-        Thread.new { LlmCostTracker::Pricing::Lookup.send(:sorted_price_keys, table) }
+        Thread.new { LlmCostTracker::Pricing::Registry.send(:sorted_price_keys, table) }
       end.map(&:value)
 
       expect(results).to all(eq(%w[gpt-4o gpt-4]))

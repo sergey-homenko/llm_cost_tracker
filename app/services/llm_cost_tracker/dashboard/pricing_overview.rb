@@ -58,7 +58,7 @@ module LlmCostTracker
         {
           label: "Custom file",
           subtitle: path.to_s,
-          updated_at: meta["updated_at"] || Pricing::Lookup.prices_file_mtime_iso,
+          updated_at: meta["updated_at"] || Pricing::Registry.prices_file_mtime_iso,
           currency: meta["currency"] || Billing::DEFAULT_CURRENCY,
           rows: build_rows(prices)
         }
