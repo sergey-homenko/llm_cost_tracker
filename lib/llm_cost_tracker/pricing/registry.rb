@@ -13,11 +13,11 @@ module LlmCostTracker
   module Pricing
     module Registry
       DEFAULT_PRICES_PATH = File.expand_path("../prices.json", __dir__)
-      EMPTY = {}.freeze
       CONTEXT_THRESHOLD_KEY = "_context_price_threshold_tokens"
       PRICE_KEYS = Billing::Components::TOKEN_PRICED.map(&:key).freeze
       METADATA_KEYS = ["_source", CONTEXT_THRESHOLD_KEY].freeze
       Match = Data.define(:source, :key, :prices, :matched_by, :currency)
+
       class << self
         def reset!
           @builtin_prices = nil
@@ -52,7 +52,7 @@ module LlmCostTracker
         end
 
         def file_prices(path)
-          return EMPTY unless path
+          return {} unless path
 
           prices, @file_prices = memoize_in(@file_prices, path) { load_file_prices(path) }
           prices
@@ -98,14 +98,14 @@ module LlmCostTracker
         end
 
         def file_rates(path)
-          return EMPTY unless path
+          return {} unless path
 
           rates, @file_rates = memoize_in(@file_rates, path) { load_file_rates(path) }
           rates
         end
 
         def rates_from_registry(registry, context:)
-          data = registry.fetch("service_charges", EMPTY)
+          data = registry.fetch("service_charges", {})
           raise ArgumentError, "#{context} service_charges must be a hash" unless data.is_a?(Hash)
 
           currency = upcased_currency(registry.dig("metadata", "currency"))
@@ -270,7 +270,7 @@ module LlmCostTracker
           ]
 
           first_match(sources) do |table, source|
-            rate = rate_for(table.fetch(provider_name, EMPTY), component_key: component_key, pricing_mode: pricing_mode)
+            rate = rate_for(table.fetch(provider_name, {}), component_key: component_key, pricing_mode: pricing_mode)
             next unless rate
 
             {
@@ -282,8 +282,8 @@ module LlmCostTracker
         end
 
         def rate_for(provider_table, component_key:, pricing_mode:)
-          component_rates = provider_table.fetch(component_key, EMPTY)
-          tier_rates = component_rates.fetch(:tiers, EMPTY)
+          component_rates = provider_table.fetch(component_key, {})
+          tier_rates = component_rates.fetch(:tiers, {})
           if pricing_mode
             rate = tier_rates[pricing_mode]
             return rate if rate
