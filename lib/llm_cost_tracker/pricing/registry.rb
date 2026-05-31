@@ -191,12 +191,23 @@ module LlmCostTracker
         end
 
         def price_key_for(key)
-          component, prefix = Billing::Components.parse_key(key)
+          key = key.to_s
+          component_key = strip_mode_prefix(key.delete_prefix("above_context_"))
+          component = Billing::Components::BY_KEY[component_key]
           return nil unless component
-          return component.key if prefix.nil?
-          return nil unless component.token_key
+          return key if key == component_key
 
-          "#{prefix}_#{component.key}"
+          component.token_key ? key : nil
+        end
+
+        def strip_mode_prefix(key)
+          loop do
+            modifier = Mode::KNOWN_MODIFIERS.find { |m| key.start_with?("#{m}_") }
+            break unless modifier
+
+            key = key.delete_prefix("#{modifier}_")
+          end
+          key
         end
 
         def registry_key_for(key)

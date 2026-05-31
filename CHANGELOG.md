@@ -25,6 +25,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- A typo'd price-key prefix in `pricing_overrides` or a custom `prices_file` (e.g. `bath_input` for `batch_input`, or any unknown `<mode>_<component>`) now logs an `Unknown price keys` warning and is ignored, instead of being silently accepted so the override quietly never applied at the intended mode/tier.
 - Anthropic responses with `service_tier: "priority"` now keep `:priority` as their pricing_mode instead of being silently billed at standard rates — committed-tier customers get `cost_status: unknown` (signaling to add `priority_input`/`priority_output` to `pricing_overrides`) instead of an over-counted USD figure that ignores their commitment discount.
 - OpenAI's `scale` enterprise tier and `priority` tier are now recognized as pricing modes (no more `Logging.warn` about unknown tokens); calls land as `cost_status: unknown` when negotiated rates are absent so you can add them via `pricing_overrides`.
 - Gemini responses echoing `usageMetadata.serviceTier: "unspecified"` (the default) now resolve to standard pricing instead of warning about an unknown token and landing as `cost_status: unknown`.
