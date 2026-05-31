@@ -10,7 +10,7 @@ Hot-path code includes:
 - stream collection
 - `Tracker.record`
 - `Pricing::Calculation`
-- `Pricing::ServiceCharges.charge_rate`
+- `Pricing::Registry.charge_rate`
 - ActiveRecord event persistence
 - budget checks
 

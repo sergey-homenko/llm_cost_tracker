@@ -96,7 +96,7 @@ also covered: if `OpenAI::Client.new` is initialized with an Azure
 host and tags the same way.
 
 Pricing for `azure_openai/<model>` resolves through the
-`unique_providerless_model` match strategy in `Pricing::Lookup` to the
+`unique_providerless_model` match strategy in `Pricing::Registry` to the
 matching `openai/<model>` entry in the bundled price snapshot. That's correct for Global-tier
 deployments in primary regions where Azure prices match OpenAI direct. If
 your deployment uses Data Zone (data-residency) pricing or a regional
