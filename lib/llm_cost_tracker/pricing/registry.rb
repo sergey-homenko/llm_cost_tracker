@@ -33,7 +33,7 @@ module LlmCostTracker
           @file_prices = nil
           @builtin_rates = nil
           @file_rates = nil
-          @current_price_tables = nil
+          @price_tables = nil
           @lookup_cache = nil
           @sorted_price_keys_cache = nil
           @prices_file_mtime_iso = nil
@@ -116,7 +116,7 @@ module LlmCostTracker
           data = registry.fetch("service_charges", EMPTY)
           raise ArgumentError, "#{context} service_charges must be a hash" unless data.is_a?(Hash)
 
-          currency = (registry.dig("metadata", "currency") || Billing::DEFAULT_CURRENCY).upcase
+          currency = upcased_currency(registry.dig("metadata", "currency"))
           data.each_with_object({}) do |(provider, entries), rates|
             section_context = "#{context} service_charges.#{provider}"
             rates[provider] = rates_from_section(entries, currency: currency, context: section_context)
@@ -156,17 +156,21 @@ module LlmCostTracker
           [value, next_cache.freeze]
         end
 
-        def load_raw_file_registry(path)
-          (YAML.safe_load_file(path, aliases: false) || {}).freeze
-        rescue Errno::ENOENT, Psych::Exception => e
+        def loading(path)
+          yield
+        rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
           raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
         end
 
+        def load_raw_file_registry(path)
+          loading(path) { (YAML.safe_load_file(path, aliases: false) || {}).freeze }
+        end
+
         def load_file_prices(path)
-          doc = raw_file_registry(path)
-          normalize_price_entries(doc.fetch("models", doc), context: path).freeze
-        rescue ArgumentError, TypeError => e
-          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+          loading(path) do
+            doc = raw_file_registry(path)
+            normalize_price_entries(doc.fetch("models", doc), context: path).freeze
+          end
         end
 
         def normalize_price_entry(price)
@@ -223,9 +227,7 @@ module LlmCostTracker
         end
 
         def load_file_rates(path)
-          rates_from_registry(raw_file_registry(path), context: path).freeze
-        rescue ArgumentError, TypeError => e
-          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+          loading(path) { rates_from_registry(raw_file_registry(path), context: path).freeze }
         end
 
         def rates_from_section(entries, currency:, context:)
@@ -270,18 +272,16 @@ module LlmCostTracker
             ["bundled", builtin_rates]
           ]
 
-          sources.each do |source, table|
-            provider_table = table.fetch(provider_name, EMPTY)
-            rate = rate_for(provider_table, component_key: component_key, pricing_mode: pricing_mode)
+          first_match(sources) do |table, source|
+            rate = rate_for(table.fetch(provider_name, EMPTY), component_key: component_key, pricing_mode: pricing_mode)
             next unless rate
 
-            return {
+            {
               source: source,
               key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
               rate: rate
             }
           end
-          nil
         end
 
         def rate_for(provider_table, component_key:, pricing_mode:)
@@ -314,36 +314,30 @@ module LlmCostTracker
 
         def lookup_match(provider_name:, model_name:)
           provider_model = provider_name ? "#{provider_name}/#{model_name}" : model_name
-          normalized_model = normalize_model_name(model_name)
-          current = current_price_tables
+          normalized = normalize_model_name(model_name)
 
-          ordered_table_lookups(current).each do |source, table|
-            match = explain_table(
-              table: table,
-              source: source,
-              provider_model: provider_model,
-              model_name: model_name,
-              normalized_model: normalized_model
-            )
-            return match if match
+          first_match(price_tables) do |table, source|
+            match_in_table(table, source, provider_model, model_name, normalized)
+          end
+        end
+
+        def price_tables
+          @price_tables ||= begin
+            config = LlmCostTracker.configuration
+            [
+              ["pricing_overrides", config.pricing_overrides],
+              ["prices_file", file_prices(config.prices_file)],
+              ["bundled", builtin_prices]
+            ].freeze
+          end
+        end
+
+        def first_match(sources)
+          sources.each do |source, table|
+            result = yield(table, source)
+            return result if result
           end
           nil
-        end
-
-        def ordered_table_lookups(current)
-          [
-            ["pricing_overrides", current.fetch(:pricing_overrides)],
-            ["prices_file", current.fetch(:file_prices)],
-            ["bundled", builtin_prices]
-          ]
-        end
-
-        def current_price_tables
-          @current_price_tables ||= begin
-            config = LlmCostTracker.configuration
-            file_table = file_prices(config.prices_file)
-            { pricing_overrides: config.pricing_overrides, file_prices: file_table }.freeze
-          end
         end
 
         def cached_lookup(cache_key)
@@ -361,54 +355,43 @@ module LlmCostTracker
           @lookup_cache = values.freeze
         end
 
-        def explain_table(table:, source:, provider_model:, model_name:, normalized_model:)
+        def match_in_table(table, source, provider_model, model_name, normalized)
           return nil if table.empty?
 
-          direct_match(table: table, source: source, key: provider_model, matched_by: :provider_model) ||
-            direct_match(table: table, source: source, key: model_name, matched_by: :model) ||
-            direct_match(table: table, source: source, key: normalized_model, matched_by: :normalized_model) ||
-            unique_providerless_lookup(model: normalized_model, table: table, source: source) ||
-            fuzzy_match(model: provider_model, normalized_model: normalized_model, table: table, source: source) ||
-            unique_providerless_fuzzy_match(model: normalized_model, table: table, source: source)
+          [[provider_model, :provider_model], [model_name, :model], [normalized, :normalized_model]].each do |key, by|
+            return build_match(table, source, key, by) if table.key?(key)
+          end
+
+          scan = native_keys(table)
+          if (key = unique_in(scan) { |native| normalize_model_name(native) == normalized })
+            return build_match(table, source, key, :unique_providerless_model)
+          end
+
+          dated = scan.find do |native|
+            snapshot_variant?(provider_model, native) || snapshot_variant?(normalized, native)
+          end
+          return build_match(table, source, dated, :dated_snapshot) if dated
+
+          unique_dated = unique_in(scan) { |native| snapshot_variant?(normalized, normalize_model_name(native)) }
+          return build_match(table, source, unique_dated, :unique_providerless_dated_snapshot) if unique_dated
+
+          nil
+        end
+
+        def unique_in(keys, &)
+          matches = keys.select(&)
+          matches.first if matches.one?
         end
 
         def normalize_model_name(model)
           model.to_s.split("/").last
         end
 
-        def unique_providerless_lookup(model:, table:, source:)
-          matches = native_keys(table).select { |key| normalize_model_name(key) == model }
-          return unless matches.one?
-
-          match(table: table, source: source, key: matches.first, matched_by: :unique_providerless_model)
-        end
-
-        def fuzzy_match(model:, normalized_model:, table:, source:)
-          native_keys(table).each do |key|
-            if snapshot_variant?(model, key) || snapshot_variant?(normalized_model, key)
-              return match(table: table, source: source, key: key, matched_by: :dated_snapshot)
-            end
-          end
-
-          nil
-        end
-
-        def unique_providerless_fuzzy_match(model:, table:, source:)
-          matches = native_keys(table).select { |key| snapshot_variant?(model, normalize_model_name(key)) }
-          return unless matches.one?
-
-          match(table: table, source: source, key: matches.first, matched_by: :unique_providerless_dated_snapshot)
-        end
-
         def native_keys(table)
           sorted_price_keys(table).reject { |key| key.count("/") > 1 }
         end
 
-        def direct_match(table:, source:, key:, matched_by:)
-          match(table: table, source: source, key: key, matched_by: matched_by) if table.key?(key)
-        end
-
-        def match(table:, source:, key:, matched_by:)
+        def build_match(table, source, key, matched_by)
           Match.new(
             source: source,
             key: key,
@@ -418,13 +401,17 @@ module LlmCostTracker
           )
         end
 
+        def upcased_currency(value)
+          (value || Billing::DEFAULT_CURRENCY).upcase
+        end
+
         def source_currency(source)
           raw = case source
                 when "bundled" then metadata["currency"]
                 when "prices_file"
                   file_metadata(LlmCostTracker.configuration.prices_file)["currency"]
                 end
-          (raw || Billing::DEFAULT_CURRENCY).upcase
+          upcased_currency(raw)
         end
 
         def snapshot_variant?(model, key)
