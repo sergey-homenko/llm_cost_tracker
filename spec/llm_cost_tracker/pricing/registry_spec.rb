@@ -71,12 +71,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
             "custom-model" => {
               "input" => 1.0,
               "output" => 2.0,
-              _source: "contract",
-              _source_version: "snapshot-v1",
-              _fetched_at: "2026-04-22T00:00:00Z",
-              _updated: "2026-04-18",
-              _notes: "negotiated rate",
-              _validator_override: ["skip_relative_change"]
+              _source: "manual"
             }
           }
         }.to_json)

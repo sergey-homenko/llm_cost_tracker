@@ -16,10 +16,7 @@ module LlmCostTracker
       EMPTY = {}.freeze
       CONTEXT_THRESHOLD_KEY = "_context_price_threshold_tokens"
       PRICE_KEYS = Billing::Components::TOKEN_PRICED.map(&:key).freeze
-      METADATA_KEYS = [
-        "_source", "_source_version", "_fetched_at", "_updated", "_notes", "_validator_override",
-        CONTEXT_THRESHOLD_KEY
-      ].freeze
+      METADATA_KEYS = ["_source", CONTEXT_THRESHOLD_KEY].freeze
       Match = Data.define(:source, :key, :prices, :matched_by, :currency)
       class << self
         def reset!
