@@ -52,18 +52,17 @@ module LlmCostTracker
         def file_metadata(path)
           return {} unless path
 
-          metadata = raw_file_registry(path).fetch("metadata", {})
-          raise ArgumentError, "prices_file metadata must be a hash" unless metadata.is_a?(Hash)
+          meta = raw_file_registry(path).fetch("metadata", {})
+          return meta if meta.is_a?(Hash)
 
-          metadata
-        rescue ArgumentError, TypeError => e
-          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+          raise Error, "Unable to load prices_file #{path.inspect}: prices_file metadata must be a hash"
         end
 
         def file_prices(path)
           return EMPTY unless path
 
-          (@file_prices ||= {})[path] ||= load_file_prices(path)
+          prices, @file_prices = memoize_in(@file_prices, path) { load_file_prices(path) }
+          prices
         end
 
         def normalize_price_entries(table, context:)
@@ -82,7 +81,8 @@ module LlmCostTracker
         end
 
         def raw_file_registry(path)
-          (@raw_file_registries ||= {})[path] ||= load_raw_file_registry(path)
+          registry, @raw_file_registries = memoize_in(@raw_file_registries, path) { load_raw_file_registry(path) }
+          registry
         end
 
         def charge_rate(provider:, component:, pricing_mode:)
@@ -108,14 +108,7 @@ module LlmCostTracker
         def file_rates(path)
           return EMPTY unless path
 
-          cached = @file_rates
-          existing = cached && cached[path]
-          return existing if existing
-
-          rates = load_file_rates(path)
-          next_cache = cached ? cached.dup : {}
-          next_cache[path] = rates
-          @file_rates = next_cache.freeze
+          rates, @file_rates = memoize_in(@file_rates, path) { load_file_rates(path) }
           rates
         end
 
@@ -152,6 +145,16 @@ module LlmCostTracker
         end
 
         private
+
+        def memoize_in(cache, key, identity: false)
+          existing = cache && cache[key]
+          return [existing, cache] if existing
+
+          value = yield
+          next_cache = cache&.dup || (identity ? {}.compare_by_identity : {})
+          next_cache[key] = value
+          [value, next_cache.freeze]
+        end
 
         def load_raw_file_registry(path)
           (YAML.safe_load_file(path, aliases: false) || {}).freeze
@@ -276,28 +279,23 @@ module LlmCostTracker
           return nil unless provider_name
 
           component_key = charge_component_key(component)
+          sources = [
+            ["prices_file", file_rates(LlmCostTracker.configuration.prices_file)],
+            ["bundled", builtin_rates]
+          ]
 
-          table = file_rates(LlmCostTracker.configuration.prices_file)
-          provider_table = table.fetch(provider_name, EMPTY)
-          rate = rate_for(provider_table, component_key: component_key, pricing_mode: pricing_mode)
-          if rate
+          sources.each do |source, table|
+            provider_table = table.fetch(provider_name, EMPTY)
+            rate = rate_for(provider_table, component_key: component_key, pricing_mode: pricing_mode)
+            next unless rate
+
             return {
-              source: "prices_file",
+              source: source,
               key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
               rate: rate
             }
           end
-
-          table = builtin_rates
-          provider_table = table.fetch(provider_name, EMPTY)
-          rate = rate_for(provider_table, component_key: component_key, pricing_mode: pricing_mode)
-          return unless rate
-
-          {
-            source: "bundled",
-            key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
-            rate: rate
-          }
+          nil
         end
 
         def rate_for(provider_table, component_key:, pricing_mode:)
@@ -451,14 +449,8 @@ module LlmCostTracker
         end
 
         def sorted_price_keys(table)
-          cached = @sorted_price_keys_cache
-          existing = cached && cached[table]
-          return existing if existing
-
-          keys = table.keys.sort_by { |key| -key.length }
-          next_cache = cached ? cached.dup : {}.compare_by_identity
-          next_cache[table] = keys
-          @sorted_price_keys_cache = next_cache.freeze
+          keys, @sorted_price_keys_cache =
+            memoize_in(@sorted_price_keys_cache, table, identity: true) { table.keys.sort_by { |key| -key.length } }
           keys
         end
       end
