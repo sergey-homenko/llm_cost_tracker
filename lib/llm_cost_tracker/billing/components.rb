@@ -2,8 +2,6 @@
 
 require "psych"
 
-require_relative "../errors"
-
 module LlmCostTracker
   module Billing
     DEFAULT_CURRENCY = "USD"
@@ -31,9 +29,20 @@ module LlmCostTracker
 
     module Components
       Component = Data.define(
-        :key, :kind, :direction, :modality, :cache_state, :unit,
-        :token_key, :cost_key, :rate_basis
-      )
+        :key, :kind, :direction, :modality, :cache_state, :unit, :rate_basis
+      ) do
+        def token?
+          unit == "token"
+        end
+
+        def token_key
+          :"#{key}_tokens" if token?
+        end
+
+        def cost_key
+          :"#{key}_cost" if token?
+        end
+      end
 
       DEFINITIONS_PATH = File.expand_path("components.yml", __dir__)
 
@@ -44,14 +53,8 @@ module LlmCostTracker
       end
 
       def self.build(attributes)
-        key, unit = attributes.fetch_values(:key, :unit)
-        rate_basis = attributes[:rate_basis] || Billing::DEFAULT_RATE_BASIS_BY_UNIT.fetch(unit)
-        Component.new(
-          **attributes,
-          rate_basis: rate_basis,
-          token_key: unit == "token" ? :"#{key}_tokens" : nil,
-          cost_key: unit == "token" ? :"#{key}_cost" : nil
-        )
+        rate_basis = attributes[:rate_basis] || Billing::DEFAULT_RATE_BASIS_BY_UNIT.fetch(attributes.fetch(:unit))
+        Component.new(**attributes, rate_basis: rate_basis)
       end
 
       def self.parse_key(key)
