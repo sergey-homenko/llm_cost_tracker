@@ -6,13 +6,9 @@ module LlmCostTracker
   module Providers
     module Openai
       module ServiceCharges
-        RESPONSE_OUTPUT_DIMENSIONS = {
+        RESPONSE_OUTPUT_RENAMES = {
           "web_search_call" => "web_search_request",
-          "file_search_call" => "file_search_call",
-          "code_interpreter_call" => "container_session",
-          "mcp_call" => "mcp_call",
-          "image_generation_call" => "image_generation_call",
-          "computer_call" => "computer_call"
+          "code_interpreter_call" => "container_session"
         }.freeze
 
         module_function
@@ -62,7 +58,7 @@ module LlmCostTracker
         def billable?(item)
           return false unless item.is_a?(Hash)
 
-          dimension = RESPONSE_OUTPUT_DIMENSIONS[item["type"]]
+          dimension = output_dimension(item["type"])
           return false unless dimension
           return true unless dimension == "web_search_request"
 
@@ -71,9 +67,11 @@ module LlmCostTracker
         end
 
         def store_output_item(output_items, item)
-          return unless item.is_a?(Hash) && RESPONSE_OUTPUT_DIMENSIONS.key?(item["type"])
+          return unless item.is_a?(Hash)
 
-          dimension = RESPONSE_OUTPUT_DIMENSIONS[item["type"]]
+          dimension = output_dimension(item["type"])
+          return unless dimension
+
           key = if dimension == "container_session" && item["container_id"]
                   "#{dimension}:#{item['container_id']}"
                 else
@@ -105,11 +103,17 @@ module LlmCostTracker
         end
 
         def dimension_key_for(item, request:, model:)
-          dimension = RESPONSE_OUTPUT_DIMENSIONS[item["type"]]
+          dimension = output_dimension(item["type"])
           return dimension unless dimension == "web_search_request"
           return dimension unless web_search_preview_used?(request) || chat_completions_search_model?(model)
 
           reasoning_model?(model) ? "web_search_preview_request_reasoning" : "web_search_preview_request_non_reasoning"
+        end
+
+        def output_dimension(type)
+          key = RESPONSE_OUTPUT_RENAMES[type] || type
+          dimension = Usage::Dimension::BY_KEY[key]
+          key if dimension && dimension.token_key.nil?
         end
 
         def web_search_preview_used?(request)
