@@ -2,10 +2,12 @@
 
 require "bigdecimal"
 
+require_relative "../billing/components"
+
 module LlmCostTracker
   module Pricing
     class Calculation
-      RATE_DENOMINATOR_TOKENS = 1_000_000
+      RATE_DENOMINATOR_TOKENS = Billing::RATE_BASIS_QUANTITIES.fetch("per_million_tokens")
       private_constant :RATE_DENOMINATOR_TOKENS
 
       def self.for(provider:, model:, tokens:, pricing_mode:, line_items: [], usage_source: nil)
@@ -162,16 +164,17 @@ module LlmCostTracker
         price = effective[component.key]
         return line_item.with(cost_status: Billing::CostStatus::UNKNOWN) if price.nil?
 
-        cost = cost_of_tokens(line_item.quantity, price)
-        line_item.with(
-          rate_amount: BigDecimal(price.to_s),
-          rate_quantity: BigDecimal(RATE_DENOMINATOR_TOKENS),
-          cost: cost,
+        line_item.with_rate(token_rate(component, price))
+      end
+
+      def token_rate(component, price)
+        Billing::Rate.new(
+          amount: BigDecimal(price.to_s),
+          quantity: BigDecimal(RATE_DENOMINATOR_TOKENS),
           currency: match.currency,
-          cost_status: cost.zero? ? Billing::CostStatus::FREE : Billing::CostStatus::COMPLETE,
-          price_key: component.key,
-          price_source: match.source,
-          price_source_version: Pricing.source_version_for(match.source)
+          source: match.source,
+          source_key: component.key,
+          source_version: Pricing.source_version_for(match.source)
         )
       end
 
