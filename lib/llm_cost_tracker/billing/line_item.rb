@@ -117,6 +117,11 @@ module LlmCostTracker
         unit == "token"
       end
 
+      def component
+        Components::BY_KEY[price_key] ||
+          Components.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
+      end
+
       def cost_value
         cost || BigDecimal("0")
       end

@@ -96,31 +96,27 @@ module LlmCostTracker
         any_billable
       end
 
-      def costs
-        @costs ||= quantities.to_h { |key, tokens| [key, component_cost(tokens, effective[key])] }
-      end
-
-      def component_cost(tokens, per_million_price)
-        return BigDecimal("0") if tokens.zero?
-        return nil if per_million_price.nil?
-
-        cost_of_tokens(tokens, per_million_price)
-      end
-
-      def cost_of_tokens(quantity, price)
-        (BigDecimal(quantity.to_s) * BigDecimal(price.to_s)) / RATE_DENOMINATOR_TOKENS
+      def priced_token_line_items
+        @priced_token_line_items ||= priced_line_items.select(&:token?)
       end
 
       def build_token_cost
+        by_component = priced_token_line_items.to_h { |line_item| [line_item.component, line_item] }
         components = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, result|
-          cost = costs[component.key]
+          cost = token_component_cost(component, by_component[component])
           result[component.cost_key] = cost.round(8) unless cost.nil?
         end
         Billing::Cost.new(
           components: components.freeze,
-          total: costs.values.compact.sum(BigDecimal("0")).round(8),
+          total: priced_token_line_items.sum(BigDecimal("0"), &:cost_value).round(8),
           currency: match.currency
         )
+      end
+
+      def token_component_cost(component, line_item)
+        return BigDecimal("0") if quantities[component.key].zero?
+
+        line_item&.cost
       end
 
       def build_snapshot
@@ -131,16 +127,15 @@ module LlmCostTracker
           "source_version" => Pricing.source_version_for(match.source),
           "matched_by" => match.matched_by.to_s,
           "currency" => match.currency,
-          "rates" => service_charge_rates.merge(token_rates)
+          "rates" => service_charge_rates.merge(token_charge_rates)
         }
       end
 
-      def token_rates
-        quantities.each_with_object({}) do |(key, quantity), rates|
-          price = effective[key]
-          next if quantity.zero? || price.nil?
+      def token_charge_rates
+        priced_token_line_items.each_with_object({}) do |line_item, rates|
+          next if line_item.price_key.nil? || line_item.rate_amount.nil?
 
-          rates[key] = rate_entry(price, RATE_DENOMINATOR_TOKENS)
+          rates[line_item.price_key] ||= rate_entry(line_item.rate_amount, line_item.rate_quantity)
         end
       end
 
@@ -248,11 +243,7 @@ module LlmCostTracker
       def token_pricing_partial?
         return false unless token_cost
 
-        @token_usage.priced_quantities.any? do |key, quantity|
-          next false unless quantity.positive?
-
-          token_cost.components[Billing::Components::BY_KEY.fetch(key).cost_key].nil?
-        end
+        priced_token_line_items.any?(&:unpriced?)
       end
     end
   end
