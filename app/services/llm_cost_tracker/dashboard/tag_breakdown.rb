@@ -35,7 +35,7 @@ module LlmCostTracker
               calls: calls,
               total_cost: row.total_cost,
               average_cost_per_call: row.average_cost_per_call,
-              share_percent: percentage(calls, total)
+              share_percent: total.positive? ? (calls.to_f / total) * 100.0 : 0.0
             )
           end
         end
@@ -114,12 +114,6 @@ module LlmCostTracker
 
       def quoted_key
         scope.connection.quote(key)
-      end
-
-      def percentage(numerator, denominator)
-        return 0.0 unless denominator.positive?
-
-        (numerator / denominator.to_f) * 100.0
       end
     end
   end
