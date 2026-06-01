@@ -11,16 +11,16 @@ module LlmCostTracker
     PARSER_PROVIDERS = %i[Openai Azure OpenaiCompatible Anthropic Gemini].freeze
 
     def self.find_for(url)
-      parser_classes.each do |klass|
-        return instance_for(klass) if klass.match?(url)
+      instances.each do |klass, instance|
+        return instance if klass.match?(url)
       end
       nil
     end
 
     def self.find_for_provider(provider)
       provider_name = provider.to_s.downcase
-      parser_classes.each do |klass|
-        return instance_for(klass) if klass.provider_names.include?(provider_name)
+      instances.each do |klass, instance|
+        return instance if klass.provider_names.include?(provider_name)
       end
       nil
     end
@@ -30,10 +30,10 @@ module LlmCostTracker
     end
     private_class_method :parser_classes
 
-    def self.instance_for(klass)
-      (@instances ||= {})[klass] ||= klass.new
+    def self.instances
+      @instances ||= parser_classes.to_h { |klass| [klass, klass.new] }.freeze
     end
-    private_class_method :instance_for
+    private_class_method :instances
 
     module UrlMatchers
       def match_uri?(url, hosts: nil, exact_paths: nil, path_includes: nil, path_suffixes: nil, path_pattern: nil)
