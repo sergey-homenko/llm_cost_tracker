@@ -6,7 +6,7 @@ module LlmCostTracker
   module Providers
     module Openai
       module ServiceCharges
-        RESPONSE_OUTPUT_COMPONENTS = {
+        RESPONSE_OUTPUT_DIMENSIONS = {
           "web_search_call" => "web_search_request",
           "file_search_call" => "file_search_call",
           "code_interpreter_call" => "container_session",
@@ -62,20 +62,20 @@ module LlmCostTracker
         def billable?(item)
           return false unless item.is_a?(Hash)
 
-          component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
-          return false unless component
-          return true unless component == "web_search_request"
+          dimension = RESPONSE_OUTPUT_DIMENSIONS[item["type"]]
+          return false unless dimension
+          return true unless dimension == "web_search_request"
 
           action_type = item.dig("action", "type")
           action_type.nil? || action_type == "search"
         end
 
         def store_output_item(output_items, item)
-          return unless item.is_a?(Hash) && RESPONSE_OUTPUT_COMPONENTS.key?(item["type"])
+          return unless item.is_a?(Hash) && RESPONSE_OUTPUT_DIMENSIONS.key?(item["type"])
 
-          component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
-          key = if component == "container_session" && item["container_id"]
-                  "#{component}:#{item['container_id']}"
+          dimension = RESPONSE_OUTPUT_DIMENSIONS[item["type"]]
+          key = if dimension == "container_session" && item["container_id"]
+                  "#{dimension}:#{item['container_id']}"
                 else
                   item["id"] || "#{item['type']}:#{output_items.length}"
                 end
@@ -85,16 +85,16 @@ module LlmCostTracker
         def build_line_item(item, request: nil, model: nil)
           return nil unless item.is_a?(Hash)
 
-          component_key = component_key_for(item, request: request, model: model)
-          return nil unless component_key
+          dimension_key = dimension_key_for(item, request: request, model: model)
+          return nil unless dimension_key
 
-          provider_item_id = if component_key == "container_session"
+          provider_item_id = if dimension_key == "container_session"
                                item["container_id"] || item["id"]
                              else
                                item["id"]
                              end
           Charges::LineItem.build(
-            component_key: component_key,
+            dimension_key: dimension_key,
             quantity: 1,
             cost_status: Charges::CostStatus::UNKNOWN,
             pricing_basis: "provider_usage",
@@ -104,10 +104,10 @@ module LlmCostTracker
           )
         end
 
-        def component_key_for(item, request:, model:)
-          component = RESPONSE_OUTPUT_COMPONENTS[item["type"]]
-          return component unless component == "web_search_request"
-          return component unless web_search_preview_used?(request) || chat_completions_search_model?(model)
+        def dimension_key_for(item, request:, model:)
+          dimension = RESPONSE_OUTPUT_DIMENSIONS[item["type"]]
+          return dimension unless dimension == "web_search_request"
+          return dimension unless web_search_preview_used?(request) || chat_completions_search_model?(model)
 
           reasoning_model?(model) ? "web_search_preview_request_reasoning" : "web_search_preview_request_non_reasoning"
         end
@@ -163,7 +163,7 @@ module LlmCostTracker
           return [] unless seconds.positive?
 
           [Charges::LineItem.build(
-            component_key: "transcription_minute",
+            dimension_key: "transcription_minute",
             quantity: (seconds / 60.0).ceil,
             cost_status: Charges::CostStatus::UNKNOWN,
             pricing_basis: "provider_usage",

@@ -7,6 +7,13 @@ require "yaml"
 RSpec.describe LlmCostTracker::Pricing::Registry do
   before { described_class.reset! }
 
+  it "resolves every non-token dimension key to itself, unshadowed by an earlier suffix match" do
+    LlmCostTracker::Usage::Dimension::ALL.reject(&:token_key).each do |dimension|
+      expect(described_class.send(:parse_dimension_key, dimension.key)).to eq([dimension, nil]),
+        -> { "#{dimension.key} is shadowed in parse_dimension_key by an earlier dimension" }
+    end
+  end
+
   describe ".reset!" do
     it "drops cached builtin rates so the next read reloads from disk" do
       first = described_class.builtin_rates
@@ -41,14 +48,14 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
       expect(described_class.builtin_rates).to eq(described_class.builtin_rates)
     end
 
-    it "uses billing component keys for bundled tool prices" do
+    it "uses billing dimension keys for bundled tool prices" do
       registry = YAML.safe_load_file(LlmCostTracker::Pricing::Registry::DEFAULT_PRICES_PATH, aliases: false)
       tool_keys = registry.fetch("service_charges").values.flat_map(&:keys)
-      components = LlmCostTracker::Usage::Dimension::ALL.filter_map do |component|
-        component.key if component.token_key.nil?
+      dimensions = LlmCostTracker::Usage::Dimension::ALL.filter_map do |dimension|
+        dimension.key if dimension.token_key.nil?
       end
 
-      expect(tool_keys - components).to eq([])
+      expect(tool_keys - dimensions).to eq([])
     end
   end
 
@@ -137,7 +144,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
       end
     end
 
-    it "raises a readable error for unknown service charge components" do
+    it "raises a readable error for unknown service charge dimensions" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write({
           service_charges: {
@@ -151,7 +158,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
 
         expect do
           described_class.file_rates(file.path)
-        end.to raise_error(LlmCostTracker::Error, /unknown billing component/)
+        end.to raise_error(LlmCostTracker::Error, /unknown billing dimension/)
       end
     end
 
@@ -269,17 +276,17 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
           },
           context: "spec"
         )
-      end.to raise_error(ArgumentError, /unknown billing component/)
+      end.to raise_error(ArgumentError, /unknown billing dimension/)
     end
   end
 
   describe ".charge_rate" do
     it "returns nil when no service charge rate exists" do
-      expect(described_class.charge_rate(provider: "gemini", component: "grounding_request", pricing_mode: nil)).to be_nil
+      expect(described_class.charge_rate(provider: "gemini", dimension: "grounding_request", pricing_mode: nil)).to be_nil
     end
 
     it "returns nil when the provider is missing" do
-      expect(described_class.charge_rate(provider: nil, component: "web_search_request", pricing_mode: nil)).to be_nil
+      expect(described_class.charge_rate(provider: nil, dimension: "web_search_request", pricing_mode: nil)).to be_nil
     end
 
     it "loads provider service charge rates from the configured prices file" do
@@ -297,7 +304,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: nil)
+        rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request", pricing_mode: nil)
 
         expect(rate).to have_attributes(
           amount: BigDecimal("10.0"),
@@ -326,7 +333,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: "priority")
+        rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request", pricing_mode: "priority")
 
         expect(rate).to have_attributes(
           amount: BigDecimal("12.0"),
@@ -347,13 +354,13 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: "web_search_request", pricing_mode: nil)
+        rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request", pricing_mode: nil)
 
         expect(rate).to have_attributes(amount: BigDecimal("10.0"), currency: "EUR", source: "prices_file")
       end
     end
 
-    it "falls back from combined pricing modes to component tier rates" do
+    it "falls back from combined pricing modes to dimension tier rates" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write(
           {
@@ -369,7 +376,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
+        rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request",
                                            pricing_mode: "batch_data_residency")
 
         expect(rate).to have_attributes(
@@ -379,7 +386,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
       end
     end
 
-    it "falls back from combined pricing modes to the default component rate" do
+    it "falls back from combined pricing modes to the default dimension rate" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write(
           {
@@ -394,7 +401,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
+        rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request",
                                            pricing_mode: "batch_data_residency")
 
         expect(rate).to have_attributes(
@@ -420,7 +427,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         file.close
         LlmCostTracker.configure { |config| config.prices_file = file.path }
 
-        rate = described_class.charge_rate(provider: "openai", component: "web_search_request",
+        rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request",
                                            pricing_mode: "batch_data_residency")
 
         expect(rate).to have_attributes(
@@ -445,7 +452,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         }
       )
 
-      rate = described_class.charge_rate(provider: "anthropic", component: "web_search_request", pricing_mode: nil)
+      rate = described_class.charge_rate(provider: "anthropic", dimension: "web_search_request", pricing_mode: nil)
 
       expect(rate).to have_attributes(
         amount: BigDecimal("5.0"),
@@ -471,15 +478,15 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         }
       )
 
-      rate = described_class.charge_rate(provider: :anthropic, component: "web_search_request", pricing_mode: nil)
+      rate = described_class.charge_rate(provider: :anthropic, dimension: "web_search_request", pricing_mode: nil)
 
       expect(rate).to have_attributes(source: "bundled")
     end
 
-    it "rejects unknown billing components" do
+    it "rejects unknown billing dimensions" do
       expect do
-        described_class.charge_rate(provider: "openai", component: :unknown_tool, pricing_mode: nil)
-      end.to raise_error(LlmCostTracker::Error, /Unknown billing component/)
+        described_class.charge_rate(provider: "openai", dimension: :unknown_tool, pricing_mode: nil)
+      end.to raise_error(LlmCostTracker::Error, /Unknown billing dimension/)
     end
   end
 end

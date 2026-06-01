@@ -71,7 +71,7 @@ RSpec.describe LlmCostTracker::Tracker do
         cost: BigDecimal("0.50"),
         currency: "EUR",
         cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
-        component_key: "web_search_request"
+        dimension_key: "web_search_request"
       )
 
       event = record(
@@ -97,7 +97,7 @@ RSpec.describe LlmCostTracker::Tracker do
         cost: BigDecimal("0.30"),
         currency: "USD",
         cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
-        component_key: "web_search_request"
+        dimension_key: "web_search_request"
       )
 
       event = record(
@@ -393,7 +393,7 @@ RSpec.describe LlmCostTracker::Tracker do
         token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
         service_line_items: [
           {
-            component_key: "grounding_request",
+            dimension_key: "grounding_request",
             quantity: 1,
             cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN
           }
@@ -413,7 +413,7 @@ RSpec.describe LlmCostTracker::Tracker do
         token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
         service_line_items: [
           {
-            component_key: "web_search_request",
+            dimension_key: "web_search_request",
             quantity: 2,
             cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN,
             pricing_basis: "provider_usage",
@@ -443,7 +443,7 @@ RSpec.describe LlmCostTracker::Tracker do
           model: "unrecognized-model",
           token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
           service_line_items: [
-            { component_key: "web_search_request", quantity: 1, cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN }
+            { dimension_key: "web_search_request", quantity: 1, cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN }
           ]
         )
       end.not_to raise_error
@@ -456,7 +456,7 @@ RSpec.describe LlmCostTracker::Tracker do
         token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
         service_line_items: [
           {
-            component_key: "web_search_request",
+            dimension_key: "web_search_request",
             quantity: 1,
             cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN
           }

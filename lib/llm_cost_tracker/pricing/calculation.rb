@@ -109,7 +109,7 @@ module LlmCostTracker
       def build_token_cost
         by_dimension = priced_token_line_items.to_h { |line_item| [line_item.dimension, line_item] }
         components = Usage::Dimension::TOKEN_PRICED.each_with_object({}) do |dimension, result|
-          cost = token_component_cost(dimension, by_dimension[dimension])
+          cost = token_dimension_cost(dimension, by_dimension[dimension])
           result[dimension.cost_key] = cost.round(8) unless cost.nil?
         end
         Charges::Cost.new(
@@ -119,8 +119,8 @@ module LlmCostTracker
         )
       end
 
-      def token_component_cost(component, line_item)
-        return BigDecimal("0") if quantities[component.key].zero?
+      def token_dimension_cost(dimension, line_item)
+        return BigDecimal("0") if quantities[dimension.key].zero?
 
         line_item&.cost
       end
@@ -158,23 +158,23 @@ module LlmCostTracker
       end
 
       def price_token(line_item)
-        component = component_for(line_item)
-        return line_item unless component
+        dimension = dimension_for(line_item)
+        return line_item unless dimension
         return line_item.with(cost_status: Charges::CostStatus::UNKNOWN) unless priceable?
 
-        price = effective[component.key]
+        price = effective[dimension.key]
         return line_item.with(cost_status: Charges::CostStatus::UNKNOWN) if price.nil?
 
-        line_item.with_rate(token_rate(component, price))
+        line_item.with_rate(token_rate(dimension, price))
       end
 
-      def token_rate(component, price)
+      def token_rate(dimension, price)
         Pricing::Rate.new(
           amount: BigDecimal(price.to_s),
           quantity: BigDecimal(RATE_DENOMINATOR_TOKENS),
           currency: match.currency,
           source: match.source,
-          source_key: component.key,
+          source_key: dimension.key,
           source_version: Pricing.source_version_for(match.source)
         )
       end
@@ -183,7 +183,7 @@ module LlmCostTracker
         return line_item if line_item.priced? || !line_item.billable?
 
         rate = model_rate(line_item) ||
-               Registry.charge_rate(provider: @provider, component: line_item.kind, pricing_mode: @mode)
+               Registry.charge_rate(provider: @provider, dimension: line_item.kind, pricing_mode: @mode)
         return line_item unless rate
 
         line_item.with_rate(rate)
@@ -195,10 +195,10 @@ module LlmCostTracker
         amount = match.prices[line_item.kind]
         return nil unless amount.is_a?(Numeric)
 
-        component = Usage::Dimension::BY_KEY[line_item.kind]
+        dimension = Usage::Dimension::BY_KEY[line_item.kind]
         Pricing::Rate.new(
           amount: BigDecimal(amount.to_s),
-          quantity: BigDecimal(Pricing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis).to_s),
+          quantity: BigDecimal(Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_s),
           currency: match.currency,
           source: match.source,
           source_key: "#{match.key}.#{line_item.kind}",
@@ -206,13 +206,13 @@ module LlmCostTracker
         )
       end
 
-      def component_for(line_item)
-        Usage::Dimension::ALL.find do |component|
-          component.kind == line_item.kind &&
-            component.direction == line_item.direction &&
-            component.modality == line_item.modality &&
-            component.cache_state == line_item.cache_state &&
-            component.unit == line_item.unit
+      def dimension_for(line_item)
+        Usage::Dimension::ALL.find do |dimension|
+          dimension.kind == line_item.kind &&
+            dimension.direction == line_item.direction &&
+            dimension.modality == line_item.modality &&
+            dimension.cache_state == line_item.cache_state &&
+            dimension.unit == line_item.unit
         end
       end
 

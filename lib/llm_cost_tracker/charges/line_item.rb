@@ -84,10 +84,10 @@ module LlmCostTracker
       end
 
       def self.dimension_for(attributes)
-        component_key = attributes[:component_key] || attributes[:price_key]
-        return nil unless component_key
+        dimension_key = attributes[:dimension_key] || attributes[:price_key]
+        return nil unless dimension_key
 
-        Usage::Dimension::BY_KEY[component_key.to_s]
+        Usage::Dimension::BY_KEY[dimension_key.to_s]
       end
 
       def self.decimal_or_nil(value)

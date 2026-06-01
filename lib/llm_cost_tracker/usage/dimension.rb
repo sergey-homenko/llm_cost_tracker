@@ -44,20 +44,6 @@ module LlmCostTracker
         new(**attributes, rate_basis: rate_basis)
       end
 
-      def self.parse_key(key)
-        name = key.to_s
-        ALL.each do |dimension|
-          return [dimension, nil] if dimension.key == name
-
-          suffix = "_#{dimension.key}"
-          next unless name.end_with?(suffix)
-
-          prefix = name.delete_suffix(suffix)
-          return [dimension, prefix] unless prefix.empty?
-        end
-        nil
-      end
-
       def self.token_priced_for(kind:, direction:, cache_state:)
         TOKEN_PRICED.find do |dimension|
           dimension.kind == kind && dimension.direction == direction && dimension.cache_state == cache_state

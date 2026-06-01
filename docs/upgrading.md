@@ -114,6 +114,8 @@ your code references these constants, rename them — the DB schema, columns, an
 | `LlmCostTracker::Billing::UsageSource` | `LlmCostTracker::Capture::UsageSource` |
 | `LlmCostTracker::TokenUsage` | `LlmCostTracker::Usage::TokenUsage` |
 
+`Charges::LineItem.build` (and `LlmCostTracker.track(service_line_items: [{ … }])`) now takes `dimension_key:` instead of `component_key:` to name the billing dimension; the value (e.g. `"web_search_request"`) is unchanged.
+
 ### Optional: host-app `filter_parameters` cleanup
 
 The engine no longer adds `:tag` / `:tag_value` to

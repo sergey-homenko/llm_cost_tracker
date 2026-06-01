@@ -191,7 +191,7 @@ module LlmCostTracker
           return [] unless LlmCostTracker::Providers::Openai::ModelFamilies.character_billed_tts?(request[:model])
 
           [LlmCostTracker::Charges::LineItem.build(
-            component_key: "text_to_speech_character",
+            dimension_key: "text_to_speech_character",
             quantity: input.length,
             cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN,
             pricing_basis: "provider_usage",

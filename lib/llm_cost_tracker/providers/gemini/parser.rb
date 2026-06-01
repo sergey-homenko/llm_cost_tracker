@@ -213,7 +213,7 @@ module LlmCostTracker
           billed_quantity = grounding_billed_quantity(query_count, model: model)
           [
             Charges::LineItem.build(
-              component_key: "grounding_request",
+              dimension_key: "grounding_request",
               quantity: billed_quantity,
               cost_status: Charges::CostStatus::UNKNOWN,
               pricing_basis: "provider_usage",

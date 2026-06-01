@@ -8,7 +8,7 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
       c.pricing_overrides = { "demo-token" => { "input" => 2.5 } }
     end
 
-    line_item = LlmCostTracker::Charges::LineItem.build(component_key: "input", quantity: 1_234_567)
+    line_item = LlmCostTracker::Charges::LineItem.build(dimension_key: "input", quantity: 1_234_567)
     calculation = described_class.for(
       provider: "demo", model: "demo-token",
       tokens: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1_234_567, output_tokens: 0),

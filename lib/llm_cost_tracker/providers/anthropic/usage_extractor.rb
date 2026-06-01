@@ -40,12 +40,12 @@ module LlmCostTracker
           server_tool_use = usage[:server_tool_use]
           return [] unless server_tool_use.is_a?(Hash)
 
-          SERVER_TOOL_LINE_ITEMS.filter_map do |component_key, count_key|
+          SERVER_TOOL_LINE_ITEMS.filter_map do |dimension_key, count_key|
             quantity = server_tool_use[count_key].to_i
             next if quantity.zero?
 
             Charges::LineItem.build(
-              component_key: component_key,
+              dimension_key: dimension_key,
               quantity: quantity,
               cost_status: Charges::CostStatus::UNKNOWN,
               pricing_basis: "provider_usage",

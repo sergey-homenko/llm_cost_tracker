@@ -77,9 +77,9 @@ module LlmCostTracker
           registry
         end
 
-        def charge_rate(provider:, component:, pricing_mode:)
+        def charge_rate(provider:, dimension:, pricing_mode:)
           pricing_mode = Mode.normalize(pricing_mode)
-          match = charge_rate_match(provider: provider, component: component, pricing_mode: pricing_mode)
+          match = charge_rate_match(provider: provider, dimension: dimension, pricing_mode: pricing_mode)
           return nil unless match
 
           rate = match.fetch(:rate)
@@ -192,12 +192,12 @@ module LlmCostTracker
 
         def price_key_for(key)
           key = key.to_s
-          component_key = strip_mode_prefix(key.delete_prefix("above_context_"))
-          component = Usage::Dimension::BY_KEY[component_key]
-          return nil unless component
-          return key if key == component_key
+          dimension_key = strip_mode_prefix(key.delete_prefix("above_context_"))
+          dimension = Usage::Dimension::BY_KEY[dimension_key]
+          return nil unless dimension
+          return key if key == dimension_key
 
-          component.token_key ? key : nil
+          dimension.token_key ? key : nil
         end
 
         def strip_mode_prefix(key)
@@ -232,45 +232,59 @@ module LlmCostTracker
 
           entries.each_with_object({}) do |(key, amount), rates|
             key = key.to_s
-            component, tier = component_and_tier_for(key, context: context)
+            dimension, tier = dimension_and_tier_for(key, context: context)
             amount = non_negative_decimal(amount, label: "service charge price amount for #{key.inspect} in #{context}")
 
             rate = {
               amount: amount,
-              quantity: rate_quantity(component),
+              quantity: rate_quantity(dimension),
               currency: currency,
               source_key: key
             }
-            component_rates = rates[component.key] ||= { tiers: {} }
-            (tier ? component_rates[:tiers] : component_rates)[tier || :default] = rate
+            dimension_rates = rates[dimension.key] ||= { tiers: {} }
+            (tier ? dimension_rates[:tiers] : dimension_rates)[tier || :default] = rate
           end
         end
 
-        def component_and_tier_for(key, context:)
-          component, prefix = Usage::Dimension.parse_key(key)
-          unless component && component.token_key.nil?
-            raise ArgumentError, "service charge price key #{key.inspect} in #{context} uses unknown billing component"
+        def dimension_and_tier_for(key, context:)
+          dimension, tier = parse_dimension_key(key)
+          unless dimension && dimension.token_key.nil?
+            raise ArgumentError, "service charge price key #{key.inspect} in #{context} uses unknown billing dimension"
           end
 
-          [component, prefix]
+          [dimension, tier]
         end
 
-        def rate_quantity(component)
-          BigDecimal(Pricing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis).to_s)
+        def parse_dimension_key(key)
+          name = key.to_s
+          Usage::Dimension::ALL.each do |dimension|
+            return [dimension, nil] if dimension.key == name
+
+            suffix = "_#{dimension.key}"
+            next unless name.end_with?(suffix)
+
+            tier = name.delete_suffix(suffix)
+            return [dimension, tier] unless tier.empty?
+          end
+          nil
         end
 
-        def charge_rate_match(provider:, component:, pricing_mode:)
+        def rate_quantity(dimension)
+          BigDecimal(Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_s)
+        end
+
+        def charge_rate_match(provider:, dimension:, pricing_mode:)
           provider_name = provider.to_s.presence
           return nil unless provider_name
 
-          component_key = charge_component_key(component)
+          dimension_key = charge_dimension_key(dimension)
           sources = [
             ["prices_file", file_rates(LlmCostTracker.configuration.prices_file)],
             ["bundled", builtin_rates]
           ]
 
           first_match(sources) do |table, source|
-            rate = rate_for(table.fetch(provider_name, {}), component_key: component_key, pricing_mode: pricing_mode)
+            rate = rate_for(table.fetch(provider_name, {}), dimension_key: dimension_key, pricing_mode: pricing_mode)
             next unless rate
 
             {
@@ -281,9 +295,9 @@ module LlmCostTracker
           end
         end
 
-        def rate_for(provider_table, component_key:, pricing_mode:)
-          component_rates = provider_table.fetch(component_key, {})
-          tier_rates = component_rates.fetch(:tiers, {})
+        def rate_for(provider_table, dimension_key:, pricing_mode:)
+          dimension_rates = provider_table.fetch(dimension_key, {})
+          tier_rates = dimension_rates.fetch(:tiers, {})
           if pricing_mode
             rate = tier_rates[pricing_mode]
             return rate if rate
@@ -292,7 +306,7 @@ module LlmCostTracker
               return candidate_rate if tier_includes?(pricing_mode, candidate)
             end
           end
-          component_rates[:default]
+          dimension_rates[:default]
         end
 
         def tier_includes?(tier_name, candidate_name)
@@ -302,11 +316,11 @@ module LlmCostTracker
             tier_name.include?("_#{candidate_name}_")
         end
 
-        def charge_component_key(component)
-          billing_component = Usage::Dimension::BY_KEY[component]
-          return billing_component.key if billing_component && billing_component.token_key.nil?
+        def charge_dimension_key(dimension)
+          billing_dimension = Usage::Dimension::BY_KEY[dimension]
+          return billing_dimension.key if billing_dimension && billing_dimension.token_key.nil?
 
-          raise Error, "Unknown billing component: #{component.inspect}"
+          raise Error, "Unknown billing dimension: #{dimension.inspect}"
         end
 
         def lookup_match(provider_name:, model_name:)

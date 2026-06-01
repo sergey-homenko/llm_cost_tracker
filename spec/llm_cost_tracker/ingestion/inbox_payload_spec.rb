@@ -37,7 +37,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       },
       line_items: [
         LlmCostTracker::Charges::LineItem.build(
-          component_key: "web_search_request",
+          dimension_key: "web_search_request",
           quantity: 1,
           cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN
         )

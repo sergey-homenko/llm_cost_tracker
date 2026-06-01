@@ -13,7 +13,7 @@ RSpec.describe LlmCostTracker::Charges::LineItem do
     end
 
     it "fills attributes from a known component when given a component key" do
-      line_item = described_class.build(quantity: 1, component_key: "web_search_request")
+      line_item = described_class.build(quantity: 1, dimension_key: "web_search_request")
       expect(line_item.kind).to eq("web_search_request")
       expect(line_item.unit).to eq("request")
       expect(line_item.modality).to eq("text")
@@ -21,7 +21,7 @@ RSpec.describe LlmCostTracker::Charges::LineItem do
 
     it "normalizes symbol cost_status to string so predicates match" do
       line_item = described_class.build(
-        component_key: "web_search_request", quantity: 1, cost_status: :unknown
+        dimension_key: "web_search_request", quantity: 1, cost_status: :unknown
       )
 
       expect(line_item.cost_status).to eq(LlmCostTracker::Charges::CostStatus::UNKNOWN)
