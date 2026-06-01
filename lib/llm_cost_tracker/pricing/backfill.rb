@@ -58,22 +58,31 @@ module LlmCostTracker
             pricing_snapshot: calculation.snapshot,
             cost_status: calculation.cost_status
           )
-          priced_line_items = calculation.priced_line_items
-          call.line_items.each do |record|
-            priced = priced_line_items[record.position]
-            next unless priced
+          token_priced = calculation.priced_line_items.select(&:token?).index_by { |item| dimension_key(item) }
+          service_priced = calculation.priced_line_items.reject(&:token?)
+          token_records, service_records = call.line_items.partition { |record| record.unit == "token" }
 
-            record.update!(
-              rate_amount: priced.rate_amount,
-              rate_quantity: priced.rate_quantity,
-              cost: priced.cost,
-              currency: priced.currency,
-              cost_status: priced.cost_status,
-              price_key: priced.price_key,
-              price_source: priced.price_source,
-              price_source_version: priced.price_source_version
-            )
-          end
+          token_records.each { |record| apply_rate(record, token_priced[dimension_key(record)]) }
+          service_records.sort_by(&:position).zip(service_priced).each { |record, priced| apply_rate(record, priced) }
+        end
+
+        def apply_rate(record, priced)
+          return unless priced
+
+          record.update!(
+            rate_amount: priced.rate_amount,
+            rate_quantity: priced.rate_quantity,
+            cost: priced.cost,
+            currency: priced.currency,
+            cost_status: priced.cost_status,
+            price_key: priced.price_key,
+            price_source: priced.price_source,
+            price_source_version: priced.price_source_version
+          )
+        end
+
+        def dimension_key(item)
+          [item.kind, item.direction, item.modality, item.cache_state]
         end
 
         def rollup_event_for(call, calculation)

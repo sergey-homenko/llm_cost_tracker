@@ -53,6 +53,24 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     expect(call.line_items.first.cost_status).to eq("complete")
   end
 
+  it "maps recomputed rates to token rows by dimension, not by stored position" do
+    call = create_call(
+      provider: "openai", model: "gpt-4o",
+      input_tokens: 1_000, output_tokens: 500,
+      total_cost: nil, pricing_snapshot: nil, cost_status: "unknown"
+    )
+    add_line_items(call, [
+                     { direction: "output", quantity: 500 },
+                     { direction: "input", quantity: 1_000 }
+                   ])
+
+    described_class.call
+
+    by_direction = call.reload.line_items.index_by(&:direction)
+    expect(by_direction.fetch("input").price_key).to eq("input")
+    expect(by_direction.fetch("output").price_key).to eq("output")
+  end
+
   it "leaves the call alone when its model is still not in the pricing registry" do
     call = create_call(
       provider: "openai", model: "gpt-future-unreleased",
