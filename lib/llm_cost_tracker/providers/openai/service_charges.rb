@@ -93,10 +93,10 @@ module LlmCostTracker
                              else
                                item["id"]
                              end
-          Billing::LineItem.build(
+          Charges::LineItem.build(
             component_key: component_key,
             quantity: 1,
-            cost_status: Billing::CostStatus::UNKNOWN,
+            cost_status: Charges::CostStatus::UNKNOWN,
             pricing_basis: "provider_usage",
             provider_field: item["provider_field"] || "response.output.#{item['type']}",
             provider_item_id: provider_item_id,
@@ -162,10 +162,10 @@ module LlmCostTracker
           seconds = (usage[:seconds] || usage["seconds"]).to_f
           return [] unless seconds.positive?
 
-          [Billing::LineItem.build(
+          [Charges::LineItem.build(
             component_key: "transcription_minute",
             quantity: (seconds / 60.0).ceil,
-            cost_status: Billing::CostStatus::UNKNOWN,
+            cost_status: Charges::CostStatus::UNKNOWN,
             pricing_basis: "provider_usage",
             provider_field: "usage.seconds",
             details: { seconds: seconds }

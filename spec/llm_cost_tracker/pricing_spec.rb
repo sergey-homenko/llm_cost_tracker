@@ -10,7 +10,7 @@ RSpec.describe LlmCostTracker::Pricing do
       provider: provider,
       model: model,
       pricing_mode: pricing_mode,
-      tokens: LlmCostTracker::TokenUsage.build(**usage)
+      tokens: LlmCostTracker::Usage::TokenUsage.build(**usage)
     )
   end
 
@@ -54,7 +54,7 @@ RSpec.describe LlmCostTracker::Pricing do
         output_tokens: 500
       )
 
-      expect(result).to be_a(LlmCostTracker::Billing::Cost)
+      expect(result).to be_a(LlmCostTracker::Charges::Cost)
       expect(result.components.fetch(:input_cost)).to be > 0
       expect(result.components.fetch(:output_cost)).to be > 0
       expect(result.total).to eq(result.components.fetch(:input_cost) + result.components.fetch(:output_cost))

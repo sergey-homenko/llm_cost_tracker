@@ -71,7 +71,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::UsageExtractor do
 
       expect(items.map(&:kind)).to eq(%w[web_search_request web_fetch_request])
       expect(items.map(&:quantity).map(&:to_i)).to eq([2, 1])
-      expect(items.map(&:cost_status).uniq).to eq([LlmCostTracker::Billing::CostStatus::UNKNOWN])
+      expect(items.map(&:cost_status).uniq).to eq([LlmCostTracker::Charges::CostStatus::UNKNOWN])
     end
 
     it "ignores server_tool_use fields the documented Anthropic API never returns so synthetic future keys don't emit phantom line items" do

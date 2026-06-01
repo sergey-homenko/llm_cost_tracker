@@ -2,7 +2,7 @@
 
 require "active_support/core_ext/integer/time"
 
-require_relative "../billing/cost_status"
+require_relative "../charges/cost_status"
 require_relative "../ledger"
 
 module LlmCostTracker
@@ -58,7 +58,7 @@ module LlmCostTracker
             "COALESCE(SUM(total_cost), 0) AS total_cost, " \
             "COUNT(*) AS requests_count, " \
             "AVG(latency_ms) AS average_latency_ms, " \
-            "COALESCE(SUM(CASE WHEN #{Billing::CostStatus.unknown_pricing_sql} " \
+            "COALESCE(SUM(CASE WHEN #{Charges::CostStatus.unknown_pricing_sql} " \
             "THEN 1 ELSE 0 END), 0) AS unknown_pricing_count"
           )
           .take

@@ -64,7 +64,7 @@ module LlmCostTrackerDatabaseSpecHelpers
       table.string :event_id, null: false
       table.string :provider, null: false
       table.string :model, null: false
-      LlmCostTracker::TokenUsage.members.each do |column|
+      LlmCostTracker::Usage::TokenUsage.members.each do |column|
         table.integer column, null: false, default: 0
       end
       table.decimal :total_cost, precision: 20, scale: 8
@@ -77,7 +77,7 @@ module LlmCostTrackerDatabaseSpecHelpers
       table.string :provider_workspace_id
       table.boolean :batch, null: false, default: false
       table.string :pricing_mode
-      table.string :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
+      table.string :cost_status, null: false, default: LlmCostTracker::Charges::CostStatus::UNKNOWN
       if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
         table.jsonb :pricing_snapshot
       elsif LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)

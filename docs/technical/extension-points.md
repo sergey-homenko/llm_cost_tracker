@@ -18,7 +18,7 @@ Expected integration contract:
 - install-time checks for the target classes and methods
 - idempotent `Module#prepend` around narrow resource methods
 - no tracking when the integration is not enabled in configuration
-- `Event` with `TokenUsage` passed to `Tracker.record`
+- `Event` with `Usage::TokenUsage` passed to `Tracker.record`
 
 SDK integrations belong under `LlmCostTracker::Integrations`. Do not put SDK object-shape handling in parsers, storage, or pricing.
 
@@ -38,7 +38,7 @@ Use `config.prices_file` for the app's source-controlled price snapshot.
 Use `config.pricing_overrides` for urgent or environment-specific Ruby-side
 overrides.
 
-Supported token price keys are owned by `Billing::Components`:
+Supported token price keys are owned by `Usage::Dimension`:
 
 - `input`
 - `output`

@@ -8,7 +8,7 @@ RSpec.describe "Cache-aware cost accuracy" do
       provider: provider,
       model: model,
       pricing_mode: pricing_mode,
-      tokens: LlmCostTracker::TokenUsage.build(**usage)
+      tokens: LlmCostTracker::Usage::TokenUsage.build(**usage)
     )
   end
 

@@ -1,5 +1,5 @@
-require "llm_cost_tracker/billing/components"
-require "llm_cost_tracker/billing/cost_status"
+require "llm_cost_tracker/usage/dimension"
+require "llm_cost_tracker/charges/cost_status"
 require "llm_cost_tracker/ledger/schema/adapter"
 
 class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %>
@@ -8,7 +8,7 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
       t.string  :event_id,      null: false
       t.string  :provider,      null: false
       t.string  :model,         null: false
-<% LlmCostTracker::TokenUsage.members.each do |column| -%>
+<% LlmCostTracker::Usage::TokenUsage.members.each do |column| -%>
       t.integer :<%= column %>, null: false, default: 0
 <% end -%>
       t.decimal :total_cost, precision: 20, scale: 8
@@ -21,7 +21,7 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
       t.string  :provider_workspace_id
       t.boolean :batch, null: false, default: false
       t.string  :pricing_mode
-      t.string  :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
+      t.string  :cost_status, null: false, default: LlmCostTracker::Charges::CostStatus::UNKNOWN
       if postgresql?
         t.jsonb :pricing_snapshot
       elsif mysql?
@@ -50,7 +50,7 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
       t.decimal :rate_quantity, precision: 30, scale: 10, null: false, default: 1
       t.decimal :cost, precision: 20, scale: 8
       t.string :currency, null: false, default: "USD"
-      t.string :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
+      t.string :cost_status, null: false, default: LlmCostTracker::Charges::CostStatus::UNKNOWN
       t.string :pricing_basis
       t.string :price_key
       t.string :price_source

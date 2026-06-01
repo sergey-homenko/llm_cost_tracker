@@ -34,7 +34,7 @@ RSpec.describe LlmCostTracker::Report do
       output_tokens: 0,
       total_tokens: 0,
       total_cost: total_cost,
-      cost_status: total_cost.nil? ? LlmCostTracker::Billing::CostStatus::UNKNOWN : LlmCostTracker::Billing::CostStatus::COMPLETE,
+      cost_status: total_cost.nil? ? LlmCostTracker::Charges::CostStatus::UNKNOWN : LlmCostTracker::Charges::CostStatus::COMPLETE,
       tracked_at: tracked_at
     )
     create_call_tag_rows(call, tags)
@@ -121,12 +121,12 @@ RSpec.describe LlmCostTracker::Report do
     now = Time.utc(2026, 4, 27, 12)
     LlmCostTracker::Call.create!(
       provider: "openai", model: "gpt-4o", input_tokens: 0, output_tokens: 0, total_tokens: 0,
-      total_cost: 0.42, cost_status: LlmCostTracker::Billing::CostStatus::PARTIAL,
+      total_cost: 0.42, cost_status: LlmCostTracker::Charges::CostStatus::PARTIAL,
       tracked_at: now - 1.hour
     )
     LlmCostTracker::Call.create!(
       provider: "openai", model: "gpt-4o", input_tokens: 0, output_tokens: 0, total_tokens: 0,
-      total_cost: 0.10, cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      total_cost: 0.10, cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
       tracked_at: now - 1.hour
     )
 

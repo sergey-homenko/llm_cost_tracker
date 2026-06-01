@@ -43,7 +43,7 @@ Base fields:
 - `audio_input`
 - `audio_output`
 
-These keys are derived from `Billing::Components`, the master component registry.
+These keys are derived from `Usage::Dimension`, the master component registry.
 
 `cache_write_input` is the standard cache-write bucket. `cache_write_extended_input`
 is priced separately when provider usage exposes a longer retention bucket, such

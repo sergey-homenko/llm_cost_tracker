@@ -17,7 +17,7 @@ module LlmCostTracker
           cache_read = usage[:cache_read_input_tokens].to_i
           cache_write, cache_write_extended = cache_writes(usage)
 
-          TokenUsage.build(
+          Usage::TokenUsage.build(
             input_tokens: input,
             output_tokens: output,
             cache_read_input_tokens: cache_read,
@@ -44,10 +44,10 @@ module LlmCostTracker
             quantity = server_tool_use[count_key].to_i
             next if quantity.zero?
 
-            Billing::LineItem.build(
+            Charges::LineItem.build(
               component_key: component_key,
               quantity: quantity,
-              cost_status: Billing::CostStatus::UNKNOWN,
+              cost_status: Charges::CostStatus::UNKNOWN,
               pricing_basis: "provider_usage",
               provider_field: "usage.server_tool_use.#{count_key}"
             )

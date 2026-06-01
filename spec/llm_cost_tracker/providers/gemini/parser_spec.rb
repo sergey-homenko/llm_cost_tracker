@@ -270,7 +270,7 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(service_lines.first.kind).to eq("grounding_request")
       expect(service_lines.first.quantity).to eq(1)
       expect(service_lines.first.details).to include(web_search_queries: 2)
-      expect(service_lines.first.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+      expect(service_lines.first.cost_status).to eq(LlmCostTracker::Charges::CostStatus::UNKNOWN)
       expect(service_lines.first.pricing_basis).to eq("provider_usage")
     end
 

@@ -8,11 +8,12 @@ that were substring-matching unrelated host-app params, makes
 `enforce_budget: true` on `LlmCostTracker.track` actually raise pre-call when
 over budget regardless of the global policy, and tightens RubyLLM SDK capture
 (proper `service_tier` JSON path, 1-hour vs 5-minute cache split, response id
-from raw body). Four BREAKING changes: Reconciliation removal, parser
+from raw body). Five BREAKING changes: Reconciliation removal, parser
 constant rename for custom code that referenced internals, removal of
 the `batch:` keyword argument from `track` / `track_stream` / `stream.usage`
-(use `pricing_mode: :batch` instead), and the `track(tokens:)` key rename to the
-`_tokens`-suffixed names that `stream.usage` already uses.
+(use `pricing_mode: :batch` instead), the `track(tokens:)` key rename to the
+`_tokens`-suffixed names that `stream.usage` already uses, and the split of the
+`Billing` value-object namespace into `Usage` / `Pricing` / `Charges` / `Capture`.
 
 ### Required: drop Reconciliation tables if you opted in (BREAKING)
 
@@ -95,6 +96,23 @@ they stay `input`, `output`, `cache_read_input`, … (those are per-component
 rates, a separate vocabulary). A `tokens:` hash with no recognized keys now logs
 `Logging.warn("tokens hash contains no recognized keys …")` and lands as zero
 tokens, so a missed callsite is visible.
+
+### Required: update references to the split `Billing` namespace (BREAKING)
+
+The `Billing` namespace mixed three concerns; it is split by responsibility.
+Capture is automatic, so most apps reference none of these and do nothing. If
+your code references these constants, rename them — the DB schema, columns, and
+`pricing_snapshot` shape are unchanged:
+
+| Old | New |
+| --- | --- |
+| `LlmCostTracker::Billing::Cost` | `LlmCostTracker::Charges::Cost` |
+| `LlmCostTracker::Billing::LineItem` | `LlmCostTracker::Charges::LineItem` |
+| `LlmCostTracker::Billing::CostStatus` | `LlmCostTracker::Charges::CostStatus` |
+| `LlmCostTracker::Billing::Rate` | `LlmCostTracker::Pricing::Rate` |
+| `LlmCostTracker::Billing::Components` | `LlmCostTracker::Usage::Dimension` |
+| `LlmCostTracker::Billing::UsageSource` | `LlmCostTracker::Capture::UsageSource` |
+| `LlmCostTracker::TokenUsage` | `LlmCostTracker::Usage::TokenUsage` |
 
 ### Optional: host-app `filter_parameters` cleanup
 

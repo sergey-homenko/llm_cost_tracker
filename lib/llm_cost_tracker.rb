@@ -12,12 +12,14 @@ require_relative "llm_cost_tracker/tags/key"
 require_relative "llm_cost_tracker/tags/context"
 require_relative "llm_cost_tracker/tags/sanitizer"
 require_relative "llm_cost_tracker/masking"
-require_relative "llm_cost_tracker/token_usage"
-require_relative "llm_cost_tracker/billing/components"
-require_relative "llm_cost_tracker/billing/rate"
-require_relative "llm_cost_tracker/billing/cost"
-require_relative "llm_cost_tracker/billing/line_item"
-require_relative "llm_cost_tracker/billing/cost_status"
+require_relative "llm_cost_tracker/currency"
+require_relative "llm_cost_tracker/usage/dimension"
+require_relative "llm_cost_tracker/usage/token_usage"
+require_relative "llm_cost_tracker/capture/usage_source"
+require_relative "llm_cost_tracker/pricing/rate"
+require_relative "llm_cost_tracker/charges/cost"
+require_relative "llm_cost_tracker/charges/line_item"
+require_relative "llm_cost_tracker/charges/cost_status"
 require_relative "llm_cost_tracker/event"
 require_relative "llm_cost_tracker/pricing"
 require_relative "llm_cost_tracker/parsers"
@@ -64,14 +66,14 @@ module LlmCostTracker
     end
 
     def track(provider:, tokens:, model: nil, tags: {}, latency_ms: nil, stream: false,
-              usage_source: Billing::UsageSource::MANUAL, enforce_budget: false,
+              usage_source: Capture::UsageSource::MANUAL, enforce_budget: false,
               provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
               provider_workspace_id: nil, pricing_mode: nil, service_line_items: [])
       Tracker.record(
         event: Event.build(
           provider: provider,
           model: model,
-          token_usage: TokenUsage.build_from_tokens(tokens),
+          token_usage: Usage::TokenUsage.build_from_tokens(tokens),
           stream: stream,
           usage_source: usage_source,
           provider_response_id: provider_response_id,

@@ -82,7 +82,7 @@ module LlmCostTracker
         def usage_rows(stats, component_costs: {})
           billable_tokens = stats.billable_tokens.to_f
 
-          rows = Billing::Components::TOKEN_PRICED.map do |component|
+          rows = Usage::Dimension::TOKEN_PRICED.map do |component|
             token_value = stats[component.token_key].to_i
 
             {
@@ -166,7 +166,7 @@ module LlmCostTracker
 
         def index_costs_by_component(rows)
           rows.each_with_object({}) do |(kind, direction, cache_state, cost), accumulator|
-            component = Billing::Components.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
+            component = Usage::Dimension.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
             accumulator[component.key] = cost if component
           end
         end
@@ -178,7 +178,7 @@ module LlmCostTracker
         end
 
         def aggregate_selects(scope)
-          unknown_pricing = Billing::CostStatus.unknown_pricing_sql
+          unknown_pricing = Charges::CostStatus.unknown_pricing_sql
           selects = [
             "COUNT(*) AS total_calls",
             "#{conditional_count_sql(unknown_pricing)} AS unknown_pricing_count",
@@ -201,11 +201,11 @@ module LlmCostTracker
         end
 
         def usage_sum_columns
-          Billing::Components::TOKEN_PRICED.map(&:token_key) + [:hidden_output_tokens]
+          Usage::Dimension::TOKEN_PRICED.map(&:token_key) + [:hidden_output_tokens]
         end
 
         def billable_tokens_select(scope)
-          Billing::Components::TOKEN_PRICED
+          Usage::Dimension::TOKEN_PRICED
             .map { |component| column_sum(scope, component.token_key) }
             .join(" + ")
         end
@@ -218,7 +218,7 @@ module LlmCostTracker
         end
 
         def unknown_usage_source_predicate(scope)
-          quoted = scope.connection.quote(LlmCostTracker::Billing::UsageSource::UNKNOWN)
+          quoted = scope.connection.quote(LlmCostTracker::Capture::UsageSource::UNKNOWN)
           "usage_source = #{quoted} OR usage_source IS NULL"
         end
 

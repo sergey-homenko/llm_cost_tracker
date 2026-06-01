@@ -217,7 +217,7 @@ RSpec.describe "concurrency", :aggregate_failures do
               event: LlmCostTracker::Event.build(
                 provider: "openai",
                 model: "gpt-4o",
-                token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+                token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1, output_tokens: 1)
               )
             )
             recorded << event.tags[:request_id]
@@ -243,7 +243,7 @@ RSpec.describe "concurrency", :aggregate_failures do
             event: LlmCostTracker::Event.build(
               provider: "openai",
               model: "gpt-4o",
-              token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+              token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1, output_tokens: 1)
             )
           )
           recorded << event.tags[:request_id]
@@ -256,7 +256,7 @@ RSpec.describe "concurrency", :aggregate_failures do
             event: LlmCostTracker::Event.build(
               provider: "openai",
               model: "gpt-4o",
-              token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+              token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1, output_tokens: 1)
             )
           )
           recorded << event.tags[:request_id]

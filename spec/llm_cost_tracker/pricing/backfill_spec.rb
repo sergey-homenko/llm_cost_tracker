@@ -47,7 +47,7 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
     call.reload
     expect(call.total_cost).to be > 0
-    expect(call.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+    expect(call.cost_status).to eq(LlmCostTracker::Charges::CostStatus::COMPLETE)
     expect(call.pricing_snapshot).to be_a(Hash)
     expect(call.line_items.first.cost).to be > 0
     expect(call.line_items.first.cost_status).to eq("complete")

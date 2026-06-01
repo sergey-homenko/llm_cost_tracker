@@ -2,10 +2,10 @@
 
 require "spec_helper"
 
-RSpec.describe LlmCostTracker::Billing::Components do
-  it "keeps token-priced components aligned with TokenUsage" do
+RSpec.describe LlmCostTracker::Usage::Dimension do
+  it "keeps token-priced components aligned with Usage::TokenUsage" do
     token_keys = described_class::TOKEN_PRICED.map(&:token_key)
-    missing = token_keys - LlmCostTracker::TokenUsage.members
+    missing = token_keys - LlmCostTracker::Usage::TokenUsage.members
 
     expect(missing).to be_empty
   end
@@ -17,7 +17,7 @@ RSpec.describe LlmCostTracker::Billing::Components do
   end
 
   it "has unique component keys" do
-    keys = described_class::REGISTRY.map(&:key)
+    keys = described_class::ALL.map(&:key)
 
     expect(keys).to eq(keys.uniq)
   end
@@ -47,14 +47,14 @@ RSpec.describe LlmCostTracker::Billing::Components do
   end
 
   it "uses only rate_basis values that the pricing engine knows how to quantify" do
-    described_class::REGISTRY.each do |component|
-      expect(LlmCostTracker::Billing::RATE_BASIS_QUANTITIES).to have_key(component.rate_basis),
+    described_class::ALL.each do |component|
+      expect(LlmCostTracker::Pricing::RATE_BASIS_QUANTITIES).to have_key(component.rate_basis),
         -> { "#{component.key} declares unknown rate_basis #{component.rate_basis.inspect}" }
     end
   end
 
   it "resolves every non-token key to itself, unshadowed by an earlier suffix match" do
-    described_class::REGISTRY.reject(&:token_key).each do |component|
+    described_class::ALL.reject(&:token_key).each do |component|
       expect(described_class.parse_key(component.key)).to eq([component, nil]),
         -> { "#{component.key} is shadowed in parse_key by an earlier component" }
     end

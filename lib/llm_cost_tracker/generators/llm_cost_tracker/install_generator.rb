@@ -2,10 +2,10 @@
 
 require "rails/generators"
 require "rails/generators/active_record"
-require "llm_cost_tracker/billing/components"
-require "llm_cost_tracker/billing/cost_status"
+require "llm_cost_tracker/usage/dimension"
+require "llm_cost_tracker/charges/cost_status"
 require "llm_cost_tracker/pricing"
-require "llm_cost_tracker/token_usage"
+require "llm_cost_tracker/usage/token_usage"
 
 module LlmCostTracker
   module Generators

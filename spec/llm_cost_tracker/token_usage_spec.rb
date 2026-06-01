@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe LlmCostTracker::TokenUsage do
+RSpec.describe LlmCostTracker::Usage::TokenUsage do
   it "returns persisted token columns" do
     usage = described_class.build(
       input_tokens: 10,

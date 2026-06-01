@@ -70,8 +70,8 @@ module LlmCostTracker
           @provider_project_id = extra.delete(:provider_project_id) || @provider_project_id
           @provider_api_key_id = extra.delete(:provider_api_key_id) || @provider_api_key_id
           @provider_workspace_id = extra.delete(:provider_workspace_id) || @provider_workspace_id
-          @explicit_usage = TokenUsage.build(
-            **extra.slice(*TokenUsage.members),
+          @explicit_usage = Usage::TokenUsage.build(
+            **extra.slice(*Usage::TokenUsage.members),
             input_tokens: input_tokens,
             output_tokens: output_tokens
           )
@@ -181,7 +181,7 @@ module LlmCostTracker
           model: snapshot[:model] || Event::UNKNOWN_MODEL,
           token_usage: snapshot[:explicit_usage],
           stream: true,
-          usage_source: Billing::UsageSource::MANUAL,
+          usage_source: Capture::UsageSource::MANUAL,
           pricing_mode: snapshot[:pricing_mode],
           **snapshot.fetch(:capture_dimensions)
         )
@@ -191,9 +191,9 @@ module LlmCostTracker
         Event.build(
           provider: @provider,
           model: snapshot[:model] || Event::UNKNOWN_MODEL,
-          token_usage: TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
+          token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
-          usage_source: Billing::UsageSource::UNKNOWN,
+          usage_source: Capture::UsageSource::UNKNOWN,
           pricing_mode: snapshot[:pricing_mode],
           **snapshot.fetch(:capture_dimensions)
         )

@@ -47,7 +47,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       hidden_output_tokens: 0,
       audio_output_tokens: 0,
       total_cost: 1.0,
-      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
       latency_ms: 100,
       stream: false,
       usage_source: nil,
@@ -647,9 +647,9 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
     it "treats cost_status partial or unknown as unknown pricing rows even when total_cost is non-nil" do
       create_call(provider: "openai", model: "gpt-4o", total_cost: 0.42,
-                  cost_status: LlmCostTracker::Billing::CostStatus::PARTIAL)
+                  cost_status: LlmCostTracker::Charges::CostStatus::PARTIAL)
       create_call(provider: "openai", model: "gpt-4o", total_cost: 0.10,
-                  cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE)
+                  cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE)
 
       rows = described_class.unknown_pricing_by_model(LlmCostTracker::Call.all, total_calls: 2)
 
@@ -725,7 +725,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
         unit: "token",
         cost: cost,
         currency: "USD",
-        cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+        cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
         details: {},
         created_at: Time.now.utc
       )
@@ -791,7 +791,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
         quantity: 2,
         rate_quantity: 1000,
         cost: 0.02,
-        cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
+        cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE
       )
       build_service_line_item(
         call: openai_call,
@@ -801,7 +801,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
         quantity: 1,
         rate_quantity: 1,
         cost: nil,
-        cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+        cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN
       )
       build_service_line_item(
         call: anthropic_call,
@@ -811,7 +811,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
         quantity: 1,
         rate_quantity: 1,
         cost: 0.05,
-        cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
+        cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE
       )
 
       rows = described_class.service_charge_rows(LlmCostTracker::Call.where(provider: "openai"))

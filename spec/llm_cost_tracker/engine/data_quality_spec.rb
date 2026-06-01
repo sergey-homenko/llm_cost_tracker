@@ -58,7 +58,7 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
       rate_quantity: 1000,
       cost: 0.02,
       currency: "USD",
-      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
       details: {},
       created_at: Time.now.utc
     )

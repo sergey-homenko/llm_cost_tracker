@@ -2,16 +2,17 @@
 
 require "bigdecimal"
 
-require_relative "../billing/components"
+require_relative "../usage/dimension"
+require_relative "rate"
 
 module LlmCostTracker
   module Pricing
     class Calculation
-      RATE_DENOMINATOR_TOKENS = Billing::RATE_BASIS_QUANTITIES.fetch("per_million_tokens")
+      RATE_DENOMINATOR_TOKENS = Pricing::RATE_BASIS_QUANTITIES.fetch("per_million_tokens")
       private_constant :RATE_DENOMINATOR_TOKENS
 
       def self.for(provider:, model:, tokens:, pricing_mode:, line_items: [], usage_source: nil)
-        new(provider: provider, model: model, token_usage: TokenUsage.build_from_tokens(tokens),
+        new(provider: provider, model: model, token_usage: Usage::TokenUsage.build_from_tokens(tokens),
             line_items: line_items, mode: Mode.normalize(pricing_mode), usage_source: usage_source)
       end
 
@@ -65,7 +66,7 @@ module LlmCostTracker
       end
 
       def cost_status
-        @cost_status ||= Billing::CostStatus.call(
+        @cost_status ||= Charges::CostStatus.call(
           token_usage: @token_usage,
           usage_source: @usage_source,
           token_cost: token_cost,
@@ -101,12 +102,12 @@ module LlmCostTracker
       end
 
       def build_token_cost
-        by_component = priced_token_line_items.to_h { |line_item| [line_item.component, line_item] }
-        components = Billing::Components::TOKEN_PRICED.each_with_object({}) do |component, result|
-          cost = token_component_cost(component, by_component[component])
-          result[component.cost_key] = cost.round(8) unless cost.nil?
+        by_dimension = priced_token_line_items.to_h { |line_item| [line_item.dimension, line_item] }
+        components = Usage::Dimension::TOKEN_PRICED.each_with_object({}) do |dimension, result|
+          cost = token_component_cost(dimension, by_dimension[dimension])
+          result[dimension.cost_key] = cost.round(8) unless cost.nil?
         end
-        Billing::Cost.new(
+        Charges::Cost.new(
           components: components.freeze,
           total: priced_token_line_items.sum(BigDecimal("0"), &:cost_value).round(8),
           currency: match.currency
@@ -154,16 +155,16 @@ module LlmCostTracker
       def price_token(line_item)
         component = component_for(line_item)
         return line_item unless component
-        return line_item.with(cost_status: Billing::CostStatus::UNKNOWN) unless priceable?
+        return line_item.with(cost_status: Charges::CostStatus::UNKNOWN) unless priceable?
 
         price = effective[component.key]
-        return line_item.with(cost_status: Billing::CostStatus::UNKNOWN) if price.nil?
+        return line_item.with(cost_status: Charges::CostStatus::UNKNOWN) if price.nil?
 
         line_item.with_rate(token_rate(component, price))
       end
 
       def token_rate(component, price)
-        Billing::Rate.new(
+        Pricing::Rate.new(
           amount: BigDecimal(price.to_s),
           quantity: BigDecimal(RATE_DENOMINATOR_TOKENS),
           currency: match.currency,
@@ -189,10 +190,10 @@ module LlmCostTracker
         amount = match.prices[line_item.kind]
         return nil unless amount.is_a?(Numeric)
 
-        component = Billing::Components::BY_KEY[line_item.kind]
-        Billing::Rate.new(
+        component = Usage::Dimension::BY_KEY[line_item.kind]
+        Pricing::Rate.new(
           amount: BigDecimal(amount.to_s),
-          quantity: BigDecimal(Billing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis).to_s),
+          quantity: BigDecimal(Pricing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis).to_s),
           currency: match.currency,
           source: match.source,
           source_key: "#{match.key}.#{line_item.kind}",
@@ -201,7 +202,7 @@ module LlmCostTracker
       end
 
       def component_for(line_item)
-        Billing::Components::REGISTRY.find do |component|
+        Usage::Dimension::ALL.find do |component|
           component.kind == line_item.kind &&
             component.direction == line_item.direction &&
             component.modality == line_item.modality &&
@@ -220,7 +221,7 @@ module LlmCostTracker
         warn_currency_mismatch(mismatched, base_currency) if mismatched.any?
 
         service_total = matching.sum(BigDecimal("0"), &:cost_value)
-        Billing::Cost.new(
+        Charges::Cost.new(
           components: cost ? cost.components : {}.freeze,
           total: ((cost&.total || BigDecimal("0")) + service_total).round(8),
           currency: (cost&.currency || base_currency).to_s
@@ -228,7 +229,7 @@ module LlmCostTracker
       end
 
       def base_currency_for(cost, priced_services)
-        cost&.currency || priced_services.first.currency || Billing::DEFAULT_CURRENCY
+        cost&.currency || priced_services.first.currency || LlmCostTracker::DEFAULT_CURRENCY
       end
 
       def warn_currency_mismatch(lines, base_currency)

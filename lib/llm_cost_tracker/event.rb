@@ -53,7 +53,7 @@ module LlmCostTracker
 
     def self.resolve_line_items(service_items)
       Array(service_items).map do |item|
-        item.is_a?(Billing::LineItem) ? item : Billing::LineItem.build(item)
+        item.is_a?(Charges::LineItem) ? item : Charges::LineItem.build(item)
       end
     end
 

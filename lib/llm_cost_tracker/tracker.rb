@@ -57,7 +57,7 @@ module LlmCostTracker
       private
 
       def resolved_line_items(event)
-        Billing::LineItem.from_token_usage(event.token_usage) + event.line_items
+        Charges::LineItem.from_token_usage(event.token_usage) + event.line_items
       end
 
       def notify_subscribers(event)

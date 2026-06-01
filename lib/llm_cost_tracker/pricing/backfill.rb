@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require_relative "../pricing"
-require_relative "../billing/line_item"
+require_relative "../charges/line_item"
 require_relative "../ledger/rollups"
-require_relative "../token_usage"
+require_relative "../usage/token_usage"
 
 module LlmCostTracker
   module Pricing
@@ -84,12 +84,12 @@ module LlmCostTracker
         end
 
         def token_usage_from(call)
-          TokenUsage.build(**call.attributes.transform_keys(&:to_sym).slice(*TokenUsage.members))
+          Usage::TokenUsage.build(**call.attributes.transform_keys(&:to_sym).slice(*Usage::TokenUsage.members))
         end
 
         def billing_line_items_from(call)
           call.line_items.map do |record|
-            Billing::LineItem.build(record.attributes.transform_keys(&:to_sym).slice(*Billing::LineItem.members))
+            Charges::LineItem.build(record.attributes.transform_keys(&:to_sym).slice(*Charges::LineItem.members))
           end
         end
       end

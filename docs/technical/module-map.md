@@ -62,14 +62,14 @@ Responsibilities:
 Integrations are for Ruby SDK object shapes. Parsers are for HTTP and stream
 payload shapes.
 
-## Billing Components
+## Usage and Charges
 
 Primary files:
 
-- `lib/llm_cost_tracker/billing/components.rb`
-- `lib/llm_cost_tracker/billing/cost_status.rb`
-- `lib/llm_cost_tracker/billing/line_item.rb`
-- `lib/llm_cost_tracker/token_usage.rb`
+- `lib/llm_cost_tracker/usage/dimension.rb`
+- `lib/llm_cost_tracker/charges/cost_status.rb`
+- `lib/llm_cost_tracker/charges/line_item.rb`
+- `lib/llm_cost_tracker/usage/token_usage.rb`
 
 Responsibilities:
 
@@ -78,7 +78,7 @@ Responsibilities:
 - Classify costs as `free`, `complete`, `partial`, or `unknown`.
 - Represent priced and unpriced line items (tokens + tool/runtime charges) before persistence.
 
-`Billing::Components` is the master source of billable component metadata.
+`Usage::Dimension` is the master source of billable component metadata.
 
 ## Pricing
 
@@ -94,7 +94,7 @@ Responsibilities:
 
 - Load bundled prices, local price snapshots, and Ruby overrides.
 - Apply pricing precedence: overrides, local file, bundled prices.
-- Calculate token costs from canonical `TokenUsage`.
+- Calculate token costs from canonical `Usage::TokenUsage`.
 - Price known service line items when the registry has a reliable rate (`charge_rate`).
 - Explain unknown or incomplete pricing.
 - Refresh local snapshots from the maintained LLM Cost Tracker registry.

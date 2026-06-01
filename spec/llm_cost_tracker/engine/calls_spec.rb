@@ -233,7 +233,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
   it "marks call details with nil total cost as unknown pricing" do
     call = create_call(
       total_cost: nil,
-      cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+      cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN
     )
 
     response = get("/llm-costs/calls/#{call.id}")
@@ -248,12 +248,12 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     free_call = create_call(
       model: "free-call",
       total_cost: 0,
-      cost_status: LlmCostTracker::Billing::CostStatus::FREE
+      cost_status: LlmCostTracker::Charges::CostStatus::FREE
     )
     partial_call = create_call(
       model: "partial-call",
       total_cost: 0.25,
-      cost_status: LlmCostTracker::Billing::CostStatus::PARTIAL
+      cost_status: LlmCostTracker::Charges::CostStatus::PARTIAL
     )
 
     free_response = get("/llm-costs/calls/#{free_call.id}")

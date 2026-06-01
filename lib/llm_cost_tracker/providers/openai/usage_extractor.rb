@@ -23,7 +23,7 @@ module LlmCostTracker
             default_to_image: ModelFamilies.image_output?(model)
           )
 
-          TokenUsage.build(
+          Usage::TokenUsage.build(
             input_tokens: [input_tokens - cache_read - audio_input - image_input, 0].max,
             output_tokens: regular_output,
             total_tokens: usage[:total_tokens],

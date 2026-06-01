@@ -112,7 +112,7 @@ LlmCostTracker.track_stream(
 end
 ```
 
-`stream.usage` accepts token fields owned by `TokenUsage`, plus
+`stream.usage` accepts token fields owned by `Usage::TokenUsage`, plus
 provider response and grouping dimensions.
 
 ## Data Quality

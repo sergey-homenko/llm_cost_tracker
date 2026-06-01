@@ -250,7 +250,7 @@
           </thead>
           <tbody>
             <% @service_charge_rows.each do |row| %>
-              <% unknown_cost = row.cost_status.to_s == LlmCostTracker::Billing::CostStatus::UNKNOWN %>
+              <% unknown_cost = row.cost_status.to_s == LlmCostTracker::Charges::CostStatus::UNKNOWN %>
               <tr>
                 <td><code class="lct-code-id"><%= row.provider %></code></td>
                 <td><code class="lct-code-id"><%= row.component %></code></td>

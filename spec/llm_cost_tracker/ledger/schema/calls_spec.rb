@@ -26,9 +26,9 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
       ]
     end
 
-    it "includes every TokenUsage field" do
-      missing = LlmCostTracker::TokenUsage.members.map(&:to_s) - schema_columns
-      message = "TokenUsage members not declared in schema: #{missing.join(', ')}; " \
+    it "includes every Usage::TokenUsage field" do
+      missing = LlmCostTracker::Usage::TokenUsage.members.map(&:to_s) - schema_columns
+      message = "Usage::TokenUsage members not declared in schema: #{missing.join(', ')}; " \
                 "add migration and update the columns declaration"
 
       expect(missing).to be_empty, message
@@ -36,13 +36,13 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
 
     it "stores only the total_cost denormalized header amount" do
       expect(schema_columns).to include("total_cost")
-      LlmCostTracker::Billing::Components::TOKEN_PRICED.each do |component|
+      LlmCostTracker::Usage::Dimension::TOKEN_PRICED.each do |component|
         expect(schema_columns).not_to include(component.cost_key.to_s)
       end
     end
 
     it "does not contain unknown data columns" do
-      known_columns = fixed_schema_columns + LlmCostTracker::TokenUsage.members.map(&:to_s)
+      known_columns = fixed_schema_columns + LlmCostTracker::Usage::TokenUsage.members.map(&:to_s)
       unknown = schema_columns - known_columns
 
       expect(unknown).to be_empty, "Unknown schema columns: #{unknown.join(', ')}"

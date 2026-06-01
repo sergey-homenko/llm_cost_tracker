@@ -2,11 +2,12 @@
 
 require "bigdecimal"
 
-require_relative "components"
+require_relative "../currency"
+require_relative "../usage/dimension"
 require_relative "cost_status"
 
 module LlmCostTracker
-  module Billing
+  module Charges
     LineItem = Data.define(
       :kind,
       :direction,
@@ -31,14 +32,14 @@ module LlmCostTracker
     class LineItem
       def self.build(attributes)
         attributes = attributes.to_h
-        component = component_for(attributes)
+        dimension = dimension_for(attributes)
         new(
-          kind: attributes[:kind]&.to_s || component&.kind,
-          direction: attributes[:direction]&.to_s || component&.direction,
-          modality: attributes[:modality]&.to_s || component&.modality,
-          cache_state: attributes[:cache_state]&.to_s || component&.cache_state || "none",
+          kind: attributes[:kind]&.to_s || dimension&.kind,
+          direction: attributes[:direction]&.to_s || dimension&.direction,
+          modality: attributes[:modality]&.to_s || dimension&.modality,
+          cache_state: attributes[:cache_state]&.to_s || dimension&.cache_state || "none",
           quantity: decimal_or_nil(attributes[:quantity]) || BigDecimal("0"),
-          unit: attributes[:unit]&.to_s || component&.unit,
+          unit: attributes[:unit]&.to_s || dimension&.unit,
           rate_amount: decimal_or_nil(attributes[:rate_amount]),
           rate_quantity: decimal_or_nil(attributes[:rate_quantity]) || BigDecimal("1"),
           cost: decimal_or_nil(attributes[:cost]),
@@ -60,14 +61,14 @@ module LlmCostTracker
         token_usage.priced_quantities.filter_map do |key, quantity|
           next unless quantity.positive?
 
-          component = Components::BY_KEY.fetch(key)
+          dimension = Usage::Dimension::BY_KEY.fetch(key)
           build(
-            kind: component.kind,
-            direction: component.direction,
-            modality: component.modality,
-            cache_state: component.cache_state,
+            kind: dimension.kind,
+            direction: dimension.direction,
+            modality: dimension.modality,
+            cache_state: dimension.cache_state,
             quantity: quantity,
-            unit: component.unit
+            unit: dimension.unit
           )
         end
       end
@@ -82,11 +83,11 @@ module LlmCostTracker
         cost.zero? ? CostStatus::FREE : CostStatus::COMPLETE
       end
 
-      def self.component_for(attributes)
+      def self.dimension_for(attributes)
         component_key = attributes[:component_key] || attributes[:price_key]
         return nil unless component_key
 
-        Components::BY_KEY[component_key.to_s]
+        Usage::Dimension::BY_KEY[component_key.to_s]
       end
 
       def self.decimal_or_nil(value)
@@ -96,10 +97,10 @@ module LlmCostTracker
       end
 
       def self.canonical_currency(value)
-        (value || DEFAULT_CURRENCY).to_s.upcase
+        (value || LlmCostTracker::DEFAULT_CURRENCY).to_s.upcase
       end
 
-      private_class_method :cost_status_for, :component_for, :decimal_or_nil, :canonical_currency
+      private_class_method :cost_status_for, :dimension_for, :decimal_or_nil, :canonical_currency
 
       def billable?
         quantity.positive?
@@ -117,9 +118,9 @@ module LlmCostTracker
         unit == "token"
       end
 
-      def component
-        Components::BY_KEY[price_key] ||
-          Components.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
+      def dimension
+        Usage::Dimension::BY_KEY[price_key] ||
+          Usage::Dimension.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
       end
 
       def cost_value

@@ -123,7 +123,7 @@ module LlmCostTracker
         end
 
         def currency_from_snapshot(snapshot)
-          value = (snapshot.is_a?(Hash) && snapshot["currency"]) || Billing::DEFAULT_CURRENCY
+          value = (snapshot.is_a?(Hash) && snapshot["currency"]) || LlmCostTracker::DEFAULT_CURRENCY
           value.to_s.upcase
         end
 

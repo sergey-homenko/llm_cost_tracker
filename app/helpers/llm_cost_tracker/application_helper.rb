@@ -53,9 +53,9 @@ module LlmCostTracker
       return "Unknown" if call.total_cost.nil?
 
       {
-        LlmCostTracker::Billing::CostStatus::COMPLETE => "Estimated",
-        LlmCostTracker::Billing::CostStatus::FREE => "Free",
-        LlmCostTracker::Billing::CostStatus::PARTIAL => "Partial"
+        LlmCostTracker::Charges::CostStatus::COMPLETE => "Estimated",
+        LlmCostTracker::Charges::CostStatus::FREE => "Free",
+        LlmCostTracker::Charges::CostStatus::PARTIAL => "Partial"
       }.fetch(call.cost_status, "Unknown")
     end
 

@@ -170,7 +170,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         line = events.first[:line_items].find { |item| item[:kind] == "transcription_minute" }
         expect(line).not_to be_nil
         expect(line[:quantity].to_i).to eq(3)
-        expect(line[:cost_status]).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+        expect(line[:cost_status]).to eq(LlmCostTracker::Charges::CostStatus::UNKNOWN)
       end
     end
   end

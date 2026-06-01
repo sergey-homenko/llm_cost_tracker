@@ -25,7 +25,7 @@ module LlmCostTracker
             THEN COALESCE(SUM(#{total_cost}), 0) * 1.0 / COUNT(*)
             ELSE 0 END
           SQL
-          predicate = LlmCostTracker::Billing::CostStatus.unknown_pricing_sql(
+          predicate = LlmCostTracker::Charges::CostStatus.unknown_pricing_sql(
             total_cost: total_cost, cost_status: cost_status
           )
           unknown_pricing_sql = "SUM(CASE WHEN #{predicate} THEN 1 ELSE 0 END)"

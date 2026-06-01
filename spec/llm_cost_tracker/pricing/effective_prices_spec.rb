@@ -2,11 +2,11 @@
 
 require "spec_helper"
 require "llm_cost_tracker/pricing/effective_prices"
-require "llm_cost_tracker/token_usage"
+require "llm_cost_tracker/usage/token_usage"
 
 RSpec.describe LlmCostTracker::Pricing::EffectivePrices do
   let(:usage) do
-    LlmCostTracker::TokenUsage.build(
+    LlmCostTracker::Usage::TokenUsage.build(
       input_tokens: 100,
       output_tokens: 200,
       cache_read_input_tokens: 50

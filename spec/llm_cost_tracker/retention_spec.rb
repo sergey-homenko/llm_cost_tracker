@@ -26,7 +26,7 @@ RSpec.describe LlmCostTracker::Retention do
       provider: "openai", model: "gpt-4o",
       input_tokens: 0, output_tokens: 0, total_tokens: 0,
       total_cost: total_cost,
-      cost_status: total_cost.nil? ? LlmCostTracker::Billing::CostStatus::UNKNOWN : LlmCostTracker::Billing::CostStatus::COMPLETE,
+      cost_status: total_cost.nil? ? LlmCostTracker::Charges::CostStatus::UNKNOWN : LlmCostTracker::Charges::CostStatus::COMPLETE,
       tracked_at: tracked_at
     )
   end
@@ -125,7 +125,7 @@ RSpec.describe LlmCostTracker::Retention do
       unit: "request",
       rate_quantity: 1,
       currency: "USD",
-      cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN,
+      cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN,
       details: {},
       created_at: now - 100.days
     )

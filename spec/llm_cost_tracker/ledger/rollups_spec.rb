@@ -12,9 +12,9 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       event_id: SecureRandom.uuid,
       provider: "openai",
       model: "gpt-4o",
-      token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1, output_tokens: 1),
+      token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1, output_tokens: 1),
       pricing_mode: nil,
-      cost: LlmCostTracker::Billing::Cost.new(components: {}, total: total_cost, currency: currency),
+      cost: LlmCostTracker::Charges::Cost.new(components: {}, total: total_cost, currency: currency),
       tags: {},
       latency_ms: nil,
       stream: false,
@@ -24,7 +24,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       provider_api_key_id: nil,
       provider_workspace_id: nil,
       tracked_at: tracked_at,
-      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
       pricing_snapshot: { "currency" => currency },
       line_items: []
     )

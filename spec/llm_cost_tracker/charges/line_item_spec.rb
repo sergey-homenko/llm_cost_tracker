@@ -2,14 +2,14 @@
 
 require "spec_helper"
 
-RSpec.describe LlmCostTracker::Billing::LineItem do
+RSpec.describe LlmCostTracker::Charges::LineItem do
   describe ".build" do
     it "marks zero-cost token line items as FREE" do
       line_item = described_class.build(
         kind: "text_token", direction: :input, modality: :text, cache_state: :none,
         quantity: 100, unit: :token, cost: 0
       )
-      expect(line_item.cost_status).to eq(LlmCostTracker::Billing::CostStatus::FREE)
+      expect(line_item.cost_status).to eq(LlmCostTracker::Charges::CostStatus::FREE)
     end
 
     it "fills attributes from a known component when given a component key" do
@@ -24,7 +24,7 @@ RSpec.describe LlmCostTracker::Billing::LineItem do
         component_key: "web_search_request", quantity: 1, cost_status: :unknown
       )
 
-      expect(line_item.cost_status).to eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+      expect(line_item.cost_status).to eq(LlmCostTracker::Charges::CostStatus::UNKNOWN)
       expect(line_item).to be_unpriced
       expect(line_item).not_to be_priced
     end
@@ -52,7 +52,7 @@ RSpec.describe LlmCostTracker::Billing::LineItem do
       described_class.build(
         kind: "text_token", direction: :input, modality: :text, cache_state: :none,
         quantity: 100, unit: :token, cost: 0.5,
-        cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE
+        cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE
       )
     end
 
@@ -60,7 +60,7 @@ RSpec.describe LlmCostTracker::Billing::LineItem do
       described_class.build(
         kind: "web_search_request", direction: :neither, modality: :text, cache_state: :none,
         quantity: 1, unit: :request,
-        cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+        cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN
       )
     end
 

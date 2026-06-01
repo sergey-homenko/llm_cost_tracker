@@ -37,9 +37,9 @@ RSpec.describe "ActiveRecord storage integration" do
       event_id: event_id,
       provider: "openai",
       model: "gpt-4o",
-      token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
+      token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
       pricing_mode: nil,
-      cost: LlmCostTracker::Billing::Cost.new(components: {}, total: total_cost, currency: "USD"),
+      cost: LlmCostTracker::Charges::Cost.new(components: {}, total: total_cost, currency: "USD"),
       tags: tags,
       latency_ms: nil,
       stream: false,
@@ -49,7 +49,7 @@ RSpec.describe "ActiveRecord storage integration" do
       provider_api_key_id: nil,
       provider_workspace_id: nil,
       tracked_at: tracked_at,
-      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
       pricing_snapshot: nil,
       line_items: []
     )
@@ -104,7 +104,7 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.cache_write_input_tokens).to eq(0)
     expect(call.hidden_output_tokens).to eq(20)
     expect(call.total_cost.to_f).to eq(0.007375)
-    expect(call.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+    expect(call.cost_status).to eq(LlmCostTracker::Charges::CostStatus::COMPLETE)
     expect(call.pricing_snapshot.fetch("rates").keys).to include("input", "cache_read_input", "output")
 
     costs_by_signature = call.line_items.each_with_object({}) do |item, acc|
@@ -136,7 +136,7 @@ RSpec.describe "ActiveRecord storage integration" do
     line_item = LlmCostTracker::CallLineItem.where.not(unit: "token").first
 
     expect(call.total_cost.to_f).to eq(0.0125)
-    expect(call.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+    expect(call.cost_status).to eq(LlmCostTracker::Charges::CostStatus::COMPLETE)
     expect(line_item.llm_cost_tracker_call_id).to eq(call.id)
     expect(line_item.kind).to eq("web_search_request")
     expect(line_item.cost.to_f).to eq(0.01)
@@ -151,7 +151,7 @@ RSpec.describe "ActiveRecord storage integration" do
         {
           component_key: "grounding_request",
           quantity: 1,
-          cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+          cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN
         }
       ]
     )
@@ -159,7 +159,7 @@ RSpec.describe "ActiveRecord storage integration" do
     call = LlmCostTracker::Call.first
 
     expect(call.total_cost.to_f).to eq(0.0025)
-    expect(call.cost_status).to eq(LlmCostTracker::Billing::CostStatus::PARTIAL)
+    expect(call.cost_status).to eq(LlmCostTracker::Charges::CostStatus::PARTIAL)
   end
 
   it "persists pricing_mode" do

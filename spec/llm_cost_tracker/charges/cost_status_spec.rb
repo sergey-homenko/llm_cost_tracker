@@ -2,11 +2,11 @@
 
 require "spec_helper"
 
-RSpec.describe LlmCostTracker::Billing::CostStatus do
-  let(:token_usage) { LlmCostTracker::TokenUsage.build(input_tokens: 0, output_tokens: 0) }
+RSpec.describe LlmCostTracker::Charges::CostStatus do
+  let(:token_usage) { LlmCostTracker::Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0) }
 
   def service_line_item(component_key: "web_search_request", quantity: 1, cost: nil, cost_status: nil)
-    LlmCostTracker::Billing::LineItem.build(
+    LlmCostTracker::Charges::LineItem.build(
       component_key: component_key,
       quantity: quantity,
       cost: cost,
@@ -57,7 +57,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
   end
 
   it "marks token pricing partial when some token components were priced and others were not" do
-    billable_usage = LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 1_000)
+    billable_usage = LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1_000, output_tokens: 1_000)
 
     status = described_class.call(
       token_usage: billable_usage,
@@ -72,7 +72,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
   end
 
   it "marks fully-priced billable usage as complete" do
-    billable_usage = LlmCostTracker::TokenUsage.build(input_tokens: 1_000, output_tokens: 500)
+    billable_usage = LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1_000, output_tokens: 500)
 
     status = described_class.call(
       token_usage: billable_usage,
@@ -98,7 +98,7 @@ RSpec.describe LlmCostTracker::Billing::CostStatus do
   end
 
   it "returns unknown when only billable usage is unpriced and nothing else is priced" do
-    billable_usage = LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 0)
+    billable_usage = LlmCostTracker::Usage::TokenUsage.build(input_tokens: 100, output_tokens: 0)
 
     status = described_class.call(
       token_usage: billable_usage,

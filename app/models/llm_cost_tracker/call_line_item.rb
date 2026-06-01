@@ -12,7 +12,7 @@ module LlmCostTracker
     scope :by_direction, ->(direction) { where(direction: direction.to_s) }
     scope :by_modality, ->(modality) { where(modality: modality.to_s) }
     scope :cached, -> { where.not(cache_state: ["none", nil]) }
-    scope :priced, -> { where(cost_status: [Billing::CostStatus::COMPLETE, Billing::CostStatus::FREE]) }
-    scope :unpriced, -> { where(cost_status: Billing::CostStatus::UNKNOWN) }
+    scope :priced, -> { where(cost_status: [Charges::CostStatus::COMPLETE, Charges::CostStatus::FREE]) }
+    scope :unpriced, -> { where(cost_status: Charges::CostStatus::UNKNOWN) }
   end
 end

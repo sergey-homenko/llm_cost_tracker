@@ -100,7 +100,7 @@ the same shape.
 | `created_at` | datetime | Insert time |
 
 New billing components are added by registering metadata in
-`Billing::Components`; no migration needed.
+`Usage::Dimension`; no migration needed.
 
 Indexes:
 

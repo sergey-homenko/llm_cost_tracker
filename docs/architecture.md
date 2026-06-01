@@ -19,7 +19,7 @@ Core vocabulary uses provider-neutral terms:
 | Pricing audit | `pricing_snapshot`, `cost_status` |
 | Provider identity | `provider`, `model`, `provider_response_id`, `provider_project_id`, `provider_api_key_id`, `provider_workspace_id` |
 | Provider grouping | `pricing_mode` (and `batch`, derived from it) |
-| Per-component charges | `Billing::LineItem` (token line items + tool/runtime line items) |
+| Per-component charges | `Charges::LineItem` (token line items + tool/runtime line items) |
 
 Provider names such as `service_tier`, `prompt_tokens_details`, `server_tool_use`,
 or `groundingMetadata` may appear only while reading provider payloads. Past that
@@ -27,11 +27,11 @@ boundary, code should use canonical terms.
 
 ## Component Ownership
 
-`Billing::Components` is the master registry for billable components. It owns
+`Usage::Dimension` is the master registry for billable components. It owns
 component keys, units, directions, modalities, cache states, and rate bases.
 
 Pricing, ledger schema checks, dashboards, reports, and generator templates must
-derive component knowledge from `Billing::Components` when the contract is
+derive component knowledge from `Usage::Dimension` when the contract is
 shared. If a boundary must keep an explicit list, add a drift spec.
 
 ## Pricing Model
@@ -62,7 +62,7 @@ discount.
 
 ## Line Items
 
-Tokens and tool/runtime charges share one shape: `Billing::LineItem`. Parsers
+Tokens and tool/runtime charges share one shape: `Charges::LineItem`. Parsers
 emit token line items from provider usage data and service line items from
 tool calls (web search, code execution, grounding, container sessions, file
 search). `Pricing::Calculation` applies provider/model token rates to

@@ -3,7 +3,7 @@
 require "bigdecimal"
 
 module LlmCostTracker
-  module Billing
+  module Charges
     Cost = Data.define(:components, :total, :currency) do
       def self.from_h(attributes)
         components = attributes.key?(:components) ? attributes[:components] : attributes.except(:total_cost, :currency)

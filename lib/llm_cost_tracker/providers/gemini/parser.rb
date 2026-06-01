@@ -36,7 +36,7 @@ module LlmCostTracker
           build_event(
             request_url: request_url,
             usage: usage,
-            usage_source: Billing::UsageSource::RESPONSE,
+            usage_source: Capture::UsageSource::RESPONSE,
             provider_response_id: response["responseId"],
             pricing_mode: pricing_mode(request: request, usage: usage, response_headers: response_headers),
             service_line_items: grounding_line_items(grounding_request_count(response["candidates"]), model: model)
@@ -58,7 +58,7 @@ module LlmCostTracker
               request_url: request_url,
               usage: usage,
               stream: true,
-              usage_source: Billing::UsageSource::STREAM_FINAL,
+              usage_source: Capture::UsageSource::STREAM_FINAL,
               provider_response_id: response_id,
               pricing_mode: mode,
               service_line_items: service_line_items
@@ -97,7 +97,7 @@ module LlmCostTracker
             provider: "gemini",
             model: extract_model_from_url(request_url),
             pricing_mode: pricing_mode,
-            token_usage: TokenUsage.build(
+            token_usage: Usage::TokenUsage.build(
               input_tokens: regular_input_tokens(usage: usage, cache_read: cache_read,
                                                  audio_input: audio_input, image_input: image_input) +
                             tool_use_prompt,
@@ -212,10 +212,10 @@ module LlmCostTracker
 
           billed_quantity = grounding_billed_quantity(query_count, model: model)
           [
-            Billing::LineItem.build(
+            Charges::LineItem.build(
               component_key: "grounding_request",
               quantity: billed_quantity,
-              cost_status: Billing::CostStatus::UNKNOWN,
+              cost_status: Charges::CostStatus::UNKNOWN,
               pricing_basis: "provider_usage",
               provider_field: "response.candidates.groundingMetadata.webSearchQueries",
               details: { web_search_queries: query_count }

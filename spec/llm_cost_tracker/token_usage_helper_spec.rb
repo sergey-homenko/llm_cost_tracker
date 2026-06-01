@@ -26,7 +26,7 @@ RSpec.describe LlmCostTracker::TokenUsageHelper do
       rate_quantity: BigDecimal("1000000"),
       cost: BigDecimal("0.0025"),
       currency: "USD",
-      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
       pricing_basis: "rate_table",
       price_key: "input",
       details: {}

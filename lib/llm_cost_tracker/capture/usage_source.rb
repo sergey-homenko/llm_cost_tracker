@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module LlmCostTracker
-  module Billing
+  module Capture
     module UsageSource
       MANUAL = "manual"
       UNKNOWN = "unknown"

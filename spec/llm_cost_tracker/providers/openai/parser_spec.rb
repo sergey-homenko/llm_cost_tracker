@@ -288,7 +288,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
         %w[web_search_request file_search_call container_session]
       )
       expect(service_lines.map(&:cost_status)).to all(
-        eq(LlmCostTracker::Billing::CostStatus::UNKNOWN)
+        eq(LlmCostTracker::Charges::CostStatus::UNKNOWN)
       )
       expect(service_lines.map(&:pricing_basis)).to all(eq("provider_usage"))
       expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_123 fs_123 cntr_123])

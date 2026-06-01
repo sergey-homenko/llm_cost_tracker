@@ -30,8 +30,8 @@ module LlmCostTracker
         private
 
         def event_attributes_from(payload)
-          cost = payload[:cost] && Billing::Cost.from_h(payload[:cost])
-          token_usage = TokenUsage.build(**payload.fetch(:token_usage).slice(*TokenUsage.members))
+          cost = payload[:cost] && Charges::Cost.from_h(payload[:cost])
+          token_usage = Usage::TokenUsage.build(**payload.fetch(:token_usage).slice(*Usage::TokenUsage.members))
 
           {
             event_id: payload.fetch(:event_id),
@@ -51,7 +51,7 @@ module LlmCostTracker
             tracked_at: Time.iso8601(payload.fetch(:tracked_at)),
             cost_status: payload.fetch(:cost_status),
             pricing_snapshot: payload[:pricing_snapshot]&.deep_stringify_keys,
-            line_items: (payload[:line_items] || []).map { |attrs| Billing::LineItem.build(attrs) }
+            line_items: (payload[:line_items] || []).map { |attrs| Charges::LineItem.build(attrs) }
           }
         end
 

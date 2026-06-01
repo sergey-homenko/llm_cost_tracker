@@ -10,9 +10,9 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       event_id: "evt_payload_1",
       provider: "openai",
       model: "gpt-4o",
-      token_usage: LlmCostTracker::TokenUsage.build(input_tokens: 100, output_tokens: 50),
+      token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 100, output_tokens: 50),
       pricing_mode: "batch",
-      cost: LlmCostTracker::Billing::Cost.new(
+      cost: LlmCostTracker::Charges::Cost.new(
         components: { input_cost: BigDecimal("0.10"), output_cost: BigDecimal("0.20") },
         total: BigDecimal("0.30"),
         currency: "USD"
@@ -26,7 +26,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
       provider_api_key_id: "key_payload_1",
       provider_workspace_id: "workspace_payload_1",
       tracked_at: Time.utc(2026, 4, 18, 12, 0, 0),
-      cost_status: LlmCostTracker::Billing::CostStatus::COMPLETE,
+      cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
       pricing_snapshot: {
         schema_version: 1,
         source: "bundled",
@@ -36,10 +36,10 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
         }
       },
       line_items: [
-        LlmCostTracker::Billing::LineItem.build(
+        LlmCostTracker::Charges::LineItem.build(
           component_key: "web_search_request",
           quantity: 1,
-          cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN
+          cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN
         )
       ]
     )
@@ -60,7 +60,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
     expect(restored.token_usage.input_tokens).to eq(100)
     expect(restored.total_cost.to_f).to eq(0.3)
     expect(restored.tags).to eq(feature: "chat")
-    expect(restored.cost_status).to eq(LlmCostTracker::Billing::CostStatus::COMPLETE)
+    expect(restored.cost_status).to eq(LlmCostTracker::Charges::CostStatus::COMPLETE)
     expect(restored.pricing_snapshot.fetch("schema_version")).to eq(1)
     expect(restored.usage_source).to eq("manual")
     expect(restored.provider_project_id).to eq("proj_payload_1")
@@ -72,7 +72,7 @@ RSpec.describe LlmCostTracker::Ingestion::Inbox do
 
   it "preserves BigDecimal cost precision through the JSON payload round-trip" do
     high_precision_event = event.with(
-      cost: LlmCostTracker::Billing::Cost.new(
+      cost: LlmCostTracker::Charges::Cost.new(
         components: {}, total: BigDecimal("0.0001234567890123456789"), currency: "USD"
       )
     )

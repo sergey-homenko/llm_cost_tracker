@@ -44,7 +44,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
     it "uses billing component keys for bundled tool prices" do
       registry = YAML.safe_load_file(LlmCostTracker::Pricing::Registry::DEFAULT_PRICES_PATH, aliases: false)
       tool_keys = registry.fetch("service_charges").values.flat_map(&:keys)
-      components = LlmCostTracker::Billing::Components::REGISTRY.filter_map do |component|
+      components = LlmCostTracker::Usage::Dimension::ALL.filter_map do |component|
         component.key if component.token_key.nil?
       end
 

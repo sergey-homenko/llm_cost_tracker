@@ -117,7 +117,7 @@ def add_call_identity_columns(table)
 end
 
 def add_call_usage_columns(table)
-  LlmCostTracker::TokenUsage.members.each do |column|
+  LlmCostTracker::Usage::TokenUsage.members.each do |column|
     table.integer column, null: false, default: 0
   end
 end
@@ -164,7 +164,7 @@ def add_call_line_item_pricing_columns(table)
   table.decimal :rate_quantity, precision: 30, scale: 10, null: false, default: 1
   table.decimal :cost, precision: 20, scale: 8
   table.string :currency, null: false, default: "USD"
-  table.string :cost_status, null: false, default: LlmCostTracker::Billing::CostStatus::UNKNOWN
+  table.string :cost_status, null: false, default: LlmCostTracker::Charges::CostStatus::UNKNOWN
   table.string :pricing_basis
   table.string :price_key
   table.string :price_source

@@ -4,8 +4,8 @@ require "active_support/core_ext/object/blank"
 require "bigdecimal"
 require "yaml"
 
-require_relative "../billing/components"
-require_relative "../billing/rate"
+require_relative "../usage/dimension"
+require_relative "../pricing/rate"
 require_relative "../logging"
 require_relative "mode"
 
@@ -14,7 +14,7 @@ module LlmCostTracker
     module Registry
       DEFAULT_PRICES_PATH = File.expand_path("../prices.json", __dir__)
       CONTEXT_THRESHOLD_KEY = "_context_price_threshold_tokens"
-      PRICE_KEYS = Billing::Components::TOKEN_PRICED.map(&:key).freeze
+      PRICE_KEYS = Usage::Dimension::TOKEN_PRICED.map(&:key).freeze
       METADATA_KEYS = ["_source", CONTEXT_THRESHOLD_KEY].freeze
       Match = Data.define(:source, :key, :prices, :matched_by, :currency)
 
@@ -83,7 +83,7 @@ module LlmCostTracker
           return nil unless match
 
           rate = match.fetch(:rate)
-          Billing::Rate.new(
+          Pricing::Rate.new(
             amount: rate.fetch(:amount),
             quantity: rate.fetch(:quantity),
             currency: rate.fetch(:currency),
@@ -193,7 +193,7 @@ module LlmCostTracker
         def price_key_for(key)
           key = key.to_s
           component_key = strip_mode_prefix(key.delete_prefix("above_context_"))
-          component = Billing::Components::BY_KEY[component_key]
+          component = Usage::Dimension::BY_KEY[component_key]
           return nil unless component
           return key if key == component_key
 
@@ -247,7 +247,7 @@ module LlmCostTracker
         end
 
         def component_and_tier_for(key, context:)
-          component, prefix = Billing::Components.parse_key(key)
+          component, prefix = Usage::Dimension.parse_key(key)
           unless component && component.token_key.nil?
             raise ArgumentError, "service charge price key #{key.inspect} in #{context} uses unknown billing component"
           end
@@ -256,7 +256,7 @@ module LlmCostTracker
         end
 
         def rate_quantity(component)
-          BigDecimal(Billing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis).to_s)
+          BigDecimal(Pricing::RATE_BASIS_QUANTITIES.fetch(component.rate_basis).to_s)
         end
 
         def charge_rate_match(provider:, component:, pricing_mode:)
@@ -303,7 +303,7 @@ module LlmCostTracker
         end
 
         def charge_component_key(component)
-          billing_component = Billing::Components::BY_KEY[component]
+          billing_component = Usage::Dimension::BY_KEY[component]
           return billing_component.key if billing_component && billing_component.token_key.nil?
 
           raise Error, "Unknown billing component: #{component.inspect}"
@@ -384,7 +384,7 @@ module LlmCostTracker
         end
 
         def upcased_currency(value)
-          (value || Billing::DEFAULT_CURRENCY).upcase
+          (value || LlmCostTracker::DEFAULT_CURRENCY).upcase
         end
 
         def source_currency(source)

@@ -135,7 +135,7 @@ end %>
             <td><%= line_item.unit %></td>
             <td class="lct-num"><%= line_item.quantity %></td>
             <td class="lct-num"><%= line_item.rate_amount ? "#{optional_money(line_item.rate_amount)} / #{line_item.rate_quantity}" : "n/a" %></td>
-            <% unknown_cost = line_item.cost.nil? || line_item.cost_status.to_s == LlmCostTracker::Billing::CostStatus::UNKNOWN %>
+            <% unknown_cost = line_item.cost.nil? || line_item.cost_status.to_s == LlmCostTracker::Charges::CostStatus::UNKNOWN %>
             <td class="lct-num<%= ' lct-num-muted' if unknown_cost %>"><%= unknown_cost ? "n/a" : money(line_item.cost) %></td>
             <td><%= line_item.cost_status %></td>
           </tr>

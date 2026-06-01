@@ -91,13 +91,13 @@ module LlmCostTracker
               event: Event.build(
                 provider: provider,
                 model: model,
-                token_usage: TokenUsage.build(
+                token_usage: Usage::TokenUsage.build(
                   input_tokens: input_tokens,
                   output_tokens: output_tokens,
                   image_input_tokens: image_input_tokens,
                   image_output_tokens: image_output_tokens
                 ),
-                usage_source: LlmCostTracker::Billing::UsageSource::SDK_RESPONSE,
+                usage_source: LlmCostTracker::Capture::UsageSource::SDK_RESPONSE,
                 provider_response_id: provider_response_id_for(response)
               ),
               latency_ms: latency_ms
@@ -119,7 +119,7 @@ module LlmCostTracker
                 provider: provider,
                 model: model,
                 pricing_mode: pricing_mode_for(provider: provider, response: response),
-                token_usage: TokenUsage.build(
+                token_usage: Usage::TokenUsage.build(
                   input_tokens: input_tokens.to_i,
                   output_tokens: output_tokens.to_i,
                   cache_read_input_tokens: response.try(:cached_tokens).to_i,
@@ -128,7 +128,7 @@ module LlmCostTracker
                   hidden_output_tokens: response.try(:thinking_tokens).to_i
                 ),
                 stream: stream,
-                usage_source: LlmCostTracker::Billing::UsageSource::SDK_RESPONSE,
+                usage_source: LlmCostTracker::Capture::UsageSource::SDK_RESPONSE,
                 provider_response_id: provider_response_id_for(response)
               ),
               latency_ms: latency_ms

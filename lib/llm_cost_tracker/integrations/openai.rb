@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "../billing/line_item"
+require_relative "../charges/line_item"
 require_relative "../providers/azure/hosts"
 require_relative "../providers/openai/model_families"
 require_relative "../providers/openai/service_charges"
@@ -115,7 +115,7 @@ module LlmCostTracker
                   host: host, model: model, service_tier: service_tier
                 ),
                 token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
-                usage_source: LlmCostTracker::Billing::UsageSource::SDK_RESPONSE,
+                usage_source: LlmCostTracker::Capture::UsageSource::SDK_RESPONSE,
                 provider_response_id: response.try(:id),
                 service_line_items: service_line_items_from(response, request: request)
               ),
@@ -190,10 +190,10 @@ module LlmCostTracker
           return [] unless input.is_a?(String)
           return [] unless LlmCostTracker::Providers::Openai::ModelFamilies.character_billed_tts?(request[:model])
 
-          [LlmCostTracker::Billing::LineItem.build(
+          [LlmCostTracker::Charges::LineItem.build(
             component_key: "text_to_speech_character",
             quantity: input.length,
-            cost_status: LlmCostTracker::Billing::CostStatus::UNKNOWN,
+            cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN,
             pricing_basis: "provider_usage",
             provider_field: "request.input"
           )]
@@ -218,8 +218,8 @@ module LlmCostTracker
               event: Event.build(
                 provider: provider_for_host(host),
                 model: model,
-                token_usage: TokenUsage.build(**token_attributes),
-                usage_source: LlmCostTracker::Billing::UsageSource::SDK_RESPONSE,
+                token_usage: Usage::TokenUsage.build(**token_attributes),
+                usage_source: LlmCostTracker::Capture::UsageSource::SDK_RESPONSE,
                 provider_response_id: response&.try(:id),
                 service_line_items: service_line_items
               ),
@@ -397,7 +397,7 @@ module LlmCostTracker
               model: model,
               pricing_mode: "batch",
               token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
-              usage_source: LlmCostTracker::Billing::UsageSource::SDK_BATCH_RESULT,
+              usage_source: LlmCostTracker::Capture::UsageSource::SDK_BATCH_RESULT,
               provider_response_id: provider_response_id,
               service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.service_line_items_for(
                 response, request: nil, model: model
