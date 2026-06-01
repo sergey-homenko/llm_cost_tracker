@@ -35,7 +35,6 @@ module LlmCostTracker
         :token_key, :cost_key, :rate_basis
       )
 
-      REQUIRED_FIELDS = %i[key kind direction modality cache_state unit].freeze
       DEFINITIONS_PATH = File.expand_path("components.yml", __dir__)
 
       def self.load_registry
@@ -45,11 +44,11 @@ module LlmCostTracker
       end
 
       def self.build(attributes)
-        unit = attributes.fetch(:unit)
-        key = attributes.fetch(:key)
+        key, unit = attributes.fetch_values(:key, :unit)
+        rate_basis = attributes[:rate_basis] || Billing::DEFAULT_RATE_BASIS_BY_UNIT.fetch(unit)
         Component.new(
-          **attributes.slice(*REQUIRED_FIELDS),
-          rate_basis: attributes[:rate_basis] || Billing::DEFAULT_RATE_BASIS_BY_UNIT.fetch(unit),
+          **attributes,
+          rate_basis: rate_basis,
           token_key: unit == "token" ? :"#{key}_tokens" : nil,
           cost_key: unit == "token" ? :"#{key}_cost" : nil
         )
