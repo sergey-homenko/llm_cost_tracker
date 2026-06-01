@@ -8,7 +8,6 @@ require_relative "version"
 require_relative "usage/token_usage"
 require_relative "charges/cost"
 require_relative "charges/cost_status"
-require_relative "charges/line_item"
 require_relative "pricing/registry"
 require_relative "pricing/effective_prices"
 require_relative "pricing/estimator"
@@ -18,11 +17,7 @@ module LlmCostTracker
   module Pricing
     class << self
       def cost_for(provider:, model:, tokens:, pricing_mode: nil)
-        token_usage = Usage::TokenUsage.build_from_tokens(tokens)
-        Calculation.for(
-          provider: provider, model: model, tokens: token_usage, pricing_mode: pricing_mode,
-          line_items: Charges::LineItem.from_token_usage(token_usage)
-        ).token_cost
+        Calculation.for(provider: provider, model: model, tokens: tokens, pricing_mode: pricing_mode).token_cost
       end
 
       def source_version_for(source)

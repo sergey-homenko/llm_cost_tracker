@@ -3,6 +3,7 @@
 require "bigdecimal"
 
 require_relative "../usage/dimension"
+require_relative "../charges/line_item"
 require_relative "rate"
 
 module LlmCostTracker
@@ -48,8 +49,8 @@ module LlmCostTracker
       end
 
       def priced_line_items
-        @priced_line_items ||= @line_items.map do |line_item|
-          line_item.unit == "token" ? price_token(line_item) : price_service(line_item)
+        @priced_line_items ||= unpriced_line_items.map do |line_item|
+          line_item.token? ? price_token(line_item) : price_service(line_item)
         end
       end
 
@@ -80,6 +81,10 @@ module LlmCostTracker
 
       def quantities
         @quantities ||= @token_usage.priced_quantities
+      end
+
+      def unpriced_line_items
+        Charges::LineItem.from_token_usage(@token_usage) + @line_items
       end
 
       def priceable?

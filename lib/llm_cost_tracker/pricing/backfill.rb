@@ -46,7 +46,7 @@ module LlmCostTracker
         def recompute_for(call)
           calculation = Pricing::Calculation.for(
             provider: call.provider, model: call.model, tokens: token_usage_from(call),
-            line_items: billing_line_items_from(call), pricing_mode: call.pricing_mode,
+            line_items: service_line_items_from(call), pricing_mode: call.pricing_mode,
             usage_source: call.usage_source
           )
           calculation if calculation.token_cost
@@ -58,8 +58,10 @@ module LlmCostTracker
             pricing_snapshot: calculation.snapshot,
             cost_status: calculation.cost_status
           )
-          call.line_items.to_a.zip(calculation.priced_line_items).each do |record, priced|
-            next if priced.nil?
+          priced_line_items = calculation.priced_line_items
+          call.line_items.each do |record|
+            priced = priced_line_items[record.position]
+            next unless priced
 
             record.update!(
               rate_amount: priced.rate_amount,
@@ -87,8 +89,8 @@ module LlmCostTracker
           Usage::TokenUsage.build(**call.attributes.transform_keys(&:to_sym).slice(*Usage::TokenUsage.members))
         end
 
-        def billing_line_items_from(call)
-          call.line_items.map do |record|
+        def service_line_items_from(call)
+          call.line_items.reject { |record| record.unit == "token" }.sort_by(&:position).map do |record|
             Charges::LineItem.build(record.attributes.transform_keys(&:to_sym).slice(*Charges::LineItem.members))
           end
         end

@@ -19,7 +19,7 @@ module LlmCostTracker
         pricing_mode ||= event.pricing_mode
         calculation = Pricing::Calculation.for(
           provider: event.provider, model: event.model, tokens: event.token_usage,
-          line_items: resolved_line_items(event), pricing_mode: pricing_mode, usage_source: event.usage_source
+          line_items: event.line_items, pricing_mode: pricing_mode, usage_source: event.usage_source
         )
 
         if enforce_budget
@@ -55,10 +55,6 @@ module LlmCostTracker
       end
 
       private
-
-      def resolved_line_items(event)
-        Charges::LineItem.from_token_usage(event.token_usage) + event.line_items
-      end
 
       def notify_subscribers(event)
         return unless ActiveSupport::Notifications.notifier.listening?(EVENT_NAME)
