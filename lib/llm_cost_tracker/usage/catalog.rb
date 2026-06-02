@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/module/delegation"
 require "psych"
 
 require_relative "dimension"
@@ -20,16 +21,10 @@ module LlmCostTracker
       }.freeze
 
       class << self
+        delegate :[], :fetch, to: :index
+
         def all
           @all ||= load_definitions.freeze
-        end
-
-        def [](key)
-          index[key]
-        end
-
-        def fetch(key)
-          index.fetch(key)
         end
 
         def token_priced
