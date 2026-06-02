@@ -115,7 +115,7 @@ module LlmCostTracker
         Charges::Cost.new(
           components: components.freeze,
           total: priced_token_line_items.sum(BigDecimal("0"), &:cost_value).round(8),
-          currency: match.currency
+          currency: match.source.currency
         )
       end
 
@@ -128,11 +128,11 @@ module LlmCostTracker
       def build_snapshot
         {
           "schema_version" => 1,
-          "source" => match.source,
+          "source" => match.source.name,
           "source_key" => match.key,
-          "source_version" => Pricing.source_version_for(match.source),
+          "source_version" => match.source.version,
           "matched_by" => match.matched_by.to_s,
-          "currency" => match.currency,
+          "currency" => match.source.currency,
           "rates" => service_charge_rates.merge(token_charge_rates)
         }
       end
@@ -172,10 +172,10 @@ module LlmCostTracker
         Pricing::Rate.new(
           amount: BigDecimal(price.to_s),
           quantity: BigDecimal(RATE_DENOMINATOR_TOKENS),
-          currency: match.currency,
-          source: match.source,
+          currency: match.source.currency,
+          source: match.source.name,
           source_key: dimension.key,
-          source_version: Pricing.source_version_for(match.source)
+          source_version: match.source.version
         )
       end
 
@@ -199,10 +199,10 @@ module LlmCostTracker
         Pricing::Rate.new(
           amount: BigDecimal(amount.to_s),
           quantity: BigDecimal(Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_s),
-          currency: match.currency,
-          source: match.source,
+          currency: match.source.currency,
+          source: match.source.name,
           source_key: "#{match.key}.#{line_item.kind}",
-          source_version: Pricing.source_version_for(match.source)
+          source_version: match.source.version
         )
       end
 

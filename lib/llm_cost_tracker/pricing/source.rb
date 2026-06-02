@@ -2,6 +2,6 @@
 
 module LlmCostTracker
   module Pricing
-    Match = Data.define(:source, :key, :prices, :matched_by)
+    Source = Data.define(:name, :prices, :rates, :currency, :version)
   end
 end

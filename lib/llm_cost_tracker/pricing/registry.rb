@@ -9,6 +9,7 @@ require_relative "../pricing/rate"
 require_relative "../logging"
 require_relative "mode"
 require_relative "price_key"
+require_relative "source"
 
 module LlmCostTracker
   module Pricing
@@ -27,7 +28,7 @@ module LlmCostTracker
           @file_prices = nil
           @builtin_rates = nil
           @file_rates = nil
-          @price_tables = nil
+          @sources = nil
           @sorted_price_keys_cache = nil
           @prices_file_mtime_iso = nil
         end
@@ -106,13 +107,24 @@ module LlmCostTracker
           @prices_file_mtime_iso ||= File.mtime(path).utc.iso8601
         end
 
-        def price_tables
-          @price_tables ||= begin
+        def sources
+          @sources ||= begin
             config = LlmCostTracker.configuration
             [
-              ["pricing_overrides", config.pricing_overrides],
-              ["prices_file", file_prices(config.prices_file)],
-              ["bundled", builtin_prices]
+              Source.new(
+                name: "pricing_overrides", prices: config.pricing_overrides, rates: {},
+                currency: upcased_currency(nil), version: "configuration"
+              ),
+              Source.new(
+                name: "prices_file",
+                prices: file_prices(config.prices_file), rates: file_rates(config.prices_file),
+                currency: upcased_currency(file_metadata(config.prices_file)["currency"]),
+                version: prices_file_mtime_iso
+              ),
+              Source.new(
+                name: "bundled", prices: builtin_prices, rates: builtin_rates,
+                currency: upcased_currency(metadata["currency"]), version: LlmCostTracker::VERSION
+              )
             ].freeze
           end
         end
@@ -121,15 +133,6 @@ module LlmCostTracker
           keys, @sorted_price_keys_cache =
             memoize_in(@sorted_price_keys_cache, table, identity: true) { table.keys.sort_by { |key| -key.length } }
           keys
-        end
-
-        def source_currency(source)
-          raw = case source
-                when "bundled" then metadata["currency"]
-                when "prices_file"
-                  file_metadata(LlmCostTracker.configuration.prices_file)["currency"]
-                end
-          upcased_currency(raw)
         end
 
         private

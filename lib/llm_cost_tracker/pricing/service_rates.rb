@@ -17,13 +17,14 @@ module LlmCostTracker
           return nil unless match
 
           rate = match.fetch(:rate)
+          source = match.fetch(:source)
           Pricing::Rate.new(
             amount: rate.fetch(:amount),
             quantity: rate.fetch(:quantity),
             currency: rate.fetch(:currency),
-            source: match.fetch(:source),
+            source: source.name,
             source_key: match.fetch(:key),
-            source_version: Pricing.source_version_for(match.fetch(:source))
+            source_version: source.version
           )
         end
 
@@ -34,27 +35,16 @@ module LlmCostTracker
           return nil unless provider_name
 
           dimension_key = charge_dimension_key(dimension)
-          sources = [
-            ["prices_file", Registry.file_rates(LlmCostTracker.configuration.prices_file)],
-            ["bundled", Registry.builtin_rates]
-          ]
-
-          first_match(sources) do |table, source|
-            rate = rate_for(table.fetch(provider_name, {}), dimension_key: dimension_key, pricing_mode: pricing_mode)
+          Registry.sources.each do |source|
+            provider_rates = source.rates.fetch(provider_name, {})
+            rate = rate_for(provider_rates, dimension_key: dimension_key, pricing_mode: pricing_mode)
             next unless rate
 
-            {
+            return {
               source: source,
               key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
               rate: rate
             }
-          end
-        end
-
-        def first_match(sources)
-          sources.each do |source, table|
-            result = yield(table, source)
-            return result if result
           end
           nil
         end

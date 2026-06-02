@@ -23,38 +23,33 @@ module LlmCostTracker
           provider_model = provider_name ? "#{provider_name}/#{model_name}" : model_name
           normalized = normalize_model_name(model_name)
 
-          first_match(Registry.price_tables) do |table, source|
-            match_in_table(table, source, provider_model, model_name, normalized)
-          end
-        end
-
-        def first_match(sources)
-          sources.each do |source, table|
-            result = yield(table, source)
-            return result if result
+          Registry.sources.each do |source|
+            match = match_in_source(source, provider_model, model_name, normalized)
+            return match if match
           end
           nil
         end
 
-        def match_in_table(table, source, provider_model, model_name, normalized)
+        def match_in_source(source, provider_model, model_name, normalized)
+          table = source.prices
           return nil if table.empty?
 
           [[provider_model, :provider_model], [model_name, :model], [normalized, :normalized_model]].each do |key, by|
-            return build_match(table, source, key, by) if table.key?(key)
+            return build_match(source, key, by) if table.key?(key)
           end
 
           scan = native_keys(table)
           if (key = unique_in(scan) { |native| normalize_model_name(native) == normalized })
-            return build_match(table, source, key, :unique_providerless_model)
+            return build_match(source, key, :unique_providerless_model)
           end
 
           dated = scan.find do |native|
             snapshot_variant?(provider_model, native) || snapshot_variant?(normalized, native)
           end
-          return build_match(table, source, dated, :dated_snapshot) if dated
+          return build_match(source, dated, :dated_snapshot) if dated
 
           unique_dated = unique_in(scan) { |native| snapshot_variant?(normalized, normalize_model_name(native)) }
-          return build_match(table, source, unique_dated, :unique_providerless_dated_snapshot) if unique_dated
+          return build_match(source, unique_dated, :unique_providerless_dated_snapshot) if unique_dated
 
           nil
         end
@@ -72,14 +67,8 @@ module LlmCostTracker
           Registry.sorted_price_keys(table).reject { |key| key.count("/") > 1 }
         end
 
-        def build_match(table, source, key, matched_by)
-          Match.new(
-            source: source,
-            key: key,
-            prices: table[key],
-            matched_by: matched_by,
-            currency: Registry.source_currency(source)
-          )
+        def build_match(source, key, matched_by)
+          Match.new(source: source, key: key, prices: source.prices[key], matched_by: matched_by)
         end
 
         def snapshot_variant?(model, key)
