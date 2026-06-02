@@ -7,6 +7,10 @@ module LlmCostTracker
       RATE_COLUMNS = %w[input output cache_read_input cache_write_input batch_input batch_output].freeze
       Row = Data.define(:provider, :model, :rates)
 
+      SOURCE_NAME = { overrides: "pricing_overrides", file: "prices_file", bundled: "bundled" }.freeze
+      LABEL = { overrides: "Overrides", file: "Custom file", bundled: "Bundled" }.freeze
+      private_constant :SOURCE_NAME, :LABEL
+
       class << self
         def call
           new.call
@@ -14,9 +18,9 @@ module LlmCostTracker
       end
 
       def call
-        sources = SOURCES.each_with_object({}) do |source, acc|
-          built = build_source(source)
-          acc[source] = built if built
+        sources = SOURCES.each_with_object({}) do |key, acc|
+          source = sources_by_name.fetch(SOURCE_NAME.fetch(key))
+          acc[key] = present(key, source) unless source.prices.empty?
         end
         {
           sources: sources,
@@ -26,54 +30,36 @@ module LlmCostTracker
 
       private
 
-      def build_source(source)
-        case source
-        when :overrides then build_overrides
-        when :file then build_file
-        when :bundled then build_bundled
+      def sources_by_name
+        @sources_by_name ||= Pricing::Registry.sources.to_h { |source| [source.name, source] }
+      end
+
+      def present(key, source)
+        {
+          label: LABEL.fetch(key),
+          subtitle: subtitle_for(key),
+          updated_at: updated_at_for(key),
+          currency: source.currency,
+          rows: build_rows(source.prices)
+        }
+      end
+
+      def subtitle_for(key)
+        case key
+        when :overrides then "config.pricing_overrides"
+        when :file then LlmCostTracker.configuration.prices_file.to_s
+        when :bundled then "ships with the gem"
         end
       end
 
-      def build_overrides
-        prices = LlmCostTracker.configuration.pricing_overrides
-        return nil if prices.nil? || prices.empty?
-
-        {
-          label: "Overrides",
-          subtitle: "config.pricing_overrides",
-          updated_at: nil,
-          currency: nil,
-          rows: build_rows(prices)
-        }
-      end
-
-      def build_file
-        path = LlmCostTracker.configuration.prices_file
-        return nil unless path && File.exist?(path)
-
-        prices = Pricing::Registry.file_prices(path)
-        return nil if prices.empty?
-
-        meta = Pricing::Registry.file_metadata(path)
-        {
-          label: "Custom file",
-          subtitle: path.to_s,
-          updated_at: meta["updated_at"] || Pricing::Registry.prices_file_mtime_iso,
-          currency: meta["currency"] || LlmCostTracker::DEFAULT_CURRENCY,
-          rows: build_rows(prices)
-        }
-      end
-
-      def build_bundled
-        prices = Pricing::Registry.builtin_prices
-        meta = Pricing::Registry.metadata
-        {
-          label: "Bundled",
-          subtitle: "ships with the gem",
-          updated_at: meta["updated_at"],
-          currency: meta["currency"] || LlmCostTracker::DEFAULT_CURRENCY,
-          rows: build_rows(prices)
-        }
+      def updated_at_for(key)
+        case key
+        when :file
+          path = LlmCostTracker.configuration.prices_file
+          Pricing::Registry.file_metadata(path)["updated_at"] || Pricing::Registry.prices_file_mtime_iso
+        when :bundled
+          Pricing::Registry.metadata["updated_at"]
+        end
       end
 
       def build_rows(prices)
