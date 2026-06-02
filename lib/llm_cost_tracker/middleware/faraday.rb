@@ -6,7 +6,6 @@ require "stringio"
 require "uri"
 
 require_relative "../capture/sse"
-require_relative "../capture/stream"
 require_relative "../timing"
 
 module LlmCostTracker
@@ -212,7 +211,7 @@ module LlmCostTracker
         state = { buffer: StringIO.new, bytes: 0, overflowed: false }
         request.on_data = proc do |chunk, size, env|
           chunk = chunk.to_s
-          remaining = Capture::Stream::LIMIT_BYTES - state[:bytes]
+          remaining = Capture::SSE::LIMIT_BYTES - state[:bytes]
           if chunk.bytesize <= remaining
             state[:buffer] << chunk
             state[:bytes] += chunk.bytesize
@@ -264,7 +263,7 @@ module LlmCostTracker
         label = request_url_label(request_url)
         return "Unable to capture streaming response for #{label}; #{suffix}" unless stream_buffer&.dig(:overflowed)
 
-        "Streaming response for #{label} exceeded #{Capture::Stream::LIMIT_BYTES} bytes; #{suffix}"
+        "Streaming response for #{label} exceeded #{Capture::SSE::LIMIT_BYTES} bytes; #{suffix}"
       end
 
       def request_url_label(value)

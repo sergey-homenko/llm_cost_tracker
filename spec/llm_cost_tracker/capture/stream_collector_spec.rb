@@ -7,7 +7,7 @@ RSpec.describe LlmCostTracker do
   describe LlmCostTracker::Capture::StreamCollector do
     it "strips b64_json payload data before counting bytes so an OpenAI image_generation.completed event with a multi-megabyte image does not overflow the buffer and lose the usage chunk" do
       collector = described_class.new(provider: "openai", model: "gpt-image-2")
-      huge_blob = "A" * (LlmCostTracker::Capture::Stream::LIMIT_BYTES + 1024)
+      huge_blob = "A" * (LlmCostTracker::Capture::SSE::LIMIT_BYTES + 1024)
       collector.event(
         {
           "type" => "image_generation.completed",
@@ -25,7 +25,7 @@ RSpec.describe LlmCostTracker do
 
     it "strips partial_image_b64 from Responses image_generation_call.partial_image events so the Responses image-gen tool stream also stays under the buffer cap" do
       collector = described_class.new(provider: "openai", model: "gpt-5")
-      huge_blob = "B" * (LlmCostTracker::Capture::Stream::LIMIT_BYTES + 1024)
+      huge_blob = "B" * (LlmCostTracker::Capture::SSE::LIMIT_BYTES + 1024)
       collector.event(
         {
           "type" => "response.image_generation_call.partial_image",
@@ -336,7 +336,7 @@ RSpec.describe LlmCostTracker do
 
     it "falls back to unknown usage when buffered stream events exceed the capture cap" do
       collected = events
-      stub_const("LlmCostTracker::Capture::Stream::LIMIT_BYTES", 10)
+      stub_const("LlmCostTracker::Capture::SSE::LIMIT_BYTES", 10)
 
       described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
         stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
@@ -376,7 +376,7 @@ RSpec.describe LlmCostTracker do
 
     it "uses explicit usage when provided after the capture cap is exceeded" do
       collected = events
-      stub_const("LlmCostTracker::Capture::Stream::LIMIT_BYTES", 10)
+      stub_const("LlmCostTracker::Capture::SSE::LIMIT_BYTES", 10)
 
       described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
         stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })

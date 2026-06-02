@@ -7,6 +7,7 @@ module LlmCostTracker
   module Capture
     module SSE
       DONE_MARKER = "[DONE]"
+      LIMIT_BYTES = 1_048_576
 
       class << self
         def parse(body)

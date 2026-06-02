@@ -4,7 +4,7 @@ require "active_support/core_ext/object/blank"
 require "active_support/core_ext/object/deep_dup"
 require "json"
 
-require_relative "stream"
+require_relative "sse"
 require_relative "../timing"
 
 module LlmCostTracker
@@ -208,7 +208,7 @@ module LlmCostTracker
       def capture_event(data, type:)
         event = { event: type, data: strip_heavy_payload(data) }
         size = approximate_bytesize(event)
-        if @captured_bytes + size <= Capture::Stream::LIMIT_BYTES
+        if @captured_bytes + size <= Capture::SSE::LIMIT_BYTES
           @events << event
           @captured_bytes += size
         else
