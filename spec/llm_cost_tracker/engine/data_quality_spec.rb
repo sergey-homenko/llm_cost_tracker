@@ -109,8 +109,6 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
     expect(response.body).to include("Streaming usage captured")
     expect(response.body).to include("Calls with provider response ID")
     expect(response.body).to include("Provider response ID")
-    expect(response.body).to include("Missing provider response IDs")
-    expect(response.body).to include("track_stream")
   end
 
   it "breaks streaming health down per provider when streams exist" do

@@ -94,107 +94,59 @@
     </div>
   <% end %>
 
-  <div class="lct-grid-2">
-    <section class="lct-panel">
-      <div class="lct-panel-head"><h2 class="lct-panel-title">Next actions</h2></div>
-      <p class="lct-panel-intro">Use these fixes to improve the trustworthiness of downstream cost reports.</p>
+  <section class="lct-panel">
+    <div class="lct-panel-head"><h2 class="lct-panel-title">Coverage summary</h2></div>
+    <p class="lct-panel-intro">Good dashboards start with clean pricing, tags, and latency coverage.</p>
 
-      <table class="lct-tbl">
-        <thead>
-          <tr>
-            <th>Issue</th>
-            <th>Why it matters</th>
-            <th>Suggested action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Incomplete pricing</td>
-            <td>Some or all line items have no configured rate, so totals undercount.</td>
-            <td>Update <code class="lct-code-id">pricing_overrides</code> or <code class="lct-code-id">prices_file</code>.</td>
-          </tr>
-          <tr>
-            <td>Missing tags</td>
-            <td>Attribution by tenant, user, or feature becomes less useful.</td>
-            <td>Pass <code class="lct-code-id">tags:</code> from middleware using request context.</td>
-          </tr>
-          <tr>
-            <td>Missing latency</td>
-            <td>Slow requests become harder to isolate on the calls page.</td>
-            <td>Make sure latency capture is enabled on every tracked request.</td>
-          </tr>
-          <% if @summary.streaming_missing_usage.positive? %>
-            <tr>
-              <td>Streams without usage</td>
-              <td>Token totals undercount when streaming responses drop the final usage event.</td>
-              <td>Send OpenAI requests with <code class="lct-code-id">stream_options: { include_usage: true }</code>, or wrap custom clients with <code class="lct-code-id">LlmCostTracker.track_stream</code>.</td>
-            </tr>
-          <% end %>
-          <% if @summary.missing_provider_response_id_count.positive? %>
-            <tr>
-              <td>Missing provider response IDs</td>
-              <td>Proof of provider-issued responses is weaker when calls cannot be tied back to provider objects.</td>
-              <td>Upgrade to the latest parser coverage and pass <code class="lct-code-id">provider_response_id:</code> for custom clients when the provider exposes one.</td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </section>
+    <table class="lct-tbl">
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th class="lct-num">Coverage</th>
+          <th class="lct-num">Calls with data</th>
+          <th>Visual</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Cost (pricing known)</td>
+          <td class="lct-num"><%= percent(@summary.cost_coverage) %></td>
+          <td class="lct-num"><%= number_with_delimiter(@summary.calls_with_pricing) %></td>
+          <td><%= render "llm_cost_tracker/shared/bar", value: @summary.cost_coverage, max: 100.0 %></td>
+        </tr>
 
-    <section class="lct-panel">
-      <div class="lct-panel-head"><h2 class="lct-panel-title">Coverage summary</h2></div>
-      <p class="lct-panel-intro">Good dashboards start with clean pricing, tags, and latency coverage.</p>
+        <tr>
+          <td>Tags (at least one tag)</td>
+          <td class="lct-num"><%= percent(@summary.tag_coverage) %></td>
+          <td class="lct-num"><%= number_with_delimiter(@summary.tagged_calls) %></td>
+          <td><%= render "llm_cost_tracker/shared/bar", value: @summary.tag_coverage, max: 100.0 %></td>
+        </tr>
 
-      <table class="lct-tbl">
-        <thead>
-          <tr>
-            <th>Dimension</th>
-            <th class="lct-num">Coverage</th>
-            <th class="lct-num">Calls with data</th>
-            <th>Visual</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Cost (pricing known)</td>
-            <td class="lct-num"><%= percent(@summary.cost_coverage) %></td>
-            <td class="lct-num"><%= number_with_delimiter(@summary.calls_with_pricing) %></td>
-            <td><%= render "llm_cost_tracker/shared/bar", value: @summary.cost_coverage, max: 100.0 %></td>
-          </tr>
+        <tr>
+          <td>Latency</td>
+          <td class="lct-num"><%= percent(@summary.latency_coverage) %></td>
+          <td class="lct-num"><%= number_with_delimiter(@summary.calls_with_latency) %></td>
+          <td><%= render "llm_cost_tracker/shared/bar", value: @summary.latency_coverage, max: 100.0 %></td>
+        </tr>
 
+        <% if @summary.streaming_count.positive? %>
           <tr>
-            <td>Tags (at least one tag)</td>
-            <td class="lct-num"><%= percent(@summary.tag_coverage) %></td>
-            <td class="lct-num"><%= number_with_delimiter(@summary.tagged_calls) %></td>
-            <td><%= render "llm_cost_tracker/shared/bar", value: @summary.tag_coverage, max: 100.0 %></td>
+            <td>Streaming usage captured</td>
+            <td class="lct-num"><%= percent(@summary.stream_coverage) %></td>
+            <td class="lct-num"><%= number_with_delimiter(@summary.streams_with_usage) %> / <%= number_with_delimiter(@summary.streaming_count) %></td>
+            <td><%= render "llm_cost_tracker/shared/bar", value: @summary.stream_coverage, max: 100.0 %></td>
           </tr>
+        <% end %>
 
-          <tr>
-            <td>Latency</td>
-            <td class="lct-num"><%= percent(@summary.latency_coverage) %></td>
-            <td class="lct-num"><%= number_with_delimiter(@summary.calls_with_latency) %></td>
-            <td><%= render "llm_cost_tracker/shared/bar", value: @summary.latency_coverage, max: 100.0 %></td>
-          </tr>
-
-          <% if @summary.streaming_count.positive? %>
-            <tr>
-              <td>Streaming usage captured</td>
-              <td class="lct-num"><%= percent(@summary.stream_coverage) %></td>
-              <td class="lct-num"><%= number_with_delimiter(@summary.streams_with_usage) %> / <%= number_with_delimiter(@summary.streaming_count) %></td>
-              <td><%= render "llm_cost_tracker/shared/bar", value: @summary.stream_coverage, max: 100.0 %></td>
-            </tr>
-          <% end %>
-
-          <tr>
-            <td>Provider response ID</td>
-            <td class="lct-num"><%= percent(@summary.provider_response_id_coverage) %></td>
-            <td class="lct-num"><%= number_with_delimiter(@summary.calls_with_provider_response_id) %></td>
-            <td><%= render "llm_cost_tracker/shared/bar", value: @summary.provider_response_id_coverage, max: 100.0 %></td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-  </div>
+        <tr>
+          <td>Provider response ID</td>
+          <td class="lct-num"><%= percent(@summary.provider_response_id_coverage) %></td>
+          <td class="lct-num"><%= number_with_delimiter(@summary.calls_with_provider_response_id) %></td>
+          <td><%= render "llm_cost_tracker/shared/bar", value: @summary.provider_response_id_coverage, max: 100.0 %></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
 
   <section class="lct-panel">
     <div class="lct-panel-head"><h2 class="lct-panel-title">Token usage</h2></div>
