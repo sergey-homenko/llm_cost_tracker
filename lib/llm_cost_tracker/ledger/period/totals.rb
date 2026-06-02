@@ -20,43 +20,51 @@ module LlmCostTracker
         def totals
           return {} if periods.empty?
 
-          snapshot_totals
+          values = periods.to_h { |period| [period, BigDecimal("0")] }
+          period_by_name = periods.to_h { |period| [period.to_s, period] }
+          LlmCostTracker::Call.find_by_sql(union_sql).each do |row|
+            values[period_by_name.fetch(row.period_key)] = BigDecimal(row.total_cost.to_s)
+          end
+          values
         end
 
         private
 
         attr_reader :periods, :time
 
-        def snapshot_totals
-          values = periods.to_h { |period| [period, BigDecimal("0")] }
-          period_by_name = periods.to_h { |period| [period.name, period] }
-          sql = periods.map { |period| snapshot_select(period) }.join(" UNION ALL ")
-          LlmCostTracker::Call.find_by_sql(sql).each do |row|
-            period = period_by_name.fetch(row.period_key)
-            values[period] = BigDecimal(row.total_cost.to_s)
-          end
-          values
+        def union_sql
+          periods.map { |period| period_select(period) }.join(" UNION ALL ")
         end
 
-        def snapshot_select(period)
+        def period_select(period)
           start = Period.range_start(period, time)
-          components = [period_total_sql(period, start)]
-          components << Ingestion::InboxEntry.pending_total_sql(start: start, finish: time) if Ingestion.async?
-          "SELECT #{ActiveRecord::Base.connection.quote(period.name)} AS period_key, " \
-            "(#{components.join(') + (')}) AS total_cost"
+          components = ["(#{recorded_sql(period, start)})"]
+          components << "(#{pending_sql(start)})" if Ingestion.async?
+          "SELECT #{quote(period.to_s)} AS period_key, #{components.join(' + ')} AS total_cost"
         end
 
-        def period_total_sql(period, start)
-          calls = "COALESCE(#{calls_sum_sql(start)}, 0)"
+        def recorded_sql(period, start)
+          calls = "COALESCE(#{sum_sql(LlmCostTracker::Call.between(start, time))}, 0)"
           return calls unless LlmCostTracker.configuration.cache_rollups
 
-          rollup = LlmCostTracker::CallRollup.total_sql(period: period, period_start: Period.bucket(period, time))
-          "GREATEST(COALESCE(#{rollup}, 0), #{calls})"
+          rollup = "COALESCE(#{sum_sql(rollup_scope(period))}, 0)"
+          "GREATEST(#{rollup}, #{calls})"
         end
 
-        def calls_sum_sql(start)
-          calls = LlmCostTracker::Call.where(tracked_at: start..time)
-          "(#{calls.select('SUM(total_cost)').to_sql})"
+        def pending_sql(start)
+          "COALESCE(#{sum_sql(Ingestion::InboxEntry.pending.where(tracked_at: start..time))}, 0)"
+        end
+
+        def rollup_scope(period)
+          LlmCostTracker::CallRollup.where(period: period.to_s, period_start: Period.bucket(period, time))
+        end
+
+        def sum_sql(scope)
+          "(#{scope.select('SUM(total_cost)').to_sql})"
+        end
+
+        def quote(value)
+          LlmCostTracker::Call.connection.quote(value)
         end
       end
     end

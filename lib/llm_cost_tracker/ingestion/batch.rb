@@ -27,7 +27,7 @@ module LlmCostTracker
       end
 
       def pending?
-        Ingestion::InboxEntry.where("attempts < ?", Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE).exists?
+        Ingestion::InboxEntry.pending.exists?
       end
 
       def claimable?
@@ -118,7 +118,7 @@ module LlmCostTracker
 
       def claimable_scope(cutoff)
         Ingestion::InboxEntry
-          .where("attempts < ?", Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE)
+          .pending
           .where("locked_at IS NULL OR locked_at < ?", cutoff)
       end
     end
