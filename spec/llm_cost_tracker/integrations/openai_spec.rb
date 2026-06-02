@@ -215,7 +215,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
   describe "batches.retrieve" do
     before do
-      LlmCostTracker::Integrations::Openai.instance_variable_set(:@batch_capture_dedup, nil)
+      LlmCostTracker::Integrations::Openai::BatchCapture.instance_variable_set(:@dedup, nil)
     end
 
     let(:jsonl_body) do
