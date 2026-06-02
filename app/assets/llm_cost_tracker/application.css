@@ -4,6 +4,7 @@
     --lct-surface-2: #f1f4f9;
     --lct-surface-hover: #eef2f7;
     --lct-panel: #ffffff;
+    --lct-panel-head-bg: #fbfcfe;
     --lct-border: #e3e8ef;
     --lct-border-strong: #cbd2dc;
     --lct-text: #0d1b2a;
@@ -79,6 +80,7 @@
       --lct-surface-2: #1c2229;
       --lct-surface-hover: #232a35;
       --lct-panel: #161b22;
+      --lct-panel-head-bg: #1f262e;
       --lct-border: #2a313c;
       --lct-border-strong: #3d4654;
       --lct-text: #e6edf3;
@@ -121,6 +123,7 @@
     --lct-surface-2: #1c2229;
     --lct-surface-hover: #232a35;
     --lct-panel: #161b22;
+    --lct-panel-head-bg: #1f262e;
     --lct-border: #2a313c;
     --lct-border-strong: #3d4654;
     --lct-text: #e6edf3;
@@ -441,7 +444,7 @@
     gap: var(--sp-3);
     padding: 9px var(--sp-4);
     border-bottom: 1px solid var(--lct-border);
-    background: var(--lct-surface-2);
+    background: var(--lct-panel-head-bg);
     border-radius: var(--radius-md) var(--radius-md) 0 0;
   }
   .lct-panel-title {
