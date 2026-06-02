@@ -19,7 +19,8 @@ module LlmCostTracker
         raise_per_call_pre_send(estimate, config.per_call_budget) if config.per_call_budget && estimate.positive?
 
         check_windowed({ monthly: config.monthly_budget, daily: config.daily_budget }.compact,
-                       time: Time.now.utc, estimate: estimate) do |budget_type, total, budget|
+                       time: Time.now.utc,
+estimate: estimate) do |budget_type, total, budget|
           raise BudgetExceededError.new(**budget_payload(
             budget_type: budget_type, total: total, budget: budget, last_event: nil, stage: :pre_send
           ))

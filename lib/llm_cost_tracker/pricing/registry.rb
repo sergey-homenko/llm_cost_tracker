@@ -112,18 +112,25 @@ module LlmCostTracker
             config = LlmCostTracker.configuration
             [
               Source.new(
-                name: "pricing_overrides", prices: config.pricing_overrides, rates: {},
-                currency: upcased_currency(nil), version: "configuration"
+                name: "pricing_overrides",
+                prices: config.pricing_overrides,
+                rates: {},
+                currency: upcased_currency(nil),
+                version: "configuration"
               ),
               Source.new(
                 name: "prices_file",
-                prices: file_prices(config.prices_file), rates: file_rates(config.prices_file),
+                prices: file_prices(config.prices_file),
+                rates: file_rates(config.prices_file),
                 currency: upcased_currency(file_metadata(config.prices_file)["currency"]),
                 version: prices_file_mtime_iso
               ),
               Source.new(
-                name: "bundled", prices: builtin_prices, rates: builtin_rates,
-                currency: upcased_currency(metadata["currency"]), version: LlmCostTracker::VERSION
+                name: "bundled",
+                prices: builtin_prices,
+                rates: builtin_rates,
+                currency: upcased_currency(metadata["currency"]),
+                version: LlmCostTracker::VERSION
               )
             ].freeze
           end

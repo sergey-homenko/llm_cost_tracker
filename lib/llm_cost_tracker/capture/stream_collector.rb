@@ -12,9 +12,17 @@ module LlmCostTracker
     class StreamCollector
       attr_reader :provider
 
-      def initialize(provider:, model:, latency_ms: nil, provider_response_id: nil, provider_project_id: nil,
-                     provider_api_key_id: nil, provider_workspace_id: nil, pricing_mode: nil,
-                     metadata: {}, context_tags: nil, request: nil)
+      def initialize(provider:,
+                     model:,
+                     latency_ms: nil,
+                     provider_response_id: nil,
+                     provider_project_id: nil,
+                     provider_api_key_id: nil,
+                     provider_workspace_id: nil,
+                     pricing_mode: nil,
+                     metadata: {},
+                     context_tags: nil,
+                     request: nil)
         @provider = provider.to_s
         @model = model
         @latency_ms = latency_ms

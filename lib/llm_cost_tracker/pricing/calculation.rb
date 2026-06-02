@@ -13,8 +13,12 @@ module LlmCostTracker
       private_constant :RATE_DENOMINATOR_TOKENS
 
       def self.for(provider:, model:, tokens:, pricing_mode:, line_items: [], usage_source: nil)
-        new(provider: provider, model: model, token_usage: Usage::TokenUsage.build_from_tokens(tokens),
-            line_items: line_items, mode: Mode.normalize(pricing_mode), usage_source: usage_source)
+        new(provider: provider,
+            model: model,
+            token_usage: Usage::TokenUsage.build_from_tokens(tokens),
+            line_items: line_items,
+            mode: Mode.normalize(pricing_mode),
+            usage_source: usage_source)
       end
 
       def initialize(provider:, model:, token_usage:, line_items:, mode:, usage_source: nil)

@@ -5,12 +5,27 @@ module LlmCostTracker
     class DataQuality
       UnknownPricingRow = ::Data.define(:provider, :model, :calls, :share_percent)
       StreamingHealthRow = ::Data.define(:provider, :streams, :with_usage, :unknown, :unknown_share)
-      Summary = ::Data.define(:total, :unknown_pricing_count, :untagged_calls_count, :missing_latency_count,
-                              :streaming_count, :streaming_missing_usage, :missing_provider_response_id_count,
-                              :calls_with_pricing, :tagged_calls, :calls_with_latency, :streams_with_usage,
-                              :calls_with_provider_response_id, :unknown_pricing_share, :untagged_share,
-                              :missing_latency_share, :streaming_share, :streaming_missing_usage_share,
-                              :cost_coverage, :tag_coverage, :latency_coverage, :stream_coverage,
+      Summary = ::Data.define(:total,
+                              :unknown_pricing_count,
+                              :untagged_calls_count,
+                              :missing_latency_count,
+                              :streaming_count,
+                              :streaming_missing_usage,
+                              :missing_provider_response_id_count,
+                              :calls_with_pricing,
+                              :tagged_calls,
+                              :calls_with_latency,
+                              :streams_with_usage,
+                              :calls_with_provider_response_id,
+                              :unknown_pricing_share,
+                              :untagged_share,
+                              :missing_latency_share,
+                              :streaming_share,
+                              :streaming_missing_usage_share,
+                              :cost_coverage,
+                              :tag_coverage,
+                              :latency_coverage,
+                              :stream_coverage,
                               :provider_response_id_coverage)
 
       class << self
@@ -33,14 +48,28 @@ module LlmCostTracker
           calls_with_provider_response_id = total - missing_provider_response_id_count
 
           Summary.new(
-            total, unknown_pricing_count, untagged_calls_count, missing_latency_count, streaming_count,
-            streaming_missing_usage, missing_provider_response_id_count, calls_with_pricing, tagged_calls,
-            calls_with_latency, streams_with_usage, calls_with_provider_response_id,
-            percentage(unknown_pricing_count, total), percentage(untagged_calls_count, total),
-            percentage(missing_latency_count, total), percentage(streaming_count, total),
-            percentage(streaming_missing_usage, streaming_count), percentage(calls_with_pricing, total),
-            percentage(tagged_calls, total), percentage(calls_with_latency, total),
-            percentage(streams_with_usage, streaming_count), percentage(calls_with_provider_response_id, total)
+            total,
+            unknown_pricing_count,
+            untagged_calls_count,
+            missing_latency_count,
+            streaming_count,
+            streaming_missing_usage,
+            missing_provider_response_id_count,
+            calls_with_pricing,
+            tagged_calls,
+            calls_with_latency,
+            streams_with_usage,
+            calls_with_provider_response_id,
+            percentage(unknown_pricing_count, total),
+            percentage(untagged_calls_count, total),
+            percentage(missing_latency_count, total),
+            percentage(streaming_count, total),
+            percentage(streaming_missing_usage, streaming_count),
+            percentage(calls_with_pricing, total),
+            percentage(tagged_calls, total),
+            percentage(calls_with_latency, total),
+            percentage(streams_with_usage, streaming_count),
+            percentage(calls_with_provider_response_id, total)
           )
         end
 
@@ -52,7 +81,9 @@ module LlmCostTracker
                .limit(10)
                .map do |row|
                  calls = row.calls.to_i
-                 UnknownPricingRow.new(provider: row.provider, model: row.model, calls: calls,
+                 UnknownPricingRow.new(provider: row.provider,
+                                       model: row.model,
+                                       calls: calls,
                                        share_percent: percentage(calls, total_calls))
                end
         end
@@ -115,7 +146,8 @@ module LlmCostTracker
                  .where(unit: "token")
                  .joins(:call)
                  .merge(scope.unscope(:select, :order, :group))
-                 .group("#{line_item_table}.kind", "#{line_item_table}.direction",
+                 .group("#{line_item_table}.kind",
+                        "#{line_item_table}.direction",
                         "#{line_item_table}.cache_state")
                  .pluck(Arel.sql("#{line_item_table}.kind"),
                         Arel.sql("#{line_item_table}.direction"),

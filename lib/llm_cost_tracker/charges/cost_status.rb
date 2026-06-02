@@ -17,7 +17,11 @@ module LlmCostTracker
       end
 
       # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-      def self.call(token_usage:, usage_source:, token_cost:, service_line_items:, total_cost:,
+      def self.call(token_usage:,
+                    usage_source:,
+                    token_cost:,
+                    service_line_items:,
+                    total_cost:,
                     token_pricing_partial: false)
         return UNKNOWN if usage_source == Capture::UsageSource::UNKNOWN
 

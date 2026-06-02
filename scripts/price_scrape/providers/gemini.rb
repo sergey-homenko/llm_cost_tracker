@@ -85,30 +85,37 @@ module LlmCostTracker
         end
 
         def extract_text_pricing(table, image: false)
-          extract_pricing(table, input: "input", output: image ? "image_output" : "output",
-                          cache_read_input: "cache_read_input")
+          extract_pricing(table,
+                          input: "input",
+                          output: image ? "image_output" : "output",
+                                                    cache_read_input: "cache_read_input")
         end
 
         def extract_batch_pricing(table, image: false)
-          extract_pricing(table, input: "batch_input", output: image ? "batch_image_output" : "batch_output",
-                          cache_read_input: "batch_cache_read_input")
+          extract_pricing(table,
+                          input: "batch_input",
+                          output: image ? "batch_image_output" : "batch_output",
+                                                    cache_read_input: "batch_cache_read_input")
         end
 
         def extract_flex_pricing(tabs, image: false)
           table = find_table(tabs, "Flex")
           return {} unless table
 
-          extract_pricing(table, input: "flex_input", output: image ? "flex_image_output" : "flex_output",
-                          cache_read_input: "flex_cache_read_input")
+          extract_pricing(table,
+                          input: "flex_input",
+                          output: image ? "flex_image_output" : "flex_output",
+                                                    cache_read_input: "flex_cache_read_input")
         end
 
         def extract_priority_pricing(tabs, image: false)
           table = find_table(tabs, "Priority")
           return {} unless table
 
-          extract_pricing(table, input: "priority_input",
-                          output: image ? "priority_image_output" : "priority_output",
-                          cache_read_input: "priority_cache_read_input")
+          extract_pricing(table,
+                          input: "priority_input",
+                                                    output: image ? "priority_image_output" : "priority_output",
+                                                    cache_read_input: "priority_cache_read_input")
         end
 
         def extract_pricing(table, input:, output:, cache_read_input:)
@@ -118,8 +125,12 @@ module LlmCostTracker
           raise Error, "Gemini text pricing rows not found" unless input_key && output_key
 
           prices = token_prices(rows, input_key: input_key, output_key: output_key, input: input, output: output)
-          add_context_tier_prices(prices, rows, input_key: input_key, output_key: output_key, input: input,
-                                  output: output)
+          add_context_tier_prices(prices,
+                                  rows,
+                                  input_key: input_key,
+                                  output_key: output_key,
+                                  input: input,
+                                                                    output: output)
           add_cache_read_prices(prices, rows, cache_read_input: cache_read_input)
           prices
         end

@@ -85,7 +85,11 @@ module LlmCostTracker
           }
         end
 
-        def build_known_stream_usage(usage:, provider:, model:, provider_response_id:, pricing_mode:,
+        def build_known_stream_usage(usage:,
+                                     provider:,
+                                     model:,
+                                     provider_response_id:,
+                                     pricing_mode:,
                                      service_line_items:)
           Event.build(
             provider: provider,
@@ -131,7 +135,8 @@ module LlmCostTracker
         end
 
         def pricing_mode(request_url:, model:, service_tier:)
-          UsageParser.combined_pricing_mode(host: parsed_uri(request_url)&.host, model: model,
+          UsageParser.combined_pricing_mode(host: parsed_uri(request_url)&.host,
+                                            model: model,
                                             service_tier: service_tier)
         end
       end

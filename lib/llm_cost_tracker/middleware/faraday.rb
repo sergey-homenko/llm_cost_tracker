@@ -40,32 +40,54 @@ module LlmCostTracker
         started_at = LlmCostTracker::Timing.now_monotonic
 
         invoke_app_with_capture(
-          request_env: request_env, parser: parser, request_url: request_url,
-          request_body: request_body, streaming: streaming, stream_buffer: stream_buffer,
-          context_tags: context_tags, metadata: metadata, started_at: started_at
+          request_env: request_env,
+          parser: parser,
+          request_url: request_url,
+          request_body: request_body,
+          streaming: streaming,
+          stream_buffer: stream_buffer,
+          context_tags: context_tags,
+          metadata: metadata,
+          started_at: started_at
         )
       end
 
       private
 
-      def invoke_app_with_capture(request_env:, parser:, request_url:, request_body:, streaming:,
-                                  stream_buffer:, context_tags:, metadata:, started_at:)
+      def invoke_app_with_capture(request_env:,
+                                  parser:,
+                                  request_url:,
+                                  request_body:,
+                                  streaming:,
+                                  stream_buffer:,
+                                  context_tags:,
+                                  metadata:,
+                                  started_at:)
         response_received = false
         @app.call(request_env).on_complete do |response_env|
           response_received = true
           process(
-            parser: parser, request_url: request_url, request_body: request_body,
-            response_env: response_env, latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
-            streaming: streaming, stream_buffer: stream_buffer,
-            context_tags: context_tags, metadata: metadata
+            parser: parser,
+            request_url: request_url,
+            request_body: request_body,
+            response_env: response_env,
+            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
+            streaming: streaming,
+            stream_buffer: stream_buffer,
+            context_tags: context_tags,
+            metadata: metadata
           )
         end
       rescue StandardError => e
         if streaming && parser && !response_received
           process_interrupted_stream(
-            parser: parser, request_url: request_url, request_body: request_body,
+            parser: parser,
+            request_url: request_url,
+            request_body: request_body,
             latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
-            context_tags: context_tags, metadata: metadata, error: e
+            context_tags: context_tags,
+            metadata: metadata,
+            error: e
           )
         end
         raise
@@ -84,8 +106,13 @@ module LlmCostTracker
         new_body
       end
 
-      def process_interrupted_stream(parser:, request_url:, request_body:, latency_ms:,
-                                     context_tags:, metadata:, error:)
+      def process_interrupted_stream(parser:,
+                                     request_url:,
+                                     request_body:,
+                                     latency_ms:,
+                                     context_tags:,
+                                     metadata:,
+                                     error:)
         request = parser.safe_json_parse(request_body)
         event = Event.build(
           provider: parser.provider_for(request_url),
@@ -108,8 +135,15 @@ module LlmCostTracker
         Logging.warn("Error recording interrupted stream: #{e.class}: #{e.message}")
       end
 
-      def process(parser:, request_url:, request_body:, response_env:,
-                  latency_ms:, streaming:, stream_buffer:, context_tags:, metadata:)
+      def process(parser:,
+                  request_url:,
+                  request_body:,
+                  response_env:,
+                  latency_ms:,
+                  streaming:,
+                  stream_buffer:,
+                  context_tags:,
+                  metadata:)
         return unless parser
 
         parsed =

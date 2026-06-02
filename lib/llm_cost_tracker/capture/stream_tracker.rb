@@ -24,9 +24,10 @@ module LlmCostTracker
         if @stream.instance_variable_defined?(:@iterator)
           iterator = @stream.instance_variable_get(:@iterator)
           if iterator.respond_to?(:each)
-            @stream.instance_variable_set(:@iterator, Enumerator.new do |yielder|
-              each_from(iterator) { |event| yielder << event }
-            end)
+            @stream.instance_variable_set(:@iterator,
+                                          Enumerator.new do |yielder|
+                                            each_from(iterator) { |event| yielder << event }
+                                          end)
             iterator_wrapped = true
           end
         end

@@ -84,8 +84,13 @@ module LlmCostTracker
 
         private
 
-        def build_event(request_url:, usage:, usage_source:, stream: false, provider_response_id: nil,
-                        pricing_mode: nil, service_line_items: nil)
+        def build_event(request_url:,
+                        usage:,
+                        usage_source:,
+                        stream: false,
+                        provider_response_id: nil,
+                        pricing_mode: nil,
+                        service_line_items: nil)
           cache_read = usage["cachedContentTokenCount"].to_i
           tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
           audio_input = audio_input_tokens(usage)
@@ -98,10 +103,13 @@ module LlmCostTracker
             model: extract_model_from_url(request_url),
             pricing_mode: pricing_mode,
             token_usage: Usage::TokenUsage.build(
-              input_tokens: regular_input_tokens(usage: usage, cache_read: cache_read,
-                                                 audio_input: audio_input, image_input: image_input) +
+              input_tokens: regular_input_tokens(usage: usage,
+                                                 cache_read: cache_read,
+                                                 audio_input: audio_input,
+                                                 image_input: image_input) +
                             tool_use_prompt,
-              output_tokens: regular_output_tokens(usage: usage, audio_output: audio_output,
+              output_tokens: regular_output_tokens(usage: usage,
+                                                   audio_output: audio_output,
                                                    image_output: image_output),
               total_tokens: usage["totalTokenCount"],
               cache_read_input_tokens: cache_read,

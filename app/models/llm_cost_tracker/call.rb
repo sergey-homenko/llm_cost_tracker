@@ -8,18 +8,20 @@ module LlmCostTracker
 
     scope :with_cost, -> { where.not(total_cost: nil) }
     scope :without_cost, -> { where(total_cost: nil) }
-    scope :unknown_pricing, lambda {
-      where(Charges::CostStatus.unknown_pricing_sql)
-    }
+    scope :unknown_pricing,
+          lambda {
+            where(Charges::CostStatus.unknown_pricing_sql)
+          }
     scope :with_latency, -> { where.not(latency_ms: nil) }
     scope :streaming,     -> { where(stream: true) }
     scope :non_streaming, -> { where(stream: [false, nil]) }
     scope :by_usage_source, ->(source) { where(usage_source: source.to_s) }
     scope :with_provider_response_id, -> { where.not(provider_response_id: [nil, ""]) }
     scope :missing_provider_response_id, -> { where(provider_response_id: [nil, ""]) }
-    scope :streaming_missing_usage, lambda {
-      where(stream: true).where(usage_source: [Capture::UsageSource::UNKNOWN, nil])
-    }
+    scope :streaming_missing_usage,
+          lambda {
+            where(stream: true).where(usage_source: [Capture::UsageSource::UNKNOWN, nil])
+          }
 
     has_many :line_items,
              class_name: "LlmCostTracker::CallLineItem",

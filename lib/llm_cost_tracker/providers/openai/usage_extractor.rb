@@ -36,7 +36,10 @@ module LlmCostTracker
           )
         end
 
-        def self.split_output(output_tokens:, image_output_details:, text_output_details:, audio_output:,
+        def self.split_output(output_tokens:,
+                              image_output_details:,
+                              text_output_details:,
+                              audio_output:,
                               default_to_image: false)
           if image_output_details.zero? && text_output_details.zero?
             remainder = [output_tokens - audio_output, 0].max

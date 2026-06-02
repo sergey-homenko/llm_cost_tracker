@@ -136,7 +136,10 @@ module LlmCostTracker
         nil
       end
 
-      def build_unknown_stream_usage(provider:, model:, provider_response_id:, pricing_mode: nil,
+      def build_unknown_stream_usage(provider:,
+                                     model:,
+                                     provider_response_id:,
+                                     pricing_mode: nil,
                                      service_line_items: nil)
         Event.build(
           provider: provider,

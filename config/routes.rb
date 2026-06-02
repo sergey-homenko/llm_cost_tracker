@@ -9,5 +9,6 @@ LlmCostTracker::Engine.routes.draw do
   get "pricing", to: "pricing#index", as: :pricing
 
   get "assets/#{LlmCostTracker::Assets::STYLESHEET_FILENAME}",
-      to: "assets#stylesheet", as: :stylesheet
+      to: "assets#stylesheet",
+as: :stylesheet
 end

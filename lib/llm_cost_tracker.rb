@@ -65,10 +65,20 @@ module LlmCostTracker
       Tags::Context.with((tags || {}).merge(kwargs), &)
     end
 
-    def track(provider:, tokens:, model: nil, tags: {}, latency_ms: nil, stream: false,
-              usage_source: Capture::UsageSource::MANUAL, enforce_budget: false,
-              provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
-              provider_workspace_id: nil, pricing_mode: nil, service_line_items: [])
+    def track(provider:,
+              tokens:,
+              model: nil,
+              tags: {},
+              latency_ms: nil,
+              stream: false,
+              usage_source: Capture::UsageSource::MANUAL,
+              enforce_budget: false,
+              provider_response_id: nil,
+              provider_project_id: nil,
+              provider_api_key_id: nil,
+              provider_workspace_id: nil,
+              pricing_mode: nil,
+              service_line_items: [])
       Tracker.record(
         event: Event.build(
           provider: provider,
@@ -89,9 +99,16 @@ module LlmCostTracker
       )
     end
 
-    def track_stream(provider:, model: nil, tags: {}, latency_ms: nil, enforce_budget: false,
-                     provider_response_id: nil, provider_project_id: nil, provider_api_key_id: nil,
-                     provider_workspace_id: nil, pricing_mode: nil)
+    def track_stream(provider:,
+                     model: nil,
+                     tags: {},
+                     latency_ms: nil,
+                     enforce_budget: false,
+                     provider_response_id: nil,
+                     provider_project_id: nil,
+                     provider_api_key_id: nil,
+                     provider_workspace_id: nil,
+                     pricing_mode: nil)
       require_relative "llm_cost_tracker/capture/stream_collector"
       Budget.enforce!(provider: provider, model: model, force: true) if enforce_budget
       collector = Capture::StreamCollector.new(

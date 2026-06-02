@@ -9,7 +9,7 @@ require_relative "../providers/openai/usage_extractor"
 
 module LlmCostTracker
   module Integrations
-    module Openai # rubocop:disable Metrics/ModuleLength
+    module Openai
       extend Base
 
       minimum_version "0.59.0"
@@ -39,7 +39,8 @@ module LlmCostTracker
           started_at = LlmCostTracker::Timing.now_monotonic
           response = yield
           public_send(
-            record_method, response,
+            record_method,
+            response,
             request: request,
             latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
             host: host
@@ -81,11 +82,15 @@ module LlmCostTracker
           [
             patch_target("OpenAI::Resources::Embeddings", with: EmbeddingsPatch, optional: true),
             patch_target("OpenAI::Resources::Images", with: ImagesPatch, optional: true),
-            patch_target("OpenAI::Resources::Images", with: StreamingImagesPatch,
-                                                      optional: true, skip_when_methods_missing: true),
+            patch_target("OpenAI::Resources::Images",
+                         with: StreamingImagesPatch,
+                                                                               optional: true,
+                         skip_when_methods_missing: true),
             patch_target("OpenAI::Resources::Audio::Transcriptions", with: TranscriptionsPatch, optional: true),
-            patch_target("OpenAI::Resources::Audio::Transcriptions", with: StreamingTranscriptionsPatch,
-                                                                     optional: true, skip_when_methods_missing: true),
+            patch_target("OpenAI::Resources::Audio::Transcriptions",
+                         with: StreamingTranscriptionsPatch,
+                                                                                              optional: true,
+                         skip_when_methods_missing: true),
             patch_target("OpenAI::Resources::Audio::Translations", with: TranslationsPatch, optional: true),
             patch_target("OpenAI::Resources::Audio::Speech", with: SpeechPatch, optional: true),
             patch_target("OpenAI::Resources::Moderations", with: ModerationsPatch, optional: true),

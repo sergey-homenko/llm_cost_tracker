@@ -56,11 +56,17 @@ module LlmCostTracker
         [value.to_i, 0].max
       end
 
-      def self.build(input_tokens:, output_tokens:, cache_read_input_tokens: 0,
-                     cache_write_input_tokens: 0, cache_write_extended_input_tokens: 0,
-                     audio_input_tokens: 0, audio_output_tokens: 0,
-                     image_input_tokens: 0, image_output_tokens: 0,
-                     total_tokens: nil, hidden_output_tokens: 0)
+      def self.build(input_tokens:,
+                     output_tokens:,
+                     cache_read_input_tokens: 0,
+                     cache_write_input_tokens: 0,
+                     cache_write_extended_input_tokens: 0,
+                     audio_input_tokens: 0,
+                     audio_output_tokens: 0,
+                     image_input_tokens: 0,
+                     image_output_tokens: 0,
+                     total_tokens: nil,
+                     hidden_output_tokens: 0)
         input = non_negative_int(input_tokens)
         output = non_negative_int(output_tokens)
         cache_read = non_negative_int(cache_read_input_tokens)

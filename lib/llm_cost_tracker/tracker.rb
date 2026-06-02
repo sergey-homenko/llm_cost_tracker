@@ -18,13 +18,19 @@ module LlmCostTracker
 
         pricing_mode ||= event.pricing_mode
         calculation = Pricing::Calculation.for(
-          provider: event.provider, model: event.model, tokens: event.token_usage,
-          line_items: event.line_items, pricing_mode: pricing_mode, usage_source: event.usage_source
+          provider: event.provider,
+          model: event.model,
+          tokens: event.token_usage,
+          line_items: event.line_items,
+          pricing_mode: pricing_mode,
+          usage_source: event.usage_source
         )
 
         if enforce_budget
-          Budget.enforce!(provider: event.provider, model: event.model,
-                          estimate: calculation.cost&.total, force: true)
+          Budget.enforce!(provider: event.provider,
+                          model: event.model,
+                          estimate: calculation.cost&.total,
+                          force: true)
         end
 
         if calculation.token_cost.nil? && event.token_usage.total_tokens.positive? &&

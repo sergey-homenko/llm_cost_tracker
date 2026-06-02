@@ -30,7 +30,8 @@ module LlmCostTracker
       def inline_check
         leftovers = inline_leftover_tables
         if leftovers.empty?
-          return Check.new(:ok, "inline ingestion",
+          return Check.new(:ok,
+                           "inline ingestion",
                            "config.ingestion = :inline; events write directly to the ledger")
         end
 

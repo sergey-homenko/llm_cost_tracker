@@ -36,7 +36,10 @@ module LlmCostTracker
           env["URL"].to_s.strip.presence || DEFAULT_REMOTE_URL
         end
 
-        def refresh(path: DEFAULT_OUTPUT_PATH, url: DEFAULT_REMOTE_URL, preview: false, fetcher: Fetcher.new,
+        def refresh(path: DEFAULT_OUTPUT_PATH,
+                    url: DEFAULT_REMOTE_URL,
+                    preview: false,
+                    fetcher: Fetcher.new,
                     today: Date.today)
           current = load_registry(path)
           response = fetcher.get(url, etag: current.dig("metadata", "source_version"))

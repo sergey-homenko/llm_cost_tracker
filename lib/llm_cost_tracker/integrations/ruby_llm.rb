@@ -82,8 +82,14 @@ module LlmCostTracker
           details.with_indifferent_access[:image_tokens].to_i
         end
 
-        def record_passthrough(provider:, model:, response:, latency_ms:, input_tokens:, output_tokens:,
-                               image_input_tokens: 0, image_output_tokens: 0)
+        def record_passthrough(provider:,
+                               model:,
+                               response:,
+                               latency_ms:,
+                               input_tokens:,
+                               output_tokens:,
+                               image_input_tokens: 0,
+                               image_output_tokens: 0)
           return unless active?
 
           record_safely do
@@ -176,7 +182,9 @@ module LlmCostTracker
           started_at = LlmCostTracker::Timing.now_monotonic
           response = yield
           public_send(
-            record_method, resource, response,
+            record_method,
+            resource,
+            response,
             request: request,
             latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
             **extras

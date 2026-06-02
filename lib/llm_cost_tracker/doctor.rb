@@ -103,7 +103,8 @@ module LlmCostTracker
     def dependent_core_schema_checks
       Ledger::Schema::CORE_SCHEMAS.reject { |schema, _| schema == Ledger::Schema::Calls }.map do |schema, table|
         SchemaCheck.new(name: table.delete_prefix("llm_cost_tracker_").tr("_", " "),
-                        schema: schema, table: table).call
+                        schema: schema,
+                        table: table).call
       end
     end
 

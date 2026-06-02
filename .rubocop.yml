@@ -29,6 +29,11 @@ Metrics/BlockLength:
 
 Metrics/MethodLength:
   Max: 32
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+    - method_call
 
 Metrics/AbcSize:
   Max: 45
@@ -36,13 +41,21 @@ Metrics/AbcSize:
 Metrics/ClassLength:
   Max: 200
   CountAsOne:
+    - array
     - hash
+    - heredoc
+    - method_call
   Exclude:
     - "scripts/price_scrape/providers/openai.rb"
     - "lib/llm_cost_tracker/pricing/registry.rb"
 
 Metrics/ModuleLength:
   Max: 200
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+    - method_call
   Exclude:
     - "lib/llm_cost_tracker/pricing.rb"
     - "lib/llm_cost_tracker/pricing/registry.rb"
@@ -66,3 +79,9 @@ Gemspec/DevelopmentDependencies:
 
 Layout/HashAlignment:
   Enabled: false
+
+Layout/MultilineMethodArgumentLineBreaks:
+  Enabled: true
+
+Layout/MultilineMethodParameterLineBreaks:
+  Enabled: true
