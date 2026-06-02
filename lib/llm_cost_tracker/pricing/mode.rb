@@ -6,6 +6,7 @@ module LlmCostTracker
       STANDARD_MODE_VALUES = %w[auto default standard standard_only unspecified].freeze
       COMPOUND_MODIFIERS = %w[data_residency].freeze
       KNOWN_MODIFIERS = %w[batch flex priority scale fast on_demand data_residency].freeze
+      MAX_PERMUTED_MODIFIERS = 6
 
       def self.normalize(value)
         return nil if value.nil?
@@ -59,6 +60,7 @@ module LlmCostTracker
         modifiers = tokenize(value).uniq.sort
         return [""] if modifiers.empty?
         return [modifiers.first] if modifiers.size == 1
+        return [modifiers.join("_")] if modifiers.size > MAX_PERMUTED_MODIFIERS
 
         modifiers.permutation.map { |permutation| permutation.join("_") }.uniq
       end

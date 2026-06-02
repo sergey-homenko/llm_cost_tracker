@@ -112,6 +112,11 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
       expect(described_class.permutations_for("BATCH_PRIORITY"))
         .to contain_exactly("batch_priority", "priority_batch")
     end
+
+    it "caps permutations for an unbounded token count to avoid a factorial blow-up" do
+      mode = (1..13).map { |i| "m#{i}" }.join("_")
+      expect(described_class.permutations_for(mode).size).to eq(1)
+    end
   end
 
   describe ".compose" do

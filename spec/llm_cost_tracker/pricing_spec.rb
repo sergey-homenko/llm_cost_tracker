@@ -43,6 +43,13 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(match.key).to eq("gemini/gemini-2.5-flash")
       expect(match.matched_by).to eq(:dated_snapshot)
     end
+
+    it "resolves Gemini preview-dated snapshots with a four-digit year (preview-MM-YYYY)" do
+      match = LlmCostTracker::Pricing::Matcher.lookup(provider: "gemini", model: "gemini-2.5-flash-preview-09-2025")
+
+      expect(match).not_to be_nil
+      expect(match.matched_by).to eq(:dated_snapshot)
+    end
   end
 
   describe ".cost_for" do

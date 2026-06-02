@@ -26,9 +26,10 @@ module LlmCostTracker
 
         def parse_dimension_key(key)
           name = key.to_s
-          Usage::Catalog.all.each do |dimension|
-            return [dimension, nil] if dimension.key == name
+          exact = Usage::Catalog.all.find { |dimension| dimension.key == name }
+          return [exact, nil] if exact
 
+          Usage::Catalog.all.sort_by { |dimension| -dimension.key.length }.each do |dimension|
             suffix = "_#{dimension.key}"
             next unless name.end_with?(suffix)
 

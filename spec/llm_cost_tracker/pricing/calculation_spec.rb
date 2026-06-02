@@ -20,4 +20,19 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
     expect(priced.rate_quantity).to eq(BigDecimal(1_000_000))
     expect(priced.cost_status).to eq(LlmCostTracker::Charges::CostStatus::COMPLETE)
   end
+
+  it "ignores a token-unit line item passed as a service line so token cost is not double-counted" do
+    LlmCostTracker.configure { |c| c.pricing_overrides = { "dup-model" => { "input" => 2.0 } } }
+    token_line = LlmCostTracker::Charges::LineItem.build(
+      kind: "input", direction: "input", modality: "text", cache_state: "none",
+      unit: "token", quantity: 1_000_000, dimension_key: "input"
+    )
+    calculation = described_class.for(
+      provider: "custom", model: "dup-model",
+      tokens: { input_tokens: 1_000_000 }, pricing_mode: nil, line_items: [token_line]
+    )
+
+    expect(calculation.cost.total).to eq(BigDecimal("2.0"))
+    expect(calculation.priced_line_items.count(&:token?)).to eq(1)
+  end
 end

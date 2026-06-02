@@ -84,7 +84,7 @@ module LlmCostTracker
       end
 
       def unpriced_line_items
-        Charges::LineItem.from_token_usage(@token_usage) + @line_items
+        Charges::LineItem.from_token_usage(@token_usage) + @line_items.reject(&:token?)
       end
 
       def priceable?

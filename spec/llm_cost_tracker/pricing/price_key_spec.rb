@@ -19,6 +19,11 @@ RSpec.describe LlmCostTracker::Pricing::PriceKey do
           -> { "#{dimension.key} is shadowed by an earlier dimension" }
       end
     end
+
+    it "matches the exact token dimension before a shorter suffix tier" do
+      cache_read_input = LlmCostTracker::Usage::Catalog.fetch("cache_read_input")
+      expect(described_class.parse_dimension_key("cache_read_input")).to eq([cache_read_input, nil])
+    end
   end
 
   describe ".price_key_for" do
