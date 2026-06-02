@@ -5,7 +5,7 @@ require_relative "../../tags/key"
 module LlmCostTracker
   module Ledger
     module Tags
-      module Sql
+      module Breakdown
         UNTAGGED_LABEL = "(untagged)"
 
         class << self

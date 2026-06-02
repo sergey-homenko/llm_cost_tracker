@@ -918,7 +918,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "joins llm_cost_tracker_call_tags when grouping by a tag value" do
-    sql = LlmCostTracker::Ledger::Tags::Sql
+    sql = LlmCostTracker::Ledger::Tags::Breakdown
           .join_relation(LlmCostTracker::Call.all, "user_id")
           .to_sql
 

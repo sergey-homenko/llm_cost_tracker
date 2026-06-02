@@ -58,20 +58,20 @@ module LlmCostTracker
       def cost_by_provider(limit: nil) = cost_by_column(:provider, limit: limit)
 
       def group_by_tag(key)
-        Ledger::Tags::Sql.join_relation(self, key).group(Ledger::Tags::Sql.value_arel)
+        Ledger::Tags::Breakdown.join_relation(self, key).group(Ledger::Tags::Breakdown.value_arel)
       end
 
       def cost_by_tag(key, limit: nil)
-        label = Ledger::Tags::Sql.label_sql(connection)
-        raw_value = Ledger::Tags::Sql.raw_value_sql(connection)
-        relation = Ledger::Tags::Sql.join_relation(self, key)
-                                    .select("#{label} AS name", "COALESCE(SUM(total_cost), 0) AS total_cost")
-                                    .group(Arel.sql(label))
-                                    .order(
-                                      Arel.sql("COALESCE(SUM(total_cost), 0) DESC"),
-                                      Arel.sql("MAX(CASE WHEN #{raw_value} IS NULL THEN 1 ELSE 0 END) ASC"),
-                                      Arel.sql("#{label} DESC")
-                                    )
+        label = Ledger::Tags::Breakdown.label_sql(connection)
+        raw_value = Ledger::Tags::Breakdown.raw_value_sql(connection)
+        relation = Ledger::Tags::Breakdown.join_relation(self, key)
+                                          .select("#{label} AS name", "COALESCE(SUM(total_cost), 0) AS total_cost")
+                                          .group(Arel.sql(label))
+                                          .order(
+                                            Arel.sql("COALESCE(SUM(total_cost), 0) DESC"),
+                                            Arel.sql("MAX(CASE WHEN #{raw_value} IS NULL THEN 1 ELSE 0 END) ASC"),
+                                            Arel.sql("#{label} DESC")
+                                          )
         relation = relation.limit(limit) if limit
         relation
       end
@@ -103,7 +103,7 @@ module LlmCostTracker
       end
 
       def period_group_expression(period, column:)
-        Ledger::Schema::Adapter.date_truncated_sql(connection, period, period_column_expression(column))
+        Ledger::Schema::Adapter.period_bucket_sql(connection, period, period_column_expression(column))
       end
 
       def period_column_expression(column)

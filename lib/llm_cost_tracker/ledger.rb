@@ -2,7 +2,7 @@
 
 require_relative "ledger/schema"
 require_relative "ledger/tags/query"
-require_relative "ledger/tags/sql"
+require_relative "ledger/tags/breakdown"
 require_relative "ledger/period"
 require_relative "ledger/rollups"
 require_relative "ledger/store"

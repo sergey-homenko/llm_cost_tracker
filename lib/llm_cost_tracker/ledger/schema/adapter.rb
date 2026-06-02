@@ -36,7 +36,7 @@ module LlmCostTracker
           MYSQL_PERIOD_FORMATS = { day: "%Y-%m-%d", month: "%Y-%m" }.freeze
           private_constant :PG_PERIOD_FORMATS, :MYSQL_PERIOD_FORMATS
 
-          def date_truncated_sql(connection, period, column)
+          def period_bucket_sql(connection, period, column)
             period = period.to_sym
             if postgresql?(connection)
               "TO_CHAR(DATE_TRUNC('#{period}', #{column}), '#{PG_PERIOD_FORMATS.fetch(period)}')"
