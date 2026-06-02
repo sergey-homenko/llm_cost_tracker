@@ -13,8 +13,9 @@ module LlmCostTracker
     end
 
     module Gemini
-      autoload :ModelFamilies, "llm_cost_tracker/providers/gemini/model_families"
-      autoload :Parser,        "llm_cost_tracker/providers/gemini/parser"
+      autoload :ModelFamilies,  "llm_cost_tracker/providers/gemini/model_families"
+      autoload :Parser,         "llm_cost_tracker/providers/gemini/parser"
+      autoload :UsageExtractor, "llm_cost_tracker/providers/gemini/usage_extractor"
     end
 
     module Openai
