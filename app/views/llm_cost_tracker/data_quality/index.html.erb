@@ -96,7 +96,6 @@
 
   <section class="lct-panel">
     <div class="lct-panel-head"><h2 class="lct-panel-title">Coverage summary</h2></div>
-    <p class="lct-panel-intro">Good dashboards start with clean pricing, tags, and latency coverage.</p>
 
     <table class="lct-tbl">
       <thead>
@@ -221,7 +220,6 @@
   <% if @streaming_health_rows.any? %>
     <section class="lct-panel">
       <div class="lct-panel-head"><h2 class="lct-panel-title">Streaming health by provider</h2></div>
-      <p class="lct-panel-intro">Streams without a final usage chunk land as <code>usage_source: unknown</code> and undercount tokens. A high unknown share for an OpenAI-compatible provider usually means <code>stream_options: { include_usage: true }</code> is not being injected for that host.</p>
 
       <div class="lct-table-wrap">
         <table class="lct-tbl">
