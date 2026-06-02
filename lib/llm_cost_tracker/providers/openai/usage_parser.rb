@@ -19,31 +19,38 @@ module LlmCostTracker
             modes << "data_residency" if Hosts.data_residency?(host) && ModelFamilies.data_residency?(model)
             Pricing::Mode.compose(modes)
           end
+
+          def event_from_response(response:, request:, provider:, host:, usage_source:, pricing_mode: nil)
+            usage = response["usage"]&.deep_symbolize_keys
+            return nil unless usage
+
+            model = response["model"] || request["model"]
+            service_line_items =
+              ServiceCharges.service_line_items_for(response, request: request, model: response["model"]) +
+              ServiceCharges.transcription_line_items(usage)
+            Event.build(
+              provider: provider,
+              provider_response_id: response["id"],
+              pricing_mode: pricing_mode || combined_pricing_mode(
+                host: host, model: model, service_tier: response["service_tier"] || request["service_tier"]
+              ),
+              model: model,
+              token_usage: UsageExtractor.token_usage(usage, model: model),
+              usage_source: usage_source,
+              service_line_items: service_line_items
+            )
+          end
         end
 
         def parse(request_url:, request_body:, response_status:, response_body:, **)
           return nil unless response_status == 200
 
-          response = safe_json_parse(response_body)
-          usage = response["usage"]&.deep_symbolize_keys
-          return nil unless usage
-
-          request = safe_json_parse(request_body)
-          model = response["model"] || request["model"]
-
-          Event.build(
+          UsageParser.event_from_response(
+            response: safe_json_parse(response_body),
+            request: safe_json_parse(request_body),
             provider: provider_for(request_url),
-            provider_response_id: response["id"],
-            pricing_mode: pricing_mode(
-              request_url: request_url,
-              model: model,
-              service_tier: response["service_tier"] || request["service_tier"]
-            ),
-            model: model,
-            token_usage: UsageExtractor.token_usage(usage, model: model),
-            usage_source: Capture::UsageSource::RESPONSE,
-            service_line_items: service_line_items_for(response, request: request, model: response["model"]) +
-                                transcription_line_items(usage)
+            host: parsed_uri(request_url)&.host,
+            usage_source: Capture::UsageSource::RESPONSE
           )
         end
 

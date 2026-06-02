@@ -3,6 +3,8 @@
 require "active_support/core_ext/object/deep_dup"
 require "active_support/core_ext/object/try"
 
+require_relative "sdk_payload"
+
 module LlmCostTracker
   module Capture
     class StreamTracker
@@ -84,33 +86,11 @@ module LlmCostTracker
 
       def capture(event)
         raw_payload = event.try(:deep_to_h) || event.try(:to_h) || {}
-        payload = normalize(raw_payload)
+        payload = SdkPayload.normalize(raw_payload)
         type = event.try(:type) || payload["type"]
         @collector.event(payload, type: type&.to_s)
       rescue StandardError => e
         warn_capture_failure(e)
-      end
-
-      def normalize(value)
-        case value
-        when Hash
-          value.each_with_object({}) do |(key, nested), normalized|
-            normalized[key.to_s] = normalize(nested)
-          end
-        when Array
-          value.map { |nested| normalize(nested) }
-        when Symbol
-          value.to_s
-        when NilClass
-          nil
-        else
-          converted = begin
-            value.try(:deep_to_h) || value.try(:to_h)
-          rescue StandardError
-            nil
-          end
-          converted ? normalize(converted) : value.deep_dup
-        end
       end
 
       def warn_capture_failure(error)

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require_relative "../capture/sdk_payload"
 require_relative "../charges/line_item"
 require_relative "../providers/azure/hosts"
 require_relative "../providers/openai/model_families"
@@ -85,30 +86,22 @@ module LlmCostTracker
           return unless active?
 
           record_safely do
-            usage = usage_hash_from(response)
-            next unless usage
+            normalized = LlmCostTracker::Capture::SdkPayload.normalize(response)
+            usage = normalized["usage"]
+            if usage
+              input_tokens = usage["input_tokens"] || usage["prompt_tokens"]
+              output_tokens = usage["output_tokens"] || usage["completion_tokens"]
+              next if input_tokens.nil? && output_tokens.nil?
+            end
 
-            input_tokens = usage[:input_tokens] || usage[:prompt_tokens]
-            output_tokens = usage[:output_tokens] || usage[:completion_tokens]
-            next if input_tokens.nil? && output_tokens.nil?
-
-            model = response.model || request[:model]
-            service_tier = response.try(:service_tier) || request[:service_tier]
-
-            LlmCostTracker::Tracker.record(
-              event: Event.build(
-                provider: provider_for_host(host),
-                model: model,
-                pricing_mode: LlmCostTracker::Providers::Openai::UsageParser.combined_pricing_mode(
-                  host: host, model: model, service_tier: service_tier
-                ),
-                token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
-                usage_source: LlmCostTracker::Capture::UsageSource::SDK_RESPONSE,
-                provider_response_id: response.try(:id),
-                service_line_items: service_line_items_from(response, request: request)
-              ),
-              latency_ms: latency_ms
+            event = LlmCostTracker::Providers::Openai::UsageParser.event_from_response(
+              response: normalized,
+              request: request,
+              provider: provider_for_host(host),
+              host: host,
+              usage_source: LlmCostTracker::Capture::UsageSource::SDK_RESPONSE
             )
+            LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms) if event
           end
         end
 
@@ -214,37 +207,6 @@ module LlmCostTracker
               latency_ms: latency_ms
             )
           end
-        end
-
-        def service_line_items_from(response, request:)
-          model = response.try(:model) || request[:model]
-          output_items = Array(response.try(:output)).map { |item| normalize_output_item(item) }
-          if output_items.empty?
-            chat = { "choices" => normalized_choices(response), "id" => response.try(:id) }
-            output_items.concat(
-              LlmCostTracker::Providers::Openai::ServiceCharges.chat_completions_web_search_items(chat, model: model)
-            )
-          end
-          return [] if output_items.empty?
-
-          LlmCostTracker::Providers::Openai::ServiceCharges.line_items_from_output(
-            output_items, request: request, model: model
-          )
-        end
-
-        def normalized_choices(response)
-          choices = response.try(:choices)
-          return nil if choices.nil?
-
-          Array(choices).map { |choice| choice.deep_to_h.deep_stringify_keys }
-        end
-
-        def normalize_output_item(item)
-          hash = (item.is_a?(Hash) ? item : item.deep_to_h).deep_stringify_keys
-          hash["type"] = hash["type"]&.to_s
-          hash["status"] = hash["status"]&.to_s if hash.key?("status")
-          hash["action"] = hash["action"].merge("type" => hash["action"]["type"]&.to_s) if hash["action"].is_a?(Hash)
-          hash
         end
 
         def usage_hash_from(response)
@@ -383,25 +345,17 @@ module LlmCostTracker
 
         def record_batch_response(response, host: nil)
           provider = provider_for_host(host)
-          provider_response_id = response["id"]
-          return if LlmCostTracker::Call.already_recorded?(provider: provider,
-                                                           provider_response_id: provider_response_id)
+          return if LlmCostTracker::Call.already_recorded?(provider: provider, provider_response_id: response["id"])
 
-          usage = response["usage"].deep_symbolize_keys
-          model = response["model"]
-          LlmCostTracker::Tracker.record(
-            event: Event.build(
-              provider: provider,
-              model: model,
-              pricing_mode: "batch",
-              token_usage: LlmCostTracker::Providers::Openai::UsageExtractor.token_usage(usage, model: model),
-              usage_source: LlmCostTracker::Capture::UsageSource::SDK_BATCH_RESULT,
-              provider_response_id: provider_response_id,
-              service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.service_line_items_for(
-                response, request: nil, model: model
-              )
-            )
+          event = LlmCostTracker::Providers::Openai::UsageParser.event_from_response(
+            response: response,
+            request: {},
+            provider: provider,
+            host: host,
+            usage_source: LlmCostTracker::Capture::UsageSource::SDK_BATCH_RESULT,
+            pricing_mode: "batch"
           )
+          LlmCostTracker::Tracker.record(event: event) if event
         end
       end
     end
