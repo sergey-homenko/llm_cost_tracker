@@ -25,13 +25,13 @@ Provider names such as `service_tier`, `prompt_tokens_details`, `server_tool_use
 or `groundingMetadata` may appear only while reading provider payloads. Past that
 boundary, code should use canonical terms.
 
-## Component Ownership
+## Dimension Ownership
 
-`Usage::Dimension` is the master registry for billable components. It owns
-component keys, units, directions, modalities, cache states, and rate bases.
+`Usage::Catalog` is the master registry of billable dimensions. It owns
+dimension keys, units, directions, modalities, cache states, and rate bases.
 
 Pricing, ledger schema checks, dashboards, reports, and generator templates must
-derive component knowledge from `Usage::Dimension` when the contract is
+derive dimension knowledge from `Usage::Catalog` when the contract is
 shared. If a boundary must keep an explicit list, add a drift spec.
 
 ## Pricing Model

@@ -52,7 +52,7 @@ config.pricing_overrides = {
 }
 ```
 
-Canonical token price keys are owned by `Usage::Dimension`:
+Canonical token price keys are owned by `Usage::Catalog`:
 
 | Component | Registry key |
 | --- | --- |
@@ -83,7 +83,7 @@ service_charges:
     web_search_request: 10.0
 ```
 
-These keys map to `Usage::Dimension` entries with matching names. Add a rate
+These keys map to `Usage::Catalog` entries with matching names. Add a rate
 only when the captured quantity matches the published or contract basis.
 
 ## Explicit Tracking
@@ -115,7 +115,7 @@ LlmCostTracker.track(
 )
 ```
 
-`component_key` must match an entry in `Usage::Dimension`.
+`component_key` must match an entry in `Usage::Catalog`.
 
 For unsupported streams:
 

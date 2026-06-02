@@ -112,7 +112,7 @@ module LlmCostTracker
 
         def output_dimension(type)
           key = RESPONSE_OUTPUT_RENAMES[type] || type
-          dimension = Usage::Dimension::BY_KEY[key]
+          dimension = Usage::Catalog[key]
           key if dimension && dimension.token_key.nil?
         end
 

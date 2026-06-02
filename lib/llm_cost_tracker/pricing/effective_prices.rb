@@ -2,7 +2,6 @@
 
 require "bigdecimal"
 
-require_relative "../usage/dimension"
 require_relative "mode"
 
 module LlmCostTracker

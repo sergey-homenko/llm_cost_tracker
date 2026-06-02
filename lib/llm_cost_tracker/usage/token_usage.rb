@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require_relative "dimension"
+require_relative "catalog"
 
 module LlmCostTracker
   module Usage
     KNOWN_TOKEN_KEYS = (
-      Dimension::TOKEN_PRICED.map { |dimension| dimension.token_key.to_s } + %w[total_tokens hidden_output_tokens]
+      Catalog.token_priced.map { |dimension| dimension.token_key.to_s } + %w[total_tokens hidden_output_tokens]
     ).freeze
 
     TokenUsage = Data.define(
@@ -22,7 +22,7 @@ module LlmCostTracker
       :hidden_output_tokens
     ) do
       def priced_quantities
-        Dimension::TOKEN_PRICED.to_h { |dimension| [dimension.key, public_send(dimension.token_key)] }
+        Catalog.token_priced.to_h { |dimension| [dimension.key, public_send(dimension.token_key)] }
       end
 
       def self.build_from_tokens(tokens)
@@ -31,7 +31,7 @@ module LlmCostTracker
 
         values = tokens.to_h.transform_keys(&:to_s)
         warn_on_unknown_keys(values)
-        token_attributes = Dimension::TOKEN_PRICED.to_h do |dimension|
+        token_attributes = Catalog.token_priced.to_h do |dimension|
           [dimension.token_key, values.fetch(dimension.token_key.to_s, 0)]
         end
 

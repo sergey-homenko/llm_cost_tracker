@@ -8,7 +8,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
   before { described_class.reset! }
 
   it "resolves every non-token dimension key to itself, unshadowed by an earlier suffix match" do
-    LlmCostTracker::Usage::Dimension::ALL.reject(&:token_key).each do |dimension|
+    LlmCostTracker::Usage::Catalog.all.reject(&:token_key).each do |dimension|
       expect(described_class.send(:parse_dimension_key, dimension.key)).to eq([dimension, nil]),
         -> { "#{dimension.key} is shadowed in parse_dimension_key by an earlier dimension" }
     end
@@ -51,7 +51,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
     it "uses billing dimension keys for bundled tool prices" do
       registry = YAML.safe_load_file(LlmCostTracker::Pricing::Registry::DEFAULT_PRICES_PATH, aliases: false)
       tool_keys = registry.fetch("service_charges").values.flat_map(&:keys)
-      dimensions = LlmCostTracker::Usage::Dimension::ALL.filter_map do |dimension|
+      dimensions = LlmCostTracker::Usage::Catalog.all.filter_map do |dimension|
         dimension.key if dimension.token_key.nil?
       end
 

@@ -99,8 +99,8 @@ the same shape.
 | `details` | jsonb / json | Free-form provider audit blob |
 | `created_at` | datetime | Insert time |
 
-New billing components are added by registering metadata in
-`Usage::Dimension`; no migration needed.
+New billing dimensions are added by registering metadata in
+`Usage::Catalog`; no migration needed.
 
 Indexes:
 

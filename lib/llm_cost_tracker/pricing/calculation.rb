@@ -2,7 +2,7 @@
 
 require "bigdecimal"
 
-require_relative "../usage/dimension"
+require_relative "../usage/catalog"
 require_relative "../charges/line_item"
 require_relative "rate"
 
@@ -108,7 +108,7 @@ module LlmCostTracker
 
       def build_token_cost
         by_dimension = priced_token_line_items.to_h { |line_item| [line_item.dimension, line_item] }
-        components = Usage::Dimension::TOKEN_PRICED.each_with_object({}) do |dimension, result|
+        components = Usage::Catalog.token_priced.each_with_object({}) do |dimension, result|
           cost = token_dimension_cost(dimension, by_dimension[dimension])
           result[dimension.cost_key] = cost.round(8) unless cost.nil?
         end
@@ -195,7 +195,7 @@ module LlmCostTracker
         amount = match.prices[line_item.kind]
         return nil unless amount.is_a?(Numeric)
 
-        dimension = Usage::Dimension::BY_KEY[line_item.kind]
+        dimension = Usage::Catalog[line_item.kind]
         Pricing::Rate.new(
           amount: BigDecimal(amount.to_s),
           quantity: BigDecimal(Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_s),
@@ -207,7 +207,7 @@ module LlmCostTracker
       end
 
       def dimension_for(line_item)
-        Usage::Dimension::ALL.find do |dimension|
+        Usage::Catalog.all.find do |dimension|
           dimension.kind == line_item.kind &&
             dimension.direction == line_item.direction &&
             dimension.modality == line_item.modality &&

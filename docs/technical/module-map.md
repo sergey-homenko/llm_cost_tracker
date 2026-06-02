@@ -67,18 +67,19 @@ payload shapes.
 Primary files:
 
 - `lib/llm_cost_tracker/usage/dimension.rb`
+- `lib/llm_cost_tracker/usage/catalog.rb`
 - `lib/llm_cost_tracker/charges/cost_status.rb`
 - `lib/llm_cost_tracker/charges/line_item.rb`
 - `lib/llm_cost_tracker/usage/token_usage.rb`
 
 Responsibilities:
 
-- Own the billable component registry.
+- Own the billable dimension registry.
 - Own token usage value objects.
 - Classify costs as `free`, `complete`, `partial`, or `unknown`.
 - Represent priced and unpriced line items (tokens + tool/runtime charges) before persistence.
 
-`Usage::Dimension` is the master source of billable component metadata.
+`Usage::Catalog` is the master source of billable dimension metadata.
 
 ## Pricing
 

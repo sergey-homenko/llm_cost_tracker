@@ -38,7 +38,7 @@ Use `config.prices_file` for the app's source-controlled price snapshot.
 Use `config.pricing_overrides` for urgent or environment-specific Ruby-side
 overrides.
 
-Supported token price keys are owned by `Usage::Dimension`:
+Supported token price keys are owned by `Usage::Catalog`:
 
 - `input`
 - `output`

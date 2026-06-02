@@ -36,8 +36,8 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Calls do
 
     it "stores only the total_cost denormalized header amount" do
       expect(schema_columns).to include("total_cost")
-      LlmCostTracker::Usage::Dimension::TOKEN_PRICED.each do |component|
-        expect(schema_columns).not_to include(component.cost_key.to_s)
+      LlmCostTracker::Usage::Catalog.token_priced.each do |dimension|
+        expect(schema_columns).not_to include(dimension.cost_key.to_s)
       end
     end
 

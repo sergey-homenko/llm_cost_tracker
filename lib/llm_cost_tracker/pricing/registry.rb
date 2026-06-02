@@ -4,7 +4,7 @@ require "active_support/core_ext/object/blank"
 require "bigdecimal"
 require "yaml"
 
-require_relative "../usage/dimension"
+require_relative "../usage/catalog"
 require_relative "../pricing/rate"
 require_relative "../logging"
 require_relative "mode"
@@ -14,7 +14,7 @@ module LlmCostTracker
     module Registry
       DEFAULT_PRICES_PATH = File.expand_path("../prices.json", __dir__)
       CONTEXT_THRESHOLD_KEY = "_context_price_threshold_tokens"
-      PRICE_KEYS = Usage::Dimension::TOKEN_PRICED.map(&:key).freeze
+      PRICE_KEYS = Usage::Catalog.token_priced.map(&:key).freeze
       METADATA_KEYS = ["_source", CONTEXT_THRESHOLD_KEY].freeze
       Match = Data.define(:source, :key, :prices, :matched_by, :currency)
 
@@ -193,7 +193,7 @@ module LlmCostTracker
         def price_key_for(key)
           key = key.to_s
           dimension_key = strip_mode_prefix(key.delete_prefix("above_context_"))
-          dimension = Usage::Dimension::BY_KEY[dimension_key]
+          dimension = Usage::Catalog[dimension_key]
           return nil unless dimension
           return key if key == dimension_key
 
@@ -257,7 +257,7 @@ module LlmCostTracker
 
         def parse_dimension_key(key)
           name = key.to_s
-          Usage::Dimension::ALL.each do |dimension|
+          Usage::Catalog.all.each do |dimension|
             return [dimension, nil] if dimension.key == name
 
             suffix = "_#{dimension.key}"
@@ -317,7 +317,7 @@ module LlmCostTracker
         end
 
         def charge_dimension_key(dimension)
-          billing_dimension = Usage::Dimension::BY_KEY[dimension]
+          billing_dimension = Usage::Catalog[dimension]
           return billing_dimension.key if billing_dimension && billing_dimension.token_key.nil?
 
           raise Error, "Unknown billing dimension: #{dimension.inspect}"

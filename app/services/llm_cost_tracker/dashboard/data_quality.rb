@@ -82,7 +82,7 @@ module LlmCostTracker
         def usage_rows(stats, component_costs: {})
           billable_tokens = stats.billable_tokens.to_f
 
-          rows = Usage::Dimension::TOKEN_PRICED.map do |component|
+          rows = Usage::Catalog.token_priced.map do |component|
             token_value = stats[component.token_key].to_i
 
             {
@@ -166,7 +166,7 @@ module LlmCostTracker
 
         def index_costs_by_component(rows)
           rows.each_with_object({}) do |(kind, direction, cache_state, cost), accumulator|
-            component = Usage::Dimension.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
+            component = Usage::Catalog.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
             accumulator[component.key] = cost if component
           end
         end
@@ -201,13 +201,13 @@ module LlmCostTracker
         end
 
         def usage_sum_columns
-          Usage::Dimension::TOKEN_PRICED.map(&:token_key) + [:hidden_output_tokens]
+          Usage::Catalog.token_priced.map(&:token_key) + [:hidden_output_tokens]
         end
 
         def billable_tokens_select(scope)
-          Usage::Dimension::TOKEN_PRICED
-            .map { |component| column_sum(scope, component.token_key) }
-            .join(" + ")
+          Usage::Catalog.token_priced
+                        .map { |component| column_sum(scope, component.token_key) }
+                        .join(" + ")
         end
 
         def hidden_output_share_select(scope)

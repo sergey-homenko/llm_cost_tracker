@@ -2,7 +2,6 @@
 
 require "rails/generators"
 require "rails/generators/active_record"
-require "llm_cost_tracker/usage/dimension"
 require "llm_cost_tracker/charges/cost_status"
 require "llm_cost_tracker/pricing"
 require "llm_cost_tracker/usage/token_usage"

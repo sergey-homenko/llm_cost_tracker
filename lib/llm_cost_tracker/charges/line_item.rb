@@ -3,7 +3,7 @@
 require "bigdecimal"
 
 require_relative "../currency"
-require_relative "../usage/dimension"
+require_relative "../usage/catalog"
 require_relative "cost_status"
 
 module LlmCostTracker
@@ -61,7 +61,7 @@ module LlmCostTracker
         token_usage.priced_quantities.filter_map do |key, quantity|
           next unless quantity.positive?
 
-          dimension = Usage::Dimension::BY_KEY.fetch(key)
+          dimension = Usage::Catalog.fetch(key)
           build(
             kind: dimension.kind,
             direction: dimension.direction,
@@ -87,7 +87,7 @@ module LlmCostTracker
         dimension_key = attributes[:dimension_key] || attributes[:price_key]
         return nil unless dimension_key
 
-        Usage::Dimension::BY_KEY[dimension_key.to_s]
+        Usage::Catalog[dimension_key.to_s]
       end
 
       def self.decimal_or_nil(value)
@@ -119,8 +119,8 @@ module LlmCostTracker
       end
 
       def dimension
-        Usage::Dimension::BY_KEY[price_key] ||
-          Usage::Dimension.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
+        Usage::Catalog[price_key] ||
+          Usage::Catalog.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
       end
 
       def cost_value

@@ -40,7 +40,7 @@ module LlmCostTracker
 
     def call_line_item_costs_by_component(call)
       call.line_items.each_with_object({}) do |line_item, accumulator|
-        component = LlmCostTracker::Usage::Dimension.token_priced_for(
+        component = LlmCostTracker::Usage::Catalog.token_priced_for(
           kind: line_item.kind, direction: line_item.direction, cache_state: line_item.cache_state
         )
         accumulator[component.key] = line_item.cost if component && line_item.cost
@@ -50,7 +50,7 @@ module LlmCostTracker
     private
 
     def token_usage_display_components(labels:)
-      LlmCostTracker::Usage::Dimension::TOKEN_PRICED.map do |component|
+      LlmCostTracker::Usage::Catalog.token_priced.map do |component|
         token_key = component.token_key
         {
           token_key: token_key,

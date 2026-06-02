@@ -110,7 +110,7 @@ your code references these constants, rename them — the DB schema, columns, an
 | `LlmCostTracker::Billing::LineItem` | `LlmCostTracker::Charges::LineItem` |
 | `LlmCostTracker::Billing::CostStatus` | `LlmCostTracker::Charges::CostStatus` |
 | `LlmCostTracker::Billing::Rate` | `LlmCostTracker::Pricing::Rate` |
-| `LlmCostTracker::Billing::Components` | `LlmCostTracker::Usage::Dimension` |
+| `LlmCostTracker::Billing::Components` | `LlmCostTracker::Usage::Catalog` |
 | `LlmCostTracker::Billing::UsageSource` | `LlmCostTracker::Capture::UsageSource` |
 | `LlmCostTracker::TokenUsage` | `LlmCostTracker::Usage::TokenUsage` |
 
