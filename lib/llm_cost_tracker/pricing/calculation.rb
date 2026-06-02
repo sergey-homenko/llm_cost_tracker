@@ -31,7 +31,7 @@ module LlmCostTracker
       def match
         return @match if defined?(@match)
 
-        @match = ModelMatcher.lookup(provider: @provider, model: @model)
+        @match = Matcher.lookup(provider: @provider, model: @model)
       end
 
       def effective

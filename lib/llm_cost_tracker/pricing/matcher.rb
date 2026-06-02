@@ -2,12 +2,13 @@
 
 require "active_support/core_ext/object/blank"
 
-require_relative "match"
 require_relative "registry"
 
 module LlmCostTracker
   module Pricing
-    module ModelMatcher
+    module Matcher
+      Match = Data.define(:source, :key, :prices, :matched_by)
+
       class << self
         def lookup(provider:, model:)
           provider_name = provider.to_s.presence
