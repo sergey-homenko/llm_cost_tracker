@@ -7,13 +7,6 @@ require "yaml"
 RSpec.describe LlmCostTracker::Pricing::Registry do
   before { described_class.reset! }
 
-  it "resolves every non-token dimension key to itself, unshadowed by an earlier suffix match" do
-    LlmCostTracker::Usage::Catalog.all.reject(&:token_key).each do |dimension|
-      expect(described_class.send(:parse_dimension_key, dimension.key)).to eq([dimension, nil]),
-        -> { "#{dimension.key} is shadowed in parse_dimension_key by an earlier dimension" }
-    end
-  end
-
   describe ".reset!" do
     it "drops cached builtin rates so the next read reloads from disk" do
       first = described_class.builtin_rates

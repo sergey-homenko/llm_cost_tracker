@@ -3,6 +3,7 @@
 require "bigdecimal"
 
 require_relative "mode"
+require_relative "price_key"
 
 module LlmCostTracker
   module Pricing
@@ -30,10 +31,10 @@ module LlmCostTracker
         private
 
         def price_for(prices:, key:, orderings:, context_tier:)
-          return contextual_price(prices: prices, key: key, context_tier: context_tier) unless orderings
+          return prices[PriceKey.build(key, above_context: context_tier)] unless orderings
 
           orderings.each do |mode|
-            direct = contextual_price(prices: prices, key: "#{mode}_#{key}", context_tier: context_tier)
+            direct = prices[PriceKey.build(key, mode: mode, above_context: context_tier)]
             return direct if direct
           end
           return nil if %w[input output].include?(key)
@@ -41,20 +42,14 @@ module LlmCostTracker
           derived_mode_price(prices: prices, key: key, modes: orderings, context_tier: context_tier)
         end
 
-        def contextual_price(prices:, key:, context_tier:)
-          return prices[key] unless context_tier
-
-          prices["above_context_#{key}"]
-        end
-
         def derived_mode_price(prices:, key:, modes:, context_tier:)
-          standard_price = contextual_price(prices: prices, key: key, context_tier: context_tier)
-          base_price = contextual_price(prices: prices, key: "input", context_tier: context_tier)
+          standard_price = prices[PriceKey.build(key, above_context: context_tier)]
+          base_price = prices[PriceKey.build("input", above_context: context_tier)]
           return nil unless standard_price && base_price
           return nil if base_price.zero?
 
           modes.each do |mode|
-            mode_base_price = contextual_price(prices: prices, key: "#{mode}_input", context_tier: context_tier)
+            mode_base_price = prices[PriceKey.build("input", mode: mode, above_context: context_tier)]
             next unless mode_base_price
 
             return BigDecimal(standard_price.to_s) * BigDecimal(mode_base_price.to_s) / BigDecimal(base_price.to_s)

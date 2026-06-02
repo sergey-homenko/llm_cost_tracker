@@ -8,6 +8,7 @@ require_relative "../usage/catalog"
 require_relative "../pricing/rate"
 require_relative "../logging"
 require_relative "mode"
+require_relative "price_key"
 
 module LlmCostTracker
   module Pricing
@@ -191,30 +192,10 @@ module LlmCostTracker
           )
         end
 
-        def price_key_for(key)
-          key = key.to_s
-          dimension_key = strip_mode_prefix(key.delete_prefix("above_context_"))
-          dimension = Usage::Catalog[dimension_key]
-          return nil unless dimension
-          return key if key == dimension_key
-
-          dimension.token_key ? key : nil
-        end
-
-        def strip_mode_prefix(key)
-          loop do
-            modifier = Mode::KNOWN_MODIFIERS.find { |m| key.start_with?("#{m}_") }
-            break unless modifier
-
-            key = key.delete_prefix("#{modifier}_")
-          end
-          key
-        end
-
         def registry_key_for(key)
           return CONTEXT_THRESHOLD_KEY if key.to_s == CONTEXT_THRESHOLD_KEY
 
-          price_key_for(key)
+          PriceKey.dimension_for(key)
         end
 
         def validate_price_entry(price, model:, context:)
@@ -248,26 +229,12 @@ module LlmCostTracker
         end
 
         def dimension_and_tier_for(key, context:)
-          dimension, tier = parse_dimension_key(key)
+          dimension, tier = PriceKey.parse_dimension_key(key)
           unless dimension && dimension.token_key.nil?
             raise ArgumentError, "service charge price key #{key.inspect} in #{context} uses unknown billing dimension"
           end
 
           [dimension, tier]
-        end
-
-        def parse_dimension_key(key)
-          name = key.to_s
-          Usage::Catalog.all.each do |dimension|
-            return [dimension, nil] if dimension.key == name
-
-            suffix = "_#{dimension.key}"
-            next unless name.end_with?(suffix)
-
-            tier = name.delete_suffix(suffix)
-            return [dimension, tier] unless tier.empty?
-          end
-          nil
         end
 
         def rate_quantity(dimension)
