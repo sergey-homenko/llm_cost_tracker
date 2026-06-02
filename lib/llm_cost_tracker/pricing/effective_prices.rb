@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "bigdecimal"
+require "bigdecimal/util"
 
 require_relative "mode"
 require_relative "price_key"
@@ -52,7 +52,7 @@ module LlmCostTracker
             mode_base_price = prices[PriceKey.build("input", mode: mode, above_context: context_tier)]
             next unless mode_base_price
 
-            return BigDecimal(standard_price.to_s) * BigDecimal(mode_base_price.to_s) / BigDecimal(base_price.to_s)
+            return standard_price.to_d * mode_base_price.to_d / base_price.to_d
           end
           nil
         end

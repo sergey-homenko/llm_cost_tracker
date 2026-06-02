@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "bigdecimal"
+require "bigdecimal/util"
 
 require_relative "period"
 require_relative "rollups/upsert_sql"
@@ -69,7 +69,7 @@ module LlmCostTracker
             provider = event.provider.to_s
             Period::PERIODS.each do |period|
               key = [period.to_s, Period.bucket(period, event.tracked_at), currency, provider]
-              totals[key] += BigDecimal(event.total_cost.to_s)
+              totals[key] += event.total_cost.to_d
             end
           end
         end

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "bigdecimal"
+require "bigdecimal/util"
 
 require_relative "../usage/catalog"
 require_relative "../charges/line_item"
@@ -154,7 +154,7 @@ module LlmCostTracker
       end
 
       def rate_entry(amount, quantity)
-        { "amount" => BigDecimal(amount.to_s).to_s("F"), "quantity" => Integer(quantity) }
+        { "amount" => amount.to_d.to_s("F"), "quantity" => Integer(quantity) }
       end
 
       def price_token(line_item)
@@ -170,8 +170,8 @@ module LlmCostTracker
 
       def token_rate(dimension, price)
         Pricing::Rate.new(
-          amount: BigDecimal(price.to_s),
-          quantity: BigDecimal(RATE_DENOMINATOR_TOKENS),
+          amount: price.to_d,
+          quantity: RATE_DENOMINATOR_TOKENS.to_d,
           currency: match.source.currency,
           source: match.source.name,
           source_key: dimension.key,
@@ -197,8 +197,8 @@ module LlmCostTracker
 
         dimension = Usage::Catalog[line_item.kind]
         Pricing::Rate.new(
-          amount: BigDecimal(amount.to_s),
-          quantity: BigDecimal(Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_s),
+          amount: amount.to_d,
+          quantity: Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_d,
           currency: match.source.currency,
           source: match.source.name,
           source_key: "#{match.key}.#{line_item.kind}",

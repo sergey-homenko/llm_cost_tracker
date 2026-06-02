@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/object/blank"
-require "bigdecimal"
+require "bigdecimal/util"
 require "yaml"
 
 require_relative "../usage/catalog"
@@ -241,7 +241,7 @@ module LlmCostTracker
         end
 
         def rate_quantity(dimension)
-          BigDecimal(Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_s)
+          Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_d
         end
 
         def upcased_currency(value)
