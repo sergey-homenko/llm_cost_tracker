@@ -3,17 +3,16 @@
 require "bigdecimal/util"
 
 require_relative "period"
-require_relative "rollups/upsert_sql"
 
 module LlmCostTracker
   module Ledger
-    class Rollups
+    module Rollups
       class << self
         def increment!(events)
           events = Array(events).select(&:total_cost)
           return if events.empty?
 
-          upsert_call_rollups(period_rows_for_events(events))
+          LlmCostTracker::CallRollup.increment_all(period_rows_for_events(events))
         end
 
         ROLLUP_INCREMENT_ATTEMPTS = 3
@@ -88,21 +87,6 @@ module LlmCostTracker
         def currency_from_snapshot(snapshot)
           value = (snapshot.is_a?(Hash) && snapshot["currency"]) || LlmCostTracker::DEFAULT_CURRENCY
           value.to_s.upcase
-        end
-
-        def upsert_call_rollups(rows)
-          LlmCostTracker::CallRollup.upsert_all(
-            rows,
-            on_duplicate: Ledger::Rollups::UpsertSql.call,
-            record_timestamps: true,
-            unique_by: call_rollups_unique_by
-          )
-        end
-
-        def call_rollups_unique_by
-          return unless LlmCostTracker::CallRollup.connection.supports_insert_conflict_target?
-
-          %i[period period_start currency provider]
         end
       end
     end

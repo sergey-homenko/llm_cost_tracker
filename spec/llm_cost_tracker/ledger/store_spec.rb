@@ -380,7 +380,7 @@ RSpec.describe "ActiveRecord storage integration" do
       .to receive(:quoted_table_name)
       .and_return(%("llm_cost_tracker_call_rollups"))
 
-    sql = LlmCostTracker::Ledger::Rollups::UpsertSql.call.to_s
+    sql = LlmCostTracker::CallRollup.send(:increment_on_duplicate).to_s
 
     expect(sql).to include(%("total_cost" = "llm_cost_tracker_call_rollups"."total_cost" + excluded."total_cost"))
     expect(sql).to include(%("updated_at" = excluded."updated_at"))
@@ -390,7 +390,7 @@ RSpec.describe "ActiveRecord storage integration" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
       allow(ActiveRecord::Base.connection).to receive(:adapter_name).and_return(adapter_name)
 
-      sql = LlmCostTracker::Ledger::Rollups::UpsertSql.call.to_s
+      sql = LlmCostTracker::CallRollup.send(:increment_on_duplicate).to_s
 
       expect(sql).to include("VALUES(total_cost)")
       expect(sql).not_to include("excluded")
