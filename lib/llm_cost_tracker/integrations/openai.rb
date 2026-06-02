@@ -32,29 +32,12 @@ module LlmCostTracker
           )
         end
 
-        def wrap_blocking_call(args, kwargs, resource, record_method:)
-          request = request_params(args, kwargs)
+        def stream_seam(resource)
           host = client_host_for(resource)
-          enforce_budget!(request: request, provider: provider_for_host(host))
-          started_at = LlmCostTracker::Timing.now_monotonic
-          response = yield
-          public_send(
-            record_method,
-            response,
-            request: request,
-            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
-            host: host
-          )
-          response
-        end
-
-        def wrap_stream_call(args, kwargs, resource)
-          request = request_params(args, kwargs)
-          host = client_host_for(resource)
-          enforce_budget!(request: request, provider: provider_for_host(host))
-          collector = stream_collector(request, host: host)
-          stream = yield(collector)
-          track_stream(stream, collector: collector)
+          {
+            provider: provider_for_host(host),
+            collector: ->(request) { stream_collector(request, host: host) }
+          }
         end
 
         def client_host_for(resource)
@@ -284,17 +267,25 @@ module LlmCostTracker
 
         def self.define_blocking_method(mod, method_name, record_method)
           mod.define_method(method_name) do |*args, **kwargs, &block|
-            LlmCostTracker::Integrations::Openai.wrap_blocking_call(
-              args, kwargs, self, record_method: record_method
+            host = LlmCostTracker::Integrations::Openai.client_host_for(self)
+            LlmCostTracker::Integrations::Openai.wrap_blocking(
+              args,
+              kwargs,
+              provider: LlmCostTracker::Integrations::Openai.provider_for_host(host),
+              record: lambda do |response, request, latency_ms|
+                LlmCostTracker::Integrations::Openai.public_send(
+                  record_method, response, request: request, latency_ms: latency_ms, host: host
+                )
+              end
             ) { super(*args, **kwargs, &block) }
           end
         end
 
         def self.define_stream_method(mod, method_name)
           mod.define_method(method_name) do |*args, **kwargs|
-            LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |_collector|
-              super(*args, **kwargs)
-            end
+            LlmCostTracker::Integrations::Openai.wrap_stream(
+              args, kwargs, **LlmCostTracker::Integrations::Openai.stream_seam(self)
+            ) { super(*args, **kwargs) }
           end
         end
       end
@@ -304,7 +295,9 @@ module LlmCostTracker
         include PatchBuilder.build_stream(methods: %i[stream stream_raw])
 
         def retrieve_streaming(response_id, *args, **kwargs)
-          LlmCostTracker::Integrations::Openai.wrap_stream_call(args, kwargs, self) do |collector|
+          LlmCostTracker::Integrations::Openai.wrap_stream(
+            args, kwargs, **LlmCostTracker::Integrations::Openai.stream_seam(self)
+          ) do |collector|
             collector.provider_response_id = response_id
             super(response_id, *args, **kwargs)
           end

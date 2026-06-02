@@ -79,36 +79,35 @@ module LlmCostTracker
         def stream_pricing_mode(request)
           Providers::Anthropic::UsageExtractor.pricing_mode(request: request || {}, usage: nil)
         end
-
-        def wrap_stream_call(args, kwargs)
-          request = request_params(args, kwargs)
-          enforce_budget!(request: request)
-          collector = stream_collector(request)
-          stream = yield
-          track_stream(stream, collector: collector)
-        end
-
-        def wrap_blocking_call(args, kwargs)
-          request = request_params(args, kwargs)
-          enforce_budget!(request: request)
-          started_at = LlmCostTracker::Timing.now_monotonic
-          message = yield
-          record_message(message, request: request, latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at))
-          message
-        end
       end
 
       module MessagesPatch
         def create(*args, **kwargs)
-          LlmCostTracker::Integrations::Anthropic.wrap_blocking_call(args, kwargs) { super }
+          LlmCostTracker::Integrations::Anthropic.wrap_blocking(
+            args,
+            kwargs,
+            record: lambda do |message, request, latency_ms|
+              LlmCostTracker::Integrations::Anthropic.record_message(
+                message, request: request, latency_ms: latency_ms
+              )
+            end
+          ) { super }
         end
 
         def stream(*args, **kwargs)
-          LlmCostTracker::Integrations::Anthropic.wrap_stream_call(args, kwargs) { super }
+          LlmCostTracker::Integrations::Anthropic.wrap_stream(
+            args,
+            kwargs,
+            collector: ->(request) { LlmCostTracker::Integrations::Anthropic.stream_collector(request) }
+          ) { super }
         end
 
         def stream_raw(*args, **kwargs)
-          LlmCostTracker::Integrations::Anthropic.wrap_stream_call(args, kwargs) { super }
+          LlmCostTracker::Integrations::Anthropic.wrap_stream(
+            args,
+            kwargs,
+            collector: ->(request) { LlmCostTracker::Integrations::Anthropic.stream_collector(request) }
+          ) { super }
         end
       end
 

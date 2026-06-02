@@ -176,52 +176,40 @@ module LlmCostTracker
           end
         end
 
-        def wrap_blocking_call(args, kwargs, resource, record_method:, **extras)
-          request = request_params(args, kwargs)
-          enforce_budget!(request: request, provider: resource.slug.to_s)
-          started_at = LlmCostTracker::Timing.now_monotonic
-          response = yield
-          public_send(
-            record_method,
-            resource,
-            response,
-            request: request,
-            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
-            **extras
-          )
-          response
+        def blocking_seam(resource, record_method, **extras)
+          {
+            provider: resource.slug.to_s,
+            record: lambda do |response, request, latency_ms|
+              public_send(record_method, resource, response, request: request, latency_ms: latency_ms, **extras)
+            end
+          }
         end
       end
 
       module ProviderPatch
         def complete(*args, **kwargs, &)
-          LlmCostTracker::Integrations::RubyLlm.wrap_blocking_call(
-            args, kwargs, self, record_method: :record_completion, has_block: block_given?
-          ) { super }
+          seam = LlmCostTracker::Integrations::RubyLlm.blocking_seam(self, :record_completion, has_block: block_given?)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking(args, kwargs, **seam) { super }
         end
 
         def embed(*args, **kwargs)
-          LlmCostTracker::Integrations::RubyLlm.wrap_blocking_call(
-            args, kwargs, self, record_method: :record_embedding
-          ) { super }
+          seam = LlmCostTracker::Integrations::RubyLlm.blocking_seam(self, :record_embedding)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking(args, kwargs, **seam) { super }
         end
 
         def transcribe(*args, **kwargs)
-          LlmCostTracker::Integrations::RubyLlm.wrap_blocking_call(
-            args, kwargs, self, record_method: :record_transcription
-          ) { super }
+          seam = LlmCostTracker::Integrations::RubyLlm.blocking_seam(self, :record_transcription)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking(args, kwargs, **seam) { super }
         end
 
         def paint(*args, **kwargs)
-          LlmCostTracker::Integrations::RubyLlm.wrap_blocking_call(
-            args, kwargs, self, record_method: :record_image
-          ) { super }
+          seam = LlmCostTracker::Integrations::RubyLlm.blocking_seam(self, :record_image)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking(args, kwargs, **seam) { super }
         end
 
         def moderate(*args, **kwargs)
-          LlmCostTracker::Integrations::RubyLlm.wrap_blocking_call(
-            args, kwargs, self, record_method: :record_moderation
-          ) { super }
+          seam = LlmCostTracker::Integrations::RubyLlm.blocking_seam(self, :record_moderation)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking(args, kwargs, **seam) { super }
         end
       end
     end

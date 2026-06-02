@@ -78,6 +78,23 @@ module LlmCostTracker
         kwargs.to_h.with_indifferent_access
       end
 
+      def wrap_blocking(args, kwargs, record:, provider: self.provider)
+        request = request_params(args, kwargs)
+        enforce_budget!(request: request, provider: provider)
+        started_at = LlmCostTracker::Timing.now_monotonic
+        response = yield
+        record.call(response, request, LlmCostTracker::Timing.elapsed_ms(started_at))
+        response
+      end
+
+      def wrap_stream(args, kwargs, collector:, provider: self.provider)
+        request = request_params(args, kwargs)
+        enforce_budget!(request: request, provider: provider)
+        built = collector.call(request)
+        stream = yield(built)
+        track_stream(stream, collector: built)
+      end
+
       def track_stream(stream, collector:)
         return stream unless active?
 
