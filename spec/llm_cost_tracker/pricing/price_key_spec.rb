@@ -21,20 +21,20 @@ RSpec.describe LlmCostTracker::Pricing::PriceKey do
     end
   end
 
-  describe ".dimension_for" do
+  describe ".price_key_for" do
     it "round-trips keys built for token dimensions" do
       LlmCostTracker::Usage::Catalog.token_priced.each do |dimension|
         key = described_class.build(dimension.key, mode: "batch", above_context: true)
-        expect(described_class.dimension_for(key)).to eq(key)
+        expect(described_class.price_key_for(key)).to eq(key)
       end
     end
 
     it "maps a bare dimension key to itself" do
-      expect(described_class.dimension_for("input")).to eq("input")
+      expect(described_class.price_key_for("input")).to eq("input")
     end
 
     it "returns nil for an unknown key" do
-      expect(described_class.dimension_for("totally_unknown")).to be_nil
+      expect(described_class.price_key_for("totally_unknown")).to be_nil
     end
   end
 end

@@ -13,24 +13,6 @@ module LlmCostTracker
       class << self
         def charge_rate(provider:, dimension:, pricing_mode:)
           pricing_mode = Mode.normalize(pricing_mode)
-          match = charge_rate_match(provider: provider, dimension: dimension, pricing_mode: pricing_mode)
-          return nil unless match
-
-          rate = match.fetch(:rate)
-          source = match.fetch(:source)
-          Pricing::Rate.new(
-            amount: rate.fetch(:amount),
-            quantity: rate.fetch(:quantity),
-            currency: rate.fetch(:currency),
-            source: source.name,
-            source_key: match.fetch(:key),
-            source_version: source.version
-          )
-        end
-
-        private
-
-        def charge_rate_match(provider:, dimension:, pricing_mode:)
           provider_name = provider.to_s.presence
           return nil unless provider_name
 
@@ -40,14 +22,19 @@ module LlmCostTracker
             rate = rate_for(provider_rates, dimension_key: dimension_key, pricing_mode: pricing_mode)
             next unless rate
 
-            return {
-              source: source,
-              key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
-              rate: rate
-            }
+            return Pricing::Rate.new(
+              amount: rate.fetch(:amount),
+              quantity: rate.fetch(:quantity),
+              currency: rate.fetch(:currency),
+              source: source.name,
+              source_key: "service_charges.#{provider_name}.#{rate.fetch(:source_key)}",
+              source_version: source.version
+            )
           end
           nil
         end
+
+        private
 
         def rate_for(provider_table, dimension_key:, pricing_mode:)
           dimension_rates = provider_table.fetch(dimension_key, {})

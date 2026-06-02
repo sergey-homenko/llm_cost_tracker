@@ -198,7 +198,7 @@ module LlmCostTracker
         def registry_key_for(key)
           return CONTEXT_THRESHOLD_KEY if key.to_s == CONTEXT_THRESHOLD_KEY
 
-          PriceKey.dimension_for(key)
+          PriceKey.price_key_for(key)
         end
 
         def validate_price_entry(price, model:, context:)

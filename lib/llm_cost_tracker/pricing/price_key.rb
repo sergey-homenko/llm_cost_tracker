@@ -14,7 +14,7 @@ module LlmCostTracker
           above_context ? "#{ABOVE_CONTEXT_PREFIX}#{key}" : key
         end
 
-        def dimension_for(key)
+        def price_key_for(key)
           key = key.to_s
           dimension_key = strip_mode_prefix(key.delete_prefix(ABOVE_CONTEXT_PREFIX))
           dimension = Usage::Catalog[dimension_key]
