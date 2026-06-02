@@ -37,7 +37,7 @@ Normal path from an application LLM call to stored ledger data:
 
 1. Blank model identifiers become `unknown`.
 2. `Event` carries provider identity, model identity, stream metadata, response identity, provider grouping dimensions, `pricing_mode`, and `Usage::TokenUsage`.
-3. `Pricing::Calculation` (built via `Pricing::Calculation.for`) prices token counters with the normalized `pricing_mode`, applies the same rates to token line items, and falls back to `Pricing::Registry.charge_rate` for service line items when the registry has a reliable rate for the captured quantity basis. It exposes the header cost (or `nil` for unknown pricing), the rate snapshot, and the priced line items.
+3. `Pricing::Calculation` (built via `Pricing::Calculation.for`) prices token counters with the normalized `pricing_mode`, applies the same rates to token line items, and falls back to `Pricing::ServiceRates.charge_rate` for service line items when the registry has a reliable rate for the captured quantity basis. It exposes the header cost (or `nil` for unknown pricing), the rate snapshot, and the priced line items.
 4. `Charges::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
 5. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
 6. An `Event` is created around `Usage::TokenUsage` and emitted through `ActiveSupport::Notifications`.
