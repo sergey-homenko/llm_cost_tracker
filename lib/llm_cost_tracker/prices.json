@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-05-31"
+    "updated_at": "2026-06-01"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1502,9 +1502,9 @@
       "output": 0.03
     },
     "openrouter/inclusionai/ring-2.6-1t": {
-      "cache_read_input": 0.015,
-      "input": 0.075,
-      "output": 0.625
+      "cache_read_input": 0.06,
+      "input": 0.3,
+      "output": 2.5
     },
     "openrouter/inflection/inflection-3-pi": {
       "input": 2.5,
@@ -1617,6 +1617,11 @@
     },
     "openrouter/minimax/minimax-m2.7": {
       "input": 0.26,
+      "output": 1.2
+    },
+    "openrouter/minimax/minimax-m3": {
+      "cache_read_input": 0.06,
+      "input": 0.3,
       "output": 1.2
     },
     "openrouter/mistralai/codestral-2508": {
@@ -2386,9 +2391,9 @@
       "output": 0.57
     },
     "openrouter/tencent/hy3-preview": {
-      "cache_read_input": 0.021,
-      "input": 0.063,
-      "output": 0.21
+      "cache_read_input": 0.029,
+      "input": 0.066,
+      "output": 0.26
     },
     "openrouter/thedrummer/cydonia-24b-v4.1": {
       "cache_read_input": 0.15,
@@ -2508,7 +2513,7 @@
     "openrouter/z-ai/glm-5": {
       "cache_read_input": 0.12,
       "input": 0.6,
-      "output": 1.92
+      "output": 2.08
     },
     "openrouter/z-ai/glm-5-turbo": {
       "cache_read_input": 0.24,
