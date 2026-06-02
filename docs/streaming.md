@@ -75,6 +75,13 @@ Captured SDK helpers:
 The returned stream object is preserved. Usage is recorded after the stream is
 consumed.
 
+RubyLLM streaming records token usage and cost but not `provider_response_id`:
+RubyLLM consumes the HTTP body as the stream and does not expose the upstream
+response id on the aggregated message. Blocking RubyLLM calls and the official
+OpenAI/Anthropic SDK streams (which read the raw stream) do capture it — use a
+direct SDK integration when the streamed response id matters for invoice
+cross-reference.
+
 Tags are snapshotted when the stream starts, so delayed or cross-thread
 consumption keeps the original request/user attribution.
 
