@@ -40,7 +40,7 @@ module LlmCostTracker
         end
 
         def decrement!(records)
-          buckets = period_decrement_totals(records)
+          buckets = bucket_totals(records)
           return if buckets.empty?
 
           LlmCostTracker::CallRollup.decrement(buckets)
@@ -49,7 +49,7 @@ module LlmCostTracker
         private
 
         def period_rows_for_events(events)
-          period_increment_totals(events).map do |(period, period_start, currency, provider), total_cost|
+          bucket_totals(events).map do |(period, period_start, currency, provider), total_cost|
             {
               period: period,
               period_start: period_start,
@@ -60,26 +60,15 @@ module LlmCostTracker
           end
         end
 
-        def period_increment_totals(events)
-          events.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |event, totals|
-            currency = currency_from_snapshot(event.pricing_snapshot)
-            provider = event.provider.to_s
-            Period::PERIODS.each do |period|
-              key = [period.to_s, Period.bucket(period, event.tracked_at), currency, provider]
-              totals[key] += event.total_cost.to_d
-            end
-          end
-        end
+        def bucket_totals(entries)
+          entries.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |entry, totals|
+            next unless entry.total_cost
 
-        def period_decrement_totals(records)
-          records.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |record, totals|
-            next unless record.total_cost
-
-            currency = currency_from_snapshot(record.pricing_snapshot)
-            provider = record.provider.to_s
+            currency = currency_from_snapshot(entry.pricing_snapshot)
+            provider = entry.provider.to_s
             Period::PERIODS.each do |period|
-              key = [period.to_s, Period.bucket(period, record.tracked_at), currency, provider]
-              totals[key] += record.total_cost.to_d
+              key = [period.to_s, Period.bucket(period, entry.tracked_at), currency, provider]
+              totals[key] += entry.total_cost.to_d
             end
           end
         end
