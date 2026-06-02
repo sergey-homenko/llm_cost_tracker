@@ -16,7 +16,6 @@ module LlmCostTracker
       CONTEXT_THRESHOLD_KEY = "_context_price_threshold_tokens"
       PRICE_KEYS = Usage::Catalog.token_priced.map(&:key).freeze
       METADATA_KEYS = ["_source", CONTEXT_THRESHOLD_KEY].freeze
-      Match = Data.define(:source, :key, :prices, :matched_by, :currency)
 
       class << self
         def reset!
@@ -115,19 +114,37 @@ module LlmCostTracker
           end
         end
 
-        def lookup(provider:, model:)
-          provider_name = provider.to_s.presence
-          model_name = model.to_s
-          return nil if model_name.empty?
-
-          lookup_match(provider_name: provider_name, model_name: model_name)
-        end
-
         def prices_file_mtime_iso
           path = LlmCostTracker.configuration.prices_file
           return nil unless path && File.exist?(path)
 
           @prices_file_mtime_iso ||= File.mtime(path).utc.iso8601
+        end
+
+        def price_tables
+          @price_tables ||= begin
+            config = LlmCostTracker.configuration
+            [
+              ["pricing_overrides", config.pricing_overrides],
+              ["prices_file", file_prices(config.prices_file)],
+              ["bundled", builtin_prices]
+            ].freeze
+          end
+        end
+
+        def sorted_price_keys(table)
+          keys, @sorted_price_keys_cache =
+            memoize_in(@sorted_price_keys_cache, table, identity: true) { table.keys.sort_by { |key| -key.length } }
+          keys
+        end
+
+        def source_currency(source)
+          raw = case source
+                when "bundled" then metadata["currency"]
+                when "prices_file"
+                  file_metadata(LlmCostTracker.configuration.prices_file)["currency"]
+                end
+          upcased_currency(raw)
         end
 
         private
@@ -323,26 +340,6 @@ module LlmCostTracker
           raise Error, "Unknown billing dimension: #{dimension.inspect}"
         end
 
-        def lookup_match(provider_name:, model_name:)
-          provider_model = provider_name ? "#{provider_name}/#{model_name}" : model_name
-          normalized = normalize_model_name(model_name)
-
-          first_match(price_tables) do |table, source|
-            match_in_table(table, source, provider_model, model_name, normalized)
-          end
-        end
-
-        def price_tables
-          @price_tables ||= begin
-            config = LlmCostTracker.configuration
-            [
-              ["pricing_overrides", config.pricing_overrides],
-              ["prices_file", file_prices(config.prices_file)],
-              ["bundled", builtin_prices]
-            ].freeze
-          end
-        end
-
         def first_match(sources)
           sources.each do |source, table|
             result = yield(table, source)
@@ -351,76 +348,8 @@ module LlmCostTracker
           nil
         end
 
-        def match_in_table(table, source, provider_model, model_name, normalized)
-          return nil if table.empty?
-
-          [[provider_model, :provider_model], [model_name, :model], [normalized, :normalized_model]].each do |key, by|
-            return build_match(table, source, key, by) if table.key?(key)
-          end
-
-          scan = native_keys(table)
-          if (key = unique_in(scan) { |native| normalize_model_name(native) == normalized })
-            return build_match(table, source, key, :unique_providerless_model)
-          end
-
-          dated = scan.find do |native|
-            snapshot_variant?(provider_model, native) || snapshot_variant?(normalized, native)
-          end
-          return build_match(table, source, dated, :dated_snapshot) if dated
-
-          unique_dated = unique_in(scan) { |native| snapshot_variant?(normalized, normalize_model_name(native)) }
-          return build_match(table, source, unique_dated, :unique_providerless_dated_snapshot) if unique_dated
-
-          nil
-        end
-
-        def unique_in(keys, &)
-          matches = keys.select(&)
-          matches.first if matches.one?
-        end
-
-        def normalize_model_name(model)
-          model.to_s.split("/").last
-        end
-
-        def native_keys(table)
-          sorted_price_keys(table).reject { |key| key.count("/") > 1 }
-        end
-
-        def build_match(table, source, key, matched_by)
-          Match.new(
-            source: source,
-            key: key,
-            prices: table[key],
-            matched_by: matched_by,
-            currency: source_currency(source)
-          )
-        end
-
         def upcased_currency(value)
           (value || LlmCostTracker::DEFAULT_CURRENCY).upcase
-        end
-
-        def source_currency(source)
-          raw = case source
-                when "bundled" then metadata["currency"]
-                when "prices_file"
-                  file_metadata(LlmCostTracker.configuration.prices_file)["currency"]
-                end
-          upcased_currency(raw)
-        end
-
-        def snapshot_variant?(model, key)
-          suffix = model.delete_prefix("#{key}-")
-          return false if suffix == model
-
-          suffix.match?(/\A(?:\d{4}-\d{2}-\d{2}|\d{8}|(?:preview|exp)-\d{2}-\d{2})\z/)
-        end
-
-        def sorted_price_keys(table)
-          keys, @sorted_price_keys_cache =
-            memoize_in(@sorted_price_keys_cache, table, identity: true) { table.keys.sort_by { |key| -key.length } }
-          keys
         end
       end
     end
