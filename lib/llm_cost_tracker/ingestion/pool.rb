@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/module/delegation"
+
 module LlmCostTracker
   module Ingestion
     module Pool
@@ -7,9 +9,7 @@ module LlmCostTracker
       MUTEX = Mutex.new
 
       class << self
-        def with_connection(&)
-          pool.with_connection(&)
-        end
+        delegate :with_connection, to: :pool
 
         def pool
           @pool || MUTEX.synchronize { @pool ||= connect! }
