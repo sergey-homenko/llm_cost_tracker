@@ -59,7 +59,9 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       described_class.increment!([build_event(total_cost: 5.0, currency: "USD", tracked_at: time)])
       described_class.increment!([build_event(total_cost: 3.0, currency: "EUR", tracked_at: time)])
 
-      described_class.decrement!([[1, time, BigDecimal("3.0"), { "currency" => "EUR" }, "openai"]])
+      record = Struct.new(:tracked_at, :total_cost, :pricing_snapshot, :provider)
+                     .new(time, BigDecimal("3.0"), { "currency" => "EUR" }, "openai")
+      described_class.decrement!([record])
 
       remaining = LlmCostTracker::CallRollup.where(period: "month").order(:currency).pluck(:currency, :total_cost)
       expect(remaining).to eq([["EUR", 0.0], ["USD", 5.0]])

@@ -8,8 +8,6 @@ require_relative "rollups/upsert_sql"
 module LlmCostTracker
   module Ledger
     class Rollups
-      DECREMENT_COLUMNS = %i[id tracked_at total_cost pricing_snapshot provider].freeze
-
       class << self
         def increment!(events)
           events = Array(events).select(&:total_cost)
@@ -42,11 +40,11 @@ module LlmCostTracker
           end
         end
 
-        def decrement!(call_rows)
-          totals = period_decrement_totals(call_rows)
-          return if totals.empty?
+        def decrement!(records)
+          buckets = period_decrement_totals(records)
+          return if buckets.empty?
 
-          apply_decrements(totals)
+          LlmCostTracker::CallRollup.decrement(buckets)
         end
 
         private
@@ -74,51 +72,16 @@ module LlmCostTracker
           end
         end
 
-        def period_decrement_totals(call_rows)
-          call_rows.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |columns, totals|
-            row = DECREMENT_COLUMNS.zip(columns).to_h
-            next unless row[:total_cost]
+        def period_decrement_totals(records)
+          records.each_with_object(Hash.new { |totals, key| totals[key] = BigDecimal("0") }) do |record, totals|
+            next unless record.total_cost
 
-            currency = currency_from_snapshot(row[:pricing_snapshot])
-            provider_key = row[:provider].to_s
+            currency = currency_from_snapshot(record.pricing_snapshot)
+            provider = record.provider.to_s
             Period::PERIODS.each do |period|
-              totals[[period, Period.bucket(period, row[:tracked_at]), currency, provider_key]] += row[:total_cost]
+              key = [period.to_s, Period.bucket(period, record.tracked_at), currency, provider]
+              totals[key] += record.total_cost.to_d
             end
-          end
-        end
-
-        def apply_decrements(totals)
-          now = Time.now.utc
-          buckets_by_period = totals.each_with_object({}) do |(key, amount), grouped|
-            period, period_start, currency, provider = key
-            grouped[[period, currency, provider]] ||= {}
-            grouped[[period, currency, provider]][period_start] = amount
-          end
-
-          conn = LlmCostTracker::CallRollup.connection
-          table = LlmCostTracker::CallRollup.quoted_table_name
-          period_col = conn.quote_column_name("period")
-          start_col = conn.quote_column_name("period_start")
-          currency_col = conn.quote_column_name("currency")
-          provider_col = conn.quote_column_name("provider")
-          total_col = conn.quote_column_name("total_cost")
-          updated_col = conn.quote_column_name("updated_at")
-
-          buckets_by_period.each do |(period, currency, provider), by_start|
-            case_clauses = by_start.map do |period_start, amount|
-              "WHEN #{start_col} = #{conn.quote(period_start)} THEN #{conn.quote(amount)}"
-            end.join(" ")
-            starts = by_start.keys.map { |period_start| conn.quote(period_start) }.join(", ")
-
-            conn.execute(
-              "UPDATE #{table} " \
-              "SET #{total_col} = GREATEST(0, #{total_col} - CASE #{case_clauses} ELSE 0 END), " \
-              "#{updated_col} = #{conn.quote(now)} " \
-              "WHERE #{period_col} = #{conn.quote(period.to_s)} " \
-              "AND #{currency_col} = #{conn.quote(currency)} " \
-              "AND #{provider_col} = #{conn.quote(provider)} " \
-              "AND #{start_col} IN (#{starts})"
-            )
           end
         end
 
