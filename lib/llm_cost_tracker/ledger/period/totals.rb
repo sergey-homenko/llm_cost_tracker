@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "bigdecimal"
+require "bigdecimal/util"
 
 require_relative "../period"
 
@@ -23,7 +23,7 @@ module LlmCostTracker
           values = periods.to_h { |period| [period, BigDecimal("0")] }
           period_by_name = periods.to_h { |period| [period.to_s, period] }
           LlmCostTracker::Call.find_by_sql(union_sql).each do |row|
-            values[period_by_name.fetch(row.period_key)] = BigDecimal(row.total_cost.to_s)
+            values[period_by_name.fetch(row.period_key)] = row.total_cost.to_d
           end
           values
         end
