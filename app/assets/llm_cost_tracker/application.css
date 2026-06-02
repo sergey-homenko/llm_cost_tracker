@@ -27,7 +27,6 @@
     --lct-danger-copy: #b91c1c;
     --lct-danger-strong: #991b1b;
     --lct-row-hover: #f8fafc;
-    --lct-th-bg: #e6ebf2;
     --lct-toolbar-bg: rgba(255, 255, 255, 0.92);
     --lct-toolbar-border: #e3e8ef;
     --lct-chart-secondary: rgba(13, 27, 42, 0.42);
@@ -103,7 +102,6 @@
       --lct-danger-copy: #f85149;
       --lct-danger-strong: #fecaca;
       --lct-row-hover: #1c2229;
-      --lct-th-bg: #1c2229;
       --lct-toolbar-bg: rgba(22, 27, 34, 0.92);
       --lct-toolbar-border: #2a313c;
       --lct-shadow: 0 1px 2px rgba(0, 0, 0, 0.30);
@@ -146,7 +144,6 @@
     --lct-danger-copy: #f85149;
     --lct-danger-strong: #fecaca;
     --lct-row-hover: #1c2229;
-    --lct-th-bg: #1c2229;
     --lct-toolbar-bg: rgba(22, 27, 34, 0.92);
     --lct-toolbar-border: #2a313c;
     --lct-shadow: 0 1px 2px rgba(0, 0, 0, 0.30);
@@ -626,8 +623,7 @@
     color: var(--lct-muted);
     text-align: left;
     padding: 9px var(--sp-4);
-    border-bottom: 1px solid var(--lct-border);
-    background: var(--lct-th-bg);
+    border-bottom: 1px solid var(--lct-border-strong);
     white-space: nowrap;
   }
   .lct-tbl td {
