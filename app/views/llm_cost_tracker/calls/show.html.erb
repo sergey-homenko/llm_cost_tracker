@@ -80,22 +80,30 @@ end %>
         <dd><code class="lct-code-id"><%= @call.usage_source %></code></dd>
       </div>
     <% end %>
-    <div class="lct-meta-strip-item">
-      <dt>Response ID</dt>
-      <dd><%= @call.provider_response_id.present? ? content_tag(:code, @call.provider_response_id, class: "lct-code-id") : "n/a" %></dd>
-    </div>
-    <div class="lct-meta-strip-item">
-      <dt>Project ID</dt>
-      <dd><%= @call.provider_project_id.present? ? content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_project_id, @call.provider_project_id), class: "lct-code-id") : "n/a" %></dd>
-    </div>
-    <div class="lct-meta-strip-item">
-      <dt>API Key ID</dt>
-      <dd><%= @call.provider_api_key_id.present? ? content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_api_key_id, @call.provider_api_key_id), class: "lct-code-id") : "n/a" %></dd>
-    </div>
-    <div class="lct-meta-strip-item">
-      <dt>Workspace ID</dt>
-      <dd><%= @call.provider_workspace_id.present? ? content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_workspace_id, @call.provider_workspace_id), class: "lct-code-id") : "n/a" %></dd>
-    </div>
+    <% if @call.provider_response_id.present? %>
+      <div class="lct-meta-strip-item">
+        <dt>Response ID</dt>
+        <dd><%= content_tag(:code, @call.provider_response_id, class: "lct-code-id") %></dd>
+      </div>
+    <% end %>
+    <% if @call.provider_project_id.present? %>
+      <div class="lct-meta-strip-item">
+        <dt>Project ID</dt>
+        <dd><%= content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_project_id, @call.provider_project_id), class: "lct-code-id") %></dd>
+      </div>
+    <% end %>
+    <% if @call.provider_api_key_id.present? %>
+      <div class="lct-meta-strip-item">
+        <dt>API Key ID</dt>
+        <dd><%= content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_api_key_id, @call.provider_api_key_id), class: "lct-code-id") %></dd>
+      </div>
+    <% end %>
+    <% if @call.provider_workspace_id.present? %>
+      <div class="lct-meta-strip-item">
+        <dt>Workspace ID</dt>
+        <dd><%= content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_workspace_id, @call.provider_workspace_id), class: "lct-code-id") %></dd>
+      </div>
+    <% end %>
   </dl>
 </section>
 
