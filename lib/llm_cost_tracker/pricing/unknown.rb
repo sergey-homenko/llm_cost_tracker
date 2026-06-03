@@ -4,7 +4,7 @@ require_relative "../logging"
 
 module LlmCostTracker
   module Pricing
-    class Unknown
+    module Unknown
       MUTEX = Mutex.new
       WARN_CACHE_LIMIT = 1024
 

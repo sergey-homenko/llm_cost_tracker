@@ -4,7 +4,7 @@ require_relative "report/data"
 require_relative "report/formatter"
 
 module LlmCostTracker
-  class Report
+  module Report
     class << self
       def generate(days: Data::DEFAULT_DAYS, now: Time.now.utc, tag_breakdowns: nil)
         report_data = Data.build(

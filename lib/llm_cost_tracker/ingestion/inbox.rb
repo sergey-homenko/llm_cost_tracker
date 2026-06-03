@@ -9,7 +9,7 @@ require_relative "../pricing"
 
 module LlmCostTracker
   module Ingestion
-    class Inbox
+    module Inbox
       PAYLOAD_SCHEMA_VERSION = 2
 
       class << self

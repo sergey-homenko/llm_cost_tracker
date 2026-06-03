@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module LlmCostTracker
-  class Report
+  module Report
     class Formatter
       TOP_LIMIT = 5
       MIN_COLUMN_WIDTH = 28

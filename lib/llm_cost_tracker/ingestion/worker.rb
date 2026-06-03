@@ -9,7 +9,7 @@ require_relative "lease_claim"
 
 module LlmCostTracker
   module Ingestion
-    class Worker
+    module Worker
       INTERVAL_SECONDS = 0.25
       IDLE_INTERVAL_SECONDS = 1.0
       MAX_IDLE_INTERVAL_SECONDS = 5.0

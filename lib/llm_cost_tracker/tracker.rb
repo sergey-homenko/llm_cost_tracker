@@ -9,7 +9,7 @@ require_relative "ledger"
 require_relative "pricing"
 
 module LlmCostTracker
-  class Tracker
+  module Tracker
     EVENT_NAME = "llm_request.llm_cost_tracker"
 
     class << self

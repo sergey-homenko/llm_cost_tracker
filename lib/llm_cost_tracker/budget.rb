@@ -6,7 +6,7 @@ require_relative "ledger"
 require_relative "pricing/estimator"
 
 module LlmCostTracker
-  class Budget
+  module Budget
     BUDGET_TYPE_TO_PERIOD = { monthly: :month, daily: :day }.freeze
 
     class << self

@@ -7,7 +7,7 @@ require_relative "../usage/token_usage"
 
 module LlmCostTracker
   module Pricing
-    class Backfill
+    module Backfill
       Result = Data.define(:examined, :recomputed, :still_unknown)
       RollupEvent = Data.define(:provider, :tracked_at, :pricing_snapshot, :total_cost)
 

@@ -6,7 +6,7 @@ require_relative "../charges/cost_status"
 require_relative "../ledger"
 
 module LlmCostTracker
-  class Report
+  module Report
     Data = ::Data.define(
       :days,
       :from_time,
