@@ -6,14 +6,15 @@ require "securerandom"
 require_relative "errors"
 require_relative "check"
 require_relative "ledger"
-require_relative "ingestion/lease_claim"
-require_relative "ingestion/pool"
-require_relative "ingestion/inbox"
-require_relative "ingestion/batch"
-require_relative "ingestion/worker"
 
 module LlmCostTracker
   module Ingestion
+    autoload :LeaseClaim, "llm_cost_tracker/ingestion/lease_claim"
+    autoload :Pool, "llm_cost_tracker/ingestion/pool"
+    autoload :Inbox, "llm_cost_tracker/ingestion/inbox"
+    autoload :Batch, "llm_cost_tracker/ingestion/batch"
+    autoload :Worker, "llm_cost_tracker/ingestion/worker"
+
     VERIFY_TAG = "llm_cost_tracker_verify"
 
     class << self

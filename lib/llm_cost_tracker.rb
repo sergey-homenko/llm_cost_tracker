@@ -25,7 +25,6 @@ require_relative "llm_cost_tracker/parsers"
 require_relative "llm_cost_tracker/middleware/faraday"
 require_relative "llm_cost_tracker/integrations"
 require_relative "llm_cost_tracker/budget"
-require_relative "llm_cost_tracker/pricing/unknown"
 require_relative "llm_cost_tracker/ledger"
 require_relative "llm_cost_tracker/ingestion"
 require_relative "llm_cost_tracker/tracker"
@@ -39,6 +38,7 @@ module LlmCostTracker
 
   module Pricing
     autoload :Sync, "llm_cost_tracker/pricing/sync"
+    autoload :Unknown, "llm_cost_tracker/pricing/unknown"
   end
 
   @configuration = Configuration.new
@@ -137,4 +137,4 @@ Faraday::Middleware.register_middleware(
   llm_cost_tracker: LlmCostTracker::Middleware::Faraday
 )
 
-at_exit { LlmCostTracker::Ingestion::Worker.shutdown!(drain: false) }
+at_exit { LlmCostTracker::Ingestion::Worker.shutdown!(drain: false) if LlmCostTracker::Ingestion.async? }
