@@ -31,11 +31,11 @@ require_relative "llm_cost_tracker/ingestion"
 require_relative "llm_cost_tracker/tracker"
 
 module LlmCostTracker
-  autoload :Engine,          "llm_cost_tracker/engine"
-  autoload :Doctor,          "llm_cost_tracker/doctor"
+  autoload :Engine, "llm_cost_tracker/engine"
+  autoload :Doctor, "llm_cost_tracker/doctor"
   autoload :CaptureVerifier, "llm_cost_tracker/capture_verifier"
-  autoload :Report,          "llm_cost_tracker/report"
-  autoload :Retention,       "llm_cost_tracker/retention"
+  autoload :Report, "llm_cost_tracker/report"
+  autoload :Retention, "llm_cost_tracker/retention"
 
   module Pricing
     autoload :Sync, "llm_cost_tracker/pricing/sync"
