@@ -110,4 +110,65 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       expect(totals[:month]).to be_within(0.0001).of(100.0)
     end
   end
+
+  describe ".rebuild!" do
+    def seed_call(total_cost:, provider: "openai", currency: "USD", tracked_at: Time.utc(2026, 5, 7, 12))
+      LlmCostTracker::Call.create!(
+        event_id: SecureRandom.uuid, provider: provider, model: "gpt-4o",
+        input_tokens: 0, output_tokens: 0, total_tokens: 0,
+        total_cost: total_cost,
+        cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
+        pricing_snapshot: { "currency" => currency },
+        tracked_at: tracked_at
+      )
+    end
+
+    it "reprojects rollup totals from the calls ledger per period, currency, and provider" do
+      seed_call(total_cost: 1.5, currency: "USD")
+      seed_call(total_cost: 2.0, currency: "USD")
+      seed_call(total_cost: 3.0, currency: "EUR")
+      seed_call(total_cost: 0.5, provider: "anthropic", currency: "USD")
+
+      rows_written = described_class.rebuild!
+
+      expect(LlmCostTracker::CallRollup.find_by(period: "month", provider: "openai", currency: "USD").total_cost).to eq(3.5)
+      expect(LlmCostTracker::CallRollup.find_by(period: "month", provider: "openai", currency: "EUR").total_cost).to eq(3.0)
+      expect(LlmCostTracker::CallRollup.find_by(period: "month", provider: "anthropic", currency: "USD").total_cost).to eq(0.5)
+      expect(rows_written).to eq(LlmCostTracker::CallRollup.count)
+    end
+
+    it "produces the same rows incremental increment! would have written" do
+      time = Time.utc(2026, 5, 7, 12)
+      described_class.increment!([
+                                   build_event(total_cost: 1.5, currency: "USD", tracked_at: time),
+                                   build_event(total_cost: 2.0, currency: "EUR", tracked_at: time)
+                                 ])
+      incremental = LlmCostTracker::CallRollup.order(:period, :currency).pluck(:period, :period_start, :currency, :provider, :total_cost)
+
+      LlmCostTracker::CallRollup.delete_all
+      seed_call(total_cost: 1.5, currency: "USD", tracked_at: time)
+      seed_call(total_cost: 2.0, currency: "EUR", tracked_at: time)
+      described_class.rebuild!
+
+      rebuilt = LlmCostTracker::CallRollup.order(:period, :currency).pluck(:period, :period_start, :currency, :provider, :total_cost)
+      expect(rebuilt).to eq(incremental)
+    end
+
+    it "resyncs drifted rollup totals back to the ledger truth" do
+      seed_call(total_cost: 4.0, currency: "USD")
+      described_class.rebuild!
+      LlmCostTracker::CallRollup.update_all(total_cost: 999.0)
+
+      described_class.rebuild!
+
+      expect(LlmCostTracker::CallRollup.where(total_cost: 999.0)).to be_empty
+      expect(LlmCostTracker::CallRollup.find_by(period: "month").total_cost).to eq(4.0)
+    end
+
+    it "writes no rollup rows when no call has a cost" do
+      seed_call(total_cost: nil)
+      expect(described_class.rebuild!).to eq(0)
+      expect(LlmCostTracker::CallRollup.count).to eq(0)
+    end
+  end
 end

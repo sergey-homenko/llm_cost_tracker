@@ -17,7 +17,8 @@ module LlmCostTracker
 
         ROLLUP_INCREMENT_ATTEMPTS = 3
         ROLLUP_INCREMENT_BASE_DELAY_SECONDS = 0.05
-        private_constant :ROLLUP_INCREMENT_ATTEMPTS, :ROLLUP_INCREMENT_BASE_DELAY_SECONDS
+        REBUILD_INSERT_SLICE = 1_000
+        private_constant :ROLLUP_INCREMENT_ATTEMPTS, :ROLLUP_INCREMENT_BASE_DELAY_SECONDS, :REBUILD_INSERT_SLICE
 
         def increment_safely!(events)
           attempt = 0
@@ -46,10 +47,38 @@ module LlmCostTracker
           LlmCostTracker::CallRollup.decrement(buckets)
         end
 
+        def rebuild!
+          accumulated = accumulate_priced_calls
+          LlmCostTracker::CallRollup.transaction do
+            LlmCostTracker::CallRollup.delete_all
+            rows_from_buckets(accumulated).each_slice(REBUILD_INSERT_SLICE) do |rows|
+              LlmCostTracker::CallRollup.increment_all(rows)
+            end
+          end
+          accumulated.size
+        end
+
         private
 
+        def accumulate_priced_calls
+          accumulated = Hash.new { |totals, key| totals[key] = BigDecimal("0") }
+          priced_calls.in_batches do |batch|
+            bucket_totals(batch).each { |key, total| accumulated[key] += total }
+          end
+          accumulated
+        end
+
+        def priced_calls
+          LlmCostTracker::Call.where.not(total_cost: nil)
+                              .select(:id, :total_cost, :pricing_snapshot, :provider, :tracked_at)
+        end
+
         def period_rows_for_events(events)
-          bucket_totals(events).map do |(period, period_start, currency, provider), total_cost|
+          rows_from_buckets(bucket_totals(events))
+        end
+
+        def rows_from_buckets(buckets)
+          buckets.map do |(period, period_start, currency, provider), total_cost|
             {
               period: period,
               period_start: period_start,

@@ -66,6 +66,15 @@ namespace :llm_cost_tracker do
     puts "llm_cost_tracker: pruned #{inbox_pruned} inbox entries older than #{days} days"
   end
 
+  desc "Rebuild llm_cost_tracker_call_rollups from the calls ledger (resync the rollup cache)"
+  task rebuild_rollups: :environment do
+    unless LlmCostTracker::CallRollup.table_exists?
+      abort("llm_cost_tracker: rollups table missing; run the call_rollups generator and migrate first")
+    end
+    rows = LlmCostTracker::Ledger::Rollups.rebuild!
+    puts "llm_cost_tracker: rebuilt #{rows} rollup rows from the calls ledger"
+  end
+
   namespace :prices do
     desc(
       "Refresh the configured pricing file from the maintained LLM Cost Tracker price snapshot. " \
