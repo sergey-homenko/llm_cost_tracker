@@ -160,7 +160,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
           usage: {
             input_tokens: 200,
             output_tokens: 80,
-            speed: "fast",
             inference_geo: "us"
           }
         }.to_json
@@ -341,7 +340,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
       expect(result.pricing_mode).to eq("batch")
     end
 
-    it "captures stream usage speed and inference geo pricing modes" do
+    it "combines request speed with stream inference_geo into fast_data_residency" do
       events = [
         { event: "message_start", data: {
           "type" => "message_start",
@@ -351,7 +350,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
             "usage" => {
               "input_tokens" => 120,
               "output_tokens" => 1,
-              "speed" => "fast",
               "inference_geo" => "us"
             }
           }
@@ -364,7 +362,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
 
       result = parser.parse_stream(
         request_url: anthropic_messages_url,
-        request_body: request_body,
+        request_body: { model: "claude-opus-4-6", stream: true, speed: "fast" }.to_json,
         response_status: 200,
         events: events
       )

@@ -8,7 +8,6 @@
   "usage": {
     "input_tokens": 100,
     "output_tokens": 30,
-    "speed": "fast",
     "inference_geo": "us"
   }
 }

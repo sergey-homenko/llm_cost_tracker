@@ -46,7 +46,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::UsageExtractor do
     end
 
     it "combines speed and inference_geo into fast_data_residency" do
-      expect(described_class.pricing_mode(request: {}, usage: { input_tokens: 1, output_tokens: 1, speed: "fast", inference_geo: "us" })).to eq("fast_data_residency")
+      expect(described_class.pricing_mode(request: { speed: "fast" }, usage: { input_tokens: 1, output_tokens: 1, inference_geo: "us" })).to eq("fast_data_residency")
     end
 
     it "matches the inference_geo uplift case-insensitively" do
