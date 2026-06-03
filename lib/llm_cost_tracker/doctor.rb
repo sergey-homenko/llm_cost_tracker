@@ -9,8 +9,6 @@ require_relative "doctor/schema_check"
 
 module LlmCostTracker
   class Doctor
-    autoload :CaptureVerifier,            "llm_cost_tracker/doctor/capture_verifier"
-
     STATUS_GLYPHS = { ok: "✓", warn: "!", error: "x" }.freeze
     STATUS_COLORS = { ok: 32, warn: 33, error: 31 }.freeze
 

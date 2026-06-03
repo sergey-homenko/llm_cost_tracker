@@ -35,11 +35,9 @@ namespace :llm_cost_tracker do
   task :verify_capture do
     Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
     require_relative "../llm_cost_tracker"
-    checks = LlmCostTracker::Doctor::CaptureVerifier.call
-    puts LlmCostTracker::Doctor::CaptureVerifier.report(checks)
-    unless LlmCostTracker::Doctor::CaptureVerifier.healthy?(checks)
-      abort("llm_cost_tracker: capture verification failed")
-    end
+    checks = LlmCostTracker::CaptureVerifier.call
+    puts LlmCostTracker::CaptureVerifier.report(checks)
+    abort("llm_cost_tracker: capture verification failed") unless LlmCostTracker::CaptureVerifier.healthy?(checks)
   end
 
   desc "Print an LLM cost report from ActiveRecord storage"

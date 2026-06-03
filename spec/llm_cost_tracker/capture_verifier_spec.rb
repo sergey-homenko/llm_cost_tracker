@@ -5,9 +5,9 @@ require "openai"
 
 ENV["RAILS_ENV"] ||= "test"
 
-require_relative "../../dummy/config/environment"
+require_relative "../dummy/config/environment"
 
-RSpec.describe LlmCostTracker::Doctor::CaptureVerifier do
+RSpec.describe LlmCostTracker::CaptureVerifier do
   before do
     establish_database_connection!
   end

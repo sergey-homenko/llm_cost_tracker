@@ -1,0 +1,59 @@
+# frozen_string_literal: true
+
+require_relative "check"
+require_relative "ingestion"
+
+module LlmCostTracker
+  class CaptureVerifier
+    class << self
+      def call
+        new.checks
+      end
+
+      def report(checks = call)
+        (["LLM Cost Tracker capture verification"] + checks.map do |check|
+          "[#{check.status}] #{check.name}: #{check.message}"
+        end).join("\n")
+      end
+
+      def healthy?(checks = call)
+        checks.none? { |check| check.status == :error }
+      end
+    end
+
+    def checks
+      [
+        enabled_check,
+        *integration_checks,
+        *storage_checks
+      ].compact
+    end
+
+    private
+
+    def enabled_check
+      return Check.new(:ok, "tracking", "enabled") if LlmCostTracker.configuration.enabled
+
+      Check.new(:error, "tracking", "disabled; set config.enabled = true before verifying capture")
+    end
+
+    def integration_checks
+      enabled = LlmCostTracker.configuration.instrumented_integrations
+      if enabled.empty?
+        return [
+          Check.new(:ok, "sdk integrations", "none enabled; Faraday middleware and manual capture remain available")
+        ]
+      end
+
+      LlmCostTracker::Integrations.checks.map do |check|
+        check.with(name: "sdk integration #{check.name}")
+      end
+    end
+
+    def storage_checks
+      LlmCostTracker::Ingestion.verify
+    rescue LlmCostTracker::Error => e
+      [Check.new(:error, "storage", e.message)]
+    end
+  end
+end
