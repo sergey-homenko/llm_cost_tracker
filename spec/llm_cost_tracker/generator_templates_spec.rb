@@ -150,6 +150,19 @@ RSpec.describe "generator templates" do
     end
   end
 
+  it "writes nothing under --pretend, including the prices snapshot" do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "config"))
+      File.write(File.join(dir, "config/application.rb"), %(require "rails/all"\n))
+      File.write(File.join(dir, "config/routes.rb"), "Rails.application.routes.draw do\nend\n")
+
+      LlmCostTracker::Generators::InstallGenerator.start(["--prices", "--pretend"], destination_root: dir)
+
+      expect(File).not_to exist(File.join(dir, "config/llm_cost_tracker_prices.yml"))
+      expect(Dir[File.join(dir, "db/migrate/*create_llm_cost_tracker_calls.rb")]).to be_empty
+    end
+  end
+
   it "does not auto-mount the dashboard route (auth is host app's responsibility)" do
     Dir.mktmpdir do |dir|
       FileUtils.mkdir_p(File.join(dir, "config"))

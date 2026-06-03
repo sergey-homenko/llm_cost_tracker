@@ -13,14 +13,18 @@ module LlmCostTracker
         MANUAL_SOURCE = "manual"
 
         def call(path:, registry:)
+          payload = render(path: path, registry: registry)
           FileUtils.mkdir_p(File.dirname(path))
-          merged = canonicalize(merge_with_existing(path: path, registry: registry))
-          payload = yaml_file?(path) ? YAML.dump(merged) : "#{JSON.pretty_generate(merged)}\n"
           temp_path = "#{path}.tmp-#{Process.pid}-#{Thread.current.object_id}"
           File.write(temp_path, payload)
           File.rename(temp_path, path)
         ensure
           FileUtils.rm_f(temp_path) if temp_path && File.exist?(temp_path)
+        end
+
+        def render(path:, registry:)
+          merged = canonicalize(merge_with_existing(path: path, registry: registry))
+          yaml_file?(path) ? YAML.dump(merged) : "#{JSON.pretty_generate(merged)}\n"
         end
 
         private

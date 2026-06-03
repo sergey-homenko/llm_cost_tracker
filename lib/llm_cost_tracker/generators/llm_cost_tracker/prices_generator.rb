@@ -11,11 +11,14 @@ module LlmCostTracker
     class PricesGenerator < Rails::Generators::Base
       desc "Creates a local LLM Cost Tracker price snapshot"
 
+      PRICES_PATH = "config/llm_cost_tracker_prices.yml"
+
       def create_prices_file
-        LlmCostTracker::Pricing::Sync::RegistryWriter.new.call(
-          path: File.join(destination_root, "config/llm_cost_tracker_prices.yml"),
+        payload = LlmCostTracker::Pricing::Sync::RegistryWriter.new.render(
+          path: File.join(destination_root, PRICES_PATH),
           registry: YAML.safe_load_file(LlmCostTracker::Pricing::Registry::DEFAULT_PRICES_PATH, aliases: false) || {}
         )
+        create_file(PRICES_PATH, payload)
       end
     end
   end
