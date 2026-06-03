@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../capture/usage_source"
+require_relative "../usage_source"
 
 module LlmCostTracker
   module Charges
@@ -23,7 +23,7 @@ module LlmCostTracker
                     service_line_items:,
                     total_cost:,
                     token_pricing_partial: false)
-        return UNKNOWN if usage_source == Capture::UsageSource::UNKNOWN
+        return UNKNOWN if usage_source == UsageSource::UNKNOWN
 
         token_billable = token_usage.priced_quantities.any? { |_key, quantity| quantity.positive? }
         service_billable = false

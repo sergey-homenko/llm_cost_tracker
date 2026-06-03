@@ -36,7 +36,7 @@ module LlmCostTracker
           build_event(
             request_url: request_url,
             usage: usage,
-            usage_source: Capture::UsageSource::RESPONSE,
+            usage_source: UsageSource::RESPONSE,
             provider_response_id: response["responseId"],
             pricing_mode: pricing_mode(request: request, usage: usage, response_headers: response_headers),
             service_line_items: grounding_line_items(grounding_request_count(response["candidates"]), model: model)
@@ -58,7 +58,7 @@ module LlmCostTracker
               request_url: request_url,
               usage: usage,
               stream: true,
-              usage_source: Capture::UsageSource::STREAM_FINAL,
+              usage_source: UsageSource::STREAM_FINAL,
               provider_response_id: response_id,
               pricing_mode: mode,
               service_line_items: service_line_items

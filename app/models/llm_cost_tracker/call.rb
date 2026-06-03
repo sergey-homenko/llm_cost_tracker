@@ -20,7 +20,7 @@ module LlmCostTracker
     scope :missing_provider_response_id, -> { where(provider_response_id: [nil, ""]) }
     scope :streaming_missing_usage,
           lambda {
-            where(stream: true).where(usage_source: [Capture::UsageSource::UNKNOWN, nil])
+            where(stream: true).where(usage_source: [UsageSource::UNKNOWN, nil])
           }
 
     has_many :line_items,

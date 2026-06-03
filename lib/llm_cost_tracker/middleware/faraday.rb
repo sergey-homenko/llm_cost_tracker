@@ -119,7 +119,7 @@ module LlmCostTracker
           model: request["model"] || Event::UNKNOWN_MODEL,
           token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
-          usage_source: Capture::UsageSource::UNKNOWN
+          usage_source: UsageSource::UNKNOWN
         )
         merged_metadata = (metadata || {}).merge(
           stream_interrupted: true,
@@ -292,7 +292,7 @@ module LlmCostTracker
       end
 
       def capture_warning(request_url, stream_buffer)
-        suffix = "recording usage_source=#{Capture::UsageSource::UNKNOWN}. " \
+        suffix = "recording usage_source=#{UsageSource::UNKNOWN}. " \
                  "Use LlmCostTracker.track_stream for manual capture."
         label = request_url_label(request_url)
         return "Unable to capture streaming response for #{label}; #{suffix}" unless stream_buffer&.dig(:overflowed)

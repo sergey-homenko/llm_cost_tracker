@@ -36,7 +36,7 @@ module LlmCostTracker
                 model: message.model || request[:model],
                 pricing_mode: Providers::Anthropic::UsageExtractor.pricing_mode(request: request, usage: usage_hash),
                 token_usage: Providers::Anthropic::UsageExtractor.token_usage(usage_hash),
-                usage_source: Capture::UsageSource::SDK_RESPONSE,
+                usage_source: UsageSource::SDK_RESPONSE,
                 provider_response_id: message.id,
                 service_line_items: Providers::Anthropic::UsageExtractor.service_line_items(usage_hash)
               ),
@@ -68,7 +68,7 @@ module LlmCostTracker
                 model: message.model,
                 pricing_mode: "batch",
                 token_usage: Providers::Anthropic::UsageExtractor.token_usage(usage_hash),
-                usage_source: Capture::UsageSource::SDK_BATCH_RESULT,
+                usage_source: UsageSource::SDK_BATCH_RESULT,
                 provider_response_id: message.id,
                 service_line_items: Providers::Anthropic::UsageExtractor.service_line_items(usage_hash)
               )

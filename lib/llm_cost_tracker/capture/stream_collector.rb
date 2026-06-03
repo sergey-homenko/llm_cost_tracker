@@ -189,7 +189,7 @@ module LlmCostTracker
           model: snapshot[:model] || Event::UNKNOWN_MODEL,
           token_usage: snapshot[:explicit_usage],
           stream: true,
-          usage_source: Capture::UsageSource::MANUAL,
+          usage_source: UsageSource::MANUAL,
           pricing_mode: snapshot[:pricing_mode],
           **snapshot.fetch(:capture_dimensions)
         )
@@ -201,7 +201,7 @@ module LlmCostTracker
           model: snapshot[:model] || Event::UNKNOWN_MODEL,
           token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
-          usage_source: Capture::UsageSource::UNKNOWN,
+          usage_source: UsageSource::UNKNOWN,
           pricing_mode: snapshot[:pricing_mode],
           **snapshot.fetch(:capture_dimensions)
         )

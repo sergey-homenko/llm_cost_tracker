@@ -250,7 +250,7 @@ module LlmCostTracker
         end
 
         def unknown_usage_source_predicate(scope)
-          quoted = scope.connection.quote(LlmCostTracker::Capture::UsageSource::UNKNOWN)
+          quoted = scope.connection.quote(LlmCostTracker::UsageSource::UNKNOWN)
           "usage_source = #{quoted} OR usage_source IS NULL"
         end
 

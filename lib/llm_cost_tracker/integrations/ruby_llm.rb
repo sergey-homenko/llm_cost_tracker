@@ -103,7 +103,7 @@ module LlmCostTracker
                   image_input_tokens: image_input_tokens,
                   image_output_tokens: image_output_tokens
                 ),
-                usage_source: LlmCostTracker::Capture::UsageSource::SDK_RESPONSE,
+                usage_source: LlmCostTracker::UsageSource::SDK_RESPONSE,
                 provider_response_id: provider_response_id_for(response)
               ),
               latency_ms: latency_ms
@@ -134,7 +134,7 @@ module LlmCostTracker
                   hidden_output_tokens: response.try(:thinking_tokens).to_i
                 ),
                 stream: stream,
-                usage_source: LlmCostTracker::Capture::UsageSource::SDK_RESPONSE,
+                usage_source: LlmCostTracker::UsageSource::SDK_RESPONSE,
                 provider_response_id: provider_response_id_for(response)
               ),
               latency_ms: latency_ms

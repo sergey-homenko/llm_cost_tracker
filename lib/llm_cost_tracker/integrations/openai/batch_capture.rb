@@ -72,7 +72,7 @@ module LlmCostTracker
               request: {},
               provider: provider,
               host: host,
-              usage_source: LlmCostTracker::Capture::UsageSource::SDK_BATCH_RESULT,
+              usage_source: LlmCostTracker::UsageSource::SDK_BATCH_RESULT,
               pricing_mode: "batch"
             )
             LlmCostTracker::Tracker.record(event: event) if event
