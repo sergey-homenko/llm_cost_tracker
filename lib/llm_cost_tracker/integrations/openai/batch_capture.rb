@@ -67,7 +67,7 @@ module LlmCostTracker
             provider = Openai.provider_for_host(host)
             return if LlmCostTracker::Call.already_recorded?(provider: provider, provider_response_id: response["id"])
 
-            event = LlmCostTracker::Providers::Openai::UsageParser.event_from_response(
+            event = LlmCostTracker::Providers::Openai::ResponseParser.event_from_response(
               response: response,
               request: {},
               provider: provider,

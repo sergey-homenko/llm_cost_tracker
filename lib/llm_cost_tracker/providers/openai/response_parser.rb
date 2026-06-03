@@ -10,7 +10,7 @@ require_relative "usage_extractor"
 module LlmCostTracker
   module Providers
     module Openai
-      module UsageParser
+      module ResponseParser
         include LlmCostTracker::Providers::Openai::ServiceCharges
 
         class << self
@@ -45,7 +45,7 @@ module LlmCostTracker
         def parse(request_url:, request_body:, response_status:, response_body:, **)
           return nil unless response_status == 200
 
-          UsageParser.event_from_response(
+          ResponseParser.event_from_response(
             response: safe_json_parse(response_body),
             request: safe_json_parse(request_body),
             provider: provider_for(request_url),
@@ -142,9 +142,9 @@ module LlmCostTracker
         end
 
         def pricing_mode(request_url:, model:, service_tier:)
-          UsageParser.combined_pricing_mode(host: parsed_uri(request_url)&.host,
-                                            model: model,
-                                            service_tier: service_tier)
+          ResponseParser.combined_pricing_mode(host: parsed_uri(request_url)&.host,
+                                               model: model,
+                                               service_tier: service_tier)
         end
       end
     end

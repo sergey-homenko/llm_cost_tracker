@@ -4,7 +4,7 @@ module LlmCostTracker
   module Providers
     module Openai
       class Parser < LlmCostTracker::Parsers::Base
-        include UsageParser
+        include ResponseParser
 
         TRACKED_PATHS = %w[
           /v1/chat/completions

@@ -24,7 +24,7 @@ module LlmCostTracker
       autoload :Parser,               "llm_cost_tracker/providers/openai/parser"
       autoload :ServiceCharges,       "llm_cost_tracker/providers/openai/service_charges"
       autoload :UsageExtractor,       "llm_cost_tracker/providers/openai/usage_extractor"
-      autoload :UsageParser,          "llm_cost_tracker/providers/openai/usage_parser"
+      autoload :ResponseParser, "llm_cost_tracker/providers/openai/response_parser"
     end
 
     module OpenaiCompatible

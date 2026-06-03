@@ -4,7 +4,7 @@ module LlmCostTracker
   module Providers
     module OpenaiCompatible
       class Parser < LlmCostTracker::Parsers::Base
-        include Openai::UsageParser
+        include Openai::ResponseParser
 
         TRACKED_PATH_SUFFIXES = %w[/chat/completions /completions /embeddings /responses].freeze
 

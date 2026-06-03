@@ -4,7 +4,7 @@ module LlmCostTracker
   module Providers
     module Azure
       class Parser < LlmCostTracker::Parsers::Base
-        include Openai::UsageParser
+        include Openai::ResponseParser
 
         TRACKED_ENDPOINTS = %w[
           chat/completions completions embeddings moderations responses
