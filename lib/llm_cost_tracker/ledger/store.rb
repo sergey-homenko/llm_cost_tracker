@@ -7,7 +7,7 @@ require_relative "rollups"
 
 module LlmCostTracker
   module Ledger
-    class Store
+    module Store
       class << self
         def insert(events)
           events = Array(events)

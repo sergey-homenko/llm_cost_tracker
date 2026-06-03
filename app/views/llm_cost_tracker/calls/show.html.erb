@@ -89,19 +89,19 @@ end %>
     <% if @call.provider_project_id.present? %>
       <div class="lct-meta-strip-item">
         <dt>Project ID</dt>
-        <dd><%= content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_project_id, @call.provider_project_id), class: "lct-code-id") %></dd>
+        <dd><%= content_tag(:code, LlmCostTracker::Dashboard::Masking.mask_value(:provider_project_id, @call.provider_project_id), class: "lct-code-id") %></dd>
       </div>
     <% end %>
     <% if @call.provider_api_key_id.present? %>
       <div class="lct-meta-strip-item">
         <dt>API Key ID</dt>
-        <dd><%= content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_api_key_id, @call.provider_api_key_id), class: "lct-code-id") %></dd>
+        <dd><%= content_tag(:code, LlmCostTracker::Dashboard::Masking.mask_value(:provider_api_key_id, @call.provider_api_key_id), class: "lct-code-id") %></dd>
       </div>
     <% end %>
     <% if @call.provider_workspace_id.present? %>
       <div class="lct-meta-strip-item">
         <dt>Workspace ID</dt>
-        <dd><%= content_tag(:code, LlmCostTracker::Masking.mask_value(:provider_workspace_id, @call.provider_workspace_id), class: "lct-code-id") %></dd>
+        <dd><%= content_tag(:code, LlmCostTracker::Dashboard::Masking.mask_value(:provider_workspace_id, @call.provider_workspace_id), class: "lct-code-id") %></dd>
       </div>
     <% end %>
   </dl>
@@ -169,6 +169,6 @@ end %>
       <h2 class="lct-panel-title">Metadata</h2>
       <span class="lct-disclose-hint">show JSON</span>
     </summary>
-    <pre class="lct-pre"><%= safe_json(LlmCostTracker::Masking.mask_hash(masked_metadata_hash(@call.read_attribute("metadata")))) %></pre>
+    <pre class="lct-pre"><%= safe_json(LlmCostTracker::Dashboard::Masking.mask_hash(masked_metadata_hash(@call.read_attribute("metadata")))) %></pre>
   </details>
 <% end %>

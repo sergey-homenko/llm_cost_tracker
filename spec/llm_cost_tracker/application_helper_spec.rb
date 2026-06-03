@@ -26,7 +26,7 @@ RSpec.describe LlmCostTracker::ApplicationHelper do
 
   it "parses JSON-encoded metadata strings so masking redacts provider IDs before rendering" do
     raw = { "provider_api_key_id" => "sk-live-secret-abc", "feature" => "ok" }.to_json
-    masked = LlmCostTracker::Masking.mask_hash(helper_object.masked_metadata_hash(raw))
+    masked = LlmCostTracker::Dashboard::Masking.mask_hash(helper_object.masked_metadata_hash(raw))
 
     expect(masked["provider_api_key_id"]).to eq("***-abc")
     expect(masked["provider_api_key_id"]).not_to include("sk-live-secret")

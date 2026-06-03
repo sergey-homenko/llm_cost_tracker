@@ -1,9 +1,8 @@
 # frozen_string_literal: true
 
 require "spec_helper"
-require "llm_cost_tracker/masking"
 
-RSpec.describe LlmCostTracker::Masking do
+RSpec.describe LlmCostTracker::Dashboard::Masking do
   describe ".mask_value" do
     it "returns the value as a string when the key is not sensitive" do
       expect(described_class.mask_value(:provider, "openai")).to eq("openai")
