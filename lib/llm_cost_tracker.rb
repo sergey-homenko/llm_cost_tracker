@@ -15,7 +15,7 @@ require_relative "llm_cost_tracker/masking"
 require_relative "llm_cost_tracker/currency"
 require_relative "llm_cost_tracker/usage/catalog"
 require_relative "llm_cost_tracker/usage/token_usage"
-require_relative "llm_cost_tracker/usage_source"
+require_relative "llm_cost_tracker/usage/source"
 require_relative "llm_cost_tracker/pricing/rate"
 require_relative "llm_cost_tracker/charges/cost"
 require_relative "llm_cost_tracker/charges/line_item"
@@ -71,7 +71,7 @@ module LlmCostTracker
               tags: {},
               latency_ms: nil,
               stream: false,
-              usage_source: UsageSource::MANUAL,
+              usage_source: Usage::Source::MANUAL,
               enforce_budget: false,
               provider_response_id: nil,
               provider_project_id: nil,

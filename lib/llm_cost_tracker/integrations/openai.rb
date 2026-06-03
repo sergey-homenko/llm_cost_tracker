@@ -101,7 +101,7 @@ module LlmCostTracker
               request: request,
               provider: provider_for_host(host),
               host: host,
-              usage_source: LlmCostTracker::UsageSource::SDK_RESPONSE
+              usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE
             )
             LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms) if event
           end
@@ -202,7 +202,7 @@ module LlmCostTracker
                 provider: provider_for_host(host),
                 model: model,
                 token_usage: Usage::TokenUsage.build(**token_attributes),
-                usage_source: LlmCostTracker::UsageSource::SDK_RESPONSE,
+                usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE,
                 provider_response_id: response&.try(:id),
                 service_line_items: service_line_items
               ),

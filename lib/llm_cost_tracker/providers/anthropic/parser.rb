@@ -33,7 +33,7 @@ module LlmCostTracker
             pricing_mode: UsageExtractor.pricing_mode(request: request, usage: usage),
             model: response["model"] || request[:model],
             token_usage: UsageExtractor.token_usage(usage),
-            usage_source: UsageSource::RESPONSE,
+            usage_source: Usage::Source::RESPONSE,
             service_line_items: UsageExtractor.service_line_items(usage)
           )
         end
@@ -92,7 +92,7 @@ module LlmCostTracker
             model: model,
             token_usage: UsageExtractor.token_usage(usage),
             stream: true,
-            usage_source: UsageSource::STREAM_FINAL,
+            usage_source: Usage::Source::STREAM_FINAL,
             service_line_items: UsageExtractor.service_line_items(usage)
           )
         end
