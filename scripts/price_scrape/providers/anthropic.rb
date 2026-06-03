@@ -14,6 +14,8 @@ module LlmCostTracker
         max_price 1000.0
         anchors "claude-opus-4-7", "claude-sonnet-4-6"
 
+        DATA_RESIDENCY_MULTIPLIER = 1.1
+
         SERVICE_CHARGE_PATTERNS = {
           "web_search_request" => /Web search is available.*?\$\s*(\d+(?:\.\d+)?)\s+per 1,000 searches/i,
           "code_execution_hour" => /Additional usage beyond .*? billed at \$\s*(\d+(?:\.\d+)?)\s+per hour/i
@@ -30,7 +32,7 @@ module LlmCostTracker
           base = extract_base_pricing(base_table)
           batch = extract_batch_pricing(doc)
           deprecated = extract_deprecated_models(base_table)
-          models = add_fast_mode_pricing(add_data_residency_pricing(merge(base, batch)))
+          models = add_fast_mode_pricing(add_data_residency_pricing(merge(base, batch)), doc)
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -135,23 +137,68 @@ module LlmCostTracker
         def add_data_residency_pricing(models)
           models.each_with_object({}) do |(model_id, fields), priced|
             priced[model_id] = if data_residency_model?(model_id)
-                                 fields.merge(mode_prices(fields, "data_residency", 1.1))
+                                 fields.merge(mode_prices(fields, "data_residency", DATA_RESIDENCY_MULTIPLIER))
                                else
                                  fields
                                end
           end
         end
 
-        def add_fast_mode_pricing(models)
-          fields = models["claude-opus-4-6"]
-          return models unless fields
+        def add_fast_mode_pricing(models, doc)
+          table = find_fast_mode_table(doc)
+          return models unless table
 
-          models.merge(
-            "claude-opus-4-6" => fields.merge(
-              mode_prices(fields, "fast", 6.0, include_batch: false),
-              mode_prices(fields, "fast_data_residency", 6.6, include_batch: false)
-            )
-          )
+          fast = parse_fast_mode_table(table)
+          models.each_with_object({}) do |(model_id, base), priced|
+            multiplier = fast_mode_multiplier(base, fast[model_id], model_id)
+            priced[model_id] = multiplier ? base.merge(fast_mode_prices(base, multiplier, model_id)) : base
+          end
+        end
+
+        def find_fast_mode_table(doc)
+          doc.css("table").find do |table|
+            headers = header_texts(table)
+            %w[Model Input Output].all? { |header| headers.include?(header) }
+          end
+        end
+
+        def parse_fast_mode_table(table)
+          headers = header_texts(table)
+          model_index = column_index(headers, "Model")
+          input_index = column_index(headers, "Input")
+          output_index = column_index(headers, "Output")
+          table.css("tbody tr").each_with_object({}) do |tr, acc|
+            cells = tr.css("td").map { |td| td.text.strip }
+            next if cells.size < headers.size
+
+            row = { "input" => parse_price(cells[input_index]), "output" => parse_price(cells[output_index]) }
+            cells[model_index].split("/").each do |name|
+              model_id = normalize_model_id(name)
+              acc[model_id] = row if model_id
+            end
+          end
+        end
+
+        def fast_mode_multiplier(base, fast_row, model_id)
+          return nil unless fast_row
+
+          base_input = base["input"]
+          raise Error, "Anthropic fast mode for #{model_id} has no base input price" unless base_input&.positive?
+
+          multiplier = fast_row.fetch("input") / base_input
+          unless (base.fetch("output") * multiplier).round(6) == fast_row.fetch("output")
+            raise Error, "Anthropic fast mode input and output multipliers diverge for #{model_id}"
+          end
+
+          multiplier
+        end
+
+        def fast_mode_prices(base, multiplier, model_id)
+          prices = mode_prices(base, "fast", multiplier, include_batch: false)
+          return prices unless data_residency_model?(model_id)
+
+          residency = (multiplier * DATA_RESIDENCY_MULTIPLIER).round(6)
+          prices.merge(mode_prices(base, "fast_data_residency", residency, include_batch: false))
         end
 
         def mode_prices(fields, mode, multiplier, include_batch: true)

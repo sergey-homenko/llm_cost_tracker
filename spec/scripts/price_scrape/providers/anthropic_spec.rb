@@ -18,7 +18,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "web_fetch_request" => 0.0,
         "code_execution_hour" => 0.05
       )
-      expect(result.models.fetch("claude-opus-4-7")).to eq(
+      expect(result.models.fetch("claude-opus-4-7")).to include(
         "input" => 5.0,
         "cache_write_input" => 6.25,
         "cache_write_extended_input" => 10.0,
@@ -50,15 +50,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "data_residency_batch_input" => 1.65,
         "data_residency_batch_output" => 8.25
       )
-      expect(result.models.fetch("claude-opus-4-6")).to include(
-        "fast_input" => 30.0,
-        "fast_output" => 150.0,
-        "fast_cache_read_input" => 3.0,
-        "fast_cache_write_input" => 37.5,
-        "fast_cache_write_extended_input" => 60.0,
-        "fast_data_residency_input" => 33.0,
-        "fast_data_residency_output" => 165.0
-      )
       expect(result.models.fetch("claude-haiku-4-5")).to include(
         "input" => 1.0,
         "output" => 5.0,
@@ -68,16 +59,36 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
       expect(result.models.fetch("claude-haiku-4-5")).not_to include("data_residency_input")
     end
 
+    it "scrapes fast mode pricing per model and stacks the data residency multiplier" do
+      result = described_class.new.call(html: html)
+
+      %w[claude-opus-4-6 claude-opus-4-7].each do |model|
+        expect(result.models.fetch(model)).to include(
+          "fast_input" => 30.0, "fast_output" => 150.0,
+          "fast_cache_read_input" => 3.0, "fast_cache_write_input" => 37.5,
+          "fast_data_residency_input" => 33.0, "fast_data_residency_output" => 165.0
+        )
+      end
+
+      expect(result.models.fetch("claude-opus-4-8")).to include(
+        "fast_input" => 10.0, "fast_output" => 50.0,
+        "fast_cache_read_input" => 1.0, "fast_cache_write_input" => 12.5,
+        "fast_data_residency_input" => 11.0, "fast_data_residency_output" => 55.0
+      )
+
+      expect(result.models.fetch("claude-sonnet-4-6")).not_to include("fast_input")
+    end
+
     it "extracts deprecated models that still match the canonical naming pattern" do
       result = described_class.new.call(html: html)
-      expect(result.models).to include("claude-sonnet-3-7", "claude-opus-3", "claude-haiku-3")
+      expect(result.models).to include("claude-opus-4", "claude-sonnet-4", "claude-haiku-3-5")
     end
 
     it "flags deprecated models separately from the price table" do
       result = described_class.new.call(html: html)
 
-      expect(result.deprecated_models).to contain_exactly("claude-sonnet-3-7", "claude-opus-3")
-      expect(result.models).to include("claude-sonnet-3-7", "claude-opus-3")
+      expect(result.deprecated_models).to contain_exactly("claude-opus-4", "claude-sonnet-4", "claude-haiku-3-5")
+      expect(result.models).to include("claude-opus-4", "claude-sonnet-4")
     end
 
     it "leaves deprecated_models empty when the page has no deprecation links" do
