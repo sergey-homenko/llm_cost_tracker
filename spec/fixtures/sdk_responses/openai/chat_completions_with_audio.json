@@ -1,0 +1,18 @@
+{
+  "id": "chatcmpl_audio",
+  "object": "chat.completion",
+  "model": "gpt-4o-audio-preview",
+  "created": 1700000000,
+  "choices": [],
+  "usage": {
+    "prompt_tokens": 30,
+    "completion_tokens": 40,
+    "total_tokens": 70,
+    "prompt_tokens_details": {
+      "audio_tokens": 15
+    },
+    "completion_tokens_details": {
+      "audio_tokens": 25
+    }
+  }
+}

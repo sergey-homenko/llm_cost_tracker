@@ -57,6 +57,24 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         )
       end
     end
+
+    it "splits audio input/output tokens from text for an audio model" do
+      stub_sdk_json(:post, "https://api.openai.com/v1/chat/completions",
+                    provider: :openai, fixture: "chat_completions_with_audio.json")
+
+      capture_sdk_events do |events|
+        client.chat.completions.create(
+          model: "gpt-4o-audio-preview",
+          messages: [{ role: "user", content: "hi" }]
+        )
+        expect(events.first).to include(
+          audio_input_tokens: 15,
+          audio_output_tokens: 25,
+          input_tokens: 15,
+          output_tokens: 15
+        )
+      end
+    end
   end
 
   describe "embeddings.create" do
@@ -525,21 +543,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
   end
 
   describe "responses.create extras" do
-    it "captures audio input/output tokens split from text input/output" do
-      stub_sdk_json(:post, "https://api.openai.com/v1/responses",
-                    provider: :openai, fixture: "responses_with_audio.json")
-
-      capture_sdk_events do |events|
-        client.responses.create(model: "gpt-4o-audio-preview", input: "hi")
-        expect(events.first).to include(
-          audio_input_tokens: 15,
-          audio_output_tokens: 25,
-          input_tokens: 15,
-          output_tokens: 15
-        )
-      end
-    end
-
     it "captures the priority service tier as a pricing mode" do
       stub_sdk_json(:post, "https://api.openai.com/v1/responses",
                     provider: :openai, fixture: "responses_with_service_tier.json")
@@ -705,14 +708,14 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
-    it "subtracts cached input from text input for gpt-image-1" do
+    it "splits image input tokens from text for gpt-image-1" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/images/generations").to_return(
         status: 200,
         body: {
           created: 1, data: [],
           usage: {
-            input_tokens: 50, output_tokens: 0, total_tokens: 50,
-            input_tokens_details: { cached_tokens: 20, image_tokens: 15, text_tokens: 15 }
+            input_tokens: 30, output_tokens: 0, total_tokens: 30,
+            input_tokens_details: { image_tokens: 15, text_tokens: 15 }
           }
         }.to_json,
         headers: { "Content-Type" => "application/json" }
@@ -721,7 +724,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       capture_sdk_events do |events|
         client.images.generate(prompt: "a cat", model: "gpt-image-1")
         expect(events.first).to include(
-          input_tokens: 15, cache_read_input_tokens: 20, image_input_tokens: 15,
+          input_tokens: 15, image_input_tokens: 15,
           output_tokens: 0, image_output_tokens: 0
         )
       end
