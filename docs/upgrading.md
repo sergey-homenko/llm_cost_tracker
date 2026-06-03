@@ -49,7 +49,7 @@ If your code explicitly references the parser classes, update the names:
 | `LlmCostTracker::Parsers::Azure` | `LlmCostTracker::Providers::Azure::Parser` |
 | `LlmCostTracker::Parsers::Gemini` | `LlmCostTracker::Providers::Gemini::Parser` |
 | `LlmCostTracker::Parsers::OpenaiCompatible` | `LlmCostTracker::Providers::OpenaiCompatible::Parser` |
-| `LlmCostTracker::Parsers::OpenaiUsage` | `LlmCostTracker::Providers::Openai::UsageParser` |
+| `LlmCostTracker::Parsers::OpenaiUsage` | `LlmCostTracker::Providers::Openai::ResponseParser` |
 
 ### Required: replace `batch:` with `pricing_mode:` (BREAKING)
 
