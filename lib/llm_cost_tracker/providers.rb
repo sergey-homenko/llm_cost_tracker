@@ -5,6 +5,7 @@ module LlmCostTracker
     module Anthropic
       autoload :Parser,               "llm_cost_tracker/providers/anthropic/parser"
       autoload :UsageExtractor,       "llm_cost_tracker/providers/anthropic/usage_extractor"
+      autoload :ResponseParser, "llm_cost_tracker/providers/anthropic/response_parser"
     end
 
     module Azure

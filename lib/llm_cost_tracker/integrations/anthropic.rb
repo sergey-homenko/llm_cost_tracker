@@ -2,6 +2,7 @@
 
 require_relative "base"
 require_relative "../providers/anthropic/usage_extractor"
+require_relative "../providers/anthropic/response_parser"
 
 module LlmCostTracker
   module Integrations
@@ -31,14 +32,12 @@ module LlmCostTracker
             usage_hash = usage.deep_to_h
 
             LlmCostTracker::Tracker.record(
-              event: Event.build(
-                provider: "anthropic",
+              event: Providers::Anthropic::ResponseParser.event_from_usage(
+                usage: usage_hash,
                 model: message.model || request[:model],
-                pricing_mode: Providers::Anthropic::UsageExtractor.pricing_mode(request: request, usage: usage_hash),
-                token_usage: Providers::Anthropic::UsageExtractor.token_usage(usage_hash),
-                usage_source: Usage::Source::SDK_RESPONSE,
                 provider_response_id: message.id,
-                service_line_items: Providers::Anthropic::UsageExtractor.service_line_items(usage_hash)
+                usage_source: Usage::Source::SDK_RESPONSE,
+                request: request
               ),
               latency_ms: latency_ms
             )
@@ -63,14 +62,12 @@ module LlmCostTracker
 
             usage_hash = usage.deep_to_h
             LlmCostTracker::Tracker.record(
-              event: Event.build(
-                provider: "anthropic",
+              event: Providers::Anthropic::ResponseParser.event_from_usage(
+                usage: usage_hash,
                 model: message.model,
-                pricing_mode: "batch",
-                token_usage: Providers::Anthropic::UsageExtractor.token_usage(usage_hash),
-                usage_source: Usage::Source::SDK_BATCH_RESULT,
                 provider_response_id: message.id,
-                service_line_items: Providers::Anthropic::UsageExtractor.service_line_items(usage_hash)
+                usage_source: Usage::Source::SDK_BATCH_RESULT,
+                pricing_mode: "batch"
               )
             )
           end

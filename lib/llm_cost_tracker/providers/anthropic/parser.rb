@@ -27,14 +27,12 @@ module LlmCostTracker
 
           request = symbolize_request(request_body)
 
-          Event.build(
-            provider: "anthropic",
-            provider_response_id: response["id"],
-            pricing_mode: UsageExtractor.pricing_mode(request: request, usage: usage),
+          ResponseParser.event_from_usage(
+            usage: usage,
             model: response["model"] || request[:model],
-            token_usage: UsageExtractor.token_usage(usage),
+            provider_response_id: response["id"],
             usage_source: Usage::Source::RESPONSE,
-            service_line_items: UsageExtractor.service_line_items(usage)
+            request: request
           )
         end
 
@@ -47,7 +45,14 @@ module LlmCostTracker
           response_id = find_event_value(events) { |data| data.dig("message", "id") || data["id"] }
 
           if usage
-            build_stream_result(model: model, usage: usage, response_id: response_id, request: request)
+            ResponseParser.event_from_usage(
+              usage: usage,
+              model: model,
+              provider_response_id: response_id,
+              usage_source: Usage::Source::STREAM_FINAL,
+              request: request,
+              stream: true
+            )
           else
             build_unknown_stream_usage(
               provider: "anthropic",
@@ -82,19 +87,6 @@ module LlmCostTracker
           (start_usage || {}).merge(latest_delta) do |_key, start_val, delta_val|
             delta_val || start_val
           end
-        end
-
-        def build_stream_result(model:, usage:, response_id:, request:)
-          Event.build(
-            provider: "anthropic",
-            provider_response_id: response_id,
-            pricing_mode: UsageExtractor.pricing_mode(request: request, usage: usage),
-            model: model,
-            token_usage: UsageExtractor.token_usage(usage),
-            stream: true,
-            usage_source: Usage::Source::STREAM_FINAL,
-            service_line_items: UsageExtractor.service_line_items(usage)
-          )
         end
       end
     end
