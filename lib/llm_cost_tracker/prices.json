@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-01"
+    "updated_at": "2026-06-02"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1252,8 +1252,8 @@
       "output": 1.25
     },
     "openrouter/deepseek/deepseek-chat": {
-      "input": 0.2288,
-      "output": 0.9144
+      "input": 0.2002,
+      "output": 0.8001
     },
     "openrouter/deepseek/deepseek-chat-v3-0324": {
       "cache_read_input": 0.135,
@@ -1288,9 +1288,8 @@
       "output": 0.95
     },
     "openrouter/deepseek/deepseek-v3.2": {
-      "cache_read_input": 0.0252,
-      "input": 0.252,
-      "output": 0.378
+      "input": 0.2288,
+      "output": 0.3432
     },
     "openrouter/deepseek/deepseek-v3.2-exp": {
       "input": 0.27,
@@ -1616,7 +1615,7 @@
       "output": 1.15
     },
     "openrouter/minimax/minimax-m2.7": {
-      "input": 0.26,
+      "input": 0.279,
       "output": 1.2
     },
     "openrouter/minimax/minimax-m3": {
@@ -2184,8 +2183,8 @@
       "output": 0.45
     },
     "openrouter/qwen/qwen3-30b-a3b-instruct-2507": {
-      "input": 0.09,
-      "output": 0.3
+      "input": 0.0428,
+      "output": 0.1716
     },
     "openrouter/qwen/qwen3-30b-a3b-thinking-2507": {
       "cache_read_input": 0.08,
@@ -2391,9 +2390,9 @@
       "output": 0.57
     },
     "openrouter/tencent/hy3-preview": {
-      "cache_read_input": 0.029,
-      "input": 0.066,
-      "output": 0.26
+      "cache_read_input": 0.021,
+      "input": 0.063,
+      "output": 0.21
     },
     "openrouter/thedrummer/cydonia-24b-v4.1": {
       "cache_read_input": 0.15,
