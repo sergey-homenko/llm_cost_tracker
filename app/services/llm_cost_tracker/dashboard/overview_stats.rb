@@ -2,7 +2,7 @@
 
 module LlmCostTracker
   module Dashboard
-    class OverviewStats
+    module OverviewStats
       class << self
         def call(scope: LlmCostTracker::Call.all, previous_scope: nil)
           return scope.select(aggregate_selects).take unless previous_scope

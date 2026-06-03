@@ -2,7 +2,7 @@
 
 module LlmCostTracker
   module Dashboard
-    class DataQuality
+    module DataQuality
       UnknownPricingRow = ::Data.define(:provider, :model, :calls, :share_percent)
       StreamingHealthRow = ::Data.define(:provider, :streams, :with_usage, :unknown, :unknown_share)
       Summary = ::Data.define(:total,
