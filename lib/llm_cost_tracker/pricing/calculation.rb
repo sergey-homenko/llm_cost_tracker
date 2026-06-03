@@ -118,7 +118,7 @@ module LlmCostTracker
         end
         Charges::Cost.new(
           components: components.freeze,
-          total: priced_token_line_items.sum(BigDecimal("0"), &:cost_value).round(8),
+          total: priced_token_line_items.sum(BigDecimal("0")) { |line_item| line_item.cost_value.round(8) },
           currency: match.source.currency
         )
       end
@@ -229,10 +229,10 @@ module LlmCostTracker
         matching, mismatched = priced_services.partition { |line| line.currency.to_s == base_currency.to_s }
         warn_currency_mismatch(mismatched, base_currency) if mismatched.any?
 
-        service_total = matching.sum(BigDecimal("0"), &:cost_value)
+        service_total = matching.sum(BigDecimal("0")) { |line| line.cost_value.round(8) }
         Charges::Cost.new(
           components: cost ? cost.components : {}.freeze,
-          total: ((cost&.total || BigDecimal("0")) + service_total).round(8),
+          total: (cost&.total || BigDecimal("0")) + service_total,
           currency: (cost&.currency || base_currency).to_s
         )
       end

@@ -327,6 +327,20 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(call.total_cost.to_d).to eq(line_items_total)
   end
 
+  it "keeps total_cost identical to the summed line items when per-token costs round at the 9th decimal" do
+    LlmCostTracker.configure do |config|
+      config.pricing_overrides = { "tail-model" => { "input" => 0.075, "output" => 0.075 } }
+    end
+
+    track_and_flush(provider: "custom", model: "tail-model", tokens: { input_tokens: 1, output_tokens: 1 })
+
+    call = LlmCostTracker::Call.first
+    line_items_total = call.line_items.where(cost_status: %w[complete free]).sum { |item| item.cost.to_d }
+
+    expect(call.total_cost.to_d).to eq(line_items_total)
+    expect(call.total_cost.to_d).to eq(BigDecimal("0.00000016"))
+  end
+
   it "stores nil tag values as empty strings without raising on the not-null column" do
     event = build_event(event_id: "nil-tag", tags: { "feature" => nil })
 
