@@ -821,6 +821,22 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       )
     end
 
+    it "does not warn about stream_options when the request body did not opt into streaming" do
+      events = [
+        { event: nil, data: { "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] } }
+      ]
+
+      expect(LlmCostTracker::Logging).not_to receive(:warn)
+      result = parser.parse_stream(
+        request_url: chat_completions_url,
+        request_body: { model: "gpt-4o" }.to_json,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.usage_source).to eq("unknown")
+    end
+
     it "does not warn about stream_options for the Responses API where usage is automatic" do
       events = [
         {
