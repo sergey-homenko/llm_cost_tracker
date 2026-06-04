@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-03"
+    "updated_at": "2026-06-04"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -91,6 +91,16 @@
       "data_residency_cache_write_input": 6.875,
       "data_residency_input": 5.5,
       "data_residency_output": 27.5,
+      "fast_cache_read_input": 3.0,
+      "fast_cache_write_extended_input": 60.0,
+      "fast_cache_write_input": 37.5,
+      "fast_data_residency_cache_read_input": 3.3,
+      "fast_data_residency_cache_write_extended_input": 66.0,
+      "fast_data_residency_cache_write_input": 41.25,
+      "fast_data_residency_input": 33.0,
+      "fast_data_residency_output": 165.0,
+      "fast_input": 30.0,
+      "fast_output": 150.0,
       "input": 5.0,
       "output": 25.0
     },
@@ -107,6 +117,16 @@
       "data_residency_cache_write_input": 6.875,
       "data_residency_input": 5.5,
       "data_residency_output": 27.5,
+      "fast_cache_read_input": 1.0,
+      "fast_cache_write_extended_input": 20.0,
+      "fast_cache_write_input": 12.5,
+      "fast_data_residency_cache_read_input": 1.1,
+      "fast_data_residency_cache_write_extended_input": 22.0,
+      "fast_data_residency_cache_write_input": 13.75,
+      "fast_data_residency_input": 11.0,
+      "fast_data_residency_output": 55.0,
+      "fast_input": 10.0,
+      "fast_output": 50.0,
       "input": 5.0,
       "output": 25.0
     },
@@ -2183,8 +2203,8 @@
       "output": 0.45
     },
     "openrouter/qwen/qwen3-30b-a3b-instruct-2507": {
-      "input": 0.0428,
-      "output": 0.1716
+      "input": 0.04815,
+      "output": 0.19305
     },
     "openrouter/qwen/qwen3-30b-a3b-thinking-2507": {
       "cache_read_input": 0.08,
@@ -2334,6 +2354,12 @@
       "cache_write_input": 1.5625,
       "input": 1.25,
       "output": 3.75
+    },
+    "openrouter/qwen/qwen3.7-plus": {
+      "cache_read_input": 0.08,
+      "cache_write_input": 0.5,
+      "input": 0.4,
+      "output": 1.6
     },
     "openrouter/rekaai/reka-edge": {
       "input": 0.1,
