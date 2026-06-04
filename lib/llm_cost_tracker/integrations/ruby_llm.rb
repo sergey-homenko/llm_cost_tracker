@@ -145,7 +145,7 @@ module LlmCostTracker
         def cache_creation_split(provider, response)
           return [response.try(:cache_creation_tokens).to_i, 0] unless provider == "anthropic"
 
-          cache = response.try(:raw)&.body&.dig("usage", "cache_creation")
+          cache = raw_body(response).dig("usage", "cache_creation")
           return [response.try(:cache_creation_tokens).to_i, 0] unless cache.is_a?(Hash)
 
           [cache["ephemeral_5m_input_tokens"].to_i, cache["ephemeral_1h_input_tokens"].to_i]
@@ -159,8 +159,13 @@ module LlmCostTracker
         end
 
         def provider_response_id_for(response)
-          body = response.try(:raw)&.body || {}
+          body = raw_body(response)
           body["id"] || body["responseId"]
+        end
+
+        def raw_body(response)
+          body = response.try(:raw)&.body
+          body.is_a?(Hash) ? body : {}
         end
 
         def response_model_id(response)
@@ -168,7 +173,7 @@ module LlmCostTracker
         end
 
         def pricing_mode_for(provider:, response:)
-          body = response.try(:raw)&.body || {}
+          body = raw_body(response)
           case provider
           when "anthropic" then body.dig("usage", "service_tier")
           when "gemini" then body.dig("usageMetadata", "serviceTier")
