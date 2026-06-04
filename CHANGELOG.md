@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-04
+
 ### Added
 
 - `bin/rails llm_cost_tracker:rebuild_rollups` rebuilds the `llm_cost_tracker_call_rollups` cache from the calls ledger — populate it after turning on `config.cache_rollups` for an app with existing calls, or resync it if rollup totals ever drift from the calls.
