@@ -10,6 +10,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     RubyLLM.configure do |config|
       config.openai_api_key = "test-openai"
       config.anthropic_api_key = "test-anthropic"
+      config.gemini_api_key = "test-gemini"
     end
   end
 
@@ -83,6 +84,24 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
         expect(events.first).to include(
           provider: "anthropic", stream: true, usage_source: "sdk_response",
           input_tokens: 11, output_tokens: 9
+        )
+      end
+    end
+
+    it "captures a streamed Gemini chat whose raw body is the SSE text rather than a parsed JSON hash" do
+      sse = <<~SSE
+        data: {"candidates":[{"content":{"parts":[{"text":"hi"}],"role":"model"},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":1,"totalTokenCount":24,"promptTokensDetails":[{"modality":"TEXT","tokenCount":5}],"thoughtsTokenCount":18,"serviceTier":"standard"},"modelVersion":"gemini-2.5-flash","responseId":"resp_stream"}
+
+      SSE
+      WebMock.stub_request(:post, %r{generativelanguage\.googleapis\.com/.+:streamGenerateContent}).to_return(
+        status: 200, body: sse, headers: { "Content-Type" => "text/event-stream" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "gemini-2.5-flash", provider: :gemini, assume_model_exists: true).ask("hi") { |_chunk| }
+        expect(events.first).to include(
+          provider: "gemini", stream: true, usage_source: "sdk_response",
+          input_tokens: 5, output_tokens: 19, hidden_output_tokens: 18
         )
       end
     end

@@ -26,7 +26,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
-- RubyLLM streaming chats to Anthropic (`chat.ask { |chunk| }`) are now recorded — previously the streamed response's raw body is the SSE text rather than the parsed hash the integration read, so an internal lookup raised and the call was silently dropped from the ledger. Blocking RubyLLM calls were unaffected.
+- RubyLLM streaming chats to Anthropic and Gemini (`chat.ask { |chunk| }`) are now recorded — previously the streamed response's raw body is the SSE text rather than the parsed hash the integration read, so an internal lookup raised and the call was silently dropped from the ledger. Blocking RubyLLM calls were unaffected.
 - A malformed or very long `pricing_mode` (or a provider `service_tier` / `speed` with many underscore-separated tokens) no longer hangs cost calculation — the call lands `cost_status: unknown` instead of pinning a CPU.
 - Gemini preview models dated with a four-digit year (e.g. `gemini-2.5-flash-preview-09-2025`) now fall back to the stable model's price instead of landing `cost_status: unknown`.
 - A typo'd price-key prefix in `pricing_overrides` or a custom `prices_file` (e.g. `bath_input` for `batch_input`, or any unknown `<mode>_<component>`) now logs an `Unknown price keys` warning and is ignored, instead of being silently accepted so the override quietly never applied at the intended mode/tier.
