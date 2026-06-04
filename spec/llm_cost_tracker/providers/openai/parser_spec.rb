@@ -447,10 +447,18 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
     it "ignores non-streaming bodies" do
       expect(parser.streaming_request?(chat_completions_url, { "model" => "gpt-4o" })).to be false
     end
+  end
 
-    it "ignores nil and non-Hash parsed bodies" do
-      expect(parser.streaming_request?(chat_completions_url, nil)).to be false
-      expect(parser.streaming_request?(chat_completions_url, "not a hash")).to be false
+  describe "#safe_json_parse" do
+    it "parses an object body into a Hash" do
+      expect(parser.safe_json_parse('{"model":"gpt-4o"}')).to eq({ "model" => "gpt-4o" })
+    end
+
+    it "coerces a non-object body (array, scalar, blank, malformed) to an empty Hash" do
+      expect(parser.safe_json_parse("[1,2,3]")).to eq({})
+      expect(parser.safe_json_parse("42")).to eq({})
+      expect(parser.safe_json_parse("")).to eq({})
+      expect(parser.safe_json_parse("{not json")).to eq({})
     end
   end
 

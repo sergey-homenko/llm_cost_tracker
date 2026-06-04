@@ -93,11 +93,11 @@ module LlmCostTracker
       end
 
       def streaming_request?(_request_url, request_parsed)
-        request_parsed.is_a?(Hash) && request_parsed["stream"] == true
+        request_parsed["stream"] == true
       end
 
       def model_for(_request_url, request_parsed)
-        request_parsed["model"] if request_parsed.is_a?(Hash)
+        request_parsed["model"]
       end
 
       def parse_stream(**)
@@ -111,7 +111,8 @@ module LlmCostTracker
       def safe_json_parse(body)
         return {} if body.blank?
 
-        JSON.parse(body)
+        parsed = JSON.parse(body)
+        parsed.is_a?(Hash) ? parsed : {}
       rescue JSON::ParserError
         {}
       end

@@ -308,7 +308,7 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
     it "does not flag generateContent as streaming" do
       expect(parser.streaming_request?(
                generate_content_url,
-               nil
+               {}
              )).to be false
     end
   end

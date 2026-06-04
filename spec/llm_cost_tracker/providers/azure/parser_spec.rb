@@ -98,7 +98,7 @@ RSpec.describe LlmCostTracker::Providers::Azure::Parser do
 
     it "falls back to the deployment-id from the URL path when the body has no model" do
       expect(parser.model_for(chat_completions_url, {})).to eq("gpt4o-prod")
-      expect(parser.model_for(embeddings_url, nil)).to eq("embed-3-large")
+      expect(parser.model_for(embeddings_url, {})).to eq("embed-3-large")
     end
 
     it "returns nil when neither the body nor the URL carry a deployment" do

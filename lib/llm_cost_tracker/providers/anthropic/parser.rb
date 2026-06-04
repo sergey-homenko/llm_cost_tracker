@@ -70,8 +70,7 @@ module LlmCostTracker
         private
 
         def symbolize_request(request_body)
-          parsed = safe_json_parse(request_body)
-          parsed.is_a?(Hash) ? parsed.deep_symbolize_keys : {}
+          safe_json_parse(request_body).deep_symbolize_keys
         end
 
         def stream_usage(events)
