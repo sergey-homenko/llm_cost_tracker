@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-04"
+    "updated_at": "2026-06-05"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1560,7 +1560,7 @@
     },
     "openrouter/meta-llama/llama-3.1-8b-instruct": {
       "input": 0.02,
-      "output": 0.05
+      "output": 0.03
     },
     "openrouter/meta-llama/llama-3.2-11b-vision-instruct": {
       "input": 0.245,
@@ -1823,6 +1823,11 @@
     "openrouter/nvidia/nemotron-3-super-120b-a12b": {
       "input": 0.09,
       "output": 0.45
+    },
+    "openrouter/nvidia/nemotron-3-ultra-550b-a55b": {
+      "cache_read_input": 0.15,
+      "input": 0.5,
+      "output": 2.5
     },
     "openrouter/nvidia/nemotron-nano-9b-v2": {
       "input": 0.04,
