@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed
+
+- OpenAI's image-generation, computer-use, and MCP tool calls no longer add `$0` line items that marked a call's pricing `partial`. Their cost is already captured in the model's tokens, so these tool calls are no longer recorded as separate rows and the call reflects complete pricing.
+
 ## [0.12.0] - 2026-06-04
 
 ### Added

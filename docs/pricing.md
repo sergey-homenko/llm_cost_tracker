@@ -176,7 +176,7 @@ quantity the published rate uses.
 | OpenAI web search page actions | `open_page` and `find_in_page` output item actions | Ignored as service charges because they are not separate billable search calls |
 | OpenAI hosted file search | `file_search_call` output items | Priced from `service_charges.openai.file_search_call` when present |
 | OpenAI Code Interpreter containers | `code_interpreter_call` output items deduplicated by container id | Stored as unknown-cost `container_session` rows unless a custom rate matches the captured quantity basis |
-| OpenAI MCP tool calls | `mcp_call` output items | Stored as unknown-cost `mcp_call` rows for visibility (no published per-call rate from OpenAI) |
+| OpenAI image-generation / computer-use / MCP tool calls | `image_generation_call`, `computer_call`, `mcp_call` output items | Not recorded as line items — billed through the model's tokens (captured separately), with no separate per-call charge |
 | Anthropic server web search | `server_tool_use.web_search_requests` | Priced from `service_charges.anthropic.web_search_request` when present |
 | Anthropic web fetch | `server_tool_use.web_fetch_requests` | Priced at `$0` from registry — Anthropic bills web fetch through standard tokens, not per fetch |
 | Gemini modality tokens | `usageMetadata.promptTokensDetails` and response token details | Audio token rates price captured buckets when the model has registry rates |
