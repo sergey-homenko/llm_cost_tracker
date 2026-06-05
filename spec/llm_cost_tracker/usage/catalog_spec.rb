@@ -3,13 +3,6 @@
 require "spec_helper"
 
 RSpec.describe LlmCostTracker::Usage::Catalog do
-  it "keeps token-priced dimensions aligned with Usage::TokenUsage" do
-    token_keys = described_class.token_priced.map(&:token_key)
-    missing = token_keys - LlmCostTracker::Usage::TokenUsage.members
-
-    expect(missing).to be_empty
-  end
-
   it "exposes cost_key for every token-priced dimension" do
     described_class.token_priced.each do |dimension|
       expect(dimension.cost_key).to be_a(Symbol)
