@@ -4,8 +4,8 @@ module LlmCostTracker
   module Pricing
     module Mode
       STANDARD_MODE_VALUES = %w[auto default standard standard_only unspecified].freeze
-      COMPOUND_MODIFIERS = %w[data_residency].freeze
       KNOWN_MODIFIERS = %w[batch flex priority scale fast on_demand data_residency].freeze
+      HOST_DERIVED_MODIFIERS = %w[data_residency].freeze
       MAX_PERMUTED_MODIFIERS = 6
 
       def self.normalize(value)
@@ -23,7 +23,7 @@ module LlmCostTracker
         return normalize(request_mode) if provider_mode.to_s.strip.empty?
 
         provider_tokens = tokenize(provider_mode) - STANDARD_MODE_VALUES
-        request_host_tokens = tokenize(request_mode || "") & COMPOUND_MODIFIERS
+        request_host_tokens = tokenize(request_mode || "") & HOST_DERIVED_MODIFIERS
         combined = provider_tokens | request_host_tokens
         return nil if combined.empty?
 
@@ -41,12 +41,12 @@ module LlmCostTracker
         loop do
           break if remaining.empty?
 
-          compound = COMPOUND_MODIFIERS.find do |token|
-            remaining == token || remaining.start_with?("#{token}_")
+          known = KNOWN_MODIFIERS.find do |modifier|
+            remaining == modifier || remaining.start_with?("#{modifier}_")
           end
-          if compound
-            tokens << compound
-            remaining = remaining.delete_prefix(compound).delete_prefix("_")
+          if known
+            tokens << known
+            remaining = remaining.delete_prefix(known).delete_prefix("_")
           else
             first, _, rest = remaining.partition("_")
             tokens << first unless first.empty?

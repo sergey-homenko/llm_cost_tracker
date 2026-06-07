@@ -26,6 +26,22 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
     end
   end
 
+  describe "modifier registries" do
+    it "treats on_demand as one token so a real on_demand tier is not falsely warned" do
+      expect(LlmCostTracker::Logging).not_to receive(:warn)
+      expect(described_class.normalize("on_demand")).to eq("on_demand")
+    end
+
+    it "keeps host-derived modifiers a subset of known modifiers" do
+      expect(described_class::HOST_DERIVED_MODIFIERS - described_class::KNOWN_MODIFIERS).to be_empty
+    end
+
+    it "tokenizes by matching the known-modifier vocabulary, so multi-word modifiers stay whole" do
+      expect(described_class.tokenize("batch_data_residency")).to eq(%w[batch data_residency])
+      expect(described_class.tokenize("on_demand")).to eq(%w[on_demand])
+    end
+  end
+
   describe ".normalize" do
     it "treats standard provider aliases as default pricing" do
       expect(described_class.normalize("standard")).to be_nil
