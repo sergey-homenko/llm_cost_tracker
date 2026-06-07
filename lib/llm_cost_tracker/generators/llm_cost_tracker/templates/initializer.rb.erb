@@ -13,7 +13,7 @@ LlmCostTracker.configure do |config|
   # Tag guardrails keep accidental high-cardinality or sensitive values out of the ledger.
   # config.max_tag_count = 50
   # config.max_tag_value_bytesize = 1024
-  # config.redacted_tag_keys = %w[api_key access_token authorization credential password refresh_token secret]
+  # config.redacted_tag_keys = <%= LlmCostTracker::Configuration::DEFAULT_REDACTED_TAG_KEYS.inspect %>
 
   # Optional SDK integrations. Provider SDK gems are not installed by LLM Cost Tracker.
   # Enabled integrations are checked at boot, so enable only clients your app loads.
