@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-06"
+    "updated_at": "2026-06-07"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1543,8 +1543,8 @@
       "output": 0.74
     },
     "openrouter/meta-llama/llama-3-8b-instruct": {
-      "input": 0.04,
-      "output": 0.04
+      "input": 0.14,
+      "output": 0.14
     },
     "openrouter/meta-llama/llama-3.1-70b-instruct": {
       "input": 0.4,
@@ -2324,8 +2324,8 @@
       "output": 1.8
     },
     "openrouter/qwen/qwen3.6-27b": {
-      "input": 0.29,
-      "output": 3.2
+      "input": 0.289,
+      "output": 2.4
     },
     "openrouter/qwen/qwen3.6-35b-a3b": {
       "input": 0.14,
