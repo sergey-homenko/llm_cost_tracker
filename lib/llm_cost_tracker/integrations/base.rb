@@ -83,7 +83,7 @@ module LlmCostTracker
         enforce_budget!(request: request, provider: provider)
         started_at = LlmCostTracker::Timing.now_monotonic
         response = yield
-        record.call(response, request, LlmCostTracker::Timing.elapsed_ms(started_at))
+        record_safely { record.call(response, request, LlmCostTracker::Timing.elapsed_ms(started_at)) }
         response
       end
 

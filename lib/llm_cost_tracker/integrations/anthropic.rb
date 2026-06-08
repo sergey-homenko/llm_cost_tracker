@@ -46,16 +46,17 @@ module LlmCostTracker
 
         def record_batch_result(response)
           return unless active?
-          return unless response.respond_to?(:result) && response.result
-
-          result = response.result
-          return unless result.respond_to?(:type) && result.type.to_s == "succeeded"
-
-          message = result.respond_to?(:message) ? result.message : nil
-          return unless message
-          return if LlmCostTracker::Call.already_recorded?(provider: "anthropic", provider_response_id: message.id)
 
           record_safely do
+            next unless response.respond_to?(:result) && response.result
+
+            result = response.result
+            next unless result.respond_to?(:type) && result.type.to_s == "succeeded"
+
+            message = result.respond_to?(:message) ? result.message : nil
+            next unless message
+            next if LlmCostTracker::Call.already_recorded?(provider: "anthropic", provider_response_id: message.id)
+
             usage = message.usage
             next unless usage
             next if usage.input_tokens.nil? && usage.output_tokens.nil?
