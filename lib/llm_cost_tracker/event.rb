@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "pricing/mode"
+
 module LlmCostTracker
   Event = Data.define(
     :event_id,
@@ -48,7 +50,7 @@ module LlmCostTracker
     end
 
     def batch?
-      pricing_mode.to_s.split("_").include?("batch")
+      Pricing::Mode.tokenize(pricing_mode.to_s).include?("batch")
     end
 
     def self.resolve_line_items(service_items)
