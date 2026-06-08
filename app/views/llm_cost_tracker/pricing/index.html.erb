@@ -83,7 +83,7 @@
             <td><code class="lct-code-id"><%= row.model %></code></td>
             <% LlmCostTracker::Dashboard::PricingOverview::RATE_COLUMNS.each do |key| %>
               <% value = row.rates[key] %>
-              <td class="lct-num<%= ' lct-num-muted' if value.nil? %>"><%= value ? money(value) : "—" %></td>
+              <td class="lct-num<%= ' lct-num-muted' if value.nil? %>"><%= value ? money(value, currency: @source_data.fetch(:currency)) : "—" %></td>
             <% end %>
           </tr>
         <% end %>

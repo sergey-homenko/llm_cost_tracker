@@ -32,15 +32,17 @@ module LlmCostTracker
       (numerator.to_f / denominator) * 100.0
     end
 
-    def money(value)
+    def money(value, currency: LlmCostTracker::DEFAULT_CURRENCY)
       value = value.to_f
       precision = value.abs < 0.01 && value != 0.0 ? 6 : 2
+      formatted = format("%.#{precision}f", value)
+      code = currency.to_s.upcase.presence || LlmCostTracker::DEFAULT_CURRENCY
 
-      "$#{format("%.#{precision}f", value)}"
+      code == LlmCostTracker::DEFAULT_CURRENCY ? "$#{formatted}" : "#{formatted} #{code}"
     end
 
-    def optional_money(value)
-      value.nil? ? "n/a" : money(value)
+    def optional_money(value, currency: LlmCostTracker::DEFAULT_CURRENCY)
+      value.nil? ? "n/a" : money(value, currency: currency)
     end
 
     def format_date(value)

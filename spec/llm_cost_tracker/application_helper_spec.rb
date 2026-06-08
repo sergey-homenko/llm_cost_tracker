@@ -18,6 +18,18 @@ RSpec.describe LlmCostTracker::ApplicationHelper do
     expect(helper_object.coverage_percent(2, 0)).to eq(0.0)
   end
 
+  it "renders USD with a $ symbol and other currencies with an ISO-code suffix" do
+    expect(helper_object.money(1.23)).to eq("$1.23")
+    expect(helper_object.money(1.23, currency: "USD")).to eq("$1.23")
+    expect(helper_object.money(1.23, currency: "EUR")).to eq("1.23 EUR")
+    expect(helper_object.money(1.23, currency: nil)).to eq("$1.23")
+  end
+
+  it "threads currency through optional_money and renders n/a for nil" do
+    expect(helper_object.optional_money(nil, currency: "EUR")).to eq("n/a")
+    expect(helper_object.optional_money(2.5, currency: "EUR")).to eq("2.50 EUR")
+  end
+
   it "truncates long tag chip values at the display boundary" do
     entry = helper_object.tag_chip_entries({ feature: "x" * 100 }).first
 
