@@ -8,6 +8,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - OpenAI's image-generation, computer-use, and MCP tool calls no longer add `$0` line items that marked a call's pricing `partial`. Their cost is already captured in the model's tokens, so these tool calls are no longer recorded as separate rows and the call reflects complete pricing.
 
+### Fixed
+
+- Async ingestion (`config.ingestion = :async`) no longer permanently loses cost data when a transient database error (deadlock, lock timeout, dropped connection) interrupts the worker mid-drain — affected inbox rows are retried instead of counting toward quarantine.
+
 ## [0.12.0] - 2026-06-04
 
 ### Added

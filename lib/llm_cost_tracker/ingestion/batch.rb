@@ -8,6 +8,12 @@ module LlmCostTracker
     class Batch
       BATCH_SIZE = 100
       LOCK_TIMEOUT_SECONDS = 30
+      TRANSIENT_PERSIST_ERRORS = [
+        ActiveRecord::Deadlocked,
+        ActiveRecord::LockWaitTimeout,
+        ActiveRecord::StatementTimeout,
+        ActiveRecord::ConnectionNotEstablished
+      ].freeze
 
       def initialize(identity:)
         @identity = identity
@@ -22,7 +28,10 @@ module LlmCostTracker
         rows.size
       rescue StandardError => e
         rows_to_mark = valid_rows&.any? ? valid_rows : rows
-        mark_failed_with_message(rows_to_mark, error_message_for(e)) if rows_to_mark&.any?
+        if rows_to_mark&.any?
+          transient = valid_rows&.any? && TRANSIENT_PERSIST_ERRORS.any? { |klass| e.is_a?(klass) }
+          mark_failed_with_message(rows_to_mark, error_message_for(e), decrement_attempts: transient)
+        end
         raise
       end
 
@@ -34,12 +43,20 @@ module LlmCostTracker
         claimable_scope(Time.now.utc - LOCK_TIMEOUT_SECONDS).exists?
       end
 
-      def mark_failed_with_message(rows, message)
+      def mark_failed_with_message(rows, message, decrement_attempts: false)
         now = Time.now.utc
-        Ingestion::InboxEntry
-          .where(id: rows.map(&:id), locked_by: identity)
-          .update_all(last_error: message, locked_at: now, locked_by: nil, updated_at: now)
-        warn_on_quarantine(rows)
+        scope = Ingestion::InboxEntry.where(id: rows.map(&:id), locked_by: identity)
+        if decrement_attempts
+          scope.update_all(
+            Ingestion::InboxEntry.sanitize_sql_array(
+              ["last_error = ?, locked_at = ?, locked_by = NULL, " \
+               "attempts = GREATEST(attempts - 1, 0), updated_at = ?", message, now, now]
+            )
+          )
+        else
+          scope.update_all(last_error: message, locked_at: now, locked_by: nil, updated_at: now)
+          warn_on_quarantine(rows)
+        end
       rescue StandardError => e
         LlmCostTracker::Logging.warn(
           "Inbox mark_failed_with_message failed for #{rows.size} rows: #{e.class}: #{e.message} " \

@@ -249,6 +249,33 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker::Ingestion::InboxEntry.delete_all
   end
 
+  it "does not advance attempts on a transient persist failure so an infra blip never quarantines good cost data" do
+    LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 })
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_raise(ActiveRecord::Deadlocked.new("deadlock detected"))
+
+    LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)
+
+    row = LlmCostTracker::Ingestion::InboxEntry.first
+    expect(row.attempts).to eq(0)
+    expect(row.locked_by).to be_nil
+    expect(row.last_error).to include("Deadlocked")
+
+    LlmCostTracker::Ingestion::InboxEntry.delete_all
+  end
+
+  it "advances attempts on a non-transient persist failure so genuinely bad rows still progress toward quarantine" do
+    LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 })
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_raise("write failed")
+
+    LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)
+
+    expect(LlmCostTracker::Ingestion::InboxEntry.first.attempts).to eq(1)
+
+    LlmCostTracker::Ingestion::InboxEntry.delete_all
+  end
+
   it "quarantines invalid inbox entries without blocking valid rows behind them" do
     now = Time.utc(2026, 4, 18, 12)
     LlmCostTracker::Ingestion::InboxEntry.create!(
