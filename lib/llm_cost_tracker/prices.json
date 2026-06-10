@@ -13,7 +13,7 @@
       "https://console.groq.com/docs/service-tiers"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-08"
+    "updated_at": "2026-06-10"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1094,6 +1094,12 @@
       "input": 0.8,
       "output": 4.0
     },
+    "openrouter/anthropic/claude-fable-5": {
+      "cache_read_input": 1.0,
+      "cache_write_input": 12.5,
+      "input": 10.0,
+      "output": 50.0
+    },
     "openrouter/anthropic/claude-haiku-4.5": {
       "cache_read_input": 0.1,
       "cache_write_input": 1.25,
@@ -1623,12 +1629,14 @@
       "output": 0.95
     },
     "openrouter/minimax/minimax-m2.5": {
+      "cache_read_input": 0.05,
       "input": 0.15,
-      "output": 1.15
+      "output": 0.9
     },
     "openrouter/minimax/minimax-m2.7": {
-      "input": 0.279,
-      "output": 1.2
+      "cache_read_input": 0.054,
+      "input": 0.27,
+      "output": 1.08
     },
     "openrouter/minimax/minimax-m3": {
       "cache_read_input": 0.06,
@@ -1763,9 +1771,8 @@
       "output": 2.5
     },
     "openrouter/moonshotai/kimi-k2.5": {
-      "cache_read_input": 0.09,
-      "input": 0.4,
-      "output": 1.9
+      "input": 0.35,
+      "output": 1.89
     },
     "openrouter/moonshotai/kimi-k2.6": {
       "cache_read_input": 0.34,
@@ -2518,7 +2525,7 @@
       "output": 1.74
     },
     "openrouter/z-ai/glm-4.6v": {
-      "cache_read_input": 0.05,
+      "cache_read_input": 0.055,
       "input": 0.3,
       "output": 0.9
     },
@@ -2551,6 +2558,12 @@
       "cache_read_input": 0.24,
       "input": 1.2,
       "output": 4.0
+    },
+    "openrouter/~anthropic/claude-fable-latest": {
+      "cache_read_input": 1.0,
+      "cache_write_input": 12.5,
+      "input": 10.0,
+      "output": 50.0
     },
     "openrouter/~anthropic/claude-haiku-latest": {
       "cache_read_input": 0.1,
