@@ -10,7 +10,8 @@ module LlmCostTracker
   module Pricing
     class Calculation
       RATE_DENOMINATOR_TOKENS = Pricing::RATE_BASIS_QUANTITIES.fetch("per_million_tokens")
-      private_constant :RATE_DENOMINATOR_TOKENS
+      SNAPSHOT_SCHEMA_VERSION = 1
+      private_constant :RATE_DENOMINATOR_TOKENS, :SNAPSHOT_SCHEMA_VERSION
 
       def self.for(provider:, model:, tokens:, pricing_mode:, line_items: [], usage_source: nil)
         new(provider: provider,
@@ -61,7 +62,12 @@ module LlmCostTracker
       def snapshot
         return @snapshot if defined?(@snapshot)
 
-        @snapshot = priceable? ? build_snapshot : nil
+        @snapshot =
+          if priceable?
+            build_snapshot
+          elsif kept_service_lines.any?
+            build_service_snapshot
+          end
       end
 
       def cost
@@ -131,13 +137,25 @@ module LlmCostTracker
 
       def build_snapshot
         {
-          "schema_version" => 1,
+          "schema_version" => SNAPSHOT_SCHEMA_VERSION,
           "source" => match.source.name,
           "source_key" => match.key,
           "source_version" => match.source.version,
           "matched_by" => match.matched_by.to_s,
           "currency" => match.source.currency,
           "rates" => service_charge_rates.merge(token_charge_rates)
+        }
+      end
+
+      def build_service_snapshot
+        primary = kept_service_lines.first
+        {
+          "schema_version" => SNAPSHOT_SCHEMA_VERSION,
+          "source" => primary.price_source,
+          "source_version" => primary.price_source_version,
+          "matched_by" => "service_charges",
+          "currency" => cost.currency,
+          "rates" => service_charge_rates
         }
       end
 
@@ -150,8 +168,8 @@ module LlmCostTracker
       end
 
       def service_charge_rates
-        priced_line_items.each_with_object({}) do |line_item, rates|
-          next if line_item.token? || line_item.price_key.nil? || line_item.rate_amount.nil?
+        kept_service_lines.each_with_object({}) do |line_item, rates|
+          next if line_item.price_key.nil? || line_item.rate_amount.nil?
 
           rates[line_item.price_key] ||= rate_entry(line_item.rate_amount, line_item.rate_quantity)
         end
@@ -220,20 +238,31 @@ module LlmCostTracker
         end
       end
 
+      def kept_service_lines
+        return @kept_service_lines if defined?(@kept_service_lines)
+
+        @kept_service_lines = begin
+          priced_services = priced_line_items.reject(&:token?).select(&:priced?)
+          if priced_services.empty?
+            []
+          else
+            base_currency = base_currency_for(token_cost, priced_services)
+            matching, mismatched = priced_services.partition { |line| line.currency.to_s == base_currency.to_s }
+            warn_currency_mismatch(mismatched, base_currency) if mismatched.any?
+            matching
+          end
+        end
+      end
+
       def combine_service_lines
         cost = token_cost
-        priced_services = priced_line_items.reject(&:token?).select(&:priced?)
-        return cost if priced_services.empty?
+        return cost if kept_service_lines.empty?
 
-        base_currency = base_currency_for(cost, priced_services)
-        matching, mismatched = priced_services.partition { |line| line.currency.to_s == base_currency.to_s }
-        warn_currency_mismatch(mismatched, base_currency) if mismatched.any?
-
-        service_total = matching.sum(BigDecimal("0")) { |line| line.cost_value.round(8) }
+        service_total = kept_service_lines.sum(BigDecimal("0")) { |line| line.cost_value.round(8) }
         Charges::Cost.new(
           components: cost ? cost.components : {}.freeze,
           total: (cost&.total || BigDecimal("0")) + service_total,
-          currency: (cost&.currency || base_currency).to_s
+          currency: (cost&.currency || kept_service_lines.first.currency).to_s
         )
       end
 
