@@ -4,6 +4,7 @@ module LlmCostTracker
   module Dashboard
     module DataQuality
       UnknownPricingRow = ::Data.define(:provider, :model, :calls, :share_percent)
+      QuarantinedInbox = ::Data.define(:count, :total_cost)
       StreamingHealthRow = ::Data.define(:provider, :streams, :with_usage, :unknown, :unknown_share)
       Summary = ::Data.define(:total,
                               :unknown_pricing_count,
@@ -31,6 +32,17 @@ module LlmCostTracker
       class << self
         def call(scope: LlmCostTracker::Call.all)
           scope.unscope(:order).select(aggregate_selects(scope)).take
+        end
+
+        def quarantined_inbox
+          return nil unless Ingestion.async?
+          return nil unless Ingestion::InboxEntry.table_exists?
+
+          row = Ingestion::InboxEntry
+                .quarantined
+                .select("COUNT(*) AS quarantined_count, COALESCE(SUM(total_cost), 0) AS quarantined_cost")
+                .take
+          QuarantinedInbox.new(count: row.quarantined_count.to_i, total_cost: row.quarantined_cost.to_d)
         end
 
         def summary(stats)

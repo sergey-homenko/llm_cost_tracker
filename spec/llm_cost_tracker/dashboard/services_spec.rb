@@ -937,4 +937,27 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(captured_sql).to include("LIMIT 100")
     end
   end
+
+  describe "LlmCostTracker::Dashboard::DataQuality.quarantined_inbox" do
+    it "counts and sums quarantined inbox rows when async ingestion is configured" do
+      LlmCostTracker.configuration.ingestion = :async
+      max = LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
+      LlmCostTracker::Ingestion::InboxEntry.create!(
+        event_id: "quarantined-1", total_cost: 2.5, tracked_at: Time.utc(2026, 1, 1),
+        payload: "{", attempts: max
+      )
+      LlmCostTracker::Ingestion::InboxEntry.create!(
+        event_id: "pending-1", total_cost: 9.0, tracked_at: Time.utc(2026, 1, 1), payload: "{}"
+      )
+
+      stats = LlmCostTracker::Dashboard::DataQuality.quarantined_inbox
+
+      expect(stats.count).to eq(1)
+      expect(stats.total_cost).to eq(BigDecimal("2.5"))
+    end
+
+    it "returns nil when ingestion is inline" do
+      expect(LlmCostTracker::Dashboard::DataQuality.quarantined_inbox).to be_nil
+    end
+  end
 end

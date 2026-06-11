@@ -118,9 +118,10 @@ module LlmCostTracker
 
       def persist(rows, events, retry_on_conflict: true)
         LlmCostTracker::Call.transaction do
-          Ledger::Store.insert(events)
+          Ledger::Store.persist_records(events)
           Ingestion::InboxEntry.where(id: rows.map(&:id), locked_by: identity).delete_all
         end
+        Ledger::Rollups.increment_safely!(events) if Ingestion.cache_rollups?
       rescue ActiveRecord::RecordNotUnique
         raise unless retry_on_conflict
 

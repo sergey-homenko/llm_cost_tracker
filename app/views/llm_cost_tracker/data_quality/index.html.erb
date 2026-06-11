@@ -10,6 +10,17 @@
   <span class="lct-filter-row-meta"><%= number_with_delimiter(@summary.total) %> call<%= "s" unless @summary.total == 1 %> inspected</span>
 </div>
 
+<% if @quarantined_inbox && @quarantined_inbox.count.positive? %>
+  <h3 class="lct-stat-section-label">Async inbox</h3>
+  <div class="lct-stat-grid">
+    <div class="lct-stat lct-stat-warn">
+      <div class="lct-stat-head"><p class="lct-stat-label">Quarantined inbox rows</p></div>
+      <p class="lct-stat-value"><%= number_with_delimiter(@quarantined_inbox.count) %></p>
+      <p class="lct-stat-foot"><%= money(@quarantined_inbox.total_cost) %> excluded from the ledger and totals</p>
+    </div>
+  </div>
+<% end %>
+
 <% if @summary.total.zero? %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">No data yet</h2>

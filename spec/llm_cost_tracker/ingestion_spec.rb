@@ -236,7 +236,7 @@ RSpec.describe "ActiveRecord async inbox" do
       model: "gpt-4o",
       tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
-    allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_raise("write failed")
+    allow(LlmCostTracker::Ledger::Store).to receive(:persist_records).and_raise("write failed")
     allow(LlmCostTracker::Logging).to receive(:warn)
 
     expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(0)
@@ -249,10 +249,22 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker::Ingestion::InboxEntry.delete_all
   end
 
+  it "lands the batch even when the rollup cache increment fails so a cache fault cannot quarantine cost rows" do
+    event = LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 })
+    allow(LlmCostTracker::CallRollup).to receive(:increment_all).and_raise("rollup down")
+    allow(LlmCostTracker::Logging).to receive(:warn)
+
+    expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(1)
+
+    expect(LlmCostTracker::Call.find_by!(event_id: event.event_id)).to be_present
+    expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(include("Rollup increment failed"))
+  end
+
   it "does not advance attempts on a transient persist failure so an infra blip never quarantines good cost data" do
     LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 })
     allow(LlmCostTracker::Logging).to receive(:warn)
-    allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_raise(ActiveRecord::Deadlocked.new("deadlock detected"))
+    allow(LlmCostTracker::Ledger::Store).to receive(:persist_records).and_raise(ActiveRecord::Deadlocked.new("deadlock detected"))
 
     LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)
 
@@ -267,7 +279,7 @@ RSpec.describe "ActiveRecord async inbox" do
   it "advances attempts on a non-transient persist failure so genuinely bad rows still progress toward quarantine" do
     LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 })
     allow(LlmCostTracker::Logging).to receive(:warn)
-    allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_raise("write failed")
+    allow(LlmCostTracker::Ledger::Store).to receive(:persist_records).and_raise("write failed")
 
     LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)
 

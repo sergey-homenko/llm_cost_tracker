@@ -14,13 +14,20 @@ module LlmCostTracker
           events = Array(events)
           return if events.empty?
 
+          persist_records(events)
+          Ledger::Rollups.increment_safely!(events) if LlmCostTracker.configuration.cache_rollups
+        end
+
+        def persist_records(events)
+          events = Array(events)
+          return if events.empty?
+
           LlmCostTracker::Call.transaction do
             rows = events.map { |event| attributes_for(event) }
             call_ids = insert_calls_returning_ids(rows, events)
             insert_line_items(events, call_ids)
             insert_call_tags(events, call_ids)
           end
-          Ledger::Rollups.increment_safely!(events) if LlmCostTracker.configuration.cache_rollups
         end
 
         private

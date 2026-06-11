@@ -16,6 +16,20 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
     expect(response.body).to include("No data yet")
   end
 
+  it "shows quarantined async-inbox rows even when no calls are recorded" do
+    LlmCostTracker.configuration.ingestion = :async
+    LlmCostTracker::Ingestion::InboxEntry.create!(
+      event_id: "quarantined-view-1", total_cost: 3.5, tracked_at: Time.utc(2026, 1, 1),
+      payload: "{", attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
+    )
+
+    response = get("/llm-costs/data_quality")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Quarantined inbox rows")
+    expect(response.body).to include("No data yet")
+  end
+
   it "shows cost, tag, and latency coverage metrics" do
     create_call(provider: "openai", model: "gpt-4o", total_cost: 1.0, latency_ms: 100, tags: { env: "prod" })
     create_call(provider: "openai", model: "unknown-model", total_cost: nil, latency_ms: nil, tags: {})

@@ -55,9 +55,11 @@ Flip `config.ingestion = :async` (after running
 - Insulation from caller transaction rollbacks — staged events survive
   `ActiveRecord::Rollback`.
 - Batched inserts — the worker drains rows into
-  `llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
-  `llm_cost_tracker_call_tags`, and (when `cache_rollups = true`) the
-  call rollups in one transaction per batch.
+  `llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`, and
+  `llm_cost_tracker_call_tags` in one transaction per batch. With
+  `cache_rollups = true` the rollup cache is incremented after that
+  transaction commits — a rollup failure is logged and never fails the
+  batch; `bin/rails llm_cost_tracker:rebuild_rollups` recovers the cache.
 
 Lifecycle hooks (no-ops in inline mode):
 

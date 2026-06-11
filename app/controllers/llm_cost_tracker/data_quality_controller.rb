@@ -20,6 +20,7 @@ module LlmCostTracker
         scope,
         total_streaming: @summary.streaming_count
       )
+      @quarantined_inbox = Dashboard::DataQuality.quarantined_inbox
     end
   end
 end

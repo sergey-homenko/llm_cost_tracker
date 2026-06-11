@@ -6,6 +6,7 @@ module LlmCostTracker
       MAX_ATTEMPTS_BEFORE_QUARANTINE = 5
 
       scope :pending, -> { where(attempts: ..(MAX_ATTEMPTS_BEFORE_QUARANTINE - 1)) }
+      scope :quarantined, -> { where(attempts: MAX_ATTEMPTS_BEFORE_QUARANTINE..) }
     end
   end
 end
