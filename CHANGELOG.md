@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed
 
+- BREAKING: `LlmCostTracker.track(tokens:)` and `stream.usage` (inside `track_stream`) now raise `ArgumentError` on unrecognized token keys instead of dropping them, so a typo like `outpt_tokens:` surfaces immediately rather than undercounting the ledger.
 - OpenAI's image-generation, computer-use, and MCP tool calls no longer add `$0` line items that marked a call's pricing `partial`. Their cost is already captured in the model's tokens, so these tool calls are no longer recorded as separate rows and the call reflects complete pricing.
 
 ### Fixed

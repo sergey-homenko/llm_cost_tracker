@@ -60,6 +60,14 @@ RSpec.describe LlmCostTracker do
       expect(stored[:data]["item_id"]).to eq("audio_1")
     end
 
+    it "raises on unknown token keys in stream.usage instead of silently dropping them" do
+      collector = described_class.new(provider: "openai", model: "gpt-4o")
+
+      expect do
+        collector.usage(input_tokens: 5, output_tokens: 1, cache_red_input_tokens: 7)
+      end.to raise_error(ArgumentError, /cache_red_input_tokens/)
+    end
+
     it "tags the recorded event with stream_errored: true when errored is passed" do
       collector = described_class.new(provider: "openai", model: "gpt-4o")
       collector.usage(input_tokens: 5, output_tokens: 1)

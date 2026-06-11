@@ -93,9 +93,9 @@ LlmCostTracker.track(provider: "openai", model: "gpt-4o",
 
 The pricing field names in `prices_file` / `pricing_overrides` are unchanged —
 they stay `input`, `output`, `cache_read_input`, … (those are per-component
-rates, a separate vocabulary). A `tokens:` hash with no recognized keys now logs
-`Logging.warn("tokens hash contains no recognized keys …")` and lands as zero
-tokens, so a missed callsite is visible.
+rates, a separate vocabulary). A `tokens:` hash containing an unrecognized key
+raises `ArgumentError` (as does `stream.usage`), so a typo'd or missed callsite
+fails loudly instead of undercounting the ledger.
 
 ### Required: update references to the split `Billing` namespace (BREAKING)
 

@@ -79,7 +79,7 @@ module LlmCostTracker
           @provider_api_key_id = extra.delete(:provider_api_key_id) || @provider_api_key_id
           @provider_workspace_id = extra.delete(:provider_workspace_id) || @provider_workspace_id
           @explicit_usage = Usage::TokenUsage.build(
-            **extra.slice(*Usage::TokenUsage.members),
+            **extra,
             input_tokens: input_tokens,
             output_tokens: output_tokens
           )

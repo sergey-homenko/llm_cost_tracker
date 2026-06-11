@@ -68,23 +68,21 @@ RSpec.describe LlmCostTracker::Usage::TokenUsage do
     expect { described_class.build_from_tokens(42) }.to raise_error(ArgumentError, /must be a Hash/)
   end
 
-  it "warns when no recognized keys are present so provider response shapes are caught" do
-    expect(LlmCostTracker::Logging).to receive(:warn).with(
-      a_string_including("tokens hash contains no recognized keys")
-    )
-
-    described_class.build_from_tokens(prompt_tokens: 10, completion_tokens: 5)
+  it "raises when no recognized keys are present so provider response shapes are caught" do
+    expect do
+      described_class.build_from_tokens(prompt_tokens: 10, completion_tokens: 5)
+    end.to raise_error(ArgumentError, /raw provider response/)
   end
 
-  it "does not warn when at least one recognized key is present" do
-    expect(LlmCostTracker::Logging).not_to receive(:warn)
-
-    described_class.build_from_tokens(input_tokens: 10, prompt_tokens: 99)
+  it "raises on a typo'd key mixed with recognized ones instead of silently dropping it" do
+    expect do
+      described_class.build_from_tokens(input_tokens: 10, outpt_tokens: 3)
+    end.to raise_error(ArgumentError, /outpt_tokens/)
   end
 
-  it "does not warn for empty hashes" do
-    expect(LlmCostTracker::Logging).not_to receive(:warn)
+  it "builds a zero usage from an empty hash" do
+    usage = described_class.build_from_tokens({})
 
-    described_class.build_from_tokens({})
+    expect(usage.total_tokens).to eq(0)
   end
 end

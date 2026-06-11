@@ -27,23 +27,14 @@ module LlmCostTracker
         raise ArgumentError, "tokens must be a Hash, got #{tokens.class}" unless tokens.respond_to?(:to_h)
 
         values = tokens.to_h.transform_keys(&:to_s)
-        warn_on_unknown_keys(values)
-        recognized = members.each_with_object({}) do |key, attributes|
-          attributes[key] = values[key.to_s] if values.key?(key.to_s)
-        end
-        build(**recognized)
-      end
-
-      def self.warn_on_unknown_keys(values)
-        return if values.empty?
-
         known = members.map(&:to_s)
-        return if values.keys.intersect?(known)
+        unknown = values.keys - known
+        if unknown.any?
+          hint = values.keys.intersect?(known) ? "" : ". Did you pass a raw provider response?"
+          raise ArgumentError, "unknown token keys: #{unknown.inspect}; expected #{known.inspect}#{hint}"
+        end
 
-        Logging.warn(
-          "tokens hash contains no recognized keys (#{values.keys.inspect}); " \
-          "expected one of #{known.inspect}. Did you pass a raw provider response?"
-        )
+        build(**values.transform_keys(&:to_sym))
       end
 
       def self.non_negative_int(value)
