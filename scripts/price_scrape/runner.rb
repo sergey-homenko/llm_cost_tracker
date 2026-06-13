@@ -66,7 +66,8 @@ module LlmCostTracker
         orchestrator_result = @orchestrator_factory.call(dry_run: dry_run).call(
           provider: name,
           provider_result: scraped,
-          registry_path: registry_path
+          registry_path: registry_path,
+          source_urls: canonical_source_urls
         )
         log_provider_result(name, orchestrator_result, dry_run: dry_run)
 
@@ -96,6 +97,10 @@ module LlmCostTracker
         return provider_class::SOURCE_URLS if provider_class.const_defined?(:SOURCE_URLS)
 
         [provider_class.source_url]
+      end
+
+      def canonical_source_urls
+        PROVIDERS.values.flat_map { |provider_class| source_urls(provider_class) }.uniq
       end
 
       def log_provider_result(name, result, dry_run:)
