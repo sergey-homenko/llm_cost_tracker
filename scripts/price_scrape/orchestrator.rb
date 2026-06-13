@@ -24,17 +24,20 @@ module LlmCostTracker
         @dry_run = dry_run
       end
 
-      def call(provider:, provider_result:, registry_path:)
+      def call(provider:, provider_result:, registry_path:, source_urls: nil)
         provider = normalize_provider(provider)
         registry = read_registry(registry_path)
         current_models = registry.fetch("models", {})
         current_service_charges = registry.fetch("service_charges", {})
 
         plan = build_plan(provider, provider_result, current_models, current_service_charges)
-        return plan unless plan.changed? && !@dry_run
+        source_urls_stale = source_urls && registry.dig("metadata", "source_urls") != source_urls
+        return plan unless (plan.changed? || source_urls_stale) && !@dry_run
 
+        metadata = registry.fetch("metadata", {}).merge("updated_at" => @today.iso8601)
+        metadata["source_urls"] = source_urls if source_urls
         new_registry = registry.merge(
-          "metadata" => registry.fetch("metadata", {}).merge("updated_at" => @today.iso8601),
+          "metadata" => metadata,
           "models" => apply_changes(provider, current_models, provider_result, plan.removed)
         )
         service_charges = apply_service_charges(provider, current_service_charges, provider_result)

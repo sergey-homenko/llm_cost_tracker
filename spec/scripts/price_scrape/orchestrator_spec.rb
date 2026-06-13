@@ -63,6 +63,71 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     end
   end
 
+  it "writes the canonical source_urls into metadata when models change" do
+    registry = build_registry(
+      models: { "anthropic/claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } },
+      metadata: { "source_urls" => ["https://old.example.com/pricing"] }
+    )
+    provider_result = build_result(models: { "claude-opus-4-7" => { "input" => 6.0, "output" => 25.0 } })
+
+    with_registry(registry) do |path|
+      described_class.new(today: Date.new(2026, 4, 26)).call(
+        provider: "anthropic",
+        provider_result: provider_result,
+        registry_path: path,
+        source_urls: ["https://new.example.com/pricing", "https://new.example.com/cache"]
+      )
+
+      written = JSON.parse(File.read(path))
+      expect(written.dig("metadata", "source_urls")).to eq(
+        ["https://new.example.com/pricing", "https://new.example.com/cache"]
+      )
+    end
+  end
+
+  it "rewrites stale source_urls even when no model prices changed" do
+    registry = build_registry(
+      models: { "anthropic/claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } },
+      metadata: { "source_urls" => ["https://dead.example.com/pricing"] }
+    )
+    provider_result = build_result(models: { "claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } })
+
+    with_registry(registry) do |path|
+      result = described_class.new(today: Date.new(2026, 4, 26)).call(
+        provider: "anthropic",
+        provider_result: provider_result,
+        registry_path: path,
+        source_urls: ["https://live.example.com/pricing"]
+      )
+
+      expect(result.changed?).to be(false)
+      expect(result.written).to be(true)
+      written = JSON.parse(File.read(path))
+      expect(written.dig("metadata", "source_urls")).to eq(["https://live.example.com/pricing"])
+      expect(written.dig("metadata", "updated_at")).to eq("2026-04-26")
+    end
+  end
+
+  it "leaves the registry untouched when source_urls already match and nothing changed" do
+    registry = build_registry(
+      models: { "anthropic/claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } },
+      metadata: { "source_urls" => ["https://live.example.com/pricing"], "updated_at" => "2026-04-01" }
+    )
+    provider_result = build_result(models: { "claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } })
+
+    with_registry(registry) do |path|
+      result = described_class.new(today: Date.new(2026, 4, 26)).call(
+        provider: "anthropic",
+        provider_result: provider_result,
+        registry_path: path,
+        source_urls: ["https://live.example.com/pricing"]
+      )
+
+      expect(result.written).to be(false)
+      expect(JSON.parse(File.read(path)).dig("metadata", "updated_at")).to eq("2026-04-01")
+    end
+  end
+
   it "does not delete another provider's namespaced model when an aggregator scrape's id matches (e.g. OpenRouter reporting `openai/gpt-4o` does not nuke the direct openai entry)" do
     registry = build_registry(models: {
                                 "openai/gpt-4o" => { "input" => 2.5, "output" => 10.0 }
