@@ -1,95 +1,83 @@
 <html>
   <body>
-    <h2 id="production-models">Production Models</h2>
-    <div>
-      <table>
-        <thead>
-          <tr>
-            <th>MODEL ID</th>
-            <th>SPEED (T/SEC)</th>
-            <th>PRICE PER 1M TOKENS</th>
-            <th>RATE LIMITS (DEVELOPER PLAN)</th>
-            <th>CONTEXT WINDOW (TOKENS)</th>
-            <th>MAX COMPLETION TOKENS</th>
-            <th>MAX FILE SIZE</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Llama 3.1 8B<span class="font-mono">llama-3.1-8b-instant</span></td>
-            <td>560</td>
-            <td><span>$0.05 <span>input</span></span><span>$0.08 <span>output</span></span></td>
-            <td>250K TPM 1K RPM</td>
-            <td>131,072</td>
-            <td>131,072</td>
-            <td>-</td>
-          </tr>
-          <tr>
-            <td>Llama 3.3 70B<span class="font-mono">llama-3.3-70b-versatile</span></td>
-            <td>280</td>
-            <td><span>$0.59 <span>input</span></span><span>$0.79 <span>output</span></span></td>
-            <td>300K TPM 1K RPM</td>
-            <td>131,072</td>
-            <td>32,768</td>
-            <td>-</td>
-          </tr>
-          <tr>
-            <td>GPT OSS 120B<span class="font-mono">openai/gpt-oss-120b</span></td>
-            <td>500</td>
-            <td><span>$0.15 <span>input</span></span><span>$0.60 <span>output</span></span></td>
-            <td>250K TPM 1K RPM</td>
-            <td>131,072</td>
-            <td>65,536</td>
-            <td>-</td>
-          </tr>
-          <tr>
-            <td>GPT OSS 20B<span class="font-mono">openai/gpt-oss-20b</span></td>
-            <td>1000</td>
-            <td><span>$0.075 <span>input</span></span><span>$0.30 <span>output</span></span></td>
-            <td>250K TPM 1K RPM</td>
-            <td>131,072</td>
-            <td>65,536</td>
-            <td>-</td>
-          </tr>
-          <tr>
-            <td>Whisper<span class="font-mono">whisper-large-v3</span></td>
-            <td>-</td>
-            <td><span>$0.111 <span>per hour</span></span></td>
-            <td>200K ASH 300 RPM</td>
-            <td>-</td>
-            <td>-</td>
-            <td>100 MB</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <h2 id="production-systems">Production Systems</h2>
+    <h2>Token Pricing</h2>
     <table>
       <thead>
         <tr>
-          <th>MODEL ID</th>
-          <th>PRICE PER 1M TOKENS</th>
+          <th>Model</th>
+          <th>Uncached Input Tokens (Per M Tokens)</th>
+          <th>Cached Input Tokens (Per M Tokens)</th>
+          <th>Output Tokens (Per M Tokens)</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td>Compound<span class="font-mono">groq/compound</span></td>
-          <td>-</td>
+          <td>openai/gpt-oss-120b</td>
+          <td>$0.15</td>
+          <td>$0.075</td>
+          <td>$0.60</td>
         </tr>
       </tbody>
     </table>
-    <h2 id="preview-models">Preview Models</h2>
     <table>
       <thead>
         <tr>
-          <th>MODEL ID</th>
-          <th>PRICE PER 1M TOKENS</th>
+          <th>AI Model</th>
+          <th>Current Speed (Tokens per Second)</th>
+          <th>Input Token Price (Per Million Tokens)</th>
+          <th>Output Token Price (Per Million Tokens)</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td>Safety GPT OSS 20B<span class="font-mono">openai/gpt-oss-safeguard-20b</span></td>
-          <td><span>$0.075 <span>input</span></span><span>$0.30 <span>output</span></span></td>
+          <td>GPT OSS 20B 128k</td>
+          <td>1,000 TPS</td>
+          <td>Input Token Price (Per Million Tokens) $0.075 (13.3M / $1)*</td>
+          <td>Output Token Price (Per Million Tokens) $0.30 (3.33M / $1)*</td>
+          <td>
+            <a href="https://console.groq.com/playground?model=openai/gpt-oss-120b">Try Now</a>
+            <a href="https://console.groq.com/docs/model/openai/gpt-oss-20b">Model Card</a>
+          </td>
+        </tr>
+        <tr>
+          <td>GPT OSS Safeguard 20B</td>
+          <td>1,000 TPS</td>
+          <td>Input Token Price (Per Million Tokens) $0.075 (13.3M / $1)*</td>
+          <td>Output Token Price (Per Million Tokens) $0.30 (3.33M / $1)*</td>
+          <td>
+            <a href="https://console.groq.com/playground?model=openai/gpt-oss-120b">Try Now</a>
+            <a href="https://console.groq.com/docs/model/openai/gpt-oss-120b">Model Card</a>
+          </td>
+        </tr>
+        <tr>
+          <td>GPT OSS 120B 128k</td>
+          <td>500 TPS</td>
+          <td>Input Token Price (Per Million Tokens) $0.15 (6.67M / $1)*</td>
+          <td>Output Token Price (Per Million Tokens) $0.60 (1.66M / $1)*</td>
+          <td>
+            <a href="https://console.groq.com/playground?model=openai/gpt-oss-120b">Try Now</a>
+            <a href="https://console.groq.com/docs/model/openai/gpt-oss-120b">Model Card</a>
+          </td>
+        </tr>
+        <tr>
+          <td>Llama 3.3 70B Versatile 128k</td>
+          <td>280 TPS</td>
+          <td>Input Token Price (Per Million Tokens) $0.59</td>
+          <td>Output Token Price (Per Million Tokens) $0.79</td>
+          <td>
+            <a href="https://console.groq.com/playground?model=llama-3.3-70b-versatile">Try Now</a>
+            <a href="https://console.groq.com/docs/model/llama-3.3-70b-versatile">Model Card</a>
+          </td>
+        </tr>
+        <tr>
+          <td>Llama 3.1 8B Instant 128k</td>
+          <td>560 TPS</td>
+          <td>Input Token Price (Per Million Tokens) $0.05</td>
+          <td>Output Token Price (Per Million Tokens) $0.08</td>
+          <td>
+            <a href="https://console.groq.com/playground?model=llama-3.1-8b-instant">Try Now</a>
+            <a href="https://console.groq.com/docs/model/llama-3.1-8b-instant">Model Card</a>
+          </td>
         </tr>
       </tbody>
     </table>

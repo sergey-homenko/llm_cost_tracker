@@ -9,7 +9,7 @@ module LlmCostTracker
   module Pricing::Scrape
     module Providers
       class Groq < Base
-        source_url "https://console.groq.com/docs/models"
+        source_url "https://groq.com/pricing"
         min_models 4
         max_price 1000.0
         anchors "llama-3.1-8b-instant", "openai/gpt-oss-20b"
@@ -18,9 +18,11 @@ module LlmCostTracker
         FLEX_PROCESSING_SOURCE_URL = "https://console.groq.com/docs/flex-processing"
         SOURCE_URLS = [source_url, PROMPT_CACHING_SOURCE_URL, FLEX_PROCESSING_SOURCE_URL].freeze
 
+        MODEL_CARD_PATH = "/docs/model/"
+
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           pages = pages_from(html)
-          models_doc = Nokogiri::HTML(pages.fetch(self.class.source_url))
+          pricing_doc = Nokogiri::HTML(pages.fetch(self.class.source_url))
           prompt_caching_doc = Nokogiri::HTML(pages.fetch(PROMPT_CACHING_SOURCE_URL))
           flex_doc = Nokogiri::HTML(pages.fetch(FLEX_PROCESSING_SOURCE_URL))
 
@@ -28,7 +30,7 @@ module LlmCostTracker
           verify_flex_pricing!(flex_doc)
 
           cache_models = extract_prompt_cache_models(prompt_caching_doc)
-          models = extract_models(models_doc, cache_models: cache_models)
+          models = extract_models(pricing_doc, cache_models: cache_models)
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -48,48 +50,41 @@ module LlmCostTracker
         end
 
         def extract_models(doc, cache_models:)
-          table = find_production_models_table(doc)
-          raise Error, "Groq production models pricing table not found" unless table
+          table = find_text_models_table(doc)
+          raise Error, "Groq token models pricing table not found" unless table
 
           headers = header_texts(table)
-          model_index = column_index(headers, "MODEL ID")
-          price_index = column_index(headers, "PRICE PER 1M TOKENS")
+          model_index = column_index(headers, "AI MODEL")
+          input_index = column_index(headers, "INPUT TOKEN PRICE")
+          output_index = column_index(headers, "OUTPUT TOKEN PRICE")
+          last_index = [model_index, input_index, output_index].max
 
-          table.css("tbody tr").each_with_object({}) do |row, models|
+          rows = table.css("tbody tr").filter_map do |row|
             cells = row.css("td")
-            next unless cells.size > [model_index, price_index].max
+            next if cells.size <= last_index
 
-            model_id = extract_model_id(cells[model_index])
+            model_id = model_card_id(row)
             next unless model_id
 
-            fields = extract_price_fields(cells[price_index])
-            next unless fields
+            input = price_from_cell(cells[input_index])
+            output = price_from_cell(cells[output_index])
+            next unless input && output
 
-            fields = add_mode_prices(fields)
-            fields = add_cache_read_prices(fields) if cache_models.include?(model_id)
-            models[model_id] = fields
+            { id: model_id, name: normalize_text(cells[model_index].text), input: input, output: output }
+          end
+
+          resolve_rows(rows).transform_values do |row|
+            fields = add_mode_prices("input" => row[:input], "output" => row[:output])
+            cache_models.include?(row[:id]) ? add_cache_read_prices(fields) : fields
           end
         end
 
-        def find_production_models_table(doc)
-          heading = doc.css("h2, h3").find { |node| node["id"] == "production-models" } ||
-                    doc.css("h2, h3").find { |node| node.text.strip == "Production Models" }
-          return find_table_by_headers(doc) unless heading
-
-          node = heading
-          while (node = node.next_element)
-            return node if node.name == "table"
-            return node.at_css("table") if node.at_css("table")
-            break if node.name.match?(/\Ah[23]\z/)
-          end
-
-          nil
-        end
-
-        def find_table_by_headers(doc)
+        def find_text_models_table(doc)
           doc.css("table").find do |table|
             headers = header_texts(table)
-            headers.include?("MODEL ID") && headers.include?("PRICE PER 1M TOKENS")
+            header?(headers, "AI MODEL") &&
+              header?(headers, "INPUT TOKEN PRICE") &&
+              header?(headers, "OUTPUT TOKEN PRICE")
           end
         end
 
@@ -97,29 +92,52 @@ module LlmCostTracker
           table.css("thead th").map { |th| normalize_text(th.text) }
         end
 
-        def column_index(headers, header)
-          index = headers.find_index(header)
-          raise Error, "Groq pricing column #{header.inspect} not found in #{headers.inspect}" unless index
+        def header?(headers, needle)
+          headers.any? { |header| header.upcase.include?(needle) }
+        end
+
+        def column_index(headers, needle)
+          index = headers.find_index { |header| header.upcase.include?(needle) }
+          raise Error, "Groq pricing column #{needle.inspect} not found in #{headers.inspect}" unless index
 
           index
         end
 
-        def extract_model_id(cell)
-          explicit = cell.css("span").find { |node| node["class"].to_s.include?("font-mono") }&.text&.strip
-          return explicit if model_id?(explicit)
+        def model_card_id(row)
+          href = row.css("a").filter_map { |node| node["href"] }.find { |link| link.include?(MODEL_CARD_PATH) }
+          return nil unless href
 
-          normalize_text(cell.text).scan(%r{[a-z0-9][a-z0-9_.-]*(?:/[a-z0-9][a-z0-9_.-]*)*}).reverse.find do |candidate|
-            model_id?(candidate)
+          id = href.split(MODEL_CARD_PATH, 2).last.to_s.split(/[?#]/).first
+          id if model_id?(id)
+        end
+
+        def price_from_cell(cell)
+          text = normalize_text(cell.text).gsub(/\([^)]*\)/, " ")
+          match = text.match(/\$\s*(\d+(?:\.\d+)?)/)
+          return nil unless match
+
+          Float(match[1])
+        end
+
+        def resolve_rows(rows)
+          rows.group_by { |row| row[:id] }.each_with_object({}) do |(id, group), resolved|
+            resolved[id] = group.size == 1 ? group.first : disambiguate(id, group)
           end
         end
 
-        def extract_price_fields(cell)
-          text = normalize_text(cell.text)
-          return nil if text.match?(/\bper hour\b|\bper 1M characters\b/i)
+        def disambiguate(id, group)
+          signature = squash(id.split("/").last)
+          consistent = group.select { |row| squash(row[:name]).include?(signature) }
+          unless consistent.size == 1
+            names = group.map { |row| row[:name] }
+            raise Error, "Groq pricing ambiguous model id #{id.inspect} across #{names.inspect}"
+          end
 
-          input = parse_price(text, "input")
-          output = parse_price(text, "output")
-          { "input" => input, "output" => output }
+          consistent.first
+        end
+
+        def squash(value)
+          value.to_s.downcase.gsub(/[^a-z0-9]/, "")
         end
 
         def add_mode_prices(fields)
@@ -171,13 +189,6 @@ module LlmCostTracker
           return if text.match?(/same pricing as on-demand/i) || text.match?(/Pricing matches the on-demand tier/i)
 
           raise Error, "Groq flex on-demand pricing text not found"
-        end
-
-        def parse_price(text, label)
-          match = text.match(/\$\s*(\d+(?:\.\d+)?)\s+#{Regexp.escape(label)}/i)
-          raise Error, "unable to parse #{label} price #{text.inspect}" unless match
-
-          Float(match[1])
         end
 
         def normalize_text(text)

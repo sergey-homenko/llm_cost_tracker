@@ -7,22 +7,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
   let(:models_html) { File.read("spec/fixtures/scrape/groq_models.html", encoding: "utf-8") }
   let(:prompt_caching_html) { File.read("spec/fixtures/scrape/groq_prompt_caching.html", encoding: "utf-8") }
   let(:flex_processing_html) { File.read("spec/fixtures/scrape/groq_flex_processing.html", encoding: "utf-8") }
-  let(:combined_html) do
-    <<~HTML
-      <html>
-        <body>
-          <h2>Production Models</h2>
-          #{minimal_models_table(span_ids: false)}
-          <h2>Supported Models</h2>
-          <p><code>openai/gpt-oss-20b</code></p>
-          <p><code>openai/gpt-oss-120b</code></p>
-          <h2>Pricing</h2>
-          <p>Prompt caching has a 50% discount for cached input tokens.</p>
-          <p>Flex has the same pricing as on-demand processing. Pricing matches the on-demand tier.</p>
-        </body>
-      </html>
-    HTML
-  end
 
   def html_pages(overrides = {})
     {
@@ -32,43 +16,41 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
     }.merge(overrides)
   end
 
-  def minimal_models_table(span_ids: true)
-    model_cell = lambda do |label, id|
-      span_ids ? "#{label}<span class=\"font-mono\">#{id}</span>" : "#{label} #{id}"
-    end
+  def text_models_table(rows)
+    body = rows.map do |row|
+      card = row[:card] || row[:id]
+      <<~ROW
+        <tr>
+          <td>#{row[:name]}</td>
+          <td>500 TPS</td>
+          <td>Input Token Price (Per Million Tokens) $#{row[:input]} (per $1)*</td>
+          <td>Output Token Price (Per Million Tokens) $#{row[:output]} (per $1)*</td>
+          <td><a href="https://console.groq.com/docs/model/#{card}">Model Card</a></td>
+        </tr>
+      ROW
+    end.join
 
     <<~HTML
       <table>
         <thead>
           <tr>
-            <th>MODEL ID</th>
-            <th>PRICE PER 1M TOKENS</th>
+            <th>AI Model</th>
+            <th>Current Speed (Tokens per Second)</th>
+            <th>Input Token Price (Per Million Tokens)</th>
+            <th>Output Token Price (Per Million Tokens)</th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td>#{model_cell.call('Llama 3.1 8B', 'llama-3.1-8b-instant')}</td>
-            <td>$0.05 input $0.08 output</td>
-          </tr>
-          <tr>
-            <td>#{model_cell.call('Llama 3.3 70B', 'llama-3.3-70b-versatile')}</td>
-            <td>$0.59 input $0.79 output</td>
-          </tr>
-          <tr>
-            <td>#{model_cell.call('GPT OSS 120B', 'openai/gpt-oss-120b')}</td>
-            <td>$0.15 input $0.60 output</td>
-          </tr>
-          <tr>
-            <td>#{model_cell.call('GPT OSS 20B', 'openai/gpt-oss-20b')}</td>
-            <td>$0.075 input $0.30 output</td>
-          </tr>
-        </tbody>
+        <tbody>#{body}</tbody>
       </table>
     HTML
   end
 
+  def models_page(table)
+    "<html><body><h2>Pricing</h2>#{table}</body></html>"
+  end
+
   describe "#call" do
-    it "extracts production text model prices and derived Groq mode rates" do
+    it "extracts token model prices from the pricing page and derives Groq mode rates" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-05-01T00:00:00Z")
 
       expect(result.source_url).to eq(described_class.source_url)
@@ -92,28 +74,36 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
         "on_demand_cache_read_input" => 0.0375,
         "flex_cache_read_input" => 0.0375
       )
-      expect(result.models).not_to include("whisper-large-v3", "groq/compound", "openai/gpt-oss-safeguard-20b")
     end
 
-    it "extracts prices from a single HTML document with text model identifiers" do
-      result = described_class.new.call(html: combined_html)
+    it "reads the model id from the Model Card link rather than the display name" do
+      result = described_class.new.call(html: html_pages)
 
-      expect(result.models.fetch("openai/gpt-oss-20b")).to include(
-        "input" => 0.075,
-        "cache_read_input" => 0.0375,
-        "output" => 0.3
-      )
+      expect(result.models.keys).to include("llama-3.3-70b-versatile", "openai/gpt-oss-120b")
     end
 
-    it "finds the production table by headers when the heading is absent" do
-      result = described_class.new.call(
-        html: html_pages(described_class.source_url => "<html><body>#{minimal_models_table}</body></html>")
+    it "drops a row whose Model Card link collides with another model and keeps the consistent one" do
+      result = described_class.new.call(html: html_pages)
+
+      expect(result.models.fetch("openai/gpt-oss-120b")).to include("input" => 0.15, "output" => 0.6)
+      expect(result.models.size).to eq(4)
+    end
+
+    it "finds the token model table by headers when it is not the first table on the page" do
+      decoy = "<table><thead><tr><th>Tool</th><th>Price</th></tr></thead>" \
+              "<tbody><tr><td>Web Search</td><td>$5 / 1000 requests</td></tr></tbody></table>"
+      text_table = text_models_table(
+        [
+          { name: "Llama 3.1 8B Instant", id: "llama-3.1-8b-instant", input: "0.05", output: "0.08" },
+          { name: "Llama 3.3 70B Versatile", id: "llama-3.3-70b-versatile", input: "0.59", output: "0.79" },
+          { name: "GPT OSS 20B", id: "openai/gpt-oss-20b", input: "0.075", output: "0.30" },
+          { name: "GPT OSS 120B", id: "openai/gpt-oss-120b", input: "0.15", output: "0.60" }
+        ]
       )
 
-      expect(result.models.fetch("llama-3.1-8b-instant")).to include(
-        "input" => 0.05,
-        "output" => 0.08
-      )
+      result = described_class.new.call(html: html_pages(described_class.source_url => models_page(decoy + text_table)))
+
+      expect(result.models.fetch("llama-3.1-8b-instant")).to include("input" => 0.05, "output" => 0.08)
     end
 
     it "returns at least the minimum expected number of models" do
@@ -126,26 +116,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       expect(result.deprecated_models).to eq([])
     end
 
-    it "raises when the production models table is missing" do
+    it "raises when the token model table is missing" do
       expect do
         described_class.new.call(html: html_pages(described_class.source_url => "<html><body></body></html>"))
-      end.to raise_error(described_class::Error, /production models pricing table not found/)
+      end.to raise_error(described_class::Error, /token models pricing table not found/)
     end
 
-    it "raises when another section starts before the production table" do
-      models_html = <<~HTML
-        <html>
-          <body>
-            <h2 id="production-models">Production Models</h2>
-            <h2>Preview Models</h2>
-            #{minimal_models_table}
-          </body>
-        </html>
-      HTML
+    it "raises when two rows collide on a model id with no consistent display name" do
+      page = models_page(
+        text_models_table(
+          [
+            { name: "Alpha One", id: "openai/gpt-oss-120b", input: "0.15", output: "0.60" },
+            { name: "Beta Two", id: "openai/gpt-oss-120b", input: "0.30", output: "0.60" },
+            { name: "Llama 3.1 8B Instant", id: "llama-3.1-8b-instant", input: "0.05", output: "0.08" }
+          ]
+        )
+      )
 
       expect do
-        described_class.new.call(html: html_pages(described_class.source_url => models_html))
-      end.to raise_error(described_class::Error, /production models pricing table not found/)
+        described_class.new.call(html: html_pages(described_class.source_url => page))
+      end.to raise_error(described_class::Error, /ambiguous model id/)
     end
 
     it "raises when prompt caching supported models are missing" do
@@ -173,12 +163,23 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       end.to raise_error(described_class::Error, /flex on-demand pricing/)
     end
 
-    it "raises when a production text price cannot be parsed" do
-      broken_html = models_html.sub("$0.075", "TBD")
+    it "skips a row whose token price cannot be parsed" do
+      page = models_page(
+        text_models_table(
+          [
+            { name: "Llama 3.1 8B Instant", id: "llama-3.1-8b-instant", input: "0.05", output: "0.08" },
+            { name: "Llama 3.3 70B Versatile", id: "llama-3.3-70b-versatile", input: "0.59", output: "0.79" },
+            { name: "GPT OSS 20B", id: "openai/gpt-oss-20b", input: "0.075", output: "0.30" },
+            { name: "GPT OSS 120B", id: "openai/gpt-oss-120b", input: "0.15", output: "0.60" },
+            { name: "Qwen3 32B", id: "qwen/qwen3-32b", input: "0.29", output: "0.59" }
+          ]
+        ).sub("Input Token Price (Per Million Tokens) $0.59", "Input Token Price (Per Million Tokens) TBD")
+      )
 
-      expect do
-        described_class.new.call(html: html_pages(described_class.source_url => broken_html))
-      end.to raise_error(described_class::Error, /unable to parse input price/)
+      result = described_class.new.call(html: html_pages(described_class.source_url => page))
+
+      expect(result.models).not_to include("llama-3.3-70b-versatile")
+      expect(result.models.keys).to include("qwen/qwen3-32b", "openai/gpt-oss-20b")
     end
   end
 end
