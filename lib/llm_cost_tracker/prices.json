@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-13"
+    "updated_at": "2026-06-14"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -26,8 +26,6 @@
       "output": 1.25
     },
     "anthropic/claude-haiku-4-5": {
-      "batch_input": 0.5,
-      "batch_output": 2.5,
       "cache_read_input": 0.1,
       "cache_write_extended_input": 2.0,
       "cache_write_input": 1.25,
@@ -122,8 +120,6 @@
       "output": 25.0
     },
     "anthropic/claude-sonnet-4-5": {
-      "batch_input": 1.5,
-      "batch_output": 7.5,
       "cache_read_input": 0.3,
       "cache_write_extended_input": 6.0,
       "cache_write_input": 3.75,
@@ -131,13 +127,9 @@
       "output": 15.0
     },
     "anthropic/claude-sonnet-4-6": {
-      "batch_input": 1.5,
-      "batch_output": 7.5,
       "cache_read_input": 0.3,
       "cache_write_extended_input": 6.0,
       "cache_write_input": 3.75,
-      "data_residency_batch_input": 1.65,
-      "data_residency_batch_output": 8.25,
       "data_residency_cache_read_input": 0.33,
       "data_residency_cache_write_extended_input": 6.6,
       "data_residency_cache_write_input": 4.125,
@@ -1335,8 +1327,8 @@
     },
     "openrouter/deepseek/deepseek-v4-flash": {
       "cache_read_input": 0.02,
-      "input": 0.098,
-      "output": 0.196
+      "input": 0.09,
+      "output": 0.18
     },
     "openrouter/deepseek/deepseek-v4-pro": {
       "cache_read_input": 0.003625,
@@ -1796,9 +1788,9 @@
       "output": 3.41
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
-      "cache_read_input": 0.19,
-      "input": 0.95,
-      "output": 4.0
+      "cache_read_input": 0.16,
+      "input": 0.75,
+      "output": 3.5
     },
     "openrouter/morph/morph-v3-fast": {
       "input": 0.8,
