@@ -9,22 +9,36 @@ module LlmCostTracker
     module Matcher
       Match = Data.define(:source, :key, :prices, :matched_by)
 
+      CACHE_LIMIT = 2048
+      private_constant :CACHE_LIMIT
+
       class << self
         def lookup(provider:, model:)
           provider_name = provider.to_s.presence
           model_name = model.to_s
           return nil if model_name.empty?
 
-          lookup_match(provider_name: provider_name, model_name: model_name)
+          sources = Registry.sources
+          reset_cache(sources) unless @cache_sources.equal?(sources)
+          key = [provider_name, model_name].freeze
+          return @cache[key] if @cache.key?(key)
+
+          @cache.clear if @cache.size >= CACHE_LIMIT
+          @cache[key] = lookup_match(sources, provider_name, model_name)
         end
 
         private
 
-        def lookup_match(provider_name:, model_name:)
+        def reset_cache(sources)
+          @cache_sources = sources
+          @cache = {}
+        end
+
+        def lookup_match(sources, provider_name, model_name)
           provider_model = provider_name ? "#{provider_name}/#{model_name}" : model_name
           normalized = normalize_model_name(model_name)
 
-          Registry.sources.each do |source|
+          sources.each do |source|
             match = match_in_source(source, provider_model, model_name, normalized)
             return match if match
           end

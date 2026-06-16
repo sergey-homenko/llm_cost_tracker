@@ -52,6 +52,34 @@ RSpec.describe LlmCostTracker::Pricing do
     end
   end
 
+  context "match caching" do
+    it "returns the same memoized match for a repeated lookup" do
+      first = LlmCostTracker::Pricing::Matcher.lookup(provider: "openai", model: "gpt-4o")
+      second = LlmCostTracker::Pricing::Matcher.lookup(provider: "openai", model: "gpt-4o")
+
+      expect(first).not_to be_nil
+      expect(second).to equal(first)
+    end
+
+    it "memoizes a miss so a repeated unknown lookup stays nil" do
+      expect(LlmCostTracker::Pricing::Matcher.lookup(provider: "openai", model: "no-such-model-xyz")).to be_nil
+      expect(LlmCostTracker::Pricing::Matcher.lookup(provider: "openai", model: "no-such-model-xyz")).to be_nil
+    end
+
+    it "serves fresh prices after a registry reset instead of a stale cached match" do
+      LlmCostTracker.configure { |c| c.pricing_overrides = { "ledger-demo" => { "input" => 1.0, "output" => 2.0 } } }
+      cached = LlmCostTracker::Pricing::Matcher.lookup(provider: nil, model: "ledger-demo")
+      expect(LlmCostTracker::Pricing::Matcher.lookup(provider: nil, model: "ledger-demo")).to equal(cached)
+
+      LlmCostTracker.instance_variable_set(:@configuration, LlmCostTracker::Configuration.new)
+      LlmCostTracker.configure { |c| c.pricing_overrides = { "ledger-demo" => { "input" => 7.0, "output" => 2.0 } } }
+
+      refreshed = LlmCostTracker::Pricing::Matcher.lookup(provider: nil, model: "ledger-demo")
+      expect(refreshed).not_to equal(cached)
+      expect(refreshed.prices.fetch("input").to_f).to eq(7.0)
+    end
+  end
+
   describe ".cost_for" do
     it "calculates cost for a known model" do
       result = cost_for(
