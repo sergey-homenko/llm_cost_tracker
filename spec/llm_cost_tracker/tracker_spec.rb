@@ -201,7 +201,7 @@ RSpec.describe LlmCostTracker::Tracker do
       end.to raise_error(RuntimeError, "storage down")
     end
 
-    it "derives the persisted batch flag from the merged pricing_mode so the two cannot drift" do
+    it "derives the persisted batch flag from the event pricing_mode so the two cannot drift" do
       stored = []
       allow(LlmCostTracker::Ledger::Store).to receive(:insert) do |event|
         stored << event
@@ -211,11 +211,10 @@ RSpec.describe LlmCostTracker::Tracker do
         provider: "openai",
         model: "gpt-4o",
         token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 10, output_tokens: 5),
-        pricing_mode: nil
+        pricing_mode: "batch_flex"
       )
-      expect(parsed_event.batch?).to be false
 
-      described_class.record(event: parsed_event, pricing_mode: "batch_flex")
+      described_class.record(event: parsed_event)
 
       expect(stored.last.pricing_mode).to eq("batch_flex")
       expect(stored.last.batch?).to be true
@@ -376,7 +375,7 @@ RSpec.describe LlmCostTracker::Tracker do
         provider: "custom",
         model: "batchable-model",
         token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000),
-        pricing_mode: "batch",
+        capture_pricing_mode: "batch",
         metadata: { feature: "bulk" }
       )
 
@@ -491,32 +490,6 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.total_cost).to eq(7.0)
     end
 
-    it "keeps explicit pricing_mode ahead of captured provider mode" do
-      LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
-          "multi-mode-model" => {
-            "input" => 1.0,
-            "output" => 2.0,
-            "batch_input" => 0.5,
-            "batch_output" => 1.0,
-            "priority_input" => 3.0,
-            "priority_output" => 4.0
-          }
-        }
-      end
-
-      event = record(
-        provider: "custom",
-        model: "multi-mode-model",
-        token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000),
-        capture_pricing_mode: "priority",
-        pricing_mode: "batch"
-      )
-
-      expect(event.pricing_mode).to eq("batch")
-      expect(event.total_cost).to eq(1.5)
-    end
-
     it "keeps explicit pricing_mode metadata as a tag" do
       LlmCostTracker.configure do |c|
         c.pricing_overrides = {
@@ -559,6 +532,25 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(budget_data).not_to be_nil
       expect(budget_data[:budget_type]).to eq(:monthly)
       expect(budget_data[:total]).to be > 0
+    end
+
+    it "fires on_budget_exceeded once per window when one event crosses both daily and monthly" do
+      budget_types = []
+
+      LlmCostTracker.configure do |c|
+        c.daily_budget = 0.0001
+        c.monthly_budget = 0.0001
+        c.on_budget_exceeded = ->(data) { budget_types << data[:budget_type] }
+      end
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 12.5, month: 12.5)
+
+      record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1_000_000, output_tokens: 1_000_000)
+      )
+
+      expect(budget_types).to eq(%i[daily monthly])
     end
 
     it "triggers per-call budget callback when one event exceeds the ceiling" do

@@ -121,13 +121,14 @@ module LlmCostTracker
         save_succeeded = false
         begin
           event = build_event(snapshot)
-          provider_response_id = event.provider_response_id || snapshot[:provider_response_id]
-          event = event.with(provider_response_id: provider_response_id)
+          event = event.with(
+            provider_response_id: event.provider_response_id || snapshot[:provider_response_id],
+            pricing_mode: Pricing::Mode.merge(event.pricing_mode, snapshot[:pricing_mode])
+          )
 
           Tracker.record(
             event: event,
             latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
-            pricing_mode: Pricing::Mode.merge(event.pricing_mode, snapshot[:pricing_mode]),
             metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
             context_tags: snapshot[:context_tags]
           ) { save_succeeded = true }

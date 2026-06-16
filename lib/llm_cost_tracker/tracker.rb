@@ -13,16 +13,15 @@ module LlmCostTracker
     EVENT_NAME = "llm_request.llm_cost_tracker"
 
     class << self
-      def record(event:, latency_ms: nil, pricing_mode: nil, metadata: {}, context_tags: nil, enforce_budget: false)
+      def record(event:, latency_ms: nil, metadata: {}, context_tags: nil, enforce_budget: false)
         return unless LlmCostTracker.configuration.enabled
 
-        pricing_mode ||= event.pricing_mode
         calculation = Pricing::Calculation.for(
           provider: event.provider,
           model: event.model,
           tokens: event.token_usage,
           line_items: event.line_items,
-          pricing_mode: pricing_mode,
+          pricing_mode: event.pricing_mode,
           usage_source: event.usage_source
         )
 
