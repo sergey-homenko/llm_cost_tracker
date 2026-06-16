@@ -31,6 +31,10 @@ module LlmCostTracker
           @token_priced ||= all.select(&:token_key).freeze
         end
 
+        def find_by(kind:, direction:, modality:, cache_state:, unit:)
+          by_attributes[[kind, direction, modality, cache_state, unit]]
+        end
+
         def token_priced_for(kind:, direction:, cache_state:)
           token_priced.find do |dimension|
             dimension.kind == kind && dimension.direction == direction && dimension.cache_state == cache_state
@@ -41,6 +45,13 @@ module LlmCostTracker
 
         def index
           @index ||= all.to_h { |dimension| [dimension.key, dimension] }.freeze
+        end
+
+        def by_attributes
+          @by_attributes ||= all.to_h do |dimension|
+            key = [dimension.kind, dimension.direction, dimension.modality, dimension.cache_state, dimension.unit]
+            [key, dimension]
+          end.freeze
         end
 
         def load_definitions

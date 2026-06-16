@@ -180,7 +180,7 @@ module LlmCostTracker
       end
 
       def price_token(line_item)
-        dimension = dimension_for(line_item)
+        dimension = line_item.dimension
         return line_item unless dimension
         return line_item.with(cost_status: Charges::CostStatus::UNKNOWN) unless priceable?
 
@@ -226,16 +226,6 @@ module LlmCostTracker
           source_key: "#{match.key}.#{line_item.kind}",
           source_version: match.source.version
         )
-      end
-
-      def dimension_for(line_item)
-        Usage::Catalog.all.find do |dimension|
-          dimension.kind == line_item.kind &&
-            dimension.direction == line_item.direction &&
-            dimension.modality == line_item.modality &&
-            dimension.cache_state == line_item.cache_state &&
-            dimension.unit == line_item.unit
-        end
       end
 
       def kept_service_lines

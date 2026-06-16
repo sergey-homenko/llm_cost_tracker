@@ -119,8 +119,9 @@ module LlmCostTracker
       end
 
       def dimension
-        Usage::Catalog[price_key] ||
-          Usage::Catalog.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
+        Usage::Catalog.find_by(
+          kind: kind, direction: direction, modality: modality, cache_state: cache_state, unit: unit
+        )
       end
 
       def cost_value
