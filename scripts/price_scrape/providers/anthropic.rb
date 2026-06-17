@@ -15,6 +15,7 @@ module LlmCostTracker
         anchors "claude-opus-4-7", "claude-sonnet-4-6"
 
         DATA_RESIDENCY_MULTIPLIER = 1.1
+        BATCH_MULTIPLIER = 0.5
 
         SERVICE_CHARGE_PATTERNS = {
           "web_search_request" => /Web search is available.*?\$\s*(\d+(?:\.\d+)?)\s+per 1,000 searches/i,
@@ -30,9 +31,9 @@ module LlmCostTracker
           raise Error, "Anthropic base pricing table not found" unless base_table
 
           base = extract_base_pricing(base_table)
-          batch = extract_batch_pricing(doc)
+          verify_batch_discount!(doc, base)
           deprecated = extract_deprecated_models(base_table)
-          models = add_fast_mode_pricing(add_data_residency_pricing(merge(base, batch)), doc)
+          models = add_fast_mode_pricing(add_data_residency_pricing(add_batch_pricing(base)), doc)
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -96,6 +97,22 @@ module LlmCostTracker
           end
         end
 
+        def verify_batch_discount!(doc, base)
+          extract_batch_pricing(doc).each do |model_id, scraped|
+            fields = base[model_id]
+            next unless fields
+
+            expected_input = (fields.fetch("input") * BATCH_MULTIPLIER).round(6)
+            expected_output = (fields.fetch("output") * BATCH_MULTIPLIER).round(6)
+            next if scraped["batch_input"] == expected_input && scraped["batch_output"] == expected_output
+
+            message = "Anthropic batch pricing for #{model_id} is no longer #{BATCH_MULTIPLIER} of base " \
+                      "(input #{scraped['batch_input']} vs #{expected_input}, " \
+                      "output #{scraped['batch_output']} vs #{expected_output})"
+            raise Error, message
+          end
+        end
+
         def find_table(doc, required_header_substrings)
           doc.css("table").find do |table|
             headers = header_texts(table)
@@ -128,9 +145,12 @@ module LlmCostTracker
           index
         end
 
-        def merge(base_pricing, batch_pricing)
-          base_pricing.each_with_object({}) do |(model_id, fields), result|
-            result[model_id] = fields.merge(batch_pricing.fetch(model_id, {}))
+        def add_batch_pricing(models)
+          models.each_with_object({}) do |(model_id, fields), priced|
+            priced[model_id] = fields.merge(
+              "batch_input" => (fields.fetch("input") * BATCH_MULTIPLIER).round(6),
+              "batch_output" => (fields.fetch("output") * BATCH_MULTIPLIER).round(6)
+            )
           end
         end
 

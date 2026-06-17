@@ -136,5 +136,44 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         described_class.new.call(html: broken_html)
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
+
+    it "derives batch pricing as half of base even when the upstream batch table is absent" do
+      without_batch_table = html.gsub("Batch input", "Bulk input").gsub("Batch output", "Bulk output")
+
+      result = described_class.new.call(html: without_batch_table)
+
+      expect(result.models.fetch("claude-sonnet-4-6")).to include(
+        "batch_input" => 1.5,
+        "batch_output" => 7.5,
+        "data_residency_batch_input" => 1.65,
+        "data_residency_batch_output" => 8.25
+      )
+      expect(result.models.count { |_, fields| fields.key?("batch_input") }).to eq(result.models.size)
+    end
+  end
+
+  describe "#verify_batch_discount!" do
+    def batch_table(input:, output:)
+      Nokogiri::HTML(
+        "<table><thead><tr><th>Model</th><th>Batch input</th><th>Batch output</th></tr></thead>" \
+        "<tbody><tr><td>Claude Opus 4.7</td><td>#{input} / MTok</td><td>#{output} / MTok</td></tr></tbody></table>"
+      )
+    end
+
+    let(:base) { { "claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 } } }
+
+    it "passes when the upstream batch table still matches the flat discount" do
+      doc = batch_table(input: "$2.50", output: "$12.50")
+
+      expect { described_class.new.send(:verify_batch_discount!, doc, base) }.not_to raise_error
+    end
+
+    it "raises when the upstream batch table diverges from the flat discount" do
+      doc = batch_table(input: "$4.00", output: "$12.50")
+
+      expect do
+        described_class.new.send(:verify_batch_discount!, doc, base)
+      end.to raise_error(described_class::Error, /no longer 0.5 of base/)
+    end
   end
 end
