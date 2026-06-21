@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-18"
+    "updated_at": "2026-06-20"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1811,14 +1811,14 @@
       "output": 2.025
     },
     "openrouter/moonshotai/kimi-k2.6": {
-      "cache_read_input": 0.34,
-      "input": 0.68,
-      "output": 3.41
+      "cache_read_input": 0.33,
+      "input": 0.66,
+      "output": 3.5
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
-      "cache_read_input": 0.15,
-      "input": 0.74,
-      "output": 3.5
+      "cache_read_input": 0.1296,
+      "input": 0.612,
+      "output": 3.069
     },
     "openrouter/morph/morph-v3-fast": {
       "input": 0.8,
@@ -2115,7 +2115,7 @@
       "output": 0.14
     },
     "openrouter/openai/gpt-oss-safeguard-20b": {
-      "cache_read_input": 0.037,
+      "cache_read_input": 0.0375,
       "input": 0.075,
       "output": 0.3
     },
@@ -2190,6 +2190,16 @@
     "openrouter/perplexity/sonar-reasoning-pro": {
       "input": 2.0,
       "output": 8.0
+    },
+    "openrouter/poolside/laguna-m.1": {
+      "cache_read_input": 0.1,
+      "input": 0.2,
+      "output": 0.4
+    },
+    "openrouter/poolside/laguna-xs.2": {
+      "cache_read_input": 0.05,
+      "input": 0.1,
+      "output": 0.2
     },
     "openrouter/prime-intellect/intellect-3": {
       "input": 0.2,
@@ -2347,7 +2357,6 @@
       "output": 1.56
     },
     "openrouter/qwen/qwen3.5-35b-a3b": {
-      "cache_read_input": 0.05,
       "input": 0.14,
       "output": 1.0
     },
@@ -2377,8 +2386,7 @@
       "output": 3.17
     },
     "openrouter/qwen/qwen3.6-35b-a3b": {
-      "cache_read_input": 0.05,
-      "input": 0.15,
+      "input": 0.14,
       "output": 1.0
     },
     "openrouter/qwen/qwen3.6-flash": {
@@ -2463,9 +2471,9 @@
       "output": 0.57
     },
     "openrouter/tencent/hy3-preview": {
-      "cache_read_input": 0.029,
-      "input": 0.066,
-      "output": 0.26
+      "cache_read_input": 0.021,
+      "input": 0.063,
+      "output": 0.21
     },
     "openrouter/thedrummer/cydonia-24b-v4.1": {
       "cache_read_input": 0.15,
@@ -2598,9 +2606,9 @@
       "output": 3.08
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.26,
-      "input": 1.4,
-      "output": 4.4
+      "cache_read_input": 0.2,
+      "input": 1.2,
+      "output": 4.1
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
@@ -2648,9 +2656,9 @@
       "output": 12.0
     },
     "openrouter/~moonshotai/kimi-latest": {
-      "cache_read_input": 0.34,
-      "input": 0.68,
-      "output": 3.41
+      "cache_read_input": 0.33,
+      "input": 0.66,
+      "output": 3.5
     },
     "openrouter/~openai/gpt-latest": {
       "cache_read_input": 0.5,
