@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-20"
+    "updated_at": "2026-06-21"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1216,8 +1216,8 @@
     },
     "openrouter/arcee-ai/trinity-large-thinking": {
       "cache_read_input": 0.06,
-      "input": 0.22,
-      "output": 0.85
+      "input": 0.25,
+      "output": 0.8
     },
     "openrouter/arcee-ai/trinity-mini": {
       "input": 0.045,
@@ -2601,7 +2601,7 @@
       "output": 4.0
     },
     "openrouter/z-ai/glm-5.1": {
-      "cache_read_input": 0.182,
+      "cache_read_input": 0.49,
       "input": 0.98,
       "output": 3.08
     },
