@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-21"
+    "updated_at": "2026-06-22"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1811,9 +1811,9 @@
       "output": 2.025
     },
     "openrouter/moonshotai/kimi-k2.6": {
-      "cache_read_input": 0.33,
+      "cache_read_input": 0.144,
       "input": 0.66,
-      "output": 3.5
+      "output": 3.41
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
       "cache_read_input": 0.1296,
@@ -1831,6 +1831,11 @@
     "openrouter/nex-agi/deepseek-v3.1-nex-n1": {
       "input": 0.135,
       "output": 0.5
+    },
+    "openrouter/nex-agi/nex-n2-pro": {
+      "cache_read_input": 0.25,
+      "input": 0.5,
+      "output": 2.5
     },
     "openrouter/nousresearch/hermes-2-pro-llama-3-8b": {
       "input": 0.14,
@@ -2606,9 +2611,9 @@
       "output": 3.08
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.2,
-      "input": 1.2,
-      "output": 4.1
+      "cache_read_input": 0.18,
+      "input": 1.0,
+      "output": 4.0
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
@@ -2656,9 +2661,9 @@
       "output": 12.0
     },
     "openrouter/~moonshotai/kimi-latest": {
-      "cache_read_input": 0.33,
+      "cache_read_input": 0.144,
       "input": 0.66,
-      "output": 3.5
+      "output": 3.41
     },
     "openrouter/~openai/gpt-latest": {
       "cache_read_input": 0.5,
