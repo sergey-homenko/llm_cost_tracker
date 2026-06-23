@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-22"
+    "updated_at": "2026-06-23"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1816,9 +1816,9 @@
       "output": 3.41
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
-      "cache_read_input": 0.1296,
-      "input": 0.612,
-      "output": 3.069
+      "cache_read_input": 0.144,
+      "input": 0.68,
+      "output": 3.41
     },
     "openrouter/morph/morph-v3-fast": {
       "input": 0.8,
@@ -1833,9 +1833,9 @@
       "output": 0.5
     },
     "openrouter/nex-agi/nex-n2-pro": {
-      "cache_read_input": 0.25,
-      "input": 0.5,
-      "output": 2.5
+      "cache_read_input": 0.025,
+      "input": 0.25,
+      "output": 1.0
     },
     "openrouter/nousresearch/hermes-2-pro-llama-3-8b": {
       "input": 0.14,
@@ -2611,9 +2611,9 @@
       "output": 3.08
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.18,
-      "input": 1.0,
-      "output": 4.0
+      "cache_read_input": 0.182,
+      "input": 0.98,
+      "output": 3.08
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
