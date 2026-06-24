@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-23"
+    "updated_at": "2026-06-24"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1629,7 +1629,7 @@
       "output": 0.18
     },
     "openrouter/microsoft/phi-4": {
-      "input": 0.065,
+      "input": 0.07,
       "output": 0.14
     },
     "openrouter/microsoft/phi-4-mini-instruct": {
@@ -1670,9 +1670,8 @@
       "output": 0.9
     },
     "openrouter/minimax/minimax-m2.7": {
-      "cache_read_input": 0.05,
-      "input": 0.25,
-      "output": 1.0
+      "input": 0.24,
+      "output": 0.96
     },
     "openrouter/minimax/minimax-m3": {
       "cache_read_input": 0.06,
@@ -1816,9 +1815,9 @@
       "output": 3.41
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
-      "cache_read_input": 0.144,
-      "input": 0.68,
-      "output": 3.41
+      "cache_read_input": 0.15,
+      "input": 0.74,
+      "output": 3.5
     },
     "openrouter/morph/morph-v3-fast": {
       "input": 0.8,
@@ -2437,6 +2436,11 @@
       "input": 1.0,
       "output": 3.0
     },
+    "openrouter/sakana/fugu-ultra": {
+      "cache_read_input": 0.5,
+      "input": 5.0,
+      "output": 30.0
+    },
     "openrouter/sao10k/l3-euryale-70b": {
       "input": 1.48,
       "output": 1.48
@@ -2486,8 +2490,8 @@
       "output": 0.5
     },
     "openrouter/thedrummer/rocinante-12b": {
-      "input": 0.17,
-      "output": 0.43
+      "input": 0.25,
+      "output": 0.5
     },
     "openrouter/thedrummer/skyfall-36b-v2": {
       "cache_read_input": 0.25,
@@ -2547,8 +2551,7 @@
       "output": 3.0
     },
     "openrouter/xiaomi/mimo-v2.5": {
-      "cache_read_input": 0.0028,
-      "input": 0.14,
+      "input": 0.105,
       "output": 0.28
     },
     "openrouter/xiaomi/mimo-v2.5-pro": {
@@ -2611,9 +2614,9 @@
       "output": 3.08
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.182,
-      "input": 0.98,
-      "output": 3.08
+      "cache_read_input": 0.18,
+      "input": 0.95,
+      "output": 3.0
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
