@@ -122,6 +122,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
                 <td>$10 / MTok</td><td>$0.50 / MTok</td><td>$25 / MTok</td></tr>
             </tbody>
           </table>
+          <table>
+            <thead><tr><th>Model</th><th>Input</th><th>Output</th></tr></thead>
+            <tbody><tr><td>Claude Opus 4.7</td><td>$30 / MTok</td><td>$150 / MTok</td></tr></tbody>
+          </table>
         </body></html>
       HTML
 
@@ -149,6 +153,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "data_residency_batch_output" => 8.25
       )
       expect(result.models.count { |_, fields| fields.key?("batch_input") }).to eq(result.models.size)
+    end
+
+    it "raises when the fast mode pricing table is missing rather than silently dropping fast prices" do
+      without_fast_table = html.sub(">Input</th>", ">Speed</th>")
+
+      expect do
+        described_class.new.call(html: without_fast_table)
+      end.to raise_error(described_class::Error, /fast mode pricing table not found/)
     end
   end
 

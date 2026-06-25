@@ -166,7 +166,7 @@ module LlmCostTracker
 
         def add_fast_mode_pricing(models, doc)
           table = find_fast_mode_table(doc)
-          return models unless table
+          raise Error, "Anthropic fast mode pricing table not found" unless table
 
           fast = parse_fast_mode_table(table)
           models.each_with_object({}) do |(model_id, base), priced|
