@@ -30,7 +30,7 @@ require_relative "llm_cost_tracker/ingestion"
 require_relative "llm_cost_tracker/tracker"
 
 module LlmCostTracker
-  autoload :Engine, "llm_cost_tracker/engine"
+  require_relative "llm_cost_tracker/engine"
   autoload :Doctor, "llm_cost_tracker/doctor"
   autoload :CaptureVerifier, "llm_cost_tracker/capture_verifier"
   autoload :Report, "llm_cost_tracker/report"
