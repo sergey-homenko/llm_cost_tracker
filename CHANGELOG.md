@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-06-26
+
 ### Added
 
 - The Data Quality page shows quarantined async-inbox rows (count and cost) when `ingestion: :async` is configured, so cost stuck outside the ledger is visible instead of silently missing from totals.
