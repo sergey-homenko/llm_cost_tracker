@@ -15,6 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- The mounted dashboard no longer returns 404 — the engine now registers its routes during Rails boot.
 - Async ingestion (`config.ingestion = :async`) no longer permanently loses cost data when a transient database error (deadlock, lock timeout, dropped connection) interrupts the worker mid-drain — affected inbox rows are retried instead of counting toward quarantine.
 - With `config.cache_rollups`, a failed rollup-cache update no longer fails or retries the async ingestion batch — calls land in the ledger, the failure is logged, and `bin/rails llm_cost_tracker:rebuild_rollups` recovers the cached totals.
 - The dashboard labels non-USD amounts with their currency code (e.g. `1.23 EUR`) instead of always rendering `$`, on the pricing table and per-line call costs.
