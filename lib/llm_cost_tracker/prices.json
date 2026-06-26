@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-25"
+    "updated_at": "2026-06-26"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1329,6 +1329,7 @@
       "output": 0.95
     },
     "openrouter/deepseek/deepseek-v3.2": {
+      "cache_read_input": 0.02288,
       "input": 0.2288,
       "output": 0.3432
     },
@@ -1665,13 +1666,12 @@
       "output": 0.95
     },
     "openrouter/minimax/minimax-m2.5": {
-      "cache_read_input": 0.05,
-      "input": 0.15,
-      "output": 0.9
+      "input": 0.12,
+      "output": 0.48
     },
     "openrouter/minimax/minimax-m2.7": {
-      "input": 0.24,
-      "output": 0.96
+      "input": 0.18,
+      "output": 0.72
     },
     "openrouter/minimax/minimax-m3": {
       "cache_read_input": 0.06,
@@ -1866,8 +1866,8 @@
       "output": 0.2
     },
     "openrouter/nvidia/nemotron-3-super-120b-a12b": {
-      "input": 0.09,
-      "output": 0.45
+      "input": 0.085,
+      "output": 0.4
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b": {
       "cache_read_input": 0.1,
@@ -2112,8 +2112,8 @@
       "output": 30.0
     },
     "openrouter/openai/gpt-oss-120b": {
-      "input": 0.039,
-      "output": 0.18
+      "input": 0.03,
+      "output": 0.15
     },
     "openrouter/openai/gpt-oss-20b": {
       "input": 0.029,
