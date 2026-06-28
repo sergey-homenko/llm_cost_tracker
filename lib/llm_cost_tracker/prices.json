@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-26"
+    "updated_at": "2026-06-27"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -2389,7 +2389,7 @@
     },
     "openrouter/qwen/qwen3.6-27b": {
       "input": 0.2885,
-      "output": 3.17
+      "output": 2.65
     },
     "openrouter/qwen/qwen3.6-35b-a3b": {
       "input": 0.14,
