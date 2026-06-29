@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-28"
+    "updated_at": "2026-06-29"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1811,9 +1811,9 @@
       "output": 2.025
     },
     "openrouter/moonshotai/kimi-k2.6": {
-      "cache_read_input": 0.144,
-      "input": 0.66,
-      "output": 3.41
+      "cache_read_input": 0.11,
+      "input": 0.55,
+      "output": 3.2
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
       "cache_read_input": 0.15,
@@ -2666,9 +2666,9 @@
       "output": 12.0
     },
     "openrouter/~moonshotai/kimi-latest": {
-      "cache_read_input": 0.144,
-      "input": 0.66,
-      "output": 3.41
+      "cache_read_input": 0.11,
+      "input": 0.55,
+      "output": 3.2
     },
     "openrouter/~openai/gpt-latest": {
       "cache_read_input": 0.5,
