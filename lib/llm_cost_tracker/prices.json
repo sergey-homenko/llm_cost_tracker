@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-06-29"
+    "updated_at": "2026-06-30"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -56,16 +56,6 @@
       "data_residency_cache_write_input": 6.875,
       "data_residency_input": 5.5,
       "data_residency_output": 27.5,
-      "fast_cache_read_input": 3.0,
-      "fast_cache_write_extended_input": 60.0,
-      "fast_cache_write_input": 37.5,
-      "fast_data_residency_cache_read_input": 3.3,
-      "fast_data_residency_cache_write_extended_input": 66.0,
-      "fast_data_residency_cache_write_input": 41.25,
-      "fast_data_residency_input": 33.0,
-      "fast_data_residency_output": 165.0,
-      "fast_input": 30.0,
-      "fast_output": 150.0,
       "input": 5.0,
       "output": 25.0
     },
@@ -2464,8 +2454,7 @@
       "output": 0.75
     },
     "openrouter/stepfun/step-3.5-flash": {
-      "cache_read_input": 0.02,
-      "input": 0.09,
+      "input": 0.1,
       "output": 0.3
     },
     "openrouter/stepfun/step-3.7-flash": {
@@ -2611,13 +2600,12 @@
       "output": 4.0
     },
     "openrouter/z-ai/glm-5.1": {
-      "cache_read_input": 0.182,
-      "input": 0.98,
-      "output": 3.08
+      "input": 0.975,
+      "output": 4.3
     },
     "openrouter/z-ai/glm-5.2": {
       "cache_read_input": 0.18,
-      "input": 0.95,
+      "input": 0.94,
       "output": 3.0
     },
     "openrouter/z-ai/glm-5v-turbo": {
