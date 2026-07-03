@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-07-02"
+    "updated_at": "2026-07-03"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1346,7 +1346,7 @@
     },
     "openrouter/deepseek/deepseek-v4-flash": {
       "cache_read_input": 0.018,
-      "input": 0.089,
+      "input": 0.09,
       "output": 0.18
     },
     "openrouter/deepseek/deepseek-v4-pro": {
@@ -1816,9 +1816,9 @@
       "output": 2.025
     },
     "openrouter/moonshotai/kimi-k2.6": {
-      "cache_read_input": 0.11,
-      "input": 0.55,
-      "output": 3.2
+      "cache_read_input": 0.14,
+      "input": 0.66,
+      "output": 3.41
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
       "cache_read_input": 0.15,
@@ -2206,6 +2206,11 @@
       "input": 0.2,
       "output": 0.4
     },
+    "openrouter/poolside/laguna-xs-2.1": {
+      "cache_read_input": 0.03,
+      "input": 0.06,
+      "output": 0.12
+    },
     "openrouter/poolside/laguna-xs.2": {
       "cache_read_input": 0.05,
       "input": 0.1,
@@ -2348,8 +2353,8 @@
       "output": 0.416
     },
     "openrouter/qwen/qwen3-vl-8b-instruct": {
-      "input": 0.08,
-      "output": 0.5
+      "input": 0.117,
+      "output": 0.455
     },
     "openrouter/qwen/qwen3-vl-8b-thinking": {
       "input": 0.117,
@@ -2612,8 +2617,9 @@
       "output": 4.0
     },
     "openrouter/z-ai/glm-5.1": {
-      "input": 0.975,
-      "output": 4.3
+      "cache_read_input": 0.1794,
+      "input": 0.966,
+      "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
       "cache_read_input": 0.18,
@@ -2666,9 +2672,9 @@
       "output": 12.0
     },
     "openrouter/~moonshotai/kimi-latest": {
-      "cache_read_input": 0.11,
-      "input": 0.55,
-      "output": 3.2
+      "cache_read_input": 0.14,
+      "input": 0.66,
+      "output": 3.41
     },
     "openrouter/~openai/gpt-latest": {
       "cache_read_input": 0.5,
