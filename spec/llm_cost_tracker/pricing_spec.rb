@@ -606,15 +606,15 @@ RSpec.describe LlmCostTracker::Pricing do
     it "prices Anthropic fast data residency mode from bundled rates" do
       result = cost_for(
         provider: "anthropic",
-        model: "claude-opus-4-6",
+        model: "claude-opus-4-8",
         input_tokens: 1_000_000,
         output_tokens: 1_000_000,
         pricing_mode: "fast_data_residency"
       )
 
-      expect(result.components.fetch(:input_cost)).to eq(33.0)
-      expect(result.components.fetch(:output_cost)).to eq(165.0)
-      expect(result.total).to eq(198.0)
+      expect(result.components.fetch(:input_cost)).to eq(11.0)
+      expect(result.components.fetch(:output_cost)).to eq(55.0)
+      expect(result.total).to eq(66.0)
     end
 
     it "prices billable components when a positive-token pricing mode is missing a required rate" do
