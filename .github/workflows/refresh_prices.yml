@@ -17,6 +17,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  actions: write
 
 jobs:
   refresh:
@@ -105,6 +106,12 @@ jobs:
           delete-branch: true
           labels: prices,automated
           add-paths: lib/llm_cost_tracker/prices.json
+
+      - name: Run CI on the refresh branch
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run ruby.yml --ref prices/auto-refresh
 
       - name: Open issue on provider failure
         if: failure() && github.event.inputs.dry_run != 'true'
