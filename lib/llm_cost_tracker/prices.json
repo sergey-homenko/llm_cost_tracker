@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-07-03"
+    "updated_at": "2026-07-04"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1871,8 +1871,8 @@
       "output": 0.2
     },
     "openrouter/nvidia/nemotron-3-super-120b-a12b": {
-      "input": 0.085,
-      "output": 0.4
+      "input": 0.08,
+      "output": 0.45
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b": {
       "cache_read_input": 0.1,
@@ -2395,6 +2395,7 @@
       "output": 1.8
     },
     "openrouter/qwen/qwen3.6-27b": {
+      "cache_read_input": 0.15,
       "input": 0.285,
       "output": 2.4
     },
@@ -2622,9 +2623,9 @@
       "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.18,
-      "input": 0.93,
-      "output": 3.0
+      "cache_read_input": 0.16874,
+      "input": 0.9086,
+      "output": 2.8556
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
