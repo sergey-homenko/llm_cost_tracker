@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-07-05"
+    "updated_at": "2026-07-06"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -2623,9 +2623,9 @@
       "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.1352,
-      "input": 0.728,
-      "output": 2.288
+      "cache_read_input": 0.16874,
+      "input": 0.9086,
+      "output": 2.8556
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
