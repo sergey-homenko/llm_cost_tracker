@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-07-06"
+    "updated_at": "2026-07-07"
   },
   "models": {
     "anthropic/claude-haiku-3": {
@@ -1612,8 +1612,8 @@
       "output": 0.201
     },
     "openrouter/meta-llama/llama-3.2-3b-instruct": {
-      "input": 0.0509,
-      "output": 0.335
+      "input": 0.05,
+      "output": 0.33
     },
     "openrouter/meta-llama/llama-3.3-70b-instruct": {
       "input": 0.1,
@@ -1812,6 +1812,7 @@
       "output": 2.5
     },
     "openrouter/moonshotai/kimi-k2.5": {
+      "cache_read_input": 0.203,
       "input": 0.375,
       "output": 2.025
     },
@@ -1836,6 +1837,11 @@
     "openrouter/nex-agi/deepseek-v3.1-nex-n1": {
       "input": 0.135,
       "output": 0.5
+    },
+    "openrouter/nex-agi/nex-n2-mini": {
+      "cache_read_input": 0.0025,
+      "input": 0.025,
+      "output": 0.1
     },
     "openrouter/nex-agi/nex-n2-pro": {
       "cache_read_input": 0.025,
@@ -2374,6 +2380,7 @@
       "output": 1.0
     },
     "openrouter/qwen/qwen3.5-397b-a17b": {
+      "cache_read_input": 0.111,
       "input": 0.385,
       "output": 2.45
     },
@@ -2488,6 +2495,11 @@
       "input": 0.14,
       "output": 0.57
     },
+    "openrouter/tencent/hy3": {
+      "cache_read_input": 0.5,
+      "input": 0.2,
+      "output": 0.8
+    },
     "openrouter/tencent/hy3-preview": {
       "cache_read_input": 0.021,
       "input": 0.063,
@@ -2560,6 +2572,7 @@
       "output": 3.0
     },
     "openrouter/xiaomi/mimo-v2.5": {
+      "cache_read_input": 0.028,
       "input": 0.105,
       "output": 0.28
     },
@@ -2623,9 +2636,9 @@
       "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.16874,
-      "input": 0.9086,
-      "output": 2.8556
+      "cache_read_input": 0.17,
+      "input": 0.9,
+      "output": 2.86
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
