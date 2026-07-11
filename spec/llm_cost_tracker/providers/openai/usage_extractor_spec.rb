@@ -42,6 +42,27 @@ RSpec.describe LlmCostTracker::Providers::Openai::UsageExtractor do
       expect(result.input_tokens).to eq(400)
     end
 
+    it "splits cache_write_tokens out of regular input_tokens" do
+      usage = {
+        prompt_tokens: 2_006,
+        completion_tokens: 300,
+        prompt_tokens_details: { cached_tokens: 1_920, cache_write_tokens: 50 }
+      }
+      result = described_class.token_usage(usage)
+
+      expect(result.cache_write_input_tokens).to eq(50)
+      expect(result.cache_read_input_tokens).to eq(1_920)
+      expect(result.input_tokens).to eq(36)
+    end
+
+    it "reads cache_write_tokens from input_tokens_details for Responses-API responses" do
+      usage = { input_tokens: 400, output_tokens: 10, input_tokens_details: { cache_write_tokens: 150 } }
+      result = described_class.token_usage(usage)
+
+      expect(result.cache_write_input_tokens).to eq(150)
+      expect(result.input_tokens).to eq(250)
+    end
+
     it "uses output_tokens_details image_tokens for the image/text split when present" do
       usage = { input_tokens: 0, output_tokens: 100, output_tokens_details: { image_tokens: 60, text_tokens: 40 } }
       result = described_class.token_usage(usage)

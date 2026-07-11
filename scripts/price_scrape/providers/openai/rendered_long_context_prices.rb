@@ -21,7 +21,7 @@ module LlmCostTracker
 
             table.css("tbody tr").each_with_object({}) do |tr, models|
               cells = tr.css("td").map { |td| td.text.strip }
-              next unless cells.size >= 7
+              next unless cells.size >= 9
 
               prices = prices_from(cells)
               model_id = @model_ids[cells[0]]
@@ -39,9 +39,10 @@ module LlmCostTracker
           end
 
           def prices_from(cells)
-            long_input = parse_optional_price(cells[4])
-            long_cache_read = parse_optional_price(cells[5])
-            long_output = parse_optional_price(cells[6])
+            long_input = parse_optional_price(cells[5])
+            long_cache_read = parse_optional_price(cells[6])
+            long_cache_write = parse_optional_price(cells[7])
+            long_output = parse_optional_price(cells[8])
             return nil unless long_input && long_output
 
             prices = {
@@ -50,6 +51,7 @@ module LlmCostTracker
               "above_context_#{@fields.fetch(:output)}" => long_output
             }
             prices["above_context_#{@fields.fetch(:cache_read_input)}"] = long_cache_read if long_cache_read
+            prices["above_context_#{@fields.fetch(:cache_write_input)}"] = long_cache_write if long_cache_write
             prices
           end
 

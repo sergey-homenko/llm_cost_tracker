@@ -7,7 +7,11 @@ module LlmCostTracker
     module Providers
       class Openai < Base
         module DataResidencyPrices
-          MODELS = %w[gpt-5.5 gpt-5.5-pro gpt-5.4 gpt-5.4-mini gpt-5.4-nano gpt-5.4-pro].freeze
+          MODELS = %w[
+            gpt-5.4 gpt-5.4-mini gpt-5.4-nano gpt-5.4-pro gpt-5.5 gpt-5.5-pro
+            gpt-5.6-luna gpt-5.6-sol gpt-5.6-terra
+          ].freeze
+          PRICE_FIELD = /\A(?:above_context_)?(?:batch_|flex_|priority_)?(?:input|output|cache_(?:read|write)_input)\z/
 
           class << self
             def call(models)
@@ -24,14 +28,10 @@ module LlmCostTracker
 
             def data_residency_prices(fields)
               fields.each_with_object({}) do |(field, value), prices|
-                next unless data_residency_price_field?(field)
+                next unless field.to_s.match?(PRICE_FIELD)
 
                 prices[data_residency_field(field)] = (value * 1.1).round(6)
               end
-            end
-
-            def data_residency_price_field?(field)
-              field.to_s.match?(/\A(?:above_context_)?(?:(?:batch|flex|priority)_)?(?:input|output|cache_read_input)\z/)
             end
 
             def data_residency_field(field)

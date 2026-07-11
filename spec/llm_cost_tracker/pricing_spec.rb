@@ -1026,13 +1026,25 @@ RSpec.describe LlmCostTracker::Pricing do
         "openai/gpt-5.4" => [5.0, 22.5],
         "openai/gpt-5.4-pro" => [60.0, 270.0],
         "openai/gpt-5.5" => [10.0, 45.0],
-        "openai/gpt-5.5-pro" => [60.0, 270.0]
+        "openai/gpt-5.5-pro" => [60.0, 270.0],
+        "openai/gpt-5.6-luna" => [2.0, 9.0],
+        "openai/gpt-5.6-sol" => [10.0, 45.0],
+        "openai/gpt-5.6-terra" => [5.0, 22.5]
       }.each do |model_id, (input, output)|
         fields = bundled.fetch(model_id)
 
         expect(fields["_context_price_threshold_tokens"]).to eq(272_000)
         expect(fields["above_context_input"]).to eq(input)
         expect(fields["above_context_output"]).to eq(output)
+      end
+    end
+
+    it "holds the OpenAI cache-write pricing ratio (1.25x input)" do
+      bundled.each do |model_id, fields|
+        next unless model_id.start_with?("openai/")
+        next unless fields["cache_write_input"] && fields["input"]
+
+        expect(fields["cache_write_input"]).to be_within(0.0001).of(fields["input"] * 1.25)
       end
     end
 

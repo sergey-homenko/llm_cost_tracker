@@ -107,6 +107,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "priority_data_residency_cache_read_input" => 0.165,
         "priority_data_residency_output" => 9.9
       )
+      expect(result.models.fetch("gpt-5.6-sol")).to include(
+        "input" => 5.0,
+        "cache_read_input" => 0.5,
+        "cache_write_input" => 6.25,
+        "output" => 30.0,
+        "batch_input" => 2.5,
+        "batch_cache_read_input" => 0.25,
+        "batch_cache_write_input" => 3.125,
+        "batch_output" => 15.0,
+        "priority_input" => 10.0,
+        "priority_cache_write_input" => 12.5,
+        "_context_price_threshold_tokens" => 272_000,
+        "above_context_input" => 10.0,
+        "above_context_cache_read_input" => 1.0,
+        "above_context_cache_write_input" => 12.5,
+        "above_context_output" => 45.0,
+        "data_residency_input" => 5.5,
+        "data_residency_cache_write_input" => 6.875,
+        "data_residency_output" => 33.0
+      )
       expect(result.models.fetch("gpt-4-turbo")).to eq(
         "input" => 10.0,
         "output" => 30.0,
@@ -224,7 +244,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     end
 
     it "raises when a price cell does not match the expected format" do
-      broken_html = html.sub("[0,5],[0,0.5],[0,30]", "[0,&quot;TBD&quot;],[0,0.5],[0,30]")
+      broken_html = html.sub(
+        "[0,5],[0,0.5],[0,&quot;-&quot;],[0,30]", "[0,&quot;TBD&quot;],[0,0.5],[0,&quot;-&quot;],[0,30]"
+      )
 
       expect do
         described_class.new.call(html: broken_html)
@@ -232,7 +254,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     end
 
     it "raises when a batch price cell does not match the expected format" do
-      broken_html = html.sub("[0,2.5],[0,0.25],[0,15]", "[0,&quot;TBD&quot;],[0,0.25],[0,15]")
+      broken_html = html.sub(
+        "[0,0.5],[0,0.05],[0,0.625],[0,3]", "[0,&quot;TBD&quot;],[0,0.05],[0,0.625],[0,3]"
+      )
 
       expect do
         described_class.new.call(html: broken_html)

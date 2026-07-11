@@ -12,6 +12,7 @@ module LlmCostTracker
           input_tokens = (usage[:input_tokens] || usage[:prompt_tokens]).to_i
           output_tokens = (usage[:output_tokens] || usage[:completion_tokens]).to_i
           cache_read = cache_read_input_tokens(usage)
+          cache_write = cache_write_input_tokens(usage)
           audio_input = audio_input_tokens(usage)
           audio_output = audio_output_tokens(usage)
           image_input = image_input_tokens(usage)
@@ -24,10 +25,11 @@ module LlmCostTracker
           )
 
           Usage::TokenUsage.build(
-            input_tokens: [input_tokens - cache_read - audio_input - image_input, 0].max,
+            input_tokens: [input_tokens - cache_read - cache_write - audio_input - image_input, 0].max,
             output_tokens: regular_output,
             total_tokens: usage[:total_tokens],
             cache_read_input_tokens: cache_read,
+            cache_write_input_tokens: cache_write,
             audio_input_tokens: audio_input,
             audio_output_tokens: audio_output,
             image_input_tokens: image_input,
@@ -52,6 +54,7 @@ module LlmCostTracker
         end
 
         def self.cache_read_input_tokens(usage) = detail(usage, INPUT_DETAIL_KEYS, :cached_tokens)
+        def self.cache_write_input_tokens(usage) = detail(usage, INPUT_DETAIL_KEYS, :cache_write_tokens)
         def self.hidden_output_tokens(usage)    = detail(usage, OUTPUT_DETAIL_KEYS, :reasoning_tokens)
         def self.audio_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :audio_tokens)
         def self.audio_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :audio_tokens)

@@ -19,15 +19,21 @@ module LlmCostTracker
         max_price 1000.0
         anchors "gpt-5.5", "gpt-5.4-mini"
 
-        STANDARD_FIELDS = { input: "input", cache_read_input: "cache_read_input", output: "output" }.freeze
+        STANDARD_FIELDS = {
+          input: "input", cache_read_input: "cache_read_input",
+          cache_write_input: "cache_write_input", output: "output"
+        }.freeze
         BATCH_FIELDS = {
-          input: "batch_input", cache_read_input: "batch_cache_read_input", output: "batch_output"
+          input: "batch_input", cache_read_input: "batch_cache_read_input",
+          cache_write_input: "batch_cache_write_input", output: "batch_output"
         }.freeze
         FLEX_FIELDS = {
-          input: "flex_input", cache_read_input: "flex_cache_read_input", output: "flex_output"
+          input: "flex_input", cache_read_input: "flex_cache_read_input",
+          cache_write_input: "flex_cache_write_input", output: "flex_output"
         }.freeze
         PRIORITY_FIELDS = {
-          input: "priority_input", cache_read_input: "priority_cache_read_input", output: "priority_output"
+          input: "priority_input", cache_read_input: "priority_cache_read_input",
+          cache_write_input: "priority_cache_write_input", output: "priority_output"
         }.freeze
         AUDIO_FIELDS = { input: "audio_input", output: "audio_output" }.freeze
         IMAGE_FIELDS = { input: "image_input", output: "image_output" }.freeze
@@ -234,25 +240,18 @@ module LlmCostTracker
         end
 
         def extract_price_fields(cells, fields:)
+          cache_write_column = cells.size >= 5
           prices = { fields.fetch(:input) => parse_price(unwrap(cells[1])) }
-          output = parse_optional_price(unwrap(cells[3]))
-          prices[fields.fetch(:output)] = output if output
           cache_read_input = parse_optional_price(unwrap(cells[2]))
           prices[fields.fetch(:cache_read_input)] = cache_read_input if cache_read_input && fields[:cache_read_input]
-
-          if cells.size >= 7
-            long_input = parse_optional_price(unwrap(cells[4]))
-            long_cache_read = parse_optional_price(unwrap(cells[5]))
-            long_output = parse_optional_price(unwrap(cells[6]))
-            if long_input && long_output
-              prices["_context_price_threshold_tokens"] = 272_000
-              prices["above_context_#{fields.fetch(:input)}"] = long_input
-              prices["above_context_#{fields.fetch(:output)}"] = long_output
-              if long_cache_read && fields[:cache_read_input]
-                prices["above_context_#{fields.fetch(:cache_read_input)}"] = long_cache_read
-              end
+          if cache_write_column
+            cache_write_input = parse_optional_price(unwrap(cells[3]))
+            if cache_write_input && fields[:cache_write_input]
+              prices[fields.fetch(:cache_write_input)] = cache_write_input
             end
           end
+          output = parse_optional_price(unwrap(cells[cache_write_column ? 4 : 3]))
+          prices[fields.fetch(:output)] = output if output
           prices
         end
 
