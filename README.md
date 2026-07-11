@@ -6,9 +6,9 @@ Self-hosted LLM cost tracking for Rails.
 [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions)
 [![codecov](https://codecov.io/gh/sergey-homenko/llm_cost_tracker/branch/main/graph/badge.svg)](https://codecov.io/gh/sergey-homenko/llm_cost_tracker)
 
-Every call your app makes to OpenAI, Anthropic, Gemini, RubyLLM, or any
-OpenAI-compatible API gets logged: tokens, cost, latency, tags. Calls go
-app → provider direct. No proxy.
+Every call your app makes through RubyLLM, the official OpenAI and Anthropic
+SDKs, Gemini, or any OpenAI-compatible API gets logged: tokens, cost, latency,
+tags. Calls go app → provider direct. No proxy.
 
 Not Langfuse, Helicone, or LiteLLM. No prompts, no traces, no replay. Spend
 attribution only.
@@ -22,33 +22,38 @@ Requires Ruby 3.4+, Rails 7.1+, PostgreSQL or MySQL.
 
 ## Quickstart
 
+Shown with RubyLLM; the flow is identical for the official OpenAI and
+Anthropic SDKs — swap the gem and the `instrument` name (see the
+[cookbook](docs/cookbook.md)).
+
 ```ruby
 # Gemfile
 gem "llm_cost_tracker"
-gem "openai"
+gem "ruby_llm"
 ```
 
 ```bash
 bin/rails llm_cost_tracker:setup
 ```
 
-Runs the install generator, drops a price snapshot, migrates the database, and verifies via `llm_cost_tracker:doctor`. The generated `config/initializers/llm_cost_tracker.rb` looks like:
+Runs the install generator, drops a price snapshot, migrates the database, and verifies via `llm_cost_tracker:doctor`. Then enable the integration in the generated `config/initializers/llm_cost_tracker.rb`:
 
 ```ruby
 LlmCostTracker.configure do |config|
   config.default_tags = -> { { environment: Rails.env } }
-  config.instrument :openai
+  config.instrument :ruby_llm
 end
 ```
 
 Edit it in place to add tags, switch on async ingestion, etc.
 
-Tag your calls to attribute spend:
+Your RubyLLM calls stay unchanged — every chat, embedding, transcription,
+image, and moderation call now lands in the ledger. Tag them to attribute
+spend:
 
 ```ruby
 LlmCostTracker.with_tags(user_id: Current.user&.id, feature: "chat") do
-  client = OpenAI::Client.new(api_key: ENV["OPENAI_API_KEY"])
-  client.responses.create(model: "gpt-4o", input: "Hello")
+  RubyLLM.chat.ask("Hello")
 end
 ```
 
@@ -76,11 +81,11 @@ The engine ships without authentication on purpose.
 
 | Surface | Path |
 | --- | --- |
+| RubyLLM | Provider layer |
 | OpenAI | Official SDK or Faraday |
 | Anthropic | Official SDK or Faraday |
 | Azure OpenAI | Faraday or official SDK (auto-detected on `*.openai.azure.com` and Foundry `*.services.ai.azure.com`, both deployments and `/openai/v1/...`) |
 | Google Gemini | Faraday |
-| RubyLLM | Provider layer |
 | `ruby-openai` | Faraday |
 | OpenRouter, DeepSeek, Groq, LiteLLM-style gateways | OpenAI-compatible Faraday |
 | Anything else | `LlmCostTracker.track` |
