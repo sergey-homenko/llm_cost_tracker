@@ -2014,9 +2014,9 @@
       "output": 3.41
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
-      "cache_read_input": 0.159,
+      "cache_read_input": 0.15,
       "input": 0.72,
-      "output": 3.49
+      "output": 3.5
     },
     "openrouter/morph/morph-v3-fast": {
       "input": 0.8,
