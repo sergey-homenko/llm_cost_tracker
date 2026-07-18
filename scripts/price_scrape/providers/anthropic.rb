@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "date"
 require "nokogiri"
 require "time"
 
@@ -12,20 +13,23 @@ module LlmCostTracker
         source_url "https://platform.claude.com/docs/en/about-claude/pricing"
         min_models 10
         max_price 1000.0
-        anchors "claude-opus-4-7", "claude-sonnet-4-6"
+        anchors "claude-fable-5", "claude-opus-4-7", "claude-sonnet-4-6"
 
         DATA_RESIDENCY_MULTIPLIER = 1.1
         BATCH_MULTIPLIER = 0.5
 
         SERVICE_CHARGE_PATTERNS = {
           "web_search_request" => /Web search is available.*?\$\s*(\d+(?:\.\d+)?)\s+per 1,000 searches/i,
-          "code_execution_hour" => /Additional usage beyond .*? billed at \$\s*(\d+(?:\.\d+)?)\s+per hour/i
+          "code_execution_hour" => /Additional usage beyond .*? billed at \$\s*(\d+(?:\.\d+)?)(?:\s+USD)?\s+per hour/i
         }.freeze
         FREE_SERVICE_CHARGE_PATTERNS = {
           "web_fetch_request" => /Web fetch usage has no additional charges/i
         }.freeze
+        EFFECTIVE_DATE_QUALIFIER =
+          /\A(?<name>.+?)\s*(?<boundary>through|starting)\s+(?<date>[A-Z][a-z]+ \d{1,2}, \d{4})\z/
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
+          @effective_on = Date.parse(scraped_at)
           doc = Nokogiri::HTML(html.to_s)
           base_table = find_table(doc, ["Base Input Tokens", "5m Cache Writes", "Cache Hits", "Output Tokens"])
           raise Error, "Anthropic base pricing table not found" unless base_table
@@ -237,7 +241,7 @@ module LlmCostTracker
         end
 
         def data_residency_model?(model_id)
-          match = model_id.match(/\Aclaude-(?:opus|sonnet|haiku)-(\d+)-(\d+)\z/)
+          match = model_id.match(/\Aclaude-[a-z]+-(\d+)(?:-(\d+))?\z/)
           return false unless match
 
           major = match[1].to_i
@@ -247,12 +251,21 @@ module LlmCostTracker
 
         def normalize_model_id(display_name)
           cleaned = display_name.to_s.gsub(/\s*\(.*?\)\s*\z/, "").strip
-          match = cleaned.match(/\AClaude (Opus|Sonnet|Haiku) (\d+(?:\.\d+)?)\z/)
+          if (scoped = cleaned.match(EFFECTIVE_DATE_QUALIFIER))
+            return nil unless effective?(scoped[:boundary], Date.parse(scoped[:date]))
+
+            cleaned = scoped[:name]
+          end
+          match = cleaned.match(/\AClaude (Opus|Sonnet|Haiku|Fable|Mythos) (\d+(?:\.\d+)?)\z/)
           return nil unless match
 
           family = match[1].downcase
           version = match[2].tr(".", "-")
           "claude-#{family}-#{version}"
+        end
+
+        def effective?(boundary, date)
+          boundary == "through" ? @effective_on <= date : @effective_on >= date
         end
 
         def parse_price(text)

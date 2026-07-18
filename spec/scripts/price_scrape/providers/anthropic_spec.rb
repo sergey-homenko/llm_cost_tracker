@@ -57,18 +57,47 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "batch_output" => 2.5
       )
       expect(result.models.fetch("claude-haiku-4-5")).not_to include("data_residency_input")
+      expect(result.models.fetch("claude-fable-5")).to include(
+        "input" => 10.0,
+        "cache_write_input" => 12.5,
+        "cache_write_extended_input" => 20.0,
+        "cache_read_input" => 1.0,
+        "output" => 50.0,
+        "batch_input" => 5.0,
+        "batch_output" => 25.0,
+        "data_residency_input" => 11.0,
+        "data_residency_output" => 55.0
+      )
+      expect(result.models.fetch("claude-mythos-5")).to include("input" => 10.0, "output" => 50.0)
+    end
+
+    it "selects the date-scoped pricing row effective at scrape time" do
+      introductory = described_class.new.call(html: html, scraped_at: "2026-04-26T00:00:00Z")
+      expect(introductory.models.fetch("claude-sonnet-5")).to include(
+        "input" => 2.0,
+        "output" => 10.0,
+        "batch_input" => 1.0,
+        "batch_output" => 5.0,
+        "data_residency_input" => 2.2
+      )
+
+      standard = described_class.new.call(html: html, scraped_at: "2026-09-01T00:00:00Z")
+      expect(standard.models.fetch("claude-sonnet-5")).to include(
+        "input" => 3.0,
+        "output" => 15.0,
+        "batch_input" => 1.5,
+        "batch_output" => 7.5
+      )
     end
 
     it "scrapes fast mode pricing per model and stacks the data residency multiplier" do
       result = described_class.new.call(html: html)
 
-      %w[claude-opus-4-6 claude-opus-4-7].each do |model|
-        expect(result.models.fetch(model)).to include(
-          "fast_input" => 30.0, "fast_output" => 150.0,
-          "fast_cache_read_input" => 3.0, "fast_cache_write_input" => 37.5,
-          "fast_data_residency_input" => 33.0, "fast_data_residency_output" => 165.0
-        )
-      end
+      expect(result.models.fetch("claude-opus-4-7")).to include(
+        "fast_input" => 30.0, "fast_output" => 150.0,
+        "fast_cache_read_input" => 3.0, "fast_cache_write_input" => 37.5,
+        "fast_data_residency_input" => 33.0, "fast_data_residency_output" => 165.0
+      )
 
       expect(result.models.fetch("claude-opus-4-8")).to include(
         "fast_input" => 10.0, "fast_output" => 50.0,
@@ -76,6 +105,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "fast_data_residency_input" => 11.0, "fast_data_residency_output" => 55.0
       )
 
+      expect(result.models.fetch("claude-opus-4-6")).not_to include("fast_input")
       expect(result.models.fetch("claude-sonnet-4-6")).not_to include("fast_input")
     end
 
@@ -87,7 +117,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
     it "flags deprecated models separately from the price table" do
       result = described_class.new.call(html: html)
 
-      expect(result.deprecated_models).to contain_exactly("claude-opus-4", "claude-sonnet-4", "claude-haiku-3-5")
+      expect(result.deprecated_models)
+        .to contain_exactly("claude-opus-4", "claude-opus-4-1", "claude-sonnet-4", "claude-haiku-3-5")
       expect(result.models).to include("claude-opus-4", "claude-sonnet-4")
     end
 
@@ -132,6 +163,13 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
       expect do
         described_class.new.call(html: sparse_html)
       end.to raise_error(described_class::Error, /at least \d+ models/)
+    end
+
+    it "raises when a service charge sentence stops matching" do
+      broken_html = html.gsub("per 1,000 searches", "per 1,000 lookups")
+      expect do
+        described_class.new.call(html: broken_html)
+      end.to raise_error(described_class::Error, /service charge price not found/)
     end
 
     it "raises when a price cell does not match the expected format" do
