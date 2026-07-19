@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-07-18"
+    "updated_at": "2026-07-19"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -1764,8 +1764,8 @@
       "output": 0.12
     },
     "openrouter/google/gemma-4-26b-a4b-it": {
-      "input": 0.1,
-      "output": 0.3
+      "input": 0.07,
+      "output": 0.34
     },
     "openrouter/google/gemma-4-31b-it": {
       "cache_read_input": 0.12,
@@ -1912,8 +1912,9 @@
       "output": 2.2
     },
     "openrouter/minimax/minimax-m2": {
-      "input": 0.255,
-      "output": 1.02
+      "cache_read_input": 0.03,
+      "input": 0.3,
+      "output": 1.2
     },
     "openrouter/minimax/minimax-m2-her": {
       "cache_read_input": 0.03,
@@ -2075,14 +2076,14 @@
       "output": 2.85
     },
     "openrouter/moonshotai/kimi-k2.6": {
-      "cache_read_input": 0.16,
-      "input": 0.95,
-      "output": 4.0
+      "cache_read_input": 0.144,
+      "input": 0.684,
+      "output": 3.42
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
-      "cache_read_input": 0.2,
-      "input": 1.0,
-      "output": 4.4
+      "cache_read_input": 0.17,
+      "input": 0.85,
+      "output": 3.8
     },
     "openrouter/moonshotai/kimi-k3": {
       "cache_read_input": 0.3,
@@ -2561,8 +2562,8 @@
       "output": 1.0
     },
     "openrouter/qwen/qwen3-14b": {
-      "input": 0.12,
-      "output": 0.24
+      "input": 0.2275,
+      "output": 0.91
     },
     "openrouter/qwen/qwen3-235b-a22b": {
       "input": 0.455,
@@ -2858,7 +2859,7 @@
       "output": 2.5
     },
     "openrouter/x-ai/grok-4.5": {
-      "cache_read_input": 0.5,
+      "cache_read_input": 0.3,
       "input": 2.0,
       "output": 6.0
     },
@@ -2946,9 +2947,9 @@
       "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.06318,
-      "input": 0.3402,
-      "output": 1.0692
+      "cache_read_input": 0.05096,
+      "input": 0.2744,
+      "output": 0.8624
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
@@ -3012,7 +3013,7 @@
       "output": 4.5
     },
     "openrouter/~x-ai/grok-latest": {
-      "cache_read_input": 0.5,
+      "cache_read_input": 0.3,
       "input": 2.0,
       "output": 6.0
     }
