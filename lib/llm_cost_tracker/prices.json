@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-07-20"
+    "updated_at": "2026-07-21"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -1584,9 +1584,9 @@
       "output": 0.431
     },
     "openrouter/deepseek/deepseek-v4-flash": {
-      "cache_read_input": 0.0196,
-      "input": 0.098,
-      "output": 0.196
+      "cache_read_input": 0.01876,
+      "input": 0.0938,
+      "output": 0.1876
     },
     "openrouter/deepseek/deepseek-v4-pro": {
       "cache_read_input": 0.003625,
@@ -1768,9 +1768,8 @@
       "output": 0.34
     },
     "openrouter/google/gemma-4-31b-it": {
-      "cache_read_input": 0.12,
-      "input": 0.22,
-      "output": 0.55
+      "input": 0.12,
+      "output": 0.37
     },
     "openrouter/gryphe/mythomax-l2-13b": {
       "input": 0.06,
@@ -1835,6 +1834,11 @@
     "openrouter/mancer/weaver": {
       "input": 0.5,
       "output": 0.75
+    },
+    "openrouter/meituan/longcat-2.0": {
+      "cache_read_input": 0.006,
+      "input": 0.3,
+      "output": 1.2
     },
     "openrouter/meta-llama/llama-3-70b-instruct": {
       "input": 0.51,
@@ -2081,9 +2085,9 @@
       "output": 3.42
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
-      "cache_read_input": 0.17,
-      "input": 0.85,
-      "output": 3.8
+      "cache_read_input": 0.16,
+      "input": 0.82,
+      "output": 3.75
     },
     "openrouter/moonshotai/kimi-k3": {
       "cache_read_input": 0.3,
@@ -2141,8 +2145,8 @@
       "output": 0.2
     },
     "openrouter/nvidia/nemotron-3-super-120b-a12b": {
-      "input": 0.085,
-      "output": 0.4
+      "input": 0.08,
+      "output": 0.45
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b": {
       "cache_read_input": 0.2,
@@ -2633,9 +2637,8 @@
       "output": 3.9
     },
     "openrouter/qwen/qwen3-next-80b-a3b-instruct": {
-      "cache_read_input": 0.07,
-      "input": 0.1,
-      "output": 1.1
+      "input": 0.0975,
+      "output": 0.78
     },
     "openrouter/qwen/qwen3-next-80b-a3b-thinking": {
       "input": 0.0975,
@@ -2797,9 +2800,9 @@
       "output": 0.57
     },
     "openrouter/tencent/hy3": {
-      "cache_read_input": 0.05,
-      "input": 0.2,
-      "output": 0.8
+      "cache_read_input": 0.035,
+      "input": 0.14,
+      "output": 0.58
     },
     "openrouter/tencent/hy3-preview": {
       "cache_read_input": 0.021,
@@ -2946,9 +2949,9 @@
       "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.17758,
-      "input": 0.9562,
-      "output": 3.0052
+      "cache_read_input": 0.17472,
+      "input": 0.9408,
+      "output": 2.9568
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
