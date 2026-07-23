@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-07-22"
+    "updated_at": "2026-07-23"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -1812,12 +1812,14 @@
       "output": 0.12
     },
     "openrouter/google/gemma-4-26b-a4b-it": {
-      "input": 0.07,
-      "output": 0.34
+      "cache_read_input": 0.05,
+      "input": 0.12,
+      "output": 0.35
     },
     "openrouter/google/gemma-4-31b-it": {
+      "cache_read_input": 0.09,
       "input": 0.12,
-      "output": 0.37
+      "output": 0.35
     },
     "openrouter/gryphe/mythomax-l2-13b": {
       "input": 0.06,
@@ -1914,8 +1916,8 @@
       "output": 0.201
     },
     "openrouter/meta-llama/llama-3.2-3b-instruct": {
-      "input": 0.0509,
-      "output": 0.335
+      "input": 0.05,
+      "output": 0.33
     },
     "openrouter/meta-llama/llama-3.3-70b-instruct": {
       "input": 0.13,
@@ -2197,9 +2199,9 @@
       "output": 0.45
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b": {
-      "cache_read_input": 0.2,
-      "input": 0.6,
-      "output": 3.6
+      "cache_read_input": 0.1,
+      "input": 0.5,
+      "output": 2.2
     },
     "openrouter/nvidia/nemotron-nano-9b-v2": {
       "input": 0.04,
@@ -2618,8 +2620,8 @@
       "output": 1.0
     },
     "openrouter/qwen/qwen3-14b": {
-      "input": 0.12,
-      "output": 0.24
+      "input": 0.2275,
+      "output": 0.91
     },
     "openrouter/qwen/qwen3-235b-a22b": {
       "input": 0.455,
@@ -2690,9 +2692,8 @@
       "output": 3.9
     },
     "openrouter/qwen/qwen3-next-80b-a3b-instruct": {
-      "cache_read_input": 0.07,
-      "input": 0.1,
-      "output": 1.1
+      "input": 0.15,
+      "output": 1.2
     },
     "openrouter/qwen/qwen3-next-80b-a3b-thinking": {
       "input": 0.0975,
@@ -2708,8 +2709,8 @@
       "output": 2.6
     },
     "openrouter/qwen/qwen3-vl-30b-a3b-instruct": {
-      "input": 0.13,
-      "output": 0.52
+      "input": 0.15,
+      "output": 0.6
     },
     "openrouter/qwen/qwen3-vl-30b-a3b-thinking": {
       "input": 0.13,
@@ -2761,8 +2762,9 @@
       "output": 1.8
     },
     "openrouter/qwen/qwen3.6-27b": {
-      "input": 0.45,
-      "output": 2.7
+      "cache_read_input": 0.12,
+      "input": 0.6,
+      "output": 3.6
     },
     "openrouter/qwen/qwen3.6-35b-a3b": {
       "input": 0.14,
@@ -2984,13 +2986,14 @@
       "output": 1.75
     },
     "openrouter/z-ai/glm-4.7-flash": {
-      "input": 0.0605,
+      "cache_read_input": 0.01,
+      "input": 0.06,
       "output": 0.4
     },
     "openrouter/z-ai/glm-5": {
-      "cache_read_input": 0.2,
+      "cache_read_input": 0.19,
       "input": 0.95,
-      "output": 2.55
+      "output": 3.15
     },
     "openrouter/z-ai/glm-5-turbo": {
       "cache_read_input": 0.24,
@@ -3003,9 +3006,9 @@
       "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.1482,
-      "input": 0.798,
-      "output": 2.508
+      "cache_read_input": 0.15002,
+      "input": 0.8078,
+      "output": 2.5388
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
