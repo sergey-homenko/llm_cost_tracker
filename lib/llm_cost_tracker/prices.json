@@ -13,7 +13,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-07-26"
+    "updated_at": "2026-07-27"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -2163,7 +2163,7 @@
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
       "cache_read_input": 0.15,
-      "input": 0.75,
+      "input": 0.73,
       "output": 3.5
     },
     "openrouter/moonshotai/kimi-k3": {
@@ -2226,9 +2226,9 @@
       "output": 0.4
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b": {
-      "cache_read_input": 0.2,
-      "input": 0.6,
-      "output": 3.6
+      "cache_read_input": 0.1,
+      "input": 0.5,
+      "output": 2.2
     },
     "openrouter/nvidia/nemotron-nano-9b-v2": {
       "input": 0.04,
@@ -2377,7 +2377,7 @@
       "output": 10.0
     },
     "openrouter/openai/gpt-5.1-codex": {
-      "cache_read_input": 0.125,
+      "cache_read_input": 0.13,
       "input": 1.25,
       "output": 10.0
     },
@@ -2387,7 +2387,7 @@
       "output": 10.0
     },
     "openrouter/openai/gpt-5.1-codex-mini": {
-      "cache_read_input": 0.025,
+      "cache_read_input": 0.03,
       "input": 0.25,
       "output": 2.0
     },
@@ -2764,7 +2764,8 @@
       "output": 1.56
     },
     "openrouter/qwen/qwen3.5-35b-a3b": {
-      "input": 0.14,
+      "cache_read_input": 0.05,
+      "input": 0.15,
       "output": 1.0
     },
     "openrouter/qwen/qwen3.5-397b-a17b": {
@@ -3033,9 +3034,9 @@
       "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.13078,
-      "input": 0.7042,
-      "output": 2.2132
+      "cache_read_input": 0.1495,
+      "input": 0.805,
+      "output": 2.53
     },
     "openrouter/z-ai/glm-5v-turbo": {
       "cache_read_input": 0.24,
