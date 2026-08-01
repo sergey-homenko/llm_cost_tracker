@@ -11,7 +11,7 @@ module LlmCostTracker
             gpt-5.4 gpt-5.4-mini gpt-5.4-nano gpt-5.4-pro gpt-5.5 gpt-5.5-pro
             gpt-5.6-luna gpt-5.6-sol gpt-5.6-terra
           ].freeze
-          PRICE_FIELD = /\A(?:above_context_)?(?:batch_|flex_|priority_)?(?:input|output|cache_(?:read|write)_input)\z/
+          PRICE_FIELD = /\A(?:above_context_)?(?:batch_|flex_|fast_)?(?:input|output|cache_(?:read|write)_input)\z/
 
           class << self
             def call(models)
@@ -39,7 +39,7 @@ module LlmCostTracker
               if name.start_with?("above_context_")
                 rest = name.delete_prefix("above_context_")
                 "above_context_#{data_residency_field(rest)}"
-              elsif (match = name.match(/\A(batch|flex|priority)_(.+)\z/))
+              elsif (match = name.match(/\A(batch|flex|fast)_(.+)\z/))
                 "#{match[1]}_data_residency_#{match[2]}"
               else
                 "data_residency_#{name}"

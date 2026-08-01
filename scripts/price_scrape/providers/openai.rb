@@ -31,9 +31,9 @@ module LlmCostTracker
           input: "flex_input", cache_read_input: "flex_cache_read_input",
           cache_write_input: "flex_cache_write_input", output: "flex_output"
         }.freeze
-        PRIORITY_FIELDS = {
-          input: "priority_input", cache_read_input: "priority_cache_read_input",
-          cache_write_input: "priority_cache_write_input", output: "priority_output"
+        FAST_FIELDS = {
+          input: "fast_input", cache_read_input: "fast_cache_read_input",
+          cache_write_input: "fast_cache_write_input", output: "fast_output"
         }.freeze
         AUDIO_FIELDS = { input: "audio_input", output: "audio_output" }.freeze
         IMAGE_FIELDS = { input: "image_input", output: "image_output" }.freeze
@@ -42,7 +42,7 @@ module LlmCostTracker
           "standard" => STANDARD_FIELDS,
           "batch" => BATCH_FIELDS,
           "flex" => FLEX_FIELDS,
-          "priority" => PRIORITY_FIELDS
+          "fast" => FAST_FIELDS
         }.freeze
         TIER_IMAGE_FIELDS = { STANDARD_FIELDS => IMAGE_FIELDS, BATCH_FIELDS => BATCH_IMAGE_FIELDS }.freeze
 
@@ -54,7 +54,7 @@ module LlmCostTracker
             tier_models = merge_model_fields(tier_models, extract_specialized_models(doc, tier: tier))
             collected.replace(merge_model_fields(collected, tier_models))
           end
-          models = DataResidencyPrices.call(models)
+          models = add_priority_aliases(DataResidencyPrices.call(models))
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -132,6 +132,18 @@ module LlmCostTracker
 
         def rendered_long_context_prices(doc, tier:, fields:)
           RenderedLongContextPrices.new(doc, tier: tier, fields: fields, model_ids: MODEL_ID_BY_DISPLAY_NAME).models
+        end
+
+        def add_priority_aliases(models)
+          models.each_with_object({}) do |(model_id, fields), aliased|
+            aliased[model_id] = fields.merge(priority_alias_fields(fields))
+          end
+        end
+
+        def priority_alias_fields(fields)
+          fields.each_with_object({}) do |(field, value), aliases|
+            aliases[field.sub("fast_", "priority_")] = value if field.include?("fast_")
+          end
         end
 
         def extract_untiered_grouped_models(doc, fields:)
