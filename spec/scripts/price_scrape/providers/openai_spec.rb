@@ -23,7 +23,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "rows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]]
       },
       {
-        "tier" => [0, "priority"],
+        "tier" => [0, "fast"],
         "rows" => [1, [[1, [[0, "gpt-5"], [0, 2.5], [0, 0.25], [0, 20]]]]]
       }
     )
@@ -77,12 +77,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "above_context_flex_input" => 5.0,
         "above_context_flex_cache_read_input" => 0.5,
         "above_context_flex_output" => 22.5,
+        "fast_input" => 12.5,
+        "fast_cache_read_input" => 1.25,
+        "fast_output" => 75.0,
         "priority_input" => 12.5,
         "priority_cache_read_input" => 1.25,
         "priority_output" => 75.0,
         "data_residency_input" => 5.5,
         "data_residency_cache_read_input" => 0.55,
         "data_residency_output" => 33.0,
+        "fast_data_residency_input" => 13.75,
+        "fast_data_residency_cache_read_input" => 1.375,
+        "fast_data_residency_output" => 82.5,
         "priority_data_residency_input" => 13.75,
         "priority_data_residency_cache_read_input" => 1.375,
         "priority_data_residency_output" => 82.5
@@ -97,12 +103,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "flex_input" => 0.375,
         "flex_cache_read_input" => 0.0375,
         "flex_output" => 2.25,
+        "fast_input" => 1.5,
+        "fast_cache_read_input" => 0.15,
+        "fast_output" => 9.0,
         "priority_input" => 1.5,
         "priority_cache_read_input" => 0.15,
         "priority_output" => 9.0,
         "data_residency_input" => 0.825,
         "data_residency_cache_read_input" => 0.0825,
         "data_residency_output" => 4.95,
+        "fast_data_residency_input" => 1.65,
+        "fast_data_residency_cache_read_input" => 0.165,
+        "fast_data_residency_output" => 9.9,
         "priority_data_residency_input" => 1.65,
         "priority_data_residency_cache_read_input" => 0.165,
         "priority_data_residency_output" => 9.9
@@ -116,6 +128,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "batch_cache_read_input" => 0.25,
         "batch_cache_write_input" => 3.125,
         "batch_output" => 15.0,
+        "fast_input" => 10.0,
+        "fast_cache_write_input" => 12.5,
         "priority_input" => 10.0,
         "priority_cache_write_input" => 12.5,
         "_context_price_threshold_tokens" => 272_000,
@@ -133,10 +147,13 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "batch_input" => 5.0,
         "batch_output" => 15.0
       )
-      expect(result.models.fetch("gpt-5.2-codex")).to eq(
+      expect(result.models.fetch("gpt-5.3-codex")).to eq(
         "input" => 1.75,
         "cache_read_input" => 0.175,
         "output" => 14.0,
+        "fast_input" => 3.5,
+        "fast_cache_read_input" => 0.35,
+        "fast_output" => 28.0,
         "priority_input" => 3.5,
         "priority_cache_read_input" => 0.35,
         "priority_output" => 28.0
@@ -176,12 +193,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "output" => 10.0,
         "audio_input" => 32.0,
         "audio_output" => 64.0
-      )
-      expect(result.models.fetch("gpt-4o-mini-audio-preview")).to eq(
-        "input" => 0.15,
-        "output" => 0.6,
-        "audio_input" => 10.0,
-        "audio_output" => 20.0
       )
       expect(result.models.fetch("gpt-image-1")).to eq(
         "input" => 5.0, "cache_read_input" => 1.25,
@@ -255,7 +266,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
     it "raises when a batch price cell does not match the expected format" do
       broken_html = html.sub(
-        "[0,0.5],[0,0.05],[0,0.625],[0,3]", "[0,&quot;TBD&quot;],[0,0.05],[0,0.625],[0,3]"
+        "[0,2.5],[0,0.25],[0,3.125],[0,15]", "[0,&quot;TBD&quot;],[0,0.25],[0,3.125],[0,15]"
       )
 
       expect do
