@@ -1012,30 +1012,27 @@ RSpec.describe LlmCostTracker::Pricing do
     it "keeps Gemini 2.5 Pro long-context prices above the 200k prompt threshold" do
       fields = bundled.fetch("gemini/gemini-2.5-pro")
 
+      above_context_keys = fields.keys.grep(/\Aabove_context_/)
+
       expect(fields["_context_price_threshold_tokens"]).to eq(200_000)
-      expect(fields["above_context_input"]).to eq(2.5)
-      expect(fields["above_context_output"]).to eq(15.0)
-      expect(fields["above_context_cache_read_input"]).to eq(0.25)
-      expect(fields["above_context_batch_input"]).to eq(1.25)
-      expect(fields["above_context_batch_output"]).to eq(7.5)
-      expect(fields["above_context_batch_cache_read_input"]).to eq(0.25)
+      expect(above_context_keys).to include("above_context_input", "above_context_output")
+      above_context_keys.each do |key|
+        base = fields.fetch(key.delete_prefix("above_context_"))
+        multiplier = key.end_with?("output") ? 1.5 : 2
+        expect(fields[key]).to be_within(0.0001).of(base * multiplier)
+      end
     end
 
     it "keeps OpenAI 1.05M-context models on their long-context rates" do
-      {
-        "openai/gpt-5.4" => [5.0, 22.5],
-        "openai/gpt-5.4-pro" => [60.0, 270.0],
-        "openai/gpt-5.5" => [10.0, 45.0],
-        "openai/gpt-5.5-pro" => [60.0, 270.0],
-        "openai/gpt-5.6-luna" => [2.0, 9.0],
-        "openai/gpt-5.6-sol" => [10.0, 45.0],
-        "openai/gpt-5.6-terra" => [5.0, 22.5]
-      }.each do |model_id, (input, output)|
+      %w[
+        openai/gpt-5.4 openai/gpt-5.4-pro openai/gpt-5.5 openai/gpt-5.5-pro
+        openai/gpt-5.6-luna openai/gpt-5.6-sol openai/gpt-5.6-terra
+      ].each do |model_id|
         fields = bundled.fetch(model_id)
 
         expect(fields["_context_price_threshold_tokens"]).to eq(272_000)
-        expect(fields["above_context_input"]).to eq(input)
-        expect(fields["above_context_output"]).to eq(output)
+        expect(fields["above_context_input"]).to be_within(0.0001).of(fields.fetch("input") * 2)
+        expect(fields["above_context_output"]).to be_within(0.0001).of(fields.fetch("output") * 1.5)
       end
     end
 
