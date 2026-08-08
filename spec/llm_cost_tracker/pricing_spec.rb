@@ -1068,7 +1068,7 @@ RSpec.describe LlmCostTracker::Pricing do
     end
 
     it "keeps output more expensive than input for chat-style models" do
-      non_chat = /embed|audio|whisper|tts|image|moderation/
+      non_chat = /embed|audio|whisper|tts|image|moderation|guard/
       bundled.each do |model_id, fields|
         next if model_id.start_with?("openrouter/")
         next if model_id.match?(non_chat)

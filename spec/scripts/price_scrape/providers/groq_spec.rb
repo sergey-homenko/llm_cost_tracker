@@ -19,13 +19,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
   def text_models_table(rows)
     body = rows.map do |row|
       card = row[:card] || row[:id]
+      price = row.fetch(:price) do
+        "<span>$#{row[:input]}<!-- --> <span>input</span></span>" \
+          "<span>$#{row[:output]}<!-- --> <span>output</span></span>"
+      end
       <<~ROW
         <tr>
-          <td>#{row[:name]}</td>
-          <td>500 TPS</td>
-          <td>Input Token Price (Per Million Tokens) $#{row[:input]} (per $1)*</td>
-          <td>Output Token Price (Per Million Tokens) $#{row[:output]} (per $1)*</td>
-          <td><a href="https://console.groq.com/docs/model/#{card}">Model Card</a></td>
+          <td><a href="/docs/model/#{card}">#{row[:name]}</a><span>#{row[:id]}</span></td>
+          <td>500</td>
+          <td>#{price}</td>
+          <td>250K<!-- --> TPM</td>
         </tr>
       ROW
     end.join
@@ -34,10 +37,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       <table>
         <thead>
           <tr>
-            <th>AI Model</th>
-            <th>Current Speed (Tokens per Second)</th>
-            <th>Input Token Price (Per Million Tokens)</th>
-            <th>Output Token Price (Per Million Tokens)</th>
+            <th>MODEL ID</th>
+            <th>SPEED (T/SEC)</th>
+            <th>PRICE PER 1M TOKENS</th>
+            <th>RATE LIMITS (DEVELOPER PLAN)</th>
           </tr>
         </thead>
         <tbody>#{body}</tbody>
@@ -46,22 +49,22 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
   end
 
   def models_page(table)
-    "<html><body><h2>Pricing</h2>#{table}</body></html>"
+    "<html><body><h1>Supported Models</h1>#{table}</body></html>"
   end
 
   describe "#call" do
-    it "extracts token model prices from the pricing page and derives Groq mode rates" do
+    it "extracts token model prices from the models page and derives Groq mode rates" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-05-01T00:00:00Z")
 
       expect(result.source_url).to eq(described_class.source_url)
       expect(result.scraped_at).to eq("2026-05-01T00:00:00Z")
-      expect(result.models.fetch("llama-3.1-8b-instant")).to eq(
-        "input" => 0.05,
-        "output" => 0.08,
-        "on_demand_input" => 0.05,
-        "on_demand_output" => 0.08,
-        "flex_input" => 0.05,
-        "flex_output" => 0.08
+      expect(result.models.fetch("qwen/qwen3.6-27b")).to eq(
+        "input" => 0.6,
+        "output" => 3.0,
+        "on_demand_input" => 0.6,
+        "on_demand_output" => 3.0,
+        "flex_input" => 0.6,
+        "flex_output" => 3.0
       )
       expect(result.models.fetch("openai/gpt-oss-20b")).to eq(
         "input" => 0.075,
@@ -76,14 +79,54 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       )
     end
 
-    it "reads the model id from the Model Card link rather than the display name" do
+    it "reads the model id from the model card link rather than the display name" do
       result = described_class.new.call(html: html_pages)
 
       expect(result.models.keys).to include("llama-3.3-70b-versatile", "openai/gpt-oss-120b")
     end
 
-    it "drops a row whose Model Card link collides with another model and keeps the consistent one" do
+    it "merges token models from the production and preview tables" do
       result = described_class.new.call(html: html_pages)
+
+      expect(result.models.keys).to include("llama-3.1-8b-instant", "qwen/qwen3.6-27b")
+    end
+
+    it "skips rows priced per hour, per character, or on request" do
+      result = described_class.new.call(html: html_pages)
+
+      expect(result.models.keys).not_to include(
+        "whisper-large-v3",
+        "canopylabs/orpheus-v1-english",
+        "minimaxai/minimax-m2.7"
+      )
+    end
+
+    it "skips rows that link to a system rather than a model card" do
+      result = described_class.new.call(html: html_pages)
+
+      expect(result.models.keys).not_to include("groq/compound", "groq/compound-mini")
+    end
+
+    it "drops a row whose model card link collides with another model and keeps the consistent one" do
+      page = models_page(
+        text_models_table(
+          [
+            { name: "GPT OSS 120B", id: "openai/gpt-oss-120b", input: "0.15", output: "0.60" },
+            {
+              name: "Safety GPT OSS 20B",
+              id: "openai/gpt-oss-safeguard-20b",
+              card: "openai/gpt-oss-120b",
+              input: "0.075",
+              output: "0.30"
+            },
+            { name: "Llama 3.1 8B", id: "llama-3.1-8b-instant", input: "0.05", output: "0.08" },
+            { name: "Llama 3.3 70B", id: "llama-3.3-70b-versatile", input: "0.59", output: "0.79" },
+            { name: "GPT OSS 20B", id: "openai/gpt-oss-20b", input: "0.075", output: "0.30" }
+          ]
+        )
+      )
+
+      result = described_class.new.call(html: html_pages(described_class.source_url => page))
 
       expect(result.models.fetch("openai/gpt-oss-120b")).to include("input" => 0.15, "output" => 0.6)
       expect(result.models.size).to eq(4)
@@ -94,8 +137,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
               "<tbody><tr><td>Web Search</td><td>$5 / 1000 requests</td></tr></tbody></table>"
       text_table = text_models_table(
         [
-          { name: "Llama 3.1 8B Instant", id: "llama-3.1-8b-instant", input: "0.05", output: "0.08" },
-          { name: "Llama 3.3 70B Versatile", id: "llama-3.3-70b-versatile", input: "0.59", output: "0.79" },
+          { name: "Llama 3.1 8B", id: "llama-3.1-8b-instant", input: "0.05", output: "0.08" },
+          { name: "Llama 3.3 70B", id: "llama-3.3-70b-versatile", input: "0.59", output: "0.79" },
           { name: "GPT OSS 20B", id: "openai/gpt-oss-20b", input: "0.075", output: "0.30" },
           { name: "GPT OSS 120B", id: "openai/gpt-oss-120b", input: "0.15", output: "0.60" }
         ]
@@ -126,9 +169,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       page = models_page(
         text_models_table(
           [
-            { name: "Alpha One", id: "openai/gpt-oss-120b", input: "0.15", output: "0.60" },
-            { name: "Beta Two", id: "openai/gpt-oss-120b", input: "0.30", output: "0.60" },
-            { name: "Llama 3.1 8B Instant", id: "llama-3.1-8b-instant", input: "0.05", output: "0.08" }
+            { name: "Alpha One", id: "alpha-one", card: "openai/gpt-oss-120b", input: "0.15", output: "0.60" },
+            { name: "Beta Two", id: "beta-two", card: "openai/gpt-oss-120b", input: "0.30", output: "0.60" },
+            { name: "Llama 3.1 8B", id: "llama-3.1-8b-instant", input: "0.05", output: "0.08" }
           ]
         )
       )
@@ -163,23 +206,23 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       end.to raise_error(described_class::Error, /flex on-demand pricing/)
     end
 
-    it "skips a row whose token price cannot be parsed" do
+    it "skips a row whose price cell labels only one side of the token price" do
       page = models_page(
         text_models_table(
           [
-            { name: "Llama 3.1 8B Instant", id: "llama-3.1-8b-instant", input: "0.05", output: "0.08" },
-            { name: "Llama 3.3 70B Versatile", id: "llama-3.3-70b-versatile", input: "0.59", output: "0.79" },
+            { name: "Llama 3.1 8B", id: "llama-3.1-8b-instant", input: "0.05", output: "0.08" },
+            { name: "Llama 3.3 70B", id: "llama-3.3-70b-versatile", price: "<span>$0.59<!-- --> <span>input</span>" },
             { name: "GPT OSS 20B", id: "openai/gpt-oss-20b", input: "0.075", output: "0.30" },
             { name: "GPT OSS 120B", id: "openai/gpt-oss-120b", input: "0.15", output: "0.60" },
-            { name: "Qwen3 32B", id: "qwen/qwen3-32b", input: "0.29", output: "0.59" }
+            { name: "Qwen3.6 27B", id: "qwen/qwen3.6-27b", input: "0.60", output: "3.00" }
           ]
-        ).sub("Input Token Price (Per Million Tokens) $0.59", "Input Token Price (Per Million Tokens) TBD")
+        )
       )
 
       result = described_class.new.call(html: html_pages(described_class.source_url => page))
 
       expect(result.models).not_to include("llama-3.3-70b-versatile")
-      expect(result.models.keys).to include("qwen/qwen3-32b", "openai/gpt-oss-20b")
+      expect(result.models.keys).to include("qwen/qwen3.6-27b", "openai/gpt-oss-20b")
     end
   end
 end
