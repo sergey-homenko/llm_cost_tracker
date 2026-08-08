@@ -100,6 +100,33 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
     end
   end
 
+  it "logs the final URL when a source page redirects elsewhere" do
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic.source_url)
+      .to_return(status: 301, headers: { "Location" => "https://example.test/moved" })
+    stub_request(:get, "https://example.test/moved")
+      .to_return(status: 200, body: html, headers: { "Content-Type" => "text/html; charset=utf-8" })
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.pretty_generate(build_registry(haiku_entry: { "input" => 1.0, "output" => 5.0 })))
+      file.close
+
+      described_class.new(io: io).call(providers: ["anthropic"], registry_path: file.path, dry_run: true)
+
+      expect(io.string).to include("[anthropic] redirected to https://example.test/moved")
+    end
+  end
+
+  it "stays quiet about redirects when a source page answers directly" do
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.pretty_generate(build_registry(haiku_entry: { "input" => 1.0, "output" => 5.0 })))
+      file.close
+
+      described_class.new(io: io).call(providers: ["anthropic"], registry_path: file.path, dry_run: true)
+
+      expect(io.string).not_to include("redirected to")
+    end
+  end
+
   it "raises on an unknown provider name" do
     expect do
       described_class.new(io: io).call(providers: ["xai"])
