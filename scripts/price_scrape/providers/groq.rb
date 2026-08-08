@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "date"
 require "nokogiri"
 require "time"
 
@@ -16,15 +17,23 @@ module LlmCostTracker
 
         PROMPT_CACHING_SOURCE_URL = "https://console.groq.com/docs/prompt-caching"
         FLEX_PROCESSING_SOURCE_URL = "https://console.groq.com/docs/flex-processing"
-        SOURCE_URLS = [source_url, PROMPT_CACHING_SOURCE_URL, FLEX_PROCESSING_SOURCE_URL].freeze
+        DEPRECATIONS_SOURCE_URL = "https://console.groq.com/docs/deprecations"
+        SOURCE_URLS = [
+          source_url,
+          PROMPT_CACHING_SOURCE_URL,
+          FLEX_PROCESSING_SOURCE_URL,
+          DEPRECATIONS_SOURCE_URL
+        ].freeze
 
         MODEL_CARD_PATH = "/docs/model/"
+        SHUTDOWN_DATE_FORMAT = "%m/%d/%y"
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           pages = pages_from(html)
           pricing_doc = Nokogiri::HTML(pages.fetch(self.class.source_url))
           prompt_caching_doc = Nokogiri::HTML(pages.fetch(PROMPT_CACHING_SOURCE_URL))
           flex_doc = Nokogiri::HTML(pages.fetch(FLEX_PROCESSING_SOURCE_URL))
+          deprecations_doc = Nokogiri::HTML(pages.fetch(DEPRECATIONS_SOURCE_URL))
 
           verify_prompt_cache_discount!(prompt_caching_doc)
           verify_flex_pricing!(flex_doc)
@@ -36,7 +45,7 @@ module LlmCostTracker
             source_url: source_url,
             scraped_at: scraped_at,
             models: models,
-            deprecated_models: [],
+            deprecated_models: extract_shutdown_models(deprecations_doc, scraped_at: scraped_at),
             service_charges: {}
           )
         end
@@ -96,8 +105,11 @@ module LlmCostTracker
           headers.any? { |header| header.upcase.include?(needle) }
         end
 
-        def column_index(headers, needle)
-          index = headers.find_index { |header| header.upcase.include?(needle) }
+        def column_index(headers, needle, excluding: nil)
+          index = headers.find_index do |header|
+            upcased = header.upcase
+            upcased.include?(needle) && !(excluding && upcased.include?(excluding))
+          end
           raise Error, "Groq pricing column #{needle.inspect} not found in #{headers.inspect}" unless index
 
           index
@@ -180,6 +192,38 @@ module LlmCostTracker
           raise Error, "expected at least 2 prompt caching models, parsed #{models.size}" if models.size < 2
 
           models
+        end
+
+        def extract_shutdown_models(doc, scraped_at:)
+          tables = doc.css("table").select { |table| header?(header_texts(table), "SHUTDOWN DATE") }
+          raise Error, "Groq deprecations table not found" if tables.empty?
+
+          scraped_on = Date.parse(scraped_at)
+          tables.flat_map { |table| shutdown_rows(table, scraped_on: scraped_on) }.uniq
+        end
+
+        def shutdown_rows(table, scraped_on:)
+          headers = header_texts(table)
+          model_index = column_index(headers, "MODEL", excluding: "REPLACEMENT")
+          shutdown_index = column_index(headers, "SHUTDOWN DATE")
+          last_index = [model_index, shutdown_index].max
+
+          table.css("tbody tr").filter_map do |row|
+            cells = row.css("td")
+            next if cells.size <= last_index
+
+            model_id = normalize_text(cells[model_index].text)
+            next unless model_id?(model_id)
+
+            shutdown_on = shutdown_date(cells[shutdown_index])
+            model_id if shutdown_on && shutdown_on <= scraped_on
+          end
+        end
+
+        def shutdown_date(cell)
+          Date.strptime(normalize_text(cell.text), SHUTDOWN_DATE_FORMAT)
+        rescue Date::Error
+          nil
         end
 
         def verify_prompt_cache_discount!(doc)
