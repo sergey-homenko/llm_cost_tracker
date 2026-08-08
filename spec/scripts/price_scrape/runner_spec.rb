@@ -12,6 +12,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   let(:groq_models_html) { File.read("spec/fixtures/scrape/groq_models.html", encoding: "utf-8") }
   let(:groq_prompt_caching_html) { File.read("spec/fixtures/scrape/groq_prompt_caching.html", encoding: "utf-8") }
   let(:groq_flex_processing_html) { File.read("spec/fixtures/scrape/groq_flex_processing.html", encoding: "utf-8") }
+  let(:groq_deprecations_html) { File.read("spec/fixtures/scrape/groq_deprecations.html", encoding: "utf-8") }
 
   def build_registry(haiku_entry:)
     {
@@ -73,6 +74,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Groq::FLEX_PROCESSING_SOURCE_URL)
       .to_return(status: 200, body: groq_flex_processing_html,
                  headers: { "Content-Type" => "text/html; charset=utf-8" })
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Groq::DEPRECATIONS_SOURCE_URL)
+      .to_return(status: 200, body: groq_deprecations_html,
+                 headers: { "Content-Type" => "text/html; charset=utf-8" })
 
     Tempfile.create(["registry", ".json"]) do |file|
       file.write(JSON.pretty_generate("metadata" => { "schema_version" => 1, "updated_at" => "2026-04-01" },
@@ -89,6 +93,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
       )
       expect(io.string).to include(
         "[groq] fetching #{LlmCostTracker::Pricing::Scrape::Providers::Groq::FLEX_PROCESSING_SOURCE_URL}"
+      )
+      expect(io.string).to include(
+        "[groq] fetching #{LlmCostTracker::Pricing::Scrape::Providers::Groq::DEPRECATIONS_SOURCE_URL}"
       )
     end
   end

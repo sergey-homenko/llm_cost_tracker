@@ -7,12 +7,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
   let(:models_html) { File.read("spec/fixtures/scrape/groq_models.html", encoding: "utf-8") }
   let(:prompt_caching_html) { File.read("spec/fixtures/scrape/groq_prompt_caching.html", encoding: "utf-8") }
   let(:flex_processing_html) { File.read("spec/fixtures/scrape/groq_flex_processing.html", encoding: "utf-8") }
+  let(:deprecations_html) { File.read("spec/fixtures/scrape/groq_deprecations.html", encoding: "utf-8") }
 
   def html_pages(overrides = {})
     {
       described_class.source_url => models_html,
       described_class::PROMPT_CACHING_SOURCE_URL => prompt_caching_html,
-      described_class::FLEX_PROCESSING_SOURCE_URL => flex_processing_html
+      described_class::FLEX_PROCESSING_SOURCE_URL => flex_processing_html,
+      described_class::DEPRECATIONS_SOURCE_URL => deprecations_html
     }.merge(overrides)
   end
 
@@ -154,9 +156,70 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       expect(result.models.size).to be >= described_class.min_models
     end
 
-    it "sets deprecated_models to empty" do
-      result = described_class.new.call(html: html_pages)
-      expect(result.deprecated_models).to eq([])
+    it "reports models whose shutdown date has already passed as deprecated" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-08T00:00:00Z")
+
+      expect(result.deprecated_models).to include(
+        "qwen/qwen3-32b",
+        "meta-llama/llama-4-scout-17b-16e-instruct"
+      )
+    end
+
+    it "keeps a model priced until its announced shutdown date arrives" do
+      before_shutdown = described_class.new.call(html: html_pages, scraped_at: "2026-08-15T00:00:00Z")
+      on_shutdown = described_class.new.call(html: html_pages, scraped_at: "2026-08-16T00:00:00Z")
+
+      expect(before_shutdown.deprecated_models).not_to include("llama-3.1-8b-instant")
+      expect(on_shutdown.deprecated_models).to include("llama-3.1-8b-instant")
+    end
+
+    it "lists a model deprecated in more than one table only once" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-08T00:00:00Z")
+
+      expect(result.deprecated_models.count("deepseek-r1-distill-llama-70b-specdec")).to eq(1)
+    end
+
+    it "reads the deprecated model column rather than the recommended replacement column" do
+      reordered = <<~HTML
+        <html><body><table>
+          <thead>
+            <tr>
+              <th>Recommended Replacement Model ID</th>
+              <th>Shutdown Date</th>
+              <th>Deprecated Model</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>openai/gpt-oss-120b</td><td>01/01/26</td><td>llama3-8b-8192</td></tr>
+          </tbody>
+        </table></body></html>
+      HTML
+
+      result = described_class.new.call(
+        html: html_pages(described_class::DEPRECATIONS_SOURCE_URL => reordered),
+        scraped_at: "2026-08-08T00:00:00Z"
+      )
+
+      expect(result.deprecated_models).to eq(["llama3-8b-8192"])
+    end
+
+    it "raises when the deprecations table is missing" do
+      expect do
+        described_class.new.call(
+          html: html_pages(described_class::DEPRECATIONS_SOURCE_URL => "<html><body></body></html>")
+        )
+      end.to raise_error(described_class::Error, /deprecations table not found/)
+    end
+
+    it "keeps a model priced when its shutdown date cannot be read" do
+      unreadable = deprecations_html.sub("<td>07/17/26</td>", "<td>TBD</td>")
+
+      result = described_class.new.call(
+        html: html_pages(described_class::DEPRECATIONS_SOURCE_URL => unreadable),
+        scraped_at: "2026-08-08T00:00:00Z"
+      )
+
+      expect(result.deprecated_models).not_to include("qwen/qwen3-32b")
     end
 
     it "raises when the token model table is missing" do

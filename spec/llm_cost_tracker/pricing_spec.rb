@@ -164,15 +164,15 @@ RSpec.describe LlmCostTracker::Pricing do
     it "calculates Groq flex costs at on-demand token rates" do
       result = cost_for(
         provider: "groq",
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         pricing_mode: "flex",
         input_tokens: 1_000_000,
         output_tokens: 1_000_000
       )
 
-      expect(result.components.fetch(:input_cost)).to eq(0.59)
-      expect(result.components.fetch(:output_cost)).to eq(0.79)
-      expect(result.total).to eq(1.38)
+      expect(result.components.fetch(:input_cost)).to eq(0.15)
+      expect(result.components.fetch(:output_cost)).to eq(0.6)
+      expect(result.total).to eq(0.75)
     end
 
     it "keeps Groq provisioned performance pricing unknown" do
