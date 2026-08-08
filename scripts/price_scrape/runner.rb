@@ -82,6 +82,7 @@ module LlmCostTracker
         source_urls(provider_class).each_with_object({}) do |url, responses|
           @io.puts "[#{name}] fetching #{url}"
           response = @fetcher.get(url)
+          @io.puts "[#{name}] redirected to #{response.url}" if response.url != url
           @io.puts "[#{name}] HTTP #{response.status} (#{response.body.bytesize} bytes, #{response.elapsed_ms}ms)"
           responses[url] = response
         end
