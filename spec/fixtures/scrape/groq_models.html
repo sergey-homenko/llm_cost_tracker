@@ -1,85 +1,295 @@
 <html>
   <body>
-    <h2>Token Pricing</h2>
+    <h1>Supported Models</h1>
+    <h2>Production Models</h2>
     <table>
-      <thead>
-        <tr>
-          <th>Model</th>
-          <th>Uncached Input Tokens (Per M Tokens)</th>
-          <th>Cached Input Tokens (Per M Tokens)</th>
-          <th>Output Tokens (Per M Tokens)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>openai/gpt-oss-120b</td>
-          <td>$0.15</td>
-          <td>$0.075</td>
-          <td>$0.60</td>
-        </tr>
-      </tbody>
+    <thead><tr>
+    <th>MODEL ID</th>
+    <th>SPEED
+    (T/SEC)</th>
+    <th>PRICE PER
+    1M TOKENS</th>
+    <th>RATE LIMITS
+    (DEVELOPER PLAN)</th>
+    <th>CONTEXT WINDOW
+    (TOKENS)</th>
+    <th>MAX
+    COMPLETION TOKENS</th>
+    <th>MAX FILE
+    SIZE</th>
+    </tr></thead>
+    <tbody>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/llama-3.1-8b-instant">Llama 3.1 8B</a></div>
+    <span>llama-3.1-8b-instant</span>
+    </div></div></div></td>
+    <td><div><div>560</div></div></td>
+    <td><div><div><div>
+    <span>$0.05<!-- --> <span>input</span></span><span>$0.08<!-- --> <span>output</span></span>
+    </div></div></div></td>
+    <td><div><div><div>
+    <span>250K<!-- --> <span>TPM</span></span><span>1K<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>131,072</div></div></td>
+    <td><div><div>131,072</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/llama-3.3-70b-versatile">Llama 3.3 70B</a></div>
+    <span>llama-3.3-70b-versatile</span>
+    </div></div></div></td>
+    <td><div><div>280</div></div></td>
+    <td><div><div><div>
+    <span>$0.59<!-- --> <span>input</span></span><span>$0.79<!-- --> <span>output</span></span>
+    </div></div></div></td>
+    <td><div><div><div>
+    <span>300K<!-- --> <span>TPM</span></span><span>1K<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>131,072</div></div></td>
+    <td><div><div>32,768</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/openai/gpt-oss-120b">GPT OSS 120B</a></div>
+    <span>openai/gpt-oss-120b</span>
+    </div></div></div></td>
+    <td><div><div>500</div></div></td>
+    <td><div><div><div>
+    <span>$0.15<!-- --> <span>input</span></span><span>$0.60<!-- --> <span>output</span></span>
+    </div></div></div></td>
+    <td><div><div><div>
+    <span>250K<!-- --> <span>TPM</span></span><span>1K<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>131,072</div></div></td>
+    <td><div><div>65,536</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/openai/gpt-oss-20b">GPT OSS 20B</a></div>
+    <span>openai/gpt-oss-20b</span>
+    </div></div></div></td>
+    <td><div><div>1000</div></div></td>
+    <td><div><div><div>
+    <span>$0.075<!-- --> <span>input</span></span><span>$0.30<!-- --> <span>output</span></span>
+    </div></div></div></td>
+    <td><div><div><div>
+    <span>250K<!-- --> <span>TPM</span></span><span>1K<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>131,072</div></div></td>
+    <td><div><div>65,536</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/whisper-large-v3">Whisper</a></div>
+    <span>whisper-large-v3</span>
+    </div></div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div><div><span>$0.111<!-- --> <span>per hour</span></span></div></div></div></td>
+    <td><div><div><div>
+    <span>200K<!-- --> <span>ASH</span></span><span>300<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div>100 MB</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/whisper-large-v3-turbo">Whisper Large V3 Turbo</a></div>
+    <span>whisper-large-v3-turbo</span>
+    </div></div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div><div><span>$0.04<!-- --> <span>per hour</span></span></div></div></div></td>
+    <td><div><div><div>
+    <span>400K<!-- --> <span>ASH</span></span><span>400<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    </tbody>
     </table>
+    <h2>Production Systems</h2>
     <table>
-      <thead>
-        <tr>
-          <th>AI Model</th>
-          <th>Current Speed (Tokens per Second)</th>
-          <th>Input Token Price (Per Million Tokens)</th>
-          <th>Output Token Price (Per Million Tokens)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>GPT OSS 20B 128k</td>
-          <td>1,000 TPS</td>
-          <td>Input Token Price (Per Million Tokens) $0.075 (13.3M / $1)*</td>
-          <td>Output Token Price (Per Million Tokens) $0.30 (3.33M / $1)*</td>
-          <td>
-            <a href="https://console.groq.com/playground?model=openai/gpt-oss-120b">Try Now</a>
-            <a href="https://console.groq.com/docs/model/openai/gpt-oss-20b">Model Card</a>
-          </td>
-        </tr>
-        <tr>
-          <td>GPT OSS Safeguard 20B</td>
-          <td>1,000 TPS</td>
-          <td>Input Token Price (Per Million Tokens) $0.075 (13.3M / $1)*</td>
-          <td>Output Token Price (Per Million Tokens) $0.30 (3.33M / $1)*</td>
-          <td>
-            <a href="https://console.groq.com/playground?model=openai/gpt-oss-120b">Try Now</a>
-            <a href="https://console.groq.com/docs/model/openai/gpt-oss-120b">Model Card</a>
-          </td>
-        </tr>
-        <tr>
-          <td>GPT OSS 120B 128k</td>
-          <td>500 TPS</td>
-          <td>Input Token Price (Per Million Tokens) $0.15 (6.67M / $1)*</td>
-          <td>Output Token Price (Per Million Tokens) $0.60 (1.66M / $1)*</td>
-          <td>
-            <a href="https://console.groq.com/playground?model=openai/gpt-oss-120b">Try Now</a>
-            <a href="https://console.groq.com/docs/model/openai/gpt-oss-120b">Model Card</a>
-          </td>
-        </tr>
-        <tr>
-          <td>Llama 3.3 70B Versatile 128k</td>
-          <td>280 TPS</td>
-          <td>Input Token Price (Per Million Tokens) $0.59</td>
-          <td>Output Token Price (Per Million Tokens) $0.79</td>
-          <td>
-            <a href="https://console.groq.com/playground?model=llama-3.3-70b-versatile">Try Now</a>
-            <a href="https://console.groq.com/docs/model/llama-3.3-70b-versatile">Model Card</a>
-          </td>
-        </tr>
-        <tr>
-          <td>Llama 3.1 8B Instant 128k</td>
-          <td>560 TPS</td>
-          <td>Input Token Price (Per Million Tokens) $0.05</td>
-          <td>Output Token Price (Per Million Tokens) $0.08</td>
-          <td>
-            <a href="https://console.groq.com/playground?model=llama-3.1-8b-instant">Try Now</a>
-            <a href="https://console.groq.com/docs/model/llama-3.1-8b-instant">Model Card</a>
-          </td>
-        </tr>
-      </tbody>
+    <thead><tr>
+    <th>MODEL ID</th>
+    <th>SPEED
+    (T/SEC)</th>
+    <th>PRICE PER
+    1M TOKENS</th>
+    <th>RATE LIMITS
+    (DEVELOPER PLAN)</th>
+    <th>CONTEXT WINDOW
+    (TOKENS)</th>
+    <th>MAX
+    COMPLETION TOKENS</th>
+    <th>MAX FILE
+    SIZE</th>
+    </tr></thead>
+    <tbody>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/compound/systems/compound">Compound</a></div>
+    <span>groq/compound</span>
+    </div></div></div></td>
+    <td><div><div>450</div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div><div>
+    <span>200K<!-- --> <span>TPM</span></span><span>200<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>131,072</div></div></td>
+    <td><div><div>8,192</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/compound/systems/compound-mini">Compound Mini</a></div>
+    <span>groq/compound-mini</span>
+    </div></div></div></td>
+    <td><div><div>450</div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div><div>
+    <span>200K<!-- --> <span>TPM</span></span><span>200<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>131,072</div></div></td>
+    <td><div><div>8,192</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    </tbody>
+    </table>
+    <h2>Preview Models</h2>
+    <table>
+    <thead><tr>
+    <th>MODEL ID</th>
+    <th>SPEED
+    (T/SEC)</th>
+    <th>PRICE PER
+    1M TOKENS</th>
+    <th>RATE LIMITS
+    (DEVELOPER PLAN)</th>
+    <th>CONTEXT WINDOW
+    (TOKENS)</th>
+    <th>MAX
+    COMPLETION TOKENS</th>
+    <th>MAX FILE
+    SIZE</th>
+    </tr></thead>
+    <tbody>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/canopylabs/orpheus-arabic-saudi">Canopy Labs Orpheus Arabic Saudi</a></div>
+    <span>canopylabs/orpheus-arabic-saudi</span>
+    </div></div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div><div><span>$40.00<!-- --> <span>per 1M characters</span></span></div></div></div></td>
+    <td><div><div><div>
+    <span>50K<!-- --> <span>TPM</span></span><span>250<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>4,000</div></div></td>
+    <td><div><div>50,000</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/canopylabs/orpheus-v1-english">Canopy Labs Orpheus V1 English</a></div>
+    <span>canopylabs/orpheus-v1-english</span>
+    </div></div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div><div><span>$22.00<!-- --> <span>per 1M characters</span></span></div></div></div></td>
+    <td><div><div><div>
+    <span>50K<!-- --> <span>TPM</span></span><span>250<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>4,000</div></div></td>
+    <td><div><div>50,000</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/meta-llama/llama-prompt-guard-2-22m">Llama Prompt Guard 2 22M</a></div>
+    <span>meta-llama/llama-prompt-guard-2-22m</span>
+    </div></div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div><div>
+    <span>$0.03<!-- --> <span>input</span></span><span>$0.03<!-- --> <span>output</span></span>
+    </div></div></div></td>
+    <td><div><div><div>
+    <span>30K<!-- --> <span>TPM</span></span><span>100<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>512</div></div></td>
+    <td><div><div>512</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/meta-llama/llama-prompt-guard-2-86m">Prompt Guard 2 86M</a></div>
+    <span>meta-llama/llama-prompt-guard-2-86m</span>
+    </div></div></div></td>
+    <td><div><div>-</div></div></td>
+    <td><div><div><div>
+    <span>$0.04<!-- --> <span>input</span></span><span>$0.04<!-- --> <span>output</span></span>
+    </div></div></div></td>
+    <td><div><div><div>
+    <span>30K<!-- --> <span>TPM</span></span><span>100<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>512</div></div></td>
+    <td><div><div>512</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div>
+    <a href="/docs/model/minimaxai/minimax-m2.7">MiniMax M2.7</a><span>Enterprise</span>
+    </div>
+    <span>minimaxai/minimax-m2.7</span>
+    </div></div></div></td>
+    <td><div><div>260</div></div></td>
+    <td><div><div><div>
+    <span>Contact</span><span>Sales</span>
+    </div></div></div></td>
+    <td><div><div><div>
+    <span>Contact</span><span>Sales</span>
+    </div></div></div></td>
+    <td><div><div>196,608</div></div></td>
+    <td><div><div>131,072</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/openai/gpt-oss-safeguard-20b">Safety GPT OSS 20B</a></div>
+    <span>openai/gpt-oss-safeguard-20b</span>
+    </div></div></div></td>
+    <td><div><div>1000</div></div></td>
+    <td><div><div><div>
+    <span>$0.075<!-- --> <span>input</span></span><span>$0.30<!-- --> <span>output</span></span>
+    </div></div></div></td>
+    <td><div><div><div>
+    <span>150K<!-- --> <span>TPM</span></span><span>1K<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>131,072</div></div></td>
+    <td><div><div>65,536</div></div></td>
+    <td><div><div>-</div></div></td>
+    </tr>
+    <tr>
+    <td><div><div><div>
+    <div><a href="/docs/model/qwen/qwen3.6-27b">Qwen/Qwen3.6-27B</a></div>
+    <span>qwen/qwen3.6-27b</span>
+    </div></div></div></td>
+    <td><div><div>500</div></div></td>
+    <td><div><div><div>
+    <span>$0.60<!-- --> <span>input</span></span><span>$3.00<!-- --> <span>output</span></span>
+    </div></div></div></td>
+    <td><div><div><div>
+    <span>250K<!-- --> <span>TPM</span></span><span>1K<!-- --> <span>RPM</span></span>
+    </div></div></div></td>
+    <td><div><div>131,072</div></div></td>
+    <td><div><div>16,384</div></div></td>
+    <td><div><div>20 MB</div></div></td>
+    </tr>
+    </tbody>
     </table>
   </body>
 </html>

@@ -9,10 +9,10 @@ module LlmCostTracker
   module Pricing::Scrape
     module Providers
       class Groq < Base
-        source_url "https://groq.com/pricing"
+        source_url "https://console.groq.com/docs/models"
         min_models 4
         max_price 1000.0
-        anchors "llama-3.1-8b-instant", "openai/gpt-oss-20b"
+        anchors "openai/gpt-oss-20b", "openai/gpt-oss-120b"
 
         PROMPT_CACHING_SOURCE_URL = "https://console.groq.com/docs/prompt-caching"
         FLEX_PROCESSING_SOURCE_URL = "https://console.groq.com/docs/flex-processing"
@@ -50,28 +50,10 @@ module LlmCostTracker
         end
 
         def extract_models(doc, cache_models:)
-          table = find_text_models_table(doc)
-          raise Error, "Groq token models pricing table not found" unless table
+          tables = find_text_models_tables(doc)
+          raise Error, "Groq token models pricing table not found" if tables.empty?
 
-          headers = header_texts(table)
-          model_index = column_index(headers, "AI MODEL")
-          input_index = column_index(headers, "INPUT TOKEN PRICE")
-          output_index = column_index(headers, "OUTPUT TOKEN PRICE")
-          last_index = [model_index, input_index, output_index].max
-
-          rows = table.css("tbody tr").filter_map do |row|
-            cells = row.css("td")
-            next if cells.size <= last_index
-
-            model_id = model_card_id(row)
-            next unless model_id
-
-            input = price_from_cell(cells[input_index])
-            output = price_from_cell(cells[output_index])
-            next unless input && output
-
-            { id: model_id, name: normalize_text(cells[model_index].text), input: input, output: output }
-          end
+          rows = tables.flat_map { |table| token_rows(table) }
 
           resolve_rows(rows).transform_values do |row|
             fields = add_mode_prices("input" => row[:input], "output" => row[:output])
@@ -79,12 +61,30 @@ module LlmCostTracker
           end
         end
 
-        def find_text_models_table(doc)
-          doc.css("table").find do |table|
+        def token_rows(table)
+          headers = header_texts(table)
+          model_index = column_index(headers, "MODEL ID")
+          price_index = column_index(headers, "PRICE PER")
+          last_index = [model_index, price_index].max
+
+          table.css("tbody tr").filter_map do |row|
+            cells = row.css("td")
+            next if cells.size <= last_index
+
+            model_id = model_card_id(row)
+            next unless model_id
+
+            input, output = token_prices(cells[price_index])
+            next unless input && output
+
+            { id: model_id, name: normalize_text(cells[model_index].text), input: input, output: output }
+          end
+        end
+
+        def find_text_models_tables(doc)
+          doc.css("table").select do |table|
             headers = header_texts(table)
-            header?(headers, "AI MODEL") &&
-              header?(headers, "INPUT TOKEN PRICE") &&
-              header?(headers, "OUTPUT TOKEN PRICE")
+            header?(headers, "MODEL ID") && header?(headers, "PRICE PER")
           end
         end
 
@@ -111,9 +111,13 @@ module LlmCostTracker
           id if model_id?(id)
         end
 
-        def price_from_cell(cell)
-          text = normalize_text(cell.text).gsub(/\([^)]*\)/, " ")
-          match = text.match(/\$\s*(\d+(?:\.\d+)?)/)
+        def token_prices(cell)
+          text = normalize_text(cell.text)
+          [labeled_price(text, "input"), labeled_price(text, "output")]
+        end
+
+        def labeled_price(text, label)
+          match = text.match(/\$\s*(\d+(?:\.\d+)?)\s*#{label}\b/i)
           return nil unless match
 
           Float(match[1])
