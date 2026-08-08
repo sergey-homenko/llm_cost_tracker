@@ -51,7 +51,7 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "anthropic", "~> 1.42"
   spec.add_development_dependency "nokogiri", "~> 1.16"
-  spec.add_development_dependency "openai", "~> 0.63"
+  spec.add_development_dependency "openai", "~> 0.63", "< 0.78"
   spec.add_development_dependency "pg", "~> 1.6"
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rspec", "~> 3.0"
