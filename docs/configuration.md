@@ -59,6 +59,13 @@ Built-in integration names:
 | `:anthropic` | `anthropic >= 1.36.0` | Messages and beta Messages helpers |
 | `:ruby_llm` | `ruby_llm >= 1.15.0` | Provider chat, embedding, transcription, image, and moderation calls |
 
+The minimum is what `install!` enforces. CI resolves each SDK fresh on every
+run, so the suite is exercised against the newest release the gemspec's
+development dependencies allow — currently `anthropic ~> 1.61`,
+`openai ~> 0.77` (0.78.0 is held back by an upstream multipart bug), and
+`ruby_llm ~> 1.16`. Versions between the minimum and the newest are supported
+but not covered by CI.
+
 ## OpenAI-Compatible Hosts
 
 OpenAI-compatible capture is shape-based. Built-in mappings cover OpenRouter,
