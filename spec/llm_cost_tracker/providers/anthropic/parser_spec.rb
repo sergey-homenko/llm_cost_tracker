@@ -67,6 +67,39 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
       expect(result.provider_response_id).to be_nil
     end
 
+    it "records thinking tokens as hidden output without inflating billable output" do
+      body = {
+        model: "claude-sonnet-4-6",
+        usage: {
+          input_tokens: 200,
+          output_tokens: 80,
+          output_tokens_details: { thinking_tokens: 55 }
+        }
+      }.to_json
+
+      result = parser.parse(
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: body
+      )
+
+      expect(result.token_usage.hidden_output_tokens).to eq(55)
+      expect(result.token_usage.output_tokens).to eq(80)
+      expect(result.token_usage.total_tokens).to eq(280)
+    end
+
+    it "reports no hidden output when the response omits thinking token details" do
+      result = parser.parse(
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        response_body: response_body
+      )
+
+      expect(result.token_usage.hidden_output_tokens).to eq(0)
+    end
+
     it "warns when cache creation has an unexpected shape" do
       allow(LlmCostTracker::Logging).to receive(:warn)
 
@@ -211,6 +244,33 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
 
   describe "#parse_stream" do
     let(:request_body) { { model: "claude-sonnet-4-6", stream: true }.to_json }
+
+    it "carries thinking tokens from the final message_delta into hidden output" do
+      events = [
+        { event: "message_start", data: {
+          "type" => "message_start",
+          "message" => {
+            "id" => "msg_789",
+            "model" => "claude-sonnet-4-6",
+            "usage" => { "input_tokens" => 120, "output_tokens" => 1 }
+          }
+        } },
+        { event: "message_delta", data: {
+          "type" => "message_delta",
+          "usage" => { "output_tokens" => 64, "output_tokens_details" => { "thinking_tokens" => 48 } }
+        } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.token_usage.hidden_output_tokens).to eq(48)
+      expect(result.token_usage.output_tokens).to eq(64)
+    end
 
     it "merges message_start usage with message_delta cumulative totals" do
       events = [

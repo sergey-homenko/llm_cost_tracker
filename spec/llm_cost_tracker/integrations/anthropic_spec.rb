@@ -34,6 +34,20 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       end
     end
 
+    it "records thinking tokens as hidden output without inflating billable output" do
+      stub_sdk_json(:post, "https://api.anthropic.com/v1/messages",
+                    provider: :anthropic, fixture: "messages_with_thinking.json")
+
+      capture_sdk_events do |events|
+        client.messages.create(**request_params)
+
+        expect(events.first).to include(
+          output_tokens: 90,
+          hidden_output_tokens: 64
+        )
+      end
+    end
+
     it "preserves priority service tier as its own pricing mode so committed pricing isn't billed as standard" do
       stub_sdk_json(:post, "https://api.anthropic.com/v1/messages",
                     provider: :anthropic, fixture: "messages_priority_tier.json")

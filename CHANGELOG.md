@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - OpenAI gpt-5.6-sol, gpt-5.6-terra, and gpt-5.6-luna are priced, including their cache-write rates across standard, batch, flex, priority, long-context, and data-residency tiers.
 - Cache writes reported in OpenAI usage (`cache_write_tokens`, GPT-5.6 and later) are captured and costed at the model's cache-write rate instead of being counted as regular input.
+- Anthropic thinking tokens are counted as hidden output on the Data Quality page, so reasoning Claude already billed inside `output_tokens` is visible instead of reading as zero. Cost is unchanged — `output_tokens` stays the billable total.
 
 ### Fixed
 

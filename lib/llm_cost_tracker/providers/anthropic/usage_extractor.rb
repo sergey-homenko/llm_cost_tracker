@@ -22,7 +22,8 @@ module LlmCostTracker
             output_tokens: output,
             cache_read_input_tokens: cache_read,
             cache_write_input_tokens: cache_write,
-            cache_write_extended_input_tokens: cache_write_extended
+            cache_write_extended_input_tokens: cache_write_extended,
+            hidden_output_tokens: usage.dig(:output_tokens_details, :thinking_tokens).to_i
           )
         end
 
