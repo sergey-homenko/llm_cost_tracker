@@ -14,7 +14,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-08-10"
+    "updated_at": "2026-08-11"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -846,25 +846,6 @@
       "priority_output": 28.0
     },
     "openai/gpt-5.4": {
-      "_context_price_threshold_tokens": 272000,
-      "above_context_batch_cache_read_input": 0.25,
-      "above_context_batch_data_residency_cache_read_input": 0.275,
-      "above_context_batch_data_residency_input": 2.75,
-      "above_context_batch_data_residency_output": 12.375,
-      "above_context_batch_input": 2.5,
-      "above_context_batch_output": 11.25,
-      "above_context_cache_read_input": 0.5,
-      "above_context_data_residency_cache_read_input": 0.55,
-      "above_context_data_residency_input": 5.5,
-      "above_context_data_residency_output": 24.75,
-      "above_context_flex_cache_read_input": 0.25,
-      "above_context_flex_data_residency_cache_read_input": 0.275,
-      "above_context_flex_data_residency_input": 2.75,
-      "above_context_flex_data_residency_output": 12.375,
-      "above_context_flex_input": 2.5,
-      "above_context_flex_output": 11.25,
-      "above_context_input": 5.0,
-      "above_context_output": 22.5,
       "batch_cache_read_input": 0.13,
       "batch_data_residency_cache_read_input": 0.143,
       "batch_data_residency_input": 1.375,
@@ -949,19 +930,6 @@
       "output": 1.25
     },
     "openai/gpt-5.4-pro": {
-      "_context_price_threshold_tokens": 272000,
-      "above_context_batch_data_residency_input": 33.0,
-      "above_context_batch_data_residency_output": 148.5,
-      "above_context_batch_input": 30.0,
-      "above_context_batch_output": 135.0,
-      "above_context_data_residency_input": 66.0,
-      "above_context_data_residency_output": 297.0,
-      "above_context_flex_data_residency_input": 33.0,
-      "above_context_flex_data_residency_output": 148.5,
-      "above_context_flex_input": 30.0,
-      "above_context_flex_output": 135.0,
-      "above_context_input": 60.0,
-      "above_context_output": 270.0,
       "batch_data_residency_input": 16.5,
       "batch_data_residency_output": 99.0,
       "batch_input": 15.0,
@@ -976,25 +944,6 @@
       "output": 180.0
     },
     "openai/gpt-5.5": {
-      "_context_price_threshold_tokens": 272000,
-      "above_context_batch_cache_read_input": 0.5,
-      "above_context_batch_data_residency_cache_read_input": 0.55,
-      "above_context_batch_data_residency_input": 5.5,
-      "above_context_batch_data_residency_output": 24.75,
-      "above_context_batch_input": 5.0,
-      "above_context_batch_output": 22.5,
-      "above_context_cache_read_input": 1.0,
-      "above_context_data_residency_cache_read_input": 1.1,
-      "above_context_data_residency_input": 11.0,
-      "above_context_data_residency_output": 49.5,
-      "above_context_flex_cache_read_input": 0.5,
-      "above_context_flex_data_residency_cache_read_input": 0.55,
-      "above_context_flex_data_residency_input": 5.5,
-      "above_context_flex_data_residency_output": 24.75,
-      "above_context_flex_input": 5.0,
-      "above_context_flex_output": 22.5,
-      "above_context_input": 10.0,
-      "above_context_output": 45.0,
       "batch_cache_read_input": 0.25,
       "batch_data_residency_cache_read_input": 0.275,
       "batch_data_residency_input": 2.75,
@@ -1032,11 +981,6 @@
       "output": 75.0
     },
     "openai/gpt-5.5-pro": {
-      "_context_price_threshold_tokens": 272000,
-      "above_context_data_residency_input": 66.0,
-      "above_context_data_residency_output": 297.0,
-      "above_context_input": 60.0,
-      "above_context_output": 270.0,
       "batch_data_residency_input": 16.5,
       "batch_data_residency_output": 99.0,
       "batch_input": 15.0,
@@ -1889,9 +1833,9 @@
       "output": 0.18
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.003625,
-      "input": 0.435,
-      "output": 0.87
+      "cache_read_input": 0.053298,
+      "input": 0.63168,
+      "output": 1.26336
     },
     "openrouter/essentialai/rnj-1-instruct": {
       "input": 0.15,
@@ -2274,6 +2218,11 @@
     "openrouter/meta-llama/llama-guard-4-12b": {
       "input": 0.18,
       "output": 0.18
+    },
+    "openrouter/meta/muse-glimmer-30b": {
+      "cache_read_input": 0.04,
+      "input": 0.35,
+      "output": 1.5
     },
     "openrouter/meta/muse-spark-1.1": {
       "cache_read_input": 0.15,
@@ -3183,7 +3132,7 @@
     },
     "openrouter/qwen/qwen3-coder-30b-a3b-instruct": {
       "input": 0.07,
-      "output": 0.27
+      "output": 0.28
     },
     "openrouter/qwen/qwen3-coder-flash": {
       "cache_read_input": 0.039,
@@ -3262,8 +3211,9 @@
       "output": 1.0
     },
     "openrouter/qwen/qwen3.5-397b-a17b": {
-      "input": 0.39,
-      "output": 2.34
+      "cache_read_input": 0.3,
+      "input": 0.5,
+      "output": 3.6
     },
     "openrouter/qwen/qwen3.5-9b": {
       "input": 0.1,
@@ -3351,6 +3301,11 @@
       "cache_read_input": 0.5,
       "input": 5.0,
       "output": 30.0
+    },
+    "openrouter/sakana/sakana-namazu": {
+      "cache_read_input": 0.15,
+      "input": 0.95,
+      "output": 4.0
     },
     "openrouter/sao10k/l3-euryale-70b": {
       "input": 1.48,
@@ -3440,6 +3395,11 @@
       "cache_read_input": 0.015,
       "input": 0.15,
       "output": 0.6
+    },
+    "openrouter/upstage/solar-pro4": {
+      "cache_read_input": 0.006,
+      "input": 0.03,
+      "output": 0.12
     },
     "openrouter/writer/palmyra-x5": {
       "input": 0.6,
