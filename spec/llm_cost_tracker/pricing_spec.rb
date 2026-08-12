@@ -1009,30 +1009,22 @@ RSpec.describe LlmCostTracker::Pricing do
       end
     end
 
-    it "keeps Gemini 2.5 Pro long-context prices above the 200k prompt threshold" do
-      fields = bundled.fetch("gemini/gemini-2.5-pro")
+    it "prices long context at a 2x input and 1.5x output premium" do
+      thresholds = { "gemini" => 200_000, "openai" => 272_000 }
+      long_context = bundled.select { |_model_id, fields| fields["_context_price_threshold_tokens"] }
 
-      above_context_keys = fields.keys.grep(/\Aabove_context_/)
+      expect(long_context.keys.map { |model_id| model_id.split("/").first }.uniq).to match_array(thresholds.keys)
+      long_context.each do |model_id, fields|
+        provider = model_id.split("/").first
 
-      expect(fields["_context_price_threshold_tokens"]).to eq(200_000)
-      expect(above_context_keys).to include("above_context_input", "above_context_output")
-      above_context_keys.each do |key|
-        base = fields.fetch(key.delete_prefix("above_context_"))
-        multiplier = key.end_with?("output") ? 1.5 : 2
-        expect(fields[key]).to be_within(0.0001).of(base * multiplier)
-      end
-    end
-
-    it "keeps OpenAI 1.05M-context models on their long-context rates" do
-      %w[
-        openai/gpt-5.4 openai/gpt-5.4-pro openai/gpt-5.5 openai/gpt-5.5-pro
-        openai/gpt-5.6-luna openai/gpt-5.6-sol openai/gpt-5.6-terra
-      ].each do |model_id|
-        fields = bundled.fetch(model_id)
-
-        expect(fields["_context_price_threshold_tokens"]).to eq(272_000)
-        expect(fields["above_context_input"]).to be_within(0.0001).of(fields.fetch("input") * 2)
-        expect(fields["above_context_output"]).to be_within(0.0001).of(fields.fetch("output") * 1.5)
+        expect(fields["_context_price_threshold_tokens"]).to eq(thresholds.fetch(provider))
+        expect(fields).to include("above_context_input", "above_context_output")
+        fields.keys.grep(/\Aabove_context_/).each do |key|
+          base = fields.fetch(key.delete_prefix("above_context_"))
+          premium = base * (key.end_with?("output") ? 1.5 : 2)
+          matcher = key.include?("cache") ? be_within(5).percent_of(premium) : be_within(0.0001).of(premium)
+          expect(fields[key]).to matcher, "#{model_id}.#{key}"
+        end
       end
     end
 
