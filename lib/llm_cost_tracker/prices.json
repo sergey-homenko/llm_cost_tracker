@@ -14,7 +14,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-08-16"
+    "updated_at": "2026-08-17"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -1829,9 +1829,9 @@
       "output": 0.431
     },
     "openrouter/deepseek/deepseek-v4-flash": {
-      "cache_read_input": 0.012292,
-      "input": 0.06146,
-      "output": 0.12292
+      "cache_read_input": 0.01652,
+      "input": 0.0826,
+      "output": 0.1652
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
       "cache_read_input": 0.028,
@@ -1839,14 +1839,14 @@
       "output": 0.28
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.09855,
-      "input": 1.168,
-      "output": 2.336
+      "cache_read_input": 0.044,
+      "input": 1.32,
+      "output": 3.96
     },
     "openrouter/deepseek/deepseek-v4-pro-0813": {
-      "cache_read_input": 0.003625,
-      "input": 0.435,
-      "output": 0.87
+      "cache_read_input": 0.044,
+      "input": 1.32,
+      "output": 3.96
     },
     "openrouter/essentialai/rnj-1-instruct": {
       "input": 0.15,
@@ -2114,9 +2114,8 @@
       "output": 0.12
     },
     "openrouter/google/gemma-4-26b-a4b-it": {
-      "cache_read_input": 0.05,
-      "input": 0.12,
-      "output": 0.4
+      "input": 0.07,
+      "output": 0.34
     },
     "openrouter/google/gemma-4-31b-it": {
       "cache_read_input": 0.1,
@@ -2279,7 +2278,7 @@
       "output": 1.1
     },
     "openrouter/minimax/minimax-m1": {
-      "input": 0.4,
+      "input": 0.55,
       "output": 2.2
     },
     "openrouter/minimax/minimax-m2": {
@@ -2450,9 +2449,9 @@
       "output": 2.85
     },
     "openrouter/moonshotai/kimi-k2.6": {
-      "cache_read_input": 0.0912,
-      "input": 0.5415,
-      "output": 2.28
+      "cache_read_input": 0.16,
+      "input": 0.95,
+      "output": 4.0
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
       "cache_read_input": 0.15,
@@ -2516,7 +2515,7 @@
       "output": 0.4
     },
     "openrouter/nvidia/nemotron-3-nano-30b-a3b": {
-      "cache_read_input": 0.025,
+      "cache_read_input": 0.03,
       "input": 0.05,
       "output": 0.2
     },
@@ -2535,9 +2534,9 @@
       "output": 1.8
     },
     "openrouter/nvidia/nemotron-3.5-lightning": {
-      "cache_read_input": 0.05,
-      "input": 0.1,
-      "output": 0.25
+      "cache_read_input": 0.04,
+      "input": 0.08,
+      "output": 0.2
     },
     "openrouter/nvidia/nemotron-nano-9b-v2": {
       "input": 0.04,
@@ -3118,8 +3117,9 @@
       "output": 0.78
     },
     "openrouter/qwen/qwen2.5-vl-72b-instruct": {
-      "input": 0.25,
-      "output": 0.75
+      "cache_read_input": 0.4,
+      "input": 0.8,
+      "output": 1.0
     },
     "openrouter/qwen/qwen3-14b": {
       "input": 0.12,
@@ -3203,8 +3203,9 @@
       "output": 1.2
     },
     "openrouter/qwen/qwen3-vl-235b-a22b-instruct": {
-      "input": 0.26,
-      "output": 1.04
+      "cache_read_input": 0.1,
+      "input": 0.21,
+      "output": 1.9
     },
     "openrouter/qwen/qwen3-vl-235b-a22b-thinking": {
       "input": 0.4,
@@ -3271,7 +3272,7 @@
     },
     "openrouter/qwen/qwen3.6-35b-a3b": {
       "cache_read_input": 0.05,
-      "input": 0.15,
+      "input": 0.14,
       "output": 1.0
     },
     "openrouter/qwen/qwen3.6-flash": {
@@ -3313,6 +3314,7 @@
       "output": 6.0
     },
     "openrouter/qwen/qwen3.8-27b": {
+      "cache_read_input": 0.05,
       "input": 0.45,
       "output": 3.2
     },
@@ -3556,9 +3558,9 @@
       "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.0572,
-      "input": 0.308,
-      "output": 0.968
+      "cache_read_input": 0.221,
+      "input": 1.19,
+      "output": 3.74
     },
     "openrouter/z-ai/glm-5.2:batch": {
       "cache_read_input": 0.13,
@@ -3595,9 +3597,9 @@
       "output": 10.0
     },
     "openrouter/~deepseek/deepseek-v4-flash-latest": {
-      "cache_read_input": 0.013412,
-      "input": 0.06706,
-      "output": 0.13412
+      "cache_read_input": 0.01206,
+      "input": 0.0603,
+      "output": 0.1206
     },
     "openrouter/~google/gemini-flash-latest": {
       "audio_input": 0.375,
@@ -3617,8 +3619,8 @@
     },
     "openrouter/~moonshotai/kimi-latest": {
       "cache_read_input": 0.29,
-      "input": 2.8,
-      "output": 14.0
+      "input": 2.6,
+      "output": 13.0
     },
     "openrouter/~openai/gpt-latest": {
       "cache_read_input": 0.5,
