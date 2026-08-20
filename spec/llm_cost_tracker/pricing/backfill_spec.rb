@@ -122,4 +122,30 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
                                 .sum(:total_cost)
     }.from(0).to(be > 0)
   end
+
+  it "does not touch rollups when cache_rollups is disabled and the rollups table is absent" do
+    LlmCostTracker.configuration.cache_rollups = false
+    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups, if_exists: true)
+
+    call = create_call(
+      provider: "openai",
+      model: "gpt-4o",
+      input_tokens: 1_000,
+      output_tokens: 500,
+      total_cost: nil,
+      pricing_snapshot: nil,
+      cost_status: "unknown"
+    )
+    add_line_items(
+      call,
+      [
+        { direction: "input", quantity: 1_000, price_key: "input" },
+        { direction: "output", quantity: 500, price_key: "output" }
+      ]
+    )
+
+    result = nil
+    expect { result = described_class.call }.not_to raise_error
+    expect(result.recomputed).to eq(1) # proves the call was still repriced, not just silently skipped
+  end
 end
