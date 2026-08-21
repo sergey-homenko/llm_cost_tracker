@@ -412,7 +412,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         data: {"type":"response.completed","response":{"model":"gpt-4o","usage":{"input_tokens":20,"output_tokens":7,"total_tokens":27}}}
 
       SSE
-      stub_sdk_sse(:get, "https://api.openai.com/v1/responses/resp_retrieve", body: idless_sse)
+      stub_sdk_sse(:get, "https://api.openai.com/v1/responses/resp_retrieve?stream=true", body: idless_sse)
 
       capture_sdk_events do |events|
         stream = client.responses.retrieve_streaming("resp_retrieve")

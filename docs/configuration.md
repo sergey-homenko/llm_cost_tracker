@@ -61,10 +61,8 @@ Built-in integration names:
 
 The minimum is what `install!` enforces. CI resolves each SDK fresh on every
 run, so the suite is exercised against the newest release the gemspec's
-development dependencies allow — currently `anthropic ~> 1.61`,
-`openai ~> 0.77` (0.78.0 is held back by an upstream multipart bug), and
-`ruby_llm ~> 1.16`. Versions between the minimum and the newest are supported
-but not covered by CI.
+development dependencies allow. Versions between the minimum and that release
+are supported but not covered by CI.
 
 ## OpenAI-Compatible Hosts
 
