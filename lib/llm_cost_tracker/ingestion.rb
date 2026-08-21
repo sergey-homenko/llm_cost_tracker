@@ -40,13 +40,9 @@ module LlmCostTracker
         LlmCostTracker.configuration.ingestion == :async
       end
 
-      def cache_rollups?
-        LlmCostTracker.configuration.cache_rollups
-      end
-
       def guards_for_current_config
         guards = Ledger::Schema::CORE_SCHEMAS.dup
-        guards << Ledger::Schema::CACHE_ROLLUPS_SCHEMA if cache_rollups?
+        guards << Ledger::Schema::CACHE_ROLLUPS_SCHEMA if LlmCostTracker.configuration.cache_rollups
         guards += Ledger::Schema::ASYNC_SCHEMAS if async?
         guards
       end
@@ -132,7 +128,7 @@ module LlmCostTracker
         return if records.empty?
 
         relation.delete_all
-        LlmCostTracker::Ledger::Rollups.decrement!(records) if cache_rollups?
+        LlmCostTracker::Ledger::Rollups.decrement!(records)
       end
 
       def cleanup_verification_inbox(event:, response_id:)

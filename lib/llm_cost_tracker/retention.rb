@@ -3,6 +3,8 @@
 module LlmCostTracker
   module Retention
     DEFAULT_BATCH_SIZE = 5_000
+    ROLLUP_COLUMNS = %i[tracked_at total_cost pricing_snapshot provider].freeze
+    private_constant :ROLLUP_COLUMNS
 
     class << self
       def prune(older_than:, batch_size: DEFAULT_BATCH_SIZE, now: Time.now.utc)
@@ -58,22 +60,20 @@ module LlmCostTracker
 
       def prune_batch(cutoff, batch_size)
         LlmCostTracker::Call.transaction do
-          cache_rollups = LlmCostTracker.configuration.cache_rollups
-          rows = prunable_rows(cutoff, batch_size, with_rollup_columns: cache_rollups)
+          rows = prunable_rows(cutoff, batch_size)
           next 0 if rows.empty?
 
-          ids = cache_rollups ? rows.map(&:id) : rows
-          deleted = LlmCostTracker::Call.where(id: ids).delete_all
-          LlmCostTracker::Ledger::Rollups.decrement!(rows) if cache_rollups && deleted.positive?
+          deleted = LlmCostTracker::Call.where(id: rows.map(&:id)).delete_all
+          LlmCostTracker::Ledger::Rollups.decrement!(rows) if deleted.positive?
           deleted
         end
       end
 
-      def prunable_rows(cutoff, batch_size, with_rollup_columns:)
+      def prunable_rows(cutoff, batch_size)
         relation = LlmCostTracker::Call.where(tracked_at: ...cutoff).order(:id).limit(batch_size).lock
-        return relation.pluck(:id) unless with_rollup_columns
-
-        relation.select(:id, :tracked_at, :total_cost, :pricing_snapshot, :provider).to_a
+        columns = [:id]
+        columns += ROLLUP_COLUMNS if LlmCostTracker::Ledger::Rollups.cache_active?
+        relation.select(*columns).to_a
       end
     end
   end

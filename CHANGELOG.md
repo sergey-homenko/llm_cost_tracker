@@ -9,6 +9,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - OpenAI gpt-5.6-sol, gpt-5.6-terra, and gpt-5.6-luna are priced, including their cache-write rates across standard, batch, flex, priority, long-context, and data-residency tiers.
 - Cache writes reported in OpenAI usage (`cache_write_tokens`, GPT-5.6 and later) are captured and costed at the model's cache-write rate instead of being counted as regular input.
 
+### Fixed
+
+- `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer aborts on the default configuration; repricing calls with unknown pricing no longer requires opting into `config.cache_rollups`.
+- Enabling `config.cache_rollups` without creating `llm_cost_tracker_call_rollups` no longer breaks dashboard and budget reads; totals fall back to aggregating the calls ledger and a log warning names the missing table.
+
 ## [0.13.0] - 2026-06-26
 
 ### Added

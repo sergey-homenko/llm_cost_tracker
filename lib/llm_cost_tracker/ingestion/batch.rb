@@ -121,7 +121,7 @@ module LlmCostTracker
           Ledger::Store.persist_records(events)
           Ingestion::InboxEntry.where(id: rows.map(&:id), locked_by: identity).delete_all
         end
-        Ledger::Rollups.increment_safely!(events) if Ingestion.cache_rollups?
+        Ledger::Rollups.increment_safely!(events)
       rescue ActiveRecord::RecordNotUnique
         raise unless retry_on_conflict
 

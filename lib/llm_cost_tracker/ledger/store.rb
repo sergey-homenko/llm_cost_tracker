@@ -15,7 +15,7 @@ module LlmCostTracker
           return if events.empty?
 
           persist_records(events)
-          Ledger::Rollups.increment_safely!(events) if LlmCostTracker.configuration.cache_rollups
+          Ledger::Rollups.increment_safely!(events)
         end
 
         def persist_records(events)

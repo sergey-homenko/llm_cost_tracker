@@ -12,6 +12,7 @@ module LlmCostTrackerReset
     LlmCostTracker.instance_variable_set(:@configuration, LlmCostTracker::Configuration.new)
     LlmCostTracker::Pricing::Registry.reset!
     LlmCostTracker::Pricing::Unknown.instance_variable_get(:@warned_models)&.clear
+    LlmCostTracker::Ledger::Rollups.instance_variable_set(:@missing_table_warned, false)
 
     worker = LlmCostTracker::Ingestion::Worker
     worker.instance_variable_set(:@thread, nil)

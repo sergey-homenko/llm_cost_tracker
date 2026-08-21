@@ -144,8 +144,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
       ]
     )
 
-    result = nil
-    expect { result = described_class.call }.not_to raise_error
-    expect(result.recomputed).to eq(1) # proves the call was still repriced, not just silently skipped
+    expect(described_class.call.recomputed).to eq(1)
   end
 end

@@ -8,7 +8,17 @@ module LlmCostTracker
   module Ledger
     module Rollups
       class << self
+        def cache_active?
+          return false unless LlmCostTracker.configuration.cache_rollups
+          return true if LlmCostTracker::CallRollup.table_exists?
+
+          warn_missing_table
+          false
+        end
+
         def increment!(events)
+          return unless cache_active?
+
           events = Array(events).select(&:total_cost)
           return if events.empty?
 
@@ -41,6 +51,8 @@ module LlmCostTracker
         end
 
         def decrement!(records)
+          return unless cache_active?
+
           buckets = bucket_totals(records)
           return if buckets.empty?
 
@@ -59,6 +71,17 @@ module LlmCostTracker
         end
 
         private
+
+        def warn_missing_table
+          return if @missing_table_warned
+
+          @missing_table_warned = true
+          Logging.warn(
+            "config.cache_rollups is enabled but llm_cost_tracker_call_rollups is missing; " \
+            "budget and dashboard totals fall back to aggregating llm_cost_tracker_calls. " \
+            "Run the call_rollups generator and migrate, or set config.cache_rollups = false."
+          )
+        end
 
         def accumulate_priced_calls
           accumulated = Hash.new { |totals, key| totals[key] = BigDecimal("0") }
