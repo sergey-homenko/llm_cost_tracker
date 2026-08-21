@@ -9,6 +9,8 @@ module LlmCostTracker
     module Rollups
       class << self
         def increment!(events)
+          return unless LlmCostTracker.configuration.cache_rollups
+
           events = Array(events).select(&:total_cost)
           return if events.empty?
 
@@ -41,6 +43,8 @@ module LlmCostTracker
         end
 
         def decrement!(records)
+          return unless LlmCostTracker.configuration.cache_rollups
+
           buckets = bucket_totals(records)
           return if buckets.empty?
 

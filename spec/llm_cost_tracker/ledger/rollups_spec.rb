@@ -68,6 +68,28 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
     end
   end
 
+  describe "with cache_rollups disabled" do
+    it "writes no rollup rows on increment!" do
+      LlmCostTracker.configuration.cache_rollups = false
+
+      described_class.increment!([build_event(total_cost: 1.5)])
+
+      expect(LlmCostTracker::CallRollup.count).to eq(0)
+    end
+
+    it "leaves rollup rows untouched on decrement!" do
+      time = Time.utc(2026, 5, 7, 12)
+      described_class.increment!([build_event(total_cost: 5.0, tracked_at: time)])
+      LlmCostTracker.configuration.cache_rollups = false
+
+      record = Struct.new(:tracked_at, :total_cost, :pricing_snapshot, :provider)
+                     .new(time, BigDecimal("5.0"), { "currency" => "USD" }, "openai")
+      described_class.decrement!([record])
+
+      expect(LlmCostTracker::CallRollup.where(period: "month").pluck(:total_cost)).to eq([5.0])
+    end
+  end
+
   describe "Period::Totals integration" do
     it "sums rollups across all currencies when cache_rollups is enabled" do
       LlmCostTracker.configure { |config| config.cache_rollups = true }
@@ -169,6 +191,14 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       seed_call(total_cost: nil)
       expect(described_class.rebuild!).to eq(0)
       expect(LlmCostTracker::CallRollup.count).to eq(0)
+    end
+
+    it "still rebuilds while cache_rollups is disabled, so the table can be primed before opting in" do
+      seed_call(total_cost: 4.5, currency: "USD")
+      LlmCostTracker.configuration.cache_rollups = false
+
+      expect(described_class.rebuild!).to eq(LlmCostTracker::CallRollup.count)
+      expect(LlmCostTracker::CallRollup.find_by(period: "month").total_cost).to eq(4.5)
     end
   end
 end

@@ -156,15 +156,37 @@ RSpec.describe LlmCostTracker::Retention do
       .to raise_error(ArgumentError, /cutoff must be before now/)
   end
 
-  it "skips plucking pricing_snapshot when cache_rollups is disabled" do
+  def calls_selects_during_prune(now)
+    statements = []
+    subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      statements << payload[:sql]
+    end
+    deleted = described_class.prune(older_than: 90.days, now: now)
+    [statements.grep(/SELECT .*llm_cost_tracker_calls/).join("\n"), deleted]
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscription)
+  end
+
+  it "skips selecting pricing_snapshot when cache_rollups is disabled" do
     LlmCostTracker.configuration.cache_rollups = false
     now = Time.utc(2026, 4, 20, 12, 0, 0)
     create_call(tracked_at: now - 200.days, total_cost: 1.0)
     create_call(tracked_at: now - 1.day, total_cost: 2.0)
 
-    deleted = described_class.prune(older_than: 90.days, now: now)
+    selects, deleted = calls_selects_during_prune(now)
 
+    expect(selects).not_to include("pricing_snapshot")
     expect(deleted).to eq(1)
     expect(LlmCostTracker::Call.count).to eq(1)
+  end
+
+  it "selects pricing_snapshot when cache_rollups is enabled so the rollup deduction can be bucketed" do
+    now = Time.utc(2026, 4, 20, 12, 0, 0)
+    create_call(tracked_at: now - 200.days, total_cost: 1.0)
+
+    selects, deleted = calls_selects_during_prune(now)
+
+    expect(selects).to include("pricing_snapshot")
+    expect(deleted).to eq(1)
   end
 end
