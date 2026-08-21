@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Fixed
 
 - `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer aborts on the default configuration; repricing calls with unknown pricing no longer requires opting into `config.cache_rollups`.
+- Enabling `config.cache_rollups` without creating `llm_cost_tracker_call_rollups` no longer breaks dashboard and budget reads; totals fall back to aggregating the calls ledger and a log warning names the missing table.
 
 ## [0.13.0] - 2026-06-26
 

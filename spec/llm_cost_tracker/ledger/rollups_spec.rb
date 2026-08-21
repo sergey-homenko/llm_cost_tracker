@@ -68,6 +68,34 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
     end
   end
 
+  describe "with cache_rollups enabled but the rollups table missing" do
+    before do
+      LlmCostTracker.configure { |config| config.cache_rollups = true }
+      LlmCostTracker::Ledger::Store.insert([build_event(total_cost: 4.5, tracked_at: Time.utc(2026, 5, 7, 12))])
+      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups, if_exists: true)
+      LlmCostTracker::CallRollup.reset_column_information
+    end
+
+    it "aggregates budget totals from calls instead of raising" do
+      time = Time.utc(2026, 5, 7, 12)
+
+      totals = LlmCostTracker::Ledger::Period::Totals.call(%i[day month], time: time)
+
+      expect(totals[:day]).to be_within(0.0001).of(4.5)
+      expect(totals[:month]).to be_within(0.0001).of(4.5)
+    end
+
+    it "warns once that the fast path is unavailable" do
+      logged = []
+      allow(LlmCostTracker::Logging).to receive(:warn) { |message| logged << message }
+
+      2.times { LlmCostTracker::Ledger::Period::Totals.call(%i[day], time: Time.utc(2026, 5, 7, 12)) }
+
+      expect(logged.size).to eq(1)
+      expect(logged.first).to include("llm_cost_tracker_call_rollups is missing")
+    end
+  end
+
   describe "with cache_rollups disabled" do
     it "writes no rollup rows on increment!" do
       LlmCostTracker.configuration.cache_rollups = false

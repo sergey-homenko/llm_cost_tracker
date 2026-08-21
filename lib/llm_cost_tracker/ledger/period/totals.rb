@@ -45,7 +45,7 @@ module LlmCostTracker
 
         def recorded_sql(period, start)
           calls = "COALESCE(#{sum_sql(LlmCostTracker::Call.between(start, time))}, 0)"
-          return calls unless LlmCostTracker.configuration.cache_rollups
+          return calls unless Rollups.cache_active?
 
           rollup = "COALESCE(#{sum_sql(rollup_scope(period))}, 0)"
           "GREATEST(#{rollup}, #{calls})"

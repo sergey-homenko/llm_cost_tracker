@@ -72,7 +72,7 @@ module LlmCostTracker
       def prunable_rows(cutoff, batch_size)
         relation = LlmCostTracker::Call.where(tracked_at: ...cutoff).order(:id).limit(batch_size).lock
         columns = [:id]
-        columns += ROLLUP_COLUMNS if LlmCostTracker.configuration.cache_rollups
+        columns += ROLLUP_COLUMNS if LlmCostTracker::Ledger::Rollups.cache_active?
         relation.select(*columns).to_a
       end
     end
