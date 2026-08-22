@@ -67,12 +67,12 @@ RSpec.describe LlmCostTracker::Pricing do
     end
 
     it "serves fresh prices after a registry reset instead of a stale cached match" do
-      LlmCostTracker.configure { |c| c.pricing_overrides = { "ledger-demo" => { "input" => 1.0, "output" => 2.0 } } }
+      LlmCostTracker.configure { |c| c.pricing.overrides = { "ledger-demo" => { "input" => 1.0, "output" => 2.0 } } }
       cached = LlmCostTracker::Pricing::Matcher.lookup(provider: nil, model: "ledger-demo")
       expect(LlmCostTracker::Pricing::Matcher.lookup(provider: nil, model: "ledger-demo")).to equal(cached)
 
       LlmCostTracker.instance_variable_set(:@configuration, LlmCostTracker::Configuration.new)
-      LlmCostTracker.configure { |c| c.pricing_overrides = { "ledger-demo" => { "input" => 7.0, "output" => 2.0 } } }
+      LlmCostTracker.configure { |c| c.pricing.overrides = { "ledger-demo" => { "input" => 7.0, "output" => 2.0 } } }
 
       refreshed = LlmCostTracker::Pricing::Matcher.lookup(provider: nil, model: "ledger-demo")
       expect(refreshed).not_to equal(cached)
@@ -200,7 +200,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "fuzzy-matches dated snapshot suffixes to the base model" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = { "demo-base" => { "input" => 1.0, "output" => 2.0 } }
+        c.pricing.overrides = { "demo-base" => { "input" => 1.0, "output" => 2.0 } }
       end
 
       result = cost_for(
@@ -215,7 +215,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "matches provider-prefixed model names from gateways" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = { "demo-mini" => { "input" => 0.1, "output" => 0.4 } }
+        c.pricing.overrides = { "demo-mini" => { "input" => 0.1, "output" => 0.4 } }
       end
 
       result = cost_for(
@@ -230,7 +230,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "matches unique provider-qualified prices for gateway model names" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = { "upstream/demo-mini" => { "input" => 0.1, "output" => 0.4 } }
+        c.pricing.overrides = { "upstream/demo-mini" => { "input" => 0.1, "output" => 0.4 } }
       end
 
       result = cost_for(
@@ -245,7 +245,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "does not match ambiguous provider-qualified prices by model name alone" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "first/demo-mini" => { "input" => 0.1, "output" => 0.4 },
           "second/demo-mini" => { "input" => 0.2, "output" => 0.8 }
         }
@@ -263,7 +263,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prefers the longest fuzzy match for overlapping model names" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "demo-family" => { "input" => 5.0, "output" => 10.0 },
           "demo-family-mini" => { "input" => 0.5, "output" => 1.0 }
         }
@@ -281,7 +281,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "does not fuzzy-match unknown model families to older prices" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = { "demo-1.0" => { "input" => 1.0, "output" => 2.0 } }
+        c.pricing.overrides = { "demo-1.0" => { "input" => 1.0, "output" => 2.0 } }
       end
 
       expect(
@@ -291,7 +291,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "does not fuzzy-match unknown model variants to base prices" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "base-model" => { "input" => 1.0, "output" => 2.0 }
         }
       end
@@ -308,7 +308,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prices cache-read input tokens separately from regular input" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "demo-cached" => { "input" => 0.25, "output" => 2.0, "cache_read_input" => 0.025 }
         }
       end
@@ -328,7 +328,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prices cache read and write tokens separately and sums into total" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "demo-cache-rw" => {
             "input" => 3.0,
             "output" => 15.0,
@@ -360,7 +360,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prices extended cache writes with their own rate when usage exposes the split" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "anthropic/demo-cache-ttl" => {
             "input" => 3.0,
             "output" => 15.0,
@@ -386,7 +386,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "derives batch cache rates from the batch input discount when the provider stacks modifiers" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "anthropic/demo-cache-batch" => {
             "input" => 3.0,
             "output" => 15.0,
@@ -420,7 +420,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "derives cache rates for any mode with a documented input multiplier" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "anthropic/demo-data-residency" => {
             "input" => 3.0,
             "output" => 15.0,
@@ -451,7 +451,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prices priced cache components and omits the missing extended cache rate" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "anthropic/demo-cache-ttl" => {
             "input" => 3.0,
             "output" => 15.0,
@@ -475,7 +475,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "treats cache writes as unknown pricing when no cache-write rate exists" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "gemini/demo-cache" => {
             "input" => 1.0,
             "output" => 2.0,
@@ -497,7 +497,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "uses pricing overrides when configured" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "my-custom-model" => { "input" => 1.0, "output" => 2.0 }
         }
       end
@@ -515,7 +515,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prices billable components when a matched price is missing a required component" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "input-only-model" => { "input" => 1.0 }
         }
       end
@@ -533,7 +533,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prices zero-token missing components as zero" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "input-only-model" => { "input" => 1.0 }
         }
       end
@@ -552,7 +552,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "uses mode-specific price keys when pricing_mode is provided" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "batchable-model" => {
             "input" => 1.0,
             "output" => 2.0,
@@ -619,7 +619,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prices billable components when a positive-token pricing mode is missing a required rate" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "mixed-mode-model" => {
             "input" => 1.0,
             "output" => 2.0,
@@ -642,7 +642,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "does not price unsupported pricing modes with standard rates" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "fast-mode-model" => {
             "input" => 1.0,
             "output" => 2.0
@@ -663,7 +663,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "counts image_input_tokens toward the context threshold so image-heavy inputs trigger above-context rates" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "tiered-image-model" => {
             "input" => 1.0,
             "output" => 2.0,
@@ -691,7 +691,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "uses above-context rates when input-side tokens cross the pricing threshold" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "tiered-model" => {
             "input" => 1.0,
             "output" => 2.0,
@@ -720,7 +720,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "uses above-context mode rates for batch pricing" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "tiered-batch-model" => {
             "input" => 2.0,
             "output" => 8.0,
@@ -756,7 +756,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prices the long-context input only when the long-context output rate is missing" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "incomplete-tier-model" => {
             "input" => 1.0,
             "output" => 2.0,
@@ -785,7 +785,7 @@ RSpec.describe LlmCostTracker::Pricing do
         file.close
 
         LlmCostTracker.configure do |c|
-          c.prices_file = file.path
+          c.pricing.file = file.path
         end
 
         result = cost_for(
@@ -807,8 +807,8 @@ RSpec.describe LlmCostTracker::Pricing do
         file.close
 
         LlmCostTracker.configure do |c|
-          c.prices_file = file.path
-          c.pricing_overrides = {
+          c.pricing.file = file.path
+          c.pricing.overrides = {
             "my-custom-model" => { "input" => 1.0, "output" => 2.0 }
           }
         end
@@ -836,7 +836,7 @@ RSpec.describe LlmCostTracker::Pricing do
         file.close
 
         LlmCostTracker.configure do |c|
-          c.prices_file = file.path
+          c.pricing.file = file.path
         end
 
         result = cost_for(
@@ -857,7 +857,7 @@ RSpec.describe LlmCostTracker::Pricing do
         file.close
 
         LlmCostTracker.configure do |c|
-          c.prices_file = file.path
+          c.pricing.file = file.path
         end
 
         expect do
@@ -868,7 +868,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "prefers provider-specific pricing overrides" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "deepseek-chat" => { "input" => 0.27, "output" => 1.10 },
           "deepseek/deepseek-chat" => { "input" => 0.20, "output" => 0.90 }
         }
@@ -906,7 +906,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
     it "invalidates cached matches when configuration resets" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "custom/cached-model" => { "input" => 1.0, "output" => 2.0 }
         }
       end
@@ -917,7 +917,7 @@ RSpec.describe LlmCostTracker::Pricing do
 
       LlmCostTrackerReset.call
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "custom/cached-model" => { "input" => 3.0, "output" => 4.0 }
         }
       end
@@ -934,7 +934,7 @@ RSpec.describe LlmCostTracker::Pricing do
                                  }))
         file.close
 
-        LlmCostTracker.configure { |c| c.prices_file = file.path }
+        LlmCostTracker.configure { |c| c.pricing.file = file.path }
         allow(LlmCostTracker::Pricing::Registry).to receive(:file_prices).and_call_original
 
         2.times { cost_for(provider: "custom", model: "cached-file-model", input_tokens: 1, output_tokens: 1) }

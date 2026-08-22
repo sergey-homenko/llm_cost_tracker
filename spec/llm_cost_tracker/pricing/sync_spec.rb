@@ -58,7 +58,7 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
 
   describe ".configured_output_path" do
     it "prefers OUTPUT over configured prices_file" do
-      config = double(prices_file: "config/custom_prices.yml")
+      config = double(pricing: double(file: "config/custom_prices.yml"))
 
       expect(described_class.configured_output_path(env: { "OUTPUT" => "tmp/prices.yml" }, config: config)).to eq(
         "tmp/prices.yml"
@@ -66,13 +66,13 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
     end
 
     it "falls back to configured prices_file" do
-      config = double(prices_file: "config/custom_prices.yml")
+      config = double(pricing: double(file: "config/custom_prices.yml"))
 
       expect(described_class.configured_output_path(env: {}, config: config)).to eq("config/custom_prices.yml")
     end
 
     it "uses the conventional local prices path when no output is configured" do
-      config = double(prices_file: nil)
+      config = double(pricing: double(file: nil))
 
       expect(described_class.configured_output_path(env: {}, config: config)).to end_with(
         "config/llm_cost_tracker_prices.yml"

@@ -58,7 +58,7 @@ RSpec.describe LlmCostTracker::CaptureVerifier do
     end
 
     it "verifies a manual capture event through the inline writer when ingestion is :inline" do
-      LlmCostTracker.configure { |config| config.ingestion = :inline }
+      LlmCostTracker.configure { |config| config.ingestion.mode = :inline }
       checks = described_class.call
 
       expect(checks).to include(

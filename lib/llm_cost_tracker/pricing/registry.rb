@@ -101,7 +101,7 @@ module LlmCostTracker
         end
 
         def prices_file_mtime_iso
-          path = LlmCostTracker.configuration.prices_file
+          path = LlmCostTracker.configuration.pricing.file
           return nil unless path && File.exist?(path)
 
           @prices_file_mtime_iso ||= File.mtime(path).utc.iso8601
@@ -113,16 +113,16 @@ module LlmCostTracker
             [
               Source.new(
                 name: "pricing_overrides",
-                prices: config.pricing_overrides,
+                prices: config.pricing.overrides,
                 rates: {},
                 currency: upcased_currency(nil),
                 version: "configuration"
               ),
               Source.new(
                 name: "prices_file",
-                prices: file_prices(config.prices_file),
-                rates: file_rates(config.prices_file),
-                currency: upcased_currency(file_metadata(config.prices_file)["currency"]),
+                prices: file_prices(config.pricing.file),
+                rates: file_rates(config.pricing.file),
+                currency: upcased_currency(file_metadata(config.pricing.file)["currency"]),
                 version: prices_file_mtime_iso
               ),
               Source.new(

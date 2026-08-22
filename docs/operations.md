@@ -8,7 +8,7 @@ Configuration](configuration.md#storage)).
 ## Production Defaults
 
 - Size the ActiveRecord connection pool for your app's concurrency. If
-  `config.ingestion = :async`, add headroom for the local
+  `config.ingestion.mode = :async`, add headroom for the local
   ingestor thread and for the separate connection that inbox writes
   use when the caller is inside an open transaction (so staged events
   survive caller rollbacks). The default inline path shares the
@@ -47,7 +47,7 @@ By default `Tracker.record` writes events synchronously through
 (`llm_cost_tracker_calls` + line items + tags) — no inbox, no worker,
 nothing to drain.
 
-Flip `config.ingestion = :async` (after running
+Flip `config.ingestion.mode = :async` (after running
 `bin/rails generate llm_cost_tracker:async_ingestion`) when you need:
 
 - Multi-process safe staging — a crashed app worker leaves rows in the
@@ -171,7 +171,7 @@ bin/rails llm_cost_tracker:prices:refresh
 bin/rails llm_cost_tracker:prices:check
 ```
 
-Refresh writes to `OUTPUT`, then `config.prices_file`, then
+Refresh writes to `OUTPUT`, then `config.pricing.file`, then
 `config/llm_cost_tracker_prices.yml`.
 
 ## Pricing in Production

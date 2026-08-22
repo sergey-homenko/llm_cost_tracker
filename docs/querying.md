@@ -85,7 +85,7 @@ bin/rails llm_cost_tracker:report
 DAYS=7 bin/rails llm_cost_tracker:report
 ```
 
-`config.report_tag_breakdowns` controls extra tag sections in the text report.
+`config.tags.breakdown_keys` controls extra tag sections in the text report.
 
 ## CSV Export
 

@@ -41,18 +41,18 @@ Normal path from an application LLM call to stored ledger data:
 4. `Charges::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
 5. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
 6. An `Event` is created around `Usage::TokenUsage` and emitted through `ActiveSupport::Notifications`.
-7. Persistence runs through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion = :async`.
+7. Persistence runs through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion.mode = :async`.
 8. Budget checks run after the event is persisted.
 
 ## Ledger Storage
 
-When `config.ingestion = :inline` (default):
+When `config.ingestion.mode = :inline` (default):
 
-1. `Ledger::Store.insert` writes the call header, line items, and tag rows in a single transaction on the caller's ActiveRecord connection. If the caller is inside an open transaction, this write joins it as a savepoint — a caller-side `ActiveRecord::Rollback` discards the tracked event with the rest of the work. Switch to `config.ingestion = :async` if you need ledger writes to survive caller rollbacks.
+1. `Ledger::Store.insert` writes the call header, line items, and tag rows in a single transaction on the caller's ActiveRecord connection. If the caller is inside an open transaction, this write joins it as a savepoint — a caller-side `ActiveRecord::Rollback` discards the tracked event with the rest of the work. Switch to `config.ingestion.mode = :async` if you need ledger writes to survive caller rollbacks.
 2. When `config.cache_rollups = true`, the same transaction increments the matching daily/monthly rollup rows; otherwise rollups are skipped entirely.
 3. Budget reads aggregate live from `llm_cost_tracker_calls`, or from the rollups fast path when `cache_rollups = true` (with `llm_cost_tracker_calls` as fallback when the rollup row is missing).
 
-When `config.ingestion = :async`:
+When `config.ingestion.mode = :async`:
 
 1. `Ingestion::Inbox.save` writes a compact inbox event row.
 2. `Ingestion::Worker` claims retryable inbox entries through a database lease and drains batches into `llm_cost_tracker_calls`.
@@ -72,7 +72,7 @@ Dashboard reads do not mutate ledger state. They can be heavier than request-tim
 
 ## Pricing Refresh
 
-1. `llm_cost_tracker:prices:refresh` chooses `ENV["OUTPUT"]`, then `config.prices_file`, then `config/llm_cost_tracker_prices.yml`.
+1. `llm_cost_tracker:prices:refresh` chooses `ENV["OUTPUT"]`, then `config.pricing.file`, then `config/llm_cost_tracker_prices.yml`.
 2. `Pricing::Sync::Fetcher` fetches the maintained LLM Cost Tracker price snapshot.
 3. `Pricing::Sync` validates schema compatibility, gem-version compatibility, model price shape, and tool/runtime charge sections.
 4. `RegistryWriter` writes a local JSON or YAML registry.

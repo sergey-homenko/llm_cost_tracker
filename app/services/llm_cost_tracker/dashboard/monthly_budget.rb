@@ -6,7 +6,7 @@ module LlmCostTracker
       module_function
 
       def status
-        budget = LlmCostTracker.configuration.monthly_budget
+        budget = LlmCostTracker.configuration.budgets.monthly
         return nil unless budget
 
         budget = budget.to_f

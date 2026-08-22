@@ -98,43 +98,42 @@ RSpec.describe "generator templates" do
     initializer = template("initializer.rb.erb")
 
     expect(initializer).to include("config.enabled = true")
-    expect(initializer).to include("config.default_tags = -> { { environment: Rails.env } }")
-    expect(initializer).to include("config.budget_exceeded_behavior = :notify")
-    expect(initializer).to include("config.unknown_pricing_behavior = :warn")
-    expect(initializer).to include("config.log_level = :info")
+    expect(initializer).to include("config.tags.default = -> { { environment: Rails.env } }")
+    expect(initializer).to include("config.budgets.exceeded_behavior = :notify")
+    expect(initializer).to include("config.pricing.unknown_behavior = :warn")
     expect(initializer).to include("# config.instrument :openai")
     expect(initializer).to include("# config.instrument :anthropic")
     expect(initializer).to include("# config.instrument :ruby_llm")
     expect(initializer).to include("if options[:prices]")
-    expect(initializer).to include("config.prices_file = Rails.root.join")
-    expect(initializer).to include("# config.monthly_budget = 100.00")
-    expect(initializer).to include("# config.daily_budget = 10.00")
-    expect(initializer).to include("# config.per_call_budget = 1.00")
-    expect(initializer).to include("# config.max_tag_count = 50")
-    expect(initializer).to include("# config.max_tag_value_bytesize = 1024")
-    expect(initializer).to include("# config.redacted_tag_keys")
-    expect(initializer).to include("# config.on_budget_exceeded")
-    expect(initializer).to include("# config.pricing_overrides")
+    expect(initializer).to include("config.pricing.file = Rails.root.join")
+    expect(initializer).to include("# config.budgets.monthly = 100.00")
+    expect(initializer).to include("# config.budgets.daily = 10.00")
+    expect(initializer).to include("# config.budgets.per_call = 1.00")
+    expect(initializer).to include("# config.tags.max_count = 50")
+    expect(initializer).to include("# config.tags.max_value_bytesize = 1024")
+    expect(initializer).to include("# config.tags.redacted_keys")
+    expect(initializer).to include("# config.budgets.on_exceeded")
+    expect(initializer).to include("# config.pricing.overrides")
     expect(initializer).to include("# config.openai_compatible_providers")
-    expect(initializer).to include("# config.report_tag_breakdowns")
+    expect(initializer).to include("# config.tags.breakdown_keys")
     expect(initializer).not_to include("config.storage_backend")
     expect(initializer).not_to include("config.custom_storage")
   end
 
-  it "renders prices_file exactly once when --prices is enabled" do
+  it "renders pricing.file exactly once when --prices is enabled" do
     rendered = render_install_initializer(prices: true)
 
-    occurrences = rendered.scan(/config\.prices_file\s*=/)
+    occurrences = rendered.scan(/config\.pricing\.file\s*=/)
     expect(occurrences.size).to eq(1)
-    expect(rendered).to include('config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")')
+    expect(rendered).to include('config.pricing.file = Rails.root.join("config/llm_cost_tracker_prices.yml")')
   end
 
-  it "renders prices_file commented out exactly once when --prices is not enabled" do
+  it "renders pricing.file commented out exactly once when --prices is not enabled" do
     rendered = render_install_initializer(prices: false)
 
-    occurrences = rendered.scan(/config\.prices_file\s*=/)
+    occurrences = rendered.scan(/config\.pricing\.file\s*=/)
     expect(occurrences.size).to eq(1)
-    expect(rendered).to include('# config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")')
+    expect(rendered).to include('# config.pricing.file = Rails.root.join("config/llm_cost_tracker_prices.yml")')
   end
 
   it "can run the install generator twice" do

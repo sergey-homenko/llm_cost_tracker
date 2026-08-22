@@ -32,14 +32,14 @@ module LlmCostTracker
         if leftovers.empty?
           return Check.new(:ok,
                            "inline ingestion",
-                           "config.ingestion = :inline; events write directly to the ledger")
+                           "config.ingestion.mode = :inline; events write directly to the ledger")
         end
 
         Check.new(
           :warn,
           "inline ingestion",
-          "config.ingestion = :inline but found unused async ingestion tables: #{leftovers.join(', ')}. " \
-          "Set config.ingestion = :async to keep the inbox path or drop the tables."
+          "config.ingestion.mode = :inline but found unused async ingestion tables: #{leftovers.join(', ')}. " \
+          "Set config.ingestion.mode = :async to keep the inbox path or drop the tables."
         )
       end
 

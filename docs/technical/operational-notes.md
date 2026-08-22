@@ -35,7 +35,7 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets read live `SUM(total_cost)` from `llm_cost_tracker_calls` by default. When `config.cache_rollups = true` they switch to the `llm_cost_tracker_call_rollups` fast path (with its `(period, period_start, currency, provider)` unique index). When `config.ingestion = :async`, pending `llm_cost_tracker_ingestion_inbox_entries` totals are added on top so events that haven't drained yet still count toward guardrails.
+Monthly and daily budgets read live `SUM(total_cost)` from `llm_cost_tracker_calls` by default. When `config.cache_rollups = true` they switch to the `llm_cost_tracker_call_rollups` fast path (with its `(period, period_start, currency, provider)` unique index). When `config.ingestion.mode = :async`, pending `llm_cost_tracker_ingestion_inbox_entries` totals are added on top so events that haven't drained yet still count toward guardrails.
 
 Whichever combination is active, the rollup/calls aggregate and the pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 
@@ -43,7 +43,7 @@ Per-call budgets are checked from the current event only.
 
 ## Async Ingestion
 
-Async ingestion is opt-in via `config.ingestion = :async` plus the `llm_cost_tracker:async_ingestion` generator. With it off (the `:inline` default), `Tracker.record` writes inline through `Ledger::Store.insert` and the worker is dormant.
+Async ingestion is opt-in via `config.ingestion.mode = :async` plus the `llm_cost_tracker:async_ingestion` generator. With it off (the `:inline` default), `Tracker.record` writes inline through `Ledger::Store.insert` and the worker is dormant.
 
 `Ingestion::Inbox` writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should raise instead of writing into the caller transaction.
 

@@ -94,73 +94,73 @@ RSpec.describe "concurrency", :aggregate_failures do
   describe LlmCostTracker::Configuration do
     it "freezes mutable state after configure returns" do
       LlmCostTracker.configure do |config|
-        config.default_tags = { env: "test" }
-        config.pricing_overrides = { "foo" => { input: 1.0, output: 2.0 } }
-        config.report_tag_breakdowns = %i[env]
+        config.tags.default = { env: "test" }
+        config.pricing.overrides = { "foo" => { input: 1.0, output: 2.0 } }
+        config.tags.breakdown_keys = %i[env]
         config.openai_compatible_providers = { "foo.example.com" => "foo" }
       end
 
-      expect(LlmCostTracker.configuration.default_tags).to be_frozen
-      expect(LlmCostTracker.configuration.pricing_overrides).to be_frozen
-      expect(LlmCostTracker.configuration.report_tag_breakdowns).to be_frozen
+      expect(LlmCostTracker.configuration.tags.default).to be_frozen
+      expect(LlmCostTracker.configuration.pricing.overrides).to be_frozen
+      expect(LlmCostTracker.configuration.tags.breakdown_keys).to be_frozen
       expect(LlmCostTracker.configuration.openai_compatible_providers).to be_frozen
     end
 
     it "rejects runtime mutation of shared hashes" do
-      LlmCostTracker.configure { |config| config.default_tags = { env: "test" } }
+      LlmCostTracker.configure { |config| config.tags.default = { env: "test" } }
 
-      expect { LlmCostTracker.configuration.default_tags[:env] = "prod" }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.tags.default[:env] = "prod" }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.openai_compatible_providers["x"] = "y" }.to raise_error(FrozenError)
     end
 
     it "validates report tag breakdown keys during configuration" do
-      LlmCostTracker.configure { |config| config.report_tag_breakdowns = [:env, "feature.name"] }
+      LlmCostTracker.configure { |config| config.tags.breakdown_keys = [:env, "feature.name"] }
 
-      expect(LlmCostTracker.configuration.report_tag_breakdowns).to eq(%w[env feature.name])
+      expect(LlmCostTracker.configuration.tags.breakdown_keys).to eq(%w[env feature.name])
     end
 
     it "rejects invalid report tag breakdown keys during configuration" do
       expect do
-        LlmCostTracker.configure { |config| config.report_tag_breakdowns = ["feature; DROP"] }
+        LlmCostTracker.configure { |config| config.tags.breakdown_keys = ["feature; DROP"] }
       end.to raise_error(LlmCostTracker::Error, /invalid tag key/)
     end
 
     it "rejects runtime replacement of shared configuration" do
       LlmCostTracker.configure do |config|
-        config.default_tags = { env: "test" }
-        config.pricing_overrides = { "foo" => { input: 1.0 } }
-        config.report_tag_breakdowns = %i[env]
+        config.tags.default = { env: "test" }
+        config.pricing.overrides = { "foo" => { input: 1.0 } }
+        config.tags.breakdown_keys = %i[env]
         config.openai_compatible_providers = { "foo.example.com" => "foo" }
       end
 
-      expect { LlmCostTracker.configuration.default_tags = { env: "prod" } }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.pricing_overrides = {} }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.report_tag_breakdowns = [] }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.tags.default = { env: "prod" } }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.pricing.overrides = {} }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.tags.breakdown_keys = [] }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.openai_compatible_providers = {} }.to raise_error(FrozenError)
     end
 
     it "rejects runtime replacement of shared scalar configuration" do
       LlmCostTracker.configure do |config|
         config.enabled = true
-        config.on_budget_exceeded = ->(_data) {}
-        config.monthly_budget = 10.0
-        config.daily_budget = 5.0
-        config.per_call_budget = 1.0
-        config.log_level = :info
-        config.prices_file = "/tmp/prices.json"
-        config.budget_exceeded_behavior = :notify
-        config.unknown_pricing_behavior = :warn
+        config.budgets.on_exceeded = ->(_data) {}
+        config.budgets.monthly = 10.0
+        config.budgets.daily = 5.0
+        config.budgets.per_call = 1.0
+        config.enabled = true
+        config.pricing.file = "/tmp/prices.json"
+        config.budgets.exceeded_behavior = :notify
+        config.pricing.unknown_behavior = :warn
       end
 
       expect { LlmCostTracker.configuration.enabled = false }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.on_budget_exceeded = nil }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.monthly_budget = 20.0 }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.daily_budget = 10.0 }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.per_call_budget = 2.0 }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.log_level = :debug }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.prices_file = "/tmp/other.json" }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.budget_exceeded_behavior = :raise }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.unknown_pricing_behavior = :ignore }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.budgets.on_exceeded = nil }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.budgets.monthly = 20.0 }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.budgets.daily = 10.0 }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.budgets.per_call = 2.0 }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.enabled = false }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.pricing.file = "/tmp/other.json" }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.budgets.exceeded_behavior = :raise }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.pricing.unknown_behavior = :ignore }.to raise_error(FrozenError)
     end
 
     it "does not expose a public configuration writer" do
@@ -170,18 +170,18 @@ RSpec.describe "concurrency", :aggregate_failures do
     end
 
     it "rejects repeated configuration after finalization" do
-      LlmCostTracker.configure { |config| config.default_tags = { env: "test" } }
+      LlmCostTracker.configure { |config| config.tags.default = { env: "test" } }
 
       expect do
-        LlmCostTracker.configure { |config| config.default_tags = { env: "prod" } }
+        LlmCostTracker.configure { |config| config.tags.default = { env: "prod" } }
       end.to raise_error(LlmCostTracker::Error, /already configured/)
 
-      expect(LlmCostTracker.configuration.default_tags).to eq(env: "test")
+      expect(LlmCostTracker.configuration.tags.default).to eq(env: "test")
     end
 
     it "serves a consistent snapshot to many concurrent readers" do
       LlmCostTracker.configure do |config|
-        config.default_tags = { env: "test", region: "eu" }
+        config.tags.default = { env: "test", region: "eu" }
       end
 
       results = []
@@ -189,7 +189,7 @@ RSpec.describe "concurrency", :aggregate_failures do
       threads = Array.new(16) do
         Thread.new do
           100.times do
-            snapshot = LlmCostTracker.configuration.default_tags
+            snapshot = LlmCostTracker.configuration.tags.default
             mutex.synchronize { results << snapshot }
           end
         end
@@ -296,8 +296,8 @@ RSpec.describe "concurrency", :aggregate_failures do
 
     it "raises before running the track_stream block when over budget" do
       LlmCostTracker.configure do |config|
-        config.monthly_budget = 0.01
-        config.budget_exceeded_behavior = :block_requests
+        config.budgets.monthly = 0.01
+        config.budgets.exceeded_behavior = :block_requests
       end
 
       allow(LlmCostTracker::Budget).to receive(:enforce!).and_raise(

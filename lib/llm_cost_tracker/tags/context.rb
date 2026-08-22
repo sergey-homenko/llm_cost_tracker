@@ -18,8 +18,8 @@ module LlmCostTracker
 
         def tags
           config = LlmCostTracker.configuration
-          base = config.static_sanitized_default_tags ||
-                 Sanitizer.call(call_default_tags(config.default_tags).to_h)
+          base = config.tags.static_sanitized_default ||
+                 Sanitizer.call(call_default_tags(config.tags.default).to_h)
           base.merge(*Array(ActiveSupport::IsolatedExecutionState[KEY]))
         end
 

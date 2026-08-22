@@ -170,7 +170,7 @@ the initializer.
 ### Required: rename `durable_ingestion` (BREAKING)
 
 `config.durable_ingestion = true | false` is replaced by
-`config.ingestion = :inline | :async` (default `:inline`). The install
+`config.ingestion.mode = :inline | :async` (default `:inline`). The install
 generator is renamed from `llm_cost_tracker:durable_ingestion` to
 `llm_cost_tracker:async_ingestion`. Update
 `config/initializers/llm_cost_tracker.rb`:
@@ -180,11 +180,11 @@ LlmCostTracker.configure do |config|
   # Before:
   # config.durable_ingestion = true
   # After:
-  config.ingestion = :async
+  config.ingestion.mode = :async
 end
 ```
 
-v0.10 also adds a new optional `config.ingestion_pool_size` (default
+v0.10 also adds a new optional `config.ingestion.pool_size` (default
 `2`) to size the dedicated async-ingestion connection pool — set it
 explicitly only if your PG / PgBouncer budget is tight.
 
@@ -234,7 +234,7 @@ unused (doctor warns until you either flip the flags or drop the
 tables).
 
 > v0.10 renamed `config.durable_ingestion = true` to
-> `config.ingestion = :async` (BREAKING) — if you're jumping straight
+> `config.ingestion.mode = :async` (BREAKING) — if you're jumping straight
 > from v0.8 to v0.10, use the v0.10 names from the
 > [v0.9.x → v0.10](#v09x--v010) section above.
 
@@ -257,7 +257,7 @@ bin/rails db:migrate
 
 After migrating, set the matching `config.durable_ingestion = true` /
 `config.cache_rollups = true` so the write path and budget reads use
-the new tables. v0.10 users: substitute `config.ingestion = :async`
+the new tables. v0.10 users: substitute `config.ingestion.mode = :async`
 for the durable-ingestion flag (see the v0.9 → v0.10 section).
 
 ### Per-provider rollup column

@@ -13,12 +13,12 @@ module LlmCostTracker
       def enforce!(provider: nil, model: nil, request: nil, estimate: nil, force: false)
         config = LlmCostTracker.configuration
         return unless config.enabled
-        return unless force || config.budget_exceeded_behavior == :block_requests
+        return unless force || config.budgets.exceeded_behavior == :block_requests
 
         estimate ||= estimate_cost(provider: provider, model: model, request: request)
-        raise_per_call_pre_send(estimate, config.per_call_budget) if config.per_call_budget && estimate.positive?
+        raise_per_call_pre_send(estimate, config.budgets.per_call) if config.budgets.per_call && estimate.positive?
 
-        check_windowed({ monthly: config.monthly_budget, daily: config.daily_budget }.compact,
+        check_windowed({ monthly: config.budgets.monthly, daily: config.budgets.daily }.compact,
                        time: Time.now.utc,
 estimate: estimate) do |budget_type, total, budget|
           raise BudgetExceededError.new(**budget_payload(
@@ -32,7 +32,7 @@ estimate: estimate) do |budget_type, total, budget|
         return unless event.total_cost
 
         check_per_call_budget(event, config)
-        check_windowed({ daily: config.daily_budget, monthly: config.monthly_budget }.compact,
+        check_windowed({ daily: config.budgets.daily, monthly: config.budgets.monthly }.compact,
                        time: event.tracked_at) do |budget_type, total, budget|
           handle_exceeded(budget_type: budget_type, total: total, budget: budget, last_event: event)
         end
@@ -55,7 +55,7 @@ estimate: estimate) do |budget_type, total, budget|
       end
 
       def check_per_call_budget(event, config)
-        budget = config.per_call_budget
+        budget = config.budgets.per_call
         return unless budget
 
         total = event.total_cost
@@ -93,9 +93,9 @@ estimate: estimate) do |budget_type, total, budget|
         )
 
         if notify_exceeded?(config, budget_type: budget_type, total: total, budget: budget, last_event: last_event)
-          config.on_budget_exceeded&.call(payload)
+          config.budgets.on_exceeded&.call(payload)
         end
-        raise BudgetExceededError.new(**payload) if %i[raise block_requests].include?(config.budget_exceeded_behavior)
+        raise BudgetExceededError.new(**payload) if %i[raise block_requests].include?(config.budgets.exceeded_behavior)
       end
 
       def budget_payload(budget_type:, total:, budget:, last_event:, stage:)
@@ -109,7 +109,7 @@ estimate: estimate) do |budget_type, total, budget|
       end
 
       def notify_exceeded?(config, budget_type:, total:, budget:, last_event:)
-        return false unless config.on_budget_exceeded
+        return false unless config.budgets.on_exceeded
         return true if !last_event&.total_cost || budget_type == :per_call
 
         total - last_event.total_cost < budget

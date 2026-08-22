@@ -35,16 +35,16 @@ This affects provider identity and parser selection. It does not define prices.
 
 ## Local Prices
 
-Use `config.prices_file` for a source-controlled JSON/YAML registry:
+Use `config.pricing.file` for a source-controlled JSON/YAML registry:
 
 ```ruby
-config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
+config.pricing.file = Rails.root.join("config/llm_cost_tracker_prices.yml")
 ```
 
-Use `config.pricing_overrides` for small Ruby-side overrides:
+Use `config.pricing.overrides` for small Ruby-side overrides:
 
 ```ruby
-config.pricing_overrides = {
+config.pricing.overrides = {
   "internal_gateway/my-model" => {
     input: 1.00,
     output: 2.00

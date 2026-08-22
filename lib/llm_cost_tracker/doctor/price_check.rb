@@ -11,7 +11,7 @@ module LlmCostTracker
       REFRESH_COMMAND = "refresh the source-controlled prices file with bin/rails llm_cost_tracker:prices:refresh"
 
       def call
-        path = LlmCostTracker.configuration.prices_file
+        path = LlmCostTracker.configuration.pricing.file
         return bundled_check unless path
 
         count = LlmCostTracker::Pricing::Registry.file_prices(path).size

@@ -7,11 +7,11 @@ transactional quota system.
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.monthly_budget = 500.00
-  config.daily_budget = 50.00
-  config.per_call_budget = 2.00
-  config.budget_exceeded_behavior = :notify
-  config.on_budget_exceeded = ->(payload) { BudgetNotifier.call(payload) }
+  config.budgets.monthly = 500.00
+  config.budgets.daily = 50.00
+  config.budgets.per_call = 2.00
+  config.budgets.exceeded_behavior = :notify
+  config.budgets.on_exceeded = ->(payload) { BudgetNotifier.call(payload) }
 end
 ```
 
@@ -48,7 +48,7 @@ lands — it doesn't make provider spend transactional.
 ## Budget Reads
 
 Where the monthly/daily totals come from depends on
-`config.cache_rollups` and `config.ingestion`:
+`config.cache_rollups` and `config.ingestion.mode`:
 
 | Source | When read |
 | --- | --- |

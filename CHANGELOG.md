@@ -4,6 +4,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Deprecated
+
+- Configuration options are grouped into `budgets`, `tags`, `pricing`, and `ingestion` namespaces — `config.budgets.monthly` replaces `config.monthly_budget`, `config.pricing.file` replaces `config.prices_file`, and so on. The flat names still work, warn with their replacement, and are removed in 1.0.
+- `config.log_level` never affected any log output and now warns; `Rails.logger` owns the level.
+
 ### Added
 
 - OpenAI gpt-5.6-sol, gpt-5.6-terra, and gpt-5.6-luna are priced, including their cache-write rates across standard, batch, flex, priority, long-context, and data-residency tiers.

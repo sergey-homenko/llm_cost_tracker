@@ -11,7 +11,7 @@ module LlmCostTracker
       source_root File.expand_path("templates", __dir__)
 
       desc "Creates the async ingestion tables (llm_cost_tracker_ingestion_inbox_entries + _leases). " \
-           "Required when config.ingestion = :async."
+           "Required when config.ingestion.mode = :async."
 
       def create_migration_file
         migration_template(
@@ -25,7 +25,7 @@ module LlmCostTracker
           After migrating, set the following in config/initializers/llm_cost_tracker.rb:
 
             LlmCostTracker.configure do |config|
-              config.ingestion = :async
+              config.ingestion.mode = :async
             end
 
           Without it the async inbox tables stay unused and Tracker keeps writing

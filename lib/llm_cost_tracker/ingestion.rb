@@ -37,7 +37,7 @@ module LlmCostTracker
       end
 
       def async?
-        LlmCostTracker.configuration.ingestion == :async
+        LlmCostTracker.configuration.ingestion.mode == :async
       end
 
       def guards_for_current_config

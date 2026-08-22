@@ -40,7 +40,7 @@ Runs the install generator, drops a price snapshot, migrates the database, and v
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.default_tags = -> { { environment: Rails.env } }
+  config.tags.default = -> { { environment: Rails.env } }
   config.instrument :ruby_llm
 end
 ```
