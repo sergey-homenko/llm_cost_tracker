@@ -8,7 +8,7 @@ module LlmCostTracker
       UNKNOWN_BEHAVIORS = %i[ignore warn raise].freeze
 
       attributes :file
-      enum_attribute :unknown_behavior, allowed: UNKNOWN_BEHAVIORS, default: :warn
+      enum_attribute :unknown_model_behavior, allowed: UNKNOWN_BEHAVIORS, default: :warn
 
       attr_reader :overrides
 
@@ -16,7 +16,7 @@ module LlmCostTracker
         super
         @file = nil
         self.overrides = {}
-        self.unknown_behavior = :warn
+        self.unknown_model_behavior = :warn
       end
 
       def overrides=(value)

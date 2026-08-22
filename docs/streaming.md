@@ -11,7 +11,7 @@ records usage after the response completes.
 
 OpenAI Chat Completions streaming (and OpenAI-compatible gateways such as
 OpenRouter, DeepSeek, Groq, and any host configured under
-`config.openai_compatible_providers`) needs:
+`config.capture.openai_compatible_providers`) needs:
 
 ```ruby
 stream_options: { include_usage: true }
@@ -19,7 +19,7 @@ stream_options: { include_usage: true }
 
 The gem auto-injects this flag for you when:
 
-- `config.auto_enable_stream_usage` is `true` (the default)
+- `config.capture.request_stream_usage` is `true` (the default)
 - the matched parser is OpenAI or OpenAI-compatible
 - the URL ends with `/chat/completions`
 - the request body is JSON with `stream: true`
@@ -30,7 +30,7 @@ Other entries inside `stream_options` are merged, not replaced. Bodies
 that aren't JSON, requests for the Responses API, and non-streaming
 requests are left untouched.
 
-Set `config.auto_enable_stream_usage = false` if you want to manage the
+Set `config.capture.request_stream_usage = false` if you want to manage the
 flag yourself; in that case, when the final usage chunk is missing the
 gem still records the call with `usage_source: "unknown"` and emits a
 warning rather than failing silently:

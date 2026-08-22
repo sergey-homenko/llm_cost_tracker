@@ -24,7 +24,7 @@ SDK integrations belong under `LlmCostTracker::Integrations`. Do not put SDK obj
 
 ## OpenAI-Compatible Gateways
 
-Use `config.openai_compatible_providers` when a gateway speaks the OpenAI request and response shape.
+Use `config.capture.openai_compatible_providers` when a gateway speaks the OpenAI request and response shape.
 
 Host mapping controls shape compatibility, not pricing. Gateway-specific model
 IDs or discounts belong in `prices_file` or `pricing_overrides`.

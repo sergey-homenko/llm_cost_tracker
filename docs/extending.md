@@ -8,7 +8,7 @@ unsupported response shapes.
 
 | Need | Extension point |
 | --- | --- |
-| Gateway speaks OpenAI-compatible HTTP | `config.openai_compatible_providers` |
+| Gateway speaks OpenAI-compatible HTTP | `config.capture.openai_compatible_providers` |
 | Gateway or contract rates differ from bundled prices | `prices_file` or `pricing_overrides` |
 | Unsupported client has known usage totals | `LlmCostTracker.track` |
 | Unsupported stream exposes provider events | `LlmCostTracker.track_stream` |
@@ -27,7 +27,7 @@ response shapes:
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
+  config.capture.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
 end
 ```
 

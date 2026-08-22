@@ -6,7 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Deprecated
 
-- Configuration options are grouped into `budgets`, `tags`, `pricing`, and `ingestion` namespaces — `config.budgets.monthly` replaces `config.monthly_budget`, `config.pricing.file` replaces `config.prices_file`, and so on. The flat names still work, warn with their replacement, and are removed in 1.0.
+- Configuration options are grouped into `budgets`, `capture`, `tags`, `pricing`, and `ingestion` namespaces — `config.budgets.monthly` replaces `config.monthly_budget`, `config.pricing.file` replaces `config.prices_file`, and so on. The flat names still work, warn with their replacement, and are removed in 1.0.
+- Options whose names did not describe their behavior were renamed: `cache_rollups` to `cache_period_totals`, `auto_enable_stream_usage` to `capture.request_stream_usage`, `unknown_pricing_behavior` to `pricing.unknown_model_behavior`, and `report_tag_breakdowns` to `tags.report_breakdown_keys`.
 - `config.log_level` never affected any log output and now warns; `Rails.logger` owns the level.
 
 ### Added

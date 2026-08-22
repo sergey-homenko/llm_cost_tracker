@@ -24,7 +24,8 @@ deprecation warning naming their replacement; they are removed in 1.0.
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `enabled` | `true` | Turns capture on or off without removing middleware or integrations |
-| `auto_enable_stream_usage` | `true` | Faraday middleware injects `stream_options: { include_usage: true }` on OpenAI / OpenAI-compatible chat-completions streaming requests so usage is captured automatically. See [Streaming](streaming.md). |
+| `capture.request_stream_usage` | `true` | Streaming endpoints only report token usage when the request asks for it. The Faraday middleware adds `stream_options: { include_usage: true }` to OpenAI / OpenAI-compatible chat-completions streaming request bodies that don't already set it. Set to `false` to leave request bodies untouched. See [Streaming](streaming.md). |
+| `capture.openai_compatible_providers` | OpenRouter, DeepSeek, Groq | Maps a gateway host to the provider name recorded for its calls |
 
 ## Tag Options
 
@@ -34,7 +35,7 @@ deprecation warning naming their replacement; they are removed in 1.0.
 | `tags.max_count` | `50` | Maximum number of stored tags after sanitization |
 | `tags.max_value_bytesize` | `1024` | Maximum byte size for one stored tag value |
 | `tags.redacted_keys` | common secret-like keys | Tag keys whose values are replaced before storage |
-| `tags.breakdown_keys` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
+| `tags.report_breakdown_keys` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
 
 `tags.default` callables run per event. Keep them fast and side-effect free.
 Explicit `tags:` passed to `track` win over scoped tags, and scoped tags win over
@@ -78,16 +79,16 @@ OpenAI-compatible capture is shape-based. Built-in mappings cover OpenRouter,
 DeepSeek, and Groq:
 
 ```ruby
-config.openai_compatible_providers["openrouter.ai"] = "openrouter"
-config.openai_compatible_providers["api.deepseek.com"] = "deepseek"
-config.openai_compatible_providers["api.groq.com"] = "groq"
+config.capture.openai_compatible_providers["openrouter.ai"] = "openrouter"
+config.capture.openai_compatible_providers["api.deepseek.com"] = "deepseek"
+config.capture.openai_compatible_providers["api.groq.com"] = "groq"
 ```
 
 Register custom gateway hosts when they speak OpenAI-compatible request and
 response shapes:
 
 ```ruby
-config.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
+config.capture.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
 ```
 
 This maps capture identity only. Gateway-specific prices belong in
@@ -128,7 +129,7 @@ config.pricing.overrides = {
 | --- | --- | --- |
 | `pricing.file` | `nil` | Local JSON/YAML registry used ahead of bundled prices |
 | `pricing.overrides` | `{}` | Ruby hash used ahead of local and bundled registries |
-| `pricing.unknown_behavior` | `:warn` | `:ignore`, `:warn`, or `:raise` for unknown token pricing |
+| `pricing.unknown_model_behavior` | `:warn` | `:ignore`, `:warn`, or `:raise` for unknown token pricing |
 
 Pricing precedence is:
 
@@ -162,13 +163,13 @@ tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
 | --- | --- | --- |
 | `ingestion.mode` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
 | `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool the async ingestion worker uses for inbox writes (kept isolated from the request connection pool so a busy app doesn't deadlock its own tracking). Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion.mode = :inline`. |
-| `cache_rollups` | `false` | A *rollup* is a pre-aggregated daily/monthly total. When `true`, `Tracker.record` maintains those totals in `llm_cost_tracker_call_rollups` and budget and dashboard reads use them instead of scanning the ledger. When `false` (default), reads aggregate live from `llm_cost_tracker_calls`. |
+| `cache_period_totals` | `false` | A *rollup* is a pre-aggregated daily/monthly total. When `true`, `Tracker.record` maintains those totals in `llm_cost_tracker_call_rollups` and budget and dashboard reads use them instead of scanning the ledger. When `false` (default), reads aggregate live from `llm_cost_tracker_calls`. |
 
 Each opt-in needs a matching generator before flipping the flag:
 
 ```bash
 bin/rails generate llm_cost_tracker:async_ingestion    # for ingestion.mode = :async
-bin/rails generate llm_cost_tracker:call_rollups       # for cache_rollups = true
+bin/rails generate llm_cost_tracker:call_rollups       # for cache_period_totals = true
 bin/rails db:migrate
 ```
 

@@ -17,7 +17,7 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker::Ingestion::Lease.reset_column_information
 
     LlmCostTracker.configuration.ingestion.mode = :async
-    LlmCostTracker.configuration.cache_rollups = true
+    LlmCostTracker.configuration.cache_period_totals = true
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end
 
@@ -123,7 +123,7 @@ RSpec.describe "ActiveRecord async inbox" do
 
   it "ingests unknown-cost events without adding pending budget totals" do
     LlmCostTracker.configure do |config|
-      config.pricing.unknown_behavior = :ignore
+      config.pricing.unknown_model_behavior = :ignore
     end
 
     event = LlmCostTracker.track(

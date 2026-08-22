@@ -434,7 +434,7 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     it "does not raise on unknown model for service-only events when behavior is :raise" do
-      LlmCostTracker.configure { |c| c.pricing.unknown_behavior = :raise }
+      LlmCostTracker.configure { |c| c.pricing.unknown_model_behavior = :raise }
 
       expect do
         record(
@@ -867,7 +867,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "raises unknown pricing errors when configured" do
       LlmCostTracker.configure do |c|
-        c.pricing.unknown_behavior = :raise
+        c.pricing.unknown_model_behavior = :raise
       end
 
       expect do
@@ -883,8 +883,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "rejects unknown pricing behavior values" do
       expect do
-        LlmCostTracker.configure { |c| c.pricing.unknown_behavior = :explode }
-      end.to raise_error(LlmCostTracker::Error, %r{Unknown pricing\.unknown_behavior})
+        LlmCostTracker.configure { |c| c.pricing.unknown_model_behavior = :explode }
+      end.to raise_error(LlmCostTracker::Error, %r{Unknown pricing\.unknown_model_behavior})
     end
   end
 end

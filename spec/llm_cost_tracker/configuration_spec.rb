@@ -15,12 +15,14 @@ RSpec.describe LlmCostTracker::Configuration do
     %i[tags max_count] => 7,
     %i[tags max_value_bytesize] => 64,
     %i[tags redacted_keys] => %w[token],
-    %i[tags breakdown_keys] => %w[feature],
+    %i[tags report_breakdown_keys] => %w[feature],
     %i[pricing file] => "config/prices.json",
     %i[pricing overrides] => { "demo" => { "input" => 1.0 } },
-    %i[pricing unknown_behavior] => :raise,
+    %i[pricing unknown_model_behavior] => :raise,
     %i[ingestion mode] => :async,
-    %i[ingestion pool_size] => 4
+    %i[ingestion pool_size] => 4,
+    %i[capture request_stream_usage] => false,
+    %i[capture openai_compatible_providers] => { "gw.example.com" => "internal" }
   }.freeze
 
   def silencing_deprecations
@@ -37,14 +39,16 @@ RSpec.describe LlmCostTracker::Configuration do
       expect(config.tags).to be_a(described_class::Tags)
       expect(config.pricing).to be_a(described_class::Pricing)
       expect(config.ingestion).to be_a(described_class::Ingestion)
+      expect(config.capture).to be_a(described_class::Capture)
     end
 
     it "ships the documented defaults" do
       expect(config.ingestion.mode).to eq(:inline)
       expect(config.budgets.exceeded_behavior).to eq(:notify)
-      expect(config.pricing.unknown_behavior).to eq(:warn)
+      expect(config.pricing.unknown_model_behavior).to eq(:warn)
       expect(config.tags.max_count).to eq(50)
-      expect(config.cache_rollups).to be(false)
+      expect(config.capture.request_stream_usage).to be(true)
+      expect(config.cache_period_totals).to be(false)
     end
   end
 
@@ -74,7 +78,10 @@ RSpec.describe LlmCostTracker::Configuration do
   end
 
   describe "deprecated flat names" do
-    described_class::DEPRECATED_ATTRIBUTES.each do |old_name, (section, new_name)|
+    described_class::DEPRECATED_OPTIONS.each do |old_name, spec|
+      next if spec[:to].nil? || spec[:writer_only] || spec[:to].size == 1
+
+      section, new_name = spec[:to]
       it "routes #{old_name} to #{section}.#{new_name}" do
         value = SAMPLE_VALUES.fetch([section, new_name])
         via_section = described_class.new
@@ -98,6 +105,13 @@ RSpec.describe LlmCostTracker::Configuration do
       expect(warnings.first).to include("config.budgets.monthly")
     end
 
+    it "routes cache_rollups to the renamed top-level option" do
+      silencing_deprecations { config.cache_rollups = true }
+
+      expect(config.cache_period_totals).to be(true)
+      expect(silencing_deprecations { config.cache_rollups }).to be(true)
+    end
+
     it "warns that log_level has no effect and keeps it out of the generated initializer" do
       warnings = []
       previous = LlmCostTracker.deprecator.behavior
@@ -113,15 +127,18 @@ RSpec.describe LlmCostTracker::Configuration do
 
       expect(config.ingestion.mode).to eq(:async)
       expect(config.ingestion).to be_a(described_class::Ingestion)
+      expect(config.capture).to be_a(described_class::Capture)
     end
   end
 
   describe "#finalize!" do
     it "freezes section collections" do
       config.tags.default = { "team" => "core" }
+      config.capture.openai_compatible_providers["GW.Example.com"] = :internal
       config.finalize!
 
       expect(config.tags.default).to be_frozen
+      expect(config.capture.openai_compatible_providers).to include("gw.example.com" => "internal")
       expect { config.budgets.monthly = 1 }.to raise_error(FrozenError)
       expect { config.tags.redacted_keys = [] }.to raise_error(FrozenError)
     end

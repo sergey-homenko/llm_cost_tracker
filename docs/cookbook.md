@@ -202,7 +202,7 @@ LiteLLM Proxy speaks an OpenAI-compatible HTTP shape, so register the proxy host
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.openai_compatible_providers["proxy.internal.example"] = "litellm"
+  config.capture.openai_compatible_providers["proxy.internal.example"] = "litellm"
 end
 
 client = OpenAI::Client.new(

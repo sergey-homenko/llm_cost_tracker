@@ -42,7 +42,7 @@ module LlmCostTracker
 
       def guards_for_current_config
         guards = Ledger::Schema::CORE_SCHEMAS.dup
-        guards << Ledger::Schema::CACHE_ROLLUPS_SCHEMA if LlmCostTracker.configuration.cache_rollups
+        guards << Ledger::Schema::CACHE_ROLLUPS_SCHEMA if LlmCostTracker.configuration.cache_period_totals
         guards += Ledger::Schema::ASYNC_SCHEMAS if async?
         guards
       end

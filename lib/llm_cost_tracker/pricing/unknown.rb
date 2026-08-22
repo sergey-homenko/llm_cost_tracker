@@ -12,7 +12,7 @@ module LlmCostTracker
         def process(model)
           model = model.to_s.presence || Event::UNKNOWN_MODEL
 
-          case LlmCostTracker.configuration.pricing.unknown_behavior
+          case LlmCostTracker.configuration.pricing.unknown_model_behavior
           when :ignore
             nil
           when :warn

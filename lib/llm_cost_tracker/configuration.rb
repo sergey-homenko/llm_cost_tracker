@@ -5,6 +5,7 @@ require_relative "deprecator"
 require_relative "pricing/registry"
 require_relative "tags/key"
 require_relative "configuration/budgets"
+require_relative "configuration/capture"
 require_relative "configuration/ingestion"
 require_relative "configuration/pricing"
 require_relative "configuration/tags"
@@ -13,54 +14,43 @@ module LlmCostTracker
   class Configuration
     include Mutability
 
-    OPENAI_COMPATIBLE_PROVIDERS = {
-      "openrouter.ai" => "openrouter",
-      "api.deepseek.com" => "deepseek",
-      "api.groq.com" => "groq"
+    SECTIONS = {
+      budgets: Budgets, capture: Capture, ingestion: Ingestion, pricing: Pricing, tags: Tags
     }.freeze
 
-    SECTIONS = { budgets: Budgets, ingestion: Ingestion, pricing: Pricing, tags: Tags }.freeze
+    SCALAR_ATTRIBUTES = %i[enabled cache_period_totals].freeze
 
-    SCALAR_ATTRIBUTES = %i[enabled auto_enable_stream_usage cache_rollups].freeze
-
-    LOG_LEVEL_DEPRECATION = "config.log_level is deprecated and has no effect; " \
-                            "LlmCostTracker logs through Rails.logger, which owns the level"
-
-    DEPRECATED_ATTRIBUTES = {
-      monthly_budget: %i[budgets monthly],
-      daily_budget: %i[budgets daily],
-      per_call_budget: %i[budgets per_call],
-      budget_exceeded_behavior: %i[budgets exceeded_behavior],
-      on_budget_exceeded: %i[budgets on_exceeded],
-      default_tags: %i[tags default],
-      max_tag_count: %i[tags max_count],
-      max_tag_value_bytesize: %i[tags max_value_bytesize],
-      redacted_tag_keys: %i[tags redacted_keys],
-      report_tag_breakdowns: %i[tags breakdown_keys],
-      prices_file: %i[pricing file],
-      pricing_overrides: %i[pricing overrides],
-      unknown_pricing_behavior: %i[pricing unknown_behavior],
-      ingestion_pool_size: %i[ingestion pool_size]
+    DEPRECATED_OPTIONS = {
+      monthly_budget: { to: %i[budgets monthly] },
+      daily_budget: { to: %i[budgets daily] },
+      per_call_budget: { to: %i[budgets per_call] },
+      budget_exceeded_behavior: { to: %i[budgets exceeded_behavior] },
+      on_budget_exceeded: { to: %i[budgets on_exceeded] },
+      default_tags: { to: %i[tags default] },
+      max_tag_count: { to: %i[tags max_count] },
+      max_tag_value_bytesize: { to: %i[tags max_value_bytesize] },
+      redacted_tag_keys: { to: %i[tags redacted_keys] },
+      report_tag_breakdowns: { to: %i[tags report_breakdown_keys] },
+      prices_file: { to: %i[pricing file] },
+      pricing_overrides: { to: %i[pricing overrides] },
+      unknown_pricing_behavior: { to: %i[pricing unknown_model_behavior] },
+      ingestion_pool_size: { to: %i[ingestion pool_size] },
+      auto_enable_stream_usage: { to: %i[capture request_stream_usage] },
+      openai_compatible_providers: { to: %i[capture openai_compatible_providers] },
+      cache_rollups: { to: %i[cache_period_totals] },
+      ingestion: { to: %i[ingestion mode], writer_only: true },
+      log_level: { to: nil, note: "LlmCostTracker logs through Rails.logger, which owns the level" }
     }.freeze
 
-    DEPRECATED_WRITERS = { ingestion: %i[ingestion mode] }.freeze
-
-    attr_reader(*SCALAR_ATTRIBUTES, *SECTIONS.keys, :instrumented_integrations, :openai_compatible_providers)
+    attr_reader(*SCALAR_ATTRIBUTES, *SECTIONS.keys, :instrumented_integrations)
 
     def initialize
       SECTIONS.each { |name, klass| instance_variable_set(:"@#{name}", klass.new(self)) }
       @enabled = true
       @log_level = :info
-      @auto_enable_stream_usage = true
-      @cache_rollups = false
+      @cache_period_totals = false
       @instrumented_integrations = Set.new
-      self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
       @finalized = false
-    end
-
-    def openai_compatible_providers=(providers)
-      ensure_mutable!
-      @openai_compatible_providers = normalize_openai_compatible_providers(providers)
     end
 
     def instrument(*names)
@@ -81,42 +71,32 @@ module LlmCostTracker
       end
     end
 
-    DEPRECATED_ATTRIBUTES.each do |old_name, (section, new_name)|
+    DEPRECATED_OPTIONS.each do |old_name, spec|
+      path = spec[:to]
+      replacement = path ? "config.#{path.join('.')}" : nil
+
+      define_method(:"#{old_name}=") do |value|
+        LlmCostTracker.deprecator.warn(deprecation_message(old_name, replacement, spec[:note], writer: true))
+        next instance_variable_set(:"@#{old_name}", value) unless path
+
+        ensure_mutable! if path.size == 1
+        target = path[0..-2].inject(self) { |object, step| object.public_send(step) }
+        target.public_send(:"#{path.last}=", value)
+      end
+
+      next if spec[:writer_only]
+
       define_method(old_name) do
-        LlmCostTracker.deprecator.warn("config.#{old_name} is deprecated; use config.#{section}.#{new_name}")
-        public_send(section).public_send(new_name)
+        LlmCostTracker.deprecator.warn(deprecation_message(old_name, replacement, spec[:note], writer: false))
+        next instance_variable_get(:"@#{old_name}") unless path
+
+        path.inject(self) { |object, step| object.public_send(step) }
       end
-
-      define_method(:"#{old_name}=") do |value|
-        LlmCostTracker.deprecator.warn("config.#{old_name}= is deprecated; use config.#{section}.#{new_name}=")
-        public_send(section).public_send(:"#{new_name}=", value)
-      end
-    end
-
-    DEPRECATED_WRITERS.each do |old_name, (section, new_name)|
-      define_method(:"#{old_name}=") do |value|
-        LlmCostTracker.deprecator.warn("config.#{old_name}= is deprecated; use config.#{section}.#{new_name}=")
-        public_send(section).public_send(:"#{new_name}=", value)
-      end
-    end
-
-    def log_level
-      LlmCostTracker.deprecator.warn(LOG_LEVEL_DEPRECATION)
-      @log_level
-    end
-
-    def log_level=(value)
-      ensure_mutable!
-      LlmCostTracker.deprecator.warn(LOG_LEVEL_DEPRECATION)
-      @log_level = value
     end
 
     def finalize!
       SECTIONS.each_key { |name| public_send(name).finalize! }
       @instrumented_integrations = deep_freeze(@instrumented_integrations || Set.new)
-      @openai_compatible_providers = deep_freeze(
-        normalize_openai_compatible_providers(@openai_compatible_providers)
-      )
       @finalized = true
     end
 
@@ -126,10 +106,12 @@ module LlmCostTracker
 
     private
 
-    def normalize_openai_compatible_providers(providers)
-      (providers || {}).each_with_object({}) do |(host, provider), normalized|
-        normalized[host.to_s.downcase] = provider.to_s
-      end
+    def deprecation_message(old_name, replacement, note, writer:)
+      suffix = writer ? "=" : ""
+      name = "config.#{old_name}#{suffix}"
+      return "#{name} is deprecated; use #{replacement}#{suffix}" if replacement
+
+      "#{name} is deprecated and has no effect; #{note}"
     end
   end
 end

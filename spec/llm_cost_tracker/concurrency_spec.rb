@@ -96,32 +96,32 @@ RSpec.describe "concurrency", :aggregate_failures do
       LlmCostTracker.configure do |config|
         config.tags.default = { env: "test" }
         config.pricing.overrides = { "foo" => { input: 1.0, output: 2.0 } }
-        config.tags.breakdown_keys = %i[env]
-        config.openai_compatible_providers = { "foo.example.com" => "foo" }
+        config.tags.report_breakdown_keys = %i[env]
+        config.capture.openai_compatible_providers = { "foo.example.com" => "foo" }
       end
 
       expect(LlmCostTracker.configuration.tags.default).to be_frozen
       expect(LlmCostTracker.configuration.pricing.overrides).to be_frozen
-      expect(LlmCostTracker.configuration.tags.breakdown_keys).to be_frozen
-      expect(LlmCostTracker.configuration.openai_compatible_providers).to be_frozen
+      expect(LlmCostTracker.configuration.tags.report_breakdown_keys).to be_frozen
+      expect(LlmCostTracker.configuration.capture.openai_compatible_providers).to be_frozen
     end
 
     it "rejects runtime mutation of shared hashes" do
       LlmCostTracker.configure { |config| config.tags.default = { env: "test" } }
 
       expect { LlmCostTracker.configuration.tags.default[:env] = "prod" }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.openai_compatible_providers["x"] = "y" }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.capture.openai_compatible_providers["x"] = "y" }.to raise_error(FrozenError)
     end
 
     it "validates report tag breakdown keys during configuration" do
-      LlmCostTracker.configure { |config| config.tags.breakdown_keys = [:env, "feature.name"] }
+      LlmCostTracker.configure { |config| config.tags.report_breakdown_keys = [:env, "feature.name"] }
 
-      expect(LlmCostTracker.configuration.tags.breakdown_keys).to eq(%w[env feature.name])
+      expect(LlmCostTracker.configuration.tags.report_breakdown_keys).to eq(%w[env feature.name])
     end
 
     it "rejects invalid report tag breakdown keys during configuration" do
       expect do
-        LlmCostTracker.configure { |config| config.tags.breakdown_keys = ["feature; DROP"] }
+        LlmCostTracker.configure { |config| config.tags.report_breakdown_keys = ["feature; DROP"] }
       end.to raise_error(LlmCostTracker::Error, /invalid tag key/)
     end
 
@@ -129,14 +129,14 @@ RSpec.describe "concurrency", :aggregate_failures do
       LlmCostTracker.configure do |config|
         config.tags.default = { env: "test" }
         config.pricing.overrides = { "foo" => { input: 1.0 } }
-        config.tags.breakdown_keys = %i[env]
-        config.openai_compatible_providers = { "foo.example.com" => "foo" }
+        config.tags.report_breakdown_keys = %i[env]
+        config.capture.openai_compatible_providers = { "foo.example.com" => "foo" }
       end
 
       expect { LlmCostTracker.configuration.tags.default = { env: "prod" } }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.pricing.overrides = {} }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.tags.breakdown_keys = [] }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.openai_compatible_providers = {} }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.tags.report_breakdown_keys = [] }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.capture.openai_compatible_providers = {} }.to raise_error(FrozenError)
     end
 
     it "rejects runtime replacement of shared scalar configuration" do
@@ -149,7 +149,7 @@ RSpec.describe "concurrency", :aggregate_failures do
         config.enabled = true
         config.pricing.file = "/tmp/prices.json"
         config.budgets.exceeded_behavior = :notify
-        config.pricing.unknown_behavior = :warn
+        config.pricing.unknown_model_behavior = :warn
       end
 
       expect { LlmCostTracker.configuration.enabled = false }.to raise_error(FrozenError)
@@ -160,7 +160,7 @@ RSpec.describe "concurrency", :aggregate_failures do
       expect { LlmCostTracker.configuration.enabled = false }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.pricing.file = "/tmp/other.json" }.to raise_error(FrozenError)
       expect { LlmCostTracker.configuration.budgets.exceeded_behavior = :raise }.to raise_error(FrozenError)
-      expect { LlmCostTracker.configuration.pricing.unknown_behavior = :ignore }.to raise_error(FrozenError)
+      expect { LlmCostTracker.configuration.pricing.unknown_model_behavior = :ignore }.to raise_error(FrozenError)
     end
 
     it "does not expose a public configuration writer" do

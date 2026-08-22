@@ -18,7 +18,7 @@ RSpec.describe LlmCostTracker::Report do
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
 
     LlmCostTracker.configure do |config|
-      config.tags.breakdown_keys = %w[feature]
+      config.tags.report_breakdown_keys = %w[feature]
     end
   end
 

@@ -35,7 +35,7 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets read live `SUM(total_cost)` from `llm_cost_tracker_calls` by default. When `config.cache_rollups = true` they switch to the `llm_cost_tracker_call_rollups` fast path (with its `(period, period_start, currency, provider)` unique index). When `config.ingestion.mode = :async`, pending `llm_cost_tracker_ingestion_inbox_entries` totals are added on top so events that haven't drained yet still count toward guardrails.
+Monthly and daily budgets read live `SUM(total_cost)` from `llm_cost_tracker_calls` by default. When `config.cache_period_totals = true` they switch to the `llm_cost_tracker_call_rollups` fast path (with its `(period, period_start, currency, provider)` unique index). When `config.ingestion.mode = :async`, pending `llm_cost_tracker_ingestion_inbox_entries` totals are added on top so events that haven't drained yet still count toward guardrails.
 
 Whichever combination is active, the rollup/calls aggregate and the pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 
@@ -63,7 +63,7 @@ Process shutdown should stop the local ingestor thread without forcing every exi
 
 ## Retention
 
-Retention may delete old `llm_cost_tracker_calls`. When `config.cache_rollups = true`, retained call rollups are decremented in the same transaction so the budget aggregate stays consistent. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change.
+Retention may delete old `llm_cost_tracker_calls`. When `config.cache_period_totals = true`, retained call rollups are decremented in the same transaction so the budget aggregate stays consistent. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change.
 
 ## Required Schema
 

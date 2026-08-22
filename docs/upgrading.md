@@ -224,7 +224,7 @@ keep the previous behavior:
 ```ruby
 LlmCostTracker.configure do |config|
   config.durable_ingestion = true # keep the write-ahead inbox + worker path
-  config.cache_rollups     = true # keep budget reads on the rollups fast path
+  config.cache_period_totals     = true # keep budget reads on the rollups fast path
 end
 ```
 
@@ -256,13 +256,13 @@ bin/rails db:migrate
 ```
 
 After migrating, set the matching `config.durable_ingestion = true` /
-`config.cache_rollups = true` so the write path and budget reads use
+`config.cache_period_totals = true` so the write path and budget reads use
 the new tables. v0.10 users: substitute `config.ingestion.mode = :async`
 for the durable-ingestion flag (see the v0.9 → v0.10 section).
 
 ### Per-provider rollup column
 
-If you opt in to `cache_rollups`, the `llm_cost_tracker_call_rollups`
+If you opt in to `cache_period_totals`, the `llm_cost_tracker_call_rollups`
 table must have the v0.9 `provider` column and the
 `(period, period_start, currency, provider)` unique index. Existing
 v0.8 rollup tables are upgraded with:

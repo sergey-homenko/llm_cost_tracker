@@ -9,7 +9,7 @@ module LlmCostTracker
 
       attributes :default, :max_count, :max_value_bytesize
 
-      attr_reader :redacted_keys, :breakdown_keys
+      attr_reader :redacted_keys, :report_breakdown_keys
 
       def initialize(owner)
         super
@@ -17,7 +17,7 @@ module LlmCostTracker
         @max_count = 50
         @max_value_bytesize = 1024
         @redacted_keys = DEFAULT_REDACTED_KEYS.dup
-        @breakdown_keys = []
+        @report_breakdown_keys = []
       end
 
       def redacted_keys=(value)
@@ -25,9 +25,9 @@ module LlmCostTracker
         @redacted_keys = Array(value).map(&:to_s)
       end
 
-      def breakdown_keys=(value)
+      def report_breakdown_keys=(value)
         ensure_mutable!
-        @breakdown_keys = Array(value).map { |key| LlmCostTracker::Tags::Key.validate!(key, error_class: Error) }
+        @report_breakdown_keys = Array(value).map { |key| LlmCostTracker::Tags::Key.validate!(key, error_class: Error) }
       end
 
       def normalized_redacted_keys
@@ -45,7 +45,7 @@ module LlmCostTracker
       def finalize!
         @default = deep_freeze(@default || {})
         @redacted_keys = deep_freeze(Array(@redacted_keys))
-        @breakdown_keys = deep_freeze(Array(@breakdown_keys))
+        @report_breakdown_keys = deep_freeze(Array(@report_breakdown_keys))
       end
     end
   end

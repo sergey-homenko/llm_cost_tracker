@@ -37,7 +37,7 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
 
     it "matches configured OpenAI-compatible hosts" do
       LlmCostTracker.configure do |config|
-        config.openai_compatible_providers["llm.example.com"] = "internal_gateway"
+        config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
       end
 
       expect(described_class.match?(configured_responses_url)).to be true
@@ -45,7 +45,7 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
 
     it "matches configured OpenAI-compatible hosts case-insensitively" do
       LlmCostTracker.configure do |config|
-        config.openai_compatible_providers["LLM.EXAMPLE.COM"] = "internal_gateway"
+        config.capture.openai_compatible_providers["LLM.EXAMPLE.COM"] = "internal_gateway"
       end
 
       expect(described_class.match?(configured_responses_url)).to be true
@@ -53,12 +53,12 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
 
     it "normalizes configured OpenAI-compatible host keys after configure" do
       LlmCostTracker.configure do |config|
-        config.openai_compatible_providers["LLM.EXAMPLE.COM"] = "internal_gateway"
+        config.capture.openai_compatible_providers["LLM.EXAMPLE.COM"] = "internal_gateway"
       end
 
-      expect(LlmCostTracker.configuration.openai_compatible_providers)
+      expect(LlmCostTracker.configuration.capture.openai_compatible_providers)
         .to include("llm.example.com" => "internal_gateway")
-      expect(LlmCostTracker.configuration.openai_compatible_providers).not_to have_key("LLM.EXAMPLE.COM")
+      expect(LlmCostTracker.configuration.capture.openai_compatible_providers).not_to have_key("LLM.EXAMPLE.COM")
     end
 
     it "does not match unknown hosts" do
@@ -156,7 +156,7 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
 
     it "uses the configured provider name for custom compatible hosts" do
       LlmCostTracker.configure do |config|
-        config.openai_compatible_providers["llm.example.com"] = "internal_gateway"
+        config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
       end
 
       result = parser.parse(

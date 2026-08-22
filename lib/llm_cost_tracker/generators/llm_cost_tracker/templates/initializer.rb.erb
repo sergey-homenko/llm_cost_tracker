@@ -12,6 +12,9 @@ LlmCostTracker.configure do |config|
   # config.tags.max_value_bytesize = 1024
   # config.tags.redacted_keys = <%= LlmCostTracker::Configuration::Tags::DEFAULT_REDACTED_KEYS.inspect %>
 
+  # Tag keys that get their own cost breakdown in bin/rails llm_cost_tracker:report.
+  # config.tags.report_breakdown_keys = %w[feature user_id]
+
   # Optional SDK integrations. Provider SDK gems are not installed by LLM Cost Tracker.
   # Enabled integrations are checked at boot, so enable only clients your app loads.
   # config.instrument :openai
@@ -32,14 +35,14 @@ LlmCostTracker.configure do |config|
   # }
   # :warn (default) records token usage with nil cost when a model has no rate.
   # Use :raise to require known pricing for every model.
-  config.pricing.unknown_behavior = :warn
+  config.pricing.unknown_model_behavior = :warn
 
   # Budget guardrails — cumulative monthly/daily and per-call ceilings in USD,
   # plus behavior on crossing (:notify default fires on_budget_exceeded; :raise
   # raises after recording; :block_requests preflights supported requests, also
   # estimating the current call's input cost via chars/4 so it can block before
   # send) and an optional callback. Cap evaluation sums llm_cost_tracker_calls live.
-  # A rollup is a pre-aggregated daily/monthly total. Turning cache_rollups on keeps
+  # A rollup is a pre-aggregated daily/monthly total. Turning cache_period_totals on keeps
   # those totals in llm_cost_tracker_call_rollups so budget and dashboard reads stop
   # scanning the whole calls table — worth it once the live SUM gets slow. Generate
   # the table first with `bin/rails generate llm_cost_tracker:call_rollups`.
@@ -50,7 +53,7 @@ LlmCostTracker.configure do |config|
   # config.budgets.on_exceeded = ->(data) {
   #   Rails.logger.warn("LLM #{data[:budget_type]} budget exceeded: $#{data[:total]} / $#{data[:budget]}")
   # }
-  # config.cache_rollups = true
+  # config.cache_period_totals = true
 
   # Ingestion path — :inline (default) writes events synchronously from the request
   # thread. Set to :async for a write-ahead inbox + background worker that batches
@@ -60,11 +63,16 @@ LlmCostTracker.configure do |config|
   # so they don't compete with request threads for the default pool when a tracked call
   # happens inside an open caller transaction. Bump ingestion.pool_size if your Puma
   # worker count outgrows that.
-  # config.ingestion.mode      = :async
+  # config.ingestion.mode = :async
   # config.ingestion.pool_size = 5
 
-  # Register OpenAI-compatible gateway hosts and choose extra tag breakdowns
-  # for bin/rails llm_cost_tracker:report.
-  # config.openai_compatible_providers["llm.my-company.com"] = "internal_gateway"
-  # config.tags.breakdown_keys = %w[feature user_id]
+  # Register OpenAI-compatible gateway hosts so their calls are attributed to a
+  # provider name instead of the generic openai_compatible bucket.
+  # config.capture.openai_compatible_providers["llm.my-company.com"] = "internal_gateway"
+
+  # Streaming calls only report token usage when the request asks for it. Leave this
+  # on and the Faraday middleware adds stream_options: { include_usage: true } to
+  # OpenAI-compatible streaming request bodies that don't already set it.
+  # config.capture.request_stream_usage = false
+
 end
