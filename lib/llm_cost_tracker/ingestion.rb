@@ -37,12 +37,12 @@ module LlmCostTracker
       end
 
       def async?
-        LlmCostTracker.configuration.ingestion == :async
+        LlmCostTracker.configuration.ingestion.mode == :async
       end
 
       def guards_for_current_config
         guards = Ledger::Schema::CORE_SCHEMAS.dup
-        guards << Ledger::Schema::CACHE_ROLLUPS_SCHEMA if LlmCostTracker.configuration.cache_rollups
+        guards << Ledger::Schema::CACHE_ROLLUPS_SCHEMA if LlmCostTracker.configuration.budgets.totals_source == :cache
         guards += Ledger::Schema::ASYNC_SCHEMAS if async?
         guards
       end

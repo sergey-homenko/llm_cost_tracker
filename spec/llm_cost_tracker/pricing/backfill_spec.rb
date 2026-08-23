@@ -124,7 +124,7 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
   end
 
   it "does not touch rollups when cache_rollups is disabled and the rollups table is absent" do
-    LlmCostTracker.configuration.cache_rollups = false
+    LlmCostTracker.configuration.budgets.totals_source = :ledger
     ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups, if_exists: true)
 
     call = create_call(

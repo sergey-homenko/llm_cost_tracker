@@ -18,7 +18,7 @@ RSpec.describe LlmCostTracker::Parsers do
   describe ".find_for_provider" do
     it "finds the OpenAI-compatible parser for configured provider names" do
       LlmCostTracker.configure do |config|
-        config.openai_compatible_providers["llm.example.com"] = "internal_gateway"
+        config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
       end
 
       parser = described_class.find_for_provider("internal_gateway")
@@ -40,7 +40,7 @@ RSpec.describe LlmCostTracker::Parsers do
 
     it "uses provider names from the current configuration" do
       LlmCostTracker.configure do |config|
-        config.openai_compatible_providers["llm.example.com"] = "internal_gateway"
+        config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
       end
 
       expect(described_class.find_for_provider("internal_gateway"))
@@ -50,7 +50,7 @@ RSpec.describe LlmCostTracker::Parsers do
 
       LlmCostTrackerReset.call
       LlmCostTracker.configure do |config|
-        config.openai_compatible_providers["llm.example.com"] = "other_gateway"
+        config.capture.openai_compatible_providers["llm.example.com"] = "other_gateway"
       end
 
       expect(described_class.find_for_provider("internal_gateway")).to be_nil

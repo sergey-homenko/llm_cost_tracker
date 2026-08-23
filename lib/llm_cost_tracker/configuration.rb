@@ -1,87 +1,59 @@
 # frozen_string_literal: true
 
 require_relative "errors"
+require_relative "deprecator"
 require_relative "pricing/registry"
 require_relative "tags/key"
+require_relative "configuration/budgets"
+require_relative "configuration/capture"
+require_relative "configuration/ingestion"
+require_relative "configuration/pricing"
+require_relative "configuration/tags"
 
 module LlmCostTracker
   class Configuration
-    OPENAI_COMPATIBLE_PROVIDERS = {
-      "openrouter.ai" => "openrouter",
-      "api.deepseek.com" => "deepseek",
-      "api.groq.com" => "groq"
+    include Mutability
+
+    SECTIONS = {
+      budgets: Budgets, capture: Capture, ingestion: Ingestion, pricing: Pricing, tags: Tags
     }.freeze
 
-    BUDGET_EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
-    UNKNOWN_PRICING_BEHAVIORS = %i[ignore warn raise].freeze
-    INGESTION_MODES = %i[inline async].freeze
-    SCALAR_ATTRIBUTES = %i[enabled default_tags on_budget_exceeded monthly_budget daily_budget per_call_budget
-                           log_level prices_file max_tag_count max_tag_value_bytesize
-                           ingestion_pool_size auto_enable_stream_usage cache_rollups].freeze
-    ENUM_ATTRIBUTES = {
-      budget_exceeded_behavior: [BUDGET_EXCEEDED_BEHAVIORS, :notify],
-      unknown_pricing_behavior: [UNKNOWN_PRICING_BEHAVIORS, :warn],
-      ingestion: [INGESTION_MODES, :inline]
-    }.freeze
-    DEFAULT_REDACTED_TAG_KEYS = %w[api_key access_token authorization credential password refresh_token secret].freeze
+    SCALAR_ATTRIBUTES = %i[enabled].freeze
 
-    attr_reader(
-      *SCALAR_ATTRIBUTES,
-      :budget_exceeded_behavior,
-      :ingestion,
-      :instrumented_integrations,
-      :pricing_overrides,
-      :report_tag_breakdowns,
-      :redacted_tag_keys,
-      :unknown_pricing_behavior,
-      :openai_compatible_providers
-    )
+    DEPRECATED_OPTIONS = {
+      monthly_budget: { to: %i[budgets monthly] },
+      daily_budget: { to: %i[budgets daily] },
+      per_call_budget: { to: %i[budgets per_call] },
+      budget_exceeded_behavior: { to: %i[budgets exceeded_behavior] },
+      on_budget_exceeded: { to: %i[budgets on_exceeded] },
+      default_tags: { to: %i[tags default] },
+      max_tag_count: { to: %i[tags max_count] },
+      max_tag_value_bytesize: { to: %i[tags max_value_bytesize] },
+      redacted_tag_keys: { to: %i[tags redacted_keys] },
+      report_tag_breakdowns: { to: %i[tags report_breakdown_keys] },
+      prices_file: { to: %i[pricing file] },
+      pricing_overrides: { to: %i[pricing overrides] },
+      unknown_pricing_behavior: { to: %i[pricing unknown_model_behavior] },
+      ingestion_pool_size: { to: %i[ingestion pool_size] },
+      auto_enable_stream_usage: { to: %i[capture request_stream_usage] },
+      openai_compatible_providers: { to: %i[capture openai_compatible_providers] },
+      cache_rollups: {
+        to: %i[budgets totals_source],
+        cast: ->(value) { value ? :cache : :ledger },
+        uncast: ->(value) { value == :cache }
+      },
+      ingestion: { to: %i[ingestion mode], writer_only: true },
+      log_level: { to: nil, note: "LlmCostTracker logs through Rails.logger, which owns the level" }
+    }.freeze
+
+    attr_reader(*SCALAR_ATTRIBUTES, *SECTIONS.keys, :instrumented_integrations)
 
     def initialize
+      SECTIONS.each { |name, klass| instance_variable_set(:"@#{name}", klass.new(self)) }
       @enabled = true
-      @default_tags       = {}
-      @on_budget_exceeded = nil
-      @monthly_budget     = nil
-      @daily_budget       = nil
-      @per_call_budget    = nil
-      self.budget_exceeded_behavior = :notify
-      self.unknown_pricing_behavior = :warn
-      @log_level          = :info
-      @prices_file        = nil
-      @max_tag_count      = 50
-      @max_tag_value_bytesize = 1024
-      @ingestion_pool_size = nil
-      self.pricing_overrides = {}
+      @log_level = :info
       @instrumented_integrations = Set.new
-      @report_tag_breakdowns = []
-      @redacted_tag_keys = DEFAULT_REDACTED_TAG_KEYS.dup
-      self.openai_compatible_providers = OPENAI_COMPATIBLE_PROVIDERS
-      @auto_enable_stream_usage = true
-      self.ingestion = :inline
-      @cache_rollups = false
       @finalized = false
-    end
-
-    def openai_compatible_providers=(providers)
-      ensure_mutable!
-      @openai_compatible_providers = normalize_openai_compatible_providers(providers)
-    end
-
-    def pricing_overrides=(value)
-      ensure_mutable!
-      @pricing_overrides = Pricing::Registry.normalize_price_entries(value || {}, context: "pricing_overrides")
-    rescue ArgumentError, TypeError => e
-      raise Error, "invalid pricing_overrides: #{e.message}"
-    end
-
-    def report_tag_breakdowns=(value)
-      ensure_mutable!
-      @report_tag_breakdowns = Array(value).map { |key| Tags::Key.validate!(key, error_class: Error) }
-    end
-
-    def redacted_tag_keys=(value)
-      ensure_mutable!
-      @redacted_tag_keys = Array(value).map(&:to_s)
     end
 
     def instrument(*names)
@@ -96,40 +68,41 @@ module LlmCostTracker
     end
 
     SCALAR_ATTRIBUTES.each do |name|
-      define_method("#{name}=") do |value|
+      define_method(:"#{name}=") do |value|
         ensure_mutable!
         instance_variable_set(:"@#{name}", value)
       end
     end
 
-    ENUM_ATTRIBUTES.each do |name, (allowed, default)|
-      define_method("#{name}=") do |value|
-        ensure_mutable!
-        instance_variable_set(:"@#{name}", normalize_enum(name, value, allowed, default: default))
+    DEPRECATED_OPTIONS.each do |old_name, spec|
+      path = spec[:to]
+      replacement = path ? "config.#{path.join('.')}" : nil
+
+      define_method(:"#{old_name}=") do |value|
+        LlmCostTracker.deprecator.warn(deprecation_message(old_name, replacement, spec[:note], writer: true))
+        ensure_mutable! unless path
+        next instance_variable_set(:"@#{old_name}", value) unless path
+
+        value = spec[:cast].call(value) if spec[:cast]
+        target = path[0..-2].inject(self) { |object, step| object.public_send(step) }
+        target.public_send(:"#{path.last}=", value)
+      end
+
+      next if spec[:writer_only]
+
+      define_method(old_name) do
+        LlmCostTracker.deprecator.warn(deprecation_message(old_name, replacement, spec[:note], writer: false))
+        next instance_variable_get(:"@#{old_name}") unless path
+
+        current = path.inject(self) { |object, step| object.public_send(step) }
+        spec[:uncast] ? spec[:uncast].call(current) : current
       end
     end
 
     def finalize!
-      @default_tags = deep_freeze(@default_tags || {})
-      @pricing_overrides = deep_freeze(@pricing_overrides || {})
+      SECTIONS.each_key { |name| public_send(name).finalize! }
       @instrumented_integrations = deep_freeze(@instrumented_integrations || Set.new)
-      @report_tag_breakdowns = deep_freeze(Array(@report_tag_breakdowns))
-      @redacted_tag_keys = deep_freeze(Array(@redacted_tag_keys))
-      @openai_compatible_providers = deep_freeze(
-        normalize_openai_compatible_providers(@openai_compatible_providers)
-      )
       @finalized = true
-    end
-
-    def normalized_redacted_tag_keys
-      @normalized_redacted_tag_keys ||=
-        Array(@redacted_tag_keys).map { |key| Tags::Sanitizer.normalized_key(key) }.freeze
-    end
-
-    def static_sanitized_default_tags
-      return nil if @default_tags.respond_to?(:call)
-
-      @static_sanitized_default_tags ||= Tags::Sanitizer.call((@default_tags || {}).to_h).freeze
     end
 
     def finalized?
@@ -138,41 +111,12 @@ module LlmCostTracker
 
     private
 
-    def normalize_enum(name, value, allowed, default:)
-      value = default if value.nil?
-      return value if allowed.include?(value)
+    def deprecation_message(old_name, replacement, note, writer:)
+      suffix = writer ? "=" : ""
+      name = "config.#{old_name}#{suffix}"
+      return "#{name} is deprecated; use #{replacement}#{suffix}" if replacement
 
-      raise Error, "Unknown #{name}: #{value.inspect}. Use one of: #{allowed.join(', ')}"
-    end
-
-    def normalize_openai_compatible_providers(providers)
-      (providers || {}).each_with_object({}) do |(host, provider), normalized|
-        normalized[host.to_s.downcase] = provider.to_s
-      end
-    end
-
-    def ensure_mutable!
-      return unless finalized?
-
-      raise FrozenError, "can't modify frozen LlmCostTracker::Configuration"
-    end
-
-    def deep_freeze(value)
-      case value
-      when Hash
-        value.each do |key, nested_value|
-          deep_freeze(key)
-          deep_freeze(nested_value)
-        end
-        value.frozen? ? value : value.freeze
-      when Array, Set
-        value.each { |nested_value| deep_freeze(nested_value) }
-        value.frozen? ? value : value.freeze
-      when String
-        value.frozen? ? value : value.freeze
-      else
-        value
-      end
+      "#{name} is deprecated and has no effect; #{note}"
     end
   end
 end

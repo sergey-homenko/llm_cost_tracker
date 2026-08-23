@@ -34,7 +34,7 @@ module LlmCostTracker
         end
         from = now - days.days
         scope = LlmCostTracker::Call.where(tracked_at: from..now)
-        tag_breakdowns ||= LlmCostTracker.configuration.report_tag_breakdowns || []
+        tag_breakdowns ||= LlmCostTracker.configuration.tags.report_breakdown_keys || []
         aggregate = totals(scope)
 
         new(

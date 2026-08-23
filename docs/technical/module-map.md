@@ -116,7 +116,7 @@ Responsibilities:
 - Apply token and service line item pricing.
 - Build pricing snapshot and cost status.
 - Emit `ActiveSupport::Notifications`.
-- Persist events through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion = :async`.
+- Persist events through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion.mode = :async`.
 - Run budget checks after the event is persisted.
 
 This module must remain provider-neutral.
@@ -134,10 +134,10 @@ Primary files:
 
 Responsibilities:
 
-- Persist events inline by default; stage to the async inbox and drain via the worker when `config.ingestion = :async`.
+- Persist events inline by default; stage to the async inbox and drain via the worker when `config.ingestion.mode = :async`.
 - Claim retryable inbox entries through database leases (async mode only).
 - Persist call headers, line items, and tag rows atomically.
-- Maintain call rollups for hot-path budget reads when `config.cache_rollups = true`; otherwise budget reads aggregate live from `llm_cost_tracker_calls`.
+- Maintain call rollups for hot-path budget reads when `config.budgets.totals_source = :cache`; otherwise budget reads aggregate live from `llm_cost_tracker_calls`.
 - Hide PostgreSQL and MySQL-family SQL differences.
 - Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
 
@@ -156,7 +156,7 @@ Responsibilities:
 
 - Prune old ledger rows in batches.
 - Let `on_delete: :cascade` clean up dependent line items and tag rows.
-- Keep daily and monthly call rollups consistent when `config.cache_rollups = true`.
+- Keep daily and monthly call rollups consistent when `config.budgets.totals_source = :cache`.
 
 ## Dashboard and Reporting
 

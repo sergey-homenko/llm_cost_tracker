@@ -17,8 +17,8 @@ RSpec.describe "ActiveRecord storage integration" do
     LlmCostTracker::CallRollup.reset_column_information
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
-    LlmCostTracker.configuration.ingestion = :async
-    LlmCostTracker.configuration.cache_rollups = true
+    LlmCostTracker.configuration.ingestion.mode = :async
+    LlmCostTracker.configuration.budgets.totals_source = :cache
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end
 
@@ -164,7 +164,7 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "persists pricing_mode" do
     LlmCostTracker.configure do |config|
-      config.pricing_overrides = {
+      config.pricing.overrides = {
         "batchable-model" => {
           input: 1.0,
           output: 2.0,
@@ -241,7 +241,7 @@ RSpec.describe "ActiveRecord storage integration" do
         new_file.close
 
         LlmCostTracker.configure do |config|
-          config.prices_file = old_file.path
+          config.pricing.file = old_file.path
         end
 
         track_and_flush(
@@ -252,7 +252,7 @@ RSpec.describe "ActiveRecord storage integration" do
 
         LlmCostTrackerReset.call
         LlmCostTracker.configure do |config|
-          config.prices_file = new_file.path
+          config.pricing.file = new_file.path
         end
 
         track_and_flush(
@@ -329,7 +329,7 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "keeps total_cost identical to the summed line items when per-token costs round at the 9th decimal" do
     LlmCostTracker.configure do |config|
-      config.pricing_overrides = { "tail-model" => { "input" => 0.075, "output" => 0.075 } }
+      config.pricing.overrides = { "tail-model" => { "input" => 0.075, "output" => 0.075 } }
     end
 
     track_and_flush(provider: "custom", model: "tail-model", tokens: { input_tokens: 1, output_tokens: 1 })
@@ -359,7 +359,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "preserves the ledger write when the rollup increment raises" do
-    LlmCostTracker.configure { |config| config.cache_rollups = true }
+    LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
     allow(LlmCostTracker::Logging).to receive(:warn)
     allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!).and_raise("rollup contention")
     event = build_event(event_id: "rollup-failure")
@@ -370,7 +370,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "retries a transient rollup increment failure before warning so transient DB hiccups don't permanently strand the rollup" do
-    LlmCostTracker.configure { |config| config.cache_rollups = true }
+    LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
     allow(LlmCostTracker::Logging).to receive(:warn)
     allow(LlmCostTracker::Ledger::Rollups).to receive(:sleep)
     increment_call_count = 0
@@ -850,7 +850,7 @@ RSpec.describe "ActiveRecord storage integration" do
 
   it "filters calls with and without known pricing" do
     LlmCostTracker.configure do |config|
-      config.unknown_pricing_behavior = :ignore
+      config.pricing.unknown_model_behavior = :ignore
     end
 
     track_and_flush(
@@ -944,8 +944,8 @@ RSpec.describe "ActiveRecord storage integration" do
     budget_data = nil
 
     LlmCostTracker.configure do |config|
-      config.monthly_budget = 0.001
-      config.on_budget_exceeded = ->(data) { budget_data = data }
+      config.budgets.monthly = 0.001
+      config.budgets.on_exceeded = ->(data) { budget_data = data }
     end
 
     track_and_flush(
@@ -962,8 +962,8 @@ RSpec.describe "ActiveRecord storage integration" do
     budget_totals = []
 
     LlmCostTracker.configure do |config|
-      config.monthly_budget = 0.004
-      config.on_budget_exceeded = ->(data) { budget_totals << data[:total] }
+      config.budgets.monthly = 0.004
+      config.budgets.on_exceeded = ->(data) { budget_totals << data[:total] }
     end
 
     3.times do
@@ -981,8 +981,8 @@ RSpec.describe "ActiveRecord storage integration" do
     budget_totals = []
 
     LlmCostTracker.configure do |config|
-      config.daily_budget = 0.004
-      config.on_budget_exceeded = ->(data) { budget_totals << data[:total] }
+      config.budgets.daily = 0.004
+      config.budgets.on_exceeded = ->(data) { budget_totals << data[:total] }
     end
 
     3.times do
@@ -1004,8 +1004,8 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     LlmCostTracker.configure do |config|
-      config.monthly_budget = 0.001
-      config.budget_exceeded_behavior = :block_requests
+      config.budgets.monthly = 0.001
+      config.budgets.exceeded_behavior = :block_requests
     end
 
     expect do
@@ -1025,8 +1025,8 @@ RSpec.describe "ActiveRecord storage integration" do
     )
 
     LlmCostTracker.configure do |config|
-      config.daily_budget = 0.001
-      config.budget_exceeded_behavior = :block_requests
+      config.budgets.daily = 0.001
+      config.budgets.exceeded_behavior = :block_requests
     end
 
     expect do

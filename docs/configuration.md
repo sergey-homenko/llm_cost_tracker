@@ -5,8 +5,8 @@ attribution, pricing, budgets, SDK instrumentation. Set it up once at boot:
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.default_tags = -> { { environment: Rails.env } }
-  config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
+  config.tags.default = -> { { environment: Rails.env } }
+  config.pricing.file = Rails.root.join("config/llm_cost_tracker_prices.yml")
   config.instrument :openai
 end
 ```
@@ -15,20 +15,29 @@ end
 mutate finalized shared config raise instead of silently changing tracking
 behavior mid-request.
 
+Related options are grouped into namespaces — `budgets`, `capture`, `tags`,
+`pricing`, `ingestion`. The flat names that predate them still work and now emit a
+deprecation warning naming their replacement; they are removed in 1.0.
+
 ## Core Options
 
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `enabled` | `true` | Turns capture on or off without removing middleware or integrations |
-| `default_tags` | `{}` | Hash or callable merged into every event |
-| `log_level` | `:info` | Warning verbosity for unknown pricing and capture failures |
-| `max_tag_count` | `50` | Maximum number of stored tags after sanitization |
-| `max_tag_value_bytesize` | `1024` | Maximum byte size for one stored tag value |
-| `redacted_tag_keys` | common secret-like keys | Tag keys whose values are replaced before storage |
-| `report_tag_breakdowns` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
-| `auto_enable_stream_usage` | `true` | Faraday middleware injects `stream_options: { include_usage: true }` on OpenAI / OpenAI-compatible chat-completions streaming requests so usage is captured automatically. See [Streaming](streaming.md). |
+| `capture.request_stream_usage` | `true` | Streaming endpoints only report token usage when the request asks for it. The Faraday middleware adds `stream_options: { include_usage: true }` to OpenAI / OpenAI-compatible chat-completions streaming request bodies that don't already set it. Set to `false` to leave request bodies untouched. See [Streaming](streaming.md). |
+| `capture.openai_compatible_providers` | OpenRouter, DeepSeek, Groq | Maps a gateway host to the provider name recorded for its calls |
 
-`default_tags` callables run per event. Keep them fast and side-effect free.
+## Tag Options
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `tags.default` | `{}` | Hash or callable merged into every event |
+| `tags.max_count` | `50` | Maximum number of stored tags after sanitization |
+| `tags.max_value_bytesize` | `1024` | Maximum byte size for one stored tag value |
+| `tags.redacted_keys` | common secret-like keys | Tag keys whose values are replaced before storage |
+| `tags.report_breakdown_keys` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
+
+`tags.default` callables run per event. Keep them fast and side-effect free.
 Explicit `tags:` passed to `track` win over scoped tags, and scoped tags win over
 defaults.
 
@@ -70,20 +79,20 @@ OpenAI-compatible capture is shape-based. Built-in mappings cover OpenRouter,
 DeepSeek, and Groq:
 
 ```ruby
-config.openai_compatible_providers["openrouter.ai"] = "openrouter"
-config.openai_compatible_providers["api.deepseek.com"] = "deepseek"
-config.openai_compatible_providers["api.groq.com"] = "groq"
+config.capture.openai_compatible_providers["openrouter.ai"] = "openrouter"
+config.capture.openai_compatible_providers["api.deepseek.com"] = "deepseek"
+config.capture.openai_compatible_providers["api.groq.com"] = "groq"
 ```
 
 Register custom gateway hosts when they speak OpenAI-compatible request and
 response shapes:
 
 ```ruby
-config.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
+config.capture.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
 ```
 
 This maps capture identity only. Gateway-specific prices belong in
-`prices_file` or `pricing_overrides`.
+`pricing.file` or `pricing.overrides`.
 
 ## Azure OpenAI Service
 
@@ -106,10 +115,10 @@ matching `openai/<model>` entry in the bundled price snapshot. That's correct fo
 deployments in primary regions where Azure prices match OpenAI direct. If
 your deployment uses Data Zone (data-residency) pricing or a regional
 uplift that differs from Global, set per-key deltas via
-`config.pricing_overrides` with the `azure_openai/<model>` prefix:
+`config.pricing.overrides` with the `azure_openai/<model>` prefix:
 
 ```ruby
-config.pricing_overrides = {
+config.pricing.overrides = {
   "azure_openai/gpt-4o-mini" => { input: 0.16, output: 0.64 }
 }
 ```
@@ -118,14 +127,14 @@ config.pricing_overrides = {
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `prices_file` | `nil` | Local JSON/YAML registry used ahead of bundled prices |
-| `pricing_overrides` | `{}` | Ruby hash used ahead of local and bundled registries |
-| `unknown_pricing_behavior` | `:warn` | `:ignore`, `:warn`, or `:raise` for unknown token pricing |
+| `pricing.file` | `nil` | Local JSON/YAML registry used ahead of bundled prices |
+| `pricing.overrides` | `{}` | Ruby hash used ahead of local and bundled registries |
+| `pricing.unknown_model_behavior` | `:warn` | What to do when a model has no rate at all: `:ignore`, `:warn`, or `:raise`. A model that is priced but missing one component rate lands as `partial` and never triggers this. |
 
 Pricing precedence is:
 
-1. `pricing_overrides`
-2. `prices_file`
+1. `pricing.overrides`
+2. `pricing.file`
 3. bundled `lib/llm_cost_tracker/prices.json`
 
 Unknown-cost line items are still stored. They affect `cost_status` but
@@ -135,32 +144,32 @@ won't invent a total cost out of thin air.
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `monthly_budget` | `nil` | Monthly USD guardrail |
-| `daily_budget` | `nil` | Daily USD guardrail |
-| `per_call_budget` | `nil` | Single-event USD guardrail |
-| `budget_exceeded_behavior` | `:notify` | `:notify`, `:raise`, or `:block_requests` |
-| `on_budget_exceeded` | `nil` | Callable receiving the budget payload |
+| `budgets.monthly` | `nil` | Monthly USD guardrail |
+| `budgets.daily` | `nil` | Daily USD guardrail |
+| `budgets.per_call` | `nil` | Single-event USD guardrail |
+| `budgets.exceeded_behavior` | `:notify` | `:notify`, `:raise`, or `:block_requests` |
+| `budgets.on_exceeded` | `nil` | Callable receiving the budget payload |
 
 Budget payloads include `budget_type`, `total`, `budget`, `last_event`, and `stage` (`:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks). See [Budgets and Guardrails](budgets.md) for the pre-send estimate behavior.
 
 ## Storage
 
-Two boolean flags decide which optional tables the gem touches. Both
-default to `false`, so a fresh install ships with three mandatory
+Two options decide which optional tables the gem touches. Both default to
+the no-extra-table setting, so a fresh install ships with three mandatory
 tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
 `llm_cost_tracker_call_tags`).
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `ingestion` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
-| `ingestion_pool_size` | `2` | Size of the dedicated ActiveRecord connection pool the async ingestion worker uses for inbox writes (kept isolated from the request connection pool so a busy app doesn't deadlock its own tracking). Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion = :inline`. |
-| `cache_rollups` | `false` | When `true`, `Tracker.record` maintains daily/monthly aggregates in `llm_cost_tracker_call_rollups`; budget reads use the rollups fast path. When `false` (default), budget reads aggregate live from `llm_cost_tracker_calls`. |
+| `ingestion.mode` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
+| `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool the async ingestion worker uses for inbox writes (kept isolated from the request connection pool so a busy app doesn't deadlock its own tracking). Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion.mode = :inline`. |
+| `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` — `Tracker.record` updates them on every call, and checks read one row instead of scanning the ledger. Worth switching once the live `SUM` gets slow. `:cache` adds a write on every recorded call and needs the `llm_cost_tracker_call_rollups` table, and only budget checks and the dashboard budget widget read those totals — with no budget configured it is pure overhead. |
 
 Each opt-in needs a matching generator before flipping the flag:
 
 ```bash
-bin/rails generate llm_cost_tracker:async_ingestion    # for ingestion = :async
-bin/rails generate llm_cost_tracker:call_rollups       # for cache_rollups = true
+bin/rails generate llm_cost_tracker:async_ingestion    # for ingestion.mode = :async
+bin/rails generate llm_cost_tracker:call_rollups       # for budgets.totals_source = :cache
 bin/rails db:migrate
 ```
 
@@ -180,4 +189,4 @@ bin/rails llm_cost_tracker:verify_capture
 `doctor` checks schema, prices, integration setup, and operational health.
 `verify_capture` records a synthetic manual event and verifies notifications
 plus ActiveRecord persistence (through the inline writer or the async
-inbox depending on `config.ingestion`).
+inbox depending on `config.ingestion.mode`).

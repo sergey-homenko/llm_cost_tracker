@@ -5,7 +5,7 @@ require "spec_helper"
 RSpec.describe LlmCostTracker::Pricing::Calculation do
   it "prices a token line item at the exact per-million rate" do
     LlmCostTracker.configure do |c|
-      c.pricing_overrides = { "demo-token" => { "input" => 2.5 } }
+      c.pricing.overrides = { "demo-token" => { "input" => 2.5 } }
     end
 
     line_item = LlmCostTracker::Charges::LineItem.build(dimension_key: "input", quantity: 1_234_567)
@@ -22,7 +22,7 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
   end
 
   it "ignores a token-unit line item passed as a service line so token cost is not double-counted" do
-    LlmCostTracker.configure { |c| c.pricing_overrides = { "dup-model" => { "input" => 2.0 } } }
+    LlmCostTracker.configure { |c| c.pricing.overrides = { "dup-model" => { "input" => 2.0 } } }
     token_line = LlmCostTracker::Charges::LineItem.build(
       kind: "input", direction: "input", modality: "text", cache_state: "none",
       unit: "token", quantity: 1_000_000, dimension_key: "input"
@@ -53,7 +53,7 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
   end
 
   it "keeps service rates dropped from the total on currency mismatch out of the snapshot" do
-    LlmCostTracker.configure { |c| c.pricing_overrides = { "snap-model" => { "input" => 2.0 } } }
+    LlmCostTracker.configure { |c| c.pricing.overrides = { "snap-model" => { "input" => 2.0 } } }
     eur_line = LlmCostTracker::Charges::LineItem.build(
       dimension_key: "web_search_request", quantity: 1,
       rate_amount: 10, rate_quantity: 1000, cost: 0.01, currency: "EUR",

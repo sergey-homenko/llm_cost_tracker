@@ -14,7 +14,7 @@ module LlmCostTracker
           end
 
           def provider_names
-            custom = LlmCostTracker.configuration.openai_compatible_providers.each_value.map do |provider|
+            custom = LlmCostTracker.configuration.capture.openai_compatible_providers.each_value.map do |provider|
               provider.to_s.downcase
             end
             ["openai_compatible", *custom].uniq
@@ -23,7 +23,7 @@ module LlmCostTracker
           def provider_for_uri(uri)
             return nil unless uri
 
-            LlmCostTracker.configuration.openai_compatible_providers[uri.host.to_s.downcase]&.to_s
+            LlmCostTracker.configuration.capture.openai_compatible_providers[uri.host.to_s.downcase]&.to_s
           end
         end
 

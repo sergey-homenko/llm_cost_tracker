@@ -46,8 +46,8 @@ module LlmCostTracker
 
       def subtitle_for(key)
         case key
-        when :overrides then "config.pricing_overrides"
-        when :file then LlmCostTracker.configuration.prices_file.to_s
+        when :overrides then "config.pricing.overrides"
+        when :file then LlmCostTracker.configuration.pricing.file.to_s
         when :bundled then "ships with the gem"
         end
       end
@@ -55,7 +55,7 @@ module LlmCostTracker
       def updated_at_for(key)
         case key
         when :file
-          path = LlmCostTracker.configuration.prices_file
+          path = LlmCostTracker.configuration.pricing.file
           Pricing::Registry.file_metadata(path)["updated_at"] || Pricing::Registry.prices_file_mtime_iso
         when :bundled
           Pricing::Registry.metadata["updated_at"]

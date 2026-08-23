@@ -22,7 +22,7 @@ RSpec.describe "LlmCostTracker::Engine pricing" do
   it "shows an Overrides tab and selects it as effective when pricing_overrides is set" do
     LlmCostTrackerReset.call
     LlmCostTracker.configure do |config|
-      config.pricing_overrides = { "openai/gpt-4o" => { input: 2.0, output: 8.0 } }
+      config.pricing.overrides = { "openai/gpt-4o" => { input: 2.0, output: 8.0 } }
     end
 
     response = get("/llm-costs/pricing")

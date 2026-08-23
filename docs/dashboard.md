@@ -41,8 +41,8 @@ The dashboard reads:
 | `llm_cost_tracker_calls` | Header rows: token totals, total cost, pricing status, snapshots |
 | `llm_cost_tracker_call_line_items` | Per-component cost breakdown (tokens + tool charges) |
 | `llm_cost_tracker_call_tags` | Tag attribution for filters and breakdowns |
-| `llm_cost_tracker_call_rollups` (optional) | Budget status and operational aggregates when `config.cache_rollups = true` |
-| `llm_cost_tracker_ingestion_inbox_entries` (optional) | Pending budget totals and ingestion health when `config.ingestion = :async` |
+| `llm_cost_tracker_call_rollups` (optional) | Budget status and operational aggregates when `config.budgets.totals_source = :cache` |
+| `llm_cost_tracker_ingestion_inbox_entries` (optional) | Pending budget totals and ingestion health when `config.ingestion.mode = :async` |
 
 ## Pages
 
@@ -76,7 +76,7 @@ database access.
 Do not put personal data, prompt bodies, customer messages, API keys, bearer
 tokens, or long free-form text in tags. Prefer stable operational identifiers
 such as internal numeric IDs, tenant slugs, feature names, job names, or
-environment labels. Configure `redacted_tag_keys` for known secret-like keys, but
+environment labels. Configure `tags.redacted_keys` for known secret-like keys, but
 treat it as a guardrail rather than a privacy boundary.
 
 ## Styling Contract

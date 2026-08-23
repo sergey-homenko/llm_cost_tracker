@@ -8,12 +8,12 @@ Configuration](configuration.md#storage)).
 ## Production Defaults
 
 - Size the ActiveRecord connection pool for your app's concurrency. If
-  `config.ingestion = :async`, add headroom for the local
+  `config.ingestion.mode = :async`, add headroom for the local
   ingestor thread and for the separate connection that inbox writes
   use when the caller is inside an open transaction (so staged events
   survive caller rollbacks). The default inline path shares the
   caller's connection and joins its transaction.
-- Keep `default_tags` callables fast and thread-safe.
+- Keep `tags.default` callables fast and thread-safe.
 - Mount the dashboard behind existing admin authentication.
 - Run `llm_cost_tracker:doctor` after deploys that change the gem version or schema.
 - Treat `:block_requests` as a guardrail, not a strict quota.
@@ -47,7 +47,7 @@ By default `Tracker.record` writes events synchronously through
 (`llm_cost_tracker_calls` + line items + tags) — no inbox, no worker,
 nothing to drain.
 
-Flip `config.ingestion = :async` (after running
+Flip `config.ingestion.mode = :async` (after running
 `bin/rails generate llm_cost_tracker:async_ingestion`) when you need:
 
 - Multi-process safe staging — a crashed app worker leaves rows in the
@@ -57,7 +57,7 @@ Flip `config.ingestion = :async` (after running
 - Batched inserts — the worker drains rows into
   `llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`, and
   `llm_cost_tracker_call_tags` in one transaction per batch. With
-  `cache_rollups = true` the rollup cache is incremented after that
+  `config.budgets.totals_source = :cache`` the rollup cache is incremented after that
   transaction commits — a rollup failure is logged and never fails the
   batch; `bin/rails llm_cost_tracker:rebuild_rollups` recovers the cache.
 
@@ -129,7 +129,7 @@ DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 
 Pruning deletes old `llm_cost_tracker_calls`. Dependent line items and
 tags are removed by the database via `on_delete: :cascade`. When
-`config.cache_rollups = true`, affected daily/monthly call rollups are
+`config.budgets.totals_source = :cache`, affected daily/monthly call rollups are
 decremented in the same transaction.
 
 ## Data Shape
@@ -158,7 +158,7 @@ Anyone with dashboard or database access can see them.
 Use stable internal IDs, feature names, tenant slugs, job names, and environment
 labels. Avoid emails, names, prompts, completions, support conversation bodies,
 API keys, bearer tokens, or high-cardinality text. Add known sensitive keys to
-`redacted_tag_keys`, and keep `max_tag_value_bytesize` low enough to catch
+`tags.redacted_keys`, and keep `tags.max_value_bytesize` low enough to catch
 accidental payloads.
 
 ## Pricing Refresh
@@ -171,7 +171,7 @@ bin/rails llm_cost_tracker:prices:refresh
 bin/rails llm_cost_tracker:prices:check
 ```
 
-Refresh writes to `OUTPUT`, then `config.prices_file`, then
+Refresh writes to `OUTPUT`, then `config.pricing.file`, then
 `config/llm_cost_tracker_prices.yml`.
 
 ## Pricing in Production

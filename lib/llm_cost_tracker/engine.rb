@@ -9,6 +9,10 @@ module LlmCostTracker
   class Engine < ::Rails::Engine
     isolate_namespace LlmCostTracker
 
+    initializer "llm_cost_tracker.deprecator" do |app|
+      app.deprecators[:llm_cost_tracker] = LlmCostTracker.deprecator
+    end
+
     initializer "llm_cost_tracker.dashboard_setup_state" do |app|
       app.reloader.to_prepare { LlmCostTracker::Dashboard::SetupState.reset! }
     end

@@ -15,6 +15,48 @@ the `batch:` keyword argument from `track` / `track_stream` / `stream.usage`
 `_tokens`-suffixed names that `stream.usage` already uses, and the split of the
 `Billing` value-object namespace into `Usage` / `Pricing` / `Charges` / `Capture`.
 
+### Optional: move the initializer to namespaced config
+
+Configuration options are grouped into `budgets`, `capture`, `ingestion`,
+`pricing`, and `tags`. Every flat name still works and now logs a deprecation
+warning naming its replacement; the flat names are removed in 1.0.
+
+| Before | After |
+| --- | --- |
+| `config.monthly_budget` | `config.budgets.monthly` |
+| `config.daily_budget` | `config.budgets.daily` |
+| `config.per_call_budget` | `config.budgets.per_call` |
+| `config.budget_exceeded_behavior` | `config.budgets.exceeded_behavior` |
+| `config.on_budget_exceeded` | `config.budgets.on_exceeded` |
+| `config.cache_rollups = true` | `config.budgets.totals_source = :cache` |
+| `config.default_tags` | `config.tags.default` |
+| `config.max_tag_count` | `config.tags.max_count` |
+| `config.max_tag_value_bytesize` | `config.tags.max_value_bytesize` |
+| `config.redacted_tag_keys` | `config.tags.redacted_keys` |
+| `config.report_tag_breakdowns` | `config.tags.report_breakdown_keys` |
+| `config.prices_file` | `config.pricing.file` |
+| `config.pricing_overrides` | `config.pricing.overrides` |
+| `config.unknown_pricing_behavior` | `config.pricing.unknown_model_behavior` |
+| `config.ingestion` | `config.ingestion.mode` |
+| `config.ingestion_pool_size` | `config.ingestion.pool_size` |
+| `config.auto_enable_stream_usage` | `config.capture.request_stream_usage` |
+| `config.openai_compatible_providers` | `config.capture.openai_compatible_providers` |
+
+`config.log_level` is dropped with no replacement — it never affected any log
+output. `Rails.logger` owns the level.
+
+Reading `config.ingestion` now returns the namespace object rather than the
+mode, so code that compared it to `:async` must read `config.ingestion.mode`.
+Assignment (`config.ingestion = :async`) still works.
+
+The gem's deprecator is registered as `:llm_cost_tracker` in
+`Rails.application.deprecators`, so the standard switches apply to it. To
+silence the warnings while you migrate, in `config/application.rb`:
+
+```ruby
+config.active_support.deprecation = :silence
+```
+
 ### Required: drop Reconciliation tables if you opted in (BREAKING)
 
 The experimental `Reconciliation` subsystem (provider invoice import + diff)

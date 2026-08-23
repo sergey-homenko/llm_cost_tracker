@@ -26,7 +26,7 @@ module LlmCostTracker
           output = env["OUTPUT"].to_s.strip.presence
           return output if output
 
-          prices_file = config.prices_file
+          prices_file = config.pricing.file
           return prices_file.to_s if prices_file
 
           Rails.root.join(DEFAULT_OUTPUT_PATH).to_s

@@ -43,7 +43,7 @@ RSpec.describe LlmCostTracker::Doctor do
       }.to_json)
       file.close
 
-      LlmCostTracker.configure { |config| config.prices_file = file.path }
+      LlmCostTracker.configure { |config| config.pricing.file = file.path }
 
       check = described_class.call.find { |item| item.name == "prices" }
 
@@ -61,7 +61,7 @@ RSpec.describe LlmCostTracker::Doctor do
       }.to_json)
       file.close
 
-      LlmCostTracker.configure { |config| config.prices_file = file.path }
+      LlmCostTracker.configure { |config| config.pricing.file = file.path }
 
       check = described_class.call.find { |item| item.name == "prices" }
 
@@ -131,7 +131,7 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "warns when inline mode is set but async ingestion tables still exist" do
-      LlmCostTracker.configure { |config| config.ingestion = :inline }
+      LlmCostTracker.configure { |config| config.ingestion.mode = :inline }
 
       check = described_class.call.find { |item| item.name == "inline ingestion" }
 
@@ -140,7 +140,7 @@ RSpec.describe LlmCostTracker::Doctor do
     end
 
     it "passes inline mode when the async tables have been dropped" do
-      LlmCostTracker.configure { |config| config.ingestion = :inline }
+      LlmCostTracker.configure { |config| config.ingestion.mode = :inline }
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_ingestion_inbox_entries)
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_ingestion_leases)
       LlmCostTracker::Ingestion::InboxEntry.reset_column_information

@@ -90,7 +90,7 @@ those rules instead — consult counsel.
 
 `llm_cost_tracker_call_tags` is where the audit trail meets your
 business. Set tags through `LlmCostTracker.with_tags` or
-`config.default_tags` so every recorded call carries the deployer-side
+`config.tags.default` so every recorded call carries the deployer-side
 identifiers a regulator or auditor would ask for:
 
 ```ruby

@@ -17,7 +17,7 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
   end
 
   it "shows quarantined async-inbox rows even when no calls are recorded" do
-    LlmCostTracker.configuration.ingestion = :async
+    LlmCostTracker.configuration.ingestion.mode = :async
     LlmCostTracker::Ingestion::InboxEntry.create!(
       event_id: "quarantined-view-1", total_cost: 3.5, tracked_at: Time.utc(2026, 1, 1),
       payload: "{", attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE

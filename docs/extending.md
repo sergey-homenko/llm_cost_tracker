@@ -8,12 +8,12 @@ unsupported response shapes.
 
 | Need | Extension point |
 | --- | --- |
-| Gateway speaks OpenAI-compatible HTTP | `config.openai_compatible_providers` |
-| Gateway or contract rates differ from bundled prices | `prices_file` or `pricing_overrides` |
+| Gateway speaks OpenAI-compatible HTTP | `config.capture.openai_compatible_providers` |
+| Gateway or contract rates differ from bundled prices | `pricing.file` or `pricing.overrides` |
 | Unsupported client has known usage totals | `LlmCostTracker.track` |
 | Unsupported stream exposes provider events | `LlmCostTracker.track_stream` |
 | App needs attribution dimensions | Tags |
-| App needs budget alerts | `on_budget_exceeded` |
+| App needs budget alerts | `budgets.on_exceeded` |
 | App wants event notifications | `ActiveSupport::Notifications` subscriber |
 
 Storage backends, parser registries, and arbitrary SDK registration hooks are not
@@ -27,7 +27,7 @@ response shapes:
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
+  config.capture.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
 end
 ```
 
@@ -35,16 +35,16 @@ This affects provider identity and parser selection. It does not define prices.
 
 ## Local Prices
 
-Use `config.prices_file` for a source-controlled JSON/YAML registry:
+Use `config.pricing.file` for a source-controlled JSON/YAML registry:
 
 ```ruby
-config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
+config.pricing.file = Rails.root.join("config/llm_cost_tracker_prices.yml")
 ```
 
-Use `config.pricing_overrides` for small Ruby-side overrides:
+Use `config.pricing.overrides` for small Ruby-side overrides:
 
 ```ruby
-config.pricing_overrides = {
+config.pricing.overrides = {
   "internal_gateway/my-model" => {
     input: 1.00,
     output: 2.00

@@ -217,7 +217,7 @@ RSpec.describe LlmCostTracker do
       collected = events
 
       LlmCostTracker.configure do |config|
-        config.openai_compatible_providers["llm.example.com"] = "internal_gateway"
+        config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
       end
 
       described_class.track_stream(provider: "internal_gateway", model: "custom-chat") do |stream|

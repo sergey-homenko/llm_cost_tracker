@@ -11,7 +11,7 @@ module LlmCostTracker
       source_root File.expand_path("templates", __dir__)
 
       desc "Creates the optional llm_cost_tracker_call_rollups table for fast budget reads. " \
-           "Required when config.cache_rollups = true."
+           "Required when config.budgets.totals_source = :cache."
 
       def create_migration_file
         migration_template(
@@ -25,7 +25,7 @@ module LlmCostTracker
           After migrating, set the following in config/initializers/llm_cost_tracker.rb:
 
             LlmCostTracker.configure do |config|
-              config.cache_rollups = true
+              config.budgets.totals_source = :cache
             end
 
           Without it Tracker keeps reading budget totals as live SUM aggregates over

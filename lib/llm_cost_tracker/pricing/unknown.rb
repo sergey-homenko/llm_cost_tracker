@@ -12,7 +12,7 @@ module LlmCostTracker
         def process(model)
           model = model.to_s.presence || Event::UNKNOWN_MODEL
 
-          case LlmCostTracker.configuration.unknown_pricing_behavior
+          case LlmCostTracker.configuration.pricing.unknown_model_behavior
           when :ignore
             nil
           when :warn
@@ -36,7 +36,7 @@ module LlmCostTracker
           Logging.warn(
             "No pricing configured for model #{model.inspect}. " \
             "Cost and budget guardrails will be skipped for this event. " \
-            "Add a pricing_overrides entry or set unknown_pricing_behavior."
+            "Add a pricing.overrides entry or set pricing.unknown_model_behavior."
           )
         end
       end

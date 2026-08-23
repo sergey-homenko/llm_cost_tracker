@@ -23,9 +23,9 @@ module LlmCostTracker
       class << self
         def call(tags, config: LlmCostTracker.configuration)
           tags = (tags || {}).to_h
-          redacted = config.normalized_redacted_tag_keys
-          limit = [config.max_tag_value_bytesize.to_i, 0].max
-          max_count = [config.max_tag_count.to_i, 0].max
+          redacted = config.tags.normalized_redacted_keys
+          limit = [config.tags.max_value_bytesize.to_i, 0].max
+          max_count = [config.tags.max_count.to_i, 0].max
           tags.to_a.last(max_count).each_with_object({}) do |(key, value), sanitized|
             next unless valid_key?(key)
 
@@ -43,7 +43,7 @@ module LlmCostTracker
 
         def cap(tags, config: LlmCostTracker.configuration)
           tags = (tags || {}).to_h
-          max_count = [config.max_tag_count.to_i, 0].max
+          max_count = [config.tags.max_count.to_i, 0].max
           return tags if tags.size <= max_count
 
           tags.to_a.last(max_count).to_h

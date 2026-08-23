@@ -4,13 +4,14 @@ require "spec_helper"
 
 RSpec.describe LlmCostTracker::Tags::Sanitizer do
   def build_config(max_tag_count:, max_tag_value_bytesize:, redacted_tag_keys:)
-    instance_double(
-      LlmCostTracker::Configuration,
-      max_tag_count: max_tag_count,
-      max_tag_value_bytesize: max_tag_value_bytesize,
-      redacted_tag_keys: redacted_tag_keys,
-      normalized_redacted_tag_keys: redacted_tag_keys.map { |key| described_class.normalized_key(key) }
+    tags = instance_double(
+      LlmCostTracker::Configuration::Tags,
+      max_count: max_tag_count,
+      max_value_bytesize: max_tag_value_bytesize,
+      redacted_keys: redacted_tag_keys,
+      normalized_redacted_keys: redacted_tag_keys.map { |key| described_class.normalized_key(key) }
     )
+    instance_double(LlmCostTracker::Configuration, tags: tags)
   end
 
   let(:config) { build_config(max_tag_count: 2, max_tag_value_bytesize: 4, redacted_tag_keys: %w[api_key access_token]) }

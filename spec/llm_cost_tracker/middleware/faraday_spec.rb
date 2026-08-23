@@ -234,8 +234,8 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
   it "raises budget errors from post-response enforcement" do
     LlmCostTracker.configure do |config|
-      config.monthly_budget = 0.000001
-      config.budget_exceeded_behavior = :raise
+      config.budgets.monthly = 0.000001
+      config.budgets.exceeded_behavior = :raise
     end
     allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 0.000075)
 
@@ -246,7 +246,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
   it "raises unknown pricing errors from post-response enforcement" do
     LlmCostTracker.configure do |config|
-      config.unknown_pricing_behavior = :raise
+      config.pricing.unknown_model_behavior = :raise
     end
 
     conn = Faraday.new(url: "https://api.openai.com") do |f|
@@ -273,7 +273,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   it "does not emit a synthetic zero-token interrupted-stream event when a streaming response was fully received and Tracker.record raises during pricing enforcement" do
-    LlmCostTracker.configure { |config| config.unknown_pricing_behavior = :raise }
+    LlmCostTracker.configure { |config| config.pricing.unknown_model_behavior = :raise }
 
     sse_body = "data: {\"id\":\"chatcmpl_x\",\"model\":\"unknown-chat-model\"," \
                "\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n" \
@@ -760,8 +760,8 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(JSON.parse(captured_body)).not_to have_key("stream_options")
   end
 
-  it "skips auto-injection when config.auto_enable_stream_usage is false" do
-    LlmCostTracker.configure { |config| config.auto_enable_stream_usage = false }
+  it "skips auto-injection when config.capture.request_stream_usage is false" do
+    LlmCostTracker.configure { |config| config.capture.request_stream_usage = false }
 
     captured_body = nil
 

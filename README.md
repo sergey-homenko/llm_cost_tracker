@@ -40,7 +40,7 @@ Runs the install generator, drops a price snapshot, migrates the database, and v
 
 ```ruby
 LlmCostTracker.configure do |config|
-  config.default_tags = -> { { environment: Rails.env } }
+  config.tags.default = -> { { environment: Rails.env } }
   config.instrument :ruby_llm
 end
 ```
@@ -93,7 +93,7 @@ The engine ships without authentication on purpose.
 Streams capture when the provider emits final usage. OpenAI Faraday streams
 get `stream_options: { include_usage: true }` auto-injected so the final
 usage chunk lands in the ledger (opt out via
-`config.auto_enable_stream_usage = false`).
+`config.capture.request_stream_usage = false`).
 
 ## What it isn't
 

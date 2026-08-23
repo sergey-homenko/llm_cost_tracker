@@ -222,7 +222,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "merges default_tags with metadata" do
       LlmCostTracker.configure do |c|
-        c.default_tags = { environment: "test", app: "my_app" }
+        c.tags.default = { environment: "test", app: "my_app" }
       end
 
       events = []
@@ -246,7 +246,7 @@ RSpec.describe LlmCostTracker::Tracker do
     it "evaluates callable default tags for each event" do
       value = "first"
       LlmCostTracker.configure do |c|
-        c.default_tags = -> { { request_id: value } }
+        c.tags.default = -> { { request_id: value } }
       end
 
       first = record(
@@ -268,7 +268,7 @@ RSpec.describe LlmCostTracker::Tracker do
     it "swallows a raising default_tags proc with a Logging.warn so a broken user callback doesn't crash every Tracker.record" do
       allow(LlmCostTracker::Logging).to receive(:warn)
       LlmCostTracker.configure do |c|
-        c.default_tags = -> { raise "user proc blew up" }
+        c.tags.default = -> { raise "user proc blew up" }
       end
 
       event = record(
@@ -278,12 +278,12 @@ RSpec.describe LlmCostTracker::Tracker do
       )
 
       expect(event).not_to be_nil
-      expect(LlmCostTracker::Logging).to have_received(:warn).with(include("default_tags proc raised"))
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(include("tags.default proc raised"))
     end
 
     it "merges scoped tags between default tags and explicit metadata" do
       LlmCostTracker.configure do |c|
-        c.default_tags = { env: "test", feature: "default" }
+        c.tags.default = { env: "test", feature: "default" }
       end
 
       event = LlmCostTracker.with_tags(feature: "chat", request_id: "req_123") do
@@ -361,7 +361,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "uses pricing_mode without storing it as a tag" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "batchable-model" => {
             "input" => 1.0,
             "output" => 2.0,
@@ -434,7 +434,7 @@ RSpec.describe LlmCostTracker::Tracker do
     end
 
     it "does not raise on unknown model for service-only events when behavior is :raise" do
-      LlmCostTracker.configure { |c| c.unknown_pricing_behavior = :raise }
+      LlmCostTracker.configure { |c| c.pricing.unknown_model_behavior = :raise }
 
       expect do
         record(
@@ -469,7 +469,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "uses captured provider pricing mode when the caller did not set one" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "priority-model" => {
             "input" => 1.0,
             "output" => 2.0,
@@ -492,7 +492,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "keeps explicit pricing_mode metadata as a tag" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "metadata-mode-model" => {
             "input" => 1.0,
             "output" => 2.0,
@@ -518,8 +518,8 @@ RSpec.describe LlmCostTracker::Tracker do
       budget_data = nil
 
       LlmCostTracker.configure do |c|
-        c.monthly_budget = 0.0001
-        c.on_budget_exceeded = ->(data) { budget_data = data }
+        c.budgets.monthly = 0.0001
+        c.budgets.on_exceeded = ->(data) { budget_data = data }
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 12.5)
 
@@ -538,9 +538,9 @@ RSpec.describe LlmCostTracker::Tracker do
       budget_types = []
 
       LlmCostTracker.configure do |c|
-        c.daily_budget = 0.0001
-        c.monthly_budget = 0.0001
-        c.on_budget_exceeded = ->(data) { budget_types << data[:budget_type] }
+        c.budgets.daily = 0.0001
+        c.budgets.monthly = 0.0001
+        c.budgets.on_exceeded = ->(data) { budget_types << data[:budget_type] }
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 12.5, month: 12.5)
 
@@ -557,8 +557,8 @@ RSpec.describe LlmCostTracker::Tracker do
       budget_data = nil
 
       LlmCostTracker.configure do |c|
-        c.per_call_budget = 0.0001
-        c.on_budget_exceeded = ->(data) { budget_data = data }
+        c.budgets.per_call = 0.0001
+        c.budgets.on_exceeded = ->(data) { budget_data = data }
       end
 
       event = record(
@@ -580,8 +580,8 @@ RSpec.describe LlmCostTracker::Tracker do
       budget_data = nil
 
       LlmCostTracker.configure do |c|
-        c.per_call_budget = 100.0
-        c.on_budget_exceeded = ->(data) { budget_data = data }
+        c.budgets.per_call = 100.0
+        c.budgets.on_exceeded = ->(data) { budget_data = data }
       end
 
       record(
@@ -595,8 +595,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "raises a budget error when configured to raise" do
       LlmCostTracker.configure do |c|
-        c.monthly_budget = 0.0001
-        c.budget_exceeded_behavior = :raise
+        c.budgets.monthly = 0.0001
+        c.budgets.exceeded_behavior = :raise
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 12.5)
 
@@ -615,9 +615,9 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "checks the daily budget before the monthly budget after recording" do
       LlmCostTracker.configure do |c|
-        c.daily_budget = 0.0001
-        c.monthly_budget = 0.0001
-        c.budget_exceeded_behavior = :raise
+        c.budgets.daily = 0.0001
+        c.budgets.monthly = 0.0001
+        c.budgets.exceeded_behavior = :raise
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 12.5, month: 12.5)
 
@@ -635,9 +635,9 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "checks the monthly budget before the daily budget before recording" do
       LlmCostTracker.configure do |c|
-        c.daily_budget = 0.0001
-        c.monthly_budget = 0.0001
-        c.budget_exceeded_behavior = :block_requests
+        c.budgets.daily = 0.0001
+        c.budgets.monthly = 0.0001
+        c.budgets.exceeded_behavior = :block_requests
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 12.5, day: 12.5)
 
@@ -652,9 +652,9 @@ RSpec.describe LlmCostTracker::Tracker do
     it "does not fire on_budget_exceeded from preflight in :block_requests mode" do
       callback_calls = []
       LlmCostTracker.configure do |c|
-        c.daily_budget = 0.0001
-        c.budget_exceeded_behavior = :block_requests
-        c.on_budget_exceeded = ->(payload) { callback_calls << payload }
+        c.budgets.daily = 0.0001
+        c.budgets.exceeded_behavior = :block_requests
+        c.budgets.on_exceeded = ->(payload) { callback_calls << payload }
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 12.5)
 
@@ -664,7 +664,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "skips preflight totals when no period budget is configured" do
       LlmCostTracker.configure do |c|
-        c.budget_exceeded_behavior = :block_requests
+        c.budgets.exceeded_behavior = :block_requests
       end
 
       expect(LlmCostTracker::Ledger::Period::Totals).not_to receive(:call)
@@ -674,8 +674,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "blocks pre-send when prior spend plus the estimate exceeds the daily budget" do
       LlmCostTracker.configure do |c|
-        c.daily_budget = 10.0
-        c.budget_exceeded_behavior = :block_requests
+        c.budgets.daily = 10.0
+        c.budgets.exceeded_behavior = :block_requests
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 8.0)
 
@@ -695,8 +695,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "does not block pre-send when prior spend plus the estimate stays under the daily budget" do
       LlmCostTracker.configure do |c|
-        c.daily_budget = 100.0
-        c.budget_exceeded_behavior = :block_requests
+        c.budgets.daily = 100.0
+        c.budgets.exceeded_behavior = :block_requests
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 1.0)
 
@@ -711,8 +711,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "blocks pre-send when the estimate alone exceeds the per_call budget" do
       LlmCostTracker.configure do |c|
-        c.per_call_budget = 0.5
-        c.budget_exceeded_behavior = :block_requests
+        c.budgets.per_call = 0.5
+        c.budgets.exceeded_behavior = :block_requests
       end
 
       expect do
@@ -730,8 +730,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "does not pre-send block when the estimate fits under per_call_budget" do
       LlmCostTracker.configure do |c|
-        c.per_call_budget = 10.0
-        c.budget_exceeded_behavior = :block_requests
+        c.budgets.per_call = 10.0
+        c.budgets.exceeded_behavior = :block_requests
       end
 
       expect do
@@ -745,8 +745,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "honors `enforce_budget: true` on `LlmCostTracker.track` even when the global policy is :notify, so per-call DSL can opt into pre-send fail-fast" do
       LlmCostTracker.configure do |c|
-        c.per_call_budget = 0.0001
-        c.budget_exceeded_behavior = :notify
+        c.budgets.per_call = 0.0001
+        c.budgets.exceeded_behavior = :notify
       end
 
       expect do
@@ -763,8 +763,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "includes priced service line items in the `enforce_budget` pre-send estimate" do
       LlmCostTracker.configure do |c|
-        c.per_call_budget = 0.5
-        c.budget_exceeded_behavior = :notify
+        c.budgets.per_call = 0.5
+        c.budgets.exceeded_behavior = :notify
       end
 
       expect do
@@ -781,8 +781,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "does not pre-send block on unknown models — falls through to the post-spend gate" do
       LlmCostTracker.configure do |c|
-        c.daily_budget = 0.0001
-        c.budget_exceeded_behavior = :block_requests
+        c.budgets.daily = 0.0001
+        c.budgets.exceeded_behavior = :block_requests
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 0.0)
 
@@ -797,8 +797,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "raises a per-call budget error when configured to raise" do
       LlmCostTracker.configure do |c|
-        c.per_call_budget = 0.0001
-        c.budget_exceeded_behavior = :raise
+        c.budgets.per_call = 0.0001
+        c.budgets.exceeded_behavior = :raise
       end
 
       expect do
@@ -816,8 +816,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "rejects unknown budget behavior values" do
       expect do
-        LlmCostTracker.configure { |c| c.budget_exceeded_behavior = :explode }
-      end.to raise_error(LlmCostTracker::Error, /Unknown budget_exceeded_behavior/)
+        LlmCostTracker.configure { |c| c.budgets.exceeded_behavior = :explode }
+      end.to raise_error(LlmCostTracker::Error, %r{Unknown budgets\.exceeded_behavior})
     end
 
     it "warns by default when model pricing is unknown" do
@@ -867,7 +867,7 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "raises unknown pricing errors when configured" do
       LlmCostTracker.configure do |c|
-        c.unknown_pricing_behavior = :raise
+        c.pricing.unknown_model_behavior = :raise
       end
 
       expect do
@@ -883,8 +883,8 @@ RSpec.describe LlmCostTracker::Tracker do
 
     it "rejects unknown pricing behavior values" do
       expect do
-        LlmCostTracker.configure { |c| c.unknown_pricing_behavior = :explode }
-      end.to raise_error(LlmCostTracker::Error, /Unknown unknown_pricing_behavior/)
+        LlmCostTracker.configure { |c| c.pricing.unknown_model_behavior = :explode }
+      end.to raise_error(LlmCostTracker::Error, %r{Unknown pricing\.unknown_model_behavior})
     end
   end
 end

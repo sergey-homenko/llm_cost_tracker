@@ -44,7 +44,7 @@ RSpec.describe "LlmCostTracker::Engine overview" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 16, 0, 0, 0))
 
     LlmCostTracker.configure do |config|
-      config.monthly_budget = 6.0
+      config.budgets.monthly = 6.0
     end
 
     create_call(
@@ -94,7 +94,7 @@ RSpec.describe "LlmCostTracker::Engine overview" do
   end
 
   it "renders a nonce-protected style block instead of CSP-blocked inline style attributes" do
-    LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
+    LlmCostTracker.configure { |config| config.budgets.monthly = 10.0 }
     create_call(total_cost: 3.0, tracked_at: Time.now.utc)
 
     response = get("/llm-costs")

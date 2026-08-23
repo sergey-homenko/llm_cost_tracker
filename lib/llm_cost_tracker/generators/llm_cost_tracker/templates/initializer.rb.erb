@@ -4,16 +4,16 @@ LlmCostTracker.configure do |config|
   # Set to false to temporarily disable tracking without removing middleware.
   config.enabled = true
 
-  # LLM Cost Tracker logs warnings through Rails.logger when available.
-  config.log_level = :info
-
   # Tags merged into every event. Use a callable for request/job-time context.
-  config.default_tags = -> { { environment: Rails.env } }
+  config.tags.default = -> { { environment: Rails.env } }
 
   # Tag guardrails keep accidental high-cardinality or sensitive values out of the ledger.
-  # config.max_tag_count = 50
-  # config.max_tag_value_bytesize = 1024
-  # config.redacted_tag_keys = <%= LlmCostTracker::Configuration::DEFAULT_REDACTED_TAG_KEYS.inspect %>
+  # config.tags.max_count = 50
+  # config.tags.max_value_bytesize = 1024
+  # config.tags.redacted_keys = <%= LlmCostTracker::Configuration::Tags::DEFAULT_REDACTED_KEYS.inspect %>
+
+  # Tag keys that get their own cost breakdown in bin/rails llm_cost_tracker:report.
+  # config.tags.report_breakdown_keys = %w[feature user_id]
 
   # Optional SDK integrations. Provider SDK gems are not installed by LLM Cost Tracker.
   # Enabled integrations are checked at boot, so enable only clients your app loads.
@@ -23,35 +23,39 @@ LlmCostTracker.configure do |config|
 
   # Pricing — local file refreshed via bin/rails llm_cost_tracker:prices:refresh
   # plus inline overrides. Rates are per 1M tokens; the snapshot's currency
-  # is read from your prices_file's `metadata.currency` (USD in the bundled
+  # is read from your pricing file's `metadata.currency` (USD in the bundled
   # snapshot — set a different code per file if you maintain non-USD prices).
 <% if options[:prices] -%>
-  config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
+  config.pricing.file = Rails.root.join("config/llm_cost_tracker_prices.yml")
 <% else -%>
-  # config.prices_file = Rails.root.join("config/llm_cost_tracker_prices.yml")
+  # config.pricing.file = Rails.root.join("config/llm_cost_tracker_prices.yml")
 <% end -%>
-  # config.pricing_overrides = {
+  # config.pricing.overrides = {
   #   "my-custom-model" => { input: 1.00, output: 2.00 }
   # }
   # :warn (default) records token usage with nil cost when a model has no rate.
-  # Use :raise to require known pricing for every model.
-  config.unknown_pricing_behavior = :warn
+  # Use :raise to reject models that have no rate at all; a model priced with one
+  # component rate missing lands as partial and does not trigger it.
+  config.pricing.unknown_model_behavior = :warn
 
   # Budget guardrails — cumulative monthly/daily and per-call ceilings in USD,
-  # plus behavior on crossing (:notify default fires on_budget_exceeded; :raise
+  # plus behavior on crossing (:notify default fires budgets.on_exceeded; :raise
   # raises after recording; :block_requests preflights supported requests, also
   # estimating the current call's input cost via chars/4 so it can block before
-  # send) and an optional callback. Cap evaluation reads from llm_cost_tracker_calls live;
-  # flip cache_rollups to true at high volume so reads hit the rollups table
-  # instead — generate the table with `bin/rails generate llm_cost_tracker:call_rollups`.
-  # config.monthly_budget = 100.00
-  # config.daily_budget = 10.00
-  # config.per_call_budget = 1.00
-  config.budget_exceeded_behavior = :notify
-  # config.on_budget_exceeded = ->(data) {
+  # send) and an optional callback.
+  # config.budgets.monthly = 100.00
+  # config.budgets.daily = 10.00
+  # config.budgets.per_call = 1.00
+  config.budgets.exceeded_behavior = :notify
+  # config.budgets.on_exceeded = ->(data) {
   #   Rails.logger.warn("LLM #{data[:budget_type]} budget exceeded: $#{data[:total]} / $#{data[:budget]}")
   # }
-  # config.cache_rollups = true
+
+  # Where budget checks read period spend from. :ledger sums llm_cost_tracker_calls on
+  # every check; :cache keeps running totals in llm_cost_tracker_call_rollups so checks
+  # read one row instead — switch once the live SUM gets slow, and generate the table
+  # first with `bin/rails generate llm_cost_tracker:call_rollups`.
+  # config.budgets.totals_source = :cache
 
   # Ingestion path — :inline (default) writes events synchronously from the request
   # thread. Set to :async for a write-ahead inbox + background worker that batches
@@ -59,13 +63,18 @@ LlmCostTracker.configure do |config|
   # inbox/leases tables created by `bin/rails generate llm_cost_tracker:async_ingestion`.
   # Synchronous inbox writes use a dedicated ActiveRecord pool (defaults to 2 connections)
   # so they don't compete with request threads for the default pool when a tracked call
-  # happens inside an open caller transaction. Bump ingestion_pool_size if your Puma
+  # happens inside an open caller transaction. Bump ingestion.pool_size if your Puma
   # worker count outgrows that.
-  # config.ingestion          = :async
-  # config.ingestion_pool_size = 5
+  # config.ingestion.mode = :async
+  # config.ingestion.pool_size = 5
 
-  # Register OpenAI-compatible gateway hosts and choose extra tag breakdowns
-  # for bin/rails llm_cost_tracker:report.
-  # config.openai_compatible_providers["llm.my-company.com"] = "internal_gateway"
-  # config.report_tag_breakdowns = %w[feature user_id]
+  # Register OpenAI-compatible gateway hosts so their calls are attributed to a
+  # provider name instead of the generic openai_compatible bucket.
+  # config.capture.openai_compatible_providers["llm.my-company.com"] = "internal_gateway"
+
+  # Streaming calls only report token usage when the request asks for it. Leave this
+  # on and the Faraday middleware adds stream_options: { include_usage: true } to
+  # OpenAI-compatible streaming request bodies that don't already set it.
+  # config.capture.request_stream_usage = false
+
 end

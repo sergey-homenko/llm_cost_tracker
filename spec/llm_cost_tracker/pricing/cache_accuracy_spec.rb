@@ -15,7 +15,7 @@ RSpec.describe "Cache-aware cost accuracy" do
   describe "LiteLLM #19681 regression: cached_tokens billed at cache_read rate, not full input rate" do
     it "applies input rate only to the non-cached portion of prompt_tokens" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = { "demo/glm-pattern" => { input: 0.6, output: 2.2, cache_read_input: 0.075 } }
+        c.pricing.overrides = { "demo/glm-pattern" => { input: 0.6, output: 2.2, cache_read_input: 0.075 } }
       end
 
       result = cost_for(
@@ -34,7 +34,7 @@ RSpec.describe "Cache-aware cost accuracy" do
 
     it "would charge 10.9x more if input rate were applied to the whole prompt (the bug we avoid)" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = { "demo/glm-pattern" => { input: 0.6, output: 2.2, cache_read_input: 0.075 } }
+        c.pricing.overrides = { "demo/glm-pattern" => { input: 0.6, output: 2.2, cache_read_input: 0.075 } }
       end
 
       bug_total = BigDecimal("8477162") * BigDecimal("0.6") / 1_000_000 +
@@ -55,7 +55,7 @@ RSpec.describe "Cache-aware cost accuracy" do
   describe "LiteLLM #27191 regression: pricing_overrides cache_read_input is honored, not ignored" do
     it "uses cache_read_input rate from pricing_overrides instead of falling back to input rate" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = { "demo/custom" => { input: 2.5, output: 10.0, cache_read_input: 0.25 } }
+        c.pricing.overrides = { "demo/custom" => { input: 2.5, output: 10.0, cache_read_input: 0.25 } }
       end
 
       result = cost_for(
@@ -74,7 +74,7 @@ RSpec.describe "Cache-aware cost accuracy" do
 
     it "would charge ~67% more if cache_read_input override were ignored (the bug we avoid)" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = { "demo/custom" => { input: 2.5, output: 10.0, cache_read_input: 0.25 } }
+        c.pricing.overrides = { "demo/custom" => { input: 2.5, output: 10.0, cache_read_input: 0.25 } }
       end
 
       bug_total = BigDecimal("6074") * BigDecimal("2.5") / 1_000_000 +
@@ -95,7 +95,7 @@ RSpec.describe "Cache-aware cost accuracy" do
   describe "Anthropic 5-min vs 1-hour cache write tier routing" do
     it "prices ephemeral_5m_input at cache_write_input rate and ephemeral_1h_input at cache_write_extended_input rate" do
       LlmCostTracker.configure do |c|
-        c.pricing_overrides = {
+        c.pricing.overrides = {
           "anthropic/demo-tiered" => {
             input: 3.0,
             output: 15.0,

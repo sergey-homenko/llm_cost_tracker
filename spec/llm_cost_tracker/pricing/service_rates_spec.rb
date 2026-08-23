@@ -28,7 +28,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceRates do
           }.to_json
         )
         file.close
-        LlmCostTracker.configure { |config| config.prices_file = file.path }
+        LlmCostTracker.configure { |config| config.pricing.file = file.path }
 
         rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request", pricing_mode: nil)
 
@@ -57,7 +57,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceRates do
           }.to_json
         )
         file.close
-        LlmCostTracker.configure { |config| config.prices_file = file.path }
+        LlmCostTracker.configure { |config| config.pricing.file = file.path }
 
         rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request", pricing_mode: "priority")
 
@@ -78,7 +78,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceRates do
           }.to_json
         )
         file.close
-        LlmCostTracker.configure { |config| config.prices_file = file.path }
+        LlmCostTracker.configure { |config| config.pricing.file = file.path }
 
         rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request", pricing_mode: nil)
 
@@ -100,7 +100,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceRates do
           }.to_json
         )
         file.close
-        LlmCostTracker.configure { |config| config.prices_file = file.path }
+        LlmCostTracker.configure { |config| config.pricing.file = file.path }
 
         rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request",
                                            pricing_mode: "batch_data_residency")
@@ -125,7 +125,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceRates do
           }.to_json
         )
         file.close
-        LlmCostTracker.configure { |config| config.prices_file = file.path }
+        LlmCostTracker.configure { |config| config.pricing.file = file.path }
 
         rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request",
                                            pricing_mode: "batch_data_residency")
@@ -151,7 +151,7 @@ RSpec.describe LlmCostTracker::Pricing::ServiceRates do
           }.to_json
         )
         file.close
-        LlmCostTracker.configure { |config| config.prices_file = file.path }
+        LlmCostTracker.configure { |config| config.pricing.file = file.path }
 
         rate = described_class.charge_rate(provider: "openai", dimension: "web_search_request",
                                            pricing_mode: "batch_data_residency")

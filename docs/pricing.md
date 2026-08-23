@@ -11,8 +11,8 @@ charges.
 ## Registry Rules
 
 - Built-in prices live in `lib/llm_cost_tracker/prices.json`.
-- Local snapshots live wherever `config.prices_file` points.
-- Precedence is `pricing_overrides`, then `prices_file`, then bundled prices.
+- Local snapshots live wherever `config.pricing.file` points.
+- Precedence is `pricing.overrides`, then `pricing.file`, then bundled prices.
 - Provider-qualified keys like `openai/gpt-4o-mini` win over model-only keys.
 - Historical rows keep the cost calculated when the call was recorded.
 
@@ -25,7 +25,7 @@ bin/rails llm_cost_tracker:prices:check
 ```
 
 The refresh task reads the maintained LLM Cost Tracker snapshot and writes to
-`ENV["OUTPUT"]`, then `config.prices_file`, then
+`ENV["OUTPUT"]`, then `config.pricing.file`, then
 `config/llm_cost_tracker_prices.yml`.
 
 For production containers, refresh the file before deploy and ship it with the

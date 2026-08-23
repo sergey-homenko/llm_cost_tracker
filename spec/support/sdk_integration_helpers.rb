@@ -8,7 +8,7 @@ module SdkIntegrationHelpers
     allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
     allow(LlmCostTracker::Call).to receive(:already_recorded?).and_return(false)
     LlmCostTracker.configure do |config|
-      config.unknown_pricing_behavior = :ignore
+      config.pricing.unknown_model_behavior = :ignore
       config.instrument(name)
     end
   end

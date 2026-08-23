@@ -360,7 +360,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
     it "reports budget, spent, percent, projection, and end label" do
       allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 16, 0, 0, 0))
-      LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
+      LlmCostTracker.configure { |config| config.budgets.monthly = 10.0 }
       create_call(total_cost: 2.0, tracked_at: Time.utc(2026, 4, 15, 12))
       create_call(total_cost: 4.0, tracked_at: Time.utc(2026, 4, 15, 13))
 
@@ -377,7 +377,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 7.5)
-      LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
+      LlmCostTracker.configure { |config| config.budgets.monthly = 10.0 }
 
       budget = described_class.status
 
@@ -389,7 +389,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 7.5)
-      LlmCostTracker.configure { |config| config.monthly_budget = 0.0 }
+      LlmCostTracker.configure { |config| config.budgets.monthly = 0.0 }
 
       budget = described_class.status
 
@@ -401,7 +401,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 0.0)
-      LlmCostTracker.configure { |config| config.monthly_budget = 10.0 }
+      LlmCostTracker.configure { |config| config.budgets.monthly = 10.0 }
 
       budget = described_class.status
 
@@ -939,7 +939,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
   describe "LlmCostTracker::Dashboard::DataQuality.quarantined_inbox" do
     it "counts and sums quarantined inbox rows when async ingestion is configured" do
-      LlmCostTracker.configuration.ingestion = :async
+      LlmCostTracker.configuration.ingestion.mode = :async
       max = LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
       LlmCostTracker::Ingestion::InboxEntry.create!(
         event_id: "quarantined-1", total_cost: 2.5, tracked_at: Time.utc(2026, 1, 1),
