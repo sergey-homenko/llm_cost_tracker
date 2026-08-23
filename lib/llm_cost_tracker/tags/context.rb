@@ -26,7 +26,7 @@ module LlmCostTracker
         def call_default_tags(proc_or_lambda)
           proc_or_lambda.call
         rescue StandardError => e
-          Logging.warn("LlmCostTracker default_tags proc raised: #{e.class}: #{e.message}; using empty default tags")
+          Logging.warn("LlmCostTracker tags.default proc raised: #{e.class}: #{e.message}; using empty default tags")
           {}
         end
       end

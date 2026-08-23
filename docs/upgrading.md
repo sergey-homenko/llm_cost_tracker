@@ -15,6 +15,47 @@ the `batch:` keyword argument from `track` / `track_stream` / `stream.usage`
 `_tokens`-suffixed names that `stream.usage` already uses, and the split of the
 `Billing` value-object namespace into `Usage` / `Pricing` / `Charges` / `Capture`.
 
+### Optional: move the initializer to namespaced config
+
+Configuration options are grouped into `budgets`, `capture`, `ingestion`,
+`pricing`, and `tags`. Every flat name still works and now logs a deprecation
+warning naming its replacement; the flat names are removed in 1.0.
+
+| Before | After |
+| --- | --- |
+| `config.monthly_budget` | `config.budgets.monthly` |
+| `config.daily_budget` | `config.budgets.daily` |
+| `config.per_call_budget` | `config.budgets.per_call` |
+| `config.budget_exceeded_behavior` | `config.budgets.exceeded_behavior` |
+| `config.on_budget_exceeded` | `config.budgets.on_exceeded` |
+| `config.cache_rollups = true` | `config.budgets.totals_source = :cache` |
+| `config.default_tags` | `config.tags.default` |
+| `config.max_tag_count` | `config.tags.max_count` |
+| `config.max_tag_value_bytesize` | `config.tags.max_value_bytesize` |
+| `config.redacted_tag_keys` | `config.tags.redacted_keys` |
+| `config.report_tag_breakdowns` | `config.tags.report_breakdown_keys` |
+| `config.prices_file` | `config.pricing.file` |
+| `config.pricing_overrides` | `config.pricing.overrides` |
+| `config.unknown_pricing_behavior` | `config.pricing.unknown_model_behavior` |
+| `config.ingestion` | `config.ingestion.mode` |
+| `config.ingestion_pool_size` | `config.ingestion.pool_size` |
+| `config.auto_enable_stream_usage` | `config.capture.request_stream_usage` |
+| `config.openai_compatible_providers` | `config.capture.openai_compatible_providers` |
+
+`config.log_level` is dropped with no replacement — it never affected any log
+output. `Rails.logger` owns the level.
+
+Reading `config.ingestion` now returns the namespace object rather than the
+mode, so code that compared it to `:async` must read `config.ingestion.mode`.
+Assignment (`config.ingestion = :async`) still works.
+
+To silence the warnings while you migrate, register the deprecator in
+`config/application.rb`:
+
+```ruby
+config.active_support.deprecation = :silence
+```
+
 ### Required: drop Reconciliation tables if you opted in (BREAKING)
 
 The experimental `Reconciliation` subsystem (provider invoice import + diff)
@@ -170,7 +211,7 @@ the initializer.
 ### Required: rename `durable_ingestion` (BREAKING)
 
 `config.durable_ingestion = true | false` is replaced by
-`config.ingestion.mode = :inline | :async` (default `:inline`). The install
+`config.ingestion = :inline | :async` (default `:inline`). The install
 generator is renamed from `llm_cost_tracker:durable_ingestion` to
 `llm_cost_tracker:async_ingestion`. Update
 `config/initializers/llm_cost_tracker.rb`:
@@ -180,11 +221,11 @@ LlmCostTracker.configure do |config|
   # Before:
   # config.durable_ingestion = true
   # After:
-  config.ingestion.mode = :async
+  config.ingestion = :async
 end
 ```
 
-v0.10 also adds a new optional `config.ingestion.pool_size` (default
+v0.10 also adds a new optional `config.ingestion_pool_size` (default
 `2`) to size the dedicated async-ingestion connection pool — set it
 explicitly only if your PG / PgBouncer budget is tight.
 
@@ -224,7 +265,7 @@ keep the previous behavior:
 ```ruby
 LlmCostTracker.configure do |config|
   config.durable_ingestion = true # keep the write-ahead inbox + worker path
-  config.`config.budgets.totals_source = :cache` # keep budget reads on the rollups fast path
+  config.cache_rollups     = true # keep budget reads on the rollups fast path
 end
 ```
 
@@ -234,7 +275,7 @@ unused (doctor warns until you either flip the flags or drop the
 tables).
 
 > v0.10 renamed `config.durable_ingestion = true` to
-> `config.ingestion.mode = :async` (BREAKING) — if you're jumping straight
+> `config.ingestion = :async` (BREAKING) — if you're jumping straight
 > from v0.8 to v0.10, use the v0.10 names from the
 > [v0.9.x → v0.10](#v09x--v010) section above.
 
@@ -256,13 +297,13 @@ bin/rails db:migrate
 ```
 
 After migrating, set the matching `config.durable_ingestion = true` /
-`config.`config.budgets.totals_source = :cache`` so the write path and budget reads use
-the new tables. v0.10 users: substitute `config.ingestion.mode = :async`
+`config.cache_rollups = true` so the write path and budget reads use
+the new tables. v0.10 users: substitute `config.ingestion = :async`
 for the durable-ingestion flag (see the v0.9 → v0.10 section).
 
 ### Per-provider rollup column
 
-If you opt in to `budgets.totals_source`, the `llm_cost_tracker_call_rollups`
+If you opt in to the rollups table, the `llm_cost_tracker_call_rollups`
 table must have the v0.9 `provider` column and the
 `(period, period_start, currency, provider)` unique index. Existing
 v0.8 rollup tables are upgraded with:

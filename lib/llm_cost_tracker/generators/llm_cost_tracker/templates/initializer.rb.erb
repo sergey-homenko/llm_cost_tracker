@@ -34,11 +34,12 @@ LlmCostTracker.configure do |config|
   #   "my-custom-model" => { input: 1.00, output: 2.00 }
   # }
   # :warn (default) records token usage with nil cost when a model has no rate.
-  # Use :raise to require known pricing for every model.
+  # Use :raise to reject models that have no rate at all; a model priced with one
+  # component rate missing lands as partial and does not trigger it.
   config.pricing.unknown_model_behavior = :warn
 
   # Budget guardrails — cumulative monthly/daily and per-call ceilings in USD,
-  # plus behavior on crossing (:notify default fires on_budget_exceeded; :raise
+  # plus behavior on crossing (:notify default fires budgets.on_exceeded; :raise
   # raises after recording; :block_requests preflights supported requests, also
   # estimating the current call's input cost via chars/4 so it can block before
   # send) and an optional callback.

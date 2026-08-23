@@ -278,7 +278,7 @@ RSpec.describe LlmCostTracker::Tracker do
       )
 
       expect(event).not_to be_nil
-      expect(LlmCostTracker::Logging).to have_received(:warn).with(include("default_tags proc raised"))
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(include("tags.default proc raised"))
     end
 
     it "merges scoped tags between default tags and explicit metadata" do

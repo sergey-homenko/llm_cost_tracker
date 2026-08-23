@@ -36,7 +36,7 @@ module LlmCostTracker
           Logging.warn(
             "No pricing configured for model #{model.inspect}. " \
             "Cost and budget guardrails will be skipped for this event. " \
-            "Add a pricing_overrides entry or set unknown_pricing_behavior."
+            "Add a pricing.overrides entry or set pricing.unknown_model_behavior."
           )
         end
       end

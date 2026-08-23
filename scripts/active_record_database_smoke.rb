@@ -307,10 +307,10 @@ begin
 
   LlmCostTrackerReset.call
   LlmCostTracker.configure do |config|
-    config.ingestion = :async
-    config.cache_rollups = true
-    config.unknown_pricing_behavior = :raise
-    config.pricing_overrides = {
+    config.ingestion.mode = :async
+    config.budgets.totals_source = :cache
+    config.pricing.unknown_model_behavior = :raise
+    config.pricing.overrides = {
       "smoke/small" => {
         input: 10.0,
         output: 20.0

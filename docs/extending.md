@@ -9,11 +9,11 @@ unsupported response shapes.
 | Need | Extension point |
 | --- | --- |
 | Gateway speaks OpenAI-compatible HTTP | `config.capture.openai_compatible_providers` |
-| Gateway or contract rates differ from bundled prices | `prices_file` or `pricing_overrides` |
+| Gateway or contract rates differ from bundled prices | `pricing.file` or `pricing.overrides` |
 | Unsupported client has known usage totals | `LlmCostTracker.track` |
 | Unsupported stream exposes provider events | `LlmCostTracker.track_stream` |
 | App needs attribution dimensions | Tags |
-| App needs budget alerts | `on_budget_exceeded` |
+| App needs budget alerts | `budgets.on_exceeded` |
 | App wants event notifications | `ActiveSupport::Notifications` subscriber |
 
 Storage backends, parser registries, and arbitrary SDK registration hooks are not

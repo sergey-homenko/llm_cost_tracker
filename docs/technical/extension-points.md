@@ -27,7 +27,7 @@ SDK integrations belong under `LlmCostTracker::Integrations`. Do not put SDK obj
 Use `config.capture.openai_compatible_providers` when a gateway speaks the OpenAI request and response shape.
 
 Host mapping controls shape compatibility, not pricing. Gateway-specific model
-IDs or discounts belong in `prices_file` or `pricing_overrides`.
+IDs or discounts belong in `pricing.file` or `pricing.overrides`.
 
 Providers or gateways with non-compatible response shapes should use explicit `LlmCostTracker.track` / `track_stream` calls until a built-in parser exists.
 

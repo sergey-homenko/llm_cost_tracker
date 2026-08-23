@@ -161,7 +161,7 @@ client.chat(
 
 ## Azure OpenAI
 
-Azure's classic deployment endpoints (`/openai/deployments/{name}/...`) and the v1 endpoints (`/openai/v1/...`) are both captured out of the box on the `*.openai.azure.com` and `*.services.ai.azure.com` hostnames — no `openai_compatible_providers` registration needed. Keep Azure-specific deltas in `pricing_overrides` with the `azure_openai/<model>` prefix; everything else falls back to the matching `openai/<model>` entry.
+Azure's classic deployment endpoints (`/openai/deployments/{name}/...`) and the v1 endpoints (`/openai/v1/...`) are both captured out of the box on the `*.openai.azure.com` and `*.services.ai.azure.com` hostnames — no `capture.openai_compatible_providers` registration needed. Keep Azure-specific deltas in `pricing.overrides` with the `azure_openai/<model>` prefix; everything else falls back to the matching `openai/<model>` entry.
 
 ```ruby
 conn = Faraday.new(url: "https://my-resource.openai.azure.com") do |f|
@@ -215,4 +215,4 @@ end
 client.chat(parameters: { model: "openai/gpt-5-mini", messages: [{ role: "user", content: "Hello" }] })
 ```
 
-If your proxy exposes custom model IDs or discounts, add them in `prices_file` or `pricing_overrides`.
+If your proxy exposes custom model IDs or discounts, add them in `pricing.file` or `pricing.overrides`.

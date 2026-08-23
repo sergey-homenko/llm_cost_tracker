@@ -8,8 +8,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - Configuration options are grouped into `budgets`, `capture`, `tags`, `pricing`, and `ingestion` namespaces — `config.budgets.monthly` replaces `config.monthly_budget`, `config.pricing.file` replaces `config.prices_file`, and so on. The flat names still work, warn with their replacement, and are removed in 1.0.
 - Options whose names did not describe their behavior were renamed: `auto_enable_stream_usage` to `capture.request_stream_usage`, `unknown_pricing_behavior` to `pricing.unknown_model_behavior`, and `report_tag_breakdowns` to `tags.report_breakdown_keys`.
-- `cache_rollups` is now `config.budgets.totals_source`, an explicit choice of where budget totals come from: `:ledger` (default, sums the calls table) or `:cache` (reads the maintained totals). It only ever affected budget checks and the dashboard's budget widget, so it now lives with the other budget options. The old boolean still works and maps onto the new values.
+- `cache_rollups` is now `config.budgets.totals_source`: `:ledger` (default) sums the calls table on every budget check, `:cache` maintains running totals and reads one row instead. The old boolean still works and maps onto the new values.
 - `config.log_level` never affected any log output and now warns; `Rails.logger` owns the level.
+- The gem's deprecation warnings are registered with Rails, so `config.active_support.deprecation` and `report_deprecations` now apply to them instead of always writing to stderr.
 
 ### Added
 
@@ -19,8 +20,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
-- `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer aborts on the default configuration; repricing calls with unknown pricing no longer requires opting into `config.cache_rollups`.
-- Enabling `config.cache_rollups` without creating `llm_cost_tracker_call_rollups` no longer breaks dashboard and budget reads; totals fall back to aggregating the calls ledger and a log warning names the missing table.
+- `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer aborts on the default configuration; repricing calls with unknown pricing no longer requires opting into `config.budgets.totals_source = :cache`.
+- Setting `config.budgets.totals_source = :cache` without creating `llm_cost_tracker_call_rollups` no longer breaks dashboard and budget reads; totals fall back to aggregating the calls ledger and a log warning names the missing table.
 
 ## [0.13.0] - 2026-06-26
 

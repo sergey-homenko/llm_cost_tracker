@@ -12,7 +12,7 @@ charges.
 
 - Built-in prices live in `lib/llm_cost_tracker/prices.json`.
 - Local snapshots live wherever `config.pricing.file` points.
-- Precedence is `pricing_overrides`, then `prices_file`, then bundled prices.
+- Precedence is `pricing.overrides`, then `pricing.file`, then bundled prices.
 - Provider-qualified keys like `openai/gpt-4o-mini` win over model-only keys.
 - Historical rows keep the cost calculated when the call was recorded.
 

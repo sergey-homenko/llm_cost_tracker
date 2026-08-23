@@ -32,8 +32,7 @@ module LlmCostTracker
         end
       end
 
-      attr_reader :owner
-      private :owner
+      private attr_reader :owner
 
       delegate :finalized?, to: :owner
 

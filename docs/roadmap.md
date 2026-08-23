@@ -165,7 +165,7 @@ conventions — promoting them to schema columns is in the anti-roadmap.
 ## Standing constraints
 
 - Runtime tracking never makes a network call or scans the ledger. Hot
-  path reads `pricing_overrides` → file snapshot → bundled snapshot,
+  path reads `pricing.overrides` → file snapshot → bundled snapshot,
   then writes inline through `Ledger::Store.insert` by default, or
   enqueues to the async inbox when `config.ingestion.mode = :async`.
 - Header is a projection. Per-component costs live in

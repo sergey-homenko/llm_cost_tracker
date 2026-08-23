@@ -141,6 +141,14 @@ RSpec.describe LlmCostTracker::Configuration do
     end
   end
 
+  describe "deprecator" do
+    it "is registered with Rails so host apps can configure or silence it" do
+      registered = Rails.application.deprecators.instance_variable_get(:@deprecators)
+
+      expect(registered[:llm_cost_tracker]).to be(LlmCostTracker.deprecator)
+    end
+  end
+
   describe "#finalize!" do
     it "freezes section collections" do
       config.tags.default = { "team" => "core" }

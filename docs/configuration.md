@@ -15,8 +15,8 @@ end
 mutate finalized shared config raise instead of silently changing tracking
 behavior mid-request.
 
-Related options are grouped into namespaces — `budgets`, `tags`, `pricing`,
-`ingestion`. The flat names that predate them still work and now emit a
+Related options are grouped into namespaces — `budgets`, `capture`, `tags`,
+`pricing`, `ingestion`. The flat names that predate them still work and now emit a
 deprecation warning naming their replacement; they are removed in 1.0.
 
 ## Core Options
@@ -92,7 +92,7 @@ config.capture.openai_compatible_providers["llm.internal.example"] = "internal_g
 ```
 
 This maps capture identity only. Gateway-specific prices belong in
-`prices_file` or `pricing_overrides`.
+`pricing.file` or `pricing.overrides`.
 
 ## Azure OpenAI Service
 
@@ -129,7 +129,7 @@ config.pricing.overrides = {
 | --- | --- | --- |
 | `pricing.file` | `nil` | Local JSON/YAML registry used ahead of bundled prices |
 | `pricing.overrides` | `{}` | Ruby hash used ahead of local and bundled registries |
-| `pricing.unknown_model_behavior` | `:warn` | `:ignore`, `:warn`, or `:raise` for unknown token pricing |
+| `pricing.unknown_model_behavior` | `:warn` | What to do when a model has no rate at all: `:ignore`, `:warn`, or `:raise`. A model that is priced but missing one component rate lands as `partial` and never triggers this. |
 
 Pricing precedence is:
 
@@ -163,7 +163,7 @@ tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
 | --- | --- | --- |
 | `ingestion.mode` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
 | `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool the async ingestion worker uses for inbox writes (kept isolated from the request connection pool so a busy app doesn't deadlock its own tracking). Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion.mode = :inline`. |
-| `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` — `Tracker.record` updates them on every call, and checks read one row instead of scanning the ledger. Worth switching once the live `SUM` gets slow. Nothing else reads these totals, so leaving it on `:ledger` costs nothing when no budget is configured. |
+| `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` — `Tracker.record` updates them on every call, and checks read one row instead of scanning the ledger. Worth switching once the live `SUM` gets slow. `:cache` adds a write on every recorded call and needs the `llm_cost_tracker_call_rollups` table, and only budget checks and the dashboard budget widget read those totals — with no budget configured it is pure overhead. |
 
 Each opt-in needs a matching generator before flipping the flag:
 

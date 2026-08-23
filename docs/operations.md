@@ -13,7 +13,7 @@ Configuration](configuration.md#storage)).
   use when the caller is inside an open transaction (so staged events
   survive caller rollbacks). The default inline path shares the
   caller's connection and joins its transaction.
-- Keep `default_tags` callables fast and thread-safe.
+- Keep `tags.default` callables fast and thread-safe.
 - Mount the dashboard behind existing admin authentication.
 - Run `llm_cost_tracker:doctor` after deploys that change the gem version or schema.
 - Treat `:block_requests` as a guardrail, not a strict quota.
@@ -129,7 +129,7 @@ DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 
 Pruning deletes old `llm_cost_tracker_calls`. Dependent line items and
 tags are removed by the database via `on_delete: :cascade`. When
-`config.`config.budgets.totals_source = :cache``, affected daily/monthly call rollups are
+`config.budgets.totals_source = :cache`, affected daily/monthly call rollups are
 decremented in the same transaction.
 
 ## Data Shape
@@ -158,7 +158,7 @@ Anyone with dashboard or database access can see them.
 Use stable internal IDs, feature names, tenant slugs, job names, and environment
 labels. Avoid emails, names, prompts, completions, support conversation bodies,
 API keys, bearer tokens, or high-cardinality text. Add known sensitive keys to
-`redacted_tag_keys`, and keep `max_tag_value_bytesize` low enough to catch
+`tags.redacted_keys`, and keep `tags.max_value_bytesize` low enough to catch
 accidental payloads.
 
 ## Pricing Refresh
