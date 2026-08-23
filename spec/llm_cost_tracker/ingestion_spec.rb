@@ -17,7 +17,7 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker::Ingestion::Lease.reset_column_information
 
     LlmCostTracker.configuration.ingestion.mode = :async
-    LlmCostTracker.configuration.cache_period_totals = true
+    LlmCostTracker.configuration.budgets.totals_source = :cache
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end
 

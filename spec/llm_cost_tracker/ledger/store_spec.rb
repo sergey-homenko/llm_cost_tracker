@@ -18,7 +18,7 @@ RSpec.describe "ActiveRecord storage integration" do
     LlmCostTracker::Ingestion::InboxEntry.reset_column_information
     LlmCostTracker::Ingestion::Lease.reset_column_information
     LlmCostTracker.configuration.ingestion.mode = :async
-    LlmCostTracker.configuration.cache_period_totals = true
+    LlmCostTracker.configuration.budgets.totals_source = :cache
     allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
   end
 
@@ -359,7 +359,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "preserves the ledger write when the rollup increment raises" do
-    LlmCostTracker.configure { |config| config.cache_period_totals = true }
+    LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
     allow(LlmCostTracker::Logging).to receive(:warn)
     allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!).and_raise("rollup contention")
     event = build_event(event_id: "rollup-failure")
@@ -370,7 +370,7 @@ RSpec.describe "ActiveRecord storage integration" do
   end
 
   it "retries a transient rollup increment failure before warning so transient DB hiccups don't permanently strand the rollup" do
-    LlmCostTracker.configure { |config| config.cache_period_totals = true }
+    LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
     allow(LlmCostTracker::Logging).to receive(:warn)
     allow(LlmCostTracker::Ledger::Rollups).to receive(:sleep)
     increment_call_count = 0

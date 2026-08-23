@@ -70,7 +70,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
 
   describe "with cache_rollups enabled but the rollups table missing" do
     before do
-      LlmCostTracker.configure { |config| config.cache_period_totals = true }
+      LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
       LlmCostTracker::Ledger::Store.insert([build_event(total_cost: 4.5, tracked_at: Time.utc(2026, 5, 7, 12))])
       ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups, if_exists: true)
       LlmCostTracker::CallRollup.reset_column_information
@@ -98,7 +98,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
 
   describe "with cache_rollups disabled" do
     it "writes no rollup rows on increment!" do
-      LlmCostTracker.configuration.cache_period_totals = false
+      LlmCostTracker.configuration.budgets.totals_source = :ledger
 
       described_class.increment!([build_event(total_cost: 1.5)])
 
@@ -108,7 +108,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
     it "leaves rollup rows untouched on decrement!" do
       time = Time.utc(2026, 5, 7, 12)
       described_class.increment!([build_event(total_cost: 5.0, tracked_at: time)])
-      LlmCostTracker.configuration.cache_period_totals = false
+      LlmCostTracker.configuration.budgets.totals_source = :ledger
 
       record = Struct.new(:tracked_at, :total_cost, :pricing_snapshot, :provider)
                      .new(time, BigDecimal("5.0"), { "currency" => "USD" }, "openai")
@@ -120,7 +120,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
 
   describe "Period::Totals integration" do
     it "sums rollups across all currencies when cache_rollups is enabled" do
-      LlmCostTracker.configure { |config| config.cache_period_totals = true }
+      LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
       time = Time.utc(2026, 5, 7, 12)
       described_class.increment!([build_event(total_cost: 4.5, currency: "USD", tracked_at: time)])
       described_class.increment!([build_event(total_cost: 99.0, currency: "EUR", tracked_at: time)])
@@ -132,7 +132,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
     end
 
     it "falls back to live aggregation from calls when the rollups table has been truncated" do
-      LlmCostTracker.configure { |config| config.cache_period_totals = true }
+      LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
       time = Time.utc(2026, 5, 7, 12)
       LlmCostTracker::Ledger::Store.insert([
                                                   build_event(total_cost: 4.5, currency: "USD", tracked_at: time),
@@ -147,7 +147,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
     end
 
     it "prefers calls aggregation over a stale partial rollup row so a post-v0.9-migration period with historical pre-migration calls is not under-counted while the new rollup bucket only contains the post-migration tail" do
-      LlmCostTracker.configure { |config| config.cache_period_totals = true }
+      LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
       time = Time.utc(2026, 5, 15, 12)
       LlmCostTracker::Ledger::Store.insert([
                                                   build_event(total_cost: 50.0, currency: "USD", tracked_at: time),
@@ -223,7 +223,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
 
     it "still rebuilds while cache_rollups is disabled, so the table can be primed before opting in" do
       seed_call(total_cost: 4.5, currency: "USD")
-      LlmCostTracker.configuration.cache_period_totals = false
+      LlmCostTracker.configuration.budgets.totals_source = :ledger
 
       expect(described_class.rebuild!).to eq(LlmCostTracker::CallRollup.count)
       expect(LlmCostTracker::CallRollup.find_by(period: "month").total_cost).to eq(4.5)

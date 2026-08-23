@@ -10,6 +10,7 @@ RSpec.describe LlmCostTracker::Configuration do
     %i[budgets daily] => 50,
     %i[budgets per_call] => 2,
     %i[budgets exceeded_behavior] => :raise,
+    %i[budgets totals_source] => :cache,
     %i[budgets on_exceeded] => ->(_payload) {},
     %i[tags default] => { "team" => "core" },
     %i[tags max_count] => 7,
@@ -48,7 +49,7 @@ RSpec.describe LlmCostTracker::Configuration do
       expect(config.pricing.unknown_model_behavior).to eq(:warn)
       expect(config.tags.max_count).to eq(50)
       expect(config.capture.request_stream_usage).to be(true)
-      expect(config.cache_period_totals).to be(false)
+      expect(config.budgets.totals_source).to eq(:ledger)
     end
   end
 
@@ -79,7 +80,7 @@ RSpec.describe LlmCostTracker::Configuration do
 
   describe "deprecated flat names" do
     described_class::DEPRECATED_OPTIONS.each do |old_name, spec|
-      next if spec[:to].nil? || spec[:writer_only] || spec[:to].size == 1
+      next if spec[:to].nil? || spec[:writer_only] || spec[:cast]
 
       section, new_name = spec[:to]
       it "routes #{old_name} to #{section}.#{new_name}" do
@@ -105,11 +106,14 @@ RSpec.describe LlmCostTracker::Configuration do
       expect(warnings.first).to include("config.budgets.monthly")
     end
 
-    it "routes cache_rollups to the renamed top-level option" do
+    it "maps the cache_rollups boolean onto the budgets.totals_source strategy" do
       silencing_deprecations { config.cache_rollups = true }
-
-      expect(config.cache_period_totals).to be(true)
+      expect(config.budgets.totals_source).to eq(:cache)
       expect(silencing_deprecations { config.cache_rollups }).to be(true)
+
+      silencing_deprecations { config.cache_rollups = false }
+      expect(config.budgets.totals_source).to eq(:ledger)
+      expect(silencing_deprecations { config.cache_rollups }).to be(false)
     end
 
     it "warns that log_level has no effect and keeps it out of the generated initializer" do

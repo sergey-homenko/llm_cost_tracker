@@ -9,7 +9,7 @@ module LlmCostTracker
     module Rollups
       class << self
         def cache_active?
-          return false unless LlmCostTracker.configuration.cache_period_totals
+          return false unless LlmCostTracker.configuration.budgets.totals_source == :cache
           return true if LlmCostTracker::CallRollup.table_exists?
 
           warn_missing_table
@@ -77,9 +77,9 @@ module LlmCostTracker
 
           @missing_table_warned = true
           Logging.warn(
-            "config.cache_period_totals is enabled but llm_cost_tracker_call_rollups is missing; " \
+            "config.budgets.totals_source = :cache is set but llm_cost_tracker_call_rollups is missing; " \
             "budget and dashboard totals fall back to aggregating llm_cost_tracker_calls. " \
-            "Run the call_rollups generator and migrate, or set config.cache_period_totals = false."
+            "Run the call_rollups generator and migrate, or set config.budgets.totals_source = :ledger."
           )
         end
 

@@ -48,12 +48,12 @@ lands — it doesn't make provider spend transactional.
 ## Budget Reads
 
 Where the monthly/daily totals come from depends on
-`config.cache_period_totals` and `config.ingestion.mode`:
+`config.budgets.totals_source` and `config.ingestion.mode`:
 
 | Source | When read |
 | --- | --- |
-| Live `SUM(total_cost)` from `llm_cost_tracker_calls` | Default when `cache_period_totals = false` |
-| `llm_cost_tracker_call_rollups` fast path | When `cache_period_totals = true` |
+| Live `SUM(total_cost)` from `llm_cost_tracker_calls` | Default when `config.budgets.totals_source = :ledger`` |
+| `llm_cost_tracker_call_rollups` fast path | When `config.budgets.totals_source = :cache`` |
 | Pending `llm_cost_tracker_ingestion_inbox_entries` totals | Added on top when `ingestion = :async` (events sit in the inbox until the worker drains them) |
 
 Per-call budgets are checked from the current event only.
@@ -87,14 +87,14 @@ budget total summed across units and is not supported.
 
 ## Operational Notes
 
-When `config.cache_period_totals = true`, `llm_cost_tracker:doctor` verifies
+When `config.`config.budgets.totals_source = :cache``, `llm_cost_tracker:doctor` verifies
 the rollups table and its `(period, period_start, currency, provider)`
-unique index. With `cache_period_totals = false`, doctor warns instead if a
+unique index. With `config.budgets.totals_source = :ledger``, doctor warns instead if a
 stale rollups table is found and confirms that budget reads aggregate
 live from the calls table.
 
 Live aggregation works fine on small/medium ledgers thanks to the
-`tracked_at` index on `llm_cost_tracker_calls`. Flip `cache_period_totals`
+`tracked_at` index on `llm_cost_tracker_calls`. Flip `budgets.totals_source`
 on once monthly/daily SUMs become slow at your call volume.
 
 For strict quotas, use provider-side limits or a transactional counter

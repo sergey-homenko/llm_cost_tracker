@@ -57,7 +57,7 @@ Flip `config.ingestion.mode = :async` (after running
 - Batched inserts — the worker drains rows into
   `llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`, and
   `llm_cost_tracker_call_tags` in one transaction per batch. With
-  `cache_period_totals = true` the rollup cache is incremented after that
+  `config.budgets.totals_source = :cache`` the rollup cache is incremented after that
   transaction commits — a rollup failure is logged and never fails the
   batch; `bin/rails llm_cost_tracker:rebuild_rollups` recovers the cache.
 
@@ -129,7 +129,7 @@ DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 
 Pruning deletes old `llm_cost_tracker_calls`. Dependent line items and
 tags are removed by the database via `on_delete: :cascade`. When
-`config.cache_period_totals = true`, affected daily/monthly call rollups are
+`config.`config.budgets.totals_source = :cache``, affected daily/monthly call rollups are
 decremented in the same transaction.
 
 ## Data Shape

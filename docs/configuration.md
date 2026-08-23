@@ -154,8 +154,8 @@ Budget payloads include `budget_type`, `total`, `budget`, `last_event`, and `sta
 
 ## Storage
 
-Two boolean flags decide which optional tables the gem touches. Both
-default to `false`, so a fresh install ships with three mandatory
+Two options decide which optional tables the gem touches. Both default to
+the no-extra-table setting, so a fresh install ships with three mandatory
 tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
 `llm_cost_tracker_call_tags`).
 
@@ -163,13 +163,13 @@ tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
 | --- | --- | --- |
 | `ingestion.mode` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
 | `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool the async ingestion worker uses for inbox writes (kept isolated from the request connection pool so a busy app doesn't deadlock its own tracking). Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion.mode = :inline`. |
-| `cache_period_totals` | `false` | A *rollup* is a pre-aggregated daily/monthly total. When `true`, `Tracker.record` maintains those totals in `llm_cost_tracker_call_rollups` and budget and dashboard reads use them instead of scanning the ledger. When `false` (default), reads aggregate live from `llm_cost_tracker_calls`. |
+| `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` — `Tracker.record` updates them on every call, and checks read one row instead of scanning the ledger. Worth switching once the live `SUM` gets slow. Nothing else reads these totals, so leaving it on `:ledger` costs nothing when no budget is configured. |
 
 Each opt-in needs a matching generator before flipping the flag:
 
 ```bash
 bin/rails generate llm_cost_tracker:async_ingestion    # for ingestion.mode = :async
-bin/rails generate llm_cost_tracker:call_rollups       # for cache_period_totals = true
+bin/rails generate llm_cost_tracker:call_rollups       # for budgets.totals_source = :cache
 bin/rails db:migrate
 ```
 

@@ -41,11 +41,7 @@ LlmCostTracker.configure do |config|
   # plus behavior on crossing (:notify default fires on_budget_exceeded; :raise
   # raises after recording; :block_requests preflights supported requests, also
   # estimating the current call's input cost via chars/4 so it can block before
-  # send) and an optional callback. Cap evaluation sums llm_cost_tracker_calls live.
-  # A rollup is a pre-aggregated daily/monthly total. Turning cache_period_totals on keeps
-  # those totals in llm_cost_tracker_call_rollups so budget and dashboard reads stop
-  # scanning the whole calls table — worth it once the live SUM gets slow. Generate
-  # the table first with `bin/rails generate llm_cost_tracker:call_rollups`.
+  # send) and an optional callback.
   # config.budgets.monthly = 100.00
   # config.budgets.daily = 10.00
   # config.budgets.per_call = 1.00
@@ -53,7 +49,12 @@ LlmCostTracker.configure do |config|
   # config.budgets.on_exceeded = ->(data) {
   #   Rails.logger.warn("LLM #{data[:budget_type]} budget exceeded: $#{data[:total]} / $#{data[:budget]}")
   # }
-  # config.cache_period_totals = true
+
+  # Where budget checks read period spend from. :ledger sums llm_cost_tracker_calls on
+  # every check; :cache keeps running totals in llm_cost_tracker_call_rollups so checks
+  # read one row instead — switch once the live SUM gets slow, and generate the table
+  # first with `bin/rails generate llm_cost_tracker:call_rollups`.
+  # config.budgets.totals_source = :cache
 
   # Ingestion path — :inline (default) writes events synchronously from the request
   # thread. Set to :async for a write-ahead inbox + background worker that batches

@@ -49,14 +49,14 @@ Normal path from an application LLM call to stored ledger data:
 When `config.ingestion.mode = :inline` (default):
 
 1. `Ledger::Store.insert` writes the call header, line items, and tag rows in a single transaction on the caller's ActiveRecord connection. If the caller is inside an open transaction, this write joins it as a savepoint — a caller-side `ActiveRecord::Rollback` discards the tracked event with the rest of the work. Switch to `config.ingestion.mode = :async` if you need ledger writes to survive caller rollbacks.
-2. When `config.cache_period_totals = true`, the same transaction increments the matching daily/monthly rollup rows; otherwise rollups are skipped entirely.
-3. Budget reads aggregate live from `llm_cost_tracker_calls`, or from the rollups fast path when `cache_period_totals = true` (with `llm_cost_tracker_calls` as fallback when the rollup row is missing).
+2. When `config.`config.budgets.totals_source = :cache``, the same transaction increments the matching daily/monthly rollup rows; otherwise rollups are skipped entirely.
+3. Budget reads aggregate live from `llm_cost_tracker_calls`, or from the rollups fast path when `config.budgets.totals_source = :cache`` (with `llm_cost_tracker_calls` as fallback when the rollup row is missing).
 
 When `config.ingestion.mode = :async`:
 
 1. `Ingestion::Inbox.save` writes a compact inbox event row.
 2. `Ingestion::Worker` claims retryable inbox entries through a database lease and drains batches into `llm_cost_tracker_calls`.
-3. `Ledger::Store.insert` writes the call header, line items, tag rows (and rollup increments when `cache_period_totals = true`), and inbox deletes in one transaction.
+3. `Ledger::Store.insert` writes the call header, line items, tag rows (and rollup increments when `config.budgets.totals_source = :cache``), and inbox deletes in one transaction.
 4. Budget reads add pending inbox totals on top of the rollups fast path or the live calls aggregate.
 
 The persistence write (inbox row in async mode, ledger rows in inline mode) is the durability boundary. In async mode, ledger freshness is eventually consistent unless the caller explicitly waits with `LlmCostTracker::Ingestion::Worker.flush!`.

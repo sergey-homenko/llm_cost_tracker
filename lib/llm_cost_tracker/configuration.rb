@@ -18,7 +18,7 @@ module LlmCostTracker
       budgets: Budgets, capture: Capture, ingestion: Ingestion, pricing: Pricing, tags: Tags
     }.freeze
 
-    SCALAR_ATTRIBUTES = %i[enabled cache_period_totals].freeze
+    SCALAR_ATTRIBUTES = %i[enabled].freeze
 
     DEPRECATED_OPTIONS = {
       monthly_budget: { to: %i[budgets monthly] },
@@ -37,7 +37,11 @@ module LlmCostTracker
       ingestion_pool_size: { to: %i[ingestion pool_size] },
       auto_enable_stream_usage: { to: %i[capture request_stream_usage] },
       openai_compatible_providers: { to: %i[capture openai_compatible_providers] },
-      cache_rollups: { to: %i[cache_period_totals] },
+      cache_rollups: {
+        to: %i[budgets totals_source],
+        cast: ->(value) { value ? :cache : :ledger },
+        uncast: ->(value) { value == :cache }
+      },
       ingestion: { to: %i[ingestion mode], writer_only: true },
       log_level: { to: nil, note: "LlmCostTracker logs through Rails.logger, which owns the level" }
     }.freeze
@@ -48,7 +52,6 @@ module LlmCostTracker
       SECTIONS.each { |name, klass| instance_variable_set(:"@#{name}", klass.new(self)) }
       @enabled = true
       @log_level = :info
-      @cache_period_totals = false
       @instrumented_integrations = Set.new
       @finalized = false
     end
@@ -80,6 +83,7 @@ module LlmCostTracker
         next instance_variable_set(:"@#{old_name}", value) unless path
 
         ensure_mutable! if path.size == 1
+        value = spec[:cast].call(value) if spec[:cast]
         target = path[0..-2].inject(self) { |object, step| object.public_send(step) }
         target.public_send(:"#{path.last}=", value)
       end
@@ -90,7 +94,8 @@ module LlmCostTracker
         LlmCostTracker.deprecator.warn(deprecation_message(old_name, replacement, spec[:note], writer: false))
         next instance_variable_get(:"@#{old_name}") unless path
 
-        path.inject(self) { |object, step| object.public_send(step) }
+        current = path.inject(self) { |object, step| object.public_send(step) }
+        spec[:uncast] ? spec[:uncast].call(current) : current
       end
     end
 

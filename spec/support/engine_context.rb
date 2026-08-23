@@ -84,7 +84,7 @@ RSpec.shared_context "with mounted llm cost tracker engine" do
     LlmCostTracker::Dashboard::SetupState.reset!
 
     LlmCostTracker.configuration.ingestion.mode = :async
-    LlmCostTracker.configuration.cache_period_totals = true
+    LlmCostTracker.configuration.budgets.totals_source = :cache
   end
 
   after do
