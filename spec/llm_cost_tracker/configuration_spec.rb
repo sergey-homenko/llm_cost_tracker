@@ -142,6 +142,12 @@ RSpec.describe LlmCostTracker::Configuration do
   end
 
   describe "deprecator" do
+    it "registers before the host app's config/initializers run" do
+      names = Rails.application.initializers.map { |initializer| initializer.name.to_s }
+
+      expect(names.index("llm_cost_tracker.deprecator")).to be < names.rindex("load_config_initializers")
+    end
+
     it "is registered with Rails so host apps can configure or silence it" do
       registered = Rails.application.deprecators.instance_variable_get(:@deprecators)
 
