@@ -49,8 +49,9 @@ Reading `config.ingestion` now returns the namespace object rather than the
 mode, so code that compared it to `:async` must read `config.ingestion.mode`.
 Assignment (`config.ingestion = :async`) still works.
 
-To silence the warnings while you migrate, register the deprecator in
-`config/application.rb`:
+The gem's deprecator is registered as `:llm_cost_tracker` in
+`Rails.application.deprecators`, so the standard switches apply to it. To
+silence the warnings while you migrate, in `config/application.rb`:
 
 ```ruby
 config.active_support.deprecation = :silence
@@ -303,7 +304,7 @@ for the durable-ingestion flag (see the v0.9 → v0.10 section).
 
 ### Per-provider rollup column
 
-If you opt in to the rollups table, the `llm_cost_tracker_call_rollups`
+If you opt in to `cache_rollups`, the `llm_cost_tracker_call_rollups`
 table must have the v0.9 `provider` column and the
 `(period, period_start, currency, provider)` unique index. Existing
 v0.8 rollup tables are upgraded with:
