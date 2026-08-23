@@ -116,6 +116,12 @@ RSpec.describe LlmCostTracker::Configuration do
       expect(silencing_deprecations { config.cache_rollups }).to be(false)
     end
 
+    it "refuses to write a removed option after finalize!" do
+      config.finalize!
+
+      expect { silencing_deprecations { config.log_level = :debug } }.to raise_error(FrozenError)
+    end
+
     it "warns that log_level has no effect and keeps it out of the generated initializer" do
       warnings = []
       previous = LlmCostTracker.deprecator.behavior

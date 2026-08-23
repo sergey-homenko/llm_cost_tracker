@@ -80,9 +80,9 @@ module LlmCostTracker
 
       define_method(:"#{old_name}=") do |value|
         LlmCostTracker.deprecator.warn(deprecation_message(old_name, replacement, spec[:note], writer: true))
+        ensure_mutable! if path.nil? || path.size == 1
         next instance_variable_set(:"@#{old_name}", value) unless path
 
-        ensure_mutable! if path.size == 1
         value = spec[:cast].call(value) if spec[:cast]
         target = path[0..-2].inject(self) { |object, step| object.public_send(step) }
         target.public_send(:"#{path.last}=", value)
