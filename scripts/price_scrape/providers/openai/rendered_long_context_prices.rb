@@ -2,6 +2,7 @@
 
 require "active_support/core_ext/object/blank"
 
+require_relative "../../../../lib/llm_cost_tracker/pricing/registry"
 require_relative "../base"
 
 module LlmCostTracker
@@ -46,7 +47,7 @@ module LlmCostTracker
             return nil unless long_input && long_output
 
             prices = {
-              "_context_price_threshold_tokens" => 272_000,
+              Pricing::Registry::CONTEXT_THRESHOLD_KEY => 272_000,
               "above_context_#{@fields.fetch(:input)}" => long_input,
               "above_context_#{@fields.fetch(:output)}" => long_output
             }

@@ -1,12 +1,15 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/object/blank"
+require "date"
 require "json"
 require "nokogiri"
 require "time"
 
 require_relative "base"
 require_relative "openai/data_residency_prices"
+require_relative "openai/deprecated_models"
+require_relative "openai/documented_long_context_prices"
 require_relative "openai/model_ids"
 require_relative "openai/rendered_long_context_prices"
 
@@ -18,6 +21,11 @@ module LlmCostTracker
         min_models 25
         max_price 1000.0
         anchors "gpt-5.5", "gpt-5.4-mini"
+        SOURCE_URLS = [
+          source_url,
+          DeprecatedModels::SOURCE_URL,
+          *DocumentedLongContextPrices.source_urls
+        ].freeze
 
         STANDARD_FIELDS = {
           input: "input", cache_read_input: "cache_read_input",
@@ -47,25 +55,38 @@ module LlmCostTracker
         TIER_IMAGE_FIELDS = { STANDARD_FIELDS => IMAGE_FIELDS, BATCH_FIELDS => BATCH_IMAGE_FIELDS }.freeze
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
-          doc = Nokogiri::HTML(html.to_s)
+          pages = pages_from(html)
+          doc = Nokogiri::HTML(pages.fetch(self.class.source_url))
           models = TIER_FIELDS.each_with_object({}) do |(tier, fields), collected|
             tier_models = extract_tier_models(doc, tier: tier, fields: fields)
             tier_models = merge_model_fields(tier_models, rendered_long_context_prices(doc, tier: tier, fields: fields))
             tier_models = merge_model_fields(tier_models, extract_specialized_models(doc, tier: tier))
             collected.replace(merge_model_fields(collected, tier_models))
           end
+          models = merge_model_fields(models, DocumentedLongContextPrices.call(models, pages))
           models = add_priority_aliases(DataResidencyPrices.call(models))
           validate!(models)
           Result.new(
             source_url: source_url,
             scraped_at: scraped_at,
             models: models,
-            deprecated_models: [],
+            deprecated_models: deprecated_models(pages, scraped_at: scraped_at),
             service_charges: extract_service_charges(doc)
           )
         end
 
         private
+
+        def pages_from(html)
+          return html.transform_keys(&:to_s) if html.is_a?(Hash)
+
+          SOURCE_URLS.to_h { |url| [url, html.to_s] }
+        end
+
+        def deprecated_models(pages, scraped_at:)
+          doc = Nokogiri::HTML(pages.fetch(DeprecatedModels::SOURCE_URL))
+          DeprecatedModels.call(doc, scraped_on: Date.parse(scraped_at))
+        end
 
         def extract_service_charges(doc)
           table = doc.css("table").find { |candidate| candidate.text.include?("ToolDetailsPricing") }

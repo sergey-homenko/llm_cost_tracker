@@ -1,19 +1,8 @@
 # Upgrading
 
-## v0.11 → v0.12 (Unreleased)
+## v0.13 → v0.14 (Unreleased)
 
-v0.12 drops the experimental Reconciliation subsystem, reshuffles the internal
-namespace for vendor parsers, drops the engine-side `filter_parameters` entries
-that were substring-matching unrelated host-app params, makes
-`enforce_budget: true` on `LlmCostTracker.track` actually raise pre-call when
-over budget regardless of the global policy, and tightens RubyLLM SDK capture
-(proper `service_tier` JSON path, 1-hour vs 5-minute cache split, response id
-from raw body). Five BREAKING changes: Reconciliation removal, parser
-constant rename for custom code that referenced internals, removal of
-the `batch:` keyword argument from `track` / `track_stream` / `stream.usage`
-(use `pricing_mode: :batch` instead), the `track(tokens:)` key rename to the
-`_tokens`-suffixed names that `stream.usage` already uses, and the split of the
-`Billing` value-object namespace into `Usage` / `Pricing` / `Charges` / `Capture`.
+v0.14 reorganises the initializer. No schema changes, no BREAKING changes.
 
 ### Optional: move the initializer to namespaced config
 
@@ -56,6 +45,21 @@ silence the warnings while you migrate, in `config/application.rb`:
 ```ruby
 config.active_support.deprecation = :silence
 ```
+
+## v0.11 → v0.12 (Unreleased)
+
+v0.12 drops the experimental Reconciliation subsystem, reshuffles the internal
+namespace for vendor parsers, drops the engine-side `filter_parameters` entries
+that were substring-matching unrelated host-app params, makes
+`enforce_budget: true` on `LlmCostTracker.track` actually raise pre-call when
+over budget regardless of the global policy, and tightens RubyLLM SDK capture
+(proper `service_tier` JSON path, 1-hour vs 5-minute cache split, response id
+from raw body). Five BREAKING changes: Reconciliation removal, parser
+constant rename for custom code that referenced internals, removal of
+the `batch:` keyword argument from `track` / `track_stream` / `stream.usage`
+(use `pricing_mode: :batch` instead), the `track(tokens:)` key rename to the
+`_tokens`-suffixed names that `stream.usage` already uses, and the split of the
+`Billing` value-object namespace into `Usage` / `Pricing` / `Charges` / `Capture`.
 
 ### Required: drop Reconciliation tables if you opted in (BREAKING)
 

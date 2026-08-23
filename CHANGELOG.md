@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Deprecated
 
-- Configuration options are grouped into `budgets`, `capture`, `ingestion`, `pricing`, and `tags` — `config.budgets.monthly` replaces `config.monthly_budget`, and so on. Flat names still work and warn with their replacement; they are removed in 1.0. See [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased) for the full mapping.
+- Configuration options are grouped into `budgets`, `capture`, `ingestion`, `pricing`, and `tags` — `config.budgets.monthly` replaces `config.monthly_budget`, and so on. Flat names still work and warn with their replacement; they are removed in 1.0. See [docs/upgrading.md](docs/upgrading.md#v013--v014-unreleased) for the full mapping.
 - `config.log_level` is dropped with no replacement — it never affected any log output.
 
 ### Added
