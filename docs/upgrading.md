@@ -46,7 +46,33 @@ silence the warnings while you migrate, in `config/application.rb`:
 config.active_support.deprecation = :silence
 ```
 
-## v0.11 → v0.12 (Unreleased)
+## v0.12 → v0.13
+
+v0.13 turns a silent undercount into a loud failure. One BREAKING change, no
+schema changes.
+
+### Required: fix unrecognized `tokens:` keys (BREAKING)
+
+`LlmCostTracker.track(tokens:)` and `stream.usage` (inside `track_stream`) now
+raise `ArgumentError` on a key they do not recognize instead of dropping it.
+A typo used to undercount the ledger silently; it now fails at the call site.
+
+```ruby
+# Raises ArgumentError: unknown token keys: [:outpt_tokens]
+LlmCostTracker.track(provider: "openai", model: "gpt-4o",
+                     tokens: { input_tokens: 1500, outpt_tokens: 320 })
+```
+
+The accepted keys are `input_tokens`, `cache_read_input_tokens`,
+`cache_write_input_tokens`, `cache_write_extended_input_tokens`,
+`output_tokens`, `audio_input_tokens`, `audio_output_tokens`,
+`image_input_tokens`, `image_output_tokens`, `total_tokens`, and
+`hidden_output_tokens`.
+
+If your app builds the token hash dynamically, audit it before upgrading — keys
+that were silently ignored now abort the call.
+
+## v0.11 → v0.12
 
 v0.12 drops the experimental Reconciliation subsystem, reshuffles the internal
 namespace for vendor parsers, drops the engine-side `filter_parameters` entries
@@ -347,7 +373,7 @@ matter.
 The opt-in reconciliation subsystem was removed in v0.12. Skip every
 reconciliation step that was in this section. If you already created the
 `llm_cost_tracker_provider_invoices` / `_provider_invoice_imports` tables on a
-v0.9 install, see [v0.11 → v0.12](#v011--v012-unreleased) for the drop
+v0.9 install, see [v0.11 → v0.12](#v011--v012) for the drop
 migration.
 
 <!--

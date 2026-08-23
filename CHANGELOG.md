@@ -15,8 +15,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Cache writes reported in OpenAI usage (`cache_write_tokens`, GPT-5.6 and later) are captured and costed at the model's cache-write rate instead of being counted as regular input.
 - Anthropic thinking tokens are counted as hidden output on the Data Quality page, so reasoning Claude already billed inside `output_tokens` is visible instead of reading as zero. Cost is unchanged — `output_tokens` stays the billable total.
 
+### Removed
+
+- Bundled prices for OpenAI models past their published shutdown date are dropped, so repricing a call to a retired model reports unknown pricing instead of a stale rate.
+
 ### Fixed
 
+- OpenAI gpt-5.4, gpt-5.4-pro, and gpt-5.5 prompts above 272K input tokens are costed at OpenAI's published long-context premium (2x input, 1.5x output on standard, batch, and flex) instead of the flat short-context rate.
 - `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer aborts on the default configuration; repricing calls with unknown pricing no longer requires opting into `config.budgets.totals_source = :cache`.
 - Setting `config.budgets.totals_source = :cache` without creating `llm_cost_tracker_call_rollups` no longer breaks dashboard and budget reads; totals fall back to aggregating the calls ledger and a log warning names the missing table.
 
@@ -46,7 +51,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Removed
 
-- BREAKING: the experimental `Reconciliation` subsystem (provider invoice import + diff, the `/reconciliation` dashboard page, `bin/rails llm_cost_tracker:reconcile:*` rake tasks, `config.reconciliation_enabled`, `config.reconciliation_importers`, the `llm_cost_tracker:reconciliation` generator, and the `llm_cost_tracker_provider_invoices` / `_provider_invoice_imports` tables) is gone. It was never finished and never billing-accurate. `calls.provider_response_id` (captured on every call) already covers invoice cross-reference; if invoice-vs-ledger reconciliation ships again it lives in a separate gem. Existing installs can drop the two tables — see [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased).
+- BREAKING: the experimental `Reconciliation` subsystem (provider invoice import + diff, the `/reconciliation` dashboard page, `bin/rails llm_cost_tracker:reconcile:*` rake tasks, `config.reconciliation_enabled`, `config.reconciliation_importers`, the `llm_cost_tracker:reconciliation` generator, and the `llm_cost_tracker_provider_invoices` / `_provider_invoice_imports` tables) is gone. It was never finished and never billing-accurate. `calls.provider_response_id` (captured on every call) already covers invoice cross-reference; if invoice-vs-ledger reconciliation ships again it lives in a separate gem. Existing installs can drop the two tables — see [docs/upgrading.md](docs/upgrading.md#v011--v012).
 - `config.instrument :gemnii` (or any other typo / unknown integration name) no longer raises at config time — it now logs `Logging.warn("Unknown integration: :gemnii. Known: ...")` once when integrations install, and `bin/rails llm_cost_tracker:doctor` shows the unknown name as a `:warn` row so the typo is visible without crashing boot.
 - Pre-call budget enforcement for Azure-hosted OpenAI calls now keys on `"azure_openai"` (matching the recorded `Call.provider`), so `pricing_overrides` for Azure rates actually gate the call. Previously it always keyed on `"openai"` regardless of the SDK client's `base_url`.
 - BREAKING: removed the `batch:` keyword argument from `LlmCostTracker.track`, `LlmCostTracker.track_stream`, and `stream.usage` (inside `track_stream` blocks). Signal a batch-tier call via `pricing_mode: :batch` (or any pricing_mode containing the `batch` token like `:batch_flex`) — that's the single source of truth now. Previously `batch:` and `pricing_mode:` could disagree, especially after request-side pricing_mode merge inside `Tracker.record` overwrote the parser's mode but left the stored `batch` flag stale, so `calls.batch` could read `true` while `calls.pricing_mode` read `flex` (or vice versa) for the same row.
@@ -56,7 +61,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - The RubyLLM SDK integration now requires `ruby_llm >= 1.15.0` (was `>= 1.14.1`).
 - Engine no longer adds `tag` / `tag_value` to Rails `filter_parameters` — the Symbol filter was substring-matching unrelated host-app params (`tags`, `meta_tag`, etc.) into `[FILTERED]`. `Tags::Sanitizer` continues redacting secret-shaped tag values at storage.
-- BREAKING: the serialized event `cost` (the `llm_request.llm_cost_tracker` notification payload and the async-ingestion inbox payload) is now `{ components: {...}, total:, currency: }` (was flat with a top-level `total_cost:`). Notification subscribers should read `cost[:total]`; `ingestion: :async` rolling deploys should drain the inbox first — see [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased).
+- BREAKING: the serialized event `cost` (the `llm_request.llm_cost_tracker` notification payload and the async-ingestion inbox payload) is now `{ components: {...}, total:, currency: }` (was flat with a top-level `total_cost:`). Notification subscribers should read `cost[:total]`; `ingestion: :async` rolling deploys should drain the inbox first — see [docs/upgrading.md](docs/upgrading.md#v011--v012).
 - BREAKING: `pricing_mode` in the `llm_request.llm_cost_tracker` notification payload is now a String (e.g. `"batch"`, `"fast_data_residency"`), not a Symbol — subscribers matching it against a Symbol must compare to the String.
 - BREAKING: `LlmCostTracker.track(tokens:)` now takes the same `_tokens`-suffixed keys as `stream.usage` and the stored columns — `input_tokens`, `output_tokens`, `cache_read_input_tokens`, `audio_input_tokens`, etc. (was the short `input`, `output`, `cache_read_input`, …). Update manual `track` calls. Pricing-file / `pricing_overrides` field names are unchanged — they stay `input`, `output`, … (per-component rates, a separate vocabulary).
 
@@ -160,7 +165,7 @@ see [Upgrading](docs/upgrading.md).
 
 ### Added
 
-- **Experimental:** opt-in provider invoice reconciliation. Set `config.reconciliation_enabled = true` and run `bin/rails generate llm_cost_tracker:reconciliation`. Public surface: `LlmCostTracker::Reconciliation.import / .diff`, `config.register_reconciliation_importer(:source) { … }`, rake tasks `llm_cost_tracker:reconcile:import` and `:reconcile:diff`. Doctor warns when drift exceeds 5% or imports go stale past 14 days. See [Configuration](docs/configuration.md#reconciliation-experimental-opt-in).
+- **Experimental:** opt-in provider invoice reconciliation. Set `config.reconciliation_enabled = true` and run `bin/rails generate llm_cost_tracker:reconciliation`. Public surface: `LlmCostTracker::Reconciliation.import / .diff`, `config.register_reconciliation_importer(:source) { … }`, rake tasks `llm_cost_tracker:reconcile:import` and `:reconcile:diff`. Doctor warns when drift exceeds 5% or imports go stale past 14 days.
 - Dashboard Data Quality page now shows a "Streaming health by provider" breakdown (streams, with-usage, unknown, unknown share) so a misconfigured OpenAI-compatible host shipping streams without `stream_options.include_usage` is visible at a glance.
 - Dashboard tag detail page drills into a single value via `?tag_value=…` with total cost, call count, average per call, and a daily spend timeseries.
 - Bundled rates for OpenAI embeddings (`text-embedding-3-small` / `-3-large` / `-ada-002`, including 50% batch discount) and token-priced transcription (`gpt-4o-transcribe`, `gpt-4o-mini-transcribe`). Token-priced transcription splits audio and text inputs at their separate rates. DALL-E and Whisper still record as zero-token visibility events until their per-image / per-minute pricing components land.
