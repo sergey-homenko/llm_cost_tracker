@@ -6,11 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Deprecated
 
-- Configuration options are grouped into `budgets`, `capture`, `tags`, `pricing`, and `ingestion` namespaces — `config.budgets.monthly` replaces `config.monthly_budget`, `config.pricing.file` replaces `config.prices_file`, and so on. The flat names still work, warn with their replacement, and are removed in 1.0.
-- Options whose names did not describe their behavior were renamed: `auto_enable_stream_usage` to `capture.request_stream_usage`, `unknown_pricing_behavior` to `pricing.unknown_model_behavior`, and `report_tag_breakdowns` to `tags.report_breakdown_keys`.
-- `cache_rollups` is now `config.budgets.totals_source`: `:ledger` (default) sums the calls table on every budget check, `:cache` maintains running totals and reads one row instead. The old boolean still works and maps onto the new values.
-- `config.log_level` never affected any log output and now warns; `Rails.logger` owns the level.
-- The gem's deprecation warnings are registered with Rails, so `config.active_support.deprecation` and `report_deprecations` now apply to them instead of always writing to stderr.
+- Configuration options are grouped into `budgets`, `capture`, `ingestion`, `pricing`, and `tags` — `config.budgets.monthly` replaces `config.monthly_budget`, and so on. Flat names still work and warn with their replacement; they are removed in 1.0. See [docs/upgrading.md](docs/upgrading.md#v011--v012-unreleased) for the full mapping.
+- `config.log_level` is dropped with no replacement — it never affected any log output.
 
 ### Added
 
