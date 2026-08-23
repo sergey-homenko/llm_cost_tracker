@@ -8,6 +8,13 @@ require "price_scrape/providers/openai"
 RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
   let(:fixture_path) { File.expand_path("../../../fixtures/scrape/openai_pricing.html", __dir__) }
   let(:html) { File.read(fixture_path, encoding: "utf-8") }
+  let(:deprecations_html) do
+    File.read(File.expand_path("../../../fixtures/scrape/openai_deprecations.html", __dir__), encoding: "utf-8")
+  end
+  let(:long_context_sentence) do
+    "Prompts with >272K input tokens are priced at 2x input and 1.5x output " \
+      "for the full session for standard, batch, and flex."
+  end
   let(:sparse_html) do
     pricing_html(
       {
@@ -45,12 +52,28 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     "<html><body>#{islands.join}</body></html>"
   end
 
+  def model_doc_html(body)
+    "<html><body><p>#{body}</p></body></html>"
+  end
+
+  def html_pages(overrides = {})
+    documented = described_class::DocumentedLongContextPrices
+    pages = {
+      described_class.source_url => html,
+      described_class::DeprecatedModels::SOURCE_URL => deprecations_html
+    }
+    documented.source_urls.each do |url|
+      pages[url] = model_doc_html(url.end_with?("gpt-5.5-pro") ? "1,050,000 context window" : long_context_sentence)
+    end
+    pages.merge(overrides)
+  end
+
   describe "#call" do
     it "extracts standard and batch text input/output rates for current models" do
-      result = described_class.new.call(html: html, scraped_at: "2026-04-26T00:00:00Z")
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
 
       expect(result.source_url).to eq(described_class.source_url)
-      expect(result.scraped_at).to eq("2026-04-26T00:00:00Z")
+      expect(result.scraped_at).to eq("2026-08-23T00:00:00Z")
       expect(result.service_charges).to eq(
         "web_search_request" => 10.0,
         "web_search_preview_request_reasoning" => 10.0,
@@ -168,9 +191,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "data_residency_input" => 33.0,
         "data_residency_output" => 198.0,
         "flex_data_residency_input" => 16.5,
-        "flex_data_residency_output" => 99.0,
-        "above_context_data_residency_input" => 66.0,
-        "above_context_data_residency_output" => 297.0
+        "flex_data_residency_output" => 99.0
       )
       expect(result.models.fetch("gpt-realtime-1.5")).to eq(
         "input" => 4.0,
@@ -221,36 +242,78 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     end
 
     it "returns at least the minimum expected number of models" do
-      result = described_class.new.call(html: html)
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
       expect(result.models.size).to be >= described_class.min_models
     end
 
-    it "sets deprecated_models to empty" do
-      result = described_class.new.call(html: html)
-      expect(result.deprecated_models).to eq([])
+    it "reports models whose published shutdown date has passed" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+
+      expect(result.deprecated_models).to contain_exactly(
+        "gpt-5.1-codex", "gpt-4o-realtime-preview", "chatgpt-4o-latest",
+        "codex-mini-latest", "codex-mini", "codex-mini-completions", "ft-gpt-4o-mini"
+      )
+    end
+
+    it "keeps models whose shutdown date is still ahead" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+
+      expect(result.deprecated_models).not_to include("o4-mini", "Assistants API")
+    end
+
+    it "raises when the deprecations tables are missing" do
+      expect do
+        described_class.new.call(
+          html: html_pages(described_class::DeprecatedModels::SOURCE_URL => "<html><body></body></html>")
+        )
+      end.to raise_error(described_class::Error, /deprecations tables not found/)
+    end
+
+    it "prices documented long context on the tiers the model page names" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+      fields = result.models.fetch("gpt-5.5")
+
+      expect(fields).to include(
+        "_context_price_threshold_tokens" => 272_000,
+        "above_context_input" => fields.fetch("input") * 2,
+        "above_context_output" => fields.fetch("output") * 1.5,
+        "above_context_cache_read_input" => fields.fetch("cache_read_input") * 2,
+        "above_context_batch_input" => fields.fetch("batch_input") * 2,
+        "above_context_flex_output" => fields.fetch("flex_output") * 1.5
+      )
+      expect(fields.keys).not_to include("above_context_fast_input", "above_context_priority_input")
+    end
+
+    it "warns instead of guessing when a model page documents no long-context premium" do
+      expect do
+        described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+      end.to output(/no documented long-context premium for gpt-5.5-pro/).to_stderr
+
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+      expect(result.models.fetch("gpt-5.5-pro")).not_to include("_context_price_threshold_tokens")
     end
 
     it "skips unmapped model rows instead of guessing canonical IDs" do
-      result = described_class.new.call(html: html)
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
 
       expect(result.models).not_to include("gpt-4-32k", "davinci-002", "babbage-002")
     end
 
     it "raises when the standard pricing table is missing" do
       expect do
-        described_class.new.call(html: "<html><body></body></html>")
+        described_class.new.call(html: html_pages(described_class.source_url => "<html><body></body></html>"))
       end.to raise_error(described_class::Error, /standard pricing table not found/)
     end
 
     it "raises when the batch pricing table is missing" do
       expect do
-        described_class.new.call(html: standard_only_html)
+        described_class.new.call(html: html_pages(described_class.source_url => standard_only_html))
       end.to raise_error(described_class::Error, /batch pricing table not found/)
     end
 
     it "raises when the parsed model count is below the minimum" do
       expect do
-        described_class.new.call(html: sparse_html)
+        described_class.new.call(html: html_pages(described_class.source_url => sparse_html))
       end.to raise_error(described_class::Error, /at least \d+ models/)
     end
 
@@ -260,7 +323,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       )
 
       expect do
-        described_class.new.call(html: broken_html)
+        described_class.new.call(html: html_pages(described_class.source_url => broken_html))
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
 
@@ -270,7 +333,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       )
 
       expect do
-        described_class.new.call(html: broken_html)
+        described_class.new.call(html: html_pages(described_class.source_url => broken_html))
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
   end

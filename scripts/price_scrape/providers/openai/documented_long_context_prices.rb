@@ -36,6 +36,7 @@ module LlmCostTracker
               model_ids.each_with_object({}) do |model_id, priced|
                 fields = models[model_id]
                 next unless fields
+                next if fields.key?(Pricing::Registry::CONTEXT_THRESHOLD_KEY)
 
                 premium = premium_for(model_id, pages[doc_url(model_id)])
                 priced[model_id] = long_context_prices(fields, premium) if premium

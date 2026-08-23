@@ -46,7 +46,7 @@ module LlmCostTracker
             def retired_models(cell, shutdown_on:, scraped_on:)
               return [] unless shutdown_on && shutdown_on <= scraped_on
 
-              cell.split(MODEL_SEPARATOR).map(&:strip).select { |model_id| model_id.match?(MODEL_ID) }
+              cell.split(MODEL_SEPARATOR).map(&:strip).grep(MODEL_ID)
             end
 
             def date(text)
