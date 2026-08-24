@@ -12,7 +12,7 @@ require "llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_rollups_provider_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_image_tokens_generator"
-require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_indexes_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_indexes_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/async_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/call_rollups_generator"
 
@@ -236,21 +236,23 @@ RSpec.describe "generator templates" do
     end
   end
 
-  describe "upgrade_call_indexes generator" do
-    it "drops both unused composite indexes and adds the partial unpriced index" do
+  describe "upgrade_indexes generator" do
+    it "drops the unused indexes on calls and the inbox and adds the partial unpriced index" do
       Dir.mktmpdir do |dir|
-        LlmCostTracker::Generators::UpgradeCallIndexesGenerator.start([], destination_root: dir)
+        LlmCostTracker::Generators::UpgradeIndexesGenerator.start([], destination_root: dir)
 
         migration_path = Dir[
-          File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_call_indexes.rb")
+          File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_indexes.rb")
         ].first
         expect(migration_path).not_to be_nil
 
         migration = File.read(migration_path)
-        expect(migration).to include("class UpgradeLlmCostTrackerCallIndexes")
-        expect(migration).to include("UNUSED_INDEXES = [%i[provider tracked_at], %i[model tracked_at]].freeze")
-        expect(migration).to include("remove_index TABLE, column: columns")
-        expect(migration).to include("add_index TABLE, columns")
+        expect(migration).to include("class UpgradeLlmCostTrackerIndexes")
+        expect(migration).to include("UNUSED_CALL_INDEXES = [%i[provider tracked_at], %i[model tracked_at]].freeze")
+        expect(migration).to include("UNUSED_INBOX_INDEX = %i[locked_at id].freeze")
+        expect(migration).to include("return unless table_exists?(INBOX)")
+        expect(migration).to include("remove_index CALLS, column: columns")
+        expect(migration).to include("add_index CALLS, columns")
         expect(migration).to include("algorithm: :concurrently")
         expect(migration).to include("disable_ddl_transaction!")
         expect(migration).to include(%(where: "total_cost IS NULL"))
@@ -293,7 +295,7 @@ RSpec.describe "generator templates" do
         expect(migration).to include("create_table :llm_cost_tracker_ingestion_leases")
         expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true")
         expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]")
-        expect(migration).to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:locked_at, :id]")
+        expect(migration).not_to include("add_index :llm_cost_tracker_ingestion_inbox_entries, [:locked_at, :id]")
         expect(migration).to include("add_index :llm_cost_tracker_ingestion_leases, :name, unique: true")
       end
     end

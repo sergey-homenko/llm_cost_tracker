@@ -23,7 +23,6 @@ class CreateLlmCostTrackerAsyncIngestion < ActiveRecord::Migration<%= migration_
 
     add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
     add_index :llm_cost_tracker_ingestion_inbox_entries, [:tracked_at, :attempts]
-    add_index :llm_cost_tracker_ingestion_inbox_entries, [:locked_at, :id]
     add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
   end
 end

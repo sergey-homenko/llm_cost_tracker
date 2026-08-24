@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed
 
-- `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer scans the whole ledger on every batch — unpriced calls are found through a partial index. Existing installs pick this up with `bin/rails generate llm_cost_tracker:upgrade_call_indexes`, which also drops the `(provider, tracked_at)` and `(model, tracked_at)` indexes the query planner never used.
+- `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer scans the whole ledger on every batch — unpriced calls are found through a partial index. Existing installs pick this up with `bin/rails generate llm_cost_tracker:upgrade_indexes`, which also drops three indexes the query planner never chose, reclaiming about 146 MB per 2M calls.
 
 ### Deprecated
 

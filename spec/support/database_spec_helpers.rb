@@ -186,7 +186,6 @@ module LlmCostTrackerDatabaseSpecHelpers
     connection.add_index :llm_cost_tracker_call_rollups, %i[period period_start currency provider], unique: true
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
-    connection.add_index :llm_cost_tracker_ingestion_inbox_entries, %i[locked_at id]
     connection.add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
   end
 

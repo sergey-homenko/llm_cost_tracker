@@ -5,19 +5,19 @@ require "rails/generators/active_record"
 
 module LlmCostTracker
   module Generators
-    class UpgradeCallIndexesGenerator < Rails::Generators::Base
+    class UpgradeIndexesGenerator < Rails::Generators::Base
       include ActiveRecord::Generators::Migration
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Replaces the unused (provider, tracked_at) and (model, tracked_at) indexes on " \
-           "llm_cost_tracker_calls with a partial index over unpriced rows, so " \
-           "llm_cost_tracker:backfill_unknown_pricing stops scanning the whole table."
+      desc "Drops three indexes the query planner never chooses and adds a partial index " \
+           "over unpriced calls, so llm_cost_tracker:backfill_unknown_pricing stops " \
+           "scanning the whole ledger."
 
       def create_migration_file
         migration_template(
-          "upgrade_call_indexes.rb.erb",
-          "db/migrate/upgrade_llm_cost_tracker_call_indexes.rb"
+          "upgrade_indexes.rb.erb",
+          "db/migrate/upgrade_llm_cost_tracker_indexes.rb"
         )
       end
 

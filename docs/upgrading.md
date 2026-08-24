@@ -4,25 +4,28 @@
 
 v0.14 reorganises the initializer. No schema changes, no BREAKING changes.
 
-### Recommended: replace two unused indexes on `llm_cost_tracker_calls`
+### Recommended: drop three indexes the planner never chooses
 
-`(provider, tracked_at)` and `(model, tracked_at)` are never chosen by the planner.
-Both lead with a low-selectivity column and neither covers `total_cost`, so grouping
-and filtering queries scan instead. Measured on 2M calls they cost 140 MB and win
-nothing.
+On `llm_cost_tracker_calls`, `(provider, tracked_at)` and `(model, tracked_at)` both
+lead with a low-selectivity column and neither covers `total_cost`, so grouping and
+filtering queries scan instead of using them. On
+`llm_cost_tracker_ingestion_inbox_entries`, `(locked_at, id)` loses to the primary key
+because the drain claims rows with `ORDER BY id`.
 
-They are replaced by a partial index over unpriced rows, which is what
-`llm_cost_tracker:backfill_unknown_pricing` actually needs — that scope had no index
-at all, so every batch scanned the whole table.
+They are replaced by a partial index over unpriced calls, which is what
+`llm_cost_tracker:backfill_unknown_pricing` actually needs — that scope had no index at
+all, so every batch scanned the whole ledger.
 
 ```bash
-bin/rails generate llm_cost_tracker:upgrade_call_indexes
+bin/rails generate llm_cost_tracker:upgrade_indexes
 bin/rails db:migrate
 ```
 
-On PostgreSQL the migration runs `CONCURRENTLY` outside a transaction, so it does not
-lock writes. Measured on 2M calls: the backfill scope goes from 290 ms to 0.3 ms, and
-the index footprint on the table drops by roughly 140 MB.
+The inbox part is skipped when the async tables are not installed. On PostgreSQL the
+migration runs `CONCURRENTLY` outside a transaction, so it does not lock writes.
+
+Measured on 2M calls with a 200k-row inbox backlog: the backfill scope drops from
+290 ms to 0.3 ms, and about 146 MB of index is reclaimed.
 
 ### Optional: move the initializer to namespaced config
 
