@@ -176,10 +176,10 @@ module LlmCostTrackerDatabaseSpecHelpers
   def create_lct_indexes(connection)
     connection.add_index :llm_cost_tracker_calls, :event_id, unique: true
     connection.add_index :llm_cost_tracker_calls, :tracked_at
-    connection.add_index :llm_cost_tracker_calls, %i[provider tracked_at]
-    connection.add_index :llm_cost_tracker_calls, %i[model tracked_at]
     connection.add_index :llm_cost_tracker_calls, :cost_status
     connection.add_index :llm_cost_tracker_calls, :provider_response_id
+    connection.add_index :llm_cost_tracker_calls, :id, name: :index_llm_cost_tracker_calls_on_unpriced,
+                                                      where: "total_cost IS NULL"
     connection.add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
     connection.add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
     connection.add_index :llm_cost_tracker_call_tags, %i[key value]

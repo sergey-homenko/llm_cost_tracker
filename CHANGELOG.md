@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed
+
+- `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer scans the whole ledger on every batch — unpriced calls are found through a partial index. Existing installs pick this up with `bin/rails generate llm_cost_tracker:upgrade_call_indexes`, which also drops the `(provider, tracked_at)` and `(model, tracked_at)` indexes the query planner never used.
+
 ### Deprecated
 
 - Configuration options are grouped into `budgets`, `capture`, `ingestion`, `pricing`, and `tags` — `config.budgets.monthly` replaces `config.monthly_budget`, and so on. Flat names still work and warn with their replacement; they are removed in 1.0. See [docs/upgrading.md](docs/upgrading.md#v013--v014-unreleased) for the full mapping.

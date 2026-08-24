@@ -1,0 +1,28 @@
+require "llm_cost_tracker/ledger/schema/adapter"
+
+class UpgradeLlmCostTrackerCallIndexes < ActiveRecord::Migration<%= migration_version %>
+  disable_ddl_transaction!
+
+  TABLE = :llm_cost_tracker_calls
+  UNUSED_INDEXES = [%i[provider tracked_at], %i[model tracked_at]].freeze
+  UNPRICED_INDEX = :index_llm_cost_tracker_calls_on_unpriced
+
+  def up
+    UNUSED_INDEXES.each { |columns| remove_index TABLE, column: columns, **index_options }
+    add_index TABLE, :id, name: UNPRICED_INDEX, where: "total_cost IS NULL", **index_options
+  end
+
+  def down
+    remove_index TABLE, name: UNPRICED_INDEX, **index_options
+    UNUSED_INDEXES.each { |columns| add_index TABLE, columns, **index_options }
+  end
+
+  private
+
+  def index_options
+    options = { if_exists: true, if_not_exists: true }
+    return options unless LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+
+    options.merge(algorithm: :concurrently)
+  end
+end
