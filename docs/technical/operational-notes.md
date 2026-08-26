@@ -1,7 +1,5 @@
 # Operational Notes
 
-Runtime constraints shape implementation decisions.
-
 ## Hot Paths
 
 Hot-path code includes:
@@ -53,17 +51,19 @@ Freshness and durability are separate concerns. If the writing process exits bef
 
 The ingestor should check for claimable rows before acquiring the leader lease. Empty queues should not create steady lease-table writes across an idle fleet.
 
-Batch size is a conservative internal constant. Do not expose it as a
-configuration knob until production measurements show that a supported workload
-needs tuning.
+Batch size is a conservative internal constant. Do not expose it as a configuration knob until production measurements show that a supported workload needs tuning.
 
 Ingestors should claim only retryable rows. Rows that keep failing after the retry cap stay in `llm_cost_tracker_ingestion_inbox_entries` with `last_error` for operator inspection and must not block healthy rows behind them.
 
 Process shutdown should stop the local ingestor thread without forcing every exiting process to drain the shared inbox. Operators can call `LlmCostTracker::Ingestion::Worker.flush!` when they intentionally want to wait for the async inbox to drain.
 
+## Per-Tag Budget Reads
+
+`config.budgets.per_tag` reads from the `total_cost` and `tracked_at` columns on `llm_cost_tracker_call_tags`, not from the calls ledger, so it never joins. Windows are `daily`, `weekly` and `monthly`, one indexed query per window of every declared tag on the call. The post-spend check runs from `Tracker.record` on the inline path and from `Ingestion::Batch#persist` on the drain, which is why a scoped total counts only what has been drained.
+
 ## Retention
 
-Retention may delete old `llm_cost_tracker_calls`. When `config.budgets.totals_source = :cache`, retained call rollups are decremented in the same transaction so the budget aggregate stays consistent. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change.
+Retention may delete old `llm_cost_tracker_calls`. When `config.budgets.totals_source = :cache`, retained call rollups are decremented in the same transaction so the budget aggregate stays consistent. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change. `llm_cost_tracker:prune` also sweeps `llm_cost_tracker_ingestion_inbox_entries` at the same cutoff so a stale row cannot drain into a pruned period; rows it deletes that never reached the ledger are spend that is gone, and the task logs their count and cost.
 
 ## Required Schema
 
@@ -81,10 +81,7 @@ Dashboard queries can aggregate because they are user-initiated. They should sti
 
 Avoid loading ledger rows into Ruby to count, sum, group, or sort.
 
-Dashboard storage changes require measured need. Prefer bounded ranges, existing
-ledger indexes, pagination, and database-side aggregates over new
-dashboard-specific tables. Add a summary table only when a supported dashboard
-query cannot be made acceptable with the existing ledger and call rollups.
+Dashboard storage changes require measured need. Prefer bounded ranges, existing ledger indexes, pagination, and database-side aggregates over new dashboard-specific tables. Add a summary table only when a supported dashboard query cannot be made acceptable with the existing ledger and call rollups.
 
 ## Streaming
 
@@ -96,7 +93,7 @@ The middleware should collect enough data to parse final usage while bounding me
 
 Run `bin/check` before committing code changes intended for release. It includes full RuboCop, full RSpec, project coverage, and patch coverage for the current diff.
 
-Project coverage defaults to the Codecov target. Patch coverage defaults to 95% so local checks stay stricter than Codecov parser differences. Thresholds can be adjusted locally with `PROJECT_COVERAGE_MIN`, `PATCH_COVERAGE_MIN`, or `COVERAGE_BASE`.
+Locally, project coverage must clear 89.33% and patch coverage 85%. Codecov is stricter on patches (95%) and tracks the project target automatically, so a green `bin/check` is a floor, not a guarantee. Override with `PROJECT_COVERAGE_MIN`, `PATCH_COVERAGE_MIN`, or `COVERAGE_BASE`.
 
 For the closest match to the Codecov upload job, run `BUNDLE_GEMFILE=gemfiles/rails_8_1.gemfile bin/check`.
 

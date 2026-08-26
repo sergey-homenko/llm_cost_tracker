@@ -1,7 +1,6 @@
 # Querying and Reports
 
-Once calls land in the ledger they're yours — query from a console, a
-scheduled job, an admin UI, or the mounted dashboard.
+Calls in the ledger are ordinary ActiveRecord rows — query them from a console, a scheduled job, an admin UI, or the mounted dashboard.
 
 ## Common Scopes
 
@@ -49,13 +48,11 @@ calls.daily_costs(days: 7)
 | `latency_by_model` | Hash of model to average latency |
 | `latency_by_provider` | Hash of provider to average latency |
 
-Tag aggregations join through `llm_cost_tracker_call_tags` so the same query
-shape works on PostgreSQL and MySQL.
+Tag aggregations join through `llm_cost_tracker_call_tags` so the same query shape works on PostgreSQL and MySQL.
 
 ## Line items
 
-Per-component cost rows hang off each call. Tokens and tool charges share the
-same shape:
+Per-component cost rows hang off each call. Tokens and tool charges share the same shape:
 
 ```ruby
 call = LlmCostTracker::Call.includes(:line_items).first
@@ -89,5 +86,4 @@ DAYS=7 bin/rails llm_cost_tracker:report
 
 ## CSV Export
 
-The dashboard Calls page exports filtered rows as CSV. Values that look like
-spreadsheet formulas are prefixed before export.
+The dashboard Calls page exports filtered rows as CSV. Values that look like spreadsheet formulas are prefixed before export.

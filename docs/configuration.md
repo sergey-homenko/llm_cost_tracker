@@ -1,7 +1,6 @@
 # Configuration
 
-Configuration is the contract between your app and the gem — capture,
-attribution, pricing, budgets, SDK instrumentation. Set it up once at boot:
+Configuration is the contract between your app and the gem — capture, attribution, pricing, budgets, SDK instrumentation. Set it up once at boot:
 
 ```ruby
 LlmCostTracker.configure do |config|
@@ -11,13 +10,9 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-`configure` finalizes shared mutable settings. Runtime attempts to replace or
-mutate finalized shared config raise instead of silently changing tracking
-behavior mid-request.
+`configure` finalizes shared mutable settings. Runtime attempts to replace or mutate finalized shared config raise instead of silently changing tracking behavior mid-request.
 
-Related options are grouped into namespaces — `budgets`, `capture`, `tags`,
-`pricing`, `ingestion`. The flat names that predate them still work and now emit a
-deprecation warning naming their replacement; they are removed in 1.0.
+Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `pricing`, `ingestion`. The flat names that predate them still work and now emit a deprecation warning naming their replacement; they are removed in 1.0.
 
 ## Core Options
 
@@ -37,9 +32,7 @@ deprecation warning naming their replacement; they are removed in 1.0.
 | `tags.redacted_keys` | common secret-like keys | Tag keys whose values are replaced before storage |
 | `tags.report_breakdown_keys` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
 
-`tags.default` callables run per event. Keep them fast and side-effect free.
-Explicit `tags:` passed to `track` win over scoped tags, and scoped tags win over
-defaults.
+`tags.default` callables run per event. Keep them fast and side-effect free. Explicit `tags:` passed to `track` win over scoped tags, and scoped tags win over defaults.
 
 ## SDK Integrations
 
@@ -53,12 +46,7 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-`config.instrument :all` enables every built-in integration. The SDK
-gem must already be loaded, satisfy the minimum supported version, and
-expose the expected resource classes and methods, or `install!` raises.
-Unknown integration names (typos like `:gemnii`) are accepted at config
-time and logged once via `Logging.warn` at install time — they don't
-crash boot, but the dashboard stays empty for that name.
+`config.instrument :all` enables every built-in integration. The SDK gem must already be loaded, satisfy the minimum supported version, and expose the expected resource classes and methods, or `install!` raises. Unknown integration names (typos like `:gemnii`) are accepted at config time and logged once via `Logging.warn` at install time — they don't crash boot, but the dashboard stays empty for that name.
 
 Built-in integration names:
 
@@ -68,15 +56,11 @@ Built-in integration names:
 | `:anthropic` | `anthropic >= 1.36.0` | Messages and Message Batches, plus their beta helpers |
 | `:ruby_llm` | `ruby_llm >= 1.15.0` | Provider chat, embedding, transcription, image, and moderation calls |
 
-The minimum is what `install!` enforces. CI resolves each SDK fresh on every
-run, so the suite is exercised against the newest release the gemspec's
-development dependencies allow. Versions between the minimum and that release
-are supported but not covered by CI.
+The minimum is what `install!` enforces. CI resolves each SDK fresh on every run, so the suite is exercised against the newest release the gemspec's development dependencies allow. Versions between the minimum and that release are supported but not covered by CI.
 
 ## OpenAI-Compatible Hosts
 
-OpenAI-compatible capture is shape-based. Built-in mappings cover OpenRouter,
-DeepSeek, and Groq:
+OpenAI-compatible capture is shape-based. Built-in mappings cover OpenRouter, DeepSeek, and Groq:
 
 ```ruby
 config.capture.openai_compatible_providers["openrouter.ai"] = "openrouter"
@@ -84,38 +68,19 @@ config.capture.openai_compatible_providers["api.deepseek.com"] = "deepseek"
 config.capture.openai_compatible_providers["api.groq.com"] = "groq"
 ```
 
-Register custom gateway hosts when they speak OpenAI-compatible request and
-response shapes:
+Register custom gateway hosts when they speak OpenAI-compatible request and response shapes:
 
 ```ruby
 config.capture.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
 ```
 
-This maps capture identity only. Gateway-specific prices belong in
-`pricing.file` or `pricing.overrides`.
+This maps capture identity only. Gateway-specific prices belong in `pricing.file` or `pricing.overrides`.
 
 ## Azure OpenAI Service
 
-Azure OpenAI capture is built in — no configuration required. The Faraday
-middleware matches URLs on `{resource}.openai.azure.com` and Foundry's
-`{resource}.services.ai.azure.com`, both on the classic
-`/openai/deployments/{deployment-id}/{operation}` path and the v1
-`/openai/v1/{operation}` path, across chat/completions, completions,
-embeddings, responses, moderations, audio/transcriptions,
-audio/translations, audio/speech, images/generations, images/edits, and
-images/variations. Responses parse with the same shape as OpenAI direct
-and tag calls with `provider: "azure_openai"`. The OpenAI Ruby SDK is
-also covered: if `OpenAI::Client.new` is initialized with an Azure
-`base_url`, SDK-side capture in `record_response` detects the Azure
-host and tags the same way.
+Azure OpenAI capture is built in — no configuration required. The Faraday middleware matches URLs on `{resource}.openai.azure.com` and Foundry's `{resource}.services.ai.azure.com`, both on the classic `/openai/deployments/{deployment-id}/{operation}` path and the v1 `/openai/v1/{operation}` path, across chat/completions, completions, embeddings, responses, moderations, audio/transcriptions, audio/translations, audio/speech, images/generations, images/edits, and images/variations. Responses parse with the same shape as OpenAI direct and tag calls with `provider: "azure_openai"`. The OpenAI Ruby SDK is also covered: if `OpenAI::Client.new` is initialized with an Azure `base_url`, SDK-side capture in `record_response` detects the Azure host and tags the same way.
 
-Pricing for `azure_openai/<model>` resolves through the
-`unique_providerless_model` match strategy in `Pricing::Matcher` to the
-matching `openai/<model>` entry in the bundled price snapshot. That's correct for Global-tier
-deployments in primary regions where Azure prices match OpenAI direct. If
-your deployment uses Data Zone (data-residency) pricing or a regional
-uplift that differs from Global, set per-key deltas via
-`config.pricing.overrides` with the `azure_openai/<model>` prefix:
+Pricing for `azure_openai/<model>` resolves through the `unique_providerless_model` match strategy in `Pricing::Matcher` to the matching `openai/<model>` entry in the bundled price snapshot. That's correct for Global-tier deployments in primary regions where Azure prices match OpenAI direct. If your deployment uses Data Zone (data-residency) pricing or a regional uplift that differs from Global, set per-key deltas via `config.pricing.overrides` with the `azure_openai/<model>` prefix:
 
 ```ruby
 config.pricing.overrides = {
@@ -137,8 +102,7 @@ Pricing precedence is:
 2. `pricing.file`
 3. bundled `lib/llm_cost_tracker/prices.json`
 
-Unknown-cost line items are still stored. They affect `cost_status` but
-won't invent a total cost out of thin air.
+Unknown-cost line items are still stored. They affect `cost_status` but won't invent a total cost out of thin air.
 
 ## Budget Options
 
@@ -155,10 +119,7 @@ Budget payloads include `budget_type`, `total`, `budget`, `last_event`, `scope` 
 
 ## Storage
 
-Two options decide which optional tables the gem touches. Both default to
-the no-extra-table setting, so a fresh install ships with three mandatory
-tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
-`llm_cost_tracker_call_tags`).
+Two options decide which optional tables the gem touches. Both default to the no-extra-table setting, so a fresh install ships with three mandatory tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`, `llm_cost_tracker_call_tags`).
 
 | Option | Default | Purpose |
 | --- | --- | --- |
@@ -174,10 +135,7 @@ bin/rails generate llm_cost_tracker:call_rollups       # for budgets.totals_sour
 bin/rails db:migrate
 ```
 
-`bin/rails llm_cost_tracker:doctor` keeps the schema and config in sync:
-a table present without its flag is a warning, while a flag turned on
-with its table missing is an error and fails the task. The runtime is
-softer than that — it logs and falls back to the calls ledger.
+`bin/rails llm_cost_tracker:doctor` keeps the schema and config in sync: a table present without its flag is a warning, while a flag turned on with its table missing is an error and fails the task. The runtime is softer than that — it logs and falls back to the calls ledger.
 
 ## Capture Verification
 
@@ -188,7 +146,4 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` checks schema, prices, integration setup, and operational health.
-`verify_capture` records a synthetic manual event and verifies notifications
-plus ActiveRecord persistence (through the inline writer or the async
-inbox depending on `config.ingestion.mode`).
+`doctor` checks schema, prices, integration setup, and operational health. `verify_capture` records a synthetic manual event and verifies notifications plus ActiveRecord persistence (through the inline writer or the async inbox depending on `config.ingestion.mode`).

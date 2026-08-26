@@ -1,12 +1,8 @@
 # Pricing and Price Refresh
 
-LLM Cost Tracker prices calls locally from recorded usage and a versioned price
-registry. Providers usually return token counts, not a stable per-request price,
-so the gem stores the calculated cost with each ledger row.
+LLM Cost Tracker prices calls locally from recorded usage and a versioned price registry. Providers usually return token counts, not a stable per-request price, so the gem stores the calculated cost with each ledger row.
 
-Pricing covers registry shape, refresh tasks, precedence, provider-qualified
-keys, pricing modes, token components, and provider-reported tool/runtime
-charges.
+Pricing covers registry shape, refresh tasks, precedence, provider-qualified keys, pricing modes, token components, and provider-reported tool/runtime charges.
 
 ## Registry Rules
 
@@ -24,12 +20,9 @@ bin/rails llm_cost_tracker:prices:refresh
 bin/rails llm_cost_tracker:prices:check
 ```
 
-The refresh task reads the maintained LLM Cost Tracker snapshot and writes to
-`ENV["OUTPUT"]`, then `config.pricing.file`, then
-`config/llm_cost_tracker_prices.yml`.
+The refresh task reads the maintained LLM Cost Tracker snapshot and writes to `ENV["OUTPUT"]`, then `config.pricing.file`, then `config/llm_cost_tracker_prices.yml`.
 
-For production containers, refresh the file before deploy and ship it with the
-release. Do not rely on a price refresh that mutates one running container.
+For production containers, refresh the file before deploy and ship it with the release. Do not rely on a price refresh that mutates one running container.
 
 ## Price Fields
 
@@ -45,21 +38,11 @@ Base fields:
 - `image_input`
 - `image_output`
 
-These keys are derived from `Usage::Catalog`, the master dimension registry,
-which also owns the non-token model keys `text_to_speech_character` and
-`transcription_minute`.
+These keys are derived from `Usage::Catalog`, the master dimension registry, which also owns the non-token model keys `text_to_speech_character` and `transcription_minute`.
 
-`cache_write_input` is the standard cache-write bucket. `cache_write_extended_input`
-is priced separately when provider usage exposes a longer retention bucket, such
-as Anthropic's 1-hour prompt cache writes.
+`cache_write_input` is the standard cache-write bucket. `cache_write_extended_input` is priced separately when provider usage exposes a longer retention bucket, such as Anthropic's 1-hour prompt cache writes.
 
-`cache_read_input` is modality-agnostic. OpenAI's pricing page for the `gpt-image-*`
-family lists separate rates for image-cached input ($2.00 / M) and text-cached input
-($1.25 / M), but the API only reports a single `prompt_tokens_details.cached_tokens`
-total without a modality breakdown. The registry stores the text-cached rate under
-`cache_read_input`, which under-prices image-heavy cache hits relative to the published
-list price. When OpenAI exposes the split (or a provider gives us a typed cached-image
-token count), `image_cache_read_input_tokens` will become a separate billable component.
+`cache_read_input` is modality-agnostic. OpenAI's pricing page for the `gpt-image-*` family lists separate rates for image-cached input ($2.00 / M) and text-cached input ($1.25 / M), but the API only reports a single `prompt_tokens_details.cached_tokens` total without a modality breakdown. The registry stores the text-cached rate under `cache_read_input`, which under-prices image-heavy cache hits relative to the published list price. When OpenAI exposes the split (or a provider gives us a typed cached-image token count), `image_cache_read_input_tokens` will become a separate billable component.
 
 Mode-prefixed fields use the same base terms:
 
@@ -69,31 +52,15 @@ Mode-prefixed fields use the same base terms:
 - `batch_cache_read_input`
 - `priority_cache_write_extended_input`
 
-Long-context entries may also include `_context_price_threshold_tokens` and
-`above_context_*` fields. When the effective input side is above the threshold,
-the calculator uses the matching `above_context_input`,
-`above_context_output`, `above_context_cache_read_input`, or
-`above_context_<mode>_*` rate for the whole priced event.
+Long-context entries may also include `_context_price_threshold_tokens` and `above_context_*` fields. When the effective input side is above the threshold, the calculator uses the matching `above_context_input`, `above_context_output`, `above_context_cache_read_input`, or `above_context_<mode>_*` rate for the whole priced event.
 
 ## Pricing Modes
 
-`pricing_mode` is the canonical field for alternate provider pricing tiers.
-OpenAI, OpenAI-compatible, Anthropic, Gemini, and RubyLLM capture populate it
-from provider tier data when the response exposes that field. Standard aliases
-such as `standard`, `default`, `auto`, and `standard_only` are treated as normal
-pricing.
+`pricing_mode` is the canonical field for alternate provider pricing tiers. OpenAI, OpenAI-compatible, Anthropic, Gemini, and RubyLLM capture populate it from provider tier data when the response exposes that field. Standard aliases such as `standard`, `default`, `auto`, and `standard_only` are treated as normal pricing.
 
-Bundled prices include OpenAI `flex`, `fast` (with `priority` as the legacy
-alias OpenAI still returns for GPT-5.6 and earlier), and regional processing
-`data_residency` rates, Gemini `flex` and `priority`, Groq `flex`, and
-Anthropic `fast` and `data_residency` rates where the official provider pages
-publish them. OpenAI regional processing is captured from supported regional API
-hosts for the model families whose uplift is published. Gemini Priority can
-downgrade server-side, so Faraday capture trusts the `x-gemini-service-tier`
-response header instead of assuming the requested tier was honored.
+Bundled prices include OpenAI `flex`, `fast` (with `priority` as the legacy alias OpenAI still returns for GPT-5.6 and earlier), and regional processing `data_residency` rates, Gemini `flex` and `priority`, Groq `flex`, and Anthropic `fast` and `data_residency` rates where the official provider pages publish them. OpenAI regional processing is captured from supported regional API hosts for the model families whose uplift is published. Gemini Priority can downgrade server-side, so Faraday capture trusts the `x-gemini-service-tier` response header instead of assuming the requested tier was honored.
 
-Pass `pricing_mode: :batch` when usage came from a batch job, a gateway, or
-another path where the provider response does not expose the tier:
+Pass `pricing_mode: :batch` when usage came from a batch job, a gateway, or another path where the provider response does not expose the tier:
 
 ```ruby
 LlmCostTracker.track(
@@ -105,15 +72,9 @@ LlmCostTracker.track(
 )
 ```
 
-The calculator uses `batch_input`, `batch_output`, and other matching
-mode-prefixed fields when present. When some mode-specific rates are missing,
-the event is marked `partial` and only the priced components contribute to
-total cost; with no matching rates at all it stays `unknown` instead of
-silently using standard pricing. For batch mode, cache rates can be derived
-from the input discount when the provider documents that modifiers stack.
+The calculator uses `batch_input`, `batch_output`, and other matching mode-prefixed fields when present. When some mode-specific rates are missing, the event is marked `partial` and only the priced components contribute to total cost; with no matching rates at all it stays `unknown` instead of silently using standard pricing. For batch mode, cache rates can be derived from the input discount when the provider documents that modifiers stack.
 
-Provider-specific pricing pages belong in scrapers and snapshots. Runtime
-pricing should stay in canonical billing terms.
+Provider-specific pricing pages belong in scrapers and snapshots. Runtime pricing should stay in canonical billing terms.
 
 ## Registry Shape
 
@@ -140,32 +101,15 @@ Bundled and local registries use this high-level shape:
 }
 ```
 
-Model prices are USD per 1M tokens. Tool/runtime rates use the quantity basis
-of their billing component — request, session, hour, etc.
+Model prices are USD per 1M tokens. Tool/runtime rates use the quantity basis of their billing component — request, session, hour, etc.
 
 ## Tool and Runtime Charges
 
-The `service_charges` registry section prices provider tool and runtime calls
-(web search, code execution, grounding, container sessions, file search). At
-runtime they end up as line items on the parent call alongside token line
-items — same shape, same `cost_status` semantics. A line item with no rate
-match keeps the parent call `partial` when token cost is known, or `unknown`
-when the unmatched line is the only billable usage.
+The `service_charges` registry section prices provider tool and runtime calls (web search, code execution, grounding, container sessions, file search). At runtime they end up as line items on the parent call alongside token line items — same shape, same `cost_status` semantics. A line item with no rate match keeps the parent call `partial` when token cost is known, or `unknown` when the unmatched line is the only billable usage.
 
-Each line item preserves the provider item id, captured `provider_field` path,
-quantity, kind, applied rate, and status — enough to join back to provider
-records downstream without applying free tiers or private rates locally.
+Each line item preserves the provider item id, captured `provider_field` path, quantity, kind, applied rate, and status — enough to join back to provider records downstream without applying free tiers or private rates locally.
 
-Bundled rates mostly ship only where the parser captures the same quantity
-basis the provider publishes; `code_execution_hour` is the exception — the rate
-ships but nothing captures an hour quantity yet. OpenAI hosted web search and file search are priced when
-the registry has a rate. OpenAI Code Interpreter container sessions are
-captured as `container_session` audit rows; they aren't priced by default
-because the provider rate depends on container size and a fixed session
-window. Anthropic web-search and web-fetch requests are priced; Anthropic
-code-execution requests are not captured at all — no row is recorded for them
-until a provider usage field exposes the hourly quantity the published rate
-uses.
+Bundled rates mostly ship only where the parser captures the same quantity basis the provider publishes; `code_execution_hour` is the exception — the rate ships but nothing captures an hour quantity yet. OpenAI hosted web search and file search are priced when the registry has a rate. OpenAI Code Interpreter container sessions are captured as `container_session` audit rows; they aren't priced by default because the provider rate depends on container size and a fixed session window. Anthropic web-search and web-fetch requests are priced; Anthropic code-execution requests are not captured at all — no row is recorded for them until a provider usage field exposes the hourly quantity the published rate uses.
 
 ## Usage and Pricing Coverage
 

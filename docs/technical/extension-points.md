@@ -4,12 +4,7 @@ Extensions should plug into existing provider-agnostic boundaries. If a new feat
 
 ## SDK Integrations
 
-Use SDK integrations for Ruby clients that do not expose Faraday middleware but
-return stable usage objects. RubyLLM and the official `openai` and `anthropic`
-gems use this path. Faraday-based clients that expose a middleware hook, such as
-`ruby-openai`'s constructor block, are covered by the Faraday middleware. Clients
-with no stable hook use explicit `track` / `track_stream` calls until an
-integration exists.
+Use SDK integrations for Ruby clients that do not expose Faraday middleware but return stable usage objects. RubyLLM and the official `openai` and `anthropic` gems use this path. Faraday-based clients that expose a middleware hook, such as `ruby-openai`'s constructor block, are covered by the Faraday middleware. Clients with no stable hook use explicit `track` / `track_stream` calls until an integration exists.
 
 Expected integration contract:
 
@@ -26,8 +21,7 @@ SDK integrations belong under `LlmCostTracker::Integrations`. Do not put SDK obj
 
 Use `config.capture.openai_compatible_providers` when a gateway speaks the OpenAI request and response shape.
 
-Host mapping controls shape compatibility, not pricing. Gateway-specific model
-IDs or discounts belong in `pricing.file` or `pricing.overrides`.
+Host mapping controls shape compatibility, not pricing. Gateway-specific model IDs or discounts belong in `pricing.file` or `pricing.overrides`.
 
 Providers or gateways with non-compatible response shapes should use explicit `LlmCostTracker.track` / `track_stream` calls until a built-in parser exists.
 
@@ -35,8 +29,7 @@ Providers or gateways with non-compatible response shapes should use explicit `L
 
 Use `config.pricing.file` for the app's source-controlled price snapshot.
 
-Use `config.pricing.overrides` for urgent or environment-specific Ruby-side
-overrides.
+Use `config.pricing.overrides` for urgent or environment-specific Ruby-side overrides.
 
 Supported token price keys are owned by `Usage::Catalog`:
 
@@ -50,17 +43,11 @@ Supported token price keys are owned by `Usage::Catalog`:
 - `batch_input`
 - `batch_output`
 - mode-prefixed keys such as `priority_input` or `batch_cache_read_input`
-- `_context_price_threshold_tokens` with `above_context_*` rates for providers
-  that publish a whole-session long-context tier
+- `_context_price_threshold_tokens` with `above_context_*` rates for providers that publish a whole-session long-context tier
 
-Tool and runtime rates live under `service_charges` keyed by provider and
-component (web search, code execution, grounding, container session, file
-search). Do not add a rate unless the parser captures the same quantity basis
-the rate uses.
+Tool and runtime rates live under `service_charges` keyed by provider and component (web search, code execution, grounding, container session, file search). Do not add a rate unless the parser captures the same quantity basis the rate uses.
 
-Provider-specific pricing details must be translated before they reach runtime pricing.
-Do not rely on standard rates for missing alternate-mode prices; add explicit
-mode-prefixed prices unless the provider documents a stackable multiplier.
+Provider-specific pricing details must be translated before they reach runtime pricing. Do not rely on standard rates for missing alternate-mode prices; add explicit mode-prefixed prices unless the provider documents a stackable multiplier.
 
 ## Tags
 
@@ -78,8 +65,7 @@ Use `config.tags.default`, middleware `tags:`, explicit `tags:`, and `LlmCostTra
 
 ## Storage
 
-Storage is not an extension point. LLM Cost Tracker writes canonical `Event`
-objects to the host Rails app's ActiveRecord ledger.
+Storage is not an extension point. LLM Cost Tracker writes canonical `Event` objects to the host Rails app's ActiveRecord ledger.
 
 ## Dashboard
 
@@ -92,7 +78,7 @@ Keep controller actions thin:
 - call services
 - render views
 
-Keep view logic in helpers when it is reused across pages. Do not add JavaScript for dashboard behavior.
+Keep view logic in helpers when it is reused across pages. Do not add a JavaScript bundle or framework. The one script the dashboard ships is the nonce'd theme and popover toggle in the engine layout.
 
 ## Generators
 

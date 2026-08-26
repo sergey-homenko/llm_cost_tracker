@@ -1,7 +1,6 @@
 # Data model
 
-LLM Cost Tracker stores everything in your app's database through ActiveRecord.
-Supported adapters: PostgreSQL and MySQL-family.
+LLM Cost Tracker stores everything in your app's database through ActiveRecord. Supported adapters: PostgreSQL and MySQL-family.
 
 ## Tables
 
@@ -21,8 +20,7 @@ Optional tables — only created when you opt in:
 | `llm_cost_tracker_ingestion_inbox_entries` | Write-ahead inbox rows the ingestor drains into the ledger. | `bin/rails generate llm_cost_tracker:async_ingestion` (requires `config.ingestion.mode = :async`) |
 | `llm_cost_tracker_ingestion_leases` | Shared lease rows for the ingestion worker. | same migration as the inbox |
 
-`llm_cost_tracker:doctor` checks that the schema matches the gem version
-and that the optional tables match the configured adapter.
+`llm_cost_tracker:doctor` checks that the schema matches the gem version and that the optional tables match the configured adapter.
 
 ## `llm_cost_tracker_calls`
 
@@ -60,9 +58,7 @@ Header row. One per tracked call (or completed stream).
 | `tracked_at` | datetime, not null | Event timestamp |
 | `created_at` / `updated_at` | datetime | Rails timestamps |
 
-Per-component cost values live in `call_line_items`, not on the header. The
-header keeps only the denormalized `total_cost` for budget queries and sort
-columns.
+Per-component cost values live in `call_line_items`, not on the header. The header keeps only the denormalized `total_cost` for budget queries and sort columns.
 
 Indexes:
 
@@ -70,17 +66,14 @@ Indexes:
 - `tracked_at` (time filters and retention)
 - `cost_status` (data quality)
 - `provider_response_id` (cross-reference with provider invoices and logs)
-- `[provider, tracked_at]` and `[model, tracked_at]` (the dashboard's provider and model
-  filters, which order by `tracked_at` and page)
+- `[provider, tracked_at]` and `[model, tracked_at]` (the dashboard's provider and model filters, which order by `tracked_at` and page)
 - partial `id where total_cost is null` (the unpriced scope `llm_cost_tracker:backfill_unknown_pricing` walks)
 
-The two composite indexes matter most when one provider dominates the ledger: filtering
-to a rare provider took 70 ms without them and 0.02 ms with them, measured on 200k calls.
+The two composite indexes matter most when one provider dominates the ledger: filtering to a rare provider took 70 ms without them and 0.02 ms with them, measured on 200k calls.
 
 ## `llm_cost_tracker_call_line_items`
 
-One row per priced component on a call. Tokens and tool charges live here in
-the same shape.
+One row per priced component on a call. Tokens and tool charges live here in the same shape.
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -98,15 +91,14 @@ the same shape.
 | `currency` | string, default `USD` | Currency for `cost` |
 | `cost_status` | string, default `unknown` | `complete`, `free`, `unknown` |
 | `pricing_basis` | string | `provider_usage` when the provider reported the quantity itself. Where the *rate* came from is `price_source`, not this column |
-| `price_key` | string | Registry key the rate matched |
+| `price_key` | string | The registry key whose value was applied, mode prefix included (`batch_input`, `above_context_cache_read_input`). Null when the rate was derived from another key's ratio |
 | `price_source` / `price_source_version` | string | Where the rate came from |
 | `provider_field` | string | Path in the provider response (audit) |
 | `provider_item_id` | string | Provider item id (audit) |
 | `details` | jsonb / json | Free-form provider audit blob |
 | `created_at` | datetime | Insert time |
 
-New billing dimensions are added by registering metadata in
-`Usage::Catalog`; no migration needed.
+New billing dimensions are added by registering metadata in `Usage::Catalog`; no migration needed.
 
 Indexes:
 
@@ -146,8 +138,7 @@ Index: unique `[period, period_start, currency, provider]`.
 
 ## `llm_cost_tracker_ingestion_inbox_entries`
 
-Write-ahead inbox. Capture writes here first; the worker drains rows into the
-ledger.
+Write-ahead inbox. Capture writes here first; the worker drains rows into the ledger.
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -183,8 +174,4 @@ Shared lease for the background worker.
 
 ## Schema health
 
-`bin/rails llm_cost_tracker:doctor` checks that the calls, line items, tags,
-call rollups and async ingestion tables carry the columns this version expects.
-It compares column names only — not types, and not indexes. When
-something is missing, the dashboard renders setup guidance instead of running
-queries.
+`bin/rails llm_cost_tracker:doctor` checks that the calls, line items, tags, call rollups and async ingestion tables carry the columns this version expects. It compares column names only — not types, and not indexes. When something is missing, the dashboard renders setup guidance instead of running queries.

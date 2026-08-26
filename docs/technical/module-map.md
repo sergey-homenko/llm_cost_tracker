@@ -1,7 +1,6 @@
 # Module Map
 
-LLM Cost Tracker is organized around stable responsibilities. File layout does
-not need to mirror this map perfectly, but new code should fit one boundary.
+LLM Cost Tracker is organized around stable responsibilities. File layout does not need to mirror this map perfectly, but new code should fit one boundary.
 
 ## Public API and Configuration
 
@@ -22,8 +21,7 @@ Responsibilities:
 - Merge scoped tags and default tags without leaking across threads or fibers.
 - Report installation, integration, pricing, ingestion, and schema health.
 
-This module can orchestrate other modules, but should not contain provider
-parsing, SQL details, dashboard aggregation, or pricing-source logic.
+This module can orchestrate other modules, but should not contain provider parsing, SQL details, dashboard aggregation, or pricing-source logic.
 
 ## Capture
 
@@ -43,8 +41,7 @@ Responsibilities:
 - Parse provider responses and stream events into `Event`.
 - Translate provider-specific fields into canonical token usage, pricing mode, response identity, and service line items.
 
-Provider-specific response shape handling belongs here. The output boundary is
-`Event`, not raw provider JSON.
+Provider-specific response shape handling belongs here. The output boundary is `Event`, not raw provider JSON.
 
 ## SDK Integrations
 
@@ -59,8 +56,7 @@ Responsibilities:
 - Extract SDK response objects into canonical usage fields.
 - Keep SDK-specific object handling out of `Tracker`, storage, and pricing.
 
-Integrations are for Ruby SDK object shapes. Parsers are for HTTP and stream
-payload shapes.
+Integrations are for Ruby SDK object shapes. Parsers are for HTTP and stream payload shapes.
 
 ## Usage and Charges
 
@@ -141,8 +137,7 @@ Responsibilities:
 - Hide PostgreSQL and MySQL-family SQL differences.
 - Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
 
-Storage knows database adapters and current schema. It should not parse provider
-responses or fetch price data.
+Storage knows database adapters and current schema. It should not parse provider responses or fetch price data.
 
 ## Retention
 
@@ -150,7 +145,6 @@ Primary files:
 
 - `lib/llm_cost_tracker/retention.rb`
 - `lib/llm_cost_tracker/ledger/rollups.rb`
-- `lib/llm_cost_tracker/ledger/rollups/*`
 
 Responsibilities:
 
@@ -177,8 +171,7 @@ Responsibilities:
 - Export filtered calls as CSV.
 - Keep dashboard queries explicit, bounded, and indexed.
 
-Dashboard code may run grouped SQL because it is user-initiated reporting. It
-must stay server-rendered and must not introduce a JavaScript bundle.
+Dashboard code may run grouped SQL because it is user-initiated reporting. It must stay server-rendered and must not introduce a JavaScript bundle.
 
 ## Rails Integration and Generators
 
@@ -192,9 +185,9 @@ Primary files:
 
 Responsibilities:
 
-- Register rake tasks and Faraday middleware.
+- Add `app/models` to the autoload and eager-load paths, and load the generators.
 - Mount the isolated Rails engine.
-- Generate migrations, initializer, dashboard route, and local price snapshots.
+- Generate migrations, the initializer, and local price snapshots. Mounting the dashboard route stays the host app's call.
 - Serve dashboard CSS as a fingerprinted engine asset.
 
 Generator templates are public installation contracts.

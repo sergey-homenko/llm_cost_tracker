@@ -6,16 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
-- `config.budgets.per_tag` applies one budget to every distinct value of each declared tag — `{ tenant_id: { monthly: 1000 }, user_id: { daily: 25 } }` gives every tenant its own 1000 a month and every user its own 25 a day, for as many tags as you declare. Windows are `daily`, `weekly`, and `monthly`; a rule can set its own `behavior` and `on_exceeded` or fall back to the global ones, and the payload names the tag and value that crossed. Run `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets` first, then `bin/rails llm_cost_tracker:backfill_tag_costs` if you want spend recorded before the upgrade to count.
+- `config.budgets.per_tag` applies one budget to every distinct value of each declared tag — `{ tenant_id: { monthly: 1000 }, user_id: { daily: 25 } }` gives every tenant its own 1000 a month and every user its own 25 a day, for as many tags as you declare. Windows are `daily`, `weekly`, and `monthly`; a rule can set its own `behavior` and `on_exceeded` or fall back to the global ones, and the payload names the tag and value that crossed. A fresh install is ready for it; an install created before v0.14 runs `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets`, then `bin/rails llm_cost_tracker:backfill_tag_costs` to count spend recorded before the upgrade.
 - OpenAI gpt-5.6-sol, gpt-5.6-terra, and gpt-5.6-luna are priced, including their cache-write rates across standard, batch, flex, priority, long-context, and data-residency tiers.
 - Cache writes reported in OpenAI usage (`cache_write_tokens`, GPT-5.6 and later) are captured and costed at the model's cache-write rate instead of being counted as regular input.
 - Anthropic thinking tokens are counted as hidden output on the Data Quality page, so reasoning Claude already billed inside `output_tokens` is visible instead of reading as zero. Cost is unchanged — `output_tokens` stays the billable total.
 
 ### Changed
 
-- BREAKING: a call the gem never found a rate for now records `cost_status: unknown` instead of `free`. `free` previously covered both "priced at zero" and "never priced", so a token-billed endpoint the parser captured no quantities for — `gpt-4o-mini-tts`, Whisper transcription, any unrecognised model with no usage block — reported as costing nothing. Endpoints that are genuinely unbilled (moderations) move to `unknown` too and show up on the Data Quality page until a rate exists for them.
-- BREAKING: `enforce_budget: true` on `LlmCostTracker.track` now records the call before it raises, and the error carries `stage: :post_spend` instead of `:pre_send`. `track` reports a request the provider already served, so the old behaviour threw away real spend; with the ledger total never advancing, every later call raised and was dropped too. `LlmCostTracker.track_stream` is unchanged — it still raises `:pre_send`, before your block runs.
+- BREAKING: a call the gem never found a rate for records `cost_status: unknown` instead of `free`. `free` covered both "priced at zero" and "never priced", so token-billed endpoints the parser captured no quantities for — `gpt-4o-mini-tts`, Whisper transcription, any unrecognised model — reported as costing nothing. Genuinely unbilled endpoints such as moderations move to `unknown` as well and appear on the Data Quality page.
+- BREAKING: `enforce_budget: true` on `LlmCostTracker.track` records the call before it raises, and the error carries `stage: :post_spend` instead of `:pre_send`. `track` reports a request the provider already served, so the old order threw away real spend — and with the ledger total never advancing, every later call raised and was dropped too. `LlmCostTracker.track_stream` still raises `:pre_send`, before your block runs.
+- BREAKING: `pricing_snapshot["rates"]` is keyed by the rate actually applied, so a batch call reads `batch_input` rather than `input`. The old key named a row whose value in the price table was a different number.
 - `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer scans the whole ledger on every batch — unpriced calls are found through a partial index. Existing installs pick this up with `bin/rails generate llm_cost_tracker:upgrade_indexes`, which also drops the ingestion inbox lock index the drain never uses.
+- `bin/rails llm_cost_tracker:prune` warns with the count and cost when it deletes inbox rows that never reached the ledger, instead of dropping that spend silently.
+- The unpriced-model warning names the tier as well, so a call at a pricing mode you have no rate for reads `model "gpt-5.5" at pricing_mode "scale"` instead of pointing at the model.
+- The models page caps at 200 rows and an out-of-range `page` no longer renders a database error.
 
 ### Deprecated
 
@@ -28,8 +32,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
-- OpenAI responses that break the completion down into `text_tokens` are costed on the full billed output again. Reasoning tokens were dropped from the total, so a 1,000-token completion with 800 reasoning tokens recorded $0.011 instead of $0.035 while still reporting `cost_status: complete`.
+- OpenAI responses that break the completion into `text_tokens` are costed on the full billed output again. Reasoning tokens were dropped from the total, so a 1,000-token completion with 800 reasoning tokens recorded $0.011 instead of $0.035 while still reporting `cost_status: complete`.
+- Anthropic calls are priced from the `speed` the response reports rather than the one the request asked for, so a `fast` response no longer records at standard rates — half its real cost on `claude-opus-5`.
+- OpenAI regional calls on gpt-5.6 models are billed at their data-residency rates. Eligibility now comes from the price table instead of a hard-coded model list, which had not caught up with the codename models.
 - Apps that set `config.logger` to a plain `Logger` no longer take a `NoMethodError` from inside the tracker. Every warning went through `Rails.logger.tagged`, which those apps do not have, so a rollup or ingestion failure raised into the request instead of being logged, and the async worker thread died on its first warning.
+- Filtering the dashboard by a tag survives the date, provider, model and stream filters. Submitting any of them flattened `tag[env]=prod` into a single `tag` value, silently dropping the filter and showing a larger total under an unchanged header.
+- A call whose tag value is a large hash or array is recorded instead of failing the whole insert. The encoded value is capped to fit the tag index; the scalar cap alone did not bound a composite.
+- `Call.unknown_pricing` composes with `cost_by_tag` and `group_by_tag` again instead of raising on an ambiguous `total_cost`.
+- A rollup increment that may already have been applied is no longer retried, so a dropped connection cannot leave the cache — and every budget read — above the real spend.
+- The dashboard recovers on its own when the schema catches up. A process that started before `db:migrate` cached "Setup required" until it was restarted.
+- Async inbox writes work after a fork, instead of raising into the request for the life of the child process.
+- A completed OpenAI batch is retried when its result download fails, instead of being marked captured and never recorded.
+- `bin/rails llm_cost_tracker:doctor` reports drift in the async inbox and lease tables, not just their absence.
 - OpenAI gpt-5.4, gpt-5.4-pro, and gpt-5.5 prompts above 272K input tokens are costed at OpenAI's published long-context premium (2x input, 1.5x output on standard, batch, and flex) instead of the flat short-context rate.
 - `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer aborts on the default configuration; repricing calls with unknown pricing no longer requires opting into `config.budgets.totals_source = :cache`.
 - Setting `config.budgets.totals_source = :cache` without creating `llm_cost_tracker_call_rollups` no longer breaks dashboard and budget reads; totals fall back to aggregating the calls ledger and a log warning names the missing table.
@@ -164,13 +178,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [0.9.0] - 2026-05-12
 
-0.9 leans the default install: only `calls`, `call_line_items`, and `call_tags`
-are mandatory. Durable ingestion, rollup-cached budget reads, and provider
-invoice reconciliation are opt-in behind config flags and dedicated generators.
-Plus expanded SDK capture (OpenAI embeddings/audio/images/moderation, RubyLLM
-paint/moderate), correct handling of Anthropic data residency and Priority
-Tier, and a security-hardened dashboard. Existing installs need a migration —
-see [Upgrading](docs/upgrading.md).
+0.9 leans the default install: only `calls`, `call_line_items`, and `call_tags` are mandatory. Durable ingestion, rollup-cached budget reads, and provider invoice reconciliation are opt-in behind config flags and dedicated generators. Plus expanded SDK capture (OpenAI embeddings/audio/images/moderation, RubyLLM paint/moderate), correct handling of Anthropic data residency and Priority Tier, and a security-hardened dashboard. Existing installs need a migration — see [Upgrading](docs/upgrading.md).
 
 ### Added
 
@@ -270,11 +278,7 @@ see [Upgrading](docs/upgrading.md).
 
 ## [0.8.0] - 2026-05-07
 
-0.8 is a storage rebuild. Tokens and tool/runtime charges share one shape
-(`Billing::LineItem`) and live in a dedicated line items table. Per-component
-cost columns and the standalone service charges table are gone. Several tables
-were also renamed during the cycle. See [Upgrading](docs/upgrading.md) for the
-migration path — there is no rolling-deploy upgrade.
+0.8 is a storage rebuild. Tokens and tool/runtime charges share one shape (`Billing::LineItem`) and live in a dedicated line items table. Per-component cost columns and the standalone service charges table are gone. Several tables were also renamed during the cycle. See [Upgrading](docs/upgrading.md) for the migration path — there is no rolling-deploy upgrade.
 
 ### Added
 

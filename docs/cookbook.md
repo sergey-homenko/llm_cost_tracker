@@ -68,8 +68,7 @@ The OpenAI SDK integration supports `openai >= 0.59.0`. Streaming calls are reco
 
 ## OpenAI Realtime
 
-Realtime WebSocket/WebRTC sessions do not flow through the Faraday middleware.
-Capture final `response.done` events explicitly:
+Realtime WebSocket/WebRTC sessions do not flow through the Faraday middleware. Capture final `response.done` events explicitly:
 
 ```ruby
 LlmCostTracker.track_stream(provider: "openai", model: "gpt-realtime-1.5", tags: { feature: "voice" }) do |stream|
@@ -77,8 +76,7 @@ LlmCostTracker.track_stream(provider: "openai", model: "gpt-realtime-1.5", tags:
 end
 ```
 
-The OpenAI parser reads Realtime `input_token_details.audio_tokens` and
-`output_token_details.audio_tokens` from the final response usage.
+The OpenAI parser reads Realtime `input_token_details.audio_tokens` and `output_token_details.audio_tokens` from the final response usage.
 
 ## Official Anthropic SDK
 
@@ -135,13 +133,11 @@ client.chat(
 )
 ```
 
-Use the constructor block for each client, or wrap client creation in an app
-factory.
+Use the constructor block for each client, or wrap client creation in an app factory.
 
 ## Groq
 
-Groq is auto-detected on `api.groq.com`. The official `openai` gem does not use
-Faraday, so reach Groq through a Faraday connection of your own:
+Groq is auto-detected on `api.groq.com`. The official `openai` gem does not use Faraday, so reach Groq through a Faraday connection of your own:
 
 ```ruby
 client = Faraday.new(url: "https://api.groq.com/openai/v1") do |f|

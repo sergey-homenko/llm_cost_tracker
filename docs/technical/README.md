@@ -8,5 +8,4 @@ These files describe the internal module boundaries for LLM Cost Tracker.
 - [Operational notes](operational-notes.md)
 - [Data model](../data-model.md)
 
-Provider-specific API shapes stop at ingestion boundaries. The ledger, storage,
-budgets, dashboard, and reports work with canonical billing concepts.
+Provider-specific API shapes stop at ingestion boundaries. The ledger, storage, budgets, dashboard, and reports work with canonical billing concepts.

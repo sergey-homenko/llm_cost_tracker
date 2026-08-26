@@ -33,31 +33,30 @@ Normal path from an application LLM call to stored ledger data:
 
 ## Canonical Event Build
 
-`Tracker.record` performs the central normalization step:
+`Event.build` normalizes the raw capture — a blank model identifier becomes `unknown`, and usage source, stream flag and response identity are settled there. `Tracker.record` then normalizes tags and latency and drives the rest:
 
-1. Blank model identifiers become `unknown`.
-2. `Event` carries provider identity, model identity, stream metadata, response identity, provider grouping dimensions, `pricing_mode`, and `Usage::TokenUsage`.
+1. `Event` carries provider identity, model identity, stream metadata, response identity, provider grouping dimensions, `pricing_mode`, and `Usage::TokenUsage`.
 3. `Pricing::Calculation` (built via `Pricing::Calculation.for`) prices token counters with the normalized `pricing_mode`, applies the same rates to token line items, and falls back to `Pricing::ServiceRates.charge_rate` for service line items when the registry has a reliable rate for the captured quantity basis. It exposes the header cost (or `nil` for unknown pricing), the rate snapshot, and the priced line items.
 4. `Charges::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
 5. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
-6. An `Event` is created around `Usage::TokenUsage` and emitted through `ActiveSupport::Notifications`.
-7. Persistence runs through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion.mode = :async`.
-8. Budget checks run after the event is persisted.
+5. Persistence runs through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion.mode = :async`.
+6. The persisted event is emitted through `ActiveSupport::Notifications`.
+7. Budget checks run last. `enforce_budget: true` on `LlmCostTracker.track` makes them raise even when the configured behavior is `:notify`; the call is already recorded and the error carries `stage: :post_spend`. `LlmCostTracker.track_stream` instead checks before your block runs and raises `stage: :pre_send`.
 
 ## Ledger Storage
 
 When `config.ingestion.mode = :inline` (default):
 
-1. `Ledger::Store.insert` writes the call header, line items, and tag rows in a single transaction on the caller's ActiveRecord connection. If the caller is inside an open transaction, this write joins it as a savepoint — a caller-side `ActiveRecord::Rollback` discards the tracked event with the rest of the work. Switch to `config.ingestion.mode = :async` if you need ledger writes to survive caller rollbacks.
-2. When `config.budgets.totals_source = :cache`, the same transaction increments the matching daily/monthly rollup rows; otherwise rollups are skipped entirely.
-3. Budget reads aggregate live from `llm_cost_tracker_calls`, or from the rollups fast path when `config.budgets.totals_source = :cache`` (with `llm_cost_tracker_calls` as fallback when the rollup row is missing).
+1. `Ledger::Store.insert` writes the call header, line items, and tag rows in a single transaction on the caller's ActiveRecord connection. If the caller is inside an open transaction, this write joins it — a caller-side `ActiveRecord::Rollback` discards the tracked event with the rest of the work. Switch to `config.ingestion.mode = :async` if you need ledger writes to survive caller rollbacks.
+2. When `config.budgets.totals_source = :cache`, the rollup rows are incremented after that transaction commits, so a rollup failure is logged without failing the ledger write; otherwise rollups are skipped entirely.
+3. Budget reads always aggregate live from `llm_cost_tracker_calls`. Under `config.budgets.totals_source = :cache` the query takes the greater of that aggregate and the rollup row, so a cache that has drifted low cannot make a budget under-report.
 
 When `config.ingestion.mode = :async`:
 
 1. `Ingestion::Inbox.save` writes a compact inbox event row.
 2. `Ingestion::Worker` claims retryable inbox entries through a database lease and drains batches into `llm_cost_tracker_calls`.
-3. `Ledger::Store.insert` writes the call header, line items, tag rows (and rollup increments when `config.budgets.totals_source = :cache``), and inbox deletes in one transaction.
-4. Budget reads add pending inbox totals on top of the rollups fast path or the live calls aggregate.
+3. `Ingestion::Batch` writes the call headers, line items and tag rows and deletes the drained inbox rows in one transaction, then increments rollups and scores per-tag budgets outside it.
+4. Budget reads add pending inbox totals on top of the calls aggregate.
 
 The persistence write (inbox row in async mode, ledger rows in inline mode) is the durability boundary. In async mode, ledger freshness is eventually consistent unless the caller explicitly waits with `LlmCostTracker::Ingestion::Worker.flush!`.
 
@@ -76,6 +75,6 @@ Dashboard reads do not mutate ledger state. They can be heavier than request-tim
 2. `Pricing::Sync::Fetcher` fetches the maintained LLM Cost Tracker price snapshot.
 3. `Pricing::Sync` validates schema compatibility, gem-version compatibility, model price shape, and tool/runtime charge sections.
 4. `RegistryWriter` writes a local JSON or YAML registry.
-5. Runtime pricing reloads the local file when its mtime changes.
+5. Runtime pricing loads the local file once and memoizes it. The file's mtime is recorded as the source version; changing the file in a running process has no effect until `LlmCostTracker.configure` runs again or the app reloads.
 
 The gem never fetches pricing from the network during normal request tracking.
