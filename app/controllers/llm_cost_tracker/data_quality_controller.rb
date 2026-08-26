@@ -21,6 +21,7 @@ module LlmCostTracker
         total_streaming: @summary.streaming_count
       )
       @quarantined_inbox = Dashboard::DataQuality.quarantined_inbox
+      @unseen_budget_tags = Dashboard::DataQuality.unseen_budget_tags
     end
   end
 end

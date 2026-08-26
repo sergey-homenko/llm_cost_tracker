@@ -84,7 +84,7 @@ The payload and `BudgetExceededError` carry `scope`:
 
 `scope` is `nil` for the global budgets.
 
-Calls that do not carry a declared tag are subject to the global budgets only.
+Calls that do not carry a declared tag are subject to the global budgets only. A budget on a tag name nothing sends is accepted — the name is well formed, and the gem cannot know at boot which tags your code will use — so it simply never fires. The Data Quality page names budgeted tags no recorded call carries, and drops them from the list as soon as one arrives.
 
 ### Budget high-cardinality tags only
 

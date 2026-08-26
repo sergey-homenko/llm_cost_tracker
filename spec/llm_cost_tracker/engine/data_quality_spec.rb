@@ -145,4 +145,33 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
 
     expect(response.body).not_to include("Streaming health by provider")
   end
+  it "names budgeted tags no call has ever carried" do
+    LlmCostTracker.configuration.budgets.per_tag = { tenant_id: { monthly: 10 }, ghost: { monthly: 10 } }
+    create_call(total_cost: 1.0, tags: { "tenant_id" => "acme" })
+
+    response = get("/llm-costs/data_quality")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Budgeted tags never recorded")
+    expect(response.body).to include("ghost")
+  end
+
+  it "stays silent while nothing has been tagged yet" do
+    LlmCostTracker.configuration.budgets.per_tag = { ghost: { monthly: 10 } }
+
+    response = get("/llm-costs/data_quality")
+
+    expect(response.status).to eq(200)
+    expect(response.body).not_to include("Budgeted tags never recorded")
+  end
+
+  it "drops the section once every budgeted tag has been recorded" do
+    LlmCostTracker.configuration.budgets.per_tag = { tenant_id: { monthly: 10 } }
+    create_call(total_cost: 1.0, tags: { "tenant_id" => "acme" })
+
+    response = get("/llm-costs/data_quality")
+
+    expect(response.body).not_to include("Budgeted tags never recorded")
+  end
+
 end

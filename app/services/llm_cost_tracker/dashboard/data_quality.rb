@@ -5,6 +5,7 @@ module LlmCostTracker
     module DataQuality
       UnknownPricingRow = ::Data.define(:provider, :model, :calls, :share_percent)
       QuarantinedInbox = ::Data.define(:count, :total_cost)
+      UnseenBudgetTags = ::Data.define(:keys)
       StreamingHealthRow = ::Data.define(:provider, :streams, :with_usage, :unknown, :unknown_share)
       Summary = ::Data.define(:total,
                               :unknown_pricing_count,
@@ -43,6 +44,18 @@ module LlmCostTracker
                 .select("COUNT(*) AS quarantined_count, COALESCE(SUM(total_cost), 0) AS quarantined_cost")
                 .take
           QuarantinedInbox.new(count: row.quarantined_count.to_i, total_cost: row.quarantined_cost.to_d)
+        end
+
+        def unseen_budget_tags
+          budgeted = Budget::PerTag.configured
+          return nil if budgeted.empty?
+          return nil unless Budget::PerTag.columns?
+          return nil unless LlmCostTracker::CallTag.exists?
+
+          unseen = budgeted.keys.reject { |key| LlmCostTracker::CallTag.exists?(key: key) }
+          return nil if unseen.empty?
+
+          UnseenBudgetTags.new(keys: unseen)
         end
 
         def summary(stats)

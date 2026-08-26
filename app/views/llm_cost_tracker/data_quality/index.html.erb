@@ -21,6 +21,17 @@
   </div>
 <% end %>
 
+<% if @unseen_budget_tags %>
+  <h3 class="lct-stat-section-label">Budgets</h3>
+  <div class="lct-stat-grid">
+    <div class="lct-stat lct-stat-warn">
+      <div class="lct-stat-head"><p class="lct-stat-label">Budgeted tags never recorded</p></div>
+      <p class="lct-stat-value"><%= @unseen_budget_tags.keys.join(", ") %></p>
+      <p class="lct-stat-foot">No call carries <%= @unseen_budget_tags.keys.one? ? "this tag" : "these tags" %> yet, so <%= @unseen_budget_tags.keys.one? ? "its budget never fires" : "their budgets never fire" %>. Expected on a young ledger; otherwise check the name against the tags you pass.</p>
+    </div>
+  </div>
+<% end %>
+
 <% if @summary.total.zero? %>
   <section class="lct-panel lct-empty">
     <h2 class="lct-state-title">No data yet</h2>
