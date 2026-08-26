@@ -26,6 +26,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- OpenAI responses that break the completion down into `text_tokens` are costed on the full billed output again. Reasoning tokens were dropped from the total, so a 1,000-token completion with 800 reasoning tokens recorded $0.011 instead of $0.035 while still reporting `cost_status: complete`.
+- Apps that set `config.logger` to a plain `Logger` no longer take a `NoMethodError` from inside the tracker. Every warning went through `Rails.logger.tagged`, which those apps do not have, so a rollup or ingestion failure raised into the request instead of being logged, and the async worker thread died on its first warning.
 - OpenAI gpt-5.4, gpt-5.4-pro, and gpt-5.5 prompts above 272K input tokens are costed at OpenAI's published long-context premium (2x input, 1.5x output on standard, batch, and flex) instead of the flat short-context rate.
 - `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer aborts on the default configuration; repricing calls with unknown pricing no longer requires opting into `config.budgets.totals_source = :cache`.
 - Setting `config.budgets.totals_source = :cache` without creating `llm_cost_tracker_call_rollups` no longer breaks dashboard and budget reads; totals fall back to aggregating the calls ledger and a log warning names the missing table.

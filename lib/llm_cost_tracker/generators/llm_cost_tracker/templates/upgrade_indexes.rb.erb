@@ -10,25 +10,34 @@ class UpgradeLlmCostTrackerIndexes < ActiveRecord::Migration<%= migration_versio
   UNPRICED_INDEX = :index_llm_cost_tracker_calls_on_unpriced
 
   def up
-    UNUSED_CALL_INDEXES.each { |columns| remove_index CALLS, column: columns, **index_options }
-    add_index CALLS, :id, name: UNPRICED_INDEX, where: "total_cost IS NULL", **index_options
+    UNUSED_CALL_INDEXES.each { |columns| remove_index CALLS, column: columns, **remove_index_options }
+    add_index CALLS, :id, name: UNPRICED_INDEX, where: "total_cost IS NULL", **add_index_options
     return unless table_exists?(INBOX)
 
-    remove_index INBOX, column: UNUSED_INBOX_INDEX, **index_options
+    remove_index INBOX, column: UNUSED_INBOX_INDEX, **remove_index_options
   end
 
   def down
-    add_index INBOX, UNUSED_INBOX_INDEX, **index_options if table_exists?(INBOX)
-    remove_index CALLS, name: UNPRICED_INDEX, **index_options
-    UNUSED_CALL_INDEXES.each { |columns| add_index CALLS, columns, **index_options }
+    add_index INBOX, UNUSED_INBOX_INDEX, **add_index_options if table_exists?(INBOX)
+    remove_index CALLS, name: UNPRICED_INDEX, **remove_index_options
+    UNUSED_CALL_INDEXES.each { |columns| add_index CALLS, columns, **add_index_options }
   end
 
   private
 
-  def index_options
-    options = { if_exists: true, if_not_exists: true }
-    return options unless LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+  def add_index_options
+    return { if_not_exists: true } unless postgresql?
 
-    options.merge(algorithm: :concurrently)
+    { if_not_exists: true, algorithm: :concurrently }
+  end
+
+  def remove_index_options
+    return { if_exists: true } unless postgresql?
+
+    { if_exists: true, algorithm: :concurrently }
+  end
+
+  def postgresql?
+    LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
   end
 end

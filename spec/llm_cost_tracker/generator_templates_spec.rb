@@ -322,6 +322,35 @@ RSpec.describe "generator templates" do
     end
   end
 
+  describe "upgrade_indexes migration" do
+    it "runs against the real database and reverses cleanly" do
+      establish_database_connection!
+      create_lct_tables!
+      connection = ActiveRecord::Base.connection
+      connection.add_index(:llm_cost_tracker_calls, %i[provider tracked_at], if_not_exists: true)
+      connection.add_index(:llm_cost_tracker_calls, %i[model tracked_at], if_not_exists: true)
+      connection.remove_index(:llm_cost_tracker_calls,
+                              name: :index_llm_cost_tracker_calls_on_unpriced, if_exists: true)
+
+      migration = migration_from_template("upgrade_indexes.rb.erb", "UpgradeLlmCostTrackerIndexes")
+      migration.migrate(:up)
+
+      names = connection.indexes(:llm_cost_tracker_calls).map(&:name)
+      expect(names).to include("index_llm_cost_tracker_calls_on_unpriced")
+      expect(names).not_to include("index_llm_cost_tracker_calls_on_provider_and_tracked_at")
+
+      migration.migrate(:down)
+
+      reverted = connection.indexes(:llm_cost_tracker_calls).map(&:name)
+      expect(reverted).to include("index_llm_cost_tracker_calls_on_provider_and_tracked_at")
+      expect(reverted).not_to include("index_llm_cost_tracker_calls_on_unpriced")
+    ensure
+      drop_lct_tables!
+      LlmCostTracker::Call.reset_column_information
+      disconnect_database!
+    end
+  end
+
   describe "call_rollups generator" do
     it "creates the optional llm_cost_tracker_call_rollups table" do
       Dir.mktmpdir do |dir|

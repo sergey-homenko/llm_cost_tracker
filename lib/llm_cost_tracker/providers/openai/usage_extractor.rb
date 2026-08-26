@@ -48,9 +48,7 @@ module LlmCostTracker
             return default_to_image ? [remainder, 0] : [0, remainder]
           end
 
-          text_output = text_output_details
-          text_output = [output_tokens - image_output_details - audio_output, 0].max if text_output.zero?
-          [image_output_details, text_output]
+          [image_output_details, [output_tokens - image_output_details - audio_output, 0].max]
         end
 
         def self.cache_read_input_tokens(usage) = detail(usage, INPUT_DETAIL_KEYS, :cached_tokens)

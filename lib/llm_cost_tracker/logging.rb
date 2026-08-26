@@ -3,15 +3,13 @@
 module LlmCostTracker
   module Logging
     class << self
-      def debug(message) = tagged.debug(message)
+      def debug(message) = Rails.logger.debug(prefixed(message))
 
-      def warn(message) = tagged.warn(message)
+      def warn(message) = Rails.logger.warn(prefixed(message))
 
       private
 
-      def tagged
-        Rails.logger.tagged(LlmCostTracker.name)
-      end
+      def prefixed(message) = "[#{LlmCostTracker.name}] #{message}"
     end
   end
 end
