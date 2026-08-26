@@ -27,6 +27,31 @@ migration runs `CONCURRENTLY` outside a transaction, so it does not lock writes.
 Measured on 2M calls with a 200k-row inbox backlog: the backfill scope drops from
 290 ms to 0.3 ms, and about 146 MB of index is reclaimed.
 
+### Optional: one budget per tag value
+
+`config.budgets.per_tag` caps each distinct value of a tag separately — every tenant
+gets its own monthly budget rather than sharing one, for as many tags as you declare.
+It reads from `llm_cost_tracker_call_tags`, which needs two new columns:
+
+```bash
+bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets
+bin/rails db:migrate
+```
+
+The migration is DDL only — it adds the columns and replaces the `(key, value)` index
+with `(key, value, tracked_at)`. The old index is a prefix of the new one, so nothing
+else regresses and the index count stays the same; on PostgreSQL it runs `CONCURRENTLY`
+outside a transaction.
+
+Tag rows written before the migration keep a null cost and are not counted against any
+per-tag budget. To count them, backfill in batches once the migration is in:
+
+```bash
+bin/rails llm_cost_tracker:backfill_tag_costs
+```
+
+See [Budgets](budgets.md#per-tag-budgets).
+
 ### Optional: move the initializer to namespaced config
 
 Configuration options are grouped into `budgets`, `capture`, `ingestion`,

@@ -45,6 +45,93 @@ Under concurrency, multiple workers can clear preflight before each
 other's spend is visible. It stops the next request once overspend
 lands — it doesn't make provider spend transactional.
 
+## Per-Tag Budgets
+
+`budgets.per_tag` applies one budget to every distinct value of a tag, for as many
+tags as you declare:
+
+```ruby
+config.budgets.per_tag = {
+  tenant_id: { monthly: 1000.00, weekly: 300.00 },
+  user_id:   { daily: 25.00, behavior: :notify }
+}
+```
+
+Each `tenant_id` gets its own 1000 a month, and each `user_id` its own 25 a day. The
+budgets are not shared, and the number of values does not change the configuration.
+
+Scoped spend is read from `llm_cost_tracker_call_tags`, which carries a copy of the
+call's `total_cost` and `tracked_at` so a budget check reads one table with no join.
+Add those columns with:
+
+```bash
+bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets
+bin/rails db:migrate
+```
+
+The migration only adds the columns and replaces the `(key, value)` index with
+`(key, value, tracked_at)` — the old one is a prefix of the new one, so the index count
+stays the same. Rows recorded before the migration keep a null cost and are not counted;
+to count them, backfill in batches afterwards:
+
+```bash
+bin/rails llm_cost_tracker:backfill_tag_costs
+```
+
+It is safe to run more than once and skips rows already filled. Until the columns exist
+the option logs a warning once and enforces nothing; calls are still recorded.
+
+Repricing keeps the copies honest: `llm_cost_tracker:backfill_unknown_pricing` updates
+the tag rows along with the call.
+
+Scoped checks run after the global ones. By default each rule follows the global
+`exceeded_behavior` and `on_exceeded`, and may override either:
+
+```ruby
+config.budgets.per_tag = {
+  tenant_id: {
+    monthly: 1000.00,
+    behavior: :notify,
+    on_exceeded: ->(payload) { TenantBudgetMailer.warn(payload).deliver_later }
+  }
+}
+```
+
+That lets an app block on the global ceiling while only warning a tenant that
+overspends, or the other way round — a rule set to `:block_requests` blocks pre-send
+even when the global policy is `:notify`.
+
+The payload and `BudgetExceededError` carry `scope`:
+
+```ruby
+{ budget_type: :monthly, scope: { key: "tenant_id", value: "42" }, total: ..., budget: ... }
+```
+
+`scope` is `nil` for the global budgets.
+
+Calls that do not carry a declared tag are subject to the global budgets only.
+
+### Budget high-cardinality tags only
+
+A budget check costs one indexed query per declared tag present on the call, and its
+speed follows how many distinct values that tag has. Measured on 2M calls with 4M tag
+rows:
+
+| Tag | Distinct values | Monthly read |
+| --- | --- | --- |
+| `tenant_id` | 500 | 6 ms |
+| `environment` | 2 | 246 ms |
+
+A tag with few values covers most of the ledger, so no index helps and every call pays
+for a near-full scan. Budget a tenant, account, or user id — not `environment`,
+`feature`, or anything else with a handful of values. When a read crosses 100 ms the
+gem logs a warning once per tag naming the offender.
+
+Two more limits. The weekly window follows the host app's `Date.beginning_of_week`.
+And with `ingestion: :async`, spend still sitting in the inbox is invisible to a scoped
+total while the global totals do count it, so a scoped budget lags by the drain
+interval.
+
 ## Budget Reads
 
 Where the monthly/daily totals come from depends on
@@ -84,6 +171,7 @@ budget total summed across units and is not supported.
 | `budget` | Configured threshold |
 | `last_event` | Event that triggered the check when available (`nil` for `stage == :pre_send` because the call has not yet been made) |
 | `stage` | `:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks |
+| `scope` | `{ key:, value: }` for a `budgets.per_tag` check, `nil` for the global budgets |
 
 ## Operational Notes
 

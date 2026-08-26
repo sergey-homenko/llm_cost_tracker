@@ -4,6 +4,8 @@ require "bigdecimal"
 
 require_relative "ledger"
 require_relative "pricing/estimator"
+require_relative "budget/per_tag"
+require_relative "tags/context"
 
 module LlmCostTracker
   module Budget
@@ -13,17 +15,21 @@ module LlmCostTracker
       def enforce!(provider: nil, model: nil, request: nil, estimate: nil, force: false)
         config = LlmCostTracker.configuration
         return unless config.enabled
-        return unless force || config.budgets.exceeded_behavior == :block_requests
+
+        globally = force || config.budgets.exceeded_behavior == :block_requests
+        per_tag = force || PerTag.blocking?
+        return unless globally || per_tag
 
         estimate ||= estimate_cost(provider: provider, model: model, request: request)
-        raise_per_call_pre_send(estimate, config.budgets.per_call) if config.budgets.per_call && estimate.positive?
+        now = Time.now.utc
+        enforce_globally(config, estimate: estimate, time: now) if globally
+        return unless per_tag
 
-        check_windowed({ monthly: config.budgets.monthly, daily: config.budgets.daily }.compact,
-                       time: Time.now.utc,
-estimate: estimate) do |budget_type, total, budget|
-          raise BudgetExceededError.new(**budget_payload(
-            budget_type: budget_type, total: total, budget: budget, last_event: nil, stage: :pre_send
-          ))
+        check_per_tag(Tags::Context.tags,
+                      time: now,
+                      estimate: estimate,
+                      blocking_only: !force) do |rule, window, total, limit|
+          raise_pre_send(budget_type: window, total: total, budget: limit, scope: scope_for(rule))
         end
       end
 
@@ -35,6 +41,17 @@ estimate: estimate) do |budget_type, total, budget|
         check_windowed({ daily: config.budgets.daily, monthly: config.budgets.monthly }.compact,
                        time: event.tracked_at) do |budget_type, total, budget|
           handle_exceeded(budget_type: budget_type, total: total, budget: budget, last_event: event)
+        end
+        check_per_tag(event.tags, time: event.tracked_at) do |rule, window, total, limit|
+          handle_exceeded(
+            budget_type: window,
+            total: total,
+            budget: limit,
+            last_event: event,
+            scope: scope_for(rule),
+            behavior: rule.behavior,
+            on_exceeded: rule.on_exceeded
+          )
         end
       end
 
@@ -64,6 +81,35 @@ estimate: estimate) do |budget_type, total, budget|
         handle_exceeded(budget_type: :per_call, total: total, budget: budget, last_event: event)
       end
 
+      def enforce_globally(config, estimate:, time:)
+        raise_per_call_pre_send(estimate, config.budgets.per_call) if config.budgets.per_call && estimate.positive?
+
+        check_windowed({ monthly: config.budgets.monthly, daily: config.budgets.daily }.compact,
+                       time: time,
+                       estimate: estimate) do |budget_type, total, budget|
+          raise_pre_send(budget_type: budget_type, total: total, budget: budget)
+        end
+      end
+
+      def raise_pre_send(budget_type:, total:, budget:, scope: nil)
+        raise BudgetExceededError.new(**budget_payload(
+          budget_type: budget_type, total: total, budget: budget, last_event: nil, stage: :pre_send, scope: scope
+        ))
+      end
+
+      def check_per_tag(tags, time:, estimate: BigDecimal("0"), blocking_only: false)
+        PerTag.rules_for(tags, blocking_only: blocking_only).each do |rule|
+          rule.windows.each do |window, limit|
+            total = PerTag.spend(rule.key, rule.value, window, time: time) + estimate
+            yield(rule, window, total, limit) if total >= limit
+          end
+        end
+      end
+
+      def scope_for(rule)
+        { key: rule.key, value: rule.value }
+      end
+
       def check_windowed(budgets, time:, estimate: BigDecimal("0"))
         return if budgets.empty?
 
@@ -82,37 +128,47 @@ estimate: estimate) do |budget_type, total, budget|
         period_for.transform_values { |period| period_totals.fetch(period) }
       end
 
-      def handle_exceeded(budget_type:, total:, budget:, last_event: nil)
+      def handle_exceeded(budget_type:,
+                          total:,
+                          budget:,
+                          last_event: nil,
+                          scope: nil,
+                          behavior: nil,
+                          on_exceeded: nil)
         config = LlmCostTracker.configuration
+        behavior ||= config.budgets.exceeded_behavior
+        on_exceeded ||= config.budgets.on_exceeded
         payload = budget_payload(
           budget_type: budget_type,
           total: total,
           budget: budget,
           last_event: last_event,
-          stage: :post_spend
+          stage: :post_spend,
+          scope: scope
         )
 
-        if notify_exceeded?(config, budget_type: budget_type, total: total, budget: budget, last_event: last_event)
-          config.budgets.on_exceeded&.call(payload)
-        end
-        raise BudgetExceededError.new(**payload) if %i[raise block_requests].include?(config.budgets.exceeded_behavior)
+        on_exceeded.call(payload) if notify_exceeded?(on_exceeded, payload)
+        raise BudgetExceededError.new(**payload) if %i[raise block_requests].include?(behavior)
       end
 
-      def budget_payload(budget_type:, total:, budget:, last_event:, stage:)
+      def budget_payload(budget_type:, total:, budget:, last_event:, stage:, scope: nil)
         {
           budget_type: budget_type,
           total: total,
           budget: budget,
           last_event: last_event,
-          stage: stage
+          stage: stage,
+          scope: scope
         }
       end
 
-      def notify_exceeded?(config, budget_type:, total:, budget:, last_event:)
-        return false unless config.budgets.on_exceeded
-        return true if !last_event&.total_cost || budget_type == :per_call
+      def notify_exceeded?(on_exceeded, payload)
+        return false unless on_exceeded
 
-        total - last_event.total_cost < budget
+        last_event = payload[:last_event]
+        return true if !last_event&.total_cost || payload[:budget_type] == :per_call
+
+        payload[:total] - last_event.total_cost < payload[:budget]
       end
     end
   end

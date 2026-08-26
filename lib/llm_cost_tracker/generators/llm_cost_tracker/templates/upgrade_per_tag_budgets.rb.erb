@@ -1,0 +1,41 @@
+require "llm_cost_tracker/ledger/schema/adapter"
+
+class UpgradeLlmCostTrackerPerTagBudgets < ActiveRecord::Migration<%= migration_version %>
+  disable_ddl_transaction!
+
+  TABLE = :llm_cost_tracker_call_tags
+  INDEX = %i[key value tracked_at].freeze
+  REPLACED_INDEX = %i[key value].freeze
+
+  def up
+    add_column TABLE, :total_cost, :decimal, precision: 20, scale: 8 unless column_exists?(TABLE, :total_cost)
+    add_column TABLE, :tracked_at, :datetime unless column_exists?(TABLE, :tracked_at)
+    add_index TABLE, INDEX, **add_index_options
+    remove_index TABLE, column: REPLACED_INDEX, **remove_index_options
+  end
+
+  def down
+    add_index TABLE, REPLACED_INDEX, **add_index_options
+    remove_index TABLE, column: INDEX, **remove_index_options
+    remove_column TABLE, :tracked_at, if_exists: true
+    remove_column TABLE, :total_cost, if_exists: true
+  end
+
+  private
+
+  def add_index_options
+    return { if_not_exists: true, length: { value: 191 } } unless postgresql?
+
+    { if_not_exists: true, algorithm: :concurrently }
+  end
+
+  def remove_index_options
+    return { if_exists: true } unless postgresql?
+
+    { if_exists: true, algorithm: :concurrently }
+  end
+
+  def postgresql?
+    LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+  end
+end

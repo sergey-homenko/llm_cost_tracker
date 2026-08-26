@@ -74,6 +74,8 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
                    foreign_key: { to_table: :llm_cost_tracker_calls, on_delete: :cascade }
       t.string :key, null: false
       t.text :value, null: false
+      t.decimal :total_cost, precision: 20, scale: 8
+      t.datetime :tracked_at
     end
 
     add_index :llm_cost_tracker_calls, :event_id, unique: true
@@ -85,9 +87,9 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
     add_index :llm_cost_tracker_call_line_items, [:llm_cost_tracker_call_id, :position]
     add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
     if postgresql?
-      add_index :llm_cost_tracker_call_tags, [:key, :value]
+      add_index :llm_cost_tracker_call_tags, [:key, :value, :tracked_at]
     elsif mysql?
-      add_index :llm_cost_tracker_call_tags, [:key, :value], length: { value: 191 }
+      add_index :llm_cost_tracker_call_tags, [:key, :value, :tracked_at], length: { value: 191 }
     end
   end
 

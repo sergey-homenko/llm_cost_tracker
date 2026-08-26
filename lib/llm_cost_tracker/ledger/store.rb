@@ -4,6 +4,7 @@ require "json"
 
 require_relative "../pricing"
 require_relative "rollups"
+require_relative "../budget/per_tag"
 require_relative "tags/encoding"
 
 module LlmCostTracker
@@ -121,12 +122,18 @@ module LlmCostTracker
                 llm_cost_tracker_call_id: call_ids.fetch(event.event_id),
                 key: key.to_s,
                 value: Tags::Encoding.encode(value)
-              }
+              }.merge(budget_columns_for(event))
             end
           end
           return if rows.empty?
 
           LlmCostTracker::CallTag.insert_all!(rows, record_timestamps: false, returning: false)
+        end
+
+        def budget_columns_for(event)
+          return {} unless LlmCostTracker::Budget::PerTag.columns?
+
+          { total_cost: event.cost&.total, tracked_at: event.tracked_at }
         end
 
         def stored_details(details)

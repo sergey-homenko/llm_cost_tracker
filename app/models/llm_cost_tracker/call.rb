@@ -64,13 +64,14 @@ module LlmCostTracker
       end
 
       def cost_by_tag(key, limit: nil)
+        cost = qualified_total_cost
         label = Ledger::Tags::Breakdown.label_sql(connection)
         raw_value = Ledger::Tags::Breakdown.raw_value_sql(connection)
         relation = Ledger::Tags::Breakdown.join_relation(self, key)
-                                          .select("#{label} AS name", "COALESCE(SUM(total_cost), 0) AS total_cost")
+                                          .select("#{label} AS name", "COALESCE(SUM(#{cost}), 0) AS total_cost")
                                           .group(Arel.sql(label))
                                           .order(
-                                            Arel.sql("COALESCE(SUM(total_cost), 0) DESC"),
+                                            Arel.sql("COALESCE(SUM(#{cost}), 0) DESC"),
                                             Arel.sql("MAX(CASE WHEN #{raw_value} IS NULL THEN 1 ELSE 0 END) ASC"),
                                             Arel.sql("#{label} DESC")
                                           )
@@ -92,6 +93,10 @@ module LlmCostTracker
         where(tracked_at: days.days.ago..)
           .group_by_period(:day)
           .sum(:total_cost)
+      end
+
+      def qualified_total_cost
+        "#{quoted_table_name}.#{connection.quote_column_name(:total_cost)}"
       end
 
       private

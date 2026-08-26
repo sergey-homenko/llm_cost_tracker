@@ -13,6 +13,7 @@ require "llm_cost_tracker/generators/llm_cost_tracker/prices_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_call_rollups_provider_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_image_tokens_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_indexes_generator"
+require "llm_cost_tracker/generators/llm_cost_tracker/upgrade_per_tag_budgets_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/async_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/call_rollups_generator"
 
@@ -30,6 +31,17 @@ RSpec.describe "generator templates" do
 
   def render_migration_template(name)
     ERB.new(template(name), trim_mode: "-").result(binding)
+  end
+
+  def index_columns(connection)
+    connection.indexes(:llm_cost_tracker_call_tags).map { |index| Array(index.columns).map(&:to_s) }
+  end
+
+  def migration_from_template(template_name, class_name)
+    body = ERB.new(template(template_name), trim_mode: "-").result(binding)
+    Object.send(:remove_const, class_name) if Object.const_defined?(class_name, false)
+    eval(body) # rubocop:disable Security/Eval
+    Object.const_get(class_name).new
   end
 
   def render_install_initializer(prices:)
@@ -86,7 +98,7 @@ RSpec.describe "generator templates" do
     expect(migration).to include(%(name: :index_llm_cost_tracker_calls_on_unpriced))
     expect(migration).to include("add_index :llm_cost_tracker_call_line_items, [:llm_cost_tracker_call_id, :position]")
     expect(migration).not_to include("add_index :llm_cost_tracker_call_line_items, :kind")
-    expect(migration).to include("add_index :llm_cost_tracker_call_tags, [:key, :value]")
+    expect(migration).to include("add_index :llm_cost_tracker_call_tags, [:key, :value, :tracked_at]")
     expect(migration).not_to match(/add_index :llm_cost_tracker_call_tags, :key$/)
     expect(migration).not_to match(/add_index :llm_cost_tracker_calls, :provider$/)
     expect(migration).not_to match(/add_index :llm_cost_tracker_calls, :model$/)
@@ -257,6 +269,56 @@ RSpec.describe "generator templates" do
         expect(migration).to include("disable_ddl_transaction!")
         expect(migration).to include(%(where: "total_cost IS NULL"))
       end
+    end
+  end
+
+  describe "upgrade_per_tag_budgets generator" do
+    it "adds the cost columns to tag rows and swaps the index" do
+      Dir.mktmpdir do |dir|
+        LlmCostTracker::Generators::UpgradePerTagBudgetsGenerator.start([], destination_root: dir)
+
+        migration_path = Dir[
+          File.join(dir, "db/migrate/*_upgrade_llm_cost_tracker_per_tag_budgets.rb")
+        ].first
+        expect(migration_path).not_to be_nil
+
+        migration = File.read(migration_path)
+        expect(migration).to include("class UpgradeLlmCostTrackerPerTagBudgets")
+        expect(migration).to include("TABLE = :llm_cost_tracker_call_tags")
+        expect(migration).to include("INDEX = %i[key value tracked_at].freeze")
+        expect(migration).to include("REPLACED_INDEX = %i[key value].freeze")
+        expect(migration).to include("remove_index TABLE, column: REPLACED_INDEX, **remove_index_options")
+        expect(migration).to include("{ if_not_exists: true, algorithm: :concurrently }")
+        expect(migration).to include("{ if_exists: true, algorithm: :concurrently }")
+        expect(migration).to include("disable_ddl_transaction!")
+      end
+    end
+  end
+
+  describe "upgrade_per_tag_budgets migration" do
+    it "runs against the real database and reverses cleanly" do
+      establish_database_connection!
+      create_lct_tables!
+      connection = ActiveRecord::Base.connection
+      connection.remove_column(:llm_cost_tracker_call_tags, :total_cost)
+      connection.remove_column(:llm_cost_tracker_call_tags, :tracked_at)
+      connection.remove_index(:llm_cost_tracker_call_tags, column: %i[key value tracked_at], if_exists: true)
+      connection.add_index(:llm_cost_tracker_call_tags, %i[key value], if_not_exists: true)
+
+      migration = migration_from_template("upgrade_per_tag_budgets.rb.erb", "UpgradeLlmCostTrackerPerTagBudgets")
+      migration.migrate(:up)
+
+      expect(connection.column_exists?(:llm_cost_tracker_call_tags, :total_cost)).to be(true)
+      expect(index_columns(connection)).to include(%w[key value tracked_at])
+
+      migration.migrate(:down)
+
+      expect(connection.column_exists?(:llm_cost_tracker_call_tags, :total_cost)).to be(false)
+      expect(index_columns(connection)).to include(%w[key value])
+    ensure
+      drop_lct_tables!
+      LlmCostTracker::CallTag.reset_column_information
+      disconnect_database!
     end
   end
 

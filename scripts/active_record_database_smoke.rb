@@ -191,6 +191,8 @@ def create_call_tags_table!
                  foreign_key: { to_table: :llm_cost_tracker_calls, on_delete: :cascade }
     t.string :key, null: false
     t.text :value, null: false
+    t.decimal :total_cost, precision: 20, scale: 8
+    t.datetime :tracked_at
   end
 end
 
@@ -238,9 +240,9 @@ def add_schema_indexes!(database_connection)
   add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
   add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
   if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
-    add_index :llm_cost_tracker_call_tags, %i[key value]
+    add_index :llm_cost_tracker_call_tags, %i[key value tracked_at]
   else
-    add_index :llm_cost_tracker_call_tags, %i[key value], length: { value: 191 }
+    add_index :llm_cost_tracker_call_tags, %i[key value tracked_at], length: { value: 191 }
   end
   add_index :llm_cost_tracker_call_rollups, %i[period period_start currency provider], unique: true
   add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true

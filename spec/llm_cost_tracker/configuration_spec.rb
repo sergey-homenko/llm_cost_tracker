@@ -78,6 +78,83 @@ RSpec.describe LlmCostTracker::Configuration do
     end
   end
 
+  describe "budgets.per_tag=" do
+    it "normalizes windows and per-rule options into one entry" do
+      handler = ->(_payload) {}
+      config.budgets.per_tag = { tenant_id: { monthly: 1000, weekly: 300, behavior: :notify, on_exceeded: handler } }
+
+      expect(config.budgets.per_tag).to eq(
+        "tenant_id" => { windows: { monthly: 1000, weekly: 300 }, behavior: :notify, on_exceeded: handler }
+      )
+    end
+
+    it "leaves the per-rule options nil so the global settings apply" do
+      config.budgets.per_tag = { tenant_id: { monthly: 1000 } }
+
+      expect(config.budgets.per_tag.fetch("tenant_id"))
+        .to eq(windows: { monthly: 1000 }, behavior: nil, on_exceeded: nil)
+    end
+
+    it "reads per-rule options written with string keys" do
+      handler = ->(_payload) {}
+      config.budgets.per_tag = {
+        "tenant_id" => { "monthly" => 5, "behavior" => :block_requests, "on_exceeded" => handler }
+      }
+
+      expect(config.budgets.per_tag.fetch("tenant_id"))
+        .to eq(windows: { monthly: BigDecimal("5") }, behavior: :block_requests, on_exceeded: handler)
+    end
+
+    it "stores limits as BigDecimal so a numeric string cannot blow up the request path" do
+      config.budgets.per_tag = { tenant_id: { monthly: "5.50" } }
+
+      limit = config.budgets.per_tag.fetch("tenant_id")[:windows][:monthly]
+
+      expect(limit).to eq(BigDecimal("5.50"))
+      expect(BigDecimal("6") >= limit).to be(true)
+    end
+
+    it "rejects an unknown per-rule behavior" do
+      expect { config.budgets.per_tag = { tenant_id: { monthly: 1, behavior: :explode } } }
+        .to raise_error(LlmCostTracker::Error, /Unknown budgets\.per_tag.*behavior: :explode/)
+    end
+
+    it "rejects an entry with options but no window" do
+      expect { config.budgets.per_tag = { tenant_id: { behavior: :notify } } }
+        .to raise_error(LlmCostTracker::Error, /needs at least one of/)
+    end
+
+    it "accepts several tag keys, each with its own windows" do
+      config.budgets.per_tag = { tenant_id: { monthly: 1000 }, feature: { daily: 5 } }
+
+      expect(config.budgets.per_tag.keys).to eq(%w[tenant_id feature])
+      expect(config.budgets.per_tag.fetch("feature")[:windows]).to eq(daily: 5)
+    end
+
+    it "rejects an unknown window" do
+      expect { config.budgets.per_tag = { tenant_id: { hourly: 1 } } }
+        .to raise_error(LlmCostTracker::Error, /Unknown budgets\.per_tag.*window: :hourly/)
+    end
+
+    it "rejects a limit that is not a positive number" do
+      expect { config.budgets.per_tag = { tenant_id: { monthly: 0 } } }
+        .to raise_error(LlmCostTracker::Error, /must be a positive number/)
+    end
+
+    it "rejects a tag key the ledger would refuse to store" do
+      expect { config.budgets.per_tag = { "not a key!" => { monthly: 1 } } }
+        .to raise_error(LlmCostTracker::Error)
+    end
+
+    it "freezes the declaration on finalize!" do
+      config.budgets.per_tag = { tenant_id: { monthly: 1 } }
+      config.finalize!
+
+      expect(config.budgets.per_tag).to be_frozen
+      expect { config.budgets.per_tag = {} }.to raise_error(FrozenError)
+    end
+  end
+
   describe "deprecated flat names" do
     described_class::DEPRECATED_OPTIONS.each do |old_name, spec|
       next if spec[:to].nil? || spec[:writer_only] || spec[:cast]

@@ -4,6 +4,7 @@ require_relative "../pricing"
 require_relative "../charges/line_item"
 require_relative "../ledger/rollups"
 require_relative "../usage/token_usage"
+require_relative "../budget/per_tag"
 
 module LlmCostTracker
   module Pricing
@@ -61,12 +62,21 @@ module LlmCostTracker
             pricing_snapshot: calculation.snapshot,
             cost_status: calculation.cost_status
           )
+          resync_tag_costs(call, calculation.cost.total)
           token_priced = calculation.priced_line_items.select(&:token?).index_by { |item| dimension_key(item) }
           service_priced = calculation.priced_line_items.reject(&:token?)
           token_records, service_records = call.line_items.partition { |record| record.unit == "token" }
 
           token_records.each { |record| apply_rate(record, token_priced[dimension_key(record)]) }
           service_records.sort_by(&:position).zip(service_priced).each { |record, priced| apply_rate(record, priced) }
+        end
+
+        def resync_tag_costs(call, total_cost)
+          return unless LlmCostTracker::Budget::PerTag.columns?
+
+          LlmCostTracker::CallTag
+            .where(llm_cost_tracker_call_id: call.id)
+            .update_all(total_cost: total_cost)
         end
 
         def apply_rate(record, priced)

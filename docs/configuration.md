@@ -149,8 +149,9 @@ won't invent a total cost out of thin air.
 | `budgets.per_call` | `nil` | Single-event USD guardrail |
 | `budgets.exceeded_behavior` | `:notify` | `:notify`, `:raise`, or `:block_requests` |
 | `budgets.on_exceeded` | `nil` | Callable receiving the budget payload |
+| `budgets.per_tag` | `{}` | One budget per distinct value of each declared tag, e.g. `{ tenant_id: { monthly: 1000 }, user_id: { daily: 25 } }`. Windows are `daily`, `weekly`, `monthly`, and a rule may set its own `behavior` and `on_exceeded` instead of following the global ones. Spend is read from `llm_cost_tracker_call_tags`, which needs the cost columns added by `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets`. |
 
-Budget payloads include `budget_type`, `total`, `budget`, `last_event`, and `stage` (`:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks). See [Budgets and Guardrails](budgets.md) for the pre-send estimate behavior.
+Budget payloads include `budget_type`, `total`, `budget`, `last_event`, `scope` (the tag key and value for a `per_tag` check, `nil` otherwise), and `stage` (`:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks). See [Budgets and Guardrails](budgets.md) for the pre-send estimate behavior.
 
 ## Storage
 

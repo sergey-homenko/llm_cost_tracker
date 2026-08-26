@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added
+
+- `config.budgets.per_tag` applies one budget to every distinct value of each declared tag — `{ tenant_id: { monthly: 1000 }, user_id: { daily: 25 } }` gives every tenant its own 1000 a month and every user its own 25 a day, for as many tags as you declare. Windows are `daily`, `weekly`, and `monthly`; a rule can set its own `behavior` and `on_exceeded` or fall back to the global ones, and the payload names the tag and value that crossed. Run `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets` first, then `bin/rails llm_cost_tracker:backfill_tag_costs` if you want spend recorded before the upgrade to count.
+- OpenAI gpt-5.6-sol, gpt-5.6-terra, and gpt-5.6-luna are priced, including their cache-write rates across standard, batch, flex, priority, long-context, and data-residency tiers.
+- Cache writes reported in OpenAI usage (`cache_write_tokens`, GPT-5.6 and later) are captured and costed at the model's cache-write rate instead of being counted as regular input.
+- Anthropic thinking tokens are counted as hidden output on the Data Quality page, so reasoning Claude already billed inside `output_tokens` is visible instead of reading as zero. Cost is unchanged — `output_tokens` stays the billable total.
+
 ### Changed
 
 - `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer scans the whole ledger on every batch — unpriced calls are found through a partial index. Existing installs pick this up with `bin/rails generate llm_cost_tracker:upgrade_indexes`, which also drops three indexes the query planner never chose, reclaiming about 146 MB per 2M calls.
@@ -12,12 +19,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - Configuration options are grouped into `budgets`, `capture`, `ingestion`, `pricing`, and `tags` — `config.budgets.monthly` replaces `config.monthly_budget`, and so on. Flat names still work and warn with their replacement; they are removed in 1.0. See [docs/upgrading.md](docs/upgrading.md#v013--v014-unreleased) for the full mapping.
 - `config.log_level` is dropped with no replacement — it never affected any log output.
-
-### Added
-
-- OpenAI gpt-5.6-sol, gpt-5.6-terra, and gpt-5.6-luna are priced, including their cache-write rates across standard, batch, flex, priority, long-context, and data-residency tiers.
-- Cache writes reported in OpenAI usage (`cache_write_tokens`, GPT-5.6 and later) are captured and costed at the model's cache-write rate instead of being counted as regular input.
-- Anthropic thinking tokens are counted as hidden output on the Data Quality page, so reasoning Claude already billed inside `output_tokens` is visible instead of reading as zero. Cost is unchanged — `output_tokens` stays the billable total.
 
 ### Removed
 

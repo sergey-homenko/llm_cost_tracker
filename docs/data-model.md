@@ -67,9 +67,15 @@ columns.
 Indexes:
 
 - unique `event_id` (idempotent ingestion)
-- `tracked_at`, `[provider, tracked_at]`, `[model, tracked_at]` (filters)
+- `tracked_at` (time filters and retention)
 - `cost_status` (data quality)
 - `provider_response_id` (cross-reference with provider invoices and logs)
+- partial `id where total_cost is null` (the unpriced scope `llm_cost_tracker:backfill_unknown_pricing` walks)
+
+`[provider, tracked_at]` and `[model, tracked_at]` were removed: both lead with a
+low-selectivity column and neither covers `total_cost`, so the planner never chose
+them. Existing installs reclaim the space with
+`bin/rails generate llm_cost_tracker:upgrade_indexes && bin/rails db:migrate`.
 
 ## `llm_cost_tracker_call_line_items`
 
@@ -115,11 +121,13 @@ Normalized attribution. One row per `key=value` pair on a call.
 | `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
 | `key` | string, not null | Tag key |
 | `value` | text, not null | Tag value (nested hashes are stored as JSON strings) |
+| `total_cost` | decimal(20,8), null | Copy of the call's cost, so a per-tag budget reads this table without a join. Null until `bin/rails llm_cost_tracker:backfill_tag_costs` fills rows written before the columns existed. |
+| `tracked_at` | datetime, null | Copy of the call's time. The call's business time, never the write time — see [Budgets](budgets.md#per-tag-budgets). |
 
 Indexes:
 
 - `llm_cost_tracker_call_id`
-- `[key, value]` composite — high-cardinality tag filters (`Call.by_tag(:tenant_id, …)`) hit an index seek instead of a full key-prefix scan. MySQL gets `length: { value: 191 }` because of the index byte-length limit. Existing installs upgrade with `bin/rails generate llm_cost_tracker:upgrade_call_tags_key_value_index && bin/rails db:migrate`.
+- `[key, value, tracked_at]` composite — high-cardinality tag filters (`Call.by_tag(:tenant_id, …)`) hit an index seek instead of a full key-prefix scan, and per-tag budget windows read the same index. MySQL gets `length: { value: 191 }` because of the index byte-length limit. It replaces the earlier `[key, value]` index, which is a prefix of it; existing installs upgrade with `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets && bin/rails db:migrate`.
 
 ## `llm_cost_tracker_call_rollups`
 

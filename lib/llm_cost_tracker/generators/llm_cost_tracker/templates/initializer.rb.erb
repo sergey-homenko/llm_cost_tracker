@@ -47,6 +47,17 @@ LlmCostTracker.configure do |config|
   # config.budgets.daily = 10.00
   # config.budgets.per_call = 1.00
   config.budgets.exceeded_behavior = :notify
+
+  # One budget applied to every distinct value of a tag: each tenant gets its own
+  # 1000 a month, not 1000 shared between them. Declare as many tags as you need; a rule
+  # can set its own behavior and callback instead of following the global ones. Needs the
+  # cost columns from `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets`.
+  # Budget high-cardinality tags only — a tag with a handful of values covers most of the
+  # ledger, so its check cannot use an index and every call pays for a near-full scan.
+  # config.budgets.per_tag = {
+  #   tenant_id: { monthly: 1000.00, weekly: 300.00 },
+  #   user_id: { daily: 25.00, behavior: :notify }
+  # }
   # config.budgets.on_exceeded = ->(data) {
   #   Rails.logger.warn("LLM #{data[:budget_type]} budget exceeded: $#{data[:total]} / $#{data[:budget]}")
   # }

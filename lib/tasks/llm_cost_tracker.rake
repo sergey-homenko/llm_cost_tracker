@@ -75,6 +75,18 @@ namespace :llm_cost_tracker do
     puts "llm_cost_tracker: rebuilt #{rows} rollup rows from the calls ledger"
   end
 
+  desc "Copy call cost and time onto existing llm_cost_tracker_call_tags rows so per-tag " \
+       "budgets count history recorded before the upgrade. Use BATCH_SIZE=N to tune."
+  task backfill_tag_costs: :environment do
+    unless LlmCostTracker::Budget::PerTag.columns?
+      abort("llm_cost_tracker: llm_cost_tracker_call_tags is missing the cost columns; " \
+            "run the upgrade_per_tag_budgets generator and migrate first")
+    end
+    batch_size = (ENV["BATCH_SIZE"] || LlmCostTracker::Budget::PerTag::DEFAULT_BACKFILL_BATCH).to_i
+    filled = LlmCostTracker::Budget::PerTag.backfill(batch_size: batch_size)
+    puts "llm_cost_tracker: filled cost and time on #{filled} tag rows"
+  end
+
   namespace :prices do
     desc(
       "Refresh the configured pricing file from the maintained LLM Cost Tracker price snapshot. " \

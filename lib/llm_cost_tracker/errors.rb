@@ -6,19 +6,28 @@ module LlmCostTracker
   class InvalidFilterError < Error; end
 
   class BudgetExceededError < Error
-    attr_reader :total, :budget, :budget_type, :last_event, :stage
+    attr_reader :total, :budget, :budget_type, :last_event, :stage, :scope
 
-    def initialize(budget:, budget_type:, total:, last_event: nil, stage: :post_spend)
+    def initialize(budget:, budget_type:, total:, last_event: nil, stage: :post_spend, scope: nil)
       @total = total
       @budget = budget
       @budget_type = budget_type
       @last_event = last_event
       @stage = stage
+      @scope = scope
 
       super(
-        "LLM #{@budget_type.to_s.tr('_', '-')} budget exceeded: " \
+        "LLM #{@budget_type.to_s.tr('_', '-')} budget exceeded#{scope_suffix}: " \
         "$#{format('%.6f', @total)} / $#{format('%.6f', budget)}"
       )
+    end
+
+    private
+
+    def scope_suffix
+      return "" unless @scope
+
+      " for #{@scope[:key]}=#{@scope[:value]}"
     end
   end
 

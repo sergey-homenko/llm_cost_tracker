@@ -8,14 +8,10 @@ module LlmCostTracker
       app.config.eager_load_paths << models_path unless app.config.eager_load_paths.include?(models_path)
     end
 
+    GENERATOR_FILES = File.expand_path("generators/llm_cost_tracker/*_generator.rb", __dir__)
+
     generators do
-      require_relative "generators/llm_cost_tracker/install_generator"
-      require_relative "generators/llm_cost_tracker/prices_generator"
-      require_relative "generators/llm_cost_tracker/call_rollups_generator"
-      require_relative "generators/llm_cost_tracker/async_ingestion_generator"
-      require_relative "generators/llm_cost_tracker/upgrade_call_rollups_provider_generator"
-      require_relative "generators/llm_cost_tracker/upgrade_image_tokens_generator"
-      require_relative "generators/llm_cost_tracker/upgrade_call_tags_key_value_index_generator"
+      Dir[GENERATOR_FILES].each { |path| require path }
     end
   end
 end
