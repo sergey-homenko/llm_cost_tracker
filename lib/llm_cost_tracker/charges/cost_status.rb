@@ -16,7 +16,7 @@ module LlmCostTracker
         "#{total_cost} IS NULL OR #{cost_status} IN (#{statuses})"
       end
 
-      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:disable-next Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def self.call(token_usage:,
                     usage_source:,
                     token_cost:,
@@ -45,7 +45,6 @@ module LlmCostTracker
 
         total_cost.nil? || total_cost.zero? ? FREE : COMPLETE
       end
-      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     end
   end
 end

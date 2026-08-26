@@ -6,7 +6,7 @@ require "rails/generators"
 require_relative "../llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 require_relative "../llm_cost_tracker/pricing/sync/change_printer"
 
-# rubocop:disable Metrics/BlockLength
+# rubocop:disable-next Metrics/BlockLength
 namespace :llm_cost_tracker do
   desc "Install LLM Cost Tracker with dashboard and prices, migrate, and run doctor"
   task :setup do
@@ -137,7 +137,6 @@ namespace :llm_cost_tracker do
     end
   end
 end
-# rubocop:enable Metrics/BlockLength
 
 def price_refresh_output_path
   path = LlmCostTracker::Pricing::Sync.configured_output_path
