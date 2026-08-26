@@ -29,7 +29,7 @@ module LlmCostTracker
 
         if calculation.token_cost.nil? && event.token_usage.total_tokens.positive? &&
            calculation.priced_line_items.none?(&:priced?)
-          Pricing::Unknown.process(event.model)
+          Pricing::Unknown.process(event.model, pricing_mode: calculation.mode)
         end
 
         event = build_event(event: event, calculation: calculation, tags: tags, latency_ms: latency_ms)

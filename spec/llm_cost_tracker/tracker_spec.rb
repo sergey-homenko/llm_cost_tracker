@@ -140,7 +140,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event[:provider_api_key_id]).to eq("key_notify")
       expect(event[:provider_workspace_id]).to eq("workspace_notify")
       expect(event[:pricing_mode]).to eq("batch")
-      expect(event.dig(:pricing_snapshot, "rates", "input", "quantity")).to eq(1_000_000)
+      expect(event.dig(:pricing_snapshot, "rates", "batch_input", "quantity")).to eq(1_000_000)
       expect(event[:tags]).to include(feature: "chat", user_id: 42)
       expect(event[:tracked_at]).to be_a(Time)
     end
@@ -382,7 +382,7 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.pricing_mode).to eq("batch")
       expect(event.total_cost).to eq(1.5)
       expect(event.tags).to eq(feature: "bulk")
-      expect(event.pricing_snapshot.dig("rates", "input", "amount")).to eq("0.5")
+      expect(event.pricing_snapshot.dig("rates", "batch_input", "amount")).to eq("0.5")
     end
 
     it "marks known token costs with unknown service charges as partial" do

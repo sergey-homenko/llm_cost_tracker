@@ -18,8 +18,19 @@ RSpec.describe LlmCostTracker::Pricing::EffectivePrices do
 
     rates = described_class.call(usage: usage, quantities: usage.priced_quantities, prices: prices, pricing_mode: "batch")
 
-    expect(rates["input"]).to eq(0.5)
-    expect(rates["cache_read_input"]).to eq(0.05)
+    expect(rates["input"].amount).to eq(0.5)
+    expect(rates["input"].key).to eq("batch_input")
+    expect(rates["cache_read_input"].amount).to eq(0.05)
+    expect(rates["cache_read_input"].key).to be_nil
+  end
+
+  it "names the mode-prefixed key it actually read" do
+    prices = { "input" => 1.0, "output" => 2.0, "cache_read_input" => 0.1, "batch_cache_read_input" => 0.07 }
+
+    rates = described_class.call(usage: usage, quantities: usage.priced_quantities, prices: prices, pricing_mode: "batch")
+
+    expect(rates["cache_read_input"].key).to eq("batch_cache_read_input")
+    expect(rates["cache_read_input"].amount).to eq(0.07)
   end
 
   it "returns nil for the derived rate when the input base price is zero" do
@@ -48,7 +59,7 @@ RSpec.describe LlmCostTracker::Pricing::EffectivePrices do
 
     rates = described_class.call(usage: usage, quantities: usage.priced_quantities, prices: prices, pricing_mode: "batch_data_residency")
 
-    expect(rates["cache_read_input"]).to eq(0.05)
+    expect(rates["cache_read_input"].amount).to eq(0.05)
   end
 
   it "returns nil for the derived rate when the standard cache rate is missing" do

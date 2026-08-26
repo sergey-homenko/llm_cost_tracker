@@ -2,7 +2,7 @@
 <% line_item_costs_by_component = call_line_item_costs_by_component(@call) %>
 <% token_segments = priced_components.map do |component|
   token_key = component.fetch(:token_key)
-  value = @call.has_attribute?(token_key) ? @call[token_key] : 0
+  value = @call[token_key]
   { label: component.fetch(:label), value: value, formatted_value: number_with_delimiter(value), css_class: component.fetch(:css_class) }
 end %>
 <% cost_segments = [] %>
@@ -68,13 +68,11 @@ end %>
       <dt>Batch</dt>
       <dd><%= @call.batch? ? "yes" : "no" %></dd>
     </div>
-    <% if @call.has_attribute?(:stream) %>
-      <div class="lct-meta-strip-item">
-        <dt>Stream</dt>
-        <dd><%= @call.stream? ? "yes" : "no" %></dd>
-      </div>
-    <% end %>
-    <% if @call.has_attribute?(:usage_source) && @call.usage_source.present? %>
+    <div class="lct-meta-strip-item">
+      <dt>Stream</dt>
+      <dd><%= @call.stream? ? "yes" : "no" %></dd>
+    </div>
+    <% if @call.usage_source.present? %>
       <div class="lct-meta-strip-item">
         <dt>Usage source</dt>
         <dd><code class="lct-code-id"><%= @call.usage_source %></code></dd>

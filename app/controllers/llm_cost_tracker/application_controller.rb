@@ -28,6 +28,8 @@ module LlmCostTracker
 
       @setup_message = drift.message
       @setup_details = drift.details
+      return head :service_unavailable unless request.format.html?
+
       render template: "llm_cost_tracker/shared/setup_required"
     end
 

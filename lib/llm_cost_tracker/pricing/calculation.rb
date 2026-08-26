@@ -187,16 +187,16 @@ module LlmCostTracker
         price = effective[dimension.key]
         return line_item.with(cost_status: Charges::CostStatus::UNKNOWN) if price.nil?
 
-        line_item.with_rate(token_rate(dimension, price))
+        line_item.with_rate(token_rate(price))
       end
 
-      def token_rate(dimension, price)
+      def token_rate(price)
         Pricing::Rate.new(
-          amount: price.to_d,
+          amount: price.amount.to_d,
           quantity: RATE_DENOMINATOR_TOKENS.to_d,
           currency: match.source.currency,
           source: match.source.name,
-          source_key: dimension.key,
+          source_key: price.key,
           source_version: match.source.version
         )
       end
