@@ -25,10 +25,13 @@ module LlmCostTracker
           usage_source: event.usage_source
         )
 
+        tags = build_tags(context_tags: context_tags, metadata: metadata)
+
         if enforce_budget
           Budget.enforce!(provider: event.provider,
                           model: event.model,
                           estimate: calculation.cost&.total,
+                          tags: tags,
                           force: true)
         end
 
@@ -37,13 +40,7 @@ module LlmCostTracker
           Pricing::Unknown.process(event.model)
         end
 
-        event = build_event(
-          event: event,
-          calculation: calculation,
-          metadata: metadata,
-          latency_ms: latency_ms,
-          context_tags: context_tags
-        )
+        event = build_event(event: event, calculation: calculation, tags: tags, latency_ms: latency_ms)
 
         if Ingestion.async?
           Ingestion::Inbox.save(event)
@@ -55,6 +52,7 @@ module LlmCostTracker
         yield if block_given?
         notify_subscribers(event)
         Budget.check!(event)
+        Budget.check_persisted!([event]) unless Ingestion.async?
 
         event
       end
@@ -69,13 +67,12 @@ module LlmCostTracker
         Logging.warn("Subscriber raised on #{EVENT_NAME}: #{e.class}: #{e.message}")
       end
 
-      def build_event(event:, calculation:, metadata:, latency_ms:, context_tags:)
-        context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
+      def build_event(event:, calculation:, tags:, latency_ms:)
         event.with(
           event_id: SecureRandom.uuid,
           pricing_mode: calculation.mode,
           cost: calculation.cost,
-          tags: build_tags(context_tags: context_tags, metadata: metadata),
+          tags: tags,
           latency_ms: finite_latency_ms(latency_ms),
           tracked_at: Time.now.utc,
           cost_status: calculation.cost_status,
@@ -85,8 +82,9 @@ module LlmCostTracker
       end
 
       def build_tags(context_tags:, metadata:)
+        resolved = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
         sanitized_metadata = LlmCostTracker::Tags::Sanitizer.call(metadata.to_h)
-        LlmCostTracker::Tags::Sanitizer.cap(context_tags.merge(sanitized_metadata)).freeze
+        LlmCostTracker::Tags::Sanitizer.cap(resolved.merge(sanitized_metadata)).freeze
       end
 
       def finite_latency_ms(latency_ms)

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "inbox"
+require_relative "../budget"
 require_relative "../ledger/store"
 
 module LlmCostTracker
@@ -122,6 +123,7 @@ module LlmCostTracker
           Ingestion::InboxEntry.where(id: rows.map(&:id), locked_by: identity).delete_all
         end
         Ledger::Rollups.increment_safely!(events)
+        Budget.notify_persisted_safely!(events)
       rescue ActiveRecord::RecordNotUnique
         raise unless retry_on_conflict
 

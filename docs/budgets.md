@@ -102,8 +102,8 @@ overspends, or the other way round — a rule set to `:block_requests` blocks pr
 even when the global policy is `:notify`.
 
 `enforce_budget: true` on `LlmCostTracker.track` overrides all of that for one call: it
-checks every rule that applies, so a rule set to `:notify` blocks that call as well.
-Leave it off to let each rule's own behavior decide.
+checks every rule matching the call's tags, so a rule set to `:notify` blocks that call
+as well. Leave it off to let each rule's own behavior decide.
 
 The payload and `BudgetExceededError` carry `scope`:
 
@@ -132,9 +132,12 @@ for a near-full scan. Budget a tenant, account, or user id — not `environment`
 gem logs a warning once per tag naming the offender.
 
 Two more limits. The weekly window follows the host app's `Date.beginning_of_week`.
-And with `ingestion: :async`, spend still sitting in the inbox is invisible to a scoped
-total while the global totals do count it, so a scoped budget lags by the drain
-interval.
+And with `ingestion: :async`, a scoped total counts only what the worker has already
+drained: `on_exceeded` fires from the drain rather than from the request, pre-send
+blocking sees spend late by the drain interval, and a rule set to `:block_requests` can
+only notify from the drain, since the request it would have blocked is long gone. A
+batch is scored per window it touches, so a drain that runs after midnight still scores
+the previous day against that day.
 
 ## Budget Reads
 

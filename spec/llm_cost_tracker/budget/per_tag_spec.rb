@@ -57,7 +57,7 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       spend(1.0, tags: { tenant_id: 7 })
 
       expect(described_class.active?).to be(false)
-      expect { LlmCostTracker::Budget.check!(spend(99.0, tags: { tenant_id: 7 })) }.not_to raise_error
+      expect { LlmCostTracker::Budget.check_persisted!([spend(99.0, tags: { tenant_id: 7 })]) }.not_to raise_error
     end
   end
 
@@ -88,9 +88,9 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       over = spend(6.0, tags: { tenant_id: 42 })
       under = spend(1.0, tags: { tenant_id: 43 })
 
-      expect { LlmCostTracker::Budget.check!(over) }
+      expect { LlmCostTracker::Budget.check_persisted!([over]) }
         .to raise_error(LlmCostTracker::BudgetExceededError, /tenant_id=42/)
-      expect { LlmCostTracker::Budget.check!(under) }.not_to raise_error
+      expect { LlmCostTracker::Budget.check_persisted!([under]) }.not_to raise_error
     end
 
     it "carries the scope in the exceeded payload" do
@@ -99,7 +99,7 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       spend(4.9, tags: { tenant_id: 42 })
       crossing = spend(0.5, tags: { tenant_id: 42 })
 
-      LlmCostTracker::Budget.check!(crossing)
+      LlmCostTracker::Budget.check_persisted!([crossing])
 
       expect(payloads.first).to include(budget_type: :monthly, scope: { key: "tenant_id", value: "42" })
     end
@@ -130,7 +130,7 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       spend(6.0, tags: { tenant_id: 42 }, tracked_at: Time.now.utc - (3 * 86_400))
       today = spend(0.5, tags: { tenant_id: 42 })
 
-      expect { LlmCostTracker::Budget.check!(today) }.not_to raise_error
+      expect { LlmCostTracker::Budget.check_persisted!([today]) }.not_to raise_error
     end
   end
 
@@ -154,7 +154,7 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       LlmCostTracker::Tags::Context.with(tenant_id: 42) do
         expect { LlmCostTracker::Budget.enforce! }.not_to raise_error
       end
-      expect { LlmCostTracker::Budget.check!(crossing) }.not_to raise_error
+      expect { LlmCostTracker::Budget.check_persisted!([crossing]) }.not_to raise_error
       expect(notified.first).to include(scope: { key: "tenant_id", value: "42" })
     end
 
@@ -166,7 +166,7 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       spend(4.9, tags: { tenant_id: 42 })
       crossing = spend(0.5, tags: { tenant_id: 42 })
 
-      LlmCostTracker::Budget.check!(crossing)
+      LlmCostTracker::Budget.check_persisted!([crossing])
 
       expect(scoped.size).to eq(1)
       expect(global).to be_empty
@@ -181,7 +181,7 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
                                             on_exceeded: ->(payload) { notified << payload } } })
       over = spend(6.0, tags: { tenant_id: 42, feature: "chat" })
 
-      expect { LlmCostTracker::Budget.check!(over) }
+      expect { LlmCostTracker::Budget.check_persisted!([over]) }
         .to raise_error(LlmCostTracker::BudgetExceededError, /tenant_id=42/)
       expect(notified).to be_empty
     end
@@ -193,7 +193,7 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       spend(1.9, tags: { tenant_id: 42, feature: "chat" })
       crossing = spend(0.5, tags: { tenant_id: 42, feature: "chat" })
 
-      LlmCostTracker::Budget.check!(crossing)
+      LlmCostTracker::Budget.check_persisted!([crossing])
 
       expect(notified.map { |payload| payload[:scope] }).to eq([{ key: "feature", value: "chat" }])
     end
@@ -271,6 +271,162 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       described_class.active?
 
       expect(LlmCostTracker::Logging).to have_received(:warn).with(/total_cost \/ tracked_at/).once
+    end
+  end
+
+  describe "the inline default" do
+    before { LlmCostTracker.configuration.ingestion.mode = :inline }
+
+    def track_tagged(tenant, enforce_budget: false)
+      LlmCostTracker.track(provider: "openai", model: "inline-model",
+                           tokens: { input_tokens: 1_000_000 },
+                           tags: { tenant_id: tenant },
+                           enforce_budget: enforce_budget)
+    end
+
+    def configure_inline(on_exceeded, behavior: :notify)
+      LlmCostTracker.configure do |config|
+        config.pricing.overrides = { "inline-model" => { input: 6.0 } }
+        config.budgets.exceeded_behavior = behavior
+        config.budgets.on_exceeded = on_exceeded
+        config.budgets.per_tag = { tenant_id: { monthly: 10 } }
+      end
+    end
+
+    it "notifies once through the real record path when a call crosses the limit" do
+      notified = []
+      configure_inline(->(payload) { notified << payload })
+
+      3.times { track_tagged(42) }
+
+      expect(notified.map { |payload| payload[:scope] }).to eq([{ key: "tenant_id", value: "42" }])
+    end
+
+    it "blocks pre-send on a tag passed to track, not only one in the tag context" do
+      configure_inline(nil, behavior: :block_requests)
+      spend(12.0, tags: { tenant_id: 42 })
+
+      expect do
+        expect { track_tagged(42, enforce_budget: true) }
+          .to raise_error(LlmCostTracker::BudgetExceededError, /tenant_id=42/)
+      end.not_to change(LlmCostTracker::Call, :count)
+      expect { track_tagged(43, enforce_budget: true) }.not_to raise_error
+    end
+  end
+
+  describe "async ingestion" do
+    def track_tagged(tenant)
+      LlmCostTracker.track(provider: "openai", model: "async-model",
+                           tokens: { input_tokens: 1_000_000 },
+                           tags: { tenant_id: tenant })
+    end
+
+    def configure_async(on_exceeded, behavior: :notify, windows: { monthly: 10 })
+      LlmCostTracker.configure do |config|
+        config.pricing.overrides = { "async-model" => { input: 6.0 } }
+        config.budgets.exceeded_behavior = behavior
+        config.budgets.on_exceeded = on_exceeded
+        config.budgets.per_tag = { tenant_id: windows }
+      end
+    end
+
+    it "fires once for a batch that crosses the limit while the events sit in the inbox" do
+      notified = []
+      configure_async(->(payload) { notified << payload })
+
+      3.times { track_tagged(42) }
+      expect(notified).to be_empty
+
+      LlmCostTracker::Ingestion::Worker.flush!
+
+      expect(notified.map { |payload| payload[:scope] }).to eq([{ key: "tenant_id", value: "42" }])
+      expect(described_class.spend("tenant_id", "42", :monthly, time: Time.now.utc)).to eq(18)
+    end
+
+    it "does not fire again on a later batch in the same window" do
+      notified = []
+      configure_async(->(payload) { notified << payload })
+
+      3.times { track_tagged(42) }
+      LlmCostTracker::Ingestion::Worker.flush!
+      track_tagged(42)
+      LlmCostTracker::Ingestion::Worker.flush!
+
+      expect(notified.size).to eq(1)
+    end
+
+    it "scores each tag value in the batch separately" do
+      notified = []
+      configure_async(->(payload) { notified << payload })
+
+      2.times { track_tagged(42) }
+      track_tagged(43)
+      LlmCostTracker::Ingestion::Worker.flush!
+
+      expect(notified.map { |payload| payload[:scope][:value] }).to eq(["42"])
+    end
+
+    it "notifies without raising out of the drain when the rule blocks requests" do
+      notified = []
+      configure_async(->(payload) { notified << payload }, behavior: :block_requests)
+
+      3.times { track_tagged(42) }
+
+      expect { LlmCostTracker::Ingestion::Worker.flush! }.not_to raise_error
+      expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
+      expect(LlmCostTracker::Call.count).to eq(3)
+      expect(notified.size).to eq(1)
+    end
+
+    it "scores each window bucket in a batch that straddles a boundary" do
+      notified = []
+      LlmCostTracker.configure do |config|
+        config.pricing.overrides = { "async-model" => { input: 6.0 } }
+        config.budgets.on_exceeded = ->(payload) { notified << payload }
+        config.budgets.per_tag = { tenant_id: { daily: 10 } }
+      end
+      yesterday = Time.now.utc.yesterday.change(hour: 12)
+
+      drained = Array.new(2) { spend(6.0, tags: { tenant_id: 42 }, tracked_at: yesterday) }
+      drained << spend(6.0, tags: { tenant_id: 42 })
+      LlmCostTracker::Budget.check_persisted!(drained)
+
+      expect(notified.map { |payload| payload[:total].to_f }).to eq([12.0])
+    end
+
+    it "does not notify twice when an older batch is drained after a newer one" do
+      notified = []
+      configure_async(->(payload) { notified << payload })
+      earlier = Time.now.utc.beginning_of_month + 1.hour
+
+      newer = Array.new(2) { spend(6.0, tags: { tenant_id: 42 }) }
+      LlmCostTracker::Budget.check_persisted!(newer)
+      requeued = Array.new(2) { spend(6.0, tags: { tenant_id: 42 }, tracked_at: earlier) }
+      LlmCostTracker::Budget.check_persisted!(requeued)
+
+      expect(notified.size).to eq(1)
+    end
+
+    it "carries a weekly window through the drain" do
+      notified = []
+      configure_async(->(payload) { notified << payload }, windows: { weekly: 10 })
+
+      2.times { track_tagged(42) }
+      LlmCostTracker::Ingestion::Worker.flush!
+
+      expect(notified.map { |payload| payload[:budget_type] }).to eq([:weekly])
+    end
+
+    it "keeps the batch persisted when the callback raises" do
+      configure_async(->(_payload) { raise "boom" })
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      3.times { track_tagged(42) }
+
+      expect { LlmCostTracker::Ingestion::Worker.flush! }.not_to raise_error
+      expect(LlmCostTracker::Call.count).to eq(3)
+      expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(/budget check failed after ingest/)
     end
   end
 end

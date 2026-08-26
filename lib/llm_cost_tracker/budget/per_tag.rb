@@ -9,6 +9,7 @@ module LlmCostTracker
       COST_COLUMN = "total_cost"
       TIME_COLUMN = "tracked_at"
       WINDOW_STARTS = { daily: :beginning_of_day, weekly: :beginning_of_week, monthly: :beginning_of_month }.freeze
+      WINDOW_NEXTS = { daily: :next_day, weekly: :next_week, monthly: :next_month }.freeze
       SLOW_READ_SECONDS = 0.1
       DEFAULT_BACKFILL_BATCH = 5_000
 
@@ -50,14 +51,27 @@ module LlmCostTracker
           end
         end
 
+        def rules_for_events(events)
+          events.each_with_object({}) do |event, grouped|
+            rules_for(event.tags).each { |rule| (grouped[rule] ||= []) << event }
+          end
+        end
+
         def spend(key, value, window, time:)
-          start = time.to_time.utc.public_send(WINDOW_STARTS.fetch(window))
+          spend_by_value(key, [value], window, window_start(window, time)).fetch(value, 0).to_d
+        end
+
+        def spend_by_value(key, values, window, bucket)
           started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          total = LlmCostTracker::CallTag
-                  .where(key: key, value: value, TIME_COLUMN => start..time)
-                  .sum(COST_COLUMN).to_d
+          totals = LlmCostTracker::CallTag
+                   .where(key: key, value: values, TIME_COLUMN => window_range(window, bucket))
+                   .group(:value).sum(COST_COLUMN)
           warn_slow_read(key, window, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at)
-          total
+          totals
+        end
+
+        def window_start(window, time)
+          time.to_time.utc.public_send(WINDOW_STARTS.fetch(window))
         end
 
         def backfill(batch_size: DEFAULT_BACKFILL_BATCH)
@@ -78,6 +92,10 @@ module LlmCostTracker
         end
 
         private
+
+        def window_range(window, bucket)
+          bucket...bucket.public_send(WINDOW_NEXTS.fetch(window))
+        end
 
         def copy_next_batch(batch_size)
           ids = LlmCostTracker::CallTag.where(TIME_COLUMN => nil).limit(batch_size).pluck(:id)

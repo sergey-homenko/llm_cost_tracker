@@ -12,7 +12,7 @@ module LlmCostTracker
     BUDGET_TYPE_TO_PERIOD = { monthly: :month, daily: :day }.freeze
 
     class << self
-      def enforce!(provider: nil, model: nil, request: nil, estimate: nil, force: false)
+      def enforce!(provider: nil, model: nil, request: nil, estimate: nil, tags: nil, force: false)
         config = LlmCostTracker.configuration
         return unless config.enabled
 
@@ -25,7 +25,7 @@ module LlmCostTracker
         enforce_globally(config, estimate: estimate, time: now) if globally
         return unless per_tag
 
-        check_per_tag(Tags::Context.tags,
+        check_per_tag(tags || Tags::Context.tags,
                       time: now,
                       estimate: estimate,
                       blocking_only: !force) do |rule, window, total, limit|
@@ -40,22 +40,56 @@ module LlmCostTracker
         check_per_call_budget(event, config)
         check_windowed({ daily: config.budgets.daily, monthly: config.budgets.monthly }.compact,
                        time: event.tracked_at) do |budget_type, total, budget|
-          handle_exceeded(budget_type: budget_type, total: total, budget: budget, last_event: event)
-        end
-        check_per_tag(event.tags, time: event.tracked_at) do |rule, window, total, limit|
-          handle_exceeded(
-            budget_type: window,
-            total: total,
-            budget: limit,
-            last_event: event,
-            scope: scope_for(rule),
-            behavior: rule.behavior,
-            on_exceeded: rule.on_exceeded
-          )
+          handle_exceeded(budget_type: budget_type,
+                          total: total,
+                          budget: budget,
+                          previous_total: total - event.total_cost,
+                          last_event: event)
         end
       end
 
+      def check_persisted!(events, notify_only: false)
+        by_rule = PerTag.rules_for_events(events.select(&:total_cost))
+        by_rule = by_rule.reject { |rule, _| rule.on_exceeded.nil? } if notify_only
+        window_buckets(by_rule).each do |(key, window, bucket), scored|
+          totals = PerTag.spend_by_value(key, scored.keys.map(&:value), window, bucket)
+          scored.each do |rule, recorded|
+            total = totals.fetch(rule.value, 0).to_d
+            limit = rule.windows.fetch(window)
+            next if total < limit
+
+            handle_exceeded(
+              budget_type: window,
+              total: total,
+              budget: limit,
+              previous_total: total - recorded.sum(&:total_cost),
+              last_event: recorded.last,
+              scope: scope_for(rule),
+              behavior: notify_only ? :notify : rule.behavior,
+              on_exceeded: rule.on_exceeded
+            )
+          end
+        end
+      end
+
+      def notify_persisted_safely!(events)
+        check_persisted!(events, notify_only: true)
+      rescue StandardError => e
+        Logging.warn("Per-tag budget check failed after ingest: #{e.class}: #{e.message}")
+      end
+
       private
+
+      def window_buckets(by_rule)
+        by_rule.each_with_object({}) do |(rule, events), grouped|
+          rule.windows.each_key do |window|
+            events.group_by { |event| PerTag.window_start(window, event.tracked_at) }
+                  .each do |bucket, bucket_events|
+              (grouped[[rule.key, window, bucket]] ||= {})[rule] = bucket_events
+            end
+          end
+        end
+      end
 
       def estimate_cost(provider:, model:, request:)
         return BigDecimal("0") unless provider && model && request
@@ -78,7 +112,11 @@ module LlmCostTracker
         total = event.total_cost
         return unless total >= budget
 
-        handle_exceeded(budget_type: :per_call, total: total, budget: budget, last_event: event)
+        handle_exceeded(budget_type: :per_call,
+                        total: total,
+                        budget: budget,
+                        previous_total: nil,
+                        last_event: event)
       end
 
       def enforce_globally(config, estimate:, time:)
@@ -131,6 +169,7 @@ module LlmCostTracker
       def handle_exceeded(budget_type:,
                           total:,
                           budget:,
+                          previous_total:,
                           last_event: nil,
                           scope: nil,
                           behavior: nil,
@@ -147,7 +186,7 @@ module LlmCostTracker
           scope: scope
         )
 
-        on_exceeded.call(payload) if notify_exceeded?(on_exceeded, payload)
+        on_exceeded.call(payload) if on_exceeded && (previous_total.nil? || previous_total < budget)
         raise BudgetExceededError.new(**payload) if %i[raise block_requests].include?(behavior)
       end
 
@@ -160,15 +199,6 @@ module LlmCostTracker
           stage: stage,
           scope: scope
         }
-      end
-
-      def notify_exceeded?(on_exceeded, payload)
-        return false unless on_exceeded
-
-        last_event = payload[:last_event]
-        return true if !last_event&.total_cost || payload[:budget_type] == :per_call
-
-        payload[:total] - last_event.total_cost < payload[:budget]
       end
     end
   end
