@@ -634,6 +634,25 @@ RSpec.describe "ActiveRecord storage integration" do
       .to be <= LlmCostTracker::Ledger::Tags::Encoding::INDEXABLE_BYTES
   end
 
+  it "decrements every rollup bucket in one statement" do
+    rows = [%w[day 2026-08-01 p0], %w[month 2026-08-01 p0], %w[day 2026-08-02 p1]].map do |period, start, provider|
+      { period: period, period_start: start, currency: "USD", provider: provider,
+        total_cost: 10.0, created_at: Time.now.utc, updated_at: Time.now.utc }
+    end
+    LlmCostTracker::CallRollup.insert_all(rows)
+    buckets = rows.to_h { |r| [[r[:period], r[:period_start], r[:currency], r[:provider]], 4.0] }
+
+    statements = 0
+    subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      statements += 1 if payload[:sql].to_s.start_with?("UPDATE") && payload[:sql].to_s.include?("call_rollups")
+    end
+    LlmCostTracker::CallRollup.decrement(buckets)
+    ActiveSupport::Notifications.unsubscribe(subscription)
+
+    expect(statements).to eq(1)
+    expect(LlmCostTracker::CallRollup.pluck(:total_cost).map(&:to_f)).to all(eq(6.0))
+  end
+
   it "keeps unknown_pricing composable with the tag join" do
     expect { LlmCostTracker::Call.unknown_pricing.cost_by_tag("feature") }.not_to raise_error
     expect do

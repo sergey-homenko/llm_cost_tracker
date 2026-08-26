@@ -14,6 +14,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
       expect(result.source_url).to eq(described_class.source_url)
       expect(result.scraped_at).to eq("2026-04-26T00:00:00Z")
       expect(result.models.fetch("gemini-2.5-pro")).to eq(
+        "grounding_request" => 35.0,
         "input" => 1.25,
         "output" => 10.0,
         "cache_read_input" => 0.125,
@@ -41,6 +42,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "above_context_priority_cache_read_input" => 0.45
       )
       expect(result.models.fetch("gemini-2.5-flash")).to eq(
+        "grounding_request" => 35.0,
         "input" => 0.30,
         "output" => 2.50,
         "audio_input" => 1.0,
@@ -65,6 +67,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "priority_audio_input" => 0.54
       )
       expect(result.models.fetch("gemini-2.0-flash")).to eq(
+        "grounding_request" => 35.0,
         "input" => 0.10,
         "output" => 0.40,
         "audio_input" => 0.70,
@@ -181,4 +184,11 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
   end
+  it "prices Google Search grounding per model family" do
+    result = described_class.new.call(html: html, scraped_at: "2026-08-23T00:00:00Z")
+
+    expect(result.models.fetch("gemini-2.5-pro")["grounding_request"]).to eq(35.0)
+    expect(result.models.fetch("gemini-3-flash-preview")["grounding_request"]).to eq(14.0)
+  end
+
 end

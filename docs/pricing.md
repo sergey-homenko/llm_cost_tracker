@@ -105,7 +105,7 @@ Model prices are USD per 1M tokens. Tool/runtime rates use the quantity basis of
 
 ## Tool and Runtime Charges
 
-The `service_charges` registry section prices provider tool and runtime calls (web search, code execution, grounding, container sessions, file search). At runtime they end up as line items on the parent call alongside token line items — same shape, same `cost_status` semantics. A line item with no rate match keeps the parent call `partial` when token cost is known, or `unknown` when the unmatched line is the only billable usage.
+The `service_charges` registry section prices provider tool and runtime calls that bill the same way for every model of a provider: web search, web fetch, file search. Charges whose rate differs per model — Gemini grounding, audio minutes — live on the model entry instead. At runtime they end up as line items on the parent call alongside token line items — same shape, same `cost_status` semantics. A line item with no rate match keeps the parent call `partial` when token cost is known, or `unknown` when the unmatched line is the only billable usage.
 
 Each line item preserves the provider item id, captured `provider_field` path, quantity, kind, applied rate, and status — enough to join back to provider records downstream without applying free tiers or private rates locally.
 
@@ -119,6 +119,7 @@ Bundled rates mostly ship only where the parser captures the same quantity basis
 | OpenAI image generation (`gpt-image-*`) | `images.generate` / `edit` / `create_variation` (one-shot) + `*_stream_raw` (streaming) `usage` block; SDK or Faraday | `image_input` / `image_output` and `input`/`output` text token rates priced separately per modality |
 | OpenAI Embeddings | `embeddings.create` `usage.prompt_tokens` | `input` rate prices the call when the model has registry rates |
 | OpenAI Transcriptions (`gpt-4o-transcribe*`) | `audio.transcriptions.create` (+ `create_streaming`) `usage` block | `audio_input`, `input`, and `output` rates price captured buckets when present |
+| OpenAI duration-billed audio (`gpt-transcribe`, `gpt-live-transcribe`, `gpt-realtime-whisper`, `gpt-realtime-translate`) | `usage` block with `type: "duration"` | `transcription_minute` rate, rounded up to the whole minute. These models publish no token price, so the minute is the billing basis |
 | OpenAI Speech (TTS) | `audio.speech.create` request `input` length (chars) | `text_to_speech_character` rate, per 1M characters, for `tts-1` / `tts-1-hd`; `gpt-4o-mini-tts` records zero-cost visibility because tokens are not exposed |
 | OpenAI Moderations | `moderations.create` request payload | The call is recorded with no line items and no rate, so it lands `cost_status: unknown` (OpenAI does not bill the endpoint, but the price table carries no entry saying so) |
 | OpenAI Realtime `response.done` | Provider stream events passed through `track_stream`; standard Faraday middleware does not auto-capture WebSocket/WebRTC sessions | Audio input/output token rates price the call when the model has registry rates |
@@ -130,7 +131,7 @@ Bundled rates mostly ship only where the parser captures the same quantity basis
 | Anthropic server web search | `server_tool_use.web_search_requests` | Priced from `service_charges.anthropic.web_search_request` when present |
 | Anthropic web fetch | `server_tool_use.web_fetch_requests` | Priced at `$0` from registry — Anthropic bills web fetch through standard tokens, not per fetch |
 | Gemini modality tokens | `usageMetadata.promptTokensDetails` and response token details | Audio token rates price captured buckets when the model has registry rates |
-| Gemini grounding | `groundingMetadata.webSearchQueries` | Stored as unknown-cost `grounding_request` rows because free-tier and query reconciliation are account-level |
+| Gemini grounding | `groundingMetadata.webSearchQueries` | Priced from the model's own `grounding_request` rate, which Google publishes per 1,000 requests and differs by family ($35 on Gemini 2.x, $14 on 3.x). The free monthly allowance is account-level and is not modelled, so a project inside it is over-reported |
 | Groq OpenAI-compatible usage | Chat usage, cached input, reasoning output, and service tier headers | Token rates price captured buckets when the model has registry rates |
 | RubyLLM chat | `RubyLLM::Provider#complete` (streaming-aware; `Chat#ask` and `Chat#complete` reach this transitively) | Routed through the matched provider parser (OpenAI / Anthropic / Gemini); same pricing path as native SDK |
 | RubyLLM embed / transcribe | `RubyLLM::Provider#embed`, `#transcribe` | Routed through the matched provider parser; priced like the underlying provider call |

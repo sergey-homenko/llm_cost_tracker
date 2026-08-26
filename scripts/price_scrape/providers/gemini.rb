@@ -14,6 +14,9 @@ module LlmCostTracker
         max_price 1000.0
         anchors "gemini-2.5-pro", "gemini-2.5-flash"
 
+        GROUNDING_ROW = "Grounding with Google Search"
+        GROUNDING_PRICE = %r{\$([\d.]+)\s*(?:/|per)\s*1,?000}
+
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
           models = extract_models(doc)
@@ -47,6 +50,7 @@ module LlmCostTracker
             models[model_id] = models.fetch(model_id).merge(extract_batch_pricing(batch_table, image: image))
             models[model_id] = models.fetch(model_id).merge(extract_flex_pricing(tabs, image: image))
             models[model_id] = models.fetch(model_id).merge(extract_priority_pricing(tabs, image: image))
+            models[model_id] = models.fetch(model_id).merge(extract_grounding_pricing(standard_table))
           end
         end
 
@@ -116,6 +120,16 @@ module LlmCostTracker
                           input: "priority_input",
                                                     output: image ? "priority_image_output" : "priority_output",
                                                     cache_read_input: "priority_cache_read_input")
+        end
+
+        def extract_grounding_pricing(table)
+          row = parse_table(table).find { |label, _| label.to_s.start_with?(GROUNDING_ROW) }
+          return {} unless row
+
+          price = row.last.to_s[GROUNDING_PRICE, 1]
+          return {} unless price
+
+          { "grounding_request" => Float(price) }
         end
 
         def extract_pricing(table, input:, output:, cache_read_input:)

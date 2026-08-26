@@ -28,11 +28,9 @@ module LlmCostTracker
         ROLLUP_INCREMENT_ATTEMPTS = 3
         ROLLUP_INCREMENT_BASE_DELAY_SECONDS = 0.05
         REBUILD_INSERT_SLICE = 1_000
-        ROLLED_BACK_ERRORS = [ActiveRecord::Deadlocked, ActiveRecord::LockWaitTimeout].freeze
         private_constant :ROLLUP_INCREMENT_ATTEMPTS,
                          :ROLLUP_INCREMENT_BASE_DELAY_SECONDS,
-                         :REBUILD_INSERT_SLICE,
-                         :ROLLED_BACK_ERRORS
+                         :REBUILD_INSERT_SLICE
 
         def increment_safely!(events)
           attempt = 0
@@ -42,7 +40,7 @@ module LlmCostTracker
           rescue StandardError => e
             raise if LlmCostTracker::Call.connection.open_transactions.positive?
 
-            if attempt < ROLLUP_INCREMENT_ATTEMPTS && ROLLED_BACK_ERRORS.any? { |klass| e.is_a?(klass) }
+            if attempt < ROLLUP_INCREMENT_ATTEMPTS && rolled_back?(e)
               sleep(ROLLUP_INCREMENT_BASE_DELAY_SECONDS * (2**(attempt - 1)))
               retry
             end
@@ -53,6 +51,10 @@ module LlmCostTracker
               "run bin/rails llm_cost_tracker:rebuild_rollups to resync the cache."
             )
           end
+        end
+
+        def rolled_back?(error)
+          error.is_a?(ActiveRecord::Deadlocked) || error.is_a?(ActiveRecord::LockWaitTimeout)
         end
 
         def decrement!(records)

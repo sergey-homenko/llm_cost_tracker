@@ -7,15 +7,31 @@ module LlmCostTracker
         upsert_all(rows, on_duplicate: increment_on_duplicate, record_timestamps: true, unique_by: increment_unique_by)
       end
 
+      DECREMENT_SLICE = 100
+
       def decrement(buckets)
         now = Time.now.utc
-        buckets.each do |(period, period_start, currency, provider), amount|
-          where(period: period, period_start: period_start, currency: currency, provider: provider)
-            .update_all(["total_cost = GREATEST(0, total_cost - ?), updated_at = ?", amount, now])
+        buckets.each_slice(DECREMENT_SLICE) do |slice|
+          where(decrement_scope(slice)).update_all(decrement_assignment(slice, now))
         end
       end
 
       private
+
+      def decrement_scope(slice)
+        rows = Array.new(slice.size, "(?, ?, ?, ?)").join(", ")
+        binds = slice.flat_map { |bucket, _| bucket }
+        sanitize_sql_array(["(period, period_start, currency, provider) IN (#{rows})", *binds])
+      end
+
+      def decrement_assignment(slice, now)
+        branches = slice.map { "WHEN period = ? AND period_start = ? AND currency = ? AND provider = ? THEN ?" }
+        binds = slice.flat_map { |bucket, amount| [*bucket, amount] }
+        sanitize_sql_array(
+          ["total_cost = GREATEST(0, total_cost - CASE #{branches.join(' ')} ELSE 0 END), updated_at = ?",
+           *binds, now]
+        )
+      end
 
       def increment_on_duplicate
         return Arel.sql(mysql_increment_sql) if Ledger::Schema::Adapter.mysql?(connection)

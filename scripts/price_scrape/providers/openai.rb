@@ -9,6 +9,7 @@ require "time"
 require_relative "base"
 require_relative "openai/data_residency_prices"
 require_relative "openai/deprecated_models"
+require_relative "openai/audio_duration_prices"
 require_relative "openai/documented_long_context_prices"
 require_relative "openai/model_ids"
 require_relative "openai/rendered_long_context_prices"
@@ -64,6 +65,7 @@ module LlmCostTracker
             collected.replace(merge_model_fields(collected, tier_models))
           end
           models = merge_model_fields(models, DocumentedLongContextPrices.call(models, pages))
+          models = merge_model_fields(models, AudioDurationPrices.call(doc))
           models = add_priority_aliases(DataResidencyPrices.call(models))
           validate!(models)
           Result.new(

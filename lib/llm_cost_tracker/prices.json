@@ -213,6 +213,7 @@
       "batch_input": 0.05,
       "batch_output": 0.2,
       "cache_read_input": 0.025,
+      "grounding_request": 35.0,
       "input": 0.1,
       "output": 0.4
     },
@@ -233,6 +234,7 @@
       "flex_cache_read_input": 0.03,
       "flex_input": 0.15,
       "flex_output": 1.25,
+      "grounding_request": 35.0,
       "input": 0.3,
       "output": 2.5,
       "priority_audio_input": 1.8,
@@ -261,6 +263,7 @@
       "flex_cache_read_input": 0.01,
       "flex_input": 0.05,
       "flex_output": 0.2,
+      "grounding_request": 35.0,
       "input": 0.1,
       "output": 0.4,
       "priority_audio_input": 0.54,
@@ -275,6 +278,7 @@
       "batch_input": 0.05,
       "batch_output": 0.2,
       "cache_read_input": 0.01,
+      "grounding_request": 35.0,
       "input": 0.1,
       "output": 0.4
     },
@@ -299,6 +303,7 @@
       "flex_cache_read_input": 0.125,
       "flex_input": 0.625,
       "flex_output": 5.0,
+      "grounding_request": 35.0,
       "input": 1.25,
       "output": 10.0,
       "priority_cache_read_input": 0.225,
@@ -316,6 +321,7 @@
       "flex_cache_read_input": 0.05,
       "flex_input": 0.25,
       "flex_output": 1.5,
+      "grounding_request": 14.0,
       "input": 0.5,
       "output": 3.0,
       "priority_audio_input": 1.8,
@@ -328,6 +334,7 @@
       "batch_input": 1.0,
       "flex_image_output": 6.0,
       "flex_input": 1.0,
+      "grounding_request": 14.0,
       "image_output": 12.0,
       "input": 2.0,
       "priority_image_output": 21.6,
@@ -366,6 +373,7 @@
       "flex_cache_read_input": 0.0125,
       "flex_input": 0.125,
       "flex_output": 0.75,
+      "grounding_request": 14.0,
       "input": 0.25,
       "output": 1.5,
       "priority_audio_input": 0.9,
@@ -418,6 +426,7 @@
       "flex_cache_read_input": 0.2,
       "flex_input": 1.0,
       "flex_output": 6.0,
+      "grounding_request": 14.0,
       "input": 2.0,
       "output": 12.0,
       "priority_cache_read_input": 0.36,
@@ -432,6 +441,7 @@
       "flex_cache_read_input": 0.08,
       "flex_input": 0.75,
       "flex_output": 4.5,
+      "grounding_request": 14.0,
       "input": 1.5,
       "output": 9.0,
       "priority_cache_read_input": 0.27,
@@ -449,6 +459,7 @@
       "flex_cache_read_input": 0.02,
       "flex_input": 0.15,
       "flex_output": 1.25,
+      "grounding_request": 14.0,
       "input": 0.3,
       "output": 2.5,
       "priority_audio_input": 0.54,
@@ -464,6 +475,7 @@
       "flex_cache_read_input": 0.0375,
       "flex_input": 0.375,
       "flex_output": 1.875,
+      "grounding_request": 14.0,
       "input": 0.75,
       "output": 3.75,
       "priority_cache_read_input": 0.135,
@@ -478,6 +490,7 @@
       "flex_cache_read_input": 0.0375,
       "flex_input": 0.375,
       "flex_output": 1.875,
+      "grounding_request": 14.0,
       "input": 0.75,
       "output": 3.75,
       "priority_cache_read_input": 0.135,
@@ -1265,6 +1278,9 @@
       "image_output": 30.0,
       "input": 5.0
     },
+    "openai/gpt-live-transcribe": {
+      "transcription_minute": 0.017
+    },
     "openai/gpt-realtime": {
       "audio_input": 32.0,
       "audio_output": 64.0,
@@ -1312,6 +1328,15 @@
       "image_input": 0.8,
       "input": 0.6,
       "output": 2.4
+    },
+    "openai/gpt-realtime-translate": {
+      "transcription_minute": 0.034
+    },
+    "openai/gpt-realtime-whisper": {
+      "transcription_minute": 0.017
+    },
+    "openai/gpt-transcribe": {
+      "transcription_minute": 0.0045
     },
     "openai/o1": {
       "batch_input": 7.5,

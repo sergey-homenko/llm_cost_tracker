@@ -293,6 +293,20 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       expect(result.models.fetch("gpt-5.5-pro")).not_to include("_context_price_threshold_tokens")
     end
 
+    it "prices duration-billed audio models from the per-minute column" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+
+      expect(result.models.fetch("gpt-transcribe")).to eq("transcription_minute" => 0.0045)
+      expect(result.models.fetch("gpt-live-transcribe")).to eq("transcription_minute" => 0.017)
+    end
+
+    it "leaves token-billed transcription models off the per-minute rate" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+
+      per_minute = result.models.select { |_, prices| prices.key?("transcription_minute") }
+      expect(per_minute.keys).to contain_exactly("gpt-transcribe", "gpt-live-transcribe")
+    end
+
     it "skips unmapped model rows instead of guessing canonical IDs" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
 
