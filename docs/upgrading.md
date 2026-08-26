@@ -1,8 +1,9 @@
 # Upgrading
 
-## v0.13 → v0.14 (Unreleased)
+## v0.13 → v0.14
 
-v0.14 reorganises the initializer. No schema changes, no BREAKING changes.
+v0.14 reorganises the initializer and adds two optional migrations. No BREAKING
+changes — an install that upgrades the gem and changes nothing else keeps working.
 
 ### Recommended: drop three indexes the planner never chooses
 
