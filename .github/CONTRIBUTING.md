@@ -6,7 +6,7 @@ Thanks for your interest in improving `llm_cost_tracker`. This project is a smal
 
 Open an issue using the **Bug report** template. Please include:
 
-- Ruby version, Rails version, and the DB adapter (PostgreSQL / MySQL / SQLite)
+- Ruby version, Rails version, and the DB adapter (PostgreSQL / MySQL)
 - The provider(s) involved (OpenAI / Anthropic / Gemini / OpenAI-compatible)
 - A minimal snippet that reproduces the problem
 - What you expected vs. what happened
@@ -96,8 +96,8 @@ open coverage/index.html
 
 ### Migrations and DB compatibility
 
-- Any schema change must work on PostgreSQL, MySQL, and SQLite
-- Use `connection.adapter_name` to branch for PG-specific features (JSONB, GIN indexes); provide a text fallback for the others
+- Any schema change must work on both PostgreSQL and MySQL; SQLite is not supported
+- Branch with `LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)` for PG-specific features (JSONB, GIN indexes); provide a MySQL fallback
 - All migrations must be reversible
 
 ## Releasing

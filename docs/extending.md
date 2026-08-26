@@ -63,6 +63,8 @@ Canonical token price keys are owned by `Usage::Catalog`:
 | Extended cache writes | `cache_write_extended_input` |
 | Audio input tokens | `audio_input` |
 | Audio output tokens | `audio_output` |
+| Image input tokens | `image_input` |
+| Image output tokens | `image_output` |
 
 Mode-prefixed forms use the same base terms: `batch_input`,
 `priority_output`, `flex_audio_input`, `data_residency_cache_read_input`, and
@@ -109,13 +111,13 @@ LlmCostTracker.track(
   model: "gateway-model",
   tokens: { input_tokens: 1_000, output_tokens: 200 },
   service_line_items: [
-    { component_key: :web_search_request, quantity: 3, provider_field: "tool_calls" }
+    { dimension_key: :web_search_request, quantity: 3, provider_field: "tool_calls" }
   ],
   tags: { feature: "research" }
 )
 ```
 
-`component_key` must match an entry in `Usage::Catalog`.
+`dimension_key` must match an entry in `Usage::Catalog`.
 
 For unsupported streams:
 

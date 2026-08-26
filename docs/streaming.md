@@ -139,7 +139,10 @@ The collector caps captured event bytes so a long stream can't grow memory
 unbounded. When the cap hits, the call is recorded with `usage_source:
 unknown` regardless of what was buffered — partial-prefix usage extraction
 is intentionally disabled because the prefix shape is provider-specific
-and inferring totals from a truncated stream is unsafe. Image and audio
-event payloads (`b64_json`, `partial_image_b64`, any single string field
-over 8 KB) are dropped before the cap is consulted, so a multi-megabyte
-image chunk doesn't push the trailing `usage` event past the limit.
+and inferring totals from a truncated stream is unsafe. On the SDK and
+`track_stream` paths, image and audio event payloads (`b64_json`,
+`partial_image_b64`, any single string field over 8 KB) are dropped before
+the cap is consulted, so a multi-megabyte image chunk doesn't push the
+trailing `usage` event past the limit. The Faraday tap has no such
+stripping — it buffers raw bytes and stops at 1 MB, so an image stream
+captured through Faraday can still lose its trailing usage event.

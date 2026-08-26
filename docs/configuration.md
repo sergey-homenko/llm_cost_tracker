@@ -64,8 +64,8 @@ Built-in integration names:
 
 | Name | Minimum SDK | Captured calls |
 | --- | --- | --- |
-| `:openai` | `openai >= 0.59.0` | Responses, Chat Completions, streaming helpers |
-| `:anthropic` | `anthropic >= 1.36.0` | Messages and beta Messages helpers |
+| `:openai` | `openai >= 0.59.0` | Responses, Chat Completions, Embeddings, Images, Audio (speech, transcriptions, translations), Moderations, Batches, and the streaming helpers for each |
+| `:anthropic` | `anthropic >= 1.36.0` | Messages and Message Batches, plus their beta helpers |
 | `:ruby_llm` | `ruby_llm >= 1.15.0` | Provider chat, embedding, transcription, image, and moderation calls |
 
 The minimum is what `install!` enforces. CI resolves each SDK fresh on every
@@ -149,7 +149,7 @@ won't invent a total cost out of thin air.
 | `budgets.per_call` | `nil` | Single-event USD guardrail |
 | `budgets.exceeded_behavior` | `:notify` | `:notify`, `:raise`, or `:block_requests` |
 | `budgets.on_exceeded` | `nil` | Callable receiving the budget payload |
-| `budgets.per_tag` | `{}` | One budget per distinct value of each declared tag, e.g. `{ tenant_id: { monthly: 1000 }, user_id: { daily: 25 } }`. Windows are `daily`, `weekly`, `monthly`, and a rule may set its own `behavior` and `on_exceeded` instead of following the global ones. Spend is read from `llm_cost_tracker_call_tags`, which needs the cost columns added by `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets`. |
+| `budgets.per_tag` | `{}` | One budget per distinct value of each declared tag, e.g. `{ tenant_id: { monthly: 1000 }, user_id: { daily: 25 } }`. Windows are `daily`, `weekly`, `monthly`, and a rule may set its own `behavior` and `on_exceeded` instead of following the global ones. Spend is read from `llm_cost_tracker_call_tags`; a fresh install already has the cost columns, and an install created before v0.14 adds them with `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets`. |
 
 Budget payloads include `budget_type`, `total`, `budget`, `last_event`, `scope` (the tag key and value for a `per_tag` check, `nil` otherwise), and `stage` (`:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks). See [Budgets and Guardrails](budgets.md) for the pre-send estimate behavior.
 
@@ -163,8 +163,8 @@ tables (`llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`,
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `ingestion.mode` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
-| `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool the async ingestion worker uses for inbox writes (kept isolated from the request connection pool so a busy app doesn't deadlock its own tracking). Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion.mode = :inline`. |
-| `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` — `Tracker.record` updates them on every call, and checks read one row instead of scanning the ledger. Worth switching once the live `SUM` gets slow. `:cache` adds a write on every recorded call and needs the `llm_cost_tracker_call_rollups` table, and only budget checks and the dashboard budget widget read those totals — with no budget configured it is pure overhead. |
+| `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool that inbox writes use. Those writes happen on the request thread inside `Tracker.record`, on a connection kept out of the app's pool so a staged event survives a caller rollback and a busy app doesn't deadlock its own tracking. The drain worker does not use this pool — it checks out an ordinary connection. Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion.mode = :inline`. |
+| `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` and reads the greater of that row and the same live sum, so a rollup that has drifted low can never make a budget under-report. It does not replace the sum or make the check cheaper — it adds a read here and a write on every recorded call, and needs the `llm_cost_tracker_call_rollups` table. Only budget checks and the dashboard budget widget read those totals; with no budget configured it is pure overhead. |
 
 Each opt-in needs a matching generator before flipping the flag:
 
@@ -174,9 +174,10 @@ bin/rails generate llm_cost_tracker:call_rollups       # for budgets.totals_sour
 bin/rails db:migrate
 ```
 
-`bin/rails llm_cost_tracker:doctor` warns when a table exists without
-the matching flag (or vice versa) so the schema and config stay in
-sync.
+`bin/rails llm_cost_tracker:doctor` keeps the schema and config in sync:
+a table present without its flag is a warning, while a flag turned on
+with its table missing is an error and fails the task. The runtime is
+softer than that — it logs and falls back to the calls ledger.
 
 ## Capture Verification
 

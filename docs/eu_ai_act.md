@@ -2,7 +2,8 @@
 
 > **Not legal advice.** This page describes how `llm_cost_tracker`'s
 > ledger relates to the record-keeping obligations of the EU AI Act
-> (Regulation (EU) 2024/1689). It does not certify your system as
+> (Regulation (EU) 2024/1689, as amended by the Digital Omnibus,
+> Regulation (EU) 2026/1744). It does not certify your system as
 > compliant. Consult counsel familiar with your specific use case.
 
 ## What the Act requires
@@ -14,14 +15,17 @@ The Act phases obligations in over time:
 | 1 Aug 2024 | Entry into force |
 | 2 Feb 2025 | Prohibited practices + AI literacy obligations |
 | 2 Aug 2025 | General-purpose AI (GPAI) provider obligations |
-| **2 Aug 2026** | **Most high-risk system obligations apply (Annex III categories)** |
-| 2 Aug 2027 | Article 6(1) high-risk obligations + GPAI legacy compliance deadline |
+| 2 Aug 2026 | Article 50 transparency obligations |
+| **2 Dec 2027** | **Most high-risk system obligations apply (stand-alone Annex III categories)** |
+| 2 Aug 2028 | High-risk AI embedded in regulated products (Annex I) |
 
 If your Rails app uses an LLM in a way that places it under Annex III
 (employment & worker management, education, access to essential
 services, credit scoring, law enforcement, migration, administration of
 justice, and so on), you are likely a **deployer of a high-risk AI
-system** from 2 Aug 2026 onward. The provider of the underlying model
+system** from 2 Dec 2027 onward — the Digital Omnibus deferred that date
+by sixteen months, but left the Article 50 transparency duty and the
+Article 4 AI literacy duty where they were. The provider of the underlying model
 (OpenAI, Anthropic, Google, …) is the GPAI provider; their obligations
 are separate from yours.
 
@@ -57,7 +61,7 @@ middleware, or `LlmCostTracker.track` lands in
   `total_cost`, `cost_status`, and `pricing_snapshot` (the rate table
   applied at the time of the call)
 - `latency_ms`, `usage_source` (`"response"`, `"stream_final"`,
-  `"sdk_response"`, `"unknown"`)
+  `"sdk_response"`, `"sdk_batch_result"`, `"manual"`, `"unknown"`)
 - `tags` (joined through `llm_cost_tracker_call_tags`) — your app's
   business context (e.g. `user_id`, `feature`, `decision_id`)
 - per-component pricing rows in `llm_cost_tracker_call_line_items`
@@ -137,4 +141,4 @@ or admin-API export.
 - [Article 12 — Record-keeping](https://artificialintelligenceact.eu/article/12/)
 - [Article 19 — Provider log retention](https://artificialintelligenceact.eu/article/19/)
 - [Article 26 — Obligations of deployers](https://artificialintelligenceact.eu/article/26/)
-- [Implementation timeline](https://artificialintelligenceact.eu/implementation-timeline/)
+- [Regulation (EU) 2026/1744 — Digital Omnibus (full text on EUR-Lex)](https://eur-lex.europa.eu/eli/reg/2026/1744/oj)

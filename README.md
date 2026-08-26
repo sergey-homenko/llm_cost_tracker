@@ -90,9 +90,9 @@ The engine ships without authentication on purpose.
 | OpenRouter, DeepSeek, Groq, LiteLLM-style gateways | OpenAI-compatible Faraday |
 | Anything else | `LlmCostTracker.track` |
 
-Streams capture when the provider emits final usage. OpenAI Faraday streams
-get `stream_options: { include_usage: true }` auto-injected so the final
-usage chunk lands in the ledger (opt out via
+Streams capture when the provider emits final usage. OpenAI Faraday streams to
+`/chat/completions` get `stream_options: { include_usage: true }` auto-injected
+so the final usage chunk lands in the ledger (opt out via
 `config.capture.request_stream_usage = false`).
 
 ## What it isn't

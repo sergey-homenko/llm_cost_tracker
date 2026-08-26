@@ -24,27 +24,20 @@ If a candidate fails any filter, it stays in the anti-roadmap until
 evidence shifts. If a shipped feature gets no traction in six months,
 it goes to maintenance mode, not the next minor.
 
-## v0.10 → v1.0 — sharpen the core
+## v0.14 → v1.0 — sharpen the core
 
 One item left, backed by verified pain. This is what users actually
 hit in production.
 
-1. **Pre-send budget enforcement** — *shipped in v0.10*. The
-   `:block_requests` mode now estimates the current call's input cost
-   via a character-count heuristic (chars / 4 ≈ tokens,
-   provider-agnostic) and blocks before send when prior spend plus the
-   estimate would cross the budget. Output tokens stay unknowable
-   pre-send and are caught by the existing post-spend gate. Approximate
-   by design — runway-stop, not precise prediction.
-
-2. **Cache-aware cost accuracy.**
+1. **Cache-aware cost accuracy.**
    Cache cost calculation is broken across the ecosystem (LiteLLM
    `#19681` — 10× overcharge; `#27191` — 67%, both with reproductions).
    The line-item schema already models `cache_read_input`,
    `cache_write_input`, and `cache_write_extended_input`. Lock the
    accuracy in with regression fixtures derived from the public bug
-   reports above, plus per-provider cache-tier rate matrices that
-   capture Anthropic's 5-min vs 1-hour TTL split.
+   reports above. Anthropic's 5-min vs 1-hour TTL split already lands in
+   separate buckets; what is missing is the fixture coverage that keeps
+   it from regressing.
 
 ## v1.0 → v1.x — capture & accuracy
 
@@ -63,8 +56,8 @@ fixtures. Each item still has to clear the three filters above.
    for the Bedrock and Vertex pricing pages. Anthropic family first
    (Messages + Converse on Bedrock; rawPredict on Vertex). Other
    Bedrock families (Llama, Mistral, Nova, Cohere) and Vertex Garden
-   non-Anthropic stay out of scope until demand. README states clearly
-   that `aws-sdk-bedrockruntime` and `google-cloud-aiplatform` use
+   non-Anthropic stay out of scope until demand. The README will need to
+   say that `aws-sdk-bedrockruntime` and `google-cloud-aiplatform` use
    their own HTTP clients (not Faraday) and need separate SDK
    integrations — tracked in v1.x+ reactive.
 
@@ -91,10 +84,9 @@ Not planned in advance. Each item ships only against verified demand.
   change — aggregations against `call_tags`. Gated on real demand.
 - Automated price scraper polish (foundations exist in
   `lib/llm_cost_tracker/pricing/sync.rb`, `scripts/price_scrape/runner.rb`).
-- Optional OpenTelemetry GenAI emitter, when the semantic conventions
-  stabilize (likely 2027). Dual-emit: keep the local ledger, also
-  publish to whatever OTel backend the host app runs.
-- Real-time / voice API line items, if users start shipping them.
+- Deeper real-time / voice capture, if users start shipping it. The
+  `response.done` path is already recorded through `track_stream`; what
+  is missing is session-level capture without a passthrough.
 - Other provider integrations (Cohere direct, xAI Grok direct, etc.),
   when a provider crosses ~5% enterprise share AND a developer asks.
 - Regional billing dimensions beyond what the Bedrock / Vertex work
@@ -133,7 +125,7 @@ Explicit rejections. Every item below was considered and ruled out:
 - **Multi-modal cost explainers.** Provider calculators already cover
   this.
 - **Generic evals / traces / prompt management.** Different product;
-  the `$200`-`$2,499`/mo SaaS tier wins that lane.
+  the hosted observability vendors win that lane.
 - **MCP-specific billing metadata.** No metering layer to integrate
   with.
 - **OpenRouter-as-primary integration.** Direct provider integration

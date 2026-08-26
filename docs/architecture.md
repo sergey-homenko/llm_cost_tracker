@@ -48,6 +48,8 @@ component keys:
 | Extended cache write | `cache_write_extended_input` |
 | Audio input | `audio_input` |
 | Audio output | `audio_output` |
+| Image input | `image_input` |
+| Image output | `image_output` |
 
 Alternate provider modes use mode-prefixed keys such as `batch_input`,
 `priority_output`, `flex_audio_input`, or `data_residency_cache_read_input`.

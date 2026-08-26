@@ -62,7 +62,8 @@ budgets are not shared, and the number of values does not change the configurati
 
 Scoped spend is read from `llm_cost_tracker_call_tags`, which carries a copy of the
 call's `total_cost` and `tracked_at` so a budget check reads one table with no join.
-Add those columns with:
+A fresh install already has both columns and the index they need. An install created
+before v0.14 adds them with:
 
 ```bash
 bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets
@@ -117,9 +118,10 @@ Calls that do not carry a declared tag are subject to the global budgets only.
 
 ### Budget high-cardinality tags only
 
-A budget check costs one indexed query per declared tag present on the call, and its
-speed follows how many distinct values that tag has. Measured on 2M calls with 4M tag
-rows:
+A budget check costs one indexed query per window of every declared tag present on the
+call — a rule with `daily`, `weekly` and `monthly` limits is three reads, not one — and
+each read's speed follows how many distinct values that tag has. Measured on 2M calls
+with 4M tag rows:
 
 | Tag | Distinct values | Monthly read |
 | --- | --- | --- |
@@ -132,12 +134,13 @@ for a near-full scan. Budget a tenant, account, or user id — not `environment`
 gem logs a warning once per tag naming the offender.
 
 Two more limits. The weekly window follows the host app's `Date.beginning_of_week`.
-And with `ingestion: :async`, a scoped total counts only what the worker has already
+And with `ingestion.mode = :async`, a scoped total counts only what the worker has already
 drained: `on_exceeded` fires from the drain rather than from the request, pre-send
 blocking sees spend late by the drain interval, and a rule set to `:block_requests` can
-only notify from the drain, since the request it would have blocked is long gone. A
-batch is scored per window it touches, so a drain that runs after midnight still scores
-the previous day against that day.
+only notify from the drain, since the request it would have blocked is long gone — and
+if no `on_exceeded` is set for it, that rule produces no post-spend signal at all under
+`:async`. A batch is scored per window it touches, so a drain that runs after midnight
+still scores the previous day against that day.
 
 ## Budget Reads
 
@@ -146,9 +149,9 @@ Where the monthly/daily totals come from depends on
 
 | Source | When read |
 | --- | --- |
-| Live `SUM(total_cost)` from `llm_cost_tracker_calls` | Default when `config.budgets.totals_source = :ledger`` |
-| `llm_cost_tracker_call_rollups` fast path | When `config.budgets.totals_source = :cache`` |
-| Pending `llm_cost_tracker_ingestion_inbox_entries` totals | Added on top when `ingestion = :async` (events sit in the inbox until the worker drains them) |
+| Live `SUM(total_cost)` from `llm_cost_tracker_calls` | Always, on every check |
+| `llm_cost_tracker_call_rollups` | Added when `config.budgets.totals_source = :cache`, as the greater of the two |
+| Pending `llm_cost_tracker_ingestion_inbox_entries` totals | Added on top when `ingestion.mode = :async` (events sit in the inbox until the worker drains them) |
 
 Per-call budgets are checked from the current event only.
 
@@ -173,7 +176,7 @@ budget total summed across units and is not supported.
 
 | Key | Meaning |
 | --- | --- |
-| `budget_type` | `:monthly`, `:daily`, or `:per_call` |
+| `budget_type` | `:monthly`, `:daily`, `:per_call`, or — for a per-tag rule — `:weekly` |
 | `total` | Observed total for the budget type. For `stage == :pre_send`: prior spend plus the call's estimate for daily / monthly, and the estimate alone for `per_call`. |
 | `budget` | Configured threshold |
 | `last_event` | Event that triggered the check when available (`nil` for `stage == :pre_send` because the call has not yet been made) |
@@ -182,15 +185,19 @@ budget total summed across units and is not supported.
 
 ## Operational Notes
 
-When `config.budgets.totals_source = :cache`, `llm_cost_tracker:doctor` verifies
-the rollups table and its `(period, period_start, currency, provider)`
-unique index. With `config.budgets.totals_source = :ledger``, doctor warns instead if a
-stale rollups table is found and confirms that budget reads aggregate
-live from the calls table.
+When `config.budgets.totals_source = :cache`, `llm_cost_tracker:doctor` checks
+that the rollups table exists and carries the expected columns. It does not
+inspect indexes, so a table created by hand without the
+`(period, period_start, currency, provider)` unique index passes doctor and
+then breaks the upsert — create it with the generator. With
+`config.budgets.totals_source = :ledger`, doctor warns instead if a stale
+rollups table is found.
 
-Live aggregation works fine on small/medium ledgers thanks to the
-`tracked_at` index on `llm_cost_tracker_calls`. Flip `budgets.totals_source`
-on once monthly/daily SUMs become slow at your call volume.
+Budget reads always aggregate live from the calls table; the `tracked_at`
+index on `llm_cost_tracker_calls` is what keeps that affordable. Switching
+`budgets.totals_source` to `:cache` does not remove that aggregation, so it is
+not a fix for a slow `SUM` — it guards against a rollup cache that has drifted
+low. A monthly window over a large ledger stays expensive either way.
 
 For strict quotas, use provider-side limits or a transactional counter
 in your own app.

@@ -42,8 +42,12 @@ Base fields:
 - `cache_write_extended_input`
 - `audio_input`
 - `audio_output`
+- `image_input`
+- `image_output`
 
-These keys are derived from `Usage::Catalog`, the master dimension registry.
+These keys are derived from `Usage::Catalog`, the master dimension registry,
+which also owns the non-token model keys `text_to_speech_character` and
+`transcription_minute`.
 
 `cache_write_input` is the standard cache-write bucket. `cache_write_extended_input`
 is priced separately when provider usage exposes a longer retention bucket, such
@@ -149,18 +153,19 @@ match keeps the parent call `partial` when token cost is known, or `unknown`
 when the unmatched line is the only billable usage.
 
 Each line item preserves the provider item id, captured `provider_field` path,
-quantity, kind, applied rate, and status — enough for downstream reconciliation
-to join back to provider records without applying free tiers or private rates
-locally.
+quantity, kind, applied rate, and status — enough to join back to provider
+records downstream without applying free tiers or private rates locally.
 
-Bundled rates ship only when the parser captures the same quantity basis the
-provider publishes. OpenAI hosted web search and file search are priced when
+Bundled rates mostly ship only where the parser captures the same quantity
+basis the provider publishes; `code_execution_hour` is the exception — the rate
+ships but nothing captures an hour quantity yet. OpenAI hosted web search and file search are priced when
 the registry has a rate. OpenAI Code Interpreter container sessions are
 captured as `container_session` audit rows; they aren't priced by default
 because the provider rate depends on container size and a fixed session
-window. Anthropic web-search requests are priced; Anthropic code-execution
-requests stay `unknown` until a provider usage field exposes the hourly
-quantity the published rate uses.
+window. Anthropic web-search and web-fetch requests are priced; Anthropic
+code-execution requests are not captured at all — no row is recorded for them
+until a provider usage field exposes the hourly quantity the published rate
+uses.
 
 ## Usage and Pricing Coverage
 
@@ -170,8 +175,8 @@ quantity the published rate uses.
 | OpenAI image generation (`gpt-image-*`) | `images.generate` / `edit` / `create_variation` (one-shot) + `*_stream_raw` (streaming) `usage` block; SDK or Faraday | `image_input` / `image_output` and `input`/`output` text token rates priced separately per modality |
 | OpenAI Embeddings | `embeddings.create` `usage.prompt_tokens` | `input` rate prices the call when the model has registry rates |
 | OpenAI Transcriptions (`gpt-4o-transcribe*`) | `audio.transcriptions.create` (+ `create_streaming`) `usage` block | `audio_input`, `input`, and `output` rates price captured buckets when present |
-| OpenAI Speech (TTS) | `audio.speech.create` request `input` length (chars) | `character_input` rate per character for `tts-1` / `tts-1-hd`; `gpt-4o-mini-tts` records zero-cost visibility because tokens are not exposed |
-| OpenAI Moderations | `moderations.create` request payload | Zero-cost visibility line item (OpenAI does not bill the endpoint) |
+| OpenAI Speech (TTS) | `audio.speech.create` request `input` length (chars) | `text_to_speech_character` rate, per 1M characters, for `tts-1` / `tts-1-hd`; `gpt-4o-mini-tts` records zero-cost visibility because tokens are not exposed |
+| OpenAI Moderations | `moderations.create` request payload | Zero-cost visibility: the call is recorded with no line items (OpenAI does not bill the endpoint) |
 | OpenAI Realtime `response.done` | Provider stream events passed through `track_stream`; standard Faraday middleware does not auto-capture WebSocket/WebRTC sessions | Audio input/output token rates price the call when the model has registry rates |
 | OpenAI hosted web search | `web_search_call` output items with `action.type = "search"` | Priced from `service_charges.openai.web_search_request` when present |
 | OpenAI web search page actions | `open_page` and `find_in_page` output item actions | Ignored as service charges because they are not separate billable search calls |
@@ -185,4 +190,4 @@ quantity the published rate uses.
 | Groq OpenAI-compatible usage | Chat usage, cached input, reasoning output, and service tier headers | Token rates price captured buckets when the model has registry rates |
 | RubyLLM chat | `RubyLLM::Provider#complete` (streaming-aware; `Chat#ask` and `Chat#complete` reach this transitively) | Routed through the matched provider parser (OpenAI / Anthropic / Gemini); same pricing path as native SDK |
 | RubyLLM embed / transcribe | `RubyLLM::Provider#embed`, `#transcribe` | Routed through the matched provider parser; priced like the underlying provider call |
-| RubyLLM image / moderation | `RubyLLM::Provider#paint`, `#moderate` | Zero-cost visibility line items when no captured quantity has a registry rate |
+| RubyLLM image / moderation | `RubyLLM::Provider#paint`, `#moderate` | `#paint` records image-token line items when the usage block carries them; `#moderate` records the call with no line items |

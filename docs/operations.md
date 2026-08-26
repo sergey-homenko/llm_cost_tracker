@@ -8,11 +8,13 @@ Configuration](configuration.md#storage)).
 ## Production Defaults
 
 - Size the ActiveRecord connection pool for your app's concurrency. If
-  `config.ingestion.mode = :async`, add headroom for the local
-  ingestor thread and for the separate connection that inbox writes
-  use when the caller is inside an open transaction (so staged events
-  survive caller rollbacks). The default inline path shares the
-  caller's connection and joins its transaction.
+  `config.ingestion.mode = :async`, add headroom for the local ingestor
+  thread, which checks out an ordinary ActiveRecord connection. Inbox
+  writes do not: every one of them goes through a pool the gem owns,
+  sized by `config.ingestion.pool_size` (default 2), so that a staged
+  event survives a caller rollback. Raise that setting, not the app
+  pool, if inbox writes start queueing. The default inline path shares
+  the caller's connection and joins its transaction.
 - Keep `tags.default` callables fast and thread-safe.
 - Mount the dashboard behind existing admin authentication.
 - Run `llm_cost_tracker:doctor` after deploys that change the gem version or schema.
@@ -36,9 +38,10 @@ Before building or releasing production images:
 
 When `ingestion = :async` is on, a single app process can need more than
 its request/job connection: the local ingestor thread checks out one of
-its own, and capture inside an open caller transaction uses a separate
-connection so staged inbox entries survive caller rollbacks. Size pools
-for your app's concurrency plus those tracker paths.
+its own, and every inbox write borrows from the gem's own pool
+(`config.ingestion.pool_size`, default 2) so staged entries survive
+caller rollbacks. Size the app pool for your concurrency plus the
+ingestor thread, and `ingestion.pool_size` for concurrent captures.
 
 ## Ingestion Path
 
@@ -57,7 +60,7 @@ Flip `config.ingestion.mode = :async` (after running
 - Batched inserts — the worker drains rows into
   `llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`, and
   `llm_cost_tracker_call_tags` in one transaction per batch. With
-  `config.budgets.totals_source = :cache`` the rollup cache is incremented after that
+  `config.budgets.totals_source = :cache` the rollup cache is incremented after that
   transaction commits — a rollup failure is logged and never fails the
   batch; `bin/rails llm_cost_tracker:rebuild_rollups` recovers the cache.
 
@@ -127,8 +130,10 @@ Optional batch size:
 DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 ```
 
-Pruning deletes old `llm_cost_tracker_calls`. Dependent line items and
-tags are removed by the database via `on_delete: :cascade`. When
+Pruning deletes old `llm_cost_tracker_calls`, then makes a second pass
+over `llm_cost_tracker_ingestion_inbox_entries` with the same cutoff.
+Dependent line items and tags are removed by the database via
+`on_delete: :cascade`. When
 `config.budgets.totals_source = :cache`, affected daily/monthly call rollups are
 decremented in the same transaction.
 

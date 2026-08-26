@@ -48,7 +48,7 @@ Header row. One per tracked call (or completed stream).
 | `total_cost` | decimal(20,8) | Total known cost; `nil` when pricing is unknown |
 | `latency_ms` | integer | Request latency when captured |
 | `stream` | boolean, default `false` | Streamed response |
-| `usage_source` | string | `response` (Faraday parser), `sdk_response` (SDK integration), `stream_final`, `manual`, `unknown` |
+| `usage_source` | string | `response` (Faraday parser), `sdk_response` (SDK integration), `sdk_batch_result` (batch job result), `stream_final`, `manual`, `unknown` |
 | `provider_response_id` | string | Stable provider response id |
 | `provider_project_id` | string | Provider project/account dimension |
 | `provider_api_key_id` | string | Provider API key dimension |
@@ -86,18 +86,18 @@ the same shape.
 | --- | --- | --- |
 | `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
 | `position` | smallint, default `0` | Stable order within a call |
-| `kind` | string, not null | `text_token`, `audio_token`, `web_search_request`, `web_fetch_request`, `grounding_request`, `container_session`, `file_search_call`, `transcription_minute` |
+| `kind` | string, not null | `text_token`, `audio_token`, `image_token`, `web_search_request`, `web_search_preview_request_reasoning`, `web_search_preview_request_non_reasoning`, `web_fetch_request`, `grounding_request`, `container_session`, `file_search_call`, `transcription_minute`, `text_to_speech_character`, `code_execution_hour` |
 | `direction` | string, not null | `input`, `output`, `neither` |
-| `modality` | string, not null | `text`, `audio`, `none` |
+| `modality` | string, not null | `text`, `audio`, `image`, `none` |
 | `cache_state` | string, default `none` | `none`, `read`, `write_default`, `write_extended` |
 | `quantity` | decimal(30,10) | Token count or charge count |
-| `unit` | string, not null | `token`, `request`, `session`, `hour` |
+| `unit` | string, not null | `token`, `character`, `request`, `session`, `minute`, `hour` |
 | `rate_amount` | decimal(20,8) | Applied rate when priced |
 | `rate_quantity` | decimal(30,10), default `1` | Rate denominator (e.g. 1_000_000 for tokens) |
 | `cost` | decimal(20,8) | `quantity / rate_quantity * rate_amount` |
 | `currency` | string, default `USD` | Currency for `cost` |
 | `cost_status` | string, default `unknown` | `complete`, `free`, `unknown` |
-| `pricing_basis` | string | `provider_usage`, `bundled`, `pricing_overrides`, `prices_file` |
+| `pricing_basis` | string | `provider_usage` when the provider reported the quantity itself. Where the *rate* came from is `price_source`, not this column |
 | `price_key` | string | Registry key the rate matched |
 | `price_source` / `price_source_version` | string | Where the rate came from |
 | `provider_field` | string | Path in the provider response (audit) |
@@ -121,7 +121,7 @@ Normalized attribution. One row per `key=value` pair on a call.
 | `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
 | `key` | string, not null | Tag key |
 | `value` | text, not null | Tag value (nested hashes are stored as JSON strings) |
-| `total_cost` | decimal(20,8), null | Copy of the call's cost, so a per-tag budget reads this table without a join. Null until `bin/rails llm_cost_tracker:backfill_tag_costs` fills rows written before the columns existed. |
+| `total_cost` | decimal(20,8), null | Copy of the call's cost, so a per-tag budget reads this table without a join. Null for a call whose pricing is unknown, and for rows written before the columns existed — `bin/rails llm_cost_tracker:backfill_tag_costs` fills the latter. Either way the spend is not counted against a per-tag budget. |
 | `tracked_at` | datetime, null | Copy of the call's time. The call's business time, never the write time — see [Budgets](budgets.md#per-tag-budgets). |
 
 Indexes:
@@ -160,7 +160,7 @@ ledger.
 | `last_error` | text | Last ingestion error |
 | `created_at` / `updated_at` | datetime | |
 
-Indexes: `[tracked_at, attempts]`, `[locked_at, id]`.
+Indexes: unique `event_id`, `[tracked_at, attempts]`.
 
 ## `llm_cost_tracker_ingestion_leases`
 
@@ -183,7 +183,8 @@ Shared lease for the background worker.
 
 ## Schema health
 
-`bin/rails llm_cost_tracker:doctor` verifies the calls schema, JSON column
-types, line items, tags, call rollups, and the async ingestion tables. When
+`bin/rails llm_cost_tracker:doctor` checks that the calls, line items, tags,
+call rollups and async ingestion tables carry the columns this version expects.
+It compares column names only — not types, and not indexes. When
 something is missing, the dashboard renders setup guidance instead of running
 queries.

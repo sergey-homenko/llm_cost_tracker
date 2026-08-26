@@ -783,8 +783,8 @@ The 0.x line before 0.8 used a different schema (per-component cost columns,
 
 - Drain the durable inbox before swapping gem versions:
   `LlmCostTracker::Ingestion::Worker.flush!(timeout: 30)`.
-- Run `bin/rails llm_cost_tracker:doctor` after migrating; it checks the
-  current schema, line items table, tags table, provider invoices table,
-  ingestion tables, and call rollups.
+- Run `bin/rails llm_cost_tracker:doctor` after migrating; it checks the calls,
+  line items and tags tables, the call rollups and ingestion tables when those
+  are configured, and the price file.
 - `llm_cost_tracker:setup` is install-time only. Production deploys run
   committed migrations and `doctor`.

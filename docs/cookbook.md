@@ -9,7 +9,7 @@ Short integration recipes for common Ruby clients. Prefer SDK integrations or mi
 | Official `anthropic` gem | `config.instrument :anthropic` | The integration records returned message usage without changing call sites. |
 | `ruby-openai` | Faraday middleware | The client is built on Faraday and accepts middleware via the constructor block. |
 | Groq | Faraday middleware | Groq's official SDKs are Python and JavaScript/TypeScript; Ruby uses the OpenAI-compatible HTTP path. |
-| OpenAI-compatible proxy | Faraday middleware | Use `ruby-openai` or a direct Faraday client against the proxy host. |
+| OpenAI-compatible proxy | Faraday middleware | Point a Faraday connection at the proxy host. |
 | Custom Faraday client | Faraday middleware | The middleware can parse known provider responses automatically. |
 | Other clients | Explicit tracking | Use `track` or `track_stream` when the client has no supported SDK/Faraday hook. |
 
@@ -129,7 +129,7 @@ client.chat(
   parameters: {
     model: "gpt-4o",
     messages: [{ role: "user", content: "Hello" }],
-    stream: proc { |chunk, _bytesize| puts chunk.dig("choices", 0, "delta", "content") },
+    stream: proc { |chunk| puts chunk.dig("choices", 0, "delta", "content") },
     stream_options: { include_usage: true }
   }
 )
@@ -140,23 +140,25 @@ factory.
 
 ## Groq
 
-Groq is auto-detected on `api.groq.com`. Use a Faraday client or an OpenAI-compatible Ruby client pointed at Groq's base URL.
+Groq is auto-detected on `api.groq.com`. The official `openai` gem does not use
+Faraday, so reach Groq through a Faraday connection of your own:
 
 ```ruby
-client = OpenAI::Client.new(
-  access_token: ENV["GROQ_API_KEY"],
-  uri_base: "https://api.groq.com/openai/v1"
-) do |f|
+client = Faraday.new(url: "https://api.groq.com/openai/v1") do |f|
+  f.request :json
+  f.response :json
   f.use :llm_cost_tracker, tags: { feature: "chat" }
+  f.adapter Faraday.default_adapter
 end
 
-client.chat(
-  parameters: {
+client.post("chat/completions") do |req|
+  req.headers["Authorization"] = "Bearer #{ENV.fetch('GROQ_API_KEY')}"
+  req.body = {
     model: "openai/gpt-oss-20b",
     messages: [{ role: "user", content: "Hello" }],
     service_tier: "on_demand"
   }
-)
+end
 ```
 
 ## Azure OpenAI
@@ -205,14 +207,17 @@ LlmCostTracker.configure do |config|
   config.capture.openai_compatible_providers["proxy.internal.example"] = "litellm"
 end
 
-client = OpenAI::Client.new(
-  access_token: ENV["LITELLM_API_KEY"],
-  uri_base: "https://proxy.internal.example"
-) do |f|
+client = Faraday.new(url: "https://proxy.internal.example") do |f|
+  f.request :json
+  f.response :json
   f.use :llm_cost_tracker, tags: { gateway: "litellm" }
+  f.adapter Faraday.default_adapter
 end
 
-client.chat(parameters: { model: "openai/gpt-5-mini", messages: [{ role: "user", content: "Hello" }] })
+client.post("chat/completions") do |req|
+  req.headers["Authorization"] = "Bearer #{ENV.fetch('LITELLM_API_KEY')}"
+  req.body = { model: "openai/gpt-5-mini", messages: [{ role: "user", content: "Hello" }] }
+end
 ```
 
 If your proxy exposes custom model IDs or discounts, add them in `pricing.file` or `pricing.overrides`.

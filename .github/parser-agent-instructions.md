@@ -11,7 +11,7 @@ This repository is `llm_cost_tracker`, a Rails Engine gem that ledgers LLM API c
 
 - `lib/` is gem code shipped to end users.
 - `app/` is engine views, controllers, services, helpers for the mounted dashboard.
-- `spec/` is RSpec tests against `spec/dummy` SQLite app.
+- `spec/` is RSpec tests against the `spec/dummy` app on PostgreSQL or MySQL.
 - `scripts/` is maintainer-only tooling for price scrapers and is excluded from the gem build via `gemspec`.
 - `.github/workflows/` contains CI workflows including the daily price refresh.
 
