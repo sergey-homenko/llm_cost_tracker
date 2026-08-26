@@ -10,8 +10,7 @@ module LlmCostTracker
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Drops three indexes the query planner never chooses and adds a partial index " \
-           "over unpriced calls, so llm_cost_tracker:backfill_unknown_pricing stops " \
+      desc "Adds a partial index over unpriced calls and drops the unused ingestion inbox lock index" \
            "scanning the whole ledger."
 
       def create_migration_file

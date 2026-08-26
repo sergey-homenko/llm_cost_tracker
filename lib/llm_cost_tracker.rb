@@ -110,7 +110,12 @@ module LlmCostTracker
                      provider_workspace_id: nil,
                      pricing_mode: nil)
       require_relative "llm_cost_tracker/capture/stream_collector"
-      Budget.enforce!(provider: provider, model: model, force: true) if enforce_budget
+      if enforce_budget
+        Budget.enforce!(provider: provider,
+                        model: model,
+                        force: true,
+                        tags: Tracker.build_tags(context_tags: nil, metadata: tags))
+      end
       collector = Capture::StreamCollector.new(
         provider: provider.to_s,
         model: model,

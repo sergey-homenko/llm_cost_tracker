@@ -6,6 +6,14 @@ require "rails/generators"
 require_relative "../llm_cost_tracker/generators/llm_cost_tracker/install_generator"
 require_relative "../llm_cost_tracker/pricing/sync/change_printer"
 
+module LlmCostTrackerTasks
+  def self.price_refresh_output_path
+    path = LlmCostTracker::Pricing::Sync.configured_output_path
+    FileUtils.mkdir_p(File.dirname(path))
+    path
+  end
+end
+
 # rubocop:disable-next Metrics/BlockLength
 namespace :llm_cost_tracker do
   desc "Install LLM Cost Tracker with dashboard and prices, migrate, and run doctor"
@@ -96,7 +104,7 @@ namespace :llm_cost_tracker do
       Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
       require_relative "../llm_cost_tracker"
 
-      output_path = price_refresh_output_path
+      output_path = LlmCostTrackerTasks.price_refresh_output_path
       source_url = LlmCostTracker::Pricing::Sync.configured_remote_url
       preview = ENV["PREVIEW"] == "1"
       result = LlmCostTracker::Pricing::Sync.refresh(
@@ -124,7 +132,7 @@ namespace :llm_cost_tracker do
       Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
       require_relative "../llm_cost_tracker"
 
-      output_path = price_refresh_output_path
+      output_path = LlmCostTrackerTasks.price_refresh_output_path
       source_url = LlmCostTracker::Pricing::Sync.configured_remote_url
       result = LlmCostTracker::Pricing::Sync.check(path: output_path, url: source_url)
 
@@ -136,10 +144,4 @@ namespace :llm_cost_tracker do
       abort("llm_cost_tracker: pricing check failed") unless result.up_to_date
     end
   end
-end
-
-def price_refresh_output_path
-  path = LlmCostTracker::Pricing::Sync.configured_output_path
-  FileUtils.mkdir_p(File.dirname(path))
-  path
 end

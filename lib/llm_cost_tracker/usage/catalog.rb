@@ -16,8 +16,7 @@ module LlmCostTracker
         "request" => "per_request",
         "session" => "per_session",
         "hour" => "per_hour",
-        "minute" => "per_minute",
-        "image" => "per_image"
+        "minute" => "per_minute"
       }.freeze
 
       class << self

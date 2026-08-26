@@ -16,6 +16,17 @@ module LlmCostTracker
       query
     end
 
+    def hidden_query_fields(query, prefix: nil)
+      safe_join(query.flat_map do |key, value|
+        name = prefix ? "#{prefix}[#{key}]" : key.to_s
+        case value
+        when Hash then hidden_query_fields(value, prefix: name)
+        when Array then value.map { |item| hidden_field_tag("#{name}[]", item, id: nil) }
+        else hidden_field_tag(name, value, id: nil)
+        end
+      end)
+    end
+
     private
 
     def clean_dashboard_query(value)

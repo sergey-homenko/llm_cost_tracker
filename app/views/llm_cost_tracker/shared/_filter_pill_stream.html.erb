@@ -11,9 +11,7 @@
   </summary>
   <%= form_with url: path, method: :get, local: true, html: { class: "lct-filter-pop-body" } do %>
     <% extra_hidden.each do |k, v| %><%= hidden_field_tag k, v %><% end %>
-    <% current_query.except(:stream, :page, :per, *extra_except).each do |key, value| %>
-      <% Array(value).each do |v| %><%= hidden_field_tag(value.is_a?(Array) ? "#{key}[]" : key.to_s, v) %><% end %>
-    <% end %>
+    <%= hidden_query_fields(current_query.except(:stream, :page, :per, *extra_except)) %>
     <div class="lct-filter-pop-field">
       <label for="lct-filter-stream">Stream</label>
       <%= select_tag :stream, options_for_select(LlmCostTracker::Dashboard::Filter::STREAM_FILTER_OPTIONS, active), include_blank: "All calls", id: "lct-filter-stream" %>

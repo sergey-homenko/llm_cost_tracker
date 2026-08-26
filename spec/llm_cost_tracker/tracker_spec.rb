@@ -743,7 +743,7 @@ RSpec.describe LlmCostTracker::Tracker do
       end.not_to raise_error
     end
 
-    it "honors `enforce_budget: true` on `LlmCostTracker.track` even when the global policy is :notify, so per-call DSL can opt into pre-send fail-fast" do
+    it "honors `enforce_budget: true` on `LlmCostTracker.track` even when the global policy is :notify, and still records the spend it raises on" do
       LlmCostTracker.configure do |c|
         c.budgets.per_call = 0.0001
         c.budgets.exceeded_behavior = :notify
@@ -757,8 +757,9 @@ RSpec.describe LlmCostTracker::Tracker do
         )
       end.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
         expect(error.budget_type).to eq(:per_call)
-        expect(error.stage).to eq(:pre_send)
+        expect(error.stage).to eq(:post_spend)
       }
+      expect(LlmCostTracker::Ledger::Store).to have_received(:insert).once
     end
 
     it "includes priced service line items in the `enforce_budget` pre-send estimate" do

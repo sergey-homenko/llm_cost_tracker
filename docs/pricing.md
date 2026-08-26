@@ -176,7 +176,7 @@ uses.
 | OpenAI Embeddings | `embeddings.create` `usage.prompt_tokens` | `input` rate prices the call when the model has registry rates |
 | OpenAI Transcriptions (`gpt-4o-transcribe*`) | `audio.transcriptions.create` (+ `create_streaming`) `usage` block | `audio_input`, `input`, and `output` rates price captured buckets when present |
 | OpenAI Speech (TTS) | `audio.speech.create` request `input` length (chars) | `text_to_speech_character` rate, per 1M characters, for `tts-1` / `tts-1-hd`; `gpt-4o-mini-tts` records zero-cost visibility because tokens are not exposed |
-| OpenAI Moderations | `moderations.create` request payload | Zero-cost visibility: the call is recorded with no line items (OpenAI does not bill the endpoint) |
+| OpenAI Moderations | `moderations.create` request payload | The call is recorded with no line items and no rate, so it lands `cost_status: unknown` (OpenAI does not bill the endpoint, but the price table carries no entry saying so) |
 | OpenAI Realtime `response.done` | Provider stream events passed through `track_stream`; standard Faraday middleware does not auto-capture WebSocket/WebRTC sessions | Audio input/output token rates price the call when the model has registry rates |
 | OpenAI hosted web search | `web_search_call` output items with `action.type = "search"` | Priced from `service_charges.openai.web_search_request` when present |
 | OpenAI web search page actions | `open_page` and `find_in_page` output item actions | Ignored as service charges because they are not separate billable search calls |
@@ -190,4 +190,4 @@ uses.
 | Groq OpenAI-compatible usage | Chat usage, cached input, reasoning output, and service tier headers | Token rates price captured buckets when the model has registry rates |
 | RubyLLM chat | `RubyLLM::Provider#complete` (streaming-aware; `Chat#ask` and `Chat#complete` reach this transitively) | Routed through the matched provider parser (OpenAI / Anthropic / Gemini); same pricing path as native SDK |
 | RubyLLM embed / transcribe | `RubyLLM::Provider#embed`, `#transcribe` | Routed through the matched provider parser; priced like the underlying provider call |
-| RubyLLM image / moderation | `RubyLLM::Provider#paint`, `#moderate` | `#paint` records image-token line items when the usage block carries them; `#moderate` records the call with no line items |
+| RubyLLM image / moderation | `RubyLLM::Provider#paint`, `#moderate` | `#paint` records image-token line items when the usage block carries them; `#moderate` records the call with no line items, so it lands `cost_status: unknown` |

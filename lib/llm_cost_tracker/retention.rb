@@ -28,10 +28,22 @@ module LlmCostTracker
         require_relative "ingestion"
         return 0 unless LlmCostTracker::Ingestion::InboxEntry.table_exists?
 
-        LlmCostTracker::Ingestion::InboxEntry.where(tracked_at: ...cutoff).delete_all
+        scope = LlmCostTracker::Ingestion::InboxEntry.where(tracked_at: ...cutoff)
+        warn_undrained(scope.pending)
+        scope.delete_all
       end
 
       private
+
+      def warn_undrained(scope)
+        count, cost = scope.pick(Arel.sql("COUNT(*)"), Arel.sql("COALESCE(SUM(total_cost), 0)"))
+        return if count.to_i.zero?
+
+        Logging.warn(
+          "Retention.prune_inbox is deleting #{count} inbox row(s) worth #{cost} that were never drained " \
+          "into the ledger. Their spend is lost. Drain the inbox before pruning, or raise the retention window."
+        )
+      end
 
       def resolve_cutoff(older_than, now)
         cutoff = case older_than

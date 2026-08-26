@@ -81,6 +81,32 @@ RSpec.describe LlmCostTracker::Retention do
   describe ".prune_inbox" do
     before { LlmCostTracker::Ingestion::InboxEntry.reset_column_information }
 
+    it "warns with the count and cost when it deletes rows that never reached the ledger" do
+      now = Time.utc(2026, 6, 1, 12)
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      LlmCostTracker::Ingestion::InboxEntry.create!(
+        event_id: "undrained", tracked_at: now - 100.days,
+        payload: "{}", attempts: 0, total_cost: 42.0
+      )
+
+      described_class.prune_inbox(older_than: 90, now: now)
+
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(/deleting 1 inbox row\(s\) worth 42/)
+    end
+
+    it "stays quiet when every deleted row was already quarantined" do
+      now = Time.utc(2026, 6, 1, 12)
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      LlmCostTracker::Ingestion::InboxEntry.create!(
+        event_id: "dead", tracked_at: now - 100.days, payload: "{}", total_cost: 42.0,
+        attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
+      )
+
+      described_class.prune_inbox(older_than: 90, now: now)
+
+      expect(LlmCostTracker::Logging).not_to have_received(:warn)
+    end
+
     it "deletes inbox entries older than the cutoff regardless of state" do
       now = Time.utc(2026, 6, 1, 12)
       LlmCostTracker::Ingestion::InboxEntry.create!(

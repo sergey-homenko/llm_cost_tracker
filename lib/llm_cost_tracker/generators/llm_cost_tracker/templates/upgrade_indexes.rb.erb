@@ -5,12 +5,10 @@ class UpgradeLlmCostTrackerIndexes < ActiveRecord::Migration<%= migration_versio
 
   CALLS = :llm_cost_tracker_calls
   INBOX = :llm_cost_tracker_ingestion_inbox_entries
-  UNUSED_CALL_INDEXES = [%i[provider tracked_at], %i[model tracked_at]].freeze
   UNUSED_INBOX_INDEX = %i[locked_at id].freeze
   UNPRICED_INDEX = :index_llm_cost_tracker_calls_on_unpriced
 
   def up
-    UNUSED_CALL_INDEXES.each { |columns| remove_index CALLS, column: columns, **remove_index_options }
     add_index CALLS, :id, name: UNPRICED_INDEX, where: "total_cost IS NULL", **add_index_options
     return unless table_exists?(INBOX)
 
@@ -20,7 +18,6 @@ class UpgradeLlmCostTrackerIndexes < ActiveRecord::Migration<%= migration_versio
   def down
     add_index INBOX, UNUSED_INBOX_INDEX, **add_index_options if table_exists?(INBOX)
     remove_index CALLS, name: UNPRICED_INDEX, **remove_index_options
-    UNUSED_CALL_INDEXES.each { |columns| add_index CALLS, columns, **add_index_options }
   end
 
   private

@@ -16,7 +16,10 @@ module LlmCostTracker
         class << self
           def combined_pricing_mode(host:, model:, service_tier:)
             modes = [Pricing::Mode.normalize(service_tier)]
-            modes << "data_residency" if Hosts.data_residency?(host) && ModelFamilies.data_residency?(model)
+            if Hosts.data_residency?(host) &&
+               Pricing::Matcher.modifier_priced?(provider: "openai", model: model, modifier: "data_residency")
+              modes << "data_residency"
+            end
             Pricing::Mode.compose(modes)
           end
 
@@ -26,7 +29,7 @@ module LlmCostTracker
 
             model = response["model"] || request["model"]
             service_line_items =
-              ServiceCharges.service_line_items_for(response, request: request, model: response["model"]) +
+              ServiceCharges.service_line_items_for(response, request: request, model: model) +
               ServiceCharges.transcription_line_items(usage)
             Event.build(
               provider: provider,

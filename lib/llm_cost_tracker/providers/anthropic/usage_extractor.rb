@@ -28,7 +28,7 @@ module LlmCostTracker
         end
 
         def self.pricing_mode(request:, usage:)
-          speed = request&.dig(:speed)
+          speed = usage&.dig(:speed) || request&.dig(:speed)
           service_tier = usage&.dig(:service_tier) || request&.dig(:service_tier)
           geo = (usage&.dig(:inference_geo) || request&.dig(:inference_geo)).to_s.downcase
 

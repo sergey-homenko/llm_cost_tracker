@@ -7,13 +7,15 @@ module LlmCostTracker
 
       class << self
         def current
-          return @current if defined?(@current)
+          return if @healthy
 
-          @current = compute
+          state = compute
+          @healthy = state.nil?
+          state
         end
 
         def reset!
-          remove_instance_variable(:@current) if defined?(@current)
+          @healthy = false
         end
 
         private

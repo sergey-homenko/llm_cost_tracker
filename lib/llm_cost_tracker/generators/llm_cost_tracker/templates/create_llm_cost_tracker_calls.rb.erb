@@ -80,6 +80,8 @@ class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %
 
     add_index :llm_cost_tracker_calls, :event_id, unique: true
     add_index :llm_cost_tracker_calls, :tracked_at
+    add_index :llm_cost_tracker_calls, %i[provider tracked_at]
+    add_index :llm_cost_tracker_calls, %i[model tracked_at]
     add_index :llm_cost_tracker_calls, :cost_status
     add_index :llm_cost_tracker_calls, :provider_response_id
     add_index :llm_cost_tracker_calls, :id, name: :index_llm_cost_tracker_calls_on_unpriced,

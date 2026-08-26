@@ -302,14 +302,14 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       expect(notified.map { |payload| payload[:scope] }).to eq([{ key: "tenant_id", value: "42" }])
     end
 
-    it "blocks pre-send on a tag passed to track, not only one in the tag context" do
-      configure_inline(nil, behavior: :block_requests)
+    it "scores a tag passed to track, not only one in the tag context, and keeps the row it raises on" do
+      configure_inline(nil, behavior: :notify)
       spend(12.0, tags: { tenant_id: 42 })
 
       expect do
         expect { track_tagged(42, enforce_budget: true) }
           .to raise_error(LlmCostTracker::BudgetExceededError, /tenant_id=42/)
-      end.not_to change(LlmCostTracker::Call, :count)
+      end.to change(LlmCostTracker::Call, :count).by(1)
       expect { track_tagged(43, enforce_budget: true) }.not_to raise_error
     end
   end

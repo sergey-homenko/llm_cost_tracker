@@ -70,12 +70,12 @@ Indexes:
 - `tracked_at` (time filters and retention)
 - `cost_status` (data quality)
 - `provider_response_id` (cross-reference with provider invoices and logs)
+- `[provider, tracked_at]` and `[model, tracked_at]` (the dashboard's provider and model
+  filters, which order by `tracked_at` and page)
 - partial `id where total_cost is null` (the unpriced scope `llm_cost_tracker:backfill_unknown_pricing` walks)
 
-`[provider, tracked_at]` and `[model, tracked_at]` were removed: both lead with a
-low-selectivity column and neither covers `total_cost`, so the planner never chose
-them. Existing installs reclaim the space with
-`bin/rails generate llm_cost_tracker:upgrade_indexes && bin/rails db:migrate`.
+The two composite indexes matter most when one provider dominates the ledger: filtering
+to a rare provider took 70 ms without them and 0.02 ms with them, measured on 200k calls.
 
 ## `llm_cost_tracker_call_line_items`
 

@@ -43,7 +43,9 @@ module LlmCostTracker
         return UNKNOWN if unpriced && !priced
         return PARTIAL if unpriced
 
-        total_cost.nil? || total_cost.zero? ? FREE : COMPLETE
+        return UNKNOWN if total_cost.nil?
+
+        total_cost.zero? ? FREE : COMPLETE
       end
     end
   end

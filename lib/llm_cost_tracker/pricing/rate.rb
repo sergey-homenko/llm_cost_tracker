@@ -9,8 +9,7 @@ module LlmCostTracker
       "per_1k_requests" => 1_000,
       "per_session" => 1,
       "per_hour" => 1,
-      "per_minute" => 1,
-      "per_image" => 1
+      "per_minute" => 1
     }.freeze
 
     Rate = Data.define(:amount, :quantity, :currency, :source, :source_key, :source_version)

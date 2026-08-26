@@ -5,17 +5,24 @@
 v0.14 reorganises the initializer and adds two optional migrations. No BREAKING
 changes — an install that upgrades the gem and changes nothing else keeps working.
 
-### Recommended: drop three indexes the planner never chooses
+### Required if you pass `enforce_budget: true` to `track` (BREAKING)
 
-On `llm_cost_tracker_calls`, `(provider, tracked_at)` and `(model, tracked_at)` both
-lead with a low-selectivity column and neither covers `total_cost`, so grouping and
-filtering queries scan instead of using them. On
-`llm_cost_tracker_ingestion_inbox_entries`, `(locked_at, id)` loses to the primary key
-because the drain claims rows with `ORDER BY id`.
+`LlmCostTracker.track(enforce_budget: true)` used to raise before writing anything, so
+the call that tripped the budget never reached the ledger — and because the window
+total is read from the ledger, it never advanced, and every later call raised and was
+dropped as well. It now records the call and then raises, and the error carries
+`stage: :post_spend`. Code that matches on `stage` needs updating.
 
-They are replaced by a partial index over unpriced calls, which is what
-`llm_cost_tracker:backfill_unknown_pricing` actually needs — that scope had no index at
-all, so every batch scanned the whole ledger.
+`LlmCostTracker.track_stream(enforce_budget: true)` is unchanged: it runs before your
+block, so it still raises `stage: :pre_send` and nothing is spent.
+
+### Recommended: index the unpriced backfill scope
+
+`llm_cost_tracker:backfill_unknown_pricing` filters on `total_cost IS NULL`, a scope
+that had no index at all, so every batch scanned the whole ledger. A partial index over
+exactly that scope fixes it. The same migration drops
+`llm_cost_tracker_ingestion_inbox_entries (locked_at, id)`, which the drain never uses —
+it claims rows with `ORDER BY id` and wins on the primary key instead.
 
 ```bash
 bin/rails generate llm_cost_tracker:upgrade_indexes
@@ -25,8 +32,7 @@ bin/rails db:migrate
 The inbox part is skipped when the async tables are not installed. On PostgreSQL the
 migration runs `CONCURRENTLY` outside a transaction, so it does not lock writes.
 
-Measured on 2M calls with a 200k-row inbox backlog: the backfill scope drops from
-290 ms to 0.3 ms, and about 146 MB of index is reclaimed.
+Measured on 2M calls: the backfill scope drops from 290 ms to 0.3 ms.
 
 ### Optional: one budget per tag value
 

@@ -37,8 +37,7 @@ module LlmCostTracker
       @to_date = range.to
     end
 
-    def render_database_error(error)
-      @error = error
+    def render_database_error(_error)
       render "llm_cost_tracker/errors/database", status: :internal_server_error
     end
 

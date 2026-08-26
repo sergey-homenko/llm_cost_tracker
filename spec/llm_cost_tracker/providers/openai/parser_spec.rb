@@ -137,6 +137,24 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(result.pricing_mode).to eq("priority_data_residency")
     end
 
+    it "captures OpenAI regional processing for codename models the price table covers" do
+      result = parser.parse(
+        request_url: regional_responses_url,
+        request_body: { model: "gpt-5.6-terra" }.to_json,
+        response_status: 200,
+        response_body: {
+          model: "gpt-5.6-terra",
+          usage: {
+            input_tokens: 150,
+            output_tokens: 42,
+            total_tokens: 192
+          }
+        }.to_json
+      )
+
+      expect(result.pricing_mode).to eq("data_residency")
+    end
+
     it "does not mark non-uplift OpenAI regional models as data residency pricing" do
       result = parser.parse(
         request_url: regional_responses_url,

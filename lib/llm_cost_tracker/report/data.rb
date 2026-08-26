@@ -55,7 +55,7 @@ module LlmCostTracker
       def self.totals(scope)
         scope
           .select(
-            "COALESCE(SUM(#{LlmCostTracker::Call.qualified_total_cost}), 0) AS total_cost, " \
+            "COALESCE(SUM(#{LlmCostTracker::Call.qualified(:total_cost)}), 0) AS total_cost, " \
             "COUNT(*) AS requests_count, " \
             "AVG(latency_ms) AS average_latency_ms, " \
             "COALESCE(SUM(CASE WHEN #{Charges::CostStatus.unknown_pricing_sql} " \

@@ -398,6 +398,17 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).to include("' \t=CMD('/bin/sh')")
   end
 
+  it "keeps a nested tag filter in the filter pill forms" do
+    create_call(total_cost: 5.0, tags: { "env" => "prod" })
+    create_call(total_cost: 7.0, tags: { "env" => "dev" })
+
+    response = Rack::MockRequest.new(Rails.application).get("/llm-costs/calls?tag%5Benv%5D=prod")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include(%(name="tag[env]" value="prod"))
+    expect(response.body).not_to include(%(name="tag" value="env prod"))
+  end
+
   it "exports calls without tag rows as empty JSON" do
     create_call(tags: {})
 

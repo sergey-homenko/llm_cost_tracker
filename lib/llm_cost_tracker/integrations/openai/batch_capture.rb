@@ -13,32 +13,30 @@ module LlmCostTracker
         class << self
           def maybe_capture(batch, resource:)
             return unless Openai.active?
-            return unless batch.respond_to?(:status) && batch.status.to_s == "completed"
-
-            output_file_id = batch.respond_to?(:output_file_id) ? batch.output_file_id : nil
-            return unless output_file_id
-
-            batch_id = batch.respond_to?(:id) ? batch.id : nil
-            return unless batch_id && claim(batch_id)
+            return unless batch.status.to_s == "completed"
+            return unless batch.output_file_id && batch.id
+            return if captured?(batch.id)
 
             client = resource.instance_variable_get(:@client)
             host = Openai.client_host_for(resource)
             Openai.record_safely do
-              io = client.files.content(output_file_id)
+              io = client.files.content(batch.output_file_id)
               capture_jsonl(io.respond_to?(:read) ? io.read : io.to_s, host: host)
+              mark_captured(batch.id)
             end
           end
 
           private
 
-          def claim(batch_id)
+          def captured?(batch_id)
+            MUTEX.synchronize { @dedup&.include?(batch_id) || false }
+          end
+
+          def mark_captured(batch_id)
             MUTEX.synchronize do
               @dedup ||= Set.new
-              next false if @dedup.include?(batch_id)
-
               @dedup.clear if @dedup.size >= DEDUP_LIMIT
               @dedup.add(batch_id)
-              true
             end
           end
 

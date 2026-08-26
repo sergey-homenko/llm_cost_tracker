@@ -4,24 +4,6 @@ require "spec_helper"
 require "llm_cost_tracker/providers/openai/model_families"
 
 RSpec.describe LlmCostTracker::Providers::Openai::ModelFamilies do
-  describe ".data_residency?" do
-    it "matches gpt-5.4 / gpt-5.5 and their nano/mini/pro/codex variants with optional dated suffix" do
-      %w[
-        gpt-5.4 gpt-5.5 gpt-5.4-mini gpt-5.5-nano gpt-5.4-pro
-        gpt-5.4-codex gpt-5.4-codex-mini gpt-5.5-codex-max
-        gpt-5.4-2026-04-01
-      ].each do |model|
-        expect(described_class.data_residency?(model)).to be(true), "expected #{model} to be data-residency-eligible"
-      end
-    end
-
-    it "rejects older gpt-5 and non-gpt-5 models" do
-      %w[gpt-5 gpt-5.1 gpt-5.3 gpt-4o gpt-image-1 claude-sonnet-4-6].each do |model|
-        expect(described_class.data_residency?(model)).to be(false), "expected #{model} to not be data-residency-eligible"
-      end
-    end
-  end
-
   describe ".image_output?" do
     it "matches gpt-image-* models" do
       %w[gpt-image-1 gpt-image-1-mini gpt-image-1.5 gpt-image-2].each do |model|

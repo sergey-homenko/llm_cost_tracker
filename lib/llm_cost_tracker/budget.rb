@@ -33,24 +33,25 @@ module LlmCostTracker
         end
       end
 
-      def check!(event)
+      def check!(event, behavior_override: nil)
         config = LlmCostTracker.configuration
         return unless event.total_cost
 
-        check_per_call_budget(event, config)
+        check_per_call_budget(event, config, behavior_override)
         check_windowed({ daily: config.budgets.daily, monthly: config.budgets.monthly }.compact,
                        time: event.tracked_at) do |budget_type, total, budget|
           handle_exceeded(budget_type: budget_type,
                           total: total,
                           budget: budget,
                           previous_total: total - event.total_cost,
-                          last_event: event)
+                          last_event: event,
+                          behavior: behavior_override)
         end
       end
 
-      def check_persisted!(events, notify_only: false)
+      def check_persisted!(events, behavior_override: nil)
         by_rule = PerTag.rules_for_events(events.select(&:total_cost))
-        by_rule = by_rule.reject { |rule, _| rule.on_exceeded.nil? } if notify_only
+        by_rule = by_rule.reject { |rule, _| rule.on_exceeded.nil? } if behavior_override == :notify
         window_buckets(by_rule).each do |(key, window, bucket), scored|
           totals = PerTag.spend_by_value(key, scored.keys.map(&:value), window, bucket)
           scored.each do |rule, recorded|
@@ -65,7 +66,7 @@ module LlmCostTracker
               previous_total: total - recorded.sum(&:total_cost),
               last_event: recorded.last,
               scope: scope_for(rule),
-              behavior: notify_only ? :notify : rule.behavior,
+              behavior: behavior_override || rule.behavior,
               on_exceeded: rule.on_exceeded
             )
           end
@@ -73,7 +74,7 @@ module LlmCostTracker
       end
 
       def notify_persisted_safely!(events)
-        check_persisted!(events, notify_only: true)
+        check_persisted!(events, behavior_override: :notify)
       rescue StandardError => e
         Logging.warn("Per-tag budget check failed after ingest: #{e.class}: #{e.message}")
       end
@@ -105,7 +106,7 @@ module LlmCostTracker
         ))
       end
 
-      def check_per_call_budget(event, config)
+      def check_per_call_budget(event, config, behavior_override)
         budget = config.budgets.per_call
         return unless budget
 
@@ -116,7 +117,8 @@ module LlmCostTracker
                         total: total,
                         budget: budget,
                         previous_total: nil,
-                        last_event: event)
+                        last_event: event,
+                        behavior: behavior_override)
       end
 
       def enforce_globally(config, estimate:, time:)

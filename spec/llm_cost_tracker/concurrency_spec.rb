@@ -279,8 +279,8 @@ RSpec.describe "concurrency", :aggregate_failures do
       allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_return(true)
     end
 
-    it "raises before tracking when track opts in" do
-      allow(LlmCostTracker::Budget).to receive(:enforce!).and_raise(
+    it "raises after recording when track opts in" do
+      allow(LlmCostTracker::Budget).to receive(:check!).and_raise(
         LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 0.01)
       )
 

@@ -11,20 +11,20 @@ module LlmCostTracker
         return unless Probe.table_exists?("llm_cost_tracker_calls")
         return inline_check unless LlmCostTracker::Ingestion.async?
 
-        missing = missing_parts
-        return async_ok if missing.empty?
+        problems = missing_parts + drifted_parts
+        return async_ok if problems.empty?
 
         Check.new(
           :error,
           "async ingestion",
-          "missing #{missing.join(', ')}; see docs/upgrading.md for the recovery steps"
+          "#{problems.join('; ')}; see docs/upgrading.md for the recovery steps"
         )
       end
 
       private
 
       def async_ok
-        Check.new(:ok, "async ingestion", "inbox and ingestion lease tables available")
+        Check.new(:ok, "async ingestion", "inbox and ingestion lease tables are on the current schema")
       end
 
       def inline_check
@@ -48,7 +48,16 @@ module LlmCostTracker
       end
 
       def missing_parts
-        async_tables.reject { |table| Probe.table_exists?(table) }
+        async_tables.reject { |table| Probe.table_exists?(table) }.map { |table| "missing #{table}" }
+      end
+
+      def drifted_parts
+        LlmCostTracker::Ledger::Schema::ASYNC_SCHEMAS.filter_map do |schema, table|
+          next unless Probe.table_exists?(table)
+
+          errors = schema.current_schema_errors
+          "#{table} #{errors.join(', ')}" unless errors.empty?
+        end
       end
 
       def async_tables

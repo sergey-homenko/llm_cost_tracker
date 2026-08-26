@@ -27,6 +27,13 @@ module LlmCostTracker
           @cache[key] = lookup_match(sources, provider_name, model_name)
         end
 
+        def modifier_priced?(provider:, model:, modifier:)
+          prices = lookup(provider: provider, model: model)&.prices
+          return false unless prices
+
+          prices.any? { |key, _| key.to_s.include?(modifier) }
+        end
+
         private
 
         def reset_cache(sources)

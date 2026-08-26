@@ -28,7 +28,11 @@ module LlmCostTracker
         ROLLUP_INCREMENT_ATTEMPTS = 3
         ROLLUP_INCREMENT_BASE_DELAY_SECONDS = 0.05
         REBUILD_INSERT_SLICE = 1_000
-        private_constant :ROLLUP_INCREMENT_ATTEMPTS, :ROLLUP_INCREMENT_BASE_DELAY_SECONDS, :REBUILD_INSERT_SLICE
+        ROLLED_BACK_ERRORS = [ActiveRecord::Deadlocked, ActiveRecord::LockWaitTimeout].freeze
+        private_constant :ROLLUP_INCREMENT_ATTEMPTS,
+                         :ROLLUP_INCREMENT_BASE_DELAY_SECONDS,
+                         :REBUILD_INSERT_SLICE,
+                         :ROLLED_BACK_ERRORS
 
         def increment_safely!(events)
           attempt = 0
@@ -38,14 +42,15 @@ module LlmCostTracker
           rescue StandardError => e
             raise if LlmCostTracker::Call.connection.open_transactions.positive?
 
-            if attempt < ROLLUP_INCREMENT_ATTEMPTS
+            if attempt < ROLLUP_INCREMENT_ATTEMPTS && ROLLED_BACK_ERRORS.any? { |klass| e.is_a?(klass) }
               sleep(ROLLUP_INCREMENT_BASE_DELAY_SECONDS * (2**(attempt - 1)))
               retry
             end
 
             LlmCostTracker::Logging.warn(
-              "Rollup increment failed for #{events.size} events after #{attempt} attempts: " \
-              "#{e.class}: #{e.message}"
+              "Rollup increment failed for #{events.size} events after #{attempt} attempt(s): " \
+              "#{e.class}: #{e.message}. Budget reads fall back to the calls ledger; " \
+              "run bin/rails llm_cost_tracker:rebuild_rollups to resync the cache."
             )
           end
         end

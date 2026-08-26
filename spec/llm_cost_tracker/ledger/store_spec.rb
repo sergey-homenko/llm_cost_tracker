@@ -369,14 +369,14 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Logging).to have_received(:warn).with(include("Rollup increment failed"))
   end
 
-  it "retries a transient rollup increment failure before warning so transient DB hiccups don't permanently strand the rollup" do
+  it "retries a rolled-back rollup increment so a deadlock doesn't permanently strand the rollup" do
     LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
     allow(LlmCostTracker::Logging).to receive(:warn)
     allow(LlmCostTracker::Ledger::Rollups).to receive(:sleep)
     increment_call_count = 0
-    allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!) do |events|
+    allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!) do |_events|
       increment_call_count += 1
-      raise "transient" if increment_call_count < 3
+      raise ActiveRecord::Deadlocked if increment_call_count < 3
     end
     event = build_event(event_id: "rollup-retry")
 
@@ -384,6 +384,21 @@ RSpec.describe "ActiveRecord storage integration" do
 
     expect(increment_call_count).to eq(3)
     expect(LlmCostTracker::Logging).not_to have_received(:warn)
+  end
+
+  it "does not retry an increment that may already have been applied, so the cache cannot double count" do
+    LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    increment_call_count = 0
+    allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!) do |_events|
+      increment_call_count += 1
+      raise ActiveRecord::ConnectionNotEstablished
+    end
+
+    LlmCostTracker::Ledger::Store.insert([build_event(event_id: "rollup-ambiguous")])
+
+    expect(increment_call_count).to eq(1)
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(include("Rollup increment failed"))
   end
 
   it "qualifies PostgreSQL rollup upsert totals" do
@@ -603,6 +618,27 @@ RSpec.describe "ActiveRecord storage integration" do
       "chat" => 0.0025,
       "summarizer" => 0.001
     )
+  end
+
+  it "records a call whose composite tag encodes past the index limit" do
+    payload = (1..8).to_h { |i| ["k#{i}", "v" * 1_000] }
+
+    expect do
+      LlmCostTracker.track(provider: "openai", model: "gpt-4o",
+                           tokens: { input_tokens: 10, output_tokens: 1 },
+                           tags: { payload: payload })
+      LlmCostTracker::Ingestion::Worker.flush!
+    end.to change(LlmCostTracker::Call, :count).by(1)
+
+    expect(LlmCostTracker::CallTag.last.value.bytesize)
+      .to be <= LlmCostTracker::Ledger::Tags::Encoding::INDEXABLE_BYTES
+  end
+
+  it "keeps unknown_pricing composable with the tag join" do
+    expect { LlmCostTracker::Call.unknown_pricing.cost_by_tag("feature") }.not_to raise_error
+    expect do
+      LlmCostTracker::Call.unknown_pricing.group_by_tag("feature").sum(LlmCostTracker::Call.qualified(:total_cost))
+    end.not_to raise_error
   end
 
   it "groups costs by day on the SQL side" do

@@ -14,7 +14,7 @@ RSpec.describe LlmCostTracker::Charges::CostStatus do
     )
   end
 
-  it "ignores non-billable service charges" do
+  it "ignores non-billable service charges when deciding whether pricing was partial" do
     status = described_class.call(
       token_usage: token_usage,
       usage_source: "manual",
@@ -25,7 +25,7 @@ RSpec.describe LlmCostTracker::Charges::CostStatus do
       total_cost: nil
     )
 
-    expect(status).to eq(described_class::FREE)
+    expect(status).to eq(described_class::UNKNOWN)
   end
 
   it "stops scanning service charges after priced and unpriced usage are both known" do
@@ -44,13 +44,25 @@ RSpec.describe LlmCostTracker::Charges::CostStatus do
     expect(status).to eq(described_class::PARTIAL)
   end
 
-  it "treats nil total cost with no billable usage as free" do
+  it "treats a nil total cost as unknown, because no rate was ever applied" do
     status = described_class.call(
       token_usage: token_usage,
       usage_source: "manual",
       token_cost: nil,
       service_line_items: [],
       total_cost: nil
+    )
+
+    expect(status).to eq(described_class::UNKNOWN)
+  end
+
+  it "treats a computed zero total as free" do
+    status = described_class.call(
+      token_usage: token_usage,
+      usage_source: "manual",
+      token_cost: BigDecimal("0"),
+      service_line_items: [],
+      total_cost: BigDecimal("0")
     )
 
     expect(status).to eq(described_class::FREE)

@@ -13,7 +13,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed
 
-- `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer scans the whole ledger on every batch — unpriced calls are found through a partial index. Existing installs pick this up with `bin/rails generate llm_cost_tracker:upgrade_indexes`, which also drops three indexes the query planner never chose, reclaiming about 146 MB per 2M calls.
+- BREAKING: a call the gem never found a rate for now records `cost_status: unknown` instead of `free`. `free` previously covered both "priced at zero" and "never priced", so a token-billed endpoint the parser captured no quantities for — `gpt-4o-mini-tts`, Whisper transcription, any unrecognised model with no usage block — reported as costing nothing. Endpoints that are genuinely unbilled (moderations) move to `unknown` too and show up on the Data Quality page until a rate exists for them.
+- BREAKING: `enforce_budget: true` on `LlmCostTracker.track` now records the call before it raises, and the error carries `stage: :post_spend` instead of `:pre_send`. `track` reports a request the provider already served, so the old behaviour threw away real spend; with the ledger total never advancing, every later call raised and was dropped too. `LlmCostTracker.track_stream` is unchanged — it still raises `:pre_send`, before your block runs.
+- `bin/rails llm_cost_tracker:backfill_unknown_pricing` no longer scans the whole ledger on every batch — unpriced calls are found through a partial index. Existing installs pick this up with `bin/rails generate llm_cost_tracker:upgrade_indexes`, which also drops the ingestion inbox lock index the drain never uses.
 
 ### Deprecated
 

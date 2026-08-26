@@ -12,7 +12,14 @@ module LlmCostTracker
         delegate :with_connection, to: :pool
 
         def pool
-          @pool || MUTEX.synchronize { @pool ||= connect! }
+          return @pool if @pool && @pid == Process.pid
+
+          MUTEX.synchronize do
+            next @pool if @pool && @pid == Process.pid
+
+            @pid = Process.pid
+            @pool = connect!
+          end
         end
 
         private

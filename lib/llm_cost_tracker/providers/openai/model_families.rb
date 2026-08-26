@@ -4,9 +4,6 @@ module LlmCostTracker
   module Providers
     module Openai
       module ModelFamilies
-        DATA_RESIDENCY_MODEL_PATTERN =
-          /\Agpt-5\.(?:4|5)(?:-(?:mini|nano|pro|codex(?:-mini|-max)?))?(?:-\d{4}-\d{2}-\d{2})?\z/
-
         IMAGE_OUTPUT_MODEL_PATTERN = /\Agpt-image-/i
 
         CHARACTER_BILLED_TTS_MODEL_PATTERN = /\Atts-1(-hd)?\z/
@@ -19,10 +16,6 @@ module LlmCostTracker
         NON_REASONING_GPT5_PATTERN = /\Agpt-5(?:\.\d+)?-chat\b/i
 
         CHAT_COMPLETIONS_SEARCH_MODEL_PATTERN = /-search-(?:preview|api)\b/i
-        def self.data_residency?(model)
-          model.to_s.match?(DATA_RESIDENCY_MODEL_PATTERN)
-        end
-
         def self.image_output?(model)
           model.to_s.match?(IMAGE_OUTPUT_MODEL_PATTERN)
         end

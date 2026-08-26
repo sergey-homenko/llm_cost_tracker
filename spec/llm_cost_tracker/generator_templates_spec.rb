@@ -249,7 +249,7 @@ RSpec.describe "generator templates" do
   end
 
   describe "upgrade_indexes generator" do
-    it "drops the unused indexes on calls and the inbox and adds the partial unpriced index" do
+    it "adds the partial unpriced index and drops the unused inbox lock index" do
       Dir.mktmpdir do |dir|
         LlmCostTracker::Generators::UpgradeIndexesGenerator.start([], destination_root: dir)
 
@@ -260,11 +260,9 @@ RSpec.describe "generator templates" do
 
         migration = File.read(migration_path)
         expect(migration).to include("class UpgradeLlmCostTrackerIndexes")
-        expect(migration).to include("UNUSED_CALL_INDEXES = [%i[provider tracked_at], %i[model tracked_at]].freeze")
         expect(migration).to include("UNUSED_INBOX_INDEX = %i[locked_at id].freeze")
         expect(migration).to include("return unless table_exists?(INBOX)")
-        expect(migration).to include("remove_index CALLS, column: columns")
-        expect(migration).to include("add_index CALLS, columns")
+        expect(migration).not_to include("provider tracked_at")
         expect(migration).to include("algorithm: :concurrently")
         expect(migration).to include("disable_ddl_transaction!")
         expect(migration).to include(%(where: "total_cost IS NULL"))
@@ -327,8 +325,6 @@ RSpec.describe "generator templates" do
       establish_database_connection!
       create_lct_tables!
       connection = ActiveRecord::Base.connection
-      connection.add_index(:llm_cost_tracker_calls, %i[provider tracked_at], if_not_exists: true)
-      connection.add_index(:llm_cost_tracker_calls, %i[model tracked_at], if_not_exists: true)
       connection.remove_index(:llm_cost_tracker_calls,
                               name: :index_llm_cost_tracker_calls_on_unpriced, if_exists: true)
 
@@ -337,13 +333,13 @@ RSpec.describe "generator templates" do
 
       names = connection.indexes(:llm_cost_tracker_calls).map(&:name)
       expect(names).to include("index_llm_cost_tracker_calls_on_unpriced")
-      expect(names).not_to include("index_llm_cost_tracker_calls_on_provider_and_tracked_at")
+      expect(names).to include("index_llm_cost_tracker_calls_on_provider_and_tracked_at")
 
       migration.migrate(:down)
 
       reverted = connection.indexes(:llm_cost_tracker_calls).map(&:name)
-      expect(reverted).to include("index_llm_cost_tracker_calls_on_provider_and_tracked_at")
       expect(reverted).not_to include("index_llm_cost_tracker_calls_on_unpriced")
+      expect(reverted).to include("index_llm_cost_tracker_calls_on_provider_and_tracked_at")
     ensure
       drop_lct_tables!
       LlmCostTracker::Call.reset_column_information

@@ -10,9 +10,7 @@
   </summary>
   <%= form_with url: path, method: :get, local: true, html: { class: "lct-filter-pop-body" } do %>
     <% extra_hidden.each do |k, v| %><%= hidden_field_tag k, v %><% end %>
-    <% current_query.except(:provider, :page, :per, *extra_except).each do |key, value| %>
-      <% Array(value).each do |v| %><%= hidden_field_tag(value.is_a?(Array) ? "#{key}[]" : key.to_s, v) %><% end %>
-    <% end %>
+    <%= hidden_query_fields(current_query.except(:provider, :page, :per, *extra_except)) %>
     <div class="lct-filter-pop-field">
       <label for="lct-filter-provider">Provider</label>
       <%= select_tag :provider, options_for_select(filter_options_for(:provider), active), include_blank: "All providers", id: "lct-filter-provider" %>

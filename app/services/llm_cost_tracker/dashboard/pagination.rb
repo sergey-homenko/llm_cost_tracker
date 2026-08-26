@@ -6,6 +6,7 @@ module LlmCostTracker
       DEFAULT_PER = 50
       MAX_PER = 200
       MIN_PAGE = 1
+      MAX_PAGE = 100_000
       MIN_PER = 1
 
       attr_reader :page, :per
@@ -13,7 +14,7 @@ module LlmCostTracker
       def self.call(params)
         params = Params.to_hash(params).symbolize_keys
         new(
-          page: integer_param(params, :page, default: MIN_PAGE, min: MIN_PAGE),
+          page: integer_param(params, :page, default: MIN_PAGE, min: MIN_PAGE, max: MAX_PAGE),
           per: integer_param(params, :per, default: DEFAULT_PER, min: MIN_PER, max: MAX_PER)
         )
       end

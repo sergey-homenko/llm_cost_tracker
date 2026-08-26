@@ -27,14 +27,6 @@ module LlmCostTracker
 
         tags = build_tags(context_tags: context_tags, metadata: metadata)
 
-        if enforce_budget
-          Budget.enforce!(provider: event.provider,
-                          model: event.model,
-                          estimate: calculation.cost&.total,
-                          tags: tags,
-                          force: true)
-        end
-
         if calculation.token_cost.nil? && event.token_usage.total_tokens.positive? &&
            calculation.priced_line_items.none?(&:priced?)
           Pricing::Unknown.process(event.model)
@@ -51,10 +43,17 @@ module LlmCostTracker
 
         yield if block_given?
         notify_subscribers(event)
-        Budget.check!(event)
-        Budget.check_persisted!([event]) unless Ingestion.async?
+        behavior_override = :raise if enforce_budget
+        Budget.check!(event, behavior_override: behavior_override)
+        Budget.check_persisted!([event], behavior_override: behavior_override) unless Ingestion.async?
 
         event
+      end
+
+      def build_tags(context_tags:, metadata:)
+        resolved = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
+        sanitized_metadata = LlmCostTracker::Tags::Sanitizer.call(metadata.to_h)
+        LlmCostTracker::Tags::Sanitizer.cap(resolved.merge(sanitized_metadata)).freeze
       end
 
       private
@@ -79,12 +78,6 @@ module LlmCostTracker
           pricing_snapshot: calculation.snapshot,
           line_items: calculation.priced_line_items
         )
-      end
-
-      def build_tags(context_tags:, metadata:)
-        resolved = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
-        sanitized_metadata = LlmCostTracker::Tags::Sanitizer.call(metadata.to_h)
-        LlmCostTracker::Tags::Sanitizer.cap(resolved.merge(sanitized_metadata)).freeze
       end
 
       def finite_latency_ms(latency_ms)

@@ -9,9 +9,7 @@
   </summary>
   <%= form_with url: path, method: :get, local: true, html: { class: "lct-filter-pop-body" } do %>
     <% extra_hidden.each do |k, v| %><%= hidden_field_tag k, v %><% end %>
-    <% current_query.except(:from, :to, :page, :per, *extra_except).each do |key, value| %>
-      <% Array(value).each do |v| %><%= hidden_field_tag(value.is_a?(Array) ? "#{key}[]" : key.to_s, v) %><% end %>
-    <% end %>
+    <%= hidden_query_fields(current_query.except(:from, :to, :page, :per, *extra_except)) %>
     <div class="lct-filter-pop-field"><label for="lct-filter-from">From</label><input type="date" name="from" id="lct-filter-from" value="<%= @from_date.iso8601 %>"></div>
     <div class="lct-filter-pop-field"><label for="lct-filter-to">To</label><input type="date" name="to" id="lct-filter-to" value="<%= @to_date.iso8601 %>"></div>
     <button type="submit" class="lct-button lct-button-primary">Apply</button>

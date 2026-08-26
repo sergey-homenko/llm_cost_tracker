@@ -10,7 +10,8 @@ module LlmCostTracker
     scope :without_cost, -> { where(total_cost: nil) }
     scope :unknown_pricing,
           lambda {
-            where(Charges::CostStatus.unknown_pricing_sql)
+            where(Charges::CostStatus.unknown_pricing_sql(total_cost: qualified(:total_cost),
+                                                          cost_status: qualified(:cost_status)))
           }
     scope :with_latency, -> { where.not(latency_ms: nil) }
     scope :streaming,     -> { where(stream: true) }
@@ -64,7 +65,7 @@ module LlmCostTracker
       end
 
       def cost_by_tag(key, limit: nil)
-        cost = qualified_total_cost
+        cost = qualified(:total_cost)
         label = Ledger::Tags::Breakdown.label_sql(connection)
         raw_value = Ledger::Tags::Breakdown.raw_value_sql(connection)
         relation = Ledger::Tags::Breakdown.join_relation(self, key)
@@ -95,8 +96,8 @@ module LlmCostTracker
           .sum(:total_cost)
       end
 
-      def qualified_total_cost
-        "#{quoted_table_name}.#{connection.quote_column_name(:total_cost)}"
+      def qualified(column)
+        "#{quoted_table_name}.#{connection.quote_column_name(column)}"
       end
 
       private
