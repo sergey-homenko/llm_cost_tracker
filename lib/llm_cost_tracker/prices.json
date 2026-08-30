@@ -19,7 +19,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-08-29"
+    "updated_at": "2026-08-30"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -1680,8 +1680,8 @@
     },
     "openrouter/arcee-ai/trinity-large-thinking": {
       "cache_read_input": 0.06,
-      "input": 0.22,
-      "output": 0.85
+      "input": 0.25,
+      "output": 0.8
     },
     "openrouter/arcee-ai/trinity-mini": {
       "input": 0.045,
@@ -1818,14 +1818,14 @@
       "output": 0.431
     },
     "openrouter/deepseek/deepseek-v4-flash": {
-      "cache_read_input": 0.016688,
-      "input": 0.08344,
-      "output": 0.16688
+      "cache_read_input": 0.01596,
+      "input": 0.0798,
+      "output": 0.1596
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
-      "cache_read_input": 0.009,
-      "input": 0.045,
-      "output": 0.09
+      "cache_read_input": 0.016,
+      "input": 0.065,
+      "output": 0.18
     },
     "openrouter/deepseek/deepseek-v4-flash-0731:batch": {
       "cache_read_input": 0.03,
@@ -1838,9 +1838,9 @@
       "output": 0.66
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.051664,
-      "input": 0.619962,
-      "output": 1.239924
+      "cache_read_input": 0.035612,
+      "input": 0.427344,
+      "output": 0.854688
     },
     "openrouter/deepseek/deepseek-v4-pro-0813": {
       "cache_read_input": 0.022,
@@ -3261,8 +3261,7 @@
       "output": 3.9
     },
     "openrouter/qwen/qwen3-next-80b-a3b-instruct": {
-      "cache_read_input": 0.07,
-      "input": 0.1,
+      "input": 0.09,
       "output": 1.1
     },
     "openrouter/qwen/qwen3-next-80b-a3b-thinking": {
@@ -3516,8 +3515,8 @@
       "output": 0.4
     },
     "openrouter/thinkingmachines/inkling": {
-      "cache_read_input": 0.16,
-      "input": 0.95,
+      "cache_read_input": 0.17,
+      "input": 1.0,
       "output": 4.05
     },
     "openrouter/thinkingmachines/inkling-small": {
@@ -3658,9 +3657,9 @@
       "output": 4.0
     },
     "openrouter/z-ai/glm-5.1": {
-      "cache_read_input": 0.234,
-      "input": 1.26,
-      "output": 3.96
+      "cache_read_input": 0.1794,
+      "input": 0.966,
+      "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
       "cache_read_input": 0.221,
@@ -3717,9 +3716,9 @@
       "output": 10.0
     },
     "openrouter/~deepseek/deepseek-v4-flash-latest": {
-      "cache_read_input": 0.007,
+      "cache_read_input": 0.01,
       "input": 0.03,
-      "output": 0.1
+      "output": 0.16
     },
     "openrouter/~google/gemini-flash-latest": {
       "audio_input": 0.75,
