@@ -69,41 +69,47 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "data_residency_output" => 55.0
       )
       expect(result.models.fetch("claude-mythos-5")).to include("input" => 10.0, "output" => 50.0)
+      expect(result.models.fetch("claude-fable-5-1")).to include(
+        "input" => 10.0,
+        "cache_read_input" => 0.25,
+        "output" => 50.0,
+        "data_residency_cache_read_input" => 0.275
+      )
     end
 
     it "selects the date-scoped pricing row effective at scrape time" do
-      introductory = described_class.new.call(html: html, scraped_at: "2026-04-26T00:00:00Z")
-      expect(introductory.models.fetch("claude-sonnet-5")).to include(
-        "input" => 2.0,
-        "output" => 10.0,
-        "batch_input" => 1.0,
-        "batch_output" => 5.0,
-        "data_residency_input" => 2.2
-      )
+      through = html.gsub(">Claude Sonnet 5</td>", ">Claude Sonnet 5 through September 30, 2026</td>")
+      expect(described_class.new.call(html: through, scraped_at: "2026-09-03T00:00:00Z").models)
+        .to include("claude-sonnet-5" => hash_including("input" => 2.0, "output" => 10.0, "batch_input" => 1.0))
+      expect(described_class.new.call(html: through, scraped_at: "2026-10-01T00:00:00Z").models)
+        .not_to include("claude-sonnet-5")
 
-      standard = described_class.new.call(html: html, scraped_at: "2026-09-01T00:00:00Z")
-      expect(standard.models.fetch("claude-sonnet-5")).to include(
-        "input" => 3.0,
-        "output" => 15.0,
-        "batch_input" => 1.5,
-        "batch_output" => 7.5
-      )
+      starting = html.gsub(">Claude Sonnet 5</td>", ">Claude Sonnet 5 starting October 1, 2026</td>")
+      expect(described_class.new.call(html: starting, scraped_at: "2026-09-03T00:00:00Z").models)
+        .not_to include("claude-sonnet-5")
+      expect(described_class.new.call(html: starting, scraped_at: "2026-10-01T00:00:00Z").models)
+        .to include("claude-sonnet-5" => hash_including("input" => 2.0, "output" => 10.0))
     end
 
     it "scrapes fast mode pricing per model and stacks the data residency multiplier" do
-      result = described_class.new.call(html: html)
+      six_x_row = "<tr><td>Claude Opus 4.7</td><td>$30 / MTok</td><td>$150 / MTok</td></tr>"
+      with_six_x = html.sub(%r{<tr>\s*<td[^>]*>Claude Opus 5 / Claude Opus 4\.8<}, "#{six_x_row}\\0")
+      result = described_class.new.call(html: with_six_x)
 
       expect(result.models.fetch("claude-opus-4-7")).to include(
         "fast_input" => 30.0, "fast_output" => 150.0,
         "fast_cache_read_input" => 3.0, "fast_cache_write_input" => 37.5,
         "fast_data_residency_input" => 33.0, "fast_data_residency_output" => 165.0
       )
+      expect(described_class.new.call(html: html).models.fetch("claude-opus-4-7")).not_to include("fast_input")
 
-      expect(result.models.fetch("claude-opus-4-8")).to include(
-        "fast_input" => 10.0, "fast_output" => 50.0,
-        "fast_cache_read_input" => 1.0, "fast_cache_write_input" => 12.5,
-        "fast_data_residency_input" => 11.0, "fast_data_residency_output" => 55.0
-      )
+      %w[claude-opus-5 claude-opus-4-8].each do |model_id|
+        expect(result.models.fetch(model_id)).to include(
+          "fast_input" => 10.0, "fast_output" => 50.0,
+          "fast_cache_read_input" => 1.0, "fast_cache_write_input" => 12.5,
+          "fast_data_residency_input" => 11.0, "fast_data_residency_output" => 55.0
+        )
+      end
 
       expect(result.models.fetch("claude-opus-4-6")).not_to include("fast_input")
       expect(result.models.fetch("claude-sonnet-4-6")).not_to include("fast_input")

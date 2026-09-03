@@ -120,7 +120,7 @@ module LlmCostTracker
         def find_table(doc, required_header_substrings)
           doc.css("table").find do |table|
             headers = header_texts(table)
-            required_header_substrings.all? { |sub| headers.any? { |h| h.include?(sub) } }
+            required_header_substrings.all? { |sub| headers.any? { |h| header_match?(h, sub) } }
           end
         end
 
@@ -142,8 +142,12 @@ module LlmCostTracker
           table.css("thead th").map { |th| th.text.strip }
         end
 
+        def header_match?(header, substring)
+          header.downcase.include?(substring.downcase)
+        end
+
         def column_index(headers, substring)
-          index = headers.find_index { |h| h.include?(substring) }
+          index = headers.find_index { |h| header_match?(h, substring) }
           raise Error, "column matching #{substring.inspect} not found in #{headers.inspect}" unless index
 
           index
