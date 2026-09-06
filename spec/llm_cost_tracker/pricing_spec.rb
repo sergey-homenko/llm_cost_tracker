@@ -973,7 +973,11 @@ RSpec.describe LlmCostTracker::Pricing do
         next unless model_id.start_with?("anthropic/")
         next unless fields["input"] && fields["cache_read_input"]
 
-        expected_ratio = model_id.end_with?("/claude-haiku-3") ? 0.12 : 0.1
+        expected_ratio =
+          if model_id.end_with?("/claude-haiku-3") then 0.12
+          elsif model_id.end_with?("/claude-fable-5-1", "/claude-mythos-5-1") then 0.025
+          else 0.1
+          end
         expect(fields["cache_read_input"]).to be_within(0.0001).of(fields["input"] * expected_ratio)
       end
     end
