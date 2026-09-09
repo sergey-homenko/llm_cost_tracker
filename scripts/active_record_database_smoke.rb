@@ -2,6 +2,7 @@
 
 require "active_record"
 require "bigdecimal"
+require "English"
 require "json"
 require "securerandom"
 require "time"
@@ -20,15 +21,7 @@ else
   abort "Unsupported LCT_SMOKE_ADAPTER=#{adapter.inspect}"
 end
 
-require "llm_cost_tracker"
-require "llm_cost_tracker/ledger"
-require_relative "../app/models/llm_cost_tracker/call"
-require_relative "../app/models/llm_cost_tracker/call_line_item"
-require_relative "../app/models/llm_cost_tracker/call_tag"
-require_relative "../app/models/llm_cost_tracker/call_rollup"
-require_relative "../app/models/llm_cost_tracker/ingestion/inbox_entry"
-require_relative "../app/models/llm_cost_tracker/ingestion/lease"
-require_relative "../app/services/llm_cost_tracker/dashboard/setup_state"
+require_relative "../spec/dummy/config/environment"
 
 require "logger"
 require "active_support/tagged_logging"
@@ -52,17 +45,6 @@ class SmokeFailure < StandardError; end
 
 def assert(message)
   raise SmokeFailure, message unless yield
-end
-
-def clear_connections!
-  handler = ActiveRecord::Base.connection_handler
-  if handler.respond_to?(:clear_all_connections!)
-    handler.clear_all_connections!
-  elsif ActiveRecord::Base.respond_to?(:clear_all_connections!)
-    ActiveRecord::Base.clear_all_connections!
-  else
-    ActiveRecord::Base.connection_pool&.disconnect!
-  end
 end
 
 def reset_models!
@@ -260,7 +242,7 @@ def create_database!(adapter, admin, database)
       "CREATE DATABASE `#{database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
     )
   end
-  clear_connections!
+  ActiveRecord::Base.connection_handler.clear_all_connections!
 end
 
 def drop_database!(adapter, admin, database)
@@ -326,8 +308,10 @@ begin
     raise ActiveRecord::Rollback
   end
   sleep 0.1
-  pending_rows = LlmCostTracker::Ingestion::InboxEntry.where(event_id: rollback_event.event_id).count +
-                 LlmCostTracker::Call.where(event_id: rollback_event.event_id).count
+  pending_rows = LlmCostTracker::Call.transaction(isolation: :repeatable_read) do
+    LlmCostTracker::Ingestion::InboxEntry.where(event_id: rollback_event.event_id).count +
+      LlmCostTracker::Call.where(event_id: rollback_event.event_id).count
+  end
   assert("event was lost across caller rollback") { pending_rows == 1 }
   flush!
   assert("rollback event did not reach ledger") do
@@ -421,23 +405,22 @@ begin
   puts "quarantined_rows=#{quarantined_row_count}"
   puts "daily_total=#{daily_total}"
 ensure
+  failure = $ERROR_INFO
   begin
-    LlmCostTracker::Ingestion::Worker.shutdown!(drain: false) if defined?(LlmCostTracker)
+    LlmCostTrackerReset.call
+    ActiveRecord::Base.connection_handler.clear_all_connections!
   rescue StandardError
     nil
   end
   begin
-    clear_connections!
-  rescue StandardError
-    nil
-  end
-  begin
-    drop_database!(adapter, admin, database) if database
+    drop_database!(adapter, admin, database)
   rescue StandardError => e
+    raise unless failure
+
     warn "cleanup failed: #{e.class}: #{e.message}"
   ensure
     begin
-      clear_connections!
+      ActiveRecord::Base.connection_handler.clear_all_connections!
     rescue StandardError
       nil
     end
