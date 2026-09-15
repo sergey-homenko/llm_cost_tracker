@@ -19,7 +19,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-09-14"
+    "updated_at": "2026-09-15"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -2359,8 +2359,8 @@
       "output": 0.32
     },
     "openrouter/meta-llama/llama-4-maverick": {
-      "input": 0.2,
-      "output": 0.696
+      "input": 0.1875,
+      "output": 0.6525
     },
     "openrouter/meta-llama/llama-4-scout": {
       "input": 0.1,
@@ -3464,9 +3464,8 @@
       "output": 1.56
     },
     "openrouter/qwen/qwen3.5-35b-a3b": {
-      "cache_read_input": 0.15625,
-      "input": 0.3125,
-      "output": 1.25
+      "input": 0.1625,
+      "output": 1.3
     },
     "openrouter/qwen/qwen3.5-397b-a17b": {
       "cache_read_input": 0.225,
@@ -3840,9 +3839,9 @@
       "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.12688,
-      "input": 0.6832,
-      "output": 2.1472
+      "cache_read_input": 0.14,
+      "input": 1.4,
+      "output": 4.4
     },
     "openrouter/z-ai/glm-5.2:batch": {
       "cache_read_input": 0.07,
@@ -3897,6 +3896,16 @@
       "cache_write_input": 2.5,
       "input": 2.0,
       "output": 10.0
+    },
+    "openrouter/~deepseek/deepseek-flash-latest": {
+      "cache_read_input": 0.015,
+      "input": 0.15,
+      "output": 0.6
+    },
+    "openrouter/~deepseek/deepseek-pro-latest": {
+      "cache_read_input": 0.022,
+      "input": 0.66,
+      "output": 1.98
     },
     "openrouter/~deepseek/deepseek-v4-flash-latest": {
       "cache_read_input": 0.01,
@@ -3970,9 +3979,9 @@
       "output": 0.25
     },
     "openrouter/~z-ai/glm-latest": {
-      "cache_read_input": 0.184,
-      "input": 0.92,
-      "output": 3.1372
+      "cache_read_input": 0.1755,
+      "input": 0.8775,
+      "output": 2.97
     }
   },
   "service_charges": {
