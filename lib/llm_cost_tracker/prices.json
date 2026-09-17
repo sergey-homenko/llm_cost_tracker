@@ -19,7 +19,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-09-15"
+    "updated_at": "2026-09-16"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -2427,7 +2427,7 @@
       "output": 1.1
     },
     "openrouter/minimax/minimax-m1": {
-      "input": 0.55,
+      "input": 0.4,
       "output": 2.2
     },
     "openrouter/minimax/minimax-m2": {
@@ -2593,8 +2593,8 @@
       "output": 0.555
     },
     "openrouter/mistralai/mistral-small-3.2-24b-instruct": {
-      "input": 0.075,
-      "output": 0.2
+      "input": 0.09375,
+      "output": 0.25
     },
     "openrouter/mistralai/mixtral-8x22b-instruct": {
       "cache_read_input": 0.2,
@@ -2636,9 +2636,9 @@
       "output": 4.0
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
-      "cache_read_input": 0.15,
-      "input": 0.71,
-      "output": 3.5
+      "cache_read_input": 0.18,
+      "input": 0.7062,
+      "output": 3.21
     },
     "openrouter/moonshotai/kimi-k2.7-code:batch": {
       "cache_read_input": 0.19,
@@ -2711,9 +2711,9 @@
       "output": 0.45
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b": {
-      "cache_read_input": 0.12,
-      "input": 0.6,
-      "output": 2.4
+      "cache_read_input": 0.1875,
+      "input": 0.625,
+      "output": 3.125
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b:batch": {
       "cache_read_input": 0.2,
@@ -3854,9 +3854,9 @@
       "output": 4.4
     },
     "openrouter/z-ai/glm-5.3-flash": {
-      "cache_read_input": 0.03,
-      "input": 0.15,
-      "output": 0.5
+      "cache_read_input": 0.018,
+      "input": 0.09,
+      "output": 0.3
     },
     "openrouter/z-ai/glm-5.3-flash:batch": {
       "cache_read_input": 0.015,
@@ -3929,9 +3929,9 @@
       "output": 12.0
     },
     "openrouter/~moonshotai/kimi-latest": {
-      "cache_read_input": 0.23,
-      "input": 2.1,
-      "output": 10.95
+      "cache_read_input": 0.232,
+      "input": 2.0,
+      "output": 11.2
     },
     "openrouter/~openai/gpt-astra-latest": {
       "cache_read_input": 1.0,
