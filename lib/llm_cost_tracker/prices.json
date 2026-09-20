@@ -19,7 +19,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-09-18"
+    "updated_at": "2026-09-20"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -592,14 +592,6 @@
       "on_demand_input": 0.075,
       "on_demand_output": 0.3,
       "output": 0.3
-    },
-    "groq/qwen/qwen3.6-27b": {
-      "flex_input": 0.6,
-      "flex_output": 3.0,
-      "input": 0.6,
-      "on_demand_input": 0.6,
-      "on_demand_output": 3.0,
-      "output": 3.0
     },
     "groq/qwen/qwen3.8-27b": {
       "flex_input": 0.8,
@@ -1877,14 +1869,14 @@
       "output": 0.431
     },
     "openrouter/deepseek/deepseek-v4-flash": {
-      "cache_read_input": 0.017721,
-      "input": 0.088606,
-      "output": 0.177212
+      "cache_read_input": 0.00728,
+      "input": 0.0364,
+      "output": 0.0728
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
-      "cache_read_input": 0.012,
-      "input": 0.06,
-      "output": 0.12
+      "cache_read_input": 0.016,
+      "input": 0.04,
+      "output": 0.08
     },
     "openrouter/deepseek/deepseek-v4-flash-0731:batch": {
       "cache_read_input": 0.0035,
@@ -1902,9 +1894,9 @@
       "output": 0.33
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.135,
-      "input": 1.6,
-      "output": 3.2
+      "cache_read_input": 0.035192,
+      "input": 0.422298,
+      "output": 0.844596
     },
     "openrouter/deepseek/deepseek-v4-pro-0813": {
       "cache_read_input": 0.022,
@@ -2377,7 +2369,7 @@
     "openrouter/meta/muse-glimmer-30b": {
       "cache_read_input": 0.04,
       "input": 0.3,
-      "output": 1.1
+      "output": 1.2
     },
     "openrouter/meta/muse-glimmer-30b:batch": {
       "cache_read_input": 0.02,
@@ -2646,9 +2638,9 @@
       "output": 4.0
     },
     "openrouter/moonshotai/kimi-k3": {
-      "cache_read_input": 0.23,
-      "input": 2.1,
-      "output": 10.95
+      "cache_read_input": 0.17,
+      "input": 1.7,
+      "output": 8.5
     },
     "openrouter/moonshotai/kimi-k3:batch": {
       "cache_read_input": 0.3,
@@ -2710,9 +2702,9 @@
       "output": 0.45
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b": {
-      "cache_read_input": 0.1875,
-      "input": 0.625,
-      "output": 3.125
+      "cache_read_input": 0.12,
+      "input": 0.6,
+      "output": 2.4
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b:batch": {
       "cache_read_input": 0.2,
@@ -2725,7 +2717,7 @@
     },
     "openrouter/nvidia/nemotron-3.5-lightning": {
       "cache_read_input": 0.04,
-      "input": 0.08,
+      "input": 0.07,
       "output": 0.2
     },
     "openrouter/nvidia/nemotron-nano-9b-v2": {
@@ -3314,6 +3306,10 @@
       "input": 0.2,
       "output": 1.1
     },
+    "openrouter/prism-ml/ternary-bonsai-2-27b": {
+      "input": 0.075,
+      "output": 0.5
+    },
     "openrouter/qwen/qwen-2.5-72b-instruct": {
       "input": 0.36,
       "output": 0.4
@@ -3436,8 +3432,8 @@
       "output": 4.0
     },
     "openrouter/qwen/qwen3-vl-30b-a3b-instruct": {
-      "input": 0.13,
-      "output": 0.52
+      "input": 0.2,
+      "output": 0.7
     },
     "openrouter/qwen/qwen3-vl-30b-a3b-thinking": {
       "input": 0.2,
@@ -3464,8 +3460,9 @@
       "output": 1.56
     },
     "openrouter/qwen/qwen3.5-35b-a3b": {
-      "input": 0.1625,
-      "output": 1.3
+      "cache_read_input": 0.15625,
+      "input": 0.3125,
+      "output": 1.25
     },
     "openrouter/qwen/qwen3.5-397b-a17b": {
       "cache_read_input": 0.225,
@@ -3547,9 +3544,9 @@
       "output": 6.0
     },
     "openrouter/qwen/qwen3.8-27b": {
-      "cache_read_input": 0.15,
-      "input": 0.214,
-      "output": 2.55
+      "cache_read_input": 0.085,
+      "input": 0.42,
+      "output": 3.0
     },
     "openrouter/qwen/qwen3.8-flash": {
       "cache_read_input": 0.016,
@@ -3844,9 +3841,9 @@
       "output": 3.036
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.105,
-      "input": 0.5625,
-      "output": 1.8
+      "cache_read_input": 0.12064,
+      "input": 0.6496,
+      "output": 2.0416
     },
     "openrouter/z-ai/glm-5.2:batch": {
       "cache_read_input": 0.07,
@@ -3854,9 +3851,9 @@
       "output": 2.2
     },
     "openrouter/z-ai/glm-5.3": {
-      "cache_read_input": 0.26,
-      "input": 1.4,
-      "output": 4.4
+      "cache_read_input": 0.1664,
+      "input": 0.896,
+      "output": 2.816
     },
     "openrouter/z-ai/glm-5.3-flash": {
       "cache_read_input": 0.018,
@@ -3867,6 +3864,11 @@
       "cache_read_input": 0.015,
       "input": 0.075,
       "output": 0.25
+    },
+    "openrouter/z-ai/glm-5.3-flashx": {
+      "cache_read_input": 0.075,
+      "input": 0.37,
+      "output": 1.25
     },
     "openrouter/z-ai/glm-5.3:batch": {
       "cache_read_input": 0.13,
@@ -3903,19 +3905,19 @@
       "output": 10.0
     },
     "openrouter/~deepseek/deepseek-flash-latest": {
-      "cache_read_input": 0.015,
-      "input": 0.15,
-      "output": 0.6
+      "cache_read_input": 0.0026,
+      "input": 0.13,
+      "output": 0.52
     },
     "openrouter/~deepseek/deepseek-pro-latest": {
-      "cache_read_input": 0.022,
-      "input": 0.66,
-      "output": 1.98
+      "cache_read_input": 0.018788,
+      "input": 0.56364,
+      "output": 1.69092
     },
     "openrouter/~deepseek/deepseek-v4-flash-latest": {
-      "cache_read_input": 0.0088,
-      "input": 0.0558,
-      "output": 0.1767
+      "cache_read_input": 0.016,
+      "input": 0.04,
+      "output": 0.08
     },
     "openrouter/~google/gemini-flash-latest": {
       "audio_input": 0.75,
@@ -3934,9 +3936,9 @@
       "output": 12.0
     },
     "openrouter/~moonshotai/kimi-latest": {
-      "cache_read_input": 0.23,
-      "input": 2.1,
-      "output": 10.95
+      "cache_read_input": 0.17,
+      "input": 1.7,
+      "output": 8.5
     },
     "openrouter/~openai/gpt-astra-latest": {
       "cache_read_input": 1.0,
@@ -3984,9 +3986,9 @@
       "output": 0.25
     },
     "openrouter/~z-ai/glm-latest": {
-      "cache_read_input": 0.1755,
-      "input": 0.8775,
-      "output": 2.97
+      "cache_read_input": 0.15678,
+      "input": 0.8442,
+      "output": 2.6532
     }
   },
   "service_charges": {
