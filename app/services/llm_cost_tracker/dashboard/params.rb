@@ -3,6 +3,8 @@
 module LlmCostTracker
   module Dashboard
     module Params
+      QUERY_KEYS = %i[from to provider model tag tag_value stream usage_source cost_status sort dir page per].freeze
+
       class << self
         def to_hash(value)
           return {} if value.nil?

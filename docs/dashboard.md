@@ -59,6 +59,8 @@ Invalid filters render a bad-request page instead of raising through your app, i
 
 ## Security
 
+Dashboard links and filter forms carry only the dashboard's own query parameters (dates, provider, model, tags, stream, usage source, cost status, sorting, and pagination); anything else in the URL is dropped rather than repeated, and a query string over 16 KB is rejected as a bad request.
+
 The dashboard intentionally stores and displays no prompts or completions. However, tags are app-controlled data. They render in the overview, tag pages, call details, and CSV export, and they are visible to anyone with dashboard or database access.
 
 ## Tags Hygiene
