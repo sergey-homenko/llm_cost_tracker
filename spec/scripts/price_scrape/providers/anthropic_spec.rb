@@ -75,16 +75,29 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "output" => 50.0,
         "data_residency_cache_read_input" => 0.275
       )
+      expect(result.models.fetch("claude-opus-5-5")).to include(
+        "input" => 4.0,
+        "cache_write_input" => 5.0,
+        "cache_write_extended_input" => 8.0,
+        "cache_read_input" => 0.2,
+        "output" => 20.0,
+        "batch_input" => 2.0,
+        "batch_output" => 10.0,
+        "fast_input" => 8.0,
+        "fast_output" => 40.0,
+        "fast_cache_read_input" => 0.4,
+        "data_residency_input" => 4.4
+      )
     end
 
     it "selects the date-scoped pricing row effective at scrape time" do
-      through = html.gsub(">Claude Sonnet 5</td>", ">Claude Sonnet 5 through September 30, 2026</td>")
+      through = html.gsub(">Claude Sonnet 5</a>", ">Claude Sonnet 5 through September 30, 2026</a>")
       expect(described_class.new.call(html: through, scraped_at: "2026-09-03T00:00:00Z").models)
         .to include("claude-sonnet-5" => hash_including("input" => 2.0, "output" => 10.0, "batch_input" => 1.0))
       expect(described_class.new.call(html: through, scraped_at: "2026-10-01T00:00:00Z").models)
         .not_to include("claude-sonnet-5")
 
-      starting = html.gsub(">Claude Sonnet 5</td>", ">Claude Sonnet 5 starting October 1, 2026</td>")
+      starting = html.gsub(">Claude Sonnet 5</a>", ">Claude Sonnet 5 starting October 1, 2026</a>")
       expect(described_class.new.call(html: starting, scraped_at: "2026-09-03T00:00:00Z").models)
         .not_to include("claude-sonnet-5")
       expect(described_class.new.call(html: starting, scraped_at: "2026-10-01T00:00:00Z").models)
@@ -128,8 +141,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
       expect(result.models).to include("claude-opus-4", "claude-sonnet-4")
     end
 
-    it "leaves deprecated_models empty when the page has no deprecation links" do
-      stripped = html.gsub(%r{<a [^>]*href="[^"]*model-deprecations[^"]*"[^>]*>[^<]*</a>}, "")
+    it "leaves deprecated_models empty when the page marks no model as retired" do
+      stripped = html.gsub(" (Retired)", "")
       result = described_class.new.call(html: stripped)
 
       expect(result.deprecated_models).to eq([])
@@ -150,13 +163,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
       sparse_html = <<~HTML
         <html><body>
           <table>
-            <thead><tr>
-              <th>Model</th><th>Base Input Tokens</th><th>5m Cache Writes</th>
-              <th>1h Cache Writes</th><th>Cache Hits & Refreshes</th><th>Output Tokens</th>
-            </tr></thead>
+            <thead>
+              <tr><th>Model</th><th colspan="2">Base tokens</th><th colspan="3">Prompt caching</th></tr>
+              <tr>
+                <th>Name</th><th>Input</th><th>Output</th>
+                <th>5m writes</th><th>1h writes</th><th>Hits and refreshes</th>
+              </tr>
+            </thead>
             <tbody>
-              <tr><td>Claude Opus 4.7</td><td>$5 / MTok</td><td>$6.25 / MTok</td>
-                <td>$10 / MTok</td><td>$0.50 / MTok</td><td>$25 / MTok</td></tr>
+              <tr><td>Claude Opus 4.7</td><td>$5 / MTok</td><td>$25 / MTok</td>
+                <td>$6.25 / MTok</td><td>$10 / MTok</td><td>$0.50 / MTok</td></tr>
             </tbody>
           </table>
           <table>
@@ -179,14 +195,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
     end
 
     it "raises when a price cell does not match the expected format" do
-      broken_html = html.sub("$5 / MTok", "TBD")
+      broken_html = html.sub(">$4<!-- -->", ">TBD<!-- -->")
       expect do
         described_class.new.call(html: broken_html)
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
 
     it "derives batch pricing as half of base even when the upstream batch table is absent" do
-      without_batch_table = html.gsub("Batch input", "Bulk input").gsub("Batch output", "Bulk output")
+      without_batch_table = html.gsub("Batch tokens", "Bulk tokens")
 
       result = described_class.new.call(html: without_batch_table)
 
@@ -200,7 +216,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
     end
 
     it "raises when the fast mode pricing table is missing rather than silently dropping fast prices" do
-      without_fast_table = html.sub(">Input</th>", ">Speed</th>")
+      without_fast_table = html.sub(%r{(<th[^>]*>Model</th><th[^>]*>)Input(</th>)}, "\\1Speed\\2")
 
       expect do
         described_class.new.call(html: without_fast_table)
@@ -211,7 +227,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
   describe "#verify_batch_discount!" do
     def batch_table(input:, output:)
       Nokogiri::HTML(
-        "<table><thead><tr><th>Model</th><th>Batch input</th><th>Batch output</th></tr></thead>" \
+        "<table><thead><tr><th>Model</th><th colspan=\"2\">Batch tokens</th></tr>" \
+        "<tr><th>Name</th><th>Input</th><th>Output</th></tr></thead>" \
         "<tbody><tr><td>Claude Opus 4.7</td><td>#{input} / MTok</td><td>#{output} / MTok</td></tr></tbody></table>"
       )
     end
