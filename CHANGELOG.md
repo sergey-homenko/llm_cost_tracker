@@ -12,9 +12,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - Ruby 3.3 is supported. The minimum Ruby version drops from 3.4 to 3.3, and CI runs every Rails version on both.
 
+### Removed
+
+- A stream that your code wraps through the OpenAI or Anthropic SDK integration but never iterates is no longer recorded when it is garbage-collected. The finalizer behind it kept every stream alive, so it could only fire at process exit, and recording from a finalizer would write to the ledger on whatever thread the garbage collector ran, inside that thread's open transaction.
+
 ### Fixed
 
 - Calls made through RubyLLM 2.x are recorded. RubyLLM 2.0 moved token counts behind `response.tokens`, so every chat, embedding, transcription, image, and moderation call raised inside the integration and was dropped with a warning while `doctor` still reported the integration as installed. Token counts, the Anthropic 5-minute and 1-hour cache-write split, service tiers, and provider response ids are read the same way on RubyLLM 1.15 and later and on 2.x. A RubyLLM 2.x `paint(count:)` call that returns several images is recorded once, as RubyLLM bills it.
+- Streams captured through the OpenAI and Anthropic SDK integrations are released once your code drops them. Every wrapped stream stayed in memory for the life of the process, with its buffered events and request parameters, so a long-running process grew with each streamed call. A recorded stream now also releases its buffered events and request right away.
 
 ## [0.14.0] - 2026-08-26
 

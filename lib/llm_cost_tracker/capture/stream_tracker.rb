@@ -13,8 +13,7 @@ module LlmCostTracker
         @collector = collector
         @active = active
         @finish = finish || proc { |errored| collector.finish!(errored: errored) }
-        @finished_ref = [false]
-        @attempted_ref = [false]
+        @finished = false
         @capture_failed = false
         @mutex = Mutex.new
       end
@@ -45,7 +44,6 @@ module LlmCostTracker
           )
         end
 
-        register_orphan_finalizer
         @stream
       rescue StandardError => e
         Logging.warn("stream integration failed to install wrapper: #{e.class}: #{e.message}")
@@ -107,10 +105,9 @@ module LlmCostTracker
 
       def finish!(errored:)
         should_finish = @mutex.synchronize do
-          @attempted_ref[0] = true
-          next false if @finished_ref[0]
+          next false if @finished
 
-          @finished_ref[0] = true
+          @finished = true
           true
         end
         return unless should_finish && @active.call
@@ -118,36 +115,9 @@ module LlmCostTracker
         begin
           @finish.call(errored)
         rescue StandardError
-          @mutex.synchronize { @finished_ref[0] = false }
+          @mutex.synchronize { @finished = false }
           raise
         end
-      end
-
-      def register_orphan_finalizer
-        finished_ref = @finished_ref
-        attempted_ref = @attempted_ref
-        finish_proc = @finish
-        active_proc = @active
-        mutex = @mutex
-        finalizer = lambda do |_object_id|
-          should_finish = mutex.synchronize do
-            next false if finished_ref[0] || attempted_ref[0]
-
-            finished_ref[0] = true
-            attempted_ref[0] = true
-            true
-          end
-          next unless should_finish && active_proc.call
-
-          begin
-            Rails.application.executor.wrap { finish_proc.call(false) }
-          rescue StandardError
-            nil
-          end
-        end
-        ObjectSpace.define_finalizer(@stream, finalizer)
-      rescue TypeError, ArgumentError
-        nil
       end
     end
   end

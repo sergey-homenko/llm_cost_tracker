@@ -118,6 +118,43 @@ RSpec.describe LlmCostTracker do
       expect { collector.finish!(errored: false) }.not_to raise_error
       expect(record_calls).to eq(1)
     end
+
+    it "releases the buffered events and the request once the stream is recorded" do
+      collector = described_class.new(provider: "openai", model: "gpt-4o",
+                                      request: { "model" => "gpt-4o", "messages" => [{ "role" => "user", "content" => "hi" }] })
+      collector.event({ "id" => "chatcmpl_x", "model" => "gpt-4o",
+                        "usage" => { "prompt_tokens" => 5, "completion_tokens" => 2, "total_tokens" => 7 } })
+      allow(LlmCostTracker::Tracker).to receive(:record) { |&block| block&.call; nil }
+
+      collector.finish!(errored: false)
+
+      expect(collector.instance_variable_get(:@events)).to be_empty
+      expect(collector.instance_variable_get(:@request)).to be_nil
+    end
+
+    it "keeps the buffered events for the retry when recording fails, then releases them" do
+      collector = described_class.new(provider: "openai", model: "gpt-4o")
+      collector.event({ "id" => "chatcmpl_x", "model" => "gpt-4o",
+                        "usage" => { "prompt_tokens" => 5, "completion_tokens" => 2, "total_tokens" => 7 } })
+      attempts = 0
+      recorded_input_tokens = nil
+      allow(LlmCostTracker::Tracker).to receive(:record) do |event:, **_, &block|
+        attempts += 1
+        raise StandardError, "database is down" if attempts == 1
+
+        recorded_input_tokens = event.token_usage.input_tokens
+        block&.call
+        nil
+      end
+
+      expect { collector.finish!(errored: false) }.to raise_error(StandardError, "database is down")
+      expect(collector.instance_variable_get(:@events).size).to eq(1)
+
+      collector.finish!(errored: false)
+      expect(attempts).to eq(2)
+      expect(recorded_input_tokens).to eq(5)
+      expect(collector.instance_variable_get(:@events)).to be_empty
+    end
   end
 
   describe ".track" do

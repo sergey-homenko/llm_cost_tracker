@@ -59,7 +59,7 @@ jobs:
     - name: Run tests
       run: bundle exec rspec
     - name: Upload coverage to Codecov
-      if: matrix.ruby-version == '3.4' && matrix.gemfile == 'gemfiles/rails_8_1.gemfile'
+      if: matrix.ruby-version == '3.4' && (matrix.gemfile == 'gemfiles/rails_8_1.gemfile' || matrix.gemfile == 'gemfiles/ruby_llm_1.gemfile')
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
