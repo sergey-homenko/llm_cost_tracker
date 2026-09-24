@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
   spec.homepage      = "https://github.com/sergey-homenko/llm_cost_tracker"
   spec.license       = "MIT"
 
-  spec.required_ruby_version = ">= 3.4.0"
+  spec.required_ruby_version = ">= 3.3.0"
 
   spec.metadata["bug_tracker_uri"] = "#{spec.homepage}/issues"
   spec.metadata["changelog_uri"]   = "#{spec.homepage}/blob/main/CHANGELOG.md"
@@ -56,7 +56,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rspec", "~> 3.0"
   spec.add_development_dependency "rubocop", "~> 1.0"
-  spec.add_development_dependency "ruby_llm", "~> 1.16"
+  spec.add_development_dependency "ruby_llm", ">= 1.16", "< 3"
   spec.add_development_dependency "simplecov", "~> 0.22"
   spec.add_development_dependency "simplecov-lcov", "~> 0.8"
   spec.add_development_dependency "webmock", "~> 3.0"

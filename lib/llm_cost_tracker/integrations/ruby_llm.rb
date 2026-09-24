@@ -8,6 +8,7 @@ module LlmCostTracker
       extend Base
 
       minimum_version "1.15.0"
+      maximum_version "3.0.0"
 
       class << self
         def patch_targets
@@ -46,15 +47,16 @@ module LlmCostTracker
         end
 
         def record_image(provider, response, request:, latency_ms:)
-          usage = response.usage.with_indifferent_access
+          image = response.is_a?(Array) ? response.first : response
+          usage = image_usage(image)
           raw_input = usage[:input_tokens].to_i
           raw_output = usage[:output_tokens].to_i
           image_input = image_token_detail(usage, :input)
           image_output = image_token_detail(usage, :output)
           record_passthrough(
             provider: provider.slug.to_s,
-            model: response_model_id(response) || model_id_from_request(request[:model]),
-            response: response,
+            model: response_model_id(image) || model_id_from_request(request[:model]),
+            response: image,
             latency_ms: latency_ms,
             input_tokens: [raw_input - image_input, 0].max,
             image_input_tokens: image_input,
@@ -72,6 +74,12 @@ module LlmCostTracker
             input_tokens: 0,
             output_tokens: 0
           )
+        end
+
+        def image_usage(image)
+          usage = image.try(:usage)
+          usage = image.send(:raw_usage) if !usage.is_a?(Hash) && image.respond_to?(:raw_usage, true)
+          (usage.is_a?(Hash) ? usage : {}).with_indifferent_access
         end
 
         def image_token_detail(usage, direction)
@@ -115,11 +123,12 @@ module LlmCostTracker
           return unless active?
 
           record_safely do
-            input_tokens = response.input_tokens
-            output_tokens = response.output_tokens if output_tokens.nil?
+            counts = token_counts(response)
+            input_tokens = counts[:input]
+            output_tokens = counts[:output] if output_tokens.nil?
             next if input_tokens.nil? && output_tokens.nil?
 
-            cache_write_5m, cache_write_1h = cache_creation_split(provider, response)
+            cache_write_5m, cache_write_1h = cache_write_split(provider, response, counts[:cache_write])
             LlmCostTracker::Tracker.record(
               event: Event.build(
                 provider: provider,
@@ -128,10 +137,10 @@ module LlmCostTracker
                 token_usage: Usage::TokenUsage.build(
                   input_tokens: input_tokens.to_i,
                   output_tokens: output_tokens.to_i,
-                  cache_read_input_tokens: response.try(:cached_tokens).to_i,
+                  cache_read_input_tokens: counts[:cache_read].to_i,
                   cache_write_input_tokens: cache_write_5m,
                   cache_write_extended_input_tokens: cache_write_1h,
-                  hidden_output_tokens: response.try(:thinking_tokens).to_i
+                  hidden_output_tokens: counts[:thinking].to_i
                 ),
                 stream: stream,
                 usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE,
@@ -142,11 +151,22 @@ module LlmCostTracker
           end
         end
 
-        def cache_creation_split(provider, response)
-          return [response.try(:cache_creation_tokens).to_i, 0] unless provider == "anthropic"
+        def token_counts(response)
+          tokens = response.try(:tokens)
+          return { input: response.try(:input_tokens), output: response.try(:output_tokens) } unless tokens
 
-          cache = raw_body(response).dig("usage", "cache_creation")
-          return [response.try(:cache_creation_tokens).to_i, 0] unless cache.is_a?(Hash)
+          {
+            input: tokens.input,
+            output: tokens.output,
+            cache_read: tokens.try(:cache_read),
+            cache_write: tokens.try(:cache_write),
+            thinking: tokens.try(:thinking)
+          }
+        end
+
+        def cache_write_split(provider, response, cache_write)
+          cache = raw_body(response).dig("usage", "cache_creation") if provider == "anthropic"
+          return [cache_write.to_i, 0] unless cache.is_a?(Hash)
 
           [cache["ephemeral_5m_input_tokens"].to_i, cache["ephemeral_1h_input_tokens"].to_i]
         end
@@ -164,7 +184,8 @@ module LlmCostTracker
         end
 
         def raw_body(response)
-          body = response.try(:raw)&.body
+          raw = response.try(:raw)
+          body = raw.respond_to?(:body) ? raw.body : raw
           body.is_a?(Hash) ? body : {}
         end
 
