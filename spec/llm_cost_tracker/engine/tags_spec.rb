@@ -110,6 +110,77 @@ RSpec.describe "LlmCostTracker::Engine tags" do
     expect(response.body).to include("date range cannot exceed")
   end
 
+  it "routes tag keys that contain a dot, including ones ending in a file extension" do
+    create_call(total_cost: 2.0, tags: { "team.name" => "core", "request.json" => "core" })
+
+    %w[team.name request.json].each do |key|
+      breakdown = get("/llm-costs/tags/#{key}")
+      value = get("/llm-costs/tags/#{key}", params: { tag_value: "core" })
+
+      expect(breakdown.status).to eq(200)
+      expect(breakdown.headers["Content-Type"]).to include("text/html")
+      expect(breakdown.body).to match(%r{href="[^"]*/llm-costs/tags/#{Regexp.escape(key)}\?[^"]*tag_value=core[^"]*"})
+      expect(value.status).to eq(200)
+      expect(value.body).to include("$2.00")
+    end
+  end
+
+  it "offers drill-down links only while they stay within the tag filter limit" do
+    others = (1..10).to_h { |i| ["k#{i}", "v"] }
+    create_call(total_cost: 2.0, tags: others.merge("feature" => "chat"))
+
+    at_limit = get("/llm-costs/tags/feature?#{{ tag: others }.to_query}")
+    below_limit = get("/llm-costs/tags/feature?#{{ tag: others.except('k10') }.to_query}")
+    own_key = get("/llm-costs/tags/feature?#{{ tag: others.except('k10').merge('feature' => 'chat') }.to_query}")
+
+    expect(at_limit.status).to eq(200)
+    expect(at_limit.body).to include("tag filter limit")
+    expect(at_limit.body).not_to include(">Trend</a>")
+    expect(below_limit.body).to include(">Trend</a>")
+    expect(own_key.body).to include(">Trend</a>")
+  end
+
+  it "shows the chosen value even when a filter on the same key disagrees" do
+    create_call(total_cost: 2.0, tags: { feature: "chat" })
+    create_call(total_cost: 3.0, tags: { feature: "search" })
+
+    response = get("/llm-costs/tags/feature?#{{ tag: { feature: 'chat' }, tag_value: 'search' }.to_query}")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("$3.00")
+    expect(response.body).not_to include("No calls tagged with feature=search")
+  end
+
+  it "counts the tag value toward the tag filter limit" do
+    tags = (1..10).to_h { |i| ["k#{i}", "v"] }
+
+    response = get("/llm-costs/tags/feature?#{{ tag: tags, tag_value: 'chat' }.to_query}")
+
+    expect(response.status).to eq(400)
+    expect(response.body).to include("at most 10 tag filters are allowed, got 11")
+  end
+
+  it "rejects a list or a hash in the tag value as a bad request" do
+    list = get("/llm-costs/tags/feature?tag_value%5B%5D=a&tag_value%5B%5D=b")
+    hash = get("/llm-costs/tags/feature?tag_value%5Bx%5D=y")
+
+    [list, hash].each do |response|
+      expect(response.status).to eq(400)
+      expect(response.body).to include("tag_value must be a single value")
+    end
+  end
+
+  it "treats a NUL byte in the tag value as matching nothing on PostgreSQL" do
+    skip "PostgreSQL text columns cannot hold a NUL byte" unless
+      LlmCostTracker::Ledger::Schema::Adapter.postgresql?(ActiveRecord::Base.connection)
+    create_call(tags: { feature: "chat" })
+
+    response = get("/llm-costs/tags/feature?tag_value=a%00b")
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("No calls tagged with feature=")
+  end
+
   it "renders a setup state when the ledger table is missing" do
     drop_calls_table_with_dependents!
     LlmCostTracker::Call.reset_column_information

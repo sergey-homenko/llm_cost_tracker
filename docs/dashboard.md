@@ -53,7 +53,9 @@ The dashboard reads:
 
 Dashboard pages share date/provider/model/tag filtering when the page supports those dimensions. Tag filters use the same sanitized tag keys accepted by `LlmCostTracker.with_tags` and `track(tags:)`.
 
-Invalid filters render a bad-request page instead of raising through your app.
+A page accepts at most 10 tag filters; on a tag value page the value counts as one of them. Each tag, provider, model, stream, and usage-source filter takes a single value, not a list.
+
+Invalid filters render a bad-request page instead of raising through your app, including on the CSV export.
 
 ## Security
 
