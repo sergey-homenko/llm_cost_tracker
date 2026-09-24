@@ -10,6 +10,7 @@ require_relative "sync/fetcher"
 require_relative "sync/registry_diff"
 require_relative "sync/registry_writer"
 require_relative "sync/snapshot_guard"
+require_relative "../redaction"
 
 module LlmCostTracker
   module Pricing
@@ -84,7 +85,7 @@ module LlmCostTracker
           if response.not_modified
             return CheckResult.new(
               path: path,
-              source_url: url,
+              source_url: Redaction.url(url),
               source_version: response.source_version,
               changes: {},
               suspicious: [],
@@ -98,7 +99,7 @@ module LlmCostTracker
 
           CheckResult.new(
             path: path,
-            source_url: url,
+            source_url: Redaction.url(url),
             source_version: response.source_version,
             changes: changes,
             suspicious: suspicious,
@@ -136,7 +137,7 @@ module LlmCostTracker
             "metadata" => metadata.merge(
               "schema_version" => schema_version,
               "updated_at" => metadata["updated_at"] || today.iso8601,
-              "source_url" => url,
+              "source_url" => Redaction.url(url),
               "source_version" => response.source_version
             ),
             "models" => models
@@ -167,7 +168,7 @@ module LlmCostTracker
         def refresh_result(path:, url:, response:, changes:, suspicious:, written:, not_modified:)
           RefreshResult.new(
             path: path,
-            source_url: url,
+            source_url: Redaction.url(url),
             source_version: response.source_version,
             changes: changes,
             suspicious: suspicious,

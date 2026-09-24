@@ -37,6 +37,8 @@ The Responses API and the official OpenAI SDK streaming helpers do not need the 
 
 Gemini `streamGenerateContent` and Anthropic streaming responses are parsed from their provider event shapes when usage metadata is present.
 
+If the connection fails, or a middleware inside `llm_cost_tracker` such as `f.response :raise_error` raises before the stream completes, the call is still recorded, with unknown usage and three tags: `stream_interrupted: true`, `stream_interrupted_error` with the error class (for example `Faraday::TooManyRequestsError`), and `stream_interrupted_status` with the HTTP status when there is one. The error message itself is not stored, because Faraday puts the full request URL in it.
+
 OpenAI Realtime WebSocket/WebRTC sessions are not normal Faraday responses. Use explicit `track_stream` and pass final `response.done` events when you need Realtime capture.
 
 ## SDK Streaming

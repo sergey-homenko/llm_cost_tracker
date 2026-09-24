@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "redaction"
+
 module LlmCostTracker
   module Logging
     class << self
@@ -9,7 +11,7 @@ module LlmCostTracker
 
       private
 
-      def prefixed(message) = "[#{LlmCostTracker.name}] #{message}"
+      def prefixed(message) = "[#{LlmCostTracker.name}] #{Redaction.text(message)}"
     end
   end
 end

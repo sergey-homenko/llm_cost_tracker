@@ -546,7 +546,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.size).to eq(1)
     expect(events.first[:usage_source]).to eq("unknown")
     expect(events.first[:tags]).to include(stream_interrupted: true)
-    expect(events.first[:tags][:stream_interrupted_error]).to include("Faraday::ConnectionFailed")
+    expect(events.first[:tags][:stream_interrupted_error]).to eq("Faraday::ConnectionFailed")
   end
 
   it "preserves the provider name when an Anthropic stream is interrupted mid-flight" do
