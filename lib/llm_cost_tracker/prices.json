@@ -203,6 +203,32 @@
       "input": 5.0,
       "output": 25.0
     },
+    "anthropic/claude-opus-5-5": {
+      "batch_input": 2.0,
+      "batch_output": 10.0,
+      "cache_read_input": 0.2,
+      "cache_write_extended_input": 8.0,
+      "cache_write_input": 5.0,
+      "data_residency_batch_input": 2.2,
+      "data_residency_batch_output": 11.0,
+      "data_residency_cache_read_input": 0.22,
+      "data_residency_cache_write_extended_input": 8.8,
+      "data_residency_cache_write_input": 5.5,
+      "data_residency_input": 4.4,
+      "data_residency_output": 22.0,
+      "fast_cache_read_input": 0.4,
+      "fast_cache_write_extended_input": 16.0,
+      "fast_cache_write_input": 10.0,
+      "fast_data_residency_cache_read_input": 0.44,
+      "fast_data_residency_cache_write_extended_input": 17.6,
+      "fast_data_residency_cache_write_input": 11.0,
+      "fast_data_residency_input": 8.8,
+      "fast_data_residency_output": 44.0,
+      "fast_input": 8.0,
+      "fast_output": 40.0,
+      "input": 4.0,
+      "output": 20.0
+    },
     "anthropic/claude-sonnet-4-5": {
       "batch_input": 1.5,
       "batch_output": 7.5,
@@ -3703,8 +3729,8 @@
       "output": 0.5
     },
     "openrouter/qwen/qwen3-30b-a3b-instruct-2507": {
-      "input": 0.04815,
-      "output": 0.19305
+      "input": 0.1,
+      "output": 0.3
     },
     "openrouter/qwen/qwen3-30b-a3b-thinking-2507": {
       "input": 0.2,
