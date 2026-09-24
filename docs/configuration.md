@@ -28,7 +28,7 @@ Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `p
 | --- | --- | --- |
 | `tags.default` | `{}` | Hash or callable merged into every event |
 | `tags.max_count` | `50` | Maximum number of stored tags after sanitization |
-| `tags.max_value_bytesize` | `1024` | Maximum byte size for one stored tag value |
+| `tags.max_value_bytesize` | `1024` | Maximum byte size for one stored tag value. NUL bytes are removed and invalid UTF-8 is replaced with U+FFFD before storage, like every other stored string |
 | `tags.redacted_keys` | common secret-like keys | Tag keys whose values are replaced before storage |
 | `tags.report_breakdown_keys` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
 

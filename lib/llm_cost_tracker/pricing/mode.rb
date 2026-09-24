@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../ledger/storable"
+
 module LlmCostTracker
   module Pricing
     module Mode
@@ -66,7 +68,7 @@ module LlmCostTracker
       end
 
       def self.normalize_string(value)
-        normalized = value.strip
+        normalized = Ledger::Storable.text(value).strip
         return nil if normalized.empty?
 
         normalized.downcase.tr("-", "_")

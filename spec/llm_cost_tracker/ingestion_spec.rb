@@ -239,9 +239,10 @@ RSpec.describe "ActiveRecord async inbox" do
     allow(LlmCostTracker::Ledger::Store).to receive(:persist_records).and_raise("write failed")
     allow(LlmCostTracker::Logging).to receive(:warn)
 
-    expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(0)
+    expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(1)
 
     row = LlmCostTracker::Ingestion::InboxEntry.first
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(include("ids: #{row.id}").and(include("write failed")))
     expect(row.locked_at).not_to be_nil
     expect(row.locked_by).to be_nil
     expect(row.last_error).to include("write failed")
