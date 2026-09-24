@@ -282,6 +282,13 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
   end
 
+  describe ".image_usage" do
+    it "returns an empty usage hash when the image carries neither usage nor raw usage" do
+      expect(described_class.image_usage(Object.new)).to eq({})
+      expect(described_class.image_usage(nil)).to eq({})
+    end
+  end
+
   describe "transcribe" do
     it "records transcription token usage from a real OpenAI response" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
