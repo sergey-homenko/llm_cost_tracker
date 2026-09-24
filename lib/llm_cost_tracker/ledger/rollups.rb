@@ -40,12 +40,15 @@ module LlmCostTracker
         end
 
         def increment_with_retries(events)
+          retryable = !LlmCostTracker::Call.connection.transaction_open?
           attempt = 0
           begin
             attempt += 1
             Isolation.guard { increment!(events) }
+          rescue LlmCostTracker::Error
+            raise
           rescue StandardError => e
-            if attempt < ROLLUP_INCREMENT_ATTEMPTS && rolled_back?(e)
+            if retryable && attempt < ROLLUP_INCREMENT_ATTEMPTS && rolled_back?(e)
               sleep(ROLLUP_INCREMENT_BASE_DELAY_SECONDS * (2**(attempt - 1)))
               retry
             end

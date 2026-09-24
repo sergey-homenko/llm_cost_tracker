@@ -23,7 +23,7 @@ module LlmCostTracker
           events = Array(events)
           return if events.empty?
 
-          LlmCostTracker::Call.transaction(requires_new: true) do
+          Isolation.transaction do
             rows = events.map { |event| attributes_for(event) }
             call_ids = insert_calls_returning_ids(rows, events)
             insert_line_items(events, call_ids)

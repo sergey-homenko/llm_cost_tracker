@@ -13,7 +13,8 @@ module LlmCostTracker
         ActiveRecord::Deadlocked,
         ActiveRecord::LockWaitTimeout,
         ActiveRecord::StatementTimeout,
-        ActiveRecord::ConnectionNotEstablished
+        ActiveRecord::ConnectionNotEstablished,
+        LlmCostTracker::TransactionAbortedError
       ].freeze
 
       def initialize(identity:)
