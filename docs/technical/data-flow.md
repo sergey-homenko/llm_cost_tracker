@@ -47,8 +47,8 @@ Normal path from an application LLM call to stored ledger data:
 
 When `config.ingestion.mode = :inline` (default):
 
-1. `Ledger::Store.insert` writes the call header, line items, and tag rows in a single transaction on the caller's ActiveRecord connection. If the caller is inside an open transaction, this write joins it — a caller-side `ActiveRecord::Rollback` discards the tracked event with the rest of the work. Switch to `config.ingestion.mode = :async` if you need ledger writes to survive caller rollbacks.
-2. When `config.budgets.totals_source = :cache`, the rollup rows are incremented after that transaction commits, so a rollup failure is logged without failing the ledger write; otherwise rollups are skipped entirely.
+1. `Ledger::Store.insert` writes the call header, line items, and tag rows in a single transaction on the caller's ActiveRecord connection. If the caller is inside an open transaction, the write runs in a savepoint inside it: a failed ledger write rolls back only its own rows and never aborts the caller's transaction, while a caller-side `ActiveRecord::Rollback` still discards the tracked event with the rest of the work. Switch to `config.ingestion.mode = :async` if you need ledger writes to survive caller rollbacks. Budget reads and batch de-duplication use the same savepoint guard (`Ledger::Isolation`).
+2. When `config.budgets.totals_source = :cache`, the rollup rows are incremented after the ledger write — and, inside a caller transaction on Rails 7.2+, only once the caller's outermost transaction commits, so an open transaction never holds the rollup row lock; a rolled-back caller transaction skips the increment along with its ledger rows. On Rails 7.1 the increment runs immediately in a savepoint. A rollup failure is logged without failing the ledger write; otherwise rollups are skipped entirely.
 3. Budget reads always aggregate live from `llm_cost_tracker_calls`. Under `config.budgets.totals_source = :cache` the query takes the greater of that aggregate and the rollup row, so a cache that has drifted low cannot make a budget under-report.
 
 When `config.ingestion.mode = :async`:

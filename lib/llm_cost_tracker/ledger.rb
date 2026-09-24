@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "ledger/isolation"
 require_relative "ledger/schema"
 require_relative "ledger/period"
 require_relative "ledger/rollups"

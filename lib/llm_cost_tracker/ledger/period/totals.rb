@@ -2,6 +2,7 @@
 
 require "bigdecimal/util"
 
+require_relative "../isolation"
 require_relative "../period"
 
 module LlmCostTracker
@@ -22,7 +23,8 @@ module LlmCostTracker
 
           values = periods.to_h { |period| [period, BigDecimal("0")] }
           period_by_name = periods.to_h { |period| [period.to_s, period] }
-          LlmCostTracker::Call.find_by_sql(union_sql).each do |row|
+          rows = Isolation.guard { LlmCostTracker::Call.find_by_sql(union_sql) }
+          rows.each do |row|
             values[period_by_name.fetch(row.period_key)] = row.total_cost.to_d
           end
           values

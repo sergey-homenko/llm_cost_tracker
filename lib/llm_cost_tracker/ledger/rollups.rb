@@ -2,6 +2,7 @@
 
 require "bigdecimal/util"
 
+require_relative "isolation"
 require_relative "period"
 
 module LlmCostTracker
@@ -33,13 +34,17 @@ module LlmCostTracker
                          :REBUILD_INSERT_SLICE
 
         def increment_safely!(events)
+          return unless LlmCostTracker.configuration.budgets.totals_source == :cache
+
+          Isolation.after_commit { increment_with_retries(events) }
+        end
+
+        def increment_with_retries(events)
           attempt = 0
           begin
             attempt += 1
-            increment!(events)
+            Isolation.guard { increment!(events) }
           rescue StandardError => e
-            raise if LlmCostTracker::Call.connection.open_transactions.positive?
-
             if attempt < ROLLUP_INCREMENT_ATTEMPTS && rolled_back?(e)
               sleep(ROLLUP_INCREMENT_BASE_DELAY_SECONDS * (2**(attempt - 1)))
               retry

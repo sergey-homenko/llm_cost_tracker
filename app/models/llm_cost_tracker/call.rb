@@ -45,7 +45,7 @@ module LlmCostTracker
       def already_recorded?(provider:, provider_response_id:)
         return false if provider_response_id.to_s.empty?
 
-        where(provider: provider, provider_response_id: provider_response_id).exists?
+        Ledger::Isolation.guard(self) { where(provider: provider, provider_response_id: provider_response_id).exists? }
       end
 
       def by_tag(key, value) = by_tags(key => value)
