@@ -57,10 +57,33 @@ RSpec.describe "LlmCostTracker::Engine pricing" do
     expect(fallback.body).to match(/<a [^>]*class="lct-tab lct-active"[^>]*>\s*Bundled/m)
   end
 
+  it "falls back to the effective source when source is a list or a hash" do
+    LlmCostTrackerReset.call
+    LlmCostTracker.configure do |config|
+      config.pricing.overrides = { "openai/gpt-4o" => { input: 2.0, output: 8.0 } }
+    end
+
+    %w[source%5B%5D=bundled source%5Bbundled%5D=1 source%5Bbundled%5D%5B%5D=1].each do |query|
+      response = get("/llm-costs/pricing?#{query}")
+
+      expect(response.status).to eq(200)
+      expect(response.body).to match(/<a [^>]*class="lct-tab lct-active"[^>]*>\s*Overrides/m)
+    end
+  ensure
+    LlmCostTrackerReset.call
+  end
+
   it "marks pricing as the active sidebar section" do
     response = get("/llm-costs/pricing")
 
     expect(response.status).to eq(200)
     expect(response.body).to match(/<a [^>]*aria-current="page"[^>]*>\s*<svg[^>]*>.*?<\/svg>\s*Pricing\s*<\/a>/m)
+  end
+
+  it "rejects a list or a hash in the provider filter as a bad request" do
+    [get("/llm-costs/pricing?provider%5B%5D=openai"), get("/llm-costs/pricing?provider%5Bx%5D=openai")].each do |response|
+      expect(response.status).to eq(400)
+      expect(response.body).to include("provider must be a single value")
+    end
   end
 end

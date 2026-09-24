@@ -135,7 +135,7 @@ module LlmCostTracker
     end
 
     def current_query(overrides = {})
-      request.query_parameters.symbolize_keys.merge(overrides)
+      request.query_parameters.symbolize_keys.slice(*LlmCostTracker::Dashboard::Params::QUERY_KEYS).merge(overrides)
     end
 
     def calls_query_for_model(provider:, model:)

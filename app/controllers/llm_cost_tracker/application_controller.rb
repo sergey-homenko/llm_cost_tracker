@@ -4,11 +4,14 @@ require "securerandom"
 
 module LlmCostTracker
   class ApplicationController < ActionController::Base
+    MAX_QUERY_BYTES = 16 * 1024
+
     layout "llm_cost_tracker/application"
 
     protect_from_forgery with: :exception
 
     before_action :set_dashboard_security_headers
+    before_action :reject_oversized_query
     before_action :ensure_current_schema
     before_action :assign_dashboard_date_range
 
@@ -21,6 +24,12 @@ module LlmCostTracker
     rescue_from LlmCostTracker::InvalidFilterError, with: :render_invalid_filter
 
     private
+
+    def reject_oversized_query
+      return if request.query_string.bytesize <= MAX_QUERY_BYTES
+
+      raise LlmCostTracker::InvalidFilterError, "query string exceeds #{MAX_QUERY_BYTES / 1024} KB"
+    end
 
     def ensure_current_schema
       drift = LlmCostTracker::Dashboard::SetupState.current
