@@ -3,6 +3,7 @@
 require "spec_helper"
 require "openai"
 require "stringio"
+require "weakref"
 
 RSpec.describe LlmCostTracker::Integrations::Openai do
   before { configure_sdk_integration(:openai) }
@@ -361,6 +362,20 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           provider: "openai", stream: true, input_tokens: 10, output_tokens: 5
         )
       end
+    end
+
+    it "lets consumed chat.completions.stream_raw streams be garbage-collected" do
+      stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: chat_sse_body)
+
+      consume = lambda do
+        stream = client.chat.completions.stream_raw(model: "gpt-4o", messages: [{ role: "user", content: "hi" }])
+        stream.each { |_| nil }
+        WeakRef.new(stream)
+      end
+      refs = Array.new(20) { consume.call }
+      3.times { GC.start(full_mark: true, immediate_sweep: true) }
+
+      expect(refs.count(&:weakref_alive?)).to be < 5
     end
   end
 

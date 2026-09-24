@@ -136,8 +136,15 @@ module LlmCostTracker
           @mutex.synchronize do
             @finished = save_succeeded
             @recording = false
+            release_buffers if save_succeeded
           end
         end
+      end
+
+      def release_buffers
+        @events = []
+        @captured_bytes = 0
+        @request = nil
       end
 
       def capture_dimensions
