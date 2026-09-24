@@ -31,7 +31,7 @@ module LlmCostTracker
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           @effective_on = Date.parse(scraped_at)
           doc = Nokogiri::HTML(html.to_s)
-          base_table = find_table(doc, ["Base Input Tokens", "5m Cache Writes", "Cache Hits", "Output Tokens"])
+          base_table = find_table(doc, ["Base tokens Input", "5m writes", "Hits", "Base tokens Output"])
           raise Error, "Anthropic base pricing table not found" unless base_table
 
           base = extract_base_pricing(base_table)
@@ -69,11 +69,11 @@ module LlmCostTracker
         def extract_base_pricing(table)
           parse_table(table) do |cells, headers|
             {
-              "input" => parse_price(cells[column_index(headers, "Base Input Tokens")]),
-              "cache_write_input" => parse_price(cells[column_index(headers, "5m Cache Writes")]),
-              "cache_write_extended_input" => parse_price(cells[column_index(headers, "1h Cache Writes")]),
-              "cache_read_input" => parse_price(cells[column_index(headers, "Cache Hits")]),
-              "output" => parse_price(cells[column_index(headers, "Output Tokens")])
+              "input" => parse_price(cells[column_index(headers, "Base tokens Input")]),
+              "cache_write_input" => parse_price(cells[column_index(headers, "5m writes")]),
+              "cache_write_extended_input" => parse_price(cells[column_index(headers, "1h writes")]),
+              "cache_read_input" => parse_price(cells[column_index(headers, "Hits")]),
+              "output" => parse_price(cells[column_index(headers, "Base tokens Output")])
             }
           end
         end
@@ -82,21 +82,21 @@ module LlmCostTracker
           table.css("tbody tr").each_with_object([]) do |tr, acc|
             first_cell = tr.css("td").first
             next unless first_cell
-            next if first_cell.css("a[href*='model-deprecations']").empty?
+            next if first_cell.css("[aria-label*='(Retired)']").empty?
 
-            model_id = normalize_model_id(first_cell.text)
+            model_id = normalize_model_id(model_name(first_cell))
             acc << model_id if model_id
           end
         end
 
         def extract_batch_pricing(doc)
-          table = find_table(doc, ["Batch input", "Batch output"])
+          table = find_table(doc, ["Batch tokens Input", "Batch tokens Output"])
           return {} unless table
 
           parse_table(table) do |cells, headers|
             {
-              "batch_input" => parse_price(cells[column_index(headers, "Batch input")]),
-              "batch_output" => parse_price(cells[column_index(headers, "Batch output")])
+              "batch_input" => parse_price(cells[column_index(headers, "Batch tokens Input")]),
+              "batch_output" => parse_price(cells[column_index(headers, "Batch tokens Output")])
             }
           end
         end
@@ -128,18 +128,25 @@ module LlmCostTracker
           headers = header_texts(table)
           model_index = column_index(headers, "Model")
           table.css("tbody tr").each_with_object({}) do |tr, acc|
-            cells = tr.css("td").map { |td| td.text.strip }
-            next if cells.size < headers.size
+            tds = tr.css("td")
+            next if tds.size < headers.size
 
-            model_id = normalize_model_id(cells[model_index])
+            model_id = normalize_model_id(model_name(tds[model_index]))
             next unless model_id
 
-            acc[model_id] = yield(cells, headers)
+            acc[model_id] = yield(tds.map { |td| td.text.strip }, headers)
           end
         end
 
         def header_texts(table)
-          table.css("thead th").map { |th| th.text.strip }
+          rows = table.css("thead tr").map do |tr|
+            tr.css("th").flat_map { |th| Array.new([th["colspan"].to_i, 1].max, th.text.strip) }
+          end
+          rows.first.to_a.zip(*rows.drop(1)).map { |labels| labels.compact.join(" ") }
+        end
+
+        def model_name(cell)
+          cell.xpath(".//text()").map { |node| node.text.strip }.find { |text| !text.empty? }
         end
 
         def header_match?(header, substring)
