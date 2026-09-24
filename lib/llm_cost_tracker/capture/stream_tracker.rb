@@ -75,11 +75,22 @@ module LlmCostTracker
             yield event
           end
         end
-      rescue StandardError
+      rescue Exception # rubocop:disable Lint/RescueException -- mark Interrupt/shutdown too, so it is not masked
         errored = true
         raise
       ensure
-        finish!(errored: errored)
+        errored ? finish_after_error : finish!(errored: false)
+      end
+
+      def finish_after_error
+        finish!(errored: true)
+      rescue LlmCostTracker::TransactionAbortedError
+        raise
+      rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
+        Logging.warn("stream integration recorded an errored stream and did not raise #{e.class} over the " \
+                     "stream's own exception: #{e.message}")
+      rescue StandardError => e
+        Logging.warn("stream integration could not record an errored stream: #{e.class}: #{e.message}")
       end
 
       def capture(event)

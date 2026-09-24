@@ -33,6 +33,19 @@ module LlmCostTracker
           @prices_file_mtime_iso = nil
         end
 
+        def validate_file!(path)
+          return unless path
+
+          file_prices(path)
+          file_rates(path)
+          file_metadata(path)
+          nil
+        rescue Error => e
+          message = "#{e.message}. Fix the file, or delete it and run " \
+                    "bin/rails llm_cost_tracker:prices:refresh to download a fresh one"
+          raise Error, message
+        end
+
         def builtin_prices
           @builtin_prices ||= normalize_price_entries(
             raw_registry.fetch("models", {}), context: "bundled prices"
@@ -161,6 +174,14 @@ module LlmCostTracker
         end
 
         def load_raw_file_registry(path)
+          unless File.exist?(path)
+            Logging.warn(
+              "pricing.file #{path.to_s.inspect} does not exist; calls are priced from pricing.overrides and " \
+              "bundled prices until bin/rails llm_cost_tracker:prices:refresh creates it"
+            )
+            return {}.freeze
+          end
+
           loading(path) { (YAML.safe_load_file(path, aliases: false) || {}).freeze }
         end
 

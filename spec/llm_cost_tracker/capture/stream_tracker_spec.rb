@@ -37,6 +37,19 @@ RSpec.describe LlmCostTracker::Capture::StreamTracker do
     refs.count(&:weakref_alive?)
   end
 
+  it "logs a failure to record an errored stream and keeps the caller's exception" do
+    host_error = Class.new(StandardError)
+    finish = ->(_errored) { raise ArgumentError, "finish failed" }
+    stream = described_class.new(stream: each_stream_class.new, collector: instance_double(
+      LlmCostTracker::Capture::StreamCollector, event: nil
+    ), active: -> { true }, finish: finish).wrap
+    allow(LlmCostTracker::Logging).to receive(:warn)
+
+    expect { stream.each { raise host_error, "render failed" } }.to raise_error(host_error, "render failed")
+    expect(LlmCostTracker::Logging).to have_received(:warn)
+      .with(/could not record an errored stream: ArgumentError: finish failed/)
+  end
+
   it "lets a stream wrapped through #each be garbage-collected once the caller drops it" do
     collector = instance_double(LlmCostTracker::Capture::StreamCollector, event: nil, finish!: nil)
     refs = Array.new(20) { consumed_stream_ref(each_stream_class, collector) }

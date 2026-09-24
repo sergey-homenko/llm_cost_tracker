@@ -62,7 +62,7 @@ module LlmCostTracker
 
       def record_safely
         yield
-      rescue LlmCostTracker::Error
+      rescue *LlmCostTracker::CALLER_ERRORS
         raise
       rescue StandardError => e
         Logging.warn("#{integration_name} integration failed to record usage: #{e.class}: #{e.message}")

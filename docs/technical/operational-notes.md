@@ -43,7 +43,7 @@ Per-call budgets are checked from the current event only.
 
 Async ingestion is opt-in via `config.ingestion.mode = :async` plus the `llm_cost_tracker:async_ingestion` generator. With it off (the `:inline` default), `Tracker.record` writes inline through `Ledger::Store.insert` and the worker is dormant.
 
-`Ingestion::Inbox` writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, storage should raise instead of writing into the caller transaction.
+`Ingestion::Inbox` writes inside an open caller transaction need a separate database connection to survive caller rollbacks. If the pool cannot provide one, the inbox write fails instead of writing into the caller transaction: `LlmCostTracker.track` raises, and automatic capture logs the failure and returns the provider response.
 
 The ingestor is database-leased and database-polled, with an opportunistic local wake after a successful inbox insert. The wake only reduces freshness latency in the process that wrote the row; correctness still comes from the shared database lease, retryable row locks, and adaptive polling across Puma, Sidekiq, Unicorn, deploy restarts, and multi-process hosts.
 

@@ -272,7 +272,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end.to raise_error(LlmCostTracker::UnknownPricingError)
   end
 
-  it "does not emit a synthetic zero-token interrupted-stream event when a streaming response was fully received and Tracker.record raises during pricing enforcement" do
+  it "records a fully received stream once, without a synthetic interrupted-stream event, before raising UnknownPricingError" do
     LlmCostTracker.configure { |config| config.pricing.unknown_model_behavior = :raise }
 
     sse_body = "data: {\"id\":\"chatcmpl_x\",\"model\":\"unknown-chat-model\"," \
@@ -294,7 +294,10 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       conn.post("/v1/chat/completions", { model: "unknown-chat-model", stream: true }.to_json)
     end.to raise_error(LlmCostTracker::UnknownPricingError)
 
-    expect(events).to be_empty
+    expect(events.size).to eq(1)
+    expect(events.first[:token_usage]).to include(input_tokens: 1, output_tokens: 1)
+    expect(events.first[:tags]).not_to have_key(:stream_interrupted)
+    expect(LlmCostTracker::Ledger::Store).to have_received(:insert).once
   end
 
   it "captures streaming OpenAI responses through the on_data tap" do

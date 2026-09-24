@@ -92,9 +92,9 @@ config.pricing.overrides = {
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `pricing.file` | `nil` | Local JSON/YAML registry used ahead of bundled prices |
+| `pricing.file` | `nil` | Local JSON/YAML registry used ahead of bundled prices. A malformed file fails `configure`. A missing one is logged at boot and reported by `doctor` as an error, and calls are priced from `pricing.overrides` and bundled prices until `llm_cost_tracker:prices:refresh` creates it. |
 | `pricing.overrides` | `{}` | Ruby hash used ahead of local and bundled registries |
-| `pricing.unknown_model_behavior` | `:warn` | What to do when a model has no rate at all: `:ignore`, `:warn`, or `:raise`. A model that is priced but missing one component rate lands as `partial` and never triggers this. |
+| `pricing.unknown_model_behavior` | `:warn` | What to do when a model has no rate at all: `:ignore`, `:warn`, or `:raise`. `:raise` records the call with `cost_status: unknown` first, then raises `LlmCostTracker::UnknownPricingError` from the LLM call. A model that is priced but missing one component rate lands as `partial` and never triggers this. |
 
 Pricing precedence is:
 
@@ -124,7 +124,7 @@ Two options decide which optional tables the gem touches. Both default to the no
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `ingestion.mode` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
-| `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool that inbox writes use. Those writes happen on the request thread inside `Tracker.record`, on a connection kept out of the app's pool so a staged event survives a caller rollback and a busy app doesn't deadlock its own tracking. The drain worker does not use this pool — it checks out an ordinary connection. Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion.mode = :inline`. |
+| `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool that inbox writes use. Those writes happen on the request thread inside `Tracker.record`, on a connection kept out of the app's pool so a staged event survives a caller rollback and a busy app doesn't deadlock its own tracking. The drain worker does not use this pool — it checks out an ordinary connection. Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. When the pool cannot lend a connection within the checkout timeout, an automatically captured call is logged and not recorded, while `LlmCostTracker.track` raises. Ignored when `ingestion.mode = :inline`. |
 | `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` and reads the greater of that row and the same live sum, so a rollup that has drifted low can never make a budget under-report. It does not replace the sum or make the check cheaper — it adds a read here and a write on every recorded call, and needs the `llm_cost_tracker_call_rollups` table. Only budget checks and the dashboard budget widget read those totals; with no budget configured it is pure overhead. |
 
 Each opt-in needs a matching generator before flipping the flag:

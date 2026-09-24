@@ -128,9 +128,22 @@ module LlmCostTracker
         def each(&block)
           return enum_for(:each) unless block
 
-          @raw_stream.each do |response|
-            LlmCostTracker::Integrations::Anthropic.record_batch_result(response)
-            block.call(response)
+          deferred = nil
+          interrupted = false
+          begin
+            @raw_stream.each do |response|
+              begin
+                LlmCostTracker::Integrations::Anthropic.record_batch_result(response)
+              rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
+                deferred ||= e
+              end
+              block.call(response)
+            end
+          rescue Exception # rubocop:disable Lint/RescueException -- an exception already in flight wins over a deferred one
+            interrupted = true
+            raise
+          ensure
+            raise deferred if deferred && !interrupted
           end
         end
 
