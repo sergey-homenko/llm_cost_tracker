@@ -2947,7 +2947,7 @@
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
       "cache_read_input": 0.18,
-      "input": 0.7062,
+      "input": 0.6562,
       "output": 3.3
     },
     "openrouter/moonshotai/kimi-k2.7-code:batch": {
