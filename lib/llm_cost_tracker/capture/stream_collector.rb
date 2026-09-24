@@ -4,7 +4,7 @@ require "active_support/core_ext/object/blank"
 require "active_support/core_ext/object/deep_dup"
 require "json"
 
-require_relative "sse"
+require_relative "event_window"
 require_relative "../timing"
 
 module LlmCostTracker
@@ -34,9 +34,7 @@ module LlmCostTracker
         @metadata = (metadata || {}).deep_dup
         @context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).deep_dup
         @request = request
-        @events = []
-        @captured_bytes = 0
-        @overflowed = false
+        @window = EventWindow.new(notable: stream_event_filter)
         @explicit_usage = nil
         @started_at = LlmCostTracker::Timing.now_monotonic
         @finished = false
@@ -61,7 +59,7 @@ module LlmCostTracker
       def event(data, type: nil)
         @mutex.synchronize do
           ensure_open!
-          capture_event(data, type: type) unless data.nil?
+          @window.push(data, type: type) unless data.nil?
         end
       end
 
@@ -102,8 +100,8 @@ module LlmCostTracker
           @recording = true
           pricing_mode = Pricing::Mode.normalize(@pricing_mode)
           {
-            events: @events.dup,
-            overflowed: @overflowed,
+            events: @window.events,
+            overflowed: @window.overflowed?,
             explicit_usage: @explicit_usage,
             model: @model,
             latency_ms: @latency_ms,
@@ -142,8 +140,7 @@ module LlmCostTracker
       end
 
       def release_buffers
-        @events = []
-        @captured_bytes = 0
+        @window = EventWindow.new
         @request = nil
       end
 
@@ -215,53 +212,8 @@ module LlmCostTracker
         )
       end
 
-      IGNORED_PAYLOAD_KEYS = %w[b64_json partial_image_b64].freeze
-      private_constant :IGNORED_PAYLOAD_KEYS
-
-      HEAVY_STRING_BYTES = 8 * 1024
-      private_constant :HEAVY_STRING_BYTES
-
-      def capture_event(data, type:)
-        event = { event: type, data: strip_heavy_payload(data) }
-        size = approximate_bytesize(event)
-        if @captured_bytes + size <= Capture::SSE::LIMIT_BYTES
-          @events << event
-          @captured_bytes += size
-        else
-          @overflowed = true
-        end
-      rescue TypeError, SystemStackError
-        @overflowed = true
-      end
-
-      def strip_heavy_payload(value)
-        case value
-        when Hash
-          value.each_with_object({}) do |(key, nested), out|
-            next if IGNORED_PAYLOAD_KEYS.include?(key.to_s)
-
-            out[key] = strip_heavy_payload(nested)
-          end
-        when Array
-          value.map { |nested| strip_heavy_payload(nested) }
-        when String
-          value.bytesize > HEAVY_STRING_BYTES ? "" : value
-        else
-          value
-        end
-      end
-
-      def approximate_bytesize(value)
-        case value
-        when Hash
-          value.sum { |key, nested| approximate_bytesize(key) + approximate_bytesize(nested) + 4 }
-        when Array
-          value.sum { |nested| approximate_bytesize(nested) + 2 }
-        when Numeric, true, false, nil
-          8
-        else
-          value.to_s.bytesize + 2
-        end
+      def stream_event_filter
+        Parsers.find_for_provider(@provider)&.method(:retain_stream_event?)
       end
     end
   end

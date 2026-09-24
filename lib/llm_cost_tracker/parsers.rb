@@ -104,6 +104,10 @@ module LlmCostTracker
         nil
       end
 
+      def retain_stream_event?(_data)
+        false
+      end
+
       def auto_enable_stream_usage?(_request_url)
         false
       end

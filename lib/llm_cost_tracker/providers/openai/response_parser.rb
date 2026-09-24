@@ -74,6 +74,10 @@ module LlmCostTracker
           openai_chat_completions_url?(request_url)
         end
 
+        def retain_stream_event?(data)
+          data.is_a?(Hash) && (data["item"].is_a?(Hash) || data["response"].is_a?(Hash))
+        end
+
         private
 
         def stream_capture_context(events:, request:, request_url:)

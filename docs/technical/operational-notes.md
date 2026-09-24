@@ -87,7 +87,7 @@ Dashboard storage changes require measured need. Prefer bounded ranges, existing
 
 Streaming capture must keep your app's stream behavior intact.
 
-The middleware should collect enough data to parse final usage while bounding memory. When the byte cap is hit, the buffered prefix is still passed to the parser; the call falls back to unknown only when no usage can be extracted from the retained events.
+The Faraday tap decodes SSE (and Gemini's JSON-array streams) incrementally through `Capture::SSE::Reader` and feeds `Capture::EventWindow`, the same window the SDK collector uses. The window keeps the first 16 and last 32 events plus any event the parser's `retain_stream_event?` marks as billable, so final usage is never dropped and memory stays bounded. `Capture::SSE::LIMIT_BYTES` caps the kept events, not the stream; exceeding it records `usage_source: unknown`.
 
 ## Release Checks
 

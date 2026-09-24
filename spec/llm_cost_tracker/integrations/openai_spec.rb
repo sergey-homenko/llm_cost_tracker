@@ -364,6 +364,24 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
+    it "records usage from a chat.completions.stream_raw stream far longer than the capture limit" do
+      chunk = { id: "chatcmpl_long", object: "chat.completion.chunk", model: "gpt-4o",
+                choices: [{ index: 0, delta: { content: " token" } }] }
+      body = +""
+      20_000.times { body << "data: #{chunk.to_json}\n\n" }
+      final = chunk.merge(choices: [], usage: { prompt_tokens: 10, completion_tokens: 20_000, total_tokens: 20_010 })
+      body << "data: #{final.to_json}\n\ndata: [DONE]\n\n"
+      stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: body)
+
+      capture_sdk_events do |events|
+        stream = client.chat.completions.stream_raw(model: "gpt-4o", messages: [{ role: "user", content: "hi" }])
+        stream.each { |_| nil }
+
+        expect(events.first).to include(usage_source: "stream_final", input_tokens: 10, output_tokens: 20_000,
+                                        provider_response_id: "chatcmpl_long")
+      end
+    end
+
     it "lets consumed chat.completions.stream_raw streams be garbage-collected" do
       stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: chat_sse_body)
 

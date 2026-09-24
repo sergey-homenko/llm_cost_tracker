@@ -78,6 +78,10 @@ module LlmCostTracker
           extract_model_from_url(request_url)
         end
 
+        def retain_stream_event?(data)
+          data.is_a?(Hash) && grounding_request_count(data["candidates"]).positive?
+        end
+
         def provider_for(_request_url)
           "gemini"
         end
