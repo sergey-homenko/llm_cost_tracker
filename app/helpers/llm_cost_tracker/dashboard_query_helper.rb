@@ -16,6 +16,11 @@ module LlmCostTracker
       query
     end
 
+    def tag_drilldown_allowed?(key)
+      tags = LlmCostTracker::Dashboard::Params.tag_query(current_query[:tag])
+      tags.except(key.to_s).size < LlmCostTracker::Dashboard::Filter::MAX_TAG_FILTERS
+    end
+
     def hidden_query_fields(query, prefix: nil)
       safe_join(query.flat_map do |key, value|
         name = prefix ? "#{prefix}[#{key}]" : key.to_s

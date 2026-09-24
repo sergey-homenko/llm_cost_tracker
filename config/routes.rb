@@ -4,7 +4,12 @@ LlmCostTracker::Engine.routes.draw do
   root "dashboard#index"
   resources :calls, only: %i[index show], constraints: { id: /\d+/ }, defaults: { format: :html }
   resources :models, only: :index
-  resources :tags, only: %i[index show], param: :key, format: false
+  resources :tags,
+            only: %i[index show],
+            param: :key,
+            format: false,
+            constraints: { key: %r{[^/]+} },
+            defaults: { format: :html }
   get "data_quality", to: "data_quality#index", as: :data_quality
   get "pricing", to: "pricing#index", as: :pricing
 

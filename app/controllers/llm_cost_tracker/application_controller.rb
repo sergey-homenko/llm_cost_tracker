@@ -40,16 +40,20 @@ module LlmCostTracker
     end
 
     def render_database_error(_error)
-      render "llm_cost_tracker/errors/database", status: :internal_server_error
+      render_error_page("database", :internal_server_error)
     end
 
     def render_invalid_filter(error)
       @error_message = error.message
-      render "llm_cost_tracker/errors/invalid_filter", status: :bad_request
+      render_error_page("invalid_filter", :bad_request)
     end
 
     def render_not_found
-      render "llm_cost_tracker/errors/not_found", status: :not_found
+      render_error_page("not_found", :not_found)
+    end
+
+    def render_error_page(name, status)
+      render "llm_cost_tracker/errors/#{name}", status: status, formats: :html, content_type: "text/html"
     end
 
     def set_dashboard_security_headers

@@ -17,6 +17,15 @@ module LlmCostTracker
           {}
         end
 
+        def scalar(value, name)
+          return nil if value.nil?
+          if value.is_a?(Hash) || value.is_a?(Array) || value.respond_to?(:to_unsafe_h)
+            raise InvalidFilterError, "#{name} must be a single value"
+          end
+
+          value.to_s
+        end
+
         def tag_query(value)
           to_hash(value).each_with_object({}) do |(key, tag_value), tags|
             key = key.to_s

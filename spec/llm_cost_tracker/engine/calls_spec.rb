@@ -409,6 +409,58 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).not_to include(%(name="tag" value="env prod"))
   end
 
+  it "rejects more tag filters than the limit as a bad request on the page and the CSV export" do
+    create_call(tags: { feature: "chat" })
+    query = (1..11).map { |i| "tag%5Bk#{i}%5D=v" }.join("&")
+
+    [get("/llm-costs/calls?#{query}"), get("/llm-costs/calls.csv?#{query}")].each do |response|
+      expect(response.status).to eq(400)
+      expect(response.headers["Content-Type"]).to include("text/html")
+      expect(response.body).to include("at most 10 tag filters are allowed")
+    end
+  end
+
+  it "renders invalid filters on the CSV export as a bad request" do
+    response = get("/llm-costs/calls.csv?from=2026-04-01")
+
+    expect(response.status).to eq(400)
+    expect(response.body).to include("from and to dates must be provided together")
+  end
+
+  it "renders a missing call requested as CSV as not found" do
+    response = get("/llm-costs/calls/999999.csv")
+
+    expect(response.status).to eq(404)
+    expect(response.body).to include("Call not found")
+  end
+
+  it "renders a database error during the CSV export as the HTML error page" do
+    create_call
+    allow(LlmCostTracker::Dashboard::Filter).to receive(:call).and_wrap_original do |original, **kwargs|
+      original.call(**kwargs).where("lct_no_such_column = 1")
+    end
+
+    response = get("/llm-costs/calls.csv")
+
+    expect(response.status).to eq(500)
+    expect(response.headers["Content-Type"]).to include("text/html")
+    expect(response.body).to include("Database unavailable")
+  end
+
+  it "treats a NUL byte in a tag filter value as matching nothing on PostgreSQL" do
+    skip "PostgreSQL text columns cannot hold a NUL byte" unless
+      LlmCostTracker::Ledger::Schema::Adapter.postgresql?(ActiveRecord::Base.connection)
+    call = create_call(tags: { feature: "chat" })
+
+    page = get("/llm-costs/calls?tag%5Bfeature%5D=a%00b")
+    csv = get("/llm-costs/calls.csv?tag%5Bfeature%5D=a%00b")
+
+    expect(page.status).to eq(200)
+    expect(page.body).not_to include("/llm-costs/calls/#{call.id}")
+    expect(csv.status).to eq(200)
+    expect(csv.body.lines.size).to eq(1)
+  end
+
   it "exports calls without tag rows as empty JSON" do
     create_call(tags: {})
 
