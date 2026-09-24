@@ -39,7 +39,7 @@ module LlmCostTracker
                    (?:[A-Za-z][A-Za-z0-9-]*\s+)?[^\s"'\\,;)}]{6,}/ix
     KEY_HEADER = /#{format(HEADER_PREFIX.source, KEY_HEADER_NAMES.map { |name| name.gsub('-', '[-_]') }.join('|'))}
                   [^\s"'\\,;)}]{6,}/ix
-    USERINFO = %r{(?<=://)[^/\s@?#]+@}
+    USERINFO = %r{://[^/\s@?#]+@}
     PREFILTER = /[=:@%\\]|AIza|sk-|[srp]k_|AKIA|gh[opsur]_|github_pat_|eyj|bearer|xox/i
     private_constant :TOKEN, :AFTER_ESCAPE, :WHOLE_TOKEN, :EMBEDDED_TOKEN, :PARAM_NAMES, :KEY_HEADER_NAMES
     private_constant :PARAM, :HEADER_PREFIX, :AUTH_HEADER, :KEY_HEADER, :USERINFO, :PREFILTER
@@ -55,7 +55,7 @@ module LlmCostTracker
         return string unless PREFILTER.match?(string)
 
         string
-          .gsub(USERINFO) { "#{REDACTED}@" }
+          .gsub(USERINFO) { "://#{REDACTED}@" }
           .gsub(AUTH_HEADER) { "#{Regexp.last_match(1)}#{REDACTED}" }
           .gsub(KEY_HEADER) { "#{Regexp.last_match(1)}#{REDACTED}" }
           .gsub(PARAM) { "#{Regexp.last_match(1)}=#{REDACTED}" }
@@ -70,7 +70,7 @@ module LlmCostTracker
         uri.fragment = nil
         uri.to_s
       rescue URI::InvalidURIError
-        readable(value).sub(USERINFO, "").split(/[?#]/, 2).first.to_s
+        readable(value).sub(USERINFO, "://").split(/[?#]/, 2).first.to_s
       end
 
       def error(error, limit: nil)
