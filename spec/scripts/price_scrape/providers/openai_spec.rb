@@ -2,6 +2,7 @@
 
 require "cgi"
 require "json"
+require "nokogiri"
 require "spec_helper"
 require "price_scrape/providers/openai"
 
@@ -54,6 +55,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
   def model_doc_html(body)
     "<html><body><p>#{body}</p></body></html>"
+  end
+
+  def model_doc_url(model_id)
+    "#{described_class::DocumentedLongContextPrices::MODEL_DOC_URL_PREFIX}#{model_id}"
+  end
+
+  def without_long_context_columns(page)
+    doc = Nokogiri::HTML(page)
+    doc.css("table").select { |table| table.text.include?("Long context") }.each(&:remove)
+    doc.to_html(save_with: Nokogiri::XML::Node::SaveOptions::AS_HTML)
   end
 
   def html_pages(overrides = {})
@@ -143,26 +154,46 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "priority_data_residency_output" => 9.9
       )
       expect(result.models.fetch("gpt-5.6-sol")).to include(
-        "input" => 5.0,
-        "cache_read_input" => 0.5,
-        "cache_write_input" => 6.25,
-        "output" => 30.0,
-        "batch_input" => 2.5,
-        "batch_cache_read_input" => 0.25,
-        "batch_cache_write_input" => 3.125,
-        "batch_output" => 15.0,
-        "fast_input" => 10.0,
-        "fast_cache_write_input" => 12.5,
-        "priority_input" => 10.0,
-        "priority_cache_write_input" => 12.5,
+        "input" => 4.0,
+        "cache_read_input" => 0.4,
+        "cache_write_input" => 5.0,
+        "output" => 20.0,
+        "batch_input" => 2.0,
+        "batch_cache_read_input" => 0.2,
+        "batch_cache_write_input" => 2.5,
+        "batch_output" => 10.0,
+        "fast_input" => 8.0,
+        "fast_cache_write_input" => 10.0,
+        "priority_input" => 8.0,
+        "priority_cache_write_input" => 10.0,
         "_context_price_threshold_tokens" => 272_000,
-        "above_context_input" => 10.0,
-        "above_context_cache_read_input" => 1.0,
-        "above_context_cache_write_input" => 12.5,
-        "above_context_output" => 45.0,
-        "data_residency_input" => 5.5,
-        "data_residency_cache_write_input" => 6.875,
-        "data_residency_output" => 33.0
+        "above_context_input" => 8.0,
+        "above_context_cache_read_input" => 0.8,
+        "above_context_cache_write_input" => 10.0,
+        "above_context_output" => 30.0,
+        "data_residency_input" => 4.4,
+        "data_residency_cache_write_input" => 5.5,
+        "data_residency_output" => 22.0
+      )
+      expect(result.models.fetch("gpt-6-sol")).to include(
+        "input" => 2.0,
+        "cache_read_input" => 0.2,
+        "cache_write_input" => 2.5,
+        "output" => 10.0,
+        "batch_input" => 1.0,
+        "batch_output" => 5.0,
+        "fast_input" => 4.0,
+        "fast_output" => 20.0,
+        "_context_price_threshold_tokens" => 272_000,
+        "above_context_input" => 4.0,
+        "above_context_cache_read_input" => 0.4,
+        "above_context_cache_write_input" => 5.0,
+        "above_context_output" => 15.0,
+        "above_context_batch_output" => 7.5,
+        "above_context_fast_output" => 30.0,
+        "above_context_priority_output" => 30.0,
+        "data_residency_input" => 2.2,
+        "above_context_data_residency_input" => 4.4
       )
       expect(result.models.fetch("gpt-4-turbo")).to eq(
         "input" => 10.0,
@@ -293,6 +324,46 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       expect(result.models.fetch("gpt-5.5-pro")).not_to include("_context_price_threshold_tokens")
     end
 
+    it "prices long context from the model docs once newer releases push a model out of the long-context columns" do
+      pages = html_pages(
+        model_doc_url("gpt-5.6-sol") => model_doc_html(
+          "Prompts with >272K input tokens are priced at 2x input and 1.5x output for the full request."
+        )
+      )
+      result = described_class.new.call(html: pages, scraped_at: "2026-09-24T00:00:00Z")
+
+      expect(result.models.fetch("gpt-5.6-sol")).to include(
+        "_context_price_threshold_tokens" => 272_000,
+        "above_context_input" => 8.0,
+        "above_context_cache_read_input" => 0.8,
+        "above_context_cache_write_input" => 10.0,
+        "above_context_output" => 30.0,
+        "above_context_fast_input" => 16.0,
+        "above_context_priority_output" => 60.0,
+        "above_context_data_residency_input" => 8.8
+      )
+    end
+
+    it "reads the GPT-6 long-context wording once GPT-6 leaves the long-context columns" do
+      pages = html_pages(
+        described_class.source_url => without_long_context_columns(html),
+        model_doc_url("gpt-6-sol") => model_doc_html(
+          "Prompts with more than 272K input tokens are priced at 2x input and cache rates and 1.5x output " \
+          "for the full request."
+        )
+      )
+      result = described_class.new.call(html: pages, scraped_at: "2026-09-24T00:00:00Z")
+
+      expect(result.models.fetch("gpt-6-sol")).to include(
+        "_context_price_threshold_tokens" => 272_000,
+        "above_context_input" => 4.0,
+        "above_context_cache_read_input" => 0.4,
+        "above_context_cache_write_input" => 5.0,
+        "above_context_output" => 15.0,
+        "above_context_fast_output" => 30.0
+      )
+    end
+
     it "prices duration-billed audio models from the per-minute column" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
 
@@ -304,7 +375,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
 
       per_minute = result.models.select { |_, prices| prices.key?("transcription_minute") }
-      expect(per_minute.keys).to contain_exactly("gpt-transcribe", "gpt-live-transcribe")
+      expect(per_minute.keys).to contain_exactly(
+        "gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-translate", "gpt-realtime-whisper"
+      )
     end
 
     it "skips unmapped model rows instead of guessing canonical IDs" do
@@ -343,7 +416,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
     it "raises when a batch price cell does not match the expected format" do
       broken_html = html.sub(
-        "[0,2.5],[0,0.25],[0,3.125],[0,15]", "[0,&quot;TBD&quot;],[0,0.25],[0,3.125],[0,15]"
+        "[0,5],[0,0.5],[0,6.25],[0,25]", "[0,&quot;TBD&quot;],[0,0.5],[0,6.25],[0,25]"
       )
 
       expect do

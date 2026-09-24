@@ -976,6 +976,7 @@ RSpec.describe LlmCostTracker::Pricing do
         expected_ratio =
           if model_id.end_with?("/claude-haiku-3") then 0.12
           elsif model_id.end_with?("/claude-fable-5-1", "/claude-mythos-5-1") then 0.025
+          elsif model_id.end_with?("/claude-opus-5-5") then 0.05
           else 0.1
           end
         expect(fields["cache_read_input"]).to be_within(0.0001).of(fields["input"] * expected_ratio)

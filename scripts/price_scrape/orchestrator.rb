@@ -57,6 +57,7 @@ module LlmCostTracker
       def build_plan(provider, provider_result, current_models, current_service_charges)
         deprecated = provider_result.deprecated_models
         active = provider_result.models.except(*deprecated)
+        ensure_long_context_pricing_kept!(provider, active, current_models)
         active_keys = active.keys.map { |id| registry_key(provider, id) }
         legacy_active_keys = active.keys.select { |id| bare?(id) && current_models.key?(id) }
         deprecated_keys = deprecated.flat_map do |id|
@@ -78,6 +79,15 @@ module LlmCostTracker
           unchanged: unchanged,
           written: false
         )
+      end
+
+      def ensure_long_context_pricing_kept!(provider, active, current_models)
+        threshold = LlmCostTracker::Pricing::Registry::CONTEXT_THRESHOLD_KEY
+        dropped = active.filter_map do |id, scraped_fields|
+          key = registry_key(provider, id)
+          key if current_models.dig(key, threshold) && !scraped_fields.key?(threshold)
+        end
+        raise Error, "refusing to drop long-context pricing for #{dropped.join(', ')}" if dropped.any?
       end
 
       def compute_updates(provider, active, current_models)

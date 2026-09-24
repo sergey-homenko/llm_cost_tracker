@@ -13,9 +13,12 @@ module LlmCostTracker
         module DocumentedLongContextPrices
           MODEL_DOC_URL_PREFIX = "https://developers.openai.com/api/docs/models/"
           CONTEXT_QUALIFIER = /\(<\d+K context length\)/
+          LONG_CONTEXT_COLUMN_MODEL_IDS = %w[
+            gpt-5.6-luna gpt-5.6-sol gpt-5.6-terra gpt-6-astra gpt-6-sol gpt-6-luna
+          ].freeze
           PREMIUM_SENTENCE = /
-            prompts\swith\s>([\d,]+)K\sinput\stokens\sare\spriced\sat\s
-            ([\d.]+)x\sinput\sand\s([\d.]+)x\soutput([^.]*)\.
+            prompts\swith\s(?:>|more\sthan\s)([\d,]+)K\sinput\stokens\sare\spriced\sat\s
+            ([\d.]+)x\sinput(?:\sand\scache\srates)?\sand\s([\d.]+)x\soutput([^.]*)\.
           /xi
           TIER_PREFIXES = { "standard" => "", "batch" => "batch_", "flex" => "flex_", "fast" => "fast_" }.freeze
           PREMIUM_BY_FIELD = {
@@ -25,7 +28,8 @@ module LlmCostTracker
 
           class << self
             def model_ids
-              MODEL_ID_BY_DISPLAY_NAME.select { |name, _| name.match?(CONTEXT_QUALIFIER) }.values.uniq
+              qualified = MODEL_ID_BY_DISPLAY_NAME.select { |name, _| name.match?(CONTEXT_QUALIFIER) }.values
+              (qualified + LONG_CONTEXT_COLUMN_MODEL_IDS).uniq
             end
 
             def source_urls
