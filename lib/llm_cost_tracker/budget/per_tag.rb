@@ -91,7 +91,8 @@ module LlmCostTracker
         end
 
         def columns?
-          (LlmCostTracker::CallTag.column_names & [COST_COLUMN, TIME_COLUMN]).size == 2
+          LlmCostTracker::CallTag.table_exists? &&
+            (LlmCostTracker::CallTag.column_names & [COST_COLUMN, TIME_COLUMN]).size == 2
         end
 
         private

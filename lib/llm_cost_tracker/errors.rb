@@ -5,6 +5,15 @@ module LlmCostTracker
 
   class InvalidFilterError < Error; end
 
+  class TransactionAbortedError < Error
+    def initialize(error)
+      super(
+        "The database rolled back the whole surrounding transaction while recording LLM usage " \
+        "(#{error.class}: #{error.message}); the caller's transaction no longer exists"
+      )
+    end
+  end
+
   class BudgetExceededError < Error
     attr_reader :total, :budget, :budget_type, :last_event, :stage, :scope
 
