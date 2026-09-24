@@ -17,8 +17,8 @@ RSpec.describe LlmCostTracker do
         type: "image_generation.completed"
       )
 
-      expect(collector.instance_variable_get(:@overflowed)).to be false
-      stored = collector.instance_variable_get(:@events).first
+      expect(collector.instance_variable_get(:@window).overflowed?).to be false
+      stored = collector.instance_variable_get(:@window).events.first
       expect(stored[:data]).not_to have_key("b64_json")
       expect(stored[:data]["usage"]).to include("input_tokens" => 10, "output_tokens" => 1000)
     end
@@ -36,8 +36,8 @@ RSpec.describe LlmCostTracker do
         type: "response.image_generation_call.partial_image"
       )
 
-      expect(collector.instance_variable_get(:@overflowed)).to be false
-      stored = collector.instance_variable_get(:@events).first
+      expect(collector.instance_variable_get(:@window).overflowed?).to be false
+      stored = collector.instance_variable_get(:@window).events.first
       expect(stored[:data]).not_to have_key("partial_image_b64")
       expect(stored[:data]).to include("item_id" => "ig_1")
     end
@@ -54,8 +54,8 @@ RSpec.describe LlmCostTracker do
         type: "response.audio.delta"
       )
 
-      expect(collector.instance_variable_get(:@overflowed)).to be false
-      stored = collector.instance_variable_get(:@events).first
+      expect(collector.instance_variable_get(:@window).overflowed?).to be false
+      stored = collector.instance_variable_get(:@window).events.first
       expect(stored[:data]["delta"]).to eq("")
       expect(stored[:data]["item_id"]).to eq("audio_1")
     end
@@ -128,7 +128,7 @@ RSpec.describe LlmCostTracker do
 
       collector.finish!(errored: false)
 
-      expect(collector.instance_variable_get(:@events)).to be_empty
+      expect(collector.instance_variable_get(:@window).events).to be_empty
       expect(collector.instance_variable_get(:@request)).to be_nil
     end
 
@@ -148,12 +148,12 @@ RSpec.describe LlmCostTracker do
       end
 
       expect { collector.finish!(errored: false) }.to raise_error(StandardError, "database is down")
-      expect(collector.instance_variable_get(:@events).size).to eq(1)
+      expect(collector.instance_variable_get(:@window).events.size).to eq(1)
 
       collector.finish!(errored: false)
       expect(attempts).to eq(2)
       expect(recorded_input_tokens).to eq(5)
-      expect(collector.instance_variable_get(:@events)).to be_empty
+      expect(collector.instance_variable_get(:@window).events).to be_empty
     end
   end
 

@@ -2,10 +2,10 @@
 
 require "faraday"
 require "json"
-require "stringio"
 require "uri"
 
 require_relative "../capture/sse"
+require_relative "../capture/stream_tap"
 require_relative "../timing"
 
 module LlmCostTracker
@@ -27,7 +27,7 @@ module LlmCostTracker
         if streaming
           request_body = inject_stream_usage_flag(request_env, parser, request_url, request_parsed) || request_body
         end
-        stream_buffer = install_stream_tap(request_env) if streaming
+        stream_buffer = install_stream_tap(request_env, parser) if streaming
 
         if parser
           Budget.enforce!(
@@ -198,23 +198,21 @@ module LlmCostTracker
       end
 
       def parse_stream(parser:, request_url:, request_body:, response_env:, stream_buffer:)
-        overflowed = stream_buffer&.dig(:overflowed) == true
-        Logging.warn(capture_warning(request_url, stream_buffer)) if overflowed
-
-        body = stream_buffer&.dig(:buffer)&.string
-        body = read_body(response_env.body) if body.blank?
-
-        if body.blank?
-          Logging.warn(capture_warning(request_url, stream_buffer)) unless overflowed
-          return parser.parse_stream(
-            request_url: request_url,
-            request_body: request_body,
-            response_status: response_env.status,
-            response_headers: response_env.response_headers
-          )
+        events = tapped_stream_events(stream_buffer, request_url)
+        if events.nil?
+          body = read_body(response_env.body)
+          if body.blank?
+            Logging.warn(capture_warning(request_url, stream_buffer))
+            return parser.parse_stream(
+              request_url: request_url,
+              request_body: request_body,
+              response_status: response_env.status,
+              response_headers: response_env.response_headers
+            )
+          end
+          events = Capture::SSE.parse(body)
         end
 
-        events = overflowed ? [] : Capture::SSE.parse(body)
         parser.parse_stream(
           request_url: request_url,
           request_body: request_body,
@@ -222,6 +220,16 @@ module LlmCostTracker
           events: events,
           response_headers: response_env.response_headers
         )
+      end
+
+      def tapped_stream_events(stream_buffer, request_url)
+        return nil unless stream_buffer&.received?
+
+        events = stream_buffer.events
+        return events unless stream_buffer.overflowed? || stream_buffer.failed?
+
+        Logging.warn(capture_warning(request_url, stream_buffer))
+        []
       end
 
       def forward_on_data_chunk(callable, chunk, size, env)
@@ -235,28 +243,19 @@ module LlmCostTracker
         end
       end
 
-      def install_stream_tap(request_env)
+      def install_stream_tap(request_env, parser)
         request = request_env.request
         return nil unless request
 
         original = request.on_data
         return nil unless original
 
-        state = { buffer: StringIO.new, bytes: 0, overflowed: false }
+        tap = Capture::StreamTap.new(notable: parser.method(:retain_stream_event?))
         request.on_data = proc do |chunk, size, env|
-          chunk = chunk.to_s
-          remaining = Capture::SSE::LIMIT_BYTES - state[:bytes]
-          if chunk.bytesize <= remaining
-            state[:buffer] << chunk
-            state[:bytes] += chunk.bytesize
-          else
-            state[:buffer] << chunk.byteslice(0, remaining) if remaining.positive?
-            state[:bytes] += [remaining, 0].max
-            state[:overflowed] = true
-          end
+          tap << chunk
           forward_on_data_chunk(original, chunk, size, env)
         end
-        state
+        tap
       rescue StandardError => e
         Logging.warn("Unable to install streaming tap: #{e.class}: #{e.message}")
         nil
@@ -295,7 +294,7 @@ module LlmCostTracker
         suffix = "recording usage_source=#{Usage::Source::UNKNOWN}. " \
                  "Use LlmCostTracker.track_stream for manual capture."
         label = request_url_label(request_url)
-        return "Unable to capture streaming response for #{label}; #{suffix}" unless stream_buffer&.dig(:overflowed)
+        return "Unable to capture streaming response for #{label}; #{suffix}" unless stream_buffer&.overflowed?
 
         "Streaming response for #{label} exceeded #{Capture::SSE::LIMIT_BYTES} bytes; #{suffix}"
       end

@@ -13,50 +13,89 @@ module LlmCostTracker
         def parse(body)
           return [] if body.blank?
 
-          return parse_json_array(body) if body.match?(/\A\s*\[/)
+          events = []
+          reader = Reader.new { |event| events << event }
+          reader << body
+          reader.finish
+          events
+        end
+      end
 
-          parse_event_stream(body)
+      class Reader
+        ARRAY_TOKENS = /[{}"]/
+        STRING_TOKENS = /["\\]/
+        LEADING_WHITESPACE = /\A[[:space:]]*/
+        private_constant :ARRAY_TOKENS, :STRING_TOKENS, :LEADING_WHITESPACE
+
+        def initialize(&on_event)
+          @on_event = on_event
+          @pending = String.new(encoding: Encoding::BINARY)
+          @mode = nil
+          @event_name = nil
+          @data_lines = []
+          @scan_pos = 0
+          @depth = 0
+          @in_string = false
+          @object_start = nil
+        end
+
+        def <<(chunk)
+          @pending << chunk.to_s.b
+          @mode ||= detect_mode
+          case @mode
+          when :sse then consume_lines
+          when :array then consume_array
+          end
+          self
+        end
+
+        def pending_bytesize
+          @pending.bytesize
+        end
+
+        def finish
+          return unless @mode == :sse
+
+          consume_line(@pending) unless @pending.empty?
+          @pending = String.new(encoding: Encoding::BINARY)
+          dispatch
         end
 
         private
 
-        def parse_event_stream(body)
-          events = []
-          current_event = nil
-          data_lines = []
+        def detect_mode
+          stripped = @pending.sub(LEADING_WHITESPACE, "")
+          return nil if stripped.empty?
 
-          body.each_line do |raw|
-            line = raw.chomp
-
-            if line.empty?
-              events << finalize_event(current_event, data_lines) if data_lines.any?
-              current_event = nil
-              data_lines = []
-              next
-            end
-
-            next if line.start_with?(":")
-
-            field, _, value = line.partition(":")
-            value = value[1..] if value.start_with?(" ")
-
-            case field
-            when "event" then current_event = value
-            when "data"  then data_lines << value
-            end
-          end
-
-          events << finalize_event(current_event, data_lines) if data_lines.any?
-          events.compact
+          stripped.start_with?("[") ? :array : :sse
         end
 
-        def parse_json_array(body)
-          parsed = JSON.parse(body)
-          return [] unless parsed.is_a?(Array)
+        def consume_lines
+          start = 0
+          while (newline = @pending.index("\n", start))
+            consume_line(@pending.byteslice(start, newline - start))
+            start = newline + 1
+          end
+          @pending = @pending.byteslice(start, @pending.bytesize - start)
+        end
 
-          parsed.map { |entry| { event: nil, data: entry } }
-        rescue JSON::ParserError
-          []
+        def consume_line(raw)
+          line = raw.chomp("\r").force_encoding(Encoding::UTF_8)
+          return dispatch if line.empty?
+          return if line.start_with?(":")
+
+          field, _, value = line.partition(":")
+          value = value[1..] if value.start_with?(" ")
+          case field
+          when "event" then @event_name = value
+          when "data" then @data_lines << value
+          end
+        end
+
+        def dispatch
+          emit(finalize_event(@event_name, @data_lines)) if @data_lines.any?
+          @event_name = nil
+          @data_lines = []
         end
 
         def finalize_event(event_name, data_lines)
@@ -72,6 +111,52 @@ module LlmCostTracker
           JSON.parse(payload)
         rescue JSON::ParserError
           payload
+        end
+
+        def consume_array
+          pos = @scan_pos
+          while (index = @pending.index(@in_string ? STRING_TOKENS : ARRAY_TOKENS, pos))
+            pos = index + 1
+            pos = advance_array(@pending.getbyte(index).chr, index, pos)
+          end
+          trim_array_buffer(pos)
+        end
+
+        def advance_array(char, index, pos)
+          if @in_string
+            return pos + 1 if char == "\\"
+
+            @in_string = false
+          elsif char == '"'
+            @in_string = true
+          elsif char == "{"
+            @object_start = index if @depth.zero?
+            @depth += 1
+          elsif @depth.positive?
+            @depth -= 1
+            emit_object(index) if @depth.zero?
+          end
+          pos
+        end
+
+        def emit_object(end_index)
+          text = @pending.byteslice(@object_start, end_index - @object_start + 1)
+          @object_start = nil
+          data = JSON.parse(text.force_encoding(Encoding::UTF_8))
+          emit({ event: nil, data: data })
+        rescue JSON::ParserError
+          nil
+        end
+
+        def trim_array_buffer(pos)
+          keep_from = @object_start || [pos, @pending.bytesize].min
+          @pending = @pending.byteslice(keep_from, @pending.bytesize - keep_from)
+          @scan_pos = [pos - keep_from, 0].max
+          @object_start &&= 0
+        end
+
+        def emit(event)
+          @on_event.call(event) if event
         end
       end
     end

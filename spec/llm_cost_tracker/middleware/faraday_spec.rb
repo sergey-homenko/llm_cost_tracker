@@ -453,7 +453,9 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     middleware = LlmCostTracker::Middleware::Faraday.new(->(_env) { Faraday::Response.new })
     parser = LlmCostTracker::Providers::Openai::Parser.new
     response_env = double("response_env", body: nil, status: 200, response_headers: {})
-    stream_buffer = { buffer: StringIO.new(""), bytes: 0, overflowed: true }
+    stub_const("LlmCostTracker::Capture::SSE::LIMIT_BYTES", 8)
+    stream_buffer = LlmCostTracker::Capture::StreamTap.new
+    stream_buffer << "data: {\"id\":\"chatcmpl_overflowing\"}\n\n"
     warnings = []
     allow(LlmCostTracker::Logging).to receive(:warn) { |message| warnings << message }
 
@@ -477,7 +479,8 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     request_env = double("request_env", request: failing_request)
 
     expect(LlmCostTracker::Logging).to receive(:warn).with(/cannot rewrap on_data/)
-    expect(middleware.send(:install_stream_tap, request_env)).to be_nil
+    parser = LlmCostTracker::Providers::Openai::Parser.new
+    expect(middleware.send(:install_stream_tap, request_env, parser)).to be_nil
   end
 
   it "re-raises non-streaming adapter errors without emitting an interrupted-stream event" do
@@ -609,6 +612,133 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:usage_source]).to eq("unknown")
     expect(events.first.dig(:token_usage, :input_tokens)).to eq(0)
     expect(events.first.dig(:token_usage, :output_tokens)).to eq(0)
+  end
+
+  describe "streams far longer than the capture limit" do
+    def stream_through(host, path, body, request:, chunk_size: 4_096)
+      conn = Faraday.new(url: host) do |f|
+        f.use :llm_cost_tracker
+        f.adapter :test do |stub|
+          stub.post(path) do |env|
+            (0...body.bytesize).step(chunk_size) do |offset|
+              chunk = body.byteslice(offset, chunk_size)
+              env.request.on_data&.call(chunk, chunk.bytesize, env)
+            end
+            [200, { "Content-Type" => "text/event-stream" }, ""]
+          end
+        end
+      end
+
+      recorded = []
+      subscription = ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
+        recorded << payload
+      end
+      conn.post(path, request.to_json) { |req| req.options.on_data = proc { |_chunk, _size, _env| } }
+      recorded
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscription) if subscription
+    end
+
+    def sse(data, event: nil)
+      "#{"event: #{event}\n" if event}data: #{data.to_json}\n\n"
+    end
+
+    it "records OpenAI chat-completions usage from the final chunk of a 20,000-chunk stream" do
+      chunk = { id: "chatcmpl_long", object: "chat.completion.chunk", model: "gpt-4o-2024-08-06",
+                choices: [{ index: 0, delta: { content: " token" }, finish_reason: nil }], usage: nil }
+      body = +""
+      20_000.times { body << sse(chunk) }
+      body << sse(chunk.merge(choices: [], usage: { prompt_tokens: 1_200, completion_tokens: 20_000,
+                                                    total_tokens: 21_200 }))
+      body << "data: [DONE]\n\n"
+      expect(body.bytesize).to be > 2 * LlmCostTracker::Capture::SSE::LIMIT_BYTES
+
+      recorded = stream_through("https://api.openai.com", "/v1/chat/completions", body,
+                                request: { model: "gpt-4o", stream: true, messages: [] })
+
+      expect(recorded.size).to eq(1)
+      expect(recorded.first).to include(usage_source: "stream_final", provider_response_id: "chatcmpl_long",
+                                        model: "gpt-4o-2024-08-06")
+      expect(recorded.first[:token_usage]).to include(input_tokens: 1_200, output_tokens: 20_000)
+    end
+
+    it "keeps a Responses web search call from the middle of a long stream as a billed line item" do
+      body = sse({ type: "response.created", response: { id: "resp_long", model: "gpt-4o", output: [] } },
+                 event: "response.created")
+      delta = { type: "response.output_text.delta", item_id: "msg_1", output_index: 1, content_index: 0,
+                delta: " token" }
+      10_000.times do |index|
+        if index == 5_000
+          body << sse({ type: "response.output_item.done", output_index: 0,
+                        item: { id: "ws_1", type: "web_search_call", status: "completed" } },
+                      event: "response.output_item.done")
+        end
+        body << sse(delta, event: "response.output_text.delta")
+      end
+      body << sse({ type: "response.completed",
+                    response: { id: "resp_long", model: "gpt-4o", status: "completed",
+                                output: [{ id: "msg_1", type: "message", role: "assistant", content: [] }],
+                                usage: { input_tokens: 100, output_tokens: 10_000, total_tokens: 10_100 } } },
+                  event: "response.completed")
+
+      recorded = stream_through("https://api.openai.com", "/v1/responses", body,
+                                request: { model: "gpt-4o", stream: true, input: "hi", tools: [{ type: "web_search" }] })
+
+      expect(recorded.first).to include(usage_source: "stream_final", provider_response_id: "resp_long")
+      expect(recorded.first[:token_usage]).to include(input_tokens: 100, output_tokens: 10_000)
+      expect(recorded.first[:line_items].map { |item| item[:kind] }).to include("web_search_request")
+    end
+
+    it "records Anthropic input usage from message_start and output usage from the final message_delta" do
+      body = sse({ type: "message_start",
+                   message: { id: "msg_long", type: "message", role: "assistant", model: "claude-sonnet-4-5",
+                              usage: { input_tokens: 1_200, cache_read_input_tokens: 300, output_tokens: 1 } } },
+                 event: "message_start")
+      delta = { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: " token" } }
+      20_000.times { body << sse(delta, event: "content_block_delta") }
+      body << sse({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 20_000 } },
+                  event: "message_delta")
+      body << sse({ type: "message_stop" }, event: "message_stop")
+
+      recorded = stream_through("https://api.anthropic.com", "/v1/messages", body,
+                                request: { model: "claude-sonnet-4-5", stream: true, messages: [] })
+
+      expect(recorded.first).to include(usage_source: "stream_final", provider_response_id: "msg_long")
+      expect(recorded.first[:token_usage]).to include(input_tokens: 1_200, cache_read_input_tokens: 300,
+                                                      output_tokens: 20_000)
+    end
+
+    def gemini_chunks(count, grounded_at:)
+      Array.new(count) do |index|
+        candidate = { content: { parts: [{ text: " token" }], role: "model" }, index: 0 }
+        candidate[:groundingMetadata] = { webSearchQueries: %w[q1 q2] } if index == grounded_at
+        { candidates: [candidate], responseId: "gem_long", modelVersion: "gemini-2.5-flash",
+          usageMetadata: { promptTokenCount: 50, candidatesTokenCount: index + 1, totalTokenCount: 51 + index } }
+      end
+    end
+
+    it "keeps Gemini grounding from the middle of a long SSE stream and usage from its last chunk" do
+      body = gemini_chunks(8_000, grounded_at: 400).map { |chunk| sse(chunk) }.join
+
+      recorded = stream_through("https://generativelanguage.googleapis.com",
+                                "/v1beta/models/gemini-2.5-flash:streamGenerateContent", body,
+                                request: { contents: [] })
+
+      expect(recorded.first).to include(usage_source: "stream_final", provider_response_id: "gem_long")
+      expect(recorded.first[:token_usage]).to include(input_tokens: 50, output_tokens: 8_000)
+      expect(recorded.first[:line_items].map { |item| item[:kind] }).to include("grounding_request")
+    end
+
+    it "records usage from a long Gemini stream sent as a JSON array" do
+      body = "[#{gemini_chunks(8_000, grounded_at: -1).map(&:to_json).join("\n,\r\n")}]"
+
+      recorded = stream_through("https://generativelanguage.googleapis.com",
+                                "/v1beta/models/gemini-2.5-flash:streamGenerateContent", body,
+                                request: { contents: [] }, chunk_size: 1_000)
+
+      expect(recorded.first).to include(usage_source: "stream_final", provider_response_id: "gem_long")
+      expect(recorded.first[:token_usage]).to include(input_tokens: 50, output_tokens: 8_000)
+    end
   end
 
   it "falls back to reading the response body when the caller set no on_data" do
