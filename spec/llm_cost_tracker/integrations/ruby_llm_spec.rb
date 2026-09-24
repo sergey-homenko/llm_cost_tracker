@@ -14,18 +14,46 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
   end
 
+  def ruby_llm_2?
+    Gem::Version.new(RubyLLM::VERSION) >= Gem::Version.new("2.0.0")
+  end
+
+  def stub_openai_chat(id:, usage: nil)
+    json = { "Content-Type" => "application/json" }
+    completion = {
+      id: id, object: "chat.completion", model: "gpt-4o",
+      choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
+      usage: usage
+    }.compact
+    response = {
+      id: id, object: "response", status: "completed", model: "gpt-4o",
+      output: [{ type: "message", id: "msg_#{id}", status: "completed", role: "assistant",
+                 content: [{ type: "output_text", text: "hi", annotations: [] }] }],
+      usage: usage && responses_usage(usage)
+    }.compact
+    WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions")
+           .to_return(status: 200, body: completion.to_json, headers: json)
+    WebMock.stub_request(:post, "https://api.openai.com/v1/responses")
+           .to_return(status: 200, body: response.to_json, headers: json)
+  end
+
+  def responses_usage(usage)
+    {
+      input_tokens: usage[:prompt_tokens],
+      output_tokens: usage[:completion_tokens],
+      total_tokens: usage[:total_tokens],
+      input_tokens_details: { cached_tokens: usage.dig(:prompt_tokens_details, :cached_tokens).to_i },
+      output_tokens_details: { reasoning_tokens: usage.dig(:completion_tokens_details, :reasoning_tokens).to_i }
+    }
+  end
+
   describe "chat" do
     it "records token usage with cache_read and reasoning splits for an OpenAI chat completion" do
-      WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions").to_return(
-        status: 200,
-        body: {
-          id: "chatcmpl_x", object: "chat.completion", model: "gpt-4o",
-          choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
-          usage: { prompt_tokens: 100, completion_tokens: 30, total_tokens: 130,
-                   prompt_tokens_details: { cached_tokens: 25 },
-                   completion_tokens_details: { reasoning_tokens: 8 } }
-        }.to_json,
-        headers: { "Content-Type" => "application/json" }
+      stub_openai_chat(
+        id: "chatcmpl_x",
+        usage: { prompt_tokens: 100, completion_tokens: 30, total_tokens: 130,
+                 prompt_tokens_details: { cached_tokens: 25 },
+                 completion_tokens_details: { reasoning_tokens: 8 } }
       )
 
       capture_sdk_events do |events|
@@ -40,14 +68,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
 
     it "drops the event when the chat response carries no usage hash" do
-      WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions").to_return(
-        status: 200,
-        body: {
-          id: "chatcmpl_y", object: "chat.completion", model: "gpt-4o",
-          choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }]
-        }.to_json,
-        headers: { "Content-Type" => "application/json" }
-      )
+      stub_openai_chat(id: "chatcmpl_y")
 
       capture_sdk_events do |events|
         RubyLLM.chat(model: "gpt-4o").ask("hi")
@@ -147,15 +168,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
 
     it "records the raw-body response id so each ledger row carries the upstream id for invoice cross-reference" do
-      WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions").to_return(
-        status: 200,
-        body: {
-          id: "chatcmpl_with_id", object: "chat.completion", model: "gpt-4o",
-          choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
-          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
-        }.to_json,
-        headers: { "Content-Type" => "application/json" }
-      )
+      stub_openai_chat(id: "chatcmpl_with_id", usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 })
 
       capture_sdk_events do |events|
         RubyLLM.chat(model: "gpt-4o").ask("hi")
@@ -222,6 +235,31 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
           provider: "openai", model: "gpt-image-1",
           input_tokens: 20, image_input_tokens: 30,
           output_tokens: 20, image_output_tokens: 80
+        )
+      end
+    end
+
+    it "records a multi-image generation once, from the first image, as RubyLLM 2.x bills it" do
+      skip "paint(count:) returns several images only on RubyLLM 2.x" unless ruby_llm_2?
+
+      WebMock.stub_request(:post, "https://api.openai.com/v1/images/generations").to_return(
+        status: 200,
+        body: {
+          created: 1, data: [{ url: "https://example.com/a.png" }, { url: "https://example.com/b.png" }],
+          usage: { input_tokens: 50, output_tokens: 200,
+                   input_tokens_details: { image_tokens: 30 },
+                   output_tokens_details: { image_tokens: 160 } }
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.paint("a cat", model: "gpt-image-1", count: 2)
+        expect(events.size).to eq(1)
+        expect(events.first).to include(
+          provider: "openai", model: "gpt-image-1",
+          input_tokens: 20, image_input_tokens: 30,
+          output_tokens: 40, image_output_tokens: 160
         )
       end
     end

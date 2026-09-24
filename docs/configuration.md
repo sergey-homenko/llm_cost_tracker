@@ -54,7 +54,7 @@ Built-in integration names:
 | --- | --- | --- |
 | `:openai` | `openai >= 0.59.0` | Responses, Chat Completions, Embeddings, Images, Audio (speech, transcriptions, translations), Moderations, Batches, and the streaming helpers for each |
 | `:anthropic` | `anthropic >= 1.36.0` | Messages and Message Batches, plus their beta helpers |
-| `:ruby_llm` | `ruby_llm >= 1.15.0` | Provider chat, embedding, transcription, image, and moderation calls |
+| `:ruby_llm` | `ruby_llm >= 1.15.0, < 3.0` | Provider chat, embedding, transcription, image, and moderation calls |
 
 The minimum is what `install!` enforces. CI resolves each SDK fresh on every run, so the suite is exercised against the newest release the gemspec's development dependencies allow. Versions between the minimum and that release are supported but not covered by CI.
 

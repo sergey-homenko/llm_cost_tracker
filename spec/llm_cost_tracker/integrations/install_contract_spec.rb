@@ -36,6 +36,35 @@ RSpec.describe LlmCostTracker::Integrations do
     ruby_llm.instance_variable_set(:@minimum_version, original)
   end
 
+  it "installs but warns in doctor and at boot when the SDK is at or above the tested maximum_version" do
+    ruby_llm = LlmCostTracker::Integrations::RubyLlm
+    installed = Gem.loaded_specs["ruby_llm"].version
+    original = ruby_llm.maximum_version
+    ruby_llm.instance_variable_set(:@maximum_version, installed.to_s)
+    allow(LlmCostTracker::Logging).to receive(:warn)
+
+    LlmCostTracker.configure { |c| c.instrument(:ruby_llm) }
+
+    message = "ruby_llm #{installed} is newer than the tested range (< #{installed}); its calls may not be recorded"
+    check = described_class.checks([:ruby_llm]).first
+    expect(check.status).to eq(:warn)
+    expect(check.message).to eq(message)
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(message).once
+    expect(RubyLLM::Provider.ancestors).to include(ruby_llm::ProviderPatch)
+  ensure
+    ruby_llm.instance_variable_set(:@maximum_version, original)
+  end
+
+  it "keeps doctor quiet about versions below the tested maximum_version" do
+    ghost = Module.new do
+      extend LlmCostTracker::Integrations::Base
+      def self.integration_name = :ruby_llm
+      maximum_version "999.0.0"
+    end
+
+    expect(ghost.send(:untested_version?)).to be(false)
+  end
+
   it "reports the SDK gem as not loaded when Gem.loaded_specs has no entry under integration_name" do
     ghost = Module.new do
       extend LlmCostTracker::Integrations::Base

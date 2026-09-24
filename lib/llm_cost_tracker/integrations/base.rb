@@ -27,6 +27,7 @@ module LlmCostTracker
 
       def install
         validate_contract!
+        Logging.warn(untested_version_message) if untested_version?
         patch_targets.each do |target|
           target_class = target.fetch(:constant_name).to_s.safe_constantize
           install_patch(target_class, target.fetch(:patch)) if target_class
@@ -39,6 +40,7 @@ module LlmCostTracker
         if problems.any?
           return Check.new(:warn, name, "#{name} integration cannot be installed: #{problems.join('; ')}")
         end
+        return Check.new(:warn, name, untested_version_message) if untested_version?
 
         installed = patch_targets.reject { |target| target.fetch(:optional) }.all? do |target|
           target.fetch(:constant_name).to_s.safe_constantize&.ancestors&.include?(target.fetch(:patch))
@@ -124,6 +126,11 @@ module LlmCostTracker
         @minimum_version
       end
 
+      def maximum_version(value = nil)
+        @maximum_version = value if value
+        @maximum_version
+      end
+
       def gem_version
         Gem.loaded_specs[integration_name.to_s]&.version
       end
@@ -158,6 +165,18 @@ module LlmCostTracker
         return [] if version >= Gem::Version.new(minimum_version)
 
         ["#{name} >= #{minimum_version} is required, detected #{version}"]
+      end
+
+      def untested_version?
+        version = gem_version
+        return false unless maximum_version && version
+
+        version >= Gem::Version.new(maximum_version)
+      end
+
+      def untested_version_message
+        "#{integration_name} #{gem_version} is newer than the tested range (< #{maximum_version}); " \
+          "its calls may not be recorded"
       end
 
       def target_problems

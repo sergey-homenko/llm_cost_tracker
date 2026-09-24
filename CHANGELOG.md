@@ -2,6 +2,20 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `bin/rails llm_cost_tracker:doctor` warns when an instrumented SDK is newer than the range its integration is tested against, and boot logs the same warning once. RubyLLM 3.0 and later is flagged this way, so a future RubyLLM major that changes its response objects shows up as a warning instead of an integration reported as installed while it records nothing.
+
+### Changed
+
+- Ruby 3.3 is supported. The minimum Ruby version drops from 3.4 to 3.3, and CI runs every Rails version on both.
+
+### Fixed
+
+- Calls made through RubyLLM 2.x are recorded. RubyLLM 2.0 moved token counts behind `response.tokens`, so every chat, embedding, transcription, image, and moderation call raised inside the integration and was dropped with a warning while `doctor` still reported the integration as installed. Token counts, the Anthropic 5-minute and 1-hour cache-write split, service tiers, and provider response ids are read the same way on RubyLLM 1.15 and later and on 2.x. A RubyLLM 2.x `paint(count:)` call that returns several images is recorded once, as RubyLLM bills it.
+
 ## [0.14.0] - 2026-08-26
 
 ### Added
