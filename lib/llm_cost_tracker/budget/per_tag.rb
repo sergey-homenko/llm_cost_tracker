@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../ledger/isolation"
 require_relative "../ledger/schema/adapter"
 require_relative "../ledger/tags/encoding"
 
@@ -63,9 +64,11 @@ module LlmCostTracker
 
         def spend_by_value(key, values, window, bucket)
           started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          totals = LlmCostTracker::CallTag
-                   .where(key: key, value: values, TIME_COLUMN => window_range(window, bucket))
-                   .group(:value).sum(COST_COLUMN)
+          totals = Ledger::Isolation.guard(LlmCostTracker::CallTag) do
+            LlmCostTracker::CallTag
+              .where(key: key, value: values, TIME_COLUMN => window_range(window, bucket))
+              .group(:value).sum(COST_COLUMN)
+          end
           warn_slow_read(key, window, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at)
           totals
         end
