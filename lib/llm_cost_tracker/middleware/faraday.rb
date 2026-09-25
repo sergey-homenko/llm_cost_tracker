@@ -116,15 +116,14 @@ module LlmCostTracker
         request = parser.safe_json_parse(request_body)
         event = Event.build(
           provider: parser.provider_for(request_url),
-          model: request["model"] || Event::UNKNOWN_MODEL,
+          model: parser.model_for(request_url, request) || Event::UNKNOWN_MODEL,
           token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
           usage_source: Usage::Source::UNKNOWN
         )
-        merged_metadata = (metadata || {}).merge(
-          stream_interrupted: true,
-          stream_interrupted_error: "#{error.class}: #{error.message}"
-        )
+        merged_metadata = (metadata || {}).merge(stream_interrupted: true, stream_interrupted_error: error.class.name)
+        status = error.try(:response_status)
+        merged_metadata[:stream_interrupted_status] = status if status
         Tracker.record(
           event: event,
           latency_ms: latency_ms,

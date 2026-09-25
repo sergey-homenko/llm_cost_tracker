@@ -29,7 +29,7 @@ Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `p
 | `tags.default` | `{}` | Hash or callable merged into every event |
 | `tags.max_count` | `50` | Maximum number of stored tags after sanitization |
 | `tags.max_value_bytesize` | `1024` | Maximum byte size for one stored tag value |
-| `tags.redacted_keys` | common secret-like keys | Tag keys whose values are replaced before storage |
+| `tags.redacted_keys` | common secret-like keys | Tag keys whose values are replaced before storage. Provider keys, tokens, `key=`/`token=`/`sig=` URL parameters, URL user info, and `Authorization` headers inside any value are replaced too |
 | `tags.report_breakdown_keys` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
 
 `tags.default` callables run per event. Keep them fast and side-effect free. Explicit `tags:` passed to `track` win over scoped tags, and scoped tags win over defaults.

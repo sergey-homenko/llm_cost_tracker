@@ -129,6 +129,18 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       end
     end
 
+    it "keeps credentials in the snapshot URL out of the pricing file and the printed source" do
+      Tempfile.create(["llm-prices", ".yml"]) do |file|
+        result = described_class.refresh(
+          path: file.path,
+          url: "https://ops:hunter2@example.com/prices.json?token=SEKRET",
+          fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
+        )
+
+        expect(File.read(file.path) + result.source_url).not_to match(/hunter2|SEKRET/)
+      end
+    end
+
     it "does not write when previewing" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         original = JSON.generate("metadata" => {}, "models" => {})

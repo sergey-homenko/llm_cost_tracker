@@ -68,7 +68,7 @@ module LlmCostTracker
       end
 
       def error_message_for(error)
-        "#{error.class}: #{error.message}".byteslice(0, 1_000)
+        "#{error.class}: #{Redaction.text(error.message)}".byteslice(0, 1_000).scrub("")
       end
 
       def warn_on_quarantine(rows)

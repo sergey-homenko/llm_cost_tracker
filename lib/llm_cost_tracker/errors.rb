@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "redaction"
+
 module LlmCostTracker
   class Error < StandardError; end
 
@@ -9,7 +11,7 @@ module LlmCostTracker
     def initialize(error)
       super(
         "The database rolled back the whole surrounding transaction while recording LLM usage " \
-        "(#{error.class}: #{error.message}); the caller's transaction no longer exists"
+        "(#{error.class}: #{Redaction.text(error.message)}); the caller's transaction no longer exists"
       )
     end
   end

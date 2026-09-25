@@ -10,6 +10,15 @@ RSpec.describe LlmCostTracker::Logging do
     Rails.logger = previous
   end
 
+  it "scrubs credentials out of the message and never raises on invalid UTF-8" do
+    buffer = StringIO.new
+    Rails.logger = Logger.new(buffer)
+
+    described_class.warn("status 503 for POST https://g.example/v1beta/models/m:generateContent?key=SEKRET \xFF")
+
+    expect(buffer.string).to include("m:generateContent?key=[REDACTED] \uFFFD")
+  end
+
   it "writes through a host logger that does not support tagging" do
     buffer = StringIO.new
     Rails.logger = Logger.new(buffer)

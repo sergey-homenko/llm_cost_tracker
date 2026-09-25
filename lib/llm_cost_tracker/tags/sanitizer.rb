@@ -3,24 +3,12 @@
 require "active_support/core_ext/string/inflections"
 
 require_relative "../ledger/storable"
+require_relative "../redaction"
 
 module LlmCostTracker
   module Tags
     module Sanitizer
-      REDACTED_VALUE = "[REDACTED]"
-
-      SECRET_VALUE_PATTERNS = [
-        /\Ask-(?:ant-|admin-|proj-|svcacct-|live-|test-)?[A-Za-z0-9_-]{16,}\z/,
-        /\AAKIA[0-9A-Z]{16}\z/,
-        /\Agh[opsur]_[A-Za-z0-9]{16,}\z/,
-        /\Agithub_pat_[A-Za-z0-9_]{20,}\z/,
-        /\Aeyj[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\z/i,
-        /\Abearer\s+[A-Za-z0-9_.-]{20,}\z/i,
-        /\Axox[abprs]-[A-Za-z0-9-]{10,}\z/,
-        /\A(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{20,}\z/,
-        /\AAIza[0-9A-Za-z_-]{35}\z/
-      ].freeze
-      private_constant :SECRET_VALUE_PATTERNS
+      REDACTED_VALUE = Redaction::REDACTED
 
       class << self
         def call(tags, config: LlmCostTracker.configuration)
@@ -60,14 +48,8 @@ module LlmCostTracker
         def sanitized_value(key, value, redacted, limit)
           return REDACTED_VALUE if redacted_key?(key, redacted)
 
-          scrubbed = scrub_secrets(Ledger::Storable.clean(value))
-          return REDACTED_VALUE if scrubbed.equal?(REDACTED_SENTINEL)
-
-          scalar_truncate(scrubbed, limit)
+          scalar_truncate(scrub_secrets(Ledger::Storable.clean(value)), limit)
         end
-
-        REDACTED_SENTINEL = Object.new.freeze
-        private_constant :REDACTED_SENTINEL
 
         def scalar_truncate(value, limit)
           case value
@@ -88,24 +70,14 @@ module LlmCostTracker
         def scrub_secrets(value)
           case value
           when Hash
-            value.each_with_object({}) do |(key, nested), out|
-              scrubbed = scrub_secrets(nested)
-              out[key] = scrubbed.equal?(REDACTED_SENTINEL) ? REDACTED_VALUE : scrubbed
-            end
+            value.transform_values { |nested| scrub_secrets(nested) }
           when Array
-            value.map do |nested|
-              scrubbed = scrub_secrets(nested)
-              scrubbed.equal?(REDACTED_SENTINEL) ? REDACTED_VALUE : scrubbed
-            end
+            value.map { |nested| scrub_secrets(nested) }
           else
-            secret_shaped?(value.to_s) ? REDACTED_SENTINEL : value
+            string = value.to_s
+            scrubbed = Redaction.text(string)
+            scrubbed == string ? value : scrubbed
           end
-        end
-
-        def secret_shaped?(string)
-          return false if string.bytesize < 16
-
-          SECRET_VALUE_PATTERNS.any? { |pattern| pattern.match?(string) }
         end
 
         def redacted_key?(key, redacted)

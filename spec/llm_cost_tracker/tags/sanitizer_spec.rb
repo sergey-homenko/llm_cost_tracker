@@ -176,6 +176,16 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
 
       expect(tags[:note]).to eq("[REDACTED]")
     end
+
+    it "scrubs credentials inside longer and non-string values but keeps the rest" do
+      key = "AIzaSy#{'A1b2C3d4' * 4}x"
+      url = "https://generativelanguage.googleapis.com/v1beta/models/m:generateContent?alt=sse&key=#{key}"
+
+      tags = described_class.call({ upstream: url, endpoint: URI(url), symbol: :"#{key}", count: 42 }, config: config)
+
+      scrubbed = url.sub(key, "[REDACTED]")
+      expect(tags).to eq(upstream: scrubbed, endpoint: scrubbed, symbol: "[REDACTED]", count: 42)
+    end
   end
 
   describe ".cap" do

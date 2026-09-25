@@ -181,7 +181,10 @@ conn.post(
 Google's official Gemini SDKs do not include Ruby. Use a Faraday client against the REST API so the Gemini parser can capture usage automatically.
 
 ```ruby
-conn = Faraday.new(url: "https://generativelanguage.googleapis.com") do |f|
+conn = Faraday.new(
+  url: "https://generativelanguage.googleapis.com",
+  headers: { "x-goog-api-key" => ENV.fetch("GOOGLE_API_KEY") }
+) do |f|
   f.use :llm_cost_tracker, tags: { feature: "chat" }
   f.request :json
   f.response :json
@@ -189,10 +192,12 @@ conn = Faraday.new(url: "https://generativelanguage.googleapis.com") do |f|
 end
 
 conn.post(
-  "/v1beta/models/gemini-2.5-flash:generateContent?key=#{ENV.fetch("GOOGLE_API_KEY")}",
+  "/v1beta/models/gemini-2.5-flash:generateContent",
   { contents: [{ role: "user", parts: [{ text: "Hello" }] }] }
 )
 ```
+
+Send the key in the `x-goog-api-key` header, not a `?key=` parameter: request URLs end up in error messages and logs.
 
 ## LiteLLM proxy
 
