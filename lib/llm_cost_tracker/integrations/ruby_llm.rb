@@ -12,7 +12,10 @@ module LlmCostTracker
 
       class << self
         def patch_targets
-          [patch_target("RubyLLM::Provider", with: ProviderPatch)]
+          [
+            patch_target("RubyLLM::Provider", with: ProviderPatch),
+            patch_target("RubyLLM::Providers::Gemini::Transcription", with: GeminiTranscriptionPatch, optional: true)
+          ]
         end
 
         def record_completion(provider, response, request:, latency_ms:, has_block:)
@@ -235,6 +238,13 @@ module LlmCostTracker
 
         def moderate(*args, **kwargs)
           seam = LlmCostTracker::Integrations::RubyLlm.blocking_seam(self, :record_moderation)
+          LlmCostTracker::Integrations::RubyLlm.wrap_blocking(args, kwargs, **seam) { super }
+        end
+      end
+
+      module GeminiTranscriptionPatch
+        def transcribe(*args, **kwargs)
+          seam = LlmCostTracker::Integrations::RubyLlm.blocking_seam(self, :record_transcription)
           LlmCostTracker::Integrations::RubyLlm.wrap_blocking(args, kwargs, **seam) { super }
         end
       end

@@ -290,15 +290,16 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
   end
 
   describe "transcribe" do
+    let(:audio_file) { Tempfile.new(["clip", ".wav"]) }
+
+    after { audio_file.close! }
+
     it "records transcription token usage from a real OpenAI response" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
         status: 200,
         body: { text: "hi", usage: { type: "tokens", input_tokens: 12, output_tokens: 3 } }.to_json,
         headers: { "Content-Type" => "application/json" }
       )
-      audio_file = Tempfile.new(["clip", ".wav"])
-      audio_file.write("RIFF")
-      audio_file.close
 
       capture_sdk_events do |events|
         RubyLLM.transcribe(audio_file.path, model: "whisper-1", language: "en")
@@ -307,8 +308,24 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
           input_tokens: 12, output_tokens: 3
         )
       end
-    ensure
-      audio_file.unlink
+    end
+
+    it "records a Gemini transcription once, although RubyLLM 1.x Gemini never calls Provider#transcribe" do
+      url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+      WebMock.stub_request(:post, url).to_return(
+        status: 200,
+        body: {
+          candidates: [{ content: { role: "model", parts: [{ text: "hi" }] }, finishReason: "STOP" }],
+          usageMetadata: { promptTokenCount: 40, candidatesTokenCount: 5, thoughtsTokenCount: 2 }
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.transcribe(audio_file.path, model: "gemini-2.5-flash", provider: :gemini, assume_model_exists: true)
+        expect(events.size).to eq(1)
+        expect(events.first).to include(provider: "gemini", model: "gemini-2.5-flash", input_tokens: 40, output_tokens: 7)
+      end
     end
   end
 
