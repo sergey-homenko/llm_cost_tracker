@@ -29,7 +29,7 @@ Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `p
 | `tags.default` | `{}` | Hash or callable merged into every event |
 | `tags.max_count` | `50` | Maximum number of stored tags after sanitization |
 | `tags.max_value_bytesize` | `1024` | Maximum byte size for one stored tag value |
-| `tags.redacted_keys` | common secret-like keys | Tag keys whose values are replaced before storage. Provider keys, tokens, `key=`/`token=`/`sig=` URL parameters, URL user info, and `Authorization` headers inside any value are replaced too |
+| `tags.redacted_keys` | common secret-like keys | Tag keys whose values are replaced before storage; provider keys, tokens, and URL or `Authorization` credentials inside any value are replaced too |
 | `tags.report_breakdown_keys` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
 
 `tags.default` callables run per event. Keep them fast and side-effect free. Explicit `tags:` passed to `track` win over scoped tags, and scoped tags win over defaults.
@@ -54,7 +54,7 @@ Built-in integration names:
 | --- | --- | --- |
 | `:openai` | `openai >= 0.59.0` | Responses, Chat Completions, Embeddings, Images, Audio (speech, transcriptions, translations), Moderations, Batches, and the streaming helpers for each |
 | `:anthropic` | `anthropic >= 1.36.0` | Messages and Message Batches, plus their beta helpers |
-| `:ruby_llm` | `ruby_llm >= 1.15.0, < 3.0` | Provider chat, embedding, transcription, image, and moderation calls |
+| `:ruby_llm` | `ruby_llm >= 1.15.0` | Provider chat, embedding, transcription, image, and moderation calls |
 
 The minimum is what `install!` enforces. CI resolves each SDK fresh on every run, so the suite is exercised against the newest release the gemspec's development dependencies allow. Versions between the minimum and that release are supported but not covered by CI.
 

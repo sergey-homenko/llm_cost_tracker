@@ -30,7 +30,7 @@ module LlmCostTracker
         filtered_scope = apply_exact_filter(filtered_scope, :provider)
         filtered_scope = apply_exact_filter(filtered_scope, :model)
         filtered_scope = apply_stream_filter(filtered_scope)
-        filtered_scope = apply_usage_source_filter(filtered_scope)
+        filtered_scope = apply_exact_filter(filtered_scope, :usage_source)
         apply_tag_filters(filtered_scope)
       end
 
@@ -56,7 +56,7 @@ module LlmCostTracker
         value = normalized_string(params[key], key)
         return relation if value.nil?
 
-        where_matchable(relation, key => value)
+        matchable?([value]) ? relation.where(key => value) : relation.where(MATCH_NOTHING)
       end
 
       def apply_tag_filters(relation)
@@ -66,9 +66,8 @@ module LlmCostTracker
           raise LlmCostTracker::InvalidFilterError,
                 "at most #{MAX_TAG_FILTERS} tag filters are allowed, got #{tags.size}"
         end
-        return relation.where(MATCH_NOTHING) unless matchable?(relation, tags.values)
 
-        relation.by_tags(tags)
+        matchable?(tags.values) ? relation.by_tags(tags) : relation.where(MATCH_NOTHING)
       end
 
       def apply_stream_filter(relation)
@@ -82,13 +81,6 @@ module LlmCostTracker
         end
       end
 
-      def apply_usage_source_filter(relation)
-        value = normalized_string(params[:usage_source], :usage_source)
-        return relation if value.nil?
-
-        where_matchable(relation, usage_source: value)
-      end
-
       def tag_params
         tags = LlmCostTracker::Dashboard::Params.to_hash(params[:tag])
 
@@ -100,19 +92,13 @@ module LlmCostTracker
         end
       end
 
-      def where_matchable(relation, conditions)
-        return relation.where(MATCH_NOTHING) unless matchable?(relation, conditions.values)
-
-        relation.where(conditions)
-      end
-
-      def matchable?(relation, values)
+      def matchable?(values)
         values.none? { |value| value.include?("\0") } ||
-          !LlmCostTracker::Ledger::Schema::Adapter.postgresql?(relation.connection)
+          !LlmCostTracker::Ledger::Schema::Adapter.postgresql?(scope.connection)
       end
 
       def normalized_string(value, name)
-        LlmCostTracker::Dashboard::Params.scalar(value, name).to_s.strip.presence
+        LlmCostTracker::Dashboard::Params.scalar(value, name).strip.presence
       end
     end
   end

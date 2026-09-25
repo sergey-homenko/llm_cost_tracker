@@ -236,59 +236,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     end
   end
 
-  it "refuses to drop a long-context tier the scraper stopped returning" do
-    registry = build_registry(models: {
-                                "openai/gpt-5.6-sol" => {
-                                  "input" => 4.0,
-                                  "output" => 20.0,
-                                  "_context_price_threshold_tokens" => 272_000,
-                                  "above_context_input" => 8.0,
-                                  "above_context_output" => 30.0
-                                }
-                              })
-    provider_result = build_result(models: { "gpt-5.6-sol" => { "input" => 4.0, "output" => 20.0 } })
-
-    with_registry(registry) do |path|
-      original = File.read(path)
-
-      expect do
-        described_class.new.call(provider: "openai", provider_result: provider_result, registry_path: path)
-      end.to raise_error(described_class::Error, %r{refusing to drop long-context pricing for openai/gpt-5\.6-sol})
-      expect(File.read(path)).to eq(original)
-    end
-  end
-
-  it "updates long-context rates while the scraper still returns the tier" do
-    registry = build_registry(models: {
-                                "openai/gpt-5.6-sol" => {
-                                  "input" => 5.0,
-                                  "output" => 30.0,
-                                  "_context_price_threshold_tokens" => 272_000,
-                                  "above_context_input" => 10.0,
-                                  "above_context_output" => 45.0
-                                }
-                              })
-    provider_result = build_result(
-      models: {
-        "gpt-5.6-sol" => {
-          "input" => 4.0,
-          "output" => 20.0,
-          "_context_price_threshold_tokens" => 272_000,
-          "above_context_input" => 8.0,
-          "above_context_output" => 30.0
-        }
-      }
+  it "updates long-context rates but refuses to drop a tier the scraper stopped returning" do
+    base = { "input" => 4.0, "output" => 20.0 }
+    long_context = { "_context_price_threshold_tokens" => 272_000, "above_context_input" => 8.0 }
+    registry = build_registry(
+      models: { "openai/gpt-5.6-sol" => base.merge(long_context, "above_context_input" => 10.0) }
     )
+    scrape = lambda do |fields, path|
+      described_class.new.call(
+        provider: "openai", provider_result: build_result(models: { "gpt-5.6-sol" => fields }), registry_path: path
+      )
+    end
 
     with_registry(registry) do |path|
-      result = described_class.new.call(provider: "openai", provider_result: provider_result, registry_path: path)
+      scrape.call(base.merge(long_context), path)
+      updated = File.read(path)
+      expect(JSON.parse(updated).dig("models", "openai/gpt-5.6-sol")).to include(long_context)
 
-      expect(result.updated.keys).to eq(["openai/gpt-5.6-sol"])
-      expect(JSON.parse(File.read(path)).dig("models", "openai/gpt-5.6-sol")).to include(
-        "_context_price_threshold_tokens" => 272_000,
-        "above_context_input" => 8.0,
-        "above_context_output" => 30.0
-      )
+      expect { scrape.call(base, path) }
+        .to raise_error(described_class::Error, %r{refusing to drop long-context pricing for openai/gpt-5\.6-sol})
+      expect(File.read(path)).to eq(updated)
     end
   end
 

@@ -7,7 +7,7 @@ module LlmCostTracker
     end
 
     def show
-      @value = Dashboard::Params.scalar(params[:tag_value], :tag_value).to_s
+      @value = Dashboard::Params.scalar(params[:tag_value], :tag_value)
 
       if @value.empty?
         @sort = params[:sort].to_s

@@ -22,7 +22,7 @@ The gem auto-injects this flag for you when:
 
 Other entries inside `stream_options` are merged, not replaced. Bodies that aren't JSON, requests for the Responses API, and non-streaming requests are left untouched.
 
-Hosts you add to `config.capture.openai_compatible_providers` are never modified, because the gem can't know whether they accept the flag; set it in your own request if they do.
+Hosts you add to `config.capture.openai_compatible_providers` are left untouched; set the flag in your own request if they accept it.
 
 Set `config.capture.request_stream_usage = false` if you want to manage the flag yourself. When the final usage chunk is missing, the gem still records the call with `usage_source: "unknown"` and emits a warning rather than failing silently:
 
@@ -111,4 +111,4 @@ Stream rows include:
 | `batch` | Derived from `pricing_mode` (true when the mode contains the `batch` token); set `pricing_mode: :batch` on `track_stream` to flag a batch-tier call |
 | `cost_status` | `free`, `complete`, `partial`, or `unknown` |
 
-Stream length doesn't limit capture. Both the Faraday tap and the SDK / `track_stream` collector decode events as they arrive and keep only what pricing reads: the first 16 events (model and response id), the last 32 (final usage and service tier), and the events the provider's parser marks as billable in between — OpenAI tool-call items and Gemini grounding. Text deltas in the middle are dropped, so memory stays flat however long the response runs. Image and audio payloads (`b64_json`, `partial_image_b64`, any single string field over 8 KB) are stripped from the events that are kept. The call falls back to `usage_source: unknown` only if the kept events themselves outgrow 1 MB, which ordinary streams never reach.
+Stream length doesn't limit capture. The Faraday tap and the SDK / `track_stream` collector decode events as they arrive and keep only the first 16 events (model and response id), the last 32 (final usage and service tier), and billable events in between (OpenAI tool-call items, Gemini grounding), so memory stays flat however long the response runs. Kept events lose image and audio payloads (`b64_json`, `partial_image_b64`, any string field over 8 KB); only if they still outgrow 1 MB does the call fall back to `usage_source: unknown`.

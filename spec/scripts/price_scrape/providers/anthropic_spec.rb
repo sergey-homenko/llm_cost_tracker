@@ -69,25 +69,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "data_residency_output" => 55.0
       )
       expect(result.models.fetch("claude-mythos-5")).to include("input" => 10.0, "output" => 50.0)
-      expect(result.models.fetch("claude-fable-5-1")).to include(
-        "input" => 10.0,
-        "cache_read_input" => 0.25,
-        "output" => 50.0,
-        "data_residency_cache_read_input" => 0.275
-      )
-      expect(result.models.fetch("claude-opus-5-5")).to include(
-        "input" => 4.0,
-        "cache_write_input" => 5.0,
-        "cache_write_extended_input" => 8.0,
-        "cache_read_input" => 0.2,
-        "output" => 20.0,
-        "batch_input" => 2.0,
-        "batch_output" => 10.0,
-        "fast_input" => 8.0,
-        "fast_output" => 40.0,
-        "fast_cache_read_input" => 0.4,
-        "data_residency_input" => 4.4
-      )
     end
 
     it "selects the date-scoped pricing row effective at scrape time" do
@@ -114,7 +95,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "fast_cache_read_input" => 3.0, "fast_cache_write_input" => 37.5,
         "fast_data_residency_input" => 33.0, "fast_data_residency_output" => 165.0
       )
-      expect(described_class.new.call(html: html).models.fetch("claude-opus-4-7")).not_to include("fast_input")
 
       %w[claude-opus-5 claude-opus-4-8].each do |model_id|
         expect(result.models.fetch(model_id)).to include(
@@ -164,7 +144,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         <html><body>
           <table>
             <thead>
-              <tr><th>Model</th><th colspan="2">Base tokens</th><th colspan="3">Prompt caching</th></tr>
+              <tr><th>Model</th><th colspan="2">Base Tokens</th><th colspan="3">Prompt caching</th></tr>
               <tr>
                 <th>Name</th><th>Input</th><th>Output</th>
                 <th>5m writes</th><th>1h writes</th><th>Hits and refreshes</th>

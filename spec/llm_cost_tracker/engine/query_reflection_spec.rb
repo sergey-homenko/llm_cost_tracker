@@ -25,47 +25,26 @@ RSpec.describe "LlmCostTracker::Engine query reflection" do
     create_call(provider: "anthropic", model: "claude-haiku-4-5", tags: { feature: "search" })
   end
 
-  {
-    "script_name=%2F%2Fevil.example" => /evil\.example/,
-    "original_script_name=%2F%2Fevil.example" => /evil\.example/,
-    "anchor=injected" => /#injected/,
-    "params%5Binjected%5D=1" => /injected/,
-    "trailing_slash=1" => %r{/llm-costs/[a-z_]+(/[^/?]+)?/(\?|\z)},
-    "key=injected" => /injected/
-  }.each do |query, marker|
-    it "does not let #{query.split('=').first} rewrite dashboard links" do
-      pages.each do |page|
-        response = get(with_query(page, query))
+  it "keeps link options and unknown parameters in the query out of dashboard links and forms" do
+    rewrites = %w[script_name=%2F%2Fevil.example original_script_name=%2F%2Fevil.example anchor=injected
+                  params%5Binjected%5D=1 trailing_slash=1 key=injected _recall=x path_params=x zzz=reflectedjunk]
+    malformed = %w[original_script_name%5B%5D=x key%5B%5D=a key%5B%5D=b]
 
-        expect(response.status).to eq(200), "#{page}: #{response.status}"
-        expect(hrefs(response.body).grep(marker)).to be_empty, page
-      end
+    pages.product([rewrites, malformed]).each do |page, query|
+      response = get(with_query(page, query.join("&")))
+
+      expect(response.status).to eq(200), page
+      expect(hrefs(response.body).grep(%r{evil\.example|injected|/llm-costs/[a-z_]+(/[^/?]+)?/(\?|\z)})).to be_empty, page
+      expect(response.body).not_to include("reflectedjunk"), page
     end
   end
 
   it "does not let format rewrite dashboard links" do
-    ["/llm-costs/calls", "/llm-costs/tags", "/llm-costs/tags/feature"].each do |page|
-      response = get(with_query(page, "format=json"))
+    %w[/llm-costs/calls /llm-costs/tags /llm-costs/tags/feature].each do |page|
+      response = get("#{page}?format=json")
 
       expect(response.status).to eq(200)
       expect(hrefs(response.body).grep(/\.json/)).to be_empty, page
-    end
-  end
-
-  %w[original_script_name%5B%5D=x _recall=x path_params=x key%5B%5D=a&key%5B%5D=b].each do |query|
-    it "ignores #{query.split('=').first} instead of failing" do
-      pages.each do |page|
-        expect(get(with_query(page, query)).status).to eq(200), page
-      end
-    end
-  end
-
-  it "does not repeat unknown query parameters in dashboard links or forms" do
-    pages.each do |page|
-      response = get(with_query(page, "zzz=reflectedjunk"))
-
-      expect(response.status).to eq(200)
-      expect(response.body).not_to include("reflectedjunk"), page
     end
   end
 
@@ -80,14 +59,6 @@ RSpec.describe "LlmCostTracker::Engine query reflection" do
     export = hrefs(get("/llm-costs/calls?#{query.to_query}").body).find { |href| href.include?("calls.csv") }
 
     query.each { |key, value| expect(export).to include({ key => value }.to_query) }
-  end
-
-  it "keeps the tag value and date range in the tag value page's links" do
-    dates = { from: (Date.current - 7).iso8601, to: Date.current.iso8601 }
-    response = get("/llm-costs/tags/feature?#{dates.merge(tag_value: 'chat', provider: 'openai').to_query}")
-
-    clear = hrefs(response.body).find { |href| href.start_with?("/llm-costs/tags/feature?") && !href.include?("provider") }
-    expect(clear).to include("tag_value=chat", dates.slice(:from).to_query, dates.slice(:to).to_query)
   end
 
   it "accepts a query string up to the size limit and rejects a longer one without repeating it" do

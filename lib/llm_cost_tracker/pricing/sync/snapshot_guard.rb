@@ -6,9 +6,6 @@ module LlmCostTracker
   module Pricing
     module Sync
       module SnapshotGuard
-        PRICE_FACTOR = 100
-        BASE_PRICE_KEYS = %w[input output].freeze
-
         class << self
           def call(current:, remote:, changes:)
             findings = changes.except("service_charges").flat_map do |model, fields|
@@ -30,11 +27,11 @@ module LlmCostTracker
           end
 
           def suspicious?(field, from, to)
-            return BASE_PRICE_KEYS.include?(field) && from.positive? if to.nil?
+            return %w[input output].include?(field) && from.positive? if to.nil?
             return false if from.nil?
             return true if from.zero? || to.zero?
 
-            [to / from, from / to].max >= PRICE_FACTOR
+            [to / from, from / to].max >= 100
           end
 
           def currency_finding(current, remote)

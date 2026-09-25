@@ -200,35 +200,23 @@ module LlmCostTracker
       end
 
       def parse_stream(parser:, request_url:, request_body:, response_env:, stream_buffer:)
-        events = tapped_stream_events(stream_buffer, request_url)
-        if events.nil?
-          body = read_body(response_env.body)
-          if body.blank?
-            Logging.warn(capture_warning(request_url, stream_buffer))
-            return parser.parse_stream(
-              request_url: request_url,
-              request_body: request_body,
-              response_status: response_env.status,
-              response_headers: response_env.response_headers
-            )
-          end
-          events = Capture::SSE.parse(body)
-        end
-
         parser.parse_stream(
           request_url: request_url,
           request_body: request_body,
           response_status: response_env.status,
-          events: events,
+          events: stream_events(request_url, response_env, stream_buffer),
           response_headers: response_env.response_headers
         )
       end
 
-      def tapped_stream_events(stream_buffer, request_url)
-        return nil unless stream_buffer&.received?
-
-        events = stream_buffer.events
-        return events unless stream_buffer.overflowed? || stream_buffer.failed?
+      def stream_events(request_url, response_env, stream_buffer)
+        if stream_buffer&.received?
+          events = stream_buffer.events
+          return events unless stream_buffer.overflowed? || stream_buffer.failed?
+        else
+          body = read_body(response_env.body)
+          return Capture::SSE.parse(body) if body.present?
+        end
 
         Logging.warn(capture_warning(request_url, stream_buffer))
         []

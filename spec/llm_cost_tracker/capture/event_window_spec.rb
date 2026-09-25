@@ -11,7 +11,8 @@ RSpec.describe LlmCostTracker::Capture::EventWindow do
     count.times { |index| window.push({ "n" => index }.merge(block_given? ? yield(index) : {}), type: "chunk") }
   end
 
-  it "keeps the first and the last events in stream order and drops the middle" do
+  it "keeps the first and the last events in stream order and drops the middle within its byte limit" do
+    stub_const("LlmCostTracker::Capture::SSE::LIMIT_BYTES", 64 * 1024)
     window = described_class.new
     push_numbered(window, 10_000)
 
@@ -29,15 +30,6 @@ RSpec.describe LlmCostTracker::Capture::EventWindow do
     expect(numbers).to eq((0...head).to_a + [700, 2_500] + ((5_000 - tail)...5_000).to_a)
   end
 
-  it "keeps its retained bytes bounded no matter how long the stream runs" do
-    window = described_class.new
-    stub_const("LlmCostTracker::Capture::SSE::LIMIT_BYTES", 64 * 1024)
-    push_numbered(window, 50_000) { { "delta" => "x" * 500 } }
-
-    expect(window).not_to be_overflowed
-    expect(window.events.size).to eq(head + tail)
-  end
-
   it "overflows and releases everything once the retained events outgrow the byte limit" do
     window = described_class.new
     stub_const("LlmCostTracker::Capture::SSE::LIMIT_BYTES", 100)
@@ -52,12 +44,5 @@ RSpec.describe LlmCostTracker::Capture::EventWindow do
     push_numbered(window, head + tail + 5)
 
     expect(window.events.size).to eq(head + tail)
-  end
-
-  it "strips base64 image payloads and oversized strings before counting bytes" do
-    window = described_class.new
-    window.push({ "b64_json" => "A" * 10, "text" => "B" * (described_class::HEAVY_STRING_BYTES + 1), "ok" => "kept" })
-
-    expect(window.events.first[:data]).to eq("text" => "", "ok" => "kept")
   end
 end

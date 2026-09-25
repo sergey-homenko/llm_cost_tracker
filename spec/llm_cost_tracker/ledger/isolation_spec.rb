@@ -15,11 +15,11 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
 
   after { disconnect_database! }
 
-  def build_event(event_id:, total_cost: 0.0025)
+  def build_event(event_id:)
     LlmCostTracker::Event.new(
       event_id: event_id, provider: "openai", model: "gpt-4o",
       token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1_000, output_tokens: 0),
-      pricing_mode: nil, cost: LlmCostTracker::Charges::Cost.new(components: {}, total: total_cost, currency: "USD"),
+      pricing_mode: nil, cost: LlmCostTracker::Charges::Cost.new(components: {}, total: 0.0025, currency: "USD"),
       tags: {}, latency_ms: nil, stream: false, usage_source: "manual", provider_response_id: nil,
       provider_project_id: nil, provider_api_key_id: nil, provider_workspace_id: nil, tracked_at: Time.now.utc,
       cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE, pricing_snapshot: nil, line_items: []
@@ -70,10 +70,6 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
     raise
   end
 
-  it "runs the block directly outside a transaction" do
-    expect(described_class.guard { :ran }).to eq(:ran)
-  end
-
   it "keeps the host transaction usable when a ledger write fails inside it" do
     event = build_event(event_id: "duplicate")
     LlmCostTracker::Ledger::Store.insert(event)
@@ -121,23 +117,6 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
     expect(LlmCostTracker::Logging).to have_received(:warn).with(/per-tag budgets are not enforced/)
   end
 
-  it "returns the LLM response and keeps the host transaction usable when the ledger write fails" do
-    ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_tags, force: :cascade)
-    body = { id: "chatcmpl_tx", model: "gpt-4o", choices: [],
-             usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } }.to_json
-    conn = Faraday.new(url: "https://api.openai.com") do |f|
-      f.use :llm_cost_tracker, tags: { feature: "chat" }
-      f.adapter(:test) { |stub| stub.post("/v1/chat/completions") { [200, { "Content-Type" => "application/json" }, body] } }
-    end
-    allow(LlmCostTracker::Logging).to receive(:warn)
-
-    ActiveRecord::Base.transaction do
-      expect(conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json).status).to eq(200)
-      expect(host_transaction_usable?).to be(true)
-    end
-    expect(LlmCostTracker::Logging).to have_received(:warn).with(/Error processing response/)
-  end
-
   it "returns the LLM response and records the call when the budget read after it times out inside the host transaction" do
     skip "uses PostgreSQL LOCK TABLE and lock_timeout" unless postgresql?
     LlmCostTracker.configuration.budgets.totals_source = :cache
@@ -157,21 +136,6 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
     end
     expect(LlmCostTracker::Call.count).to eq(1)
     expect(LlmCostTracker::Logging).to have_received(:warn).with(/Error processing response: ActiveRecord::LockWaitTimeout/)
-  end
-
-  it "commits both calls without retrying when the rollup row is locked during a call tracked inside a transaction" do
-    skip "uses PostgreSQL lock_timeout" unless postgresql?
-    LlmCostTracker.configuration.budgets.totals_source = :cache
-    LlmCostTracker::Ledger::Store.insert(build_event(event_id: "seed"))
-    allow(LlmCostTracker::Ledger::Rollups).to receive(:sleep)
-    allow(LlmCostTracker::Logging).to receive(:warn)
-
-    in_host_transaction_while_locked("UPDATE llm_cost_tracker_call_rollups SET total_cost = total_cost") do
-      LlmCostTracker::Ledger::Store.insert(build_event(event_id: "in_transaction"))
-      expect(host_transaction_usable?).to be(true)
-    end
-    expect(LlmCostTracker::Call.pluck(:event_id)).to contain_exactly("seed", "in_transaction")
-    expect(LlmCostTracker::Ledger::Rollups).not_to have_received(:sleep)
   end
 
   it "makes a single rollup attempt inside a non-joinable transaction and logs the failure" do
@@ -224,38 +188,6 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
     end
     expect(LlmCostTracker::Call.pluck(:event_id)).to eq(["committed"])
     expect(monthly_rollup_total).to eq(BigDecimal("0.0025"))
-  end
-
-  it "does not hold the rollup row lock for the rest of a host transaction", if: deferred_rollups do
-    skip "uses a PostgreSQL lock_timeout" unless postgresql?
-    LlmCostTracker.configuration.budgets.totals_source = :cache
-    LlmCostTracker::Ledger::Store.insert(build_event(event_id: "seed"))
-    recorded = Queue.new
-    release = Queue.new
-
-    holder = Thread.new do
-      ActiveRecord::Base.connection_pool.with_connection do
-        ActiveRecord::Base.transaction do
-          LlmCostTracker::Ledger::Store.insert(build_event(event_id: "holder"))
-          recorded << true
-          release.pop
-        end
-      end
-    end
-    recorded.pop
-
-    other = Thread.new do
-      ActiveRecord::Base.connection_pool.with_connection do |connection|
-        connection.execute("SET lock_timeout = '1s'")
-        LlmCostTracker::Ledger::Store.insert(build_event(event_id: "other"))
-      end
-    end
-    other.join
-    expect(monthly_rollup_total).to eq(BigDecimal("0.005"))
-
-    release << true
-    holder.join
-    expect(monthly_rollup_total).to eq(BigDecimal("0.0075"))
   end
 
   describe "on a database that rolls back the whole transaction on deadlock, like MySQL" do

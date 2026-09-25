@@ -20,7 +20,6 @@ module LlmCostTracker
         end
 
         def scalar(value, name)
-          return nil if value.nil?
           if value.is_a?(Hash) || value.is_a?(Array) || value.respond_to?(:to_unsafe_h)
             raise InvalidFilterError, "#{name} must be a single value"
           end

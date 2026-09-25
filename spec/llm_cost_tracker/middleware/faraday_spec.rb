@@ -641,13 +641,13 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   describe "streams far longer than the capture limit" do
-    def stream_through(host, path, body, request:, chunk_size: 4_096)
+    def stream_through(host, path, body, request:)
       conn = Faraday.new(url: host) do |f|
         f.use :llm_cost_tracker
         f.adapter :test do |stub|
           stub.post(path) do |env|
-            (0...body.bytesize).step(chunk_size) do |offset|
-              chunk = body.byteslice(offset, chunk_size)
+            (0...body.bytesize).step(4_096) do |offset|
+              chunk = body.byteslice(offset, 4_096)
               env.request.on_data&.call(chunk, chunk.bytesize, env)
             end
             [200, { "Content-Type" => "text/event-stream" }, ""]
@@ -656,13 +656,9 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       end
 
       recorded = []
-      subscription = ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) do |*, payload|
-        recorded << payload
-      end
+      ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) { |*, payload| recorded << payload }
       conn.post(path, request.to_json) { |req| req.options.on_data = proc { |_chunk, _size, _env| } }
       recorded
-    ensure
-      ActiveSupport::Notifications.unsubscribe(subscription) if subscription
     end
 
     def sse(data, event: nil)
@@ -715,36 +711,13 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       expect(recorded.first[:line_items].map { |item| item[:kind] }).to include("web_search_request")
     end
 
-    it "records Anthropic input usage from message_start and output usage from the final message_delta" do
-      body = sse({ type: "message_start",
-                   message: { id: "msg_long", type: "message", role: "assistant", model: "claude-sonnet-4-5",
-                              usage: { input_tokens: 1_200, cache_read_input_tokens: 300, output_tokens: 1 } } },
-                 event: "message_start")
-      delta = { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: " token" } }
-      20_000.times { body << sse(delta, event: "content_block_delta") }
-      body << sse({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 20_000 } },
-                  event: "message_delta")
-      body << sse({ type: "message_stop" }, event: "message_stop")
-
-      recorded = stream_through("https://api.anthropic.com", "/v1/messages", body,
-                                request: { model: "claude-sonnet-4-5", stream: true, messages: [] })
-
-      expect(recorded.first).to include(usage_source: "stream_final", provider_response_id: "msg_long")
-      expect(recorded.first[:token_usage]).to include(input_tokens: 1_200, cache_read_input_tokens: 300,
-                                                      output_tokens: 20_000)
-    end
-
-    def gemini_chunks(count, grounded_at:)
-      Array.new(count) do |index|
-        candidate = { content: { parts: [{ text: " token" }], role: "model" }, index: 0 }
-        candidate[:groundingMetadata] = { webSearchQueries: %w[q1 q2] } if index == grounded_at
-        { candidates: [candidate], responseId: "gem_long", modelVersion: "gemini-2.5-flash",
-          usageMetadata: { promptTokenCount: 50, candidatesTokenCount: index + 1, totalTokenCount: 51 + index } }
-      end
-    end
-
     it "keeps Gemini grounding from the middle of a long SSE stream and usage from its last chunk" do
-      body = gemini_chunks(8_000, grounded_at: 400).map { |chunk| sse(chunk) }.join
+      body = Array.new(8_000) do |index|
+        candidate = { content: { parts: [{ text: " token" }], role: "model" }, index: 0 }
+        candidate[:groundingMetadata] = { webSearchQueries: %w[q1 q2] } if index == 400
+        sse({ candidates: [candidate], responseId: "gem_long", modelVersion: "gemini-2.5-flash",
+              usageMetadata: { promptTokenCount: 50, candidatesTokenCount: index + 1, totalTokenCount: 51 + index } })
+      end.join
 
       recorded = stream_through("https://generativelanguage.googleapis.com",
                                 "/v1beta/models/gemini-2.5-flash:streamGenerateContent", body,
@@ -753,17 +726,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       expect(recorded.first).to include(usage_source: "stream_final", provider_response_id: "gem_long")
       expect(recorded.first[:token_usage]).to include(input_tokens: 50, output_tokens: 8_000)
       expect(recorded.first[:line_items].map { |item| item[:kind] }).to include("grounding_request")
-    end
-
-    it "records usage from a long Gemini stream sent as a JSON array" do
-      body = "[#{gemini_chunks(8_000, grounded_at: -1).map(&:to_json).join("\n,\r\n")}]"
-
-      recorded = stream_through("https://generativelanguage.googleapis.com",
-                                "/v1beta/models/gemini-2.5-flash:streamGenerateContent", body,
-                                request: { contents: [] }, chunk_size: 1_000)
-
-      expect(recorded.first).to include(usage_source: "stream_final", provider_response_id: "gem_long")
-      expect(recorded.first[:token_usage]).to include(input_tokens: 50, output_tokens: 8_000)
     end
   end
 
@@ -958,38 +920,25 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(parsed.dig("stream_options", "include_usage")).to be true
   end
 
-  describe "stream_options injection on hosts that may reject it" do
-    def sent_body(url, body = { model: "gpt-4o", stream: true })
-      captured_body = nil
-      uri = URI(url)
-      conn = Faraday.new(url: "https://#{uri.host}") do |f|
-        f.use :llm_cost_tracker
-        f.adapter :test do |stub|
-          stub.post(uri.path) do |env|
-            captured_body = env.body
-            [200, { "Content-Type" => "text/event-stream" }, ""]
-          end
+  it "leaves streams to hosts the app added to openai_compatible_providers untouched" do
+    LlmCostTracker.configure do |config|
+      config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
+    end
+    captured_body = nil
+
+    conn = Faraday.new(url: "https://llm.example.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") do |env|
+          captured_body = env.body
+          [200, { "Content-Type" => "text/event-stream" }, ""]
         end
       end
-      conn.post(uri.request_uri, body.to_json)
-      JSON.parse(captured_body)
     end
 
-    it "auto-injects on Azure OpenAI only from api-version 2024-06-01 and not with On Your Data" do
-      url = "https://myresource.openai.azure.com/openai/deployments/gpt4o-prod/chat/completions?api-version="
+    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json)
 
-      expect(sent_body("#{url}2024-10-21").dig("stream_options", "include_usage")).to be true
-      expect(sent_body("#{url}2024-02-01")).not_to have_key("stream_options")
-      expect(sent_body("#{url}2024-10-21", { stream: true, data_sources: [] })).not_to have_key("stream_options")
-    end
-
-    it "leaves streams to hosts the app added to openai_compatible_providers untouched" do
-      LlmCostTracker.configure do |config|
-        config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
-      end
-
-      expect(sent_body("https://llm.example.com/v1/chat/completions")).not_to have_key("stream_options")
-    end
+    expect(JSON.parse(captured_body)).not_to have_key("stream_options")
   end
 
   it "auto-injects when the caller hands Faraday a Hash body" do

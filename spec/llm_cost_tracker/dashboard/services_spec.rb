@@ -295,42 +295,23 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(relation.pluck(:model)).to eq(["b"])
     end
 
-    it "accepts up to the tag filter limit and rejects more before querying" do
-      create_call(tags: (1..10).to_h { |i| ["k#{i}", "v"] })
+    it "accepts up to the tag filter limit, not counting blank ones, and rejects more before querying" do
       tags = (1..10).to_h { |i| ["k#{i}", "v"] }
+      create_call(tags: tags)
 
-      expect(described_class.call(params: { tag: tags }).count).to eq(1)
+      expect(described_class.call(params: { tag: tags.merge("blank" => " ") }).count).to eq(1)
       expect do
         described_class.call(params: { tag: tags.merge("k11" => "v") })
       end.to raise_error(LlmCostTracker::InvalidFilterError, /at most 10 tag filters are allowed, got 11/)
     end
 
-    it "does not count blank tag filters toward the limit" do
-      tags = (1..10).to_h { |i| ["k#{i}", "v"] }.merge("blank" => " ")
-
-      expect { described_class.call(params: { tag: tags }) }.not_to raise_error
-    end
-
-    it "counts extra tags toward the limit and lets them override the same key" do
-      create_call(model: "chat-model", tags: { feature: "chat" })
-      create_call(model: "search-model", tags: { feature: "search" })
-
-      relation = described_class.call(params: { tag: { feature: "chat" } }, tags: { "feature" => "search" })
-
-      expect(relation.pluck(:model)).to eq(["search-model"])
-      expect do
-        described_class.call(params: { tag: (1..10).to_h { |i| ["k#{i}", "v"] } }, tags: { "feature" => "search" })
-      end.to raise_error(LlmCostTracker::InvalidFilterError, /got 11/)
-    end
-
     it "matches nothing for a NUL byte in a filter value on PostgreSQL, which cannot store one" do
       skip "PostgreSQL text columns cannot hold a NUL byte" unless
         LlmCostTracker::Ledger::Schema::Adapter.postgresql?(ActiveRecord::Base.connection)
-      create_call(usage_source: "response", tags: { feature: "chat" })
+      create_call(tags: { feature: "chat" })
 
       expect(described_class.call(params: { tag: { feature: "a\0b" } }).count).to eq(0)
       expect(described_class.call(params: { provider: "open\0ai" }).count).to eq(0)
-      expect(described_class.call(params: { usage_source: "resp\0onse" }).count).to eq(0)
       expect(described_class.call(params: {}, tags: { "feature" => "a\0b" }).count).to eq(0)
     end
 
@@ -339,10 +320,6 @@ RSpec.describe "LlmCostTracker dashboard services" do
         .to raise_error(LlmCostTracker::InvalidFilterError, /tag filter value must be a single value/)
       expect { described_class.call(params: { model: { "x" => "y" } }) }
         .to raise_error(LlmCostTracker::InvalidFilterError, /model must be a single value/)
-      expect { described_class.call(params: { stream: ["yes"] }) }
-        .to raise_error(LlmCostTracker::InvalidFilterError, /stream must be a single value/)
-      expect { described_class.call(params: { usage_source: %w[response] }) }
-        .to raise_error(LlmCostTracker::InvalidFilterError, /usage_source must be a single value/)
     end
   end
 

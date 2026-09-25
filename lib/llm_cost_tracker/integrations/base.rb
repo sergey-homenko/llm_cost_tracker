@@ -168,10 +168,7 @@ module LlmCostTracker
       end
 
       def untested_version?
-        version = gem_version
-        return false unless maximum_version && version
-
-        version >= Gem::Version.new(maximum_version)
+        maximum_version && gem_version && gem_version >= Gem::Version.new(maximum_version)
       end
 
       def untested_version_message

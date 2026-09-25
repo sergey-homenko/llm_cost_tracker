@@ -11,8 +11,6 @@ module LlmCostTracker
 
       class << self
         def parse(body)
-          return [] if body.blank?
-
           events = []
           reader = Reader.new { |event| events << event }
           reader << body
@@ -22,11 +20,6 @@ module LlmCostTracker
       end
 
       class Reader
-        ARRAY_TOKENS = /[{}"]/
-        STRING_TOKENS = /["\\]/
-        LEADING_WHITESPACE = /\A[[:space:]]*/
-        private_constant :ARRAY_TOKENS, :STRING_TOKENS, :LEADING_WHITESPACE
-
         def initialize(&on_event)
           @on_event = on_event
           @pending = String.new(encoding: Encoding::BINARY)
@@ -46,7 +39,6 @@ module LlmCostTracker
           when :sse then consume_lines
           when :array then consume_array
           end
-          self
         end
 
         def pending_bytesize
@@ -64,10 +56,10 @@ module LlmCostTracker
         private
 
         def detect_mode
-          stripped = @pending.sub(LEADING_WHITESPACE, "")
-          return nil if stripped.empty?
+          first = @pending[/\S/]
+          return nil unless first
 
-          stripped.start_with?("[") ? :array : :sse
+          first == "[" ? :array : :sse
         end
 
         def consume_lines
@@ -76,7 +68,7 @@ module LlmCostTracker
             consume_line(@pending.byteslice(start, newline - start))
             start = newline + 1
           end
-          @pending = @pending.byteslice(start, @pending.bytesize - start)
+          @pending = @pending.byteslice(start..)
         end
 
         def consume_line(raw)
@@ -115,7 +107,7 @@ module LlmCostTracker
 
         def consume_array
           pos = @scan_pos
-          while (index = @pending.index(@in_string ? STRING_TOKENS : ARRAY_TOKENS, pos))
+          while (index = @pending.index(@in_string ? /["\\]/ : /[{}"]/, pos))
             pos = index + 1
             pos = advance_array(@pending.getbyte(index).chr, index, pos)
           end
@@ -142,16 +134,15 @@ module LlmCostTracker
         def emit_object(end_index)
           text = @pending.byteslice(@object_start, end_index - @object_start + 1)
           @object_start = nil
-          data = JSON.parse(text.force_encoding(Encoding::UTF_8))
-          emit({ event: nil, data: data })
+          emit({ event: nil, data: JSON.parse(text.force_encoding(Encoding::UTF_8)) })
         rescue JSON::ParserError
           nil
         end
 
         def trim_array_buffer(pos)
           keep_from = @object_start || [pos, @pending.bytesize].min
-          @pending = @pending.byteslice(keep_from, @pending.bytesize - keep_from)
-          @scan_pos = [pos - keep_from, 0].max
+          @pending = @pending.byteslice(keep_from..)
+          @scan_pos = pos - keep_from
           @object_start &&= 0
         end
 
