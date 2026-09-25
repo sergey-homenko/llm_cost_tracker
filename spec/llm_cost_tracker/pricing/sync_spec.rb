@@ -251,6 +251,27 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       end
     end
 
+    it "refuses a snapshot with suspicious price changes and leaves the file untouched unless forced" do
+      Tempfile.create(["llm-prices", ".yml"]) do |file|
+        original = { "metadata" => {}, "models" => { "gpt-4o" => { "input" => 2.5, "output" => 10.0 } } }.to_yaml
+        file.write(original)
+        file.close
+        tampered = remote_registry.deep_merge("models" => { "gpt-4o" => { "input" => 0, "output" => 1e30 } })
+        fetcher = CuratedPriceFetcher.new(response(body: JSON.generate(tampered)))
+        suspicious = ["gpt-4o input: 2.5 -> 0.0", "gpt-4o output: 10.0 -> 1.0e+30"]
+
+        expect do
+          described_class.refresh(path: file.path, url: source_url, fetcher: fetcher)
+        end.to raise_error(LlmCostTracker::Error) { |error| expect(error.message).to include(*suspicious, "FORCE=1") }
+        expect(File.read(file.path)).to eq(original)
+
+        result = described_class.refresh(path: file.path, url: source_url, fetcher: fetcher, force: true)
+
+        expect(result.suspicious).to eq(suspicious)
+        expect(YAML.safe_load_file(file.path).dig("models", "gpt-4o", "output")).to eq(1e30)
+      end
+    end
+
     it "bootstraps a missing local registry from the remote snapshot" do
       Dir.mktmpdir do |dir|
         path = File.join(dir, "nested", "llm_cost_tracker_prices.yml")
@@ -303,6 +324,22 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
         expect(result.up_to_date).to be(false)
         expect(result.changes.keys).to include("gpt-4o", "gpt-5-mini")
         expect(File.read(file.path)).to eq(original)
+      end
+    end
+
+    it "is not up to date when the snapshot switches currency" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(JSON.generate(remote_registry.deep_merge("metadata" => { "currency" => "EUR" })))
+        file.close
+
+        result = described_class.check(
+          path: file.path,
+          url: source_url,
+          fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
+        )
+
+        expect(result.suspicious).to eq(["currency: EUR -> USD"])
+        expect(result.up_to_date).to be(false)
       end
     end
 

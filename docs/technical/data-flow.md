@@ -76,7 +76,8 @@ Dashboard reads do not mutate ledger state. They can be heavier than request-tim
 1. `llm_cost_tracker:prices:refresh` chooses `ENV["OUTPUT"]`, then `config.pricing.file`, then `config/llm_cost_tracker_prices.yml`.
 2. `Pricing::Sync::Fetcher` fetches the maintained LLM Cost Tracker price snapshot.
 3. `Pricing::Sync` validates schema compatibility, gem-version compatibility, model price shape, and tool/runtime charge sections.
-4. `RegistryWriter` writes a local JSON or YAML registry.
-5. Runtime pricing loads the local file once and memoizes it. The file's mtime is recorded as the source version; changing the file in a running process has no effect until `LlmCostTracker.configure` runs again or the app reloads.
+4. `Pricing::Sync::SnapshotGuard` compares the snapshot with the local file; zeroed prices, removed `input`/`output` rates, 100-fold moves, or a currency switch stop the write unless the refresh is forced.
+5. `RegistryWriter` writes a local JSON or YAML registry.
+6. Runtime pricing loads the local file once and memoizes it. The file's mtime is recorded as the source version; changing the file in a running process has no effect until `LlmCostTracker.configure` runs again or the app reloads.
 
 The gem never fetches pricing from the network during normal request tracking.

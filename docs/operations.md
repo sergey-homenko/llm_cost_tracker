@@ -107,7 +107,7 @@ bin/rails llm_cost_tracker:prices:refresh
 bin/rails llm_cost_tracker:prices:check
 ```
 
-Refresh writes to `OUTPUT`, then `config.pricing.file`, then `config/llm_cost_tracker_prices.yml`.
+Refresh writes to `OUTPUT`, then `config.pricing.file`, then `config/llm_cost_tracker_prices.yml`. It refuses suspicious price changes until you re-run it with `FORCE=1`; see [Pricing and Price Refresh](pricing.md#refresh-commands).
 
 ## Pricing in Production
 

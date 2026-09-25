@@ -9,6 +9,7 @@ require_relative "registry"
 require_relative "sync/fetcher"
 require_relative "sync/registry_diff"
 require_relative "sync/registry_writer"
+require_relative "sync/snapshot_guard"
 
 module LlmCostTracker
   module Pricing
@@ -18,8 +19,8 @@ module LlmCostTracker
         "https://raw.githubusercontent.com/sergey-homenko/llm_cost_tracker/main/lib/llm_cost_tracker/prices.json"
       SUPPORTED_SCHEMA_VERSION = 1
 
-      RefreshResult = Data.define(:path, :source_url, :source_version, :changes, :written, :not_modified)
-      CheckResult = Data.define(:path, :source_url, :source_version, :changes, :up_to_date)
+      RefreshResult = Data.define(:path, :source_url, :source_version, :changes, :suspicious, :written, :not_modified)
+      CheckResult = Data.define(:path, :source_url, :source_version, :changes, :suspicious, :up_to_date)
 
       class << self
         def configured_output_path(env: ENV, config: LlmCostTracker.configuration)
@@ -39,6 +40,7 @@ module LlmCostTracker
         def refresh(path: DEFAULT_OUTPUT_PATH,
                     url: DEFAULT_REMOTE_URL,
                     preview: false,
+                    force: false,
                     fetcher: Fetcher.new,
                     today: Date.today)
           current = load_registry(path)
@@ -49,15 +51,18 @@ module LlmCostTracker
               path: path,
               url: url,
               response: response,
-              current: current,
-              remote: current,
+              changes: registry_changes(current, current),
+              suspicious: [],
               written: false,
               not_modified: true
             )
           end
 
           remote = normalize_remote_registry(response.body, url: url, response: response, today: today)
+          changes = registry_changes(current, remote)
+          suspicious = SnapshotGuard.call(current: current, remote: remote, changes: changes)
           unless preview
+            refuse_suspicious_snapshot!(path, suspicious) unless force || suspicious.empty?
             RegistryWriter.new.call(path: path, registry: remote)
             Pricing::Registry.reset!
           end
@@ -65,8 +70,8 @@ module LlmCostTracker
             path: path,
             url: url,
             response: response,
-            current: current,
-            remote: remote,
+            changes: changes,
+            suspicious: suspicious,
             written: !preview,
             not_modified: false
           )
@@ -82,19 +87,22 @@ module LlmCostTracker
               source_url: url,
               source_version: response.source_version,
               changes: {},
+              suspicious: [],
               up_to_date: true
             )
           end
 
           remote = normalize_remote_registry(response.body, url: url, response: response, today: today)
           changes = registry_changes(current, remote)
+          suspicious = SnapshotGuard.call(current: current, remote: remote, changes: changes)
 
           CheckResult.new(
             path: path,
             source_url: url,
             source_version: response.source_version,
             changes: changes,
-            up_to_date: changes.empty?
+            suspicious: suspicious,
+            up_to_date: changes.empty? && suspicious.empty?
           )
         end
 
@@ -156,15 +164,24 @@ module LlmCostTracker
           raise Error, "Unable to parse remote pricing snapshot: #{e.message}"
         end
 
-        def refresh_result(path:, url:, response:, current:, remote:, written:, not_modified:)
+        def refresh_result(path:, url:, response:, changes:, suspicious:, written:, not_modified:)
           RefreshResult.new(
             path: path,
             source_url: url,
             source_version: response.source_version,
-            changes: registry_changes(current, remote),
+            changes: changes,
+            suspicious: suspicious,
             written: written,
             not_modified: not_modified
           )
+        end
+
+        def refuse_suspicious_snapshot!(path, suspicious)
+          listed = suspicious.first(20).map { |finding| "\n  - #{finding}" }.join
+          raise Error,
+                "Refusing to write pricing file #{path}: the remote snapshot has #{suspicious.size} " \
+                "suspicious price change(s):#{listed}\n" \
+                "Review them with PREVIEW=1, then refresh with FORCE=1 (force: true) to accept them."
         end
 
         def registry_changes(current, remote)

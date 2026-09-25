@@ -4,7 +4,12 @@ module LlmCostTracker
   module Pricing
     module Sync
       module ChangePrinter
-        def self.call(changes, output: $stdout)
+        def self.call(changes, suspicious: [], output: $stdout)
+          if suspicious.any?
+            output.puts "  suspicious changes (refresh writes them only with FORCE=1): #{suspicious.size}"
+            suspicious.each { |finding| output.puts "    - #{finding}" }
+          end
+
           service_changes = changes["service_charges"]
           model_changes = changes.except("service_charges")
 
