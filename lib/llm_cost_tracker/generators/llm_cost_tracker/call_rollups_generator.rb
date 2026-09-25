@@ -10,7 +10,7 @@ module LlmCostTracker
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Creates the optional llm_cost_tracker_call_rollups table for fast budget reads. " \
+      desc "Creates the optional llm_cost_tracker_call_rollups table of running budget totals. " \
            "Required when config.budgets.totals_source = :cache."
 
       def create_migration_file

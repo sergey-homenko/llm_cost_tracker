@@ -182,7 +182,7 @@ module LlmCostTracker
           :warn,
           "call rollups",
           "budgets.totals_source=:ledger but llm_cost_tracker_call_rollups exists. " \
-          "Set config.budgets.totals_source = :cache to keep budget reads on the rollups fast path or drop the table."
+          "Set config.budgets.totals_source = :cache to use it or drop the table."
         )
       else
         Check.new(

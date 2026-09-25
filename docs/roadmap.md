@@ -1,6 +1,6 @@
 # Roadmap
 
-The gem is a **runtime LLM cost tracker** for a Rails app. Capture, price, attribute, budget. No proxy, no prompt storage, no traces, no evals, no warehouse. The 0.8 line-item rebuild is the foundation; everything below keeps that boundary.
+The gem does **per-tenant LLM spend attribution and budgets** for a Rails app. Capture, price, attribute, budget. No proxy, no prompt storage, no traces, no evals, no warehouse. The 0.8 line-item rebuild is the foundation; everything below keeps that boundary.
 
 Architecture: [Architecture](architecture.md). Data model: [Data model](data-model.md).
 
@@ -9,16 +9,14 @@ Architecture: [Architecture](architecture.md). Data model: [Data model](data-mod
 Every roadmap item must clear three filters before it gets started:
 
 1. **Pain** — 3+ independent GitHub issues, forum threads, or HN comments from real developers describe the problem. Vendor blog posts don't count.
-2. **Concept** — does not break the load-bearing constraints: no proxy, no prompt storage, Rails-native, ActiveRecord-only, hot path makes no network calls and never reads the ledger.
+2. **Concept** — does not break the load-bearing constraints: no proxy, no prompt storage, Rails-native, ActiveRecord-only, hot path reads the ledger only for budget checks and batch-result dedup, and makes no network calls beyond fetching batch output.
 3. **Implementation** — reachable without admin-tier API keys, without adding heavy infra, without depending on another vendor SaaS.
 
 If a candidate fails any filter, it stays in the anti-roadmap until evidence shifts. If a shipped feature gets no traction in six months, it goes to maintenance mode, not the next minor.
 
 ## v0.14 → v1.0 — sharpen the core
 
-One item left, backed by verified pain. This is what users actually hit in production.
-
-1. **Cache-aware cost accuracy.** Cache cost calculation is broken across the ecosystem (LiteLLM `#19681` — 10× overcharge; `#27191` — 67%, both with reproductions). The line-item schema already models `cache_read_input`, `cache_write_input`, and `cache_write_extended_input`. Lock the accuracy in with regression fixtures derived from the public bug reports above. Anthropic's 5-min vs 1-hour TTL split already lands in separate buckets; what is missing is the fixture coverage that keeps it from regressing.
+1. **Cache-aware cost accuracy.** Shipped: `spec/llm_cost_tracker/pricing/cache_accuracy_spec.rb` locks it with regression fixtures from LiteLLM `#19681` (10× overcharge) and `#27191` (67%) plus Anthropic's 5-min vs 1-hour cache-write split.
 
 ## v1.0 → v1.x — capture & accuracy
 
@@ -26,7 +24,7 @@ After 1.0 stabilizes the API, capture grows where enterprise users hit real gaps
 
 1. **AWS Bedrock + Vertex AI native capture (Faraday path).** EU and regional residency for Anthropic models routes through Bedrock Frankfurt or Vertex Belgium with separate pricing — those calls currently miss the ledger or land with wrong rates. Ship: host detection for `bedrock-runtime.{region}.amazonaws.com` and `{region}-aiplatform.googleapis.com`; parsers that delegate to the existing Anthropic / Gemini body-parsing per publisher; regional rates via the existing `pricing_mode` machinery; price scrapers for the Bedrock and Vertex pricing pages. Anthropic family first (Messages + Converse on Bedrock; rawPredict on Vertex). Other Bedrock families (Llama, Mistral, Nova, Cohere) and Vertex Garden non-Anthropic stay out of scope until demand. The README will need to say that `aws-sdk-bedrockruntime` and `google-cloud-aiplatform` use their own HTTP clients (not Faraday) and need separate SDK integrations — tracked in v1.x+ reactive.
 
-2. **Tool-charge pricing accuracy.** Same pattern as cache accuracy in v1.0. Capture for hosted tools (OpenAI web search reasoning vs non-reasoning, file search GB-day, code-interpreter sessions, container minutes; Anthropic web search / web fetch / code execution; Gemini grounding) already lives in line items — lock the math with regression fixtures derived from public bug reports (OpenAI forum blake24 thread: `$4.41` charged when `$1.71` expected).
+2. **Tool-charge pricing accuracy.** Same pattern as cache accuracy above. Capture for hosted tools (OpenAI web search reasoning vs non-reasoning, file search GB-day, code-interpreter sessions, container minutes; Anthropic web search / web fetch / code execution; Gemini grounding) already lives in line items — lock the math with regression fixtures derived from public bug reports (OpenAI forum blake24 thread: `$4.41` charged when `$1.71` expected).
 
 ## v1.x+ — reactive
 
@@ -71,7 +69,7 @@ Dashboards group and filter by these tag keys when present. The existing `call_t
 
 ## Standing constraints
 
-- Runtime tracking never makes a network call or scans the ledger. Hot path reads `pricing.overrides` → file snapshot → bundled snapshot, then writes inline through `Ledger::Store.insert` by default, or enqueues to the async inbox when `config.ingestion.mode = :async`.
-- Header is a projection. Per-component costs live in `llm_cost_tracker_call_line_items`; rollups stay a hot-path cache.
+- Runtime tracking reads the ledger only for budget checks and batch-result dedup, and makes no network call except downloading an OpenAI batch output file. Hot path reads `pricing.overrides` → file snapshot → bundled snapshot, then writes inline through `Ledger::Store.insert` by default, or enqueues to the async inbox when `config.ingestion.mode = :async`.
+- Header is a projection. Per-component costs live in `llm_cost_tracker_call_line_items`; rollups only guard budget totals against drift.
 - Postgres and MySQL parity. Every ledger query must run on both.
 - No silent migrations. Schema changes ship behind generators with upgrade notes; doctor surfaces missing schema before per-event branching is introduced.
