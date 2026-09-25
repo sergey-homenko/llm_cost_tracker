@@ -17,46 +17,66 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "grounding_request" => 35.0,
         "input" => 1.25,
         "output" => 10.0,
+        "image_input" => 1.25,
+        "audio_input" => 1.25,
         "cache_read_input" => 0.125,
         "batch_input" => 0.625,
         "batch_output" => 5.0,
+        "batch_image_input" => 0.625,
+        "batch_audio_input" => 0.625,
         "batch_cache_read_input" => 0.125,
         "_context_price_threshold_tokens" => 200_000,
         "above_context_input" => 2.5,
         "above_context_output" => 15.0,
+        "above_context_image_input" => 2.5,
+        "above_context_audio_input" => 2.5,
         "above_context_cache_read_input" => 0.25,
         "above_context_batch_input" => 1.25,
         "above_context_batch_output" => 7.5,
+        "above_context_batch_image_input" => 1.25,
+        "above_context_batch_audio_input" => 1.25,
         "above_context_batch_cache_read_input" => 0.25,
         "flex_input" => 0.625,
         "flex_output" => 5.0,
+        "flex_image_input" => 0.625,
+        "flex_audio_input" => 0.625,
         "flex_cache_read_input" => 0.125,
         "above_context_flex_input" => 1.25,
         "above_context_flex_output" => 7.5,
+        "above_context_flex_image_input" => 1.25,
+        "above_context_flex_audio_input" => 1.25,
         "above_context_flex_cache_read_input" => 0.25,
         "priority_input" => 2.25,
         "priority_output" => 18.0,
+        "priority_image_input" => 2.25,
+        "priority_audio_input" => 2.25,
         "priority_cache_read_input" => 0.225,
         "above_context_priority_input" => 4.5,
         "above_context_priority_output" => 27.0,
+        "above_context_priority_image_input" => 4.5,
+        "above_context_priority_audio_input" => 4.5,
         "above_context_priority_cache_read_input" => 0.45
       )
       expect(result.models.fetch("gemini-2.5-flash")).to eq(
         "grounding_request" => 35.0,
         "input" => 0.30,
         "output" => 2.50,
+        "image_input" => 0.30,
         "audio_input" => 1.0,
         "cache_read_input" => 0.03,
         "batch_input" => 0.15,
         "batch_output" => 1.25,
+        "batch_image_input" => 0.15,
         "batch_audio_input" => 0.5,
         "batch_cache_read_input" => 0.03,
         "flex_input" => 0.15,
         "flex_output" => 1.25,
+        "flex_image_input" => 0.15,
         "flex_audio_input" => 0.5,
         "flex_cache_read_input" => 0.03,
         "priority_input" => 0.54,
         "priority_output" => 4.5,
+        "priority_image_input" => 0.54,
         "priority_audio_input" => 1.8,
         "priority_cache_read_input" => 0.054
       )
@@ -70,18 +90,24 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "grounding_request" => 35.0,
         "input" => 0.10,
         "output" => 0.40,
+        "image_input" => 0.10,
         "audio_input" => 0.70,
         "cache_read_input" => 0.025,
         "batch_input" => 0.05,
         "batch_output" => 0.20,
+        "batch_image_input" => 0.05,
         "batch_audio_input" => 0.35,
         "batch_cache_read_input" => 0.025
       )
       expect(result.models.fetch("gemini-2.0-flash-lite")).to eq(
         "input" => 0.075,
         "output" => 0.30,
+        "image_input" => 0.075,
+        "audio_input" => 0.075,
         "batch_input" => 0.0375,
-        "batch_output" => 0.15
+        "batch_output" => 0.15,
+        "batch_image_input" => 0.0375,
+        "batch_audio_input" => 0.0375
       )
     end
 
@@ -102,31 +128,39 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
       expect(preview_ids).not_to be_empty
     end
 
-    it "prices image models' text and image output tokens separately, per 1M tokens" do
+    it "prices image models' text and image tokens separately, per 1M tokens" do
       models = described_class.new.call(html: html).models
 
       expect(models.fetch("gemini-3-pro-image-preview")).to eq(
         "input" => 2.0,
         "output" => 12.0,
+        "image_input" => 2.0,
         "image_output" => 120.0,
         "batch_input" => 1.0,
         "batch_output" => 6.0,
+        "batch_image_input" => 1.0,
         "batch_image_output" => 60.0,
         "flex_input" => 1.0,
         "flex_output" => 6.0,
+        "flex_image_input" => 1.0,
         "flex_image_output" => 60.0,
         "priority_input" => 3.6,
         "priority_output" => 21.6,
+        "priority_image_input" => 3.6,
         "priority_image_output" => 216.0
       )
       expect(models.fetch("gemini-2.5-flash-image")).to eq(
         "input" => 0.3,
+        "image_input" => 0.3,
         "image_output" => 30.0,
         "batch_input" => 0.15,
+        "batch_image_input" => 0.15,
         "batch_image_output" => 15.0,
         "flex_input" => 0.15,
+        "flex_image_input" => 0.15,
         "flex_image_output" => 15.0,
         "priority_input" => 0.54,
+        "priority_image_input" => 0.54,
         "priority_image_output" => 54.0
       )
     end
