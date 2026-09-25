@@ -175,6 +175,24 @@ module LlmCostTracker
             details: { seconds: seconds }
           )]
         end
+
+        # OpenRouter bills BYOK inference to the user's own provider key and puts only its fee in usage.cost.
+        def billed_line_items(usage)
+          amounts = [usage[:cost]]
+          amounts << usage.dig(:cost_details, :upstream_inference_cost) if usage[:is_byok]
+          return [] unless amounts.all?(Numeric)
+
+          amount = amounts.sum { |value| BigDecimal(value.to_s) }
+          [Charges::LineItem.build(
+            dimension_key: "billed_request",
+            quantity: 1,
+            rate_amount: amount,
+            cost: amount,
+            pricing_basis: "provider_usage",
+            price_source: "provider_response",
+            provider_field: "usage.cost"
+          )]
+        end
       end
     end
   end

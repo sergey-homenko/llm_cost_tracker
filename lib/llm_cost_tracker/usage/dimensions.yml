@@ -140,3 +140,10 @@
   cache_state: none
   unit: minute
   rate_basis: per_minute
+
+- key: billed_request
+  kind: billed_request
+  direction: neither
+  modality: none
+  cache_state: none
+  unit: request

@@ -1041,4 +1041,67 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       hash_including(provider: "gemini", model: "gemini-2.0-flash")
     )
   end
+
+  describe "OpenRouter billed cost" do
+    def openrouter_event(body, stream: false)
+      content_type = stream ? "text/event-stream" : "application/json"
+      conn = Faraday.new(url: "https://openrouter.ai") do |f|
+        f.use :llm_cost_tracker
+        f.adapter :test do |stub|
+          stub.post("/api/v1/chat/completions") { [200, { "Content-Type" => content_type }, body] }
+        end
+      end
+      recorded = []
+      ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) { |*, payload| recorded << payload }
+      conn.post("/api/v1/chat/completions", { model: "openrouter/auto", stream: stream, messages: [] }.to_json)
+      expect(recorded.size).to eq(1)
+      recorded.first
+    end
+
+    def total_cost(event)
+      BigDecimal(event.dig(:cost, :total))
+    end
+
+    it "records usage.cost for a call OpenRouter routed below the model's list price" do
+      # DeepInfra serves gpt-oss-120b at $0.037/M input and $0.17/M output; the list price is $0.15/$0.60.
+      event = openrouter_event({
+        id: "gen-1", provider: "DeepInfra", model: "openai/gpt-oss-120b",
+        choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 2_000, completion_tokens: 800, total_tokens: 2_800, cost: 0.00021, is_byok: false,
+                 cost_details: { upstream_inference_cost: nil } }
+      }.to_json)
+
+      expect(total_cost(event)).to eq(BigDecimal("0.00021"))
+      expect(event).to include(cost_status: "complete", provider: "openrouter")
+      expect(event[:pricing_snapshot]).to include("source" => "provider_response", "currency" => "USD")
+      billed, tokens = event[:line_items].partition { |item| item[:kind] == "billed_request" }
+      expect(billed).to contain_exactly(include(cost: "0.00021", provider_field: "usage.cost", cost_status: "complete"))
+      expect(tokens.map { |item| item[:cost] }).to all(be_nil)
+    end
+
+    it "adds the upstream provider's charge to OpenRouter's fee on a BYOK call" do
+      # BYOK: the Anthropic key is billed 10K x $3/M + 1K x $15/M; OpenRouter's fee is 5% of that.
+      event = openrouter_event({
+        id: "gen-2", provider: "Anthropic", model: "anthropic/claude-sonnet-4.5",
+        usage: { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000, cost: 0.00225, is_byok: true,
+                 cost_details: { upstream_inference_cost: 0.045 } }
+      }.to_json)
+
+      expect(total_cost(event)).to eq(BigDecimal("0.04725"))
+    end
+
+    it "records usage.cost from the final chunk of an OpenRouter stream" do
+      # Together serves llama-3.3-70b-instruct at $1.04/M input and output; the list price is $0.10/$0.32.
+      chunk = { id: "gen-3", provider: "Together", model: "meta-llama/llama-3.3-70b-instruct",
+                choices: [{ index: 0, delta: { content: "hi" } }] }
+      final = chunk.merge(choices: [], usage: { prompt_tokens: 3_000, completion_tokens: 500, total_tokens: 3_500,
+                                                cost: 0.00364, is_byok: false })
+      body = "data: #{chunk.to_json}\n\ndata: #{final.to_json}\n\ndata: [DONE]\n\n"
+
+      event = openrouter_event(body, stream: true)
+
+      expect(event).to include(stream: true, usage_source: "stream_final", cost_status: "complete")
+      expect(total_cost(event)).to eq(BigDecimal("0.00364"))
+    end
+  end
 end

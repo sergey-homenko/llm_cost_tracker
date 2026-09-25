@@ -80,7 +80,8 @@ LlmCostTracker.configure do |config|
   # config.ingestion.pool_size = 5
 
   # Register OpenAI-compatible gateway hosts beyond the built-in OpenRouter, DeepSeek and Groq;
-  # the Faraday middleware captures only listed hosts, under the provider name given here.
+  # the Faraday middleware captures only listed hosts. Its calls, and openai gem calls whose
+  # base_url is a listed host, are recorded under the provider name given here.
   # config.capture.openai_compatible_providers["llm.my-company.com"] = "internal_gateway"
 
   # Streaming calls only report token usage when the request asks for it. Leave this

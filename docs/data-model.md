@@ -79,7 +79,7 @@ One row per priced component on a call. Tokens and tool charges live here in the
 | --- | --- | --- |
 | `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
 | `position` | smallint, default `0` | Stable order within a call |
-| `kind` | string, not null | `text_token`, `audio_token`, `image_token`, `web_search_request`, `web_search_preview_request_reasoning`, `web_search_preview_request_non_reasoning`, `web_fetch_request`, `grounding_request`, `container_session`, `file_search_call`, `transcription_minute`, `text_to_speech_character`, `code_execution_hour` |
+| `kind` | string, not null | `text_token`, `audio_token`, `image_token`, `web_search_request`, `web_search_preview_request_reasoning`, `web_search_preview_request_non_reasoning`, `web_fetch_request`, `grounding_request`, `container_session`, `file_search_call`, `transcription_minute`, `text_to_speech_character`, `code_execution_hour`, `billed_request` (the provider's billed total for the call, e.g. OpenRouter's `usage.cost`) |
 | `direction` | string, not null | `input`, `output`, `neither` |
 | `modality` | string, not null | `text`, `audio`, `image`, `none` |
 | `cache_state` | string, default `none` | `none`, `read`, `write_default`, `write_extended` |
