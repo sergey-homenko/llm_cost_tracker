@@ -6,7 +6,7 @@ require "llm_cost_tracker"
 
 module Dummy
   class Application < Rails::Application
-    config.load_defaults 7.1
+    config.load_defaults 8.0
 
     config.root = File.expand_path("..", __dir__)
     config.eager_load = false

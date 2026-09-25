@@ -62,7 +62,7 @@ BUNDLE_GEMFILE=gemfiles/rails_8_0.gemfile bundle install
 BUNDLE_GEMFILE=gemfiles/rails_8_0.gemfile bundle exec rspec
 ```
 
-The CI matrix covers Ruby 3.3 and 3.4 across Rails 7.1 / 7.2 / 8.0 / 8.1, plus RubyLLM 1.x on Ruby 3.4 (`gemfiles/ruby_llm_1.gemfile`); every other job runs RubyLLM 2.x.
+The CI matrix covers Ruby 3.3 and 3.4 across Rails 8.0 / 8.1, plus RubyLLM 1.x on Ruby 3.4 (`gemfiles/ruby_llm_1.gemfile`); every other job runs RubyLLM 2.x.
 
 ### Running the linter
 

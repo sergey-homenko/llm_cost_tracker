@@ -1,5 +1,9 @@
 # Upgrading
 
+## v0.14 → v0.15 (Unreleased)
+
+- **Rails 8.0+ is required.** On Rails 7.1 or 7.2, `bundle update llm_cost_tracker` stays on 0.14.1 without an error, and 0.14.x gets no further fixes, so upgrade Rails first. There are no migrations.
+
 ## v0.14.0 → v0.14.1
 
 A bug-fix release with no migrations. Check these after upgrading:

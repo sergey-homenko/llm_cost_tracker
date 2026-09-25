@@ -43,11 +43,11 @@ Gem::Specification.new do |spec|
 
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "activerecord", ">= 7.1", "< 9.0"
-  spec.add_dependency "activesupport", ">= 7.1", "< 9.0"
+  spec.add_dependency "activerecord", ">= 8.0", "< 9.0"
+  spec.add_dependency "activesupport", ">= 8.0", "< 9.0"
   spec.add_dependency "csv", "~> 3.0"
   spec.add_dependency "faraday", ">= 2.0", "< 3.0"
-  spec.add_dependency "railties", ">= 7.1", "< 9.0"
+  spec.add_dependency "railties", ">= 8.0", "< 9.0"
 
   spec.add_development_dependency "anthropic", "~> 1.61"
   spec.add_development_dependency "nokogiri", "~> 1.19"
