@@ -30,7 +30,7 @@ module LlmCostTracker
         end
 
         def blocking?
-          active? && configured.each_value.any? { |entry| behavior_for(entry) == :block_requests }
+          configured.each_value.any? { |entry| behavior_for(entry) == :block_requests } && active?
         end
 
         def rules_for(tags, blocking_only: false)
@@ -62,11 +62,11 @@ module LlmCostTracker
           spend_by_value(key, [value], window, window_start(window, time)).fetch(value, 0).to_d
         end
 
-        def spend_by_value(key, values, window, bucket)
+        def spend_by_value(key, values, window, bucket, upto = nil)
           started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           totals = Ledger::Isolation.guard(LlmCostTracker::CallTag) do
             LlmCostTracker::CallTag
-              .where(key: key, value: values, TIME_COLUMN => window_range(window, bucket))
+              .where(key: key, value: values, TIME_COLUMN => upto ? bucket..upto : window_range(window, bucket))
               .group(:value).sum(COST_COLUMN)
           end
           warn_slow_read(key, window, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at)

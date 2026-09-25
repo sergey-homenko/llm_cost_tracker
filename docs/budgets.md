@@ -30,6 +30,8 @@ Budgets evaluate only when an event has a known cost. Unknown-cost events are st
 
 Under concurrency, multiple workers can clear preflight before each other's spend is visible. It stops the next request once overspend lands — it doesn't make provider spend transactional.
 
+If the budget read fails (database unavailable, statement timeout), `:block_requests` raises that error to your code and the request is not sent.
+
 ## Per-Tag Budgets
 
 `budgets.per_tag` applies one budget to every distinct value of a tag, for as many tags as you declare:
