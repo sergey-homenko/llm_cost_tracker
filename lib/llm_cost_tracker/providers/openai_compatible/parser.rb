@@ -30,6 +30,10 @@ module LlmCostTracker
         def provider_for(request_url)
           self.class.provider_for_uri(parsed_uri(request_url)) || "openai_compatible"
         end
+
+        def auto_enable_stream_usage?(request_url, request_parsed)
+          super && Configuration::Capture::OPENAI_COMPATIBLE_PROVIDERS.key?(parsed_uri(request_url).host.to_s.downcase)
+        end
       end
     end
   end

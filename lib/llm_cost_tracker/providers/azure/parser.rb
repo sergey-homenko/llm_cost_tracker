@@ -38,6 +38,25 @@ module LlmCostTracker
           match = uri&.path&.match(%r{/openai/deployments/([^/]+)/})
           match && match[1]
         end
+
+        def auto_enable_stream_usage?(request_url, request_parsed)
+          super && stream_options_api?(parsed_uri(request_url)) &&
+            !request_parsed.key?("data_sources") && !image_input?(request_parsed)
+        end
+
+        private
+
+        def stream_options_api?(uri)
+          uri.path.start_with?("/openai/v1/") ||
+            uri.query.to_s[/api-version=(\d{4}-\d{2}-\d{2})/, 1].to_s >= "2024-06-01"
+        end
+
+        def image_input?(request)
+          Array(request["messages"]).any? do |message|
+            message.is_a?(Hash) &&
+              Array(message["content"]).any? { |part| part.is_a?(Hash) && part["type"] == "image_url" }
+          end
+        end
       end
     end
   end

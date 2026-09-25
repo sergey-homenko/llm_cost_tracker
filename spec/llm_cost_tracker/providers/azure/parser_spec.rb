@@ -162,12 +162,31 @@ RSpec.describe LlmCostTracker::Providers::Azure::Parser do
   end
 
   describe "#auto_enable_stream_usage?" do
-    it "opts in for chat completions paths" do
-      expect(parser.auto_enable_stream_usage?(chat_completions_url)).to be true
+    def chat_url(query, path: "/openai/deployments/gpt4o-prod/chat/completions")
+      URI::HTTPS.build(host: "myresource.openai.azure.com", path: path, query: query).to_s
+    end
+
+    let(:request) { { "messages" => [{ "role" => "user", "content" => "Hi" }] } }
+
+    it "opts in for chat completions on the v1 API and on api-versions from 2024-06-01" do
+      [chat_url(nil, path: "/openai/v1/chat/completions"), chat_url("api-version=2024-06-01"),
+       chat_url("api-version=2025-04-01-preview")].each do |url|
+        expect(parser.auto_enable_stream_usage?(url, request)).to be(true), url
+      end
+    end
+
+    it "opts out on older or missing api-versions and for On Your Data or image input" do
+      [nil, "api-version=2024-02-01", "api-version=2024-05-01-preview"].each do |query|
+        expect(parser.auto_enable_stream_usage?(chat_url(query), request)).to be(false), query.inspect
+      end
+      image_request = { "messages" => [{ "role" => "user", "content" => [{ "type" => "image_url" }] }] }
+
+      expect(parser.auto_enable_stream_usage?(chat_completions_url, request.merge("data_sources" => []))).to be false
+      expect(parser.auto_enable_stream_usage?(chat_completions_url, image_request)).to be false
     end
 
     it "leaves embeddings alone" do
-      expect(parser.auto_enable_stream_usage?(embeddings_url)).to be false
+      expect(parser.auto_enable_stream_usage?(embeddings_url, {})).to be false
     end
   end
 end

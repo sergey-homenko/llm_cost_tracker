@@ -932,6 +932,40 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(parsed.dig("stream_options", "include_usage")).to be true
   end
 
+  describe "stream_options injection on hosts that may reject it" do
+    def sent_body(url, body = { model: "gpt-4o", stream: true })
+      captured_body = nil
+      uri = URI(url)
+      conn = Faraday.new(url: "https://#{uri.host}") do |f|
+        f.use :llm_cost_tracker
+        f.adapter :test do |stub|
+          stub.post(uri.path) do |env|
+            captured_body = env.body
+            [200, { "Content-Type" => "text/event-stream" }, ""]
+          end
+        end
+      end
+      conn.post(uri.request_uri, body.to_json)
+      JSON.parse(captured_body)
+    end
+
+    it "auto-injects on Azure OpenAI only from api-version 2024-06-01 and not with On Your Data" do
+      url = "https://myresource.openai.azure.com/openai/deployments/gpt4o-prod/chat/completions?api-version="
+
+      expect(sent_body("#{url}2024-10-21").dig("stream_options", "include_usage")).to be true
+      expect(sent_body("#{url}2024-02-01")).not_to have_key("stream_options")
+      expect(sent_body("#{url}2024-10-21", { stream: true, data_sources: [] })).not_to have_key("stream_options")
+    end
+
+    it "leaves streams to hosts the app added to openai_compatible_providers untouched" do
+      LlmCostTracker.configure do |config|
+        config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
+      end
+
+      expect(sent_body("https://llm.example.com/v1/chat/completions")).not_to have_key("stream_options")
+    end
+  end
+
   it "auto-injects when the caller hands Faraday a Hash body" do
     captured_body = nil
 

@@ -15,14 +15,16 @@ stream_options: { include_usage: true }
 The gem auto-injects this flag for you when:
 
 - `config.capture.request_stream_usage` is `true` (the default)
-- the matched parser is OpenAI or OpenAI-compatible
 - the URL ends with `/chat/completions`
 - the request body is JSON with `stream: true`
 - the caller has not already set `stream_options.include_usage` (any explicit value, including `false`, is preserved)
+- the host is OpenAI, OpenRouter, DeepSeek, Groq, or Azure OpenAI on the v1 API or `api-version` 2024-06-01 and later, without On Your Data (`data_sources`) or image input
 
 Other entries inside `stream_options` are merged, not replaced. Bodies that aren't JSON, requests for the Responses API, and non-streaming requests are left untouched.
 
-Set `config.capture.request_stream_usage = false` if you want to manage the flag yourself; in that case, when the final usage chunk is missing the gem still records the call with `usage_source: "unknown"` and emits a warning rather than failing silently:
+Hosts you add to `config.capture.openai_compatible_providers` are never modified, because the gem can't know whether they accept the flag; set it in your own request if they do.
+
+Set `config.capture.request_stream_usage = false` if you want to manage the flag yourself. When the final usage chunk is missing, the gem still records the call with `usage_source: "unknown"` and emits a warning rather than failing silently:
 
 ```
 [LlmCostTracker] OpenAI-compatible chat-completions stream finished without

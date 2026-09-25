@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - Ruby 3.3 is supported. The minimum Ruby version drops from 3.4 to 3.3, and CI runs every Rails version on both.
+- The Faraday middleware no longer adds `stream_options: { include_usage: true }` where the server can reject it and fail the request. It now adds it only for OpenAI, OpenRouter, DeepSeek, Groq, the Azure OpenAI v1 API, and Azure `api-version` 2024-06-01 or later, and not to Azure requests with On Your Data or image input. Hosts you add to `config.capture.openai_compatible_providers` are left untouched: set the flag in your own requests if the server supports it, otherwise their streams are recorded with `usage_source: unknown` and a warning.
 
 ### Removed
 

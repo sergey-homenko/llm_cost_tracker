@@ -19,7 +19,7 @@ Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `p
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `enabled` | `true` | Turns capture on or off without removing middleware or integrations |
-| `capture.request_stream_usage` | `true` | Streaming endpoints only report token usage when the request asks for it. The Faraday middleware adds `stream_options: { include_usage: true }` to OpenAI / OpenAI-compatible chat-completions streaming request bodies that don't already set it. Set to `false` to leave request bodies untouched. See [Streaming](streaming.md). |
+| `capture.request_stream_usage` | `true` | Streaming endpoints only report token usage when the request asks for it. The Faraday middleware adds `stream_options: { include_usage: true }` to chat-completions streaming request bodies that don't already set it, on hosts known to accept it; hosts you register are left alone. Set to `false` to leave request bodies untouched. See [Streaming](streaming.md). |
 | `capture.openai_compatible_providers` | OpenRouter, DeepSeek, Groq | Maps a gateway host to the provider name recorded for its calls |
 
 ## Tag Options

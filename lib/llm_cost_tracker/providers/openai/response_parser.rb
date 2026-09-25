@@ -70,7 +70,7 @@ module LlmCostTracker
           build_unknown_stream_usage(**context)
         end
 
-        def auto_enable_stream_usage?(request_url)
+        def auto_enable_stream_usage?(request_url, _request_parsed)
           openai_chat_completions_url?(request_url)
         end
 
