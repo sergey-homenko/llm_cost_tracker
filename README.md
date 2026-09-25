@@ -6,8 +6,6 @@ Per-tenant LLM spend attribution and budgets for Rails — in your database, no 
 
 Every call through RubyLLM, the official OpenAI and Anthropic SDKs, Gemini, or any OpenAI-compatible API is logged with tokens, cost, and your tags. Budgets can block a tenant's next call before it is sent.
 
-RubyLLM 2.0 also writes usage and cost to `ruby_llm_usages`, but only for chats persisted with `acts_as_chat`; those rows carry no tags, and it has no spend budgets. This gem records every call from the clients above, tagged however you choose.
-
 Not Langfuse, Helicone, or LiteLLM. No prompts, no traces, no replay. Spend attribution only.
 
 Requires Ruby 3.3+, Rails 8.0+, PostgreSQL or MySQL.
