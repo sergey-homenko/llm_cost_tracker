@@ -8,7 +8,7 @@ Every call your app makes through RubyLLM, the official OpenAI and Anthropic SDK
 
 Not Langfuse, Helicone, or LiteLLM. No prompts, no traces, no replay. Spend attribution only.
 
-Requires Ruby 3.3+, Rails 7.1+, PostgreSQL or MySQL.
+Requires Ruby 3.3+, Rails 8.0+, PostgreSQL or MySQL.
 
 <picture> <source media="(prefers-color-scheme: dark)" srcset="docs/dashboard-overview-dark.png"> <img alt="LLM Cost Tracker dashboard" src="docs/dashboard-overview-light.png"> </picture>
 

@@ -4,8 +4,6 @@ require "spec_helper"
 require "faraday"
 
 RSpec.describe LlmCostTracker::Ledger::Isolation do
-  deferred_rollups = ActiveRecord.gem_version >= Gem::Version.new("7.2")
-
   before do
     establish_database_connection!
     create_lct_tables!
@@ -164,16 +162,7 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
     end
   end
 
-  it "increments rollups immediately inside a joinable transaction on Rails 7.1", unless: deferred_rollups do
-    LlmCostTracker.configuration.budgets.totals_source = :cache
-
-    ActiveRecord::Base.transaction do
-      LlmCostTracker::Ledger::Store.insert(build_event(event_id: "rails_71"))
-      expect(monthly_rollup_total).to eq(BigDecimal("0.0025"))
-    end
-  end
-
-  it "increments rollups once the host transaction commits and skips them when it rolls back", if: deferred_rollups do
+  it "increments rollups once the host transaction commits and skips them when it rolls back" do
     LlmCostTracker.configuration.budgets.totals_source = :cache
 
     ActiveRecord::Base.transaction do

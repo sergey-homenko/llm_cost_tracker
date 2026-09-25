@@ -17,13 +17,6 @@ module LlmCostTracker
 
           raise TransactionAbortedError, e
         end
-
-        def after_commit(&)
-          current = LlmCostTracker::Call.connection.current_transaction
-          return yield unless current.open? && current.joinable? && current.respond_to?(:after_commit)
-
-          current.after_commit(&)
-        end
       end
     end
   end

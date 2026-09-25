@@ -36,7 +36,7 @@ module LlmCostTracker
         def increment_safely!(events)
           return unless LlmCostTracker.configuration.budgets.totals_source == :cache
 
-          Isolation.after_commit { increment_with_retries(events) }
+          LlmCostTracker::Call.current_transaction.after_commit { increment_with_retries(events) }
         end
 
         def increment_with_retries(events)

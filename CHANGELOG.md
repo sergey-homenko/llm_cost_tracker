@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- BREAKING: Rails 8.0+ required; Rails 7.1 and 7.2 no longer receive security fixes upstream.
+
 ## [0.14.1] - 2026-09-25
 
 ### Added
