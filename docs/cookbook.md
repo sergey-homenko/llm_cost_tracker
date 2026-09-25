@@ -76,7 +76,7 @@ LlmCostTracker.track_stream(provider: "openai", model: "gpt-realtime-1.5", tags:
 end
 ```
 
-The OpenAI parser reads Realtime `input_token_details.audio_tokens` and `output_token_details.audio_tokens` from the final response usage. Cached audio and image tokens, reported under `input_token_details.cached_tokens_details`, are recorded as cache reads rather than as audio or image input.
+The OpenAI parser reads Realtime `input_token_details.audio_tokens` and `output_token_details.audio_tokens` from the final response usage.
 
 ## Official Anthropic SDK
 

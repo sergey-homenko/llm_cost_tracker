@@ -9,7 +9,13 @@ module LlmCostTracker
         INPUT_DETAIL_KEYS = %i[input_tokens_details input_token_details prompt_tokens_details].freeze
         OUTPUT_DETAIL_KEYS = %i[output_tokens_details output_token_details completion_tokens_details].freeze
         def self.token_usage(usage, model: nil)
+          input_tokens = (usage[:input_tokens] || usage[:prompt_tokens]).to_i
           output_tokens = (usage[:output_tokens] || usage[:completion_tokens]).to_i
+          cache_read = cache_read_input_tokens(usage)
+          cache_write = cache_write_input_tokens(usage)
+          uncached_input = [input_tokens - cache_read - cache_write, 0].max
+          image_input = uncached_input_tokens(usage, :image_tokens).clamp(0, uncached_input)
+          audio_input = uncached_input_tokens(usage, :audio_tokens).clamp(0, uncached_input - image_input)
           audio_output = audio_output_tokens(usage)
           image_output, regular_output = split_output(
             output_tokens: output_tokens,
@@ -20,36 +26,17 @@ module LlmCostTracker
           )
 
           Usage::TokenUsage.build(
-            **input_buckets(usage),
+            input_tokens: uncached_input - audio_input - image_input,
             output_tokens: regular_output,
             total_tokens: usage[:total_tokens],
+            cache_read_input_tokens: cache_read,
+            cache_write_input_tokens: cache_write,
+            audio_input_tokens: audio_input,
             audio_output_tokens: audio_output,
+            image_input_tokens: image_input,
             image_output_tokens: image_output,
             hidden_output_tokens: hidden_output_tokens(usage)
           )
-        end
-
-        def self.input_buckets(usage)
-          input_tokens = (usage[:input_tokens] || usage[:prompt_tokens]).to_i
-          cached = cache_read_input_tokens(usage) + cache_write_input_tokens(usage)
-          audio_input = uncached_input_tokens(usage, :audio_tokens)
-          image_input = uncached_input_tokens(usage, :image_tokens)
-          overlap = input_tokens.positive? ? [cached + audio_input + image_input - input_tokens, 0].max : 0
-          audio_overlap = [overlap, audio_input].min
-          audio_input -= audio_overlap
-          image_input -= [overlap - audio_overlap, image_input].min
-
-          {
-            input_tokens: [input_tokens - cached - audio_input - image_input, 0].max,
-            cache_read_input_tokens: cache_read_input_tokens(usage),
-            cache_write_input_tokens: cache_write_input_tokens(usage),
-            audio_input_tokens: audio_input,
-            image_input_tokens: image_input
-          }
-        end
-
-        def self.uncached_input_tokens(usage, key)
-          [detail(usage, INPUT_DETAIL_KEYS, key) - detail(usage, INPUT_DETAIL_KEYS, :cached_tokens_details, key), 0].max
         end
 
         def self.split_output(output_tokens:,
@@ -73,6 +60,10 @@ module LlmCostTracker
         def self.image_input_tokens(usage)      = detail(usage, INPUT_DETAIL_KEYS, :image_tokens)
         def self.image_output_tokens(usage)     = detail(usage, OUTPUT_DETAIL_KEYS, :image_tokens)
         def self.text_output_tokens(usage)      = detail(usage, OUTPUT_DETAIL_KEYS, :text_tokens)
+
+        def self.uncached_input_tokens(usage, key)
+          detail(usage, INPUT_DETAIL_KEYS, key) - detail(usage, INPUT_DETAIL_KEYS, :cached_tokens_details, key)
+        end
 
         def self.detail(usage, containers, *path)
           containers.each do |container|
