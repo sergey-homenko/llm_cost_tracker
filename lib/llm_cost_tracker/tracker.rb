@@ -16,7 +16,6 @@ module LlmCostTracker
       def record(event:, latency_ms: nil, metadata: {}, context_tags: nil, enforce_budget: false)
         return unless LlmCostTracker.configuration.enabled
 
-        event = Ledger::Storable.event(event)
         calculation = Pricing::Calculation.for(
           provider: event.provider,
           model: event.model,

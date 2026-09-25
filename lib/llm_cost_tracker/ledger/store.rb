@@ -47,25 +47,23 @@ module LlmCostTracker
         def attributes_for(event)
           attributes = {
             event_id: event.event_id,
-            provider: Storable.identifier(event.provider),
-            model: Storable.identifier(event.model),
+            provider: event.provider,
+            model: event.model,
             tracked_at: event.tracked_at,
-            pricing_mode: Storable.identifier(event.pricing_mode),
+            pricing_mode: event.pricing_mode,
             latency_ms: event.latency_ms,
             stream: event.stream,
-            usage_source: Storable.identifier(event.usage_source),
-            provider_response_id: Storable.identifier(event.provider_response_id),
-            provider_project_id: Storable.identifier(event.provider_project_id),
-            provider_api_key_id: Storable.identifier(event.provider_api_key_id),
-            provider_workspace_id: Storable.identifier(event.provider_workspace_id),
+            usage_source: event.usage_source,
+            provider_response_id: event.provider_response_id,
+            provider_project_id: event.provider_project_id,
+            provider_api_key_id: event.provider_api_key_id,
+            provider_workspace_id: event.provider_workspace_id,
             batch: event.batch?,
             cost_status: event.cost_status,
             pricing_snapshot: event.pricing_snapshot
           }
 
-          attributes
-            .merge(Storable.token_counts(event.token_usage, event_id: event.event_id))
-            .merge(total_cost: event.cost&.total)
+          Storable.clean(attributes.merge(event.token_usage.to_h).merge(total_cost: event.cost&.total))
         end
 
         def call_ids_for(events)
@@ -91,16 +89,26 @@ module LlmCostTracker
         end
 
         def line_item_attributes(call_id:, line_item:, position:)
-          strings = Storable::LINE_ITEM_STRINGS.to_h do |member|
-            [member, Storable.identifier(line_item.public_send(member))]
-          end
-          strings.merge(
+          Storable.clean(
             llm_cost_tracker_call_id: call_id,
             position: position,
+            kind: line_item.kind,
+            direction: line_item.direction,
+            modality: line_item.modality,
+            cache_state: line_item.cache_state,
             quantity: line_item.quantity,
+            unit: line_item.unit,
             rate_amount: line_item.rate_amount,
             rate_quantity: line_item.rate_quantity,
             cost: line_item.cost,
+            currency: line_item.currency,
+            cost_status: line_item.cost_status,
+            pricing_basis: line_item.pricing_basis,
+            price_key: line_item.price_key,
+            price_source: line_item.price_source,
+            price_source_version: line_item.price_source_version,
+            provider_field: line_item.provider_field,
+            provider_item_id: line_item.provider_item_id,
             details: stored_details(line_item.details),
             created_at: Time.now.utc
           )
@@ -112,7 +120,7 @@ module LlmCostTracker
               {
                 llm_cost_tracker_call_id: call_ids.fetch(event.event_id),
                 key: key.to_s,
-                value: Tags::Encoding.encode(value)
+                value: Tags::Encoding.encode(Storable.clean(value))
               }.merge(budget_columns_for(event))
             end
           end

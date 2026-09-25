@@ -14,12 +14,8 @@ module LlmCostTracker
         ActiveRecord::LockWaitTimeout,
         ActiveRecord::StatementTimeout,
         ActiveRecord::ConnectionNotEstablished,
-        ActiveRecord::ConnectionFailed,
-        ActiveRecord::QueryCanceled,
         LlmCostTracker::TransactionAbortedError
       ].freeze
-      SPLIT_BATCH_ERRORS = [ActiveRecord::ConnectionFailed, ActiveRecord::QueryCanceled].freeze
-      BATCH_TRANSIENT_ERRORS = (TRANSIENT_PERSIST_ERRORS - SPLIT_BATCH_ERRORS).freeze
 
       def initialize(identity:)
         @identity = identity
@@ -30,7 +26,7 @@ module LlmCostTracker
         return 0 if rows.empty?
 
         valid_rows, events = decode(rows)
-        persist(valid_rows, events) if events.any?
+        persist_batch(valid_rows, events) if events.any?
         rows.size
       rescue StandardError => e
         rows_to_mark = valid_rows&.any? ? valid_rows : rows
@@ -116,7 +112,7 @@ module LlmCostTracker
         events = []
         failures = Hash.new { |h, k| h[k] = [] }
         rows.each do |row|
-          events << Ledger::Storable.event(Ingestion::Inbox.event_from_row(row))
+          events << Ingestion::Inbox.event_from_row(row)
           valid_rows << row
         rescue StandardError => e
           failures[error_message_for(e)] << row
@@ -125,65 +121,51 @@ module LlmCostTracker
         [valid_rows, events]
       end
 
-      def persist(rows, events)
+      def persist_batch(rows, events)
         landed = []
         failed = Hash.new { |hash, message| hash[message] = [] }
         begin
-          retried, fresh = rows.zip(events).partition { |row, _event| row.attempts.to_i.positive? }
-          [fresh, retried].each { |pairs| persist_together(pairs, landed, failed) if pairs.any? }
-        ensure
-          failed.each { |message, failed_rows| report_unstored(failed_rows, message) }
-          if landed.any?
-            Ledger::Rollups.increment_safely!(landed)
-            Budget.notify_persisted_safely!(landed)
+          landed = persist(rows, events)
+        rescue *TRANSIENT_PERSIST_ERRORS
+          raise
+        rescue StandardError
+          rows.zip(events) do |row, event|
+            landed.concat(persist([row], [event]))
+          rescue *TRANSIENT_PERSIST_ERRORS
+            raise
+          rescue StandardError => e
+            failed[error_message_for(e)] << row
           end
         end
-      end
-
-      def persist_together(pairs, landed, failed)
-        return persist_alone(*pairs.first, landed, failed) if pairs.one?
-
-        landed.concat(write(pairs))
-      rescue *BATCH_TRANSIENT_ERRORS
-        raise
-      rescue StandardError
-        pairs.each { |row, event| persist_alone(row, event, landed, failed) }
-      end
-
-      def persist_alone(row, event, landed, failed)
-        landed.concat(write([[row, event]]))
-      rescue *TRANSIENT_PERSIST_ERRORS
-        raise
-      rescue StandardError => e
-        failed[error_message_for(e)] << row
+      ensure
+        failed.each { |message, failed_rows| report_unstored(failed_rows, message) }
+        Ledger::Rollups.increment_safely!(landed)
+        Budget.notify_persisted_safely!(landed)
       end
 
       def report_unstored(rows, message)
         LlmCostTracker::Logging.warn(
-          "Ingestion::Batch: #{rows.size} inbox row(s) could not be stored and will be retried apart " \
-          "from new rows (ids: #{id_sample(rows)}): #{message.byteslice(0, 300)}"
+          "Ingestion::Batch: #{rows.size} inbox row(s) could not be stored (ids: #{id_sample(rows)}): #{message}"
         )
         mark_failed_with_message(rows, message)
       end
 
-      def write(pairs, retry_on_conflict: true)
-        events = pairs.map(&:last)
+      def persist(rows, events, retry_on_conflict: true)
         LlmCostTracker::Call.transaction do
           Ledger::Store.persist_records(events)
-          Ingestion::InboxEntry.where(id: pairs.map { |row, _event| row.id }, locked_by: identity).delete_all
+          Ingestion::InboxEntry.where(id: rows.map(&:id), locked_by: identity).delete_all
         end
         events
       rescue ActiveRecord::RecordNotUnique
         raise unless retry_on_conflict
 
         already_persisted = LlmCostTracker::Call.where(event_id: events.map(&:event_id)).pluck(:event_id)
+        fresh_events = events.reject { |event| already_persisted.include?(event.event_id) }
         LlmCostTracker::Logging.warn(
           "Ingestion::Batch#persist: #{already_persisted.size} event_id(s) already in ledger; " \
-          "skipped duplicates and persisted #{events.size - already_persisted.size} fresh event(s)"
+          "skipped duplicates and persisted #{fresh_events.size} fresh event(s)"
         )
-        duplicate_rows = pairs.filter_map { |row, event| row if already_persisted.include?(event.event_id) }
-        Ingestion::InboxEntry.where(id: duplicate_rows.map(&:id), locked_by: identity).delete_all
-        write(pairs.reject { |_row, event| already_persisted.include?(event.event_id) }, retry_on_conflict: false)
+        persist(rows, fresh_events, retry_on_conflict: false)
       end
 
       def claimable_scope(cutoff)

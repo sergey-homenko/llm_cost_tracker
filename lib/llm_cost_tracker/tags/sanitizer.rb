@@ -60,7 +60,7 @@ module LlmCostTracker
         def sanitized_value(key, value, redacted, limit)
           return REDACTED_VALUE if redacted_key?(key, redacted)
 
-          scrubbed = scrub_secrets(Ledger::Storable.json(value))
+          scrubbed = scrub_secrets(Ledger::Storable.clean(value))
           return REDACTED_VALUE if scrubbed.equal?(REDACTED_SENTINEL)
 
           scalar_truncate(scrubbed, limit)

@@ -40,6 +40,13 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
     expect(tags[:feature]).not_to include("sk-pr")
   end
 
+  it "replaces invalid UTF-8 and removes NUL bytes, including nested values, so with_tags does not raise" do
+    invalid = "\xFF\xFE" * 10
+
+    expect(described_class.call({ q: invalid, h: { k: ["x\u0000"] } })).to eq(q: "\uFFFD" * 20, h: { k: ["x"] })
+    expect(LlmCostTracker.with_tags(q: invalid) { :ran }).to eq(:ran)
+  end
+
   it "redacts configured secret-like keys and common variants" do
     tags = described_class.call({ "openai.APIKey" => "sk-secret", accessToken: "token" }, config: config)
 

@@ -348,6 +348,24 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Call.first.tag_pairs).to eq("feature" => "")
   end
 
+  it "removes NUL bytes and invalid UTF-8 from stored strings, including inbox rows from earlier releases" do
+    event = LlmCostTracker.track(
+      provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 },
+      provider_response_id: "resp\u0000_1", tags: { note: "caf\xE9".b },
+      service_line_items: [{ dimension_key: "web_search_request", quantity: 1, details: { "no\u0000te" => "x\u0000y" } }]
+    )
+    row = LlmCostTracker::Ingestion::InboxEntry.first
+    payload = JSON.parse(row.payload)
+    payload["tags"]["query"] = "abc\u0000def"
+    row.update!(payload: JSON.generate(payload))
+    LlmCostTracker::Ingestion::Worker.flush!
+
+    call = LlmCostTracker::Call.find_by!(event_id: event.event_id)
+    expect(call.provider_response_id).to eq("resp_1")
+    expect(call.tag_pairs).to include("note" => "caf\uFFFD", "query" => "abcdef")
+    expect(LlmCostTracker::CallLineItem.where(llm_cost_tracker_call_id: call.id).pluck(:details)).to include("note" => "xy")
+  end
+
   it "serializes nested tag values as JSON strings in llm_cost_tracker_call_tags" do
     event = build_event(event_id: "nested-tags", tags: { metadata: { user_id: 42, active: true } })
 

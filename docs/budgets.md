@@ -107,7 +107,7 @@ Where the monthly/daily totals come from depends on `config.budgets.totals_sourc
 | --- | --- |
 | Live `SUM(total_cost)` from `llm_cost_tracker_calls` | Always, on every check |
 | `llm_cost_tracker_call_rollups` | Added when `config.budgets.totals_source = :cache`, as the greater of the two |
-| Pending `llm_cost_tracker_ingestion_inbox_entries` totals | Added on top when `ingestion.mode = :async` (events sit in the inbox until the worker drains them); quarantined rows are not counted |
+| Pending `llm_cost_tracker_ingestion_inbox_entries` totals | Added on top when `ingestion.mode = :async` (events sit in the inbox until the worker drains them) |
 
 Per-call budgets are checked from the current event only.
 

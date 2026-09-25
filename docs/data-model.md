@@ -147,7 +147,7 @@ Write-ahead inbox. Capture writes here first; the worker drains rows into the le
 | `tracked_at` | datetime, not null | |
 | `payload` | text, not null | Versioned JSON payload |
 | `locked_at` / `locked_by` | datetime / string | Worker row lock |
-| `attempts` | integer, default `0` | Times the row was claimed without being stored; at 5 it is quarantined — left in place but no longer claimed or counted in budget totals |
+| `attempts` | integer, default `0` | Retry count |
 | `last_error` | text | Last ingestion error |
 | `created_at` / `updated_at` | datetime | |
 
@@ -174,7 +174,7 @@ Shared lease for the background worker.
 
 ## Stored values
 
-Every string the gem stores is made storable on both supported databases before the call is priced: NUL bytes are removed and invalid UTF-8 is replaced with U+FFFD. When the row is written, string columns such as `model`, `pricing_mode`, `provider_response_id`, and line item strings are capped at 255 characters, the size of a MySQL string column; pricing uses the full value. Token counts above 2,147,483,647 are capped to fit the integer columns, with a warning; the call's cost is still computed from the full counts.
+NUL bytes, which PostgreSQL rejects, are removed from every stored string, and invalid UTF-8 in tag values is replaced with U+FFFD.
 
 ## Schema health
 
