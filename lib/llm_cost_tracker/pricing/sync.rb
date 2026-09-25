@@ -18,7 +18,6 @@ module LlmCostTracker
       DEFAULT_REMOTE_URL =
         "https://raw.githubusercontent.com/sergey-homenko/llm_cost_tracker/main/lib/llm_cost_tracker/prices.json"
       SUPPORTED_SCHEMA_VERSION = 1
-      MAX_LISTED_SUSPICIOUS_CHANGES = 20
 
       RefreshResult = Data.define(:path, :source_url, :source_version, :changes, :suspicious, :written, :not_modified)
       CheckResult = Data.define(:path, :source_url, :source_version, :changes, :suspicious, :up_to_date)
@@ -178,9 +177,7 @@ module LlmCostTracker
         end
 
         def refuse_suspicious_snapshot!(path, suspicious)
-          listed = suspicious.first(MAX_LISTED_SUSPICIOUS_CHANGES).map { |finding| "\n  - #{finding}" }.join
-          unlisted = suspicious.size - MAX_LISTED_SUSPICIOUS_CHANGES
-          listed += "\n  - and #{unlisted} more" if unlisted.positive?
+          listed = suspicious.first(20).map { |finding| "\n  - #{finding}" }.join
           raise Error,
                 "Refusing to write pricing file #{path}: the remote snapshot has #{suspicious.size} " \
                 "suspicious price change(s):#{listed}\n" \

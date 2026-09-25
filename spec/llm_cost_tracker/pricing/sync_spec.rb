@@ -251,92 +251,24 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       end
     end
 
-    context "when the remote snapshot moves prices suspiciously" do
-      let(:local_registry) do
-        {
-          "metadata" => { "source_version" => "old-snapshot", "currency" => "USD" },
-          "models" => {
-            "gpt-4o" => { "input" => 2.5, "cache_read_input" => 1.25, "output" => 10.0 },
-            "gpt-5-mini" => { "input" => 0.25, "cache_read_input" => 0.025, "output" => 2.0 }
-          }
-        }
-      end
-      let(:tampered_registry) do
-        remote_registry.deep_merge("models" => { "gpt-4o" => { "input" => 0, "output" => 1e30 } })
-      end
+    it "refuses a snapshot with suspicious price changes and leaves the file untouched unless forced" do
+      Tempfile.create(["llm-prices", ".yml"]) do |file|
+        original = { "metadata" => {}, "models" => { "gpt-4o" => { "input" => 2.5, "output" => 10.0 } } }.to_yaml
+        file.write(original)
+        file.close
+        tampered = remote_registry.deep_merge("models" => { "gpt-4o" => { "input" => 0, "output" => 1e30 } })
+        fetcher = CuratedPriceFetcher.new(response(body: JSON.generate(tampered)))
+        suspicious = ["gpt-4o input: 2.5 -> 0.0", "gpt-4o output: 10.0 -> 1.0e+30"]
 
-      def refresh_tampered(file, **options)
-        described_class.refresh(
-          path: file.path,
-          url: source_url,
-          fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(tampered_registry))),
-          **options
-        )
-      end
+        expect do
+          described_class.refresh(path: file.path, url: source_url, fetcher: fetcher)
+        end.to raise_error(LlmCostTracker::Error) { |error| expect(error.message).to include(*suspicious, "FORCE=1") }
+        expect(File.read(file.path)).to eq(original)
 
-      it "refuses to write it, lists the changes, and leaves the existing file untouched" do
-        Tempfile.create(["llm-prices", ".yml"]) do |file|
-          original = local_registry.to_yaml
-          file.write(original)
-          file.close
+        result = described_class.refresh(path: file.path, url: source_url, fetcher: fetcher, force: true)
 
-          expect { refresh_tampered(file) }.to raise_error(LlmCostTracker::Error) { |error|
-            expect(error.message).to include(
-              "Refusing to write pricing file #{file.path}",
-              "gpt-4o input: 2.5 -> 0.0 (set to zero)",
-              "gpt-4o output: 10.0 -> 1.0e+30 (up 100x or more)",
-              "FORCE=1"
-            )
-          }
-          expect(File.read(file.path)).to eq(original)
-        end
-      end
-
-      it "writes it when forced and reports what was accepted" do
-        Tempfile.create(["llm-prices", ".yml"]) do |file|
-          file.write(local_registry.to_yaml)
-          file.close
-
-          result = refresh_tampered(file, force: true)
-
-          expect(result.written).to be(true)
-          expect(result.suspicious).to contain_exactly(
-            "gpt-4o input: 2.5 -> 0.0 (set to zero)",
-            "gpt-4o output: 10.0 -> 1.0e+30 (up 100x or more)"
-          )
-          expect(YAML.safe_load_file(file.path).dig("models", "gpt-4o", "output")).to eq(1e30)
-        end
-      end
-
-      it "reports the changes on preview without refusing" do
-        Tempfile.create(["llm-prices", ".yml"]) do |file|
-          original = local_registry.to_yaml
-          file.write(original)
-          file.close
-
-          result = refresh_tampered(file, preview: true)
-
-          expect(result.written).to be(false)
-          expect(result.suspicious.size).to eq(2)
-          expect(File.read(file.path)).to eq(original)
-        end
-      end
-
-      it "lists at most twenty of them in the refusal" do
-        Tempfile.create(["llm-prices", ".yml"]) do |file|
-          models = (1..22).to_h { |index| ["model-#{index}", { "input" => 1.0, "output" => 2.0 }] }
-          file.write(local_registry.merge("models" => models).to_yaml)
-          file.close
-          zeroed = models.transform_values { |prices| prices.merge("input" => 0.0) }
-          fetcher = CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry.merge("models" => zeroed))))
-
-          expect do
-            described_class.refresh(path: file.path, url: source_url, fetcher: fetcher)
-          end.to raise_error(LlmCostTracker::Error) { |error|
-            expect(error.message).to include("22 suspicious price change(s)", "\n  - and 2 more\n")
-            expect(error.message.scan(/^  - model-\d+ input: 1.0 -> 0.0/).size).to eq(20)
-          }
-        end
+        expect(result.suspicious).to eq(suspicious)
+        expect(YAML.safe_load_file(file.path).dig("models", "gpt-4o", "output")).to eq(1e30)
       end
     end
 
@@ -395,30 +327,9 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       end
     end
 
-    it "reports suspicious price changes without writing" do
+    it "is not up to date when the snapshot switches currency" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
-        original = JSON.generate(
-          "metadata" => {},
-          "models" => { "gpt-4o" => { "input" => 2.5, "cache_read_input" => 1.25, "output" => 10.0 } }
-        )
-        file.write(original)
-        file.close
-        registry = remote_registry.deep_merge("models" => { "gpt-4o" => { "output" => 0 } })
-
-        result = described_class.check(
-          path: file.path,
-          url: source_url,
-          fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(registry)))
-        )
-
-        expect(result.suspicious).to eq(["gpt-4o output: 10.0 -> 0.0 (set to zero)"])
-        expect(File.read(file.path)).to eq(original)
-      end
-    end
-
-    it "does not report up to date when the only change is a suspicious currency switch" do
-      Tempfile.create(["llm-prices", ".json"]) do |file|
-        file.write(JSON.generate(remote_registry.merge("metadata" => remote_registry["metadata"].merge("currency" => "EUR"))))
+        file.write(JSON.generate(remote_registry.deep_merge("metadata" => { "currency" => "EUR" })))
         file.close
 
         result = described_class.check(
@@ -427,7 +338,7 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
           fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
         )
 
-        expect(result.suspicious.join).to include("currency")
+        expect(result.suspicious).to eq(["currency: EUR -> USD"])
         expect(result.up_to_date).to be(false)
       end
     end

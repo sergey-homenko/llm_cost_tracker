@@ -5,6 +5,11 @@ module LlmCostTracker
     module Sync
       module ChangePrinter
         def self.call(changes, suspicious: [], output: $stdout)
+          if suspicious.any?
+            output.puts "  suspicious changes (refresh writes them only with FORCE=1): #{suspicious.size}"
+            suspicious.each { |finding| output.puts "    - #{finding}" }
+          end
+
           service_changes = changes["service_charges"]
           model_changes = changes.except("service_charges")
 
@@ -16,20 +21,15 @@ module LlmCostTracker
             end
           end
 
-          if service_changes&.any?
-            output.puts "  changed service charges: #{service_changes.values.sum(&:size)}"
-            service_changes.each do |provider, components|
-              components.each do |component, values|
-                output.puts "    - #{provider}.#{component}: " \
-                            "#{values['from'].inspect} -> #{values['to'].inspect}"
-              end
+          return if service_changes.nil? || service_changes.empty?
+
+          output.puts "  changed service charges: #{service_changes.values.sum(&:size)}"
+          service_changes.each do |provider, components|
+            components.each do |component, values|
+              output.puts "    - #{provider}.#{component}: " \
+                          "#{values['from'].inspect} -> #{values['to'].inspect}"
             end
           end
-
-          return if suspicious.empty?
-
-          output.puts "  suspicious changes (refresh writes them only with FORCE=1): #{suspicious.size}"
-          suspicious.each { |finding| output.puts "    - #{finding}" }
         end
       end
     end
