@@ -102,13 +102,40 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
       expect(preview_ids).not_to be_empty
     end
 
-    it "routes image-model output rates to image_output keys so text output rate stays clean" do
-      result = described_class.new.call(html: html)
+    it "prices image models' text and image output tokens separately, per 1M tokens" do
+      models = described_class.new.call(html: html).models
 
-      image_model = result.models["gemini-2.5-flash-image"]
-      expect(image_model).to include("input", "image_output", "batch_image_output", "flex_image_output",
-                                     "priority_image_output")
-      expect(image_model).not_to include("output", "batch_output", "flex_output", "priority_output")
+      expect(models.fetch("gemini-3-pro-image-preview")).to eq(
+        "input" => 2.0,
+        "output" => 12.0,
+        "image_output" => 120.0,
+        "batch_input" => 1.0,
+        "batch_output" => 6.0,
+        "batch_image_output" => 60.0,
+        "flex_input" => 1.0,
+        "flex_output" => 6.0,
+        "flex_image_output" => 60.0,
+        "priority_input" => 3.6,
+        "priority_output" => 21.6,
+        "priority_image_output" => 216.0
+      )
+      expect(models.fetch("gemini-2.5-flash-image")).to eq(
+        "input" => 0.3,
+        "image_output" => 30.0,
+        "batch_input" => 0.15,
+        "batch_image_output" => 15.0,
+        "flex_input" => 0.15,
+        "flex_image_output" => 15.0,
+        "priority_input" => 0.54,
+        "priority_image_output" => 54.0
+      )
+    end
+
+    it "raises when a per-image output price has no per-token rate footnote" do
+      broken_html = html.sub("Image output is priced at $30", "Image output is priced at thirty dollars")
+      expect do
+        described_class.new.call(html: broken_html)
+      end.to raise_error(described_class::Error, /image output rate not found/)
     end
 
     it "raises when the pricing article body is missing" do

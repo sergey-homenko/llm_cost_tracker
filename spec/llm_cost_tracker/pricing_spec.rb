@@ -161,6 +161,18 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.total).to eq(3.8)
     end
 
+    it "prices Gemini image output tokens separately from text tokens" do
+      result = cost_for(
+        provider: "gemini",
+        model: "gemini-3.1-flash-image",
+        output_tokens: 1_000_000,
+        image_output_tokens: 1_000_000
+      )
+
+      expect(result.components.fetch(:output_cost)).to eq(3.0)
+      expect(result.components.fetch(:image_output_cost)).to eq(60.0)
+    end
+
     it "calculates Groq flex costs at on-demand token rates" do
       result = cost_for(
         provider: "groq",

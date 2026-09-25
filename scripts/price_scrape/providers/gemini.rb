@@ -16,6 +16,7 @@ module LlmCostTracker
 
         GROUNDING_ROW = "Grounding with Google Search"
         GROUNDING_PRICE = %r{\$([\d.]+)\s*(?:/|per)\s*1,?000}
+        PER_IMAGE_PRICE = /\$([\d.]+) per [^$\n]*image/
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
@@ -45,11 +46,11 @@ module LlmCostTracker
             batch_table = find_batch_table(tabs)
             raise Error, "Gemini batch pricing table not found for #{model_id}" unless batch_table
 
-            image = model_id.include?("-image")
-            models[model_id] = extract_text_pricing(standard_table, image: image)
-            models[model_id] = models.fetch(model_id).merge(extract_batch_pricing(batch_table, image: image))
-            models[model_id] = models.fetch(model_id).merge(extract_flex_pricing(tabs, image: image))
-            models[model_id] = models.fetch(model_id).merge(extract_priority_pricing(tabs, image: image))
+            notes = footnotes(tabs)
+            models[model_id] = extract_text_pricing(standard_table, notes: notes)
+            models[model_id] = models.fetch(model_id).merge(extract_batch_pricing(batch_table, notes: notes))
+            models[model_id] = models.fetch(model_id).merge(extract_flex_pricing(tabs, notes: notes))
+            models[model_id] = models.fetch(model_id).merge(extract_priority_pricing(tabs, notes: notes))
             models[model_id] = models.fetch(model_id).merge(extract_grounding_pricing(standard_table))
           end
         end
@@ -88,38 +89,48 @@ module LlmCostTracker
           tabs.css("section").find { |sec| sec.at_css("h3")&.text&.strip == heading }&.at_css("table")
         end
 
-        def extract_text_pricing(table, image: false)
+        def footnotes(tabs)
+          tabs.xpath("following-sibling::*")
+              .take_while { |node| !node["class"]&.include?("models-section") }
+              .map(&:text).join
+        end
+
+        def extract_text_pricing(table, notes:)
           extract_pricing(table,
+                          notes: notes,
                           input: "input",
-                          output: image ? "image_output" : "output",
-                                                    cache_read_input: "cache_read_input")
+                          output: "output",
+                          cache_read_input: "cache_read_input")
         end
 
-        def extract_batch_pricing(table, image: false)
+        def extract_batch_pricing(table, notes:)
           extract_pricing(table,
+                          notes: notes,
                           input: "batch_input",
-                          output: image ? "batch_image_output" : "batch_output",
-                                                    cache_read_input: "batch_cache_read_input")
+                          output: "batch_output",
+                          cache_read_input: "batch_cache_read_input")
         end
 
-        def extract_flex_pricing(tabs, image: false)
+        def extract_flex_pricing(tabs, notes:)
           table = find_table(tabs, "Flex")
           return {} unless table
 
           extract_pricing(table,
+                          notes: notes,
                           input: "flex_input",
-                          output: image ? "flex_image_output" : "flex_output",
-                                                    cache_read_input: "flex_cache_read_input")
+                          output: "flex_output",
+                          cache_read_input: "flex_cache_read_input")
         end
 
-        def extract_priority_pricing(tabs, image: false)
+        def extract_priority_pricing(tabs, notes:)
           table = find_table(tabs, "Priority")
           return {} unless table
 
           extract_pricing(table,
+                          notes: notes,
                           input: "priority_input",
-                                                    output: image ? "priority_image_output" : "priority_output",
-                                                    cache_read_input: "priority_cache_read_input")
+                          output: "priority_output",
+                          cache_read_input: "priority_cache_read_input")
         end
 
         def extract_grounding_pricing(table)
@@ -132,13 +143,18 @@ module LlmCostTracker
           { "grounding_request" => Float(price) }
         end
 
-        def extract_pricing(table, input:, output:, cache_read_input:)
+        def extract_pricing(table, notes:, input:, output:, cache_read_input:)
           rows = parse_table(table)
           input_key = rows.keys.find { |k| k.start_with?("Input price") }
           output_key = rows.keys.find { |k| k.start_with?("Output price") }
           raise Error, "Gemini text pricing rows not found" unless input_key && output_key
 
-          prices = token_prices(rows, input_key: input_key, output_key: output_key, input: input, output: output)
+          prices = token_prices(rows,
+                                notes: notes,
+                                input_key: input_key,
+                                output_key: output_key,
+                                input: input,
+                                output: output)
           add_context_tier_prices(prices,
                                   rows,
                                   input_key: input_key,
@@ -149,15 +165,15 @@ module LlmCostTracker
           prices
         end
 
-        def token_prices(rows, input_key:, output_key:, input:, output:)
-          prices = {
-            input => parse_price(rows[input_key]),
-            output => parse_price(rows[output_key])
-          }
+        def token_prices(rows, notes:, input_key:, output_key:, input:, output:)
+          prices = { input => parse_price(rows[input_key]) }
+          prices[output] = parse_price(rows[output_key]) unless rows[output_key].start_with?(PER_IMAGE_PRICE)
           audio_input = parse_modality_price(rows[input_key], "audio")
           prices[audio_price_key(input)] = audio_input if audio_input
           audio_output = parse_modality_price(rows[output_key], "audio")
           prices[audio_price_key(output)] = audio_output if audio_output
+          image_output = parse_modality_price(rows[output_key], "images") || per_image_rate(rows[output_key], notes)
+          prices[output.sub("output", "image_output")] = image_output if image_output
           prices
         end
 
@@ -220,6 +236,19 @@ module LlmCostTracker
           return nil unless line
 
           parse_price(line)
+        end
+
+        def per_image_rate(text, notes)
+          image_price = text[PER_IMAGE_PRICE, 1]
+          return unless image_price
+
+          rate, note_price = notes.match(
+            /Image output is priced at \$([\d.]+) per 1,000,000 tokens.*?\$([\d.]+) per\s+image/m
+          )&.captures
+          raise Error, "Gemini image output rate not found" unless rate
+
+          # The footnote gives the Standard rate; Batch, Flex and Priority cells differ only in per-image price.
+          (Float(rate) * Float(image_price) / Float(note_price)).round(4)
         end
 
         def parse_prompt_tier_prices(text)
