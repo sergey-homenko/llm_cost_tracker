@@ -14,23 +14,28 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
   end
 
-  def stub_openai_chat(id:, usage: nil)
+  def stub_openai_chat(id:, usage: nil, model: "gpt-4o", host: "api.openai.com")
     json = { "Content-Type" => "application/json" }
     completion = {
-      id: id, object: "chat.completion", model: "gpt-4o",
+      id: id, object: "chat.completion", model: model,
       choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
       usage: usage
     }.compact
     response = {
-      id: id, object: "response", status: "completed", model: "gpt-4o",
+      id: id, object: "response", status: "completed", model: model,
       output: [{ type: "message", id: "msg_#{id}", status: "completed", role: "assistant",
                  content: [{ type: "output_text", text: "hi", annotations: [] }] }],
       usage: usage && responses_usage(usage)
     }.compact
-    WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions")
+    WebMock.stub_request(:post, "https://#{host}/v1/chat/completions")
            .to_return(status: 200, body: completion.to_json, headers: json)
-    WebMock.stub_request(:post, "https://api.openai.com/v1/responses")
+    WebMock.stub_request(:post, "https://#{host}/v1/responses")
            .to_return(status: 200, body: response.to_json, headers: json)
+  end
+
+  def anthropic_message(id:, model:, usage:, stop_reason: "end_turn")
+    { id: id, type: "message", role: "assistant", model: model,
+      content: [{ type: "text", text: "hi" }], stop_reason: stop_reason, usage: usage }
   end
 
   def responses_usage(usage)
@@ -188,6 +193,73 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
         expect(events.first).to include(provider: "anthropic", pricing_mode: "priority")
       end
     end
+
+    it "prices Anthropic US inference and fast mode from usage.inference_geo and usage.speed" do
+      {
+        "claude-sonnet-4-6" => [{ inference_geo: "us" }, "data_residency", "0.0495"],
+        "claude-opus-5-5" => [{ speed: "fast" }, "fast", "0.12"]
+      }.each do |model, (usage, mode, total)|
+        WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
+          status: 200,
+          body: anthropic_message(id: "msg_#{mode}", model: model,
+                                  usage: { input_tokens: 10_000, output_tokens: 1_000 }.merge(usage)).to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+        capture_sdk_events do |events|
+          RubyLLM.chat(model: model, provider: :anthropic, assume_model_exists: true).ask("hi")
+          expect(events.first).to include(pricing_mode: mode)
+          expect(events.first.dig(:cost, :total)).to eq(total)
+        end
+      end
+    end
+
+    it "prices an OpenAI chat sent to a regional host at the data-residency rate" do
+      stub_openai_chat(id: "chatcmpl_eu", model: "gpt-5.4", host: "eu.api.openai.com",
+                       usage: { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000 })
+
+      capture_sdk_events do |events|
+        RubyLLM.context { |config| config.openai_api_base = "https://eu.api.openai.com/v1" }
+               .chat(model: "gpt-5.4", provider: :openai, assume_model_exists: true).ask("hi")
+        expect(events.first).to include(pricing_mode: "data_residency")
+        expect(events.first.dig(:cost, :total)).to eq("0.044")
+      end
+    end
+
+    it "keeps the cache writes of earlier pause_turn segments that RubyLLM merges into one message" do
+      skip "RubyLLM continues pause_turn automatically only on 2.x" if RubyLLM::VERSION.start_with?("1.")
+
+      segments = [
+        anthropic_message(id: "msg_seg1", model: "claude-sonnet-4-6", stop_reason: "pause_turn",
+                          usage: { input_tokens: 20, output_tokens: 200, cache_creation_input_tokens: 8000,
+                                   cache_creation: { ephemeral_5m_input_tokens: 8000, ephemeral_1h_input_tokens: 0 } }),
+        anthropic_message(id: "msg_seg2", model: "claude-sonnet-4-6",
+                          usage: { input_tokens: 30, output_tokens: 400, cache_read_input_tokens: 8000,
+                                   cache_creation_input_tokens: 1500,
+                                   cache_creation: { ephemeral_5m_input_tokens: 1500, ephemeral_1h_input_tokens: 0 } })
+      ]
+      WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
+        *segments.map { |body| { status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" } } }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "claude-sonnet-4-6", provider: :anthropic, assume_model_exists: true).ask("research")
+        expect(events.first).to include(cache_write_input_tokens: 9500, cache_write_extended_input_tokens: 0)
+        expect(events.first.dig(:cost, :total)).to eq("0.047175")
+      end
+    end
+  end
+
+  describe "budget preflight" do
+    it "blocks a chat before sending it when the estimate of its prompt alone crosses budgets.per_call" do
+      allow(LlmCostTracker.configuration.budgets).to receive_messages(exceeded_behavior: :block_requests, per_call: 0.2)
+      stub_openai_chat(id: "chatcmpl_big", usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 })
+
+      expect { RubyLLM.chat(model: "gpt-4o").ask("x" * 400_000) }.to raise_error(
+        an_instance_of(LlmCostTracker::BudgetExceededError).and(having_attributes(stage: :pre_send, budget_type: :per_call))
+      )
+      expect(WebMock).not_to have_requested(:post, /api\.openai\.com/)
+    end
   end
 
   describe "embed" do
@@ -213,6 +285,30 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
   end
 
   describe "paint" do
+    it "prices Gemini native image output at the image rate, as RubyLLM reports it without a modality split" do
+      skip "Gemini image models paint through generateContent only on RubyLLM 2.x" if RubyLLM::VERSION.start_with?("1.")
+
+      model = "gemini-3.1-flash-image-preview"
+      WebMock.stub_request(:post, "https://generativelanguage.googleapis.com/v1beta/models/#{model}:generateContent")
+             .to_return(
+               status: 200,
+               body: {
+                 candidates: [{ content: { role: "model", parts: [{ inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }] },
+                                finishReason: "STOP" }],
+                 usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 1120, totalTokenCount: 1132,
+                                  candidatesTokensDetails: [{ modality: "IMAGE", tokenCount: 1120 }] },
+                 modelVersion: model
+               }.to_json,
+               headers: { "Content-Type" => "application/json" }
+             )
+
+      capture_sdk_events do |events|
+        RubyLLM.paint("a watercolor fox", model: model, provider: :gemini, assume_model_exists: true)
+        expect(events.first).to include(input_tokens: 12, output_tokens: 0, image_output_tokens: 1120)
+        expect(events.first.dig(:cost, :total)).to eq("0.067206")
+      end
+    end
+
     it "splits image input tokens out of text input for gpt-image-1" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/images/generations").to_return(
         status: 200,
@@ -296,6 +392,23 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
           provider: "openai", model: "whisper-1",
           input_tokens: 12, output_tokens: 3
         )
+      end
+    end
+
+    it "prices a duration-billed transcription by the started minute when RubyLLM reports no tokens" do
+      skip "RubyLLM 1.x drops usage.seconds from the transcription" if RubyLLM::VERSION.start_with?("1.")
+
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
+        status: 200,
+        body: { text: "hi", usage: { type: "duration", seconds: 600 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.transcribe(audio_file.path, model: "gpt-transcribe", provider: :openai, assume_model_exists: true)
+        line = events.first[:line_items].find { |item| item[:kind] == "transcription_minute" }
+        expect(line[:quantity].to_i).to eq(10)
+        expect(events.first.dig(:cost, :total)).to eq("0.045")
       end
     end
 
