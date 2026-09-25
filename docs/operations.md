@@ -34,6 +34,8 @@ Flip `config.ingestion.mode = :async` (after running `bin/rails generate llm_cos
 - Insulation from caller transaction rollbacks — staged events survive `ActiveRecord::Rollback`.
 - Batched inserts — the worker drains rows into `llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`, and `llm_cost_tracker_call_tags` in one transaction per batch. With `config.budgets.totals_source = :cache` the rollup cache is incremented after that transaction commits — a rollup failure is logged and never fails the batch; `bin/rails llm_cost_tracker:rebuild_rollups` recovers the cache.
 
+If a batch write fails, the worker writes its rows one at a time: every row the database accepts lands, and only the rejected rows are marked failed and logged. A transient error such as a deadlock or a lock timeout stops the drain instead, without counting toward quarantine. A row that fails five times is quarantined: it stays in the inbox but is no longer claimed or counted in budget totals. After fixing the cause, requeue quarantined rows with `LlmCostTracker::Ingestion::InboxEntry.quarantined.update_all(attempts: 0, last_error: nil, locked_at: nil, locked_by: nil)`.
+
 Lifecycle hooks (no-ops in inline mode):
 
 ```ruby

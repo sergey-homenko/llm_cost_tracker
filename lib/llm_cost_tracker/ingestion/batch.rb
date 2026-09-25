@@ -26,7 +26,7 @@ module LlmCostTracker
         return 0 if rows.empty?
 
         valid_rows, events = decode(rows)
-        persist(valid_rows, events) if events.any?
+        persist_batch(valid_rows, events) if events.any?
         rows.size
       rescue StandardError => e
         rows_to_mark = valid_rows&.any? ? valid_rows : rows
@@ -76,18 +76,21 @@ module LlmCostTracker
         quarantined = rows.select { |row| row.attempts.to_i + 1 >= threshold }
         return if quarantined.empty?
 
-        sample = quarantined.first(10).map(&:id).join(", ")
-        sample += "..." if quarantined.size > 10
         LlmCostTracker::Logging.warn(
           "Ingestion::Batch: #{quarantined.size} inbox row(s) reached " \
           "MAX_ATTEMPTS_BEFORE_QUARANTINE=#{threshold} and will be skipped " \
-          "on the next claim cycle (ids: #{sample})"
+          "on the next claim cycle (ids: #{id_sample(quarantined)})"
         )
       end
 
       private
 
       attr_reader :identity
+
+      def id_sample(rows)
+        sample = rows.first(10).map(&:id).join(", ")
+        rows.size > 10 ? "#{sample}..." : sample
+      end
 
       def claim
         now = Time.now.utc
@@ -118,13 +121,41 @@ module LlmCostTracker
         [valid_rows, events]
       end
 
+      def persist_batch(rows, events)
+        landed = []
+        failed = Hash.new { |hash, message| hash[message] = [] }
+        begin
+          landed = persist(rows, events)
+        rescue *TRANSIENT_PERSIST_ERRORS
+          raise
+        rescue StandardError
+          rows.zip(events) do |row, event|
+            landed.concat(persist([row], [event]))
+          rescue *TRANSIENT_PERSIST_ERRORS
+            raise
+          rescue StandardError => e
+            failed[error_message_for(e)] << row
+          end
+        end
+      ensure
+        failed.each { |message, failed_rows| report_unstored(failed_rows, message) }
+        Ledger::Rollups.increment_safely!(landed)
+        Budget.notify_persisted_safely!(landed)
+      end
+
+      def report_unstored(rows, message)
+        LlmCostTracker::Logging.warn(
+          "Ingestion::Batch: #{rows.size} inbox row(s) could not be stored (ids: #{id_sample(rows)}): #{message}"
+        )
+        mark_failed_with_message(rows, message)
+      end
+
       def persist(rows, events, retry_on_conflict: true)
         LlmCostTracker::Call.transaction do
           Ledger::Store.persist_records(events)
           Ingestion::InboxEntry.where(id: rows.map(&:id), locked_by: identity).delete_all
         end
-        Ledger::Rollups.increment_safely!(events)
-        Budget.notify_persisted_safely!(events)
+        events
       rescue ActiveRecord::RecordNotUnique
         raise unless retry_on_conflict
 

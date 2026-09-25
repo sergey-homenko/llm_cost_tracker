@@ -239,9 +239,10 @@ RSpec.describe "ActiveRecord async inbox" do
     allow(LlmCostTracker::Ledger::Store).to receive(:persist_records).and_raise("write failed")
     allow(LlmCostTracker::Logging).to receive(:warn)
 
-    expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(0)
+    expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(1)
 
     row = LlmCostTracker::Ingestion::InboxEntry.first
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(include("ids: #{row.id}").and(include("write failed")))
     expect(row.locked_at).not_to be_nil
     expect(row.locked_by).to be_nil
     expect(row.last_error).to include("write failed")
@@ -286,6 +287,53 @@ RSpec.describe "ActiveRecord async inbox" do
     expect(LlmCostTracker::Ingestion::InboxEntry.first.attempts).to eq(1)
 
     LlmCostTracker::Ingestion::InboxEntry.delete_all
+  end
+
+  def track_call
+    LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000_000, output_tokens: 0 })
+  end
+
+  def track_unstorable_call
+    event = track_call
+    row = LlmCostTracker::Ingestion::InboxEntry.find_by!(event_id: event.event_id)
+    payload = JSON.parse(row.payload)
+    payload["line_items"].first["quantity"] = "1e25"
+    row.update!(payload: JSON.generate(payload))
+    event
+  end
+
+  it "lands every storable row of a failed batch and marks only the row the database rejects" do
+    duplicate = track_call
+    LlmCostTracker::Ledger::Store.insert([LlmCostTracker::Ingestion::Inbox.event_from_row(LlmCostTracker::Ingestion::InboxEntry.last)])
+    bad = track_unstorable_call
+    fresh = track_call
+    allow(LlmCostTracker::Logging).to receive(:warn)
+
+    expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(3)
+
+    expect(LlmCostTracker::Call.pluck(:event_id)).to contain_exactly(duplicate.event_id, fresh.event_id)
+    expect(LlmCostTracker::Ingestion::InboxEntry.pluck(:event_id, :attempts)).to eq([[bad.event_id, 1]])
+    expect(LlmCostTracker::Ingestion::InboxEntry.first.last_error).to include("RangeError")
+    expect(LlmCostTracker::CallRollup.find_by!(period: "month").total_cost.to_d).to eq(5)
+  end
+
+  it "keeps the rows that landed when a transient error stops the row-by-row fallback" do
+    landed = track_call
+    bad = track_unstorable_call
+    blocked = track_call
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    allow(LlmCostTracker::Ledger::Store).to receive(:persist_records).and_wrap_original do |original, events|
+      raise ActiveRecord::Deadlocked, "deadlock detected" if events.map(&:event_id) == [blocked.event_id]
+
+      original.call(events)
+    end
+
+    LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)
+
+    expect(LlmCostTracker::Call.pluck(:event_id)).to eq([landed.event_id])
+    expect(LlmCostTracker::Ingestion::InboxEntry.order(:id).pluck(:event_id, :attempts))
+      .to eq([[bad.event_id, 1], [blocked.event_id, 0]])
+    expect(LlmCostTracker::CallRollup.find_by!(period: "month").total_cost.to_d).to eq(2.5)
   end
 
   it "quarantines invalid inbox entries without blocking valid rows behind them" do

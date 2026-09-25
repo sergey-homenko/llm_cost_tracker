@@ -172,6 +172,10 @@ Shared lease for the background worker.
 | `call_line_items.details` | Provider item details for audit |
 | `ingestion_inbox_entries.payload` | Versioned event payload |
 
+## Stored values
+
+NUL bytes, which PostgreSQL rejects, are removed from every stored string, and invalid UTF-8 in tag values is replaced with U+FFFD.
+
 ## Schema health
 
 `bin/rails llm_cost_tracker:doctor` checks that the calls, line items, tags, call rollups and async ingestion tables carry the columns this version expects. It compares column names only — not types, and not indexes. When something is missing, the dashboard renders setup guidance instead of running queries.

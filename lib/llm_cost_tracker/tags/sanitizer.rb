@@ -2,6 +2,8 @@
 
 require "active_support/core_ext/string/inflections"
 
+require_relative "../ledger/storable"
+
 module LlmCostTracker
   module Tags
     module Sanitizer
@@ -58,7 +60,7 @@ module LlmCostTracker
         def sanitized_value(key, value, redacted, limit)
           return REDACTED_VALUE if redacted_key?(key, redacted)
 
-          scrubbed = scrub_secrets(value)
+          scrubbed = scrub_secrets(Ledger::Storable.clean(value))
           return REDACTED_VALUE if scrubbed.equal?(REDACTED_SENTINEL)
 
           scalar_truncate(scrubbed, limit)

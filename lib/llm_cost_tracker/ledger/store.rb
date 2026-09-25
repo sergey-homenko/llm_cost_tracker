@@ -6,6 +6,7 @@ require_relative "../pricing"
 require_relative "rollups"
 require_relative "../budget/per_tag"
 require_relative "tags/encoding"
+require_relative "storable"
 
 module LlmCostTracker
   module Ledger
@@ -62,9 +63,7 @@ module LlmCostTracker
             pricing_snapshot: event.pricing_snapshot
           }
 
-          attributes
-            .merge(event.token_usage.to_h)
-            .merge(total_cost: event.cost&.total)
+          Storable.clean(attributes.merge(event.token_usage.to_h).merge(total_cost: event.cost&.total))
         end
 
         def call_ids_for(events)
@@ -90,7 +89,7 @@ module LlmCostTracker
         end
 
         def line_item_attributes(call_id:, line_item:, position:)
-          {
+          Storable.clean(
             llm_cost_tracker_call_id: call_id,
             position: position,
             kind: line_item.kind,
@@ -112,7 +111,7 @@ module LlmCostTracker
             provider_item_id: line_item.provider_item_id,
             details: stored_details(line_item.details),
             created_at: Time.now.utc
-          }
+          )
         end
 
         def insert_call_tags(events, call_ids)
@@ -121,7 +120,7 @@ module LlmCostTracker
               {
                 llm_cost_tracker_call_id: call_ids.fetch(event.event_id),
                 key: key.to_s,
-                value: Tags::Encoding.encode(value)
+                value: Tags::Encoding.encode(Storable.clean(value))
               }.merge(budget_columns_for(event))
             end
           end
