@@ -168,7 +168,10 @@ module LlmCostTracker
         def token_prices(rows, notes:, input_key:, output_key:, input:, output:)
           prices = { input => parse_price(rows[input_key]) }
           prices[output] = parse_price(rows[output_key]) unless rows[output_key].start_with?(PER_IMAGE_PRICE)
+          prices[input.sub("input", "image_input")] = prices[input]
           audio_input = parse_modality_price(rows[input_key], "audio")
+          # An input price without a modality label covers audio too.
+          audio_input ||= prices[input] unless rows[input_key].include?("(")
           prices[audio_price_key(input)] = audio_input if audio_input
           audio_output = parse_modality_price(rows[output_key], "audio")
           prices[audio_price_key(output)] = audio_output if audio_output
@@ -184,6 +187,8 @@ module LlmCostTracker
 
           prices["_context_price_threshold_tokens"] = 200_000
           prices["above_context_#{input}"] = input_tiers.fetch(1)
+          prices["above_context_#{input.sub('input', 'image_input')}"] = input_tiers.fetch(1)
+          prices["above_context_#{audio_price_key(input)}"] = input_tiers.fetch(1)
           prices["above_context_#{output}"] = output_tiers.fetch(1)
         end
 

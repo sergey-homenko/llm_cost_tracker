@@ -49,6 +49,8 @@ These keys are derived from `Usage::Catalog`, the master dimension registry, whi
 
 OpenAI Realtime does report the split in `input_token_details.cached_tokens_details`. The parser takes cached audio and image tokens out of `audio_input` and `image_input` and prices them at `cache_read_input`. That matches the published cached-audio rate on the full-size `gpt-realtime` models, but under-prices cached images and the mini models' cached audio ($0.30 / M published against $0.06 / M for cached text).
 
+Gemini reports the split in `cacheTokensDetails`, but all of `cachedContentTokenCount` is priced at `cache_read_input`, the text / image / video caching rate. That under-prices cached audio on models that publish a separate audio caching price (Gemini 2.5 Flash: $0.10 / M published against $0.03 / M). The hourly storage fee of an explicit Gemini context cache (`cachedContents` TTL) is not captured either; only the cached tokens each request reads are priced.
+
 Mode-prefixed fields use the same base terms:
 
 - `batch_input`
@@ -135,7 +137,7 @@ Bundled rates mostly ship only where the parser captures the same quantity basis
 | OpenAI image-generation / computer-use / MCP tool calls | `image_generation_call`, `computer_call`, `mcp_call` output items | Not recorded as line items — billed through the model's tokens (captured separately), with no separate per-call charge |
 | Anthropic server web search | `server_tool_use.web_search_requests` | Priced from `service_charges.anthropic.web_search_request` when present |
 | Anthropic web fetch | `server_tool_use.web_fetch_requests` | Priced at `$0` from registry — Anthropic bills web fetch through standard tokens, not per fetch |
-| Gemini modality tokens | `usageMetadata.promptTokensDetails` and response token details | Audio token rates price captured buckets when the model has registry rates |
+| Gemini modality tokens | `usageMetadata.promptTokensDetails` and response token details | Image and audio prompt tokens are priced at `image_input` and `audio_input`, which equal the model's input rate unless Google publishes a separate audio price (image-generation models publish no audio rate, so their audio prompt tokens stay unpriced); image and audio output tokens use `image_output` and `audio_output` when the model has those rates |
 | Gemini grounding | `groundingMetadata.webSearchQueries` | Priced from the model's own `grounding_request` rate, which Google publishes per 1,000 requests and differs by family ($35 on Gemini 2.x, $14 on 3.x). The free monthly allowance is account-level and is not modelled, so a project inside it is over-reported |
 | Groq OpenAI-compatible usage | Chat usage, cached input, reasoning output, and the `service_tier` field from the response (or the request) | Token rates price captured buckets when the model has registry rates |
 | RubyLLM chat | `RubyLLM::Provider#complete` (streaming-aware; `Chat#ask` and `Chat#complete` reach this transitively) | Token counts from RubyLLM's response (input, output, cache read/write) and the service tier from its raw body, priced with the same registry as native SDK calls; provider tool charges (web search, grounding) and audio/image token buckets are not captured |

@@ -173,6 +173,18 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.components.fetch(:image_output_cost)).to eq(60.0)
     end
 
+    it "prices Gemini image input, and audio input on single-rate models, at the input rate" do
+      flash = cost_for(provider: "gemini", model: "gemini-2.5-flash", image_input_tokens: 1_000_000)
+      batch = cost_for(provider: "gemini", model: "gemini-3.8-flash", pricing_mode: "batch",
+                       image_input_tokens: 1_000_000, audio_input_tokens: 1_000_000)
+      long_context = cost_for(provider: "gemini", model: "gemini-2.5-pro",
+                              image_input_tokens: 150_000, audio_input_tokens: 150_000)
+
+      expect(flash.components.fetch(:image_input_cost)).to eq(0.3)
+      expect(batch.components.values_at(:image_input_cost, :audio_input_cost)).to eq([0.375, 0.375])
+      expect(long_context.components.values_at(:image_input_cost, :audio_input_cost)).to eq([0.375, 0.375])
+    end
+
     it "calculates Groq flex costs at on-demand token rates" do
       result = cost_for(
         provider: "groq",
