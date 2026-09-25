@@ -92,9 +92,9 @@ config.pricing.overrides = {
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `pricing.file` | `nil` | Local JSON/YAML registry used ahead of bundled prices |
+| `pricing.file` | `nil` | Local JSON/YAML registry used ahead of bundled prices. A malformed file fails `configure`; a missing one is logged and ignored until `llm_cost_tracker:prices:refresh` creates it. |
 | `pricing.overrides` | `{}` | Ruby hash used ahead of local and bundled registries |
-| `pricing.unknown_model_behavior` | `:warn` | What to do when a model has no rate at all: `:ignore`, `:warn`, or `:raise`. A model that is priced but missing one component rate lands as `partial` and never triggers this. |
+| `pricing.unknown_model_behavior` | `:warn` | What to do when a model has no rate at all: `:ignore`, `:warn`, or `:raise`. `:raise` records the call first, then raises `LlmCostTracker::UnknownPricingError`. A model that is priced but missing one component rate lands as `partial` and never triggers this. |
 
 Pricing precedence is:
 

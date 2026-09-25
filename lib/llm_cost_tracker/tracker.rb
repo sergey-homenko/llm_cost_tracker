@@ -27,10 +27,8 @@ module LlmCostTracker
 
         tags = build_tags(context_tags: context_tags, metadata: metadata)
 
-        if calculation.token_cost.nil? && event.token_usage.total_tokens.positive? &&
-           calculation.priced_line_items.none?(&:priced?)
-          Pricing::Unknown.process(event.model, pricing_mode: calculation.mode)
-        end
+        unpriced = calculation.token_cost.nil? && event.token_usage.total_tokens.positive? &&
+                   calculation.priced_line_items.none?(&:priced?)
 
         event = build_event(event: event, calculation: calculation, tags: tags, latency_ms: latency_ms)
 
@@ -43,6 +41,7 @@ module LlmCostTracker
 
         yield if block_given?
         notify_subscribers(event)
+        Pricing::Unknown.process(event.model, pricing_mode: calculation.mode) if unpriced
         behavior_override = :raise if enforce_budget
         Budget.check!(event, behavior_override: behavior_override)
         Budget.check_persisted!([event], behavior_override: behavior_override) unless Ingestion.async?

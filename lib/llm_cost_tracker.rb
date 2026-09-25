@@ -57,6 +57,7 @@ module LlmCostTracker
       yield(config)
       config.finalize!
       Pricing::Registry.reset!
+      Pricing::Registry.validate_file!(config.pricing.file)
       Integrations.install!
       config
     end
@@ -128,10 +129,11 @@ module LlmCostTracker
         metadata: tags
       )
       yield collector
-      collector.finish!
-    rescue StandardError
+    rescue Exception # rubocop:disable Lint/RescueException -- record the spend and keep the caller's exception
       collector&.finish!(errored: true)
       raise
+    else
+      collector.finish!
     end
   end
 end

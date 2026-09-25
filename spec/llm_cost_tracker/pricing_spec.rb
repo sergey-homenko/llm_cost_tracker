@@ -856,12 +856,8 @@ RSpec.describe LlmCostTracker::Pricing do
         file.write("{")
         file.close
 
-        LlmCostTracker.configure do |c|
-          c.pricing.file = file.path
-        end
-
         expect do
-          cost_for(provider: "openai", model: "gpt-4o", input_tokens: 1, output_tokens: 1)
+          LlmCostTracker.configure { |c| c.pricing.file = file.path }
         end.to raise_error(LlmCostTracker::Error, /Unable to load prices_file/)
       end
     end

@@ -131,6 +131,8 @@ module LlmCostTracker
           metadata: merged_metadata,
           context_tags: context_tags
         )
+      rescue LlmCostTracker::TransactionAbortedError
+        raise
       rescue StandardError => e
         Logging.warn("Error recording interrupted stream: #{e.class}: #{e.message}")
       end
@@ -171,7 +173,7 @@ module LlmCostTracker
           metadata: metadata,
           context_tags: context_tags
         )
-      rescue LlmCostTracker::Error
+      rescue *LlmCostTracker::CALLER_ERRORS
         raise
       rescue StandardError => e
         Logging.warn("Error processing response: #{e.class}: #{e.message}")

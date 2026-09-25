@@ -21,8 +21,9 @@ module LlmCostTracker
             host = Openai.client_host_for(resource)
             Openai.record_safely do
               io = client.files.content(batch.output_file_id)
-              capture_jsonl(io.respond_to?(:read) ? io.read : io.to_s, host: host)
+              deferred = capture_jsonl(io.respond_to?(:read) ? io.read : io.to_s, host: host)
               mark_captured(batch.id)
+              raise deferred if deferred
             end
           end
 
@@ -41,6 +42,7 @@ module LlmCostTracker
           end
 
           def capture_jsonl(jsonl, host:)
+            deferred = nil
             jsonl.each_line do |line|
               line = line.strip
               next if line.empty?
@@ -52,7 +54,10 @@ module LlmCostTracker
               next unless response.is_a?(Hash) && response["usage"]
 
               record_result(response, host: host)
+            rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
+              deferred ||= e
             end
+            deferred
           end
 
           def parse_line(line)

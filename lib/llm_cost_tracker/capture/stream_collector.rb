@@ -89,6 +89,12 @@ module LlmCostTracker
         return if snapshot.nil?
 
         record_snapshot(snapshot, errored: errored)
+      rescue TransactionAbortedError
+        raise
+      rescue StandardError => e
+        raise unless errored
+
+        Logging.warn("Recording an errored stream raised #{e.class}: #{e.message}; kept the stream's own exception")
       end
 
       private

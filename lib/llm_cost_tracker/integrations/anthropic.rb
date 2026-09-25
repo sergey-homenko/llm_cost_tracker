@@ -128,10 +128,16 @@ module LlmCostTracker
         def each(&block)
           return enum_for(:each) unless block
 
+          deferred = nil
           @raw_stream.each do |response|
-            LlmCostTracker::Integrations::Anthropic.record_batch_result(response)
+            begin
+              LlmCostTracker::Integrations::Anthropic.record_batch_result(response)
+            rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
+              deferred ||= e
+            end
             block.call(response)
           end
+          raise deferred if deferred
         end
 
         def respond_to_missing?(name, include_private = false)

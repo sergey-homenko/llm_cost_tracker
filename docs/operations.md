@@ -5,6 +5,7 @@ Production use depends on ActiveRecord health, bounded hot paths, and current pr
 ## Production Defaults
 
 - Size the ActiveRecord connection pool for your app's concurrency. If `config.ingestion.mode = :async`, add headroom for the local ingestor thread, which checks out an ordinary ActiveRecord connection. Inbox writes do not: every one of them goes through a pool the gem owns, sized by `config.ingestion.pool_size` (default 2), so that a staged event survives a caller rollback. Raise that setting, not the app pool, if inbox writes start queueing. The default inline path shares the caller's connection and joins its transaction through a savepoint, so a failed ledger write never aborts the caller's transaction.
+- Automatic capture never fails an LLM call because recording failed: only `BudgetExceededError`, `UnknownPricingError` under `:raise`, and `TransactionAbortedError` reach your code, and other recording failures are logged. `LlmCostTracker.track` and `track_stream` raise them, except that an exception from your `track_stream` block wins over any but `TransactionAbortedError`.
 - Keep `tags.default` callables fast and thread-safe.
 - Mount the dashboard behind existing admin authentication.
 - Run `llm_cost_tracker:doctor` after deploys that change the gem version or schema.

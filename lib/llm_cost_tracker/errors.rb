@@ -49,4 +49,6 @@ module LlmCostTracker
       super("No pricing configured for LLM model: #{model.inspect}")
     end
   end
+
+  CALLER_ERRORS = [BudgetExceededError, UnknownPricingError, TransactionAbortedError].freeze
 end

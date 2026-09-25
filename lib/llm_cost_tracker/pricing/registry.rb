@@ -33,6 +33,12 @@ module LlmCostTracker
           @prices_file_mtime_iso = nil
         end
 
+        def validate_file!(path)
+          file_prices(path)
+          file_rates(path)
+          file_metadata(path)
+        end
+
         def builtin_prices
           @builtin_prices ||= normalize_price_entries(
             raw_registry.fetch("models", {}), context: "bundled prices"
@@ -157,10 +163,15 @@ module LlmCostTracker
         def loading(path)
           yield
         rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
-          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}; fix or delete it"
         end
 
         def load_raw_file_registry(path)
+          unless File.exist?(path)
+            Logging.warn("pricing.file #{path} does not exist; using bundled prices until prices:refresh creates it")
+            return {}.freeze
+          end
+
           loading(path) { (YAML.safe_load_file(path, aliases: false) || {}).freeze }
         end
 
