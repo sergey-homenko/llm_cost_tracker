@@ -34,7 +34,7 @@ Every LLM API call that goes through a tracked SDK, the Faraday middleware, or `
 - `tracked_at` — UTC timestamp of the call
 - `provider`, `model`, `pricing_mode` — which model handled the request
 - `provider_response_id` — the provider's identifier for the response (OpenAI `chat.completion.id`, Anthropic `msg_*`, etc.) so you can resolve a local row back to the provider's own logs
-- `provider_project_id`, `provider_api_key_id`, `provider_workspace_id` — attribution dimensions captured from request/response metadata
+- `provider_project_id`, `provider_api_key_id`, `provider_workspace_id` — attribution dimensions you pass to `LlmCostTracker.track` or `track_stream`; they are not captured automatically
 - `input_tokens`, `output_tokens`, `cache_read_input_tokens`, … plus `total_cost`, `cost_status`, and `pricing_snapshot` (the rate table applied at the time of the call)
 - `latency_ms`, `usage_source` (`"response"`, `"stream_final"`, `"sdk_response"`, `"sdk_batch_result"`, `"manual"`, `"unknown"`)
 - `tags` (joined through `llm_cost_tracker_call_tags`) — your app's business context (e.g. `user_id`, `feature`, `decision_id`)
@@ -69,11 +69,11 @@ Tag values matching known secret patterns (API keys, JWTs, bearer tokens) are au
 
 ### Keep `cost_status` honest
 
-`cost_status` (`complete` / `partial` / `unknown` / `free`) records whether the rate table fully priced the call. An auditor looking at tokens / cost reconciliation should know which rows are estimates; filter or aggregate by `cost_status` to separate measured cost from gap-pricing estimates.
+`cost_status` (`complete` / `partial` / `unknown` / `free`) records whether the rate table fully priced the call. `partial` rows leave unpriced components out of `total_cost`, so they undercount, and `unknown` rows could not be priced. Filter or aggregate by `cost_status` to separate fully priced rows from incomplete ones.
 
 ### Provider invoice cross-reference
 
-If your auditor asks "do your local records match what the provider billed", `calls.provider_response_id` is captured on every call and gives you the id you can cross-reference against the provider's invoice or admin-API export.
+If your auditor asks "do your local records match what the provider billed", `calls.provider_response_id` is captured whenever the provider response carries an id (pass `provider_response_id:` to `LlmCostTracker.track`; the Data Quality page shows coverage) and gives you the id you can cross-reference against the provider's invoice or admin-API export.
 
 ## What this gem does NOT do
 

@@ -8,6 +8,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - BREAKING: Rails 8.0+ required; Rails 7.1 and 7.2 no longer receive security fixes upstream.
 
+### Removed
+
+- The boot warning for `:ruby_llm` enabled together with `:openai` or `:anthropic`: RubyLLM doesn't call those SDKs, so nothing was recorded twice, and disabling one as it advised lost those calls.
+
+### Fixed
+
+- Gemini image models are priced per 1M image tokens, and 3.x image models price text and thinking output at the text rate; `gemini-2.5-flash-image` images were priced about 770x too low and 3.x image models' images 10-20x too low. Calls already recorded keep their cost. With a local pricing file, run `bin/rails llm_cost_tracker:prices:refresh PREVIEW=1`, check that only Gemini image models are flagged, then re-run it with `FORCE=1`.
+- With inline ingestion, a per-tag `on_exceeded` fires when several calls for one tag value cross the limit together; each call read the others' spend, so none saw itself as the crossing call and the alert never fired.
+- `budgets.per_tag` without a `:block_requests` rule no longer checks the database schema before an LLM call is sent, so a process that starts during a database outage no longer fails its LLM calls.
+- An OpenAI SDK response without usage, such as a queued `background: true` Response, logs a warning instead of being skipped silently.
+- The async worker checks its tables through the Rails schema cache, so an idle poll runs one query instead of six.
+
 ## [0.14.1] - 2026-09-25
 
 ### Added

@@ -71,10 +71,14 @@ The OpenAI SDK integration supports `openai >= 0.59.0`. Streaming calls are reco
 Realtime WebSocket/WebRTC sessions do not flow through the Faraday middleware. Capture final `response.done` events explicitly:
 
 ```ruby
-LlmCostTracker.track_stream(provider: "openai", model: "gpt-realtime-1.5", tags: { feature: "voice" }) do |stream|
-  realtime_session.on(:response_done) { |event| stream.event(event.to_h, type: "response.done") }
+realtime_session.on(:response_done) do |event|
+  LlmCostTracker.track_stream(provider: "openai", model: "gpt-realtime-1.5", tags: { feature: "voice" }) do |stream|
+    stream.event(JSON.parse(event.to_json), type: "response.done")
+  end
 end
 ```
+
+`track_stream` records one row, from the last usage it received, when its block returns, so open one per response.
 
 The OpenAI parser reads Realtime `input_token_details.audio_tokens` and `output_token_details.audio_tokens` from the final response usage.
 

@@ -60,7 +60,7 @@ The engine ships without authentication on purpose.
 ## What lands in the ledger
 
 - **Calls.** Provider, model, total tokens, total cost, latency, status.
-- **Line items.** Per-component breakdown — text/audio/cached tokens, tool charges (web search, code execution, grounding, container sessions).
+- **Line items.** Per-component breakdown — text/audio/cached tokens, tool charges (web search, grounding, container sessions).
 - **Tags.** Whatever attribution you pass — user, feature, tenant, env.
 - **Provider IDs.** Response, project, API key, workspace — for downstream audits.
 - **Pricing snapshot.** So historical numbers don't drift when prices change.
@@ -75,7 +75,7 @@ The engine ships without authentication on purpose.
 | Azure OpenAI | Faraday or official SDK (auto-detected on `*.openai.azure.com` and Foundry `*.services.ai.azure.com`, both deployments and `/openai/v1/...`) |
 | Google Gemini | Faraday |
 | `ruby-openai` | Faraday |
-| OpenRouter, DeepSeek, Groq, LiteLLM-style gateways | OpenAI-compatible Faraday |
+| OpenRouter, DeepSeek, Groq; other gateways (LiteLLM etc.) once their host is added to `config.capture.openai_compatible_providers` | OpenAI-compatible Faraday |
 | Anything else | `LlmCostTracker.track` |
 
 Streams capture when the provider emits final usage. OpenAI Faraday streams to `/chat/completions` get `stream_options: { include_usage: true }` auto-injected so the final usage chunk lands in the ledger (opt out via `config.capture.request_stream_usage = false`).

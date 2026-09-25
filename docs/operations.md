@@ -4,7 +4,7 @@ Production use depends on ActiveRecord health, bounded hot paths, and current pr
 
 ## Production Defaults
 
-- Size the ActiveRecord connection pool for your app's concurrency. If `config.ingestion.mode = :async`, add headroom for the local ingestor thread, which checks out an ordinary ActiveRecord connection. Inbox writes do not: every one of them goes through a pool the gem owns, sized by `config.ingestion.pool_size` (default 2), so that a staged event survives a caller rollback. Raise that setting, not the app pool, if inbox writes start queueing. The default inline path shares the caller's connection and joins its transaction through a savepoint, so a failed ledger write never aborts the caller's transaction.
+- Size the ActiveRecord connection pool for your app's concurrency. If `config.ingestion.mode = :async`, add headroom for the local ingestor thread, which checks out an ordinary ActiveRecord connection. Inbox writes do not: every one of them goes through a pool the gem owns, sized by `config.ingestion.pool_size` (default 2), so that a staged event survives a caller rollback. Raise that setting, not the app pool, if inbox writes start queueing. The default inline path shares the caller's connection and joins its transaction through a savepoint, so a failed ledger write rolls back only that savepoint, unless the database has already discarded the whole transaction (a deadlock on MySQL), which raises `TransactionAbortedError`.
 - Automatic capture never fails an LLM call because recording failed: only `BudgetExceededError`, `UnknownPricingError` under `:raise`, and `TransactionAbortedError` reach your code, and other recording failures are logged. `LlmCostTracker.track` and `track_stream` raise them, except that an exception from your `track_stream` block wins over any but `TransactionAbortedError`.
 - Keep `tags.default` callables fast and thread-safe.
 - Mount the dashboard behind existing admin authentication.
@@ -60,7 +60,7 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` is a dev/install-time signal. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion = :inline`) surface as `:warn`. Runtime data conditions (quarantined inbox rows) log to `Rails.logger` from the write path at the moment they occur — production never runs `doctor` so those signals must reach the host's own logger.
+`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion = :inline`) surface as `:warn`. Runtime data conditions (quarantined inbox rows) log to `Rails.logger` from the ingestion worker at the moment they occur — nothing runs `doctor` while the app serves traffic, so those signals must reach the host's own logger.
 
 `verify_capture` records a synthetic event and verifies both notifications and ActiveRecord persistence.
 
@@ -78,7 +78,7 @@ Optional batch size:
 DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 ```
 
-Pruning deletes old `llm_cost_tracker_calls`, then makes a second pass over `llm_cost_tracker_ingestion_inbox_entries` with the same cutoff, so a stale inbox row cannot drain into a period you already pruned. Any row it deletes that never reached the ledger is spend you lose, so the task logs the count and cost when that happens — drain the inbox before pruning. Dependent line items and tags are removed by the database via `on_delete: :cascade`. When `config.budgets.totals_source = :cache`, affected daily/monthly call rollups are decremented in the same transaction.
+Pruning deletes old `llm_cost_tracker_calls`, then makes a second pass over `llm_cost_tracker_ingestion_inbox_entries` with the same cutoff, so a stale inbox row cannot drain into a period you already pruned. Any pending row it deletes never reached the ledger and is spend you lose, so the task logs their count and cost — drain the inbox before pruning. Quarantined rows past the cutoff are deleted without that warning. Dependent line items and tags are removed by the database via `on_delete: :cascade`. When `config.budgets.totals_source = :cache`, affected daily/monthly call rollups are decremented in the same transaction.
 
 ## Data Shape
 
@@ -97,7 +97,7 @@ Tag queries join through `llm_cost_tracker_call_tags`, so the same query shape w
 
 ## Tags Hygiene
 
-Tags are operational attribution, not a safe place for personal data or free-form request content. They live in `llm_cost_tracker_call_tags`, render on the dashboard overview, call details, and tag pages, and ship in CSV export. Anyone with dashboard or database access can see them.
+Tags are operational attribution, not a safe place for personal data or free-form request content. They live in `llm_cost_tracker_call_tags`, render on the dashboard Calls list, call details, and tag pages, and ship in CSV export. Anyone with dashboard or database access can see them.
 
 Use stable internal IDs, feature names, tenant slugs, job names, and environment labels. Avoid emails, names, prompts, completions, support conversation bodies, API keys, bearer tokens, or high-cardinality text. Add known sensitive keys to `tags.redacted_keys`, and keep `tags.max_value_bytesize` low enough to catch accidental payloads.
 

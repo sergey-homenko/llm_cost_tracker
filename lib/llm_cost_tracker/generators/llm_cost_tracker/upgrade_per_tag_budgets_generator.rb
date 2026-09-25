@@ -10,8 +10,9 @@ module LlmCostTracker
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Carries each call's cost and time onto its tag rows so per-tag budgets read " \
-           "llm_cost_tracker_call_tags without a join. Required when config.budgets.per_tag is set."
+      desc "Adds cost and time columns to llm_cost_tracker_call_tags so per-tag budgets read it " \
+           "without a join; run llm_cost_tracker:backfill_tag_costs afterwards so earlier calls count. " \
+           "Required for config.budgets.per_tag on installs created before v0.14."
 
       def create_migration_file
         migration_template(

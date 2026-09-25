@@ -23,7 +23,7 @@ Open an issue using the **Feature request** template before sending a PR. Scope 
 
 Good feature proposals usually fit one of:
 
-- New provider parser (Bedrock, Azure OpenAI, Vertex AI non-Gemini, Cohere, Mistral, etc.)
+- New provider parser (Bedrock, Vertex AI non-Gemini, Cohere, Mistral, etc.)
 - Better attribution / tagging ergonomics
 - Dashboard improvements (spend views, data quality signals)
 - Pricing accuracy (new pricing shapes, drift detection, overrides)
@@ -92,7 +92,7 @@ open coverage/index.html
 - Follow the existing RuboCop config
 - Prefer clear identifier names over comments
 - Keep public API changes minimal and additive where possible
-- When adding a new parser or storage backend, mirror the shape of the existing ones
+- When adding a new parser or SDK integration, mirror the shape of the existing ones
 
 ### Migrations and DB compatibility
 
