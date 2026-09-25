@@ -84,18 +84,6 @@ RSpec.describe LlmCostTracker::Integrations do
       .to include("anthropic integration cannot be installed")
   end
 
-  it "warns when :ruby_llm and a Faraday-parser integration are enabled together" do
-    allow(LlmCostTracker::Logging).to receive(:warn)
-    described_class.warn_double_instrumentation(%i[ruby_llm openai])
-    expect(LlmCostTracker::Logging).to have_received(:warn).with(/ruby_llm.*together with.*openai/)
-  end
-
-  it "does not warn when only :ruby_llm is enabled" do
-    allow(LlmCostTracker::Logging).to receive(:warn)
-    described_class.warn_double_instrumentation(%i[ruby_llm])
-    expect(LlmCostTracker::Logging).not_to have_received(:warn)
-  end
-
   it "expands the all instrumentation alias" do
     LlmCostTracker.configure { |c| c.instrument(:all) }
     expect(LlmCostTracker.configuration.instrumented_integrations).to contain_exactly(:openai, :anthropic, :ruby_llm)

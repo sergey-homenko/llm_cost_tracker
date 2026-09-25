@@ -16,9 +16,7 @@ module LlmCostTracker
     end
 
     def self.install!(names = LlmCostTracker.configuration.instrumented_integrations)
-      normalized = normalize(names)
-      warn_double_instrumentation(normalized)
-      normalized.each do |name|
+      normalize(names).each do |name|
         integration = fetch(name)
         next integration.install if integration
 
@@ -39,19 +37,6 @@ module LlmCostTracker
 
     def self.normalize(names)
       Array(names).flatten.uniq
-    end
-
-    def self.warn_double_instrumentation(names)
-      return unless names.include?(:ruby_llm)
-
-      overlapping = names - [:ruby_llm]
-      return if overlapping.empty?
-
-      Logging.warn(
-        ":ruby_llm is enabled together with #{overlapping.map(&:inspect).join(', ')}. " \
-        "RubyLLM uses HTTP underneath, so calls routed to those providers may be recorded twice " \
-        "(once via the SDK patch, once via the Faraday parser). Pick one path per provider."
-      )
     end
 
     def self.fetch(name)

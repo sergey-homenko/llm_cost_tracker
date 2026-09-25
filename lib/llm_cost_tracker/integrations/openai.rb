@@ -89,11 +89,12 @@ module LlmCostTracker
 
           record_safely do
             normalized = LlmCostTracker::Capture::SdkPayload.normalize(response)
-            usage = normalized["usage"]
-            if usage
-              input_tokens = usage["input_tokens"] || usage["prompt_tokens"]
-              output_tokens = usage["output_tokens"] || usage["completion_tokens"]
-              next if input_tokens.nil? && output_tokens.nil?
+            usage = normalized["usage"] || {}
+            input_tokens = usage["input_tokens"] || usage["prompt_tokens"]
+            output_tokens = usage["output_tokens"] || usage["completion_tokens"]
+            if input_tokens.nil? && output_tokens.nil?
+              Logging.warn("OpenAI response #{normalized['id']} has no usage; not recorded")
+              next
             end
 
             event = LlmCostTracker::Providers::Openai::ResponseParser.event_from_response(
@@ -103,7 +104,7 @@ module LlmCostTracker
               host: host,
               usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE
             )
-            LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms) if event
+            LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms)
           end
         end
 
