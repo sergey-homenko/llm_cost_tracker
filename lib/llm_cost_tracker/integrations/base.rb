@@ -112,13 +112,8 @@ module LlmCostTracker
         LlmCostTracker::Capture::StreamCollector.new(
           provider: provider,
           model: request[:model],
-          pricing_mode: stream_pricing_mode(request),
           request: request
         )
-      end
-
-      def stream_pricing_mode(_request)
-        nil
       end
 
       def minimum_version(value = nil)

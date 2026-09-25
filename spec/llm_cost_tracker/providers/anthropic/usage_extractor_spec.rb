@@ -18,6 +18,16 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::UsageExtractor do
       expect(result.cache_write_extended_input_tokens).to eq(10)
     end
 
+    it "adds cache writes beyond the 5m/1h breakdown to the 5m bucket, as a streamed total counts later server-tool breakpoints" do
+      result = described_class.token_usage(
+        input_tokens: 79, output_tokens: 510, cache_read_input_tokens: 2600, cache_creation_input_tokens: 7924,
+        cache_creation: { ephemeral_5m_input_tokens: 2600, ephemeral_1h_input_tokens: 0 }
+      )
+
+      expect(result.cache_write_input_tokens).to eq(7924)
+      expect(result.cache_write_extended_input_tokens).to eq(0)
+    end
+
     it "falls back to flat cache_creation_input_tokens when structured form is absent" do
       result = described_class.token_usage(input_tokens: 200, output_tokens: 80, cache_creation_input_tokens: 30)
       expect(result.cache_write_input_tokens).to eq(30)

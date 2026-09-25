@@ -11,6 +11,13 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
   let(:client) { OpenAI::Client.new(api_key: "test-key") }
   let(:audio_io) { StringIO.new("RIFF").tap { |io| io.set_encoding(Encoding::BINARY) } }
   let(:image_io) { StringIO.new("\x89PNG").tap { |io| io.set_encoding(Encoding::BINARY) } }
+  let(:logprobs) do
+    Array.new(500) do |index|
+      token = " word#{index}"
+      top = Array.new(20) { |rank| { token: "#{token}#{rank}", logprob: -1.0 - rank, bytes: "#{token}#{rank}".bytes } }
+      { token: token, logprob: -0.5, bytes: token.bytes, top_logprobs: top }
+    end
+  end
 
   describe "responses.create" do
     it "records token usage with cached and reasoning breakdowns" do
@@ -416,6 +423,58 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
+    it "records usage from a chat.completions.stream with logprobs, whose helper events resend every logprob so far" do
+      chunk = { id: "chatcmpl_lp", object: "chat.completion.chunk", model: "gpt-4.1-mini" }
+      body = +""
+      logprobs.each do |entry|
+        choice = { index: 0, delta: { content: entry[:token] }, logprobs: { content: [entry] }, finish_reason: nil }
+        body << "data: #{chunk.merge(choices: [choice]).to_json}\n\n"
+      end
+      body << "data: #{chunk.merge(choices: [{ index: 0, delta: {}, finish_reason: 'stop' }]).to_json}\n\n"
+      usage = { prompt_tokens: 50, completion_tokens: 500, total_tokens: 550 }
+      body << "data: #{chunk.merge(choices: [], usage: usage).to_json}\n\ndata: [DONE]\n\n"
+      stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: body)
+
+      capture_sdk_events do |events|
+        client.chat.completions.stream(
+          model: "gpt-4.1-mini", messages: [{ role: "user", content: "hi" }], logprobs: true, top_logprobs: 20,
+          stream_options: { include_usage: true }
+        ).each { |_| nil }
+
+        expect(events.first).to include(usage_source: "stream_final", input_tokens: 50, output_tokens: 500)
+      end
+    end
+
+    it "prices the tier the stream reports when the requested priority tier was downgraded" do
+      stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: <<~SSE)
+        data: {"id":"chatcmpl_d","object":"chat.completion.chunk","model":"gpt-5.5","service_tier":"default","choices":[],"usage":{"prompt_tokens":10000,"completion_tokens":2000,"total_tokens":12000}}
+
+        data: [DONE]
+
+      SSE
+
+      capture_sdk_events do |events|
+        client.chat.completions.stream_raw(
+          model: "gpt-5.5", service_tier: :priority, messages: [{ role: "user", content: "hi" }]
+        ).each { |_| nil }
+
+        expect(events.first[:pricing_mode]).to be_nil
+        expect(BigDecimal(events.first[:cost][:total])).to eq(BigDecimal("0.11"))
+      end
+    end
+
+    it "falls back to the requested tier when the stream reports none" do
+      stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: chat_sse_body)
+
+      capture_sdk_events do |events|
+        client.chat.completions.stream_raw(
+          model: "gpt-4o", service_tier: :priority, messages: [{ role: "user", content: "hi" }]
+        ).each { |_| nil }
+
+        expect(events.first[:pricing_mode]).to eq("priority")
+      end
+    end
+
     it "lets consumed chat.completions.stream_raw streams be garbage-collected" do
       stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: chat_sse_body)
 
@@ -470,6 +529,24 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           input_tokens: 20, output_tokens: 7,
           provider_response_id: "resp_stream"
         )
+      end
+    end
+
+    it "records usage from a responses stream whose completed event carries output_text logprobs" do
+      text = { type: "output_text", text: logprobs.pluck(:token).join, annotations: [], logprobs: logprobs }
+      response = { id: "resp_lp", model: "gpt-4.1-mini", status: "completed",
+                   output: [{ type: "message", id: "msg_lp", role: "assistant", status: "completed", content: [text] }],
+                   usage: { input_tokens: 50, output_tokens: 500, total_tokens: 550 } }
+      completed = { type: "response.completed", response: response }
+      stub_sdk_sse(:post, "https://api.openai.com/v1/responses",
+                   body: "event: response.completed\ndata: #{completed.to_json}\n\n")
+
+      capture_sdk_events do |events|
+        client.responses.stream_raw(
+          model: "gpt-4.1-mini", input: "hi", top_logprobs: 20, include: ["message.output_text.logprobs"]
+        ).each { |_| nil }
+
+        expect(events.first).to include(usage_source: "stream_final", input_tokens: 50, output_tokens: 500)
       end
     end
 
@@ -681,6 +758,21 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       )
     end
 
+    it "prices a responses stream at standard when Azure downgrades a priority request" do
+      stub_sdk_sse(:post, "https://my-resource.openai.azure.com/openai/v1/responses", body: <<~SSE)
+        event: response.completed
+        data: {"type":"response.completed","response":{"id":"resp_az","model":"gpt-4.1","service_tier":"default","usage":{"input_tokens":150000,"output_tokens":2000,"total_tokens":152000}}}
+
+      SSE
+
+      capture_sdk_events do |events|
+        azure_client.responses.stream_raw(model: "gpt-4.1", input: "hi", service_tier: :priority).each { |_| nil }
+
+        expect(events.first).to include(provider: "azure_openai", pricing_mode: nil)
+        expect(BigDecimal(events.first[:cost][:total])).to eq(BigDecimal("0.316"))
+      end
+    end
+
     it "tags chat.completions.create as azure_openai under the same base_url" do
       stub_sdk_json(:post, "https://my-resource.openai.azure.com/openai/v1/chat/completions",
                     provider: :openai, fixture: "chat_completions_create.json")
@@ -784,6 +876,19 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
       capture_sdk_events do |events|
         dr_client.responses.create(model: "gpt-5.4-mini", input: "hi")
+        expect(events.first).to include(provider: "openai", pricing_mode: "data_residency")
+      end
+    end
+
+    it "keeps data_residency on streams from the regional host" do
+      stub_sdk_sse(:post, "https://us.api.openai.com/v1/responses", body: <<~SSE)
+        event: response.completed
+        data: {"type":"response.completed","response":{"id":"resp_dr","model":"gpt-5.4-mini","service_tier":"default","usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}
+
+      SSE
+
+      capture_sdk_events do |events|
+        dr_client.responses.stream_raw(model: "gpt-5.4-mini", input: "hi").each { |_| nil }
         expect(events.first).to include(provider: "openai", pricing_mode: "data_residency")
       end
     end

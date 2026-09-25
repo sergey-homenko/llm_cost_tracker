@@ -11,12 +11,11 @@ module LlmCostTracker
                                   provider_response_id:,
                                   usage_source:,
                                   request: nil,
-                                  pricing_mode: nil,
                                   stream: false)
           Event.build(
             provider: "anthropic",
             provider_response_id: provider_response_id,
-            pricing_mode: pricing_mode || UsageExtractor.pricing_mode(request: request, usage: usage),
+            pricing_mode: UsageExtractor.pricing_mode(request: request, usage: usage),
             model: model,
             token_usage: UsageExtractor.token_usage(usage),
             stream: stream,

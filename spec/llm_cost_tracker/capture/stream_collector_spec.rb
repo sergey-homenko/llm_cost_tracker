@@ -379,9 +379,10 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:stream]).to be true
     end
 
-    it "falls back to unknown usage when buffered stream events exceed the capture cap" do
+    it "falls back to unknown usage with a warning when buffered stream events exceed the capture cap" do
       collected = events
       stub_const("LlmCostTracker::Capture::SSE::LIMIT_BYTES", 10)
+      allow(LlmCostTracker::Logging).to receive(:warn)
 
       described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
         stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } })
@@ -390,6 +391,7 @@ RSpec.describe LlmCostTracker do
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(0)
       expect(collected.first.dig(:token_usage, :output_tokens)).to eq(0)
       expect(collected.first[:usage_source]).to eq("unknown")
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(/openai stream events exceeded 10 bytes/)
     end
 
     it "keeps a stream event that fits the byte cap" do

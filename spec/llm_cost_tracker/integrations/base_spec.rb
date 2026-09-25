@@ -4,8 +4,8 @@ require "spec_helper"
 require "llm_cost_tracker/integrations/base"
 
 RSpec.describe LlmCostTracker::Integrations::Base do
-  describe "#stream_collector default pricing_mode" do
-    it "is nil when an integration does not override stream_pricing_mode" do
+  describe "#stream_collector" do
+    it "leaves the pricing mode to the stream parser" do
       integration = Module.new do
         extend LlmCostTracker::Integrations::Base
 

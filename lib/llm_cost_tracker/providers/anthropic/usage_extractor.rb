@@ -58,7 +58,10 @@ module LlmCostTracker
         def self.cache_writes(usage)
           cache_creation = usage[:cache_creation]
           if cache_creation.is_a?(Hash)
-            [cache_creation[:ephemeral_5m_input_tokens].to_i, cache_creation[:ephemeral_1h_input_tokens].to_i]
+            five = cache_creation[:ephemeral_5m_input_tokens].to_i
+            one = cache_creation[:ephemeral_1h_input_tokens].to_i
+            # A stream's message_delta total also counts later server-tool breakpoints, which are always 5m.
+            [five + [usage[:cache_creation_input_tokens].to_i - five - one, 0].max, one]
           else
             warn_unexpected_cache_creation(cache_creation, usage)
             [usage[:cache_creation_input_tokens].to_i, 0]

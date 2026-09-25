@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "base"
-require_relative "../providers/anthropic/usage_extractor"
 require_relative "../providers/anthropic/response_parser"
 
 module LlmCostTracker
@@ -61,21 +60,15 @@ module LlmCostTracker
             next unless usage
             next if usage.input_tokens.nil? && usage.output_tokens.nil?
 
-            usage_hash = usage.deep_to_h
             LlmCostTracker::Tracker.record(
               event: Providers::Anthropic::ResponseParser.event_from_usage(
-                usage: usage_hash,
+                usage: usage.deep_to_h.merge(service_tier: "batch"),
                 model: message.model,
                 provider_response_id: message.id,
-                usage_source: Usage::Source::SDK_BATCH_RESULT,
-                pricing_mode: "batch"
+                usage_source: Usage::Source::SDK_BATCH_RESULT
               )
             )
           end
-        end
-
-        def stream_pricing_mode(request)
-          Providers::Anthropic::UsageExtractor.pricing_mode(request: request || {}, usage: nil)
         end
       end
 

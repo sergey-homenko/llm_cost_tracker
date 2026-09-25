@@ -18,19 +18,14 @@ module LlmCostTracker
       minimum_version "0.59.0"
 
       class << self
-        def stream_pricing_mode(request, host: nil)
-          LlmCostTracker::Providers::Openai::ResponseParser.combined_pricing_mode(
-            host: host,
-            model: (request || {})[:model],
-            service_tier: (request || {})[:service_tier]
-          )
-        end
-
         def stream_collector(request, host: nil)
           LlmCostTracker::Capture::StreamCollector.new(
             provider: provider_for_host(host),
             model: request[:model],
-            pricing_mode: stream_pricing_mode(request, host: host),
+            # Host part only: the parser prefers the served tier over the requested one, e.g. after a downgrade.
+            pricing_mode: LlmCostTracker::Providers::Openai::ResponseParser.combined_pricing_mode(
+              host: host, model: request[:model], service_tier: nil
+            ),
             request: request
           )
         end

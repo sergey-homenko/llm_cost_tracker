@@ -81,7 +81,7 @@ module LlmCostTracker
       end
 
       def capture(event)
-        @collector.event(event.try(:deep_to_h) || event.try(:to_h) || {}, type: event.try(:type)&.to_s)
+        @collector.event(event.try(:to_h) || {}, type: event.try(:type)&.to_s)
       rescue StandardError => e
         warn_capture_failure(e)
       end
