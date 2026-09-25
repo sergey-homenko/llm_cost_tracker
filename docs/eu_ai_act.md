@@ -65,7 +65,7 @@ LlmCostTracker.with_tags(decision_id: hire.id, candidate_pseudo_id: hire.candida
 end
 ```
 
-Tag values that are themselves secrets (API keys, JWTs, bearer tokens) are replaced with `[REDACTED]` by `Tags::Sanitizer`, and credentials inside longer values, such as a `?key=` parameter in a URL, are replaced in place, so you don't accidentally persist credentials alongside attribution. Treat it as a guardrail: a credential under a name the gem does not recognise still gets through.
+Tag values matching known secret patterns (API keys, JWTs, bearer tokens) are auto-redacted by `Tags::Sanitizer` so you don't accidentally persist credentials alongside attribution.
 
 ### Keep `cost_status` honest
 

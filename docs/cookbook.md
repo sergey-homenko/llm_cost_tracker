@@ -197,7 +197,7 @@ conn.post(
 )
 ```
 
-Send the key in the `x-goog-api-key` header rather than a `?key=` query parameter: request URLs end up in Faraday error messages, proxy logs, and APM traces.
+Send the key in the `x-goog-api-key` header, not a `?key=` parameter: request URLs end up in error messages and logs.
 
 ## LiteLLM proxy
 

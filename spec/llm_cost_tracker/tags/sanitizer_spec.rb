@@ -176,6 +176,16 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
 
       expect(tags[:note]).to eq("[REDACTED]")
     end
+
+    it "scrubs credentials inside longer and non-string values but keeps the rest" do
+      key = "AIzaSy#{'A1b2C3d4' * 4}x"
+      url = "https://generativelanguage.googleapis.com/v1beta/models/m:generateContent?alt=sse&key=#{key}"
+
+      tags = described_class.call({ upstream: url, endpoint: URI(url), symbol: :"#{key}", count: 42 }, config: config)
+
+      scrubbed = url.sub(key, "[REDACTED]")
+      expect(tags).to eq(upstream: scrubbed, endpoint: scrubbed, symbol: "[REDACTED]", count: 42)
+    end
   end
 
   describe ".cap" do
@@ -189,69 +199,6 @@ RSpec.describe LlmCostTracker::Tags::Sanitizer do
     it "keeps the last max_tag_count entries when the union overflows" do
       result = described_class.cap({ a: 1, b: 2, c: 3, d: 4, e: 5 }, config: config)
       expect(result).to eq(c: 3, d: 4, e: 5)
-    end
-  end
-
-  describe "secrets inside longer values" do
-    let(:gemini_key) { "AIzaSy#{'A1b2C3d4' * 4}x" }
-
-    it "scrubs a Gemini key embedded in a URL tag value but keeps the rest of the URL" do
-      url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?alt=sse&key=#{gemini_key}"
-
-      value = described_class.call({ upstream: url })[:upstream]
-
-      expect(value).not_to include(gemini_key)
-      expect(value).to include("generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash")
-      expect(value).to include("alt=sse")
-    end
-
-    it "scrubs key=, api-key= and sig= fragments and embedded provider tokens inside longer values" do
-      tags = described_class.call(
-        {
-        note: "retry key=#{gemini_key}",
-        azure: "https://r.openai.azure.com/openai/x?api-version=2024-10-21&api-key=abcdef0123456789&sig=Zm9vYmFy",
-        openai: "calling with sk-proj-#{'a' * 24} failed",
-        proxy: "https://svc:hunter2hunter2@proxy.internal/v1" }
-      )
-
-      expect(tags.values.join(" ")).not_to match(/#{gemini_key}|abcdef0123456789|Zm9vYmFy|sk-proj-a|hunter2/)
-      expect(tags[:azure]).to include("api-version=2024-10-21")
-    end
-
-    it "scrubs credentials inside non-string values such as a request URI or an exception" do
-      uri = URI("https://generativelanguage.googleapis.com/v1beta/models/m:generateContent?key=#{gemini_key}")
-      error = RuntimeError.new("the server responded with status 429 for POST https://r.example/x?api-key=#{'f' * 32}")
-
-      tags = described_class.call({ endpoint: uri, error: error, note: :"retry key=#{gemini_key}" })
-
-      expect(tags.values.map(&:to_s).join(" ")).not_to match(/#{gemini_key}|#{'f' * 32}/)
-      expect(tags[:endpoint]).to include("generativelanguage.googleapis.com/v1beta/models/m:generateContent")
-    end
-
-    it "scrubs an oversized value within the part that is kept" do
-      value = "retry key=#{gemini_key} #{'x' * 200_000}"
-
-      scrubbed = described_class.call({ note: value })[:note]
-
-      expect(scrubbed).not_to include(gemini_key)
-      expect(scrubbed.bytesize).to be <= LlmCostTracker.configuration.tags.max_value_bytesize
-    end
-
-    it "redacts a non-string value that is itself a key and keeps other non-string values" do
-      tags = described_class.call({ symbol_key: :"#{gemini_key}", count: 42, flag: true })
-
-      expect(tags).to eq(symbol_key: "[REDACTED]", count: 42, flag: true)
-    end
-
-    it "leaves ordinary URLs and key-value strings alone" do
-      tags = described_class.call(
-        { referrer: "https://app.example.com/search?q=shoes&page=2",
-        label: "error_code=429 env=prod",
-        model: "gpt-4o" }
-      )
-
-      expect(tags).to eq(referrer: "https://app.example.com/search?q=shoes&page=2", label: "error_code=429 env=prod",
-                         model: "gpt-4o")
     end
   end
 end

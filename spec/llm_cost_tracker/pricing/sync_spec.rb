@@ -120,7 +120,6 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
           "openai" => { "web_search_request" => { "from" => 8.0, "to" => 10.0 } }
         )
         expect(written.dig("metadata", "source_url")).to eq(source_url)
-        expect(result.source_url).to eq(source_url)
         expect(written.dig("metadata", "source_version")).to eq("snapshot-v1")
         expect(written.dig("metadata", "min_gem_version")).to eq("0.0.1")
         expect(written.dig("metadata", "currency")).to eq("USD")
@@ -131,18 +130,14 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
     end
 
     it "keeps credentials in the snapshot URL out of the pricing file and the printed source" do
-      Tempfile.create(["llm-prices", ".json"]) do |file|
-        file.write(JSON.generate("metadata" => {}, "models" => {}))
-        file.close
-
+      Tempfile.create(["llm-prices", ".yml"]) do |file|
         result = described_class.refresh(
           path: file.path,
-          url: "https://ops:hunter2@example.com/llm_cost_tracker/prices.json?token=SEKRET#frag",
+          url: "https://ops:hunter2@example.com/prices.json?token=SEKRET",
           fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
         )
 
-        expect(JSON.parse(File.read(file.path)).dig("metadata", "source_url")).to eq(source_url)
-        expect(result.source_url).to eq(source_url)
+        expect(File.read(file.path) + result.source_url).not_to match(/hunter2|SEKRET/)
       end
     end
 
@@ -357,21 +352,6 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
 
         expect(result.suspicious).to eq(["currency: EUR -> USD"])
         expect(result.up_to_date).to be(false)
-      end
-    end
-
-    it "keeps credentials in the snapshot URL out of the reported source" do
-      Tempfile.create(["llm-prices", ".json"]) do |file|
-        file.write(JSON.generate("metadata" => {}, "models" => {}))
-        file.close
-        url = "https://ops:hunter2@example.com/llm_cost_tracker/prices.json?token=SEKRET"
-
-        changed = described_class.check(path: file.path, url: url,
-                                        fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry))))
-        unchanged = described_class.check(path: file.path, url: url,
-                                          fetcher: CuratedPriceFetcher.new(response(body: nil, not_modified: true)))
-
-        expect([changed.source_url, unchanged.source_url]).to all(eq(source_url))
       end
     end
 

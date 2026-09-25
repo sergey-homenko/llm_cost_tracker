@@ -11,7 +11,7 @@ module LlmCostTracker
     def initialize(error)
       super(
         "The database rolled back the whole surrounding transaction while recording LLM usage " \
-        "(#{Redaction.error(error)}); the caller's transaction no longer exists"
+        "(#{error.class}: #{Redaction.text(error.message)}); the caller's transaction no longer exists"
       )
     end
   end

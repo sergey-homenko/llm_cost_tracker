@@ -547,6 +547,31 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:usage_source]).to eq("unknown")
     expect(events.first[:tags]).to include(stream_interrupted: true)
     expect(events.first[:tags][:stream_interrupted_error]).to eq("Faraday::ConnectionFailed")
+    expect(events.first[:tags]).not_to have_key(:stream_interrupted_status)
+  end
+
+  it "keeps a ?key= URL out of the tags when raise_error ends a Gemini stream inside the tracker" do
+    key = "AIzaSy#{'A1b2C3d4' * 4}x"
+    conn = Faraday.new(url: "https://generativelanguage.googleapis.com") do |f|
+      f.use :llm_cost_tracker
+      f.response :raise_error
+      f.adapter(:test) { |stub| stub.post(/streamGenerateContent/) { [429, {}, "{}"] } }
+    end
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) { |*, payload| events << payload }
+
+    expect do
+      conn.post("/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=#{key}", "{}") do |req|
+        req.options.on_data = proc {}
+      end
+    end.to raise_error(Faraday::TooManyRequestsError, /#{key}/)
+
+    expect(events.first[:model]).to eq("gemini-2.5-flash")
+    expect(events.first[:tags]).to include(
+      stream_interrupted: true,
+      stream_interrupted_error: "Faraday::TooManyRequestsError",
+      stream_interrupted_status: 429
+    )
   end
 
   it "preserves the provider name when an Anthropic stream is interrupted mid-flight" do

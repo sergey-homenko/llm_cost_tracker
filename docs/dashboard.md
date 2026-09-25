@@ -65,7 +65,7 @@ The dashboard intentionally stores and displays no prompts or completions. Howev
 
 ## Tags Hygiene
 
-Do not put personal data, prompt bodies, customer messages, API keys, bearer tokens, or long free-form text in tags. Prefer stable operational identifiers such as internal numeric IDs, tenant slugs, feature names, job names, or environment labels. Configure `tags.redacted_keys` for known secret-like keys. The gem also replaces values shaped like provider keys and tokens, and credential parameters inside longer values, but treat both as a guardrail rather than a privacy boundary.
+Do not put personal data, prompt bodies, customer messages, API keys, bearer tokens, or long free-form text in tags. Prefer stable operational identifiers such as internal numeric IDs, tenant slugs, feature names, job names, or environment labels. Configure `tags.redacted_keys` for known secret-like keys, but treat it as a guardrail rather than a privacy boundary.
 
 ## Styling Contract
 

@@ -5,7 +5,6 @@ require "json"
 require "uri"
 
 require_relative "../capture/sse"
-require_relative "../redaction"
 require_relative "../capture/stream_tap"
 require_relative "../timing"
 
@@ -122,7 +121,9 @@ module LlmCostTracker
           stream: true,
           usage_source: Usage::Source::UNKNOWN
         )
-        merged_metadata = (metadata || {}).merge(interrupted_stream_tags(error))
+        merged_metadata = (metadata || {}).merge(stream_interrupted: true, stream_interrupted_error: error.class.name)
+        status = error.try(:response_status)
+        merged_metadata[:stream_interrupted_status] = status if status
         Tracker.record(
           event: event,
           latency_ms: latency_ms,
@@ -133,13 +134,6 @@ module LlmCostTracker
         raise
       rescue StandardError => e
         Logging.warn("Error recording interrupted stream: #{e.class}: #{e.message}")
-      end
-
-      def interrupted_stream_tags(error)
-        tags = { stream_interrupted: true, stream_interrupted_error: error.class.name }
-        status = error.respond_to?(:response_status) ? error.response_status : nil
-        tags[:stream_interrupted_status] = status if status
-        tags
       end
 
       def process(parser:,
@@ -307,7 +301,14 @@ module LlmCostTracker
       end
 
       def request_url_label(value)
-        Redaction.url(value)
+        uri = URI.parse(value.to_s)
+        uri.query = nil
+        uri.fragment = nil
+        uri.user = nil
+        uri.password = nil
+        uri.to_s
+      rescue URI::InvalidURIError
+        value.to_s.split("?", 2).first
       end
     end
   end

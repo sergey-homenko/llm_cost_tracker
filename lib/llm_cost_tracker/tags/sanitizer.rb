@@ -48,20 +48,7 @@ module LlmCostTracker
         def sanitized_value(key, value, redacted, limit)
           return REDACTED_VALUE if redacted_key?(key, redacted)
 
-          scrubbed = scrub_secrets(Ledger::Storable.clean(scan_window(value, limit)))
-          return REDACTED_VALUE if scrubbed.equal?(REDACTED_SENTINEL)
-
-          scalar_truncate(scrubbed, limit)
-        end
-
-        REDACTED_SENTINEL = Object.new.freeze
-        SCAN_MARGIN = 4096
-        private_constant :REDACTED_SENTINEL, :SCAN_MARGIN
-
-        def scan_window(value, limit)
-          return value unless value.is_a?(String) && value.bytesize > limit + SCAN_MARGIN
-
-          value.byteslice(0, limit + SCAN_MARGIN).scrub("")
+          scalar_truncate(scrub_secrets(Ledger::Storable.clean(value)), limit)
         end
 
         def scalar_truncate(value, limit)
@@ -83,23 +70,11 @@ module LlmCostTracker
         def scrub_secrets(value)
           case value
           when Hash
-            value.each_with_object({}) do |(key, nested), out|
-              scrubbed = scrub_secrets(nested)
-              out[key] = scrubbed.equal?(REDACTED_SENTINEL) ? REDACTED_VALUE : scrubbed
-            end
+            value.transform_values { |nested| scrub_secrets(nested) }
           when Array
-            value.map do |nested|
-              scrubbed = scrub_secrets(nested)
-              scrubbed.equal?(REDACTED_SENTINEL) ? REDACTED_VALUE : scrubbed
-            end
-          when String
-            Redaction.secret?(value) ? REDACTED_SENTINEL : Redaction.text(value)
-          when Numeric, true, false, nil
-            value
+            value.map { |nested| scrub_secrets(nested) }
           else
             string = value.to_s
-            return REDACTED_SENTINEL if Redaction.secret?(string)
-
             scrubbed = Redaction.text(string)
             scrubbed == string ? value : scrubbed
           end

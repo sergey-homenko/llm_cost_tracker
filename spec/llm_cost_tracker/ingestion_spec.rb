@@ -250,6 +250,20 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker::Ingestion::InboxEntry.delete_all
   end
 
+  it "stores last_error scrubbed and cut to 1,000 bytes of valid UTF-8" do
+    LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1, output_tokens: 0 })
+    allow(LlmCostTracker::Ledger::Store).to receive(:persist_records).and_raise("?token=SEKRET x#{'é' * 700}")
+    allow(LlmCostTracker::Logging).to receive(:warn)
+
+    LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)
+
+    last_error = LlmCostTracker::Ingestion::InboxEntry.first.last_error
+    expect(last_error).to start_with("RuntimeError: ?token=[REDACTED] xé")
+    expect(last_error.bytesize).to eq(999)
+
+    LlmCostTracker::Ingestion::InboxEntry.delete_all
+  end
+
   it "lands the batch even when the rollup cache increment fails so a cache fault cannot quarantine cost rows" do
     event = LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 })
     allow(LlmCostTracker::CallRollup).to receive(:increment_all).and_raise("rollup down")
