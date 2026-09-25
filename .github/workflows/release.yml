@@ -6,17 +6,15 @@ on:
       - "v*"
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
+  test:
     runs-on: ubuntu-latest
-    environment: release
     services:
       postgres:
         image: postgres:17.3
@@ -40,13 +38,13 @@ jobs:
       LCT_TEST_ADMIN_DATABASE: postgres
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       with:
         persist-credentials: false
         fetch-depth: 0
 
     - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
+      uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
       with:
         ruby-version: '3.4'
         bundler-cache: true
@@ -58,6 +56,24 @@ jobs:
 
     - name: Run release checks
       run: bin/check
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        persist-credentials: false
+
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
+      with:
+        ruby-version: '3.4'
 
     - name: Build release notes from changelog
       run: |
@@ -78,8 +94,13 @@ jobs:
           File.write(ENV.fetch("RELEASE_NOTES_PATH"), notes + "\n")
         '
 
+    - uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
+
     - name: Publish gem
-      uses: rubygems/release-gem@v1
+      run: |
+        gem build llm_cost_tracker.gemspec
+        gem exec sigstore-cli:0.2.3 sign llm_cost_tracker-*.gem --bundle gem.sigstore.json
+        gem push llm_cost_tracker-*.gem --attestation gem.sigstore.json
 
     - name: Create GitHub release
       env:
