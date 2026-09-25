@@ -165,9 +165,9 @@ module LlmCostTracker
           {
             input: tokens.input,
             output: tokens.output,
-            cache_read: tokens.try(:cache_read),
-            cache_write: tokens.try(:cache_write),
-            thinking: tokens.try(:thinking)
+            cache_read: tokens.cache_read,
+            cache_write: tokens.cache_write,
+            thinking: tokens.thinking
           }
         end
 

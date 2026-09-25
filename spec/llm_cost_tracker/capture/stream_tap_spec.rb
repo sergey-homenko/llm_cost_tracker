@@ -6,6 +6,7 @@ require "llm_cost_tracker/capture/stream_tap"
 RSpec.describe LlmCostTracker::Capture::StreamTap do
   it "decodes events split across chunk boundaries into the window" do
     tap = described_class.new
+    expect(tap).not_to be_received
     body = "data: {\"id\":\"chatcmpl_a\"}\n\ndata: {\"usage\":{\"prompt_tokens\":1}}\n\ndata: [DONE]\n\n"
     body.each_char.each_slice(3) { |slice| tap << slice.join }
 
@@ -22,9 +23,5 @@ RSpec.describe LlmCostTracker::Capture::StreamTap do
 
     expect(tap).to be_failed
     expect(tap.events).to be_empty
-  end
-
-  it "reports nothing received when the adapter never called on_data" do
-    expect(described_class.new).not_to be_received
   end
 end

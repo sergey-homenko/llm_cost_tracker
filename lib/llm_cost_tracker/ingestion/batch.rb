@@ -124,30 +124,27 @@ module LlmCostTracker
       def persist_batch(rows, events)
         landed = []
         failed = Hash.new { |hash, message| hash[message] = [] }
-        begin
-          landed = persist(rows, events)
+        landed.concat(persist(rows, events))
+      rescue *TRANSIENT_PERSIST_ERRORS
+        raise
+      rescue StandardError
+        rows.zip(events) do |row, event|
+          landed.concat(persist([row], [event]))
         rescue *TRANSIENT_PERSIST_ERRORS
           raise
-        rescue StandardError
-          rows.zip(events) do |row, event|
-            landed.concat(persist([row], [event]))
-          rescue *TRANSIENT_PERSIST_ERRORS
-            raise
-          rescue StandardError => e
-            failed[error_message_for(e)] << row
-          end
+        rescue StandardError => e
+          failed[error_message_for(e)] << row
         end
       ensure
-        failed.each { |message, failed_rows| report_unstored(failed_rows, message) }
+        failed.each do |message, failed_rows|
+          LlmCostTracker::Logging.warn(
+            "Ingestion::Batch: #{failed_rows.size} inbox row(s) could not be stored " \
+            "(ids: #{id_sample(failed_rows)}): #{message}"
+          )
+          mark_failed_with_message(failed_rows, message)
+        end
         Ledger::Rollups.increment_safely!(landed)
         Budget.notify_persisted_safely!(landed)
-      end
-
-      def report_unstored(rows, message)
-        LlmCostTracker::Logging.warn(
-          "Ingestion::Batch: #{rows.size} inbox row(s) could not be stored (ids: #{id_sample(rows)}): #{message}"
-        )
-        mark_failed_with_message(rows, message)
       end
 
       def persist(rows, events, retry_on_conflict: true)

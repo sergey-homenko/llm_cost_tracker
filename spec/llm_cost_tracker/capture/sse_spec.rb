@@ -99,14 +99,12 @@ RSpec.describe LlmCostTracker::Capture::SSE do
       events
     end
 
-    it "emits the same events when the stream arrives one byte at a time" do
+    it "decodes a stream arriving one byte at a time, including a last event with no trailing blank line" do
       body = "event: message_start\r\ndata: {\"type\":\"message_start\",\"text\":\"привет\"}\r\n\r\n" \
              ": keep-alive\n\n" \
              "data: line-one\ndata: line-two\n\n" \
-             "event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":9}}\n\n" \
-             "data: [DONE]\n\n"
+             "event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":9}}"
 
-      expect(read_bytewise(body)).to eq(LlmCostTracker::Capture::SSE.parse(body))
       expect(read_bytewise(body)).to eq(
         [
           { event: "message_start", data: { "type" => "message_start", "text" => "привет" } },
@@ -116,15 +114,9 @@ RSpec.describe LlmCostTracker::Capture::SSE do
       )
     end
 
-    it "emits the final event when the stream ends without a trailing blank line" do
-      expect(read_bytewise("data: {\"id\":\"1\"}\n\ndata: {\"id\":\"2\"}")).to eq(
-        [{ event: nil, data: { "id" => "1" } }, { event: nil, data: { "id" => "2" } }]
-      )
-    end
-
-    it "decodes a Gemini JSON array stream arriving one byte at a time, with braces and escaped quotes inside strings" do
+    it "decodes a Gemini JSON array stream one byte at a time, with braces and escaped quotes inside strings and a truncated last object" do
       body = "  [{\"text\":\"a } { \\\"quoted\\\" \\\\\",\"n\":1}\n,\r\n" \
-             "{\"usageMetadata\":{\"promptTokenCount\":3,\"candidatesTokenCount\":4}}\n]"
+             "{\"usageMetadata\":{\"promptTokenCount\":3,\"candidatesTokenCount\":4}}\n,{\"n\":"
 
       expect(read_bytewise(body)).to eq(
         [
@@ -132,10 +124,6 @@ RSpec.describe LlmCostTracker::Capture::SSE do
           { event: nil, data: { "usageMetadata" => { "promptTokenCount" => 3, "candidatesTokenCount" => 4 } } }
         ]
       )
-    end
-
-    it "drops an incomplete trailing object in a JSON array stream" do
-      expect(read_bytewise("[{\"n\":1},{\"n\":")).to eq([{ event: nil, data: { "n" => 1 } }])
     end
   end
 end

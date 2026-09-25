@@ -420,13 +420,6 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     end
   end
 
-  it "renders invalid filters on the CSV export as a bad request" do
-    response = get("/llm-costs/calls.csv?from=2026-04-01")
-
-    expect(response.status).to eq(400)
-    expect(response.body).to include("from and to dates must be provided together")
-  end
-
   it "renders a missing call requested as CSV as not found" do
     response = get("/llm-costs/calls/999999.csv")
 

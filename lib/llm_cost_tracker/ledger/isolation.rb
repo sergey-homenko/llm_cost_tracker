@@ -7,38 +7,22 @@ module LlmCostTracker
     module Isolation
       class << self
         def guard(model = LlmCostTracker::Call, &)
-          isolate(model, standalone: false, &)
-        end
-
-        def transaction(model = LlmCostTracker::Call, &)
-          isolate(model, standalone: true, &)
-        end
-
-        def after_commit(model = LlmCostTracker::Call, &)
-          current = model.connection.current_transaction
-          return yield unless current.open? && current.joinable? && current.respond_to?(:after_commit)
-
-          current.after_commit(&)
-        end
-
-        private
-
-        def isolate(model, standalone:, &)
           connection = model.connection
           nested = connection.transaction_open?
-          return model.transaction(requires_new: true, &) if nested
-          return model.transaction(&) if standalone
+          return yield unless nested
 
-          yield
+          model.transaction(requires_new: true, &)
         rescue ActiveRecord::TransactionRollbackError => e
-          raise unless nested && invalidates_transaction?(connection)
+          raise unless nested && connection.savepoint_errors_invalidate_transactions?
 
           raise TransactionAbortedError, e
         end
 
-        def invalidates_transaction?(connection)
-          connection.respond_to?(:savepoint_errors_invalidate_transactions?) &&
-            connection.savepoint_errors_invalidate_transactions?
+        def after_commit(&)
+          current = LlmCostTracker::Call.connection.current_transaction
+          return yield unless current.open? && current.joinable? && current.respond_to?(:after_commit)
+
+          current.after_commit(&)
         end
       end
     end

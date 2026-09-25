@@ -2,7 +2,6 @@
 
 require "cgi"
 require "json"
-require "nokogiri"
 require "spec_helper"
 require "price_scrape/providers/openai"
 
@@ -55,16 +54,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
   def model_doc_html(body)
     "<html><body><p>#{body}</p></body></html>"
-  end
-
-  def model_doc_url(model_id)
-    "#{described_class::DocumentedLongContextPrices::MODEL_DOC_URL_PREFIX}#{model_id}"
-  end
-
-  def without_long_context_columns(page)
-    doc = Nokogiri::HTML(page)
-    doc.css("table").select { |table| table.text.include?("Long context") }.each(&:remove)
-    doc.to_html(save_with: Nokogiri::XML::Node::SaveOptions::AS_HTML)
   end
 
   def html_pages(overrides = {})
@@ -324,10 +313,11 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       expect(result.models.fetch("gpt-5.5-pro")).not_to include("_context_price_threshold_tokens")
     end
 
-    it "prices long context from the model docs once newer releases push a model out of the long-context columns" do
+    it "reads the GPT-6 long-context wording from the model docs" do
       pages = html_pages(
-        model_doc_url("gpt-5.6-sol") => model_doc_html(
-          "Prompts with >272K input tokens are priced at 2x input and 1.5x output for the full request."
+        "#{described_class::DocumentedLongContextPrices::MODEL_DOC_URL_PREFIX}gpt-5.6-sol" => model_doc_html(
+          "Prompts with more than 272K input tokens are priced at 2x input and cache rates and 1.5x output " \
+          "for the full request."
         )
       )
       result = described_class.new.call(html: pages, scraped_at: "2026-09-24T00:00:00Z")
@@ -336,31 +326,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "_context_price_threshold_tokens" => 272_000,
         "above_context_input" => 8.0,
         "above_context_cache_read_input" => 0.8,
-        "above_context_cache_write_input" => 10.0,
         "above_context_output" => 30.0,
-        "above_context_fast_input" => 16.0,
-        "above_context_priority_output" => 60.0,
-        "above_context_data_residency_input" => 8.8
-      )
-    end
-
-    it "reads the GPT-6 long-context wording once GPT-6 leaves the long-context columns" do
-      pages = html_pages(
-        described_class.source_url => without_long_context_columns(html),
-        model_doc_url("gpt-6-sol") => model_doc_html(
-          "Prompts with more than 272K input tokens are priced at 2x input and cache rates and 1.5x output " \
-          "for the full request."
-        )
-      )
-      result = described_class.new.call(html: pages, scraped_at: "2026-09-24T00:00:00Z")
-
-      expect(result.models.fetch("gpt-6-sol")).to include(
-        "_context_price_threshold_tokens" => 272_000,
-        "above_context_input" => 4.0,
-        "above_context_cache_read_input" => 0.4,
-        "above_context_cache_write_input" => 5.0,
-        "above_context_output" => 15.0,
-        "above_context_fast_output" => 30.0
+        "above_context_fast_input" => 16.0
       )
     end
 

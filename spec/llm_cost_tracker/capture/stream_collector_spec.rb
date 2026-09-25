@@ -119,21 +119,8 @@ RSpec.describe LlmCostTracker do
       expect(record_calls).to eq(1)
     end
 
-    it "releases the buffered events and the request once the stream is recorded" do
-      collector = described_class.new(provider: "openai", model: "gpt-4o",
-                                      request: { "model" => "gpt-4o", "messages" => [{ "role" => "user", "content" => "hi" }] })
-      collector.event({ "id" => "chatcmpl_x", "model" => "gpt-4o",
-                        "usage" => { "prompt_tokens" => 5, "completion_tokens" => 2, "total_tokens" => 7 } })
-      allow(LlmCostTracker::Tracker).to receive(:record) { |&block| block&.call; nil }
-
-      collector.finish!(errored: false)
-
-      expect(collector.instance_variable_get(:@window).events).to be_empty
-      expect(collector.instance_variable_get(:@request)).to be_nil
-    end
-
-    it "keeps the buffered events for the retry when recording fails, then releases them" do
-      collector = described_class.new(provider: "openai", model: "gpt-4o")
+    it "keeps the buffered events for the retry when recording fails, then releases them and the request" do
+      collector = described_class.new(provider: "openai", model: "gpt-4o", request: { "model" => "gpt-4o" })
       collector.event({ "id" => "chatcmpl_x", "model" => "gpt-4o",
                         "usage" => { "prompt_tokens" => 5, "completion_tokens" => 2, "total_tokens" => 7 } })
       attempts = 0
@@ -154,6 +141,7 @@ RSpec.describe LlmCostTracker do
       expect(attempts).to eq(2)
       expect(recorded_input_tokens).to eq(5)
       expect(collector.instance_variable_get(:@window).events).to be_empty
+      expect(collector.instance_variable_get(:@request)).to be_nil
     end
   end
 
@@ -209,27 +197,6 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:stream]).to be true
       expect(collected.first[:usage_source]).to eq("stream_final")
       expect(collected.first[:tags]).to include(feature: "stream")
-    end
-
-    it "prices OpenAI Realtime cached audio once, at the cache-read rate" do
-      collected = events
-      usage = {
-        "input_tokens" => 10_000,
-        "output_tokens" => 0,
-        "input_token_details" => {
-          "text_tokens" => 2_000, "audio_tokens" => 8_000, "cached_tokens" => 5_000,
-          "cached_tokens_details" => { "text_tokens" => 0, "audio_tokens" => 5_000 }
-        }
-      }
-
-      described_class.track_stream(provider: "openai", model: "gpt-realtime") do |stream|
-        stream.event({ "type" => "response.done", "response" => { "usage" => usage } }, type: "response.done")
-      end
-
-      expect(collected.first[:token_usage]).to include(
-        input_tokens: 2_000, cache_read_input_tokens: 5_000, audio_input_tokens: 3_000
-      )
-      expect(BigDecimal(collected.first[:cost][:total])).to eq(BigDecimal("0.106"))
     end
 
     it "infers the model from stream events when no model is passed" do

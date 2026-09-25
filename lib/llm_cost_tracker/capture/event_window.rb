@@ -53,7 +53,7 @@ module LlmCostTracker
       end
 
       def notable?(data)
-        @notable ? @notable.call(data) == true : false
+        @notable&.call(data)
       rescue StandardError
         false
       end
@@ -63,7 +63,6 @@ module LlmCostTracker
         @head = []
         @kept = []
         @tail = []
-        @bytes = 0
       end
 
       def strip_heavy_payload(value)

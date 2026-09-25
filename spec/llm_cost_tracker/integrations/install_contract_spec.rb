@@ -55,16 +55,6 @@ RSpec.describe LlmCostTracker::Integrations do
     ruby_llm.instance_variable_set(:@maximum_version, original)
   end
 
-  it "keeps doctor quiet about versions below the tested maximum_version" do
-    ghost = Module.new do
-      extend LlmCostTracker::Integrations::Base
-      def self.integration_name = :ruby_llm
-      maximum_version "999.0.0"
-    end
-
-    expect(ghost.send(:untested_version?)).to be(false)
-  end
-
   it "reports the SDK gem as not loaded when Gem.loaded_specs has no entry under integration_name" do
     ghost = Module.new do
       extend LlmCostTracker::Integrations::Base

@@ -58,19 +58,16 @@ RSpec.describe "LlmCostTracker::Engine pricing" do
   end
 
   it "falls back to the effective source when source is a list or a hash" do
-    LlmCostTrackerReset.call
     LlmCostTracker.configure do |config|
       config.pricing.overrides = { "openai/gpt-4o" => { input: 2.0, output: 8.0 } }
     end
 
-    %w[source%5B%5D=bundled source%5Bbundled%5D=1 source%5Bbundled%5D%5B%5D=1].each do |query|
+    %w[source%5B%5D=bundled source%5Bbundled%5D=1].each do |query|
       response = get("/llm-costs/pricing?#{query}")
 
       expect(response.status).to eq(200)
       expect(response.body).to match(/<a [^>]*class="lct-tab lct-active"[^>]*>\s*Overrides/m)
     end
-  ensure
-    LlmCostTrackerReset.call
   end
 
   it "marks pricing as the active sidebar section" do

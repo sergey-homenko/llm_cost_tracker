@@ -13,19 +13,16 @@ module LlmCostTracker
         @reader = SSE::Reader.new { |event| @window.push(event[:data], type: event[:event]) }
         @received = false
         @failed = false
-        @finished = false
       end
 
       def <<(chunk)
-        return self if @failed
+        return if @failed
 
         @received = true
         @reader << chunk
         fail! if @reader.pending_bytesize > MAX_PENDING_BYTES
-        self
       rescue StandardError
         fail!
-        self
       end
 
       def received?
@@ -41,20 +38,14 @@ module LlmCostTracker
       end
 
       def events
-        finish
+        @reader&.finish
         @failed ? [] : @window.events
+      rescue StandardError
+        fail!
+        []
       end
 
       private
-
-      def finish
-        return if @finished || @failed
-
-        @finished = true
-        @reader.finish
-      rescue StandardError
-        fail!
-      end
 
       def fail!
         @failed = true

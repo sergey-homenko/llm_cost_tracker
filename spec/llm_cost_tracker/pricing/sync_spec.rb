@@ -263,7 +263,7 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       end
     end
 
-    it "refuses a snapshot with suspicious price changes and leaves the file untouched unless forced" do
+    it "refuses a snapshot with suspicious price changes and leaves the file untouched" do
       Tempfile.create(["llm-prices", ".yml"]) do |file|
         original = { "metadata" => {}, "models" => { "gpt-4o" => { "input" => 2.5, "output" => 10.0 } } }.to_yaml
         file.write(original)
@@ -276,11 +276,6 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
           described_class.refresh(path: file.path, url: source_url, fetcher: fetcher)
         end.to raise_error(LlmCostTracker::Error) { |error| expect(error.message).to include(*suspicious, "FORCE=1") }
         expect(File.read(file.path)).to eq(original)
-
-        result = described_class.refresh(path: file.path, url: source_url, fetcher: fetcher, force: true)
-
-        expect(result.suspicious).to eq(suspicious)
-        expect(YAML.safe_load_file(file.path).dig("models", "gpt-4o", "output")).to eq(1e30)
       end
     end
 

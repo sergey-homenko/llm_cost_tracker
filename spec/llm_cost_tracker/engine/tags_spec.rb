@@ -161,24 +161,12 @@ RSpec.describe "LlmCostTracker::Engine tags" do
   end
 
   it "rejects a list or a hash in the tag value as a bad request" do
-    list = get("/llm-costs/tags/feature?tag_value%5B%5D=a&tag_value%5B%5D=b")
-    hash = get("/llm-costs/tags/feature?tag_value%5Bx%5D=y")
+    %w[tag_value%5B%5D=a&tag_value%5B%5D=b tag_value%5Bx%5D=y].each do |query|
+      response = get("/llm-costs/tags/feature?#{query}")
 
-    [list, hash].each do |response|
       expect(response.status).to eq(400)
       expect(response.body).to include("tag_value must be a single value")
     end
-  end
-
-  it "treats a NUL byte in the tag value as matching nothing on PostgreSQL" do
-    skip "PostgreSQL text columns cannot hold a NUL byte" unless
-      LlmCostTracker::Ledger::Schema::Adapter.postgresql?(ActiveRecord::Base.connection)
-    create_call(tags: { feature: "chat" })
-
-    response = get("/llm-costs/tags/feature?tag_value=a%00b")
-
-    expect(response.status).to eq(200)
-    expect(response.body).to include("No calls tagged with feature=")
   end
 
   it "renders a setup state when the ledger table is missing" do

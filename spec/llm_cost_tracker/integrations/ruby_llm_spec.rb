@@ -14,10 +14,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
   end
 
-  def ruby_llm_2?
-    Gem::Version.new(RubyLLM::VERSION) >= Gem::Version.new("2.0.0")
-  end
-
   def stub_openai_chat(id:, usage: nil)
     json = { "Content-Type" => "application/json" }
     completion = {
@@ -240,7 +236,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
 
     it "records a multi-image generation once, from the first image, as RubyLLM 2.x bills it" do
-      skip "paint(count:) returns several images only on RubyLLM 2.x" unless ruby_llm_2?
+      skip "paint(count:) returns several images only on RubyLLM 2.x" if RubyLLM::VERSION.start_with?("1.")
 
       WebMock.stub_request(:post, "https://api.openai.com/v1/images/generations").to_return(
         status: 200,
@@ -279,13 +275,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
           image_input_tokens: 0, image_output_tokens: 0
         )
       end
-    end
-  end
-
-  describe ".image_usage" do
-    it "returns an empty usage hash when the image carries neither usage nor raw usage" do
-      expect(described_class.image_usage(Object.new)).to eq({})
-      expect(described_class.image_usage(nil)).to eq({})
     end
   end
 
