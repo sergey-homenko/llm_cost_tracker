@@ -16,7 +16,7 @@ Optional tables — only created when you opt in:
 
 | Table | Role | Created by |
 | --- | --- | --- |
-| `llm_cost_tracker_call_rollups` | Daily and monthly cost totals for fast budget checks. | `bin/rails generate llm_cost_tracker:call_rollups` (requires `config.budgets.totals_source = :cache`) |
+| `llm_cost_tracker_call_rollups` | Running daily and monthly cost totals. Budget checks take the greater of these and the live sum: a guard against drift, not a speed-up. | `bin/rails generate llm_cost_tracker:call_rollups` (requires `config.budgets.totals_source = :cache`) |
 | `llm_cost_tracker_ingestion_inbox_entries` | Write-ahead inbox rows the ingestor drains into the ledger. | `bin/rails generate llm_cost_tracker:async_ingestion` (requires `config.ingestion.mode = :async`) |
 | `llm_cost_tracker_ingestion_leases` | Shared lease rows for the ingestion worker. | same migration as the inbox |
 

@@ -1,6 +1,6 @@
 # Operations
 
-Production use depends on ActiveRecord health, bounded hot paths, and current pricing snapshots. Async ingestion and rollups are opt-ins — turn them on when scale or durability demands it (see [Storage in Configuration](configuration.md#storage)).
+Production use depends on ActiveRecord health, bounded hot paths, and current pricing snapshots. Async ingestion is an opt-in for when scale or durability demands it; rollups are an opt-in drift guard for budget totals, not a speed-up (see [Storage in Configuration](configuration.md#storage)).
 
 ## Production Defaults
 

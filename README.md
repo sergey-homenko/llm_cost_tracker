@@ -1,10 +1,12 @@
 # LLM Cost Tracker
 
-Self-hosted LLM cost tracking for Rails.
+Per-tenant LLM spend attribution and budgets for Rails — in your database, no proxy.
 
 [![Gem Version](https://img.shields.io/gem/v/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker) [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions) [![codecov](https://codecov.io/gh/sergey-homenko/llm_cost_tracker/branch/main/graph/badge.svg)](https://codecov.io/gh/sergey-homenko/llm_cost_tracker)
 
-Every call your app makes through RubyLLM, the official OpenAI and Anthropic SDKs, Gemini, or any OpenAI-compatible API gets logged: tokens, cost, latency, tags. Calls go app → provider direct. No proxy.
+Every call through RubyLLM, the official OpenAI and Anthropic SDKs, Gemini, or any OpenAI-compatible API is logged with tokens, cost, and your tags. Budgets can block a tenant's next call before it is sent.
+
+RubyLLM 2.0 also writes usage and cost to `ruby_llm_usages`, but only for chats persisted with `acts_as_chat`; those rows carry no tags, and it has no spend budgets. This gem records every call from the clients above, tagged however you choose.
 
 Not Langfuse, Helicone, or LiteLLM. No prompts, no traces, no replay. Spend attribution only.
 
@@ -77,6 +79,16 @@ The engine ships without authentication on purpose.
 | Anything else | `LlmCostTracker.track` |
 
 Streams capture when the provider emits final usage. OpenAI Faraday streams to `/chat/completions` get `stream_options: { include_usage: true }` auto-injected so the final usage chunk lands in the ledger (opt out via `config.capture.request_stream_usage = false`).
+
+Captured does not always mean priced:
+
+| Cost comes from | Calls |
+| --- | --- |
+| Bundled [`prices.json`](lib/llm_cost_tracker/prices.json) | The OpenAI, Anthropic, Gemini, Groq, and OpenRouter models it lists |
+| The OpenAI, Anthropic, or Gemini price for the same model name | Azure OpenAI (by the model in the response, not the deployment name), Vertex AI through RubyLLM, gateways that pass a listed model name through |
+| Nothing: recorded with `cost_status: unknown` | DeepSeek, and through RubyLLM also xAI, Mistral, Perplexity, Ollama, and Bedrock |
+
+Add missing prices to `config.pricing.file` or `config.pricing.overrides` ([Pricing](docs/pricing.md)), then run `bin/rails llm_cost_tracker:backfill_unknown_pricing` to price the calls already recorded.
 
 ## What it isn't
 

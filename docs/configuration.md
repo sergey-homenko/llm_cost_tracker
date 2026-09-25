@@ -58,6 +58,10 @@ Built-in integration names:
 
 The minimum is what `install!` enforces. CI resolves each SDK fresh on every run, so the suite is exercised against the newest release the gemspec's development dependencies allow. Versions between the minimum and that release are supported but not covered by CI.
 
+Batch results are recorded inside the call that fetches them: for OpenAI, the first `batches.retrieve` in each process that sees the batch `completed` downloads the output file; for Anthropic, iterating `batches.results_streaming`. Poll from a background job, not a web request. A result already in the ledger is skipped, but one still in the async inbox or being recorded by a concurrent fetch is not, so fetch each batch's results from one job at a time.
+
+OpenAI Responses created with `background: true` and polled with `responses.retrieve` are not recorded; stream them with `responses.stream` or `responses.retrieve_streaming`, or record them with `LlmCostTracker.track`.
+
 ## OpenAI-Compatible Hosts
 
 OpenAI-compatible capture is shape-based. Built-in mappings cover OpenRouter, DeepSeek, and Groq:

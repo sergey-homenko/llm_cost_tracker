@@ -133,7 +133,7 @@ Responsibilities:
 - Persist events inline by default; stage to the async inbox and drain via the worker when `config.ingestion.mode = :async`.
 - Claim retryable inbox entries through database leases (async mode only).
 - Persist call headers, line items, and tag rows atomically.
-- Maintain call rollups for hot-path budget reads when `config.budgets.totals_source = :cache`; otherwise budget reads aggregate live from `llm_cost_tracker_calls`.
+- Maintain call rollups when `config.budgets.totals_source = :cache`; budget reads still aggregate live from `llm_cost_tracker_calls` and take the greater of that and the rollup.
 - Hide PostgreSQL and MySQL-family SQL differences.
 - Provide safe scopes for filters, periods, tags, unknown pricing, and reports.
 

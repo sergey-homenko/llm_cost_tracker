@@ -10,6 +10,7 @@ Pricing covers registry shape, refresh tasks, precedence, provider-qualified key
 - Local snapshots live wherever `config.pricing.file` points.
 - Precedence is `pricing.overrides`, then `pricing.file`, then bundled prices.
 - Provider-qualified keys like `openai/gpt-4o-mini` win over model-only keys.
+- A model with no key under its own provider takes the price of the only `provider/model` key with the same model name, so Azure OpenAI's `gpt-4o` prices as `openai/gpt-4o`. With no match the call is recorded as `cost_status: unknown`.
 - Historical rows keep the cost calculated when the call was recorded.
 
 ## Refresh Commands
