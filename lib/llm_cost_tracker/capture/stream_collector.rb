@@ -5,6 +5,7 @@ require "active_support/core_ext/object/deep_dup"
 require "json"
 
 require_relative "event_window"
+require_relative "sdk_payload"
 require_relative "../timing"
 
 module LlmCostTracker
@@ -57,6 +58,7 @@ module LlmCostTracker
       end
 
       def event(data, type: nil)
+        data = SdkPayload.normalize(data) if data.is_a?(Hash)
         @mutex.synchronize do
           ensure_open!
           @window.push(data, type: type) unless data.nil?

@@ -380,6 +380,24 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
+    it "warns when a chat.completions stream ends without usage because include_usage was not requested" do
+      sse = <<~SSE
+        data: {"id":"chatcmpl_s","object":"chat.completion.chunk","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"hi"}}]}
+
+        data: [DONE]
+
+      SSE
+      stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: sse)
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      capture_sdk_events do |events|
+        client.chat.completions.stream(model: "gpt-4o", messages: [{ role: "user", content: "hi" }]).each { |_| nil }
+
+        expect(events.first).to include(usage_source: "unknown")
+      end
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(/stream_options.*include_usage/)
+    end
+
     it "records usage from a chat.completions.stream_raw stream far longer than the capture limit" do
       chunk = { id: "chatcmpl_long", object: "chat.completion.chunk", model: "gpt-4o",
                 choices: [{ index: 0, delta: { content: " token" } }] }

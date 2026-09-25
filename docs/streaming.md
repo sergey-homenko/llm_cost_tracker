@@ -33,7 +33,7 @@ request body so the gem can record token counts. This call was stored with
 usage_source=unknown.
 ```
 
-The Responses API does not need the flag — usage is emitted automatically. The official OpenAI SDK's `chat.completions.stream` and `chat.completions.stream_raw` send your params unchanged, so pass `stream_options: { include_usage: true }` yourself; without it the call is stored with `usage_source: unknown`.
+The Responses API does not need the flag — usage is emitted automatically. The official OpenAI SDK's `chat.completions.stream` and `chat.completions.stream_raw` send your params unchanged, so pass `stream_options: { include_usage: true }` yourself; without it the call is stored with `usage_source: unknown` and the same warning is logged.
 
 Gemini `streamGenerateContent` and Anthropic streaming responses are parsed from their provider event shapes when usage metadata is present.
 
