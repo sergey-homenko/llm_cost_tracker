@@ -1,5 +1,17 @@
 # Upgrading
 
+## v0.14.0 → v0.14.1
+
+A bug-fix release with no migrations. Check these after upgrading:
+
+- **Rotate exposed keys.** If you stream Gemini with `?key=` or Azure with `?api-key=` through Faraday, earlier releases could store the key in the `stream_interrupted_error` tag. Rotate it and clear the tag as described under Security in the [changelog](../CHANGELOG.md).
+- **`pricing.file`.** A malformed file now fails `LlmCostTracker.configure` at boot instead of every LLM call.
+- **`stream_options`.** The Faraday middleware adds `include_usage` only on hosts known to accept it; for hosts in `config.capture.openai_compatible_providers`, set it in your own request.
+- **`prices:refresh`.** Suspicious price changes are refused; review them with `PREVIEW=1`, then re-run with `FORCE=1`.
+- **Capture errors.** Automatic capture raises only `BudgetExceededError`, `UnknownPricingError` under `:raise`, and the new `TransactionAbortedError` (a MySQL deadlock inside your transaction); other recording failures are logged.
+- **`:raise` records first.** Under `unknown_model_behavior = :raise`, the call is recorded with `cost_status: unknown` before `UnknownPricingError` is raised.
+- **Un-iterated SDK streams** are no longer recorded at garbage collection.
+
 ## v0.13 → v0.14
 
 v0.14 reorganises the initializer and adds two optional migrations. No BREAKING changes — an install that upgrades the gem and changes nothing else keeps working.
