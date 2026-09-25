@@ -3,6 +3,7 @@
 ## v0.14 → v0.15 (Unreleased)
 
 - **Rails 8.0+ is required.** On Rails 7.1 or 7.2, `bundle update llm_cost_tracker` stays on 0.14.1 without an error, and 0.14.x gets no further fixes, so upgrade Rails first. There are no migrations.
+- **Local pricing file.** Gemini image model prices rose up to 770-fold, which `prices:refresh` refuses by default: run it with `PREVIEW=1`, check that only Gemini image models are flagged, then with `FORCE=1`.
 
 ## v0.14.0 → v0.14.1
 
@@ -568,6 +569,6 @@ The 0.x line before 0.8 used a different schema (per-component cost columns, `se
 
 ## Deploy hygiene
 
-- Drain the durable inbox before swapping gem versions: `LlmCostTracker::Ingestion::Worker.flush!(timeout: 30)`.
+- With `config.ingestion.mode = :async`, drain the inbox before swapping gem versions: `LlmCostTracker::Ingestion::Worker.flush!(timeout: 30)`.
 - Run `bin/rails llm_cost_tracker:doctor` after migrating; it checks the calls, line items and tags tables, the call rollups and ingestion tables when those are configured, and the price file.
 - `llm_cost_tracker:setup` is install-time only. Production deploys run committed migrations and `doctor`.

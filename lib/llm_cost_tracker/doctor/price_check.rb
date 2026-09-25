@@ -49,7 +49,8 @@ module LlmCostTracker
         Check.new(
           :warn,
           "prices",
-          "using bundled prices updated_at=#{updated_at}; commit a prices_file for production releases"
+          "using bundled prices updated_at=#{updated_at}; " \
+          "commit a prices_file (config.pricing.file) for production releases"
         )
       end
 

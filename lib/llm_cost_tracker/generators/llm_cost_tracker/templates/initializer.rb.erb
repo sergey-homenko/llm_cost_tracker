@@ -50,8 +50,8 @@ LlmCostTracker.configure do |config|
 
   # One budget applied to every distinct value of a tag: each tenant gets its own
   # 1000 a month, not 1000 shared between them. Declare as many tags as you need; a rule
-  # can set its own behavior and callback instead of following the global ones. Needs the
-  # cost columns from `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets`.
+  # can set its own behavior and callback instead of following the global ones. Installs created
+  # before v0.14 add the cost columns with `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets`.
   # Budget high-cardinality tags only — a tag with a handful of values covers most of the
   # ledger, so its check cannot use an index and every call pays for a near-full scan.
   # config.budgets.per_tag = {
@@ -74,13 +74,13 @@ LlmCostTracker.configure do |config|
   # inbox/leases tables created by `bin/rails generate llm_cost_tracker:async_ingestion`.
   # Synchronous inbox writes use a dedicated ActiveRecord pool (defaults to 2 connections)
   # so they don't compete with request threads for the default pool when a tracked call
-  # happens inside an open caller transaction. Bump ingestion.pool_size if your Puma
-  # worker count outgrows that.
+  # happens inside an open caller transaction. The pool is per process: bump ingestion.pool_size
+  # if concurrent tracked calls in one process (e.g. Puma threads) outgrow that.
   # config.ingestion.mode = :async
   # config.ingestion.pool_size = 5
 
-  # Register OpenAI-compatible gateway hosts so their calls are attributed to a
-  # provider name instead of the generic openai_compatible bucket.
+  # Register OpenAI-compatible gateway hosts beyond the built-in OpenRouter, DeepSeek and Groq;
+  # the Faraday middleware captures only listed hosts, under the provider name given here.
   # config.capture.openai_compatible_providers["llm.my-company.com"] = "internal_gateway"
 
   # Streaming calls only report token usage when the request asks for it. Leave this

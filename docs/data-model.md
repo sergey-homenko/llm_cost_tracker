@@ -20,7 +20,7 @@ Optional tables — only created when you opt in:
 | `llm_cost_tracker_ingestion_inbox_entries` | Write-ahead inbox rows the ingestor drains into the ledger. | `bin/rails generate llm_cost_tracker:async_ingestion` (requires `config.ingestion.mode = :async`) |
 | `llm_cost_tracker_ingestion_leases` | Shared lease rows for the ingestion worker. | same migration as the inbox |
 
-`llm_cost_tracker:doctor` checks that the schema matches the gem version and that the optional tables match the configured adapter.
+`llm_cost_tracker:doctor` checks that the schema matches the gem version, that the rollups table matches `config.budgets.totals_source`, and that the inbox and leases tables match `config.ingestion.mode`.
 
 ## `llm_cost_tracker_calls`
 
@@ -41,7 +41,7 @@ Header row. One per tracked call (or completed stream).
 | `audio_input_tokens` | integer, default `0` | Audio input |
 | `audio_output_tokens` | integer, default `0` | Audio output |
 | `image_input_tokens` | integer, default `0` | Image input tokens (gpt-image-*, vision inputs) |
-| `image_output_tokens` | integer, default `0` | Image output tokens (gpt-image-*) |
+| `image_output_tokens` | integer, default `0` | Image output tokens (gpt-image-*, Gemini image output) |
 | `hidden_output_tokens` | integer, default `0` | Reasoning/hidden output |
 | `total_cost` | decimal(20,8) | Total known cost; `nil` when pricing is unknown |
 | `latency_ms` | integer | Request latency when captured |
@@ -98,7 +98,7 @@ One row per priced component on a call. Tokens and tool charges live here in the
 | `details` | jsonb / json | Free-form provider audit blob |
 | `created_at` | datetime | Insert time |
 
-New billing dimensions are added by registering metadata in `Usage::Catalog`; no migration needed.
+New billing dimensions are added by registering metadata in `Usage::Catalog`. A non-token dimension needs no migration; a token dimension also needs its `<key>_tokens` column on `llm_cost_tracker_calls`.
 
 Indexes:
 
@@ -123,7 +123,7 @@ Indexes:
 
 ## `llm_cost_tracker_call_rollups`
 
-Maintained daily/monthly totals so budget checks don't scan the full ledger.
+Maintained daily/monthly totals; budget checks take the greater of these and the live ledger sum.
 
 | Column | Type | Notes |
 | --- | --- | --- |

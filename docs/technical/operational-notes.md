@@ -59,15 +59,15 @@ Process shutdown should stop the local ingestor thread without forcing every exi
 
 ## Per-Tag Budget Reads
 
-`config.budgets.per_tag` reads from the `total_cost` and `tracked_at` columns on `llm_cost_tracker_call_tags`, not from the calls ledger, so it never joins. Windows are `daily`, `weekly` and `monthly`, one indexed query per window of every declared tag on the call. The post-spend check runs from `Tracker.record` on the inline path and from `Ingestion::Batch#persist` on the drain, which is why a scoped total counts only what has been drained.
+`config.budgets.per_tag` reads from the `total_cost` and `tracked_at` columns on `llm_cost_tracker_call_tags`, not from the calls ledger, so it never joins. Windows are `daily`, `weekly` and `monthly`, one indexed query per window of every declared tag on the call. The post-spend check runs from `Tracker.record` on the inline path and from `Ingestion::Batch#persist_batch` on the drain, which is why a scoped total counts only what has been drained.
 
 ## Retention
 
-Retention may delete old `llm_cost_tracker_calls`. When `config.budgets.totals_source = :cache`, retained call rollups are decremented in the same transaction so the budget aggregate stays consistent. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change. `llm_cost_tracker:prune` also sweeps `llm_cost_tracker_ingestion_inbox_entries` at the same cutoff so a stale row cannot drain into a pruned period; rows it deletes that never reached the ledger are spend that is gone, and the task logs their count and cost.
+Retention may delete old `llm_cost_tracker_calls`. When `config.budgets.totals_source = :cache`, retained call rollups are decremented in the same transaction so the budget aggregate stays consistent. Any migration or refactor that changes rollups must preserve the meaning of retained totals or clearly document a breaking change. `llm_cost_tracker:prune` also sweeps `llm_cost_tracker_ingestion_inbox_entries` at the same cutoff so a stale row cannot drain into a pruned period; pending rows it deletes are spend that is gone, and the task logs their count and cost.
 
 ## Required Schema
 
-Runtime tracking assumes the current ledger and ingestion schema. Missing schema belongs in doctor/setup failures, not per-event branching.
+Runtime tracking assumes the current ledger and ingestion schema. Missing schema belongs in doctor/setup failures, not per-event branching. The exceptions are the optional rollups table and per-tag cost columns: when they are missing, budget reads use only the calls ledger and per-tag budgets are skipped, each with a one-time warning.
 
 ## Dashboard Queries
 
@@ -103,5 +103,5 @@ Docs-only changes do not require the full suite, but any code, generator, migrat
 
 ### Inbox batch lock timeout
 
-`Ingestion::Batch` claims rows under a 30-second row-level lock without a heartbeat. If `persist` exceeds 30s, another worker can re-claim the same rows and try to insert them again; the `event_id` unique index on `llm_cost_tracker_calls` raises a duplicate-key error, the first worker's transaction rolls back, and the rows stay claimed (with bumped `attempts`) for retry. Default `BATCH_SIZE = 100` finishes well under 30s on any healthy database. Raising the batch size beyond production-measured persist latency invites re-claim contention — measure first.
+`Ingestion::Batch` claims rows with a 30-second lease (`locked_at` / `locked_by`) and no heartbeat. If `persist` exceeds 30s, another worker can re-claim the same rows and try to insert them again; the `event_id` unique index on `llm_cost_tracker_calls` stops the second insert, the worker that hits it skips the event_ids already in the ledger with a warning, and each worker deletes only the inbox rows it still holds, so nothing is stored twice and the cost is duplicated work. Default `BATCH_SIZE = 100` finishes well under 30s on any healthy database. Raising the batch size beyond production-measured persist latency invites re-claim contention — measure first.
 

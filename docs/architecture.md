@@ -11,6 +11,7 @@ Core vocabulary uses provider-neutral terms:
 | Text tokens | `input_tokens`, `output_tokens` |
 | Cache tokens | `cache_read_input_tokens`, `cache_write_input_tokens`, `cache_write_extended_input_tokens` |
 | Audio tokens | `audio_input_tokens`, `audio_output_tokens` |
+| Image tokens | `image_input_tokens`, `image_output_tokens` |
 | Hidden/reasoning tokens | `hidden_output_tokens` |
 | Header total | `total_cost` (line items hold per-component breakdown) |
 | Pricing tier | `pricing_mode` |
@@ -47,13 +48,13 @@ Alternate provider modes use mode-prefixed keys such as `batch_input`, `priority
 
 Long-context price tiers use `_context_price_threshold_tokens` and `above_context_*` keys. Parsers emit token buckets; pricing chooses the tier.
 
-When a positive-token bucket has no exact price, the event stays unknown instead of guessing from a nearby bucket. The exception is a documented stackable multiplier, such as a batch cache-rate discount derived from a published input discount.
+When a positive-token bucket has no exact price, that bucket's line item stays unknown instead of guessing from a nearby bucket. The one derivation: under a pricing mode, a bucket other than `input`/`output` with no mode-prefixed rate uses its standard rate scaled by that mode's input discount (for example `cache_read_input` × `batch_input` / `input`).
 
 ## Line Items
 
-Tokens and tool/runtime charges share one shape: `Charges::LineItem`. Parsers emit token line items from provider usage data and service line items from tool calls (web search, code execution, grounding, container sessions, file search). `Pricing::Calculation` applies provider/model token rates to token line items and falls back to per-component rates from `Pricing::ServiceRates.charge_rate` for the rest.
+Tokens and tool/runtime charges share one shape: `Charges::LineItem`. Parsers and SDK integrations emit token counts (`Usage::TokenUsage`) plus service line items for tool calls and non-token usage (web search, web fetch, grounding, container sessions, file search, transcription minutes, TTS characters). `Pricing::Calculation` builds token line items from the counts and applies provider/model token rates; a service line item takes the matched model's own rate when its registry entry has one (`transcription_minute`, `text_to_speech_character`), otherwise `Pricing::ServiceRates.charge_rate`.
 
-Line items with no matching rate stay `unknown`. They keep the parent call `partial` when token cost is known, or `unknown` when no reliable cost exists.
+Line items with no matching rate stay `unknown`. They keep the parent call `partial` when anything else on it is priced, or `unknown` when nothing is.
 
 Free tiers and account-level reconciliation are not modeled in the ledger.
 
@@ -87,7 +88,7 @@ Optional tables, created only by their dedicated generators when the matching co
 | `llm_cost_tracker_ingestion_inbox_entries` | `llm_cost_tracker:async_ingestion` + `config.ingestion.mode = :async` | Write-ahead inbox for the background worker |
 | `llm_cost_tracker_ingestion_leases` | same migration as the inbox | Shared worker lease |
 
-Runtime tracking assumes the current schema. Schema gaps belong in doctor/setup failures, not per-event branches.
+Runtime tracking assumes the current schema. Schema gaps belong in doctor/setup failures, not per-event branches. The exceptions are the opt-in rollups table and per-tag cost columns: when they are missing, budget reads use only the calls ledger and per-tag budgets are skipped, each with a one-time warning.
 
 Column and index details are documented in [Data Model](data-model.md).
 

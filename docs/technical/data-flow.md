@@ -36,7 +36,7 @@ Normal path from an application LLM call to stored ledger data:
 `Event.build` normalizes the raw capture — a blank model identifier becomes `unknown`, and usage source, stream flag and response identity are settled there. `Tracker.record` then normalizes tags and latency and drives the rest:
 
 1. `Event` carries provider identity, model identity, stream metadata, response identity, provider grouping dimensions, `pricing_mode`, and `Usage::TokenUsage`.
-3. `Pricing::Calculation` (built via `Pricing::Calculation.for`) prices token counters with the normalized `pricing_mode`, applies the same rates to token line items, and falls back to `Pricing::ServiceRates.charge_rate` for service line items when the registry has a reliable rate for the captured quantity basis. It exposes the header cost (or `nil` for unknown pricing), the rate snapshot, and the priced line items.
+3. `Pricing::Calculation` (built via `Pricing::Calculation.for`) prices token counters with the normalized `pricing_mode`, applies the same rates to token line items, and prices each service line item from a rate on the matched model's registry entry (such as `transcription_minute`) or else `Pricing::ServiceRates.charge_rate`, when the registry has a reliable rate for the captured quantity basis. It exposes the header cost (or `nil` for unknown pricing), the rate snapshot, and the priced line items.
 4. `Charges::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
 5. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
 5. Persistence runs through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion.mode = :async`.
@@ -78,6 +78,6 @@ Dashboard reads do not mutate ledger state. They can be heavier than request-tim
 3. `Pricing::Sync` validates schema compatibility, gem-version compatibility, model price shape, and tool/runtime charge sections.
 4. `Pricing::Sync::SnapshotGuard` compares the snapshot with the local file; zeroed prices, removed `input`/`output` rates, 100-fold moves, or a currency switch stop the write unless the refresh is forced.
 5. `RegistryWriter` writes a local JSON or YAML registry.
-6. Runtime pricing loads the local file once and memoizes it. The file's mtime is recorded as the source version; changing the file in a running process has no effect until `LlmCostTracker.configure` runs again or the app reloads.
+6. Runtime pricing loads the local file once and memoizes it. The file's mtime is recorded as the source version; changing the file in a running process has no effect until the process restarts or Rails reloads the app.
 
 The gem never fetches pricing from the network during normal request tracking.

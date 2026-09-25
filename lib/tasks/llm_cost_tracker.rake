@@ -16,7 +16,7 @@ end
 
 # rubocop:disable-next Metrics/BlockLength
 namespace :llm_cost_tracker do
-  desc "Install LLM Cost Tracker with dashboard and prices, migrate, and run doctor"
+  desc "Install LLM Cost Tracker with a local prices file, migrate, run doctor, and print dashboard mount steps"
   task :setup do
     Rails::Generators.invoke("llm_cost_tracker:install", %w[--dashboard --prices --skip])
     begin
@@ -64,7 +64,7 @@ namespace :llm_cost_tracker do
          "still unknown #{result.still_unknown}"
   end
 
-  desc "Delete llm_cost_tracker_calls older than DAYS (default: 90). Use BATCH_SIZE=N to tune."
+  desc "Delete llm_cost_tracker_calls and ingestion inbox rows older than DAYS (default: 90). Use BATCH_SIZE=N to tune."
   task prune: :environment do
     days = (ENV["DAYS"] || 90).to_i
     batch_size = (ENV["BATCH_SIZE"] || LlmCostTracker::Retention::DEFAULT_BATCH_SIZE).to_i

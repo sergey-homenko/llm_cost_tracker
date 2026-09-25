@@ -1,6 +1,6 @@
 # Streaming Capture
 
-Streams record when the provider emits final usage, when the SDK wrapper collects final usage events, or when the app passes explicit totals. Missing final usage becomes an unknown-cost stream row instead of vanishing.
+Streams record when the provider emits final usage, when the SDK wrapper collects final usage events, or when the app passes explicit totals. Missing final usage becomes an unknown-cost stream row instead of vanishing, except through RubyLLM, which records nothing when it reports no token counts.
 
 ## Faraday Streaming
 
@@ -33,13 +33,13 @@ request body so the gem can record token counts. This call was stored with
 usage_source=unknown.
 ```
 
-The Responses API and the official OpenAI SDK streaming helpers do not need the flag — usage is emitted automatically.
+The Responses API does not need the flag — usage is emitted automatically. The official OpenAI SDK's `chat.completions.stream` and `chat.completions.stream_raw` send your params unchanged, so pass `stream_options: { include_usage: true }` yourself; without it the call is stored with `usage_source: unknown`.
 
 Gemini `streamGenerateContent` and Anthropic streaming responses are parsed from their provider event shapes when usage metadata is present.
 
 A stream cut short by a failed connection, or by a middleware listed after `f.use :llm_cost_tracker` such as `f.response :raise_error`, is recorded with unknown usage and the tags `stream_interrupted: true`, `stream_interrupted_error` (the error class), and `stream_interrupted_status` (the HTTP status, when there is one).
 
-OpenAI Realtime WebSocket/WebRTC sessions are not normal Faraday responses. Use explicit `track_stream` and pass final `response.done` events when you need Realtime capture.
+OpenAI Realtime WebSocket/WebRTC sessions are not normal Faraday responses. For Realtime capture, open one `track_stream` per response and pass that response's `response.done` event before the block returns.
 
 ## SDK Streaming
 
@@ -105,7 +105,7 @@ Stream rows include:
 | Field | Meaning |
 | --- | --- |
 | `stream` | `true` for captured streaming calls |
-| `usage_source` | `stream_final`, `manual`, or `unknown` |
+| `usage_source` | `stream_final`, `sdk_response` (RubyLLM streams), `manual`, or `unknown` |
 | `provider_response_id` | Provider ID when exposed |
 | `provider_project_id`, `provider_api_key_id`, `provider_workspace_id` | Provider grouping dimensions when captured |
 | `batch` | Derived from `pricing_mode` (true when the mode contains the `batch` token); set `pricing_mode: :batch` on `track_stream` to flag a batch-tier call |

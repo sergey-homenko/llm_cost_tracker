@@ -65,7 +65,7 @@ Mode-prefixed forms use the same base terms: `batch_input`, `priority_output`, `
 
 Long-context tiers use `_context_price_threshold_tokens` and `above_context_*` fields.
 
-Tool and runtime rates (web search, code execution, grounding, container sessions, file search) live under `service_charges`:
+Provider-wide tool and runtime rates (web search, web fetch, file search, code execution, container sessions) live under `service_charges`:
 
 ```yaml
 service_charges:
@@ -76,7 +76,7 @@ service_charges:
     web_search_request: 10.0
 ```
 
-These keys map to `Usage::Catalog` entries with matching names. Add a rate only when the captured quantity matches the published or contract basis.
+These keys map to `Usage::Catalog` entries with matching names. Add a rate only when the captured quantity matches the published or contract basis. A rate on the matched model's entry wins over `service_charges`; bundled Gemini `grounding_request` rates are per model, so override them on the model entry.
 
 ## Explicit Tracking
 

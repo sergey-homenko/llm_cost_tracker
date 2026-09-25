@@ -9,7 +9,7 @@ Pricing covers registry shape, refresh tasks, precedence, provider-qualified key
 - Built-in prices live in `lib/llm_cost_tracker/prices.json`.
 - Local snapshots live wherever `config.pricing.file` points.
 - Precedence is `pricing.overrides`, then `pricing.file`, then bundled prices.
-- Provider-qualified keys like `openai/gpt-4o-mini` win over model-only keys.
+- Within one source, provider-qualified keys like `openai/gpt-4o-mini` win over model-only keys; a model-only key in an earlier source still beats a provider-qualified key in a later one.
 - A model with no key under its own provider takes the price of the only `provider/model` key with the same model name, so Azure OpenAI's `gpt-4o` prices as `openai/gpt-4o`. With no match the call is recorded as `cost_status: unknown`.
 - Historical rows keep the cost calculated when the call was recorded.
 
@@ -23,7 +23,7 @@ bin/rails llm_cost_tracker:prices:check
 
 The refresh task reads the maintained LLM Cost Tracker snapshot and writes to `ENV["OUTPUT"]`, then `config.pricing.file`, then `config/llm_cost_tracker_prices.yml`.
 
-Refresh refuses a snapshot that zeroes an existing price or charges for a free one, removes a model's `input` or `output` rate, moves a price 100-fold or more either way, or switches currency, and leaves the local file as it was. `PREVIEW=1` and `prices:check` list those changes; once confirmed, re-run with `FORCE=1` or pass `force: true` to `LlmCostTracker::Pricing::Sync.refresh`. New models and smaller moves are not checked, so keep reviewing the refreshed file.
+Refresh refuses a snapshot that zeroes an existing price or charges for a free one, removes a model's `input` or `output` rate, moves a price 100-fold or more either way, or switches currency, and leaves the local file as it was. `PREVIEW=1` and `prices:check` list those changes; once confirmed, re-run with `FORCE=1` or pass `force: true` to `LlmCostTracker::Pricing::Sync.refresh`. New models, models the snapshot drops entirely, removed rates other than `input` and `output`, and smaller moves are not checked, so keep reviewing the refreshed file.
 
 For production containers, refresh the file before deploy and ship it with the release. Do not rely on a price refresh that mutates one running container.
 
@@ -41,7 +41,7 @@ Base fields:
 - `image_input`
 - `image_output`
 
-These keys are derived from `Usage::Catalog`, the master dimension registry, which also owns the non-token model keys `text_to_speech_character` and `transcription_minute`.
+These keys are derived from `Usage::Catalog`, the master dimension registry, which also owns the non-token model keys `text_to_speech_character`, `transcription_minute`, and `grounding_request`.
 
 `cache_write_input` is the standard cache-write bucket. `cache_write_extended_input` is priced separately when provider usage exposes a longer retention bucket, such as Anthropic's 1-hour prompt cache writes.
 
@@ -77,7 +77,7 @@ LlmCostTracker.track(
 )
 ```
 
-The calculator uses `batch_input`, `batch_output`, and other matching mode-prefixed fields when present. When some mode-specific rates are missing, the event is marked `partial` and only the priced components contribute to total cost; with no matching rates at all it stays `unknown` instead of silently using standard pricing. For batch mode, cache rates can be derived from the input discount when the provider documents that modifiers stack.
+The calculator uses `batch_input`, `batch_output`, and other matching mode-prefixed fields when present. In any mode, a missing cache, audio, or image rate is derived from that component's standard rate and the mode's input discount (`<mode>_input / input`). When a mode `input` or `output` rate is missing, or a rate cannot be derived, the event is marked `partial` and only the priced components contribute to total cost; with no matching rates at all it stays `unknown` instead of silently using standard pricing.
 
 Provider-specific pricing pages belong in scrapers and snapshots. Runtime pricing should stay in canonical billing terms.
 
@@ -106,7 +106,7 @@ Bundled and local registries use this high-level shape:
 }
 ```
 
-Model prices are USD per 1M tokens. Tool/runtime rates use the quantity basis of their billing component — request, session, hour, etc.
+Model token prices are per 1M tokens, in the registry's `metadata.currency` (USD in the bundled file). Tool/runtime rates use their component's rate basis: per 1,000 requests for web search, web fetch, file search, and grounding (so `web_search_request: 10.0` is $10 per 1,000 searches), per session, hour, or minute for `container_session`, `code_execution_hour`, and `transcription_minute`, and per 1M characters for `text_to_speech_character`.
 
 ## Tool and Runtime Charges
 
@@ -125,10 +125,10 @@ Bundled rates mostly ship only where the parser captures the same quantity basis
 | OpenAI Embeddings | `embeddings.create` `usage.prompt_tokens` | `input` rate prices the call when the model has registry rates |
 | OpenAI Transcriptions (`gpt-4o-transcribe*`) | `audio.transcriptions.create` (+ `create_streaming`) `usage` block | `audio_input`, `input`, and `output` rates price captured buckets when present |
 | OpenAI duration-billed audio (`gpt-transcribe`, `gpt-live-transcribe`, `gpt-realtime-whisper`, `gpt-realtime-translate`) | `usage` block with `type: "duration"` | `transcription_minute` rate, rounded up to the whole minute. These models publish no token price, so the minute is the billing basis |
-| OpenAI Speech (TTS) | `audio.speech.create` request `input` length (chars) | `text_to_speech_character` rate, per 1M characters, for `tts-1` / `tts-1-hd`; `gpt-4o-mini-tts` records zero-cost visibility because tokens are not exposed |
+| OpenAI Speech (TTS) | `audio.speech.create` request `input` length (chars) | `text_to_speech_character` rate, per 1M characters, for `tts-1` / `tts-1-hd`; `gpt-4o-mini-tts` is recorded with no line items and no rate because its tokens are not exposed, so it lands `cost_status: unknown` |
 | OpenAI Moderations | `moderations.create` request payload | The call is recorded with no line items and no rate, so it lands `cost_status: unknown` (OpenAI does not bill the endpoint, but the price table carries no entry saying so) |
 | OpenAI Realtime `response.done` | Provider stream events passed through `track_stream`; standard Faraday middleware does not auto-capture WebSocket/WebRTC sessions | Audio input/output token rates price the call when the model has registry rates |
-| OpenAI hosted web search | `web_search_call` output items with `action.type = "search"` | Priced from `service_charges.openai.web_search_request` when present |
+| OpenAI hosted web search | `web_search_call` output items with `action.type = "search"` or no action type; Chat Completions `url_citation` annotations or `*-search-preview` / `*-search-api` models | Priced from `service_charges.openai.web_search_request` when present; with the `web_search_preview` tool or a Chat Completions search model, from `web_search_preview_request_reasoning` or `web_search_preview_request_non_reasoning` instead |
 | OpenAI web search page actions | `open_page` and `find_in_page` output item actions | Ignored as service charges because they are not separate billable search calls |
 | OpenAI hosted file search | `file_search_call` output items | Priced from `service_charges.openai.file_search_call` when present |
 | OpenAI Code Interpreter containers | `code_interpreter_call` output items deduplicated by container id | Stored as unknown-cost `container_session` rows unless a custom rate matches the captured quantity basis |
@@ -137,7 +137,7 @@ Bundled rates mostly ship only where the parser captures the same quantity basis
 | Anthropic web fetch | `server_tool_use.web_fetch_requests` | Priced at `$0` from registry — Anthropic bills web fetch through standard tokens, not per fetch |
 | Gemini modality tokens | `usageMetadata.promptTokensDetails` and response token details | Audio token rates price captured buckets when the model has registry rates |
 | Gemini grounding | `groundingMetadata.webSearchQueries` | Priced from the model's own `grounding_request` rate, which Google publishes per 1,000 requests and differs by family ($35 on Gemini 2.x, $14 on 3.x). The free monthly allowance is account-level and is not modelled, so a project inside it is over-reported |
-| Groq OpenAI-compatible usage | Chat usage, cached input, reasoning output, and service tier headers | Token rates price captured buckets when the model has registry rates |
-| RubyLLM chat | `RubyLLM::Provider#complete` (streaming-aware; `Chat#ask` and `Chat#complete` reach this transitively) | Routed through the matched provider parser (OpenAI / Anthropic / Gemini); same pricing path as native SDK |
-| RubyLLM embed / transcribe | `RubyLLM::Provider#embed`, `#transcribe` (on RubyLLM 1.x also `RubyLLM::Providers::Gemini::Transcription#transcribe`) | Routed through the matched provider parser; priced like the underlying provider call |
+| Groq OpenAI-compatible usage | Chat usage, cached input, reasoning output, and the `service_tier` field from the response (or the request) | Token rates price captured buckets when the model has registry rates |
+| RubyLLM chat | `RubyLLM::Provider#complete` (streaming-aware; `Chat#ask` and `Chat#complete` reach this transitively) | Token counts from RubyLLM's response (input, output, cache read/write) and the service tier from its raw body, priced with the same registry as native SDK calls; provider tool charges (web search, grounding) and audio/image token buckets are not captured |
+| RubyLLM embed / transcribe | `RubyLLM::Provider#embed`, `#transcribe` (on RubyLLM 1.x also `RubyLLM::Providers::Gemini::Transcription#transcribe`) | Token counts from RubyLLM's response; a transcription's input is priced at the model's `audio_input` rate when it has one, otherwise as text input |
 | RubyLLM image / moderation | `RubyLLM::Provider#paint`, `#moderate` | `#paint` records image-token line items when the usage block carries them; `#moderate` records the call with no line items, so it lands `cost_status: unknown` |

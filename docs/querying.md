@@ -86,4 +86,4 @@ DAYS=7 bin/rails llm_cost_tracker:report
 
 ## CSV Export
 
-The dashboard Calls page exports filtered rows as CSV. Values that look like spreadsheet formulas are prefixed before export.
+The dashboard Calls page exports the first 10,000 filtered rows as CSV, in the page's sort order. Values that look like spreadsheet formulas are prefixed before export.

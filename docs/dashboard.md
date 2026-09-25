@@ -35,7 +35,7 @@ The dashboard reads:
 | `llm_cost_tracker_calls` | Header rows: token totals, total cost, pricing status, snapshots |
 | `llm_cost_tracker_call_line_items` | Per-component cost breakdown (tokens + tool charges) |
 | `llm_cost_tracker_call_tags` | Tag attribution for filters and breakdowns |
-| `llm_cost_tracker_call_rollups` (optional) | Budget status and operational aggregates when `config.budgets.totals_source = :cache` |
+| `llm_cost_tracker_call_rollups` (optional) | Overview monthly budget status when `config.budgets.monthly` is set and `config.budgets.totals_source = :cache` |
 | `llm_cost_tracker_ingestion_inbox_entries` (optional) | Pending budget totals and ingestion health when `config.ingestion.mode = :async` |
 
 ## Pages
@@ -59,7 +59,7 @@ A page accepts at most 10 tag filters, counting a tag value page's own value, an
 
 Dashboard links and filter forms carry only the dashboard's own query parameters; anything else in the URL is dropped, and a query string over 16 KB is a bad request.
 
-The dashboard intentionally stores and displays no prompts or completions. However, tags are app-controlled data. They render in the overview, tag pages, call details, and CSV export, and they are visible to anyone with dashboard or database access.
+The dashboard intentionally stores and displays no prompts or completions. However, tags are app-controlled data. They render in the Calls list, tag pages, call details, and CSV export, and they are visible to anyone with dashboard or database access.
 
 ## Tags Hygiene
 

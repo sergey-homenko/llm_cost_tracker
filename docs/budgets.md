@@ -76,7 +76,7 @@ config.budgets.per_tag = {
 
 That lets an app block on the global ceiling while only warning a tenant that overspends, or the other way round — a rule set to `:block_requests` blocks pre-send even when the global policy is `:notify`.
 
-`enforce_budget: true` overrides all of that for one call. On `LlmCostTracker.track` the call is recorded first and then raised on, because `track` reports a request the provider has already served — the spend is real and stays in the ledger, and the error carries `stage: :post_spend`. On `LlmCostTracker.track_stream` the check runs before your block does, so it raises with `stage: :pre_send` and nothing is spent. Either way every rule matching the call's tags is checked, so a rule set to `:notify` raises too. Leave it off to let each rule's own behavior decide.
+`enforce_budget: true` overrides all of that for one call. On `LlmCostTracker.track` the call is recorded first and then raised on, because `track` reports a request the provider has already served — the spend is real and stays in the ledger, and the error carries `stage: :post_spend`. On `LlmCostTracker.track_stream` the check runs before your block does, so it raises with `stage: :pre_send` and nothing is spent. Either way every rule matching the call's tags is checked, so a rule set to `:notify` raises too. The exception is `track` under `ingestion.mode = :async`: there only the global budgets raise, and scoped rules are checked later from the drain, which only notifies. Leave it off to let each rule's own behavior decide.
 
 The payload and `BudgetExceededError` carry `scope`:
 

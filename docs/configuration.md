@@ -20,7 +20,7 @@ Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `p
 | --- | --- | --- |
 | `enabled` | `true` | Turns capture on or off without removing middleware or integrations |
 | `capture.request_stream_usage` | `true` | Streaming endpoints only report token usage when the request asks for it. The Faraday middleware adds `stream_options: { include_usage: true }` to chat-completions streaming request bodies that don't already set it, on hosts known to accept it; hosts you register are left alone. Set to `false` to leave request bodies untouched. See [Streaming](streaming.md). |
-| `capture.openai_compatible_providers` | OpenRouter, DeepSeek, Groq | Maps a gateway host to the provider name recorded for its calls |
+| `capture.openai_compatible_providers` | OpenRouter, DeepSeek, Groq | Maps each gateway host the Faraday middleware captures to the provider name recorded for its calls; unlisted hosts are not captured |
 
 ## Tag Options
 
@@ -64,7 +64,7 @@ OpenAI Responses created with `background: true` and polled with `responses.retr
 
 ## OpenAI-Compatible Hosts
 
-OpenAI-compatible capture is shape-based. Built-in mappings cover OpenRouter, DeepSeek, and Groq:
+OpenAI-compatible capture covers listed hosts only, on paths ending in `/chat/completions`, `/completions`, `/embeddings`, or `/responses`. Built-in mappings cover OpenRouter, DeepSeek, and Groq:
 
 ```ruby
 config.capture.openai_compatible_providers["openrouter.ai"] = "openrouter"
@@ -78,7 +78,7 @@ Register custom gateway hosts when they speak OpenAI-compatible request and resp
 config.capture.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
 ```
 
-This maps capture identity only. Gateway-specific prices belong in `pricing.file` or `pricing.overrides`.
+This turns on capture for the host and sets its provider name, nothing else. Gateway-specific prices belong in `pricing.file` or `pricing.overrides`.
 
 ## Azure OpenAI Service
 
@@ -128,7 +128,7 @@ Two options decide which optional tables the gem touches. Both default to the no
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `ingestion.mode` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
-| `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool that inbox writes use. Those writes happen on the request thread inside `Tracker.record`, on a connection kept out of the app's pool so a staged event survives a caller rollback and a busy app doesn't deadlock its own tracking. The drain worker does not use this pool — it checks out an ordinary connection. Bump it if your Puma worker count × concurrent `Tracker.record` calls outgrows the default. Ignored when `ingestion.mode = :inline`. |
+| `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool that inbox writes use. Those writes happen on the request thread inside `Tracker.record`, on a connection kept out of the app's pool so a staged event survives a caller rollback and a busy app doesn't deadlock its own tracking. The drain worker does not use this pool — it checks out an ordinary connection. The pool is per process; bump it if concurrent `Tracker.record` calls in one process (e.g. Puma threads) outgrow the default. Ignored when `ingestion.mode = :inline`. |
 | `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` and reads the greater of that row and the same live sum, so a rollup that has drifted low can never make a budget under-report. It does not replace the sum or make the check cheaper — it adds a read here and a write on every recorded call, and needs the `llm_cost_tracker_call_rollups` table. Only budget checks and the dashboard budget widget read those totals; with no budget configured it is pure overhead. |
 
 Each opt-in needs a matching generator before flipping the flag:
@@ -139,7 +139,7 @@ bin/rails generate llm_cost_tracker:call_rollups       # for budgets.totals_sour
 bin/rails db:migrate
 ```
 
-`bin/rails llm_cost_tracker:doctor` keeps the schema and config in sync: a table present without its flag is a warning, while a flag turned on with its table missing is an error and fails the task. The runtime is softer than that — it logs and falls back to the calls ledger.
+`bin/rails llm_cost_tracker:doctor` keeps the schema and config in sync: a table present without its flag is a warning, while a flag turned on with its table missing is an error and fails the task. At runtime only the rollups table has a fallback: with `budgets.totals_source = :cache` and no table, the gem logs once and reads budget totals from the calls ledger. `ingestion.mode = :async` without the inbox tables has no fallback: every write fails, SDK and Faraday capture log a warning and drop the event, and `LlmCostTracker.track` raises.
 
 ## Capture Verification
 
