@@ -729,6 +729,48 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(result.token_usage.total_tokens).to eq(253)
     end
 
+    it "counts Realtime cached audio once, as cache read rather than audio input" do
+      events = [
+        {
+          event: "response.done",
+          data: {
+            "type" => "response.done",
+            "response" => {
+              "id" => "resp_789",
+              "model" => "gpt-realtime",
+              "usage" => {
+                "total_tokens" => 10_400,
+                "input_tokens" => 10_000,
+                "output_tokens" => 400,
+                "input_token_details" => {
+                  "text_tokens" => 2_000,
+                  "audio_tokens" => 8_000,
+                  "image_tokens" => 0,
+                  "cached_tokens" => 5_500,
+                  "cached_tokens_details" => { "text_tokens" => 500, "audio_tokens" => 5_000, "image_tokens" => 0 }
+                },
+                "output_token_details" => { "text_tokens" => 100, "audio_tokens" => 300 }
+              }
+            }
+          }
+        }
+      ]
+
+      result = parser.parse_stream(
+        request_url: responses_url,
+        request_body: { model: "gpt-realtime", stream: true }.to_json,
+        response_status: 200,
+        events: events
+      )
+
+      expect(result.token_usage.input_tokens).to eq(1_500)
+      expect(result.token_usage.cache_read_input_tokens).to eq(5_500)
+      expect(result.token_usage.audio_input_tokens).to eq(3_000)
+      expect(result.token_usage.output_tokens).to eq(100)
+      expect(result.token_usage.audio_output_tokens).to eq(300)
+      expect(result.token_usage.total_tokens).to eq(10_400)
+    end
+
     it "captures Responses API streamed hosted tool output items once" do
       events = [
         {

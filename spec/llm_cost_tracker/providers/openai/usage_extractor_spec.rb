@@ -34,6 +34,66 @@ RSpec.describe LlmCostTracker::Providers::Openai::UsageExtractor do
       expect(result.image_input_tokens).to eq(100)
     end
 
+    it "takes Realtime cached audio out of audio_input using cached_tokens_details" do
+      usage = {
+        input_tokens: 789,
+        output_tokens: 32,
+        input_token_details: {
+          text_tokens: 313,
+          audio_tokens: 476,
+          cached_tokens: 640,
+          cached_tokens_details: { text_tokens: 256, audio_tokens: 384 }
+        }
+      }
+      result = described_class.token_usage(usage)
+
+      expect(result.input_tokens).to eq(57)
+      expect(result.cache_read_input_tokens).to eq(640)
+      expect(result.audio_input_tokens).to eq(92)
+      expect(result.input_tokens + result.cache_read_input_tokens + result.audio_input_tokens).to eq(789)
+    end
+
+    it "takes Realtime cached image tokens out of image_input using cached_tokens_details" do
+      usage = {
+        input_tokens: 1_000,
+        output_tokens: 0,
+        input_token_details: {
+          text_tokens: 300,
+          audio_tokens: 500,
+          image_tokens: 200,
+          cached_tokens: 600,
+          cached_tokens_details: { text_tokens: 200, audio_tokens: 300, image_tokens: 100 }
+        }
+      }
+      result = described_class.token_usage(usage)
+
+      expect(result.input_tokens).to eq(100)
+      expect(result.cache_read_input_tokens).to eq(600)
+      expect(result.audio_input_tokens).to eq(200)
+      expect(result.image_input_tokens).to eq(100)
+    end
+
+    it "counts cached tokens that overlap audio only once when the usage has no cached_tokens_details" do
+      usage = {
+        input_tokens: 1_000,
+        output_tokens: 0,
+        input_token_details: { cached_tokens: 600, audio_tokens: 800 }
+      }
+      result = described_class.token_usage(usage)
+
+      expect(result.input_tokens).to eq(0)
+      expect(result.cache_read_input_tokens).to eq(600)
+      expect(result.audio_input_tokens).to eq(400)
+    end
+
+    it "takes the overlap out of image input when there is no audio and no cached_tokens_details" do
+      usage = { input_tokens: 1_000, output_tokens: 0,
+                input_tokens_details: { text_tokens: 200, image_tokens: 800, cached_tokens: 500 } }
+      result = described_class.token_usage(usage)
+
+      expect(result).to have_attributes(input_tokens: 0, cache_read_input_tokens: 500, image_input_tokens: 500)
+    end
+
     it "reads cache_read from prompt_tokens_details for Chat-Completions responses" do
       usage = { prompt_tokens: 500, completion_tokens: 0, prompt_tokens_details: { cached_tokens: 100 } }
       result = described_class.token_usage(usage)
