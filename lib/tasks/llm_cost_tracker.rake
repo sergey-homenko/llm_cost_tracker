@@ -98,7 +98,8 @@ namespace :llm_cost_tracker do
   namespace :prices do
     desc(
       "Refresh the configured pricing file from the maintained LLM Cost Tracker price snapshot. " \
-      "Use PREVIEW=1 to preview, URL=... to override the source, or OUTPUT=path/to/file.json."
+      "Use PREVIEW=1 to preview, FORCE=1 to accept suspicious price changes, URL=... to override the source, " \
+      "or OUTPUT=path/to/file.json."
     )
     task :refresh do
       Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
@@ -110,7 +111,8 @@ namespace :llm_cost_tracker do
       result = LlmCostTracker::Pricing::Sync.refresh(
         path: output_path,
         url: source_url,
-        preview: preview
+        preview: preview,
+        force: ENV["FORCE"] == "1"
       )
 
       action = if preview
@@ -124,7 +126,7 @@ namespace :llm_cost_tracker do
       puts "llm_cost_tracker: #{action} pricing file #{result.path}"
       puts "  source: #{result.source_url}"
       puts "  version: #{result.source_version.inspect}" if result.source_version
-      LlmCostTracker::Pricing::Sync::ChangePrinter.call(result.changes)
+      LlmCostTracker::Pricing::Sync::ChangePrinter.call(result.changes, suspicious: result.suspicious)
     end
 
     desc "Compare the current pricing file with the maintained LLM Cost Tracker price snapshot."
@@ -139,7 +141,7 @@ namespace :llm_cost_tracker do
       puts "llm_cost_tracker: checked pricing file #{result.path}"
       puts "  source: #{result.source_url}"
       puts "  version: #{result.source_version.inspect}" if result.source_version
-      LlmCostTracker::Pricing::Sync::ChangePrinter.call(result.changes)
+      LlmCostTracker::Pricing::Sync::ChangePrinter.call(result.changes, suspicious: result.suspicious)
       puts "  pricing is up to date" if result.up_to_date
       abort("llm_cost_tracker: pricing check failed") unless result.up_to_date
     end

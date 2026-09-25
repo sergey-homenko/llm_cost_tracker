@@ -60,6 +60,23 @@ RSpec.describe LlmCostTracker::Pricing::Sync::ChangePrinter do
       expect(output).to include("- openai.web_search_request: 25.0 -> 30.0")
     end
 
+    it "prints suspicious changes after the diff" do
+      described_class.call(
+        {
+          "openai/gpt-4o" => { "input" => { "from" => 2.5, "to" => 0.0 } },
+          "service_charges" => { "openai" => { "web_search_request" => { "from" => 25.0, "to" => 30.0 } } }
+        },
+        suspicious: ["openai/gpt-4o input: 2.5 -> 0.0 (set to zero)"],
+        output: io
+      )
+
+      expect(io.string).to end_with(
+        "    - openai.web_search_request: 25.0 -> 30.0\n" \
+        "  suspicious changes (refresh writes them only with FORCE=1): 1\n" \
+        "    - openai/gpt-4o input: 2.5 -> 0.0 (set to zero)\n"
+      )
+    end
+
     it "is a no-op print of empty headers when there are no changes" do
       described_class.call({}, output: io)
 
