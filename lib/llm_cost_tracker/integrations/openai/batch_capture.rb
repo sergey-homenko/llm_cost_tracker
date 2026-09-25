@@ -20,8 +20,8 @@ module LlmCostTracker
             client = resource.instance_variable_get(:@client)
             host = Openai.client_host_for(resource)
             Openai.record_safely do
-              io = client.files.content(batch.output_file_id)
-              deferred = capture_jsonl(io.respond_to?(:read) ? io.read : io.to_s, host: host, model: batch.model)
+              jsonl = client.files.content(batch.output_file_id).read
+              deferred = capture_jsonl(jsonl, host: host, model: batch.model)
               mark_captured(batch.id)
               raise deferred if deferred
             end
