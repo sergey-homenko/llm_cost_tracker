@@ -25,7 +25,7 @@
       "https://openrouter.ai/api/v1/models"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-09-24"
+    "updated_at": "2026-09-25"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -307,13 +307,13 @@
       "priority_output": 4.5
     },
     "gemini/gemini-2.5-flash-image": {
-      "batch_image_output": 0.0195,
+      "batch_image_output": 15.0,
       "batch_input": 0.15,
-      "flex_image_output": 0.0195,
+      "flex_image_output": 15.0,
       "flex_input": 0.15,
-      "image_output": 0.039,
+      "image_output": 30.0,
       "input": 0.3,
-      "priority_image_output": 0.0702,
+      "priority_image_output": 54.0,
       "priority_input": 0.54
     },
     "gemini/gemini-2.5-flash-lite": {
@@ -394,37 +394,49 @@
       "priority_output": 5.4
     },
     "gemini/gemini-3-pro-image": {
-      "batch_image_output": 6.0,
+      "batch_image_output": 60.0,
       "batch_input": 1.0,
-      "flex_image_output": 6.0,
+      "batch_output": 6.0,
+      "flex_image_output": 60.0,
       "flex_input": 1.0,
+      "flex_output": 6.0,
       "grounding_request": 14.0,
-      "image_output": 12.0,
+      "image_output": 120.0,
       "input": 2.0,
-      "priority_image_output": 21.6,
-      "priority_input": 3.6
+      "output": 12.0,
+      "priority_image_output": 216.0,
+      "priority_input": 3.6,
+      "priority_output": 21.6
     },
     "gemini/gemini-3-pro-image-preview": {
-      "batch_image_output": 6.0,
+      "batch_image_output": 60.0,
       "batch_input": 1.0,
-      "flex_image_output": 6.0,
+      "batch_output": 6.0,
+      "flex_image_output": 60.0,
       "flex_input": 1.0,
-      "image_output": 12.0,
+      "flex_output": 6.0,
+      "image_output": 120.0,
       "input": 2.0,
-      "priority_image_output": 21.6,
-      "priority_input": 3.6
+      "output": 12.0,
+      "priority_image_output": 216.0,
+      "priority_input": 3.6,
+      "priority_output": 21.6
     },
     "gemini/gemini-3.1-flash-image": {
-      "batch_image_output": 1.5,
+      "batch_image_output": 30.0,
       "batch_input": 0.25,
-      "image_output": 3.0,
-      "input": 0.5
+      "batch_output": 1.5,
+      "image_output": 60.0,
+      "input": 0.5,
+      "output": 3.0
     },
     "gemini/gemini-3.1-flash-image-preview": {
-      "batch_image_output": 1.5,
+      "batch_image_output": 30.0,
       "batch_input": 0.25,
-      "image_output": 3.0,
-      "input": 0.5
+      "batch_output": 1.5,
+      "image_output": 60.0,
+      "input": 0.5,
+      "output": 3.0
     },
     "gemini/gemini-3.1-flash-lite": {
       "audio_input": 0.5,
@@ -446,10 +458,12 @@
       "priority_output": 2.7
     },
     "gemini/gemini-3.1-flash-lite-image": {
-      "batch_image_output": 0.75,
+      "batch_image_output": 15.0,
       "batch_input": 0.125,
-      "image_output": 1.5,
-      "input": 0.25
+      "batch_output": 0.75,
+      "image_output": 30.0,
+      "input": 0.25,
+      "output": 1.5
     },
     "gemini/gemini-3.1-flash-lite-preview": {
       "audio_input": 0.5,
