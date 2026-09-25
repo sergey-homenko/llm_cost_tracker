@@ -785,6 +785,27 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_456 fs_456])
     end
 
+    it "adds a web search line item for chat completion chunks that carry url_citation annotations" do
+      events = [
+        { event: nil, data: { "id" => "chatcmpl_cite", "object" => "chat.completion.chunk", "model" => "gpt-4o",
+                              "choices" => [{ "delta" => { "annotations" => [{ "type" => "url_citation" }] } }] } },
+        { event: nil, data: { "id" => "chatcmpl_cite", "object" => "chat.completion.chunk", "model" => "gpt-4o",
+                              "choices" => [{ "index" => 0, "finish_reason" => "stop" }],
+                              "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3, "total_tokens" => 15 } } }
+      ]
+
+      result = parser.parse_stream(
+        request_url: chat_completions_url,
+        request_body: request_body,
+        response_status: 200,
+        events: events
+      )
+
+      service_lines = result.line_items.reject { |item| item.unit == "token" }
+      expect(service_lines.map { |item| [item.kind, item.provider_item_id, item.provider_field] })
+        .to eq([["web_search_request", "chatcmpl_cite", "choices.message.annotations.url_citation"]])
+    end
+
     it "extracts model identifiers from Responses API stream events" do
       events = [
         {

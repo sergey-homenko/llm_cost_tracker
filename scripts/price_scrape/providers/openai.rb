@@ -9,7 +9,6 @@ require "time"
 require_relative "base"
 require_relative "openai/data_residency_prices"
 require_relative "openai/deprecated_models"
-require_relative "openai/audio_duration_prices"
 require_relative "openai/documented_long_context_prices"
 require_relative "openai/model_ids"
 require_relative "openai/rendered_long_context_prices"
@@ -24,6 +23,7 @@ module LlmCostTracker
         anchors "gpt-5.5", "gpt-5.4-mini"
         SOURCE_URLS = [
           source_url,
+          RenderedLongContextPrices::SOURCE_URL,
           DeprecatedModels::SOURCE_URL,
           *DocumentedLongContextPrices.source_urls
         ].freeze
@@ -60,12 +60,12 @@ module LlmCostTracker
           doc = Nokogiri::HTML(pages.fetch(self.class.source_url))
           models = TIER_FIELDS.each_with_object({}) do |(tier, fields), collected|
             tier_models = extract_tier_models(doc, tier: tier, fields: fields)
-            tier_models = merge_model_fields(tier_models, rendered_long_context_prices(doc, tier: tier, fields: fields))
+            long_context = rendered_long_context_prices(pages, tier: tier, fields: fields)
+            tier_models = merge_model_fields(tier_models, long_context)
             tier_models = merge_model_fields(tier_models, extract_specialized_models(doc, tier: tier))
             collected.replace(merge_model_fields(collected, tier_models))
           end
           models = merge_model_fields(models, DocumentedLongContextPrices.call(models, pages))
-          models = merge_model_fields(models, AudioDurationPrices.call(doc))
           models = add_priority_aliases(DataResidencyPrices.call(models))
           validate!(models)
           Result.new(
@@ -153,8 +153,9 @@ module LlmCostTracker
           merge_model_fields(tiered_models, extract_untiered_grouped_models(doc, fields: fields))
         end
 
-        def rendered_long_context_prices(doc, tier:, fields:)
-          RenderedLongContextPrices.new(doc, tier: tier, fields: fields, model_ids: MODEL_ID_BY_DISPLAY_NAME).models
+        def rendered_long_context_prices(pages, tier:, fields:)
+          page = pages.fetch(RenderedLongContextPrices::SOURCE_URL)
+          RenderedLongContextPrices.new(page, tier: tier, fields: fields, model_ids: MODEL_ID_BY_DISPLAY_NAME).models
         end
 
         def add_priority_aliases(models)
@@ -245,14 +246,16 @@ module LlmCostTracker
             group = unwrap(group)
             next unless group.is_a?(Hash)
 
-            model_id = normalize_model_id(unwrap(group["model"]))
-            next unless model_id
-
+            name = unwrap(group["model"]).to_s.strip
+            model_id = normalize_model_id(name)
             rows = unwrap(group["rows"])
-            next unless rows.is_a?(Array)
+            next unless rows.is_a?(Array) && (model_id || !MODEL_ID_BY_DISPLAY_NAME.key?(name))
 
             price_fields = group_price_fields(rows, fields: fields)
-            models[model_id] = price_fields if price_fields.any?
+            next if price_fields.empty?
+            raise Error, "no model ID for OpenAI price row #{name.inspect}" unless model_id
+
+            models[model_id] = price_fields
           end
         end
 
@@ -261,8 +264,15 @@ module LlmCostTracker
             cells = unwrap(row)
             next unless cells.is_a?(Array) && cells.size >= 4
 
-            modality_fields = modality_fields_for(unwrap(cells[0]), fields: fields)
-            values.merge!(extract_price_fields(cells, fields: modality_fields)) if modality_fields
+            label = unwrap(cells[0])
+            minute_price = unwrap(cells[3]).to_s[%r{\A\$([\d.]+)\s*/\s*minute\z}i, 1]
+            if label.is_a?(Numeric)
+              values.merge!(extract_price_fields([nil, *cells], fields: fields))
+            elsif minute_price && unwrap(cells[1]) == "-" && unwrap(cells[2]) == "-"
+              values["transcription_minute"] = Float(minute_price)
+            elsif (modality_fields = modality_fields_for(label, fields: fields))
+              values.merge!(extract_price_fields(cells, fields: modality_fields))
+            end
           end
         end
 
@@ -302,7 +312,10 @@ module LlmCostTracker
         end
 
         def normalize_model_id(display_name)
-          MODEL_ID_BY_DISPLAY_NAME[display_name.to_s.strip]
+          name = display_name.to_s.strip
+          MODEL_ID_BY_DISPLAY_NAME.fetch(name) do
+            raise Error, "no model ID for OpenAI price row #{name.inspect}" if name.match?(DeprecatedModels::MODEL_ID)
+          end
         end
 
         def parse_price(value)

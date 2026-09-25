@@ -33,7 +33,7 @@ module LlmCostTracker
           "gpt-5.4-pro (<272K context length)" => "gpt-5.4-pro", "gpt-5.5" => "gpt-5.5",
           "gpt-5.5 (<272K context length)" => "gpt-5.5", "gpt-5.5-pro" => "gpt-5.5-pro",
           "gpt-5.5-pro (<272K context length)" => "gpt-5.5-pro",
-          "gpt-5.5-cyber" => "gpt-5.5-cyber",
+          "gpt-5.5-cyber" => "gpt-5.5-cyber", "gpt-5.6-cyber" => "gpt-5.6-cyber",
           "gpt-5.6-luna" => "gpt-5.6-luna", "gpt-5.6-sol" => "gpt-5.6-sol",
           "gpt-5.6-terra" => "gpt-5.6-terra", "gpt-6-astra" => "gpt-6-astra",
           "gpt-6-sol" => "gpt-6-sol", "gpt-6-luna" => "gpt-6-luna", "o1" => "o1", "o1-mini" => "o1-mini",
@@ -45,7 +45,18 @@ module LlmCostTracker
           "o4-mini" => "o4-mini",
           "gpt-image-1" => "gpt-image-1", "gpt-image-1-mini" => "gpt-image-1-mini",
           "gpt-image-1.5" => "gpt-image-1.5", "gpt-image-2" => "gpt-image-2",
-          "chatgpt-image-latest" => "chatgpt-image-latest"
+          "gpt-image-2.5-sunburst" => "gpt-image-2.5-sunburst", "gpt-image-2.5-flare" => "gpt-image-2.5-flare",
+          "chatgpt-image-latest" => "chatgpt-image-latest",
+          "chat-latest" => "chat-latest", "gpt-5-search-api" => "gpt-5-search-api",
+          "gpt-rosalind-research" => "gpt-rosalind-research",
+          "gpt-live-transcribe" => "gpt-live-transcribe", "gpt-realtime-translate" => "gpt-realtime-translate",
+          "gpt-realtime-whisper" => "gpt-realtime-whisper", "gpt-transcribe" => "gpt-transcribe",
+          "Whisper" => "whisper-1",
+          "gpt-3.5-turbo-0125" => nil, "gpt-3.5-turbo-1106" => nil, "gpt-3.5-turbo-instruct" => nil,
+          "davinci-002" => nil, "babbage-002" => nil, "omni-moderation-latest" => nil,
+          "text-embedding-3-small" => nil, "text-embedding-3-large" => nil, "text-embedding-ada-002" => nil,
+          "gpt-4o-mini-tts" => nil, "tts-1" => nil, "tts-1-hd" => nil,
+          "gpt-4o-transcribe" => nil, "gpt-4o-mini-transcribe" => nil, "gpt-4o-transcribe-diarize" => nil
         }.freeze
       end
     end

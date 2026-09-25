@@ -163,7 +163,7 @@ end
 
 ## Azure OpenAI
 
-Azure's classic deployment endpoints (`/openai/deployments/{name}/...`) and the v1 endpoints (`/openai/v1/...`) are both captured out of the box on the `*.openai.azure.com` and `*.services.ai.azure.com` hostnames — no `capture.openai_compatible_providers` registration needed. Keep Azure-specific deltas in `pricing.overrides` with the `azure_openai/<model>` prefix; everything else falls back to the matching `openai/<model>` entry.
+Azure's classic deployment endpoints (`/openai/deployments/{name}/...`) and the v1 endpoints (`/openai/v1/...`) are both captured out of the box on the `*.openai.azure.com` and `*.services.ai.azure.com` hostnames — no `capture.openai_compatible_providers` registration needed. Keep Azure-specific prices in `pricing.overrides` with the `azure_openai/<model>` prefix; everything else falls back to the matching `openai/<model>` entry. An override replaces the whole entry, so include the cache and batch rates you use.
 
 ```ruby
 conn = Faraday.new(url: "https://my-resource.openai.azure.com") do |f|

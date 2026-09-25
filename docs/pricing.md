@@ -8,7 +8,7 @@ Pricing covers registry shape, refresh tasks, precedence, provider-qualified key
 
 - Built-in prices live in `lib/llm_cost_tracker/prices.json`.
 - Local snapshots live wherever `config.pricing.file` points.
-- Precedence is `pricing.overrides`, then `pricing.file`, then bundled prices.
+- Precedence is `pricing.overrides`, then `pricing.file`, then bundled prices. The first matching entry is used whole; rates are not merged across sources, so an override must list every rate its calls use.
 - Within one source, provider-qualified keys like `openai/gpt-4o-mini` win over model-only keys; a model-only key in an earlier source still beats a provider-qualified key in a later one.
 - A model with no key under its own provider takes the price of the only `provider/model` key with the same model name, so Azure OpenAI's `gpt-4o` prices as `openai/gpt-4o`. With no match the call is recorded as `cost_status: unknown`.
 - Historical rows keep the cost calculated when the call was recorded.
@@ -108,7 +108,7 @@ Bundled and local registries use this high-level shape:
 }
 ```
 
-Model token prices are per 1M tokens, in the registry's `metadata.currency` (USD in the bundled file). Tool/runtime rates use their component's rate basis: per 1,000 requests for web search, web fetch, file search, and grounding (so `web_search_request: 10.0` is $10 per 1,000 searches), per session, hour, or minute for `container_session`, `code_execution_hour`, and `transcription_minute`, and per 1M characters for `text_to_speech_character`.
+Model token prices are per 1M tokens, in the registry's `metadata.currency` (USD in the bundled file). Tool/runtime rates use their component's rate basis: per 1,000 requests for web search, web fetch, file search, and grounding (so `web_search_request: 10.0` is $10 per 1,000 searches), per call for `image_generation_call`, per session, hour, or minute for `container_session`, `code_execution_hour`, and `transcription_minute`, and per 1M characters for `text_to_speech_character`.
 
 ## Tool and Runtime Charges
 
@@ -116,7 +116,7 @@ The `service_charges` registry section prices provider tool and runtime calls th
 
 Each line item preserves the provider item id, captured `provider_field` path, quantity, kind, applied rate, and status — enough to join back to provider records downstream without applying free tiers or private rates locally.
 
-Bundled rates mostly ship only where the parser captures the same quantity basis the provider publishes; `code_execution_hour` is the exception — the rate ships but nothing captures an hour quantity yet. OpenAI hosted web search and file search are priced when the registry has a rate. OpenAI Code Interpreter container sessions are captured as `container_session` audit rows; they aren't priced by default because the provider rate depends on container size and a fixed session window. Anthropic web-search and web-fetch requests are priced; Anthropic code-execution requests are not captured at all — no row is recorded for them until a provider usage field exposes the hourly quantity the published rate uses.
+Bundled rates mostly ship only where the parser captures the same quantity basis the provider publishes; `code_execution_hour` is the exception — the rate ships but nothing captures an hour quantity yet. OpenAI hosted web search and file search are priced when the registry has a rate. OpenAI Code Interpreter container sessions are captured as `container_session` audit rows; they aren't priced by default because the provider rate depends on container size and a fixed session window. OpenAI image-generation tool calls are captured the same way as `image_generation_call` rows; the image price depends on the tool's model, quality, and size. Anthropic web-search and web-fetch requests are priced; Anthropic code-execution requests are not captured at all — no row is recorded for them until a provider usage field exposes the hourly quantity the published rate uses.
 
 ## Provider-Billed Cost
 
@@ -129,8 +129,8 @@ OpenRouter returns what it charged for each call in `usage.cost`, in the respons
 | OpenAI text, cache, reasoning, and audio token usage | Chat, Responses, OpenAI-compatible responses, and provider stream events | Token rates price captured buckets when the model has registry rates |
 | OpenAI image generation (`gpt-image-*`) | `images.generate` / `edit` / `create_variation` (one-shot) + `*_stream_raw` (streaming) `usage` block; SDK or Faraday | `image_input` / `image_output` and `input`/`output` text token rates priced separately per modality |
 | OpenAI Embeddings | `embeddings.create` `usage.prompt_tokens` | `input` rate prices the call when the model has registry rates |
-| OpenAI Transcriptions (`gpt-4o-transcribe*`) | `audio.transcriptions.create` (+ `create_streaming`) `usage` block | `audio_input`, `input`, and `output` rates price captured buckets when present |
-| OpenAI duration-billed audio (`gpt-transcribe`, `gpt-live-transcribe`, `gpt-realtime-whisper`, `gpt-realtime-translate`) | `usage` block with `type: "duration"` | `transcription_minute` rate, rounded up to the whole minute. These models publish no token price, so the minute is the billing basis |
+| OpenAI Transcriptions (`gpt-4o-transcribe*`) | `audio.transcriptions.create` (+ `create_streaming`) `usage` block | `audio_input`, `input`, and `output` rates price captured buckets when present. A transcription with `response_format` `text`, `srt`, or `vtt` returns no `usage` block on any model, so the SDK integration records it as `cost_status: unknown` and the Faraday middleware skips it |
+| OpenAI duration-billed audio (`whisper-1`, `gpt-transcribe`, `gpt-live-transcribe`, `gpt-realtime-whisper`, `gpt-realtime-translate`) | `usage` block with `type: "duration"` | `transcription_minute` rate, rounded up to the whole minute. These models publish no token price, so the minute is the billing basis. `audio.translations` (whisper-1 only) returns no usage, so the SDK integration records a translation as `cost_status: unknown` and the Faraday middleware skips it |
 | OpenAI Speech (TTS) | `audio.speech.create` request `input` length (chars) | `text_to_speech_character` rate, per 1M characters, for `tts-1` / `tts-1-hd`; `gpt-4o-mini-tts` is recorded with no line items and no rate because its tokens are not exposed, so it lands `cost_status: unknown` |
 | OpenAI Moderations | `moderations.create` request payload | The call is recorded with no line items and no rate, so it lands `cost_status: unknown` (OpenAI does not bill the endpoint, but the price table carries no entry saying so) |
 | OpenAI Realtime `response.done` | Provider stream events passed through `track_stream`; standard Faraday middleware does not auto-capture WebSocket/WebRTC sessions | Audio input/output token rates price the call when the model has registry rates |
@@ -138,7 +138,8 @@ OpenRouter returns what it charged for each call in `usage.cost`, in the respons
 | OpenAI web search page actions | `open_page` and `find_in_page` output item actions | Ignored as service charges because they are not separate billable search calls |
 | OpenAI hosted file search | `file_search_call` output items | Priced from `service_charges.openai.file_search_call` when present |
 | OpenAI Code Interpreter containers | `code_interpreter_call` output items deduplicated by container id | Stored as unknown-cost `container_session` rows unless a custom rate matches the captured quantity basis |
-| OpenAI image-generation / computer-use / MCP tool calls | `image_generation_call`, `computer_call`, `mcp_call` output items | Not recorded as line items — billed through the model's tokens (captured separately), with no separate per-call charge |
+| OpenAI image-generation tool calls | Completed `image_generation_call` output items | Stored as unknown-cost `image_generation_call` rows, so the call is `partial`: the Responses usage block covers only the mainline model's tokens, not the image |
+| OpenAI computer-use / MCP tool calls | `computer_call`, `mcp_call` output items | Not recorded as line items — billed through the model's tokens (captured separately), with no separate per-call charge |
 | Anthropic server web search | `server_tool_use.web_search_requests` | Priced from `service_charges.anthropic.web_search_request` when present |
 | Anthropic web fetch | `server_tool_use.web_fetch_requests` | Priced at `$0` from registry — Anthropic bills web fetch through standard tokens, not per fetch |
 | Gemini modality tokens | `usageMetadata.promptTokensDetails` and response token details | Image and audio prompt tokens are priced at `image_input` and `audio_input`, which equal the model's input rate unless Google publishes a separate audio price (image-generation models publish no audio rate, so their audio prompt tokens stay unpriced); image and audio output tokens use `image_output` and `audio_output` when the model has those rates |

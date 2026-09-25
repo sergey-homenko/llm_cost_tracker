@@ -140,6 +140,25 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "images.generate with gpt-image-2.5-sunburst" do
+    it "prices text input and image output at the published GPT Image 2.5 rates" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/images/generations").to_return(
+        status: 200,
+        body: { created: 1, data: [{ b64_json: "iVBORw0KGgo=" }],
+                usage: { input_tokens: 50, input_tokens_details: { text_tokens: 50, image_tokens: 0 },
+                         output_tokens: 1056, total_tokens: 1106 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        client.images.generate(model: "gpt-image-2.5-sunburst", prompt: "a cat")
+
+        expect(events.first).to include(cost_status: "complete")
+        expect(BigDecimal(events.first.dig(:cost, :total).to_s)).to eq(BigDecimal("0.03193"))
+      end
+    end
+  end
+
   describe "images.edit" do
     it "records image tokens through the same recorder as images.generate" do
       stub_sdk_json(:post, "https://api.openai.com/v1/images/edits",
@@ -199,7 +218,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
-    it "emits a transcription_minute line item when whisper-1 returns duration usage instead of token usage" do
+    it "prices whisper-1 duration usage at $0.006 per started minute" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
         status: 200,
         body: { text: "hello", usage: { type: "duration", seconds: 125.5 } }.to_json,
@@ -210,22 +229,24 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         client.audio.transcriptions.create(file: audio_io, model: "whisper-1")
 
         line = events.first[:line_items].find { |item| item[:kind] == "transcription_minute" }
-        expect(line).not_to be_nil
         expect(line[:quantity].to_i).to eq(3)
-        expect(line[:cost_status]).to eq(LlmCostTracker::Charges::CostStatus::UNKNOWN)
+        expect(events.first).to include(cost_status: "complete")
+        expect(BigDecimal(events.first.dig(:cost, :total).to_s)).to eq(BigDecimal("0.018"))
       end
     end
   end
 
   describe "audio.translations.create" do
-    it "records translation through the transcription recorder" do
-      stub_sdk_json(:post, "https://api.openai.com/v1/audio/translations",
-                    provider: :openai, fixture: "transcription_create.json")
+    it "records a whisper-1 translation as unknown, not free, because translations carry no usage" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/translations").to_return(
+        status: 200, body: { text: "hello" }.to_json, headers: { "Content-Type" => "application/json" }
+      )
 
       capture_sdk_events do |events|
         client.audio.translations.create(file: audio_io, model: "whisper-1")
 
-        expect(events.first).to include(provider: "openai", model: "whisper-1", usage_source: "sdk_response")
+        expect(events.first).to include(provider: "openai", model: "whisper-1", usage_source: "unknown",
+                                        cost_status: "unknown")
       end
     end
   end
@@ -403,6 +424,28 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         expect(events.first).to include(usage_source: "unknown")
       end
       expect(LlmCostTracker::Logging).to have_received(:warn).with(/stream_options.*include_usage/)
+    end
+
+    it "records the per-call web search fee on streamed search-model completions, as create does" do
+      chunk = { id: "chatcmpl_search", object: "chat.completion.chunk", model: "gpt-5-search-api-2025-10-14" }
+      sse = [
+        chunk.merge(choices: [{ index: 0, delta: { role: "assistant", content: "Rain today." } }]),
+        chunk.merge(choices: [], usage: { prompt_tokens: 1_000, completion_tokens: 500, total_tokens: 1_500 })
+      ].map { |data| "data: #{data.to_json}\n\n" }.join + "data: [DONE]\n\n"
+      stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: sse)
+      messages = [{ role: "user", content: "Weather in Paris?" }]
+
+      capture_sdk_events do |events|
+        client.chat.completions.stream_raw(model: "gpt-5-search-api", messages: messages).each { |_| nil }
+        client.chat.completions.stream(model: "gpt-5-search-api", messages: messages).each { |_| nil }
+
+        expect(events.size).to eq(2)
+        events.each do |event|
+          fee = event[:line_items].find { |item| item[:kind] == "web_search_preview_request_reasoning" }
+          expect(fee).to include(provider_item_id: "chatcmpl_search", cost: "0.01")
+          expect(BigDecimal(event.dig(:cost, :total).to_s)).to eq(BigDecimal("0.01625"))
+        end
+      end
     end
 
     it "records usage from a chat.completions.stream_raw stream far longer than the capture limit" do
@@ -694,6 +737,26 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       capture_sdk_events do |events|
         client.responses.create(model: "gpt-4o", input: "hi")
         expect(events.first[:pricing_mode]).to eq("priority")
+      end
+    end
+
+    it "marks an image_generation tool call partial because Responses usage leaves the image charge out" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(
+        status: 200,
+        body: { id: "resp_img", object: "response", created_at: 1, model: "gpt-5.5-2026-04-23", status: "completed",
+                output: [{ type: "image_generation_call", id: "ig_1", status: "completed", result: "iVBORw0KGgo=" }],
+                usage: { input_tokens: 2_000, input_tokens_details: { cached_tokens: 0 },
+                         output_tokens: 200, output_tokens_details: { reasoning_tokens: 0 },
+                         total_tokens: 2_200 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        client.responses.create(model: "gpt-5.5", input: "Draw a cat", tools: [{ type: :image_generation }])
+
+        image_line = events.first[:line_items].find { |item| item[:kind] == "image_generation_call" }
+        expect(image_line).to include(provider_item_id: "ig_1", cost_status: "unknown")
+        expect(events.first).to include(cost_status: "partial")
       end
     end
 

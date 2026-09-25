@@ -627,6 +627,21 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.total).to eq(9.625)
     end
 
+    it "prices gpt-5.5-pro prompts over 272K input tokens at the published long-context rates" do
+      standard = cost_for(provider: "openai", model: "gpt-5.5-pro", input_tokens: 300_000, output_tokens: 10_000)
+      regional = cost_for(provider: "openai", model: "gpt-5.5-pro", input_tokens: 300_000, output_tokens: 10_000,
+                          pricing_mode: "data_residency")
+
+      expect(standard.total).to eq(BigDecimal("20.7"))
+      expect(regional.total).to eq(BigDecimal("22.77"))
+    end
+
+    it "prices chat-latest from bundled rates" do
+      result = cost_for(provider: "openai", model: "chat-latest", input_tokens: 2_000, output_tokens: 500)
+
+      expect(result.total).to eq(BigDecimal("0.025"))
+    end
+
     it "prices Anthropic fast data residency mode from bundled rates" do
       result = cost_for(
         provider: "anthropic",

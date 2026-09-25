@@ -84,11 +84,11 @@ This turns on Faraday capture for the host and sets its provider name, nothing e
 
 Azure OpenAI capture is built in — no configuration required. The Faraday middleware matches URLs on `{resource}.openai.azure.com` and Foundry's `{resource}.services.ai.azure.com`, both on the classic `/openai/deployments/{deployment-id}/{operation}` path and the v1 `/openai/v1/{operation}` path, across chat/completions, completions, embeddings, responses, moderations, audio/transcriptions, audio/translations, audio/speech, images/generations, images/edits, and images/variations. Responses parse with the same shape as OpenAI direct and tag calls with `provider: "azure_openai"`. The OpenAI Ruby SDK is also covered: if `OpenAI::Client.new` is initialized with an Azure `base_url`, SDK-side capture in `record_response` detects the Azure host and tags the same way.
 
-Pricing for `azure_openai/<model>` resolves through the `unique_providerless_model` match strategy in `Pricing::Matcher` to the matching `openai/<model>` entry in the bundled price snapshot. That's correct for Global-tier deployments in primary regions where Azure prices match OpenAI direct. If your deployment uses Data Zone (data-residency) pricing or a regional uplift that differs from Global, set per-key deltas via `config.pricing.overrides` with the `azure_openai/<model>` prefix:
+Pricing for `azure_openai/<model>` resolves through the `unique_providerless_model` match strategy in `Pricing::Matcher` to the matching `openai/<model>` entry in the bundled price snapshot. That's correct for Global-tier deployments in primary regions where Azure prices match OpenAI direct. If your deployment uses Data Zone (data-residency) pricing or a regional uplift that differs from Global, override the model in `config.pricing.overrides` with the `azure_openai/<model>` prefix. An override replaces the whole bundled entry, so list every rate your calls use: `cache_read_input` (Azure caches prompts by default), and `batch_input` / `batch_output` if you use the Batch API. A rate left out prices as unknown.
 
 ```ruby
 config.pricing.overrides = {
-  "azure_openai/gpt-4o-mini" => { input: 0.16, output: 0.64 }
+  "azure_openai/gpt-4o-mini" => { input: 0.16, cache_read_input: 0.08, output: 0.64 }
 }
 ```
 
