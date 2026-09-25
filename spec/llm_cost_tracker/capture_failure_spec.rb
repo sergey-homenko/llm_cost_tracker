@@ -348,7 +348,7 @@ RSpec.describe "Recording failures after the provider answered" do
     end
 
     def stub_anthropic_batch(*lines)
-      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
+      WebMock.stub_request(:get, %r{https://api\.anthropic\.com/v1/messages/batches/batch_xyz/results}).to_return(
         status: 200, headers: { "Content-Type" => "application/x-jsonl" }, body: lines.join("\n")
       )
     end
