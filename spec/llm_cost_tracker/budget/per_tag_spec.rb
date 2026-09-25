@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "faraday"
 require "llm_cost_tracker/pricing/backfill"
 
 RSpec.describe LlmCostTracker::Budget::PerTag do
@@ -142,6 +143,20 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       LlmCostTracker::Tags::Context.with(tenant_id: 42) do
         expect { LlmCostTracker::Budget.enforce! }.to raise_error(LlmCostTracker::BudgetExceededError, /tenant_id=42/)
       end
+    end
+
+    it "blocks a Faraday call pre-send by the tags given to the middleware" do
+      configure_per_tag({ monthly: 5 }, behavior: :block_requests)
+      spend(6.0, tags: { tenant_id: 42 })
+      sent = false
+      connection = Faraday.new(url: "https://api.openai.com") do |f|
+        f.use :llm_cost_tracker, tags: { tenant_id: 42 }
+        f.adapter(:test) { |stub| stub.post("/v1/chat/completions") { sent = true and [200, {}, "{}"] } }
+      end
+
+      expect { connection.post("/v1/chat/completions", { model: "gpt-4o" }.to_json) }
+        .to raise_error(LlmCostTracker::BudgetExceededError, /tenant_id=42/)
+      expect(sent).to be(false)
     end
 
     it "leaves the tag to notify while the global policy blocks" do
