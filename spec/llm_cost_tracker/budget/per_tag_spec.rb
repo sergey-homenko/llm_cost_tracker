@@ -231,6 +231,13 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
 
       expect(queries).to eq(1)
     end
+
+    it "reads nothing pre-send when no rule blocks" do
+      configure_per_tag({ monthly: 5 }, behavior: :notify)
+      allow(LlmCostTracker::CallTag).to receive(:table_exists?).and_raise(ActiveRecord::ConnectionNotEstablished)
+
+      expect { LlmCostTracker::Budget.enforce!(tags: { tenant_id: 42 }) }.not_to raise_error
+    end
   end
 
   describe ".backfill" do
@@ -315,6 +322,19 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       3.times { track_tagged(42) }
 
       expect(notified.map { |payload| payload[:scope] }).to eq([{ key: "tenant_id", value: "42" }])
+    end
+
+    it "notifies once when a later call lands before the crossing call is checked" do
+      notified = []
+      configure_per_tag({ monthly: 5 }, on_exceeded: ->(payload) { notified << payload })
+      now = Time.now.utc
+      spend(4.9, tags: { tenant_id: 42 }, tracked_at: now - 2)
+      crossing = spend(0.5, tags: { tenant_id: 42 }, tracked_at: now - 1)
+      later = spend(0.5, tags: { tenant_id: 42 }, tracked_at: now)
+
+      [crossing, later].each { |event| LlmCostTracker::Budget.check_persisted!([event]) }
+
+      expect(notified.size).to eq(1)
     end
 
     it "scores a tag passed to track, not only one in the tag context, and keeps the row it raises on" do

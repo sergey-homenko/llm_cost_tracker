@@ -53,7 +53,8 @@ module LlmCostTracker
         by_rule = PerTag.rules_for_events(events.select(&:total_cost))
         by_rule = by_rule.reject { |rule, _| rule.on_exceeded.nil? } if behavior_override == :notify
         window_buckets(by_rule).each do |(key, window, bucket), scored|
-          totals = PerTag.spend_by_value(key, scored.keys.map(&:value), window, bucket)
+          upto = scored.values.flatten.map(&:tracked_at).max unless Ingestion.async?
+          totals = PerTag.spend_by_value(key, scored.keys.map(&:value), window, bucket, upto)
           scored.each do |rule, recorded|
             total = totals.fetch(rule.value, 0).to_d
             limit = rule.windows.fetch(window)
