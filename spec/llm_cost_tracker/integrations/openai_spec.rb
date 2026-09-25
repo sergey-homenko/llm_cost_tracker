@@ -33,6 +33,22 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         )
       end
     end
+
+    it "warns and records nothing for a queued background response without usage" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(
+        status: 200,
+        body: { id: "resp_bg", object: "response", model: "o3-pro", status: "queued", background: true,
+                created_at: 1, output: [], usage: nil }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      capture_sdk_events do |events|
+        client.responses.create(model: "o3-pro", input: "hi", background: true)
+        expect(events).to be_empty
+      end
+      expect(LlmCostTracker::Logging).to have_received(:warn).with("OpenAI response resp_bg has no usage; not recorded")
+    end
   end
 
   describe "chat.completions.create" do
