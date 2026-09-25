@@ -2,7 +2,7 @@
 
 LLM Cost Tracker prices calls locally from recorded usage and a versioned price registry. Providers usually return token counts, not a stable per-request price, so the gem stores the calculated cost with each ledger row.
 
-Pricing covers registry shape, refresh tasks, precedence, provider-qualified keys, pricing modes, token components, and provider-reported tool/runtime charges.
+Pricing covers registry shape, refresh tasks, precedence, provider-qualified keys, pricing modes, token components, provider-reported tool/runtime charges, and provider-billed call totals.
 
 ## Registry Rules
 
@@ -117,6 +117,10 @@ The `service_charges` registry section prices provider tool and runtime calls th
 Each line item preserves the provider item id, captured `provider_field` path, quantity, kind, applied rate, and status — enough to join back to provider records downstream without applying free tiers or private rates locally.
 
 Bundled rates mostly ship only where the parser captures the same quantity basis the provider publishes; `code_execution_hour` is the exception — the rate ships but nothing captures an hour quantity yet. OpenAI hosted web search and file search are priced when the registry has a rate. OpenAI Code Interpreter container sessions are captured as `container_session` audit rows; they aren't priced by default because the provider rate depends on container size and a fixed session window. Anthropic web-search and web-fetch requests are priced; Anthropic code-execution requests are not captured at all — no row is recorded for them until a provider usage field exposes the hourly quantity the published rate uses.
+
+## Provider-Billed Cost
+
+OpenRouter returns what it charged for each call in `usage.cost`, in the response and in the final chunk of a stream. That amount follows the provider it routed to, long-context rates, and image or audio output, which one list price per model cannot. When an OpenAI-compatible response carries a numeric `usage.cost`, the call is recorded at that amount in USD, as one `billed_request` line item with `provider_field: "usage.cost"` and `price_source: "provider_response"`. The token line items keep their counts with no cost. On a BYOK call (`usage.is_byok`), `usage.cost` is only OpenRouter's fee and the provider bills your key separately, so `usage.cost_details.upstream_inference_cost` is added. Registry rates price the call only when the response has no `usage.cost`. RubyLLM hands over token counts only, so OpenRouter calls through RubyLLM are still priced from the registry.
 
 ## Usage and Pricing Coverage
 

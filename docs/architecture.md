@@ -56,6 +56,8 @@ Tokens and tool/runtime charges share one shape: `Charges::LineItem`. Parsers an
 
 Line items with no matching rate stay `unknown`. They keep the parent call `partial` when anything else on it is priced, or `unknown` when nothing is.
 
+A `billed_request` line item carries the amount the provider billed for the whole call (OpenRouter's `usage.cost`). It is the call's cost and status; token rates are not applied, so the token line items keep their counts with no cost.
+
 Free tiers and account-level reconciliation are not modeled in the ledger.
 
 ## Capture Boundaries

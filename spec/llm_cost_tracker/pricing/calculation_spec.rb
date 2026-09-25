@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "tempfile"
+require "yaml"
 
 RSpec.describe LlmCostTracker::Pricing::Calculation do
   it "prices a token line item at the exact per-million rate" do
@@ -70,5 +72,24 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
     expect(calculation.snapshot.fetch("rates")).to have_key("input")
     expect(calculation.snapshot.fetch("rates").keys).not_to include("service_charges.openai.web_search_request")
     expect(LlmCostTracker::Logging).to have_received(:warn).with(include("currency mismatch"))
+  end
+
+  it "does not add a service rate on top of a provider-billed total that already includes it" do
+    Tempfile.create(["lct-openrouter", ".yml"]) do |file|
+      file.write({ "service_charges" => { "openrouter" => { "web_search_request" => 4.0 } } }.to_yaml)
+      file.close
+      LlmCostTracker.configure { |c| c.pricing.file = file.path }
+      line_items = [
+        LlmCostTracker::Charges::LineItem.build(dimension_key: "web_search_request", quantity: 1),
+        LlmCostTracker::Charges::LineItem.build(dimension_key: "billed_request", quantity: 1, rate_amount: 0.0245,
+                                                cost: 0.0245, price_source: "provider_response")
+      ]
+      calculation = described_class.for(
+        provider: "openrouter", model: "openai/gpt-4o:online",
+        tokens: { input_tokens: 1_000, output_tokens: 200 }, pricing_mode: nil, line_items: line_items
+      )
+
+      expect(calculation.cost.total).to eq(BigDecimal("0.0245"))
+    end
   end
 end

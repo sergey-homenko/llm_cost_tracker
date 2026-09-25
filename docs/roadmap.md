@@ -51,7 +51,7 @@ Explicit rejections. Every item below was considered and ruled out:
 - **Multi-modal cost explainers.** Provider calculators already cover this.
 - **Generic evals / traces / prompt management.** Different product; the hosted observability vendors win that lane.
 - **MCP-specific billing metadata.** No metering layer to integrate with.
-- **OpenRouter-as-primary integration.** Direct provider integration is the core; aggregators stay best-effort via OpenAI-compatible Faraday.
+- **OpenRouter-as-primary integration.** Direct provider integration is the core; aggregators stay best-effort via OpenAI-compatible capture.
 - **Proxy mode.** Breaks the "direct calls only" identity.
 - **Prompt content storage.** Breaks the privacy pillar.
 - **Standalone service / paid SaaS.** OSS gem is the moat; a SaaS fork would dilute it.

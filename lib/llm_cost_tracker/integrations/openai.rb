@@ -53,7 +53,9 @@ module LlmCostTracker
         end
 
         def provider_for_host(host)
-          LlmCostTracker::Providers::Azure::Hosts.openai?(host) ? "azure_openai" : "openai"
+          return "azure_openai" if LlmCostTracker::Providers::Azure::Hosts.openai?(host)
+
+          LlmCostTracker.configuration.capture.openai_compatible_providers[host.to_s.downcase] || "openai"
         end
 
         def patch_targets

@@ -77,7 +77,7 @@ module LlmCostTracker
       end
 
       def cost_status
-        @cost_status ||= Charges::CostStatus.call(
+        @cost_status ||= billed_line&.cost_status || Charges::CostStatus.call(
           token_usage: @token_usage,
           usage_source: @usage_source,
           token_cost: token_cost,
@@ -98,7 +98,11 @@ module LlmCostTracker
       end
 
       def priceable?
-        !match.nil? && !all_billable_unpriced?
+        !match.nil? && billed_line.nil? && !all_billable_unpriced?
+      end
+
+      def billed_line
+        @line_items.find { |line_item| line_item.kind == "billed_request" }
       end
 
       def all_billable_unpriced?
@@ -202,7 +206,7 @@ module LlmCostTracker
       end
 
       def price_service(line_item)
-        return line_item if line_item.priced? || !line_item.billable?
+        return line_item if line_item.priced? || !line_item.billable? || billed_line
 
         rate = model_rate(line_item) ||
                ServiceRates.charge_rate(provider: @provider, dimension: line_item.kind, pricing_mode: @mode)

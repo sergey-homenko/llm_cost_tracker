@@ -724,6 +724,48 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "OpenAI-compatible base_url" do
+    it "records a Groq call under groq and prices it from the groq/ entry" do
+      WebMock.stub_request(:post, "https://api.groq.com/openai/v1/chat/completions").to_return(
+        status: 200,
+        body: { id: "chatcmpl-groq", object: "chat.completion", created: 1, model: "openai/gpt-oss-120b",
+                choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
+                usage: { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+      groq = OpenAI::Client.new(api_key: "test-key", base_url: "https://api.groq.com/openai/v1")
+
+      capture_sdk_events do |events|
+        groq.chat.completions.create(model: "openai/gpt-oss-120b", messages: [{ role: "user", content: "hi" }])
+
+        # Groq lists gpt-oss-120b at $0.15/M input and $0.60/M output.
+        expect(events.first).to include(provider: "groq", cost_status: "complete")
+        expect(BigDecimal(events.first.dig(:cost, :total))).to eq(BigDecimal("0.0021"))
+      end
+    end
+
+    it "records OpenRouter's billed usage.cost from the final chunk of a stream" do
+      chunk = { id: "gen-1", object: "chat.completion.chunk", created: 1, model: "meta-llama/llama-3.3-70b-instruct",
+                choices: [{ index: 0, delta: { content: "hi" } }] }
+      final = chunk.merge(choices: [], usage: { prompt_tokens: 3_000, completion_tokens: 500, total_tokens: 3_500,
+                                                cost: 0.00364, is_byok: false })
+      stub_sdk_sse(:post, "https://openrouter.ai/api/v1/chat/completions",
+                   body: "data: #{chunk.to_json}\n\ndata: #{final.to_json}\n\ndata: [DONE]\n\n")
+      openrouter = OpenAI::Client.new(api_key: "test-key", base_url: "https://openrouter.ai/api/v1")
+
+      capture_sdk_events do |events|
+        openrouter.chat.completions.stream_raw(
+          model: "meta-llama/llama-3.3-70b-instruct", messages: [{ role: "user", content: "hi" }],
+          stream_options: { include_usage: true }
+        ).each { |_| nil }
+
+        # Together serves llama-3.3-70b-instruct at $1.04/M input and output; the list price is $0.10/$0.32.
+        expect(events.first).to include(provider: "openrouter", cost_status: "complete")
+        expect(BigDecimal(events.first.dig(:cost, :total))).to eq(BigDecimal("0.00364"))
+      end
+    end
+  end
+
   describe "data residency pricing" do
     let(:dr_client) { OpenAI::Client.new(api_key: "test-key", base_url: "https://us.api.openai.com/v1/") }
 

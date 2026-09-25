@@ -20,7 +20,7 @@ Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `p
 | --- | --- | --- |
 | `enabled` | `true` | Turns capture on or off without removing middleware or integrations |
 | `capture.request_stream_usage` | `true` | Streaming endpoints only report token usage when the request asks for it. The Faraday middleware adds `stream_options: { include_usage: true }` to chat-completions streaming request bodies that don't already set it, on hosts known to accept it; hosts you register are left alone. Set to `false` to leave request bodies untouched. See [Streaming](streaming.md). |
-| `capture.openai_compatible_providers` | OpenRouter, DeepSeek, Groq | Maps each gateway host the Faraday middleware captures to the provider name recorded for its calls; unlisted hosts are not captured |
+| `capture.openai_compatible_providers` | OpenRouter, DeepSeek, Groq | Maps each gateway host to the provider name recorded for its calls, through the Faraday middleware or an official OpenAI SDK client whose `base_url` is on that host; Faraday does not capture unlisted hosts |
 
 ## Tag Options
 
@@ -78,7 +78,7 @@ Register custom gateway hosts when they speak OpenAI-compatible request and resp
 config.capture.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
 ```
 
-This turns on capture for the host and sets its provider name, nothing else. Gateway-specific prices belong in `pricing.file` or `pricing.overrides`.
+This turns on Faraday capture for the host and sets its provider name, nothing else. With `config.instrument :openai`, an `OpenAI::Client` whose `base_url` is on a listed host records its calls under the same provider name; other non-Azure hosts record as `openai`. Gateway-specific prices belong in `pricing.file` or `pricing.overrides`.
 
 ## Azure OpenAI Service
 

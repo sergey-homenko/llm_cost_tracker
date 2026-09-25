@@ -30,7 +30,8 @@ module LlmCostTracker
             model = response["model"] || request["model"]
             service_line_items =
               ServiceCharges.service_line_items_for(response, request: request, model: model) +
-              ServiceCharges.transcription_line_items(usage)
+              ServiceCharges.transcription_line_items(usage) +
+              ServiceCharges.billed_line_items(usage)
             Event.build(
               provider: provider,
               provider_response_id: response["id"],
@@ -113,7 +114,7 @@ module LlmCostTracker
             token_usage: UsageExtractor.token_usage(usage, model: model),
             stream: true,
             usage_source: Usage::Source::STREAM_FINAL,
-            service_line_items: service_line_items
+            service_line_items: service_line_items + billed_line_items(usage)
           )
         end
 
