@@ -1069,7 +1069,8 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(LlmCostTracker::Budget).to have_received(:enforce!).with(
       provider: "openai",
       model: "gpt-4o",
-      request: include("model" => "gpt-4o", "messages" => [{ "role" => "user", "content" => "hi" }])
+      request: include("model" => "gpt-4o", "messages" => [{ "role" => "user", "content" => "hi" }]),
+      tags: {}
     )
   end
 
