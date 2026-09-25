@@ -63,9 +63,9 @@ LlmCostTracker.configure do |config|
   # }
 
   # Where budget checks read period spend from. :ledger sums llm_cost_tracker_calls on
-  # every check; :cache keeps running totals in llm_cost_tracker_call_rollups so checks
-  # read one row instead — switch once the live SUM gets slow, and generate the table
-  # first with `bin/rails generate llm_cost_tracker:call_rollups`.
+  # every check; :cache also keeps running totals in llm_cost_tracker_call_rollups and
+  # takes the greater of the two, so it guards against drift but does not make checks
+  # faster. Generate the table first with `bin/rails generate llm_cost_tracker:call_rollups`.
   # config.budgets.totals_source = :cache
 
   # Ingestion path — :inline (default) writes events synchronously from the request

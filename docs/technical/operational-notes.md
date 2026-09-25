@@ -33,7 +33,7 @@ Price update tasks are operational tooling. They can fetch the maintained LLM Co
 
 ## Budget Reads
 
-Monthly and daily budgets read live `SUM(total_cost)` from `llm_cost_tracker_calls` by default. When `config.budgets.totals_source = :cache` they switch to the `llm_cost_tracker_call_rollups` fast path (with its `(period, period_start, currency, provider)` unique index). When `config.ingestion.mode = :async`, pending `llm_cost_tracker_ingestion_inbox_entries` totals are added on top so events that haven't drained yet still count toward guardrails.
+Monthly and daily budgets read live `SUM(total_cost)` from `llm_cost_tracker_calls` by default. When `config.budgets.totals_source = :cache` they also read `llm_cost_tracker_call_rollups` and take the greater of the two, so the live sum still runs. When `config.ingestion.mode = :async`, pending `llm_cost_tracker_ingestion_inbox_entries` totals are added on top so events that haven't drained yet still count toward guardrails.
 
 Whichever combination is active, the rollup/calls aggregate and the pending inbox total should be read in one database statement so request-time budget checks do not undercount during the inbox-to-ledger handoff.
 

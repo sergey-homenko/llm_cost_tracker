@@ -40,7 +40,7 @@ Every LLM API call that goes through a tracked SDK, the Faraday middleware, or `
 - `tags` (joined through `llm_cost_tracker_call_tags`) — your app's business context (e.g. `user_id`, `feature`, `decision_id`)
 - per-component pricing rows in `llm_cost_tracker_call_line_items` (token classes + tool/runtime charges)
 
-This satisfies the *traceability* spirit of Article 12 for a deployer using an LLM through a Rails request: every call is recorded, every record carries enough attribution to reconstruct who ran what, and the pricing snapshot freezes the rate table that priced the row.
+This covers the LLM-call part of Article 12 traceability for a deployer using an LLM through a Rails request: every call is recorded, with enough attribution to reconstruct who ran what, and the pricing snapshot freezes the rate table that priced the row. It records metadata only, not prompts, outputs, or decisions, so it is one input to your Article 12 logging, not the whole of it.
 
 ## Configuring for compliance
 
