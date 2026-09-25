@@ -468,17 +468,17 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(total).to eq(0.00265)
   end
 
-  it "raises when call rollups are unavailable" do
+  it "drains the inbox into the calls ledger when call rollups are unavailable" do
     ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups)
-    allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
 
-    expect do
-      track_and_flush(
-        provider: :openai,
-        model: "gpt-4o",
-        tokens: { input_tokens: 1_000, output_tokens: 0 },
-      )
-    end.to raise_error(LlmCostTracker::Error, /llm_cost_tracker_call_rollups/)
+    track_and_flush(
+      provider: :openai,
+      model: "gpt-4o",
+      tokens: { input_tokens: 1_000, output_tokens: 0 },
+    )
+
+    expect(LlmCostTracker::Call.count).to eq(1)
+    expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
   end
 
   it "reads daily and monthly call rollups together" do

@@ -222,6 +222,18 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
+    it "parses symbol-keyed events" do
+      collected = events
+
+      described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+        stream.event({ usage: { prompt_tokens: 12, completion_tokens: 3, total_tokens: 15 } })
+      end
+
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(12)
+      expect(collected.first.dig(:token_usage, :output_tokens)).to eq(3)
+      expect(collected.first[:usage_source]).to eq("stream_final")
+    end
+
     it "parses built-in OpenAI-compatible providers like OpenRouter" do
       collected = events
 

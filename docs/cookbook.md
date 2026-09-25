@@ -73,7 +73,7 @@ Realtime WebSocket/WebRTC sessions do not flow through the Faraday middleware. C
 ```ruby
 realtime_session.on(:response_done) do |event|
   LlmCostTracker.track_stream(provider: "openai", model: "gpt-realtime-1.5", tags: { feature: "voice" }) do |stream|
-    stream.event(JSON.parse(event.to_json), type: "response.done")
+    stream.event(event.to_h, type: "response.done")
   end
 end
 ```

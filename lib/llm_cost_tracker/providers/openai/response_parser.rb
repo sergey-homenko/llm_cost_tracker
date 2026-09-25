@@ -118,8 +118,8 @@ module LlmCostTracker
         end
 
         def warn_missing_stream_usage(request_url:, request:)
-          return unless request["stream"]
-          return unless openai_chat_completions_url?(request_url)
+          return unless request_url.nil? || request["stream"]
+          return unless request_url ? openai_chat_completions_url?(request_url) : request["messages"]
           return if request.dig("stream_options", "include_usage")
 
           Logging.warn(

@@ -28,6 +28,8 @@ module LlmCostTracker
         end
 
         guards_for_current_config.each do |schema_module, table_name|
+          next if schema_module == Ledger::Schema::CallRollups && !Ledger::Rollups.cache_active?
+
           errors = schema_module.current_schema_errors
           next if errors.empty?
 

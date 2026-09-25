@@ -19,6 +19,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `budgets.per_tag` without a `:block_requests` rule no longer checks the database schema before an LLM call is sent, so a process that starts during a database outage no longer fails its LLM calls.
 - An OpenAI SDK response without usage, such as a queued `background: true` Response, logs a warning instead of being skipped silently.
 - The async worker checks its tables through the Rails schema cache, so an idle poll runs one query instead of six.
+- With `ingestion.mode = :async` and `budgets.totals_source = :cache`, a missing rollups table no longer stops the worker from draining the inbox; it warns once and budget reads use the calls ledger, as inline ingestion does.
+- `track_stream` records events passed as symbol-keyed hashes, such as `to_h` of an OpenAI Realtime `response.done` event; they were ignored and the call was stored as `unknown` with 0 tokens.
+- An OpenAI SDK `chat.completions.stream` without `stream_options: { include_usage: true }` logs the same warning as the Faraday path instead of being stored as `unknown` silently.
 
 ## [0.14.1] - 2026-09-25
 
