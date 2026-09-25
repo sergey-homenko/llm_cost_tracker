@@ -34,6 +34,32 @@ RSpec.describe LlmCostTracker::Providers::Openai::UsageExtractor do
       expect(result.image_input_tokens).to eq(100)
     end
 
+    it "takes Realtime cached audio and image tokens out of their buckets using cached_tokens_details" do
+      usage = {
+        input_tokens: 1_000,
+        output_tokens: 0,
+        input_token_details: {
+          audio_tokens: 500, image_tokens: 200, cached_tokens: 600,
+          cached_tokens_details: { text_tokens: 200, audio_tokens: 300, image_tokens: 100 }
+        }
+      }
+      result = described_class.token_usage(usage)
+
+      expect(result).to have_attributes(
+        input_tokens: 100, cache_read_input_tokens: 600, audio_input_tokens: 200, image_input_tokens: 100
+      )
+    end
+
+    it "takes cached overlap out of audio, then image input when cached_tokens_details is missing" do
+      usage = { input_tokens: 1_000, output_tokens: 0,
+                input_tokens_details: { cached_tokens: 600, audio_tokens: 300, image_tokens: 500 } }
+      result = described_class.token_usage(usage)
+
+      expect(result).to have_attributes(
+        input_tokens: 0, cache_read_input_tokens: 600, audio_input_tokens: 0, image_input_tokens: 400
+      )
+    end
+
     it "reads cache_read from prompt_tokens_details for Chat-Completions responses" do
       usage = { prompt_tokens: 500, completion_tokens: 0, prompt_tokens_details: { cached_tokens: 100 } }
       result = described_class.token_usage(usage)

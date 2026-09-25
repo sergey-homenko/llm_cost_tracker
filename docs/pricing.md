@@ -44,6 +44,8 @@ These keys are derived from `Usage::Catalog`, the master dimension registry, whi
 
 `cache_read_input` is modality-agnostic. OpenAI's pricing page for the `gpt-image-*` family lists separate rates for image-cached input ($2.00 / M) and text-cached input ($1.25 / M), but the API only reports a single `prompt_tokens_details.cached_tokens` total without a modality breakdown. The registry stores the text-cached rate under `cache_read_input`, which under-prices image-heavy cache hits relative to the published list price. When OpenAI exposes the split (or a provider gives us a typed cached-image token count), `image_cache_read_input_tokens` will become a separate billable component.
 
+OpenAI Realtime does report the split in `input_token_details.cached_tokens_details`. The parser takes cached audio and image tokens out of `audio_input` and `image_input` and prices them at `cache_read_input`. That matches the published cached-audio rate on the full-size `gpt-realtime` models, but under-prices cached images and the mini models' cached audio ($0.30 / M published against $0.06 / M for cached text).
+
 Mode-prefixed fields use the same base terms:
 
 - `batch_input`

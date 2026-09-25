@@ -211,6 +211,27 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:tags]).to include(feature: "stream")
     end
 
+    it "prices OpenAI Realtime cached audio once, at the cache-read rate" do
+      collected = events
+      usage = {
+        "input_tokens" => 10_000,
+        "output_tokens" => 0,
+        "input_token_details" => {
+          "text_tokens" => 2_000, "audio_tokens" => 8_000, "cached_tokens" => 5_000,
+          "cached_tokens_details" => { "text_tokens" => 0, "audio_tokens" => 5_000 }
+        }
+      }
+
+      described_class.track_stream(provider: "openai", model: "gpt-realtime") do |stream|
+        stream.event({ "type" => "response.done", "response" => { "usage" => usage } }, type: "response.done")
+      end
+
+      expect(collected.first[:token_usage]).to include(
+        input_tokens: 2_000, cache_read_input_tokens: 5_000, audio_input_tokens: 3_000
+      )
+      expect(BigDecimal(collected.first[:cost][:total])).to eq(BigDecimal("0.106"))
+    end
+
     it "infers the model from stream events when no model is passed" do
       collected = events
 
