@@ -271,7 +271,7 @@
         <h2 class="lct-panel-title">Incomplete pricing by model</h2>
         <span class="lct-panel-meta"><%= link_to "View calls →", calls_path(current_query(cost_status: "incomplete", sort: nil)) %></span>
       </div>
-      <p class="lct-panel-intro">These models have line items without configured rates, so totals undercount (a full row is missing all rates; a partial row has some line items priced and others not). After the next price refresh or a <code>pricing_overrides</code> update, run <code>bin/rails llm_cost_tracker:backfill_unknown_pricing</code> to recompute these calls.</p>
+      <p class="lct-panel-intro">These models have line items without configured rates, so totals undercount (a full row is missing all rates; a partial row has some line items priced and others not). After the next price refresh or a <code>pricing_overrides</code> update, run <code>bin/rails llm_cost_tracker:backfill_unknown_pricing</code> to recompute these calls. A partial call is left as recorded when a rate it already used has changed since.</p>
 
       <div class="lct-table-wrap">
         <table class="lct-tbl">

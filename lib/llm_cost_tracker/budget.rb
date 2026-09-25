@@ -37,25 +37,39 @@ module LlmCostTracker
         config = LlmCostTracker.configuration
         return unless event.total_cost
 
-        check_per_call_budget(event, config, behavior_override)
+        errors = [check_per_call_budget(event, config, behavior_override)]
         check_windowed({ daily: config.budgets.daily, monthly: config.budgets.monthly }.compact,
                        time: event.tracked_at) do |budget_type, total, budget|
-          handle_exceeded(budget_type: budget_type,
-                          total: total,
-                          budget: budget,
-                          previous_total: total - event.total_cost,
-                          last_event: event,
-                          behavior: behavior_override)
+          errors << handle_exceeded(budget_type: budget_type,
+                                    total: total,
+                                    budget: budget,
+                                    previous_total: total - event.total_cost,
+                                    last_event: event,
+                                    behavior: behavior_override)
         end
+        errors.concat(persisted_errors([event], behavior_override)) unless Ingestion.async?
+        raise_first(errors)
       end
 
       def check_persisted!(events, behavior_override: nil)
+        raise_first(persisted_errors(events, behavior_override))
+      end
+
+      def notify_persisted_safely!(events)
+        check_persisted!(events, behavior_override: :notify)
+      rescue StandardError => e
+        Logging.warn("Per-tag budget check failed after ingest: #{e.class}: #{e.message}")
+      end
+
+      private
+
+      def persisted_errors(events, behavior_override)
         by_rule = PerTag.rules_for_events(events.select(&:total_cost))
         by_rule = by_rule.reject { |rule, _| rule.on_exceeded.nil? } if behavior_override == :notify
-        window_buckets(by_rule).each do |(key, window, bucket), scored|
+        window_buckets(by_rule).flat_map do |(key, window, bucket), scored|
           upto = scored.values.flatten.map(&:tracked_at).max unless Ingestion.async?
           totals = PerTag.spend_by_value(key, scored.keys.map(&:value), window, bucket, upto)
-          scored.each do |rule, recorded|
+          scored.filter_map do |rule, recorded|
             total = totals.fetch(rule.value, 0).to_d
             limit = rule.windows.fetch(window)
             next if total < limit
@@ -74,13 +88,10 @@ module LlmCostTracker
         end
       end
 
-      def notify_persisted_safely!(events)
-        check_persisted!(events, behavior_override: :notify)
-      rescue StandardError => e
-        Logging.warn("Per-tag budget check failed after ingest: #{e.class}: #{e.message}")
+      def raise_first(errors)
+        error = errors.compact.first
+        raise error if error
       end
-
-      private
 
       def window_buckets(by_rule)
         by_rule.each_with_object({}) do |(rule, events), grouped|
@@ -190,7 +201,7 @@ module LlmCostTracker
         )
 
         on_exceeded.call(payload) if on_exceeded && (previous_total.nil? || previous_total < budget)
-        raise BudgetExceededError.new(**payload) if %i[raise block_requests].include?(behavior)
+        BudgetExceededError.new(**payload) if %i[raise block_requests].include?(behavior)
       end
 
       def budget_payload(budget_type:, total:, budget:, last_event:, stage:, scope: nil)

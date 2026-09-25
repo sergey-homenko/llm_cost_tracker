@@ -348,6 +348,14 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Call.first.tag_pairs).to eq("feature" => "")
   end
 
+  it "stores one tag row when the same key arrives as a Symbol and a String, keeping the later value" do
+    event = build_event(event_id: "mixed-keys", tags: { tenant_id: "acme", "tenant_id" => "globex" })
+
+    LlmCostTracker::Ledger::Store.insert([event])
+
+    expect(LlmCostTracker::CallTag.pluck(:key, :value)).to eq([%w[tenant_id globex]])
+  end
+
   it "removes NUL bytes and invalid UTF-8 from stored strings, including inbox rows from earlier releases" do
     event = LlmCostTracker.track(
       provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 },

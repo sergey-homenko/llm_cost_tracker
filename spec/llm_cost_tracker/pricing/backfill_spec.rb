@@ -123,6 +123,45 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     }.from(0).to(be > 0)
   end
 
+  it "reprices a partial call and adds only the missing difference to the rollups" do
+    LlmCostTracker.configuration.ingestion.mode = :inline
+    LlmCostTracker.track(
+      provider: "anthropic", model: "claude-opus-4-1-20250805",
+      tokens: { input_tokens: 12_000, output_tokens: 800 }, tags: { feature: "research" },
+      service_line_items: [{ dimension_key: "web_search_request", quantity: 2 }]
+    )
+    create_call(usage_source: "unknown", total_cost: 0, cost_status: "unknown")
+    call = LlmCostTracker::Call.first
+    expect([call.total_cost, call.cost_status]).to eq([0.02, "partial"])
+
+    LlmCostTracker.configuration.pricing.overrides = { "anthropic/claude-opus-4-1" => { input: 15.0, output: 75.0 } }
+    LlmCostTracker::Pricing::Registry.reset!
+
+    expect(described_class.call.to_h).to eq(examined: 1, recomputed: 1, still_unknown: 0)
+    # Anthropic: Opus 4.1 $15 / $75 per MTok; web search $10 per 1,000 searches.
+    expect([call.reload.total_cost, call.cost_status]).to eq([0.26, "complete"])
+    expect(LlmCostTracker::CallTag.where(llm_cost_tracker_call_id: call.id).pluck(:total_cost)).to eq([0.26])
+    expect(LlmCostTracker::CallRollup.where(period: "month").sum(:total_cost)).to eq(0.26)
+  end
+
+  it "leaves a partial call alone when nothing new is priced or its recorded rates changed" do
+    LlmCostTracker.configuration.ingestion.mode = :inline
+    LlmCostTracker.configuration.pricing.overrides = { "openai/lct-probe-model" => { input: 2.0 } }
+    LlmCostTracker::Pricing::Registry.reset!
+    LlmCostTracker.track(provider: "openai", model: "lct-probe-model",
+                         tokens: { input_tokens: 1_000_000, output_tokens: 1_000 })
+    call = LlmCostTracker::Call.first
+
+    expect(described_class.call.to_h).to eq(examined: 1, recomputed: 0, still_unknown: 1)
+
+    LlmCostTracker.configuration.pricing.overrides = { "openai/lct-probe-model" => { input: 1.0 } }
+    LlmCostTracker::Pricing::Registry.reset!
+
+    expect(described_class.call.to_h).to eq(examined: 1, recomputed: 0, still_unknown: 1)
+    expect([call.reload.total_cost, call.cost_status]).to eq([2.0, "partial"])
+    expect(call.line_items.find_by(direction: "input").rate_amount).to eq(2.0)
+  end
+
   it "does not touch rollups when cache_rollups is disabled and the rollups table is absent" do
     LlmCostTracker.configuration.budgets.totals_source = :ledger
     ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_call_rollups, if_exists: true)

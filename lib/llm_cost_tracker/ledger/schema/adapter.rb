@@ -36,11 +36,14 @@ module LlmCostTracker
           MYSQL_PERIOD_FORMATS = { day: "%Y-%m-%d", month: "%Y-%m" }.freeze
           private_constant :PG_PERIOD_FORMATS, :MYSQL_PERIOD_FORMATS
 
-          def period_bucket_sql(connection, period, column)
+          def period_bucket_sql(connection, period, column, time_zone: nil)
             period = period.to_sym
+            zone = time_zone&.tzinfo&.name
             if postgresql?(connection)
+              column = "(#{column}::timestamp AT TIME ZONE 'UTC') AT TIME ZONE '#{zone}'" if zone
               "TO_CHAR(DATE_TRUNC('#{period}', #{column}), '#{PG_PERIOD_FORMATS.fetch(period)}')"
             elsif mysql?(connection)
+              column = "COALESCE(CONVERT_TZ(#{column}, '+00:00', '#{zone}'), #{column})" if zone
               "DATE_FORMAT(#{column}, '#{MYSQL_PERIOD_FORMATS.fetch(period)}')"
             else
               ensure_supported!(connection)

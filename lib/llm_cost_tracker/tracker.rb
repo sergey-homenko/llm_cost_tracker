@@ -44,7 +44,6 @@ module LlmCostTracker
         Pricing::Unknown.process(event.model, pricing_mode: calculation.mode) if unpriced
         behavior_override = :raise if enforce_budget
         Budget.check!(event, behavior_override: behavior_override)
-        Budget.check_persisted!([event], behavior_override: behavior_override) unless Ingestion.async?
 
         event
       end

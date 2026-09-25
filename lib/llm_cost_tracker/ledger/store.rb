@@ -118,10 +118,10 @@ module LlmCostTracker
 
         def insert_call_tags(events, call_ids)
           rows = events.flat_map do |event|
-            (event.tags || {}).map do |key, value|
+            (event.tags || {}).to_h { |key, value| [key.to_s, value] }.map do |key, value|
               {
                 llm_cost_tracker_call_id: call_ids.fetch(event.event_id),
-                key: key.to_s,
+                key: key,
                 value: Tags::Encoding.encode(Storable.clean(value))
               }.merge(budget_columns_for(event))
             end

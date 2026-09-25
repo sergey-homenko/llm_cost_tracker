@@ -57,6 +57,14 @@ RSpec.describe "LlmCostTracker::Engine tags" do
     expect(response.body).to include("← All values for feature")
   end
 
+  it "charts the selected date range on a tag value page" do
+    create_call(total_cost: 1.4, tracked_at: Time.utc(2025, 8, 3, 10), tags: { tenant: "acme" })
+
+    response = get("/llm-costs/tags/tenant", params: { tag_value: "acme", from: "2025-08-01", to: "2025-08-31" })
+
+    expect(response.body).to include("<title>2025-08-03: $1.40</title>")
+  end
+
   it "preserves the drill-down value through the filter form via a hidden field" do
     create_call(total_cost: 2.0, tags: { feature: "chat" })
 
