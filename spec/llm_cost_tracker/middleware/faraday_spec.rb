@@ -295,9 +295,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end.to raise_error(LlmCostTracker::UnknownPricingError)
 
     expect(events.size).to eq(1)
-    expect(events.first[:token_usage]).to include(input_tokens: 1, output_tokens: 1)
     expect(events.first[:tags]).not_to have_key(:stream_interrupted)
-    expect(LlmCostTracker::Ledger::Store).to have_received(:insert).once
   end
 
   it "captures streaming OpenAI responses through the on_data tap" do

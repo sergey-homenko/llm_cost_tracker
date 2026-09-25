@@ -34,16 +34,9 @@ module LlmCostTracker
         end
 
         def validate_file!(path)
-          return unless path
-
           file_prices(path)
           file_rates(path)
           file_metadata(path)
-          nil
-        rescue Error => e
-          message = "#{e.message}. Fix the file, or delete it and run " \
-                    "bin/rails llm_cost_tracker:prices:refresh to download a fresh one"
-          raise Error, message
         end
 
         def builtin_prices
@@ -170,15 +163,12 @@ module LlmCostTracker
         def loading(path)
           yield
         rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
-          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}"
+          raise Error, "Unable to load prices_file #{path.inspect}: #{e.message}; fix or delete it"
         end
 
         def load_raw_file_registry(path)
           unless File.exist?(path)
-            Logging.warn(
-              "pricing.file #{path.to_s.inspect} does not exist; calls are priced from pricing.overrides and " \
-              "bundled prices until bin/rails llm_cost_tracker:prices:refresh creates it"
-            )
+            Logging.warn("pricing.file #{path} does not exist; using bundled prices until prices:refresh creates it")
             return {}.freeze
           end
 

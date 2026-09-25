@@ -13,7 +13,7 @@ module LlmCostTracker
       def call
         path = LlmCostTracker.configuration.pricing.file
         return bundled_check unless path
-        return missing_file_check(path) unless File.exist?(path)
+        return Check.new(:error, "prices", "#{path} does not exist; #{REFRESH_COMMAND}") unless File.exist?(path)
 
         count = LlmCostTracker::Pricing::Registry.file_prices(path).size
         metadata = LlmCostTracker::Pricing::Registry.file_metadata(path)
@@ -43,10 +43,6 @@ module LlmCostTracker
       end
 
       private
-
-      def missing_file_check(path)
-        Check.new(:error, "prices", "pricing.file #{path} does not exist; #{REFRESH_COMMAND}")
-      end
 
       def bundled_check
         updated_at = LlmCostTracker::Pricing::Registry.metadata.fetch("updated_at", "unknown")

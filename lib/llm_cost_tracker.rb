@@ -128,26 +128,12 @@ module LlmCostTracker
         pricing_mode: pricing_mode,
         metadata: tags
       )
-      begin
-        yield collector
-      rescue Exception # rubocop:disable Lint/RescueException -- record the spend and keep the caller's exception
-        finish_errored_stream(collector)
-        raise
-      end
-      collector.finish!
-    end
-
-    private
-
-    def finish_errored_stream(collector)
-      collector.finish!(errored: true)
-    rescue LlmCostTracker::TransactionAbortedError
+      yield collector
+    rescue Exception # rubocop:disable Lint/RescueException -- record the spend and keep the caller's exception
+      collector&.finish!(errored: true)
       raise
-    rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
-      Logging.warn("track_stream recorded the errored stream and did not raise #{e.class} over the block's " \
-                   "exception: #{e.message}")
-    rescue StandardError => e
-      Logging.warn("track_stream could not record the errored stream: #{e.class}: #{e.message}")
+    else
+      collector.finish!
     end
   end
 end

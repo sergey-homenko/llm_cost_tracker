@@ -79,18 +79,7 @@ module LlmCostTracker
         errored = true
         raise
       ensure
-        errored ? finish_after_error : finish!(errored: false)
-      end
-
-      def finish_after_error
-        finish!(errored: true)
-      rescue LlmCostTracker::TransactionAbortedError
-        raise
-      rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
-        Logging.warn("stream integration recorded an errored stream and did not raise #{e.class} over the " \
-                     "stream's own exception: #{e.message}")
-      rescue StandardError => e
-        Logging.warn("stream integration could not record an errored stream: #{e.class}: #{e.message}")
+        finish!(errored: errored)
       end
 
       def capture(event)
