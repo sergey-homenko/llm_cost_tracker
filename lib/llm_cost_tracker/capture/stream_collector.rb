@@ -168,7 +168,12 @@ module LlmCostTracker
 
       def build_event(snapshot)
         return build_from_explicit_usage(snapshot) if snapshot[:explicit_usage]
-        return build_unknown_usage(snapshot) if snapshot[:overflowed]
+
+        if snapshot[:overflowed]
+          Logging.warn("#{@provider} stream events exceeded #{SSE::LIMIT_BYTES} bytes; " \
+                       "recording usage_source=#{Usage::Source::UNKNOWN}.")
+          return build_unknown_usage(snapshot)
+        end
 
         event = Parsers.find_for_provider(@provider)&.parse_stream(
           response_status: 200,

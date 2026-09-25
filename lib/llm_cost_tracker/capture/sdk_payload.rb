@@ -3,6 +3,8 @@
 require "active_support/core_ext/object/deep_dup"
 require "active_support/core_ext/object/try"
 
+require_relative "event_window"
+
 module LlmCostTracker
   module Capture
     module SdkPayload
@@ -11,7 +13,9 @@ module LlmCostTracker
       def normalize(value)
         case value
         when Hash
-          value.each_with_object({}) { |(key, nested), out| out[key.to_s] = normalize(nested) }
+          value.each_with_object({}) do |(key, nested), out|
+            out[key.to_s] = normalize(nested) unless EventWindow::IGNORED_PAYLOAD_KEYS.include?(key.to_s)
+          end
         when Array
           value.map { |nested| normalize(nested) }
         when Symbol

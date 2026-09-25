@@ -8,7 +8,7 @@ module LlmCostTracker
       HEAD_EVENTS = 16
       TAIL_EVENTS = 32
       HEAVY_STRING_BYTES = 8 * 1024
-      IGNORED_PAYLOAD_KEYS = %w[b64_json partial_image_b64].freeze
+      IGNORED_PAYLOAD_KEYS = %w[b64_json partial_image_b64 snapshot logprobs].freeze
 
       def initialize(notable: nil)
         @notable = notable
@@ -20,7 +20,8 @@ module LlmCostTracker
       end
 
       def push(data, type: nil)
-        return if @overflowed
+        # The openai gem's chat stream helper resends all logprobs so far in logprobs.* events; none carry usage.
+        return if @overflowed || type&.start_with?("logprobs.")
 
         event = { event: type, data: strip_heavy_payload(data) }
         size = approximate_bytesize(event)

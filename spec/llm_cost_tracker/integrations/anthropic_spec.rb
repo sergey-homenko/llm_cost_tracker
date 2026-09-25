@@ -129,6 +129,28 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       end
     end
 
+    it "prices a result with US inference_geo at batch data-residency rates" do
+      result = { custom_id: "req_us",
+                 result: { type: "succeeded",
+                           message: { id: "msg_us", type: "message", role: "assistant",
+                                      model: "claude-sonnet-4-6", content: [], stop_reason: "end_turn",
+                                      usage: { input_tokens: 1_000, output_tokens: 500, cache_read_input_tokens: 20_000,
+                                               service_tier: "batch", inference_geo: "us" } } } }
+      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_us/results}).to_return(
+        status: 200,
+        body: result.to_json,
+        headers: { "Content-Type" => "application/x-jsonl" }
+      )
+
+      capture_sdk_events do |events|
+        client.messages.batches.results_streaming("batch_us").each { |_| }
+
+        expect(events.first[:pricing_mode]).to eq("batch_data_residency")
+        # Sonnet 4.6 batch rates x 1.1 for US-only inference: $1.65 in, $8.25 out, $0.165 cache read per MTok.
+        expect(BigDecimal(events.first[:cost][:total])).to eq(BigDecimal("0.009075"))
+      end
+    end
+
     it "skips a batch result whose provider_response_id already lives in the ledger so a second iteration is a no-op" do
       WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
         status: 200,
@@ -195,6 +217,51 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
           stream: true,
           provider_response_id: "msg_stream_1"
         )
+      end
+    end
+
+    it "prices cache writes added after message_start, such as server-tool breakpoints, at the 5-minute rate" do
+      sse = <<~SSE
+        event: message_start
+        data: {"type":"message_start","message":{"id":"msg_ws","model":"claude-sonnet-4-6","usage":{"input_tokens":79,"cache_creation_input_tokens":2600,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":2600},"output_tokens":3}}}
+
+        event: message_delta
+        data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":79,"cache_creation_input_tokens":7924,"cache_read_input_tokens":2600,"output_tokens":510,"server_tool_use":{"web_search_requests":1}}}
+
+        event: message_stop
+        data: {"type":"message_stop"}
+
+      SSE
+      stub_sdk_sse(:post, "https://api.anthropic.com/v1/messages", body: sse)
+
+      capture_sdk_events do |events|
+        client.messages.stream(**request_params, model: "claude-sonnet-4-6").each { |_| nil }
+
+        expect(events.first).to include(cache_write_input_tokens: 5324, cache_write_extended_input_tokens: 2600)
+        # Sonnet 4.6: $3 in, $3.75 5m write, $6 1h write, $0.30 cache read, $15 out per MTok; $10 per 1,000 searches.
+        expect(BigDecimal(events.first[:cost][:total])).to eq(BigDecimal("0.054232"))
+      end
+    end
+
+    it "prices the speed the stream reports when a requested fast mode ran at standard speed" do
+      sse = <<~SSE
+        event: message_start
+        data: {"type":"message_start","message":{"id":"msg_speed","model":"claude-opus-4-6","usage":{"input_tokens":20000,"output_tokens":1,"speed":"standard"}}}
+
+        event: message_delta
+        data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2000}}
+
+        event: message_stop
+        data: {"type":"message_stop"}
+
+      SSE
+      stub_sdk_sse(:post, "https://api.anthropic.com/v1/messages", body: sse)
+
+      capture_sdk_events do |events|
+        client.messages.stream(**request_params, model: "claude-opus-4-6", speed: "fast").each { |_| nil }
+
+        expect(events.first).to include(pricing_mode: nil, cost_status: "complete")
+        expect(BigDecimal(events.first[:cost][:total])).to eq(BigDecimal("0.15"))
       end
     end
   end
