@@ -136,7 +136,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
                                       model: "claude-sonnet-4-6", content: [], stop_reason: "end_turn",
                                       usage: { input_tokens: 1_000, output_tokens: 500, cache_read_input_tokens: 20_000,
                                                service_tier: "batch", inference_geo: "us" } } } }
-      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_us/results}).to_return(
+      WebMock.stub_request(:get, %r{https://api\.anthropic\.com/v1/messages/batches/batch_us/results}).to_return(
         status: 200,
         body: result.to_json,
         headers: { "Content-Type" => "application/x-jsonl" }
