@@ -324,7 +324,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       capture_sdk_events do |events|
         RubyLLM.transcribe(audio_file.path, model: "gemini-2.5-flash", provider: :gemini, assume_model_exists: true)
         expect(events.size).to eq(1)
-        expect(events.first).to include(provider: "gemini", model: "gemini-2.5-flash", input_tokens: 40, output_tokens: 7)
+        expect(events.first).to include(provider: "gemini", model: "gemini-2.5-flash", input_tokens: 0,
+                                        audio_input_tokens: 40, output_tokens: 7)
       end
     end
   end
