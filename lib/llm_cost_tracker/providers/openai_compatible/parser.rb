@@ -7,6 +7,7 @@ module LlmCostTracker
         include Openai::ResponseParser
 
         TRACKED_PATH_SUFFIXES = %w[/chat/completions /completions /embeddings /responses].freeze
+        STREAM_OPTIONS_HOSTS = %w[openrouter.ai api.deepseek.com api.groq.com].freeze
 
         class << self
           def match?(url)
@@ -29,6 +30,10 @@ module LlmCostTracker
 
         def provider_for(request_url)
           self.class.provider_for_uri(parsed_uri(request_url)) || "openai_compatible"
+        end
+
+        def auto_enable_stream_usage?(request_url, request_parsed)
+          super && STREAM_OPTIONS_HOSTS.include?(parsed_uri(request_url).host.to_s.downcase)
         end
       end
     end

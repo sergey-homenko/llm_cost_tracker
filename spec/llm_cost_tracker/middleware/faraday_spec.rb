@@ -932,6 +932,82 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(parsed.dig("stream_options", "include_usage")).to be true
   end
 
+  describe "stream_options injection on hosts that may reject it" do
+    def sent_body(base_url, path, body)
+      captured_body = nil
+      conn = Faraday.new(url: base_url) do |f|
+        f.use :llm_cost_tracker
+        f.adapter :test do |stub|
+          stub.post(path.split("?").first) do |env|
+            captured_body = env.body
+            [200, { "Content-Type" => "text/event-stream" }, ""]
+          end
+        end
+      end
+      conn.post(path, body.to_json)
+      JSON.parse(captured_body)
+    end
+
+    let(:azure_url) { "https://myresource.openai.azure.com" }
+    let(:azure_deployment_path) { "/openai/deployments/gpt4o-prod/chat/completions" }
+    let(:chat_body) { { messages: [{ role: "user", content: "Hi" }], stream: true } }
+
+    it "leaves Azure OpenAI streams untouched on api-versions older than 2024-06-01" do
+      %w[2024-02-01 2024-05-01-preview].each do |api_version|
+        body = sent_body(azure_url, "#{azure_deployment_path}?api-version=#{api_version}", chat_body)
+
+        expect(body).not_to have_key("stream_options"), "api-version=#{api_version}"
+      end
+    end
+
+    it "auto-injects on Azure OpenAI api-versions from 2024-06-01 and on the v1 API" do
+      [
+        "#{azure_deployment_path}?api-version=2024-06-01",
+        "#{azure_deployment_path}?api-version=2024-10-21",
+        "#{azure_deployment_path}?api-version=2025-04-01-preview",
+        "/openai/v1/chat/completions",
+        "/openai/v1/chat/completions?api-version=preview"
+      ].each do |path|
+        body = sent_body(azure_url, path, chat_body.merge(model: "gpt-4o"))
+
+        expect(body.dig("stream_options", "include_usage")).to be(true), path
+      end
+    end
+
+    it "leaves Azure OpenAI On Your Data and image-input streams untouched" do
+      path = "#{azure_deployment_path}?api-version=2025-04-01-preview"
+      on_your_data = chat_body.merge(data_sources: [{ type: "azure_search", parameters: {} }])
+      image_input = chat_body.merge(
+        messages: [{ role: "user", content: [{ type: "text", text: "What is this?" },
+                                             { type: "image_url", image_url: { url: "https://example.com/a.png" } }] }]
+      )
+
+      expect(sent_body(azure_url, path, on_your_data)).not_to have_key("stream_options")
+      expect(sent_body(azure_url, path, image_input)).not_to have_key("stream_options")
+    end
+
+    it "leaves streams to hosts the app added to openai_compatible_providers untouched" do
+      LlmCostTracker.configure do |config|
+        config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
+      end
+
+      body = sent_body("https://llm.example.com", "/v1/chat/completions", chat_body.merge(model: "custom-chat"))
+
+      expect(body).not_to have_key("stream_options")
+    end
+
+    it "still auto-injects on the built-in OpenRouter and DeepSeek hosts" do
+      {
+        "https://openrouter.ai" => "/api/v1/chat/completions",
+        "https://api.deepseek.com" => "/chat/completions"
+      }.each do |base_url, path|
+        body = sent_body(base_url, path, chat_body.merge(model: "deepseek-chat"))
+
+        expect(body.dig("stream_options", "include_usage")).to be(true), base_url
+      end
+    end
+  end
+
   it "auto-injects when the caller hands Faraday a Hash body" do
     captured_body = nil
 

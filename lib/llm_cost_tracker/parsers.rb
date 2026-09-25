@@ -108,7 +108,7 @@ module LlmCostTracker
         false
       end
 
-      def auto_enable_stream_usage?(_request_url)
+      def auto_enable_stream_usage?(_request_url, _request_parsed)
         false
       end
 

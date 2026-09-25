@@ -95,7 +95,7 @@ module LlmCostTracker
 
       def inject_stream_usage_flag(request_env, parser, request_url, request_parsed)
         return nil unless LlmCostTracker.configuration.capture.request_stream_usage
-        return nil unless parser&.auto_enable_stream_usage?(request_url)
+        return nil unless parser&.auto_enable_stream_usage?(request_url, request_parsed)
 
         stream_options = request_parsed["stream_options"]
         return nil if stream_options.is_a?(Hash) && stream_options.key?("include_usage")

@@ -17,7 +17,7 @@ RSpec.describe LlmCostTracker::Parsers::Base do
 
   describe "#auto_enable_stream_usage?" do
     it "returns false by default so middleware does not modify provider request bodies" do
-      expect(described_class.new.auto_enable_stream_usage?("https://api.anthropic.com/v1/messages")).to be false
+      expect(described_class.new.auto_enable_stream_usage?("https://api.anthropic.com/v1/messages", {})).to be false
     end
   end
 end

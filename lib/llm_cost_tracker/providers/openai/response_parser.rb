@@ -70,7 +70,7 @@ module LlmCostTracker
           build_unknown_stream_usage(**context)
         end
 
-        def auto_enable_stream_usage?(request_url)
+        def auto_enable_stream_usage?(request_url, _request_parsed)
           openai_chat_completions_url?(request_url)
         end
 
@@ -124,9 +124,12 @@ module LlmCostTracker
 
           Logging.warn(
             "OpenAI-compatible chat-completions stream finished without a final usage chunk. " \
-            "Set `stream_options: { include_usage: true }` in your request body so the gem can " \
-            "record token counts. This call was stored with usage_source=#{Usage::Source::UNKNOWN}."
+            "#{missing_stream_usage_advice} This call was stored with usage_source=#{Usage::Source::UNKNOWN}."
           )
+        end
+
+        def missing_stream_usage_advice
+          "Set `stream_options: { include_usage: true }` in your request body so the gem can record token counts."
         end
 
         def openai_chat_completions_url?(request_url)

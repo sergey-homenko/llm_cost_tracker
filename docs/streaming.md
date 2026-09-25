@@ -6,23 +6,35 @@ Streams record when the provider emits final usage, when the SDK wrapper collect
 
 The Faraday middleware tees `on_data`, keeps chunks flowing to the caller, and records usage after the response completes.
 
-OpenAI Chat Completions streaming (and OpenAI-compatible gateways such as OpenRouter, DeepSeek, Groq, and any host configured under `config.capture.openai_compatible_providers`) needs:
+OpenAI Chat Completions streams only report token usage when the request asks for it:
 
 ```ruby
 stream_options: { include_usage: true }
 ```
 
-The gem auto-injects this flag for you when:
+OpenAI then sends one extra chunk before `data: [DONE]` that carries `usage` and an empty `choices` array. OpenAI-compatible providers accept the same flag, though some attach usage to the last content chunk instead.
+
+The gem adds this flag for you when:
 
 - `config.capture.request_stream_usage` is `true` (the default)
-- the matched parser is OpenAI or OpenAI-compatible
 - the URL ends with `/chat/completions`
 - the request body is JSON with `stream: true`
 - the caller has not already set `stream_options.include_usage` (any explicit value, including `false`, is preserved)
+- the host is known to accept the flag:
+
+| Host | Flag added |
+| --- | --- |
+| `api.openai.com` and its regional hosts | Always |
+| OpenRouter, DeepSeek, Groq | Always |
+| Azure OpenAI v1 API (`/openai/v1/...`) | Unless the request uses On Your Data (`data_sources`) or image input |
+| Azure OpenAI deployments (`/openai/deployments/...`) | On `api-version` `2024-06-01` or later, GA or preview, and not with On Your Data or image input. Older api-versions are left untouched |
+| Hosts you add to `config.capture.openai_compatible_providers` | Never. The gem can't know whether the server accepts it |
 
 Other entries inside `stream_options` are merged, not replaced. Bodies that aren't JSON, requests for the Responses API, and non-streaming requests are left untouched.
 
-Set `config.capture.request_stream_usage = false` if you want to manage the flag yourself; in that case, when the final usage chunk is missing the gem still records the call with `usage_source: "unknown"` and emits a warning rather than failing silently:
+When the gem adds the flag, your stream handler sees that usage chunk too, so read choices with `chunk.dig("choices", 0)` rather than `chunk["choices"][0]`. The official OpenAI SDKs and RubyLLM already handle it. If your handler can't, set `config.capture.request_stream_usage = false`.
+
+For a host the gem leaves alone, set the flag in your own request if the server supports it; the gem keeps it and records the usage. When the final usage chunk is missing, the gem records the call with `usage_source: "unknown"` and emits a warning rather than failing silently:
 
 ```
 [LlmCostTracker] OpenAI-compatible chat-completions stream finished without
