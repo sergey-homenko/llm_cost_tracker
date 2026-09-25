@@ -85,8 +85,7 @@ LlmCostTracker.configure do |config|
 
   # Streaming calls only report token usage when the request asks for it. Leave this
   # on and the Faraday middleware adds stream_options: { include_usage: true } to
-  # chat-completions streams that don't already set it, on hosts known to accept it:
-  # OpenAI, OpenRouter, DeepSeek, Groq, and Azure OpenAI API versions that support it.
+  # streaming chat-completions requests on hosts known to accept it.
   # config.capture.request_stream_usage = false
 
 end

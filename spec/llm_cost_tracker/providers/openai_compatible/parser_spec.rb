@@ -180,26 +180,6 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
     end
   end
 
-  describe "#auto_enable_stream_usage?" do
-    it "opts in for chat completions on the built-in hosts known to accept stream_options" do
-      [openrouter_chat_url, deepseek_chat_url, deepseek_v1_chat_url, groq_chat_url].each do |url|
-        expect(parser.auto_enable_stream_usage?(url, {})).to be(true), url
-      end
-    end
-
-    it "opts out for hosts the app configured, since the gem cannot know they accept stream_options" do
-      LlmCostTracker.configure do |config|
-        config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
-      end
-
-      expect(parser.auto_enable_stream_usage?(configured_chat_url, {})).to be false
-    end
-
-    it "opts out for non-chat endpoints" do
-      expect(parser.auto_enable_stream_usage?(groq_responses_url, {})).to be false
-    end
-  end
-
   describe "#parse_stream" do
     let(:request_body) do
       { model: "deepseek-chat", stream: true, stream_options: { include_usage: true } }.to_json

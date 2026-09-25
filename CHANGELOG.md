@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Changed
 
 - Ruby 3.3 is supported. The minimum Ruby version drops from 3.4 to 3.3, and CI runs every Rails version on both.
-- The Faraday middleware adds `stream_options: { include_usage: true }` to streaming chat-completions requests only where it is safe: OpenAI, OpenRouter, DeepSeek, Groq, the Azure OpenAI v1 API, and Azure deployments on `api-version` 2024-06-01 or later. Older Azure api-versions and requests that use On Your Data or image input are left untouched. Hosts you add to `config.capture.openai_compatible_providers` are no longer modified either, because the gem cannot know whether that server accepts the flag or whether your code copes with the extra usage chunk, whose `choices` array is empty. If such a host supports it, add `stream_options: { include_usage: true }` to your own request and the gem records the usage; otherwise its streams are recorded with `usage_source: unknown` and a warning. Streams to OpenAI are unchanged.
+- The Faraday middleware no longer adds `stream_options: { include_usage: true }` where the server can reject it and fail the request. It now adds it only for OpenAI, OpenRouter, DeepSeek, Groq, the Azure OpenAI v1 API, and Azure `api-version` 2024-06-01 or later, and not to Azure requests with On Your Data or image input. Hosts you add to `config.capture.openai_compatible_providers` are left untouched: set the flag in your own requests if the server supports it, otherwise their streams are recorded with `usage_source: unknown` and a warning.
 
 ### Removed
 

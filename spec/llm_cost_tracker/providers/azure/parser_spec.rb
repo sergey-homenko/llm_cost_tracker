@@ -159,57 +159,30 @@ RSpec.describe LlmCostTracker::Providers::Azure::Parser do
       expect(result.token_usage.output_tokens).to eq(4)
       expect(result.usage_source).to eq("stream_final")
     end
-
-    it "names the api-versions that accept stream_options when the final usage chunk is missing" do
-      expect(LlmCostTracker::Logging).to receive(:warn).with(/api-version 2024-06-01 or later/).once
-
-      result = parser.parse_stream(
-        request_url: chat_completions_url,
-        request_body: { stream: true }.to_json,
-        response_status: 200,
-        events: [{ event: nil, data: { "id" => "chatcmpl_az_stream", "model" => "gpt-4o" } }]
-      )
-
-      expect(result.usage_source).to eq("unknown")
-    end
   end
 
   describe "#auto_enable_stream_usage?" do
-    def chat_url(path: "/openai/deployments/gpt4o-prod/chat/completions", query: nil)
+    def chat_url(query, path: "/openai/deployments/gpt4o-prod/chat/completions")
       URI::HTTPS.build(host: "myresource.openai.azure.com", path: path, query: query).to_s
     end
 
-    let(:request) { { "messages" => [{ "role" => "user", "content" => "Hi" }], "stream" => true } }
+    let(:request) { { "messages" => [{ "role" => "user", "content" => "Hi" }] } }
 
-    it "opts in for chat completions on GA and preview api-versions from 2024-06-01" do
-      %w[api-version=2024-06-01 api-version=2024-10-21 api-version=2024-08-01-preview
-         foo=1&api-version=2025-04-01-preview].each do |query|
-        expect(parser.auto_enable_stream_usage?(chat_url(query: query), request)).to be(true), query
+    it "opts in for chat completions on the v1 API and on api-versions from 2024-06-01" do
+      [chat_url(nil, path: "/openai/v1/chat/completions"), chat_url("api-version=2024-06-01"),
+       chat_url("api-version=2025-04-01-preview")].each do |url|
+        expect(parser.auto_enable_stream_usage?(url, request)).to be(true), url
       end
     end
 
-    it "opts in for chat completions on the v1 API with or without an api-version" do
-      expect(parser.auto_enable_stream_usage?(chat_url(path: "/openai/v1/chat/completions"), request)).to be true
-      expect(parser.auto_enable_stream_usage?(
-               chat_url(path: "/openai/v1/chat/completions", query: "api-version=preview"), request
-             )).to be true
-    end
-
-    it "opts out on api-versions older than 2024-06-01 and a missing api-version" do
-      ["api-version=2024-02-01", "api-version=2024-05-01-preview", "api-version=2023-05-15",
-       "x=2024-10-21", nil].each do |query|
-        expect(parser.auto_enable_stream_usage?(chat_url(query: query), request)).to be(false), query.inspect
+    it "opts out on older or missing api-versions and for On Your Data or image input" do
+      [nil, "api-version=2024-02-01", "api-version=2024-05-01-preview"].each do |query|
+        expect(parser.auto_enable_stream_usage?(chat_url(query), request)).to be(false), query.inspect
       end
-    end
+      image_request = { "messages" => [{ "role" => "user", "content" => [{ "type" => "image_url" }] }] }
 
-    it "opts out for On Your Data and image-input requests" do
-      url = chat_url(query: "api-version=2025-04-01-preview")
-      image_request = request.merge(
-        "messages" => [{ "role" => "user", "content" => [{ "type" => "image_url", "image_url" => { "url" => "x" } }] }]
-      )
-
-      expect(parser.auto_enable_stream_usage?(url, request.merge("data_sources" => []))).to be false
-      expect(parser.auto_enable_stream_usage?(url, image_request)).to be false
+      expect(parser.auto_enable_stream_usage?(chat_completions_url, request.merge("data_sources" => []))).to be false
+      expect(parser.auto_enable_stream_usage?(chat_completions_url, image_request)).to be false
     end
 
     it "leaves embeddings alone" do

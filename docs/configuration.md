@@ -19,7 +19,7 @@ Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `p
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `enabled` | `true` | Turns capture on or off without removing middleware or integrations |
-| `capture.request_stream_usage` | `true` | Streaming endpoints only report token usage when the request asks for it. The Faraday middleware adds `stream_options: { include_usage: true }` to chat-completions streaming request bodies that don't already set it, on hosts known to accept it: OpenAI, OpenRouter, DeepSeek, Groq, and the Azure OpenAI API versions that support it. Hosts you register yourself are left alone. Set to `false` to leave request bodies untouched. See [Streaming](streaming.md). |
+| `capture.request_stream_usage` | `true` | Streaming endpoints only report token usage when the request asks for it. The Faraday middleware adds `stream_options: { include_usage: true }` to chat-completions streaming request bodies that don't already set it, on hosts known to accept it; hosts you register are left alone. Set to `false` to leave request bodies untouched. See [Streaming](streaming.md). |
 | `capture.openai_compatible_providers` | OpenRouter, DeepSeek, Groq | Maps a gateway host to the provider name recorded for its calls |
 
 ## Tag Options
@@ -74,7 +74,7 @@ Register custom gateway hosts when they speak OpenAI-compatible request and resp
 config.capture.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
 ```
 
-This maps capture identity only. The gem doesn't change request bodies sent to a registered host, so add `stream_options: { include_usage: true }` to its streaming chat-completions requests yourself when it supports the flag. Gateway-specific prices belong in `pricing.file` or `pricing.overrides`.
+This maps capture identity only. Gateway-specific prices belong in `pricing.file` or `pricing.overrides`.
 
 ## Azure OpenAI Service
 
