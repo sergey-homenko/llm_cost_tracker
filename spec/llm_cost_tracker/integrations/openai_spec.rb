@@ -272,18 +272,26 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       ].map(&:to_json).join("\n")
     end
 
-    it "captures per-request usage from a completed batch and skips errored entries" do
-      WebMock.stub_request(:get, "https://api.openai.com/v1/batches/batch_done").to_return(
+    def stub_batch(status: "completed", host: "api.openai.com", model: nil, body: jsonl_body)
+      WebMock.stub_request(:get, "https://#{host}/v1/batches/batch_done").to_return(
         status: 200,
-        body: { id: "batch_done", object: "batch", status: "completed",
+        body: { id: "batch_done", object: "batch", status: status, model: model,
                 input_file_id: "file_in", output_file_id: "file_out",
-                endpoint: "/v1/chat/completions" }.to_json,
+                endpoint: "/v1/chat/completions" }.compact.to_json,
         headers: { "Content-Type" => "application/json" }
       )
-      WebMock.stub_request(:get, "https://api.openai.com/v1/files/file_out/content").to_return(
-        status: 200, body: jsonl_body,
+      WebMock.stub_request(:get, "https://#{host}/v1/files/file_out/content").to_return(
+        status: 200, body: body,
         headers: { "Content-Type" => "application/binary" }
       )
+    end
+
+    def batch_line(body)
+      { id: "batch_req_x", custom_id: "u1", response: { status_code: 200, body: body } }.to_json
+    end
+
+    it "captures per-request usage from a completed batch and skips errored entries" do
+      stub_batch
 
       capture_sdk_events do |events|
         client.batches.retrieve("batch_done")
@@ -299,18 +307,31 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
+    %w[expired cancelled].each do |status|
+      it "captures the billed results in the output file of a batch that ended #{status}" do
+        stub_batch(status: status)
+
+        capture_sdk_events do |events|
+          client.batches.retrieve("batch_done")
+
+          expect(events.map { |event| event[:provider_response_id] }).to eq(["chatcmpl_b1"])
+        end
+      end
+    end
+
+    it "waits for a cancelling batch to reach cancelled before downloading its output file" do
+      stub_batch(status: "cancelling")
+
+      capture_sdk_events do |events|
+        client.batches.retrieve("batch_done")
+
+        expect(events).to be_empty
+        expect(WebMock).not_to have_requested(:get, "https://api.openai.com/v1/files/file_out/content")
+      end
+    end
+
     it "skips a batch result whose provider_response_id already lives in the ledger so a second-process retrieve is a no-op" do
-      WebMock.stub_request(:get, "https://api.openai.com/v1/batches/batch_done").to_return(
-        status: 200,
-        body: { id: "batch_done", object: "batch", status: "completed",
-                input_file_id: "file_in", output_file_id: "file_out",
-                endpoint: "/v1/chat/completions" }.to_json,
-        headers: { "Content-Type" => "application/json" }
-      )
-      WebMock.stub_request(:get, "https://api.openai.com/v1/files/file_out/content").to_return(
-        status: 200, body: jsonl_body,
-        headers: { "Content-Type" => "application/binary" }
-      )
+      stub_batch
       allow(LlmCostTracker::Call).to receive(:already_recorded?)
         .with(provider: "openai", provider_response_id: "chatcmpl_b1")
         .and_return(true)
@@ -319,6 +340,55 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         client.batches.retrieve("batch_done")
 
         expect(events).to be_empty
+      end
+    end
+
+    it "keys an embeddings result without a body id by its batch_req id so a second-process retrieve is a no-op" do
+      stub_batch(body: batch_line(JSON.parse(sdk_fixture(:openai, "embeddings_create.json"))))
+
+      capture_sdk_events do |events|
+        client.batches.retrieve("batch_done")
+        expect(events.map { |event| event[:provider_response_id] }).to eq(["batch_req_x"])
+
+        LlmCostTracker::Integrations::Openai::BatchCapture.instance_variable_set(:@dedup, nil)
+        allow(LlmCostTracker::Call).to receive(:already_recorded?)
+          .with(provider: "openai", provider_response_id: "batch_req_x")
+          .and_return(true)
+        client.batches.retrieve("batch_done")
+        expect(events.size).to eq(1)
+      end
+    end
+
+    it "prices an images batch result with the batch model and batch image rates" do
+      body = { created: 1, data: [],
+               usage: { input_tokens: 50, output_tokens: 1056, total_tokens: 1106,
+                        input_tokens_details: { text_tokens: 50, image_tokens: 0 } } }
+      stub_batch(model: "gpt-image-1", body: batch_line(body))
+
+      capture_sdk_events do |events|
+        client.batches.retrieve("batch_done")
+
+        expect(events.first).to include(model: "gpt-image-1", pricing_mode: "batch",
+                                        input_tokens: 50, output_tokens: 0, image_output_tokens: 1056)
+        expect(events.first.dig(:cost, :total)).to eq("0.021245")
+      end
+    end
+
+    { "eu.api.openai.com" => ["batch_data_residency", "0.3784"],
+      "au.api.openai.com" => ["batch", "0.344"] }.each do |host, (mode, total)|
+      it "prices a gpt-5.4 batch result fetched through #{host} as #{mode}" do
+        body = { id: "chatcmpl_dr", object: "chat.completion", model: "gpt-5.4-2026-03-05", choices: [],
+                 usage: { prompt_tokens: 200_000, completion_tokens: 20_000, total_tokens: 220_000,
+                          prompt_tokens_details: { cached_tokens: 50_000 } } }
+        stub_batch(host: host, body: batch_line(body))
+        regional_client = OpenAI::Client.new(api_key: "test-key", base_url: "https://#{host}/v1")
+
+        capture_sdk_events do |events|
+          regional_client.batches.retrieve("batch_done")
+
+          expect(events.first).to include(pricing_mode: mode)
+          expect(events.first.dig(:cost, :total)).to eq(total)
+        end
       end
     end
   end

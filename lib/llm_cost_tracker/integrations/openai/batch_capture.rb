@@ -13,7 +13,7 @@ module LlmCostTracker
         class << self
           def maybe_capture(batch, resource:)
             return unless Openai.active?
-            return unless batch.status.to_s == "completed"
+            return unless %w[completed expired cancelled].include?(batch.status.to_s)
             return unless batch.output_file_id && batch.id
             return if captured?(batch.id)
 
@@ -21,7 +21,7 @@ module LlmCostTracker
             host = Openai.client_host_for(resource)
             Openai.record_safely do
               io = client.files.content(batch.output_file_id)
-              deferred = capture_jsonl(io.respond_to?(:read) ? io.read : io.to_s, host: host)
+              deferred = capture_jsonl(io.respond_to?(:read) ? io.read : io.to_s, host: host, model: batch.model)
               mark_captured(batch.id)
               raise deferred if deferred
             end
@@ -41,7 +41,7 @@ module LlmCostTracker
             end
           end
 
-          def capture_jsonl(jsonl, host:)
+          def capture_jsonl(jsonl, host:, model:)
             deferred = nil
             jsonl.each_line do |line|
               line = line.strip
@@ -53,7 +53,7 @@ module LlmCostTracker
               response = entry.dig("response", "body")
               next unless response.is_a?(Hash) && response["usage"]
 
-              record_result(response, host: host)
+              record_result({ "id" => entry["id"] }.merge(response), host: host, model: model)
             rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
               deferred ||= e
             end
@@ -66,17 +66,23 @@ module LlmCostTracker
             nil
           end
 
-          def record_result(response, host:)
+          def record_result(response, host:, model:)
             provider = Openai.provider_for_host(host)
             return if LlmCostTracker::Call.already_recorded?(provider: provider, provider_response_id: response["id"])
 
-            event = LlmCostTracker::Providers::Openai::ResponseParser.event_from_response(
+            parser = LlmCostTracker::Providers::Openai::ResponseParser
+            event = parser.event_from_response(
               response: response,
-              request: {},
+              request: { "model" => model },
               provider: provider,
               host: host,
               usage_source: LlmCostTracker::Usage::Source::SDK_BATCH_RESULT,
-              pricing_mode: "batch"
+              # /v1/batches runs regional processing only on the us and eu hosts.
+              pricing_mode: parser.combined_pricing_mode(
+                host: (host if host.to_s.match?(/\A(?:us|eu)\./i)),
+                model: response["model"] || model,
+                service_tier: "batch"
+              )
             )
             LlmCostTracker::Tracker.record(event: event) if event
           end
