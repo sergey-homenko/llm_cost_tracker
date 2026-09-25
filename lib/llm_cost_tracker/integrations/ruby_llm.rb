@@ -40,12 +40,15 @@ module LlmCostTracker
         end
 
         def record_transcription(provider, response, request:, latency_ms:)
+          model = response_model_id(response) || model_id_from_request(request[:model])
+          match = LlmCostTracker::Pricing::Matcher.lookup(provider: provider.slug.to_s, model: model)
           record_usage(
             provider: provider.slug.to_s,
-            model: response_model_id(response) || model_id_from_request(request[:model]),
+            model: model,
             response: response,
             latency_ms: latency_ms,
-            stream: false
+            stream: false,
+            audio_input: match&.prices&.key?("audio_input")
           )
         end
 
@@ -122,7 +125,7 @@ module LlmCostTracker
           end
         end
 
-        def record_usage(provider:, model:, response:, latency_ms:, stream:, output_tokens: nil)
+        def record_usage(provider:, model:, response:, latency_ms:, stream:, output_tokens: nil, audio_input: false)
           return unless active?
 
           record_safely do
@@ -138,7 +141,8 @@ module LlmCostTracker
                 model: model,
                 pricing_mode: pricing_mode_for(provider: provider, response: response),
                 token_usage: Usage::TokenUsage.build(
-                  input_tokens: input_tokens.to_i,
+                  input_tokens: audio_input ? 0 : input_tokens.to_i,
+                  audio_input_tokens: audio_input ? input_tokens.to_i : 0,
                   output_tokens: output_tokens.to_i,
                   cache_read_input_tokens: counts[:cache_read].to_i,
                   cache_write_input_tokens: cache_write_5m,
