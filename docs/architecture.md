@@ -83,7 +83,7 @@ Optional tables, created only by their dedicated generators when the matching co
 
 | Table | Generator + flag | Responsibility |
 | --- | --- | --- |
-| `llm_cost_tracker_call_rollups` | `llm_cost_tracker:call_rollups` + `config.budgets.totals_source = :cache` | Pre-aggregated day/month totals per currency/provider for fast budget reads |
+| `llm_cost_tracker_call_rollups` | `llm_cost_tracker:call_rollups` + `config.budgets.totals_source = :cache` | Pre-aggregated day/month totals per currency/provider; budget reads take the greater of these and the live sum |
 | `llm_cost_tracker_ingestion_inbox_entries` | `llm_cost_tracker:async_ingestion` + `config.ingestion.mode = :async` | Write-ahead inbox for the background worker |
 | `llm_cost_tracker_ingestion_leases` | same migration as the inbox | Shared worker lease |
 
