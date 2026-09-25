@@ -23,7 +23,7 @@ module LlmCostTracker
         value_scope = Dashboard::Filter.call(params: params, tags: { @key => @value })
         @value_total_cost = value_scope.sum(:total_cost).to_f
         @value_calls = value_scope.count
-        @value_points = Dashboard::TimeSeries.call(scope: value_scope)
+        @value_points = Dashboard::TimeSeries.call(scope: value_scope, from: @from_date, to: @to_date)
       end
     end
   end

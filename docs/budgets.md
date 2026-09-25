@@ -24,9 +24,9 @@ Budgets evaluate only when an event has a known cost. Unknown-cost events are st
 | `:raise` | After a priced event is recorded | Raises `LlmCostTracker::BudgetExceededError` |
 | `:block_requests` | Before supported requests and again after recording | Blocks the request when prior spend plus a character-count estimate of this call would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Preflight blocks do not fire `budgets.on_exceeded`; the callback only fires post-record on the event that first crossed the limit |
 
-`:raise` records first, then raises. The call that crossed the budget remains visible in the ledger.
+`:raise` records first, then raises. The call that crossed the budget remains visible in the ledger. Every limit the call crossed, per-tag rules included, gets its `on_exceeded` call before the error for the first one is raised.
 
-`:block_requests` reads accumulated spend (see Budget Reads below) and also estimates the current call's input cost via a character-count heuristic (chars / 4 ≈ tokens, provider-agnostic, no external tokenizer). It blocks before send when prior spend plus the estimate would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Output tokens stay unknown pre-send and are caught by the existing post-record check. Approximate by design — runway-stop, not precise prediction. Unknown models (no pricing match) skip the estimate and fall through to the prior-spend preflight.
+`:block_requests` reads accumulated spend (see Budget Reads below) and also estimates the current call's input cost via a character-count heuristic (chars / 4 ≈ tokens, provider-agnostic, no external tokenizer). Base64 image, PDF and audio data is not counted. It blocks before send when prior spend plus the estimate would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Output tokens stay unknown pre-send and are caught by the existing post-record check. Approximate by design — runway-stop, not precise prediction. Unknown models (no pricing match) skip the estimate and fall through to the prior-spend preflight.
 
 Under concurrency, multiple workers can clear preflight before each other's spend is visible. It stops the next request once overspend lands — it doesn't make provider spend transactional.
 
@@ -62,7 +62,7 @@ It is safe to run more than once and skips rows already filled. Until the column
 
 Repricing keeps the copies honest: `llm_cost_tracker:backfill_unknown_pricing` updates the tag rows along with the call.
 
-Scoped checks run after the global ones. By default each rule follows the global `exceeded_behavior` and `on_exceeded`, and may override either:
+Scoped checks run after the global ones, even when a global limit raises. By default each rule follows the global `exceeded_behavior` and `on_exceeded`, and may override either:
 
 ```ruby
 config.budgets.per_tag = {

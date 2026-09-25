@@ -5,18 +5,16 @@ require "date"
 module LlmCostTracker
   module Dashboard
     class TimeSeries
-      DEFAULT_DAYS = 30
-
       class << self
-        def call(scope: LlmCostTracker::Call.all, from: nil, to: Date.current)
+        def call(from:, to:, scope: LlmCostTracker::Call.all)
           new(scope: scope, from: from, to: to).points
         end
       end
 
       def initialize(scope:, from:, to:)
         @scope = scope
+        @from = from.to_date
         @to = to.to_date
-        @from = from ? from.to_date : (@to - (DEFAULT_DAYS - 1))
       end
 
       def points
@@ -35,7 +33,7 @@ module LlmCostTracker
       def scoped_costs
         scope
           .where(tracked_at: from.beginning_of_day..to.end_of_day)
-          .group_by_period(:day)
+          .group_by_period(:day, time_zone: Time.zone)
           .sum(:total_cost)
           .transform_values(&:to_f)
       end

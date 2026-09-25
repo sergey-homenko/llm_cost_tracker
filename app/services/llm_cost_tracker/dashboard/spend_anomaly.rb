@@ -59,7 +59,7 @@ module LlmCostTracker
           .where(tracked_at: window)
           .where.not(total_cost: nil)
           .group(:provider, :model)
-          .group_by_period(:day)
+          .group_by_period(:day, time_zone: Time.zone)
           .sum(:total_cost)
           .each do |(provider, model, day), total_cost|
             grouped[[provider, model]][Date.iso8601(day.to_s)] += total_cost.to_f

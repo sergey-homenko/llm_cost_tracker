@@ -51,7 +51,7 @@ The dashboard reads:
 
 ## Filters
 
-Dashboard pages share date/provider/model/tag filtering when the page supports those dimensions. Tag filters use the same sanitized tag keys accepted by `LlmCostTracker.with_tags` and `track(tags:)`.
+Dashboard pages share date/provider/model/tag filtering when the page supports those dimensions. Dates and daily charts follow the app's `Time.zone`; on MySQL that needs the server's time zone tables (`mysql_tzinfo_to_sql`), and without them daily charts stay on UTC days. Tag filters use the same sanitized tag keys accepted by `LlmCostTracker.with_tags` and `track(tags:)`.
 
 A page accepts at most 10 tag filters, counting a tag value page's own value, and each filter takes a single value, not a list. Invalid filters, including on the CSV export, render a bad-request page instead of raising through your app.
 

@@ -324,6 +324,23 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       expect(notified.map { |payload| payload[:scope] }).to eq([{ key: "tenant_id", value: "42" }])
     end
 
+    it "still notifies a tag rule when a global limit raises on the same call" do
+      notified = []
+      LlmCostTracker.configure do |config|
+        config.pricing.overrides = { "inline-model" => { input: 6.0 } }
+        config.budgets.daily = 10
+        config.budgets.exceeded_behavior = :raise
+        config.budgets.per_tag = { tenant_id: { monthly: 10, behavior: :notify,
+                                                on_exceeded: ->(payload) { notified << payload[:scope] } } }
+      end
+      track_tagged(42)
+
+      expect { track_tagged(42) }.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error.budget_type).to eq(:daily)
+      }
+      expect(notified).to eq([{ key: "tenant_id", value: "42" }])
+    end
+
     it "notifies once when a later call lands before the crossing call is checked" do
       notified = []
       configure_per_tag({ monthly: 5 }, on_exceeded: ->(payload) { notified << payload })

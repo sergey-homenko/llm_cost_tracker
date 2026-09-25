@@ -54,7 +54,7 @@ namespace :llm_cost_tracker do
     puts LlmCostTracker::Report.generate(days: days)
   end
 
-  desc "Recompute total_cost for calls with unknown pricing using the current price registry. " \
+  desc "Recompute total_cost for calls with unknown or partial pricing using the current price registry. " \
        "Use BATCH_SIZE=N to tune."
   task backfill_unknown_pricing: :environment do
     require_relative "../llm_cost_tracker/pricing/backfill"

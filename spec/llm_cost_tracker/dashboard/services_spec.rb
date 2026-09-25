@@ -355,6 +355,17 @@ RSpec.describe "LlmCostTracker dashboard services" do
         ]
       )
     end
+
+    it "buckets calls by the app's local day" do
+      create_call(total_cost: 0.7, tracked_at: Time.utc(2026, 9, 14, 18))
+      create_call(total_cost: 2.25, tracked_at: Time.utc(2026, 9, 15, 0, 30))
+
+      points = Time.use_zone("America/New_York") do
+        described_class.call(from: Date.new(2026, 9, 14), to: Date.new(2026, 9, 14))
+      end
+
+      expect(points).to eq([{ label: "2026-09-14", cost: 2.95 }])
+    end
   end
 
   describe LlmCostTracker::Dashboard::OverviewStats do
@@ -516,6 +527,17 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(alert.fetch(:latest_spend)).to eq(12.0)
       expect(alert.fetch(:baseline_mean)).to eq(1.0)
       expect(alert.fetch(:ratio)).to eq(12.0)
+    end
+
+    it "flags an evening spike on the app's local day" do
+      7.times { |offset| create_call(total_cost: 1.0, tracked_at: Time.utc(2026, 4, 13 + offset, 16)) }
+      create_call(total_cost: 12.0, tracked_at: Time.utc(2026, 4, 21, 1))
+
+      alert = Time.use_zone("America/New_York") do
+        described_class.call(from: Date.new(2026, 4, 13), to: Date.new(2026, 4, 20))
+      end
+
+      expect(alert.fetch(:latest_spend)).to eq(12.0)
     end
 
     it "aggregates the anomaly window in SQL" do

@@ -28,6 +28,17 @@ RSpec.describe LlmCostTracker::Pricing::Estimator do
     it "ignores non-string scalars" do
       expect(described_class.char_count({ a: 42, b: true, c: nil })).to eq(0)
     end
+
+    it "skips base64 image, document and audio payloads" do
+      data = "A" * 4_000
+
+      expect(described_class.char_count({ "url" => "data:image/jpeg;base64,#{data}" })).to eq(0)
+      expect(described_class.char_count({ "file_data" => "data:application/pdf;base64,#{data}" })).to eq(0)
+      expect(described_class.char_count({ "type" => "base64", "media_type" => "image/png", "data" => data })).to eq(0)
+      expect(described_class.char_count({ "input_audio" => { "data" => data, "format" => "wav" } })).to eq(0)
+      expect(described_class.char_count({ "inline_data" => { "mime_type" => "image/png", "data" => data } })).to eq(0)
+      expect(described_class.char_count({ "type" => "text", "data" => "plain" })).to eq(9)
+    end
   end
 
   describe ".call" do

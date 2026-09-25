@@ -613,11 +613,13 @@ RSpec.describe LlmCostTracker::Tracker do
       }
     end
 
-    it "checks the daily budget before the monthly budget after recording" do
+    it "notifies both crossed windows and raises for the daily budget first after recording" do
+      budget_types = []
       LlmCostTracker.configure do |c|
         c.budgets.daily = 0.0001
         c.budgets.monthly = 0.0001
         c.budgets.exceeded_behavior = :raise
+        c.budgets.on_exceeded = ->(data) { budget_types << data[:budget_type] }
       end
       allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 12.5, month: 12.5)
 
@@ -631,6 +633,7 @@ RSpec.describe LlmCostTracker::Tracker do
         expect(error.budget_type).to eq(:daily)
         expect(error.total).to eq(12.5)
       }
+      expect(budget_types).to eq(%i[daily monthly])
     end
 
     it "checks the monthly budget before the daily budget before recording" do

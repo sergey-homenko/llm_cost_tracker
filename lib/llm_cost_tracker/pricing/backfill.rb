@@ -27,8 +27,8 @@ module LlmCostTracker
                 calculation = recompute_for(call)
                 next unless calculation
 
-                persist!(call, calculation)
                 rollup_events << rollup_event_for(call, calculation)
+                persist!(call, calculation)
                 recomputed += 1
               end
               Ledger::Rollups.increment!(rollup_events)
@@ -39,7 +39,8 @@ module LlmCostTracker
         end
 
         def default_scope
-          LlmCostTracker::Call.where(total_cost: nil)
+          calls = LlmCostTracker::Call.unknown_pricing
+          calls.where(usage_source: nil).or(calls.where.not(usage_source: Usage::Source::UNKNOWN))
         end
 
         private
@@ -53,7 +54,12 @@ module LlmCostTracker
             pricing_mode: call.pricing_mode,
             usage_source: call.usage_source
           )
-          calculation if calculation.token_cost
+          return unless calculation.token_cost
+          return if [calculation.cost.total, calculation.cost_status] == [call.total_cost, call.cost_status]
+
+          rates = calculation.priced_line_items.to_h { |item| [dimension_key(item), item.rate_amount] }
+          recorded = call.line_items.select { |record| record.unit == "token" && record.rate_amount }
+          calculation if recorded.all? { |record| record.rate_amount == rates[dimension_key(record)] }
         end
 
         def persist!(call, calculation)
@@ -103,7 +109,7 @@ module LlmCostTracker
             provider: call.provider,
             tracked_at: call.tracked_at,
             pricing_snapshot: calculation.snapshot,
-            total_cost: calculation.cost.total
+            total_cost: calculation.cost.total - call.total_cost.to_d
           )
         end
 

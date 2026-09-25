@@ -54,6 +54,15 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Adapter do
         .to eq("DATE_FORMAT(calls.tracked_at, '%Y-%m')")
     end
 
+    it "converts the UTC column to the given time zone before bucketing" do
+      zone = ActiveSupport::TimeZone["America/New_York"]
+
+      expect(described_class.period_bucket_sql("PostgreSQL", :day, "t", time_zone: zone))
+        .to eq("TO_CHAR(DATE_TRUNC('day', (t::timestamp AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York'), 'YYYY-MM-DD')")
+      expect(described_class.period_bucket_sql("Trilogy", :day, "t", time_zone: zone))
+        .to eq("DATE_FORMAT(COALESCE(CONVERT_TZ(t, '+00:00', 'America/New_York'), t), '%Y-%m-%d')")
+    end
+
     it "rejects unsupported adapter" do
       expect { described_class.period_bucket_sql("SQLite3", :day, "calls.tracked_at") }
         .to raise_error(LlmCostTracker::Error, /Use PostgreSQL or MySQL/)

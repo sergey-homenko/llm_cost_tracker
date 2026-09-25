@@ -32,7 +32,7 @@ Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `p
 | `tags.redacted_keys` | common secret-like keys | Tag keys whose values are replaced before storage; provider keys, tokens, and URL or `Authorization` credentials inside any value are replaced too |
 | `tags.report_breakdown_keys` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
 
-`tags.default` callables run per event. Keep them fast and side-effect free. Explicit `tags:` passed to `track` win over scoped tags, and scoped tags win over defaults.
+`tags.default` callables run per event. Keep them fast and side-effect free. Explicit `tags:` passed to `track` win over scoped tags, and scoped tags win over defaults. A String key and a Symbol key name the same stored tag; use one key type per tag name so this precedence holds.
 
 ## SDK Integrations
 

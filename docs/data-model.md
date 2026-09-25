@@ -67,7 +67,7 @@ Indexes:
 - `cost_status` (data quality)
 - `provider_response_id` (cross-reference with provider invoices and logs)
 - `[provider, tracked_at]` and `[model, tracked_at]` (the dashboard's provider and model filters, which order by `tracked_at` and page)
-- partial `id where total_cost is null` (the unpriced scope `llm_cost_tracker:backfill_unknown_pricing` walks)
+- partial `id where total_cost is null` (unpriced calls; `llm_cost_tracker:backfill_unknown_pricing` prices these, and fills in partial calls whose recorded rates still match the registry)
 
 The two composite indexes matter most when one provider dominates the ledger: filtering to a rare provider took 70 ms without them and 0.02 ms with them, measured on 200k calls.
 

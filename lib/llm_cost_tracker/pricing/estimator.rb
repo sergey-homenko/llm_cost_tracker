@@ -22,8 +22,11 @@ module LlmCostTracker
 
       def self.char_count(value)
         case value
-        when String then value.length
-        when Hash then value.values.sum { |nested| char_count(nested) }
+        when String then value.match?(/\Adata:[^,]*;base64,/) ? 0 : value.length
+        when Hash
+          return 0 if value["type"] == "base64"
+
+          value.except("input_audio", "inline_data", "inlineData").values.sum { |nested| char_count(nested) }
         when Array then value.sum { |nested| char_count(nested) }
         else 0
         end
