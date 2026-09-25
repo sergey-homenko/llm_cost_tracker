@@ -11,6 +11,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       config.openai_api_key = "test-openai"
       config.anthropic_api_key = "test-anthropic"
       config.gemini_api_key = "test-gemini"
+      config.vertexai_project_id = "test-project"
+      config.vertexai_location = "us-central1"
     end
   end
 
@@ -290,25 +292,77 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
   end
 
   describe "transcribe" do
+    def with_audio_file
+      audio_file = Tempfile.new(["clip", ".wav"])
+      audio_file.write("RIFF")
+      audio_file.close
+      yield audio_file.path
+    ensure
+      audio_file&.unlink
+    end
+
+    def stub_gemini_transcription(url)
+      WebMock.stub_request(:post, url).to_return(
+        status: 200,
+        body: {
+          candidates: [{ content: { role: "model", parts: [{ text: "hi" }] }, finishReason: "STOP" }],
+          usageMetadata: { promptTokenCount: 40, candidatesTokenCount: 5, thoughtsTokenCount: 2 }
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+    end
+
     it "records transcription token usage from a real OpenAI response" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
         status: 200,
         body: { text: "hi", usage: { type: "tokens", input_tokens: 12, output_tokens: 3 } }.to_json,
         headers: { "Content-Type" => "application/json" }
       )
-      audio_file = Tempfile.new(["clip", ".wav"])
-      audio_file.write("RIFF")
-      audio_file.close
 
       capture_sdk_events do |events|
-        RubyLLM.transcribe(audio_file.path, model: "whisper-1", language: "en")
+        with_audio_file { |path| RubyLLM.transcribe(path, model: "whisper-1", language: "en") }
+        expect(events.size).to eq(1)
         expect(events.first).to include(
           provider: "openai", model: "whisper-1",
           input_tokens: 12, output_tokens: 3
         )
       end
-    ensure
-      audio_file.unlink
+    end
+
+    it "records a Gemini transcription once, although RubyLLM 1.x Gemini never calls Provider#transcribe" do
+      stub_gemini_transcription(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+      )
+
+      capture_sdk_events do |events|
+        with_audio_file do |path|
+          RubyLLM.transcribe(path, model: "gemini-2.5-flash", provider: :gemini, assume_model_exists: true)
+        end
+        expect(events.size).to eq(1)
+        expect(events.first).to include(
+          provider: "gemini", model: "gemini-2.5-flash",
+          input_tokens: 40, output_tokens: 7
+        )
+      end
+    end
+
+    it "records a Vertex AI transcription once through the Gemini transcription path" do
+      allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:headers).and_return({})
+      stub_gemini_transcription(
+        "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/test-project/locations/us-central1" \
+        "/publishers/google/models/gemini-2.5-flash:generateContent"
+      )
+
+      capture_sdk_events do |events|
+        with_audio_file do |path|
+          RubyLLM.transcribe(path, model: "gemini-2.5-flash", provider: :vertexai, assume_model_exists: true)
+        end
+        expect(events.size).to eq(1)
+        expect(events.first).to include(
+          provider: "vertexai", model: "gemini-2.5-flash",
+          input_tokens: 40, output_tokens: 7
+        )
+      end
     end
   end
 
