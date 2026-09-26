@@ -11,6 +11,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
   let(:deprecations_html) do
     File.read(File.expand_path("../../../fixtures/scrape/openai_deprecations.html", __dir__), encoding: "utf-8")
   end
+  let(:markdown) do
+    File.read(File.expand_path("../../../fixtures/scrape/openai_pricing.md", __dir__), encoding: "utf-8")
+  end
+  let(:without_markdown) { { described_class::RenderedLongContextPrices::SOURCE_URL => "" } }
   let(:long_context_sentence) do
     "Prompts with >272K input tokens are priced at 2x input and 1.5x output " \
       "for the full session for standard, batch, and flex."
@@ -60,6 +64,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     documented = described_class::DocumentedLongContextPrices
     pages = {
       described_class.source_url => html,
+      described_class::RenderedLongContextPrices::SOURCE_URL => markdown,
       described_class::DeprecatedModels::SOURCE_URL => deprecations_html
     }
     documented.source_urls.each do |url|
@@ -289,8 +294,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       end.to raise_error(described_class::Error, /deprecations tables not found/)
     end
 
+    it "reads long-context columns from the markdown pricing tables for every row that has them" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-09-25T00:00:00Z")
+      fields = result.models.fetch("gpt-5.5-pro")
+
+      expect(fields).to include(
+        "_context_price_threshold_tokens" => 272_000,
+        "above_context_input" => 60.0,
+        "above_context_output" => 270.0,
+        "above_context_data_residency_input" => 66.0,
+        "above_context_data_residency_output" => 297.0
+      )
+      expect(fields.keys.grep(/\Aabove_context_(?:batch|flex)_/)).to be_empty
+      expect(result.models.fetch("gpt-5.4")).to include(
+        "above_context_batch_cache_read_input" => 0.25,
+        "above_context_flex_cache_read_input" => 0.25
+      )
+    end
+
     it "prices documented long context on the tiers the model page names" do
-      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+      result = described_class.new.call(html: html_pages(without_markdown), scraped_at: "2026-08-23T00:00:00Z")
       fields = result.models.fetch("gpt-5.5")
 
       expect(fields).to include(
@@ -306,15 +329,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
     it "warns instead of guessing when a model page documents no long-context premium" do
       expect do
-        described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+        described_class.new.call(html: html_pages(without_markdown), scraped_at: "2026-08-23T00:00:00Z")
       end.to output(/no documented long-context premium for gpt-5.5-pro/).to_stderr
 
-      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+      result = described_class.new.call(html: html_pages(without_markdown), scraped_at: "2026-08-23T00:00:00Z")
       expect(result.models.fetch("gpt-5.5-pro")).not_to include("_context_price_threshold_tokens")
     end
 
     it "reads the GPT-6 long-context wording from the model docs" do
       pages = html_pages(
+        **without_markdown,
         "#{described_class::DocumentedLongContextPrices::MODEL_DOC_URL_PREFIX}gpt-5.6-sol" => model_doc_html(
           "Prompts with more than 272K input tokens are priced at 2x input and cache rates and 1.5x output " \
           "for the full request."
@@ -336,6 +360,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
       expect(result.models.fetch("gpt-transcribe")).to eq("transcription_minute" => 0.0045)
       expect(result.models.fetch("gpt-live-transcribe")).to eq("transcription_minute" => 0.017)
+      expect(result.models.fetch("whisper-1")).to eq("transcription_minute" => 0.006)
     end
 
     it "leaves token-billed transcription models off the per-minute rate" do
@@ -343,14 +368,46 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
       per_minute = result.models.select { |_, prices| prices.key?("transcription_minute") }
       expect(per_minute.keys).to contain_exactly(
-        "gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-translate", "gpt-realtime-whisper"
+        "gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-translate", "gpt-realtime-whisper", "whisper-1"
       )
     end
 
-    it "skips unmapped model rows instead of guessing canonical IDs" do
+    it "prices rows whose display names the scraper used to drop" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-09-25T00:00:00Z")
+
+      expect(result.models.fetch("chat-latest")).to eq("input" => 5.0, "cache_read_input" => 0.5, "output" => 30.0)
+      expect(result.models.fetch("gpt-5-search-api")).to eq(
+        "input" => 1.25, "cache_read_input" => 0.125, "output" => 10.0
+      )
+      expect(result.models.fetch("gpt-image-2.5-sunburst")).to eq(
+        "image_input" => 8.0, "image_output" => 30.0, "input" => 5.0, "cache_read_input" => 1.25
+      )
+      expect(result.models.fetch("gpt-image-2.5-flare")).to eq(result.models.fetch("gpt-image-2.5-sunburst"))
+      expect(result.models.fetch("gpt-5.6-cyber")).to eq(
+        "input" => 12.5, "cache_read_input" => 1.25, "cache_write_input" => 15.625, "output" => 75.0
+      )
+    end
+
+    it "skips rows mapped to no model ID" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
 
-      expect(result.models).not_to include("gpt-4-32k", "davinci-002", "babbage-002")
+      expect(result.models).not_to include("davinci-002", "babbage-002", "text-embedding-3-small", "tts-1")
+    end
+
+    it "raises on a price row whose model name has no ID mapping instead of dropping it" do
+      unmapped_html = html.sub("[0,&quot;gpt-5-search-api&quot;]", "[0,&quot;gpt-9-search-api&quot;]")
+
+      expect do
+        described_class.new.call(html: html_pages(described_class.source_url => unmapped_html))
+      end.to raise_error(described_class::Error, /no model ID for OpenAI price row "gpt-9-search-api"/)
+    end
+
+    it "raises on a priced grouped row whose display name has no ID mapping" do
+      unmapped_html = html.sub("&quot;model&quot;:[0,&quot;Whisper&quot;]", "&quot;model&quot;:[0,&quot;Whisper 2&quot;]")
+
+      expect do
+        described_class.new.call(html: html_pages(described_class.source_url => unmapped_html))
+      end.to raise_error(described_class::Error, /no model ID for OpenAI price row "Whisper 2"/)
     end
 
     it "raises when the standard pricing table is missing" do

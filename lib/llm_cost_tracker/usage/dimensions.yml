@@ -101,6 +101,13 @@
   unit: request
   rate_basis: per_1k_requests
 
+- key: image_generation_call
+  kind: image_generation_call
+  direction: output
+  modality: image
+  cache_state: none
+  unit: request
+
 - key: container_session
   kind: container_session
   direction: neither

@@ -10,33 +10,30 @@ module LlmCostTracker
     module Providers
       class Openai < Base
         class RenderedLongContextPrices
-          def initialize(doc, tier:, fields:, model_ids:)
-            @doc = doc
+          SOURCE_URL = "https://developers.openai.com/api/docs/pricing.md"
+
+          def initialize(markdown, tier:, fields:, model_ids:)
+            @markdown = markdown
             @tier = tier
             @fields = fields
             @model_ids = model_ids
           end
 
           def models
-            return {} unless table
-
-            table.css("tbody tr").each_with_object({}) do |tr, models|
-              cells = tr.css("td").map { |td| td.text.strip }
-              next unless cells.size >= 9
+            rows.each_with_object({}) do |cells, models|
+              model_id = @model_ids[cells[0]]
+              next unless model_id && cells.size >= 9
 
               prices = prices_from(cells)
-              model_id = @model_ids[cells[0]]
-              models[model_id] = prices if model_id && prices
+              models[model_id] = prices if prices
             end
           end
 
           private
 
-          def table
-            @table ||= begin
-              root = @doc.at_css(%([data-content-switcher-pane][data-value="#{@tier}"]))
-              root&.css("table")&.find { |candidate| candidate.text.include?("Long context") }
-            end
+          def rows
+            section = @markdown[/^### #{@tier} pricing data$(.*?)(?=^#|\z)/im, 1].to_s
+            section.lines.filter_map { |line| line.split("|")[1..-2].map(&:strip) if line.start_with?("|") }
           end
 
           def prices_from(cells)

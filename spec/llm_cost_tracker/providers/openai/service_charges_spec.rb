@@ -55,9 +55,20 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
       expect(result.kind).to eq("web_search_request")
     end
 
-    it "does not emit line items for image_generation_call / computer_call / mcp_call because they bill through tokens, not a separate charge" do
+    it "emits an unpriced line item per completed image_generation_call because Responses usage leaves the image charge out" do
       output = [
         { "type" => "image_generation_call", "id" => "ig_1", "status" => "completed" },
+        { "type" => "image_generation_call", "id" => "ig_2", "status" => "failed" },
+        { "type" => "image_generation_call", "id" => "ig_3", "status" => "in_progress" }
+      ]
+      items = described_class.line_items_from_output(output)
+
+      expect(items.map { |item| [item.kind, item.provider_item_id, item.cost_status] })
+        .to eq([["image_generation_call", "ig_1", LlmCostTracker::Charges::CostStatus::UNKNOWN]])
+    end
+
+    it "does not emit line items for computer_call / mcp_call because they bill through tokens, not a separate charge" do
+      output = [
         { "type" => "computer_call", "id" => "cc_1", "status" => "completed" },
         { "type" => "mcp_call", "id" => "mcp_1", "status" => "completed" }
       ]

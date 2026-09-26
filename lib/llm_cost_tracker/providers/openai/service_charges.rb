@@ -49,7 +49,7 @@ module LlmCostTracker
 
         def chat_completions_used_web_search?(choices)
           Array(choices).any? do |choice|
-            Array(choice.dig("message", "annotations")).any? do |annotation|
+            Array(choice.dig("message", "annotations") || choice.dig("delta", "annotations")).any? do |annotation|
               annotation.is_a?(Hash) && annotation["type"].to_s == "url_citation"
             end
           end
@@ -60,6 +60,7 @@ module LlmCostTracker
 
           dimension = output_dimension(item["type"])
           return false unless dimension
+          return item["status"] == "completed" if dimension == "image_generation_call"
           return true unless dimension == "web_search_request"
 
           action_type = item.dig("action", "type")
@@ -149,12 +150,17 @@ module LlmCostTracker
         end
 
         def openai_stream_service_line_items(events, request: nil, model: nil)
-          output_items = []
+          response = { "output" => [] }
           each_event_data(events) do |data|
-            output_items.concat(Array(data.dig("response", "output")))
-            output_items << data["item"] if data["item"]
+            response["output"].concat(Array(data.dig("response", "output")))
+            response["output"] << data["item"] if data["item"]
+            chunk = data["chunk"] || data
+            next unless chunk["choices"].is_a?(Array)
+
+            response["id"] ||= chunk["id"]
+            (response["choices"] ||= []).concat(chunk["choices"])
           end
-          line_items_from_output(output_items, request: request, model: model)
+          service_line_items_for(response, request: request, model: model)
         end
 
         def transcription_line_items(usage)

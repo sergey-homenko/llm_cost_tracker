@@ -138,6 +138,7 @@ module LlmCostTracker
             latency_ms: latency_ms,
             host: host,
             service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.transcription_line_items(usage),
+            usage_source: usage ? LlmCostTracker::Usage::Source::SDK_RESPONSE : LlmCostTracker::Usage::Source::UNKNOWN,
             **transcription_token_attributes(usage)
           )
         end
@@ -191,7 +192,13 @@ module LlmCostTracker
           )
         end
 
-        def record_passthrough(model:, response:, latency_ms:, host: nil, service_line_items: [], **token_attributes)
+        def record_passthrough(model:,
+                               response:,
+                               latency_ms:,
+                               host: nil,
+                               service_line_items: [],
+                               usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE,
+                               **token_attributes)
           return unless active?
 
           record_safely do
@@ -200,7 +207,7 @@ module LlmCostTracker
                 provider: provider_for_host(host),
                 model: model,
                 token_usage: Usage::TokenUsage.build(**token_attributes),
-                usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE,
+                usage_source: usage_source,
                 provider_response_id: response&.try(:id),
                 service_line_items: service_line_items
               ),
