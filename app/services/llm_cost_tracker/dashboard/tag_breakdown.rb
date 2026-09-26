@@ -4,7 +4,6 @@ module LlmCostTracker
   module Dashboard
     class TagBreakdown
       DEFAULT_LIMIT = 100
-      SORT_OPTIONS = %w[value calls cost avg_cost].freeze
       DEFAULT_DIRECTIONS = { "value" => "asc", "calls" => "desc", "cost" => "desc", "avg_cost" => "desc" }.freeze
       Row = Data.define(:value, :calls, :total_cost, :average_cost_per_call, :share_percent)
 
@@ -21,7 +20,7 @@ module LlmCostTracker
         @key = LlmCostTracker::Tags::Key.validate!(key, error_class: LlmCostTracker::InvalidFilterError)
         limit = limit.to_i
         @limit = limit.positive? ? [limit, DEFAULT_LIMIT].min : DEFAULT_LIMIT
-        @sort = SORT_OPTIONS.include?(sort.to_s) ? sort.to_s : "cost"
+        @sort = DEFAULT_DIRECTIONS.key?(sort.to_s) ? sort.to_s : "cost"
         @direction = Sort::DIRECTIONS.include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTIONS[@sort]
       end
 

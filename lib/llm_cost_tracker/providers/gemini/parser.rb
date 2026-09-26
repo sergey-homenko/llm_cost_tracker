@@ -10,7 +10,9 @@ module LlmCostTracker
 
         class << self
           def match?(url)
-            match_uri?(url, hosts: HOSTS, path_pattern: TRACKED_PATH_PATTERN)
+            uri_matches?(url) do |uri|
+              HOSTS.include?(uri.host.to_s.downcase) && uri.path.to_s.match?(TRACKED_PATH_PATTERN)
+            end
           end
 
           def provider_names
@@ -19,7 +21,7 @@ module LlmCostTracker
         end
 
         def streaming_request?(request_url, request_parsed)
-          return true if match_uri?(request_url, path_pattern: STREAM_PATH_PATTERN)
+          return true if uri_matches?(request_url) { |uri| uri.path.to_s.match?(STREAM_PATH_PATTERN) }
 
           super
         end
@@ -34,7 +36,7 @@ module LlmCostTracker
           request = safe_json_parse(request_body)
           model = extract_model_from_url(request_url)
           build_event(
-            request_url: request_url,
+            model: model,
             usage: usage,
             usage_source: Usage::Source::RESPONSE,
             provider_response_id: response["responseId"],
@@ -49,13 +51,13 @@ module LlmCostTracker
           request = safe_json_parse(request_body)
           usage = merged_stream_usage(events)
           model = extract_model_from_url(request_url)
-          response_id = stream_response_id(events)
+          response_id = find_event_value(events) { |data| data["responseId"] }
           mode = pricing_mode(request: request, usage: usage, response_headers: response_headers)
           service_line_items = grounding_line_items_for_stream(events, model: model)
 
           if usage
             build_event(
-              request_url: request_url,
+              model: model,
               usage: usage,
               stream: true,
               usage_source: Usage::Source::STREAM_FINAL,
@@ -88,16 +90,16 @@ module LlmCostTracker
 
         private
 
-        def build_event(request_url:,
+        def build_event(model:,
                         usage:,
                         usage_source:,
-                        stream: false,
-                        provider_response_id: nil,
-                        pricing_mode: nil,
-                        service_line_items: nil)
+                        provider_response_id:,
+                        pricing_mode:,
+                        service_line_items:,
+                        stream: false)
           Event.build(
             provider: "gemini",
-            model: extract_model_from_url(request_url),
+            model: model,
             pricing_mode: pricing_mode,
             token_usage: UsageExtractor.token_usage(usage),
             stream: stream,
@@ -112,10 +114,6 @@ module LlmCostTracker
             meta = data["usageMetadata"]
             meta if meta.is_a?(Hash)
           end
-        end
-
-        def stream_response_id(events)
-          find_event_value(events) { |data| data["responseId"] }
         end
 
         def extract_model_from_url(url)
@@ -159,21 +157,16 @@ module LlmCostTracker
         def grounding_line_items(query_count, model:)
           return [] unless query_count.positive?
 
-          billed_quantity = grounding_billed_quantity(query_count, model: model)
           [
             Charges::LineItem.build(
               dimension_key: "grounding_request",
-              quantity: billed_quantity,
+              quantity: ModelFamilies.per_query_grounding?(model) ? query_count : 1,
               cost_status: Charges::CostStatus::UNKNOWN,
               pricing_basis: "provider_usage",
               provider_field: "response.candidates.groundingMetadata.webSearchQueries",
               details: { web_search_queries: query_count }
             )
           ]
-        end
-
-        def grounding_billed_quantity(query_count, model:)
-          ModelFamilies.per_query_grounding?(model) ? query_count : 1
         end
       end
     end

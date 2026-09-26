@@ -19,12 +19,6 @@ module LlmCostTracker
           "db/migrate/upgrade_llm_cost_tracker_indexes.rb"
         )
       end
-
-      private
-
-      def migration_version
-        "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]"
-      end
     end
   end
 end

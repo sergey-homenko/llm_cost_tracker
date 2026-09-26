@@ -29,7 +29,7 @@ module LlmCostTracker
       end
 
       def finalize!
-        @overrides = deep_freeze(@overrides || {})
+        @overrides = deep_freeze(@overrides)
       end
     end
   end

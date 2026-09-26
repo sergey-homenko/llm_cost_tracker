@@ -5,13 +5,10 @@
   value = @call[token_key]
   { label: component.fetch(:label), value: value, formatted_value: number_with_delimiter(value), css_class: component.fetch(:css_class) }
 end %>
-<% cost_segments = [] %>
-<% unless @call.total_cost.nil? %>
-  <% cost_segments = priced_components.map do |component|
-    value = line_item_costs_by_component[component.fetch(:price_key)]
-    { label: component.fetch(:label), value: value, formatted_value: optional_money(value), css_class: component.fetch(:css_class) }
-  end %>
-<% end %>
+<% cost_segments = priced_components.map do |component|
+  value = line_item_costs_by_component[component.fetch(:price_key)]
+  { label: component.fetch(:label), value: value, formatted_value: optional_money(value), css_class: component.fetch(:css_class) }
+end %>
 <% service_line_items = @call.line_items.reject { |li| li.unit == "token" }.sort_by(&:position) %>
 
 <p class="lct-breadcrumb-back"><%= link_to "← All calls", calls_path %></p>
@@ -84,22 +81,11 @@ end %>
         <dd><%= content_tag(:code, @call.provider_response_id, class: "lct-code-id") %></dd>
       </div>
     <% end %>
-    <% if @call.provider_project_id.present? %>
+    <% { provider_project_id: "Project ID", provider_api_key_id: "API Key ID", provider_workspace_id: "Workspace ID" }.each do |attribute, label| %>
+      <% next if @call[attribute].blank? %>
       <div class="lct-meta-strip-item">
-        <dt>Project ID</dt>
-        <dd><%= content_tag(:code, LlmCostTracker::Dashboard::Masking.mask_value(:provider_project_id, @call.provider_project_id), class: "lct-code-id") %></dd>
-      </div>
-    <% end %>
-    <% if @call.provider_api_key_id.present? %>
-      <div class="lct-meta-strip-item">
-        <dt>API Key ID</dt>
-        <dd><%= content_tag(:code, LlmCostTracker::Dashboard::Masking.mask_value(:provider_api_key_id, @call.provider_api_key_id), class: "lct-code-id") %></dd>
-      </div>
-    <% end %>
-    <% if @call.provider_workspace_id.present? %>
-      <div class="lct-meta-strip-item">
-        <dt>Workspace ID</dt>
-        <dd><%= content_tag(:code, LlmCostTracker::Dashboard::Masking.mask_value(:provider_workspace_id, @call.provider_workspace_id), class: "lct-code-id") %></dd>
+        <dt><%= label %></dt>
+        <dd><%= content_tag(:code, LlmCostTracker::Dashboard::Masking.mask_value(attribute, @call[attribute]), class: "lct-code-id") %></dd>
       </div>
     <% end %>
   </dl>

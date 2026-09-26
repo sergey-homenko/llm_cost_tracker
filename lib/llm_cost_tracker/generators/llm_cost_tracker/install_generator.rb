@@ -53,12 +53,6 @@ module LlmCostTracker
           unauthenticated would expose spend, tags, and provider IDs to anyone.
         MSG
       end
-
-      private
-
-      def migration_version
-        "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]"
-      end
     end
   end
 end

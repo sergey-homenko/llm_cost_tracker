@@ -35,7 +35,7 @@ module LlmCostTracker
       end
 
       def finalize!
-        @per_tag = deep_freeze(@per_tag || {})
+        @per_tag = deep_freeze(@per_tag)
       end
 
       private

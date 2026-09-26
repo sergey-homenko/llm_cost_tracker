@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "active_support/core_ext/object/deep_dup"
 require "active_support/core_ext/object/try"
 
 module LlmCostTracker
@@ -19,23 +18,15 @@ module LlmCostTracker
       def wrap
         return @stream unless @stream
 
-        iterator_wrapped = false
-        if @stream.instance_variable_defined?(:@iterator)
-          iterator = @stream.instance_variable_get(:@iterator)
-          if iterator.respond_to?(:each)
-            @stream.instance_variable_set(:@iterator,
-                                          Enumerator.new do |yielder|
-                                            each_from(iterator) { |event| yielder << event }
-                                          end)
-            iterator_wrapped = true
-          end
-        end
-        each_wrapped = false
-        if !iterator_wrapped && @stream.respond_to?(:each)
+        iterator = @stream.instance_variable_get(:@iterator)
+        if iterator.respond_to?(:each)
+          @stream.instance_variable_set(:@iterator,
+                                        Enumerator.new do |yielder|
+                                          each_from(iterator) { |event| yielder << event }
+                                        end)
+        elsif @stream.respond_to?(:each)
           wrap_each
-          each_wrapped = true
-        end
-        unless iterator_wrapped || each_wrapped
+        else
           Logging.warn(
             "stream integration found no wrappable iterator on #{@stream.class} " \
             "(missing both `@iterator` ivar and `#each`); usage will not be captured"

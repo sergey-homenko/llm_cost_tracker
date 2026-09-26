@@ -16,10 +16,7 @@ module LlmCostTracker
         @integration_name ||= name.demodulize.underscore.to_sym
       end
 
-      def provider(value = nil)
-        @provider = value.to_s if value
-        @provider ||= integration_name.to_s
-      end
+      def provider = integration_name.to_s
 
       def active?
         LlmCostTracker.configuration.instrumented?(integration_name)
@@ -30,7 +27,8 @@ module LlmCostTracker
         Logging.warn(untested_version_message) if untested_version?
         patch_targets.each do |target|
           target_class = target.fetch(:constant_name).to_s.safe_constantize
-          install_patch(target_class, target.fetch(:patch)) if target_class
+          patch = target.fetch(:patch)
+          target_class.prepend(patch) if target_class && !target_class.ancestors.include?(patch)
         end
       end
 
@@ -67,6 +65,32 @@ module LlmCostTracker
       rescue StandardError => e
         Logging.warn("#{integration_name} integration failed to record usage: #{e.class}: #{e.message}")
       end
+
+      def record_passthrough(provider:,
+                             model:,
+                             response:,
+                             latency_ms:,
+                             service_line_items: [],
+                             usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE,
+                             **token_attributes)
+        return unless active?
+
+        record_safely do
+          LlmCostTracker::Tracker.record(
+            event: LlmCostTracker::Event.build(
+              provider: provider,
+              model: model,
+              token_usage: LlmCostTracker::Usage::TokenUsage.build(**token_attributes),
+              usage_source: usage_source,
+              provider_response_id: provider_response_id_for(response),
+              service_line_items: service_line_items
+            ),
+            latency_ms: latency_ms
+          )
+        end
+      end
+
+      def provider_response_id_for(response) = response&.try(:id)
 
       def request_params(args, kwargs)
         params =
@@ -108,7 +132,7 @@ module LlmCostTracker
         ).wrap
       end
 
-      def stream_collector(request, provider: self.provider)
+      def stream_collector(request)
         LlmCostTracker::Capture::StreamCollector.new(
           provider: provider,
           model: request[:model],
@@ -190,12 +214,6 @@ module LlmCostTracker
 
           "#{target.fetch(:constant_name)}##{method_name} is not available"
         end
-      end
-
-      def install_patch(target, patch)
-        return if target&.ancestors&.include?(patch)
-
-        target.prepend(patch)
       end
     end
   end

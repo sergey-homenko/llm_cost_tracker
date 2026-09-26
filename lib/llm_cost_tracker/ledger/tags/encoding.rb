@@ -10,8 +10,7 @@ module LlmCostTracker
 
         def self.encode(value)
           encoded = case value
-                    when Hash then JSON.generate(normalize_hash(value))
-                    when Array then JSON.generate(normalize_array(value))
+                    when Hash, Array then JSON.generate(normalize_value(value))
                     else value.to_s
                     end
           truncate(encoded)
@@ -24,18 +23,10 @@ module LlmCostTracker
           string.byteslice(0, limit).encode("UTF-8", invalid: :replace, undef: :replace)
         end
 
-        def self.normalize_hash(hash)
-          hash.transform_keys(&:to_s).sort.to_h.transform_values { |v| normalize_value(v) }
-        end
-
-        def self.normalize_array(array)
-          array.map { |v| normalize_value(v) }
-        end
-
         def self.normalize_value(value)
           case value
-          when Hash then normalize_hash(value)
-          when Array then normalize_array(value)
+          when Hash then value.transform_keys(&:to_s).sort.to_h.transform_values { |v| normalize_value(v) }
+          when Array then value.map { |v| normalize_value(v) }
           else value.to_s
           end
         end

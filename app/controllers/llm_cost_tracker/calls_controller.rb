@@ -16,11 +16,9 @@ module LlmCostTracker
     }.freeze
 
     def index
-      @sort = params[:sort].to_s
-      @dir = params[:dir].to_s
       scope = Dashboard::Filter.call(params: params)
       scope = scope.unknown_pricing if params[:cost_status].to_s == "incomplete"
-      ordered_scope = scope.order(*calls_order(@sort, @dir))
+      ordered_scope = scope.order(*calls_order(params[:sort].to_s, params[:dir].to_s))
 
       respond_to do |format|
         format.html do

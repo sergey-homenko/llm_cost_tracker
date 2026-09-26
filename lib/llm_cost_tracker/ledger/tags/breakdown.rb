@@ -19,7 +19,7 @@ module LlmCostTracker
           end
 
           def value_arel
-            Arel.sql("#{call_tag_table}.#{quote_column('value')}")
+            Arel.sql(raw_value_sql(LlmCostTracker::CallTag.connection))
           end
 
           def label_sql(connection)
@@ -34,10 +34,6 @@ module LlmCostTracker
 
           def call_tag_table
             LlmCostTracker::CallTag.quoted_table_name
-          end
-
-          def quote_column(name)
-            LlmCostTracker::CallTag.connection.quote_column_name(name)
           end
         end
       end

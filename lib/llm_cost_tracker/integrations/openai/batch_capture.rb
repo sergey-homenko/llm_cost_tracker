@@ -44,9 +44,6 @@ module LlmCostTracker
           def capture_jsonl(jsonl, host:, model:)
             deferred = nil
             jsonl.each_line do |line|
-              line = line.strip
-              next if line.empty?
-
               entry = parse_line(line)
               next unless entry
 

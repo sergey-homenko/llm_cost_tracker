@@ -18,8 +18,6 @@ module LlmCostTracker
       budgets: Budgets, capture: Capture, ingestion: Ingestion, pricing: Pricing, tags: Tags
     }.freeze
 
-    SCALAR_ATTRIBUTES = %i[enabled].freeze
-
     DEPRECATED_OPTIONS = {
       monthly_budget: { to: %i[budgets monthly] },
       daily_budget: { to: %i[budgets daily] },
@@ -46,7 +44,7 @@ module LlmCostTracker
       log_level: { to: nil, note: "LlmCostTracker logs through Rails.logger, which owns the level" }
     }.freeze
 
-    attr_reader(*SCALAR_ATTRIBUTES, *SECTIONS.keys, :instrumented_integrations)
+    attr_reader(:enabled, *SECTIONS.keys, :instrumented_integrations)
 
     def initialize
       SECTIONS.each { |name, klass| instance_variable_set(:"@#{name}", klass.new(self)) }
@@ -67,11 +65,9 @@ module LlmCostTracker
       @instrumented_integrations.include?(name)
     end
 
-    SCALAR_ATTRIBUTES.each do |name|
-      define_method(:"#{name}=") do |value|
-        ensure_mutable!
-        instance_variable_set(:"@#{name}", value)
-      end
+    def enabled=(value)
+      ensure_mutable!
+      @enabled = value
     end
 
     DEPRECATED_OPTIONS.each do |old_name, spec|
@@ -101,7 +97,7 @@ module LlmCostTracker
 
     def finalize!
       SECTIONS.each_key { |name| public_send(name).finalize! }
-      @instrumented_integrations = deep_freeze(@instrumented_integrations || Set.new)
+      @instrumented_integrations = deep_freeze(@instrumented_integrations)
       @finalized = true
     end
 

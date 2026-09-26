@@ -13,7 +13,6 @@ module LlmCostTracker
                               :missing_latency_count,
                               :streaming_count,
                               :streaming_missing_usage,
-                              :missing_provider_response_id_count,
                               :calls_with_pricing,
                               :tagged_calls,
                               :calls_with_latency,
@@ -79,7 +78,6 @@ module LlmCostTracker
             missing_latency_count,
             streaming_count,
             streaming_missing_usage,
-            missing_provider_response_id_count,
             calls_with_pricing,
             tagged_calls,
             calls_with_latency,
@@ -142,7 +140,6 @@ module LlmCostTracker
             token_value = stats[component.token_key].to_i
 
             {
-              price_key: component.key,
               token_key: component.token_key,
               cost_key: component.cost_key,
               token_value: token_value,
@@ -154,7 +151,6 @@ module LlmCostTracker
 
           rows + [
             {
-              price_key: nil,
               token_key: :hidden_output_tokens,
               cost_key: nil,
               token_value: stats.hidden_output_tokens.to_i,
@@ -239,7 +235,6 @@ module LlmCostTracker
           selects = [
             "COUNT(*) AS total_calls",
             "#{conditional_count_sql(unknown_pricing)} AS unknown_pricing_count",
-            "#{tagged_calls_sql(scope)} AS tagged_calls_count",
             "COUNT(*) - #{tagged_calls_sql(scope)} AS untagged_calls_count",
             "#{conditional_count_sql('latency_ms IS NULL')} AS missing_latency_count",
             "#{conditional_count_sql('stream')} AS streaming_count",

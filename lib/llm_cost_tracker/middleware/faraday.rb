@@ -268,8 +268,6 @@ module LlmCostTracker
           else
             @tags
           end
-        return {} if tags.nil?
-
         tags.to_h
       end
 

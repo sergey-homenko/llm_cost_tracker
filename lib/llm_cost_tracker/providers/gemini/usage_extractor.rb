@@ -7,10 +7,10 @@ module LlmCostTracker
         def self.token_usage(usage)
           cache_read = usage["cachedContentTokenCount"].to_i
           tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
-          audio_input = audio_input_tokens(usage)
-          audio_output = audio_output_tokens(usage)
-          image_input = image_input_tokens(usage)
-          image_output = image_output_tokens(usage)
+          audio_input = uncached_prompt_tokens(usage, "AUDIO")
+          audio_output = modality_tokens(usage["candidatesTokensDetails"], "AUDIO")
+          image_input = uncached_prompt_tokens(usage, "IMAGE")
+          image_output = modality_tokens(usage["candidatesTokensDetails"], "IMAGE")
 
           Usage::TokenUsage.build(
             input_tokens: regular_input_tokens(usage: usage,
@@ -43,24 +43,10 @@ module LlmCostTracker
           [gross_output_tokens(usage) - audio_output - image_output, 0].max
         end
 
-        def self.audio_input_tokens(usage)
-          prompt_audio = modality_tokens(usage["promptTokensDetails"], "AUDIO")
-          cache_audio = modality_tokens(usage["cacheTokensDetails"], "AUDIO")
-          [prompt_audio - cache_audio, 0].max
-        end
-
-        def self.audio_output_tokens(usage)
-          modality_tokens(usage["candidatesTokensDetails"], "AUDIO")
-        end
-
-        def self.image_input_tokens(usage)
-          prompt_image = modality_tokens(usage["promptTokensDetails"], "IMAGE")
-          cache_image = modality_tokens(usage["cacheTokensDetails"], "IMAGE")
-          [prompt_image - cache_image, 0].max
-        end
-
-        def self.image_output_tokens(usage)
-          modality_tokens(usage["candidatesTokensDetails"], "IMAGE")
+        def self.uncached_prompt_tokens(usage, modality)
+          prompt = modality_tokens(usage["promptTokensDetails"], modality)
+          cached = modality_tokens(usage["cacheTokensDetails"], modality)
+          [prompt - cached, 0].max
         end
 
         def self.modality_tokens(details, modality)

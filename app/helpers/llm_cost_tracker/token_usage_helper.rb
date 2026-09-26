@@ -33,8 +33,14 @@ module LlmCostTracker
     }.freeze
 
     def token_usage_stack_components
-      token_usage_display_components(labels: COMPONENT_LABELS).select do |component|
-        component.fetch(:cost_key)
+      LlmCostTracker::Usage::Catalog.token_priced.map do |component|
+        token_key = component.token_key
+        {
+          token_key: token_key,
+          price_key: component.key,
+          label: COMPONENT_LABELS.fetch(token_key),
+          css_class: STACK_CLASSES[token_key]
+        }
       end
     end
 
@@ -45,29 +51,6 @@ module LlmCostTracker
         )
         accumulator[component.key] = line_item.cost if component && line_item.cost
       end
-    end
-
-    private
-
-    def token_usage_display_components(labels:)
-      LlmCostTracker::Usage::Catalog.token_priced.map do |component|
-        token_key = component.token_key
-        {
-          token_key: token_key,
-          cost_key: component.cost_key,
-          price_key: component.key,
-          label: labels.fetch(token_key),
-          css_class: STACK_CLASSES[token_key]
-        }
-      end + [
-        {
-          token_key: :hidden_output_tokens,
-          cost_key: nil,
-          price_key: nil,
-          label: labels.fetch(:hidden_output_tokens),
-          css_class: nil
-        }
-      ]
     end
   end
 end

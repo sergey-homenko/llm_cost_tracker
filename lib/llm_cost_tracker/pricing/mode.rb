@@ -9,11 +9,8 @@ module LlmCostTracker
       MAX_PERMUTED_MODIFIERS = 6
 
       def self.normalize(value)
-        return nil if value.nil?
-
-        mode = normalize_string(value.to_s)
-        return nil unless mode
-        return nil if STANDARD_MODE_VALUES.include?(mode)
+        mode = value.to_s.strip.downcase.tr("-", "_")
+        return nil if mode.empty? || STANDARD_MODE_VALUES.include?(mode)
 
         warn_unknown_tokens(mode)
         mode
@@ -64,14 +61,6 @@ module LlmCostTracker
 
         modifiers.permutation.map { |permutation| permutation.join("_") }.uniq
       end
-
-      def self.normalize_string(value)
-        normalized = value.strip
-        return nil if normalized.empty?
-
-        normalized.downcase.tr("-", "_")
-      end
-      private_class_method :normalize_string
 
       def self.warn_unknown_tokens(mode)
         unknown = tokenize(mode) - KNOWN_MODIFIERS - STANDARD_MODE_VALUES

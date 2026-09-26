@@ -121,13 +121,10 @@ module LlmCostTracker
     end
 
     def tag_chip_entries(tags, limit: 3)
-      normalized = normalized_tags(tags)
-      return [] if normalized.empty?
-
-      visible = normalized.first(limit).map do |key, value|
-        { key: key.to_s, value: tag_value_summary(value) }
+      visible = tags.first(limit).map do |key, value|
+        { key: key.to_s, value: truncate_text(value.to_s, TAG_VALUE_SUMMARY_BYTES) }
       end
-      visible << { more: normalized.size - limit } if normalized.size > limit
+      visible << { more: tags.size - limit } if tags.size > limit
       visible
     end
 
@@ -144,25 +141,6 @@ module LlmCostTracker
     end
 
     private
-
-    def normalized_tags(tags)
-      return tags.transform_keys(&:to_s) if tags.is_a?(Hash)
-
-      JSON.parse(tags || "{}")
-    rescue JSON::ParserError, TypeError
-      {}
-    end
-
-    def tag_value_summary(value)
-      string = case value
-               when Hash, Array
-                 JSON.generate(value)
-               else
-                 value.to_s
-               end
-
-      truncate_text(string, TAG_VALUE_SUMMARY_BYTES)
-    end
 
     def truncate_text(string, limit)
       return string if string.bytesize <= limit

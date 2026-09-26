@@ -106,14 +106,8 @@ module LlmCostTracker
       end
 
       def all_billable_unpriced?
-        any_billable = false
-        quantities.each_pair do |key, quantity|
-          next unless quantity.positive?
-          return false if effective[key]
-
-          any_billable = true
-        end
-        any_billable
+        billable = quantities.select { |_key, quantity| quantity.positive? }.keys
+        billable.any? && billable.none? { |key| effective[key] }
       end
 
       def priced_token_line_items
@@ -147,7 +141,7 @@ module LlmCostTracker
           "source_version" => match.source.version,
           "matched_by" => match.matched_by.to_s,
           "currency" => match.source.currency,
-          "rates" => service_charge_rates.merge(token_charge_rates)
+          "rates" => charge_rates(kept_service_lines).merge(charge_rates(priced_token_line_items))
         }
       end
 
@@ -159,20 +153,12 @@ module LlmCostTracker
           "source_version" => primary.price_source_version,
           "matched_by" => "service_charges",
           "currency" => cost.currency,
-          "rates" => service_charge_rates
+          "rates" => charge_rates(kept_service_lines)
         }
       end
 
-      def token_charge_rates
-        priced_token_line_items.each_with_object({}) do |line_item, rates|
-          next if line_item.price_key.nil? || line_item.rate_amount.nil?
-
-          rates[line_item.price_key] ||= rate_entry(line_item.rate_amount, line_item.rate_quantity)
-        end
-      end
-
-      def service_charge_rates
-        kept_service_lines.each_with_object({}) do |line_item, rates|
+      def charge_rates(line_items)
+        line_items.each_with_object({}) do |line_item, rates|
           next if line_item.price_key.nil? || line_item.rate_amount.nil?
 
           rates[line_item.price_key] ||= rate_entry(line_item.rate_amount, line_item.rate_quantity)
@@ -184,14 +170,8 @@ module LlmCostTracker
       end
 
       def price_token(line_item)
-        dimension = line_item.dimension
-        return line_item unless dimension
-        return line_item.with(cost_status: Charges::CostStatus::UNKNOWN) unless priceable?
-
-        price = effective[dimension.key]
-        return line_item.with(cost_status: Charges::CostStatus::UNKNOWN) if price.nil?
-
-        line_item.with_rate(token_rate(price))
+        price = priceable? && effective[line_item.dimension.key]
+        price ? line_item.with_rate(token_rate(price)) : line_item
       end
 
       def token_rate(price)
@@ -235,17 +215,13 @@ module LlmCostTracker
       def kept_service_lines
         return @kept_service_lines if defined?(@kept_service_lines)
 
-        @kept_service_lines = begin
-          priced_services = priced_line_items.reject(&:token?).select(&:priced?)
-          if priced_services.empty?
-            []
-          else
-            base_currency = base_currency_for(token_cost, priced_services)
-            matching, mismatched = priced_services.partition { |line| line.currency.to_s == base_currency.to_s }
-            warn_currency_mismatch(mismatched, base_currency) if mismatched.any?
-            matching
-          end
-        end
+        priced_services = priced_line_items.reject(&:token?).select(&:priced?)
+        return @kept_service_lines = [] if priced_services.empty?
+
+        base_currency = token_cost&.currency || priced_services.first.currency || LlmCostTracker::DEFAULT_CURRENCY
+        matching, mismatched = priced_services.partition { |line| line.currency.to_s == base_currency.to_s }
+        warn_currency_mismatch(mismatched, base_currency) if mismatched.any?
+        @kept_service_lines = matching
       end
 
       def combine_service_lines
@@ -258,10 +234,6 @@ module LlmCostTracker
           total: (cost&.total || BigDecimal("0")) + service_total,
           currency: (cost&.currency || kept_service_lines.first.currency).to_s
         )
-      end
-
-      def base_currency_for(cost, priced_services)
-        cost&.currency || priced_services.first.currency || LlmCostTracker::DEFAULT_CURRENCY
       end
 
       def warn_currency_mismatch(lines, base_currency)

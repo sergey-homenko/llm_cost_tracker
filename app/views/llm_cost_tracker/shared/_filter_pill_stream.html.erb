@@ -1,5 +1,3 @@
-<% extra_hidden = local_assigns.fetch(:extra_hidden, {}) %>
-<% extra_except = local_assigns.fetch(:extra_except, []) %>
 <% active = params[:stream].presence %>
 <% display_value = case active when "yes" then "Streaming" when "no" then "Non-streaming" else "All" end %>
 <details class="lct-filter-pop" name="lct-filter">
@@ -10,8 +8,7 @@
     <svg class="lct-chev" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l4 4 4-4"/></svg>
   </summary>
   <%= form_with url: path, method: :get, local: true, html: { class: "lct-filter-pop-body" } do %>
-    <% extra_hidden.each do |k, v| %><%= hidden_field_tag k, v %><% end %>
-    <%= hidden_query_fields(current_query.except(:stream, :page, :per, *extra_except)) %>
+    <%= hidden_query_fields(current_query.except(:stream, :page, :per)) %>
     <div class="lct-filter-pop-field">
       <label for="lct-filter-stream">Stream</label>
       <%= select_tag :stream, options_for_select(LlmCostTracker::Dashboard::Filter::STREAM_FILTER_OPTIONS, active), include_blank: "All calls", id: "lct-filter-stream" %>

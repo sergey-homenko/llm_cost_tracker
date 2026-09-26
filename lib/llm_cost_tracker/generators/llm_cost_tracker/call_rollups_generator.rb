@@ -32,12 +32,6 @@ module LlmCostTracker
           llm_cost_tracker_calls. The doctor check warns about an unused rollups table.
         MSG
       end
-
-      private
-
-      def migration_version
-        "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]"
-      end
     end
   end
 end

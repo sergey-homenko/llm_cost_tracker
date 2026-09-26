@@ -1,4 +1,4 @@
-class UpgradeLlmCostTrackerImageTokens < ActiveRecord::Migration<%= migration_version %>
+class UpgradeLlmCostTrackerImageTokens < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
   TABLE = :llm_cost_tracker_calls
   COLUMNS = %i[image_input_tokens image_output_tokens].freeze
 

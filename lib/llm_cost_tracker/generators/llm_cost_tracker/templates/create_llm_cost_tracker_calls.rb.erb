@@ -1,7 +1,7 @@
 require "llm_cost_tracker/charges/cost_status"
 require "llm_cost_tracker/ledger/schema/adapter"
 
-class CreateLlmCostTrackerCalls < ActiveRecord::Migration<%= migration_version %>
+class CreateLlmCostTrackerCalls < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
   def change
     create_table :llm_cost_tracker_calls do |t|
       t.string  :event_id,      null: false

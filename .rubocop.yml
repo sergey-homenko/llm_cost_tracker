@@ -57,7 +57,6 @@ Metrics/ModuleLength:
     - heredoc
     - method_call
   Exclude:
-    - "lib/llm_cost_tracker/pricing.rb"
     - "lib/llm_cost_tracker/pricing/registry.rb"
 
 Metrics/CyclomaticComplexity:
