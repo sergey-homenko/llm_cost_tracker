@@ -13,6 +13,7 @@ module LlmCostTracker
     include PaginationHelper
     include TokenUsageHelper
     include InlineStyleHelper
+    include SortableTableHelper
 
     def dashboard_section
       path = request.path.to_s
