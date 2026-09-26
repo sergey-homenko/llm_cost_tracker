@@ -19,6 +19,14 @@ RSpec.describe "LlmCostTracker::Engine assets" do
     expect(response.body).to include(".lct-app")
   end
 
+  it "styles the budget and coverage bars the dashboard renders" do
+    css = File.read(LlmCostTracker::Assets::STYLESHEET_PATH)
+
+    %w[lct-bar-track lct-bar-fill lct-budget-track lct-budget-fill lct-budget-marker].each do |name|
+      expect(css).to match(/\.#{name}\b[^{]*\{/)
+    end
+  end
+
   it "disables caching in development so edited stylesheets are picked up immediately" do
     allow(Rails).to receive(:env).and_return(ActiveSupport::StringInquirer.new("development"))
 

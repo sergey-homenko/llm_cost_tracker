@@ -13,6 +13,10 @@ RSpec.describe LlmCostTracker::ApplicationHelper do
     end.new
   end
 
+  it "includes the sortable table helper for hosts that set include_all_helpers = false" do
+    expect(described_class.ancestors).to include(LlmCostTracker::SortableTableHelper)
+  end
+
   it "calculates display percentages with a zero denominator guard" do
     expect(helper_object.coverage_percent(2, 4)).to eq(50.0)
     expect(helper_object.coverage_percent(2, 0)).to eq(0.0)

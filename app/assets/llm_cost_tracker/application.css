@@ -154,6 +154,9 @@
     --lct-shadow-md: 0 2px 6px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
     --lct-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
     --lct-focus-ring: 0 0 0 3px rgba(124, 131, 255, 0.30);
+      --lct-chart-marker: rgba(230, 236, 245, 0.45);
+      --lct-chart-secondary: rgba(230, 236, 245, 0.32);
+      --lct-chip-remove: rgba(230, 236, 245, 0.58);
   }
 
   * { box-sizing: border-box; }
@@ -613,6 +616,19 @@
   .lct-stack-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
   .lct-stack-meta { color: var(--lct-muted); }
   .lct-stack-empty { color: var(--lct-muted); font-size: var(--fs-sm); margin: 0; }
+  .lct-bar-track,
+  .lct-budget-track { background: var(--lct-surface-2); border-radius: 999px; overflow: hidden; }
+  .lct-bar-track { height: 8px; min-width: 96px; }
+  .lct-budget-track { height: 10px; position: relative; }
+  .lct-bar-fill,
+  .lct-budget-fill { height: 100%; display: block; background: var(--lct-accent); }
+  .lct-budget-fill--warn { background: var(--lct-warning); }
+  .lct-budget-fill--over { background: var(--lct-danger); }
+  .lct-budget-marker { position: absolute; top: 0; bottom: 0; border-left: 2px dashed var(--lct-chart-marker); }
+  .lct-budget-projection { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; margin: 10px 0 0; color: var(--lct-muted); font-size: var(--fs-sm); }
+  .lct-budget-projection strong { color: var(--lct-text); }
+  .lct-budget-projection-status { font-weight: 600; }
+  .lct-budget-projection-status--over { color: var(--lct-warning-copy); }
 
   .lct-legend { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--lct-muted); }
   .lct-legend-dot { width: 9px; height: 9px; border-radius: 2px; }
