@@ -54,6 +54,19 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
     expect(calculation.snapshot.fetch("rates")).to have_key("service_charges.anthropic.web_search_request")
   end
 
+  it "leaves the cost nil when usage is unknown on a priced model, but still totals priced service lines" do
+    unknown = LlmCostTracker::Usage::Source::UNKNOWN
+    search = LlmCostTracker::Charges::LineItem.build(dimension_key: "web_search_request", quantity: 1)
+    no_usage = described_class.for(provider: "openai", model: "gpt-4o", tokens: {}, pricing_mode: nil,
+                                   usage_source: unknown)
+    with_search = described_class.for(provider: "anthropic", model: "claude-sonnet-4-5", tokens: {},
+                                      pricing_mode: nil, usage_source: unknown, line_items: [search])
+
+    expect(no_usage.cost).to be_nil
+    expect(with_search.cost.total).to eq(BigDecimal("0.01"))
+    expect(with_search.cost_status).to eq(LlmCostTracker::Charges::CostStatus::UNKNOWN)
+  end
+
   it "keeps service rates dropped from the total on currency mismatch out of the snapshot" do
     LlmCostTracker.configure { |c| c.pricing.overrides = { "snap-model" => { "input" => 2.0 } } }
     eur_line = LlmCostTracker::Charges::LineItem.build(

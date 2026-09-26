@@ -81,7 +81,7 @@ module LlmCostTracker
                 service_tier: "batch"
               )
             )
-            LlmCostTracker::Tracker.record(event: event) if event
+            LlmCostTracker::Tracker.record(event: event)
           end
         end
       end

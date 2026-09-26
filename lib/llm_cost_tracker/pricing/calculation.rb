@@ -43,14 +43,18 @@ module LlmCostTracker
         return @effective if defined?(@effective)
 
         @effective = match && EffectivePrices.call(
-          usage: @token_usage, quantities: quantities, prices: match.prices, pricing_mode: @mode
+          usage: @token_usage,
+          quantities: quantities,
+          prices: match.prices,
+          pricing_mode: @mode,
+          cache_at_input_rate: match.key.start_with?("openai/")
         )
       end
 
       def token_cost
         return @token_cost if defined?(@token_cost)
 
-        @token_cost = priceable? ? build_token_cost : nil
+        @token_cost = priceable? && @usage_source != Usage::Source::UNKNOWN ? build_token_cost : nil
       end
 
       def priced_line_items

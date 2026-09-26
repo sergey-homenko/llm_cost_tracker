@@ -122,4 +122,27 @@ RSpec.describe "Cache-aware cost accuracy" do
     end
 
   end
+
+  describe "OpenAI cache tokens on a model without a cache rate" do
+    it "prices Pro cache hits at the input rate of the mode and context tier, as Pro has no cached discount" do
+      standard = cost_for(provider: "openai", model: "gpt-5.5-pro",
+                          input_tokens: 3616, cache_read_input_tokens: 16_384, output_tokens: 3000)
+      residency = cost_for(provider: "openai", model: "gpt-5.5-pro", pricing_mode: "data_residency",
+                           input_tokens: 3616, cache_read_input_tokens: 16_384, output_tokens: 3000)
+      long_context = cost_for(provider: "openai", model: "gpt-5.5-pro",
+                              input_tokens: 99_936, cache_read_input_tokens: 200_064, output_tokens: 1000)
+
+      expect([standard.total, residency.total, long_context.total])
+        .to eq([BigDecimal("1.14"), BigDecimal("1.254"), BigDecimal("18.27")])
+    end
+
+    it "prices cache writes before GPT-5.6 at the input rate and keeps the GPT-5.6 cache-write rate" do
+      before_writes = cost_for(provider: "openai", model: "gpt-5.5",
+                               input_tokens: 2952, cache_write_input_tokens: 2048, output_tokens: 100)
+      with_writes = cost_for(provider: "openai", model: "gpt-5.6-sol",
+                             input_tokens: 2952, cache_write_input_tokens: 2048, output_tokens: 100)
+
+      expect([before_writes.total, with_writes.total]).to eq([BigDecimal("0.028"), BigDecimal("0.024048")])
+    end
+  end
 end

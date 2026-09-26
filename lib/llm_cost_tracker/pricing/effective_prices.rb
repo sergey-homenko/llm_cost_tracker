@@ -9,20 +9,19 @@ module LlmCostTracker
   module Pricing
     module EffectivePrices
       Resolved = Data.define(:amount, :key)
+      CACHE_INPUT_KEYS = %w[cache_read_input cache_write_input].freeze
+      private_constant :CACHE_INPUT_KEYS
 
       class << self
-        def call(usage:, quantities:, prices:, pricing_mode:)
+        def call(usage:, quantities:, prices:, pricing_mode:, cache_at_input_rate: false)
           context_tier = context_tier?(usage: usage, prices: prices)
           orderings = pricing_mode && Mode.permutations_for(pricing_mode)
+          lookup = { prices: prices, orderings: orderings, context_tier: context_tier }
 
           quantities.to_h do |price_key, tokens|
             resolved = if tokens.positive?
-                         price_for(
-                           prices: prices,
-                           key: price_key,
-                           orderings: orderings,
-                           context_tier: context_tier
-                         )
+                         fallback = cache_at_input_rate && CACHE_INPUT_KEYS.include?(price_key)
+                         price_for(key: price_key, **lookup) || (price_for(key: "input", **lookup) if fallback)
                        else
                          Resolved.new(amount: BigDecimal("0"), key: price_key)
                        end

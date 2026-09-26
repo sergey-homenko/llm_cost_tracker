@@ -453,7 +453,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
 
       transcription_line = result.line_items.find { |line| line.kind == "transcription_minute" }
       expect(transcription_line).not_to be_nil
-      expect(transcription_line.quantity).to eq(2)
+      expect(transcription_line.quantity).to eq(BigDecimal("1.25"))
     end
   end
 

@@ -295,6 +295,20 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(service_lines.first.quantity).to eq(3)
       expect(service_lines.first.details).to include(web_search_queries: 3)
     end
+
+    it "bills Gemini 3 grounding per unique non-empty query" do
+      result = parser.parse(
+        request_url: URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models/gemini-3-pro:generateContent").to_s,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
+          candidates: [{ groundingMetadata: { webSearchQueries: ["", " ", "euro 2024", "euro 2024", "final"] } }],
+          usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 20, totalTokenCount: 120 }
+        }.to_json
+      )
+
+      expect(result.line_items.reject { |item| item.unit == "token" }.first.quantity).to eq(2)
+    end
   end
 
   describe "#streaming_request?" do
@@ -454,6 +468,23 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
 
       service_lines = result.line_items.reject { |item| item.unit == "token" }
       expect(service_lines.first.quantity).to eq(3)
+    end
+
+    it "bills Gemini 3 grounding per query from the chunks' modelVersion when there is no request URL" do
+      events = [
+        { event: nil, data: {
+          "modelVersion" => "gemini-3-flash-preview",
+          "candidates" => [{ "groundingMetadata" => { "webSearchQueries" => ["q1", "q2", "q3"] } }]
+        } },
+        { event: nil, data: {
+          "modelVersion" => "gemini-3-flash-preview",
+          "usageMetadata" => { "promptTokenCount" => 50, "candidatesTokenCount" => 25, "totalTokenCount" => 75 }
+        } }
+      ]
+
+      result = parser.parse_stream(response_status: 200, events: events)
+
+      expect(result.line_items.reject { |item| item.unit == "token" }.first.quantity).to eq(3)
     end
 
     it "returns an unknown-usage Event when no usage metadata is seen" do

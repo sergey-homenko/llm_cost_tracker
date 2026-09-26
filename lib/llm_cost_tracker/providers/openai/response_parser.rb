@@ -135,7 +135,8 @@ module LlmCostTracker
 
         def detect_stream_usage(events)
           usage = find_event_value(events, reverse: true) do |data|
-            candidate = data["usage"] || data.dig("response", "usage") || data.dig("chunk", "usage")
+            candidate = data["usage"] || data.dig("response", "usage") || data.dig("chunk", "usage") ||
+                        data.dig("x_groq", "usage") || data.dig("chunk", "x_groq", "usage")
             candidate if candidate.is_a?(Hash)
           end
           usage&.deep_symbolize_keys

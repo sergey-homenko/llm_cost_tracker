@@ -24,7 +24,7 @@ module LlmCostTracker
         case value
         when String then value.match?(/\Adata:[^,]*;base64,/) ? 0 : value.length
         when Hash
-          return 0 if value["type"] == "base64"
+          return 0 if value["type"].to_s == "base64"
 
           value.except("input_audio", "inline_data", "inlineData").values.sum { |nested| char_count(nested) }
         when Array then value.sum { |nested| char_count(nested) }

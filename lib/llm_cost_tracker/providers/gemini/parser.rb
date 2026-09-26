@@ -45,12 +45,17 @@ module LlmCostTracker
           )
         end
 
-        def parse_stream(response_status:, request_url: nil, request_body: nil, events: [], response_headers: nil)
+        def parse_stream(response_status:,
+                         request_url: nil,
+                         request_body: nil,
+                         events: [],
+                         response_headers: nil,
+                         model: nil)
           return nil unless response_status == 200
 
           request = safe_json_parse(request_body)
           usage = merged_stream_usage(events)
-          model = extract_model_from_url(request_url)
+          model = extract_model_from_url(request_url) || model
           response_id = find_event_value(events) { |data| data["responseId"] }
           mode = pricing_mode(request: request, usage: usage, response_headers: response_headers)
           service_line_items = grounding_line_items_for_stream(events, model: model)
@@ -140,6 +145,7 @@ module LlmCostTracker
         end
 
         def grounding_line_items_for_stream(events, model:)
+          model ||= find_event_value(events) { |data| data["modelVersion"] }
           quantity = find_event_value(events, reverse: true) do |data|
             count = grounding_request_count(data["candidates"])
             count if count.positive?
@@ -150,7 +156,7 @@ module LlmCostTracker
         def grounding_request_count(candidates)
           Array(candidates).sum do |candidate|
             queries = candidate.dig("groundingMetadata", "webSearchQueries") || []
-            Array(queries).size
+            Array(queries).map { |query| query.to_s.strip }.reject(&:empty?).uniq.size
           end
         end
 

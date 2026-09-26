@@ -177,7 +177,8 @@ module LlmCostTracker
         event = Parsers.find_for_provider(@provider)&.parse_stream(
           response_status: 200,
           events: snapshot[:events],
-          request_body: request_body_for(snapshot[:request])
+          request_body: request_body_for(snapshot[:request]),
+          model: snapshot[:model]
         )
         if event
           model = present_model(event.model) || present_model(snapshot[:model]) || Event::UNKNOWN_MODEL
