@@ -19,11 +19,8 @@ module LlmCostTracker
         )
       end
 
-      def self.integer_param(params, key, default:, min:, max: nil)
-        value = Integer(params[key], 10)
-        value = [value, min].max
-        value = [value, max].min if max
-        value
+      def self.integer_param(params, key, default:, min:, max:)
+        Integer(params[key], 10).clamp(min, max)
       rescue ArgumentError, TypeError
         default
       end

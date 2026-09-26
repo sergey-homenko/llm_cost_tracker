@@ -22,7 +22,6 @@ module LlmCostTracker
                      provider_workspace_id: nil,
                      pricing_mode: nil,
                      metadata: {},
-                     context_tags: nil,
                      request: nil)
         @provider = provider.to_s
         @model = model
@@ -33,7 +32,7 @@ module LlmCostTracker
         @provider_workspace_id = provider_workspace_id
         @pricing_mode = pricing_mode
         @metadata = (metadata || {}).deep_dup
-        @context_tags = (context_tags || LlmCostTracker::Tags::Context.tags).deep_dup
+        @context_tags = LlmCostTracker::Tags::Context.tags.deep_dup
         @request = request
         @window = EventWindow.new(notable: Parsers.find_for_provider(@provider)&.method(:retain_stream_event?))
         @explicit_usage = nil
@@ -167,12 +166,12 @@ module LlmCostTracker
       end
 
       def build_event(snapshot)
-        return build_from_explicit_usage(snapshot) if snapshot[:explicit_usage]
+        return build_unparsed_event(snapshot) if snapshot[:explicit_usage]
 
         if snapshot[:overflowed]
           Logging.warn("#{@provider} stream events exceeded #{SSE::LIMIT_BYTES} bytes; " \
                        "recording usage_source=#{Usage::Source::UNKNOWN}.")
-          return build_unknown_usage(snapshot)
+          return build_unparsed_event(snapshot)
         end
 
         event = Parsers.find_for_provider(@provider)&.parse_stream(
@@ -185,7 +184,7 @@ module LlmCostTracker
           return event.with(provider: @provider, model: model, **snapshot.fetch(:capture_dimensions))
         end
 
-        build_unknown_usage(snapshot)
+        build_unparsed_event(snapshot)
       end
 
       def request_body_for(request)
@@ -201,25 +200,14 @@ module LlmCostTracker
         string unless string == Event::UNKNOWN_MODEL
       end
 
-      def build_from_explicit_usage(snapshot)
+      def build_unparsed_event(snapshot)
+        explicit_usage = snapshot[:explicit_usage]
         Event.build(
           provider: @provider,
           model: snapshot[:model] || Event::UNKNOWN_MODEL,
-          token_usage: snapshot[:explicit_usage],
+          token_usage: explicit_usage || Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
-          usage_source: Usage::Source::MANUAL,
-          pricing_mode: snapshot[:pricing_mode],
-          **snapshot.fetch(:capture_dimensions)
-        )
-      end
-
-      def build_unknown_usage(snapshot)
-        Event.build(
-          provider: @provider,
-          model: snapshot[:model] || Event::UNKNOWN_MODEL,
-          token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
-          stream: true,
-          usage_source: Usage::Source::UNKNOWN,
+          usage_source: explicit_usage ? Usage::Source::MANUAL : Usage::Source::UNKNOWN,
           pricing_mode: snapshot[:pricing_mode],
           **snapshot.fetch(:capture_dimensions)
         )

@@ -11,47 +11,20 @@ module LlmCostTracker
     PARSER_PROVIDERS = %i[Openai Azure OpenaiCompatible Anthropic Gemini].freeze
 
     def self.find_for(url)
-      instances.each do |klass, instance|
-        return instance if klass.match?(url)
-      end
-      nil
+      instances.find { |parser| parser.class.match?(url) }
     end
 
     def self.find_for_provider(provider)
       provider_name = provider.to_s.downcase
-      instances.each do |klass, instance|
-        return instance if klass.provider_names.include?(provider_name)
-      end
-      nil
+      instances.find { |parser| parser.class.provider_names.include?(provider_name) }
     end
-
-    def self.parser_classes
-      PARSER_PROVIDERS.map { |name| Providers.const_get(name)::Parser }
-    end
-    private_class_method :parser_classes
 
     def self.instances
-      @instances ||= parser_classes.to_h { |klass| [klass, klass.new] }.freeze
+      @instances ||= PARSER_PROVIDERS.map { |name| Providers.const_get(name)::Parser.new }.freeze
     end
     private_class_method :instances
 
     module UrlMatchers
-      def match_uri?(url, hosts: nil, exact_paths: nil, path_includes: nil, path_suffixes: nil, path_pattern: nil)
-        uri_matches?(url) do |uri|
-          host_match = hosts.nil? || hosts.include?(uri.host.to_s.downcase)
-          path_match = path_matches?(
-            uri,
-            exact_paths: exact_paths,
-            path_includes: path_includes,
-            path_suffixes: path_suffixes,
-            path_pattern: path_pattern
-          )
-          extra_match = block_given? ? yield(uri) : true
-
-          !!(host_match && path_match && extra_match)
-        end
-      end
-
       def uri_matches?(url)
         uri = parsed_uri(url)
         uri ? yield(uri) : false
@@ -61,16 +34,6 @@ module LlmCostTracker
         URI.parse(url.to_s)
       rescue URI::InvalidURIError
         nil
-      end
-
-      def path_matches?(uri, exact_paths: nil, path_includes: nil, path_suffixes: nil, path_pattern: nil)
-        path = uri.path.to_s
-        matches = true
-        matches &&= exact_paths.include?(path) if exact_paths
-        matches &&= Array(path_includes).all? { |fragment| path.include?(fragment) } if path_includes
-        matches &&= path.match?(path_pattern) if path_pattern
-        matches &&= path_suffixes.any? { |suffix| path == suffix || path.end_with?(suffix) } if path_suffixes
-        matches
       end
     end
 

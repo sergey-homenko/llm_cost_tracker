@@ -1,4 +1,4 @@
-class CreateLlmCostTrackerCallRollups < ActiveRecord::Migration<%= migration_version %>
+class CreateLlmCostTrackerCallRollups < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
   def change
     create_table :llm_cost_tracker_call_rollups do |t|
       t.string :period, null: false

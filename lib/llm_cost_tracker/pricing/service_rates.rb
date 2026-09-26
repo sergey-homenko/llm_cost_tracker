@@ -44,17 +44,10 @@ module LlmCostTracker
             return rate if rate
 
             tier_rates.each do |candidate, candidate_rate|
-              return candidate_rate if tier_includes?(pricing_mode, candidate)
+              return candidate_rate if "_#{pricing_mode}_".include?("_#{candidate}_")
             end
           end
           dimension_rates[:default]
-        end
-
-        def tier_includes?(tier_name, candidate_name)
-          tier_name == candidate_name ||
-            tier_name.start_with?("#{candidate_name}_") ||
-            tier_name.end_with?("_#{candidate_name}") ||
-            tier_name.include?("_#{candidate_name}_")
         end
 
         def charge_dimension_key(dimension)

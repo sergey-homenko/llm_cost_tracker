@@ -87,7 +87,11 @@ module LlmCostTracker
       def latency_by_provider = group(:provider).average(:latency_ms).transform_values(&:to_f)
 
       def group_by_period(period, column: :tracked_at, time_zone: nil)
-        group(Arel.sql(period_group_expression(period, column: column, time_zone: time_zone)))
+        column = column.to_s
+        raise ArgumentError, "invalid period column: #{column.inspect}" unless column_names.include?(column)
+
+        bucket = Ledger::Schema::Adapter.period_bucket_sql(connection, period, qualified(column), time_zone: time_zone)
+        group(Arel.sql(bucket))
       end
 
       def daily_costs(days: 30)
@@ -108,18 +112,6 @@ module LlmCostTracker
                    .order(Arel.sql("COALESCE(SUM(total_cost), 0) DESC"))
         relation = relation.limit(limit) if limit
         relation
-      end
-
-      def period_group_expression(period, column:, time_zone:)
-        column = period_column_expression(column)
-        Ledger::Schema::Adapter.period_bucket_sql(connection, period, column, time_zone: time_zone)
-      end
-
-      def period_column_expression(column)
-        column = column.to_s
-        return "#{quoted_table_name}.#{connection.quote_column_name(column)}" if column_names.include?(column)
-
-        raise ArgumentError, "invalid period column: #{column.inspect}"
       end
     end
 

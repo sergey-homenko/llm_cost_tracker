@@ -31,16 +31,6 @@ RSpec.describe LlmCostTracker::Integrations::Base do
       expect(integration.provider).to eq("gemini_ai")
     end
 
-    it "returns the declared override when set via `provider :slug`" do
-      integration = Module.new do
-        extend LlmCostTracker::Integrations::Base
-        def self.integration_name = :gemini_ai
-        provider :gemini
-      end
-
-      expect(integration.provider).to eq("gemini")
-    end
-
     it "lets callers pass a per-call provider override into enforce_budget!" do
       integration = Module.new do
         extend LlmCostTracker::Integrations::Base

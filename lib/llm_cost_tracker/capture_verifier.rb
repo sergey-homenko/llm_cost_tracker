@@ -25,7 +25,7 @@ module LlmCostTracker
       [
         enabled_check,
         *integration_checks,
-        *storage_checks
+        *LlmCostTracker::Ingestion.verify
       ].compact
     end
 
@@ -48,12 +48,6 @@ module LlmCostTracker
       LlmCostTracker::Integrations.checks.map do |check|
         check.with(name: "sdk integration #{check.name}")
       end
-    end
-
-    def storage_checks
-      LlmCostTracker::Ingestion.verify
-    rescue LlmCostTracker::Error => e
-      [Check.new(:error, "storage", e.message)]
     end
   end
 end

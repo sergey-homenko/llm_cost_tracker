@@ -6,23 +6,18 @@ module LlmCostTracker
       class Parser < LlmCostTracker::Parsers::Base
         include ResponseParser
 
-        TRACKED_PATHS = %w[
-          /v1/chat/completions
-          /v1/completions
-          /v1/embeddings
-          /v1/responses
-          /v1/images/generations
-          /v1/images/edits
-          /v1/images/variations
-          /v1/audio/transcriptions
-          /v1/audio/translations
-          /v1/audio/speech
-          /v1/moderations
+        TRACKED_ENDPOINTS = %w[
+          chat/completions completions embeddings moderations responses
+          audio/transcriptions audio/translations audio/speech
+          images/generations images/edits images/variations
         ].freeze
+        TRACKED_PATHS = TRACKED_ENDPOINTS.map { |endpoint| "/v1/#{endpoint}" }.freeze
 
         class << self
           def match?(url)
-            match_uri?(url, hosts: Hosts::API_HOSTS, exact_paths: TRACKED_PATHS)
+            uri_matches?(url) do |uri|
+              Hosts::API_HOSTS.include?(uri.host.to_s.downcase) && TRACKED_PATHS.include?(uri.path.to_s)
+            end
           end
 
           def provider_names

@@ -1,6 +1,6 @@
 require "llm_cost_tracker/ledger/schema/adapter"
 
-class UpgradeLlmCostTrackerIndexes < ActiveRecord::Migration<%= migration_version %>
+class UpgradeLlmCostTrackerIndexes < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
   disable_ddl_transaction!
 
   CALLS = :llm_cost_tracker_calls

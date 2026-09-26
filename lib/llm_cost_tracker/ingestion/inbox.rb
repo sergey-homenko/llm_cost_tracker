@@ -69,13 +69,7 @@ module LlmCostTracker
         end
 
         def payload_for(event)
-          event.to_h.merge(
-            schema_version: PAYLOAD_SCHEMA_VERSION,
-            event_id: event.event_id,
-            provider: event.provider,
-            model: event.model,
-            tracked_at: event.tracked_at.iso8601(6)
-          )
+          event.to_h.merge(schema_version: PAYLOAD_SCHEMA_VERSION, tracked_at: event.tracked_at.iso8601(6))
         end
 
         def insert_row(row)

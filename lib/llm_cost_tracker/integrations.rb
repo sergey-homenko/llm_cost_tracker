@@ -6,12 +6,8 @@ require_relative "errors"
 
 module LlmCostTracker
   module Integrations
-    autoload :Base, "llm_cost_tracker/integrations/base"
-
     Dir.glob(File.join(__dir__, "integrations", "*.rb")).each do |path|
       basename = File.basename(path, ".rb")
-      next if basename == "base"
-
       autoload basename.camelize.to_sym, "llm_cost_tracker/integrations/#{basename}"
     end
 

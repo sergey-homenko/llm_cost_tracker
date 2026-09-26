@@ -8,8 +8,6 @@ module LlmCostTracker
       module Adapter
         MYSQL_ADAPTERS = %w[
           ActiveRecord::ConnectionAdapters::AbstractMysqlAdapter
-          ActiveRecord::ConnectionAdapters::Mysql2Adapter
-          ActiveRecord::ConnectionAdapters::TrilogyAdapter
         ].freeze
         POSTGRESQL_ADAPTERS = %w[
           ActiveRecord::ConnectionAdapters::PostgreSQLAdapter

@@ -39,17 +39,13 @@ module LlmCostTracker
       attr_reader :scope, :params, :extra_tags
 
       def apply_date_filters(relation)
-        from_date = Dashboard::DateRange.parse(params, :from)
-        to_date = Dashboard::DateRange.parse(params, :to)
-        Dashboard::DateRange.validate!(from: from_date, to: to_date)
-
-        default_range = Dashboard::DateRange.call(params: params)
-        from_date ||= default_range.from
-        to_date ||= default_range.to
+        Dashboard::DateRange.validate!(from: Dashboard::DateRange.parse(params, :from),
+                                       to: Dashboard::DateRange.parse(params, :to))
+        range = Dashboard::DateRange.call(params: params)
 
         relation
-          .where(tracked_at: from_date.beginning_of_day..)
-          .where(tracked_at: ..to_date.end_of_day)
+          .where(tracked_at: range.from.beginning_of_day..)
+          .where(tracked_at: ..range.to.end_of_day)
       end
 
       def apply_exact_filter(relation, key)

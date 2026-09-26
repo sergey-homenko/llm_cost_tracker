@@ -43,59 +43,26 @@ module LlmCostTracker
                     force: false,
                     fetcher: Fetcher.new,
                     today: Date.today)
-          current = load_registry(path)
-          response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
-
-          if response.not_modified
-            return refresh_result(
-              path: path,
-              url: url,
-              response: response,
-              changes: registry_changes(current, current),
-              suspicious: [],
-              written: false,
-              not_modified: true
-            )
-          end
-
-          remote = normalize_remote_registry(response.body, url: url, response: response, today: today)
-          changes = registry_changes(current, remote)
-          suspicious = SnapshotGuard.call(current: current, remote: remote, changes: changes)
-          unless preview
+          response, remote, changes, suspicious = compare(path, url, fetcher, today)
+          written = !preview && !response.not_modified
+          if written
             refuse_suspicious_snapshot!(path, suspicious) unless force || suspicious.empty?
             RegistryWriter.new.call(path: path, registry: remote)
             Pricing::Registry.reset!
           end
-          refresh_result(
+          RefreshResult.new(
             path: path,
-            url: url,
-            response: response,
+            source_url: Redaction.text(url),
+            source_version: response.source_version,
             changes: changes,
             suspicious: suspicious,
-            written: !preview,
-            not_modified: false
+            written: written,
+            not_modified: response.not_modified
           )
         end
 
         def check(path: DEFAULT_OUTPUT_PATH, url: DEFAULT_REMOTE_URL, fetcher: Fetcher.new, today: Date.today)
-          current = load_registry(path)
-          response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
-
-          if response.not_modified
-            return CheckResult.new(
-              path: path,
-              source_url: Redaction.text(url),
-              source_version: response.source_version,
-              changes: {},
-              suspicious: [],
-              up_to_date: true
-            )
-          end
-
-          remote = normalize_remote_registry(response.body, url: url, response: response, today: today)
-          changes = registry_changes(current, remote)
-          suspicious = SnapshotGuard.call(current: current, remote: remote, changes: changes)
-
+          response, _remote, changes, suspicious = compare(path, url, fetcher, today)
           CheckResult.new(
             path: path,
             source_url: Redaction.text(url),
@@ -147,6 +114,16 @@ module LlmCostTracker
           raise Error, "Unable to load remote pricing snapshot: #{e.message}"
         end
 
+        def compare(path, url, fetcher, today)
+          current = load_registry(path)
+          response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
+          return [response, nil, {}, []] if response.not_modified
+
+          remote = normalize_remote_registry(response.body, url: url, response: response, today: today)
+          changes = registry_changes(current, remote)
+          [response, remote, changes, SnapshotGuard.call(current: current, remote: remote, changes: changes)]
+        end
+
         def load_registry(path)
           return {} unless File.exist?(path)
 
@@ -164,18 +141,6 @@ module LlmCostTracker
           raise Error, "Unable to parse remote pricing snapshot: #{e.message}"
         end
 
-        def refresh_result(path:, url:, response:, changes:, suspicious:, written:, not_modified:)
-          RefreshResult.new(
-            path: path,
-            source_url: Redaction.text(url),
-            source_version: response.source_version,
-            changes: changes,
-            suspicious: suspicious,
-            written: written,
-            not_modified: not_modified
-          )
-        end
-
         def refuse_suspicious_snapshot!(path, suspicious)
           listed = suspicious.first(20).map { |finding| "\n  - #{finding}" }.join
           raise Error,
@@ -186,28 +151,13 @@ module LlmCostTracker
 
         def registry_changes(current, remote)
           model_changes = RegistryDiff.call(current.fetch("models", {}), remote.fetch("models", {}))
-          charge_changes = service_charges_diff(
+          charge_changes = RegistryDiff.nested(
             current.fetch("service_charges", {}),
             remote.fetch("service_charges", {})
           )
           return model_changes if charge_changes.empty?
 
           model_changes.merge("service_charges" => charge_changes)
-        end
-
-        def service_charges_diff(current, remote)
-          (current.keys | remote.keys).sort.each_with_object({}) do |provider, changes|
-            current_rates = (current[provider] || {}).transform_keys(&:to_s)
-            remote_rates = (remote[provider] || {}).transform_keys(&:to_s)
-            (current_rates.keys | remote_rates.keys).sort.each_with_object(changes) do |component, _|
-              from = current_rates[component]
-              to = remote_rates[component]
-              next if from == to
-
-              changes[provider] ||= {}
-              changes[provider][component] = { "from" => from, "to" => to }
-            end
-          end
         end
       end
     end

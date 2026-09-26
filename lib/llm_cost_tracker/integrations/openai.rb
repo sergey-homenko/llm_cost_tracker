@@ -57,22 +57,16 @@ module LlmCostTracker
           [
             patch_target("OpenAI::Resources::Responses", with: ResponsesPatch),
             patch_target("OpenAI::Resources::Chat::Completions", with: ChatCompletionsPatch),
-            *auxiliary_patch_targets
-          ]
-        end
-
-        def auxiliary_patch_targets
-          [
             patch_target("OpenAI::Resources::Embeddings", with: EmbeddingsPatch, optional: true),
             patch_target("OpenAI::Resources::Images", with: ImagesPatch, optional: true),
             patch_target("OpenAI::Resources::Images",
                          with: StreamingImagesPatch,
-                                                                               optional: true,
+                         optional: true,
                          skip_when_methods_missing: true),
             patch_target("OpenAI::Resources::Audio::Transcriptions", with: TranscriptionsPatch, optional: true),
             patch_target("OpenAI::Resources::Audio::Transcriptions",
                          with: StreamingTranscriptionsPatch,
-                                                                                              optional: true,
+                         optional: true,
                          skip_when_methods_missing: true),
             patch_target("OpenAI::Resources::Audio::Translations", with: TranslationsPatch, optional: true),
             patch_target("OpenAI::Resources::Audio::Speech", with: SpeechPatch, optional: true),
@@ -121,7 +115,7 @@ module LlmCostTracker
             model: request[:model],
             response: response,
             latency_ms: latency_ms,
-            host: host,
+            provider: provider_for_host(host),
             input_tokens: [raw_input - image_input - cache_read, 0].max,
             image_input_tokens: image_input,
             output_tokens: text_output,
@@ -136,7 +130,7 @@ module LlmCostTracker
             model: request[:model],
             response: response,
             latency_ms: latency_ms,
-            host: host,
+            provider: provider_for_host(host),
             service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.transcription_line_items(usage),
             usage_source: usage ? LlmCostTracker::Usage::Source::SDK_RESPONSE : LlmCostTracker::Usage::Source::UNKNOWN,
             **transcription_token_attributes(usage)
@@ -160,7 +154,7 @@ module LlmCostTracker
             model: request[:model],
             response: nil,
             latency_ms: latency_ms,
-            host: host,
+            provider: provider_for_host(host),
             input_tokens: 0,
             output_tokens: 0,
             service_line_items: speech_line_items(request)
@@ -186,34 +180,10 @@ module LlmCostTracker
             model: response.model || request[:model],
             response: response,
             latency_ms: latency_ms,
-            host: host,
+            provider: provider_for_host(host),
             input_tokens: 0,
             output_tokens: 0
           )
-        end
-
-        def record_passthrough(model:,
-                               response:,
-                               latency_ms:,
-                               host: nil,
-                               service_line_items: [],
-                               usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE,
-                               **token_attributes)
-          return unless active?
-
-          record_safely do
-            LlmCostTracker::Tracker.record(
-              event: Event.build(
-                provider: provider_for_host(host),
-                model: model,
-                token_usage: Usage::TokenUsage.build(**token_attributes),
-                usage_source: usage_source,
-                provider_response_id: response&.try(:id),
-                service_line_items: service_line_items
-              ),
-              latency_ms: latency_ms
-            )
-          end
         end
 
         def usage_hash_from(response)

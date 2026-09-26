@@ -8,6 +8,8 @@ require_relative "period"
 module LlmCostTracker
   module Ledger
     module Rollups
+      SOURCE_COLUMNS = %i[tracked_at total_cost pricing_snapshot provider].freeze
+
       class << self
         def cache_active?
           return false unless LlmCostTracker.configuration.budgets.totals_source == :cache
@@ -20,10 +22,8 @@ module LlmCostTracker
         def increment!(events)
           return unless cache_active?
 
-          events = Array(events).select(&:total_cost)
-          return if events.empty?
-
-          LlmCostTracker::CallRollup.increment_all(period_rows_for_events(events))
+          rows = rows_from_buckets(bucket_totals(Array(events)))
+          LlmCostTracker::CallRollup.increment_all(rows) if rows.any?
         end
 
         ROLLUP_INCREMENT_ATTEMPTS = 3
@@ -107,12 +107,7 @@ module LlmCostTracker
         end
 
         def priced_calls
-          LlmCostTracker::Call.where.not(total_cost: nil)
-                              .select(:id, :total_cost, :pricing_snapshot, :provider, :tracked_at)
-        end
-
-        def period_rows_for_events(events)
-          rows_from_buckets(bucket_totals(events))
+          LlmCostTracker::Call.where.not(total_cost: nil).select(:id, *SOURCE_COLUMNS)
         end
 
         def rows_from_buckets(buckets)

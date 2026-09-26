@@ -32,12 +32,6 @@ module LlmCostTracker
           inline. The doctor check warns about unused async ingestion tables.
         MSG
       end
-
-      private
-
-      def migration_version
-        "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]"
-      end
     end
   end
 end

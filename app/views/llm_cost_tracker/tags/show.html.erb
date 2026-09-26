@@ -5,9 +5,9 @@
   <h2 class="lct-page-title">Tag: <code class="lct-code-id"><%= params[:key] %></code> = <code class="lct-code-id"><%= @value %></code></h2>
 
   <div class="lct-filter-row">
-    <%= render "llm_cost_tracker/shared/filter_pill_date", path: form_url, extra_hidden: { tag_value: @value }, extra_except: [:tag_value] %>
-    <%= render "llm_cost_tracker/shared/filter_pill_provider", path: form_url, extra_hidden: { tag_value: @value }, extra_except: [:tag_value] %>
-    <%= render "llm_cost_tracker/shared/filter_pill_model", path: form_url, extra_hidden: { tag_value: @value }, extra_except: [:tag_value] %>
+    <%= render "llm_cost_tracker/shared/filter_pill_date", path: form_url %>
+    <%= render "llm_cost_tracker/shared/filter_pill_provider", path: form_url %>
+    <%= render "llm_cost_tracker/shared/filter_pill_model", path: form_url %>
 
     <% if params[:provider].present? || params[:model].present? %>
       <%= link_to "× Clear filters", tag_path(params[:key], current_query(provider: nil, model: nil, page: nil)), class: "lct-filter-clear" %>
@@ -35,7 +35,7 @@
       </div>
       <div class="lct-stat">
         <div class="lct-stat-head"><p class="lct-stat-label">Avg cost / call</p></div>
-        <p class="lct-stat-value"><%= money(@value_calls.positive? ? @value_total_cost / @value_calls : 0) %></p>
+        <p class="lct-stat-value"><%= money(@value_total_cost / @value_calls) %></p>
       </div>
     </div>
 
@@ -44,7 +44,7 @@
         <h2 class="lct-panel-title">Spend over time</h2>
         <span class="lct-panel-meta"><%= link_to "View calls →", calls_path(calls_query_for_tag(key: @key, value: @value)) %></span>
       </div>
-      <%= render "llm_cost_tracker/shared/spend_chart", series: @value_points, comparison_series: [] %>
+      <%= render "llm_cost_tracker/shared/spend_chart", series: @value_points %>
     </section>
   <% end %>
 

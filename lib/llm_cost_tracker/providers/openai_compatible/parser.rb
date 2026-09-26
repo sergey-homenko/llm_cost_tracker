@@ -10,7 +10,9 @@ module LlmCostTracker
 
         class << self
           def match?(url)
-            match_uri?(url, path_suffixes: TRACKED_PATH_SUFFIXES) { |uri| provider_for_uri(uri) }
+            uri_matches?(url) do |uri|
+              TRACKED_PATH_SUFFIXES.any? { |suffix| uri.path.to_s.end_with?(suffix) } && !provider_for_uri(uri).nil?
+            end
           end
 
           def provider_names

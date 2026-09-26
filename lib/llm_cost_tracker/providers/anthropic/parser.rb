@@ -10,7 +10,9 @@ module LlmCostTracker
 
         class << self
           def match?(url)
-            match_uri?(url, hosts: HOSTS, path_includes: "/v1/messages")
+            uri_matches?(url) do |uri|
+              HOSTS.include?(uri.host.to_s.downcase) && uri.path.to_s.include?("/v1/messages")
+            end
           end
 
           def provider_names

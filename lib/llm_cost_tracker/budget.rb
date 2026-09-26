@@ -110,14 +110,6 @@ module LlmCostTracker
         Pricing::Estimator.call(provider: provider, model: model, request: request) || BigDecimal("0")
       end
 
-      def raise_per_call_pre_send(estimate, budget)
-        return unless estimate >= budget
-
-        raise BudgetExceededError.new(**budget_payload(
-          budget_type: :per_call, total: estimate, budget: budget, last_event: nil, stage: :pre_send
-        ))
-      end
-
       def check_per_call_budget(event, config, behavior_override)
         budget = config.budgets.per_call
         return unless budget
@@ -134,7 +126,10 @@ module LlmCostTracker
       end
 
       def enforce_globally(config, estimate:, time:)
-        raise_per_call_pre_send(estimate, config.budgets.per_call) if config.budgets.per_call && estimate.positive?
+        per_call = config.budgets.per_call
+        if per_call && estimate.positive? && estimate >= per_call
+          raise_pre_send(budget_type: :per_call, total: estimate, budget: per_call)
+        end
 
         check_windowed({ monthly: config.budgets.monthly, daily: config.budgets.daily }.compact,
                        time: time,
@@ -144,9 +139,9 @@ module LlmCostTracker
       end
 
       def raise_pre_send(budget_type:, total:, budget:, scope: nil)
-        raise BudgetExceededError.new(**budget_payload(
-          budget_type: budget_type, total: total, budget: budget, last_event: nil, stage: :pre_send, scope: scope
-        ))
+        raise BudgetExceededError.new(
+          budget_type: budget_type, total: total, budget: budget, stage: :pre_send, scope: scope
+        )
       end
 
       def check_per_tag(tags, time:, estimate: BigDecimal("0"), blocking_only: false)
@@ -165,19 +160,12 @@ module LlmCostTracker
       def check_windowed(budgets, time:, estimate: BigDecimal("0"))
         return if budgets.empty?
 
-        totals = totals_for(budgets.keys, time: time)
+        periods = budgets.keys.map { |type| BUDGET_TYPE_TO_PERIOD.fetch(type) }
+        totals = LlmCostTracker::Ledger::Period::Totals.call(periods, time: time)
         budgets.each do |budget_type, budget|
-          total = totals.fetch(budget_type) + estimate
+          total = totals.fetch(BUDGET_TYPE_TO_PERIOD.fetch(budget_type)) + estimate
           yield(budget_type, total, budget) if total >= budget
         end
-      end
-
-      def totals_for(budget_types, time:)
-        return {} if budget_types.empty?
-
-        period_for = budget_types.to_h { |type| [type, BUDGET_TYPE_TO_PERIOD.fetch(type)] }
-        period_totals = LlmCostTracker::Ledger::Period::Totals.call(period_for.values, time: time)
-        period_for.transform_values { |period| period_totals.fetch(period) }
       end
 
       def handle_exceeded(budget_type:,
@@ -191,28 +179,17 @@ module LlmCostTracker
         config = LlmCostTracker.configuration
         behavior ||= config.budgets.exceeded_behavior
         on_exceeded ||= config.budgets.on_exceeded
-        payload = budget_payload(
+        payload = {
           budget_type: budget_type,
           total: total,
           budget: budget,
           last_event: last_event,
           stage: :post_spend,
           scope: scope
-        )
+        }
 
         on_exceeded.call(payload) if on_exceeded && (previous_total.nil? || previous_total < budget)
         BudgetExceededError.new(**payload) if %i[raise block_requests].include?(behavior)
-      end
-
-      def budget_payload(budget_type:, total:, budget:, last_event:, stage:, scope: nil)
-        {
-          budget_type: budget_type,
-          total: total,
-          budget: budget,
-          last_event: last_event,
-          stage: stage,
-          scope: scope
-        }
       end
     end
   end

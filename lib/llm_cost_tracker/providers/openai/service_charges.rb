@@ -149,20 +149,6 @@ module LlmCostTracker
           }.compact
         end
 
-        def openai_stream_service_line_items(events, request: nil, model: nil)
-          response = { "output" => [] }
-          each_event_data(events) do |data|
-            response["output"].concat(Array(data.dig("response", "output")))
-            response["output"] << data["item"] if data["item"]
-            chunk = data["chunk"] || data
-            next unless chunk["choices"].is_a?(Array)
-
-            response["id"] ||= chunk["id"]
-            (response["choices"] ||= []).concat(chunk["choices"])
-          end
-          service_line_items_for(response, request: request, model: model)
-        end
-
         def transcription_line_items(usage)
           return [] unless usage
 

@@ -18,8 +18,6 @@ require "llm_cost_tracker/generators/llm_cost_tracker/async_ingestion_generator"
 require "llm_cost_tracker/generators/llm_cost_tracker/call_rollups_generator"
 
 RSpec.describe "generator templates" do
-  let(:migration_version) { "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]" }
-
   def template(name)
     path = File.expand_path(
       "../../lib/llm_cost_tracker/generators/llm_cost_tracker/templates/#{name}",

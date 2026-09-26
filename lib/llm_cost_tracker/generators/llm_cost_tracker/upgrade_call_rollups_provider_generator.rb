@@ -18,12 +18,6 @@ module LlmCostTracker
           "db/migrate/upgrade_llm_cost_tracker_call_rollups_provider.rb"
         )
       end
-
-      private
-
-      def migration_version
-        "[#{ActiveRecord::VERSION::MAJOR}.#{ActiveRecord::VERSION::MINOR}]"
-      end
     end
   end
 end

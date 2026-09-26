@@ -185,10 +185,9 @@ module LlmCostTracker
         def normalize_price_entry(model, price, context)
           unknown = []
           normalized = price.each_with_object({}) do |(key, value), acc|
-            registry_key = registry_key_for(key)
-            if registry_key == CONTEXT_THRESHOLD_KEY
-              acc[registry_key] = Integer(value)
-            elsif registry_key
+            if key.to_s == CONTEXT_THRESHOLD_KEY
+              acc[CONTEXT_THRESHOLD_KEY] = Integer(value)
+            elsif (registry_key = PriceKey.price_key_for(key))
               acc[registry_key] = non_negative_decimal(value, label: "price for #{registry_key.inspect}")
             elsif !METADATA_KEYS.include?(key)
               unknown << key
@@ -213,12 +212,6 @@ module LlmCostTracker
           )
         end
 
-        def registry_key_for(key)
-          return CONTEXT_THRESHOLD_KEY if key.to_s == CONTEXT_THRESHOLD_KEY
-
-          PriceKey.price_key_for(key)
-        end
-
         def validate_price_entry(price, model:, context:)
           return {} if price.nil?
           return price if price.is_a?(Hash)
@@ -240,7 +233,7 @@ module LlmCostTracker
 
             rate = {
               amount: amount,
-              quantity: rate_quantity(dimension),
+              quantity: Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_d,
               currency: currency,
               source_key: key
             }
@@ -256,10 +249,6 @@ module LlmCostTracker
           end
 
           [dimension, tier]
-        end
-
-        def rate_quantity(dimension)
-          Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_d
         end
 
         def upcased_currency(value)

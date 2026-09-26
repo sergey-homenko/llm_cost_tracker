@@ -4,7 +4,6 @@ module LlmCostTracker
   module Dashboard
     class TopModels
       DEFAULT_LIMIT = 5
-      SORT_OPTIONS = %w[cost calls avg_cost latency tokens provider name].freeze
       DEFAULT_SORT = "cost"
       DEFAULT_DIRECTIONS = {
         "provider" => "asc",
@@ -43,7 +42,7 @@ module LlmCostTracker
       def initialize(scope:, limit:, sort: DEFAULT_SORT, direction: nil)
         @scope = scope
         @limit = limit
-        @sort = SORT_OPTIONS.include?(sort.to_s) ? sort.to_s : DEFAULT_SORT
+        @sort = DEFAULT_DIRECTIONS.key?(sort.to_s) ? sort.to_s : DEFAULT_SORT
         @direction = Sort::DIRECTIONS.include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTIONS[@sort]
       end
 

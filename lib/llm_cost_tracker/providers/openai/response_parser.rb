@@ -11,8 +11,6 @@ module LlmCostTracker
   module Providers
     module Openai
       module ResponseParser
-        include LlmCostTracker::Providers::Openai::ServiceCharges
-
         class << self
           def combined_pricing_mode(host:, model:, service_tier:)
             modes = [Pricing::Mode.normalize(service_tier)]
@@ -91,8 +89,8 @@ module LlmCostTracker
             provider_response_id: find_event_value(events) do |data|
               data["id"] || data.dig("response", "id") || data.dig("chunk", "id")
             end,
-            pricing_mode: pricing_mode(
-              request_url: request_url,
+            pricing_mode: ResponseParser.combined_pricing_mode(
+              host: parsed_uri(request_url)&.host,
               model: model,
               service_tier: stream_pricing_mode(events) || request["service_tier"]
             ),
@@ -114,7 +112,7 @@ module LlmCostTracker
             token_usage: UsageExtractor.token_usage(usage, model: model),
             stream: true,
             usage_source: Usage::Source::STREAM_FINAL,
-            service_line_items: service_line_items + billed_line_items(usage)
+            service_line_items: service_line_items + ServiceCharges.billed_line_items(usage)
           )
         end
 
@@ -149,10 +147,18 @@ module LlmCostTracker
           end
         end
 
-        def pricing_mode(request_url:, model:, service_tier:)
-          ResponseParser.combined_pricing_mode(host: parsed_uri(request_url)&.host,
-                                               model: model,
-                                               service_tier: service_tier)
+        def openai_stream_service_line_items(events, request: nil, model: nil)
+          response = { "output" => [] }
+          each_event_data(events) do |data|
+            response["output"].concat(Array(data.dig("response", "output")))
+            response["output"] << data["item"] if data["item"]
+            chunk = data["chunk"] || data
+            next unless chunk["choices"].is_a?(Array)
+
+            response["id"] ||= chunk["id"]
+            (response["choices"] ||= []).concat(chunk["choices"])
+          end
+          ServiceCharges.service_line_items_for(response, request: request, model: model)
         end
       end
     end

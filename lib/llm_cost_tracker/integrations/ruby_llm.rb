@@ -101,35 +101,6 @@ module LlmCostTracker
           details.with_indifferent_access[:image_tokens].to_i
         end
 
-        def record_passthrough(provider:,
-                               model:,
-                               response:,
-                               latency_ms:,
-                               input_tokens:,
-                               output_tokens:,
-                               image_input_tokens: 0,
-                               image_output_tokens: 0)
-          return unless active?
-
-          record_safely do
-            LlmCostTracker::Tracker.record(
-              event: Event.build(
-                provider: provider,
-                model: model,
-                token_usage: Usage::TokenUsage.build(
-                  input_tokens: input_tokens,
-                  output_tokens: output_tokens,
-                  image_input_tokens: image_input_tokens,
-                  image_output_tokens: image_output_tokens
-                ),
-                usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE,
-                provider_response_id: provider_response_id_for(response)
-              ),
-              latency_ms: latency_ms
-            )
-          end
-        end
-
         def record_usage(provider:,
                          model:,
                          response:,

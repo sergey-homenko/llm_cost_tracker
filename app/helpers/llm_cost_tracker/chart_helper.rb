@@ -7,7 +7,7 @@ module LlmCostTracker
 
       cfg = chart_config(points, comparison_points, height, y_ticks)
       parts = [chart_svg_open(cfg), "<title>Daily spend trend</title>", chart_area_gradient_def]
-      parts.concat(chart_grid_and_axis(cfg))
+      parts.concat((0..cfg[:y_ticks]).map { |i| chart_tick_line(cfg, i) })
       parts << chart_paths(cfg)
       parts.concat(chart_dots(cfg))
       parts.concat(chart_x_labels(cfg))
@@ -34,7 +34,7 @@ module LlmCostTracker
       peak_index = points.each_with_index.max_by { |point, _| point[:cost].to_f }&.last
       { width: width, height: height, pad: pad, plot_w: plot_w, plot_h: plot_h,
         max_cost: max_cost, n: points.size, y_ticks: y_ticks, points: points, coords: coords,
-        comparison_points: comparison_points, comparison_coords: comparison_coords,
+        comparison_coords: comparison_coords,
         peak_index: peak_index }
     end
 
@@ -60,21 +60,17 @@ module LlmCostTracker
       "<svg #{attrs}>"
     end
 
-    def chart_grid_and_axis(cfg)
-      (0..cfg[:y_ticks]).map { |i| chart_tick_line(cfg, i) }
-    end
-
     def chart_tick_line(cfg, idx)
       pad = cfg[:pad]
       right_x = chart_fmt(pad[:left] + cfg[:plot_w])
       left_x = chart_fmt(pad[:left])
       text_x = chart_fmt(pad[:left] - 8)
       value = cfg[:max_cost] * (cfg[:y_ticks] - idx).to_f / cfg[:y_ticks]
-      y = chart_fmt(pad[:top] + (cfg[:plot_h] * idx.to_f / cfg[:y_ticks]))
-      label_y = chart_fmt(pad[:top] + (cfg[:plot_h] * idx.to_f / cfg[:y_ticks]) + 3)
+      tick_y = pad[:top] + (cfg[:plot_h] * idx.to_f / cfg[:y_ticks])
+      y = chart_fmt(tick_y)
+      label_y = chart_fmt(tick_y + 3)
       grid = %(<line class="lct-chart-grid" x1="#{left_x}" x2="#{right_x}" y1="#{y}" y2="#{y}"/>)
-      label = format("%.2f", value)
-      text = %(<text class="lct-chart-axis" x="#{text_x}" y="#{label_y}" text-anchor="end">$#{label}</text>)
+      text = %(<text class="lct-chart-axis" x="#{text_x}" y="#{label_y}" text-anchor="end">$#{chart_fmt(value)}</text>)
       "#{grid}#{text}"
     end
 
