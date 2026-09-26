@@ -377,6 +377,18 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker::Ingestion::InboxEntry.delete_all
   end
 
+  it "drains a row whose payload repeats a tag key, as 0.14.1 wrote them, keeping the later value" do
+    event = LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 10, output_tokens: 0 },
+                                 tags: { tenant: "b" })
+    row = LlmCostTracker::Ingestion::InboxEntry.find_by!(event_id: event.event_id)
+    row.update!(payload: row.payload.sub('"tenant":"b"', '"tenant":"a","tenant":"b"'))
+    expect(row.payload).to include('"tenant":"a","tenant":"b"')
+
+    expect(LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)).to eq(1)
+    call = LlmCostTracker::Call.find_by!(event_id: event.event_id)
+    expect(LlmCostTracker::CallTag.where(llm_cost_tracker_call_id: call.id).pluck(:key, :value)).to eq([%w[tenant b]])
+  end
+
   it "groups decode failures by error message so N invalid rows produce one DB update instead of N" do
     now = Time.utc(2026, 4, 18, 12)
     3.times do |i|

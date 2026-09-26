@@ -18,7 +18,7 @@ module LlmCostTracker
         end
 
         def event_from_row(row)
-          payload = JSON.parse(row.payload, symbolize_names: true)
+          payload = JSON.parse(row.payload, symbolize_names: true, allow_duplicate_key: true)
           schema_version = payload[:schema_version]
           unless schema_version == PAYLOAD_SCHEMA_VERSION
             raise LlmCostTracker::Error, "unsupported ledger inbox payload schema version #{schema_version.inspect}"
