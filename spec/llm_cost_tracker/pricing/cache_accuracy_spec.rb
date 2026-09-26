@@ -144,5 +144,15 @@ RSpec.describe "Cache-aware cost accuracy" do
 
       expect([before_writes.total, with_writes.total]).to eq([BigDecimal("0.028"), BigDecimal("0.024048")])
     end
+
+    it "leaves cache hits unpriced for a pricing.overrides entry without a cache rate" do
+      LlmCostTracker.configure { |c| c.pricing.overrides = { "openai/gpt-4o" => { input: 2.5, output: 10.0 } } }
+
+      result = cost_for(provider: "openai", model: "gpt-4o",
+                        input_tokens: 1000, cache_read_input_tokens: 2000, output_tokens: 400)
+
+      expect(result.components[:cache_read_input_cost]).to be_nil
+      expect(result.total).to eq(BigDecimal("0.0065"))
+    end
   end
 end

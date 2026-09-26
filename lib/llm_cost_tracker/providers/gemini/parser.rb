@@ -145,7 +145,6 @@ module LlmCostTracker
         end
 
         def grounding_line_items_for_stream(events, model:)
-          model ||= find_event_value(events) { |data| data["modelVersion"] }
           quantity = find_event_value(events, reverse: true) do |data|
             count = grounding_request_count(data["candidates"])
             count if count.positive?

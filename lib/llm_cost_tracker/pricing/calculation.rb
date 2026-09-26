@@ -47,7 +47,7 @@ module LlmCostTracker
           quantities: quantities,
           prices: match.prices,
           pricing_mode: @mode,
-          cache_at_input_rate: match.key.start_with?("openai/")
+          cache_at_input_rate: match.source.name != "pricing_overrides" && match.key.start_with?("openai/")
         )
       end
 

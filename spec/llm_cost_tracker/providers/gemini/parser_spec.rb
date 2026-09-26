@@ -470,23 +470,6 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(service_lines.first.quantity).to eq(3)
     end
 
-    it "bills Gemini 3 grounding per query from the chunks' modelVersion when there is no request URL" do
-      events = [
-        { event: nil, data: {
-          "modelVersion" => "gemini-3-flash-preview",
-          "candidates" => [{ "groundingMetadata" => { "webSearchQueries" => ["q1", "q2", "q3"] } }]
-        } },
-        { event: nil, data: {
-          "modelVersion" => "gemini-3-flash-preview",
-          "usageMetadata" => { "promptTokenCount" => 50, "candidatesTokenCount" => 25, "totalTokenCount" => 75 }
-        } }
-      ]
-
-      result = parser.parse_stream(response_status: 200, events: events)
-
-      expect(result.line_items.reject { |item| item.unit == "token" }.first.quantity).to eq(3)
-    end
-
     it "returns an unknown-usage Event when no usage metadata is seen" do
       result = parser.parse_stream(
         request_url: url,
