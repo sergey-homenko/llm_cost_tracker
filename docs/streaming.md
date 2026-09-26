@@ -62,7 +62,7 @@ Captured SDK helpers:
 
 The returned stream object is preserved. Usage is recorded after the stream is consumed.
 
-RubyLLM streaming records token usage and cost, but RubyLLM consumes the HTTP body as the stream, so what only the raw response body carries is lost: `provider_response_id`, Anthropic 1-hour cache writes (priced at the 5-minute rate), and the service tier, Anthropic fast mode, and US inference (priced at standard rates). Blocking RubyLLM calls and the official OpenAI/Anthropic SDK streams (which read the raw stream) do capture them — use a direct SDK integration when they matter for streamed calls, such as the response id for invoice cross-reference.
+RubyLLM streaming records token usage and cost, but RubyLLM consumes the HTTP body as the stream, so what only the raw response body carries is lost: `provider_response_id`, Anthropic 1-hour cache writes (priced at the 5-minute rate), the service tier, Anthropic fast mode, and US inference (priced at standard rates), OpenAI and Gemini server-tool fees such as web search and grounding, and Gemini's audio and URL-context prompt tokens (priced as text input or not at all). Blocking RubyLLM calls and the official OpenAI/Anthropic SDK streams (which read the raw stream) do capture them — use a direct SDK integration when they matter for streamed calls, such as the response id for invoice cross-reference.
 
 Tags are snapshotted when the stream starts, so delayed or cross-thread consumption keeps the original request/user attribution.
 
