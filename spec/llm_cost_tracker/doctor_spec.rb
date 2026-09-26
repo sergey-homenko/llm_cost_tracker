@@ -171,7 +171,7 @@ RSpec.describe LlmCostTracker::Doctor do
 
       expect(check).to have_attributes(status: :error)
       expect(check.message).to include("llm_cost_tracker_call_line_items table is missing")
-      expect(check.message).to include("llm_cost_tracker:install")
+      expect(check.message).to include("docs/upgrading.md")
     end
 
     it "fails when call tags are missing" do
@@ -182,7 +182,7 @@ RSpec.describe LlmCostTracker::Doctor do
 
       expect(check).to have_attributes(status: :error)
       expect(check.message).to include("llm_cost_tracker_call_tags table is missing")
-      expect(check.message).to include("llm_cost_tracker:install")
+      expect(check.message).to include("docs/upgrading.md")
     end
 
     it "reports recorded calls" do

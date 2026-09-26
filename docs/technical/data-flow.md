@@ -18,7 +18,7 @@ Normal path from an application LLM call to stored ledger data:
 2. `LlmCostTracker::Integrations` checks the SDK version, target classes, and target methods once at install time.
 3. `LlmCostTracker::Integrations` prepends a narrow wrapper to supported SDK resource methods.
 4. Your app keeps calling the provider SDK normally.
-5. For streaming SDK calls, the wrapper passes the SDK stream through `Capture::StreamTracker` so the app still consumes the same stream object.
+5. For streaming calls on the `openai` and `anthropic` gems, the wrapper passes the SDK stream through `Capture::StreamTracker` so the app still consumes the same stream object; a streaming RubyLLM `complete` is recorded from the final response it returns.
 6. Streaming wrappers snapshot tags before returning the stream to the app.
 7. The wrapper measures latency, extracts usage and provider tier data from the SDK response object or collected stream events, and sends `Event` to `Tracker.record`.
 8. If an explicitly enabled SDK is not loaded or does not satisfy the install contract, boot raises before the app silently misses usage.

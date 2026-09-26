@@ -56,7 +56,7 @@ Built-in integration names:
 | `:anthropic` | `anthropic >= 1.36.0` | Messages and Message Batches, plus their beta helpers |
 | `:ruby_llm` | `ruby_llm >= 1.15.0` | Provider chat, embedding, transcription, image, and moderation calls |
 
-The minimum is what `install!` enforces. CI resolves each SDK fresh on every run, so the suite is exercised against the newest release the gemspec's development dependencies allow. Versions between the minimum and that release are supported but not covered by CI.
+The minimum is what `install!` enforces. CI resolves each SDK fresh on every run, so the suite is exercised against the newest release the gemspec's development dependencies allow. Versions between the minimum and that release are supported but not covered by CI. `ruby_llm` 3.0 and later still install, but the boot log and `doctor` warn that their calls may not be recorded.
 
 Batch results are recorded inside the call that fetches them: for OpenAI, the first `batches.retrieve` in each process that sees the batch `completed`, `expired`, or `cancelled` downloads the output file, which holds every billed request; for Anthropic, iterating `batches.results_streaming`. Poll from a background job, not a web request. A result already in the ledger is skipped (OpenAI embeddings and image results carry no response id, so they are keyed by the output line's `batch_req_...` id), but one still in the async inbox or being recorded by a concurrent fetch is not, so fetch each batch's results from one job at a time.
 
@@ -117,7 +117,7 @@ Unknown-cost line items are still stored. They affect `cost_status` but won't in
 | `budgets.per_call` | `nil` | Single-event USD guardrail |
 | `budgets.exceeded_behavior` | `:notify` | `:notify`, `:raise`, or `:block_requests` |
 | `budgets.on_exceeded` | `nil` | Callable receiving the budget payload |
-| `budgets.per_tag` | `{}` | One budget per distinct value of each declared tag, e.g. `{ tenant_id: { monthly: 1000 }, user_id: { daily: 25 } }`. Windows are `daily`, `weekly`, `monthly`, and a rule may set its own `behavior` and `on_exceeded` instead of following the global ones. Spend is read from `llm_cost_tracker_call_tags`; a fresh install already has the cost columns, and an install created before v0.14 adds them with `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets`. |
+| `budgets.per_tag` | `{}` | One budget per distinct value of each declared tag, e.g. `{ tenant_id: { monthly: 1000 }, user_id: { daily: 25 } }`. Windows are `daily`, `weekly`, `monthly`, and a rule may set its own `behavior` and `on_exceeded` instead of following the global ones. Spend is read from `llm_cost_tracker_call_tags`; a fresh install already has the cost columns, and an install created before v0.14 adds them with `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets` and `bin/rails db:migrate`, then runs `bin/rails llm_cost_tracker:backfill_tag_costs` so calls recorded before the migration count. |
 
 Budget payloads include `budget_type`, `total`, `budget`, `last_event`, `scope` (the tag key and value for a `per_tag` check, `nil` otherwise), and `stage` (`:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks). See [Budgets and Guardrails](budgets.md) for the pre-send estimate behavior.
 

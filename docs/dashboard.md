@@ -46,12 +46,12 @@ The dashboard reads:
 | Models | `/models` | Spend and usage by provider/model, top 200 |
 | Calls | `/calls` | Filterable ledger, call details, CSV export |
 | Tags | `/tags` and `/tags/:key` | Tag key explorer and tag value breakdowns |
-| Data Quality | `/data_quality` | Incomplete pricing, partial costs, missing latency, incomplete streams, tool/runtime charge coverage, budgeted tags no call carries |
+| Data Quality | `/data_quality` | Incomplete pricing, partial costs, missing latency, incomplete streams, tool/runtime charge coverage, budgeted tags no call carries, quarantined async inbox rows and their cost |
 | Pricing | `/pricing` | Per-model rates as separate tabs — Overrides, Custom file, Bundled; the active source (first non-empty in priority order) is highlighted, with last-updated date and currency next to the row count. |
 
 ## Filters
 
-Dashboard pages share date/provider/model/tag filtering when the page supports those dimensions. Dates and daily charts follow the app's `Time.zone`; daily charts need the database to know the zone name (PostgreSQL through its tzdata, MySQL through the server's time zone tables loaded with `mysql_tzinfo_to_sql`) and otherwise stay on UTC days. Tag filters use the same sanitized tag keys accepted by `LlmCostTracker.with_tags` and `track(tags:)`.
+Dashboard pages share date/provider/model/tag filtering when the page supports those dimensions. Dates and daily charts follow the app's `Time.zone`; daily charts need the database to know the zone name (PostgreSQL through its tzdata, MySQL through the server's time zone tables loaded with `mysql_tzinfo_to_sql`) and otherwise stay on UTC days. The overview's monthly budget card uses the UTC month, like the budgets themselves. Tag filters use the same sanitized tag keys accepted by `LlmCostTracker.with_tags` and `track(tags:)`.
 
 A page accepts at most 10 tag filters, counting a tag value page's own value, and each filter takes a single value, not a list. Invalid filters, including on the CSV export, render a bad-request page instead of raising through your app.
 

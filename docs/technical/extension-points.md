@@ -47,7 +47,7 @@ Supported token price keys are owned by `Usage::Catalog`:
 - mode-prefixed keys such as `priority_input` or `batch_cache_read_input`
 - `_context_price_threshold_tokens` with `above_context_*` rates for providers that publish a whole-session long-context tier
 
-Tool and runtime rates live under `service_charges` keyed by provider and component (web search, web fetch, code execution, grounding, container session, file search). Per-model non-token rates (`text_to_speech_character`, `transcription_minute`) go on the model entry and take precedence over `service_charges`. Do not add a rate unless the parser captures the same quantity basis the rate uses.
+Tool and runtime rates live under `service_charges` keyed by provider and component (web search, web fetch, code execution, container session, file search). Per-model non-token rates (`grounding_request`, `text_to_speech_character`, `transcription_minute`) go on the model entry and take precedence over `service_charges`. Do not add a rate unless the parser captures the same quantity basis the rate uses.
 
 Provider-specific pricing details must be translated before they reach runtime pricing. Do not rely on standard rates for missing alternate-mode prices; add explicit mode-prefixed prices unless the provider documents a stackable multiplier.
 

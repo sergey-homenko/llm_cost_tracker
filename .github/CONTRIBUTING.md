@@ -55,6 +55,8 @@ bundle install
 bundle exec rspec
 ```
 
+The suite needs a running PostgreSQL server. By default it connects to 127.0.0.1:5432 as `postgres` / `password` and creates `llm_cost_tracker_test` if missing; override with `LCT_TEST_HOST`, `LCT_TEST_PORT`, `LCT_TEST_USERNAME`, `LCT_TEST_PASSWORD`, `LCT_TEST_DATABASE`.
+
 To test against a specific Rails version:
 
 ```bash
