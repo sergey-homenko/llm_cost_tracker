@@ -354,6 +354,18 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       expect(notified.size).to eq(1)
     end
 
+    it "notifies and raises when the earlier-stamped call lands after the later one was checked" do
+      notified = []
+      configure_per_tag({ monthly: 5 }, behavior: :raise, on_exceeded: ->(payload) { notified << payload })
+      now = Time.now.utc
+      spend(4.0, tags: { tenant_id: 42 }, tracked_at: now - 2)
+      LlmCostTracker::Budget.check_persisted!([spend(0.6, tags: { tenant_id: 42 }, tracked_at: now)])
+      earlier = spend(0.6, tags: { tenant_id: 42 }, tracked_at: now - 1)
+
+      expect { LlmCostTracker::Budget.check_persisted!([earlier]) }.to raise_error(LlmCostTracker::BudgetExceededError)
+      expect(notified.size).to eq(1)
+    end
+
     it "scores a tag passed to track, not only one in the tag context, and keeps the row it raises on" do
       configure_inline(nil, behavior: :notify)
       spend(12.0, tags: { tenant_id: 42 })

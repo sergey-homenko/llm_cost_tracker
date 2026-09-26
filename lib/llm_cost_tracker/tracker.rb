@@ -50,8 +50,8 @@ module LlmCostTracker
 
       def build_tags(context_tags:, metadata:)
         resolved = (context_tags || LlmCostTracker::Tags::Context.tags).to_h
-        sanitized_metadata = LlmCostTracker::Tags::Sanitizer.call(metadata.to_h)
-        LlmCostTracker::Tags::Sanitizer.cap(resolved.merge(sanitized_metadata)).freeze
+        merged = resolved.merge(LlmCostTracker::Tags::Sanitizer.call(metadata.to_h))
+        LlmCostTracker::Tags::Sanitizer.cap(merged.to_a.reverse.uniq { |key, _| key.to_s }.reverse.to_h).freeze
       end
 
       private

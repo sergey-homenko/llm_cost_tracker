@@ -38,7 +38,9 @@ module LlmCostTracker
             period = period.to_sym
             zone = time_zone&.tzinfo&.name
             if postgresql?(connection)
-              column = "(#{column}::timestamp AT TIME ZONE 'UTC') AT TIME ZONE '#{zone}'" if zone
+              if zone && postgresql_zone?(connection, zone)
+                column = "(#{column}::timestamp AT TIME ZONE 'UTC') AT TIME ZONE '#{zone}'"
+              end
               "TO_CHAR(DATE_TRUNC('#{period}', #{column}), '#{PG_PERIOD_FORMATS.fetch(period)}')"
             elsif mysql?(connection)
               column = "COALESCE(CONVERT_TZ(#{column}, '+00:00', '#{zone}'), #{column})" if zone
@@ -51,6 +53,14 @@ module LlmCostTracker
           end
 
           private
+
+          def postgresql_zone?(connection, zone)
+            @postgresql_zones ||= {}
+            @postgresql_zones.fetch(zone) do
+              sql = "SELECT 1 FROM pg_timezone_names WHERE name = #{connection.quote(zone)}"
+              @postgresql_zones[zone] = !connection.select_value(sql).nil?
+            end
+          end
 
           def adapter_instance?(value, class_names)
             class_names.any? do |class_name|

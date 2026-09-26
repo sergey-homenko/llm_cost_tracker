@@ -53,21 +53,27 @@ module LlmCostTracker
         end
 
         def rules_for_events(events)
-          events.each_with_object({}) do |event, grouped|
+          events.select(&:total_cost).each_with_object({}) do |event, grouped|
             rules_for(event.tags).each { |rule| (grouped[rule] ||= []) << event }
           end
         end
 
         def spend(key, value, window, time:)
-          spend_by_value(key, [value], window, window_start(window, time)).fetch(value, 0).to_d
+          spend_by_value(key, [value], window, window_start(window, time)).fetch(value, [0]).first.to_d
         end
 
         def spend_by_value(key, values, window, bucket, upto = nil)
           started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          range = window_range(window, bucket)
+          upto_sum = LlmCostTracker::CallTag.sanitize_sql_array(
+            ["SUM(CASE WHEN #{TIME_COLUMN} <= ? THEN #{COST_COLUMN} ELSE 0 END)", upto || range.end]
+          )
           totals = Ledger::Isolation.guard(LlmCostTracker::CallTag) do
             LlmCostTracker::CallTag
-              .where(key: key, value: values, TIME_COLUMN => upto ? bucket..upto : window_range(window, bucket))
-              .group(:value).sum(COST_COLUMN)
+              .where(key: key, value: values, TIME_COLUMN => range)
+              .group(:value)
+              .pluck(:value, Arel.sql("SUM(#{COST_COLUMN})"), Arel.sql(upto_sum))
+              .to_h { |value, *sums| [value, sums.map(&:to_d)] }
           end
           warn_slow_read(key, window, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at)
           totals

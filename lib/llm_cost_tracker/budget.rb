@@ -64,13 +64,13 @@ module LlmCostTracker
       private
 
       def persisted_errors(events, behavior_override)
-        by_rule = PerTag.rules_for_events(events.select(&:total_cost))
+        by_rule = PerTag.rules_for_events(events)
         by_rule = by_rule.reject { |rule, _| rule.on_exceeded.nil? } if behavior_override == :notify
         window_buckets(by_rule).flat_map do |(key, window, bucket), scored|
           upto = scored.values.flatten.map(&:tracked_at).max unless Ingestion.async?
           totals = PerTag.spend_by_value(key, scored.keys.map(&:value), window, bucket, upto)
           scored.filter_map do |rule, recorded|
-            total = totals.fetch(rule.value, 0).to_d
+            total, upto_total = totals.fetch(rule.value, [0, 0])
             limit = rule.windows.fetch(window)
             next if total < limit
 
@@ -78,7 +78,7 @@ module LlmCostTracker
               budget_type: window,
               total: total,
               budget: limit,
-              previous_total: total - recorded.sum(&:total_cost),
+              previous_total: (upto_total >= limit ? upto_total : total) - recorded.sum(&:total_cost),
               last_event: recorded.last,
               scope: scope_for(rule),
               behavior: behavior_override || rule.behavior,

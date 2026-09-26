@@ -54,13 +54,27 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Adapter do
         .to eq("DATE_FORMAT(calls.tracked_at, '%Y-%m')")
     end
 
+    def postgresql_connection(known_zone)
+      connection = double(adapter_name: "PostgreSQL")
+      allow(connection).to receive(:quote) { |value| "'#{value}'" }
+      allow(connection).to receive(:select_value) { |sql| 1 if sql.include?("'#{known_zone}'") }
+      connection
+    end
+
     it "converts the UTC column to the given time zone before bucketing" do
       zone = ActiveSupport::TimeZone["America/New_York"]
 
-      expect(described_class.period_bucket_sql("PostgreSQL", :day, "t", time_zone: zone))
+      expect(described_class.period_bucket_sql(postgresql_connection("America/New_York"), :day, "t", time_zone: zone))
         .to eq("TO_CHAR(DATE_TRUNC('day', (t::timestamp AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York'), 'YYYY-MM-DD')")
       expect(described_class.period_bucket_sql("Trilogy", :day, "t", time_zone: zone))
         .to eq("DATE_FORMAT(COALESCE(CONVERT_TZ(t, '+00:00', 'America/New_York'), t), '%Y-%m-%d')")
+    end
+
+    it "buckets by UTC day on PostgreSQL when the server does not know the zone name" do
+      zone = instance_double(ActiveSupport::TimeZone, tzinfo: instance_double(TZInfo::Timezone, name: "Legacy/Unknown"))
+
+      expect(described_class.period_bucket_sql(postgresql_connection("America/New_York"), :day, "t", time_zone: zone))
+        .to eq("TO_CHAR(DATE_TRUNC('day', t), 'YYYY-MM-DD')")
     end
 
     it "rejects unsupported adapter" do
