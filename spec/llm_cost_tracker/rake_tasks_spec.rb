@@ -32,7 +32,7 @@ RSpec.describe "llm_cost_tracker rake tasks" do
     expect(doctor).to have_received(:invoke)
   end
 
-  it "previews suspicious price changes and writes them only with FORCE=1" do
+  it "lists suspicious price changes in prices:check and writes them only with FORCE=1" do
     url = "https://prices.example.com/prices.json"
     stub_request(:get, url).to_return(body: JSON.generate("models" => { "openai/gpt-4o" => { "input" => 0.0 } }))
 
@@ -45,9 +45,16 @@ RSpec.describe "llm_cost_tracker rake tasks" do
         Rake::Task["llm_cost_tracker:prices:refresh"].execute
       end
 
-      expect { refresh.call("PREVIEW" => "1") }.to output(
+      check = lambda do
+        stub_const("ENV", base_env)
+        Rake::Task["llm_cost_tracker:prices:check"].execute
+      end
+
+      expect { check.call }.to output(
         %r{suspicious changes \(refresh writes them only with FORCE=1\): 1\n    - openai/gpt-4o input: 2.5 -> 0.0}
-      ).to_stdout
+      ).to_stdout.and raise_error(SystemExit)
+      expect { refresh.call("PREVIEW" => "1") }.to raise_error(SystemExit)
+      expect(YAML.safe_load_file(path).dig("models", "openai/gpt-4o", "input")).to eq(2.5)
       expect { refresh.call({}) }.to raise_error(LlmCostTracker::Error, /Refusing to write pricing file/)
       expect { refresh.call("FORCE" => "1") }.to output(/refreshed pricing file/).to_stdout
       expect(YAML.safe_load_file(path).dig("models", "openai/gpt-4o", "input")).to eq(0.0)

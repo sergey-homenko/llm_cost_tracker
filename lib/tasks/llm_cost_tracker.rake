@@ -98,32 +98,20 @@ namespace :llm_cost_tracker do
   namespace :prices do
     desc(
       "Refresh the configured pricing file from the maintained LLM Cost Tracker price snapshot. " \
-      "Use PREVIEW=1 to preview, FORCE=1 to accept suspicious price changes, URL=... to override the source, " \
-      "or OUTPUT=path/to/file.json."
+      "Review changes first with llm_cost_tracker:prices:check. Use FORCE=1 to accept suspicious price changes, " \
+      "URL=... to override the source, or OUTPUT=path/to/file.json."
     )
     task :refresh do
       Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
       require_relative "../llm_cost_tracker"
 
+      abort("llm_cost_tracker: PREVIEW is not supported; run llm_cost_tracker:prices:check") if ENV.key?("PREVIEW")
+
       output_path = LlmCostTrackerTasks.price_refresh_output_path
       source_url = LlmCostTracker::Pricing::Sync.configured_remote_url
-      preview = ENV["PREVIEW"] == "1"
-      result = LlmCostTracker::Pricing::Sync.refresh(
-        path: output_path,
-        url: source_url,
-        preview: preview,
-        force: ENV["FORCE"] == "1"
-      )
+      result = LlmCostTracker::Pricing::Sync.refresh(path: output_path, url: source_url, force: ENV["FORCE"] == "1")
 
-      action = if preview
-                 "previewed"
-               elsif result.written
-                 "refreshed"
-               else
-                 "kept"
-               end
-
-      puts "llm_cost_tracker: #{action} pricing file #{result.path}"
+      puts "llm_cost_tracker: #{result.written ? 'refreshed' : 'kept'} pricing file #{result.path}"
       puts "  source: #{result.source_url}"
       puts "  version: #{result.source_version.inspect}" if result.source_version
       LlmCostTracker::Pricing::Sync::ChangePrinter.call(result.changes, suspicious: result.suspicious)
