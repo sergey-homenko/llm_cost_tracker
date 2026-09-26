@@ -67,7 +67,7 @@ Indexes:
 - `cost_status` (data quality)
 - `provider_response_id` (cross-reference with provider invoices and logs)
 - `[provider, tracked_at]` and `[model, tracked_at]` (the dashboard's provider and model filters, which order by `tracked_at` and page)
-- partial `id where total_cost is null` (unpriced calls; `llm_cost_tracker:backfill_unknown_pricing` prices these, and fills in partial calls whose recorded rates still match the registry)
+- partial `id where total_cost is null` on PostgreSQL; MySQL has no partial indexes, so there it is a plain `id` index (unpriced calls; `llm_cost_tracker:backfill_unknown_pricing` prices these, and fills in partial calls whose recorded rates still match the registry)
 
 The two composite indexes matter most when one provider dominates the ledger: filtering to a rare provider took 70 ms without them and 0.02 ms with them, measured on 200k calls.
 
@@ -178,4 +178,4 @@ NUL bytes, which PostgreSQL rejects, are removed from every stored string, and i
 
 ## Schema health
 
-`bin/rails llm_cost_tracker:doctor` checks that the calls, line items, tags, call rollups and async ingestion tables carry the columns this version expects. It compares column names only — not types, and not indexes. When something is missing, the dashboard renders setup guidance instead of running queries.
+`bin/rails llm_cost_tracker:doctor` checks that the calls, line items, tags, call rollups and async ingestion tables carry the columns this version expects, except the tags table's per-tag budget columns (`total_cost`, `tracked_at`): without them doctor still passes, and per-tag budgets log a warning and are not enforced. It compares column names only — not types, and not indexes. When something is missing, the dashboard renders setup guidance instead of running queries.

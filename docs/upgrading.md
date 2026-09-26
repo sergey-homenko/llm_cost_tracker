@@ -1,9 +1,11 @@
 # Upgrading
 
-## v0.14 → v0.15 (Unreleased)
+## v0.14.1 → v0.14.2
 
-- **Rails 8.0+ is required.** On Rails 7.1 or 7.2, `bundle update llm_cost_tracker` stays on 0.14.1 without an error, and 0.14.x gets no further fixes, so upgrade Rails first. There are no migrations.
-- **Local pricing file.** Gemini image model prices rose up to 770-fold, which `prices:refresh` refuses by default: run it with `PREVIEW=1`, check that only Gemini image models are flagged, then with `FORCE=1`.
+- **Rails 8.0+ is required.** On Rails 7.1 or 7.2, `bundle update llm_cost_tracker` stays on 0.14.1 without an error and gets no further fixes, so upgrade Rails first. There are no migrations.
+- **Local pricing file.** `config.pricing.file`, which `llm_cost_tracker:setup` sets, takes precedence over bundled prices, so this release's price fixes apply only after `bin/rails llm_cost_tracker:prices:refresh`; until then, RubyLLM Gemini chats with image or audio prompts are recorded `partial` and lower than on 0.14.1. Gemini image model prices rose up to 770-fold, which the refresh refuses by default: run it with `PREVIEW=1`, check that only Gemini image models are flagged, then with `FORCE=1`, then run the backfill below.
+- **Reprice stored calls.** Calls already recorded keep their cost. To reprice `partial` ones, such as Gemini image and audio prompts, run `bin/rails llm_cost_tracker:backfill_unknown_pricing` after refreshing prices.
+- **Tag keys stored twice.** Before 0.14.2, inline ingestion stored a tag key given once as a Symbol and once as a String twice for the same call, doubling that tag's breakdown and per-tag spend. Once every process runs 0.14.2, delete the earlier row of each pair, keeping the later value as 0.14.2 does: on PostgreSQL `DELETE FROM llm_cost_tracker_call_tags a USING llm_cost_tracker_call_tags b WHERE a.llm_cost_tracker_call_id = b.llm_cost_tracker_call_id AND a.key = b.key AND a.id < b.id`, on MySQL ``DELETE a FROM llm_cost_tracker_call_tags a JOIN llm_cost_tracker_call_tags b ON a.llm_cost_tracker_call_id = b.llm_cost_tracker_call_id AND CAST(a.`key` AS BINARY) = CAST(b.`key` AS BINARY) AND a.id < b.id``. With async ingestion on json 3, the worker could not decode such calls' inbox rows; 0.14.2 drains them, after a requeue for rows already quarantined (see [Operations](operations.md#ingestion-path)).
 
 ## v0.14.0 → v0.14.1
 

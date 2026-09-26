@@ -2,26 +2,60 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.14.2] - 2026-09-26
 
 ### Changed
 
-- BREAKING: Rails 8.0+ required; Rails 7.1 and 7.2 no longer receive security fixes upstream.
+- Rails 8.0+ is required; Rails 7.1 and 7.2 no longer get upstream security fixes, and apps on them stay on 0.14.1.
+- A response that carries a billed `usage.cost` (OpenRouter, streams included; BYOK adds `cost_details.upstream_inference_cost`) through Faraday, the official openai gem, or `track_stream` is recorded at that amount instead of a list-price estimate or a `pricing.overrides` rate; the list price was off by -87% to +271% on routed models and missed long-context and image/audio-output rates, and RubyLLM calls keep list prices.
+- The official openai gem pointed at a host in `capture.openai_compatible_providers` records that provider instead of `openai`, so OpenRouter and Groq calls made that way are priced.
 
 ### Removed
 
-- The boot warning for `:ruby_llm` enabled together with `:openai` or `:anthropic`: RubyLLM doesn't call those SDKs, so nothing was recorded twice, and disabling one as it advised lost those calls.
+- The boot warning for `:ruby_llm` enabled together with `:openai` or `:anthropic`: nothing was recorded twice, and following its advice lost calls.
 
 ### Fixed
 
-- Gemini image models are priced per 1M image tokens, and 3.x image models price text and thinking output at the text rate; `gemini-2.5-flash-image` images were priced about 770x too low and 3.x image models' images 10-20x too low. Calls already recorded keep their cost. With a local pricing file, run `bin/rails llm_cost_tracker:prices:refresh PREVIEW=1`, check that only Gemini image models are flagged, then re-run it with `FORCE=1`.
-- With inline ingestion, a per-tag `on_exceeded` fires when several calls for one tag value cross the limit together; each call read the others' spend, so none saw itself as the crossing call and the alert never fired.
-- `budgets.per_tag` without a `:block_requests` rule no longer checks the database schema before an LLM call is sent, so a process that starts during a database outage no longer fails its LLM calls.
-- An OpenAI SDK response without usage, such as a queued `background: true` Response, logs a warning instead of being skipped silently.
-- The async worker checks its tables through the Rails schema cache, so an idle poll runs one query instead of six.
-- With `ingestion.mode = :async` and `budgets.totals_source = :cache`, a missing rollups table no longer stops the worker from draining the inbox; it warns once and budget reads use the calls ledger, as inline ingestion does.
-- `track_stream` records events passed as symbol-keyed hashes, such as `to_h` of an OpenAI Realtime `response.done` event; they were ignored and the call was stored as `unknown` with 0 tokens.
-- An OpenAI SDK `chat.completions.stream` without `stream_options: { include_usage: true }` logs the same warning as the Faraday path instead of being stored as `unknown` silently.
+- Gemini image prompt tokens (images, PDF pages) and audio prompt tokens on single-rate models are priced at the input rate; they were unpriced, so vision, PDF, and audio calls read low by up to nearly 100% (10 minutes of audio on 3.8 Flash: $0.0113 instead of $0.0257).
+- Gemini image models price image output per 1M image tokens, and 3.x image models price text output at the text rate; `gemini-2.5-flash-image` images were priced about 770x too low and 3.x image models 10-20x too low.
+- Bundled prices for `gpt-image-2.5-sunburst`, `gpt-image-2.5-flare`, `chat-latest`, `gpt-5-search-api`, `gpt-5.6-cyber`, `gpt-rosalind-research`, and `whisper-1`, which recorded unknown cost.
+- `gpt-5.5-pro` prompts over 272K tokens use the long-context rates (about half the cost was missing); its Batch and Flex prompts over 272K, which have no published rate, record unknown cost instead of short-context rates.
+- `gpt-5.4` Batch and Flex cached input over 272K tokens is priced at $0.25 per 1M instead of $0.26.
+- OpenAI cached input on Pro models, which have no cached-input discount, and `cache_write_tokens` on models before GPT-5.6, which have no cache-write charge, are priced at the input rate; these calls were `partial` and read low, by over 90% on cache-heavy calls (a `gpt-5.5-pro` call with 16K cached tokens recorded $0.648 instead of $1.14).
+- OpenAI duration-billed transcriptions (`gpt-transcribe`, `gpt-live-transcribe`, `gpt-realtime-whisper`, `gpt-realtime-translate`) are priced per second of audio instead of per started minute; a 9-second `gpt-transcribe` clip was 6.7x high.
+- Responses calls using the `image_generation` tool, non-streamed RubyLLM 2.x OpenAI chats included, are recorded `partial` with an unpriced image line instead of `complete` without the image charge.
+- OpenAI SDK transcriptions without a usage block (`text`, `srt`, `vtt` formats) record unknown cost instead of $0.
+- A stream on a priced model that ends without a usage chunk (Azure `api-version` before 2024-06-01, SDK chat streams without `include_usage`, interrupted streams, `track_stream` without usage) stores a `nil` total instead of `0.0`, so it shows as unpriced and is in `Call.without_cost`; priced tool charges on it still form the total.
+- Anthropic streams price cache writes made after `message_start`, such as server-tool breakpoints; they read up to about 40% low.
+- OpenAI, Azure OpenAI, and Anthropic SDK streams price the tier and speed the provider served, not the requested `priority` or `fast` (+75% to +150% on downgraded calls; an Opus 4.6 `speed: "fast"` stream served at standard speed recorded unknown cost).
+- OpenAI streams with logprobs no longer overflow the capture window and record 0 tokens / $0, and an overflowing SDK or `track_stream` capture logs a warning.
+- Streamed Chat Completions calls to search models record the per-call web search fee, as non-streamed calls did.
+- Groq streams whose usage arrives only in `x_groq.usage` (the openai gem's `stream_raw` without `stream_options`, Faraday with `capture.request_stream_usage = false`, `track_stream(provider: :groq)`) record their tokens instead of 0 tokens and `unknown`.
+- Gemini 3 grounding is billed per unique non-empty search query, as Google bills it: empty and repeated `webSearchQueries` entries were billed (four empty queries on `gemini-3-flash-preview` recorded about 60x the real cost), and `track_stream(provider: :gemini)` given a Gemini 3 `model:` billed a grounded stream once per prompt instead of per query.
+- `track_stream` records symbol-keyed events, such as `to_h` of an OpenAI Realtime event; they were ignored and the call was stored as unknown with 0 tokens.
+- An OpenAI SDK `chat.completions.stream` or `stream_raw` without `stream_options: { include_usage: true }` is still stored as `unknown` but now logs a warning, and an SDK response without usage, such as a queued `background: true` Response, logs a warning instead of being skipped silently.
+- OpenAI batches that end `expired` or `cancelled` record their completed requests, which OpenAI bills.
+- OpenAI embeddings and image batch results are deduplicated by their `batch_req_...` id, so another process retrieving the same batch no longer records them twice.
+- OpenAI image batch results use the batch's model and batch image rates instead of model `unknown` with no cost.
+- OpenAI batch results through `us.api.openai.com` or `eu.api.openai.com`, and Anthropic batch results with `inference_geo: us`, include the data-residency uplift; they were about 9% low.
+- RubyLLM 2.x `paint` with a Gemini native image model (`gemini-*-image*`) prices the response's `IMAGE` tokens at the image output rate and, on 3.x image models, its text and thinking output at the text rate (`gemini-2.5-flash-image` has no text output rate, so a text part leaves the call `partial`); all output was priced as text output, which these models had no rate for, so the image was unpriced and the call was `partial` and over 99% too low.
+- RubyLLM `paint` with `gpt-image-*` models prices output at the image output rate when the response has no `output_tokens_details`, the documented shape for `gpt-image-1` and `gpt-image-1-mini`; it was priced as text output, so those two models' calls were `partial` with the image unpriced (over 95% too low).
+- RubyLLM duration-billed transcriptions (`gpt-transcribe`, `whisper-1`) are recorded; they left no row (RubyLLM 1.x needs `response_format: "verbose_json"`).
+- Non-streamed RubyLLM Gemini chats take their token counts from the raw `usageMetadata`, so audio prompt tokens are priced at the audio input rate and URL-context tool tokens (`toolUsePromptTokenCount`) as input; every prompt token was priced as text and the tool tokens were dropped (a 10-minute audio clip on 2.5 Flash was 66% too low, a URL-context call 76% too low).
+- RubyLLM chats record server-tool fees: Anthropic web search (RubyLLM 2.x streams included) and, on non-streamed calls, OpenAI web search and Gemini grounding; they were stored `complete` without the fee, usually 20-40% too low for web search and about 90% too low for Gemini 2.5 grounding.
+- RubyLLM prices Anthropic US inference and fast mode on non-streamed chats and OpenAI regional hosts at their rates (9% and 50% low before), and keeps cache writes from earlier `pause_turn` segments at the 5-minute rate (53-64% low before with 5-minute writes).
+- RubyLLM calls get a pre-send budget estimate from their messages or prompt, including the text of RubyLLM 1.x messages with attachments, so `:block_requests` counts the pending call against `budgets.per_call` and the window budgets; the estimate was always $0.
+- A per-tag `on_exceeded` fires when several calls for one tag value cross the limit together under inline ingestion; none of them saw itself as the crossing call.
+- Under `:raise` and `:block_requests`, every budget a call crosses fires its `on_exceeded` before the first error is raised; the remaining alerts were lost for the window.
+- `budgets.per_tag` without a `:block_requests` rule no longer touches the database before a call is sent, so a process that starts during a database outage no longer fails its LLM calls.
+- The pre-send estimate ignores base64 images, PDFs, and audio, including sources typed `:base64` as the Anthropic SDK's MCP and tool-runner helpers build them, which inflated it 32x to 1078x and blocked ordinary vision requests.
+- A tag key given once as a Symbol and once as a String is kept once, with the later value, in the ledger, events, notification payloads, and async inbox rows; it was stored twice, doubling that tag's breakdown and per-tag spend, and with json 3 the async worker could not decode such inbox rows, which now drain (requeue any that were quarantined).
+- `llm_cost_tracker:backfill_unknown_pricing` also reprices `partial` calls whose already-priced rates are unchanged, and adds only the difference to rollups.
+- With `ingestion.mode = :async` and `budgets.totals_source = :cache`, a missing rollups table no longer stops the worker from draining the inbox, and the worker's idle poll runs one query instead of six.
+- The overview's monthly budget bar and projection marker and the Data Quality coverage bars are visible again, their styles lost in 0.11.0, and the explicit dark theme gets its chart marker, secondary line, and chip-remove colors.
+- In apps whose `Time.zone` is not UTC, the daily chart, previous-period line, and spend-anomaly banner group spend by the local day instead of the UTC day when the database knows the zone name (PostgreSQL through its tzdata, MySQL through the server's time zone tables); otherwise they stay on UTC days.
+- A tag value page's spend chart covers the selected date range; it always showed the 30 days ending today.
+- Sortable dashboard tables no longer return a 500 when the host sets `config.action_controller.include_all_helpers = false`.
 
 ## [0.14.1] - 2026-09-25
 

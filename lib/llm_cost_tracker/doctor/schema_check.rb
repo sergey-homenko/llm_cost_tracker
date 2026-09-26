@@ -22,8 +22,7 @@ module LlmCostTracker
         Check.new(
           :error,
           @name,
-          "current schema required; #{errors.join('; ')}; " \
-          "run bin/rails generate llm_cost_tracker:install && bin/rails db:migrate"
+          "current schema required; #{errors.join('; ')}; see docs/upgrading.md"
         )
       end
     end

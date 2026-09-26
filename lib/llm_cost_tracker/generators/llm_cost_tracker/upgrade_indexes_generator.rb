@@ -10,8 +10,9 @@ module LlmCostTracker
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Adds a partial index over unpriced calls so backfill_unknown_pricing stops scanning " \
-           "the whole ledger, and drops the unused ingestion inbox lock index."
+      desc "Adds the unpriced-calls index (partial on PostgreSQL, so backfill_unknown_pricing stops scanning " \
+           "the whole ledger; a plain id index on MySQL, which has no partial indexes) and drops the unused " \
+           "ingestion inbox lock index."
 
       def create_migration_file
         migration_template(

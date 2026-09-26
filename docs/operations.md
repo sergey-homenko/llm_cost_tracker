@@ -43,9 +43,9 @@ LlmCostTracker::Ingestion::Worker.flush!(timeout: 5)
 LlmCostTracker::Ingestion::Worker.shutdown!(timeout: 5, drain: true)
 ```
 
-The default process `at_exit` hook stops the local ingestor without forcing every exiting process to drain the shared inbox. Rows stay in the database and another live process can claim them. Use `flush!` or `shutdown!(drain: true)` when a job or release step must wait for the ledger to catch up.
+The default process `at_exit` hook stops the local ingestor without forcing every exiting process to drain the shared inbox. Rows stay in the database until another process's ingestor claims them. A process starts its ingestor on its first async `Tracker.record`, not at boot, so after a restart, or when only short-lived processes record, rows wait for the next tracked call. Use `flush!` or `shutdown!(drain: true)` when a job or release step must wait for the ledger to catch up.
 
-`shutdown!` is one-way for the calling process: subsequent `Tracker.record` calls still enqueue to the inbox (so events aren't lost), but the local worker thread won't respawn — another live process picks them up, or a fresh process replaces this one. Don't call `shutdown!` mid-process unless you intend that contract.
+`shutdown!` is one-way for the calling process: subsequent `Tracker.record` calls still enqueue to the inbox (so events aren't lost), but the local worker thread won't respawn — another process's ingestor picks them up once that process has recorded a call. Don't call `shutdown!` mid-process unless you intend that contract.
 
 ## Ruby Concurrency
 

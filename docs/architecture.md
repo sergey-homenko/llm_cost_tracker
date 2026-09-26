@@ -52,7 +52,7 @@ When a positive-token bucket has no exact price, that bucket's line item stays u
 
 ## Line Items
 
-Tokens and tool/runtime charges share one shape: `Charges::LineItem`. Parsers and SDK integrations emit token counts (`Usage::TokenUsage`) plus service line items for tool calls and non-token usage (web search, web fetch, grounding, container sessions, file search, transcription minutes, TTS characters). `Pricing::Calculation` builds token line items from the counts and applies provider/model token rates; a service line item takes the matched model's own rate when its registry entry has one (`transcription_minute`, `text_to_speech_character`), otherwise `Pricing::ServiceRates.charge_rate`.
+Tokens and tool/runtime charges share one shape: `Charges::LineItem`. Parsers and SDK integrations emit token counts (`Usage::TokenUsage`) plus service line items for tool calls and non-token usage (web search, web fetch, grounding, container sessions, file search, transcription minutes, TTS characters). `Pricing::Calculation` builds token line items from the counts and applies provider/model token rates; a service line item takes the matched model's own rate when its registry entry has one (`grounding_request`, `transcription_minute`, `text_to_speech_character`), otherwise `Pricing::ServiceRates.charge_rate`.
 
 Line items with no matching rate stay `unknown`. They keep the parent call `partial` when anything else on it is priced, or `unknown` when nothing is.
 

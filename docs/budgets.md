@@ -28,7 +28,7 @@ Budgets evaluate only when an event has a known cost. Unknown-cost events are st
 
 `:block_requests` reads accumulated spend (see Budget Reads below) and also estimates the current call's input cost via a character-count heuristic (chars / 4 ≈ tokens, provider-agnostic, no external tokenizer). Base64 image, PDF and audio data is not counted. It blocks before send when prior spend plus the estimate would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Output tokens stay unknown pre-send and are caught by the existing post-record check. Approximate by design — runway-stop, not precise prediction. Unknown models (no pricing match) skip the estimate and fall through to the prior-spend preflight.
 
-Under concurrency, multiple workers can clear preflight before each other's spend is visible. It stops the next request once overspend lands — it doesn't make provider spend transactional. Calls that land at the same moment, or on hosts whose clocks disagree, can also fire `on_exceeded` twice for one crossing.
+Under concurrency, multiple workers can clear preflight before each other's spend is visible. It stops the next request once overspend lands — it doesn't make provider spend transactional. Calls that land at the same moment, or on hosts whose clocks disagree, can also fire a per-tag `on_exceeded` twice for one crossing, and a global daily or monthly alert can fire twice or not at all.
 
 If the budget read fails (database unavailable, statement timeout), `:block_requests` raises that error to your code and the request is not sent.
 
@@ -99,7 +99,7 @@ A budget check costs one indexed query per window of every declared tag present 
 
 A tag with few values covers most of the ledger, so no index helps and every call pays for a near-full scan. Budget a tenant, account, or user id — not `environment`, `feature`, or anything else with a handful of values. When a read crosses 100 ms the gem logs a warning once per tag naming the offender.
 
-Two more limits. The weekly window follows the host app's `Date.beginning_of_week`. And with `ingestion.mode = :async`, a scoped total counts only what the worker has already drained: `on_exceeded` fires from the drain rather than from the request, pre-send blocking sees spend late by the drain interval, and a rule set to `:block_requests` can only notify from the drain, since the request it would have blocked is long gone — and if no `on_exceeded` is set for it, that rule produces no post-spend signal at all under `:async`. A batch is scored per window it touches, so a drain that runs after midnight still scores the previous day against that day.
+Two more limits. Budget windows (daily, weekly and monthly, global and per-tag) use UTC calendar boundaries whatever `Time.zone` is, and the weekly window starts on the host app's `Date.beginning_of_week`. And with `ingestion.mode = :async`, a scoped total counts only what the worker has already drained: `on_exceeded` fires from the drain rather than from the request, pre-send blocking sees spend late by the drain interval, and a rule set to `:block_requests` can only notify from the drain, since the request it would have blocked is long gone — and if no `on_exceeded` is set for it, that rule produces no post-spend signal at all under `:async`. A batch is scored per window it touches, so a drain that runs after midnight still scores the previous day against that day.
 
 ## Budget Reads
 

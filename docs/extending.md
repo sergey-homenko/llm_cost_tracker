@@ -123,4 +123,4 @@ LLM Cost Tracker emits `llm_request.llm_cost_tracker` through `ActiveSupport::No
 
 ## Dashboard Extensions
 
-Dashboard additions should be read-only services under `app/services/llm_cost_tracker/dashboard`, with thin controllers and ERB views. Do not add JavaScript for dashboard behavior.
+Dashboard additions should be read-only services under `app/services/llm_cost_tracker/dashboard`, with thin controllers and ERB views. Do not add a JavaScript bundle or framework; the only script is the nonce'd theme toggle and Escape-to-close for filter popovers in the engine layout.
