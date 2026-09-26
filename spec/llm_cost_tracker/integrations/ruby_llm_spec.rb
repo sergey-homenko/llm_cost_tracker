@@ -11,6 +11,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       config.openai_api_key = "test-openai"
       config.anthropic_api_key = "test-anthropic"
       config.gemini_api_key = "test-gemini"
+      config.deepseek_api_key = "test-deepseek"
     end
   end
 
@@ -248,6 +249,83 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
         expect(events.first.dig(:cost, :total)).to eq("0.047175")
       end
     end
+
+    it "prices Gemini audio prompt tokens and url_context tool-use prompt tokens from the raw usageMetadata" do
+      WebMock.stub_request(:post, %r{generativelanguage\.googleapis\.com/v1beta/models/gemini-2\.5-flash:generateContent})
+             .to_return(
+               status: 200,
+               body: {
+                 candidates: [{ content: { role: "model", parts: [{ text: "hi" }] }, finishReason: "STOP" }],
+                 usageMetadata: { promptTokenCount: 19_210, candidatesTokenCount: 500, toolUsePromptTokenCount: 8000,
+                                  promptTokensDetails: [{ modality: "TEXT", tokenCount: 10 },
+                                                        { modality: "AUDIO", tokenCount: 19_200 }] },
+                 modelVersion: "gemini-2.5-flash"
+               }.to_json,
+               headers: { "Content-Type" => "application/json" }
+             )
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "gemini-2.5-flash", provider: :gemini, assume_model_exists: true).ask("hi")
+        expect(events.first).to include(input_tokens: 8010, audio_input_tokens: 19_200, output_tokens: 500)
+        expect(events.first.dig(:cost, :total)).to eq("0.022853")
+      end
+    end
+
+    it "records Anthropic web search and Gemini grounding fees from the raw body, and none for other providers" do
+      WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
+        status: 200,
+        body: anthropic_message(id: "msg_ws", model: "claude-sonnet-4-5",
+                                usage: { input_tokens: 5000, output_tokens: 800,
+                                         server_tool_use: { web_search_requests: 2 } }).to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+      WebMock.stub_request(:post, %r{generativelanguage\.googleapis\.com/v1beta/models/gemini-3\.8-flash:generateContent})
+             .to_return(
+               status: 200,
+               body: {
+                 candidates: [{ content: { role: "model", parts: [{ text: "hi" }] }, finishReason: "STOP",
+                                groundingMetadata: { webSearchQueries: %w[q1 q2] } }],
+                 usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 500, thoughtsTokenCount: 500 },
+                 modelVersion: "gemini-3.8-flash"
+               }.to_json,
+               headers: { "Content-Type" => "application/json" }
+             )
+      stub_openai_chat(id: "chatcmpl_ds", model: "deepseek-chat", host: "api.deepseek.com",
+                       usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 })
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "claude-sonnet-4-5", provider: :anthropic, assume_model_exists: true).ask("news?")
+        RubyLLM.chat(model: "gemini-3.8-flash", provider: :gemini, assume_model_exists: true).ask("news?")
+        RubyLLM.context { |config| config.deepseek_api_base = "https://api.deepseek.com/v1" }
+               .chat(model: "deepseek-chat", provider: :deepseek, assume_model_exists: true).ask("news?")
+        fees = events.map { |event| event[:line_items].find { |item| item[:unit] != "token" }&.values_at(:kind, :quantity) }
+        expect(fees).to eq([%w[web_search_request 2.0], %w[grounding_request 2.0], nil])
+        expect(events.first(2).map { |event| event.dig(:cost, :total) }).to eq(%w[0.047 0.0325])
+      end
+    end
+
+    it "records an OpenAI Responses web_search_call fee" do
+      skip "RubyLLM 1.x chats through Chat Completions only" if RubyLLM::VERSION.start_with?("1.")
+
+      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(
+        status: 200,
+        body: {
+          id: "resp_ws", object: "response", status: "completed", model: "gpt-5.4",
+          output: [{ type: "web_search_call", id: "ws_1", status: "completed", action: { type: "search", query: "q" } },
+                   { type: "message", id: "msg_ws", status: "completed", role: "assistant",
+                     content: [{ type: "output_text", text: "hi", annotations: [] }] }],
+          usage: { input_tokens: 3000, output_tokens: 500, total_tokens: 3500 }
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "gpt-5.4", provider: :openai, assume_model_exists: true)
+               .with_provider_tools(:web_search).ask("news?")
+        expect(events.first[:line_items].map { |item| item[:kind] }).to include("web_search_request")
+        expect(events.first.dig(:cost, :total)).to eq("0.025")
+      end
+    end
   end
 
   describe "budget preflight" do
@@ -259,6 +337,21 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
         an_instance_of(LlmCostTracker::BudgetExceededError).and(having_attributes(stage: :pre_send, budget_type: :per_call))
       )
       expect(WebMock).not_to have_requested(:post, /api\.openai\.com/)
+    end
+
+    it "estimates the text of a message with an attachment, which RubyLLM 1.x returns as a RubyLLM::Content" do
+      allow(LlmCostTracker.configuration.budgets).to receive_messages(exceeded_behavior: :block_requests, per_call: 0.2)
+      stub_openai_chat(id: "chatcmpl_attached", usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 })
+      image = Tempfile.new(["pic", ".png"], binmode: true)
+      image.write("\x89PNG\r\n\x1a\n".b + ("\x00".b * 64))
+      image.flush
+
+      expect { RubyLLM.chat(model: "gpt-4o").ask("x" * 400_000, with: image.path) }.to raise_error(
+        an_instance_of(LlmCostTracker::BudgetExceededError).and(having_attributes(stage: :pre_send, budget_type: :per_call))
+      )
+      expect(WebMock).not_to have_requested(:post, /api\.openai\.com/)
+    ensure
+      image&.close!
     end
   end
 
@@ -285,18 +378,19 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
   end
 
   describe "paint" do
-    it "prices Gemini native image output at the image rate, as RubyLLM reports it without a modality split" do
+    it "prices Gemini native image output at the image rate and its text and thinking at the text rate" do
       skip "Gemini image models paint through generateContent only on RubyLLM 2.x" if RubyLLM::VERSION.start_with?("1.")
 
       model = "gemini-3.1-flash-image-preview"
+      parts = [{ text: "Here is your fox." }, { inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }]
       WebMock.stub_request(:post, "https://generativelanguage.googleapis.com/v1beta/models/#{model}:generateContent")
              .to_return(
                status: 200,
                body: {
-                 candidates: [{ content: { role: "model", parts: [{ inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }] },
-                                finishReason: "STOP" }],
-                 usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 1120, totalTokenCount: 1132,
-                                  candidatesTokensDetails: [{ modality: "IMAGE", tokenCount: 1120 }] },
+                 candidates: [{ content: { role: "model", parts: parts }, finishReason: "STOP" }],
+                 usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 1145, thoughtsTokenCount: 180,
+                                  candidatesTokensDetails: [{ modality: "TEXT", tokenCount: 25 },
+                                                            { modality: "IMAGE", tokenCount: 1120 }] },
                  modelVersion: model
                }.to_json,
                headers: { "Content-Type" => "application/json" }
@@ -304,8 +398,26 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
 
       capture_sdk_events do |events|
         RubyLLM.paint("a watercolor fox", model: model, provider: :gemini, assume_model_exists: true)
-        expect(events.first).to include(input_tokens: 12, output_tokens: 0, image_output_tokens: 1120)
-        expect(events.first.dig(:cost, :total)).to eq("0.067206")
+        expect(events.first).to include(input_tokens: 12, output_tokens: 205, image_output_tokens: 1120)
+        expect(events.first.dig(:cost, :total)).to eq("0.067821")
+      end
+    end
+
+    it "prices gpt-image output as image output when the usage has no output_tokens_details" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/images/generations").to_return(
+        status: 200,
+        body: {
+          created: 1, data: [{ b64_json: "iVBORw0KGgo=" }],
+          usage: { total_tokens: 4210, input_tokens: 50, output_tokens: 4160,
+                   input_tokens_details: { text_tokens: 50, image_tokens: 0 } }
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.paint("a fox", model: "gpt-image-1")
+        expect(events.first).to include(input_tokens: 50, output_tokens: 0, image_output_tokens: 4160)
+        expect(events.first.dig(:cost, :total)).to eq("0.16665")
       end
     end
 

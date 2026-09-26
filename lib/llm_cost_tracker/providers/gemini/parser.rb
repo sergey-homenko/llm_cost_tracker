@@ -41,7 +41,7 @@ module LlmCostTracker
             usage_source: Usage::Source::RESPONSE,
             provider_response_id: response["responseId"],
             pricing_mode: pricing_mode(request: request, usage: usage, response_headers: response_headers),
-            service_line_items: grounding_line_items(grounding_request_count(response["candidates"]), model: model)
+            service_line_items: service_line_items_for(response, model: model)
           )
         end
 
@@ -86,6 +86,10 @@ module LlmCostTracker
 
         def provider_for(_request_url)
           "gemini"
+        end
+
+        def service_line_items_for(response, model:)
+          grounding_line_items(grounding_request_count(response["candidates"]), model: model)
         end
 
         private

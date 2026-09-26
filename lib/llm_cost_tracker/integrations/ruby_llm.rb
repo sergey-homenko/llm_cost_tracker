@@ -14,18 +14,36 @@ module LlmCostTracker
         def patch_targets
           [
             patch_target("RubyLLM::Provider", with: ProviderPatch),
-            patch_target("RubyLLM::Providers::Gemini::Transcription", with: GeminiTranscriptionPatch, optional: true)
+            patch_target("RubyLLM::Providers::Gemini::Transcription", with: GeminiTranscriptionPatch, optional: true),
+            patch_target("RubyLLM::Protocols::Gemini",
+                         with: GeminiImagesPatch,
+                         optional: true,
+                         skip_when_methods_missing: true)
           ]
         end
 
         def record_completion(provider, response, request:, latency_ms:, has_block:)
+          model = response_model_id(response) || model_id_from_request(request[:model])
           record_usage(
             provider: provider,
-            model: response_model_id(response) || model_id_from_request(request[:model]),
+            model: model,
             response: response,
             latency_ms: latency_ms,
-            stream: has_block || request[:stream] == true
+            stream: has_block || request[:stream] == true,
+            service_line_items: server_tool_line_items(provider.slug.to_s, response, model)
           )
+        end
+
+        def server_tool_line_items(provider, response, model)
+          body = raw_body(response)
+          case provider
+          when "anthropic"
+            counts = response.try(:tokens).try(:server_tool_use) || body.dig("usage", "server_tool_use")
+            Providers::Anthropic::UsageExtractor.service_line_items(server_tool_use: counts&.symbolize_keys)
+          when "openai" then Providers::Openai::ServiceCharges.service_line_items_for(body, model: model)
+          when "gemini" then Providers::Gemini::Parser.new.service_line_items_for(body, model: model)
+          else []
+          end
         end
 
         def record_embedding(provider, response, request:, latency_ms:)
@@ -59,19 +77,23 @@ module LlmCostTracker
           image = response.is_a?(Array) ? response.first : response
           model = response_model_id(image) || model_id_from_request(request[:model])
           usage = image_usage(image)
-          raw_input = usage[:input_tokens].to_i
-          raw_output = usage[:output_tokens].to_i
-          image_input = image_token_detail(usage, :input)
-          image_output = image_token_detail(usage, :output)
-          image_output = raw_output if model.to_s.match?(/\Agemini-.*-image/)
+          extractor = Providers::Openai::UsageExtractor
+          image_input = extractor.image_input_tokens(usage)
+          image_output, text_output = extractor.split_output(
+            output_tokens: usage[:output_tokens].to_i,
+            image_output_details: gemini_image_output_tokens(image) || extractor.image_output_tokens(usage),
+            text_output_details: extractor.text_output_tokens(usage),
+            audio_output: 0,
+            default_to_image: model.to_s.match?(/\A(gpt-image-|gemini-.*-image)/)
+          )
           record_passthrough(
             provider: provider.slug.to_s,
             model: model,
             response: image,
             latency_ms: latency_ms,
-            input_tokens: [raw_input - image_input, 0].max,
+            input_tokens: [usage[:input_tokens].to_i - image_input, 0].max,
             image_input_tokens: image_input,
-            output_tokens: [raw_output - image_output, 0].max,
+            output_tokens: text_output,
             image_output_tokens: image_output
           )
         end
@@ -93,12 +115,9 @@ module LlmCostTracker
           (usage.is_a?(Hash) ? usage : {}).with_indifferent_access
         end
 
-        def image_token_detail(usage, direction)
-          container_key = direction == :input ? :input_tokens_details : :output_tokens_details
-          details = usage[container_key]
-          return 0 unless details.is_a?(Hash)
-
-          details.with_indifferent_access[:image_tokens].to_i
+        def gemini_image_output_tokens(image)
+          metadata = image.instance_variable_get(:@llm_cost_tracker_usage_metadata)
+          Providers::Gemini::UsageExtractor.modality_tokens(metadata["candidatesTokensDetails"], "IMAGE") if metadata
         end
 
         def record_usage(provider:,
@@ -122,7 +141,7 @@ module LlmCostTracker
                 provider: provider.slug.to_s,
                 model: model,
                 pricing_mode: pricing_mode_for(provider: provider, model: model, response: response),
-                token_usage: Usage::TokenUsage.build(
+                token_usage: gemini_token_usage(provider, response) || Usage::TokenUsage.build(
                   input_tokens: audio_input ? 0 : counts[:input].to_i,
                   audio_input_tokens: audio_input ? counts[:input].to_i : 0,
                   output_tokens: output_tokens.to_i,
@@ -139,6 +158,11 @@ module LlmCostTracker
               latency_ms: latency_ms
             )
           end
+        end
+
+        def gemini_token_usage(provider, response)
+          usage = raw_body(response)["usageMetadata"] if provider.slug.to_s == "gemini"
+          Providers::Gemini::UsageExtractor.token_usage(usage) if usage.is_a?(Hash)
         end
 
         def token_counts(response)
@@ -201,7 +225,9 @@ module LlmCostTracker
 
         def request_params(args, kwargs)
           input = args.first
-          input = input.map { |message| message.try(:content) || message } if input.is_a?(Array)
+          if input.is_a?(Array)
+            input = input.map { |msg| msg.try(:content).then { |content| content.try(:text) || content } || msg }
+          end
           kwargs.merge(input: input, model: model_id_from_request(kwargs[:model])).with_indifferent_access
         end
 
@@ -239,6 +265,15 @@ module LlmCostTracker
         def moderate(*args, **kwargs)
           seam = LlmCostTracker::Integrations::RubyLlm.blocking_seam(self, :record_moderation)
           LlmCostTracker::Integrations::RubyLlm.wrap_blocking(args, kwargs, **seam) { super }
+        end
+      end
+
+      module GeminiImagesPatch
+        def parse_image_responses(response, *, **)
+          images = super
+          metadata = response.body["usageMetadata"]
+          Array(images).each { |image| image.instance_variable_set(:@llm_cost_tracker_usage_metadata, metadata) }
+          images
         end
       end
 
