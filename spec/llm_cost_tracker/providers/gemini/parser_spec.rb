@@ -295,6 +295,20 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(service_lines.first.quantity).to eq(3)
       expect(service_lines.first.details).to include(web_search_queries: 3)
     end
+
+    it "bills Gemini 3 grounding per unique non-empty query" do
+      result = parser.parse(
+        request_url: URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/models/gemini-3-pro:generateContent").to_s,
+        request_body: nil,
+        response_status: 200,
+        response_body: {
+          candidates: [{ groundingMetadata: { webSearchQueries: ["", " ", "euro 2024", "euro 2024", "final"] } }],
+          usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 20, totalTokenCount: 120 }
+        }.to_json
+      )
+
+      expect(result.line_items.reject { |item| item.unit == "token" }.first.quantity).to eq(2)
+    end
   end
 
   describe "#streaming_request?" do

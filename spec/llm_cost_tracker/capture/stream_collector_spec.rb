@@ -261,6 +261,20 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
+    it "bills Gemini 3 grounding per query from the stream's model when chunks carry no modelVersion" do
+      collected = events
+
+      described_class.track_stream(provider: :gemini, model: "gemini-3-flash-preview") do |stream|
+        stream.event({ "candidates" => [{ "groundingMetadata" => { "webSearchQueries" => %w[q1 q2 q3] } }] })
+        stream.event({ "usageMetadata" => { "promptTokenCount" => 100, "candidatesTokenCount" => 300,
+                                            "totalTokenCount" => 400 } })
+      end
+
+      grounding = collected.first[:line_items].find { |item| item[:kind] == "grounding_request" }
+      expect(collected.first[:model]).to eq("gemini-3-flash-preview")
+      expect(grounding[:quantity]).to eq("3.0")
+    end
+
     it "parses configured OpenAI-compatible provider names" do
       collected = events
 

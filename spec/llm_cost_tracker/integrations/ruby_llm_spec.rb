@@ -395,20 +395,20 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
 
-    it "prices a duration-billed transcription by the started minute when RubyLLM reports no tokens" do
+    it "prices a duration-billed transcription per minute of audio when RubyLLM reports no tokens" do
       skip "RubyLLM 1.x drops usage.seconds from the transcription" if RubyLLM::VERSION.start_with?("1.")
 
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
         status: 200,
-        body: { text: "hi", usage: { type: "duration", seconds: 600 } }.to_json,
+        body: { text: "hi", usage: { type: "duration", seconds: 90 } }.to_json,
         headers: { "Content-Type" => "application/json" }
       )
 
       capture_sdk_events do |events|
         RubyLLM.transcribe(audio_file.path, model: "gpt-transcribe", provider: :openai, assume_model_exists: true)
         line = events.first[:line_items].find { |item| item[:kind] == "transcription_minute" }
-        expect(line[:quantity].to_i).to eq(10)
-        expect(events.first.dig(:cost, :total)).to eq("0.045")
+        expect(line[:quantity]).to eq("1.5")
+        expect(events.first.dig(:cost, :total)).to eq("0.00675")
       end
     end
 

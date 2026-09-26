@@ -160,7 +160,7 @@ module LlmCostTracker
 
           [Charges::LineItem.build(
             dimension_key: "transcription_minute",
-            quantity: (seconds / 60.0).ceil,
+            quantity: BigDecimal(seconds.to_s) / 60,
             cost_status: Charges::CostStatus::UNKNOWN,
             pricing_basis: "provider_usage",
             provider_field: "usage.seconds",

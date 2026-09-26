@@ -218,7 +218,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
-    it "prices whisper-1 duration usage at $0.006 per started minute" do
+    it "prices whisper-1 duration usage at $0.006 per minute of audio" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
         status: 200,
         body: { text: "hello", usage: { type: "duration", seconds: 125.5 } }.to_json,
@@ -229,9 +229,9 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         client.audio.transcriptions.create(file: audio_io, model: "whisper-1")
 
         line = events.first[:line_items].find { |item| item[:kind] == "transcription_minute" }
-        expect(line[:quantity].to_i).to eq(3)
+        expect(BigDecimal(line[:quantity])).to eq(BigDecimal("125.5") / 60)
         expect(events.first).to include(cost_status: "complete")
-        expect(BigDecimal(events.first.dig(:cost, :total).to_s)).to eq(BigDecimal("0.018"))
+        expect(BigDecimal(events.first.dig(:cost, :total).to_s)).to eq(BigDecimal("0.01255"))
       end
     end
   end
@@ -246,7 +246,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         client.audio.translations.create(file: audio_io, model: "whisper-1")
 
         expect(events.first).to include(provider: "openai", model: "whisper-1", usage_source: "unknown",
-                                        cost_status: "unknown")
+                                        cost_status: "unknown", cost: nil)
       end
     end
   end

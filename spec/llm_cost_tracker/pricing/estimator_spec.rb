@@ -39,6 +39,12 @@ RSpec.describe LlmCostTracker::Pricing::Estimator do
       expect(described_class.char_count({ "inline_data" => { "mime_type" => "image/png", "data" => data } })).to eq(0)
       expect(described_class.char_count({ "type" => "text", "data" => "plain" })).to eq(9)
     end
+
+    it "skips a base64 source whose type is the Symbol the Anthropic SDK's MCP helper builds" do
+      source = { "type" => :base64, "media_type" => "image/png", "data" => "A" * 4_000 }
+
+      expect(described_class.char_count(source)).to eq(0)
+    end
   end
 
   describe ".call" do

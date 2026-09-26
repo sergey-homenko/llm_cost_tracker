@@ -17,6 +17,7 @@ module LlmCostTracker
         GROUNDING_ROW = "Grounding with Google Search"
         GROUNDING_PRICE = %r{\$([\d.]+)\s*(?:/|per)\s*1,?000}
         PER_IMAGE_PRICE = /\$([\d.]+) per [^$\n]*image/
+        TIER_PREFIXES = { "Standard" => "", "Batch" => "batch_", "Flex" => "flex_", "Priority" => "priority_" }.freeze
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
@@ -40,18 +41,15 @@ module LlmCostTracker
           pair_sections(article).each_with_object({}) do |(model_id, tabs), models|
             next unless model_id
 
-            standard_table = find_standard_table(tabs)
+            standard_table = find_table(tabs, "Standard")
             next unless standard_table
-
-            batch_table = find_batch_table(tabs)
-            raise Error, "Gemini batch pricing table not found for #{model_id}" unless batch_table
+            raise Error, "Gemini batch pricing table not found for #{model_id}" unless find_table(tabs, "Batch")
 
             notes = footnotes(tabs)
-            models[model_id] = extract_text_pricing(standard_table, notes: notes)
-            models[model_id] = models.fetch(model_id).merge(extract_batch_pricing(batch_table, notes: notes))
-            models[model_id] = models.fetch(model_id).merge(extract_flex_pricing(tabs, notes: notes))
-            models[model_id] = models.fetch(model_id).merge(extract_priority_pricing(tabs, notes: notes))
-            models[model_id] = models.fetch(model_id).merge(extract_grounding_pricing(standard_table))
+            models[model_id] = TIER_PREFIXES.each_with_object({}) do |(heading, prefix), prices|
+              table = find_table(tabs, heading)
+              prices.merge!(extract_pricing(table, notes: notes, prefix: prefix)) if table
+            end.merge(extract_grounding_pricing(standard_table))
           end
         end
 
@@ -77,14 +75,6 @@ module LlmCostTracker
             (child["data-ds-scope"] == "code-sample")
         end
 
-        def find_standard_table(tabs)
-          find_table(tabs, "Standard")
-        end
-
-        def find_batch_table(tabs)
-          find_table(tabs, "Batch")
-        end
-
         def find_table(tabs, heading)
           tabs.css("section").find { |sec| sec.at_css("h3")&.text&.strip == heading }&.at_css("table")
         end
@@ -93,44 +83,6 @@ module LlmCostTracker
           tabs.xpath("following-sibling::*")
               .take_while { |node| !node["class"]&.include?("models-section") }
               .map(&:text).join
-        end
-
-        def extract_text_pricing(table, notes:)
-          extract_pricing(table,
-                          notes: notes,
-                          input: "input",
-                          output: "output",
-                          cache_read_input: "cache_read_input")
-        end
-
-        def extract_batch_pricing(table, notes:)
-          extract_pricing(table,
-                          notes: notes,
-                          input: "batch_input",
-                          output: "batch_output",
-                          cache_read_input: "batch_cache_read_input")
-        end
-
-        def extract_flex_pricing(tabs, notes:)
-          table = find_table(tabs, "Flex")
-          return {} unless table
-
-          extract_pricing(table,
-                          notes: notes,
-                          input: "flex_input",
-                          output: "flex_output",
-                          cache_read_input: "flex_cache_read_input")
-        end
-
-        def extract_priority_pricing(tabs, notes:)
-          table = find_table(tabs, "Priority")
-          return {} unless table
-
-          extract_pricing(table,
-                          notes: notes,
-                          input: "priority_input",
-                          output: "priority_output",
-                          cache_read_input: "priority_cache_read_input")
         end
 
         def extract_grounding_pricing(table)
@@ -143,7 +95,9 @@ module LlmCostTracker
           { "grounding_request" => Float(price) }
         end
 
-        def extract_pricing(table, notes:, input:, output:, cache_read_input:)
+        def extract_pricing(table, notes:, prefix:)
+          input = "#{prefix}input"
+          output = "#{prefix}output"
           rows = parse_table(table)
           input_key = rows.keys.find { |k| k.start_with?("Input price") }
           output_key = rows.keys.find { |k| k.start_with?("Output price") }
@@ -160,8 +114,8 @@ module LlmCostTracker
                                   input_key: input_key,
                                   output_key: output_key,
                                   input: input,
-                                                                    output: output)
-          add_cache_read_prices(prices, rows, cache_read_input: cache_read_input)
+                                  output: output)
+          add_cache_read_prices(prices, rows, cache_read_input: "#{prefix}cache_read_input")
           prices
         end
 

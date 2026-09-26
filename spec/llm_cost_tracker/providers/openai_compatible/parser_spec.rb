@@ -233,6 +233,22 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
       expect(result.token_usage.output_tokens).to eq(10)
     end
 
+    it "reads Groq stream usage from x_groq.usage, raw or wrapped by the OpenAI SDK stream helper" do
+      x_groq = { "x_groq" => { "id" => "req_1", "usage" => final_usage_event[:data]["usage"] } }
+      results = [x_groq, { "chunk" => x_groq }].map do |data|
+        parser.parse_stream(
+          request_url: groq_chat_url,
+          request_body: { model: "llama-3.3-70b-versatile", stream: true }.to_json,
+          response_status: 200,
+          events: [{ event: nil, data: { "id" => "groq-x", "model" => "llama-3.3-70b-versatile" } },
+                   { event: nil, data: data }]
+        )
+      end
+
+      expect(results.map(&:usage_source)).to eq(%w[stream_final stream_final])
+      expect(results.map { |result| result.token_usage.input_tokens }).to eq([30, 30])
+    end
+
     it "extracts OpenRouter streaming usage" do
       events = [
         { event: nil, data: { "id" => "or-y", "model" => "openrouter/auto" } },
