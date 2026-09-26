@@ -341,6 +341,19 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(event.tags).to include(user_id: 5, feature: "chat", request_id: "req_xyz")
     end
 
+    it "keeps one tag key, with the later value, when it arrives as a Symbol and a String" do
+      event = LlmCostTracker.with_tags(tenant: "acme") do
+        record(
+          provider: "openai",
+          model: "gpt-4o",
+          token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1, output_tokens: 1),
+          metadata: { "tenant" => "globex" }
+        )
+      end
+
+      expect(event.tags).to eq("tenant" => "globex")
+    end
+
     it "keeps explicit token-like metadata as tags" do
       tags = {
         cache_read_input_tokens: 25,

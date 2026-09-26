@@ -223,6 +223,16 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(LlmCostTracker::Ledger::Schema::Calls.current_schema_errors.join).to include("missing columns: pricing_mode")
   end
 
+  it "sees a table created by another process after the schema check found it missing" do
+    connection = ActiveRecord::Base.connection
+    connection.execute("ALTER TABLE llm_cost_tracker_call_rollups RENAME TO llm_cost_tracker_call_rollups_pending")
+    missing = LlmCostTracker::Ledger::Schema::CallRollups.current_schema_errors
+    connection.execute("ALTER TABLE llm_cost_tracker_call_rollups_pending RENAME TO llm_cost_tracker_call_rollups")
+
+    expect(missing).to eq(["llm_cost_tracker_call_rollups table is missing"])
+    expect(LlmCostTracker::Ledger::Schema::CallRollups.current_schema_errors).to be_empty
+  end
+
   it "keeps persisted historical costs when the price file changes for later requests" do
     Tempfile.create(["llm-prices-old", ".json"]) do |old_file|
       Tempfile.create(["llm-prices-new", ".json"]) do |new_file|

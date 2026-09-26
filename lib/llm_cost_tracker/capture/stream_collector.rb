@@ -60,7 +60,7 @@ module LlmCostTracker
         data = SdkPayload.normalize(data) if data.is_a?(Hash)
         @mutex.synchronize do
           ensure_open!
-          @window.push(data, type: type) unless data.nil?
+          @window.push(data, type: type&.to_s) unless data.nil?
         end
       end
 

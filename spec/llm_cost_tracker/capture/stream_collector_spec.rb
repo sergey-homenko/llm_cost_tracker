@@ -234,6 +234,17 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:usage_source]).to eq("stream_final")
     end
 
+    it "ignores a nil event and accepts an event type that is not a String" do
+      collected = events
+
+      described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+        stream.event(nil)
+        stream.event({ "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3 } }, type: 7)
+      end
+
+      expect(collected.first.dig(:token_usage, :input_tokens)).to eq(12)
+    end
+
     it "parses built-in OpenAI-compatible providers like OpenRouter" do
       collected = events
 
