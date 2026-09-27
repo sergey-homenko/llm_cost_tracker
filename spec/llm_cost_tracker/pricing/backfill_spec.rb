@@ -339,6 +339,24 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     expect([call.reload.total_cost, call.cost_status]).to eq([0.0425, "complete"])
   end
 
+  it "keeps an advisor call partial while the advisor's cache reads are unpriced, and prices them later" do
+    price_claude_opus6
+    call = record_anthropic(model: "claude-sonnet-4-6", usage: {
+                              input_tokens: 2_000, output_tokens: 300,
+                              iterations: [{ type: "advisor_message", model: "claude-opus-6", input_tokens: 1_500,
+                                             cache_read_input_tokens: 40_000, output_tokens: 1_000 }]
+                            })
+    expect([call.total_cost, call.cost_status]).to eq([0.043, "partial"])
+    LlmCostTracker.configuration.pricing.overrides = {
+      "anthropic/claude-opus-6" => { input: 5.0, output: 25.0, cache_read_input: 0.5 }
+    }
+    LlmCostTracker::Pricing::Registry.reset!
+
+    expect(described_class.call.to_h).to eq(examined: 1, recomputed: 1, still_unknown: 0)
+    # The advisor's 40,000 cache reads at $0.50 per MTok add $0.02.
+    expect([call.reload.total_cost, call.cost_status]).to eq([0.063, "complete"])
+  end
+
   it "does not reprice a call with a priced web search once its model has no rates" do
     price_claude_opus6
     call = record_anthropic(model: "claude-opus-6", usage: {
@@ -353,6 +371,65 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
     expect(result.to_h).to eq(examined: 1, recomputed: 0, still_unknown: 1)
     expect([call.reload.total_cost, call.cost_status]).to eq([0.095, "complete"])
+  end
+
+  it "keeps an advisor iteration's cost when it reprices the executor after the advisor model lost its rates" do
+    LlmCostTracker.configuration.pricing.overrides = {
+      "anthropic/claude-sonnet-4-6" => { input: 30.0, output: 150.0 },
+      "anthropic/claude-opus-6" => { input: 5.0, output: 25.0 }
+    }
+    LlmCostTracker::Pricing::Registry.reset!
+    call = LlmCostTracker.with_tags(tenant: "acme") do
+      record_anthropic(model: "claude-sonnet-4-6", usage: {
+                         input_tokens: 2_000, output_tokens: 300,
+                         iterations: [{ type: "advisor_message", model: "claude-opus-6",
+                                        input_tokens: 1_500, output_tokens: 1_000 }]
+                       })
+    end
+    expect(call.total_cost).to eq(0.1375)
+    LlmCostTracker.configuration.pricing.overrides = {}
+    LlmCostTracker::Pricing::Registry.reset!
+
+    result = described_class.call(scope: described_class.reprice_scope(1.hour.ago..), reprice: true)
+
+    # Anthropic: Sonnet 4.6 $3 / $15 per MTok; the advisor keeps its recorded 1,500 x $5 + 1,000 x $25 per MTok.
+    expect(result.to_h).to eq(examined: 1, recomputed: 1, still_unknown: 0)
+    expect([call.reload.total_cost, call.cost_status]).to eq([0.043, "complete"])
+    expect(LlmCostTracker::CallTag.pluck(:total_cost)).to eq([0.043])
+    expect(LlmCostTracker::CallRollup.where(period: "day").sum(:total_cost)).to eq(0.043)
+  end
+
+  it "keeps a billed fallback attempt's cost on reprice once its model has no rates" do
+    price_claude_opus6
+    call = record_anthropic(
+      model: "claude-opus-5", stop_reason: "refusal", refusal_category: "general_harms",
+      usage: { input_tokens: 5_000, output_tokens: 0, iterations: [
+        { type: "message", model: "claude-opus-6", input_tokens: 5_000, output_tokens: 700 },
+        { type: "fallback_message", model: "claude-opus-5", input_tokens: 5_000, output_tokens: 0 }
+      ] }
+    )
+    expect([call.total_cost, call.cost_status]).to eq([0.0425, "complete"])
+    LlmCostTracker.configuration.pricing.overrides = {}
+    LlmCostTracker::Pricing::Registry.reset!
+
+    result = described_class.call(scope: described_class.reprice_scope(1.hour.ago..), reprice: true)
+
+    expect(result.to_h).to eq(examined: 1, recomputed: 0, still_unknown: 1)
+    expect([call.reload.total_cost, call.cost_status]).to eq([0.0425, "complete"])
+  end
+
+  it "skips a call whose billed_request line has no amount and prices the calls after it" do
+    LlmCostTracker.configuration.ingestion.mode = :inline
+    LlmCostTracker.track(provider: "openrouter", model: "openai/gpt-4o",
+                         tokens: { input_tokens: 1_000, output_tokens: 100 },
+                         service_line_items: [{ dimension_key: "billed_request", quantity: 1 }])
+    LlmCostTracker.track(provider: "anthropic", model: "claude-opus-6",
+                         tokens: { input_tokens: 10_000, output_tokens: 1_000 })
+    price_claude_opus6
+
+    expect(described_class.call.to_h).to eq(examined: 2, recomputed: 1, still_unknown: 1)
+    expect(LlmCostTracker::Call.order(:id).pluck(:total_cost, :cost_status))
+      .to eq([[nil, "unknown"], [0.075, "complete"]])
   end
 
   it "does not touch rollups when cache_rollups is disabled and the rollups table is absent" do

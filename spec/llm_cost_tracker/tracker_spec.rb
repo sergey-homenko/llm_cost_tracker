@@ -923,6 +923,19 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(log).not_to include("claude-sonnet-4-6")
     end
 
+    it "checks budgets before raising for an unpriced advisor model" do
+      fired = []
+      LlmCostTracker.configure do |c|
+        c.pricing.unknown_model_behavior = :raise
+        c.budgets.per_call = 0.01
+        c.budgets.on_exceeded = ->(data) { fired << data[:budget_type] }
+      end
+
+      expect { record_with_advisor(executor: "claude-sonnet-4-6", advisor: "claude-opus-6") }
+        .to raise_error(LlmCostTracker::UnknownPricingError)
+      expect(fired).to eq([:per_call])
+    end
+
     it "rejects unknown pricing behavior values" do
       expect do
         LlmCostTracker.configure { |c| c.pricing.unknown_model_behavior = :explode }

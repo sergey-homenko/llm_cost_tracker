@@ -96,15 +96,15 @@ module LlmCostTracker
           usage = detect_stream_usage(events)
           context = stream_capture_context(events: events, request: request, request_url: request_url, usage: usage)
 
+          # A poll or resumed stream records a finished background response, tool calls included, under its id.
+          background = find_event_value(events) { |data| data.dig("response", "background") }
           if usage
             event = build_known_stream_usage(usage: usage, **context)
-            # responses.retrieve records a finished background response too, under the same key.
-            background = find_event_value(events) { |data| data.dig("response", "background") }
             return background ? event.keyed_by_response_id : event
           end
 
           warn_missing_stream_usage(request_url: request_url, request: request)
-          build_unknown_stream_usage(**context)
+          build_unknown_stream_usage(**context, service_line_items: background ? [] : context[:service_line_items])
         end
 
         def auto_enable_stream_usage?(request_url, _request_parsed)
@@ -179,8 +179,8 @@ module LlmCostTracker
             token_usage: UsageExtractor.token_usage(usage, model: model),
             stream: true,
             usage_source: Usage::Source::STREAM_FINAL,
-            service_line_items: service_line_items + ServiceCharges.billed_line_items(usage) +
-                                UsageExtractor.cache_read_line_items(usage)
+            service_line_items: service_line_items + ServiceCharges.transcription_line_items(usage) +
+                                ServiceCharges.billed_line_items(usage) + UsageExtractor.cache_read_line_items(usage)
           )
         end
 

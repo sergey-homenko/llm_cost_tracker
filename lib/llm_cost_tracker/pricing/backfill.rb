@@ -65,14 +65,17 @@ module LlmCostTracker
             usage_source: call.usage_source,
             at: call.tracked_at
           )
-          billed = calculation.priced_line_items.any? { |item| item.kind == "billed_request" }
-          return unless calculation.token_cost || billed
+          return unless calculation.token_cost || provider_billed?(calculation)
           return if [calculation.cost.total, calculation.cost_status] == [call.total_cost, call.cost_status]
           return calculation if reprice
 
           rates = calculation.priced_line_items.to_h { |item| [dimension_key(item), item.rate_amount] }
           recorded = call.line_items.select { |record| record.unit == "token" && record.rate_amount }
           calculation if recorded.all? { |record| record.rate_amount == rates[dimension_key(record)] }
+        end
+
+        def provider_billed?(calculation)
+          calculation.priced_line_items.any? { |item| item.kind == "billed_request" && item.priced? }
         end
 
         # 0.14.1 recorded Bedrock calls unpriced and without the regional-profile mode.
@@ -145,10 +148,9 @@ module LlmCostTracker
         end
 
         # Amounts the provider billed or the caller passed keep their recorded cost; Calculation prices the rest again,
-        # a model_iteration line from the model and tokens in its details.
+        # a model_iteration line from the model and tokens in its details (its cost stays if that model has no rates).
         def at_current_rates(record, attributes)
-          registry = REGISTRY_SOURCES.include?(record.price_source) || record.kind == "model_iteration"
-          registry ? attributes.except(*RATE_FIELDS) : attributes
+          REGISTRY_SOURCES.include?(record.price_source) ? attributes.except(*RATE_FIELDS) : attributes
         end
       end
     end

@@ -81,10 +81,15 @@ module LlmCostTracker
           nil
         end
 
-        # A streamed attempt that produced output is billed through the final usage.iterations instead.
+        # A streamed attempt that produced output has its tokens billed through the final usage.iterations,
+        # which leave out its server-tool fees, so only those are recorded here.
         def record_refused_stream_hop(hop)
+          return unless active?
+
           usage = hop.dig(:refused, :usage).to_h.deep_symbolize_keys
-          return if !active? || usage[:output_tokens].to_i.positive?
+          output = usage[:output_tokens].to_i.positive?
+          usage = usage.slice(:server_tool_use) if output
+          return if output && Providers::Anthropic::UsageExtractor.service_line_items(usage).empty?
 
           record_safely do
             LlmCostTracker::Tracker.record(
@@ -94,7 +99,7 @@ module LlmCostTracker
                 provider_response_id: nil,
                 usage_source: Usage::Source::STREAM_FINAL,
                 stream: true,
-                stop_reason: "refusal",
+                stop_reason: ("refusal" unless output),
                 refusal_category: hop.dig(:refused, :stop_details, "category")
               )
             )

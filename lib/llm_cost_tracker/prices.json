@@ -2698,6 +2698,7 @@
       "input": 5.0
     },
     "openai/gpt-live-transcribe": {
+      "data_residency_transcription_minute": 0.0187,
       "transcription_minute": 0.017
     },
     "openai/gpt-realtime": {
@@ -2761,9 +2762,11 @@
       "output": 2.4
     },
     "openai/gpt-realtime-translate": {
+      "data_residency_transcription_minute": 0.0374,
       "transcription_minute": 0.034
     },
     "openai/gpt-realtime-whisper": {
+      "data_residency_transcription_minute": 0.0187,
       "transcription_minute": 0.017
     },
     "openai/gpt-rosalind-research": {

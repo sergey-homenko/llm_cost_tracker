@@ -40,8 +40,8 @@ Normal path from an application LLM call to stored ledger data:
 4. `Charges::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
 5. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
 5. Persistence runs through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion.mode = :async`.
-6. The persisted event is emitted through `ActiveSupport::Notifications`. Under `pricing.unknown_model_behavior = :raise`, an unpriced event, or one with an unpriced `model_iteration` model, then raises `LlmCostTracker::UnknownPricingError`.
-7. Budget checks run last. `enforce_budget: true` on `LlmCostTracker.track` makes them raise even when the configured behavior is `:notify`; the call is already recorded and the error carries `stage: :post_spend`. `LlmCostTracker.track_stream` instead checks before your block runs and raises `stage: :pre_send`.
+6. The persisted event is emitted through `ActiveSupport::Notifications`. Under `pricing.unknown_model_behavior = :raise`, an unpriced event, or one with an unpriced `model_iteration` model, raises `LlmCostTracker::UnknownPricingError` once the budget checks below have run, unless one of them raised first.
+7. Budget checks run next. `enforce_budget: true` on `LlmCostTracker.track` makes them raise even when the configured behavior is `:notify`; the call is already recorded and the error carries `stage: :post_spend`. `LlmCostTracker.track_stream` instead checks before your block runs and raises `stage: :pre_send`.
 
 ## Ledger Storage
 

@@ -38,9 +38,13 @@ module LlmCostTracker
 
         yield if block_given?
         notify_subscribers(event)
-        signal_unpriced(event, calculation)
         behavior_override = :raise if enforce_budget
-        Budget.check!(event, behavior_override: behavior_override)
+        begin
+          signal_unpriced(event, calculation)
+        ensure
+          # A call priced apart from an unpriced advisor or fallback model still counts against its budgets.
+          Budget.check!(event, behavior_override: behavior_override)
+        end
 
         event
       end

@@ -48,7 +48,7 @@ Alternate provider modes use mode-prefixed keys such as `batch_input`, `priority
 
 Long-context price tiers use `_context_price_threshold_tokens` and `above_context_*` keys. Parsers emit token buckets; pricing chooses the tier.
 
-When a positive-token bucket has no exact price, that bucket's line item stays unknown instead of guessing from a nearby bucket. The one derivation: under a pricing mode, a bucket other than `input`/`output` with no mode-prefixed rate uses its standard rate scaled by that mode's input discount (for example `cache_read_input` × `batch_input` / `input`).
+When a positive-token bucket has no exact price, that bucket's line item stays unknown instead of guessing from a nearby bucket, with three exceptions. A child bucket with no rate of its own takes its parent's: cached audio and image tokens (`audio_cache_read_input`, `image_cache_read_input`) fall back to `cache_read_input`, and Gemini embedding video tokens (`video_input`) to `input`. A bundled or `pricing.file` OpenAI entry with no `cache_read_input` or `cache_write_input` rate prices those tokens at `input`, as OpenAI bills them (details in [Pricing](pricing.md)). Under a pricing mode, a bucket other than `input`/`output` with no mode-prefixed rate uses its standard rate scaled by that mode's input discount (for example `cache_read_input` × `batch_input` / `input`).
 
 ## Line Items
 

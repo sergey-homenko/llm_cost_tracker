@@ -47,7 +47,12 @@ module LlmCostTracker
           response = safe_json_parse(response_body)
           request = safe_json_parse(request_body)
           if path_matches?(request_url, INTERACTIONS_PATH_PATTERN)
-            return interaction_event(response, request: request, response_headers: response_headers)
+            event = interaction_event(response, request: request, response_headers: response_headers)
+            # A GET of a stored interaction records nothing, so it does not notify or raise over budget again.
+            return nil if event && path_matches?(request_url, %r{/interactions/[^/]+\z}) &&
+                          Call.already_recorded?(provider: "gemini", provider_response_id: event.provider_response_id)
+
+            return event
           end
           return cache_storage_event(response) if path_matches?(request_url, CACHE_PATH_PATTERN)
 

@@ -293,6 +293,22 @@ RSpec.describe LlmCostTracker do
       expect(collected.last.dig(:cost, :total)).to eq("0.02465")
     end
 
+    it "prices duration-billed Realtime transcription per second, at the regional rate under data_residency" do
+      collected = events
+      transcription = { "type" => "conversation.item.input_audio_transcription.completed", "item_id" => "item_1",
+                        "transcript" => "hi", "usage" => { "type" => "duration", "seconds" => 125.0 } }
+
+      described_class.track_stream(provider: "openai", model: "gpt-realtime-whisper") { |s| s.event(transcription) }
+      described_class.track_stream(provider: "openai", model: "gpt-realtime-whisper",
+                                   pricing_mode: :data_residency) { |s| s.event(transcription) }
+
+      # developers.openai.com/api/docs/pricing: gpt-realtime-whisper $0.017 per minute, plus 10% on regional
+      # endpoints for models released on or after March 5, 2026; 125 seconds are 2.0833 minutes.
+      expect(collected.map { |event| [event[:cost_status], event.dig(:cost, :total)] })
+        .to eq([%w[complete 0.03541667], %w[complete 0.03895833]])
+      expect(collected.first[:line_items].map { |item| item[:kind] }).to eq(["transcription_minute"])
+    end
+
     it "parses built-in OpenAI-compatible providers like OpenRouter" do
       collected = events
 

@@ -85,14 +85,18 @@ module LlmCostTracker
       end
 
       def cost_status
-        @cost_status ||= billed_status || Charges::CostStatus.call(
-          token_usage: @token_usage,
-          usage_source: @usage_source,
-          token_cost: token_cost,
-          token_pricing_partial: token_pricing_partial?,
-          service_line_items: priced_line_items.reject(&:token?),
-          total_cost: cost&.total
-        )
+        @cost_status ||= begin
+          status = billed_status || Charges::CostStatus.call(
+            token_usage: @token_usage,
+            usage_source: @usage_source,
+            token_cost: token_cost,
+            token_pricing_partial: token_pricing_partial?,
+            service_line_items: priced_line_items.reject(&:token?),
+            total_cost: cost&.total
+          )
+          # An advisor or fallback attempt priced for only some of its tokens leaves the call partial.
+          @partial_iteration && status != Charges::CostStatus::UNKNOWN ? Charges::CostStatus::PARTIAL : status
+        end
       end
 
       private
@@ -238,15 +242,17 @@ module LlmCostTracker
       def price_iteration(line_item)
         details = line_item.details.to_h.transform_keys(&:to_sym)
         model = details[:model].to_s
-        cost = Calculation.for(
+        calculation = Calculation.for(
           provider: @provider,
           model: model,
           tokens: details.slice(*Usage::TokenUsage.members),
           pricing_mode: iteration_mode(model),
           at: @at
-        ).token_cost
+        )
+        cost = calculation.token_cost
         return line_item unless cost
 
+        @partial_iteration ||= calculation.cost_status == Charges::CostStatus::PARTIAL
         status = cost.total.zero? ? Charges::CostStatus::FREE : Charges::CostStatus::COMPLETE
         line_item.with(rate_amount: cost.total, cost: cost.total, currency: cost.currency, cost_status: status)
       end

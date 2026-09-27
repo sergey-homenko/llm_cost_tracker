@@ -116,7 +116,7 @@ client.messages.stream_raw(
 end
 ```
 
-The Anthropic SDK integration supports `anthropic >= 1.36.0`. Streaming calls are recorded after the returned stream is consumed. With the SDK's client-side refusal fallback (`Anthropic::BetaRefusalFallbackMiddleware`), each refusal the middleware retried is recorded as its own call (a streamed one that produced output as a `model_iteration` line item on the returned call).
+The Anthropic SDK integration supports `anthropic >= 1.36.0`. Streaming calls are recorded after the returned stream is consumed. With the SDK's client-side refusal fallback (`Anthropic::BetaRefusalFallbackMiddleware`), each refusal the middleware retried is recorded as its own call (a streamed one that produced output as a `model_iteration` line item on the returned call, with its web search fees recorded as their own call).
 
 ## ruby-openai
 

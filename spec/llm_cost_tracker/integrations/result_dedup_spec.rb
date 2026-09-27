@@ -100,9 +100,11 @@ RSpec.describe "Recording fetched results once" do
     expect(ledger).to eq([%w[msg_1], BigDecimal("0.5")])
   end
 
+  let(:web_search_call) { { id: "ws_1", type: "web_search_call", status: "completed", action: { type: "search" } } }
   let(:background_response) do
     { id: "resp_bg", object: "response", model: "o3-pro", status: "completed", background: true,
-      created_at: 1, output: [], usage: { input_tokens: 1_000, output_tokens: 500, total_tokens: 1_500 } }
+      created_at: 1, output: [web_search_call],
+      usage: { input_tokens: 1_000, output_tokens: 500, total_tokens: 1_500 } }
   end
 
   def stub_background_retrieve
@@ -121,10 +123,12 @@ RSpec.describe "Recording fetched results once" do
   end
 
   def drop_background_stream
-    queued = background_response.merge(status: "queued", usage: nil)
-    body = [["response.created", queued], ["response.in_progress", queued.merge(status: "in_progress")]]
-           .each_with_index.map do |(type, response), index|
-      "event: #{type}\ndata: #{{ type: type, sequence_number: index, response: response }.to_json}\n\n"
+    queued = background_response.merge(status: "queued", output: [], usage: nil)
+    body = [["response.created", { response: queued }],
+            ["response.in_progress", { response: queued.merge(status: "in_progress") }],
+            ["response.output_item.done", { output_index: 0, item: web_search_call }]]
+           .each_with_index.map do |(type, payload), index|
+      "event: #{type}\ndata: #{payload.merge(type: type, sequence_number: index).to_json}\n\n"
     end
     WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(
       status: 200, headers: { "Content-Type" => "text/event-stream" }, body: body.join
@@ -141,8 +145,8 @@ RSpec.describe "Recording fetched results once" do
     end
   end
 
-  # o3-pro: $20 input and $80 output per 1M tokens.
-  let(:background_ledger) { [%w[resp_bg], BigDecimal("0.06")] }
+  # o3-pro: $20 input and $80 output per 1M tokens, plus one web search at $10 per 1K calls.
+  let(:background_ledger) { [%w[resp_bg], BigDecimal("0.07")] }
 
   %i[inline async].each do |mode|
     it "stores a background response once however often a finished response is polled (#{mode})" do
@@ -172,8 +176,8 @@ RSpec.describe "Recording fetched results once" do
       drop_background_stream
       2.times { openai.responses.retrieve("resp_bg") }
 
-      # The dropped stream keeps its usage-unknown $0 row next to the priced one.
-      expect(ledger).to eq([%w[resp_bg resp_bg], BigDecimal("0.06")])
+      # The dropped stream keeps its usage-unknown $0 row next to the priced one; the poll prices the search.
+      expect(ledger).to eq([%w[resp_bg resp_bg], BigDecimal("0.07")])
     end
 
     it "stores a background response created and polled through the Faraday middleware once (#{mode})" do
@@ -206,25 +210,33 @@ RSpec.describe "Recording fetched results once" do
     expect(ledger).to eq(background_ledger)
   end
 
-  it "stores a background Gemini interaction once, from the first GET that returns it finished" do
-    configure!(:inline)
-    url = "https://generativelanguage.googleapis.com/v1beta/interactions"
-    running = { id: "v1_bg", model: "gemini-3.1-pro-preview", status: "in_progress" }
-    finished = running.merge(status: "completed", usage: { total_input_tokens: 20_000, total_output_tokens: 4_000,
-                                                            total_thought_tokens: 6_000, total_tokens: 30_000 })
-    json = { status: 200, headers: { "Content-Type" => "application/json" } }
-    WebMock.stub_request(:post, url).to_return(json.merge(body: running.to_json))
-    WebMock.stub_request(:get, "#{url}/v1_bg").to_return(
-      json.merge(body: running.merge(usage: { total_input_tokens: 20_000, total_tokens: 20_000 }).to_json),
-      json.merge(body: finished.to_json)
-    )
-    gemini = Faraday.new { |f| f.use :llm_cost_tracker }
-    expect(LlmCostTracker::Logging).not_to receive(:warn)
+  %i[inline async].each do |mode|
+    it "stores and notifies a background Gemini interaction once, from its first finished GET (#{mode})" do
+      configure!(mode)
+      url = "https://generativelanguage.googleapis.com/v1beta/interactions"
+      running = { id: "v1_bg", model: "gemini-3.1-pro-preview", status: "in_progress" }
+      finished = running.merge(status: "completed", usage: { total_input_tokens: 20_000, total_output_tokens: 4_000,
+                                                              total_thought_tokens: 6_000, total_tokens: 30_000 })
+      json = { status: 200, headers: { "Content-Type" => "application/json" } }
+      WebMock.stub_request(:post, url).to_return(json.merge(body: running.to_json))
+      WebMock.stub_request(:get, "#{url}/v1_bg").to_return(
+        json.merge(body: running.merge(usage: { total_input_tokens: 20_000, total_tokens: 20_000 }).to_json),
+        json.merge(body: finished.to_json)
+      )
+      gemini = Faraday.new { |f| f.use :llm_cost_tracker }
+      notifications = 0
+      ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) { notifications += 1 }
+      expect(LlmCostTracker::Logging).not_to receive(:warn)
 
-    gemini.post(url, { model: "gemini-3.1-pro-preview", input: "Research this", background: true }.to_json)
-    3.times { gemini.get("#{url}/v1_bg") }
+      gemini.post(url, { model: "gemini-3.1-pro-preview", input: "Research this", background: true }.to_json)
+      3.times do
+        gemini.get("#{url}/v1_bg")
+        LlmCostTracker::Ingestion::Worker.flush!(timeout: 5)
+      end
 
-    # Gemini 3.1 Pro Preview, prompts up to 200k: $2.00 input and $12.00 output (thinking included) per 1M tokens.
-    expect(ledger).to eq([%w[v1_bg], BigDecimal("0.16")])
+      # Gemini 3.1 Pro Preview, prompts up to 200k: $2.00 input and $12.00 output (thinking included) per 1M tokens.
+      expect(ledger).to eq([%w[v1_bg], BigDecimal("0.16")])
+      expect(notifications).to eq(1)
+    end
   end
 end

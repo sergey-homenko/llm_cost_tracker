@@ -367,7 +367,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       expect(result.models.fetch("gpt-transcribe")).to eq(
         "transcription_minute" => 0.0045, "data_residency_transcription_minute" => 0.00495
       )
-      expect(result.models.fetch("gpt-live-transcribe")).to eq("transcription_minute" => 0.017)
+      expect(result.models.fetch("gpt-live-transcribe")).to eq(
+        "transcription_minute" => 0.017, "data_residency_transcription_minute" => 0.0187
+      )
       expect(result.models.fetch("whisper-1")).to eq("transcription_minute" => 0.006)
     end
 

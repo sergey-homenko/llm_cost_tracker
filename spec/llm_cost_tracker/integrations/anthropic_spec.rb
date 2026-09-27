@@ -386,7 +386,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
                 usage: { input_tokens: 5_000, output_tokens: output_tokens } }.to_json }
     end
 
-    def stream(model, output_tokens, stop_details = nil)
+    def stream(model, output_tokens, stop_details = nil, **usage)
       start = { id: "msg_#{model}", type: "message", role: "assistant", model: model, content: [],
                 usage: { input_tokens: 5_000, output_tokens: 1 } }
       events = [{ type: "message_start", message: start }]
@@ -395,7 +395,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         events << { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "x" } }
         events << { type: "content_block_stop", index: 0 }
       end
-      events << { type: "message_delta", usage: { input_tokens: 5_000, output_tokens: output_tokens },
+      events << { type: "message_delta", usage: { input_tokens: 5_000, output_tokens: output_tokens, **usage },
                   delta: { stop_reason: stop_details ? "refusal" : "end_turn", stop_details: stop_details } }
       events << { type: "message_stop" }
       { status: 200, headers: { "Content-Type" => "text/event-stream" },
@@ -487,6 +487,19 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         expect(events.size).to eq(1)
         expect(events.first).to include(model: "claude-opus-4-8", cost_status: "complete")
         expect(total(events)).to eq(BigDecimal("0.065"))
+      end
+    end
+
+    it "records the web searches of a streamed refusal that produced output as their own call" do
+      stub_attempts(stream("claude-fable-5-1", 300, refusal("cyber"), server_tool_use: { web_search_requests: 3 }),
+                    stream("claude-opus-4-8", 400))
+
+      capture_sdk_events do |events|
+        client.beta.messages.stream(**params).each { |_| nil }
+
+        # Fable 5.1 tokens $0.065 are a model_iteration line on the Opus 4.8 call ($0.035); 3 searches x $0.01 = $0.03.
+        expect(events.map { |event| [event[:model], event[:cost][:total]] })
+          .to eq([%w[claude-fable-5-1 0.03], %w[claude-opus-4-8 0.1]])
       end
     end
   end
