@@ -45,7 +45,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - OpenAI streams with logprobs record their usage instead of 0 tokens and $0, and an overflowing SDK or `track_stream` capture logs a warning.
 - Groq streams whose usage arrives only in `x_groq.usage` record their tokens instead of 0 tokens and `unknown`.
 - Anthropic streams price cache writes made after `message_start`.
-- Anthropic server-side fallback calls are recorded under the serving model, and billed fallback attempts, compaction and advisor iterations use their own model's rates; an unpriced one triggers `pricing.unknown_model_behavior` (not yet through RubyLLM).
+- Anthropic compaction tokens, which the top-level usage leaves out, are counted; on-demand compactions were recorded as free (not yet through RubyLLM).
+- Anthropic server-side fallback calls are recorded under the serving model, and billed fallback attempts and advisor iterations use their own model's rates; an unpriced one triggers `pricing.unknown_model_behavior` (not yet through RubyLLM).
 - Refusals Anthropic does not bill are recorded at $0 (not yet through RubyLLM), and refusals `Anthropic::BetaRefusalFallbackMiddleware` retried are recorded instead of dropped.
 - Gemini image and audio prompt tokens on single-rate models are priced at the input rate; they were unpriced.
 - Gemini image models are priced per 1M image tokens and price text and thinking output at the text rate; `gemini-2.5-flash-image` images were priced about 770x too low and 3.x image models' images 10-20x too low. Calls already recorded keep their cost. With a local pricing file, run `bin/rails llm_cost_tracker:prices:check`, check that only Gemini image models are flagged, then run `bin/rails llm_cost_tracker:prices:refresh FORCE=1`.

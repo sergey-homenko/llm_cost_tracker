@@ -81,7 +81,7 @@ module LlmCostTracker
           match = LlmCostTracker::Pricing::Matcher.lookup(provider: provider.slug.to_s, model: model)
           counts = token_counts(response)
           usage = usage_hash(raw_body(response))
-          no_tokens = counts[:input].nil? && counts[:output].nil?
+          no_tokens = counts[:input].to_i.zero? && counts[:output].to_i.zero?
           duration = billed_duration(usage, response, no_tokens)
           line_items = Providers::Openai::ServiceCharges.transcription_line_items(duration)
           audio_input = Providers::Openai::UsageExtractor.audio_input_tokens(usage)

@@ -938,6 +938,19 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
 
+    it "records a plain-text transcription as unknown when RubyLLM retried a rate-limited attempt first" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
+        { status: 429, body: { error: { message: "Rate limit reached" } }.to_json,
+          headers: { "Content-Type" => "application/json" } },
+        { status: 200, body: "hi", headers: { "Content-Type" => "text/plain" } }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.transcribe(audio_file.path, model: "whisper-1", provider: :openai, assume_model_exists: true)
+        expect(events.first).to include(usage_source: "unknown", cost_status: "unknown", cost: nil)
+      end
+    end
+
     it "returns a plain-text transcription untouched and records it as unknown, since its body carries no usage" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions")
              .to_return(status: 200, body: "hi", headers: { "Content-Type" => "text/plain" })
