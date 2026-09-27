@@ -7,6 +7,7 @@ module LlmCostTracker
   module Pricing
     module PriceKey
       ABOVE_CONTEXT_PREFIX = "above_context_"
+      SCHEDULED_SUFFIX = /_from_(\d{4}-\d{2}-\d{2})\z/
 
       class << self
         def build(dimension_key, mode: nil, above_context: false)
@@ -16,12 +17,13 @@ module LlmCostTracker
 
         def price_key_for(key)
           key = key.to_s
-          dimension_key = strip_mode_prefix(key.delete_prefix(ABOVE_CONTEXT_PREFIX))
+          base = key.sub(SCHEDULED_SUFFIX, "")
+          dimension_key = strip_mode_prefix(base.delete_prefix(ABOVE_CONTEXT_PREFIX))
           dimension = Usage::Catalog[dimension_key]
           return nil unless dimension
-          return key if key == dimension_key
+          return nil if dimension.token_key.nil? && base.start_with?(ABOVE_CONTEXT_PREFIX)
 
-          dimension.token_key ? key : nil
+          key
         end
 
         def parse_dimension_key(key)

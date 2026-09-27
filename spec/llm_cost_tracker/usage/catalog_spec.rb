@@ -33,6 +33,16 @@ RSpec.describe LlmCostTracker::Usage::Catalog do
     expect(input).to have_attributes(token_key: :input_tokens, cost_key: :input_cost)
   end
 
+  it "keeps cached-modality dimensions out of the token columns and maps them to their parent component" do
+    expect(described_class.token_priced.map(&:key)).not_to include("audio_cache_read_input", "image_cache_read_input")
+    expect(described_class.token_priced_for(kind: "audio_token", direction: "input", cache_state: "read").key)
+      .to eq("cache_read_input")
+    expect(described_class.token_priced_for(kind: "audio_token", direction: "input", cache_state: "none").key)
+      .to eq("audio_input")
+    expect(described_class.token_priced_for(kind: "web_search_request", direction: "neither", cache_state: "none"))
+      .to be_nil
+  end
+
   it "defaults the rate_basis from the unit when YAML omits the field" do
     expect(described_class.fetch("input").rate_basis).to eq("per_million_tokens")
     expect(described_class.fetch("container_session").rate_basis).to eq("per_session")

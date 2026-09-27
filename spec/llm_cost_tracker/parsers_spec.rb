@@ -30,6 +30,14 @@ RSpec.describe LlmCostTracker::Parsers do
       expect(described_class.find_for_provider("openrouter")).to be_a(LlmCostTracker::Providers::OpenaiCompatible::Parser)
     end
 
+    it "prefers the native parser when an OpenAI-compatible provider shares its name" do
+      LlmCostTracker.configure do |config|
+        config.capture.openai_compatible_providers["generativelanguage.googleapis.com"] = "gemini"
+      end
+
+      expect(described_class.find_for_provider("gemini")).to be_a(LlmCostTracker::Providers::Gemini::Parser)
+    end
+
     it "matches provider names case-insensitively" do
       expect(described_class.find_for_provider("OPENAI")).to be_a(LlmCostTracker::Providers::Openai::Parser)
     end

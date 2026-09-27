@@ -39,25 +39,29 @@ module LlmCostTracker
 
         def period_select(period)
           start = Period.range_start(period, time)
-          components = ["(#{recorded_sql(period, start)})"]
+          components = ["(#{recorded_sql(start)})"]
           components << "(#{pending_sql(start)})" if Ingestion.async?
           "SELECT #{quote(period.to_s)} AS period_key, #{components.join(' + ')} AS total_cost"
         end
 
-        def recorded_sql(period, start)
-          calls = "COALESCE(#{sum_sql(LlmCostTracker::Call.between(start, time))}, 0)"
-          return calls unless Rollups.cache_active?
+        def recorded_sql(start)
+          today = Period.range_start(:day, time)
+          return calls_sql(start) unless Rollups.cache_active? && start < today
 
-          rollup = "COALESCE(#{sum_sql(rollup_scope(period))}, 0)"
-          "GREATEST(#{rollup}, #{calls})"
+          "#{completed_days_sql(start, today)} + #{calls_sql(today)}"
+        end
+
+        def calls_sql(start)
+          "COALESCE(#{sum_sql(LlmCostTracker::Call.between(start, time))}, 0)"
+        end
+
+        def completed_days_sql(start, today)
+          days = LlmCostTracker::CallRollup.where(period: "day", period_start: start.to_date...today.to_date)
+          "COALESCE(#{sum_sql(days)}, 0)"
         end
 
         def pending_sql(start)
           "COALESCE(#{sum_sql(Ingestion::InboxEntry.pending.where(tracked_at: start..time))}, 0)"
-        end
-
-        def rollup_scope(period)
-          LlmCostTracker::CallRollup.where(period: period.to_s, period_start: Period.bucket(period, time))
         end
 
         def sum_sql(scope)

@@ -11,9 +11,10 @@ module LlmCostTracker
           raise error_class, "anchor models missing from scrape: #{missing_anchors.join(', ')}" if missing_anchors.any?
 
           models.each do |model_id, fields|
+            free = fields.values.all? { |value| value.is_a?(Float) && value.zero? }
             fields.each do |field, value|
               next if metadata_price_key?(field, value)
-              next if value.is_a?(Float) && value.positive? && value < maximum
+              next if value.is_a?(Float) && (value.positive? || free) && value < maximum
 
               raise error_class, "invalid price for #{model_id}.#{field}: #{value.inspect}"
             end

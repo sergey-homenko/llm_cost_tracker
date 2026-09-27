@@ -51,7 +51,7 @@ module LlmCostTracker
           return nil unless Budget::PerTag.columns?
           return nil unless LlmCostTracker::CallTag.exists?
 
-          unseen = budgeted.keys.reject { |key| LlmCostTracker::CallTag.exists?(key: key) }
+          unseen = budgeted.keys.reject { |key| LlmCostTracker::CallTag.where(key: key).where.not(value: "").exists? }
           return nil if unseen.empty?
 
           UnseenBudgetTags.new(keys: unseen)
@@ -174,7 +174,7 @@ module LlmCostTracker
                         Arel.sql("#{line_item_table}.direction"),
                         Arel.sql("#{line_item_table}.cache_state"),
                         Arel.sql("COALESCE(SUM(#{line_item_table}.cost), 0)"))
-          index_costs_by_component(rows)
+          Usage::Catalog.costs_by_component(rows)
         end
 
         def streaming_health_rows(scope, total_streaming:)
@@ -216,13 +216,6 @@ module LlmCostTracker
         end
 
         private
-
-        def index_costs_by_component(rows)
-          rows.each_with_object({}) do |(kind, direction, cache_state, cost), accumulator|
-            component = Usage::Catalog.token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
-            accumulator[component.key] = cost if component
-          end
-        end
 
         def percentage(numerator, denominator)
           return 0.0 unless denominator.positive?
@@ -296,7 +289,8 @@ module LlmCostTracker
           tags_table = LlmCostTracker::CallTag.quoted_table_name
 
           "COALESCE(SUM(CASE WHEN EXISTS (SELECT 1 FROM #{tags_table} " \
-            "WHERE #{tags_table}.llm_cost_tracker_call_id = #{calls_table}.id) THEN 1 ELSE 0 END), 0)"
+            "WHERE #{tags_table}.llm_cost_tracker_call_id = #{calls_table}.id " \
+            "AND #{tags_table}.#{scope.connection.quote_column_name('value')} != '') THEN 1 ELSE 0 END), 0)"
         end
       end
     end

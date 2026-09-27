@@ -45,6 +45,14 @@ module LlmCostTracker
         include PatchBuilder.build(record_method: :record_response, methods: %i[create])
         include PatchBuilder.build_stream(methods: %i[stream stream_raw])
 
+        def retrieve(response_id, *args, **kwargs)
+          response = super
+          LlmCostTracker::Integrations::Openai.record_retrieved_response(
+            response, host: LlmCostTracker::Integrations::Openai.client_host_for(self)
+          )
+          response
+        end
+
         def retrieve_streaming(response_id, *args, **kwargs)
           LlmCostTracker::Integrations::Openai.wrap_stream(
             args, kwargs, **LlmCostTracker::Integrations::Openai.stream_seam(self)

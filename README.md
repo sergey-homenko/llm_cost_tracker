@@ -73,7 +73,7 @@ The engine ships without authentication on purpose.
 | Azure OpenAI | Faraday or official SDK (auto-detected on `*.openai.azure.com` and Foundry `*.services.ai.azure.com`, both deployments and `/openai/v1/...`) |
 | Google Gemini | Faraday |
 | `ruby-openai` | Faraday |
-| OpenRouter, DeepSeek, Groq; other gateways (LiteLLM etc.) once their host is added to `config.capture.openai_compatible_providers` | OpenAI-compatible Faraday, or the official OpenAI SDK with `base_url` on that host |
+| OpenRouter, DeepSeek, Groq; xAI, Mistral, and other gateways (LiteLLM etc.) once their host is added to `config.capture.openai_compatible_providers` | OpenAI-compatible Faraday, or the official OpenAI SDK with `base_url` on that host |
 | Anything else | `LlmCostTracker.track` |
 
 Streams capture when the provider emits final usage. OpenAI Faraday streams to `/chat/completions` get `stream_options: { include_usage: true }` auto-injected so the final usage chunk lands in the ledger (opt out via `config.capture.request_stream_usage = false`).
@@ -82,10 +82,10 @@ Captured does not always mean priced:
 
 | Cost comes from | Calls |
 | --- | --- |
-| The amount billed, from `usage.cost` in the response or final stream chunk | OpenRouter through Faraday, the official OpenAI SDK, or `track_stream`, and any OpenAI-compatible gateway that returns `usage.cost`; bundled prices apply when it is missing or the call comes through RubyLLM |
-| Bundled [`prices.json`](lib/llm_cost_tracker/prices.json) | The OpenAI, Anthropic, Gemini, Groq, and OpenRouter models it lists |
+| The amount billed, from `usage.cost` in the response or final stream chunk | OpenRouter through Faraday, the official OpenAI SDK, or `track_stream`, OpenRouter chats through RubyLLM, and any OpenAI-compatible gateway that returns `usage.cost` outside RubyLLM; bundled prices apply when it is missing |
+| Bundled [`prices.json`](lib/llm_cost_tracker/prices.json) | The OpenAI, Anthropic, Gemini, Groq, OpenRouter, xAI, and Mistral models it lists, and the same Claude models on Bedrock through RubyLLM |
 | The OpenAI, Anthropic, or Gemini price for the same model name | Azure OpenAI (by the model in the response, not the deployment name), Vertex AI through RubyLLM, gateways that pass a listed model name through |
-| Nothing: recorded with `cost_status: unknown` | DeepSeek, and through RubyLLM also xAI, Mistral, Perplexity, Ollama, and Bedrock |
+| Nothing: recorded with `cost_status: unknown` | DeepSeek, and through RubyLLM also Perplexity, Ollama, and other Bedrock models, including Claude models Anthropic has retired from its own API such as Claude Sonnet 4, and Claude on GovCloud (`us-gov.` profiles) |
 
 Add missing prices to `config.pricing.file` or `config.pricing.overrides` ([Pricing](docs/pricing.md)), then run `bin/rails llm_cost_tracker:backfill_unknown_pricing` to price the calls already recorded.
 

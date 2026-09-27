@@ -13,7 +13,12 @@ module LlmCostTracker
       class << self
         def cache_active?
           return false unless LlmCostTracker.configuration.budgets.totals_source == :cache
-          return true if LlmCostTracker::CallRollup.table_exists?
+
+          rollup = LlmCostTracker::CallRollup
+          return true if rollup.table_exists?
+
+          rollup.connection.schema_cache.clear_data_source_cache!(rollup.table_name)
+          return true if rollup.table_exists?
 
           warn_missing_table
           false
@@ -55,8 +60,8 @@ module LlmCostTracker
 
             LlmCostTracker::Logging.warn(
               "Rollup increment failed for #{events.size} events after #{attempt} attempt(s): " \
-              "#{e.class}: #{e.message}. Budget reads fall back to the calls ledger; " \
-              "run bin/rails llm_cost_tracker:rebuild_rollups to resync the cache."
+              "#{e.class}: #{e.message}. Monthly budget totals under-count these calls until you run " \
+              "bin/rails llm_cost_tracker:rebuild_rollups."
             )
           end
         end

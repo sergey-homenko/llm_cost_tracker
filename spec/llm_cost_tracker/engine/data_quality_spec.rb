@@ -145,9 +145,9 @@ RSpec.describe "LlmCostTracker::Engine data quality" do
 
     expect(response.body).not_to include("Streaming health by provider")
   end
-  it "names budgeted tags no call has ever carried" do
+  it "names budgeted tags no call has ever carried with a value" do
     LlmCostTracker.configuration.budgets.per_tag = { tenant_id: { monthly: 10 }, ghost: { monthly: 10 } }
-    create_call(total_cost: 1.0, tags: { "tenant_id" => "acme" })
+    create_call(total_cost: 1.0, tags: { "tenant_id" => "acme", "ghost" => nil })
 
     response = get("/llm-costs/data_quality")
 

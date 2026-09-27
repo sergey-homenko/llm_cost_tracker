@@ -898,6 +898,31 @@ RSpec.describe LlmCostTracker::Tracker do
       }
     end
 
+    def record_with_advisor(executor:, advisor:)
+      described_class.record(
+        event: LlmCostTracker::Providers::Anthropic::ResponseParser.event_from_usage(
+          usage: { input_tokens: 2_000, output_tokens: 300, iterations: [
+            { type: "advisor_message", model: advisor, input_tokens: 1_500, output_tokens: 1_000 }
+          ] },
+          model: executor, provider_response_id: nil, usage_source: LlmCostTracker::Usage::Source::RESPONSE
+        )
+      )
+    end
+
+    it "raises for an unpriced executor model when its advisor model is priced" do
+      LlmCostTracker.configure { |c| c.pricing.unknown_model_behavior = :raise }
+
+      expect { record_with_advisor(executor: "claude-sonnet-6", advisor: "claude-opus-5") }
+        .to raise_error(LlmCostTracker::UnknownPricingError) { |error| expect(error.model).to eq("claude-sonnet-6") }
+    end
+
+    it "warns about an unpriced advisor model" do
+      log = capture_log { record_with_advisor(executor: "claude-sonnet-4-6", advisor: "claude-opus-6") }
+
+      expect(log).to include('No pricing configured for model "claude-opus-6"')
+      expect(log).not_to include("claude-sonnet-4-6")
+    end
+
     it "rejects unknown pricing behavior values" do
       expect do
         LlmCostTracker.configure { |c| c.pricing.unknown_model_behavior = :explode }

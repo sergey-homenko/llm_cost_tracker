@@ -2,6 +2,7 @@
 
 require "spec_helper"
 require "faraday"
+require "faraday/multipart"
 
 RSpec.describe LlmCostTracker::Middleware::Faraday do
   before do
@@ -1001,6 +1002,22 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(requests).to eq(0)
   end
 
+  it "does not block polling a background response, which starts no billable work" do
+    error = LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 1.0)
+    allow(LlmCostTracker::Budget).to receive(:enforce!).and_raise(error)
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.get("/v1/responses/resp_bg") do
+          [200, { "Content-Type" => "application/json" }, { id: "resp_bg", status: "in_progress" }.to_json]
+        end
+      end
+    end
+
+    expect(conn.get("/v1/responses/resp_bg").status).to eq(200)
+    expect(LlmCostTracker::Budget).not_to have_received(:enforce!)
+  end
+
   it "passes provider, model, and parsed request body to Budget.enforce! for pre-send estimation" do
     allow(LlmCostTracker::Budget).to receive(:enforce!)
 
@@ -1040,6 +1057,37 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(LlmCostTracker::Budget).to have_received(:enforce!).with(
       hash_including(provider: "gemini", model: "gemini-2.0-flash")
     )
+  end
+
+  it "prices Gemini cached audio tokens at the published audio caching rate" do
+    # ai.google.dev/gemini-api/docs/pricing, Gemini 2.5 Flash: input $0.30 (text/image/video) / $1.00 (audio),
+    # context caching $0.03 (text/image/video) / $0.10 (audio), output $2.50.
+    LlmCostTracker.configure do |config|
+      config.pricing.overrides = {
+        "gemini/gemini-2.5-flash" => { input: 0.3, audio_input: 1.0, cache_read_input: 0.03,
+                                       audio_cache_read_input: 0.1, output: 2.5 }
+      }
+    end
+    usage = { promptTokenCount: 100_000, cachedContentTokenCount: 80_000, candidatesTokenCount: 1_000,
+              totalTokenCount: 101_000,
+              promptTokensDetails: [{ modality: "TEXT", tokenCount: 10_000 }, { modality: "AUDIO", tokenCount: 90_000 }],
+              cacheTokensDetails: [{ modality: "TEXT", tokenCount: 8_000 }, { modality: "AUDIO", tokenCount: 72_000 }] }
+    conn = Faraday.new(url: "https://generativelanguage.googleapis.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1beta/models/gemini-2.5-flash:generateContent") do
+          [200, { "Content-Type" => "application/json" }, { usageMetadata: usage }.to_json]
+        end
+      end
+    end
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) { |*, payload| events << payload }
+
+    conn.post("/v1beta/models/gemini-2.5-flash:generateContent", { "contents" => [] }.to_json)
+
+    # 2000*0.30 + 18000*1.00 + 8000*0.03 + 72000*0.10 + 1000*2.50 = 28540 per 1M tokens
+    expect(events.first.dig(:cost, :total)).to eq("0.02854")
+    expect(events.first.dig(:cost, :components, :cache_read_input_cost)).to eq("0.00744")
   end
 
   describe "OpenRouter billed cost" do
@@ -1102,6 +1150,117 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
       expect(event).to include(stream: true, usage_source: "stream_final", cost_status: "complete")
       expect(total_cost(event)).to eq(BigDecimal("0.00364"))
+    end
+  end
+
+  describe "ruby-openai uploads and speech" do
+    # ruby-openai adds `f.request :multipart` before the constructor block that adds this middleware.
+    def ruby_openai_post(path, body, multipart:)
+      connection = Faraday.new do |f|
+        f.request(:multipart) if multipart
+        f.response :raise_error
+        f.response :json
+      end
+      connection.use :llm_cost_tracker
+      recorded = []
+      ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) { |*, payload| recorded << payload }
+      connection.post("https://api.openai.com/v1#{path}") do |request|
+        request.headers["Content-Type"] = multipart ? "multipart/form-data" : "application/json"
+        request.body = body
+      end
+      expect(recorded.size).to eq(1)
+      recorded.first
+    end
+
+    def upload(bytes, name)
+      Faraday::Multipart::FilePart.new(StringIO.new(bytes), "application/octet-stream", name)
+    end
+
+    def total_cost(event)
+      BigDecimal(event.dig(:cost, :total).to_s)
+    end
+
+    it "reads the model of a multipart transcription even after a large file part, and sends the whole body" do
+      audio = "RIFF#{'a' * 200_000}".b
+      sent = nil
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions")
+             .with { |request| sent = request.body }
+             .to_return(status: 200, body: { text: "hi", usage: { type: "duration", seconds: 9 } }.to_json,
+                        headers: { "Content-Type" => "application/json" })
+
+      event = ruby_openai_post("/audio/transcriptions", { file: upload(audio, "a.wav"), model: "whisper-1" },
+                               multipart: true)
+
+      expect(event).to include(model: "whisper-1", cost_status: "complete")
+      # whisper-1: $0.006 per minute of audio.
+      expect(total_cost(event)).to eq(BigDecimal("0.0009"))
+      expect(sent.b).to include(audio)
+      expect(sent).to include(%(name="model"\r\n\r\nwhisper-1\r\n))
+    end
+
+    it "reads the model of a multipart image edit" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/images/edits").to_return(
+        status: 200,
+        body: { created: 1, data: [],
+                usage: { input_tokens: 450, output_tokens: 1_056, total_tokens: 1_506,
+                         input_tokens_details: { text_tokens: 50, image_tokens: 400 } } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      event = ruby_openai_post(
+        "/images/edits", { model: "gpt-image-1", image: upload("\x89PNG".b, "a.png"), prompt: "blue" }, multipart: true
+      )
+
+      expect(event).to include(model: "gpt-image-1", cost_status: "complete")
+      # gpt-image-1: text input $5, image input $10, image output $40 per 1M tokens.
+      expect(total_cost(event)).to eq(BigDecimal("0.04649"))
+    end
+
+    it "does not read multipart uploads to hosts it does not track" do
+      body = StringIO.new(%(--b\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n--b--\r\n))
+      allow(body).to receive(:read).and_call_original
+      connection = Faraday.new(url: "https://uploads.example.com") do |f|
+        f.use :llm_cost_tracker
+        f.adapter(:test) { |stub| stub.post("/files") { [200, {}, ""] } }
+      end
+
+      connection.post("/files", body, "Content-Type" => "multipart/form-data; boundary=b")
+
+      expect(body).not_to have_received(:read)
+    end
+
+    it "still sends and records a multipart request whose body cannot be scanned" do
+      body = StringIO.new("--b--\r\n")
+      allow(body).to receive(:read).and_raise(IOError, "closed stream")
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      recorded = []
+      ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) { |*, payload| recorded << payload }
+      connection = Faraday.new(url: "https://api.openai.com") do |f|
+        f.use :llm_cost_tracker
+        f.adapter(:test) do |stub|
+          stub.post("/v1/audio/transcriptions") do
+            [200, { "Content-Type" => "application/json" }, { text: "hi", usage: { type: "duration", seconds: 9 } }.to_json]
+          end
+        end
+      end
+
+      connection.post("/v1/audio/transcriptions", body, "Content-Type" => "multipart/form-data; boundary=b")
+
+      expect(recorded.last).to include(model: "unknown")
+      expect(LlmCostTracker::Logging).to have_received(:warn)
+        .with("Unable to read the model from a multipart request: IOError: closed stream")
+    end
+
+    it "records a speech request, which returns raw audio, by its input characters" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/speech")
+             .to_return(status: 200, body: "ID3\x04audio".b, headers: { "Content-Type" => "audio/mpeg" })
+
+      event = ruby_openai_post("/audio/speech", { model: "tts-1", voice: "alloy", input: "a" * 1_000 }.to_json,
+                               multipart: false)
+
+      expect(event).to include(model: "tts-1", cost_status: "complete")
+      # tts-1: $15 per 1M characters.
+      expect(total_cost(event)).to eq(BigDecimal("0.015"))
     end
   end
 end

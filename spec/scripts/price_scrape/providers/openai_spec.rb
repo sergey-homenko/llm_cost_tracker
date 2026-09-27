@@ -223,16 +223,20 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "cache_read_input" => 0.4,
         "output" => 16.0,
         "audio_input" => 32.0,
+        "audio_cache_read_input" => 0.4,
         "audio_output" => 64.0,
-        "image_input" => 5.0
+        "image_input" => 5.0,
+        "image_cache_read_input" => 0.5
       )
       expect(result.models.fetch("gpt-realtime-mini")).to eq(
         "input" => 0.6,
         "cache_read_input" => 0.06,
         "output" => 2.4,
         "audio_input" => 10.0,
+        "audio_cache_read_input" => 0.3,
         "audio_output" => 20.0,
-        "image_input" => 0.8
+        "image_input" => 0.8,
+        "image_cache_read_input" => 0.08
       )
       expect(result.models.fetch("gpt-audio-1.5")).to eq(
         "input" => 2.5,
@@ -242,27 +246,29 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       )
       expect(result.models.fetch("gpt-image-1")).to eq(
         "input" => 5.0, "cache_read_input" => 1.25,
-        "image_input" => 10.0, "image_output" => 40.0,
+        "image_input" => 10.0, "image_cache_read_input" => 2.5, "image_output" => 40.0,
         "batch_input" => 2.5, "batch_cache_read_input" => 0.63,
-        "batch_image_input" => 5.0, "batch_image_output" => 20.0
+        "batch_image_input" => 5.0, "batch_image_cache_read_input" => 1.25, "batch_image_output" => 20.0
       )
       expect(result.models.fetch("gpt-image-1-mini")).to eq(
         "input" => 2.0, "cache_read_input" => 0.2,
-        "image_input" => 2.5, "image_output" => 8.0,
+        "image_input" => 2.5, "image_cache_read_input" => 0.25, "image_output" => 8.0,
         "batch_input" => 1.0, "batch_cache_read_input" => 0.1,
-        "batch_image_input" => 1.25, "batch_image_output" => 4.0
+        "batch_image_input" => 1.25, "batch_image_cache_read_input" => 0.13, "batch_image_output" => 4.0
       )
       expect(result.models.fetch("gpt-image-1.5")).to eq(
         "input" => 5.0, "cache_read_input" => 1.25, "output" => 10.0,
-        "image_input" => 8.0, "image_output" => 32.0,
+        "image_input" => 8.0, "image_cache_read_input" => 2.0, "image_output" => 32.0,
         "batch_input" => 2.5, "batch_cache_read_input" => 0.63, "batch_output" => 5.0,
-        "batch_image_input" => 4.0, "batch_image_output" => 16.0
+        "batch_image_input" => 4.0, "batch_image_cache_read_input" => 1.0, "batch_image_output" => 16.0
       )
       expect(result.models.fetch("gpt-image-2")).to eq(
         "input" => 5.0, "cache_read_input" => 1.25,
-        "image_input" => 8.0, "image_output" => 30.0,
+        "image_input" => 8.0, "image_cache_read_input" => 2.0, "image_output" => 30.0,
         "batch_input" => 2.5, "batch_cache_read_input" => 0.625,
-        "batch_image_input" => 4.0, "batch_image_output" => 15.0
+        "batch_image_input" => 4.0, "batch_image_cache_read_input" => 1.0, "batch_image_output" => 15.0,
+        "data_residency_input" => 5.5, "data_residency_cache_read_input" => 1.375,
+        "batch_data_residency_input" => 2.75, "batch_data_residency_cache_read_input" => 0.6875
       )
     end
 
@@ -358,7 +364,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     it "prices duration-billed audio models from the per-minute column" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
 
-      expect(result.models.fetch("gpt-transcribe")).to eq("transcription_minute" => 0.0045)
+      expect(result.models.fetch("gpt-transcribe")).to eq(
+        "transcription_minute" => 0.0045, "data_residency_transcription_minute" => 0.00495
+      )
       expect(result.models.fetch("gpt-live-transcribe")).to eq("transcription_minute" => 0.017)
       expect(result.models.fetch("whisper-1")).to eq("transcription_minute" => 0.006)
     end
@@ -380,7 +388,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "input" => 1.25, "cache_read_input" => 0.125, "output" => 10.0
       )
       expect(result.models.fetch("gpt-image-2.5-sunburst")).to eq(
-        "image_input" => 8.0, "image_output" => 30.0, "input" => 5.0, "cache_read_input" => 1.25
+        "image_input" => 8.0, "image_cache_read_input" => 2.0, "image_output" => 30.0,
+        "input" => 5.0, "cache_read_input" => 1.25,
+        "data_residency_input" => 5.5, "data_residency_cache_read_input" => 1.375
       )
       expect(result.models.fetch("gpt-image-2.5-flare")).to eq(result.models.fetch("gpt-image-2.5-sunburst"))
       expect(result.models.fetch("gpt-5.6-cyber")).to eq(
@@ -391,7 +401,55 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     it "skips rows mapped to no model ID" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
 
-      expect(result.models).not_to include("davinci-002", "babbage-002", "text-embedding-3-small", "tts-1")
+      expect(result.models).not_to include("text-embedding-3-small", "tts-1")
+    end
+
+    it "prices the legacy snapshots and the token-billed transcription models under the ids the API reports" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-09-26T00:00:00Z")
+
+      gpt4 = { "input" => 30.0, "output" => 60.0, "batch_input" => 15.0, "batch_output" => 30.0 }
+      expect(result.models.fetch("gpt-4-0613")).to eq(gpt4)
+      expect(result.models.fetch("gpt-4")).to eq(gpt4)
+      expect(result.models.fetch("gpt-3.5-turbo-0125")).to eq(
+        "input" => 0.5, "output" => 1.5, "batch_input" => 0.25, "batch_output" => 0.75
+      )
+      expect(result.models.fetch("gpt-3.5-turbo-1106")).to eq(
+        "input" => 1.0, "output" => 2.0, "batch_input" => 1.0, "batch_output" => 2.0
+      )
+      expect(result.models.fetch("gpt-3.5-turbo-instruct")).to eq("input" => 1.5, "output" => 2.0)
+      expect(result.models.fetch("davinci-002")).to eq(
+        "input" => 2.0, "output" => 2.0, "batch_input" => 1.0, "batch_output" => 1.0
+      )
+      expect(result.models.fetch("babbage-002")).to eq(
+        "input" => 0.4, "output" => 0.4, "batch_input" => 0.2, "batch_output" => 0.2
+      )
+    end
+
+    it "prices transcription rows as text tokens and keeps the audio input rate the page stopped listing" do
+      # The Transcription row's $2.50 / $10 are text-token rates; audio input is still $6 ($3 on mini), as on
+      # the page before March 2026 and on Azure's gpt-4o-transcribe-aud-inp-glbl meter.
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-09-26T00:00:00Z")
+
+      expect(result.models.fetch("gpt-4o-transcribe")).to eq("input" => 2.5, "audio_input" => 6.0, "output" => 10.0)
+      expect(result.models.fetch("gpt-4o-transcribe-diarize")).to eq(result.models.fetch("gpt-4o-transcribe"))
+      expect(result.models.fetch("gpt-4o-mini-transcribe")).to eq(
+        "input" => 1.25, "audio_input" => 3.0, "output" => 5.0
+      )
+    end
+
+    it "raises when a transcription row's per-minute estimate no longer matches its kept audio input rate" do
+      cut_html = html.sub("&quot;$0.003 / minute&quot;", "&quot;$0.0015 / minute&quot;")
+
+      expect do
+        described_class.new.call(html: html_pages(described_class.source_url => cut_html))
+      end.to raise_error(described_class::Error, /gpt-4o-mini-transcribe estimate is now \$0.0015/)
+    end
+
+    it "prices the free moderation model and its dated snapshot at zero" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-09-26T00:00:00Z")
+
+      expect(result.models.fetch("omni-moderation-latest")).to eq("input" => 0.0)
+      expect(result.models.fetch("omni-moderation-2024-09-26")).to eq("input" => 0.0)
     end
 
     it "raises on a price row whose model name has no ID mapping instead of dropping it" do

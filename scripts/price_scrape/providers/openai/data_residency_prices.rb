@@ -10,6 +10,7 @@ module LlmCostTracker
           MODELS = %w[
             gpt-5.4 gpt-5.4-mini gpt-5.4-nano gpt-5.4-pro gpt-5.5 gpt-5.5-pro
             gpt-5.6-luna gpt-5.6-sol gpt-5.6-terra gpt-6-astra gpt-6-sol gpt-6-luna
+            gpt-image-2 gpt-image-2.5-sunburst gpt-image-2.5-flare gpt-transcribe
           ].freeze
           PRICE_FIELD = /\A(?:above_context_)?(?:batch_|flex_|fast_)?(?:input|output|cache_(?:read|write)_input)\z/
 
@@ -28,7 +29,7 @@ module LlmCostTracker
 
             def data_residency_prices(fields)
               fields.each_with_object({}) do |(field, value), prices|
-                next unless field.to_s.match?(PRICE_FIELD)
+                next unless field.to_s.match?(PRICE_FIELD) || field.to_s == "transcription_minute"
 
                 prices[data_residency_field(field)] = (value * 1.1).round(6)
               end

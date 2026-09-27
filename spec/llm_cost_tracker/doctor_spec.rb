@@ -53,6 +53,22 @@ RSpec.describe LlmCostTracker::Doctor do
     end
   end
 
+  it "warns when the configured prices file is older than the bundled prices" do
+    bundled_at = Date.iso8601(LlmCostTracker::Pricing::Registry.metadata.fetch("updated_at"))
+    allow(Date).to receive(:today).and_return(bundled_at)
+    Tempfile.create(["llm-prices", ".json"]) do |file|
+      file.write({ metadata: { updated_at: (bundled_at - 1).iso8601 }, models: { "custom-model" => { input: 1.0 } } }.to_json)
+      file.close
+
+      LlmCostTracker.configure { |config| config.pricing.file = file.path }
+
+      check = described_class.call.find { |item| item.name == "prices" }
+
+      expect(check.status).to eq(:warn)
+      expect(check.message).to include("older than the bundled prices (#{bundled_at.iso8601})")
+    end
+  end
+
   it "accepts a fresh configured prices file" do
     Tempfile.create(["llm-prices", ".json"]) do |file|
       file.write({
@@ -105,6 +121,15 @@ RSpec.describe LlmCostTracker::Doctor do
         have_attributes(status: :warn, name: "tracked calls")
       )
       expect(checks.map(&:name)).not_to include("provider invoices")
+    end
+
+    it "warns when this month's day rollups disagree with the calls ledger" do
+      create_call(total_cost: 3.0, tracked_at: Time.utc(2026, 5, 3, 9))
+      rollups = -> { travel_to(Time.utc(2026, 5, 15, 12)) { described_class.call.find { _1.name == "call rollups" } } }
+
+      expect(rollups.call).to have_attributes(status: :ok)
+      LlmCostTracker::CallRollup.delete_all
+      expect(rollups.call).to have_attributes(status: :warn, message: include("total 0.0 but the calls total 3.0"))
     end
 
     it "fails when call rollups are missing" do

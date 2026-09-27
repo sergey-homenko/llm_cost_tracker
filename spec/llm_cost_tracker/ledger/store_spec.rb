@@ -212,6 +212,13 @@ RSpec.describe "ActiveRecord storage integration" do
       expect(LlmCostTracker::Call.already_recorded?(provider: "anthropic", provider_response_id: nil)).to be false
       expect(LlmCostTracker::Call.already_recorded?(provider: "anthropic", provider_response_id: "")).to be false
     end
+
+    it "is false when the only row is a stream that ended without usage" do
+      LlmCostTracker::Call.create!(request_attrs.merge(event_id: SecureRandom.uuid, provider_response_id: "msg_dropped",
+                                                       usage_source: "unknown"))
+
+      expect(LlmCostTracker::Call.already_recorded?(provider: "anthropic", provider_response_id: "msg_dropped")).to be false
+    end
   end
 
   it "refreshes current schema checks after reset_column_information" do

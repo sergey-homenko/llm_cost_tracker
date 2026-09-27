@@ -13,7 +13,7 @@ RSpec.describe LlmCostTracker::Pricing::EffectivePrices do
     )
   end
 
-  it "derives a cache rate from the input ratio when only the mode-prefixed input rate is set" do
+  it "derives a cache rate from the input ratio and names it with the mode when only the mode input rate is set" do
     prices = { "input" => 1.0, "output" => 2.0, "cache_read_input" => 0.1, "batch_input" => 0.5 }
 
     rates = described_class.call(usage: usage, quantities: usage.priced_quantities, prices: prices, pricing_mode: "batch")
@@ -21,7 +21,7 @@ RSpec.describe LlmCostTracker::Pricing::EffectivePrices do
     expect(rates["input"].amount).to eq(0.5)
     expect(rates["input"].key).to eq("batch_input")
     expect(rates["cache_read_input"].amount).to eq(0.05)
-    expect(rates["cache_read_input"].key).to be_nil
+    expect(rates["cache_read_input"].key).to eq("batch_cache_read_input")
   end
 
   it "names the mode-prefixed key it actually read" do
@@ -60,6 +60,7 @@ RSpec.describe LlmCostTracker::Pricing::EffectivePrices do
     rates = described_class.call(usage: usage, quantities: usage.priced_quantities, prices: prices, pricing_mode: "batch_data_residency")
 
     expect(rates["cache_read_input"].amount).to eq(0.05)
+    expect(rates["cache_read_input"].key).to eq("data_residency_batch_cache_read_input")
   end
 
   it "returns nil for the derived rate when the standard cache rate is missing" do
@@ -68,5 +69,20 @@ RSpec.describe LlmCostTracker::Pricing::EffectivePrices do
     rates = described_class.call(usage: usage, quantities: usage.priced_quantities, prices: prices, pricing_mode: "batch")
 
     expect(rates["cache_read_input"]).to be_nil
+  end
+
+  it "prices cached audio at its own rate, else at cache_read_input, else at the OpenAI input rate" do
+    quantities = usage.priced_quantities.merge("audio_cache_read_input" => 10)
+    rate_for = lambda do |prices, cache_at_input_rate: []|
+      described_class.call(usage: usage, quantities: quantities, prices: prices, pricing_mode: nil,
+                           cache_at_input_rate: cache_at_input_rate)["audio_cache_read_input"]
+    end
+
+    expect(rate_for.call({ "cache_read_input" => 0.06, "audio_cache_read_input" => 0.3 })).to have_attributes(
+      amount: 0.3, key: "audio_cache_read_input"
+    )
+    expect(rate_for.call({ "cache_read_input" => 0.06 })).to have_attributes(amount: 0.06, key: "cache_read_input")
+    expect(rate_for.call({ "input" => 1.0 }, cache_at_input_rate: %w[cache_read_input])).to have_attributes(amount: 1.0, key: "input")
+    expect(rate_for.call({ "input" => 1.0 })).to be_nil
   end
 end

@@ -7,7 +7,7 @@ on:
     inputs:
       providers:
         description: "Comma-separated provider names to refresh"
-        default: "anthropic,gemini,groq,openai,openrouter"
+        default: "anthropic,gemini,groq,mistral,openai,openrouter,xai"
       dry_run:
         description: "Run without writing or opening a PR"
         type: boolean
@@ -36,7 +36,7 @@ jobs:
 
       - name: Run price scrape
         env:
-          PROVIDERS: ${{ github.event.inputs.providers || 'anthropic,gemini,groq,openai,openrouter' }}
+          PROVIDERS: ${{ github.event.inputs.providers || 'anthropic,gemini,groq,mistral,openai,openrouter,xai' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
         run: |
           set -o pipefail

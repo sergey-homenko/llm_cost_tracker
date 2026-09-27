@@ -65,11 +65,23 @@ module LlmCostTracker
           pricing = entry["pricing"]
           return [nil, nil] unless pricing.is_a?(Hash)
 
+          pricing = peak_pricing(pricing)
           fields = PER_TOKEN_FIELDS.each_with_object({}) do |(source_key, target_key), out|
             converted = per_million(pricing[source_key])
             out[target_key] = converted if converted
           end
           [model_id, fields]
+        end
+
+        # A time-of-day price moves the base rate with the clock, so keep its peak window instead
+        # of whichever window the scrape happened to run in.
+        def peak_pricing(pricing)
+          windows = Array(pricing["overrides"]).select do |window|
+            window.is_a?(Hash) && (window.key?("utc_start") || window.key?("utc_days"))
+          end
+          return pricing if windows.empty?
+
+          pricing.merge(windows.max_by { |window| per_million(window["prompt"]).to_f }.slice(*PER_TOKEN_FIELDS.keys))
         end
 
         def per_million(value)

@@ -52,11 +52,11 @@ When a positive-token bucket has no exact price, that bucket's line item stays u
 
 ## Line Items
 
-Tokens and tool/runtime charges share one shape: `Charges::LineItem`. Parsers and SDK integrations emit token counts (`Usage::TokenUsage`) plus service line items for tool calls and non-token usage (web search, web fetch, grounding, container sessions, file search, transcription minutes, TTS characters). `Pricing::Calculation` builds token line items from the counts and applies provider/model token rates; a service line item takes the matched model's own rate when its registry entry has one (`transcription_minute`, `text_to_speech_character`), otherwise `Pricing::ServiceRates.charge_rate`.
+Tokens and tool/runtime charges share one shape: `Charges::LineItem`. Parsers and SDK integrations emit token counts (`Usage::TokenUsage`) plus service line items for tool calls and non-token usage (web search, web fetch, grounding, container sessions, file search, transcription minutes, TTS characters). `Pricing::Calculation` builds token line items from the counts and applies provider/model token rates; a service line item takes the matched model's own rate when its registry entry has one (`transcription_minute`, `text_to_speech_character`), otherwise `Pricing::ServiceRates.charge_rate`. A `model_iteration` line item (an Anthropic advisor call or billed fallback attempt) is priced at the token rates of the model in its `details`.
 
 Line items with no matching rate stay `unknown`. They keep the parent call `partial` when anything else on it is priced, or `unknown` when nothing is.
 
-A `billed_request` line item carries the amount the provider billed for the whole call (OpenRouter's `usage.cost`). It is the call's cost and status; token rates are not applied, so the token line items keep their counts with no cost.
+A `billed_request` line item carries the amount the provider billed (OpenRouter's `usage.cost` for the whole call, or `$0` for an Anthropic refusal Anthropic does not bill). Token rates are not applied, so the token line items keep their counts with no cost; the call's cost and status come from that amount plus any other priced line items, such as a billed Anthropic fallback attempt's `model_iteration`. An unpriced `model_iteration` keeps the call `partial`.
 
 Free tiers and account-level reconciliation are not modeled in the ledger.
 
@@ -86,7 +86,7 @@ Optional tables, created only by their dedicated generators when the matching co
 
 | Table | Generator + flag | Responsibility |
 | --- | --- | --- |
-| `llm_cost_tracker_call_rollups` | `llm_cost_tracker:call_rollups` + `config.budgets.totals_source = :cache` | Pre-aggregated day/month totals per currency/provider; budget reads take the greater of these and the live sum |
+| `llm_cost_tracker_call_rollups` | `llm_cost_tracker:call_rollups` + `config.budgets.totals_source = :cache` | Pre-aggregated day/month totals per currency/provider; monthly budget reads take finished days from here and sum only today's calls live |
 | `llm_cost_tracker_ingestion_inbox_entries` | `llm_cost_tracker:async_ingestion` + `config.ingestion.mode = :async` | Write-ahead inbox for the background worker |
 | `llm_cost_tracker_ingestion_leases` | same migration as the inbox | Shared worker lease |
 

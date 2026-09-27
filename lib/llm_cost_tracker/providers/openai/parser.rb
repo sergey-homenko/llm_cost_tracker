@@ -12,11 +12,15 @@ module LlmCostTracker
           images/generations images/edits images/variations
         ].freeze
         TRACKED_PATHS = TRACKED_ENDPOINTS.map { |endpoint| "/v1/#{endpoint}" }.freeze
+        # A background response's poll; its input_items and cancel subpaths stay untracked.
+        RETRIEVE_PATH = %r{\A/v1/responses/resp_[^/]+\z}
 
         class << self
           def match?(url)
             uri_matches?(url) do |uri|
-              Hosts::API_HOSTS.include?(uri.host.to_s.downcase) && TRACKED_PATHS.include?(uri.path.to_s)
+              path = uri.path.to_s
+              Hosts::API_HOSTS.include?(uri.host.to_s.downcase) &&
+                (TRACKED_PATHS.include?(path) || path.match?(RETRIEVE_PATH))
             end
           end
 

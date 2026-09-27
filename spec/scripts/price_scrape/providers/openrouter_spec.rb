@@ -33,6 +33,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
     expect(sonnet.keys).not_to include("web_search", "web_search_request", "request")
   end
 
+  it "keeps the peak window of a time-of-day price whichever window the scrape ran in" do
+    windows = [
+      { "utc_start" => 0, "utc_end" => 1600, "prompt" => "0.000000132", "completion" => "0.000000528" },
+      { "utc_start" => 1600, "utc_end" => 0, "prompt" => "0.0000000825", "completion" => "0.00000033" }
+    ]
+    catalogue = JSON.parse(body)
+    catalogue.fetch("data") << {
+      "id" => "tencent/hy3",
+      "pricing" => { "prompt" => "0.0000000825", "completion" => "0.00000033", "overrides" => windows }
+    }
+    catalogue.fetch("data").find { |entry| entry["id"] == "openai/gpt-4o" }.fetch("pricing")["overrides"] = [
+      { "min_prompt_tokens" => 272_000, "prompt" => "0.000005", "completion" => "0.00002" }
+    ]
+
+    models = described_class.new.call(html: JSON.generate(catalogue)).models
+
+    expect(models.fetch("tencent/hy3")).to eq("input" => 0.132, "output" => 0.528)
+    expect(models.fetch("openai/gpt-4o")).to include("input" => 2.5, "output" => 10.0)
+  end
+
   it "raises when the catalogue drops below the minimum threshold (catches API breakage)" do
     trimmed = JSON.generate("data" => JSON.parse(body).fetch("data").first(5))
     expect { described_class.new.call(html: trimmed) }

@@ -73,6 +73,14 @@ RSpec.describe LlmCostTracker::Providers::Azure::Parser do
       end
     end
 
+    it "matches a background response's poll on the v1 path, but not its input items or cancel" do
+      url = ->(path) { URI::HTTPS.build(host: "myresource.openai.azure.com", path: "/openai/v1/responses/#{path}").to_s }
+
+      expect(described_class.match?(url.call("resp_1"))).to be true
+      expect(described_class.match?(url.call("resp_1/input_items"))).to be false
+      expect(described_class.match?(url.call("resp_1/cancel"))).to be false
+    end
+
     it "does not match Azure resource management or other Azure surfaces" do
       mgmt = URI::HTTPS.build(host: "management.azure.com", path: "/subscriptions/abc").to_s
       cog = URI::HTTPS.build(host: "myresource.cognitiveservices.azure.com",
@@ -126,6 +134,18 @@ RSpec.describe LlmCostTracker::Providers::Azure::Parser do
       expect(result.token_usage.output_tokens).to eq(25)
       expect(result.token_usage.total_tokens).to eq(125)
       expect(result.provider_response_id).to eq("chatcmpl_az_123")
+    end
+
+    it "records an Azure Whisper transcription, which carries no usage, under its deployment with an unknown usage source" do
+      result = parser.parse(
+        request_url: audio_translations_url.sub("translations", "transcriptions"),
+        request_body: nil,
+        response_status: 200,
+        response_body: { task: "transcribe", language: "english", duration: 30.0, text: "hi", segments: [] }.to_json
+      )
+
+      expect(result).to have_attributes(provider: "azure_openai", model: "whisper-1", usage_source: "unknown")
+      expect(result.line_items).to eq([])
     end
 
     it "returns nil on non-200" do

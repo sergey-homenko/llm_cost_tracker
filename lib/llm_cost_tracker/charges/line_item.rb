@@ -58,7 +58,11 @@ module LlmCostTracker
       def self.from_token_usage(token_usage)
         return [] unless token_usage
 
-        token_usage.priced_quantities.filter_map do |key, quantity|
+        from_quantities(token_usage.priced_quantities)
+      end
+
+      def self.from_quantities(quantities)
+        quantities.filter_map do |key, quantity|
           next unless quantity.positive?
 
           dimension = Usage::Catalog.fetch(key)

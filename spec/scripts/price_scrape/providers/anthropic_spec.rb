@@ -56,7 +56,13 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "batch_input" => 0.5,
         "batch_output" => 2.5
       )
-      expect(result.models.fetch("claude-haiku-4-5")).not_to include("data_residency_input")
+      # AWS Bedrock price list, Claude Haiku 4.5 regional endpoints: $1.10 input, $5.50 output, $0.11 cache read,
+      # $1.375 5m and $2.20 1h cache writes, $0.55 / $2.75 batch: the 10% premium from Claude 4.5 on.
+      expect(result.models.fetch("claude-haiku-4-5")).to include(
+        "data_residency_input" => 1.1, "data_residency_output" => 5.5, "data_residency_cache_read_input" => 0.11,
+        "data_residency_cache_write_input" => 1.375, "data_residency_cache_write_extended_input" => 2.2,
+        "data_residency_batch_input" => 0.55, "data_residency_batch_output" => 2.75
+      )
       expect(result.models.fetch("claude-fable-5")).to include(
         "input" => 10.0,
         "cache_write_input" => 12.5,
@@ -165,6 +171,12 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
       expect do
         described_class.new.call(html: sparse_html)
       end.to raise_error(described_class::Error, /at least \d+ models/)
+    end
+
+    it "raises when the regional endpoint premium note stops matching" do
+      expect do
+        described_class.new.call(html: html.gsub("include a 10% premium", "include a 15% premium"))
+      end.to raise_error(described_class::Error, /regional endpoint premium note/)
     end
 
     it "raises when a service charge sentence stops matching" do

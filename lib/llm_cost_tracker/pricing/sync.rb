@@ -146,7 +146,8 @@ module LlmCostTracker
           raise Error,
                 "Refusing to write pricing file #{path}: the remote snapshot has #{suspicious.size} " \
                 "suspicious price change(s):#{listed}\n" \
-                "Review them with PREVIEW=1, then refresh with FORCE=1 (force: true) to accept them."
+                "Review them with llm_cost_tracker:prices:check, " \
+                "then refresh with FORCE=1 (force: true) to accept them."
         end
 
         def registry_changes(current, remote)

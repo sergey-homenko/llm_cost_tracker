@@ -38,6 +38,21 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
     expect(calculation.priced_line_items.count(&:token?)).to eq(1)
   end
 
+  it "lists derived batch cache rates in the snapshot and on their line items" do
+    calculation = described_class.for(
+      provider: "anthropic", model: "claude-sonnet-4-6", pricing_mode: "batch",
+      tokens: { input_tokens: 1000, cache_write_input_tokens: 10_000, cache_read_input_tokens: 20_000,
+                output_tokens: 500 }
+    )
+
+    rates = calculation.snapshot.fetch("rates").transform_values { |rate| rate.fetch("amount") }
+    covered = calculation.priced_line_items.sum { |item| rates.fetch(item.price_key).to_d * item.quantity / 1_000_000 }
+
+    expect(calculation.cost.total).to eq(BigDecimal("0.027"))
+    expect(rates).to include("batch_cache_read_input" => "0.15", "batch_cache_write_input" => "1.875")
+    expect(covered).to eq(BigDecimal("0.027"))
+  end
+
   it "writes a service-sourced pricing snapshot when a service charge is priced without a model match" do
     line_item = LlmCostTracker::Charges::LineItem.build(dimension_key: "web_search_request", quantity: 2)
     calculation = described_class.for(
@@ -104,5 +119,15 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
 
       expect(calculation.cost.total).to eq(BigDecimal("0.0245"))
     end
+  end
+
+  it "leaves a provider-billed call unknown when the billed line carries no cost" do
+    line_items = [LlmCostTracker::Charges::LineItem.build(dimension_key: "billed_request", quantity: 1)]
+    calculation = described_class.for(
+      provider: "openrouter", model: "openai/gpt-4o",
+      tokens: { input_tokens: 1_000, output_tokens: 200 }, pricing_mode: nil, line_items: line_items
+    )
+
+    expect([calculation.cost, calculation.cost_status]).to eq([nil, LlmCostTracker::Charges::CostStatus::UNKNOWN])
   end
 end

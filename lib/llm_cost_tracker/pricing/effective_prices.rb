@@ -9,19 +9,16 @@ module LlmCostTracker
   module Pricing
     module EffectivePrices
       Resolved = Data.define(:amount, :key)
-      CACHE_INPUT_KEYS = %w[cache_read_input cache_write_input].freeze
-      private_constant :CACHE_INPUT_KEYS
 
       class << self
-        def call(usage:, quantities:, prices:, pricing_mode:, cache_at_input_rate: false)
+        def call(usage:, quantities:, prices:, pricing_mode:, cache_at_input_rate: [])
           context_tier = context_tier?(usage: usage, prices: prices)
           orderings = pricing_mode && Mode.permutations_for(pricing_mode)
           lookup = { prices: prices, orderings: orderings, context_tier: context_tier }
 
           quantities.to_h do |price_key, tokens|
             resolved = if tokens.positive?
-                         fallback = cache_at_input_rate && CACHE_INPUT_KEYS.include?(price_key)
-                         price_for(key: price_key, **lookup) || (price_for(key: "input", **lookup) if fallback)
+                         price_or_fallback(price_key, lookup, cache_at_input_rate)
                        else
                          Resolved.new(amount: BigDecimal("0"), key: price_key)
                        end
@@ -30,6 +27,11 @@ module LlmCostTracker
         end
 
         private
+
+        def price_or_fallback(key, lookup, cache_at_input_rate)
+          fallback = Usage::Catalog.fetch(key).parent || ("input" if cache_at_input_rate.include?(key))
+          price_for(key: key, **lookup) || (fallback && price_or_fallback(fallback, lookup, cache_at_input_rate))
+        end
 
         def price_for(prices:, key:, orderings:, context_tier:)
           unless orderings
@@ -44,8 +46,7 @@ module LlmCostTracker
           end
           return nil if %w[input output].include?(key)
 
-          derived = derived_mode_price(prices: prices, key: key, modes: orderings, context_tier: context_tier)
-          resolve(derived, nil)
+          derived_mode_price(prices: prices, key: key, modes: orderings, context_tier: context_tier)
         end
 
         def resolve(amount, key)
@@ -62,7 +63,8 @@ module LlmCostTracker
             mode_base_price = prices[PriceKey.build("input", mode: mode, above_context: context_tier)]
             next unless mode_base_price
 
-            return standard_price.to_d * mode_base_price.to_d / base_price.to_d
+            return resolve(standard_price.to_d * mode_base_price.to_d / base_price.to_d,
+                           PriceKey.build(key, mode: mode, above_context: context_tier))
           end
           nil
         end

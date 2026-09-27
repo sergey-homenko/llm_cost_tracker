@@ -729,6 +729,8 @@ RSpec.describe "LlmCostTracker dashboard services" do
       build_call_line_item(call_one, kind: "audio_token", direction: "input", cache_state: "none", cost: 0.12)
       build_call_line_item(call_two, kind: "text_token", direction: "input", cache_state: "none", cost: 0.30)
       build_call_line_item(call_two, kind: "audio_token", direction: "input", cache_state: "none", cost: 0.03)
+      build_call_line_item(call_one, kind: "text_token", direction: "input", cache_state: "read", cost: 0.01)
+      build_call_line_item(call_one, kind: "audio_token", direction: "input", cache_state: "read", cost: 0.04)
 
       stats = described_class.call
 
@@ -752,6 +754,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(regular_input.fetch(:cost_value).to_f).to eq(0.4)
       expect(regular_input.fetch(:share_percent)).to be_within(0.1).of(58.03)
       expect(audio_input.fetch(:cost_value).to_f).to eq(0.15)
+      expect(rows.find { |row| row.fetch(:token_key) == :cache_read_input_tokens }.fetch(:cost_value).to_f).to eq(0.05)
       expect(hidden_output).to include(token_value: 15, cost_value: nil, share_basis: :output)
       expect(hidden_output.fetch(:share_percent)).to eq(15.0)
       expect(described_class.hidden_output_summary(stats)).to eq(
@@ -905,6 +908,20 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(breakdown.tagged_calls).to eq(3)
       expect(breakdown.distinct_values).to eq(3)
       expect(breakdown.distinct_values > breakdown.rows.size).to be true
+    end
+
+    it "counts a blank value, as stored for user: nil, as untagged in every tag aggregate" do
+      %w[u1 u1 u2].each { |user| create_call(tags: { user: user }) }
+      create_call(tags: { user: nil })
+      create_call(tags: {})
+
+      breakdown = described_class.call(key: "user")
+      explorer = LlmCostTracker::Dashboard::TagKeyExplorer.call.find { |row| row.key == "user" }
+
+      expect([breakdown.tagged_calls, breakdown.rows.sum(&:calls), breakdown.distinct_values]).to eq([3, 3, 2])
+      expect(breakdown.rows.sum(&:share_percent)).to be_within(0.0001).of(100.0)
+      expect([explorer.calls_count, explorer.distinct_values]).to eq([3, 2])
+      expect(LlmCostTracker::Dashboard::DataQuality.call.untagged_calls_count.to_i).to eq(2)
     end
 
     it "returns empty rows when no calls carry the tag key" do

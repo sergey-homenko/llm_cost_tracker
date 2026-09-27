@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
+require "json"
 require "spec_helper"
+require "tempfile"
 
 RSpec.describe "Cache-aware cost accuracy" do
   def cost_for(provider:, model:, pricing_mode: nil, **usage)
@@ -153,6 +155,33 @@ RSpec.describe "Cache-aware cost accuracy" do
 
       expect(result.components[:cache_read_input_cost]).to be_nil
       expect(result.total).to eq(BigDecimal("0.0065"))
+    end
+
+    it "uses the input rate for a pricing.file entry unless the bundled snapshot or a manual marker says otherwise" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        file.write(JSON.generate("models" => {
+                                   "openai/gpt-4o" => { "input" => 2.5, "output" => 10.0 },
+                                   "openai/gpt-5.5-pro" => { "input" => 30.0, "output" => 180.0 },
+                                   "openai/gpt-5.7-pro" => { "input" => 30.0, "output" => 180.0 },
+                                   "openai/ft:gpt-4o-mini:acme" => { "input" => 0.3, "output" => 1.2,
+                                                                     "_source" => "manual" }
+                                 }))
+        file.close
+        LlmCostTracker.configure { |c| c.pricing.file = file.path }
+
+        discounted = cost_for(provider: "openai", model: "gpt-4o",
+                              input_tokens: 1000, cache_read_input_tokens: 2000, output_tokens: 400)
+        pro = %w[gpt-5.5-pro gpt-5.7-pro].map do |model|
+          cost_for(provider: "openai", model: model,
+                   input_tokens: 3616, cache_read_input_tokens: 16_384, output_tokens: 3000).total
+        end
+        fine_tuned = cost_for(provider: "openai", model: "ft:gpt-4o-mini:acme",
+                              input_tokens: 1000, cache_read_input_tokens: 2000, output_tokens: 400)
+
+        expect([discounted.components[:cache_read_input_cost], discounted.total]).to eq([nil, BigDecimal("0.0065")])
+        expect(pro).to eq([BigDecimal("1.14"), BigDecimal("1.14")])
+        expect(fine_tuned.total).to eq(BigDecimal("0.00078"))
+      end
     end
   end
 end

@@ -11,16 +11,23 @@ module LlmCostTracker
                                   provider_response_id:,
                                   usage_source:,
                                   request: nil,
-                                  stream: false)
+                                  stream: false,
+                                  stop_reason: nil,
+                                  refusal_category: nil,
+                                  content: nil)
+          pricing_mode = UsageExtractor.pricing_mode(request: request, usage: usage)
+          line_items = UsageExtractor.service_line_items(usage) +
+                       UsageExtractor.iteration_line_items(usage, content: content) +
+                       UsageExtractor.refusal_line_items(usage, stop_reason:, refusal_category:)
           Event.build(
             provider: "anthropic",
             provider_response_id: provider_response_id,
-            pricing_mode: UsageExtractor.pricing_mode(request: request, usage: usage),
-            model: model,
+            pricing_mode: pricing_mode,
+            model: UsageExtractor.served_model(usage, content) || model,
             token_usage: UsageExtractor.token_usage(usage),
             stream: stream,
             usage_source: usage_source,
-            service_line_items: UsageExtractor.service_line_items(usage)
+            service_line_items: line_items
           )
         end
       end

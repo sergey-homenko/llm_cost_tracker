@@ -96,7 +96,7 @@ RSpec.describe "ActiveRecord async inbox" do
     time = Time.utc(2026, 4, 18, 12)
     LlmCostTracker::CallRollup.create!(
       period: "day",
-      period_start: Date.new(2026, 4, 18),
+      period_start: Date.new(2026, 4, 17),
       total_cost: 1.25
     )
     LlmCostTracker::Ingestion::InboxEntry.create!(
@@ -114,7 +114,7 @@ RSpec.describe "ActiveRecord async inbox" do
       method.call(*args, **kwargs)
     end
 
-    total = LlmCostTracker::Ledger::Period::Totals.call(%i[day], time: time).fetch(:day)
+    total = LlmCostTracker::Ledger::Period::Totals.call(%i[month], time: time).fetch(:month)
     expect(total).to eq(3.75)
     expect(sqls.size).to eq(1)
     expect(sqls.first).to include("llm_cost_tracker_call_rollups")

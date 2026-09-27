@@ -15,6 +15,12 @@ RSpec.describe LlmCostTracker::Providers::Openai::Hosts do
       expect(described_class.data_residency?("api.openai.com")).to be false
     end
 
+    it "matches the xAI and Mistral regional hosts but not their global ones" do
+      expect(%w[us.api.x.ai api.eu.mistral.ai api.us.mistral.ai].map { |host| described_class.data_residency?(host) })
+        .to all(be true)
+      expect(%w[api.x.ai api.mistral.ai].map { |host| described_class.data_residency?(host) }).to all(be false)
+    end
+
     it "does not match Azure or non-OpenAI hosts" do
       expect(described_class.data_residency?("tenant.openai.azure.com")).to be false
       expect(described_class.data_residency?("api.anthropic.com")).to be false

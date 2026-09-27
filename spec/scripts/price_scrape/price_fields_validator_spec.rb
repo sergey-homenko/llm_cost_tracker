@@ -27,6 +27,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::PriceFieldsValidator do
     end.to raise_error(error_class, /anchor models missing from scrape: claude-opus-4-7/)
   end
 
+  it "accepts a model whose every price is zero and rejects a zero price on a priced model" do
+    free = base_models.merge("omni-moderation-latest" => { "input" => 0.0 })
+    expect do
+      described_class.call(free, minimum: 2, maximum: 1000.0, error_class: error_class)
+    end.not_to raise_error
+
+    zeroed = base_models.merge("claude-haiku-4-5" => { "input" => 0.0, "output" => 5.0 })
+    expect do
+      described_class.call(zeroed, minimum: 2, maximum: 1000.0, error_class: error_class)
+    end.to raise_error(error_class, /invalid price for claude-haiku-4-5.input: 0.0/)
+  end
+
   it "does not check anchors when none are configured" do
     expect do
       described_class.call(base_models, minimum: 2, maximum: 1000.0, error_class: error_class)

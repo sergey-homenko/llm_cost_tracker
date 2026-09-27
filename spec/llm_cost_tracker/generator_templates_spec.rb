@@ -296,10 +296,11 @@ RSpec.describe "generator templates" do
       establish_database_connection!
       create_lct_tables!
       connection = ActiveRecord::Base.connection
+      connection.remove_index(:llm_cost_tracker_call_tags, column: %i[key value tracked_at], if_exists: true)
       connection.remove_column(:llm_cost_tracker_call_tags, :total_cost)
       connection.remove_column(:llm_cost_tracker_call_tags, :tracked_at)
-      connection.remove_index(:llm_cost_tracker_call_tags, column: %i[key value tracked_at], if_exists: true)
-      connection.add_index(:llm_cost_tracker_call_tags, %i[key value], if_not_exists: true)
+      length = LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection) ? { length: { value: 191 } } : {}
+      connection.add_index(:llm_cost_tracker_call_tags, %i[key value], if_not_exists: true, **length)
 
       migration = migration_from_template("upgrade_per_tag_budgets.rb.erb", "UpgradeLlmCostTrackerPerTagBudgets")
       migration.migrate(:up)

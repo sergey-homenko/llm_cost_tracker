@@ -64,6 +64,21 @@ namespace :llm_cost_tracker do
          "still unknown #{result.still_unknown}"
   end
 
+  desc "Reprice calls tracked from FROM (and before TO, if set) at the current price registry, including " \
+       "calls already priced; rollups and per-tag costs move by the difference. Use BATCH_SIZE=N to tune."
+  task reprice: :environment do
+    require_relative "../llm_cost_tracker/pricing/backfill"
+    from = Time.zone.parse(ENV["FROM"].to_s)
+    abort("llm_cost_tracker: set FROM to the first day to reprice, e.g. FROM=2026-09-01") unless from
+    to_text = ENV["TO"].presence
+    to = to_text && Time.zone.parse(to_text)
+    abort("llm_cost_tracker: TO=#{to_text} is not a date, e.g. TO=2026-10-01") if to_text && !to
+    batch_size = (ENV["BATCH_SIZE"] || LlmCostTracker::Pricing::Backfill::DEFAULT_BATCH_SIZE).to_i
+    scope = LlmCostTracker::Pricing::Backfill.reprice_scope(from...to)
+    result = LlmCostTracker::Pricing::Backfill.call(scope: scope, batch_size: batch_size, reprice: true)
+    puts "llm_cost_tracker: examined #{result.examined} calls, repriced #{result.recomputed}"
+  end
+
   desc "Delete llm_cost_tracker_calls and ingestion inbox rows older than DAYS (default: 90). Use BATCH_SIZE=N to tune."
   task prune: :environment do
     days = (ENV["DAYS"] || 90).to_i
@@ -98,32 +113,20 @@ namespace :llm_cost_tracker do
   namespace :prices do
     desc(
       "Refresh the configured pricing file from the maintained LLM Cost Tracker price snapshot. " \
-      "Use PREVIEW=1 to preview, FORCE=1 to accept suspicious price changes, URL=... to override the source, " \
-      "or OUTPUT=path/to/file.json."
+      "Review changes first with llm_cost_tracker:prices:check. Use FORCE=1 to accept suspicious price changes, " \
+      "URL=... to override the source, or OUTPUT=path/to/file.json."
     )
     task :refresh do
       Rake::Task["environment"].invoke if Rake::Task.task_defined?("environment")
       require_relative "../llm_cost_tracker"
 
+      abort("llm_cost_tracker: PREVIEW is not supported; run llm_cost_tracker:prices:check") if ENV.key?("PREVIEW")
+
       output_path = LlmCostTrackerTasks.price_refresh_output_path
       source_url = LlmCostTracker::Pricing::Sync.configured_remote_url
-      preview = ENV["PREVIEW"] == "1"
-      result = LlmCostTracker::Pricing::Sync.refresh(
-        path: output_path,
-        url: source_url,
-        preview: preview,
-        force: ENV["FORCE"] == "1"
-      )
+      result = LlmCostTracker::Pricing::Sync.refresh(path: output_path, url: source_url, force: ENV["FORCE"] == "1")
 
-      action = if preview
-                 "previewed"
-               elsif result.written
-                 "refreshed"
-               else
-                 "kept"
-               end
-
-      puts "llm_cost_tracker: #{action} pricing file #{result.path}"
+      puts "llm_cost_tracker: #{result.written ? 'refreshed' : 'kept'} pricing file #{result.path}"
       puts "  source: #{result.source_url}"
       puts "  version: #{result.source_version.inspect}" if result.source_version
       LlmCostTracker::Pricing::Sync::ChangePrinter.call(result.changes, suspicious: result.suspicious)

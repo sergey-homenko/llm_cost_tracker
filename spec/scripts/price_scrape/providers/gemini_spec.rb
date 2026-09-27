@@ -9,12 +9,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
 
   describe "#call" do
     it "extracts standard and batch text input/output rates for current models" do
-      result = described_class.new.call(html: html, scraped_at: "2026-04-26T00:00:00Z")
+      result = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z")
 
       expect(result.source_url).to eq(described_class.source_url)
-      expect(result.scraped_at).to eq("2026-04-26T00:00:00Z")
+      expect(result.scraped_at).to eq("2026-09-26T00:00:00Z")
       expect(result.models.fetch("gemini-2.5-pro")).to eq(
         "grounding_request" => 35.0,
+        "maps_grounding_request" => 25.0,
+        "cache_storage_token_hour" => 4.5,
         "input" => 1.25,
         "output" => 10.0,
         "image_input" => 1.25,
@@ -59,26 +61,32 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
       )
       expect(result.models.fetch("gemini-2.5-flash")).to eq(
         "grounding_request" => 35.0,
+        "maps_grounding_request" => 25.0,
+        "cache_storage_token_hour" => 1.0,
         "input" => 0.30,
         "output" => 2.50,
         "image_input" => 0.30,
         "audio_input" => 1.0,
         "cache_read_input" => 0.03,
+        "audio_cache_read_input" => 0.1,
         "batch_input" => 0.15,
         "batch_output" => 1.25,
         "batch_image_input" => 0.15,
         "batch_audio_input" => 0.5,
         "batch_cache_read_input" => 0.03,
+        "batch_audio_cache_read_input" => 0.1,
         "flex_input" => 0.15,
         "flex_output" => 1.25,
         "flex_image_input" => 0.15,
         "flex_audio_input" => 0.5,
         "flex_cache_read_input" => 0.03,
+        "flex_audio_cache_read_input" => 0.1,
         "priority_input" => 0.54,
         "priority_output" => 4.5,
         "priority_image_input" => 0.54,
         "priority_audio_input" => 1.8,
-        "priority_cache_read_input" => 0.054
+        "priority_cache_read_input" => 0.054,
+        "priority_audio_cache_read_input" => 0.18
       )
       expect(result.models.fetch("gemini-2.5-flash-lite")).to include(
         "audio_input" => 0.30,
@@ -86,28 +94,34 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "flex_audio_input" => 0.15,
         "priority_audio_input" => 0.54
       )
-      expect(result.models.fetch("gemini-2.0-flash")).to eq(
-        "grounding_request" => 35.0,
-        "input" => 0.10,
-        "output" => 0.40,
-        "image_input" => 0.10,
-        "audio_input" => 0.70,
+      expect(result.models.fetch("gemini-3.1-flash-lite")).to eq(
+        "grounding_request" => 14.0,
+        "maps_grounding_request" => 14.0,
+        "cache_storage_token_hour" => 1.0,
+        "input" => 0.25,
+        "output" => 1.5,
+        "image_input" => 0.25,
+        "audio_input" => 0.5,
         "cache_read_input" => 0.025,
-        "batch_input" => 0.05,
-        "batch_output" => 0.20,
-        "batch_image_input" => 0.05,
-        "batch_audio_input" => 0.35,
-        "batch_cache_read_input" => 0.025
-      )
-      expect(result.models.fetch("gemini-2.0-flash-lite")).to eq(
-        "input" => 0.075,
-        "output" => 0.30,
-        "image_input" => 0.075,
-        "audio_input" => 0.075,
-        "batch_input" => 0.0375,
-        "batch_output" => 0.15,
-        "batch_image_input" => 0.0375,
-        "batch_audio_input" => 0.0375
+        "audio_cache_read_input" => 0.05,
+        "batch_input" => 0.125,
+        "batch_output" => 0.75,
+        "batch_image_input" => 0.125,
+        "batch_audio_input" => 0.25,
+        "batch_cache_read_input" => 0.0125,
+        "batch_audio_cache_read_input" => 0.025,
+        "flex_input" => 0.125,
+        "flex_output" => 0.75,
+        "flex_image_input" => 0.125,
+        "flex_audio_input" => 0.25,
+        "flex_cache_read_input" => 0.0125,
+        "flex_audio_cache_read_input" => 0.025,
+        "priority_input" => 0.45,
+        "priority_output" => 2.7,
+        "priority_image_input" => 0.45,
+        "priority_audio_input" => 0.9,
+        "priority_cache_read_input" => 0.045,
+        "priority_audio_cache_read_input" => 0.09
       )
     end
 
@@ -131,7 +145,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     it "prices image models' text and image tokens separately, per 1M tokens" do
       models = described_class.new.call(html: html).models
 
-      expect(models.fetch("gemini-3-pro-image-preview")).to eq(
+      expect(models.fetch("gemini-3-pro-image")).to eq(
+        "grounding_request" => 14.0,
         "input" => 2.0,
         "output" => 12.0,
         "image_input" => 2.0,
@@ -149,24 +164,39 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "priority_image_input" => 3.6,
         "priority_image_output" => 216.0
       )
+      # Its Output cell has only a per-image price; the page says its text is priced the same as 2.5 Flash.
       expect(models.fetch("gemini-2.5-flash-image")).to eq(
         "input" => 0.3,
+        "output" => 2.5,
         "image_input" => 0.3,
         "image_output" => 30.0,
         "batch_input" => 0.15,
+        "batch_output" => 1.25,
         "batch_image_input" => 0.15,
         "batch_image_output" => 15.0,
         "flex_input" => 0.15,
+        "flex_output" => 1.25,
         "flex_image_input" => 0.15,
         "flex_image_output" => 15.0,
         "priority_input" => 0.54,
+        "priority_output" => 4.5,
         "priority_image_input" => 0.54,
         "priority_image_output" => 54.0
       )
     end
 
+    it "raises when an image model's text is priced as a model the page does not price" do
+      broken_html = html.sub('priced the same as
+<a href="#gemini-2.5-flash">', 'priced the same as
+<a href="#gemini-2.4-flash">')
+
+      expect do
+        described_class.new.call(html: broken_html)
+      end.to raise_error(described_class::Error, /gemini-2.5-flash-image text is priced as "gemini-2.4-flash"/)
+    end
+
     it "raises when a per-image output price has no per-token rate footnote" do
-      broken_html = html.sub("Image output is priced at $30", "Image output is priced at thirty dollars")
+      broken_html = html.sub("[*] Image output is priced at $30", "[*] Image output is priced at thirty dollars")
       expect do
         described_class.new.call(html: broken_html)
       end.to raise_error(described_class::Error, /image output rate not found/)
@@ -232,24 +262,87 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     end
 
     it "raises when a price cell does not match the expected format" do
-      broken_html = html.sub("$0.075", "TBD")
+      broken_html = html.sub("<td>$0.10 (text / image / video)<br>$0.30 (audio)</td>", "<td>TBD</td>")
       expect do
         described_class.new.call(html: broken_html)
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
 
     it "raises when a batch price cell does not match the expected format" do
-      broken_html = html.sub("$0.0375", "TBD")
+      broken_html = html.sub("<td>$0.05 (text / image / video)<br>$0.15 (audio)</td>", "<td>TBD</td>")
       expect do
         described_class.new.call(html: broken_html)
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
   end
-  it "prices Google Search grounding per model family" do
-    result = described_class.new.call(html: html, scraped_at: "2026-08-23T00:00:00Z")
+  it "prices Google Search grounding per model family, including web and image search on image models" do
+    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
 
-    expect(result.models.fetch("gemini-2.5-pro")["grounding_request"]).to eq(35.0)
-    expect(result.models.fetch("gemini-3-flash-preview")["grounding_request"]).to eq(14.0)
+    expect(models.fetch("gemini-2.5-pro")["grounding_request"]).to eq(35.0)
+    expect(models.fetch("gemini-3-flash-preview")["grounding_request"]).to eq(14.0)
+    expect(models.fetch("gemini-3.1-flash-image")["grounding_request"]).to eq(14.0)
   end
 
+  it "prices Google Maps grounding and explicit cache storage from the Standard table" do
+    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+
+    expect(models.fetch("gemini-2.5-flash-lite")).to include("maps_grounding_request" => 25.0,
+                                                             "cache_storage_token_hour" => 1.0)
+    expect(models.fetch("gemini-3.1-pro-preview")).to include("maps_grounding_request" => 14.0,
+                                                              "cache_storage_token_hour" => 4.5)
+    expect(models.fetch("gemini-3.1-flash-image")).not_to include("maps_grounding_request", "cache_storage_token_hour")
+  end
+
+  it "prices every model id in a section heading, including text-to-speech models" do
+    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+
+    expect(models.fetch("gemini-3.1-pro-preview-customtools")).to eq(models.fetch("gemini-3.1-pro-preview"))
+    expect(models.fetch("gemini-3.8-flash-tts")).to include("input" => 0.5, "audio_output" => 9.0,
+                                                            "batch_input" => 0.25, "batch_audio_output" => 4.5)
+    expect(models.fetch("gemini-2.5-flash-preview-tts")).to include("input" => 0.5, "audio_output" => 10.0)
+    expect(models.keys.grep(/-live|computer-use|streaming/)).to be_empty
+  end
+
+  it "prices newly scraped models at their published rates" do
+    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+    scraped = %w[gemini-3.1-pro-preview-customtools gemini-3.8-flash-tts gemini-2.5-flash-preview-tts gemini-embedding-2]
+    LlmCostTracker.configure do |config|
+      config.pricing.overrides = models.slice(*scraped).transform_keys { |id| "gemini/#{id}" }
+    end
+    cost = ->(model, tokens) { LlmCostTracker::Pricing.cost_for(provider: "gemini", model: model, tokens: tokens).total }
+
+    expect(cost.call("gemini-3.1-pro-preview-customtools", input_tokens: 10_000, output_tokens: 1_000)).to eq(BigDecimal("0.032"))
+    expect(cost.call("gemini-3.8-flash-tts", input_tokens: 20, audio_output_tokens: 250)).to eq(BigDecimal("0.00226"))
+    expect(cost.call("gemini-2.5-flash-preview-tts", input_tokens: 20, audio_output_tokens: 250)).to eq(BigDecimal("0.00251"))
+    expect(cost.call("gemini-embedding-2", input_tokens: 500)).to eq(BigDecimal("0.0001"))
+  end
+
+  it "prices Gemini Embedding 2 input by modality" do
+    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+
+    expect(models.fetch("gemini-embedding-2")).to eq(
+      "input" => 0.2, "image_input" => 0.45, "audio_input" => 6.5, "video_input" => 12.0,
+      "batch_input" => 0.1, "batch_image_input" => 0.225, "batch_audio_input" => 3.25, "batch_video_input" => 6.0
+    )
+  end
+
+  it "keeps an announced price change under a dated key until the date, then as the price itself" do
+    before_change = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+    after_change = described_class.new.call(html: html, scraped_at: "2027-01-01T08:00:00Z").models
+
+    expect(before_change.fetch("gemini-3.8-flash")).to include(
+      "input" => 0.75, "input_from_2027-01-01" => 1.5,
+      "output" => 3.75, "output_from_2027-01-01" => 7.5,
+      "batch_input" => 0.375, "batch_input_from_2027-01-01" => 0.75,
+      "cache_read_input" => 0.075, "cache_read_input_from_2027-01-01" => 0.15,
+      "cache_storage_token_hour" => 0.5, "cache_storage_token_hour_from_2027-01-01" => 1.0,
+      "grounding_request" => 14.0
+    )
+    expect(before_change.fetch("gemini-3.8-flash")).not_to include("grounding_request_from_2027-01-01")
+    expect(before_change.fetch("gemini-3.8-flash-tts")).to include("audio_output_from_2027-01-01" => 18.0)
+    expect(after_change.fetch("gemini-3.8-flash")).to include("input" => 1.5, "output" => 7.5,
+                                                              "cache_storage_token_hour" => 1.0)
+    expect(after_change.fetch("gemini-3.8-flash").keys.grep(/_from_/)).to be_empty
+    expect(after_change.fetch("gemini-2.5-flash")).to eq(before_change.fetch("gemini-2.5-flash"))
+  end
 end

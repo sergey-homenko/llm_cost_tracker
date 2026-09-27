@@ -1,6 +1,6 @@
 # Operations
 
-Production use depends on ActiveRecord health, bounded hot paths, and current pricing snapshots. Async ingestion is an opt-in for when scale or durability demands it; rollups are an opt-in drift guard for budget totals, not a speed-up (see [Storage in Configuration](configuration.md#storage)).
+Production use depends on ActiveRecord health, bounded hot paths, and current pricing snapshots. Async ingestion is an opt-in for when scale or durability demands it; rollups are an opt-in that keeps monthly budget reads from growing with the month (see [Storage in Configuration](configuration.md#storage)).
 
 ## Production Defaults
 
@@ -60,7 +60,7 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion = :inline`) surface as `:warn`. Runtime data conditions (quarantined inbox rows) log to `Rails.logger` from the ingestion worker at the moment they occur — nothing runs `doctor` while the app serves traffic, so those signals must reach the host's own logger.
+`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices (a `pricing.file` over 30 days old or older than the gem's bundled prices), and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion = :inline`) surface as `:warn`. Runtime data conditions (quarantined inbox rows) log to `Rails.logger` from the ingestion worker at the moment they occur — nothing runs `doctor` while the app serves traffic, so those signals must reach the host's own logger.
 
 `verify_capture` records a synthetic event and verifies both notifications and ActiveRecord persistence.
 

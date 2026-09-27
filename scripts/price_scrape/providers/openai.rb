@@ -44,9 +44,15 @@ module LlmCostTracker
           input: "fast_input", cache_read_input: "fast_cache_read_input",
           cache_write_input: "fast_cache_write_input", output: "fast_output"
         }.freeze
-        AUDIO_FIELDS = { input: "audio_input", output: "audio_output" }.freeze
-        IMAGE_FIELDS = { input: "image_input", output: "image_output" }.freeze
-        BATCH_IMAGE_FIELDS = { input: "batch_image_input", output: "batch_image_output" }.freeze
+        AUDIO_FIELDS = {
+          input: "audio_input", cache_read_input: "audio_cache_read_input", output: "audio_output"
+        }.freeze
+        IMAGE_FIELDS = {
+          input: "image_input", cache_read_input: "image_cache_read_input", output: "image_output"
+        }.freeze
+        BATCH_IMAGE_FIELDS = {
+          input: "batch_image_input", cache_read_input: "batch_image_cache_read_input", output: "batch_image_output"
+        }.freeze
         TIER_FIELDS = {
           "standard" => STANDARD_FIELDS,
           "batch" => BATCH_FIELDS,
@@ -54,6 +60,16 @@ module LlmCostTracker
           "fast" => FAST_FIELDS
         }.freeze
         TIER_IMAGE_FIELDS = { STANDARD_FIELDS => IMAGE_FIELDS, BATCH_FIELDS => BATCH_IMAGE_FIELDS }.freeze
+        # The pricing page's Transcription rows list only the text-token rates since March 2026. Audio input
+        # is still billed at the audio rate the page listed until then
+        # (web.archive.org/web/20260318184343/https://developers.openai.com/api/docs/pricing) and Azure
+        # still meters (prices.azure.com: gpt-4o-transcribe-aud-inp-glbl, gpt-4o-mini-transcribe-aud-inp-glbl).
+        # The per-minute estimate the rows still show follows it, so a new estimate fails the scrape for review.
+        TRANSCRIPTION_AUDIO_INPUT = {
+          "gpt-4o-transcribe" => { rate: 6.0, per_minute: "0.006" },
+          "gpt-4o-transcribe-diarize" => { rate: 6.0, per_minute: "0.006" },
+          "gpt-4o-mini-transcribe" => { rate: 3.0, per_minute: "0.003" }
+        }.freeze
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           pages = pages_from(html)
@@ -66,7 +82,7 @@ module LlmCostTracker
             collected.replace(merge_model_fields(collected, tier_models))
           end
           models = merge_model_fields(models, DocumentedLongContextPrices.call(models, pages))
-          models = add_priority_aliases(DataResidencyPrices.call(models))
+          models = add_model_id_aliases(add_priority_aliases(DataResidencyPrices.call(models)))
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -164,6 +180,12 @@ module LlmCostTracker
           end
         end
 
+        def add_model_id_aliases(models)
+          MODEL_ID_ALIASES.each_with_object(models.dup) do |(alias_id, model_id), aliased|
+            aliased[alias_id] ||= models[model_id] if models.key?(model_id)
+          end
+        end
+
         def priority_alias_fields(fields)
           fields.each_with_object({}) do |(field, value), aliases|
             aliases[field.sub("fast_", "priority_")] = value if field.include?("fast_")
@@ -251,7 +273,7 @@ module LlmCostTracker
             rows = unwrap(group["rows"])
             next unless rows.is_a?(Array) && (model_id || !MODEL_ID_BY_DISPLAY_NAME.key?(name))
 
-            price_fields = group_price_fields(rows, fields: fields)
+            price_fields = group_price_fields(rows, fields: fields, model_id: model_id)
             next if price_fields.empty?
             raise Error, "no model ID for OpenAI price row #{name.inspect}" unless model_id
 
@@ -259,7 +281,7 @@ module LlmCostTracker
           end
         end
 
-        def group_price_fields(rows, fields:)
+        def group_price_fields(rows, fields:, model_id:)
           rows.each_with_object({}) do |row, values|
             cells = unwrap(row)
             next unless cells.is_a?(Array) && cells.size >= 4
@@ -270,10 +292,27 @@ module LlmCostTracker
               values.merge!(extract_price_fields([nil, *cells], fields: fields))
             elsif minute_price && unwrap(cells[1]) == "-" && unwrap(cells[2]) == "-"
               values["transcription_minute"] = Float(minute_price)
+            elsif minute_price && label.to_s.start_with?("Transcription")
+              values.merge!(
+                fields.fetch(:input) => parse_price(unwrap(cells[1])),
+                AUDIO_FIELDS.fetch(:input) => transcription_audio_input(model_id, minute_price),
+                fields.fetch(:output) => parse_price(unwrap(cells[2]))
+              )
             elsif (modality_fields = modality_fields_for(label, fields: fields))
               values.merge!(extract_price_fields(cells, fields: modality_fields))
             end
           end
+        end
+
+        def transcription_audio_input(model_id, minute_price)
+          audio = TRANSCRIPTION_AUDIO_INPUT.fetch(model_id) do
+            raise Error, "no audio input rate for OpenAI transcription model #{model_id.inspect}"
+          end
+          unless minute_price == audio.fetch(:per_minute)
+            raise Error, "OpenAI #{model_id} estimate is now $#{minute_price}/minute; recheck its audio input rate"
+          end
+
+          audio.fetch(:rate)
         end
 
         def modality_fields_for(modality, fields:)
@@ -320,6 +359,7 @@ module LlmCostTracker
 
         def parse_price(value)
           return Float(value) if value.is_a?(Numeric)
+          return 0.0 if value == "Free"
 
           if value.is_a?(Hash) && value.key?("__pricingHtml")
             return parse_price(Nokogiri::HTML.fragment(unwrap(value["__pricingHtml"]).to_s).text.strip)

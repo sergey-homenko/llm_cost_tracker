@@ -35,7 +35,7 @@ usage_source=unknown.
 
 The Responses API does not need the flag — usage is emitted automatically. The official OpenAI SDK's `chat.completions.stream` and `chat.completions.stream_raw` send your params unchanged, so pass `stream_options: { include_usage: true }` yourself; without it the call is stored with `usage_source: unknown` and the same warning is logged. Groq also reports usage in `x_groq.usage` on the final chunk, which the gem reads when the top-level usage is missing.
 
-Gemini `streamGenerateContent` and Anthropic streaming responses are parsed from their provider event shapes when usage metadata is present.
+Gemini `streamGenerateContent`, Gemini Interactions API (`stream: true`), and Anthropic streaming responses are parsed from their provider event shapes when usage metadata is present.
 
 A stream cut short by a failed connection, or by a middleware listed after `f.use :llm_cost_tracker` such as `f.response :raise_error`, is recorded with unknown usage and the tags `stream_interrupted: true`, `stream_interrupted_error` (the error class), and `stream_interrupted_status` (the HTTP status, when there is one).
 
@@ -58,11 +58,11 @@ Captured SDK helpers:
 | --- | --- |
 | OpenAI | `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, `chat.completions.stream`, `chat.completions.stream_raw`, `images.generate_stream_raw`, `images.edit_stream_raw`, `audio.transcriptions.create_streaming` |
 | Anthropic | `messages.stream`, `messages.stream_raw`, beta Messages stream helpers |
-| RubyLLM | `RubyLLM::Provider#complete` (captured for both blocking and streaming calls; `Chat#ask` reaches this transitively) |
+| RubyLLM | `RubyLLM::Provider#complete` (captured for both blocking and streaming calls; `Chat#ask` reaches this transitively), and `#transcribe` with a block on RubyLLM 2.x |
 
 The returned stream object is preserved. Usage is recorded after the stream is consumed.
 
-RubyLLM streaming records token usage and cost, but RubyLLM consumes the HTTP body as the stream, so what only the raw response body carries is lost: `provider_response_id`, Anthropic 1-hour cache writes (priced at the 5-minute rate), the service tier, Anthropic fast mode, and US inference (priced at standard rates), OpenAI and Gemini server-tool fees such as web search and grounding, and Gemini's audio and URL-context prompt tokens (priced as text input or not at all). Blocking RubyLLM calls and the official OpenAI/Anthropic SDK streams (which read the raw stream) do capture them — use a direct SDK integration when they matter for streamed calls, such as the response id for invoice cross-reference.
+RubyLLM streaming records token usage and cost. RubyLLM consumes the HTTP body as the stream, so the fields a blocking call reads from the raw response body (`provider_response_id`, Anthropic 1-hour cache writes, the service tier, Anthropic fast mode and US inference, OpenAI and Gemini server-tool fees, Gemini's audio and URL-context prompt tokens, OpenRouter's billed `usage.cost`) are read from the stream events RubyLLM parses instead. Bedrock streams decode their own event stream and keep only RubyLLM's token counts.
 
 Tags are snapshotted when the stream starts, so delayed or cross-thread consumption keeps the original request/user attribution.
 
@@ -111,4 +111,4 @@ Stream rows include:
 | `batch` | Derived from `pricing_mode` (true when the mode contains the `batch` token); set `pricing_mode: :batch` on `track_stream` to flag a batch-tier call |
 | `cost_status` | `free`, `complete`, `partial`, or `unknown` |
 
-Stream length doesn't limit capture. The Faraday tap and the SDK / `track_stream` collector decode events as they arrive and keep only the first 16 events (model and response id), the last 32 (final usage and service tier), and billable events in between (OpenAI tool-call items, Gemini grounding), so memory stays flat however long the response runs. Kept events lose image and audio payloads (`b64_json`, `partial_image_b64`, any string field over 8 KB), `logprobs`, and the accumulated `snapshot` that SDK stream helpers attach to each event, and the OpenAI chat stream helper's `logprobs.*` events are not kept at all; only if they still outgrow 1 MB does the call fall back to `usage_source: unknown`, with a warning.
+Stream length doesn't limit capture. The Faraday tap and the SDK / `track_stream` collector decode events as they arrive and keep only the first 16 events (model and response id), the last 32 (final usage and service tier), and billable events in between (OpenAI tool-call items, Gemini grounding, Anthropic fallback blocks), so memory stays flat however long the response runs. Kept events lose image and audio payloads (`b64_json`, `partial_image_b64`, any string field over 8 KB), `logprobs`, and the accumulated `snapshot` that SDK stream helpers attach to each event, and the OpenAI chat stream helper's `logprobs.*` events are not kept at all; only if they still outgrow 1 MB does the call fall back to `usage_source: unknown`, with a warning.

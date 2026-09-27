@@ -34,7 +34,9 @@ module LlmCostTracker
             model: response["model"] || request[:model],
             provider_response_id: response["id"],
             usage_source: Usage::Source::RESPONSE,
-            request: request
+            request: request,
+            content: Array(response["content"]).grep(Hash).map(&:deep_symbolize_keys),
+            **stop_fields(response)
           )
         end
 
@@ -53,7 +55,9 @@ module LlmCostTracker
               provider_response_id: response_id,
               usage_source: Usage::Source::STREAM_FINAL,
               request: request,
-              stream: true
+              stream: true,
+              content: content_blocks(events),
+              **stop_fields(final_delta(events))
             )
           else
             build_unknown_stream_usage(
@@ -69,10 +73,34 @@ module LlmCostTracker
           "anthropic"
         end
 
+        def retain_stream_event?(data)
+          data.is_a?(Hash) && data.dig("content_block", "type") == "fallback"
+        end
+
         private
 
         def symbolize_request(request_body)
           safe_json_parse(request_body).deep_symbolize_keys
+        end
+
+        def final_delta(events)
+          find_event_value(events, reverse: true) { |data| data["delta"] if data["type"] == "message_delta" }
+        end
+
+        def content_blocks(events)
+          blocks = []
+          each_event_data(events) do |data|
+            block = data["content_block"] if data["type"] == "content_block_start"
+            blocks << block.deep_symbolize_keys if block.is_a?(Hash)
+          end
+          blocks
+        end
+
+        def stop_fields(source)
+          return {} unless source.is_a?(Hash)
+
+          details = source["stop_details"]
+          { stop_reason: source["stop_reason"], refusal_category: (details["category"] if details.is_a?(Hash)) }
         end
 
         def stream_usage(events)

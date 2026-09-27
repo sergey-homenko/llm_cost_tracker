@@ -12,21 +12,35 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       config.anthropic_api_key = "test-anthropic"
       config.gemini_api_key = "test-gemini"
       config.deepseek_api_key = "test-deepseek"
+      config.openrouter_api_key = "test-openrouter"
     end
   end
 
-  def stub_openai_chat(id:, usage: nil, model: "gpt-4o", host: "api.openai.com")
+  def sse(*events) = events.map { |event| "data: #{event.to_json}\n\n" }.join
+
+  def sse_response(body) = { status: 200, body: body, headers: { "Content-Type" => "text/event-stream" } }
+
+  def override_prices(prices)
+    LlmCostTrackerReset.call
+    LlmCostTracker.configure do |config|
+      config.pricing.unknown_model_behavior = :ignore
+      config.instrument(:ruby_llm)
+      config.pricing.overrides = prices
+    end
+  end
+
+  def stub_openai_chat(id:, usage: nil, model: "gpt-4o", host: "api.openai.com", **extra)
     json = { "Content-Type" => "application/json" }
     completion = {
       id: id, object: "chat.completion", model: model,
       choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
-      usage: usage
+      usage: usage, **extra
     }.compact
     response = {
       id: id, object: "response", status: "completed", model: model,
       output: [{ type: "message", id: "msg_#{id}", status: "completed", role: "assistant",
                  content: [{ type: "output_text", text: "hi", annotations: [] }] }],
-      usage: usage && responses_usage(usage)
+      usage: usage && responses_usage(usage), **extra
     }.compact
     WebMock.stub_request(:post, "https://#{host}/v1/chat/completions")
            .to_return(status: 200, body: completion.to_json, headers: json)
@@ -37,6 +51,18 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
   def anthropic_message(id:, model:, usage:, stop_reason: "end_turn")
     { id: id, type: "message", role: "assistant", model: model,
       content: [{ type: "text", text: "hi" }], stop_reason: stop_reason, usage: usage }
+  end
+
+  def anthropic_stream(id:, usage:, delta_usage:, stop_reason: "end_turn")
+    sse_response(sse(
+      { type: "message_start", message: anthropic_message(id: id, model: "claude-sonnet-4-6", usage: usage)
+                                          .merge(content: [], stop_reason: nil) },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "hi" } },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: stop_reason }, usage: delta_usage },
+      { type: "message_stop" }
+    ))
   end
 
   def responses_usage(usage)
@@ -123,9 +149,131 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       capture_sdk_events do |events|
         RubyLLM.chat(model: "gemini-2.5-flash", provider: :gemini, assume_model_exists: true).ask("hi") { |_chunk| }
         expect(events.first).to include(
-          provider: "gemini", stream: true, usage_source: "sdk_response",
+          provider: "gemini", stream: true, usage_source: "sdk_response", provider_response_id: "resp_stream",
           input_tokens: 5, output_tokens: 19, hidden_output_tokens: 18
         )
+      end
+    end
+
+    it "prices a streamed Anthropic chat from its events: 1-hour cache writes, US inference, response id" do
+      usage = { input_tokens: 50, cache_creation_input_tokens: 20_000, cache_read_input_tokens: 0,
+                cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 20_000 },
+                output_tokens: 1, service_tier: "standard", inference_geo: "us" }
+      WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages")
+             .to_return(anthropic_stream(id: "msg_s1h", usage: usage, delta_usage: { output_tokens: 300 }))
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "claude-sonnet-4-6", provider: :anthropic, assume_model_exists: true).ask("hi") { |_chunk| }
+        expect(events.first).to include(cache_write_input_tokens: 0, cache_write_extended_input_tokens: 20_000,
+                                        pricing_mode: "data_residency", provider_response_id: "msg_s1h", stream: true)
+        expect(events.first.dig(:cost, :total)).to eq("0.137115")
+      end
+    end
+
+    it "counts a streamed Anthropic chat's input from message_delta, whose cumulative count adds server tool results" do
+      WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(anthropic_stream(
+        id: "msg_sws", usage: { input_tokens: 2679, output_tokens: 3 },
+        delta_usage: { input_tokens: 10_682, cache_creation_input_tokens: 0, cache_read_input_tokens: 0,
+                       output_tokens: 510, server_tool_use: { web_search_requests: 1 } }
+      ))
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "claude-sonnet-4-6", provider: :anthropic, assume_model_exists: true).ask("news?") { |_c| }
+        expect(events.first).to include(input_tokens: 10_682, output_tokens: 510)
+        expect(events.first.dig(:cost, :total)).to eq("0.049696")
+      end
+    end
+
+    it "counts the cumulative input of every segment of a streamed pause_turn continuation, and not across asks" do
+      skip "RubyLLM continues pause_turn automatically only on 2.x" if RubyLLM::VERSION.start_with?("1.")
+
+      # platform.claude.com streaming docs: message_delta usage is cumulative, and each pause_turn segment is its own
+      # request. Pricing: Sonnet 4.6 $3 input / $15 output per 1M tokens, web search $10 per 1,000 searches.
+      search = { server_tool_use: { web_search_requests: 1 } }
+      WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
+        anthropic_stream(id: "msg_p1", usage: { input_tokens: 2679, output_tokens: 3 }, stop_reason: "pause_turn",
+                         delta_usage: { input_tokens: 10_682, output_tokens: 510, **search }),
+        anthropic_stream(id: "msg_p2", usage: { input_tokens: 11_200, output_tokens: 3 },
+                         delta_usage: { input_tokens: 18_000, output_tokens: 700, **search }),
+        anthropic_stream(id: "msg_p3", usage: { input_tokens: 2679, output_tokens: 3 },
+                         delta_usage: { input_tokens: 10_682, output_tokens: 510, **search })
+      )
+
+      capture_sdk_events do |events|
+        chat = RubyLLM.chat(model: "claude-sonnet-4-6", provider: :anthropic, assume_model_exists: true)
+        chat.ask("research") { |_c| }
+        chat.ask("more") { |_c| }
+        # (10,682 + 18,000) x $3 + (510 + 700) x $15 per 1M tokens + 2 searches x $10 per 1,000
+        expect(events.first).to include(input_tokens: 28_682, output_tokens: 1210)
+        expect(events.map { |event| event.dig(:cost, :total) }).to eq(%w[0.124196 0.049696])
+      end
+    end
+
+    it "prices a streamed OpenAI chat at the service tier its final event reports" do
+      usage = { prompt_tokens: 2000, completion_tokens: 500, total_tokens: 2500 }
+      chunk = { id: "chatcmpl_flex", object: "chat.completion.chunk", model: "gpt-5-mini", service_tier: "flex" }
+      response = { id: "resp_flex", object: "response", status: "completed", model: "gpt-5-mini", service_tier: "flex",
+                   output: [], usage: responses_usage(usage) }
+      WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions").to_return(sse_response(sse(
+        chunk.merge(choices: [{ index: 0, delta: { role: "assistant", content: "hi" }, finish_reason: "stop" }]),
+        chunk.merge(choices: [], usage: usage)
+      )))
+      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(sse_response(sse(
+        { type: "response.created", response: response.merge(status: "in_progress", service_tier: "auto", usage: nil) },
+        { type: "response.output_text.delta", item_id: "msg_flex", output_index: 0, content_index: 0, delta: "hi" },
+        { type: "response.completed", response: response }
+      )))
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "gpt-5-mini", provider: :openai, assume_model_exists: true).ask("hi") { |_chunk| }
+        expect(events.first).to include(pricing_mode: "flex", input_tokens: 2000, output_tokens: 500, stream: true)
+        expect(events.first.dig(:cost, :total)).to eq("0.00075")
+      end
+    end
+
+    it "records OpenRouter's billed usage.cost, adding the upstream cost of a BYOK call, blocking and streamed" do
+      usage = { prompt_tokens: 1000, completion_tokens: 200, total_tokens: 1200, cost: 0.0003, is_byok: true,
+                cost_details: { upstream_inference_cost: 0.006 } }
+      completion = { id: "gen-1", object: "chat.completion", model: "deepseek/deepseek-v3.2",
+                     choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }] }
+      chunk = { id: "gen-2", object: "chat.completion.chunk", model: "deepseek/deepseek-v3.2" }
+      WebMock.stub_request(:post, "https://openrouter.ai/api/v1/chat/completions").to_return(
+        { status: 200, body: completion.merge(usage: usage).to_json, headers: { "Content-Type" => "application/json" } },
+        sse_response(sse(chunk.merge(choices: [{ index: 0, delta: { content: "hi" }, finish_reason: "stop" }]),
+                         chunk.merge(choices: [], usage: usage.merge(cost: 0.0056, is_byok: false))))
+      )
+
+      capture_sdk_events do |events|
+        chat = -> { RubyLLM.chat(model: "deepseek/deepseek-v3.2", provider: :openrouter, assume_model_exists: true) }
+        chat.call.ask("hi")
+        chat.call.ask("hi") { |_chunk| }
+        expect(events.map { |event| event[:line_items].find { |item| item[:kind] == "billed_request" }&.dig(:cost) })
+          .to eq(%w[0.0063 0.0056])
+        expect(events.map { |event| event.dig(:cost, :total) }).to eq(%w[0.0063 0.0056])
+      end
+    end
+
+    it "counts Bedrock Converse inputTokens as the uncached input, which RubyLLM 1.x reduces by the cache tokens" do
+      model = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+      rates = { "input" => 3.3, "output" => 16.5, "cache_read_input" => 0.33 }
+      override_prices(%W[bedrock/#{model} bedrock/us.#{model}].index_with(rates))
+      RubyLLM.configure do |config|
+        config.bedrock_api_key = "AKIATEST"
+        config.bedrock_secret_key = "test-secret"
+        config.bedrock_region = "us-east-1"
+      end
+      WebMock.stub_request(:post, %r{\Ahttps://bedrock-runtime\.us-east-1\.amazonaws\.com/model/.+/converse\z}).to_return(
+        status: 200,
+        body: { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
+                usage: { inputTokens: 3000, cacheReadInputTokens: 2000, cacheWriteInputTokens: 0,
+                         outputTokens: 400, totalTokens: 5400 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: model, provider: :bedrock, assume_model_exists: true).ask("hi")
+        expect(events.first).to include(input_tokens: 3000, cache_read_input_tokens: 2000, output_tokens: 400)
+        expect(events.first.dig(:cost, :total)).to eq("0.01716")
       end
     end
 
@@ -215,6 +363,62 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
 
+    it "prices a Bedrock chat on a regional Claude inference profile at the regional rate" do
+      # AWS Bedrock price list, Claude Sonnet 4.5: regional $3.30 input / $16.50 output per 1M tokens.
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.pricing.overrides = { "anthropic/claude-sonnet-4-5" => { input: 3.0, output: 15.0, data_residency_input: 3.3,
+                                                                        data_residency_output: 16.5 } }
+        config.instrument(:ruby_llm)
+      end
+      bedrock = RubyLLM.context do |config|
+        config.bedrock_api_key = "AKIDEXAMPLE"
+        config.bedrock_secret_key = "secret"
+        config.bedrock_region = "us-east-1"
+      end
+      body = { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
+               usage: { inputTokens: 1000, outputTokens: 500, totalTokens: 1500 } }
+      WebMock.stub_request(:post, %r{\Ahttps://bedrock-runtime\.us-east-1\.amazonaws\.com/model/.+/converse\z})
+             .to_return(status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" })
+
+      capture_sdk_events do |events|
+        bedrock.chat(model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0", provider: :bedrock,
+                     assume_model_exists: true).ask("hi")
+        expect(events.first).to include(provider: "bedrock", pricing_mode: "data_residency")
+        expect(events.first.dig(:cost, :total)).to eq("0.01155")
+      end
+    end
+
+    it "prices Bedrock 1-hour cache writes from cacheDetails, or from with_caching's TTL when the response has none" do
+      # AWS Price List API (AmazonBedrockFoundationModels, us-east-1), Claude Sonnet 4.5 regional per 1M tokens:
+      # input $3.30, 5-minute cache write $4.125, 1-hour cache write $6.60, output $16.50.
+      RubyLLM.configure do |config|
+        config.bedrock_api_key = "AKIATEST"
+        config.bedrock_secret_key = "test-secret"
+        config.bedrock_region = "us-east-1"
+      end
+      usage = { inputTokens: 3000, cacheWriteInputTokens: 4000, outputTokens: 800, totalTokens: 7800 }
+      WebMock.stub_request(:post, %r{\Ahttps://bedrock-runtime\.us-east-1\.amazonaws\.com/model/.+/converse\z}).to_return(
+        *[usage.merge(cacheDetails: [{ ttl: "1h", inputTokens: 3000 }, { ttl: "5m", inputTokens: 1000 }]), usage].map do |body|
+          { status: 200, headers: { "Content-Type" => "application/json" },
+            body: { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
+                    usage: body }.to_json }
+        end
+      )
+      chat = -> { RubyLLM.chat(model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0", provider: :bedrock, assume_model_exists: true) }
+
+      capture_sdk_events do |events|
+        chat.call.ask("hi")
+        expect(events.last).to include(cache_write_input_tokens: 1000, cache_write_extended_input_tokens: 3000)
+        expect(events.last.dig(:cost, :total)).to eq("0.047025")
+        next if RubyLLM::VERSION.start_with?("1.") # with_caching arrived in 2.x
+
+        chat.call.with_caching(ttl: "1h").ask("hi")
+        expect(events.last).to include(cache_write_input_tokens: 0, cache_write_extended_input_tokens: 4000)
+        expect(events.last.dig(:cost, :total)).to eq("0.0495")
+      end
+    end
+
     it "prices an OpenAI chat sent to a regional host at the data-residency rate" do
       stub_openai_chat(id: "chatcmpl_eu", model: "gpt-5.4", host: "eu.api.openai.com",
                        usage: { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000 })
@@ -224,6 +428,54 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
                .chat(model: "gpt-5.4", provider: :openai, assume_model_exists: true).ask("hi")
         expect(events.first).to include(pricing_mode: "data_residency")
         expect(events.first.dig(:cost, :total)).to eq("0.044")
+      end
+    end
+
+    it "prices xAI and Mistral regional hosts and Priority tiers" do
+      # xAI: US endpoint +10%, Priority 2x; Mistral: regional +10%, Priority Tier 1.75x.
+      override_prices(
+        "xai/grok-4.7" => { input: 2.0, output: 6.0, data_residency_input: 2.2, data_residency_output: 6.6,
+                            priority_input: 4.0, priority_output: 12.0 },
+        "mistral/mistral-medium-latest" => { input: 1.5, output: 7.5, data_residency_input: 1.65,
+                                             data_residency_output: 8.25, priority_input: 2.625,
+                                             priority_output: 13.125 }
+      )
+      tokens = { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000 }
+      {
+        [:xai, "grok-4.7", "us.api.x.ai", {}] => ["data_residency", "0.0286"],
+        [:xai, "grok-4.7", "api.x.ai", { service_tier: "priority" }] => ["priority", "0.052"],
+        [:mistral, "mistral-medium-latest", "api.eu.mistral.ai", {}] => ["data_residency", "0.02475"],
+        [:mistral, "mistral-medium-latest", "api.mistral.ai", { usage: tokens.merge(service_tier: "priority") }] =>
+          ["priority", "0.039375"]
+      }.each do |(provider, model, host, fields), (mode, total)|
+        stub_openai_chat(id: "chatcmpl_#{host}", model: model, host: host, **{ usage: tokens }.merge(fields))
+        context = RubyLLM.context do |config|
+          config.public_send("#{provider}_api_key=", "test-#{provider}")
+          config.public_send("#{provider}_api_base=", "https://#{host}/v1")
+        end
+
+        capture_sdk_events do |events|
+          context.chat(model: model, provider: provider, assume_model_exists: true).ask("hi")
+          expect(events.first).to include(provider: provider.to_s, pricing_mode: mode)
+          expect(events.first.dig(:cost, :total)).to eq(total)
+        end
+      end
+    end
+
+    it "prices xAI reasoning tokens at the output rate, since xAI counts them outside output_tokens" do
+      # docs.x.ai: total_tokens = prompt + completion + reasoning, and reasoning bills at the completion price.
+      # grok-4.7 $2 / $0.50 cached / $6 per 1M: 4,000 x 2 + 8,000 x 0.5 + (500 + 2,500) x 6 = $0.03.
+      override_prices("xai/grok-4.7" => { input: 2.0, cache_read_input: 0.5, output: 6.0 })
+      stub_openai_chat(id: "xai_reasoning", model: "grok-4.7", host: "api.x.ai",
+                       usage: { prompt_tokens: 12_000, completion_tokens: 500, total_tokens: 15_000,
+                                prompt_tokens_details: { cached_tokens: 8_000 },
+                                completion_tokens_details: { reasoning_tokens: 2_500 } })
+
+      capture_sdk_events do |events|
+        RubyLLM.context { |config| config.xai_api_key = "test-xai" }
+               .chat(model: "grok-4.7", provider: :xai, assume_model_exists: true).ask("hi")
+        expect(events.first).to include(output_tokens: 3_000, hidden_output_tokens: 2_500)
+        expect(events.first.dig(:cost, :total)).to eq("0.03")
       end
     end
 
@@ -250,6 +502,30 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
 
+    it "prices the cache writes of earlier pause_turn segments at the 1-hour rate when the chat caches for 1 hour" do
+      skip "RubyLLM continues pause_turn automatically only on 2.x" if RubyLLM::VERSION.start_with?("1.")
+
+      segments = [
+        anthropic_message(id: "msg_seg1", model: "claude-sonnet-4-6", stop_reason: "pause_turn",
+                          usage: { input_tokens: 20, output_tokens: 200, cache_creation_input_tokens: 8000,
+                                   cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 8000 } }),
+        anthropic_message(id: "msg_seg2", model: "claude-sonnet-4-6",
+                          usage: { input_tokens: 30, output_tokens: 400, cache_read_input_tokens: 8000,
+                                   cache_creation_input_tokens: 1500,
+                                   cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 1500 } })
+      ]
+      WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
+        *segments.map { |body| { status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" } } }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "claude-sonnet-4-6", provider: :anthropic, assume_model_exists: true)
+               .with_caching(ttl: "1h").ask("research")
+        expect(events.first).to include(cache_write_input_tokens: 0, cache_write_extended_input_tokens: 9500)
+        expect(events.first.dig(:cost, :total)).to eq("0.06855")
+      end
+    end
+
     it "prices Gemini audio prompt tokens and url_context tool-use prompt tokens from the raw usageMetadata" do
       WebMock.stub_request(:post, %r{generativelanguage\.googleapis\.com/v1beta/models/gemini-2\.5-flash:generateContent})
              .to_return(
@@ -268,6 +544,92 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
         RubyLLM.chat(model: "gemini-2.5-flash", provider: :gemini, assume_model_exists: true).ask("hi")
         expect(events.first).to include(input_tokens: 8010, audio_input_tokens: 19_200, output_tokens: 500)
         expect(events.first.dig(:cost, :total)).to eq("0.022853")
+      end
+    end
+
+    it "prices Gemini cached audio tokens from the raw usageMetadata at the audio caching rate" do
+      # ai.google.dev/gemini-api/docs/pricing, Gemini 2.5 Flash: context caching $0.03 (text) / $0.10 (audio).
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.instrument(:ruby_llm)
+        config.pricing.overrides = {
+          "gemini/gemini-2.5-flash" => { input: 0.3, audio_input: 1.0, cache_read_input: 0.03,
+                                         audio_cache_read_input: 0.1, output: 2.5 }
+        }
+      end
+      WebMock.stub_request(:post, %r{generativelanguage\.googleapis\.com/v1beta/models/gemini-2\.5-flash:generateContent})
+             .to_return(
+               status: 200,
+               body: {
+                 candidates: [{ content: { role: "model", parts: [{ text: "hi" }] }, finishReason: "STOP" }],
+                 usageMetadata: { promptTokenCount: 100_000, cachedContentTokenCount: 80_000,
+                                  candidatesTokenCount: 1_000,
+                                  promptTokensDetails: [{ modality: "TEXT", tokenCount: 10_000 },
+                                                        { modality: "AUDIO", tokenCount: 90_000 }],
+                                  cacheTokensDetails: [{ modality: "TEXT", tokenCount: 8_000 },
+                                                       { modality: "AUDIO", tokenCount: 72_000 }] },
+                 modelVersion: "gemini-2.5-flash"
+               }.to_json,
+               headers: { "Content-Type" => "application/json" }
+             )
+
+      capture_sdk_events do |events|
+        RubyLLM.chat(model: "gemini-2.5-flash", provider: :gemini, assume_model_exists: true).ask("hi")
+        # 2000*0.30 + 18000*1.00 + 8000*0.03 + 72000*0.10 + 1000*2.50 = 28540 per 1M tokens
+        expect(events.first.dig(:cost, :total)).to eq("0.02854")
+      end
+    end
+
+    it "prices a Gemini chat on the Interactions protocol from the interaction's usage, blocking and streamed" do
+      skip "RubyLLM 1.x has no Interactions protocol" if RubyLLM::VERSION.start_with?("1.")
+
+      # ai.google.dev/gemini-api/docs/pricing: 3.8 Flash (through 2026-12-31) $0.75 in / $3.75 out, Search $14 per
+      # 1,000 queries; 2.5 Flash $0.30 in / $0.10 cached audio / $2.50 out, Flex $0.15 in / $1.25 out.
+      url = "https://generativelanguage.googleapis.com/v1beta/interactions"
+      usage = lambda do |input, output, **extra|
+        { total_input_tokens: input, total_output_tokens: output, total_tokens: input + output, **extra }
+      end
+      interaction = lambda do |model, usage, tier = "standard"|
+        { id: "v1_#{model}", object: "interaction", model: model, status: "completed", service_tier: tier,
+          steps: [{ type: "model_output", content: [{ type: "text", text: "hi" }] }], usage: usage }
+      end
+      search = ->(count) { { grounding_tool_count: [{ type: "google_search", count: count }] } }
+      audio = { total_cached_tokens: 19_200, input_tokens_by_modality: [{ modality: "text", tokens: 800 },
+                                                                        { modality: "audio", tokens: 19_200 }],
+                cached_tokens_by_modality: [{ modality: "audio", tokens: 19_200 }] }
+      {
+        interaction.call("gemini-3.8-flash", usage.call(1000, 500, **search.call(3))) => "0.044625",
+        interaction.call("gemini-2.5-flash", usage.call(10_000, 1000), "flex") => "0.00275",
+        interaction.call("gemini-2.5-flash", usage.call(20_000, 500, **audio)) => "0.00341"
+      }.each do |body, total|
+        WebMock.stub_request(:post, url).to_return(status: 200, body: body.to_json,
+                                                   headers: { "Content-Type" => "application/json" })
+        capture_sdk_events do |events|
+          travel_to(Time.utc(2026, 9, 27)) do
+            RubyLLM.chat(model: body[:model], provider: :gemini, protocol: :interactions, assume_model_exists: true)
+                   .ask("hi")
+          end
+          expect(events.first).to include(provider_response_id: body[:id])
+          expect(events.first.dig(:cost, :total)).to eq(total)
+        end
+      end
+      completed = interaction.call("gemini-3.8-flash", usage.call(1000, 500, **search.call(2)))
+      WebMock.stub_request(:post, url).to_return(sse_response(sse(
+        { event_type: "interaction.created", interaction: completed.except(:usage, :steps).merge(status: "in_progress") },
+        { event_type: "step.start", index: 0, step: { type: "model_output" } },
+        { event_type: "step.delta", index: 0, delta: { type: "text", text: "hi" } },
+        { event_type: "step.stop", index: 0 },
+        { event_type: "interaction.completed", interaction: completed.except(:steps) }
+      )))
+
+      capture_sdk_events do |events|
+        travel_to(Time.utc(2026, 9, 27)) do
+          RubyLLM.chat(model: "gemini-3.8-flash", provider: :gemini, protocol: :interactions, assume_model_exists: true)
+                 .ask("hi") { |_c| }
+        end
+        expect(events.first).to include(stream: true, input_tokens: 1000, output_tokens: 500,
+                                        provider_response_id: "v1_gemini-3.8-flash")
+        expect(events.first.dig(:cost, :total)).to eq("0.030625")
       end
     end
 
@@ -374,6 +736,75 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
           input_tokens: 7, output_tokens: 0, usage_source: "sdk_response"
         )
       end
+    end
+
+    it "prices a Gemini embedding from usageMetadata.promptTokenCount, which RubyLLM does not report" do
+      override_prices("gemini/gemini-embedding-2" => { "input" => 0.20 })
+      WebMock.stub_request(:post, %r{generativelanguage\.googleapis\.com/v1beta/models/gemini-embedding-2:batchEmbedContents})
+             .to_return(status: 200, body: { embeddings: [{ values: [0.1] }], usageMetadata: { promptTokenCount: 500 } }.to_json,
+                        headers: { "Content-Type" => "application/json" })
+
+      capture_sdk_events do |events|
+        RubyLLM.embed("hi", model: "gemini-embedding-2", provider: :gemini, assume_model_exists: true)
+        expect(events.first).to include(provider: "gemini", input_tokens: 500)
+        expect(events.first.dig(:cost, :total)).to eq("0.0001")
+      end
+    end
+
+    it "prices the image tokens of a Gemini embedding from usageMetadata.promptTokenDetails at the image rate" do
+      skip "RubyLLM 1.x embeds text only" if RubyLLM::VERSION.start_with?("1.")
+
+      override_prices("gemini/gemini-embedding-2" => { "input" => 0.20, "image_input" => 0.45 })
+      WebMock.stub_request(:post, %r{generativelanguage\.googleapis\.com/v1beta/models/gemini-embedding-2:batchEmbedContents})
+             .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+               embeddings: [{ values: [0.123456] }],
+               usageMetadata: { promptTokenCount: 262, promptTokenDetails: [{ modality: "TEXT", tokenCount: 4 },
+                                                                             { modality: "IMAGE", tokenCount: 258 }] }
+             }.to_json)
+      image = Tempfile.new(["logo", ".png"], binmode: true)
+      image.write("\x89PNG\r\n\x1a\n".b + ("\x00".b * 64))
+      image.flush
+
+      capture_sdk_events do |events|
+        embedding = RubyLLM.embed("The Ruby logo", model: "gemini-embedding-2", provider: :gemini,
+                                                   assume_model_exists: true, with: image.path)
+        expect(events.first).to include(input_tokens: 4, image_input_tokens: 258)
+        expect(events.first.dig(:cost, :total)).to eq("0.0001169")
+        expect(embedding.to_json.scan("0.123456").size).to eq(1)
+      end
+    ensure
+      image&.close!
+    end
+
+    it "prices the PDF and video parts of a Gemini embedding at the image and video rates" do
+      skip "RubyLLM 1.x embeds text only" if RubyLLM::VERSION.start_with?("1.")
+
+      # ai.google.dev/gemini-api/docs/pricing: Embedding 2 text $0.20, image $0.45, video $12.00 per 1M tokens;
+      # DOCUMENT (PDF) tokens are billed at the image rate.
+      override_prices("gemini/gemini-embedding-2" => { "input" => 0.20, "image_input" => 0.45, "video_input" => 12.0 })
+      WebMock.stub_request(:post, %r{generativelanguage\.googleapis\.com/v1beta/models/gemini-embedding-2:batchEmbedContents})
+             .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+               embeddings: [{ values: [0.1] }],
+               usageMetadata: { promptTokenCount: 2375, promptTokenDetails: [{ modality: "TEXT", tokenCount: 5 },
+                                                                              { modality: "DOCUMENT", tokenCount: 258 },
+                                                                              { modality: "VIDEO", tokenCount: 2112 }] }
+             }.to_json)
+      pdf = Tempfile.new(["page", ".pdf"], binmode: true)
+      pdf.write("%PDF-1.4\n")
+      pdf.flush
+      clip = Tempfile.new(["clip", ".mp4"], binmode: true)
+      clip.write("\x00\x00\x00\x18ftypmp42".b)
+      clip.flush
+
+      capture_sdk_events do |events|
+        RubyLLM.embed("A talk", model: "gemini-embedding-2", provider: :gemini, assume_model_exists: true,
+                                with: [pdf.path, clip.path])
+        expect(events.first).to include(input_tokens: 2117, image_input_tokens: 258)
+        expect(events.first.dig(:cost, :total)).to eq("0.0254611")
+      end
+    ensure
+      pdf&.close!
+      clip&.close!
     end
   end
 
@@ -507,12 +938,56 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
 
-    it "prices a duration-billed transcription per minute of audio when RubyLLM reports no tokens" do
-      skip "RubyLLM 1.x drops usage.seconds from the transcription" if RubyLLM::VERSION.start_with?("1.")
-
+    it "prices a transcription's text prompt tokens at the text rate and its audio tokens at the audio rate" do
+      # Bundled gpt-4o-transcribe: $2.50 text input, $6 audio input, $10 output per 1M tokens.
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
         status: 200,
-        body: { text: "hi", usage: { type: "duration", seconds: 90 } }.to_json,
+        body: { text: "hi", usage: { type: "tokens", input_tokens: 1014, output_tokens: 150, total_tokens: 1164,
+                                     input_token_details: { text_tokens: 14, audio_tokens: 1000 } } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.transcribe(audio_file.path, model: "gpt-4o-transcribe", provider: :openai, assume_model_exists: true)
+        expect(events.first).to include(input_tokens: 14, audio_input_tokens: 1000, output_tokens: 150)
+        expect(events.first.dig(:cost, :total)).to eq("0.007535")
+      end
+    end
+
+    it "returns a plain-text transcription untouched and records it as unknown, since its body carries no usage" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions")
+             .to_return(status: 200, body: "hi", headers: { "Content-Type" => "text/plain" })
+
+      capture_sdk_events do |events|
+        transcription = RubyLLM.transcribe(audio_file.path, model: "gpt-4o-transcribe", provider: :openai,
+                                                            assume_model_exists: true)
+        expect(transcription.text).to eq("hi")
+        expect(events.first).to include(model: "gpt-4o-transcribe", usage_source: "unknown",
+                                        cost_status: "unknown", cost: nil)
+      end
+    end
+
+    it "records a streamed transcription, which RubyLLM 2.x streams outside the chat stream" do
+      skip "RubyLLM 1.x does not stream transcriptions" if RubyLLM::VERSION.start_with?("1.")
+
+      usage = { type: "tokens", input_tokens: 1014, output_tokens: 150, total_tokens: 1164,
+                input_token_details: { text_tokens: 14, audio_tokens: 1000 } }
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(sse_response(sse(
+        { type: "transcript.text.delta", delta: "hi" }, { type: "transcript.text.done", text: "hi", usage: usage }
+      )))
+
+      capture_sdk_events do |events|
+        RubyLLM.transcribe(audio_file.path, model: "gpt-4o-transcribe", provider: :openai, assume_model_exists: true) { |_c| }
+        # Priced like the blocking split above: 14 x $2.50 + 1,000 x $6 + 150 x $10 per 1M tokens.
+        expect(events.first).to include(input_tokens: 14, audio_input_tokens: 1000, output_tokens: 150, stream: true)
+        expect(events.first.dig(:cost, :total)).to eq("0.007535")
+      end
+    end
+
+    it "prices a duration-billed transcription per billed minute of audio when RubyLLM reports no tokens" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
+        status: 200,
+        body: { text: "hi", duration: 89.6, usage: { type: "duration", seconds: 90 } }.to_json,
         headers: { "Content-Type" => "application/json" }
       )
 
@@ -524,13 +999,28 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       end
     end
 
+    it "rounds the audio duration up to whole seconds when the transcription has no usage.seconds" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
+        status: 200,
+        body: { text: "hi", duration: 8.47 }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.transcribe(audio_file.path, model: "whisper-1", provider: :openai, assume_model_exists: true)
+        # 9 seconds of whisper-1 at $0.006 per minute.
+        expect(events.first.dig(:cost, :total)).to eq("0.0009")
+      end
+    end
+
     it "records a Gemini transcription once, although RubyLLM 1.x Gemini never calls Provider#transcribe" do
       url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
       WebMock.stub_request(:post, url).to_return(
         status: 200,
         body: {
           candidates: [{ content: { role: "model", parts: [{ text: "hi" }] }, finishReason: "STOP" }],
-          usageMetadata: { promptTokenCount: 40, candidatesTokenCount: 5, thoughtsTokenCount: 2 }
+          usageMetadata: { promptTokenCount: 40, candidatesTokenCount: 5, thoughtsTokenCount: 2,
+                           promptTokensDetails: [{ modality: "TEXT", tokenCount: 10 }, { modality: "AUDIO", tokenCount: 30 }] }
         }.to_json,
         headers: { "Content-Type" => "application/json" }
       )
@@ -538,8 +1028,33 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
       capture_sdk_events do |events|
         RubyLLM.transcribe(audio_file.path, model: "gemini-2.5-flash", provider: :gemini, assume_model_exists: true)
         expect(events.size).to eq(1)
-        expect(events.first).to include(provider: "gemini", model: "gemini-2.5-flash", input_tokens: 0,
-                                        audio_input_tokens: 40, output_tokens: 7)
+        expect(events.first).to include(provider: "gemini", model: "gemini-2.5-flash", input_tokens: 10,
+                                        audio_input_tokens: 30, output_tokens: 7)
+        expect(events.first.dig(:cost, :total)).to eq("0.0000505")
+      end
+    end
+  end
+
+  describe "cache" do
+    it "records the storage of a Gemini context cache created with RubyLLM.cache, once, not on find or renew" do
+      skip "RubyLLM.cache arrived in 2.x" if RubyLLM::VERSION.start_with?("1.")
+
+      # ai.google.dev/api/caching: the created cache reports usageMetadata.totalTokenCount, createTime and expireTime.
+      # ai.google.dev/gemini-api/docs/pricing, Gemini 2.5 Flash storage: $1.00 / 1,000,000 tokens per hour.
+      url = "https://generativelanguage.googleapis.com/v1beta/cachedContents"
+      cache = { name: "cachedContents/abc123", model: "models/gemini-2.5-flash", createTime: "2026-09-27T10:00:00.123456Z",
+                expireTime: "2026-09-27T11:00:00.123456Z", usageMetadata: { totalTokenCount: 250_000 } }
+      json = { status: 200, body: cache.to_json, headers: { "Content-Type" => "application/json" } }
+      WebMock.stub_request(:post, url).to_return(json)
+      WebMock.stub_request(:get, "#{url}/abc123").to_return(json)
+      WebMock.stub_request(:patch, "#{url}/abc123").to_return(json)
+
+      capture_sdk_events do |events|
+        created = RubyLLM.cache("document", model: "gemini-2.5-flash", provider: :gemini, ttl: 3600)
+        RubyLLM::CachedContent.find(created.name, provider: :gemini).renew(ttl: 3600)
+        expect(events.size).to eq(1)
+        expect(events.first).to include(model: "gemini-2.5-flash", provider_response_id: "cachedContents/abc123")
+        expect(events.first.dig(:cost, :total)).to eq("0.25")
       end
     end
   end

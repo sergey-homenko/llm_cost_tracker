@@ -8,7 +8,7 @@ module LlmCostTracker
       class Openai < Base
         MODEL_ID_BY_DISPLAY_NAME = {
           "chatgpt-4o-latest" => "chatgpt-4o-latest", "codex-mini-latest" => "codex-mini-latest",
-          "gpt-3.5-turbo" => "gpt-3.5-turbo", "gpt-4" => "gpt-4", "gpt-4-0613" => "gpt-4",
+          "gpt-3.5-turbo" => "gpt-3.5-turbo", "gpt-4" => "gpt-4", "gpt-4-0613" => "gpt-4-0613",
           "gpt-4-turbo" => "gpt-4-turbo", "gpt-4-turbo-2024-04-09" => "gpt-4-turbo",
           "gpt-4.1" => "gpt-4.1", "gpt-4.1-mini" => "gpt-4.1-mini",
           "gpt-4.1-nano" => "gpt-4.1-nano", "gpt-4o" => "gpt-4o",
@@ -52,12 +52,17 @@ module LlmCostTracker
           "gpt-live-transcribe" => "gpt-live-transcribe", "gpt-realtime-translate" => "gpt-realtime-translate",
           "gpt-realtime-whisper" => "gpt-realtime-whisper", "gpt-transcribe" => "gpt-transcribe",
           "Whisper" => "whisper-1",
-          "gpt-3.5-turbo-0125" => nil, "gpt-3.5-turbo-1106" => nil, "gpt-3.5-turbo-instruct" => nil,
-          "davinci-002" => nil, "babbage-002" => nil, "omni-moderation-latest" => nil,
+          "gpt-3.5-turbo-0125" => "gpt-3.5-turbo-0125", "gpt-3.5-turbo-1106" => "gpt-3.5-turbo-1106",
+          "gpt-3.5-turbo-instruct" => "gpt-3.5-turbo-instruct", "davinci-002" => "davinci-002",
+          "babbage-002" => "babbage-002", "omni-moderation-latest" => "omni-moderation-latest",
           "text-embedding-3-small" => nil, "text-embedding-3-large" => nil, "text-embedding-ada-002" => nil,
           "gpt-4o-mini-tts" => nil, "tts-1" => nil, "tts-1-hd" => nil,
-          "gpt-4o-transcribe" => nil, "gpt-4o-mini-transcribe" => nil, "gpt-4o-transcribe-diarize" => nil
+          "gpt-4o-transcribe" => "gpt-4o-transcribe", "gpt-4o-mini-transcribe" => "gpt-4o-mini-transcribe",
+          "gpt-4o-transcribe-diarize" => "gpt-4o-transcribe-diarize"
         }.freeze
+
+        # Ids the API returns that the pricing page lists under another name (see each model's page).
+        MODEL_ID_ALIASES = { "gpt-4" => "gpt-4-0613", "omni-moderation-2024-09-26" => "omni-moderation-latest" }.freeze
       end
     end
   end

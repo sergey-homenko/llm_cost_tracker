@@ -27,38 +27,18 @@ module LlmCostTracker
           line_items_from_output(output_items, request: request, model: model)
         end
 
-        CHAT_COMPLETIONS_ANNOTATION_PROVIDER_FIELD = "choices.message.annotations.url_citation"
-        CHAT_COMPLETIONS_SEARCH_MODEL_PROVIDER_FIELD = "request.model"
-
+        # Chat Completions searches only with the search models, which search on every call.
         def chat_completions_web_search_items(response, model: nil)
-          return [] unless response["choices"]
-
-          provider_field = chat_completions_search_provider_field(response["choices"], model)
-          return [] unless provider_field
+          return [] unless response["choices"] && chat_completions_search_model?(model)
 
           [{ "type" => "web_search_call", "id" => response["id"], "action" => { "type" => "search" },
-             "provider_field" => provider_field }]
-        end
-
-        def chat_completions_search_provider_field(choices, model)
-          return CHAT_COMPLETIONS_ANNOTATION_PROVIDER_FIELD if chat_completions_used_web_search?(choices)
-          return CHAT_COMPLETIONS_SEARCH_MODEL_PROVIDER_FIELD if chat_completions_search_model?(model)
-
-          nil
-        end
-
-        def chat_completions_used_web_search?(choices)
-          Array(choices).any? do |choice|
-            Array(choice.dig("message", "annotations") || choice.dig("delta", "annotations")).any? do |annotation|
-              annotation.is_a?(Hash) && annotation["type"].to_s == "url_citation"
-            end
-          end
+             "provider_field" => "request.model" }]
         end
 
         def billable?(item)
           return false unless item.is_a?(Hash)
 
-          dimension = output_dimension(item["type"])
+          dimension = item_dimension(item)
           return false unless dimension
           return item["status"] == "completed" if dimension == "image_generation_call"
           return true unless dimension == "web_search_request"
@@ -70,11 +50,11 @@ module LlmCostTracker
         def store_output_item(output_items, item)
           return unless item.is_a?(Hash)
 
-          dimension = output_dimension(item["type"])
+          dimension = item_dimension(item)
           return unless dimension
 
-          key = if dimension == "container_session" && item["container_id"]
-                  "#{dimension}:#{item['container_id']}"
+          key = if dimension == "container_session" && container_id(item)
+                  "#{dimension}:#{container_id(item)}"
                 else
                   item["id"] || "#{item['type']}:#{output_items.length}"
                 end
@@ -88,7 +68,7 @@ module LlmCostTracker
           return nil unless dimension_key
 
           provider_item_id = if dimension_key == "container_session"
-                               item["container_id"] || item["id"]
+                               container_id(item) || item["id"]
                              else
                                item["id"]
                              end
@@ -104,11 +84,27 @@ module LlmCostTracker
         end
 
         def dimension_key_for(item, request:, model:)
-          dimension = output_dimension(item["type"])
+          dimension = item_dimension(item)
           return dimension unless dimension == "web_search_request"
           return dimension unless web_search_preview_used?(request) || chat_completions_search_model?(model)
 
           reasoning_model?(model) ? "web_search_preview_request_reasoning" : "web_search_preview_request_non_reasoning"
+        end
+
+        # Hosted Shell bills its container like Code Interpreter; a local shell runs on the caller's machine.
+        def item_dimension(item)
+          return "container_session" if item["type"] == "shell_call" && shell_container_id(item)
+
+          output_dimension(item["type"])
+        end
+
+        def container_id(item)
+          item["container_id"] || shell_container_id(item)
+        end
+
+        def shell_container_id(item)
+          environment = item["environment"]
+          environment["container_id"] if environment.is_a?(Hash) && environment["type"] == "container_reference"
         end
 
         def output_dimension(type)
@@ -145,7 +141,7 @@ module LlmCostTracker
           {
             status: item["status"],
             action_type: item.dig("action", "type"),
-            container_id: item["container_id"]
+            container_id: container_id(item)
           }.compact
         end
 
@@ -165,6 +161,19 @@ module LlmCostTracker
             pricing_basis: "provider_usage",
             provider_field: "usage.seconds",
             details: { seconds: seconds }
+          )]
+        end
+
+        def speech_line_items(request)
+          input = request["input"]
+          return [] unless input.is_a?(String) && ModelFamilies.character_billed_tts?(request["model"])
+
+          [Charges::LineItem.build(
+            dimension_key: "text_to_speech_character",
+            quantity: input.length,
+            cost_status: Charges::CostStatus::UNKNOWN,
+            pricing_basis: "provider_usage",
+            provider_field: "request.input"
           )]
         end
 

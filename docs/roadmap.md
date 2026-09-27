@@ -70,6 +70,6 @@ Dashboards group and filter by these tag keys when present. The existing `call_t
 ## Standing constraints
 
 - Runtime tracking reads the ledger only for budget checks and batch-result dedup, and makes no network call except downloading an OpenAI batch output file. Hot path reads `pricing.overrides` → file snapshot → bundled snapshot, then writes inline through `Ledger::Store.insert` by default, or enqueues to the async inbox when `config.ingestion.mode = :async`.
-- Header is a projection. Per-component costs live in `llm_cost_tracker_call_line_items`; rollups only guard budget totals against drift.
+- Header is a projection. Per-component costs live in `llm_cost_tracker_call_line_items`; rollups only serve budget totals.
 - Postgres and MySQL parity. Every ledger query must run on both.
 - No silent migrations. Schema changes ship behind generators with upgrade notes; doctor surfaces missing schema before per-event branching is introduced.

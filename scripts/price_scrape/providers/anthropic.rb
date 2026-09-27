@@ -25,6 +25,7 @@ module LlmCostTracker
         FREE_SERVICE_CHARGE_PATTERNS = {
           "web_fetch_request" => /Web fetch usage has no additional charges/i
         }.freeze
+        REGIONAL_PREMIUM_NOTE = /10% premium over global endpoints.*?Haiku 4\.5, Opus 4\.5, and all future models/i
         EFFECTIVE_DATE_QUALIFIER =
           /\A(?<name>.+?)\s*(?<boundary>through|starting)\s+(?<date>[A-Z][a-z]+ \d{1,2}, \d{4})\z/
 
@@ -39,6 +40,9 @@ module LlmCostTracker
           deprecated = extract_deprecated_models(base_table)
           models = add_fast_mode_pricing(add_data_residency_pricing(add_batch_pricing(base)), doc)
           validate!(models)
+          text = doc.text.gsub(/\s+/, " ")
+          raise Error, "Anthropic regional endpoint premium note not found" unless text.match?(REGIONAL_PREMIUM_NOTE)
+
           Result.new(
             source_url: source_url,
             scraped_at: scraped_at,
@@ -257,7 +261,7 @@ module LlmCostTracker
 
           major = match[1].to_i
           minor = match[2].to_i
-          major > 4 || (major == 4 && minor >= 6)
+          major > 4 || (major == 4 && minor >= 5)
         end
 
         def normalize_model_id(display_name)

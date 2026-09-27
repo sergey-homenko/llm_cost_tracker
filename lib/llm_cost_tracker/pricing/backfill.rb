@@ -13,9 +13,12 @@ module LlmCostTracker
       RollupEvent = Data.define(:provider, :tracked_at, :pricing_snapshot, :total_cost)
 
       DEFAULT_BATCH_SIZE = 500
+      REGISTRY_SOURCES = %w[pricing_overrides prices_file bundled].freeze
+      RATE_FIELDS = %i[rate_amount rate_quantity cost cost_status price_key price_source price_source_version].freeze
+      private_constant :REGISTRY_SOURCES, :RATE_FIELDS
 
       class << self
-        def call(scope: default_scope, batch_size: DEFAULT_BATCH_SIZE)
+        def call(scope: default_scope, batch_size: DEFAULT_BATCH_SIZE, reprice: false)
           examined = 0
           recomputed = 0
 
@@ -24,7 +27,7 @@ module LlmCostTracker
             LlmCostTracker::Call.transaction do
               batch.each do |call|
                 examined += 1
-                calculation = recompute_for(call)
+                calculation = recompute_for(call, reprice: reprice)
                 next unless calculation
 
                 rollup_events << rollup_event_for(call, calculation)
@@ -39,27 +42,44 @@ module LlmCostTracker
         end
 
         def default_scope
-          calls = LlmCostTracker::Call.unknown_pricing
-          calls.where(usage_source: nil).or(calls.where.not(usage_source: Usage::Source::UNKNOWN))
+          with_known_usage(LlmCostTracker::Call.unknown_pricing)
+        end
+
+        def reprice_scope(range)
+          with_known_usage(LlmCostTracker::Call.where(tracked_at: range))
         end
 
         private
 
-        def recompute_for(call)
+        def with_known_usage(calls)
+          calls.where(usage_source: nil).or(calls.where.not(usage_source: Usage::Source::UNKNOWN))
+        end
+
+        def recompute_for(call, reprice:)
           calculation = Pricing::Calculation.for(
             provider: call.provider,
             model: call.model,
             tokens: token_usage_from(call),
-            line_items: service_line_items_from(call),
-            pricing_mode: call.pricing_mode,
-            usage_source: call.usage_source
+            line_items: line_items_from(call, reprice: reprice),
+            pricing_mode: call.pricing_mode || bedrock_pricing_mode(call),
+            usage_source: call.usage_source,
+            at: call.tracked_at
           )
-          return unless calculation.token_cost
+          billed = calculation.priced_line_items.any? { |item| item.kind == "billed_request" }
+          return unless calculation.token_cost || billed
           return if [calculation.cost.total, calculation.cost_status] == [call.total_cost, call.cost_status]
+          return calculation if reprice
 
           rates = calculation.priced_line_items.to_h { |item| [dimension_key(item), item.rate_amount] }
           recorded = call.line_items.select { |record| record.unit == "token" && record.rate_amount }
           calculation if recorded.all? { |record| record.rate_amount == rates[dimension_key(record)] }
+        end
+
+        # 0.14.1 recorded Bedrock calls unpriced and without the regional-profile mode.
+        def bedrock_pricing_mode(call)
+          return unless call.provider == "bedrock"
+
+          Providers::Anthropic::UsageExtractor.pricing_mode(request: { model: call.model }, usage: {})
         end
 
         def persist!(call, calculation)
@@ -117,10 +137,18 @@ module LlmCostTracker
           Usage::TokenUsage.build(**call.attributes.transform_keys(&:to_sym).slice(*Usage::TokenUsage.members))
         end
 
-        def service_line_items_from(call)
-          call.line_items.reject { |record| record.unit == "token" }.sort_by(&:position).map do |record|
-            Charges::LineItem.build(record.attributes.transform_keys(&:to_sym).slice(*Charges::LineItem.members))
+        def line_items_from(call, reprice:)
+          call.line_items.sort_by(&:position).map do |record|
+            attributes = record.attributes.transform_keys(&:to_sym).slice(*Charges::LineItem.members)
+            Charges::LineItem.build(reprice ? at_current_rates(record, attributes) : attributes)
           end
+        end
+
+        # Amounts the provider billed or the caller passed keep their recorded cost; Calculation prices the rest again,
+        # a model_iteration line from the model and tokens in its details.
+        def at_current_rates(record, attributes)
+          registry = REGISTRY_SOURCES.include?(record.price_source) || record.kind == "model_iteration"
+          registry ? attributes.except(*RATE_FIELDS) : attributes
         end
       end
     end

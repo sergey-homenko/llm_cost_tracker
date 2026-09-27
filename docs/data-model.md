@@ -16,7 +16,7 @@ Optional tables — only created when you opt in:
 
 | Table | Role | Created by |
 | --- | --- | --- |
-| `llm_cost_tracker_call_rollups` | Running daily and monthly cost totals. Budget checks take the greater of these and the live sum: a guard against drift, not a speed-up. | `bin/rails generate llm_cost_tracker:call_rollups` (requires `config.budgets.totals_source = :cache`) |
+| `llm_cost_tracker_call_rollups` | Running daily and monthly cost totals. Monthly budget checks read the finished days from here and only today's calls from the ledger. | `bin/rails generate llm_cost_tracker:call_rollups` (requires `config.budgets.totals_source = :cache`) |
 | `llm_cost_tracker_ingestion_inbox_entries` | Write-ahead inbox rows the ingestor drains into the ledger. | `bin/rails generate llm_cost_tracker:async_ingestion` (requires `config.ingestion.mode = :async`) |
 | `llm_cost_tracker_ingestion_leases` | Shared lease rows for the ingestion worker. | same migration as the inbox |
 
@@ -79,12 +79,12 @@ One row per priced component on a call. Tokens and tool charges live here in the
 | --- | --- | --- |
 | `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
 | `position` | smallint, default `0` | Stable order within a call |
-| `kind` | string, not null | `text_token`, `audio_token`, `image_token`, `web_search_request`, `web_search_preview_request_reasoning`, `web_search_preview_request_non_reasoning`, `web_fetch_request`, `grounding_request`, `image_generation_call`, `container_session`, `file_search_call`, `transcription_minute`, `text_to_speech_character`, `code_execution_hour`, `billed_request` (the provider's billed total for the call, e.g. OpenRouter's `usage.cost`) |
+| `kind` | string, not null | `text_token`, `audio_token`, `image_token`, `video_token` (Gemini embedding video tokens, counted in `input_tokens`), `web_search_request`, `web_search_preview_request_reasoning`, `web_search_preview_request_non_reasoning`, `web_fetch_request`, `grounding_request`, `maps_grounding_request`, `cache_storage_token_hour`, `image_generation_call`, `container_session`, `file_search_call`, `transcription_minute`, `text_to_speech_character`, `code_execution_hour`, `billed_request` (the provider's billed total for the call, e.g. OpenRouter's `usage.cost`, or `$0` for an unbilled Anthropic refusal), `model_iteration` (an Anthropic `usage.iterations` entry billed at another model's rates; `details` holds its model and token counts) |
 | `direction` | string, not null | `input`, `output`, `neither` |
-| `modality` | string, not null | `text`, `audio`, `image`, `none` |
+| `modality` | string, not null | `text`, `audio`, `image`, `video`, `none` |
 | `cache_state` | string, default `none` | `none`, `read`, `write_default`, `write_extended` |
 | `quantity` | decimal(30,10) | Token count or charge count |
-| `unit` | string, not null | `token`, `character`, `request`, `session`, `minute`, `hour` |
+| `unit` | string, not null | `token`, `character`, `request`, `session`, `minute`, `hour`, `token_hour` |
 | `rate_amount` | decimal(20,8) | Applied rate when priced |
 | `rate_quantity` | decimal(30,10), default `1` | Rate denominator (e.g. 1_000_000 for tokens) |
 | `cost` | decimal(20,8) | `quantity / rate_quantity * rate_amount` |
@@ -98,7 +98,7 @@ One row per priced component on a call. Tokens and tool charges live here in the
 | `details` | jsonb / json | Free-form provider audit blob |
 | `created_at` | datetime | Insert time |
 
-New billing dimensions are added by registering metadata in `Usage::Catalog`. A non-token dimension needs no migration; a token dimension also needs its `<key>_tokens` column on `llm_cost_tracker_calls`.
+New billing dimensions are added by registering metadata in `Usage::Catalog`. A non-token dimension needs no migration; a token dimension also needs its `<key>_tokens` column on `llm_cost_tracker_calls`, unless it names a `parent` dimension whose column already counts its tokens (as `audio_cache_read_input` does with `cache_read_input`).
 
 Indexes:
 
@@ -123,7 +123,7 @@ Indexes:
 
 ## `llm_cost_tracker_call_rollups`
 
-Maintained daily/monthly totals; budget checks take the greater of these and the live ledger sum.
+Maintained daily/monthly totals; monthly budget checks add the daily rows of the month's finished days to a live sum of today's calls.
 
 | Column | Type | Notes |
 | --- | --- | --- |

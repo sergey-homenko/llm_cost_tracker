@@ -63,9 +63,10 @@ module LlmCostTracker
       end
 
       def build_rows(prices)
+        today = Time.now.utc.to_date.iso8601
         rows = prices.map do |key, rates|
           provider, model = split_key(key.to_s)
-          Row.new(provider: provider, model: model, rates: rates)
+          Row.new(provider: provider, model: model, rates: Pricing::Matcher.prices_on(rates, today))
         end
         rows.sort_by { |row| [row.provider || "~", row.model] }
       end

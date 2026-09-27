@@ -8,9 +8,16 @@ module LlmCostTracker
       module UsageExtractor
         INPUT_DETAIL_KEYS = %i[input_tokens_details input_token_details prompt_tokens_details].freeze
         OUTPUT_DETAIL_KEYS = %i[output_tokens_details output_token_details completion_tokens_details].freeze
+        CACHED_MODALITY_DIMENSIONS = {
+          audio_tokens: "audio_cache_read_input", image_tokens: "image_cache_read_input"
+        }.freeze
+
         def self.token_usage(usage, model: nil)
           input_tokens = (usage[:input_tokens] || usage[:prompt_tokens]).to_i
           output_tokens = (usage[:output_tokens] || usage[:completion_tokens]).to_i
+          reasoning = hidden_output_tokens(usage)
+          # xAI reports reasoning outside output_tokens but counts it in total_tokens.
+          output_tokens += reasoning if usage[:total_tokens].to_i == input_tokens + output_tokens + reasoning
           cache_read = cache_read_input_tokens(usage)
           cache_write = cache_write_input_tokens(usage)
           uncached_input = [input_tokens - cache_read - cache_write, 0].max
@@ -35,8 +42,15 @@ module LlmCostTracker
             audio_output_tokens: audio_output,
             image_input_tokens: image_input,
             image_output_tokens: image_output,
-            hidden_output_tokens: hidden_output_tokens(usage)
+            hidden_output_tokens: reasoning
           )
+        end
+
+        def self.cache_read_line_items(usage)
+          CACHED_MODALITY_DIMENSIONS.filter_map do |detail_key, dimension_key|
+            quantity = detail(usage, INPUT_DETAIL_KEYS, :cached_tokens_details, detail_key)
+            Charges::LineItem.build(dimension_key: dimension_key, quantity: quantity) if quantity.positive?
+          end
         end
 
         def self.split_output(output_tokens:,

@@ -70,6 +70,18 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::UsageExtractor do
     it "falls back to request fields when usage is nil" do
       expect(described_class.pricing_mode(request: { speed: "fast", inference_geo: "us" }, usage: nil)).to eq("fast_data_residency")
     end
+
+    it "prices a Bedrock regional inference profile as data residency only where the model has that uplift" do
+      LlmCostTracker.configure do |c|
+        c.pricing.overrides = { "anthropic/claude-opus-4-1" => { input: 15.0, output: 75.0 } }
+      end
+      modes = %w[us.anthropic.claude-sonnet-4-6 eu.anthropic.claude-opus-4-6-v1 global.anthropic.claude-sonnet-4-6
+                 us.anthropic.claude-opus-4-1-20250805-v1:0 us-gov.anthropic.claude-sonnet-4-6].map do |model|
+        described_class.pricing_mode(request: { model: model }, usage: nil)
+      end
+
+      expect(modes).to eq(["data_residency", "data_residency", nil, nil, nil])
+    end
   end
 
   describe ".service_line_items" do

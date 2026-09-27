@@ -283,4 +283,82 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
       expect(result.usage_source).to eq("unknown")
     end
   end
+
+  describe "xAI and Mistral pricing tiers" do
+    before do
+      LlmCostTracker.configure do |config|
+        %w[api.x.ai us.api.x.ai].each { |host| config.capture.openai_compatible_providers[host] = "xai" }
+        %w[api.mistral.ai api.eu.mistral.ai].each { |host| config.capture.openai_compatible_providers[host] = "mistral" }
+        config.pricing.overrides = {
+          "xai/grok-4.7" => { input: 2.0, cache_read_input: 0.5, output: 6.0, data_residency_input: 2.2,
+                              data_residency_output: 6.6 },
+          "xai/grok-4.3" => { input: 1.25, output: 2.5 },
+          "mistral/mistral-medium-latest" => { input: 1.5, output: 7.5, data_residency_input: 1.65,
+                                               data_residency_output: 8.25 },
+          "mistral/mistral-small-latest" => { input: 0.15, output: 0.6 }
+        }
+      end
+    end
+
+    def chat_mode(host, model, **fields)
+      usage = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }.merge(fields.delete(:usage).to_h)
+      parser.parse(
+        request_url: URI::HTTPS.build(host: host, path: "/v1/chat/completions").to_s,
+        request_body: { model: model }.to_json,
+        response_status: 200,
+        response_body: { id: "chatcmpl-1", model: model, usage: usage, **fields }.to_json
+      ).pricing_mode
+    end
+
+    it "prices regional hosts at data residency rates only for models that have them" do
+      expect(chat_mode("us.api.x.ai", "grok-4.7")).to eq("data_residency")
+      expect(chat_mode("us.api.x.ai", "grok-4.3")).to be_nil
+      expect(chat_mode("api.x.ai", "grok-4.7")).to be_nil
+      expect(chat_mode("api.eu.mistral.ai", "mistral-medium-latest")).to eq("data_residency")
+      expect(chat_mode("api.eu.mistral.ai", "mistral-small-latest")).to be_nil
+    end
+
+    it "reads xAI's served tier from the response and Mistral's from usage.service_tier" do
+      expect(chat_mode("api.x.ai", "grok-4.7", service_tier: "priority")).to eq("priority")
+      expect(chat_mode("api.mistral.ai", "mistral-medium-latest", usage: { service_tier: "priority" })).to eq("priority")
+      expect(chat_mode("api.mistral.ai", "mistral-medium-latest", usage: { service_tier: "standard" })).to be_nil
+    end
+
+    it "prices xAI reasoning tokens at the output rate, since xAI counts them outside completion and output tokens" do
+      # docs.x.ai reference examples: chat 32 prompt (6 cached) + 9 completion + 94 reasoning = 135 total, Responses
+      # 32 (8 cached) + 9 + 110 = 151; reasoning bills at the completion price. grok-4.7 $2 / $0.50 cached / $6 per 1M:
+      # 26 x 2 + 6 x 0.5 + 103 x 6 = $0.000673 and 24 x 2 + 8 x 0.5 + 119 x 6 = $0.000766.
+      usages = {
+        "/v1/chat/completions" => { prompt_tokens: 32, completion_tokens: 9, total_tokens: 135,
+                                    prompt_tokens_details: { cached_tokens: 6 },
+                                    completion_tokens_details: { reasoning_tokens: 94 } },
+        "/v1/responses" => { input_tokens: 32, output_tokens: 9, total_tokens: 151,
+                             input_tokens_details: { cached_tokens: 8 }, output_tokens_details: { reasoning_tokens: 110 } }
+      }
+      costs = usages.map do |path, usage|
+        event = parser.parse(
+          request_url: URI::HTTPS.build(host: "api.x.ai", path: path).to_s,
+          request_body: { model: "grok-4.7" }.to_json,
+          response_status: 200,
+          response_body: { id: "xai-1", model: "grok-4.7", usage: usage }.to_json
+        )
+        LlmCostTracker::Pricing.cost_for(provider: "xai", model: "grok-4.7", tokens: event.token_usage).total
+      end
+
+      expect(costs).to eq(%w[0.000673 0.000766].map { |total| BigDecimal(total) })
+    end
+
+    it "reads Mistral's served tier from a stream's final usage chunk" do
+      usage = { "prompt_tokens" => 30, "completion_tokens" => 10, "total_tokens" => 40, "service_tier" => "priority" }
+      result = parser.parse_stream(
+        request_url: URI::HTTPS.build(host: "api.mistral.ai", path: "/v1/chat/completions").to_s,
+        request_body: { model: "mistral-medium-latest", stream: true, service_tier: "auto" }.to_json,
+        response_status: 200,
+        events: [{ event: nil, data: { "id" => "cmpl-1", "model" => "mistral-medium-latest" } },
+                 { event: nil, data: { "id" => "cmpl-1", "choices" => [], "usage" => usage } }]
+      )
+
+      expect(result).to have_attributes(provider: "mistral", pricing_mode: "priority", usage_source: "stream_final")
+    end
+  end
 end

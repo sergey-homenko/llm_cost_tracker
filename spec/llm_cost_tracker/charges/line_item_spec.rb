@@ -47,6 +47,16 @@ RSpec.describe LlmCostTracker::Charges::LineItem do
     end
   end
 
+  describe ".from_token_usage" do
+    it "builds one token line item per positive bucket" do
+      usage = LlmCostTracker::Usage::TokenUsage.build(input_tokens: 5, cache_read_input_tokens: 3)
+
+      expect(described_class.from_token_usage(usage).map { |item| [item.kind, item.cache_state, item.quantity] })
+        .to eq([["text_token", "none", 5], ["text_token", "read", 3]])
+      expect(described_class.from_token_usage(nil)).to eq([])
+    end
+  end
+
   describe "predicates" do
     let(:priced) do
       described_class.build(

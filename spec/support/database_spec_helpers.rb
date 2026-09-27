@@ -186,7 +186,11 @@ module LlmCostTrackerDatabaseSpecHelpers
                                                       where: "total_cost IS NULL"
     connection.add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
     connection.add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
-    connection.add_index :llm_cost_tracker_call_tags, %i[key value tracked_at]
+    if LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)
+      connection.add_index :llm_cost_tracker_call_tags, %i[key value tracked_at], length: { value: 191 }
+    else
+      connection.add_index :llm_cost_tracker_call_tags, %i[key value tracked_at]
+    end
     connection.add_index :llm_cost_tracker_call_rollups, %i[period period_start currency provider], unique: true
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
     connection.add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]

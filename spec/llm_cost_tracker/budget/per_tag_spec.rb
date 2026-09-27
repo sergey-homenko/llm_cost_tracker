@@ -114,6 +114,13 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       expect(described_class.spend(rule.key, rule.value, :monthly, time: Time.now.utc)).to eq(BigDecimal("6.0"))
     end
 
+    it "leaves a blank or nil tag value to the global budgets, as for a call without the tag" do
+      configure_per_tag({ monthly: 5 })
+
+      expect(described_class.rules_for({ "tenant_id" => "" }) + described_class.rules_for({ "tenant_id" => nil }))
+        .to eq([])
+    end
+
     it "blocks the next call pre-send once the window is spent" do
       configure_per_tag({ monthly: 5 }, global_behavior: :block_requests)
       spend(6.0, tags: { tenant_id: 42 })

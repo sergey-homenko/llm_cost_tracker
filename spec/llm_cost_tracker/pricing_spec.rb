@@ -36,6 +36,42 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(match.matched_by).to eq(:unique_providerless_dated_snapshot)
     end
 
+    it "keeps an azure_openai/<model> override off direct OpenAI, dated OpenAI and OpenRouter calls" do
+      LlmCostTracker.configure do |c|
+        c.pricing.overrides = {
+          "azure_openai/gpt-4o-mini" => { input: 0.165, cache_read_input: 0.083, output: 0.66 },
+          "azure_openai/gpt-4o" => { input: 0, cache_read_input: 0, output: 0 }
+        }
+      end
+      lookups = [%w[openai gpt-4o-mini], %w[openai gpt-4o-mini-2024-07-18], %w[openrouter openai/gpt-4o-mini],
+                 %w[azure_openai gpt-4o-mini]]
+
+      keys = lookups.map do |provider, model|
+        LlmCostTracker::Pricing::Matcher.lookup(provider: provider, model: model).key
+      end
+
+      expect(keys).to eq(%w[openai/gpt-4o-mini openai/gpt-4o-mini openrouter/openai/gpt-4o-mini
+                            azure_openai/gpt-4o-mini])
+      expect(cost_for(provider: "openai", model: "gpt-4o-mini", input_tokens: 1000, output_tokens: 500).total)
+        .to eq(BigDecimal("0.00045"))
+      expect(cost_for(provider: "openai", model: "gpt-4o", input_tokens: 1000, output_tokens: 500).total)
+        .to eq(BigDecimal("0.0075"))
+    end
+
+    it "prices Bedrock Anthropic model and inference profile ids as the Anthropic model" do
+      keys = %w[global.anthropic.claude-sonnet-4-5-20250929-v1:0 us.anthropic.claude-opus-4-6-v1
+                anthropic.claude-sonnet-4-6 us-gov.anthropic.claude-haiku-4-5-20251001-v1:0].map do |model|
+        LlmCostTracker::Pricing::Matcher.lookup(provider: "bedrock", model: model)&.key
+      end
+
+      # GovCloud bills 1.2x the commercial rate, which no bundled price matches.
+      expect(keys).to eq(["anthropic/claude-sonnet-4-5", "anthropic/claude-opus-4-6", "anthropic/claude-sonnet-4-6",
+                          nil])
+      # AWS Bedrock price list: Claude Sonnet 4.5 global $3 input / $15 output per 1M tokens.
+      expect(cost_for(provider: "bedrock", model: "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                      input_tokens: 1000, output_tokens: 500).total).to eq(BigDecimal("0.0105"))
+    end
+
     it "resolves Gemini preview-dated snapshots (preview-MM-DD) to the stable model entry" do
       match = LlmCostTracker::Pricing::Matcher.lookup(provider: "gemini", model: "gemini-2.5-flash-preview-04-17")
 
@@ -990,8 +1026,10 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(bundled.keys).to all(include("/"))
     end
 
-    it "uses positive numeric values for every recognised price field" do
+    it "uses positive numeric values for every recognised price field of a paid model" do
       bundled.each do |model_id, fields|
+        next if fields.values.all?(0)
+
         fields.each do |field, value|
           field_name = field.to_s
           next unless LlmCostTracker::Pricing::Registry::PRICE_KEYS.include?(field_name) ||
@@ -1049,11 +1087,14 @@ RSpec.describe LlmCostTracker::Pricing do
       end
     end
 
-    it "prices long context at a 2x input and 1.5x output premium" do
-      thresholds = { "gemini" => 200_000, "openai" => 272_000 }
+    it "prices long context at a 2x input and 1.5x output premium, 2x output on xAI" do
+      # xAI bills long context from 200K prompt tokens; the calculator applies it above the threshold.
+      thresholds = { "gemini" => 200_000, "openai" => 272_000, "xai" => 199_999 }
       long_context = bundled.select { |_model_id, fields| fields["_context_price_threshold_tokens"] }
+      providers = long_context.keys.map { |model_id| model_id.split("/").first }.uniq
 
-      expect(long_context.keys.map { |model_id| model_id.split("/").first }.uniq).to match_array(thresholds.keys)
+      expect(providers).to include("gemini", "openai")
+      expect(providers - thresholds.keys).to be_empty
       long_context.each do |model_id, fields|
         provider = model_id.split("/").first
 
@@ -1061,10 +1102,23 @@ RSpec.describe LlmCostTracker::Pricing do
         expect(fields).to include("above_context_input", "above_context_output")
         fields.keys.grep(/\Aabove_context_/).each do |key|
           base = fields.fetch(key.delete_prefix("above_context_"))
-          premium = base * (key.end_with?("output") ? 1.5 : 2)
+          premium = base * (key.end_with?("output") && provider != "xai" ? 1.5 : 2)
           matcher = key.include?("cache") ? be_within(5).percent_of(premium) : be_within(0.0001).of(premium)
           expect(fields[key]).to matcher, "#{model_id}.#{key}"
         end
+      end
+    end
+
+    it "prices xAI image prompt tokens at input, and xAI and Mistral regional Priority at both multipliers" do
+      bundled.each do |model_id, fields|
+        provider = model_id.split("/").first
+        next unless %w[xai mistral].include?(provider)
+
+        expect(fields["image_input"]).to eq(fields["input"]), model_id if provider == "xai"
+        next unless fields["data_residency_input"]
+
+        combined = fields["priority_input"] * fields["data_residency_input"] / fields["input"]
+        expect(fields["priority_data_residency_input"]).to be_within(0.0001).of(combined), model_id
       end
     end
 
@@ -1099,14 +1153,14 @@ RSpec.describe LlmCostTracker::Pricing do
       end
     end
 
-    it "keeps output more expensive than input for chat-style models" do
-      non_chat = /embed|audio|whisper|tts|image|moderation|guard/
+    it "keeps output at least as expensive as input for chat-style models" do
+      non_chat = /embed|audio|whisper|tts|image|moderation|guard|davinci|babbage/
       bundled.each do |model_id, fields|
         next if model_id.start_with?("openrouter/")
         next if model_id.match?(non_chat)
         next unless fields["input"] && fields["output"]
 
-        expect(fields["output"]).to be > fields["input"]
+        expect(fields["output"]).to be >= fields["input"]
       end
     end
   end

@@ -24,7 +24,9 @@ RSpec.describe LlmCostTracker::Dashboard::SetupState do
 
     it "reports the calls table being missing" do
       described_class.reset!
-      ActiveRecord::Base.connection.drop_table(:llm_cost_tracker_calls, force: :cascade)
+      %i[llm_cost_tracker_call_tags llm_cost_tracker_call_line_items llm_cost_tracker_calls].each do |table|
+        ActiveRecord::Base.connection.drop_table(table, force: :cascade)
+      end
       LlmCostTracker::Call.reset_column_information
 
       drift = described_class.current
