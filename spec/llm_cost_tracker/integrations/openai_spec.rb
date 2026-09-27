@@ -89,7 +89,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         expect(events.first).to include(provider: "openai", model: "o3-pro", provider_response_id: "resp_bg",
                                         usage_source: "sdk_response", cost_status: "complete",
                                         event_id: Digest::UUID.uuid_v5(Digest::UUID::OID_NAMESPACE, "openai/resp_bg"))
-        # o3-pro: $20 input and $80 output per 1M tokens.
         expect(BigDecimal(events.first.dig(:cost, :total).to_s)).to eq(BigDecimal("0.06"))
 
         allow(LlmCostTracker::Call).to receive(:already_recorded?)
@@ -112,7 +111,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       capture_sdk_events do |events|
         client.responses.retrieve("resp_ws")
 
-        # Web search preview on a non-reasoning model: $25 per 1k calls.
         fee = events.first[:line_items].find { |item| item[:kind] == "web_search_preview_request_non_reasoning" }
         expect(fee).to include(provider_item_id: "ws_1", cost: "0.025")
       end
@@ -319,7 +317,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
 
     it "stores no cost for a diarized transcription billed by duration, since the model has only token rates" do
-      # The Create transcription API reference's diarization example reports duration usage.
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
         status: 200,
         body: { task: "transcribe", duration: 27.4, text: "hi", segments: [],
@@ -1120,7 +1117,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       LlmCostTracker.configure do |config|
         config.capture.openai_compatible_providers["us.api.x.ai"] = "xai"
         config.capture.openai_compatible_providers["api.mistral.ai"] = "mistral"
-        # xAI: US endpoint +10%; Mistral: Priority Tier 1.75x standard.
         config.pricing.overrides = {
           "xai/grok-4.7" => { input: 2.0, output: 6.0, data_residency_input: 2.2, data_residency_output: 6.6 },
           "mistral/mistral-medium-latest" => { input: 1.5, output: 7.5, priority_input: 2.625, priority_output: 13.125 }
@@ -1200,7 +1196,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
 
     it "applies the 10% regional uplift to gpt-image-2 generated through a regional host" do
-      # Scraped gpt-image-2 rates: text input $5, image output $30 per 1M tokens, data residency input x1.1.
       configure_prices("openai/gpt-image-2" => { "input" => 5.0, "image_input" => 8.0, "image_output" => 30.0,
                                                  "data_residency_input" => 5.5 })
       WebMock.stub_request(:post, "https://us.api.openai.com/v1/images/generations").to_return(
@@ -1241,7 +1236,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       capture_sdk_events do |events|
         dr_client.audio.transcriptions.create(file: audio_io, model: "gpt-transcribe")
 
-        # $0.0045 per minute, plus 10% on regional endpoints for models released on or after March 5, 2026.
         expect(events.first).to include(pricing_mode: "data_residency", cost_status: "complete")
         expect(BigDecimal(events.first.dig(:cost, :total).to_s)).to eq(BigDecimal("0.0103125"))
       end

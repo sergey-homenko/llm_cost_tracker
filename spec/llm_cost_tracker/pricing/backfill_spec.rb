@@ -201,7 +201,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
     travel_to(Time.utc(2027, 2, 1)) { described_class.call }
 
-    # Google: Gemini 3.8 Flash input $0.75 / 1M through December 31, 2026, $1.50 from January 1, 2027.
     expect(call.reload.total_cost).to eq(0.00075)
   end
 
@@ -221,7 +220,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     expect(described_class.call.recomputed).to eq(0)
     result = described_class.call(scope: described_class.reprice_scope(Time.utc(2026, 9, 21)..), reprice: true)
 
-    # OpenAI: gpt-4o-mini $0.15 input / $0.60 output per 1M tokens.
     repriced = LlmCostTracker::Call.order(:tracked_at).last
     expect(result.to_h).to eq(examined: 1, recomputed: 1, still_unknown: 0)
     expect(LlmCostTracker::Call.order(:tracked_at).pluck(:total_cost)).to eq([0.000495, 0.00045])
@@ -247,7 +245,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
     result = described_class.call(scope: described_class.reprice_scope(1.hour.ago..), reprice: true)
 
-    # Google: Gemini 2.5 Flash $0.30 input / $2.50 output per 1M tokens, Maps grounding $25 / 1,000 grounded prompts.
     expect(result.recomputed).to eq(1)
     expect([call.reload.total_cost, call.cost_status]).to eq([0.37378, "complete"])
     expect(call.line_items.where.not(unit: "token").order(:position).pluck(:kind, :cost))
@@ -271,8 +268,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
     described_class.call(scope: described_class.reprice_scope(1.hour.ago..), reprice: true)
 
-    # Anthropic advisor tool example: Sonnet 5 executor $0.0089124 ($2 / $0.20 cache read / $10 per MTok)
-    # plus Opus 5 advisor 823 x $5 + 1,612 x $25 per MTok = $0.044415.
     expect(call.line_items.find_by(kind: "model_iteration").cost).to eq(0.044415)
     expect([call.reload.total_cost, call.cost_status]).to eq([0.0533274, "complete"])
   end
@@ -286,7 +281,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
     described_class.call
 
-    # Anthropic: Sonnet 4.5 $3 / $15 per MTok; Bedrock regional endpoints add 10% over global ones.
     expect([regional.reload.total_cost, global.reload.total_cost]).to eq([4.95, 4.5])
   end
 
@@ -311,7 +305,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
                               iterations: [{ type: "advisor_message", model: "claude-opus-6",
                                              input_tokens: 1_500, output_tokens: 1_000 }]
                             })
-    # Anthropic: Sonnet 4.6 $3 / $15 per MTok; advisor-tool#usage-and-billing bills the advisor at its own rates.
     expect([call.total_cost, call.cost_status]).to eq([0.0105, "partial"])
 
     price_claude_opus6
@@ -334,8 +327,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     price_claude_opus6
 
     expect(described_class.call.to_h).to eq(examined: 1, recomputed: 1, still_unknown: 0)
-    # refusals-and-fallback#billing-and-rate-limits: the attempt that produced output is billed (5,000 x $5 + 700 x
-    # $25); Opus 5's general_harms refusal before any output is not.
     expect([call.reload.total_cost, call.cost_status]).to eq([0.0425, "complete"])
   end
 
@@ -353,7 +344,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     LlmCostTracker::Pricing::Registry.reset!
 
     expect(described_class.call.to_h).to eq(examined: 1, recomputed: 1, still_unknown: 0)
-    # The advisor's 40,000 cache reads at $0.50 per MTok add $0.02.
     expect([call.reload.total_cost, call.cost_status]).to eq([0.063, "complete"])
   end
 
@@ -362,7 +352,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     call = record_anthropic(model: "claude-opus-6", usage: {
                               input_tokens: 10_000, output_tokens: 1_000, server_tool_use: { web_search_requests: 2 }
                             })
-    # Anthropic: web search $10 per 1,000 searches, on top of the $5 / $25 per MTok override.
     expect([call.total_cost, call.cost_status]).to eq([0.095, "complete"])
     LlmCostTracker.configuration.pricing.overrides = {}
     LlmCostTracker::Pricing::Registry.reset!
@@ -392,7 +381,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
     result = described_class.call(scope: described_class.reprice_scope(1.hour.ago..), reprice: true)
 
-    # Anthropic: Sonnet 4.6 $3 / $15 per MTok; the advisor keeps its recorded 1,500 x $5 + 1,000 x $25 per MTok.
     expect(result.to_h).to eq(examined: 1, recomputed: 1, still_unknown: 0)
     expect([call.reload.total_cost, call.cost_status]).to eq([0.043, "complete"])
     expect(LlmCostTracker::CallTag.pluck(:total_cost)).to eq([0.043])

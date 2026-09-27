@@ -34,7 +34,6 @@ module LlmCostTracker
             Event.build(
               provider: provider,
               provider_response_id: response["id"],
-              # Mistral reports the served tier only in usage.service_tier.
               pricing_mode: pricing_mode || combined_pricing_mode(
                 provider: provider,
                 host: host,
@@ -48,13 +47,11 @@ module LlmCostTracker
             )
           end
 
-          # A background response is created without usage, so it is recorded once, when a poll sees it finished.
           def retrieved_event(response:, provider:, host:, usage_source:)
             finished = !%w[queued in_progress].include?(response["status"].to_s)
             return nil unless finished && response["background"] && response["usage"]
             return nil if Call.already_recorded?(provider: provider, provider_response_id: response["id"])
 
-            # The response echoes the request's tools, which decide the web search rate.
             event_from_response(
               response: response,
               request: { "tools" => response["tools"] },
@@ -96,7 +93,6 @@ module LlmCostTracker
           usage = detect_stream_usage(events)
           context = stream_capture_context(events: events, request: request, request_url: request_url, usage: usage)
 
-          # A poll or resumed stream records a finished background response, tool calls included, under its id.
           background = find_event_value(events) { |data| data.dig("response", "background") }
           if usage
             event = build_known_stream_usage(usage: usage, **context)
@@ -117,7 +113,6 @@ module LlmCostTracker
 
         private
 
-        # Speech returns raw audio with no usage; tts-1 bills the request's input characters.
         def speech_event(request_url, request)
           uri = parsed_uri(request_url)
           return nil unless uri && uri.path.to_s.end_with?("/audio/speech")
@@ -131,7 +126,6 @@ module LlmCostTracker
           )
         end
 
-        # Transcripts in text, srt or vtt, whisper-1 translations and Azure transcriptions carry no usage.
         def transcription_without_usage_event(request_url, request)
           uri = parsed_uri(request_url)
           return nil unless uri && uri.path.to_s.match?(%r{/audio/(?:transcriptions|translations)\z})

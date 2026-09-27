@@ -100,7 +100,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       capture_sdk_events do |events|
         client.messages.create(**request_params, model: "claude-sonnet-5")
 
-        # advisor-tool#usage-and-billing example: Sonnet 5 executor $0.0089124 + Opus 5 advisor $0.044415.
         expect(events.first).to include(model: "claude-sonnet-5", input_tokens: 1_760, output_tokens: 531,
                                         cost_status: "complete")
         expect(BigDecimal(events.first[:cost][:total])).to eq(BigDecimal("0.0533274"))
@@ -115,8 +114,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         client.beta.messages.create(**request_params, model: "claude-fable-5",
                                                       betas: ["server-side-fallback-2026-07-01"])
 
-        # refusals-and-fallback#what-the-response-contains example with a bio trigger:
-        # Fable 5 535 x $10 = $0.00535 plus Opus 4.8 412 x $5 + 264 x $25 = $0.00866.
         expect(events.first).to include(model: "claude-opus-4-8", cost_status: "complete")
         expect(BigDecimal(events.first[:cost][:total])).to eq(BigDecimal("0.01401"))
       end
@@ -129,7 +126,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       capture_sdk_events do |events|
         client.messages.create(**request_params, model: "claude-fable-5")
 
-        # refusals-and-fallback#how-refusals-are-billed: a cyber refusal before any output is not billed.
         expect(events.first).to include(input_tokens: 412, cost_status: "free")
         expect(BigDecimal(events.first[:cost][:total])).to eq(0)
       end
@@ -209,7 +205,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       capture_sdk_events do |events|
         client.messages.batches.results_streaming("batch_ref").each { |_| }
 
-        # refusals-and-fallback#refusals-in-message-batches; general_harms refusals before any output are not billed.
         expect(events.first).to include(input_tokens: 5_000, cost_status: "free")
       end
     end
@@ -352,7 +347,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         client.beta.messages.stream(**request_params, model: "claude-fable-5-1",
                                                       betas: ["server-side-fallback-2026-07-01"]).each { |_| nil }
 
-        # refusals-and-fallback#streaming: Fable 5.1 5,000 x $10 + 1,200 x $50 plus Opus 4.8 5,200 x $5 + 900 x $25.
         expect(events.first).to include(model: "claude-opus-4-8", cost_status: "complete")
         expect(BigDecimal(events.first[:cost][:total])).to eq(BigDecimal("0.1585"))
       end
@@ -360,9 +354,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
   end
 
   describe "client-side refusal fallback middleware" do
-    # refusals-and-fallback#how-refusals-are-billed: the refusal that triggered a fallback is billed in addition to
-    # the fallback request when it arrived mid-stream or its category is billed.
-    # Pricing: Fable 5.1 $10 in / $50 out, Opus 4.8 $5 in / $25 out per MTok.
     let(:client) do
       Anthropic::Client.new(api_key: "test-key", max_retries: 0, middleware: [
                               Anthropic::BetaRefusalFallbackMiddleware.new([{ model: "claude-opus-4-8" }])
@@ -416,7 +407,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       capture_sdk_events do |events|
         client.beta.messages.create(**params)
 
-        # Fable 5.1 bio refusal 5,000 x $10 = $0.05, plus Opus 4.8 5,000 x $5 + 400 x $25 = $0.035.
         expect(events.map { |event| event[:model] }).to eq(%w[claude-fable-5-1 claude-opus-4-8])
         expect(total(events)).to eq(BigDecimal("0.085"))
       end
@@ -429,7 +419,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       capture_sdk_events do |events|
         client.beta.messages.create(**params)
 
-        # Fable 5.1 bio refusal $0.05; Opus 4.8's general_harms refusal before any output is not billed.
         expect(events.map { |event| event[:cost_status] }).to eq(%w[complete free])
         expect(total(events)).to eq(BigDecimal("0.05"))
       end
@@ -483,7 +472,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       capture_sdk_events do |events|
         client.beta.messages.stream(**params).each { |_| nil }
 
-        # Fable 5.1 cyber refusal after 300 output tokens: 5,000 x $10 + 300 x $50 = $0.065.
         expect(events.size).to eq(1)
         expect(events.first).to include(model: "claude-opus-4-8", cost_status: "complete")
         expect(total(events)).to eq(BigDecimal("0.065"))
@@ -497,7 +485,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       capture_sdk_events do |events|
         client.beta.messages.stream(**params).each { |_| nil }
 
-        # Fable 5.1 tokens $0.065 are a model_iteration line on the Opus 4.8 call ($0.035); 3 searches x $0.01 = $0.03.
         expect(events.map { |event| [event[:model], event[:cost][:total]] })
           .to eq([%w[claude-fable-5-1 0.03], %w[claude-opus-4-8 0.1]])
       end

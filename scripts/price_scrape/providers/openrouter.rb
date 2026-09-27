@@ -73,8 +73,6 @@ module LlmCostTracker
           [model_id, fields]
         end
 
-        # A time-of-day price moves the base rate with the clock, so keep its peak window instead
-        # of whichever window the scrape happened to run in.
         def peak_pricing(pricing)
           windows = Array(pricing["overrides"]).select do |window|
             window.is_a?(Hash) && (window.key?("utc_start") || window.key?("utc_days"))

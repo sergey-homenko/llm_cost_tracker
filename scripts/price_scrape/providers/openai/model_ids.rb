@@ -61,7 +61,6 @@ module LlmCostTracker
           "gpt-4o-transcribe-diarize" => "gpt-4o-transcribe-diarize"
         }.freeze
 
-        # Ids the API returns that the pricing page lists under another name (see each model's page).
         MODEL_ID_ALIASES = { "gpt-4" => "gpt-4-0613", "omni-moderation-2024-09-26" => "omni-moderation-latest" }.freeze
       end
     end

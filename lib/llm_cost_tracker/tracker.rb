@@ -42,7 +42,6 @@ module LlmCostTracker
         begin
           signal_unpriced(event, calculation)
         ensure
-          # A call priced apart from an unpriced advisor or fallback model still counts against its budgets.
           Budget.check!(event, behavior_override: behavior_override)
         end
 
@@ -57,7 +56,6 @@ module LlmCostTracker
 
       private
 
-      # A model_iteration line is priced at another model's rates, so it does not price the call's own model.
       def signal_unpriced(event, calculation)
         iterations, lines = calculation.priced_line_items.partition { |line| line.kind == "model_iteration" }
         models = iterations.select(&:unpriced?).map { |line| line.details[:model] }

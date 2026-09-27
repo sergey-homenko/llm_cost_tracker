@@ -56,8 +56,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         "batch_input" => 0.5,
         "batch_output" => 2.5
       )
-      # AWS Bedrock price list, Claude Haiku 4.5 regional endpoints: $1.10 input, $5.50 output, $0.11 cache read,
-      # $1.375 5m and $2.20 1h cache writes, $0.55 / $2.75 batch: the 10% premium from Claude 4.5 on.
       expect(result.models.fetch("claude-haiku-4-5")).to include(
         "data_residency_input" => 1.1, "data_residency_output" => 5.5, "data_residency_cache_read_input" => 0.11,
         "data_residency_cache_write_input" => 1.375, "data_residency_cache_write_extended_input" => 2.2,

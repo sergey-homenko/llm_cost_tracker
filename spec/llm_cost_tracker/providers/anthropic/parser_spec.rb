@@ -261,10 +261,7 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
       expect(service_lines.map(&:cost_status).uniq).to eq([LlmCostTracker::Charges::CostStatus::UNKNOWN])
     end
 
-    # Rates: https://platform.claude.com/docs/en/about-claude/pricing ($/MTok): Fable 5.1 10/50,
-    # Opus 5 and Opus 4.8 5/25, Sonnet 5 2/10 with $0.20 cache reads.
     it "prices threshold compaction iterations, which the top-level usage leaves out" do
-      # compaction-threshold#understanding-usage: 203,000 x $5 + 4,500 x $25 = $1.1275
       result = parse_body("claude-opus-5", model: "claude-opus-5", usage: {
                             input_tokens: 23_000, output_tokens: 1_000,
                             iterations: [{ type: "compaction", input_tokens: 180_000, output_tokens: 3_500 },
@@ -276,7 +273,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "prices an on-demand compaction whose top-level usage is zero instead of recording it free" do
-      # compaction-on-demand#count-compaction-usage: 150,000 x $2 + 2,500 x $10 = $0.325
       result = parse_body("claude-sonnet-5", model: "claude-sonnet-5", stop_reason: "compaction", usage: {
                             input_tokens: 0, output_tokens: 0,
                             iterations: [{ type: "compaction", input_tokens: 150_000, output_tokens: 2_500 }]
@@ -287,8 +283,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "prices advisor iterations at the advisor model's rates on top of the executor's usage" do
-      # advisor-tool#usage-and-billing example: Sonnet 5 executor 1,760 x $2 + 412 x $0.20 + 531 x $10 = $0.0089124,
-      # Opus 5 advisor 823 x $5 + 1,612 x $25 = $0.044415.
       result = parse_body("claude-sonnet-5", model: "claude-sonnet-5", usage: {
                             input_tokens: 1_760, cache_read_input_tokens: 412, cache_creation_input_tokens: 0,
                             output_tokens: 531,
@@ -309,8 +303,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "bills a server-side fallback attempt declined mid-output at the declining model's rates" do
-      # refusals-and-fallback#billing-and-rate-limits: Fable 5.1 5,000 x $10 + 1,200 x $50 = $0.11,
-      # Opus 4.8 5,200 x $5 + 900 x $25 = $0.0485.
       result = parse_body("claude-fable-5-1", model: "claude-opus-4-8", usage: {
                             input_tokens: 5_200, output_tokens: 900,
                             iterations: [
@@ -324,8 +316,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
       expect(priced(result).cost.total).to eq(BigDecimal("0.1585"))
     end
 
-    # refusals-and-fallback#what-the-response-contains example: Opus 4.8 412 x $5 + 264 x $25 = $0.00866, plus
-    # Fable 5's 535 x $10 = $0.00535 only when its trigger category is billed before any output.
     { "cyber" => "0.00866", "bio" => "0.01401" }.each do |category, total|
       it "bills a fallback attempt declined before any output by its #{category} trigger category" do
         result = parse_body("claude-fable-5", model: "claude-opus-4-8", content: [
@@ -346,7 +336,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "keeps a call complete when an earlier fallback attempt is billed and the last one refuses unbilled" do
-      # Fable 5.1 declined mid-output (5,000 x $10 + 1,200 x $50 = $0.11); Opus 5's general_harms refusal is not billed.
       result = parse_body("claude-fable-5-1", model: "claude-opus-5", content: [], stop_reason: "refusal",
                                               stop_details: { type: "refusal", category: "general_harms" }, usage: {
                                                 input_tokens: 5_200, output_tokens: 0,
@@ -363,7 +352,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "keeps a call partial when a billed fallback attempt's model has no rates and the last one refuses unbilled" do
-      # refusals-and-fallback#how-refusals-are-billed: the bio decline is billed, Opus 5's cyber refusal is not.
       result = parse_body("claude-opus-6", model: "claude-opus-5", stop_reason: "refusal", content: [
                             { type: "fallback", from: { model: "claude-opus-6" }, to: { model: "claude-opus-5" },
                               trigger: { type: "refusal", category: "bio" } }
@@ -381,8 +369,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "prices a fast executor's advisor at standard speed when the advisor model has no fast mode" do
-      # fast-mode#supported-models: Opus 5.5, Opus 5 and Opus 4.8 only. Opus 5 fast 2,000 x $10 + 300 x $50 = $0.035;
-      # advisor-tool#usage-and-billing, Fable 5.1 standard rates: 1,500 x $10 + 1,000 x $50 = $0.065.
       result = parse_body("claude-opus-5", model: "claude-opus-5", usage: {
                             input_tokens: 2_000, output_tokens: 300, speed: "fast",
                             iterations: [
@@ -397,8 +383,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "bills a refused on-demand compaction that produced summary output" do
-      # compaction-on-demand#when-no-summary-comes-back: a refusal is still billed; the output was already produced.
-      # Opus 5: 150,000 x $5 + 2,500 x $25 = $0.8125.
       result = parse_body("claude-opus-5", model: "claude-opus-5", content: [], stop_reason: "refusal",
                                            stop_details: { type: "refusal", category: "cyber" }, usage: {
                                              input_tokens: 0, output_tokens: 0,
@@ -411,7 +395,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "records a pre-output refusal in an unbilled category at $0 and keeps its token counts" do
-      # refusals-and-fallback#how-refusals-are-billed: cyber refusals before any output are not billed.
       result = parse_body("claude-fable-5-1", model: "claude-fable-5-1", content: [], stop_reason: "refusal",
                                               stop_details: { type: "refusal", category: "cyber" },
                                               usage: { input_tokens: 412, output_tokens: 0 })
@@ -422,7 +405,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "bills a pre-output refusal in a billed category" do
-      # bio refusals before any output are billed at the model's rates: 412 x $10 = $0.00412
       result = parse_body("claude-fable-5-1", model: "claude-fable-5-1", content: [], stop_reason: "refusal",
                                               stop_details: { type: "refusal", category: "bio" },
                                               usage: { input_tokens: 412, output_tokens: 0 })
@@ -634,8 +616,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "records a mid-output fallback under the model that served it" do
-      # refusals-and-fallback#streaming: message_start names the declining model. Fable 5.1 5,000 x $10 + 1,200 x $50
-      # plus Opus 4.8 5,200 x $5 + 900 x $25 = $0.1585.
       events = [
         { event: "message_start", data: {
           "type" => "message_start",
@@ -664,7 +644,6 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
     end
 
     it "bills a streamed pre-output fallback attempt whose fallback block's category is billed" do
-      # refusals-and-fallback#streaming: Fable 5 535 x $10 = $0.00535 plus Opus 4.8 412 x $5 + 264 x $25 = $0.00866.
       events = [
         { event: "message_start", data: {
           "type" => "message_start",

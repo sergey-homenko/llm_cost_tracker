@@ -428,8 +428,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     end
 
     it "prices transcription rows as text tokens and keeps the audio input rate the page stopped listing" do
-      # The Transcription row's $2.50 / $10 are text-token rates; audio input is still $6 ($3 on mini), as on
-      # the page before March 2026 and on Azure's gpt-4o-transcribe-aud-inp-glbl meter.
       result = described_class.new.call(html: html_pages, scraped_at: "2026-09-26T00:00:00Z")
 
       expect(result.models.fetch("gpt-4o-transcribe")).to eq("input" => 2.5, "audio_input" => 6.0, "output" => 10.0)

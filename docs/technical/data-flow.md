@@ -51,7 +51,7 @@ When `config.ingestion.mode = :inline` (default):
 2. When `config.budgets.totals_source = :cache`, rollup rows are incremented after the ledger write; inside a joinable caller transaction, only once it commits, so an open transaction never holds the rollup row lock and a rollback skips the increment. Inside non-joinable transactions such as transactional test fixtures, the increment runs immediately in a savepoint. Increments retry on deadlock or lock timeout only outside a transaction; inside one, a failure is logged without failing the ledger write. Otherwise rollups are skipped entirely.
 3. On MySQL a deadlock rolls back the caller's whole transaction, which a savepoint cannot prevent, so inside a caller transaction the gem raises `LlmCostTracker::TransactionAbortedError` instead of letting the caller carry on outside the transaction it thinks is open.
 4. Each call tracked inside a caller transaction uses one savepoint, a PostgreSQL subtransaction; more than 64 in one transaction overflow PostgreSQL's per-backend subtransaction cache and slow the database, so capture large batch results outside a transaction.
-5. Budget reads aggregate live from `llm_cost_tracker_calls`. Under `config.budgets.totals_source = :cache` a monthly read sums only today's calls and adds the daily rollup rows of the month's earlier days, so it trusts the rollups for those days.
+5. Budget reads aggregate live from `llm_cost_tracker_calls`. Under `config.budgets.totals_source = :cache` a monthly read sums only today's calls and adds the daily rollup rows of the month's earlier days.
 
 When `config.ingestion.mode = :async`:
 

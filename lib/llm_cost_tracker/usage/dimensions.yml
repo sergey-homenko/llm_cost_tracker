@@ -61,7 +61,6 @@
   cache_state: none
   unit: token
 
-# Counted in the parent's token column; priced at the parent's rate when a model has no rate of its own.
 - key: audio_cache_read_input
   kind: audio_token
   direction: input

@@ -16,7 +16,6 @@ module LlmCostTracker
           input_tokens = (usage[:input_tokens] || usage[:prompt_tokens]).to_i
           output_tokens = (usage[:output_tokens] || usage[:completion_tokens]).to_i
           reasoning = hidden_output_tokens(usage)
-          # xAI reports reasoning outside output_tokens but counts it in total_tokens.
           output_tokens += reasoning if usage[:total_tokens].to_i == input_tokens + output_tokens + reasoning
           cache_read = cache_read_input_tokens(usage)
           cache_write = cache_write_input_tokens(usage)

@@ -31,7 +31,6 @@ RSpec.describe "Recording fetched results once" do
     end
   end
 
-  # A second process starts with an empty in-memory set of captured batches.
   def in_another_process
     LlmCostTracker::Integrations::Openai::BatchCapture.instance_variable_set(:@dedup, nil)
     yield
@@ -60,7 +59,6 @@ RSpec.describe "Recording fetched results once" do
     )
   end
 
-  # gpt-4o-mini Batch input: $0.075 per 1M tokens.
   let(:openai_batch) { [%w[chatcmpl_1 chatcmpl_2 chatcmpl_3], BigDecimal("0.225")] }
 
   it "stores each OpenAI batch result once when another process retrieves it before the inbox drains" do
@@ -96,7 +94,6 @@ RSpec.describe "Recording fetched results once" do
 
     2.times { anthropic.messages.batches.results_streaming("msgbatch_1").each { |_| nil } }
 
-    # Claude Haiku 4.5 Batch input: $0.50 per 1M tokens.
     expect(ledger).to eq([%w[msg_1], BigDecimal("0.5")])
   end
 
@@ -136,7 +133,6 @@ RSpec.describe "Recording fetched results once" do
     openai.responses.stream_raw(model: "o3-pro", input: "hi", background: true).each { |_| nil }
   end
 
-  # ruby-openai's connection: its response middleware, then the app's `f.use :llm_cost_tracker`.
   let(:ruby_openai) do
     Faraday.new(url: "https://api.openai.com") do |f|
       f.response :raise_error
@@ -145,7 +141,6 @@ RSpec.describe "Recording fetched results once" do
     end
   end
 
-  # o3-pro: $20 input and $80 output per 1M tokens, plus one web search at $10 per 1K calls.
   let(:background_ledger) { [%w[resp_bg], BigDecimal("0.07")] }
 
   %i[inline async].each do |mode|
@@ -176,7 +171,6 @@ RSpec.describe "Recording fetched results once" do
       drop_background_stream
       2.times { openai.responses.retrieve("resp_bg") }
 
-      # The dropped stream keeps its usage-unknown $0 row next to the priced one; the poll prices the search.
       expect(ledger).to eq([%w[resp_bg resp_bg], BigDecimal("0.07")])
     end
 
@@ -194,7 +188,6 @@ RSpec.describe "Recording fetched results once" do
       2.times { ruby_openai.get("/v1/responses/resp_bg") }
 
       expect(ledger).to eq(background_ledger)
-      # Like the SDK's responses.retrieve, a poll stores no latency.
       expect(LlmCostTracker::Call.pluck(:latency_ms)).to eq([nil])
     end
   end
@@ -234,7 +227,6 @@ RSpec.describe "Recording fetched results once" do
         LlmCostTracker::Ingestion::Worker.flush!(timeout: 5)
       end
 
-      # Gemini 3.1 Pro Preview, prompts up to 200k: $2.00 input and $12.00 output (thinking included) per 1M tokens.
       expect(ledger).to eq([%w[v1_bg], BigDecimal("0.16")])
       expect(notifications).to eq(1)
     end

@@ -74,15 +74,12 @@ module LlmCostTracker
           end
         end
 
-        # Raising here, inside the SDK's fallback loop, would abort the served call before it is recorded.
         def record_refused_hop(request, response)
           record_safely { record_message(response.parse, request: request.body, latency_ms: nil) }
         rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError
           nil
         end
 
-        # A streamed attempt that produced output has its tokens billed through the final usage.iterations,
-        # which leave out its server-tool fees, so only those are recorded here.
         def record_refused_stream_hop(hop)
           return unless active?
 
@@ -144,8 +141,6 @@ module LlmCostTracker
         end
       end
 
-      # The SDK's client-side fallback retries below the patched resources: a call returns only its last attempt,
-      # and a stream drops each retried refusal's category, so each refusal it retried is recorded as its own call.
       module FallbackMiddlewarePatch
         def call(req, nxt)
           return super if req.streaming? || !LlmCostTracker::Integrations::Anthropic.active?
@@ -159,7 +154,6 @@ module LlmCostTracker
 
         private
 
-        # A streamed refusal is retried once the next attempt is spliced on.
         def consume_hop(*args, **kwargs)
           refused = Thread.current[:llm_cost_tracker_refused_hop]
           Thread.current[:llm_cost_tracker_refused_hop] = nil

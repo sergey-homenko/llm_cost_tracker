@@ -39,8 +39,6 @@ module LlmCostTracker
 
         private
 
-        # Batch, Priority Tier and the regional endpoints (api.eu/us.mistral.ai) bill a documented multiple of standard;
-        # Mistral publishes no rate for Priority Tier on a regional endpoint, so it compounds the two.
         def with_tiers(models)
           tiers = @tier_factors.merge(
             "priority_data_residency" => @tier_factors.fetch("priority") * @tier_factors.fetch("data_residency")
@@ -56,8 +54,6 @@ module LlmCostTracker
           @listed.fetch(card, {})
         end
 
-        # LiteLLM points some API names at the pricing page rather than a model card. Those match the one
-        # card named like them, so ministral-8b-2512 and ministral-8b-latest take ministral-3-8b-25-12.
         def cards_by_stem(cards)
           cards.group_by { |card| card.sub(/-\d{2}-\d{2}\z/, "").split("-").grep_v(/\A\d+\z/).join("-") }
                .filter_map { |stem, group| [stem, group.first] if group.one? }.to_h

@@ -78,7 +78,6 @@ module LlmCostTracker
           calculation.priced_line_items.any? { |item| item.kind == "billed_request" && item.priced? }
         end
 
-        # 0.14.1 recorded Bedrock calls unpriced and without the regional-profile mode.
         def bedrock_pricing_mode(call)
           return unless call.provider == "bedrock"
 
@@ -147,8 +146,6 @@ module LlmCostTracker
           end
         end
 
-        # Amounts the provider billed or the caller passed keep their recorded cost; Calculation prices the rest again,
-        # a model_iteration line from the model and tokens in its details (its cost stays if that model has no rates).
         def at_current_rates(record, attributes)
           REGISTRY_SOURCES.include?(record.price_source) ? attributes.except(*RATE_FIELDS) : attributes
         end

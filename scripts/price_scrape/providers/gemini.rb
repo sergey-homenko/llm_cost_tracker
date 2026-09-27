@@ -67,8 +67,6 @@ module LlmCostTracker
           add_text_output_prices(models, text_priced_as)
         end
 
-        # An image model whose Output cell has only a per-image price says in prose that its text is priced
-        # "the same as" another model, so its text output takes that model's output rate in each tier.
         def add_text_output_prices(models, text_priced_as)
           text_priced_as.each do |model_id, source_id|
             source = models.fetch(source_id) do
@@ -85,8 +83,6 @@ module LlmCostTracker
           models
         end
 
-        # Google lists an announced price change in the same cell ("$0.75 through December 31, 2026.
-        # $1.50 starting January 1, 2027."); a future figure is kept under a <key>_from_<date> key.
         def dated_prices(tabs, notes, today)
           starting = tabs.text[SCHEDULED_FROM, 1]
           return section_prices(tabs, notes) unless starting

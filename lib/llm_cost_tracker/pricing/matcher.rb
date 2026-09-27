@@ -11,7 +11,6 @@ module LlmCostTracker
       Match = Data.define(:source, :key, :prices, :matched_by)
 
       CACHE_LIMIT = 2048
-      # GovCloud (us-gov.) profiles are billed at 1.2x, which no bundled rate matches, so they stay unmatched.
       BEDROCK_ANTHROPIC_ID = /\A(?:[a-z]+\.)?anthropic\.(claude-.+?)(?:-v\d+(?::\d+)?)?\z/
       private_constant :CACHE_LIMIT, :BEDROCK_ANTHROPIC_ID
 

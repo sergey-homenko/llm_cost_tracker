@@ -276,7 +276,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       )
 
       expect(scraped).to include("batch_input" => 0.075, "batch_output" => 0.3, "batch_cache_read_input" => 0.075)
-      # Groq: gpt-oss-120b $0.15 in / $0.60 out; batch 50% off, not stacked with the cache discount.
       expect(cost.total).to eq(BigDecimal("0.00105"))
     end
 

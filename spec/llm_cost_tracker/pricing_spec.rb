@@ -64,10 +64,8 @@ RSpec.describe LlmCostTracker::Pricing do
         LlmCostTracker::Pricing::Matcher.lookup(provider: "bedrock", model: model)&.key
       end
 
-      # GovCloud bills 1.2x the commercial rate, which no bundled price matches.
       expect(keys).to eq(["anthropic/claude-sonnet-4-5", "anthropic/claude-opus-4-6", "anthropic/claude-sonnet-4-6",
                           nil])
-      # AWS Bedrock price list: Claude Sonnet 4.5 global $3 input / $15 output per 1M tokens.
       expect(cost_for(provider: "bedrock", model: "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
                       input_tokens: 1000, output_tokens: 500).total).to eq(BigDecimal("0.0105"))
     end
@@ -1088,7 +1086,6 @@ RSpec.describe LlmCostTracker::Pricing do
     end
 
     it "prices long context at a 2x input and 1.5x output premium, 2x output on xAI" do
-      # xAI bills long context from 200K prompt tokens; the calculator applies it above the threshold.
       thresholds = { "gemini" => 200_000, "openai" => 272_000, "xai" => 199_999 }
       long_context = bundled.select { |_model_id, fields| fields["_context_price_threshold_tokens"] }
       providers = long_context.keys.map { |model_id| model_id.split("/").first }.uniq

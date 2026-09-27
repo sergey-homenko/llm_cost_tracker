@@ -14,7 +14,6 @@ module LlmCostTracker
 
         DOCS_URL = "https://docs.x.ai/developers"
         PRICING_SOURCE_URL = "#{DOCS_URL}/pricing.md".freeze
-        # Model pages list the aliases that share a model's batch discount; the pricing page names the models.
         BATCH_MODEL_URLS = %w[grok-4.3 grok-4.20-0309-reasoning grok-4.20-0309-non-reasoning grok-4.20-multi-agent-0309]
                            .to_h { |model| [model, "#{DOCS_URL}/models/#{model}.md"] }.freeze
         SOURCE_URLS = [source_url, PRICING_SOURCE_URL, *BATCH_MODEL_URLS.values].freeze
@@ -37,11 +36,8 @@ module LlmCostTracker
           regional_models = regional[/^\| Models \|.*\|(.*)\|$/, 1].to_s.scan(/`([^`]+)`/).flatten
           raise Error, "xai US regional models not found in its docs" if regional_models.empty?
 
-          # xAI bills the long-context rate from the threshold itself ("≥ 200k prompt tokens"); the gem
-          # applies it above the stored threshold.
           inclusive = pricing.scan(INCLUSIVE_THRESHOLD).flatten.map { |thousands| Integer(thousands) * 1000 }
           batch_prices(models, pricing).to_h do |id, fields|
-            # xAI bills image prompt tokens at the model's one listed input rate.
             images = fields.slice("input", "above_context_input")
             fields = fields.merge(images.transform_keys { |key| key.sub("input", "image_input") })
             fields = fields.merge(tier_prices(fields, "priority", priority))

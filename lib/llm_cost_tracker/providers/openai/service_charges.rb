@@ -27,7 +27,6 @@ module LlmCostTracker
           line_items_from_output(output_items, request: request, model: model)
         end
 
-        # Chat Completions searches only with the search models, which search on every call.
         def chat_completions_web_search_items(response, model: nil)
           return [] unless response["choices"] && chat_completions_search_model?(model)
 
@@ -91,7 +90,6 @@ module LlmCostTracker
           reasoning_model?(model) ? "web_search_preview_request_reasoning" : "web_search_preview_request_non_reasoning"
         end
 
-        # Hosted Shell bills its container like Code Interpreter; a local shell runs on the caller's machine.
         def item_dimension(item)
           return "container_session" if item["type"] == "shell_call" && shell_container_id(item)
 

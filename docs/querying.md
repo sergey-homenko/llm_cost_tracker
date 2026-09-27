@@ -58,7 +58,7 @@ Per-component cost rows hang off each call. Tokens and tool charges share the sa
 call = LlmCostTracker::Call.includes(:line_items).first
 call.line_items.map { |item| [item.kind, item.cost] }
 
-# Non-token rows: tool/runtime charges, billed_request (a provider-billed call total, e.g. OpenRouter usage.cost), and model_iteration (Anthropic advisor or declined fallback tokens priced at their own model)
+# Non-token rows: tool/runtime charges, billed_request (a provider-billed call total, e.g. OpenRouter usage.cost), and model_iteration (an Anthropic advisor or fallback attempt)
 call.line_items.where.not(unit: "token")
 ```
 

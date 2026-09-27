@@ -60,11 +60,6 @@ module LlmCostTracker
           "fast" => FAST_FIELDS
         }.freeze
         TIER_IMAGE_FIELDS = { STANDARD_FIELDS => IMAGE_FIELDS, BATCH_FIELDS => BATCH_IMAGE_FIELDS }.freeze
-        # The pricing page's Transcription rows list only the text-token rates since March 2026. Audio input
-        # is still billed at the audio rate the page listed until then
-        # (web.archive.org/web/20260318184343/https://developers.openai.com/api/docs/pricing) and Azure
-        # still meters (prices.azure.com: gpt-4o-transcribe-aud-inp-glbl, gpt-4o-mini-transcribe-aud-inp-glbl).
-        # The per-minute estimate the rows still show follows it, so a new estimate fails the scrape for review.
         TRANSCRIPTION_AUDIO_INPUT = {
           "gpt-4o-transcribe" => { rate: 6.0, per_minute: "0.006" },
           "gpt-4o-transcribe-diarize" => { rate: 6.0, per_minute: "0.006" },

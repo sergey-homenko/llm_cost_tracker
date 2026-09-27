@@ -18,7 +18,6 @@ module LlmCostTracker
           ae.api.openai.com
         ].freeze
 
-        # Regional endpoints of OpenAI, xAI, and Mistral, each billed at the model's data residency rates.
         DATA_RESIDENCY_HOST_PATTERN = /\A(?:[a-z]{2,3}\.api\.openai\.com|us\.api\.x\.ai|api\.(?:eu|us)\.mistral\.ai)\z/
 
         def self.data_residency?(host)

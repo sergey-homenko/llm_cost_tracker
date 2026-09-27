@@ -32,7 +32,6 @@ module LlmCostTracker
         stream_buffer = install_stream_tap(request_env, parser) if streaming
 
         context_tags, metadata = tag_snapshot(request_env) if parser
-        # Only a POST starts billed work; polling or deleting a background response or interaction is never blocked.
         if parser && request_env.method == :post
           Budget.enforce!(
             provider: parser.provider_for(request_url),
@@ -75,7 +74,6 @@ module LlmCostTracker
             request_url: request_url,
             request_body: request_body,
             response_env: response_env,
-            # A background response's poll: its round trip is not the response's latency.
             latency_ms: (LlmCostTracker::Timing.elapsed_ms(started_at) if request_env.method == :post),
             streaming: streaming,
             stream_buffer: stream_buffer,
@@ -174,7 +172,7 @@ module LlmCostTracker
       rescue *LlmCostTracker::CALLER_ERRORS
         raise
       rescue ActiveRecord::RecordNotUnique
-        # A background response or interaction is keyed by its id; a poll or its stream already stored or queued it.
+        nil
       rescue StandardError => e
         Logging.warn("Error processing response: #{e.class}: #{e.message}")
       end
@@ -261,7 +259,6 @@ module LlmCostTracker
         end
       end
 
-      # Clients such as ruby-openai encode multipart uploads before this middleware runs; only the model is needed.
       def multipart_model_body(request_env, parser)
         body = request_env.body
         multipart = request_env.request_headers["Content-Type"].to_s.start_with?("multipart/form-data")

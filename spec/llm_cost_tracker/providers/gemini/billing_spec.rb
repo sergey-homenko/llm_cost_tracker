@@ -4,7 +4,6 @@ require "spec_helper"
 require "bigdecimal"
 require "faraday"
 
-# Rates are the paid-tier prices on https://ai.google.dev/gemini-api/docs/pricing (fetched 2026-09-26).
 RSpec.describe "Gemini billing" do
   let(:host) { "https://generativelanguage.googleapis.com" }
   let(:events) { [] }

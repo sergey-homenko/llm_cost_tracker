@@ -82,7 +82,6 @@ module LlmCostTracker
             input_tokens = usage["input_tokens"] || usage["prompt_tokens"]
             output_tokens = usage["output_tokens"] || usage["completion_tokens"]
             if input_tokens.nil? && output_tokens.nil?
-              # A background response has no usage until it finishes; record_retrieved_response records it then.
               unless normalized["background"]
                 Logging.warn("OpenAI response #{normalized['id']} has no usage; not recorded")
               end

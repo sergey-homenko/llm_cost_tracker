@@ -47,7 +47,6 @@ module LlmCostTracker
 
         private
 
-        # A tier the provider documents as a multiple of its standard rates, e.g. "priority" at 2.0.
         def tier_prices(fields, tier, factor)
           fields.each_with_object({}) do |(field, value), prices|
             match = STANDARD_FIELD.match(field)

@@ -45,7 +45,6 @@ module LlmCostTracker
       def already_recorded?(provider:, provider_response_id:)
         return false if provider_response_id.to_s.empty?
 
-        # A stream that ended early leaves an unknown-usage row with the id; it must not block the priced copy.
         Ledger::Isolation.guard(self) do
           where(provider: provider, provider_response_id: provider_response_id)
             .where.not(usage_source: Usage::Source::UNKNOWN).exists?

@@ -55,8 +55,6 @@ module LlmCostTracker
       Pricing::Mode.tokenize(pricing_mode.to_s).include?("batch")
     end
 
-    # Every fetch of the same provider response gets one event_id, so the unique event_id index stores it once,
-    # even when a copy still waits in the async inbox.
     def keyed_by_response_id
       return self unless provider_response_id
 

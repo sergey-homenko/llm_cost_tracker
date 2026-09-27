@@ -94,7 +94,6 @@ module LlmCostTracker
             service_line_items: priced_line_items.reject(&:token?),
             total_cost: cost&.total
           )
-          # An advisor or fallback attempt priced for only some of its tokens leaves the call partial.
           @partial_iteration && status != Charges::CostStatus::UNKNOWN ? Charges::CostStatus::PARTIAL : status
         end
       end
@@ -145,7 +144,6 @@ module LlmCostTracker
         billed_line.priced? && cost.total.positive? ? Charges::CostStatus::COMPLETE : billed_line.cost_status
       end
 
-      # No token line and no priced charge: a $0 token cost would hide that the call is unpriced.
       def only_unpriced_lines?
         billable = priced_line_items.select(&:billable?)
         billable.any? && billable.none?(&:priced?)
@@ -238,7 +236,6 @@ module LlmCostTracker
         line_item.with_rate(rate)
       end
 
-      # An Anthropic advisor or declined fallback attempt, priced at the token rates of the model in its details.
       def price_iteration(line_item)
         details = line_item.details.to_h.transform_keys(&:to_sym)
         model = details[:model].to_s
@@ -257,7 +254,6 @@ module LlmCostTracker
         line_item.with(rate_amount: cost.total, cost: cost.total, currency: cost.currency, cost_status: status)
       end
 
-      # Fast mode runs only on some models; an attempt on another model runs and is billed at standard speed.
       def iteration_mode(model)
         return @mode if Matcher.modifier_priced?(provider: @provider, model: model, modifier: "fast")
 

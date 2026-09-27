@@ -246,8 +246,6 @@ RSpec.describe LlmCostTracker do
     end
 
     it "prices Realtime cached audio and image tokens at their published cached rates" do
-      # developers.openai.com/api/docs/pricing, Realtime: audio 10 / cached 0.30 / out 20,
-      # text 0.60 / 0.06 / 2.40, image 0.80 / cached 0.08 (gpt-realtime-mini); image cached 0.50 (gpt-realtime-2).
       LlmCostTracker.configure do |config|
         config.pricing.overrides = {
           "openai/gpt-realtime-mini" => { input: 0.6, cache_read_input: 0.06, output: 2.4, audio_input: 10.0,
@@ -283,13 +281,11 @@ RSpec.describe LlmCostTracker do
                      ))
       end
 
-      # 200*0.6 + 2800*10 + 1800*0.06 + 25200*0.3 + 50*2.4 + 450*20 = 44908 per 1M tokens
       expect(collected.first.dig(:cost, :total)).to eq("0.044908")
       expect(collected.first.dig(:token_usage, :cache_read_input_tokens)).to eq(27_000)
       expect(collected.first[:line_items]).to include(
         a_hash_including(kind: "audio_token", cache_state: "read", quantity: "25200.0", price_key: "audio_cache_read_input")
       )
-      # 100*4 + 400*32 + 400*0.4 + 600*0.4 + 500*0.5 + 50*24 + 150*64 = 24650 per 1M tokens
       expect(collected.last.dig(:cost, :total)).to eq("0.02465")
     end
 
@@ -302,8 +298,6 @@ RSpec.describe LlmCostTracker do
       described_class.track_stream(provider: "openai", model: "gpt-realtime-whisper",
                                    pricing_mode: :data_residency) { |s| s.event(transcription) }
 
-      # developers.openai.com/api/docs/pricing: gpt-realtime-whisper $0.017 per minute, plus 10% on regional
-      # endpoints for models released on or after March 5, 2026; 125 seconds are 2.0833 minutes.
       expect(collected.map { |event| [event[:cost_status], event.dig(:cost, :total)] })
         .to eq([%w[complete 0.03541667], %w[complete 0.03895833]])
       expect(collected.first[:line_items].map { |item| item[:kind] }).to eq(["transcription_minute"])

@@ -177,7 +177,6 @@ module LlmCostTracker
         end
 
         request_body = request_body_for(snapshot[:request])
-        # A custom OpenAI-compatible provider can share a native parser's name, so either may fit the events.
         events = Parsers.all_for_provider(@provider).filter_map do |parser|
           parser.parse_stream(
             response_status: 200, events: snapshot[:events], request_body: request_body, model: snapshot[:model]

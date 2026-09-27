@@ -16,7 +16,6 @@ module LlmCostTracker
                          :BILLED_REFUSAL_CATEGORIES,
                          :BEDROCK_REGIONAL_PROFILE
 
-        # Top-level usage leaves out compaction iterations, which run on the request model.
         def self.token_usage(usage)
           entries = [usage, *iterations(usage, "compaction")]
           writes = entries.map { |entry| cache_writes(entry) }
@@ -31,14 +30,12 @@ module LlmCostTracker
           )
         end
 
-        # An SDK middleware stream on which every model declined ends on a plain message iteration.
         def self.served_model(usage, content = nil)
           served = iterations(usage, "fallback_message").last&.dig(:model)
           served ||= fallback_blocks(content).last&.dig(:to, :model)
           served&.to_s.presence
         end
 
-        # Pricing::Calculation prices each line at the token rates of the model in its details.
         def self.iteration_line_items(usage, content: nil)
           other_model_iterations(usage, content).map do |iteration|
             tokens = token_usage(iteration)
@@ -68,7 +65,6 @@ module LlmCostTracker
           )]
         end
 
-        # A declined fallback hop is billed when it produced output or its fallback block's trigger category is billed.
         def self.other_model_iterations(usage, content)
           advisors = iterations(usage, "advisor_message")
           served = served_model(usage, content)

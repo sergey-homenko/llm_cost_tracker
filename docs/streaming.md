@@ -62,7 +62,7 @@ Captured SDK helpers:
 
 The returned stream object is preserved. Usage is recorded after the stream is consumed.
 
-RubyLLM streaming records token usage and cost. RubyLLM consumes the HTTP body as the stream, so the fields a blocking call reads from the raw response body (`provider_response_id`, Anthropic 1-hour cache writes, the service tier, Anthropic fast mode and US inference, OpenAI and Gemini server-tool fees, Gemini's audio and URL-context prompt tokens, OpenRouter's billed `usage.cost`) are read from the stream events RubyLLM parses instead. Bedrock streams decode their own event stream and keep only RubyLLM's token counts.
+RubyLLM streaming records token usage and cost, and reads from the stream events the fields a blocking call reads from the raw response body; Bedrock streams keep only RubyLLM's token counts.
 
 Tags are snapshotted when the stream starts, so delayed or cross-thread consumption keeps the original request/user attribution.
 

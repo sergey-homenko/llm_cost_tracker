@@ -48,7 +48,6 @@ module LlmCostTracker
           request = safe_json_parse(request_body)
           if path_matches?(request_url, INTERACTIONS_PATH_PATTERN)
             event = interaction_event(response, request: request, response_headers: response_headers)
-            # A GET of a stored interaction records nothing, so it does not notify or raise over budget again.
             return nil if event && path_matches?(request_url, %r{/interactions/[^/]+\z}) &&
                           Call.already_recorded?(provider: "gemini", provider_response_id: event.provider_response_id)
 
@@ -251,7 +250,7 @@ module LlmCostTracker
             provider_response_id: interaction["id"],
             pricing_mode: pricing_mode(request: request, usage: metadata, response_headers: response_headers),
             service_line_items: service_line_items_for(interaction, model: model)
-          ).keyed_by_response_id # stored once, however often a GET fetches it again
+          ).keyed_by_response_id
         end
 
         def modality_details(entries)

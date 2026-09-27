@@ -28,7 +28,7 @@ LlmCostTracker.with_tags(feature: "support_chat") do
 end
 ```
 
-The RubyLLM integration supports `ruby_llm` 1.15 through 2.x and checks RubyLLM's provider contract at boot; 3.0 and later still installs, but `doctor` and the boot log warn that its calls may not be recorded. Chat, embedding, transcription, image generation, and moderation calls are captured, as is the storage estimate of a Gemini context cache created with `RubyLLM.cache` on RubyLLM 2.x. Tool execution that runs through chat completions is captured as additional chat rows, not as a separate tool ledger row. Use RubyLLM 2.0 or later for streamed Bedrock prompt caching: RubyLLM 1.x subtracts cache reads and writes from Bedrock's already uncached `inputTokens`; blocking calls are recorded from the raw `inputTokens`, but streamed ones are recorded too low.
+The RubyLLM integration supports `ruby_llm` 1.15 through 2.x and checks RubyLLM's provider contract at boot; 3.0 and later still installs, but `doctor` and the boot log warn that its calls may not be recorded. Chat, embedding, transcription, image generation, and moderation calls are captured. Tool execution that runs through chat completions is captured as additional chat rows, not as a separate tool ledger row. Use RubyLLM 2.0 or later for streamed Bedrock prompt caching: RubyLLM 1.x subtracts cache reads and writes from Bedrock's already uncached `inputTokens`, so streamed input tokens are recorded too low.
 
 ## Official OpenAI SDK
 
@@ -116,7 +116,7 @@ client.messages.stream_raw(
 end
 ```
 
-The Anthropic SDK integration supports `anthropic >= 1.36.0`. Streaming calls are recorded after the returned stream is consumed. With the SDK's client-side refusal fallback (`Anthropic::BetaRefusalFallbackMiddleware`), each refusal the middleware retried is recorded as its own call (a streamed one that produced output as a `model_iteration` line item on the returned call, with its web search fees recorded as their own call).
+The Anthropic SDK integration supports `anthropic >= 1.36.0`. Streaming calls are recorded after the returned stream is consumed.
 
 ## ruby-openai
 
@@ -137,7 +137,7 @@ client.chat(
 )
 ```
 
-Use the constructor block for each client, or wrap client creation in an app factory. The middleware reads the `model` form field of multipart uploads (transcriptions and image edits) and records `audio.speech` by its input characters, as the official SDK integration does.
+Use the constructor block for each client, or wrap client creation in an app factory.
 
 ## Groq
 
@@ -203,8 +203,6 @@ conn.post(
 
 Send the key in the `x-goog-api-key` header, not a `?key=` parameter: request URLs end up in error messages and logs.
 
-The same connection records Interactions API calls (`conn.post("/v1beta/interactions", { model: "gemini-3.8-flash", input: "Hello" })`), `background: true` ones from the `conn.get("/v1beta/interactions/#{id}")` poll that returns them finished, and the storage estimate of explicit context caches created through `POST /v1beta/cachedContents`.
-
 ## LiteLLM proxy
 
 LiteLLM Proxy speaks an OpenAI-compatible HTTP shape, so register the proxy host once and keep using the normal middleware path.
@@ -227,4 +225,4 @@ client.post("chat/completions") do |req|
 end
 ```
 
-If your proxy exposes custom model IDs or discounts, add them in `pricing.file` or `pricing.overrides`. A bare model ID such as `gpt-4o` takes a matching override for another provider, such as `azure_openai/gpt-4o`, before the bundled price; add a `litellm/gpt-4o` override to price it separately.
+If your proxy exposes custom model IDs or discounts, add them in `pricing.file` or `pricing.overrides`. A bare model ID such as `gpt-4o` takes another provider's override, such as `azure_openai/gpt-4o`, before the bundled price; add a `litellm/gpt-4o` override to price it separately.

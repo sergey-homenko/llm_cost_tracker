@@ -12,7 +12,6 @@ module LlmCostTracker
           images/generations images/edits images/variations
         ].freeze
         TRACKED_PATHS = TRACKED_ENDPOINTS.map { |endpoint| "/v1/#{endpoint}" }.freeze
-        # A background response's poll; its input_items and cancel subpaths stay untracked.
         RETRIEVE_PATH = %r{\A/v1/responses/resp_[^/]+\z}
 
         class << self

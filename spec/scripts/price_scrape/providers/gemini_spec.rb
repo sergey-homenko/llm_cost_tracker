@@ -164,7 +164,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "priority_image_input" => 3.6,
         "priority_image_output" => 216.0
       )
-      # Its Output cell has only a per-image price; the page says its text is priced the same as 2.5 Flash.
       expect(models.fetch("gemini-2.5-flash-image")).to eq(
         "input" => 0.3,
         "output" => 2.5,

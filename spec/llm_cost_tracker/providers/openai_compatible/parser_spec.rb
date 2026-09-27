@@ -325,9 +325,6 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
     end
 
     it "prices xAI reasoning tokens at the output rate, since xAI counts them outside completion and output tokens" do
-      # docs.x.ai reference examples: chat 32 prompt (6 cached) + 9 completion + 94 reasoning = 135 total, Responses
-      # 32 (8 cached) + 9 + 110 = 151; reasoning bills at the completion price. grok-4.7 $2 / $0.50 cached / $6 per 1M:
-      # 26 x 2 + 6 x 0.5 + 103 x 6 = $0.000673 and 24 x 2 + 8 x 0.5 + 119 x 6 = $0.000766.
       usages = {
         "/v1/chat/completions" => { prompt_tokens: 32, completion_tokens: 9, total_tokens: 135,
                                     prompt_tokens_details: { cached_tokens: 6 },

@@ -70,7 +70,6 @@ module LlmCostTracker
           )
         end
 
-        # Gemini Embedding 2 prices video parts at their own rate; chat models bill video as input.
         def gemini_video_line_items(provider, response)
           details = raw_body(response).dig("usageMetadata", "promptTokenDetails") if provider.slug.to_s == "gemini"
           video = Providers::Gemini::UsageExtractor.modality_tokens(details, "VIDEO")
@@ -95,12 +94,10 @@ module LlmCostTracker
             stream: stream,
             audio_input_tokens: audio_input,
             service_line_items: line_items,
-            # A transcript in text, srt or vtt carries no usage, so its cost is unknown rather than zero.
             usage_source: (Usage::Source::UNKNOWN if no_tokens && line_items.empty?)
           )
         end
 
-        # OpenAI bills whole seconds, reported in usage.seconds; the audio's own duration is only a fallback.
         def billed_duration(usage, response, no_tokens)
           return usage if usage[:type].to_s == "duration"
 
@@ -209,7 +206,6 @@ module LlmCostTracker
           usage = gemini_usage_metadata(response) if provider.slug.to_s == "gemini"
           return unless usage.is_a?(Hash)
 
-          # Embeddings name the modality split promptTokenDetails.
           usage = usage.merge("promptTokensDetails" => usage["promptTokenDetails"]) if usage.key?("promptTokenDetails")
           Providers::Gemini::UsageExtractor.token_usage(usage)
         end
@@ -219,7 +215,6 @@ module LlmCostTracker
           usage.is_a?(Hash) ? Providers::Gemini::UsageExtractor.cache_read_line_items(usage) : []
         end
 
-        # A `protocol: :interactions` reply (RubyLLM 2.x) keeps the whole interaction, streamed or not, in raw_content.
         def gemini_body(response)
           content = response.try(:raw_content)
           interaction = content["response"] if content.is_a?(Hash)
@@ -238,13 +233,10 @@ module LlmCostTracker
           return { input: response.try(:input_tokens), output: response.try(:output_tokens) } unless tokens
 
           usage = raw_body(response)["usage"] || {}
-          # RubyLLM 1.x subtracts Bedrock's cache tokens from inputTokens, which already excludes them.
           input = usage["inputTokens"] || tokens.input
-          # RubyLLM keeps a stream's message_start input; message_delta's cumulative count adds server tool results.
           input = [input, usage["input_tokens"]].compact.max if provider == "anthropic"
           output = tokens.output
           thinking = tokens.thinking.to_i
-          # xAI reports reasoning outside output_tokens but counts it in total_tokens.
           raw_input = (usage["input_tokens"] || usage["prompt_tokens"]).to_i
           output += thinking if output && usage["total_tokens"] == raw_input + output + thinking
           {
@@ -260,7 +252,6 @@ module LlmCostTracker
           usage = raw_body(response)["usage"] || {}
           cache = case provider.slug.to_s
                   when "anthropic" then usage["cache_creation"]
-                  # Converse splits the writes by TTL in cacheDetails; without it the request's TTL decides below.
                   when "bedrock"
                     Array(usage["cacheDetails"]).to_h { |d| ["ephemeral_#{d['ttl']}_input_tokens", d["inputTokens"]] }
                   end
@@ -376,7 +367,6 @@ module LlmCostTracker
         end
       end
 
-      # RubyLLM.cache storage is estimated at creation only; parse_cache_response also parses find and renew replies.
       module GeminiCachePatch
         def cache_content(*, **)
           super.tap { |cache| LlmCostTracker::Integrations::RubyLlm.record_cache_storage(cache) }
@@ -390,7 +380,6 @@ module LlmCostTracker
         end
       end
 
-      # Transcription and embedding results drop the usage block that holds the text/audio split and Gemini's tokens.
       module ResponseBodyPatch
         def parse_transcription_response(response, **)
           LlmCostTracker::Integrations::RubyLlm.keep_usage(super, response.body)
@@ -400,13 +389,11 @@ module LlmCostTracker
           LlmCostTracker::Integrations::RubyLlm.keep_usage(super, response.body)
         end
 
-        # RubyLLM 2.x streamed OpenAI transcription: the split is in the final transcript.text.done event.
         def build_streamed_transcription(chunks, **)
           LlmCostTracker::Integrations::RubyLlm.keep_usage(super, chunks.reverse.find(&:done?)&.raw)
         end
       end
 
-      # A streamed message's raw response has an empty body, so the parsed events are merged into one in its place.
       module StreamPatch
         private
 
@@ -414,7 +401,6 @@ module LlmCostTracker
           body = @llm_cost_tracker_stream_body = {}
           super.tap do |message|
             message.raw.instance_variable_set(:@llm_cost_tracker_body, body)
-            # RubyLLM 2.x streams each pause_turn segment through this instance but keeps only the last raw body.
             input = body.dig("usage", "input_tokens")
             input = body["usage"]["input_tokens"] = input + @llm_cost_tracker_paused_input.to_i if input
             @llm_cost_tracker_paused_input = (input if message.try(:finish_reason) == :pause_turn)

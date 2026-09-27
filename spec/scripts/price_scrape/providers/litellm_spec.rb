@@ -23,8 +23,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   def fixture(name) = File.read("spec/fixtures/scrape/#{name}", encoding: "utf-8")
 
   it "reads xAI token, cached, long-context and batch rates per 1M tokens" do
-    # xAI docs: grok-4.7 $2 in / $0.50 cached / $6 out, $4 / $1 / $12 from 200K prompt tokens;
-    # grok-4.3 $1.25 / $0.20 / $2.50 with a 20% batch discount. One input price per model, image tokens included.
     expect(xai.fetch("grok-4.7")).to include(
       "input" => 2.0, "cache_read_input" => 0.5, "output" => 6.0, "image_input" => 2.0,
       "above_context_input" => 4.0, "above_context_cache_read_input" => 1.0, "above_context_output" => 12.0,
@@ -38,7 +36,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   end
 
   it "gives the aliases xAI's model pages list for a batch model that model's batch rates" do
-    # docs.x.ai/developers/models/grok-4.20-0309-reasoning and grok-4.20-multi-agent-0309 list these aliases.
     batch = { "batch_input" => 1.0, "batch_cache_read_input" => 0.16, "batch_output" => 2.0,
               "above_context_batch_input" => 2.0, "above_context_batch_cache_read_input" => 0.32,
               "above_context_batch_output" => 4.0 }
@@ -48,8 +45,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   end
 
   it "prices xAI priority at 2x every model's rates and the US regional endpoint at 1.1x, both there together" do
-    # docs.x.ai/developers/pricing: grok-4.7 on us.api.x.ai is $2.20 / $0.55 / $6.60, $4.40 / $1.10 / $13.20 from 200K;
-    # priority is 2x on every token type, so priority there is $4.40 / $1.10 / $13.20, $8.80 / $2.20 / $26.40 from 200K.
     expect(xai.fetch("grok-4.7")).to include(
       "priority_input" => 4.0, "priority_cache_read_input" => 1.0, "priority_output" => 12.0,
       "above_context_priority_input" => 8.0, "above_context_priority_output" => 24.0,
@@ -79,8 +74,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   end
 
   it "prices xAI image prompt tokens at the input rate, and priority on the US endpoint at 2.2x" do
-    # docs.x.ai: chat usage reports image_tokens within prompt_tokens, billed at the model's one input price.
-    # grok-4.7: (200 + 800) x $2 + 100 x $6 per 1M = $0.0026; priority on us.api.x.ai (2x x 1.1x) = $0.00572.
     LlmCostTracker.configure { |c| c.pricing.overrides = { "xai/grok-4.7" => xai.fetch("grok-4.7") } }
     tokens = LlmCostTracker::Usage::TokenUsage.build(input_tokens: 200, image_input_tokens: 800, output_tokens: 100)
     cost = lambda do |mode|
@@ -104,8 +97,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   end
 
   it "prices only the Mistral models its pricing page lists, at the page's rates, under the names the API accepts" do
-    # docs.mistral.ai/inference/pricing: Large 3 $0.5 / $0.05 cached / $1.5, Medium 3.5 $1.5 / $0.15 / $7.5,
-    # Codestral $0.3 / $0.03 / $0.9; Magistral, Devstral, Pixtral, Nemo and Voxtral Small are not listed.
     catalogue = JSON.parse(body)
     catalogue["mistral/mistral-large-latest"]["input_cost_per_token"] = 0.000009
     models = mistral_class.new.call(html: mistral_pages.merge(described_class::SOURCE_URL => JSON.generate(catalogue)))
@@ -122,7 +113,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   end
 
   it "matches Mistral API names LiteLLM links to the pricing page to the one card named like them" do
-    # docs.mistral.ai/models/ministral-3-8b-25-12 lists the API names ministral-8b-2512 and ministral-8b-latest.
     ministral8b = { "input" => 0.15, "cache_read_input" => 0.015, "output" => 0.15 }
 
     expect(mistral.values_at("ministral-8b-2512", "ministral-8b-latest")).to all(include(ministral8b))
@@ -130,8 +120,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   end
 
   it "prices Mistral batch at 50%, Priority Tier at 1.75x, the regional endpoints at 1.1x, and both together" do
-    # docs.mistral.ai: batch processing, priority tier and regional inference billing. No combined rate is published,
-    # so Priority Tier on a regional endpoint compounds the two multipliers (1.925x).
     expect(mistral.fetch("mistral-medium-latest")).to eq(
       "input" => 1.5, "cache_read_input" => 0.15, "output" => 7.5,
       "batch_input" => 0.75, "batch_cache_read_input" => 0.075, "batch_output" => 3.75,

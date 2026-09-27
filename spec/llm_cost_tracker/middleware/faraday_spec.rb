@@ -1060,8 +1060,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   it "prices Gemini cached audio tokens at the published audio caching rate" do
-    # ai.google.dev/gemini-api/docs/pricing, Gemini 2.5 Flash: input $0.30 (text/image/video) / $1.00 (audio),
-    # context caching $0.03 (text/image/video) / $0.10 (audio), output $2.50.
     LlmCostTracker.configure do |config|
       config.pricing.overrides = {
         "gemini/gemini-2.5-flash" => { input: 0.3, audio_input: 1.0, cache_read_input: 0.03,
@@ -1085,7 +1083,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
     conn.post("/v1beta/models/gemini-2.5-flash:generateContent", { "contents" => [] }.to_json)
 
-    # 2000*0.30 + 18000*1.00 + 8000*0.03 + 72000*0.10 + 1000*2.50 = 28540 per 1M tokens
     expect(events.first.dig(:cost, :total)).to eq("0.02854")
     expect(events.first.dig(:cost, :components, :cache_read_input_cost)).to eq("0.00744")
   end
@@ -1154,7 +1151,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   describe "ruby-openai uploads and speech" do
-    # ruby-openai adds `f.request :multipart` before the constructor block that adds this middleware.
     def ruby_openai_post(path, body, multipart:)
       connection = Faraday.new do |f|
         f.request(:multipart) if multipart
@@ -1192,7 +1188,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
                                multipart: true)
 
       expect(event).to include(model: "whisper-1", cost_status: "complete")
-      # whisper-1: $0.006 per minute of audio.
       expect(total_cost(event)).to eq(BigDecimal("0.0009"))
       expect(sent.b).to include(audio)
       expect(sent).to include(%(name="model"\r\n\r\nwhisper-1\r\n))
@@ -1212,7 +1207,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       )
 
       expect(event).to include(model: "gpt-image-1", cost_status: "complete")
-      # gpt-image-1: text input $5, image input $10, image output $40 per 1M tokens.
       expect(total_cost(event)).to eq(BigDecimal("0.04649"))
     end
 
@@ -1259,7 +1253,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
                                multipart: false)
 
       expect(event).to include(model: "tts-1", cost_status: "complete")
-      # tts-1: $15 per 1M characters.
       expect(total_cost(event)).to eq(BigDecimal("0.015"))
     end
   end

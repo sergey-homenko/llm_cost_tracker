@@ -203,7 +203,6 @@ module LlmCostTracker
           models
         end
 
-        # The Batch API accepts only the models its availability tables list.
         def extract_batch_models(doc)
           models = doc.css("table").flat_map do |table|
             headers = header_texts(table)

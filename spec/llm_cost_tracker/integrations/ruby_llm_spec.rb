@@ -187,8 +187,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     it "counts the cumulative input of every segment of a streamed pause_turn continuation, and not across asks" do
       skip "RubyLLM continues pause_turn automatically only on 2.x" if RubyLLM::VERSION.start_with?("1.")
 
-      # platform.claude.com streaming docs: message_delta usage is cumulative, and each pause_turn segment is its own
-      # request. Pricing: Sonnet 4.6 $3 input / $15 output per 1M tokens, web search $10 per 1,000 searches.
       search = { server_tool_use: { web_search_requests: 1 } }
       WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages").to_return(
         anthropic_stream(id: "msg_p1", usage: { input_tokens: 2679, output_tokens: 3 }, stop_reason: "pause_turn",
@@ -203,7 +201,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
         chat = RubyLLM.chat(model: "claude-sonnet-4-6", provider: :anthropic, assume_model_exists: true)
         chat.ask("research") { |_c| }
         chat.ask("more") { |_c| }
-        # (10,682 + 18,000) x $3 + (510 + 700) x $15 per 1M tokens + 2 searches x $10 per 1,000
         expect(events.first).to include(input_tokens: 28_682, output_tokens: 1210)
         expect(events.map { |event| event.dig(:cost, :total) }).to eq(%w[0.124196 0.049696])
       end
@@ -364,7 +361,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
 
     it "prices a Bedrock chat on a regional Claude inference profile at the regional rate" do
-      # AWS Bedrock price list, Claude Sonnet 4.5: regional $3.30 input / $16.50 output per 1M tokens.
       LlmCostTrackerReset.call
       LlmCostTracker.configure do |config|
         config.pricing.overrides = { "anthropic/claude-sonnet-4-5" => { input: 3.0, output: 15.0, data_residency_input: 3.3,
@@ -390,8 +386,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
 
     it "prices Bedrock 1-hour cache writes from cacheDetails, or from with_caching's TTL when the response has none" do
-      # AWS Price List API (AmazonBedrockFoundationModels, us-east-1), Claude Sonnet 4.5 regional per 1M tokens:
-      # input $3.30, 5-minute cache write $4.125, 1-hour cache write $6.60, output $16.50.
       RubyLLM.configure do |config|
         config.bedrock_api_key = "AKIATEST"
         config.bedrock_secret_key = "test-secret"
@@ -411,7 +405,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
         chat.call.ask("hi")
         expect(events.last).to include(cache_write_input_tokens: 1000, cache_write_extended_input_tokens: 3000)
         expect(events.last.dig(:cost, :total)).to eq("0.047025")
-        next if RubyLLM::VERSION.start_with?("1.") # with_caching arrived in 2.x
+        next if RubyLLM::VERSION.start_with?("1.")
 
         chat.call.with_caching(ttl: "1h").ask("hi")
         expect(events.last).to include(cache_write_input_tokens: 0, cache_write_extended_input_tokens: 4000)
@@ -432,7 +426,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
 
     it "prices xAI and Mistral regional hosts and Priority tiers" do
-      # xAI: US endpoint +10%, Priority 2x; Mistral: regional +10%, Priority Tier 1.75x.
       override_prices(
         "xai/grok-4.7" => { input: 2.0, output: 6.0, data_residency_input: 2.2, data_residency_output: 6.6,
                             priority_input: 4.0, priority_output: 12.0 },
@@ -463,8 +456,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
 
     it "prices xAI reasoning tokens at the output rate, since xAI counts them outside output_tokens" do
-      # docs.x.ai: total_tokens = prompt + completion + reasoning, and reasoning bills at the completion price.
-      # grok-4.7 $2 / $0.50 cached / $6 per 1M: 4,000 x 2 + 8,000 x 0.5 + (500 + 2,500) x 6 = $0.03.
       override_prices("xai/grok-4.7" => { input: 2.0, cache_read_input: 0.5, output: 6.0 })
       stub_openai_chat(id: "xai_reasoning", model: "grok-4.7", host: "api.x.ai",
                        usage: { prompt_tokens: 12_000, completion_tokens: 500, total_tokens: 15_000,
@@ -548,7 +539,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
 
     it "prices Gemini cached audio tokens from the raw usageMetadata at the audio caching rate" do
-      # ai.google.dev/gemini-api/docs/pricing, Gemini 2.5 Flash: context caching $0.03 (text) / $0.10 (audio).
       LlmCostTrackerReset.call
       LlmCostTracker.configure do |config|
         config.instrument(:ruby_llm)
@@ -575,7 +565,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
 
       capture_sdk_events do |events|
         RubyLLM.chat(model: "gemini-2.5-flash", provider: :gemini, assume_model_exists: true).ask("hi")
-        # 2000*0.30 + 18000*1.00 + 8000*0.03 + 72000*0.10 + 1000*2.50 = 28540 per 1M tokens
         expect(events.first.dig(:cost, :total)).to eq("0.02854")
       end
     end
@@ -583,8 +572,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     it "prices a Gemini chat on the Interactions protocol from the interaction's usage, blocking and streamed" do
       skip "RubyLLM 1.x has no Interactions protocol" if RubyLLM::VERSION.start_with?("1.")
 
-      # ai.google.dev/gemini-api/docs/pricing: 3.8 Flash (through 2026-12-31) $0.75 in / $3.75 out, Search $14 per
-      # 1,000 queries; 2.5 Flash $0.30 in / $0.10 cached audio / $2.50 out, Flex $0.15 in / $1.25 out.
       url = "https://generativelanguage.googleapis.com/v1beta/interactions"
       usage = lambda do |input, output, **extra|
         { total_input_tokens: input, total_output_tokens: output, total_tokens: input + output, **extra }
@@ -779,8 +766,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     it "prices the PDF and video parts of a Gemini embedding at the image and video rates" do
       skip "RubyLLM 1.x embeds text only" if RubyLLM::VERSION.start_with?("1.")
 
-      # ai.google.dev/gemini-api/docs/pricing: Embedding 2 text $0.20, image $0.45, video $12.00 per 1M tokens;
-      # DOCUMENT (PDF) tokens are billed at the image rate.
       override_prices("gemini/gemini-embedding-2" => { "input" => 0.20, "image_input" => 0.45, "video_input" => 12.0 })
       WebMock.stub_request(:post, %r{generativelanguage\.googleapis\.com/v1beta/models/gemini-embedding-2:batchEmbedContents})
              .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
@@ -939,7 +924,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     end
 
     it "prices a transcription's text prompt tokens at the text rate and its audio tokens at the audio rate" do
-      # Bundled gpt-4o-transcribe: $2.50 text input, $6 audio input, $10 output per 1M tokens.
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
         status: 200,
         body: { text: "hi", usage: { type: "tokens", input_tokens: 1014, output_tokens: 150, total_tokens: 1164,
@@ -978,7 +962,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
 
       capture_sdk_events do |events|
         RubyLLM.transcribe(audio_file.path, model: "gpt-4o-transcribe", provider: :openai, assume_model_exists: true) { |_c| }
-        # Priced like the blocking split above: 14 x $2.50 + 1,000 x $6 + 150 x $10 per 1M tokens.
         expect(events.first).to include(input_tokens: 14, audio_input_tokens: 1000, output_tokens: 150, stream: true)
         expect(events.first.dig(:cost, :total)).to eq("0.007535")
       end
@@ -1008,7 +991,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
 
       capture_sdk_events do |events|
         RubyLLM.transcribe(audio_file.path, model: "whisper-1", provider: :openai, assume_model_exists: true)
-        # 9 seconds of whisper-1 at $0.006 per minute.
         expect(events.first.dig(:cost, :total)).to eq("0.0009")
       end
     end
@@ -1039,8 +1021,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm do
     it "records the storage of a Gemini context cache created with RubyLLM.cache, once, not on find or renew" do
       skip "RubyLLM.cache arrived in 2.x" if RubyLLM::VERSION.start_with?("1.")
 
-      # ai.google.dev/api/caching: the created cache reports usageMetadata.totalTokenCount, createTime and expireTime.
-      # ai.google.dev/gemini-api/docs/pricing, Gemini 2.5 Flash storage: $1.00 / 1,000,000 tokens per hour.
       url = "https://generativelanguage.googleapis.com/v1beta/cachedContents"
       cache = { name: "cachedContents/abc123", model: "models/gemini-2.5-flash", createTime: "2026-09-27T10:00:00.123456Z",
                 expireTime: "2026-09-27T11:00:00.123456Z", usageMetadata: { totalTokenCount: 250_000 } }
