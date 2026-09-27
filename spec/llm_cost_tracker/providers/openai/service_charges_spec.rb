@@ -106,35 +106,16 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
   end
 
   describe ".service_line_items_for" do
-    it "captures a web-search line item when a Chat Completions response carries url_citation annotations, routed to the preview-non-reasoning rate for gpt-4o-search-preview" do
-      response = {
-        "id" => "chatcmpl_search_1",
-        "model" => "gpt-4o-search-preview",
-        "choices" => [{
-          "message" => {
-            "role" => "assistant",
-            "annotations" => [{
-              "type" => "url_citation",
-              "url_citation" => { "url" => "https://example.com", "title" => "Example",
-                                  "start_index" => 0, "end_index" => 10 }
-            }]
-          }
-        }]
-      }
-
-      items = described_class.service_line_items_for(response, request: {}, model: "gpt-4o-search-preview")
-
-      expect(items.size).to eq(1)
-      expect(items.first.kind).to eq("web_search_preview_request_non_reasoning")
-      expect(items.first.provider_item_id).to eq("chatcmpl_search_1")
-      expect(items.first.provider_field).to eq("choices.message.annotations.url_citation")
-    end
-
-    it "returns no service line items for a Chat Completions response from a non-search model without url_citation annotations" do
+    it "returns no service line items for a Chat Completions response from a non-search model, even with url_citation annotations" do
       response = {
         "id" => "chatcmpl_plain_1",
         "model" => "gpt-4o",
-        "choices" => [{ "message" => { "role" => "assistant", "content" => "hello" } }]
+        "choices" => [{
+          "message" => {
+            "role" => "assistant",
+            "annotations" => [{ "type" => "url_citation", "url_citation" => { "url" => "https://example.com" } }]
+          }
+        }]
       }
 
       expect(described_class.service_line_items_for(response, request: {}, model: "gpt-4o")).to eq([])

@@ -8,15 +8,19 @@ require_relative "providers"
 
 module LlmCostTracker
   module Parsers
-    PARSER_PROVIDERS = %i[Openai Azure OpenaiCompatible Anthropic Gemini].freeze
+    PARSER_PROVIDERS = %i[Openai Azure Anthropic Gemini OpenaiCompatible].freeze
 
     def self.find_for(url)
       instances.find { |parser| parser.class.match?(url) }
     end
 
     def self.find_for_provider(provider)
+      all_for_provider(provider).first
+    end
+
+    def self.all_for_provider(provider)
       provider_name = provider.to_s.downcase
-      instances.find { |parser| parser.class.provider_names.include?(provider_name) }
+      instances.select { |parser| parser.class.provider_names.include?(provider_name) }
     end
 
     def self.instances

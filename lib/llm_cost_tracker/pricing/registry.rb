@@ -16,7 +16,7 @@ module LlmCostTracker
     module Registry
       DEFAULT_PRICES_PATH = File.expand_path("../prices.json", __dir__)
       CONTEXT_THRESHOLD_KEY = "_context_price_threshold_tokens"
-      PRICE_KEYS = Usage::Catalog.token_priced.map(&:key).freeze
+      PRICE_KEYS = Usage::Catalog.all.select(&:token?).map(&:key).freeze
       METADATA_KEYS = ["_source", CONTEXT_THRESHOLD_KEY].freeze
 
       class << self

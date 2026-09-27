@@ -37,6 +37,8 @@ jobs:
         include:
           - ruby-version: '3.4'
             gemfile: gemfiles/ruby_llm_1.gemfile
+          - ruby-version: '3.4'
+            gemfile: gemfiles/json_3.gemfile
     env:
       BUNDLE_GEMFILE: ${{ github.workspace }}/${{ matrix.gemfile }}
       LCT_TEST_HOST: 127.0.0.1
@@ -65,6 +67,40 @@ jobs:
         flags: unittests
         fail_ci_if_error: false
         verbose: true
+
+  test-mysql:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: lct
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd "mysqladmin ping -uroot -plct --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/smoke.gemfile
+      LCT_TEST_ADAPTER: trilogy
+      LCT_TEST_HOST: 127.0.0.1
+      LCT_TEST_PORT: 3307
+      LCT_TEST_USERNAME: root
+      LCT_TEST_PASSWORD: lct
+      LCT_TEST_ADMIN_DATABASE: mysql
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.4'
+        bundler-cache: true
+    - name: Run tests on MySQL
+      run: bundle exec rspec
 
   lint:
     runs-on: ubuntu-latest

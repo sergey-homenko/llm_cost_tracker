@@ -41,20 +41,101 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
-    it "warns and records nothing for a queued background response without usage" do
-      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(
-        status: 200,
-        body: { id: "resp_bg", object: "response", model: "o3-pro", status: "queued", background: true,
-                created_at: 1, output: [], usage: nil }.to_json,
-        headers: { "Content-Type" => "application/json" }
-      )
+    it "records nothing for a response without usage, and warns unless a background poll will record it" do
+      stub_create = lambda do |background|
+        WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(
+          status: 200,
+          body: { id: "resp_bg", object: "response", model: "o3-pro", status: background ? "queued" : "completed",
+                  background: background, created_at: 1, output: [], usage: nil }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+      end
       allow(LlmCostTracker::Logging).to receive(:warn)
 
       capture_sdk_events do |events|
+        stub_create.call(true)
         client.responses.create(model: "o3-pro", input: "hi", background: true)
+        expect(LlmCostTracker::Logging).not_to have_received(:warn)
+
+        stub_create.call(false)
+        client.responses.create(model: "o3-pro", input: "hi")
         expect(events).to be_empty
       end
       expect(LlmCostTracker::Logging).to have_received(:warn).with("OpenAI response resp_bg has no usage; not recorded")
+    end
+  end
+
+  describe "responses.retrieve" do
+    def stub_retrieve(status:, background: true, usage: nil)
+      WebMock.stub_request(:get, "https://api.openai.com/v1/responses/resp_bg").to_return(
+        status: 200,
+        body: { id: "resp_bg", object: "response", model: "o3-pro", status: status, background: background,
+                created_at: 1, output: [], usage: usage }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+    end
+
+    let(:usage) { { input_tokens: 1_000, output_tokens: 500, total_tokens: 1_500 } }
+
+    it "records a background response once, when a poll first sees it finished" do
+      capture_sdk_events do |events|
+        stub_retrieve(status: "in_progress")
+        client.responses.retrieve("resp_bg")
+        expect(events).to be_empty
+
+        stub_retrieve(status: "completed", usage: usage)
+        client.responses.retrieve("resp_bg")
+        expect(events.size).to eq(1)
+        expect(events.first).to include(provider: "openai", model: "o3-pro", provider_response_id: "resp_bg",
+                                        usage_source: "sdk_response", cost_status: "complete",
+                                        event_id: Digest::UUID.uuid_v5(Digest::UUID::OID_NAMESPACE, "openai/resp_bg"))
+        expect(BigDecimal(events.first.dig(:cost, :total).to_s)).to eq(BigDecimal("0.06"))
+
+        allow(LlmCostTracker::Call).to receive(:already_recorded?)
+          .with(provider: "openai", provider_response_id: "resp_bg").and_return(true)
+        client.responses.retrieve("resp_bg")
+        expect(events.size).to eq(1)
+      end
+    end
+
+    it "prices a retrieved response's web_search_preview calls from the tools it echoes" do
+      WebMock.stub_request(:get, "https://api.openai.com/v1/responses/resp_ws").to_return(
+        status: 200,
+        body: { id: "resp_ws", object: "response", model: "gpt-4.1", status: "completed", background: true,
+                created_at: 1, tools: [{ type: "web_search_preview" }], usage: usage,
+                output: [{ type: "web_search_call", id: "ws_1", status: "completed", action: { type: "search" } }] }
+          .to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        client.responses.retrieve("resp_ws")
+
+        fee = events.first[:line_items].find { |item| item[:kind] == "web_search_preview_request_non_reasoning" }
+        expect(fee).to include(provider_item_id: "ws_1", cost: "0.025")
+      end
+    end
+
+    it "does not look up the ledger while tracking is disabled" do
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.enabled = false
+        config.instrument(:openai)
+      end
+      stub_retrieve(status: "completed", usage: usage)
+
+      client.responses.retrieve("resp_bg")
+
+      expect(LlmCostTracker::Call).not_to have_received(:already_recorded?)
+    end
+
+    it "leaves a response created without background to the create call that recorded it" do
+      stub_retrieve(status: "completed", background: false, usage: usage)
+
+      capture_sdk_events do |events|
+        client.responses.retrieve("resp_bg")
+        expect(events).to be_empty
+      end
     end
   end
 
@@ -232,6 +313,22 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         expect(BigDecimal(line[:quantity])).to eq(BigDecimal("125.5") / 60)
         expect(events.first).to include(cost_status: "complete")
         expect(BigDecimal(events.first.dig(:cost, :total).to_s)).to eq(BigDecimal("0.01255"))
+      end
+    end
+
+    it "stores no cost for a diarized transcription billed by duration, since the model has only token rates" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
+        status: 200,
+        body: { task: "transcribe", duration: 27.4, text: "hi", segments: [],
+                usage: { type: "duration", seconds: 27 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        client.audio.transcriptions.create(file: audio_io, model: "gpt-4o-transcribe-diarize",
+                                           response_format: :diarized_json, chunking_strategy: :auto)
+
+        expect(events.first).to include(model: "gpt-4o-transcribe-diarize", cost_status: "unknown", cost: nil)
       end
     end
   end
@@ -753,7 +850,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
   end
 
   describe "chat.completions search line items" do
-    it "synthesizes a web_search line item from a url_citation annotation" do
+    it "adds no web_search line item for a url_citation annotation from a non-search model" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions").to_return(
         status: 200,
         body: {
@@ -774,8 +871,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
       capture_sdk_events do |events|
         client.chat.completions.create(model: "gpt-4o", messages: [{ role: "user", content: "x" }])
-        kinds = events.first[:line_items].reject { |item| item[:unit] == "token" }.map { |item| item[:kind] }
-        expect(kinds).to contain_exactly("web_search_request")
+        expect(events.first[:line_items].reject { |item| item[:unit] == "token" }).to eq([])
       end
     end
 
@@ -838,6 +934,32 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         client.responses.create(model: "gpt-4o", input: "hi")
         kinds = events.first[:line_items].reject { |item| item[:unit] == "token" }.map { |item| item[:kind] }
         expect(kinds).to contain_exactly("web_search_request", "file_search_call", "container_session")
+      end
+    end
+  end
+
+  describe "hosted shell" do
+    it "records a shell call in a hosted container as a container session, like Code Interpreter" do
+      shell_call = lambda do |id, environment|
+        { type: "shell_call", id: id, call_id: "call_#{id}", status: "completed",
+          action: { commands: ["ls"], timeout_ms: nil, max_output_length: nil }, environment: environment }
+      end
+      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(
+        status: 200,
+        body: { id: "resp_shell", object: "response", model: "gpt-5.5", status: "completed", created_at: 1,
+                output: [shell_call.call("sh_1", { type: "container_reference", container_id: "cntr_1" }),
+                         shell_call.call("sh_2", { type: "container_reference", container_id: "cntr_1" }),
+                         shell_call.call("sh_3", { type: "local" })],
+                usage: { input_tokens: 100, output_tokens: 10, total_tokens: 110 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        client.responses.create(model: "gpt-5.5", input: "list files")
+
+        sessions = events.first[:line_items].select { |item| item[:kind] == "container_session" }
+        expect(sessions.map { |item| item[:provider_item_id] }).to eq(["cntr_1"])
+        expect(events.first).to include(cost_status: "partial")
       end
     end
   end
@@ -989,6 +1111,45 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         expect(BigDecimal(events.first.dig(:cost, :total))).to eq(BigDecimal("0.00364"))
       end
     end
+
+    it "prices xAI's US host at regional rates and a Mistral Priority Tier stream at priority rates" do
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.capture.openai_compatible_providers["us.api.x.ai"] = "xai"
+        config.capture.openai_compatible_providers["api.mistral.ai"] = "mistral"
+        config.pricing.overrides = {
+          "xai/grok-4.7" => { input: 2.0, output: 6.0, data_residency_input: 2.2, data_residency_output: 6.6 },
+          "mistral/mistral-medium-latest" => { input: 1.5, output: 7.5, priority_input: 2.625, priority_output: 13.125 }
+        }
+        config.instrument(:openai)
+      end
+      WebMock.stub_request(:post, "https://us.api.x.ai/v1/chat/completions").to_return(
+        status: 200,
+        body: { id: "chatcmpl-xai", object: "chat.completion", created: 1, model: "grok-4.7",
+                choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
+                usage: { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+      chunk = { id: "cmpl-1", object: "chat.completion.chunk", created: 1, model: "mistral-medium-latest",
+                choices: [{ index: 0, delta: { content: "hi" } }] }
+      final = chunk.merge(choices: [], usage: { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000,
+                                                service_tier: "priority" })
+      stub_sdk_sse(:post, "https://api.mistral.ai/v1/chat/completions",
+                   body: "data: #{chunk.to_json}\n\ndata: #{final.to_json}\n\ndata: [DONE]\n\n")
+      messages = [{ role: "user", content: "hi" }]
+
+      capture_sdk_events do |events|
+        OpenAI::Client.new(api_key: "test-key", base_url: "https://us.api.x.ai/v1")
+                      .chat.completions.create(model: "grok-4.7", messages: messages)
+        OpenAI::Client.new(api_key: "test-key", base_url: "https://api.mistral.ai/v1")
+                      .chat.completions.stream_raw(model: "mistral-medium-latest", messages: messages).each { |_| nil }
+
+        expect(events.map { |event| event.values_at(:provider, :pricing_mode) })
+          .to eq([%w[xai data_residency], %w[mistral priority]])
+        expect(events.map { |event| BigDecimal(event.dig(:cost, :total)) })
+          .to eq([BigDecimal("0.0286"), BigDecimal("0.039375")])
+      end
+    end
   end
 
   describe "data residency pricing" do
@@ -1023,6 +1184,60 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       capture_sdk_events do |events|
         dr_client.responses.stream_raw(model: "gpt-5.4-mini", input: "hi").each { |_| nil }
         expect(events.first).to include(provider: "openai", pricing_mode: "data_residency")
+      end
+    end
+
+    def configure_prices(overrides)
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.pricing.overrides = overrides
+        config.instrument(:openai)
+      end
+    end
+
+    it "applies the 10% regional uplift to gpt-image-2 generated through a regional host" do
+      configure_prices("openai/gpt-image-2" => { "input" => 5.0, "image_input" => 8.0, "image_output" => 30.0,
+                                                 "data_residency_input" => 5.5 })
+      WebMock.stub_request(:post, "https://us.api.openai.com/v1/images/generations").to_return(
+        status: 200,
+        body: { created: 1, data: [],
+                usage: { input_tokens: 100, output_tokens: 1_000, total_tokens: 1_100,
+                         input_tokens_details: { text_tokens: 100, image_tokens: 0 } } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        dr_client.images.generate(model: "gpt-image-2", prompt: "a cat")
+
+        expect(events.first).to include(pricing_mode: "data_residency", cost_status: "complete")
+        expect(BigDecimal(events.first.dig(:cost, :total).to_s)).to eq(BigDecimal("0.03355"))
+      end
+    end
+
+    it "passes the regional host mode to transcriptions of a model with data residency rates" do
+      configure_prices("openai/gpt-4o-transcribe" => { "input" => 2.5, "data_residency_input" => 2.75 })
+      WebMock.stub_request(:post, "https://us.api.openai.com/v1/audio/transcriptions").to_return(
+        status: 200, body: { text: "hi" }.to_json, headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        dr_client.audio.transcriptions.create(file: audio_io, model: "gpt-4o-transcribe")
+
+        expect(events.first).to include(pricing_mode: "data_residency")
+      end
+    end
+
+    it "applies the 10% regional uplift to gpt-transcribe's per-minute rate" do
+      WebMock.stub_request(:post, "https://us.api.openai.com/v1/audio/transcriptions").to_return(
+        status: 200, body: { text: "hi", usage: { type: "duration", seconds: 125 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        dr_client.audio.transcriptions.create(file: audio_io, model: "gpt-transcribe")
+
+        expect(events.first).to include(pricing_mode: "data_residency", cost_status: "complete")
+        expect(BigDecimal(events.first.dig(:cost, :total).to_s)).to eq(BigDecimal("0.0103125"))
       end
     end
 

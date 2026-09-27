@@ -52,7 +52,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
     it "warns once per file load when unknown price keys are ignored" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write({
-          models: { "custom-model" => { "input" => 1.0, outpu: 2.0, _input: 2.0, bogus_input: 5.0, batch_web_search_request: 9.0 } }
+          models: { "custom-model" => { "input" => 1.0, outpu: 2.0, _input: 2.0, bogus_input: 5.0, above_context_web_search_request: 9.0 } }
         }.to_json)
         file.close
 
@@ -64,7 +64,7 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
         expect(output).to include('"outpu"')
         expect(output).to include('"_input"')
         expect(output).to include('"bogus_input"')
-        expect(output).to include('"batch_web_search_request"')
+        expect(output).to include('"above_context_web_search_request"')
       end
     end
 

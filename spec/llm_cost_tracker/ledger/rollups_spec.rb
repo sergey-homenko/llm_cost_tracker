@@ -94,6 +94,23 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       expect(logged.size).to eq(1)
       expect(logged.first).to include("llm_cost_tracker_call_rollups is missing")
     end
+
+    it "increments the table once another process creates it" do
+      migrator = Class.new(ActiveRecord::Base) do
+        self.abstract_class = true
+        def self.name = "RollupsMigrator"
+      end
+      migrator.establish_connection(ActiveRecord::Base.connection_db_config)
+      expect(described_class.cache_active?).to be(false)
+
+      create_call_rollups_table(migrator.connection)
+      migrator.connection.add_index :llm_cost_tracker_call_rollups, %i[period period_start currency provider],
+                                    unique: true
+      migrator.remove_connection
+      described_class.increment!([build_event(total_cost: 2.0, tracked_at: Time.utc(2026, 5, 8, 12))])
+
+      expect(LlmCostTracker::CallRollup.where(period: "day").sum(:total_cost)).to eq(2.0)
+    end
   end
 
   describe "with cache_rollups disabled" do
@@ -122,16 +139,68 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
     it "sums rollups across all currencies when cache_rollups is enabled" do
       LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
       time = Time.utc(2026, 5, 7, 12)
-      described_class.increment!([build_event(total_cost: 4.5, currency: "USD", tracked_at: time)])
-      described_class.increment!([build_event(total_cost: 99.0, currency: "EUR", tracked_at: time)])
+      described_class.increment!([build_event(total_cost: 4.5, currency: "USD", tracked_at: time - 86_400)])
+      described_class.increment!([build_event(total_cost: 99.0, currency: "EUR", tracked_at: time - 86_400)])
 
       totals = LlmCostTracker::Ledger::Period::Totals.call(%i[day month], time: time)
 
-      expect(totals[:day]).to be_within(0.0001).of(103.5)
+      expect(totals[:day]).to eq(0)
       expect(totals[:month]).to be_within(0.0001).of(103.5)
     end
 
-    it "falls back to live aggregation from calls when the rollups table has been truncated" do
+    it "reads completed days from the day rollups and only today's calls from the ledger" do
+      LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
+      time = Time.utc(2026, 5, 15, 12)
+      LlmCostTracker::Ledger::Store.insert([build_event(total_cost: 4.0, tracked_at: Time.utc(2026, 5, 3, 9)),
+                                            build_event(total_cost: 1.5, tracked_at: time - 60),
+                                            build_event(total_cost: 7.0, tracked_at: time + 60)])
+      statements = []
+      totals = ActiveSupport::Notifications.subscribed(->(*, payload) { statements << payload[:sql] },
+                                                       "sql.active_record") do
+        LlmCostTracker::Ledger::Period::Totals.call(%i[day month], time: time)
+      end
+      month_scan = LlmCostTracker::Call.between(Time.utc(2026, 5, 1), time).to_sql.split("WHERE").last
+
+      expect(totals).to eq(day: 1.5, month: 5.5)
+      expect(statements.join).not_to include(month_scan)
+    end
+
+    %i[inline async].each do |mode|
+      it "fires the monthly budget once, on the call that crosses it on a later day, with #{mode} ingestion" do
+        notified = []
+        LlmCostTracker.configure do |config|
+          config.ingestion.mode = mode
+          config.budgets.totals_source = :cache
+          config.budgets.monthly = 10
+          config.budgets.on_exceeded = ->(payload) { notified << payload[:total] }
+          config.pricing.overrides = { "budget-model" => { input: 3.0 } }
+        end
+
+        [Time.utc(2026, 5, 3, 9), Time.utc(2026, 5, 14, 9), Time.utc(2026, 5, 15, 9), Time.utc(2026, 5, 15, 10)]
+          .each do |time|
+            travel_to(time) do
+              LlmCostTracker.track(provider: "custom", model: "budget-model", tokens: { input_tokens: 1_000_000 })
+              LlmCostTracker::Ingestion::Worker.flush! if mode == :async
+            end
+          end
+
+        expect(notified).to eq([12])
+      end
+    end
+
+    it "counts calls recorded before the switch to :cache once rebuild_rollups runs after it" do
+      month = -> { LlmCostTracker::Ledger::Period::Totals.call(%i[month], time: Time.utc(2026, 5, 15, 12))[:month] }
+      LlmCostTracker.configuration.budgets.totals_source = :ledger
+      LlmCostTracker::Ledger::Store.insert([build_event(total_cost: 3.0, tracked_at: Time.utc(2026, 5, 3, 9))])
+      LlmCostTracker.configuration.budgets.totals_source = :cache
+      LlmCostTracker::Ledger::Store.insert([build_event(total_cost: 3.0, tracked_at: Time.utc(2026, 5, 14, 9))])
+      before_rebuild = month.call
+      described_class.rebuild!
+
+      expect([before_rebuild, month.call]).to eq([3, 6])
+    end
+
+    it "reads today's calls live even when the rollups table has been truncated" do
       LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
       time = Time.utc(2026, 5, 7, 12)
       LlmCostTracker::Ledger::Store.insert([
@@ -146,7 +215,7 @@ RSpec.describe LlmCostTracker::Ledger::Rollups do
       expect(totals[:month]).to be_within(0.0001).of(103.5)
     end
 
-    it "prefers calls aggregation over a stale partial rollup row so a post-v0.9-migration period with historical pre-migration calls is not under-counted while the new rollup bucket only contains the post-migration tail" do
+    it "reads today's calls live, ignoring a stale month rollup row" do
       LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
       time = Time.utc(2026, 5, 15, 12)
       LlmCostTracker::Ledger::Store.insert([

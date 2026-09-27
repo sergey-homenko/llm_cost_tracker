@@ -1,9 +1,10 @@
 # Upgrading
 
-## v0.14 → v0.15 (Unreleased)
+## v0.14.1 → v0.14.2 (Unreleased)
 
-- **Rails 8.0+ is required.** On Rails 7.1 or 7.2, `bundle update llm_cost_tracker` stays on 0.14.1 without an error, and 0.14.x gets no further fixes, so upgrade Rails first. There are no migrations.
-- **Local pricing file.** Gemini image model prices rose up to 770-fold, which `prices:refresh` refuses by default: run it with `PREVIEW=1`, check that only Gemini image models are flagged, then with `FORCE=1`.
+- **Rails 8.0+ is required.** On Rails 7.1 or 7.2, `bundle update llm_cost_tracker` stays on 0.14.1 without an error and gets no further fixes, so upgrade Rails first. There are no migrations.
+- **Local pricing file.** Gemini image model prices rose up to 770-fold, which `prices:refresh` refuses by default: run `prices:check`, check that only Gemini image models are flagged, then `prices:refresh FORCE=1`.
+- **`budgets.totals_source = :cache`.** Monthly budgets now read earlier days from the rollups: run `bin/rails llm_cost_tracker:rebuild_rollups` once after deploying, or they are under-counted.
 
 ## v0.14.0 → v0.14.1
 

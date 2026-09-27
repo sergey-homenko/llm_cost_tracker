@@ -44,6 +44,15 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
     it "does not match unrelated Gemini endpoints" do
       expect(described_class.match?(models_index_url)).to be false
     end
+
+    it "matches the Interactions API and explicit cache creation, not reads or deletes of one cache" do
+      expected = { "/v1beta/interactions" => true, "/v1beta/cachedContents" => true,
+                   "/v1beta/cachedContents/abc" => false }
+      expected.each do |path, matched|
+        url = URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: path).to_s
+        expect(described_class.match?(url)).to be(matched), path
+      end
+    end
   end
 
   describe "#provider_for" do
@@ -308,6 +317,25 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       )
 
       expect(result.line_items.reject { |item| item.unit == "token" }.first.quantity).to eq(2)
+    end
+  end
+
+  describe "#parse (Interactions API)" do
+    it "takes the model of an Interactions request from its body" do
+      url = URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/interactions").to_s
+
+      expect(parser.model_for(url, { "model" => "gemini-3.8-flash" })).to eq("gemini-3.8-flash")
+    end
+
+    it "records nothing for a background interaction created without usage" do
+      result = parser.parse(
+        request_url: URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/interactions").to_s,
+        request_body: { model: "gemini-3.8-flash", input: "hi", background: true }.to_json,
+        response_status: 200,
+        response_body: { id: "v1_bg", model: "gemini-3.8-flash", status: "in_progress" }.to_json
+      )
+
+      expect(result).to be_nil
     end
   end
 

@@ -9,22 +9,83 @@ module LlmCostTracker
           "web_fetch_request" => :web_fetch_requests
         }.freeze
         DATA_RESIDENCY_GEOS = %w[us].freeze
-        private_constant :SERVER_TOOL_LINE_ITEMS, :DATA_RESIDENCY_GEOS
+        BILLED_REFUSAL_CATEGORIES = %w[bio frontier_llm reasoning_extraction].freeze
+        BEDROCK_REGIONAL_PROFILE = /\A(?!global\.)[a-z]+\.anthropic\./
+        private_constant :SERVER_TOOL_LINE_ITEMS,
+                         :DATA_RESIDENCY_GEOS,
+                         :BILLED_REFUSAL_CATEGORIES,
+                         :BEDROCK_REGIONAL_PROFILE
 
         def self.token_usage(usage)
-          input = usage[:input_tokens].to_i
-          output = usage[:output_tokens].to_i
-          cache_read = usage[:cache_read_input_tokens].to_i
-          cache_write, cache_write_extended = cache_writes(usage)
+          entries = [usage, *iterations(usage, "compaction")]
+          writes = entries.map { |entry| cache_writes(entry) }
 
           Usage::TokenUsage.build(
-            input_tokens: input,
-            output_tokens: output,
-            cache_read_input_tokens: cache_read,
-            cache_write_input_tokens: cache_write,
-            cache_write_extended_input_tokens: cache_write_extended,
+            input_tokens: entries.sum { |entry| entry[:input_tokens].to_i },
+            output_tokens: entries.sum { |entry| entry[:output_tokens].to_i },
+            cache_read_input_tokens: entries.sum { |entry| entry[:cache_read_input_tokens].to_i },
+            cache_write_input_tokens: writes.sum(&:first),
+            cache_write_extended_input_tokens: writes.sum(&:last),
             hidden_output_tokens: usage.dig(:output_tokens_details, :thinking_tokens).to_i
           )
+        end
+
+        def self.served_model(usage, content = nil)
+          served = iterations(usage, "fallback_message").last&.dig(:model)
+          served ||= fallback_blocks(content).last&.dig(:to, :model)
+          served&.to_s.presence
+        end
+
+        def self.iteration_line_items(usage, content: nil)
+          other_model_iterations(usage, content).map do |iteration|
+            tokens = token_usage(iteration)
+            Charges::LineItem.build(
+              dimension_key: "model_iteration",
+              quantity: 1,
+              pricing_basis: "provider_usage",
+              provider_field: "usage.iterations.#{iteration[:type]}",
+              details: tokens.to_h.select { |_key, count| count.positive? }.merge(model: iteration[:model].to_s)
+            )
+          end
+        end
+
+        def self.refusal_line_items(usage, stop_reason:, refusal_category:)
+          return [] unless stop_reason.to_s == "refusal" && token_usage(usage).output_tokens.zero?
+          return [] if BILLED_REFUSAL_CATEGORIES.include?(refusal_category.to_s)
+
+          [Charges::LineItem.build(
+            dimension_key: "billed_request",
+            quantity: 1,
+            rate_amount: 0,
+            cost: 0,
+            pricing_basis: "provider_usage",
+            price_source: "provider_response",
+            provider_field: "stop_details.category",
+            details: { category: refusal_category&.to_s }.compact
+          )]
+        end
+
+        def self.other_model_iterations(usage, content)
+          advisors = iterations(usage, "advisor_message")
+          served = served_model(usage, content)
+          return advisors unless served
+
+          categories = fallback_blocks(content).map { |block| block.dig(:trigger, :category).to_s }
+          declined = iterations(usage, "message").reject { |entry| ["", served].include?(entry[:model].to_s) }
+          hops = declined.group_by { |entry| entry[:model].to_s }.values
+          billed = hops.select.with_index do |hop, index|
+            hop.any? { |entry| entry[:output_tokens].to_i.positive? } ||
+              BILLED_REFUSAL_CATEGORIES.include?(categories[index])
+          end
+          advisors + billed.flatten
+        end
+
+        def self.fallback_blocks(content)
+          Array(content).select { |block| block.is_a?(Hash) && block[:type].to_s == "fallback" }
+        end
+
+        def self.iterations(usage, type)
+          Array(usage[:iterations]).select { |entry| entry.is_a?(Hash) && entry[:type].to_s == type }
         end
 
         def self.pricing_mode(request:, usage:)
@@ -33,8 +94,13 @@ module LlmCostTracker
           geo = (usage&.dig(:inference_geo) || request&.dig(:inference_geo)).to_s.downcase
 
           modes = [Pricing::Mode.normalize(speed), Pricing::Mode.normalize(service_tier)]
-          modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(geo)
+          modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(geo) || bedrock_regional?(request&.dig(:model))
           Pricing::Mode.compose(modes)
+        end
+
+        def self.bedrock_regional?(model)
+          model.to_s.match?(BEDROCK_REGIONAL_PROFILE) &&
+            Pricing::Matcher.modifier_priced?(provider: "bedrock", model: model.to_s, modifier: "data_residency")
         end
 
         def self.service_line_items(usage)

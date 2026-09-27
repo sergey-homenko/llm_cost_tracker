@@ -22,13 +22,13 @@ Budgets evaluate only when an event has a known cost. Unknown-cost events are st
 | --- | --- | --- |
 | `:notify` | After a priced event is recorded | Calls `budgets.on_exceeded` once per budget type the event crossed (an event that pushes both daily and monthly over fires the callback twice — once per limit) |
 | `:raise` | After a priced event is recorded | Raises `LlmCostTracker::BudgetExceededError` |
-| `:block_requests` | Before supported requests and again after recording | Blocks the request when prior spend plus a character-count estimate of this call would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Preflight blocks do not fire `budgets.on_exceeded`; the callback only fires post-record on the event that first crossed the limit |
+| `:block_requests` | Before supported requests (for Faraday, `POST` only) and again after recording | Blocks the request when prior spend plus a character-count estimate of this call would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Preflight blocks do not fire `budgets.on_exceeded`; the callback only fires post-record on the event that first crossed the limit |
 
 `:raise` records first, then raises. The call that crossed the budget remains visible in the ledger. Every limit the call crossed, per-tag rules included, gets its `on_exceeded` call before the error for the first one is raised.
 
 `:block_requests` reads accumulated spend (see Budget Reads below) and also estimates the current call's input cost via a character-count heuristic (chars / 4 ≈ tokens, provider-agnostic, no external tokenizer). Base64 image, PDF and audio data is not counted. It blocks before send when prior spend plus the estimate would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Output tokens stay unknown pre-send and are caught by the existing post-record check. Approximate by design — runway-stop, not precise prediction. Unknown models (no pricing match) skip the estimate and fall through to the prior-spend preflight.
 
-Under concurrency, multiple workers can clear preflight before each other's spend is visible. It stops the next request once overspend lands — it doesn't make provider spend transactional. Calls that land at the same moment, or on hosts whose clocks disagree, can also fire `on_exceeded` twice for one crossing.
+Under concurrency, multiple workers can clear preflight before each other's spend is visible. It stops the next request once overspend lands — it doesn't make provider spend transactional. Calls that land at the same moment can also fire `on_exceeded` twice for one crossing, and a call that commits after a later-stamped call was checked, such as one inside a slow transaction of your own or on a host whose clock runs ahead, can make the daily and monthly budgets fire twice or not at all. On MySQL, a call recorded inside your own transaction is checked against the snapshot that transaction took at its first read, so any budget can miss a crossing; record outside the transaction, or open it with `isolation: :read_committed`. With `ingestion.mode = :async`, per-tag rules fire once per crossing.
 
 If the budget read fails (database unavailable, statement timeout), `:block_requests` raises that error to your code and the request is not sent.
 
@@ -60,7 +60,7 @@ bin/rails llm_cost_tracker:backfill_tag_costs
 
 It is safe to run more than once and skips rows already filled. Until the columns exist the option logs a warning once and enforces nothing; calls are still recorded.
 
-Repricing keeps the copies honest: `llm_cost_tracker:backfill_unknown_pricing` updates the tag rows along with the call.
+Repricing keeps the copies honest: `llm_cost_tracker:backfill_unknown_pricing` and `llm_cost_tracker:reprice` update the tag rows along with the call.
 
 Scoped checks run after the global ones, even when a global limit raises. By default each rule follows the global `exceeded_behavior` and `on_exceeded`, and may override either:
 
@@ -107,8 +107,8 @@ Where the monthly/daily totals come from depends on `config.budgets.totals_sourc
 
 | Source | When read |
 | --- | --- |
-| Live `SUM(total_cost)` from `llm_cost_tracker_calls` | Always, on every check |
-| `llm_cost_tracker_call_rollups` | Added when `config.budgets.totals_source = :cache`, as the greater of the two |
+| Live `SUM(total_cost)` from `llm_cost_tracker_calls` | The whole window with `config.budgets.totals_source = :ledger`; only today (UTC) with `:cache` |
+| Daily rows of `llm_cost_tracker_call_rollups` | Days of the month before today when `config.budgets.totals_source = :cache` |
 | Pending `llm_cost_tracker_ingestion_inbox_entries` totals | Added on top when `ingestion.mode = :async` (events sit in the inbox until the worker drains them) |
 
 Per-call budgets are checked from the current event only.
@@ -132,8 +132,8 @@ Budget aggregation assumes a single-currency ledger. The rollups table partition
 
 ## Operational Notes
 
-When `config.budgets.totals_source = :cache`, `llm_cost_tracker:doctor` checks that the rollups table exists and carries the expected columns. It does not inspect indexes, so a table created by hand without the `(period, period_start, currency, provider)` unique index passes doctor and then breaks the upsert — create it with the generator. With `config.budgets.totals_source = :ledger`, doctor warns instead if a stale rollups table is found.
+When `config.budgets.totals_source = :cache`, `llm_cost_tracker:doctor` checks that the rollups table exists and carries the expected columns, and warns when this month's day rollups before today do not add up to the calls ledger. It does not inspect indexes, so a table created by hand without the `(period, period_start, currency, provider)` unique index passes doctor and then breaks the upsert — create it with the generator. With `config.budgets.totals_source = :ledger`, doctor warns instead if a stale rollups table is found.
 
-Budget reads always aggregate live from the calls table; the `tracked_at` index on `llm_cost_tracker_calls` is what keeps that affordable. Switching `budgets.totals_source` to `:cache` does not remove that aggregation, so it is not a fix for a slow `SUM` — it guards against a rollup cache that has drifted low. A monthly window over a large ledger stays expensive either way.
+With `budgets.totals_source = :ledger`, a monthly budget read sums every call of the month, so its cost grows with the month. `:cache` reads the month's finished days from the rollups table and sums only today's calls. The rollups count only calls recorded while `:cache` is on: once it is deployed, run `bin/rails llm_cost_tracker:rebuild_rollups` at a quiet time (a call recorded while it runs can be missed), and again if the log reports a failed rollup increment; until then earlier days of the month are under-counted.
 
 For strict quotas, use provider-side limits or a transactional counter in your own app.

@@ -28,7 +28,7 @@ LlmCostTracker.with_tags(feature: "support_chat") do
 end
 ```
 
-The RubyLLM integration supports `ruby_llm` 1.15 through 2.x and checks RubyLLM's provider contract at boot; 3.0 and later still installs, but `doctor` and the boot log warn that its calls may not be recorded. Chat, embedding, transcription, image generation, and moderation calls are captured. Tool execution that runs through chat completions is captured as additional chat rows, not as a separate tool ledger row. Use RubyLLM 2.0 or later for Bedrock prompt caching: RubyLLM 1.x subtracts cache reads and writes from Bedrock's already uncached `inputTokens`, so input tokens are recorded too low.
+The RubyLLM integration supports `ruby_llm` 1.15 through 2.x and checks RubyLLM's provider contract at boot; 3.0 and later still installs, but `doctor` and the boot log warn that its calls may not be recorded. Chat, embedding, transcription, image generation, and moderation calls are captured. Tool execution that runs through chat completions is captured as additional chat rows, not as a separate tool ledger row. Use RubyLLM 2.0 or later for streamed Bedrock prompt caching: RubyLLM 1.x subtracts cache reads and writes from Bedrock's already uncached `inputTokens`, so streamed input tokens are recorded too low.
 
 ## Official OpenAI SDK
 
@@ -225,4 +225,4 @@ client.post("chat/completions") do |req|
 end
 ```
 
-If your proxy exposes custom model IDs or discounts, add them in `pricing.file` or `pricing.overrides`.
+If your proxy exposes custom model IDs or discounts, add them in `pricing.file` or `pricing.overrides`. A bare model ID such as `gpt-4o` takes another provider's override, such as `azure_openai/gpt-4o`, before the bundled price; add a `litellm/gpt-4o` override to price it separately.

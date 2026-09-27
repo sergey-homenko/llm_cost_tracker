@@ -54,13 +54,13 @@ Built-in integration names:
 | --- | --- | --- |
 | `:openai` | `openai >= 0.59.0` | Responses, Chat Completions, Embeddings, Images, Audio (speech, transcriptions, translations), Moderations, Batches, and the streaming helpers for each |
 | `:anthropic` | `anthropic >= 1.36.0` | Messages and Message Batches, plus their beta helpers |
-| `:ruby_llm` | `ruby_llm >= 1.15.0` | Provider chat, embedding, transcription, image, and moderation calls |
+| `:ruby_llm` | `ruby_llm >= 1.15.0` | Provider chat, embedding, transcription, image, and moderation calls, and Gemini context caches created with `RubyLLM.cache` (2.x) |
 
 The minimum is what `install!` enforces. CI resolves each SDK fresh on every run, so the suite is exercised against the newest release the gemspec's development dependencies allow. Versions between the minimum and that release are supported but not covered by CI.
 
-Batch results are recorded inside the call that fetches them: for OpenAI, the first `batches.retrieve` in each process that sees the batch `completed`, `expired`, or `cancelled` downloads the output file, which holds every billed request; for Anthropic, iterating `batches.results_streaming`. Poll from a background job, not a web request. A result already in the ledger is skipped (OpenAI embeddings and image results carry no response id, so they are keyed by the output line's `batch_req_...` id), but one still in the async inbox or being recorded by a concurrent fetch is not, so fetch each batch's results from one job at a time.
+Batch results are recorded inside the call that fetches them: for OpenAI, the first `batches.retrieve` in each process that sees the batch `completed`, `expired`, or `cancelled` downloads the output file, which holds every billed request; for Anthropic, iterating `batches.results_streaming`. Poll from a background job, not a web request. A result already in the ledger, still in the async inbox, or being recorded by a concurrent fetch is skipped (OpenAI embeddings and image results carry no response id, so they are keyed by the output line's `batch_req_...` id).
 
-OpenAI Responses created with `background: true` and polled with `responses.retrieve` are not recorded; stream them with `responses.stream` or `responses.retrieve_streaming`, or record them with `LlmCostTracker.track`.
+OpenAI Responses created with `background: true` are recorded by the first poll that returns them out of `queued` and `in_progress` with usage: `responses.retrieve` in the OpenAI SDK, or a `GET` of `/responses/{id}` through the Faraday middleware, Azure OpenAI included. The row is tagged from the context around that poll, not the create call, has no `latency_ms`, and is stored once however often the response is polled or streamed; a stream of it that ends before its usage leaves its own `usage_source: unknown` row.
 
 ## OpenAI-Compatible Hosts
 
@@ -70,6 +70,16 @@ OpenAI-compatible capture covers listed hosts only, on paths ending in `/chat/co
 config.capture.openai_compatible_providers["openrouter.ai"] = "openrouter"
 config.capture.openai_compatible_providers["api.deepseek.com"] = "deepseek"
 config.capture.openai_compatible_providers["api.groq.com"] = "groq"
+```
+
+xAI and Mistral are priced but not built in; register each host you call, regional endpoints included:
+
+```ruby
+config.capture.openai_compatible_providers["api.x.ai"] = "xai"
+config.capture.openai_compatible_providers["us.api.x.ai"] = "xai"
+config.capture.openai_compatible_providers["api.mistral.ai"] = "mistral"
+config.capture.openai_compatible_providers["api.eu.mistral.ai"] = "mistral"
+config.capture.openai_compatible_providers["api.us.mistral.ai"] = "mistral"
 ```
 
 Register custom gateway hosts when they speak OpenAI-compatible request and response shapes:
@@ -98,7 +108,7 @@ config.pricing.overrides = {
 | --- | --- | --- |
 | `pricing.file` | `nil` | Local JSON/YAML registry used ahead of bundled prices. A malformed file fails `configure`; a missing one is logged and ignored until `llm_cost_tracker:prices:refresh` creates it. |
 | `pricing.overrides` | `{}` | Ruby hash used ahead of local and bundled registries |
-| `pricing.unknown_model_behavior` | `:warn` | What to do when a model has no rate at all: `:ignore`, `:warn`, or `:raise`. `:raise` records the call first, then raises `LlmCostTracker::UnknownPricingError`. A model that is priced but missing one component rate lands as `partial` and never triggers this. |
+| `pricing.unknown_model_behavior` | `:warn` | What to do when a model has no rate at all, including the model of an Anthropic advisor or fallback attempt: `:ignore`, `:warn`, or `:raise`. `:raise` records the call first, then raises `LlmCostTracker::UnknownPricingError`. A model that is priced but missing one component rate lands as `partial` and never triggers this. |
 
 Pricing precedence is:
 
@@ -129,7 +139,7 @@ Two options decide which optional tables the gem touches. Both default to the no
 | --- | --- | --- |
 | `ingestion.mode` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
 | `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool that inbox writes use. Those writes happen on the request thread inside `Tracker.record`, on a connection kept out of the app's pool so a staged event survives a caller rollback and a busy app doesn't deadlock its own tracking. The drain worker does not use this pool — it checks out an ordinary connection. The pool is per process; bump it if concurrent `Tracker.record` calls in one process (e.g. Puma threads) outgrow the default. Ignored when `ingestion.mode = :inline`. |
-| `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` and reads the greater of that row and the same live sum, so a rollup that has drifted low can never make a budget under-report. It does not replace the sum or make the check cheaper — it adds a read here and a write on every recorded call, and needs the `llm_cost_tracker_call_rollups` table. Only budget checks and the dashboard budget widget read those totals; with no budget configured it is pure overhead. |
+| `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` and reads a monthly total as the month's finished days from that table plus a live sum of today's calls. It adds a write on every recorded call, needs the `llm_cost_tracker_call_rollups` table, and counts only calls recorded while `:cache` is on: once it is deployed, run `bin/rails llm_cost_tracker:rebuild_rollups`, and again after a logged rollup failure. Only budget checks and the dashboard budget widget read those totals; with no budget configured it is pure overhead. |
 
 Each opt-in needs a matching generator before flipping the flag:
 

@@ -20,13 +20,22 @@ module LlmCostTracker
         updated_at = metadata["updated_at"] || metadata[:updated_at]
         return configured_check(:warn, path, count, "metadata.updated_at missing; #{REFRESH_COMMAND}") unless updated_at
 
-        age_days = (Date.today - Date.iso8601(updated_at.to_s)).to_i
-        if age_days > STALE_AFTER_DAYS
+        file_date = Date.iso8601(updated_at.to_s)
+        if (Date.today - file_date).to_i > STALE_AFTER_DAYS
           return configured_check(
             :warn,
             path,
             count,
             "updated_at=#{updated_at} is older than #{STALE_AFTER_DAYS} days; #{REFRESH_COMMAND}"
+          )
+        end
+        bundled_at = LlmCostTracker::Pricing::Registry.metadata["updated_at"]
+        if bundled_at && file_date < Date.iso8601(bundled_at.to_s)
+          return configured_check(
+            :warn,
+            path,
+            count,
+            "updated_at=#{updated_at} is older than the bundled prices (#{bundled_at}); #{REFRESH_COMMAND}"
           )
         end
 

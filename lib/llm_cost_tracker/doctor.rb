@@ -167,12 +167,29 @@ module LlmCostTracker
       return live_rollups_check unless LlmCostTracker.configuration.budgets.totals_source == :cache
 
       errors = LlmCostTracker::Ledger::Schema::CallRollups.current_schema_errors
-      return Check.new(:ok, "call rollups", "llm_cost_tracker_call_rollups exists") if errors.empty?
+      return rollups_drift_check if errors.empty?
 
       Check.new(
         :error,
         "call rollups",
         "schema mismatch: #{errors.join('; ')}; see docs/upgrading.md"
+      )
+    end
+
+    def rollups_drift_check
+      month_start = LlmCostTracker::Ledger::Period.range_start(:month, Time.now)
+      today = LlmCostTracker::Ledger::Period.range_start(:day, Time.now)
+      rolled = LlmCostTracker::CallRollup.where(period: "day", period_start: month_start.to_date...today.to_date)
+                                         .sum(:total_cost)
+      recorded = LlmCostTracker::Call.where(tracked_at: month_start...today).sum(:total_cost)
+      return Check.new(:ok, "call rollups", "llm_cost_tracker_call_rollups exists") if rolled == recorded
+
+      Check.new(
+        :warn,
+        "call rollups",
+        "this month's day rollups before today total #{rolled.to_d.to_s('F')} but the calls total " \
+        "#{recorded.to_d.to_s('F')}, and monthly budgets read the rollups; " \
+        "run bin/rails llm_cost_tracker:rebuild_rollups"
       )
     end
 

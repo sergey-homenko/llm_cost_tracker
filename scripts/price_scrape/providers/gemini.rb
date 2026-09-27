@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "date"
 require "nokogiri"
 require "time"
 
@@ -14,14 +15,28 @@ module LlmCostTracker
         max_price 1000.0
         anchors "gemini-2.5-pro", "gemini-2.5-flash"
 
-        GROUNDING_ROW = "Grounding with Google Search"
+        SERVICE_ROWS = {
+          "grounding_request" => /\AGrounding with Google (?:Search|Web and Image Search)/,
+          "maps_grounding_request" => /\AGrounding with Google Maps/
+        }.freeze
         GROUNDING_PRICE = %r{\$([\d.]+)\s*(?:/|per)\s*1,?000}
+        STORAGE_PRICE = %r{\$([\d.]+)\s*/\s*1,000,000 tokens per hour}
         PER_IMAGE_PRICE = /\$([\d.]+) per [^$\n]*image/
         TIER_PREFIXES = { "Standard" => "", "Batch" => "batch_", "Flex" => "flex_", "Priority" => "priority_" }.freeze
+        EMBEDDING_ROWS = {
+          "Text input price" => "input",
+          "Image input price" => "image_input",
+          "Audio input price" => "audio_input",
+          "Video input price" => "video_input"
+        }.freeze
+        SCHEDULED_FROM = /starting (\w+ \d{1,2}, \d{4})/
+        SCHEDULED_LINE = /#{SCHEDULED_FROM}\.?\z/
+        CURRENT_LINE = /through \w+ \d{1,2}, \d{4}\.?\z/
+        TEXT_PRICED_AS = /Text input and output\s+is priced the same as/
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
-          models = extract_models(doc)
+          models = extract_models(doc, Date.parse(scraped_at.to_s))
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -34,37 +49,87 @@ module LlmCostTracker
 
         private
 
-        def extract_models(doc)
+        def extract_models(doc, today)
           article = doc.at_css("div.devsite-article-body")
           raise Error, "Gemini pricing article body not found" unless article
 
-          pair_sections(article).each_with_object({}) do |(model_id, tabs), models|
-            next unless model_id
+          text_priced_as = {}
+          models = pair_sections(article).each_with_object({}) do |(model_ids, tabs, same_as), collected|
+            next if model_ids.empty? || !find_table(tabs, "Standard")
+            raise Error, "Gemini batch pricing table not found for #{model_ids.first}" unless find_table(tabs, "Batch")
 
-            standard_table = find_table(tabs, "Standard")
-            next unless standard_table
-            raise Error, "Gemini batch pricing table not found for #{model_id}" unless find_table(tabs, "Batch")
+            prices = dated_prices(tabs, footnotes(tabs), today)
+            model_ids.each do |model_id|
+              collected[model_id] = prices.dup
+              text_priced_as[model_id] = same_as if same_as && !prices.key?("output")
+            end
+          end
+          add_text_output_prices(models, text_priced_as)
+        end
 
-            notes = footnotes(tabs)
-            models[model_id] = TIER_PREFIXES.each_with_object({}) do |(heading, prefix), prices|
-              table = find_table(tabs, heading)
-              prices.merge!(extract_pricing(table, notes: notes, prefix: prefix)) if table
-            end.merge(extract_grounding_pricing(standard_table))
+        def add_text_output_prices(models, text_priced_as)
+          text_priced_as.each do |model_id, source_id|
+            source = models.fetch(source_id) do
+              raise Error, "Gemini #{model_id} text is priced as #{source_id.inspect}, which the page does not price"
+            end
+            TIER_PREFIXES.each_value do |prefix|
+              next unless models[model_id].key?("#{prefix}input")
+
+              models[model_id]["#{prefix}output"] = source.fetch("#{prefix}output") do
+                raise Error, "Gemini #{source_id} has no #{prefix}output rate for #{model_id}"
+              end
+            end
+          end
+          models
+        end
+
+        def dated_prices(tabs, notes, today)
+          starting = tabs.text[SCHEDULED_FROM, 1]
+          return section_prices(tabs, notes) unless starting
+
+          from = Date.parse(starting)
+          scheduled = section_prices(without_lines(tabs, CURRENT_LINE), notes)
+          return scheduled if from <= today
+
+          current = section_prices(without_lines(tabs, SCHEDULED_LINE), notes)
+          scheduled.each_with_object(current) do |(key, price), prices|
+            prices["#{key}_from_#{from.iso8601}"] = price unless current[key] == price
           end
         end
 
+        def without_lines(tabs, pattern)
+          tabs.dup.tap do |copy|
+            copy.css("td").each do |cell|
+              lines = cell.inner_html.split(%r{<br\s*/?>}i)
+              kept = lines.reject { |line| Nokogiri::HTML.fragment(line).text.strip.match?(pattern) }
+              cell.inner_html = kept.join("<br>")
+            end
+          end
+        end
+
+        def section_prices(tabs, notes)
+          TIER_PREFIXES.each_with_object({}) do |(heading, prefix), prices|
+            table = find_table(tabs, heading)
+            prices.merge!(extract_pricing(table, notes: notes, prefix: prefix)) if table
+          end.merge(extract_service_pricing(find_table(tabs, "Standard")))
+        end
+
         def pair_sections(article)
-          current_model_id = nil
+          current_model_ids = []
+          same_as = nil
           article.children.each_with_object([]) do |child, pairs|
             next if child.text?
             next unless child.respond_to?(:css)
 
             if child["class"]&.include?("models-section")
-              raw_id = child.at_css("div.heading-group code")&.text&.strip
-              current_model_id = normalize_model_id(raw_id)
+              codes = child.css("div.heading-group code")
+              current_model_ids = codes.filter_map { |code| normalize_model_id(code.text.strip) }
             elsif pricing_tabs_container?(child)
-              pairs << [current_model_id, child]
-              current_model_id = nil
+              pairs << [current_model_ids, child, same_as]
+              current_model_ids = []
+              same_as = nil
+            elsif child.text.match?(TEXT_PRICED_AS)
+              same_as = child.at_css("a[href^='#']")&.[]("href").to_s.delete_prefix("#")
             end
           end
         end
@@ -85,20 +150,27 @@ module LlmCostTracker
               .map(&:text).join
         end
 
-        def extract_grounding_pricing(table)
-          row = parse_table(table).find { |label, _| label.to_s.start_with?(GROUNDING_ROW) }
-          return {} unless row
-
-          price = row.last.to_s[GROUNDING_PRICE, 1]
-          return {} unless price
-
-          { "grounding_request" => Float(price) }
+        def extract_service_pricing(table)
+          rows = parse_table(table)
+          prices = SERVICE_ROWS.each_with_object({}) do |(key, label), acc|
+            price = rows.find { |row_label, _| row_label.match?(label) }&.last.to_s[GROUNDING_PRICE, 1]
+            acc[key] = Float(price) if price
+          end
+          storage = rows.find { |label, _| label.start_with?("Context caching") }&.last.to_s[STORAGE_PRICE, 1]
+          prices["cache_storage_token_hour"] = Float(storage) if storage
+          prices
         end
 
         def extract_pricing(table, notes:, prefix:)
           input = "#{prefix}input"
           output = "#{prefix}output"
           rows = parse_table(table)
+          if rows.key?("Text input price")
+            return EMBEDDING_ROWS.each_with_object({}) do |(label, key), prices|
+              prices["#{prefix}#{key}"] = parse_price(rows[label]) if rows[label]&.match?(/\$\s*\d/)
+            end
+          end
+
           input_key = rows.keys.find { |k| k.start_with?("Input price") }
           output_key = rows.keys.find { |k| k.start_with?("Output price") }
           raise Error, "Gemini text pricing rows not found" unless input_key && output_key
@@ -151,6 +223,8 @@ module LlmCostTracker
           return unless context_cache_key && rows[context_cache_key].match?(/\$\s*\d/)
 
           prices[cache_read_input] = parse_price(rows[context_cache_key])
+          audio = parse_modality_price(rows[context_cache_key], "audio")
+          prices[cache_read_input.sub("cache_read", "audio_cache_read")] = audio if audio
           context_cache_tiers = parse_prompt_tier_prices(rows[context_cache_key])
           prices["above_context_#{cache_read_input}"] = context_cache_tiers.fetch(1) if context_cache_tiers
         end
@@ -164,13 +238,10 @@ module LlmCostTracker
           end
         end
 
-        def normalize_model_id(raw_id)
-          id = raw_id.to_s.split(/\s+and\s+|\s*,\s*/).first&.strip.to_s
-          return nil unless id.match?(/\Agemini-/)
-          return nil if id.match?(/-(?:tts|embedding|live|robotics|computer)/)
-          return nil unless id.match?(/\Agemini-\d+(?:\.\d+)?-(?:pro|flash(?:-lite)?)/)
+        def normalize_model_id(id)
+          return nil if id.match?(/-(?:live|streaming)\b/)
 
-          id
+          id if id.match?(/\Agemini-(?:\d+(?:\.\d+)?-(?:pro|flash)|embedding-2|robotics-er-\d)/)
         end
 
         def audio_price_key(field)

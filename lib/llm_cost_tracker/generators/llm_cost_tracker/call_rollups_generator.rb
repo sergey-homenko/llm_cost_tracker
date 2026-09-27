@@ -28,7 +28,10 @@ module LlmCostTracker
               config.budgets.totals_source = :cache
             end
 
-          Without it Tracker keeps reading budget totals as live SUM aggregates over
+          Once that is deployed, run bin/rails llm_cost_tracker:rebuild_rollups. Until then
+          calls recorded before the switch are missing from monthly budget totals.
+
+          Without the setting Tracker keeps reading budget totals as live SUM aggregates over
           llm_cost_tracker_calls. The doctor check warns about an unused rollups table.
         MSG
       end

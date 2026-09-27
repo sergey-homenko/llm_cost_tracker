@@ -38,13 +38,13 @@ module LlmCostTracker
 
           normalized = (tags || {}).to_h.transform_keys(&:to_s)
           configured.filter_map do |key, entry|
-            raw = normalized[key]
-            next if raw.nil?
+            value = Ledger::Tags::Encoding.encode(normalized[key])
+            next if value.empty?
             next if blocking_only && behavior_for(entry) != :block_requests
 
             Rule.new(
               key: key,
-              value: Ledger::Tags::Encoding.encode(raw),
+              value: value,
               windows: entry[:windows],
               behavior: behavior_for(entry),
               on_exceeded: on_exceeded_for(entry)

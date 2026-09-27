@@ -245,6 +245,64 @@ RSpec.describe LlmCostTracker do
       expect(collected.first.dig(:token_usage, :input_tokens)).to eq(12)
     end
 
+    it "prices Realtime cached audio and image tokens at their published cached rates" do
+      LlmCostTracker.configure do |config|
+        config.pricing.overrides = {
+          "openai/gpt-realtime-mini" => { input: 0.6, cache_read_input: 0.06, output: 2.4, audio_input: 10.0,
+                                          audio_cache_read_input: 0.3, audio_output: 20.0 },
+          "openai/gpt-realtime-2" => { input: 4.0, cache_read_input: 0.4, output: 24.0, audio_input: 32.0,
+                                       audio_cache_read_input: 0.4, audio_output: 64.0, image_input: 5.0,
+                                       image_cache_read_input: 0.5 }
+        }
+      end
+      collected = events
+      realtime_done = lambda do |usage|
+        { "type" => "response.done", "response" => { "id" => "resp_rt", "status" => "completed", "usage" => usage } }
+      end
+
+      described_class.track_stream(provider: "openai", model: "gpt-realtime-mini") do |stream|
+        stream.event(realtime_done.call(
+                       "input_tokens" => 30_000, "output_tokens" => 500, "total_tokens" => 30_500,
+                       "input_token_details" => {
+                         "text_tokens" => 2000, "audio_tokens" => 28_000, "cached_tokens" => 27_000,
+                         "cached_tokens_details" => { "text_tokens" => 1800, "audio_tokens" => 25_200 }
+                       },
+                       "output_token_details" => { "text_tokens" => 50, "audio_tokens" => 450 }
+                     ))
+      end
+      described_class.track_stream(provider: "openai", model: "gpt-realtime-2") do |stream|
+        stream.event(realtime_done.call(
+                       "input_tokens" => 2000, "output_tokens" => 200, "total_tokens" => 2200,
+                       "input_token_details" => {
+                         "text_tokens" => 500, "audio_tokens" => 1000, "image_tokens" => 500, "cached_tokens" => 1500,
+                         "cached_tokens_details" => { "text_tokens" => 400, "audio_tokens" => 600, "image_tokens" => 500 }
+                       },
+                       "output_token_details" => { "text_tokens" => 50, "audio_tokens" => 150 }
+                     ))
+      end
+
+      expect(collected.first.dig(:cost, :total)).to eq("0.044908")
+      expect(collected.first.dig(:token_usage, :cache_read_input_tokens)).to eq(27_000)
+      expect(collected.first[:line_items]).to include(
+        a_hash_including(kind: "audio_token", cache_state: "read", quantity: "25200.0", price_key: "audio_cache_read_input")
+      )
+      expect(collected.last.dig(:cost, :total)).to eq("0.02465")
+    end
+
+    it "prices duration-billed Realtime transcription per second, at the regional rate under data_residency" do
+      collected = events
+      transcription = { "type" => "conversation.item.input_audio_transcription.completed", "item_id" => "item_1",
+                        "transcript" => "hi", "usage" => { "type" => "duration", "seconds" => 125.0 } }
+
+      described_class.track_stream(provider: "openai", model: "gpt-realtime-whisper") { |s| s.event(transcription) }
+      described_class.track_stream(provider: "openai", model: "gpt-realtime-whisper",
+                                   pricing_mode: :data_residency) { |s| s.event(transcription) }
+
+      expect(collected.map { |event| [event[:cost_status], event.dig(:cost, :total)] })
+        .to eq([%w[complete 0.03541667], %w[complete 0.03895833]])
+      expect(collected.first[:line_items].map { |item| item[:kind] }).to eq(["transcription_minute"])
+    end
+
     it "parses built-in OpenAI-compatible providers like OpenRouter" do
       collected = events
 

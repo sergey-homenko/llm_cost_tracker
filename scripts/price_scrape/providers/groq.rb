@@ -18,11 +18,13 @@ module LlmCostTracker
         PROMPT_CACHING_SOURCE_URL = "https://console.groq.com/docs/prompt-caching"
         FLEX_PROCESSING_SOURCE_URL = "https://console.groq.com/docs/flex-processing"
         DEPRECATIONS_SOURCE_URL = "https://console.groq.com/docs/deprecations"
+        BATCH_SOURCE_URL = "https://console.groq.com/docs/batch"
         SOURCE_URLS = [
           source_url,
           PROMPT_CACHING_SOURCE_URL,
           FLEX_PROCESSING_SOURCE_URL,
-          DEPRECATIONS_SOURCE_URL
+          DEPRECATIONS_SOURCE_URL,
+          BATCH_SOURCE_URL
         ].freeze
 
         MODEL_CARD_PATH = "/docs/model/"
@@ -34,12 +36,15 @@ module LlmCostTracker
           prompt_caching_doc = Nokogiri::HTML(pages.fetch(PROMPT_CACHING_SOURCE_URL))
           flex_doc = Nokogiri::HTML(pages.fetch(FLEX_PROCESSING_SOURCE_URL))
           deprecations_doc = Nokogiri::HTML(pages.fetch(DEPRECATIONS_SOURCE_URL))
+          batch_doc = Nokogiri::HTML(pages.fetch(BATCH_SOURCE_URL))
 
           verify_prompt_cache_discount!(prompt_caching_doc)
           verify_flex_pricing!(flex_doc)
+          verify_batch_pricing!(batch_doc)
 
-          cache_models = extract_prompt_cache_models(prompt_caching_doc)
-          models = extract_models(pricing_doc, cache_models: cache_models)
+          models = extract_models(pricing_doc,
+                                  cache_models: extract_prompt_cache_models(prompt_caching_doc),
+                                  batch_models: extract_batch_models(batch_doc))
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -58,7 +63,7 @@ module LlmCostTracker
           self.class::SOURCE_URLS.to_h { |url| [url, html.to_s] }
         end
 
-        def extract_models(doc, cache_models:)
+        def extract_models(doc, cache_models:, batch_models:)
           tables = find_text_models_tables(doc)
           raise Error, "Groq token models pricing table not found" if tables.empty?
 
@@ -66,7 +71,8 @@ module LlmCostTracker
 
           resolve_rows(rows).transform_values do |row|
             fields = add_mode_prices("input" => row[:input], "output" => row[:output])
-            cache_models.include?(row[:id]) ? add_cache_read_prices(fields) : fields
+            fields = add_cache_read_prices(fields) if cache_models.include?(row[:id])
+            batch_models.include?(row[:id]) ? fields : fields.reject { |field, _| field.start_with?("batch_") }
           end
         end
 
@@ -161,7 +167,9 @@ module LlmCostTracker
             "on_demand_input" => fields.fetch("input"),
             "on_demand_output" => fields.fetch("output"),
             "flex_input" => fields.fetch("input"),
-            "flex_output" => fields.fetch("output")
+            "flex_output" => fields.fetch("output"),
+            "batch_input" => (fields.fetch("input") * 0.5).round(6),
+            "batch_output" => (fields.fetch("output") * 0.5).round(6)
           )
         end
 
@@ -170,7 +178,8 @@ module LlmCostTracker
           fields.merge(
             "cache_read_input" => cache_read,
             "on_demand_cache_read_input" => cache_read,
-            "flex_cache_read_input" => cache_read
+            "flex_cache_read_input" => cache_read,
+            "batch_cache_read_input" => fields.fetch("batch_input")
           )
         end
 
@@ -190,6 +199,19 @@ module LlmCostTracker
             model_id?(id)
           end
           raise Error, "expected at least 2 prompt caching models, parsed #{models.size}" if models.size < 2
+
+          models
+        end
+
+        def extract_batch_models(doc)
+          models = doc.css("table").flat_map do |table|
+            headers = header_texts(table)
+            next [] unless header?(headers, "MODEL ID")
+
+            index = column_index(headers, "MODEL ID")
+            table.css("tbody tr").filter_map { |row| row.css("td")[index]&.then { |cell| normalize_text(cell.text) } }
+          end
+          raise Error, "Groq batch model list not found" if models.none? { |id| model_id?(id) }
 
           models
         end
@@ -237,6 +259,14 @@ module LlmCostTracker
           return if text.match?(/same pricing as on-demand/i) || text.match?(/Pricing matches the on-demand tier/i)
 
           raise Error, "Groq flex on-demand pricing text not found"
+        end
+
+        def verify_batch_pricing!(doc)
+          text = normalize_text(doc.text)
+          return if text.match?(/50% cost discount compared to synchronous API/i) &&
+                    text.match?(/billed at the 50% batch rate regardless of cache status/i)
+
+          raise Error, "Groq batch pricing text not found"
         end
 
         def normalize_text(text)

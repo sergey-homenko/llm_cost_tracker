@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "active_support/core_ext/digest/uuid"
+
 require_relative "pricing/mode"
 
 module LlmCostTracker
@@ -51,6 +53,12 @@ module LlmCostTracker
 
     def batch?
       Pricing::Mode.tokenize(pricing_mode.to_s).include?("batch")
+    end
+
+    def keyed_by_response_id
+      return self unless provider_response_id
+
+      with(event_id: Digest::UUID.uuid_v5(Digest::UUID::OID_NAMESPACE, "#{provider}/#{provider_response_id}"))
     end
 
     def self.resolve_line_items(service_items)

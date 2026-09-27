@@ -32,8 +32,12 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(described_class.match?(regional_responses_url)).to be true
     end
 
-    it "does not match OpenAI response retrieval URLs" do
-      expect(described_class.match?(response_retrieval_url)).to be false
+    it "matches a background response's poll, but not its input items, cancel, or input token count" do
+      expect(described_class.match?(response_retrieval_url)).to be true
+      %w[/v1/responses/resp_123/input_items /v1/responses/resp_123/cancel /v1/responses/input_tokens].each do |path|
+        url = URI::HTTPS.build(host: "api.openai.com", path: path).to_s
+        expect(described_class.match?(url)).to be(false), "expected match? to be false for #{path}"
+      end
     end
 
     it "does not match other URLs" do
@@ -75,6 +79,22 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
                     request_body: { model: "gpt-4o" }.to_json,
                     response_body: { error: "rate limited" }.to_json,
                     missing_usage_body: { model: "gpt-4o" }.to_json
+
+    it "parses a polled response only once it has finished in the background, keyed by its id" do
+      allow(LlmCostTracker::Call).to receive(:already_recorded?).and_return(false)
+      poll = lambda do |**attrs|
+        body = { id: "resp_123", object: "response", model: "o3-pro", status: "completed", background: true,
+                 usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 } }.merge(attrs)
+        parser.parse(request_url: response_retrieval_url, request_body: "", response_status: 200,
+                     response_body: body.to_json)
+      end
+
+      expect(poll.call).to have_attributes(provider_response_id: "resp_123", usage_source: "response",
+                                           event_id: Digest::UUID.uuid_v5(Digest::UUID::OID_NAMESPACE,
+                                                                          "openai/resp_123"))
+      expect(poll.call(status: "in_progress", usage: nil)).to be_nil
+      expect(poll.call(background: false)).to be_nil
+    end
 
     it "extracts token usage from a successful response" do
       result = parser.parse(
@@ -455,6 +475,17 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(transcription_line).not_to be_nil
       expect(transcription_line.quantity).to eq(BigDecimal("1.25"))
     end
+
+    it "records a plain-text transcription, which carries no usage, with an unknown usage source" do
+      result = parser.parse(
+        request_url: URI::HTTPS.build(host: "api.openai.com", path: "/v1/audio/transcriptions").to_s,
+        request_body: { model: "gpt-4o-transcribe" }.to_json,
+        response_status: 200,
+        response_body: "hello world"
+      )
+
+      expect(result).to have_attributes(provider: "openai", model: "gpt-4o-transcribe", usage_source: "unknown")
+    end
   end
 
   describe "#streaming_request?" do
@@ -785,7 +816,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(service_lines.map(&:provider_item_id)).to eq(%w[ws_456 fs_456])
     end
 
-    it "adds a web search line item for chat completion chunks that carry url_citation annotations" do
+    it "adds no web search line item for url_citation annotations in chunks from a non-search model" do
       events = [
         { event: nil, data: { "id" => "chatcmpl_cite", "object" => "chat.completion.chunk", "model" => "gpt-4o",
                               "choices" => [{ "delta" => { "annotations" => [{ "type" => "url_citation" }] } }] } },
@@ -801,9 +832,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
         events: events
       )
 
-      service_lines = result.line_items.reject { |item| item.unit == "token" }
-      expect(service_lines.map { |item| [item.kind, item.provider_item_id, item.provider_field] })
-        .to eq([["web_search_request", "chatcmpl_cite", "choices.message.annotations.url_citation"]])
+      expect(result.line_items.reject { |item| item.unit == "token" }).to eq([])
     end
 
     it "extracts model identifiers from Responses API stream events" do

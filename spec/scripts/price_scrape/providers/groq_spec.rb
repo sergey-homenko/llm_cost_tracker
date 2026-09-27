@@ -8,13 +8,15 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
   let(:prompt_caching_html) { File.read("spec/fixtures/scrape/groq_prompt_caching.html", encoding: "utf-8") }
   let(:flex_processing_html) { File.read("spec/fixtures/scrape/groq_flex_processing.html", encoding: "utf-8") }
   let(:deprecations_html) { File.read("spec/fixtures/scrape/groq_deprecations.html", encoding: "utf-8") }
+  let(:batch_html) { File.read("spec/fixtures/scrape/groq_batch.html", encoding: "utf-8") }
 
   def html_pages(overrides = {})
     {
       described_class.source_url => models_html,
       described_class::PROMPT_CACHING_SOURCE_URL => prompt_caching_html,
       described_class::FLEX_PROCESSING_SOURCE_URL => flex_processing_html,
-      described_class::DEPRECATIONS_SOURCE_URL => deprecations_html
+      described_class::DEPRECATIONS_SOURCE_URL => deprecations_html,
+      described_class::BATCH_SOURCE_URL => batch_html
     }.merge(overrides)
   end
 
@@ -77,7 +79,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
         "flex_output" => 0.3,
         "cache_read_input" => 0.0375,
         "on_demand_cache_read_input" => 0.0375,
-        "flex_cache_read_input" => 0.0375
+        "flex_cache_read_input" => 0.0375,
+        "batch_input" => 0.0375,
+        "batch_output" => 0.15,
+        "batch_cache_read_input" => 0.0375
       )
     end
 
@@ -258,6 +263,46 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       expect do
         described_class.new.call(html: html_pages(described_class::PROMPT_CACHING_SOURCE_URL => prompt_html))
       end.to raise_error(described_class::Error, /prompt caching discount/)
+    end
+
+    it "prices Groq batch tokens at half the on-demand rate with no cache discount on top" do
+      scraped = described_class.new.call(html: html_pages).models.fetch("openai/gpt-oss-120b")
+      LlmCostTracker.configure { |c| c.pricing.overrides = { "groq/openai/gpt-oss-120b" => scraped } }
+
+      cost = LlmCostTracker::Pricing.cost_for(
+        provider: "groq", model: "openai/gpt-oss-120b", pricing_mode: "batch",
+        tokens: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 8000, cache_read_input_tokens: 2000,
+                                                        output_tokens: 1000)
+      )
+
+      expect(scraped).to include("batch_input" => 0.075, "batch_output" => 0.3, "batch_cache_read_input" => 0.075)
+      expect(cost.total).to eq(BigDecimal("0.00105"))
+    end
+
+    it "prices Batch only for the models the Batch API lists" do
+      models = described_class.new.call(html: html_pages).models
+
+      expect(models.fetch("llama-3.3-70b-versatile")).to include("batch_input" => 0.295, "batch_output" => 0.395)
+      expect(models.fetch("openai/gpt-oss-safeguard-20b")).to include("cache_read_input" => 0.0375)
+      %w[openai/gpt-oss-safeguard-20b meta-llama/llama-prompt-guard-2-22m qwen/qwen3.6-27b].each do |id|
+        expect(models.fetch(id).keys.grep(/\Abatch_/)).to be_empty
+      end
+    end
+
+    it "raises when the Batch API model list is missing" do
+      no_list = batch_html.gsub(%r{<table>.*?</table>}m, "")
+
+      expect do
+        described_class.new.call(html: html_pages(described_class::BATCH_SOURCE_URL => no_list))
+      end.to raise_error(described_class::Error, /batch model list not found/)
+    end
+
+    it "raises when the batch discount or its no-stacking rule is no longer documented" do
+      stacked = batch_html.sub("regardless of cache status", "after the prompt caching discount")
+
+      expect do
+        described_class.new.call(html: html_pages(described_class::BATCH_SOURCE_URL => stacked))
+      end.to raise_error(described_class::Error, /batch pricing/)
     end
 
     it "raises when flex pricing is no longer documented as on-demand pricing" do

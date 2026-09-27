@@ -6,7 +6,9 @@ module LlmCostTracker
       class Parser < LlmCostTracker::Parsers::Base
         include Openai::ResponseParser
 
-        PATH_PATTERN = %r{\A/openai/(?:deployments/[^/]+|v1)/(?:#{Openai::Parser::TRACKED_ENDPOINTS.join('|')})\z}
+        PATH_PATTERN = %r{
+          \A/openai/(?:deployments/[^/]+|v1)/(?:#{Openai::Parser::TRACKED_ENDPOINTS.join('|')}|responses/resp_[^/]+)\z
+        }x
 
         class << self
           def match?(url)

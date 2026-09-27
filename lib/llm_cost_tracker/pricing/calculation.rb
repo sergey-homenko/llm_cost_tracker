@@ -11,24 +11,27 @@ module LlmCostTracker
     class Calculation
       RATE_DENOMINATOR_TOKENS = Pricing::RATE_BASIS_QUANTITIES.fetch("per_million_tokens")
       SNAPSHOT_SCHEMA_VERSION = 1
-      private_constant :RATE_DENOMINATOR_TOKENS, :SNAPSHOT_SCHEMA_VERSION
+      CACHE_INPUT_KEYS = %w[cache_read_input cache_write_input].freeze
+      private_constant :RATE_DENOMINATOR_TOKENS, :SNAPSHOT_SCHEMA_VERSION, :CACHE_INPUT_KEYS
 
-      def self.for(provider:, model:, tokens:, pricing_mode:, line_items: [], usage_source: nil)
+      def self.for(provider:, model:, tokens:, pricing_mode:, line_items: [], usage_source: nil, at: Time.now)
         new(provider: provider,
             model: model,
             token_usage: Usage::TokenUsage.build_from_tokens(tokens),
             line_items: line_items,
             mode: Mode.normalize(pricing_mode),
-            usage_source: usage_source)
+            usage_source: usage_source,
+            at: at)
       end
 
-      def initialize(provider:, model:, token_usage:, line_items:, mode:, usage_source: nil)
+      def initialize(provider:, model:, token_usage:, line_items:, mode:, usage_source: nil, at: Time.now)
         @provider = provider
         @model = model
         @token_usage = token_usage
         @line_items = line_items
         @mode = mode
         @usage_source = usage_source
+        @at = at
       end
 
       attr_reader :mode
@@ -36,7 +39,7 @@ module LlmCostTracker
       def match
         return @match if defined?(@match)
 
-        @match = Matcher.lookup(provider: @provider, model: @model)
+        @match = Matcher.lookup(provider: @provider, model: @model, at: @at)
       end
 
       def effective
@@ -47,14 +50,15 @@ module LlmCostTracker
           quantities: quantities,
           prices: match.prices,
           pricing_mode: @mode,
-          cache_at_input_rate: match.source.name != "pricing_overrides" && match.key.start_with?("openai/")
+          cache_at_input_rate: cache_keys_at_input_rate
         )
       end
 
       def token_cost
         return @token_cost if defined?(@token_cost)
 
-        @token_cost = priceable? && @usage_source != Usage::Source::UNKNOWN ? build_token_cost : nil
+        known = priceable? && @usage_source != Usage::Source::UNKNOWN && !only_unpriced_lines?
+        @token_cost = known ? build_token_cost : nil
       end
 
       def priced_line_items
@@ -81,24 +85,46 @@ module LlmCostTracker
       end
 
       def cost_status
-        @cost_status ||= billed_line&.cost_status || Charges::CostStatus.call(
-          token_usage: @token_usage,
-          usage_source: @usage_source,
-          token_cost: token_cost,
-          token_pricing_partial: token_pricing_partial?,
-          service_line_items: priced_line_items.reject(&:token?),
-          total_cost: cost&.total
-        )
+        @cost_status ||= begin
+          status = billed_status || Charges::CostStatus.call(
+            token_usage: @token_usage,
+            usage_source: @usage_source,
+            token_cost: token_cost,
+            token_pricing_partial: token_pricing_partial?,
+            service_line_items: priced_line_items.reject(&:token?),
+            total_cost: cost&.total
+          )
+          @partial_iteration && status != Charges::CostStatus::UNKNOWN ? Charges::CostStatus::PARTIAL : status
+        end
       end
 
       private
 
+      def cache_keys_at_input_rate
+        return [] if match.source.name == "pricing_overrides" || !match.key.start_with?("openai/")
+
+        listed = Registry.builtin_prices[match.key] || (match.prices unless manual_file_entry?)
+        listed ? CACHE_INPUT_KEYS - listed.keys : []
+      end
+
+      def manual_file_entry?
+        entry = Registry.raw_file_registry(LlmCostTracker.configuration.pricing.file).dig("models", match.key)
+        entry.is_a?(Hash) && entry["_source"].to_s == "manual"
+      end
+
       def quantities
-        @quantities ||= @token_usage.priced_quantities
+        @quantities ||= @line_items.each_with_object(@token_usage.priced_quantities) do |line_item, result|
+          dimension = line_item.dimension
+          next unless dimension&.parent
+
+          quantity = [line_item.quantity.to_i, result.fetch(dimension.parent)].min
+          result[dimension.parent] -= quantity
+          result[dimension.key] = result.fetch(dimension.key, 0) + quantity
+        end
       end
 
       def unpriced_line_items
-        Charges::LineItem.from_token_usage(@token_usage) + @line_items.reject(&:token?)
+        Charges::LineItem.from_quantities(quantities) + @line_items.reject(&:token?)
       end
 
       def priceable?
@@ -107,6 +133,20 @@ module LlmCostTracker
 
       def billed_line
         @line_items.find { |line_item| line_item.kind == "billed_request" }
+      end
+
+      def billed_status
+        return unless billed_line
+
+        unpriced_attempt = priced_line_items.any? { |item| item.kind == "model_iteration" && item.unpriced? }
+        return Charges::CostStatus::PARTIAL if unpriced_attempt
+
+        billed_line.priced? && cost.total.positive? ? Charges::CostStatus::COMPLETE : billed_line.cost_status
+      end
+
+      def only_unpriced_lines?
+        billable = priced_line_items.select(&:billable?)
+        billable.any? && billable.none?(&:priced?)
       end
 
       def all_billable_unpriced?
@@ -119,22 +159,18 @@ module LlmCostTracker
       end
 
       def build_token_cost
-        by_dimension = priced_token_line_items.to_h { |line_item| [line_item.dimension, line_item] }
+        by_component = priced_token_line_items.group_by { |item| item.dimension.parent || item.dimension.key }
         components = Usage::Catalog.token_priced.each_with_object({}) do |dimension, result|
-          cost = token_dimension_cost(dimension, by_dimension[dimension])
-          result[dimension.cost_key] = cost.round(8) unless cost.nil?
+          line_items = by_component.fetch(dimension.key, [])
+          next if line_items.any?(&:unpriced?)
+
+          result[dimension.cost_key] = line_items.sum(BigDecimal("0")) { |line_item| line_item.cost_value.round(8) }
         end
         Charges::Cost.new(
           components: components.freeze,
           total: priced_token_line_items.sum(BigDecimal("0")) { |line_item| line_item.cost_value.round(8) },
           currency: match.source.currency
         )
-      end
-
-      def token_dimension_cost(dimension, line_item)
-        return BigDecimal("0") if quantities[dimension.key].zero?
-
-        line_item&.cost
       end
 
       def build_snapshot
@@ -190,6 +226,7 @@ module LlmCostTracker
       end
 
       def price_service(line_item)
+        return price_iteration(line_item) if line_item.kind == "model_iteration"
         return line_item if line_item.priced? || !line_item.billable? || billed_line
 
         rate = model_rate(line_item) ||
@@ -199,19 +236,45 @@ module LlmCostTracker
         line_item.with_rate(rate)
       end
 
+      def price_iteration(line_item)
+        details = line_item.details.to_h.transform_keys(&:to_sym)
+        model = details[:model].to_s
+        calculation = Calculation.for(
+          provider: @provider,
+          model: model,
+          tokens: details.slice(*Usage::TokenUsage.members),
+          pricing_mode: iteration_mode(model),
+          at: @at
+        )
+        cost = calculation.token_cost
+        return line_item unless cost
+
+        @partial_iteration ||= calculation.cost_status == Charges::CostStatus::PARTIAL
+        status = cost.total.zero? ? Charges::CostStatus::FREE : Charges::CostStatus::COMPLETE
+        line_item.with(rate_amount: cost.total, cost: cost.total, currency: cost.currency, cost_status: status)
+      end
+
+      def iteration_mode(model)
+        return @mode if Matcher.modifier_priced?(provider: @provider, model: model, modifier: "fast")
+
+        Mode.compose(Mode.tokenize(@mode) - ["fast"])
+      end
+
       def model_rate(line_item)
         return nil unless priceable?
 
-        amount = match.prices[line_item.kind]
-        return nil unless amount.is_a?(Numeric)
+        modes = @mode ? Mode.permutations_for(@mode) : []
+        key = [*modes.map { |mode| PriceKey.build(line_item.kind, mode: mode) }, line_item.kind]
+              .find { |candidate| match.prices[candidate].is_a?(Numeric) }
+        return nil unless key
 
         dimension = Usage::Catalog[line_item.kind]
         Pricing::Rate.new(
-          amount: amount.to_d,
+          amount: match.prices[key].to_d,
           quantity: Pricing::RATE_BASIS_QUANTITIES.fetch(dimension.rate_basis).to_d,
           currency: match.source.currency,
           source: match.source.name,
-          source_key: "#{match.key}.#{line_item.kind}",
+          source_key: "#{match.key}.#{key}",
           source_version: match.source.version
         )
       end

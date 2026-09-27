@@ -12,10 +12,10 @@ module LlmCostTracker
     module Openai
       module ResponseParser
         class << self
-          def combined_pricing_mode(host:, model:, service_tier:)
+          def combined_pricing_mode(host:, model:, service_tier:, provider: "openai")
             modes = [Pricing::Mode.normalize(service_tier)]
             if Hosts.data_residency?(host) &&
-               Pricing::Matcher.modifier_priced?(provider: "openai", model: model, modifier: "data_residency")
+               Pricing::Matcher.modifier_priced?(provider: provider, model: model, modifier: "data_residency")
               modes << "data_residency"
             end
             Pricing::Mode.compose(modes)
@@ -29,12 +29,16 @@ module LlmCostTracker
             service_line_items =
               ServiceCharges.service_line_items_for(response, request: request, model: model) +
               ServiceCharges.transcription_line_items(usage) +
-              ServiceCharges.billed_line_items(usage)
+              ServiceCharges.billed_line_items(usage) +
+              UsageExtractor.cache_read_line_items(usage)
             Event.build(
               provider: provider,
               provider_response_id: response["id"],
               pricing_mode: pricing_mode || combined_pricing_mode(
-                host: host, model: model, service_tier: response["service_tier"] || request["service_tier"]
+                provider: provider,
+                host: host,
+                model: model,
+                service_tier: response["service_tier"] || usage[:service_tier] || request["service_tier"]
               ),
               model: model,
               token_usage: UsageExtractor.token_usage(usage, model: model),
@@ -42,18 +46,44 @@ module LlmCostTracker
               service_line_items: service_line_items
             )
           end
+
+          def retrieved_event(response:, provider:, host:, usage_source:)
+            finished = !%w[queued in_progress].include?(response["status"].to_s)
+            return nil unless finished && response["background"] && response["usage"]
+            return nil if Call.already_recorded?(provider: provider, provider_response_id: response["id"])
+
+            event_from_response(
+              response: response,
+              request: { "tools" => response["tools"] },
+              provider: provider,
+              host: host,
+              usage_source: usage_source
+            )&.keyed_by_response_id
+          end
         end
 
         def parse(request_url:, request_body:, response_status:, response_body:, **)
           return nil unless response_status == 200
 
+          response = safe_json_parse(response_body)
+          host = parsed_uri(request_url)&.host
+          if parsed_uri(request_url)&.path.to_s.include?("/responses/resp_")
+            return ResponseParser.retrieved_event(
+              response: response,
+              provider: provider_for(request_url),
+              host: host,
+              usage_source: Usage::Source::RESPONSE
+            )
+          end
+
+          request = safe_json_parse(request_body)
           ResponseParser.event_from_response(
-            response: safe_json_parse(response_body),
-            request: safe_json_parse(request_body),
+            response: response,
+            request: request,
             provider: provider_for(request_url),
-            host: parsed_uri(request_url)&.host,
+            host: host,
             usage_source: Usage::Source::RESPONSE
-          )
+          ) || speech_event(request_url, request) || transcription_without_usage_event(request_url, request)
         end
 
         def parse_stream(response_status:, request_url: nil, request_body: nil, events: [], **)
@@ -61,12 +91,16 @@ module LlmCostTracker
 
           request = safe_json_parse(request_body)
           usage = detect_stream_usage(events)
-          context = stream_capture_context(events: events, request: request, request_url: request_url)
+          context = stream_capture_context(events: events, request: request, request_url: request_url, usage: usage)
 
-          return build_known_stream_usage(usage: usage, **context) if usage
+          background = find_event_value(events) { |data| data.dig("response", "background") }
+          if usage
+            event = build_known_stream_usage(usage: usage, **context)
+            return background ? event.keyed_by_response_id : event
+          end
 
           warn_missing_stream_usage(request_url: request_url, request: request)
-          build_unknown_stream_usage(**context)
+          build_unknown_stream_usage(**context, service_line_items: background ? [] : context[:service_line_items])
         end
 
         def auto_enable_stream_usage?(request_url, _request_parsed)
@@ -79,20 +113,47 @@ module LlmCostTracker
 
         private
 
-        def stream_capture_context(events:, request:, request_url:)
+        def speech_event(request_url, request)
+          uri = parsed_uri(request_url)
+          return nil unless uri && uri.path.to_s.end_with?("/audio/speech")
+
+          Event.build(
+            provider: provider_for(request_url),
+            model: model_for(request_url, request),
+            token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
+            usage_source: Usage::Source::RESPONSE,
+            service_line_items: ServiceCharges.speech_line_items(request)
+          )
+        end
+
+        def transcription_without_usage_event(request_url, request)
+          uri = parsed_uri(request_url)
+          return nil unless uri && uri.path.to_s.match?(%r{/audio/(?:transcriptions|translations)\z})
+
+          Event.build(
+            provider: provider_for(request_url),
+            model: model_for(request_url, request) || Event::UNKNOWN_MODEL,
+            token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
+            usage_source: Usage::Source::UNKNOWN
+          )
+        end
+
+        def stream_capture_context(events:, request:, request_url:, usage:)
           model = find_event_value(events) do |data|
             data["model"] || data.dig("response", "model") || data.dig("chunk", "model")
           end || request["model"]
+          provider = provider_for(request_url)
           {
-            provider: provider_for(request_url),
+            provider: provider,
             model: model,
             provider_response_id: find_event_value(events) do |data|
               data["id"] || data.dig("response", "id") || data.dig("chunk", "id")
             end,
             pricing_mode: ResponseParser.combined_pricing_mode(
+              provider: provider,
               host: parsed_uri(request_url)&.host,
               model: model,
-              service_tier: stream_pricing_mode(events) || request["service_tier"]
+              service_tier: stream_pricing_mode(events) || usage&.dig(:service_tier) || request["service_tier"]
             ),
             service_line_items: openai_stream_service_line_items(events, request: request, model: model)
           }
@@ -112,7 +173,8 @@ module LlmCostTracker
             token_usage: UsageExtractor.token_usage(usage, model: model),
             stream: true,
             usage_source: Usage::Source::STREAM_FINAL,
-            service_line_items: service_line_items + ServiceCharges.billed_line_items(usage)
+            service_line_items: service_line_items + ServiceCharges.transcription_line_items(usage) +
+                                ServiceCharges.billed_line_items(usage) + UsageExtractor.cache_read_line_items(usage)
           )
         end
 
@@ -157,7 +219,7 @@ module LlmCostTracker
             next unless chunk["choices"].is_a?(Array)
 
             response["id"] ||= chunk["id"]
-            (response["choices"] ||= []).concat(chunk["choices"])
+            response["choices"] ||= chunk["choices"]
           end
           ServiceCharges.service_line_items_for(response, request: request, model: model)
         end

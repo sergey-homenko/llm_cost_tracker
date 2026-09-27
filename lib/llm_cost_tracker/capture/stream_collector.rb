@@ -92,6 +92,8 @@ module LlmCostTracker
         record_snapshot(snapshot, errored: errored)
       rescue TransactionAbortedError
         raise
+      rescue ActiveRecord::RecordNotUnique
+        nil
       rescue StandardError => e
         raise unless errored
 
@@ -174,12 +176,13 @@ module LlmCostTracker
           return build_unparsed_event(snapshot)
         end
 
-        event = Parsers.find_for_provider(@provider)&.parse_stream(
-          response_status: 200,
-          events: snapshot[:events],
-          request_body: request_body_for(snapshot[:request]),
-          model: snapshot[:model]
-        )
+        request_body = request_body_for(snapshot[:request])
+        events = Parsers.all_for_provider(@provider).filter_map do |parser|
+          parser.parse_stream(
+            response_status: 200, events: snapshot[:events], request_body: request_body, model: snapshot[:model]
+          )
+        end
+        event = events.find { |parsed| parsed.usage_source != Usage::Source::UNKNOWN } || events.first
         if event
           model = present_model(event.model) || present_model(snapshot[:model]) || Event::UNKNOWN_MODEL
           return event.with(provider: @provider, model: model, **snapshot.fetch(:capture_dimensions))

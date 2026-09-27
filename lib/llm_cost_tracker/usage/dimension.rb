@@ -3,7 +3,7 @@
 module LlmCostTracker
   module Usage
     Dimension = Data.define(
-      :key, :kind, :direction, :modality, :cache_state, :unit, :rate_basis
+      :key, :kind, :direction, :modality, :cache_state, :unit, :rate_basis, :parent
     ) do
       def token?
         unit == "token"

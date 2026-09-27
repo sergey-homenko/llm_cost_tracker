@@ -81,7 +81,7 @@ module LlmCostTracker
                 service_tier: "batch"
               )
             )
-            LlmCostTracker::Tracker.record(event: event)
+            Openai.record_once(event)
           end
         end
       end

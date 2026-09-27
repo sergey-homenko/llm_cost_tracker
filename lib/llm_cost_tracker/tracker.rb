@@ -27,9 +27,6 @@ module LlmCostTracker
 
         tags = build_tags(context_tags: context_tags, metadata: metadata)
 
-        unpriced = calculation.token_cost.nil? && event.token_usage.total_tokens.positive? &&
-                   calculation.priced_line_items.none?(&:priced?)
-
         event = build_event(event: event, calculation: calculation, tags: tags, latency_ms: latency_ms)
 
         if Ingestion.async?
@@ -41,9 +38,12 @@ module LlmCostTracker
 
         yield if block_given?
         notify_subscribers(event)
-        Pricing::Unknown.process(event.model, pricing_mode: calculation.mode) if unpriced
         behavior_override = :raise if enforce_budget
-        Budget.check!(event, behavior_override: behavior_override)
+        begin
+          signal_unpriced(event, calculation)
+        ensure
+          Budget.check!(event, behavior_override: behavior_override)
+        end
 
         event
       end
@@ -56,6 +56,15 @@ module LlmCostTracker
 
       private
 
+      def signal_unpriced(event, calculation)
+        iterations, lines = calculation.priced_line_items.partition { |line| line.kind == "model_iteration" }
+        models = iterations.select(&:unpriced?).map { |line| line.details[:model] }
+        if calculation.token_cost.nil? && event.token_usage.total_tokens.positive? && lines.none?(&:priced?)
+          models.unshift(event.model)
+        end
+        models.each { |model| Pricing::Unknown.process(model, pricing_mode: calculation.mode) }
+      end
+
       def notify_subscribers(event)
         return unless ActiveSupport::Notifications.notifier.listening?(EVENT_NAME)
 
@@ -66,7 +75,7 @@ module LlmCostTracker
 
       def build_event(event:, calculation:, tags:, latency_ms:)
         event.with(
-          event_id: SecureRandom.uuid,
+          event_id: event.event_id || SecureRandom.uuid,
           pricing_mode: calculation.mode,
           cost: calculation.cost,
           tags: tags,

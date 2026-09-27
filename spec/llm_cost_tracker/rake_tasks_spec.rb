@@ -2,6 +2,7 @@
 
 require "rake"
 require "spec_helper"
+require "llm_cost_tracker/pricing/backfill"
 require "tmpdir"
 
 RSpec.describe "llm_cost_tracker rake tasks" do
@@ -32,7 +33,7 @@ RSpec.describe "llm_cost_tracker rake tasks" do
     expect(doctor).to have_received(:invoke)
   end
 
-  it "previews suspicious price changes and writes them only with FORCE=1" do
+  it "lists suspicious price changes in prices:check and writes them only with FORCE=1" do
     url = "https://prices.example.com/prices.json"
     stub_request(:get, url).to_return(body: JSON.generate("models" => { "openai/gpt-4o" => { "input" => 0.0 } }))
 
@@ -45,13 +46,39 @@ RSpec.describe "llm_cost_tracker rake tasks" do
         Rake::Task["llm_cost_tracker:prices:refresh"].execute
       end
 
-      expect { refresh.call("PREVIEW" => "1") }.to output(
+      check = lambda do
+        stub_const("ENV", base_env)
+        Rake::Task["llm_cost_tracker:prices:check"].execute
+      end
+
+      expect { check.call }.to output(
         %r{suspicious changes \(refresh writes them only with FORCE=1\): 1\n    - openai/gpt-4o input: 2.5 -> 0.0}
-      ).to_stdout
+      ).to_stdout.and raise_error(SystemExit)
+      expect { refresh.call("PREVIEW" => "1") }.to raise_error(SystemExit)
+      expect(YAML.safe_load_file(path).dig("models", "openai/gpt-4o", "input")).to eq(2.5)
       expect { refresh.call({}) }.to raise_error(LlmCostTracker::Error, /Refusing to write pricing file/)
       expect { refresh.call("FORCE" => "1") }.to output(/refreshed pricing file/).to_stdout
       expect(YAML.safe_load_file(path).dig("models", "openai/gpt-4o", "input")).to eq(0.0)
     end
+  end
+
+  it "reprices calls from FROM up to TO and refuses to run without FROM or with an unreadable TO" do
+    backfill = LlmCostTracker::Pricing::Backfill
+    allow(backfill).to receive(:reprice_scope).and_return(:scope)
+    allow(backfill).to receive(:call).and_return(backfill::Result.new(examined: 2, recomputed: 1, still_unknown: 1))
+    reprice = lambda do |env|
+      stub_const("ENV", ENV.to_h.except("FROM", "TO").merge(env))
+      Rake::Task["llm_cost_tracker:reprice"].execute
+    end
+
+    expect { reprice.call("FROM" => "2026-09-21", "TO" => "2026-09-27") }
+      .to output("llm_cost_tracker: examined 2 calls, repriced 1\n").to_stdout
+    expect(backfill).to have_received(:reprice_scope).with(Time.utc(2026, 9, 21)...Time.utc(2026, 9, 27))
+    expect(backfill).to have_received(:call).with(scope: :scope, batch_size: 500, reprice: true)
+    expect { reprice.call({}) }.to raise_error(SystemExit).and output(/set FROM/).to_stderr
+    expect { reprice.call("FROM" => "2026-09-21", "TO" => "yesterday") }
+      .to raise_error(SystemExit).and output(/TO=yesterday is not a date/).to_stderr
+    expect(backfill).to have_received(:call).once
   end
 
   it "does not register tasks from the Railtie because the Engine already auto-loads lib/tasks" do

@@ -5,6 +5,7 @@ module LlmCostTracker
     RATE_BASIS_QUANTITIES = {
       "per_million_tokens" => 1_000_000,
       "per_million_characters" => 1_000_000,
+      "per_million_token_hours" => 1_000_000,
       "per_request" => 1,
       "per_1k_requests" => 1_000,
       "per_session" => 1,

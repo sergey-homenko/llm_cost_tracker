@@ -11,6 +11,8 @@ require_relative "../timing"
 module LlmCostTracker
   module Middleware
     class Faraday < ::Faraday::Middleware
+      MULTIPART_MODEL = /name="model"\r\n(?:[^\r\n]+\r\n)*\r\n([^\r\n]+)\r\n/
+
       def initialize(app, **options)
         super(app)
         @tags = options.fetch(:tags, {})
@@ -20,8 +22,8 @@ module LlmCostTracker
         return @app.call(request_env) unless LlmCostTracker.configuration.enabled
 
         request_url  = request_env.url.to_s
-        request_body = read_body(request_env.body)
         parser       = Parsers.find_for(request_url)
+        request_body = read_body(request_env.body) || multipart_model_body(request_env, parser)
         request_parsed = parser&.safe_json_parse(request_body)
         streaming = parser&.streaming_request?(request_url, request_parsed)
         if streaming
@@ -29,8 +31,8 @@ module LlmCostTracker
         end
         stream_buffer = install_stream_tap(request_env, parser) if streaming
 
-        if parser
-          context_tags, metadata = tag_snapshot(request_env)
+        context_tags, metadata = tag_snapshot(request_env) if parser
+        if parser && request_env.method == :post
           Budget.enforce!(
             provider: parser.provider_for(request_url),
             model: parser.model_for(request_url, request_parsed),
@@ -72,7 +74,7 @@ module LlmCostTracker
             request_url: request_url,
             request_body: request_body,
             response_env: response_env,
-            latency_ms: LlmCostTracker::Timing.elapsed_ms(started_at),
+            latency_ms: (LlmCostTracker::Timing.elapsed_ms(started_at) if request_env.method == :post),
             streaming: streaming,
             stream_buffer: stream_buffer,
             context_tags: context_tags,
@@ -165,16 +167,12 @@ module LlmCostTracker
               response_env: response_env
             )
           end
-        return unless parsed
 
-        Tracker.record(
-          event: parsed,
-          latency_ms: latency_ms,
-          metadata: metadata,
-          context_tags: context_tags
-        )
+        Tracker.record(event: parsed, latency_ms: latency_ms, metadata: metadata, context_tags: context_tags) if parsed
       rescue *LlmCostTracker::CALLER_ERRORS
         raise
+      rescue ActiveRecord::RecordNotUnique
+        nil
       rescue StandardError => e
         Logging.warn("Error processing response: #{e.class}: #{e.message}")
       end
@@ -261,14 +259,35 @@ module LlmCostTracker
         end
       end
 
+      def multipart_model_body(request_env, parser)
+        body = request_env.body
+        multipart = request_env.request_headers["Content-Type"].to_s.start_with?("multipart/form-data")
+        return nil unless parser && multipart && body.respond_to?(:read) && body.respond_to?(:rewind)
+
+        model = multipart_model(body)
+        model && { "model" => model }.to_json
+      rescue StandardError => e
+        Logging.warn("Unable to read the model from a multipart request: #{e.class}: #{e.message}")
+        nil
+      end
+
+      def multipart_model(body)
+        window = String.new(encoding: Encoding::BINARY)
+        while (chunk = body.read(65_536))
+          window << chunk.b
+          model = window[MULTIPART_MODEL, 1]
+          return model.force_encoding(Encoding::UTF_8) if model
+
+          window = window.byteslice([window.bytesize - 512, 0].max..)
+        end
+      ensure
+        body.rewind
+      end
+
       def resolved_tags(request_env)
-        tags =
-          if @tags.respond_to?(:call)
-            @tags.arity.zero? ? @tags.call : @tags.call(request_env)
-          else
-            @tags
-          end
-        tags.to_h
+        return @tags.to_h unless @tags.respond_to?(:call)
+
+        (@tags.arity.zero? ? @tags.call : @tags.call(request_env)).to_h
       end
 
       def tag_snapshot(request_env)

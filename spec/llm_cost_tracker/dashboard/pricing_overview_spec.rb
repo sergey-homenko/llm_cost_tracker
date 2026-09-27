@@ -24,6 +24,15 @@ RSpec.describe LlmCostTracker::Dashboard::PricingOverview do
     expect(overrides[:subtitle]).to eq("config.pricing.overrides")
   end
 
+  it "shows a scheduled rate from its effective date" do
+    LlmCostTracker.configure do |config|
+      config.pricing.overrides = { "gemini/gemini-3.8-flash" => { "input" => 0.75, "input_from_2027-01-01" => 1.5 } }
+    end
+    input_on = ->(time) { travel_to(time) { described_class.call.dig(:sources, :overrides, :rows).first.rates["input"] } }
+
+    expect([input_on.call(Time.utc(2026, 12, 31, 23)), input_on.call(Time.utc(2027, 1, 1))]).to eq([0.75, 1.5])
+  end
+
   it "shows the configured pricing file path and its metadata date" do
     LlmCostTracker.configure { |config| config.pricing.file = @prices_path }
 

@@ -88,7 +88,7 @@ module LlmCostTracker
       def summary_sql
         <<~SQL.squish
           SELECT COUNT(*) AS total_calls,
-                 COUNT(t.#{quote_column('value')}) AS tagged_calls,
+                 COUNT(CASE WHEN #{tag_present_predicate} THEN 1 END) AS tagged_calls,
                  COUNT(DISTINCT CASE WHEN #{tag_present_predicate} THEN #{tag_value_column} END) AS distinct_values
           FROM (#{scope.to_sql}) AS sub
           LEFT OUTER JOIN #{call_tag_table} t ON t.llm_cost_tracker_call_id = sub.id AND t.#{quote_column('key')} = #{quoted_key}

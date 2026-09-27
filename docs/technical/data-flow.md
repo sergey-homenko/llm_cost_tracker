@@ -28,7 +28,7 @@ Normal path from an application LLM call to stored ledger data:
 1. Your app calls `LlmCostTracker.track` with known usage totals, or `LlmCostTracker.track_stream` with stream events.
 2. `track` accepts explicit `tokens:` and `tags:`, builds `Event`, and sends it to `Tracker.record`.
 3. `track_stream` snapshots tags when the stream collector is created.
-4. `track_stream` uses `Capture::StreamCollector`, then `Parsers.find_for_provider` when events need parsing.
+4. `track_stream` uses `Capture::StreamCollector`, then every parser registered for the provider name (`Parsers.all_for_provider`) when events need parsing, keeping the first result with known usage.
 5. `Tracker.record` prices and persists the event.
 
 ## Canonical Event Build
@@ -36,12 +36,12 @@ Normal path from an application LLM call to stored ledger data:
 `Event.build` normalizes the raw capture — a blank model identifier becomes `unknown`, and usage source, stream flag and response identity are settled there. `Tracker.record` then normalizes tags and latency and drives the rest:
 
 1. `Event` carries provider identity, model identity, stream metadata, response identity, provider grouping dimensions, `pricing_mode`, and `Usage::TokenUsage`.
-3. `Pricing::Calculation` (built via `Pricing::Calculation.for`) prices token counters with the normalized `pricing_mode`, applies the same rates to token line items, and prices each service line item from a rate on the matched model's registry entry (such as `transcription_minute`) or else `Pricing::ServiceRates.charge_rate`, when the registry has a reliable rate for the captured quantity basis. When a `billed_request` line item (OpenRouter's `usage.cost`) is present, token rates are not applied and its amount and status become the call's. It exposes the header cost (or `nil` for unknown pricing), the rate snapshot, and the priced line items.
+3. `Pricing::Calculation` (built via `Pricing::Calculation.for`) prices token counters with the normalized `pricing_mode`, applies the same rates to token line items, and prices each service line item from a rate on the matched model's registry entry (such as `transcription_minute`) or else `Pricing::ServiceRates.charge_rate`, when the registry has a reliable rate for the captured quantity basis, and each `model_iteration` line item at the token rates of the model in its `details`. When a `billed_request` line item (OpenRouter's `usage.cost`) is present, token rates are not applied and its amount and status become the call's. It exposes the header cost (or `nil` for unknown pricing), the rate snapshot, and the priced line items.
 4. `Charges::CostStatus` combines token pricing and service line pricing into `free`, `complete`, `partial`, or `unknown`.
 5. Tags are merged from the current or captured tag context, middleware tags, and explicit tags.
 5. Persistence runs through `Ledger::Store.insert` (default) or `Ingestion::Inbox` when `config.ingestion.mode = :async`.
-6. The persisted event is emitted through `ActiveSupport::Notifications`. Under `pricing.unknown_model_behavior = :raise`, an unpriced event then raises `LlmCostTracker::UnknownPricingError`.
-7. Budget checks run last. `enforce_budget: true` on `LlmCostTracker.track` makes them raise even when the configured behavior is `:notify`; the call is already recorded and the error carries `stage: :post_spend`. `LlmCostTracker.track_stream` instead checks before your block runs and raises `stage: :pre_send`.
+6. The persisted event is emitted through `ActiveSupport::Notifications`. Under `pricing.unknown_model_behavior = :raise`, an unpriced event, or one with an unpriced `model_iteration` model, raises `LlmCostTracker::UnknownPricingError` once the budget checks below have run, unless one of them raised first.
+7. Budget checks run next. `enforce_budget: true` on `LlmCostTracker.track` makes them raise even when the configured behavior is `:notify`; the call is already recorded and the error carries `stage: :post_spend`. `LlmCostTracker.track_stream` instead checks before your block runs and raises `stage: :pre_send`.
 
 ## Ledger Storage
 
@@ -51,7 +51,7 @@ When `config.ingestion.mode = :inline` (default):
 2. When `config.budgets.totals_source = :cache`, rollup rows are incremented after the ledger write; inside a joinable caller transaction, only once it commits, so an open transaction never holds the rollup row lock and a rollback skips the increment. Inside non-joinable transactions such as transactional test fixtures, the increment runs immediately in a savepoint. Increments retry on deadlock or lock timeout only outside a transaction; inside one, a failure is logged without failing the ledger write. Otherwise rollups are skipped entirely.
 3. On MySQL a deadlock rolls back the caller's whole transaction, which a savepoint cannot prevent, so inside a caller transaction the gem raises `LlmCostTracker::TransactionAbortedError` instead of letting the caller carry on outside the transaction it thinks is open.
 4. Each call tracked inside a caller transaction uses one savepoint, a PostgreSQL subtransaction; more than 64 in one transaction overflow PostgreSQL's per-backend subtransaction cache and slow the database, so capture large batch results outside a transaction.
-5. Budget reads always aggregate live from `llm_cost_tracker_calls`. Under `config.budgets.totals_source = :cache` the query takes the greater of that aggregate and the rollup row, so a cache that has drifted low cannot make a budget under-report.
+5. Budget reads aggregate live from `llm_cost_tracker_calls`. Under `config.budgets.totals_source = :cache` a monthly read sums only today's calls and adds the daily rollup rows of the month's earlier days.
 
 When `config.ingestion.mode = :async`:
 

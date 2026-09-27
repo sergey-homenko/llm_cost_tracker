@@ -5,8 +5,10 @@ require_relative "fetcher"
 require_relative "providers/anthropic"
 require_relative "providers/gemini"
 require_relative "providers/groq"
+require_relative "providers/mistral"
 require_relative "providers/openai"
 require_relative "providers/openrouter"
+require_relative "providers/xai"
 require_relative "orchestrator"
 
 module LlmCostTracker
@@ -16,8 +18,10 @@ module LlmCostTracker
         "anthropic" => Providers::Anthropic,
         "gemini" => Providers::Gemini,
         "groq" => Providers::Groq,
+        "mistral" => Providers::Mistral,
         "openai" => Providers::Openai,
-        "openrouter" => Providers::Openrouter
+        "openrouter" => Providers::Openrouter,
+        "xai" => Providers::Xai
       }.freeze
 
       DEFAULT_REGISTRY_PATH = File.expand_path("../../lib/llm_cost_tracker/prices.json", __dir__)

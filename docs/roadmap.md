@@ -9,7 +9,7 @@ Architecture: [Architecture](architecture.md). Data model: [Data model](data-mod
 Every roadmap item must clear three filters before it gets started:
 
 1. **Pain** — 3+ independent GitHub issues, forum threads, or HN comments from real developers describe the problem. Vendor blog posts don't count.
-2. **Concept** — does not break the load-bearing constraints: no proxy, no prompt storage, Rails-native, ActiveRecord-only, hot path reads the ledger only for budget checks and batch-result dedup, and makes no network calls beyond fetching batch output.
+2. **Concept** — does not break the load-bearing constraints: no proxy, no prompt storage, Rails-native, ActiveRecord-only, hot path reads the ledger only for budget checks and dedup of batch results and polled background responses, and makes no network calls beyond fetching batch output.
 3. **Implementation** — reachable without admin-tier API keys, without adding heavy infra, without depending on another vendor SaaS.
 
 If a candidate fails any filter, it stays in the anti-roadmap until evidence shifts. If a shipped feature gets no traction in six months, it goes to maintenance mode, not the next minor.
@@ -69,7 +69,7 @@ Dashboards group and filter by these tag keys when present. The existing `call_t
 
 ## Standing constraints
 
-- Runtime tracking reads the ledger only for budget checks and batch-result dedup, and makes no network call except downloading an OpenAI batch output file. Hot path reads `pricing.overrides` → file snapshot → bundled snapshot, then writes inline through `Ledger::Store.insert` by default, or enqueues to the async inbox when `config.ingestion.mode = :async`.
-- Header is a projection. Per-component costs live in `llm_cost_tracker_call_line_items`; rollups only guard budget totals against drift.
+- Runtime tracking reads the ledger only for budget checks and dedup of batch results and polled background responses, and makes no network call except downloading an OpenAI batch output file. Hot path reads `pricing.overrides` → file snapshot → bundled snapshot, then writes inline through `Ledger::Store.insert` by default, or enqueues to the async inbox when `config.ingestion.mode = :async`.
+- Header is a projection. Per-component costs live in `llm_cost_tracker_call_line_items`; rollups only serve budget totals.
 - Postgres and MySQL parity. Every ledger query must run on both.
 - No silent migrations. Schema changes ship behind generators with upgrade notes; doctor surfaces missing schema before per-event branching is introduced.

@@ -19,7 +19,7 @@ module LlmCostTracker
       def provider = integration_name.to_s
 
       def active?
-        LlmCostTracker.configuration.instrumented?(integration_name)
+        LlmCostTracker.configuration.enabled && LlmCostTracker.configuration.instrumented?(integration_name)
       end
 
       def install
@@ -72,6 +72,7 @@ module LlmCostTracker
                              latency_ms:,
                              service_line_items: [],
                              usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE,
+                             pricing_mode: nil,
                              **token_attributes)
         return unless active?
 
@@ -82,12 +83,19 @@ module LlmCostTracker
               model: model,
               token_usage: LlmCostTracker::Usage::TokenUsage.build(**token_attributes),
               usage_source: usage_source,
+              pricing_mode: pricing_mode,
               provider_response_id: provider_response_id_for(response),
               service_line_items: service_line_items
             ),
             latency_ms: latency_ms
           )
         end
+      end
+
+      def record_once(event)
+        LlmCostTracker::Tracker.record(event: event.keyed_by_response_id)
+      rescue ActiveRecord::RecordNotUnique
+        nil
       end
 
       def provider_response_id_for(response) = response&.try(:id)

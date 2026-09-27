@@ -9,7 +9,7 @@ module LlmCostTracker
           tool_use_prompt = usage["toolUsePromptTokenCount"].to_i
           audio_input = uncached_prompt_tokens(usage, "AUDIO")
           audio_output = modality_tokens(usage["candidatesTokensDetails"], "AUDIO")
-          image_input = uncached_prompt_tokens(usage, "IMAGE")
+          image_input = uncached_prompt_tokens(usage, "IMAGE") + uncached_prompt_tokens(usage, "DOCUMENT")
           image_output = modality_tokens(usage["candidatesTokensDetails"], "IMAGE")
 
           Usage::TokenUsage.build(
@@ -29,6 +29,11 @@ module LlmCostTracker
             image_output_tokens: image_output,
             hidden_output_tokens: usage["thoughtsTokenCount"]
           )
+        end
+
+        def self.cache_read_line_items(usage)
+          audio = modality_tokens(usage["cacheTokensDetails"], "AUDIO")
+          audio.positive? ? [Charges::LineItem.build(dimension_key: "audio_cache_read_input", quantity: audio)] : []
         end
 
         def self.gross_output_tokens(usage)

@@ -27,7 +27,7 @@ module LlmCostTracker
         end
 
         def token_priced
-          @token_priced ||= all.select(&:token_key).freeze
+          @token_priced ||= all.select { |dimension| dimension.token_key && dimension.parent.nil? }.freeze
         end
 
         def find_by(kind:, direction:, modality:, cache_state:, unit:)
@@ -35,8 +35,17 @@ module LlmCostTracker
         end
 
         def token_priced_for(kind:, direction:, cache_state:)
-          token_priced.find do |dimension|
-            dimension.kind == kind && dimension.direction == direction && dimension.cache_state == cache_state
+          dimension = all.find do |candidate|
+            candidate.token? && candidate.kind == kind && candidate.direction == direction &&
+              candidate.cache_state == cache_state
+          end
+          dimension&.parent ? fetch(dimension.parent) : dimension
+        end
+
+        def costs_by_component(rows)
+          rows.each_with_object({}) do |(kind, direction, cache_state, cost), totals|
+            component = token_priced_for(kind: kind, direction: direction, cache_state: cache_state)
+            totals[component.key] = totals.fetch(component.key, 0) + cost if component && cost
           end
         end
 
@@ -60,7 +69,7 @@ module LlmCostTracker
 
         def build(attributes)
           rate_basis = attributes[:rate_basis] || DEFAULT_RATE_BASIS_BY_UNIT.fetch(attributes.fetch(:unit))
-          Dimension.new(**attributes, rate_basis: rate_basis)
+          Dimension.new(parent: nil, **attributes, rate_basis: rate_basis)
         end
       end
     end

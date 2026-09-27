@@ -38,6 +38,7 @@ module LlmCostTracker
                  COUNT(DISTINCT t.#{value_column}) AS distinct_values
           FROM (#{scope.to_sql}) AS sub
           INNER JOIN #{tags_table} t ON t.llm_cost_tracker_call_id = sub.id
+          WHERE t.#{value_column} != ''
           GROUP BY t.#{key_column}
           ORDER BY calls_count DESC
           LIMIT #{limit}

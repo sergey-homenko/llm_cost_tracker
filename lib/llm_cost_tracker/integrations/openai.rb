@@ -23,9 +23,7 @@ module LlmCostTracker
             provider: provider_for_host(host),
             model: request[:model],
             # Host part only: the parser prefers the served tier over the requested one, e.g. after a downgrade.
-            pricing_mode: LlmCostTracker::Providers::Openai::ResponseParser.combined_pricing_mode(
-              host: host, model: request[:model], service_tier: nil
-            ),
+            pricing_mode: host_pricing_mode(host, request),
             request: request
           )
         end
@@ -84,7 +82,9 @@ module LlmCostTracker
             input_tokens = usage["input_tokens"] || usage["prompt_tokens"]
             output_tokens = usage["output_tokens"] || usage["completion_tokens"]
             if input_tokens.nil? && output_tokens.nil?
-              Logging.warn("OpenAI response #{normalized['id']} has no usage; not recorded")
+              unless normalized["background"]
+                Logging.warn("OpenAI response #{normalized['id']} has no usage; not recorded")
+              end
               next
             end
 
@@ -96,6 +96,20 @@ module LlmCostTracker
               usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE
             )
             LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms)
+          end
+        end
+
+        def record_retrieved_response(response, host:)
+          return unless active?
+
+          record_safely do
+            event = LlmCostTracker::Providers::Openai::ResponseParser.retrieved_event(
+              response: LlmCostTracker::Capture::SdkPayload.normalize(response),
+              provider: provider_for_host(host),
+              host: host,
+              usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE
+            )
+            record_once(event) if event
           end
         end
 
@@ -116,6 +130,7 @@ module LlmCostTracker
             response: response,
             latency_ms: latency_ms,
             provider: provider_for_host(host),
+            pricing_mode: host_pricing_mode(host, request),
             input_tokens: [raw_input - image_input - cache_read, 0].max,
             image_input_tokens: image_input,
             output_tokens: text_output,
@@ -131,6 +146,7 @@ module LlmCostTracker
             response: response,
             latency_ms: latency_ms,
             provider: provider_for_host(host),
+            pricing_mode: host_pricing_mode(host, request),
             service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.transcription_line_items(usage),
             usage_source: usage ? LlmCostTracker::Usage::Source::SDK_RESPONSE : LlmCostTracker::Usage::Source::UNKNOWN,
             **transcription_token_attributes(usage)
@@ -157,22 +173,8 @@ module LlmCostTracker
             provider: provider_for_host(host),
             input_tokens: 0,
             output_tokens: 0,
-            service_line_items: speech_line_items(request)
+            service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.speech_line_items(request)
           )
-        end
-
-        def speech_line_items(request)
-          input = request[:input]
-          return [] unless input.is_a?(String)
-          return [] unless LlmCostTracker::Providers::Openai::ModelFamilies.character_billed_tts?(request[:model])
-
-          [LlmCostTracker::Charges::LineItem.build(
-            dimension_key: "text_to_speech_character",
-            quantity: input.length,
-            cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN,
-            pricing_basis: "provider_usage",
-            provider_field: "request.input"
-          )]
         end
 
         def record_moderation(response, request:, latency_ms:, host: nil)
@@ -183,6 +185,12 @@ module LlmCostTracker
             provider: provider_for_host(host),
             input_tokens: 0,
             output_tokens: 0
+          )
+        end
+
+        def host_pricing_mode(host, request)
+          LlmCostTracker::Providers::Openai::ResponseParser.combined_pricing_mode(
+            provider: provider_for_host(host), host: host, model: request[:model], service_tier: nil
           )
         end
 
