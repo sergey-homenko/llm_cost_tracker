@@ -50,6 +50,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "railties", ">= 8.0", "< 9.0"
 
   spec.add_development_dependency "anthropic", "~> 1.61"
+  spec.add_development_dependency "aws-eventstream", "~> 1.4"
   spec.add_development_dependency "nokogiri", "~> 1.19"
   spec.add_development_dependency "openai", "~> 0.80"
   spec.add_development_dependency "pg", "~> 1.6"

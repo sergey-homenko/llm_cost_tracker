@@ -19,7 +19,7 @@ module LlmCostTracker
         CACHE_CREATED = :llm_cost_tracker_ruby_llm_cache_created
         SEAMS = {
           build_chunk: %w[Protocols::Anthropic Protocols::ChatCompletions Protocols::Responses Protocols::Gemini
-                          Protocols::Interactions Providers::OpenRouter::ChatCompletions],
+                          Protocols::Interactions Protocols::Converse Providers::OpenRouter::ChatCompletions],
           parse_completion_body: %w[Protocols::Anthropic Protocols::ChatCompletions Protocols::Responses
                                     Protocols::Gemini Protocols::Interactions Protocols::Converse
                                     Protocols::Mistral::Conversations Providers::Mistral::ChatCompletions],

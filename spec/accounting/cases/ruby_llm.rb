@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "aws-eventstream"
 require "tempfile"
 
 module AccountingCases
@@ -7,6 +8,8 @@ module AccountingCases
   CONTEXT_TRANSCRIBE_ON_RUBY_LLM_1 = "RubyLLM::Context#transcribe exists only on RubyLLM 2.x"
   STREAMED_TRANSCRIBE_ON_RUBY_LLM_1 = "RubyLLM 1.x does not stream transcriptions"
   RUBY_LLM_2_ONLY = "RubyLLM 1.x has no per-attempt usage events, workflows, batches, speech, OCR or rerank"
+  CONVERSE_STREAM_ON_RUBY_LLM_1 = "RubyLLM 1.x Converse streams are frozen at their 0.14.2 accounting"
+  CONVERSE_STREAM_URL = %r{\Ahttps://bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com/model/[^/]+/converse-stream\z}
   PNG_PART = { inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }.freeze
 
   def ruby_llm_chat(model, provider, context: RubyLLM)
@@ -32,6 +35,39 @@ module AccountingCases
       file.flush
       context.transcribe(file.path, model: model, provider: provider, assume_model_exists: true, &)
     end
+  end
+
+  def bedrock_context(region)
+    RubyLLM.context do |config|
+      config.bedrock_api_key = "AKIATEST"
+      config.bedrock_secret_key = "test-secret"
+      config.bedrock_region = region
+    end
+  end
+
+  def converse_frame(type, data)
+    headers = { ":message-type" => "event", ":event-type" => type, ":content-type" => "application/json" }
+              .transform_values { |value| Aws::EventStream::HeaderValue.new(value: value, type: "string") }
+    Aws::EventStream::Encoder.new.encode(Aws::EventStream::Message.new(headers: headers,
+                                                                      payload: StringIO.new(JSON.generate(data))))
+  end
+
+  def stub_converse_stream(usage)
+    body = [converse_frame("messageStart", { role: "assistant" }),
+            converse_frame("contentBlockDelta", { contentBlockIndex: 0, delta: { text: "hi" } }),
+            converse_frame("contentBlockStop", { contentBlockIndex: 0 }),
+            converse_frame("messageStop", { stopReason: "end_turn" }),
+            converse_frame("metadata", { usage: usage, metrics: { latencyMs: 640 } })].join
+    WebMock.stub_request(:post, CONVERSE_STREAM_URL)
+           .to_return(status: 200, body: body, headers: { "Content-Type" => "application/vnd.amazon.eventstream" })
+  end
+
+  def converse_usage(input, output, cache_read: 0, one_hour: 0, five_minute: 0)
+    details = [({ ttl: "1h", inputTokens: one_hour } if one_hour.positive?),
+               ({ ttl: "5m", inputTokens: five_minute } if five_minute.positive?)].compact
+    { inputTokens: input, outputTokens: output, cacheReadInputTokens: cache_read,
+      cacheWriteInputTokens: one_hour + five_minute, cacheDetails: details,
+      totalTokens: input + output + cache_read + one_hour + five_minute }
   end
 
   def gemini_paint_response(model, usage, parts: [PNG_PART])
@@ -605,5 +641,36 @@ module AccountingCases
                 usage: { total_tokens: 1200, cost: 0.002 } })
     RubyLLM.rerank("ruby", %w[python ruby], model: "cohere/rerank-v3.5", provider: :openrouter,
                                             assume_model_exists: true)
+  end
+
+  define_case "ruby_llm bedrock chat stream: 1h and 5m cache writes from cacheDetails on a us profile",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: CONVERSE_STREAM_ON_RUBY_LLM_1 do
+    stub_converse_stream(converse_usage(3000, 800, cache_read: 500, one_hour: 3000, five_minute: 1000))
+    ruby_llm_chat("us.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock, context: bedrock_context("us-east-1"))
+      .ask("hi") { nil }
+  end
+
+  define_case "ruby_llm bedrock chat stream: cacheDetails split over with_caching's 1h TTL on a global profile",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: CONVERSE_STREAM_ON_RUBY_LLM_1 do
+    stub_converse_stream(converse_usage(1200, 300, one_hour: 2000, five_minute: 1500))
+    ruby_llm_chat("global.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock, context: bedrock_context("sa-east-1"))
+      .with_caching(ttl: "1h").ask("hi") { nil }
+  end
+
+  define_case "ruby_llm bedrock chat stream: GovCloud profile stays unpriced",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: CONVERSE_STREAM_ON_RUBY_LLM_1 do
+    stub_converse_stream(converse_usage(3000, 800, cache_read: 500, one_hour: 3000, five_minute: 1000))
+    ruby_llm_chat("us-gov.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock,
+                  context: bedrock_context("us-gov-west-1")).ask("hi") { nil }
+  end
+
+  define_case "ruby_llm bedrock chat: 1h and 5m cache writes from cacheDetails on an eu profile",
+              instrument: :ruby_llm do
+    stub_json(:post, %r{\Ahttps://bedrock-runtime\.eu-central-1\.amazonaws\.com/model/[^/]+/converse\z},
+              { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
+                usage: converse_usage(2000, 400, cache_read: 6000, one_hour: 4000, five_minute: 1000),
+                metrics: { latencyMs: 640 } })
+    ruby_llm_chat("eu.anthropic.claude-haiku-4-5-20251001-v1:0", :bedrock, context: bedrock_context("eu-central-1"))
+      .ask("hi")
   end
 end

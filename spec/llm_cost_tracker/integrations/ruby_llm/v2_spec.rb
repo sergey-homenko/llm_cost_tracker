@@ -2,6 +2,7 @@
 
 require "spec_helper"
 require "ruby_llm"
+require "aws-eventstream"
 require "tempfile"
 
 RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSION.start_with?("1.") do
@@ -382,7 +383,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
     end
   end
 
-  describe "chats priced from RubyLLM's normalized tokens" do
+  describe "Bedrock Converse chats priced from their raw usage" do
     before do
       RubyLLM.configure do |config|
         config.bedrock_api_key = "AKIATEST"
@@ -391,7 +392,40 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "splits Bedrock cache writes by cacheDetails, or by with_caching's TTL when the body has none" do
+    def converse_stream(usage)
+      frames = [["messageStart", { role: "assistant" }], ["contentBlockDelta", { contentBlockIndex: 0, delta: { text: "hi" } }],
+                ["messageStop", { stopReason: "end_turn" }], ["metadata", { usage: usage, metrics: { latencyMs: 120 } }]]
+      body = frames.map do |type, data|
+        headers = { ":message-type" => "event", ":event-type" => type, ":content-type" => "application/json" }
+                  .transform_values { |value| Aws::EventStream::HeaderValue.new(value: value, type: "string") }
+        Aws::EventStream::Encoder.new.encode(Aws::EventStream::Message.new(headers: headers,
+                                                                          payload: StringIO.new(data.to_json)))
+      end
+      { status: 200, body: body.join, headers: { "Content-Type" => "application/vnd.amazon.eventstream" } }
+    end
+
+    it "splits a streamed chat's cache writes by its metadata event's cacheDetails, and leaves GovCloud unpriced" do
+      usage = { inputTokens: 3000, outputTokens: 800, cacheReadInputTokens: 500, cacheWriteInputTokens: 4000,
+                totalTokens: 8300, cacheDetails: [{ ttl: "1h", inputTokens: 3000 }, { ttl: "5m", inputTokens: 1000 }] }
+      WebMock.stub_request(:post, %r{\Ahttps://bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com/model/.+/converse-stream\z})
+             .to_return(converse_stream(usage))
+      govcloud = RubyLLM.context { |config| config.bedrock_region = "us-gov-west-1" }
+
+      capture_sdk_events do |events|
+        chat("us.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock).ask("hi") { |_chunk| nil }
+        chat("us-gov.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock, context: govcloud).ask("hi") { |_chunk| nil }
+        expect(events.map { |event| event.values_at(:model, :pricing_mode, :stream) })
+          .to eq([["us.anthropic.claude-sonnet-4-5-20250929-v1:0", "data_residency", true],
+                  ["us-gov.anthropic.claude-sonnet-4-5-20250929-v1:0", nil, true]])
+        expect(events.map do |event|
+          event.values_at(:input_tokens, :output_tokens, :cache_read_input_tokens, :cache_write_input_tokens,
+                          :cache_write_extended_input_tokens)
+        end).to all(eq([3000, 800, 500, 1000, 3000]))
+        expect(costs(events)).to eq(["0.04719", nil])
+      end
+    end
+
+    it "splits blocking cache writes by cacheDetails, or by with_caching's TTL when the body has none" do
       usage = { inputTokens: 3000, cacheWriteInputTokens: 4000, outputTokens: 800, totalTokens: 7800 }
       bodies = [usage.merge(cacheDetails: [{ ttl: "1h", inputTokens: 3000 }, { ttl: "5m", inputTokens: 1000 }]), usage]
       WebMock.stub_request(:post, %r{\Ahttps://bedrock-runtime\.us-east-1\.amazonaws\.com/model/.+/converse\z})
