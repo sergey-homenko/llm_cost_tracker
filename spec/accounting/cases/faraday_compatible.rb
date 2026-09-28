@@ -206,6 +206,26 @@ module AccountingCases
                  chat_completion(id: "mis_c15", model: "mistral-medium-latest", usage: usage))
   end
 
+  define_case "faraday xai chat: grok-4.7 on the unregistered global host" do
+    faraday_json("#{XAI_API}/chat/completions", { model: "grok-4.7", messages: USER_MESSAGES },
+                 chat_completion(id: "xai_c16", model: "grok-4.7",
+                                 usage: xai_chat_usage(10_000, 1000, reasoning: 2000, cached: 4000)))
+  end
+
+  define_case "faraday mistral chat: medium-latest on the unregistered us host" do
+    usage = { prompt_tokens: 10_000, completion_tokens: 1000, total_tokens: 11_000 }
+    faraday_json("https://api.us.mistral.ai/v1/chat/completions",
+                 { model: "mistral-medium-latest", messages: USER_MESSAGES },
+                 chat_completion(id: "mis_c17", model: "mistral-medium-latest", usage: usage))
+  end
+
+  define_case "faraday mistral chat stream: medium-latest on the unregistered global host" do
+    usage = { prompt_tokens: 2000, completion_tokens: 500, total_tokens: 2500 }
+    faraday_sse("https://api.mistral.ai/v1/chat/completions",
+                { model: "mistral-medium-latest", stream: true, messages: USER_MESSAGES },
+                chat_stream_body(id: "mis_c18", model: "mistral-medium-latest", usage: usage))
+  end
+
   define_case "faraday openrouter chat: gpt-5-search-api without billed cost" do
     faraday_json("#{OPENROUTER_API}/chat/completions", { model: "openai/gpt-5-search-api", messages: [] },
                  chat_completion(id: "gen-rv2", model: "openai/gpt-5-search-api", usage: chat_usage(1000, 500)))

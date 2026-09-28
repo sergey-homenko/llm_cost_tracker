@@ -35,6 +35,21 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
       expect(described_class.match?(groq_responses_url)).to be true
     end
 
+    it "matches xAI and Mistral hosts, regional ones included" do
+      urls = %w[api.x.ai us.api.x.ai api.mistral.ai api.eu.mistral.ai api.us.mistral.ai].map do |host|
+        URI::HTTPS.build(host: host, path: "/v1/chat/completions").to_s
+      end
+
+      expect(urls.map { |url| [described_class.match?(url), parser.provider_for(url)] })
+        .to eq([[true, "xai"]] * 2 + [[true, "mistral"]] * 3)
+    end
+
+    it "lets a configured mapping replace a built-in one" do
+      LlmCostTracker.configure { |config| config.capture.openai_compatible_providers["API.X.AI"] = "grok_gateway" }
+
+      expect(parser.provider_for(URI::HTTPS.build(host: "api.x.ai", path: "/v1/responses").to_s)).to eq("grok_gateway")
+    end
+
     it "matches configured OpenAI-compatible hosts" do
       LlmCostTracker.configure do |config|
         config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
@@ -287,8 +302,6 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
   describe "xAI and Mistral pricing tiers" do
     before do
       LlmCostTracker.configure do |config|
-        %w[api.x.ai us.api.x.ai].each { |host| config.capture.openai_compatible_providers[host] = "xai" }
-        %w[api.mistral.ai api.eu.mistral.ai].each { |host| config.capture.openai_compatible_providers[host] = "mistral" }
         config.pricing.overrides = {
           "xai/grok-4.7" => { input: 2.0, cache_read_input: 0.5, output: 6.0, data_residency_input: 2.2,
                               data_residency_output: 6.6 },

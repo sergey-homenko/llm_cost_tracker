@@ -69,8 +69,8 @@ Daily, monthly, and per-call limits, plus per-tag limits such as one monthly bud
 | OpenAI, Anthropic | Official SDK or Faraday |
 | Azure OpenAI | Official SDK or Faraday, on `*.openai.azure.com` and Foundry `*.services.ai.azure.com` |
 | Google Gemini, `ruby-openai` | Faraday |
-| OpenRouter, DeepSeek, Groq | Faraday, or the official OpenAI SDK with `base_url` on that host |
-| xAI, Mistral, other OpenAI-compatible gateways | The same, once the host is added to `config.capture.openai_compatible_providers` |
+| OpenRouter, DeepSeek, Groq, xAI, Mistral | Faraday, or the official OpenAI SDK with `base_url` on that host |
+| Other OpenAI-compatible gateways | The same, once the host is added to `config.capture.openai_compatible_providers` |
 | Anything else | [`LlmCostTracker.track`](#manual-tracking) |
 
 Streams are recorded from the provider's final usage; see [Streaming](docs/streaming.md).

@@ -1115,8 +1115,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     it "prices xAI's US host at regional rates and a Mistral Priority Tier stream at priority rates" do
       LlmCostTrackerReset.call
       LlmCostTracker.configure do |config|
-        config.capture.openai_compatible_providers["us.api.x.ai"] = "xai"
-        config.capture.openai_compatible_providers["api.mistral.ai"] = "mistral"
         config.pricing.overrides = {
           "xai/grok-4.7" => { input: 2.0, output: 6.0, data_residency_input: 2.2, data_residency_output: 6.6 },
           "mistral/mistral-medium-latest" => { input: 1.5, output: 7.5, priority_input: 2.625, priority_output: 13.125 }

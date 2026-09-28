@@ -400,6 +400,13 @@ module AccountingCases
                                                         stream_options: { include_usage: true }).each { nil }
   end
 
+  define_case "openai sdk xai chat: grok-4.7 on the unregistered us host", instrument: :openai do
+    stub_json(:post, "#{XAI_US_API}/chat/completions",
+              chat_completion(id: "xai_s1", model: "grok-4.7",
+                              usage: xai_chat_usage(10_000, 1000, reasoning: 1000, cached: 2000)))
+    openai_client(XAI_US_API).chat.completions.create(model: "grok-4.7", messages: USER_MESSAGES)
+  end
+
   define_case "openai sdk openrouter chat: billed cost", instrument: :openai do
     stub_json(:post, "#{OPENROUTER_API}/chat/completions",
               chat_completion(id: "gen-sor1", model: "openai/gpt-4o", usage: openrouter_usage(3000, 500, cost: 0.0123)))

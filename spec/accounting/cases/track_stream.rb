@@ -180,6 +180,15 @@ module AccountingCases
     end
   end
 
+  define_case "track_stream mistral: usage in the final chunk" do
+    LlmCostTracker.track_stream(provider: "mistral", model: "mistral-medium-latest") do |stream|
+      stream.event({ "id" => "cmpl-tm", "model" => "mistral-medium-latest",
+                     "choices" => [{ "delta" => { "content" => "hi" } }] })
+      stream.event({ "id" => "cmpl-tm", "model" => "mistral-medium-latest", "choices" => [],
+                     "usage" => { "prompt_tokens" => 4000, "completion_tokens" => 800, "total_tokens" => 4800 } })
+    end
+  end
+
   define_case "track_stream anthropic: fast speed on opus-5-5" do
     LlmCostTracker.track_stream(provider: "anthropic", model: "claude-opus-5-5") do |stream|
       usage = { "input_tokens" => 10_000, "output_tokens" => 1, "speed" => "fast" }

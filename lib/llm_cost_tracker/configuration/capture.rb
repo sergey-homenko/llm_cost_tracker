@@ -8,7 +8,12 @@ module LlmCostTracker
       OPENAI_COMPATIBLE_PROVIDERS = {
         "openrouter.ai" => "openrouter",
         "api.deepseek.com" => "deepseek",
-        "api.groq.com" => "groq"
+        "api.groq.com" => "groq",
+        "api.x.ai" => "xai",
+        "us.api.x.ai" => "xai",
+        "api.mistral.ai" => "mistral",
+        "api.eu.mistral.ai" => "mistral",
+        "api.us.mistral.ai" => "mistral"
       }.freeze
 
       attributes :request_stream_usage

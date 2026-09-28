@@ -35,7 +35,7 @@ Not planned in advance. Each item ships only against verified demand.
 - Agentic workflow dashboard views over the existing tag conventions (`workflow_id`, `run_id`, `user_action_id`, `agent_name`). No schema change — aggregations against `call_tags`. Gated on real demand.
 - Automated price scraper polish (foundations exist in `lib/llm_cost_tracker/pricing/sync.rb`, `scripts/price_scrape/runner.rb`).
 - Deeper real-time / voice capture, if users start shipping it. The `response.done` path is already recorded through `track_stream`; what is missing is session-level capture without a passthrough.
-- Other provider integrations (Cohere direct, xAI Grok direct, etc.), when a provider crosses ~5% enterprise share AND a developer asks.
+- Other provider integrations (Cohere direct, etc.), when a provider crosses ~5% enterprise share AND a developer asks.
 - Regional billing dimensions beyond what the Bedrock / Vertex work already provides, if EU AI Act enforcement creates real demand for finer-grained region-aware cost rows.
 
 ## Anti-roadmap
