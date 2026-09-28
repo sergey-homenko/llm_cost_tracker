@@ -7,7 +7,9 @@ module LlmCostTracker
         include Openai::ResponseParser
 
         TRACKED_PATH_SUFFIXES = %w[/chat/completions /completions /embeddings /responses].freeze
-        STREAM_USAGE_HOSTS = %w[openrouter.ai api.deepseek.com api.groq.com].freeze
+        STREAM_USAGE_HOSTS = %w[
+          openrouter.ai api.deepseek.com api.groq.com api.mistral.ai api.eu.mistral.ai api.us.mistral.ai
+        ].freeze
 
         class << self
           def match?(url)
