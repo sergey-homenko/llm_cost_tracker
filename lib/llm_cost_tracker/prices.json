@@ -37,7 +37,7 @@
       "https://docs.x.ai/developers/models/grok-4.20-multi-agent-0309.md"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-09-27"
+    "updated_at": "2026-09-28"
   },
   "models": {
     "anthropic/claude-fable-5": {
@@ -1632,12 +1632,6 @@
       "priority_input": 2.45,
       "priority_output": 7.7
     },
-    "openai/babbage-002": {
-      "batch_input": 0.2,
-      "batch_output": 0.2,
-      "input": 0.4,
-      "output": 0.4
-    },
     "openai/chat-latest": {
       "cache_read_input": 0.5,
       "input": 5.0,
@@ -1657,12 +1651,6 @@
       "input": 5.0,
       "output": 10.0
     },
-    "openai/davinci-002": {
-      "batch_input": 1.0,
-      "batch_output": 1.0,
-      "input": 2.0,
-      "output": 2.0
-    },
     "openai/gpt-3.5-turbo": {
       "input": 0.5,
       "output": 1.5
@@ -1672,16 +1660,6 @@
       "batch_output": 0.75,
       "input": 0.5,
       "output": 1.5
-    },
-    "openai/gpt-3.5-turbo-1106": {
-      "batch_input": 1.0,
-      "batch_output": 2.0,
-      "input": 1.0,
-      "output": 2.0
-    },
-    "openai/gpt-3.5-turbo-instruct": {
-      "input": 1.5,
-      "output": 2.0
     },
     "openai/gpt-4": {
       "batch_input": 15.0,
@@ -3249,12 +3227,13 @@
       "output": 1.25
     },
     "openrouter/deepseek/deepseek-chat": {
-      "input": 0.32,
-      "output": 0.89
+      "input": 0.2574,
+      "output": 1.0287
     },
     "openrouter/deepseek/deepseek-chat-v3-0324": {
-      "input": 0.25,
-      "output": 1.0
+      "cache_read_input": 0.11,
+      "input": 0.29,
+      "output": 1.14
     },
     "openrouter/deepseek/deepseek-chat-v3.1": {
       "cache_read_input": 0.13,
@@ -3284,9 +3263,9 @@
       "output": 1.0
     },
     "openrouter/deepseek/deepseek-v3.2": {
-      "cache_read_input": 0.1345,
-      "input": 0.269,
-      "output": 0.4
+      "cache_read_input": 0.028,
+      "input": 0.28,
+      "output": 0.42
     },
     "openrouter/deepseek/deepseek-v3.2-exp": {
       "input": 0.27,
@@ -3298,9 +3277,9 @@
       "output": 0.431
     },
     "openrouter/deepseek/deepseek-v4-flash": {
-      "cache_read_input": 0.00938,
-      "input": 0.0469,
-      "output": 0.0938
+      "cache_read_input": 0.01708,
+      "input": 0.0854,
+      "output": 0.1708
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
       "cache_read_input": 0.016,
@@ -3313,9 +3292,9 @@
       "output": 0.33
     },
     "openrouter/deepseek/deepseek-v4-flash-vision-exp": {
-      "cache_read_input": 0.00686,
-      "input": 0.2156,
-      "output": 0.6468
+      "cache_read_input": 0.014,
+      "input": 0.44,
+      "output": 1.32
     },
     "openrouter/deepseek/deepseek-v4-flash-vision-exp:batch": {
       "cache_read_input": 0.0035,
@@ -3323,14 +3302,14 @@
       "output": 0.33
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.029,
-      "input": 0.348,
-      "output": 0.696
+      "cache_read_input": 0.079286,
+      "input": 0.9514320000000001,
+      "output": 1.9028640000000001
     },
     "openrouter/deepseek/deepseek-v4-pro-0813": {
-      "cache_read_input": 0.24452,
-      "input": 0.24502,
-      "output": 3.5
+      "cache_read_input": 0.399,
+      "input": 0.3995,
+      "output": 4.2
     },
     "openrouter/deepseek/deepseek-v4-pro-0813:batch": {
       "cache_read_input": 0.022,
@@ -3634,9 +3613,9 @@
       "output": 0.12
     },
     "openrouter/google/gemma-4-26b-a4b-it": {
-      "cache_read_input": 0.0375,
-      "input": 0.0675,
-      "output": 0.225
+      "cache_read_input": 0.05,
+      "input": 0.09,
+      "output": 0.3
     },
     "openrouter/google/gemma-4-31b-it": {
       "cache_read_input": 0.05,
@@ -3862,8 +3841,8 @@
       "output": 2.2
     },
     "openrouter/minimax/minimax-m2": {
-      "input": 0.255,
-      "output": 1.02
+      "input": 0.3,
+      "output": 1.2
     },
     "openrouter/minimax/minimax-m2-her": {
       "cache_read_input": 0.03,
@@ -3881,9 +3860,9 @@
       "output": 1.08
     },
     "openrouter/minimax/minimax-m2.7": {
-      "cache_read_input": 0.042,
-      "input": 0.21,
-      "output": 0.84
+      "cache_read_input": 0.06,
+      "input": 0.3,
+      "output": 1.2
     },
     "openrouter/minimax/minimax-m3": {
       "cache_read_input": 0.06,
@@ -4062,9 +4041,9 @@
       "output": 2.25
     },
     "openrouter/moonshotai/kimi-k2.6": {
-      "cache_read_input": 0.16,
-      "input": 0.95,
-      "output": 4.0
+      "cache_read_input": 0.15,
+      "input": 0.65,
+      "output": 3.41
     },
     "openrouter/moonshotai/kimi-k2.7-code": {
       "cache_read_input": 0.18,
@@ -4952,9 +4931,8 @@
       "output": 1.56
     },
     "openrouter/qwen/qwen3.5-35b-a3b": {
-      "cache_read_input": 0.15625,
-      "input": 0.3125,
-      "output": 1.25
+      "input": 0.1625,
+      "output": 1.3
     },
     "openrouter/qwen/qwen3.5-397b-a17b": {
       "cache_read_input": 0.225,
@@ -5382,9 +5360,9 @@
       "output": 4.4
     },
     "openrouter/z-ai/glm-5.3-flash": {
-      "cache_read_input": 0.01,
-      "input": 0.045,
-      "output": 0.14
+      "cache_read_input": 0.03,
+      "input": 0.15,
+      "output": 0.5
     },
     "openrouter/z-ai/glm-5.3-flash:batch": {
       "cache_read_input": 0.012,
@@ -5441,9 +5419,9 @@
       "output": 0.29
     },
     "openrouter/~deepseek/deepseek-pro-latest": {
-      "cache_read_input": 0.00777,
-      "input": 0.2442,
-      "output": 0.7326
+      "cache_read_input": 0.08832,
+      "input": 0.22592,
+      "output": 1.9584
     },
     "openrouter/~deepseek/deepseek-v4-flash-latest": {
       "cache_read_input": 0.016,
@@ -5467,9 +5445,9 @@
       "output": 12.0
     },
     "openrouter/~moonshotai/kimi-latest": {
-      "cache_read_input": 0.11455,
-      "input": 0.9875,
-      "output": 5.53
+      "cache_read_input": 0.3,
+      "input": 1.0,
+      "output": 9.0
     },
     "openrouter/~openai/gpt-astra-latest": {
       "cache_read_input": 1.0,
@@ -5517,9 +5495,9 @@
       "output": 0.14
     },
     "openrouter/~z-ai/glm-latest": {
-      "cache_read_input": 0.044965,
-      "input": 0.2737,
-      "output": 2.574
+      "cache_read_input": 0.146625,
+      "input": 0.1785,
+      "output": 2.805
     },
     "xai/grok-4.20": {
       "_context_price_threshold_tokens": 199999,
