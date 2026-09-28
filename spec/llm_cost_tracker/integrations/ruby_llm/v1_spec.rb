@@ -36,16 +36,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V1, if: RubyLLM::VERSION.s
       choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
       usage: usage, **extra
     }.compact
-    response = {
-      id: id, object: "response", status: "completed", model: model,
-      output: [{ type: "message", id: "msg_#{id}", status: "completed", role: "assistant",
-                 content: [{ type: "output_text", text: "hi", annotations: [] }] }],
-      usage: usage && responses_usage(usage), **extra
-    }.compact
     WebMock.stub_request(:post, "https://#{host}/v1/chat/completions")
            .to_return(status: 200, body: completion.to_json, headers: json)
-    WebMock.stub_request(:post, "https://#{host}/v1/responses")
-           .to_return(status: 200, body: response.to_json, headers: json)
   end
 
   def anthropic_message(id:, model:, usage:, stop_reason: "end_turn")
@@ -63,16 +55,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V1, if: RubyLLM::VERSION.s
       { type: "message_delta", delta: { stop_reason: stop_reason }, usage: delta_usage },
       { type: "message_stop" }
     ))
-  end
-
-  def responses_usage(usage)
-    {
-      input_tokens: usage[:prompt_tokens],
-      output_tokens: usage[:completion_tokens],
-      total_tokens: usage[:total_tokens],
-      input_tokens_details: { cached_tokens: usage.dig(:prompt_tokens_details, :cached_tokens).to_i },
-      output_tokens_details: { reasoning_tokens: usage.dig(:completion_tokens_details, :reasoning_tokens).to_i }
-    }
   end
 
   describe "chat" do
@@ -187,16 +169,9 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V1, if: RubyLLM::VERSION.s
     it "prices a streamed OpenAI chat at the service tier its final event reports" do
       usage = { prompt_tokens: 2000, completion_tokens: 500, total_tokens: 2500 }
       chunk = { id: "chatcmpl_flex", object: "chat.completion.chunk", model: "gpt-5-mini", service_tier: "flex" }
-      response = { id: "resp_flex", object: "response", status: "completed", model: "gpt-5-mini", service_tier: "flex",
-                   output: [], usage: responses_usage(usage) }
       WebMock.stub_request(:post, "https://api.openai.com/v1/chat/completions").to_return(sse_response(sse(
         chunk.merge(choices: [{ index: 0, delta: { role: "assistant", content: "hi" }, finish_reason: "stop" }]),
         chunk.merge(choices: [], usage: usage)
-      )))
-      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(sse_response(sse(
-        { type: "response.created", response: response.merge(status: "in_progress", service_tier: "auto", usage: nil) },
-        { type: "response.output_text.delta", item_id: "msg_flex", output_index: 0, content_index: 0, delta: "hi" },
-        { type: "response.completed", response: response }
       )))
 
       capture_sdk_events do |events|
@@ -527,7 +502,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V1, if: RubyLLM::VERSION.s
         expect(events.first(2).map { |event| event.dig(:cost, :total) }).to eq(%w[0.047 0.0325])
       end
     end
-
   end
 
   describe "budget preflight" do
@@ -590,7 +564,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V1, if: RubyLLM::VERSION.s
         expect(events.first.dig(:cost, :total)).to eq("0.0001")
       end
     end
-
   end
 
   describe "paint" do

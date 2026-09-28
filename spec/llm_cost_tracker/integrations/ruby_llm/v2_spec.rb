@@ -525,6 +525,17 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "records a Gemini chat that failed after the provider may have billed it as unknown" do
+      WebMock.stub_request(:post, gemini_url("gemini-2.5-flash"))
+             .to_return(reply({ error: { message: "boom" } }, status: 500))
+      once = RubyLLM.context { |config| config.max_retries = 0 }
+
+      capture_sdk_events do |events|
+        expect { chat("gemini-2.5-flash", :gemini, context: once).ask("hi") }.to raise_error(RubyLLM::ServerError)
+        expect(events.sole).to include(provider: "gemini", usage_source: "unknown", cost_status: "unknown")
+      end
+    end
+
     it "records nothing for a request the provider refused, and lets its error through" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/responses")
              .to_return(reply({ error: { message: "bad" } }, status: 400))
@@ -632,14 +643,59 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       expect(described_class::Attempt).to have_received(:batch_event).once
     end
 
+    it "records a batch embedding without usage as unknown and skips a chat result without usage" do
+      gemini = chat("gemini-2.5-flash", :gemini).provider
+      anthropic = chat("claude-sonnet-4-5", :anthropic).ask_later("hi")
+      allow(gemini).to receive(:batch_results)
+        .and_return([[0, RubyLLM::Embedding.new(vectors: [0.1], model: "gemini-embedding-001")]])
+      allow(anthropic.provider).to receive(:batch_results)
+        .and_return([[0, RubyLLM::Message.new(role: :assistant, content: "hi", model: "claude-sonnet-4-5")]])
+      batches = [RubyLLM::Batch.new(provider: gemini, id: "batches/emb", raw_status: "JOB_STATE_SUCCEEDED",
+                                    completed: true),
+                 RubyLLM::Batch.new(provider: anthropic.provider, chats: [anthropic], id: "msgbatch_empty",
+                                    raw_status: "ended", completed: true)]
+
+      capture_sdk_events do |events|
+        batches.each(&:messages)
+        expect(events.sole).to include(provider: "gemini", model: "gemini-embedding-001", usage_source: "unknown",
+                                       pricing_mode: "batch", provider_response_id: "batches/emb/0")
+      end
+    end
+
+    it "raises a post-spend budget error for a batch result once it is recorded" do
+      allow(LlmCostTracker.configuration.budgets).to receive_messages(exceeded_behavior: :raise, per_call: 0.000001)
+      staged = chat("claude-sonnet-4-5", :anthropic).ask_later("hi")
+      body = anthropic_message(id: "msg_over", model: "claude-sonnet-4-5", usage: { input_tokens: 1000, output_tokens: 100 })
+      message = RubyLLM::Message.new(role: :assistant, content: "hi", raw: body.deep_stringify_keys, input_tokens: 1000,
+                                     output_tokens: 100)
+      allow(staged.provider).to receive(:batch_results).and_return([[0, message]])
+      batch = RubyLLM::Batch.new(provider: staged.provider, chats: [staged], id: "msgbatch_over", raw_status: "ended",
+                                 completed: true)
+
+      capture_sdk_events do |events|
+        expect { batch.messages }.to raise_error(LlmCostTracker::BudgetExceededError)
+        expect(events.sole).to include(provider_response_id: "msg_over", usage_source: "sdk_batch_result")
+      end
+    end
+
     it "records nothing while the integration is not enabled" do
       LlmCostTrackerReset.call
       LlmCostTracker.configure { |config| config.pricing.unknown_model_behavior = :ignore }
-      WebMock.stub_request(:post, messages_url)
-             .to_return(reply(anthropic_message(id: "msg_off", usage: { input_tokens: 10, output_tokens: 5 })))
+      body = anthropic_message(id: "msg_off", usage: { input_tokens: 10, output_tokens: 5 })
+      WebMock.stub_request(:post, messages_url).to_return(reply(body))
+      staged = chat("claude-sonnet-4-6", :anthropic).ask_later("hi")
+      message = RubyLLM::Message.new(role: :assistant, content: "hi", raw: body.deep_stringify_keys, input_tokens: 10,
+                                     output_tokens: 5)
+      allow(staged.provider).to receive(:batch_results).and_return([[0, message]])
+      batch = RubyLLM::Batch.new(provider: staged.provider, chats: [staged], id: "msgbatch_off", raw_status: "ended",
+                                 completed: true)
+      judgment = { operation: :judgment, provider: "anthropic", model: "claude-sonnet-4-6", status: :succeeded,
+                   tokens: RubyLLM::Tokens.new(input: 30, output: 2) }
 
       capture_sdk_events do |events|
         chat("claude-sonnet-4-6", :anthropic).ask("hi")
+        batch.messages
+        described_class.finish("usage.ruby_llm", "1", judgment)
         expect(events).to be_empty
       end
     end
@@ -824,6 +880,20 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "skips a refused streamed transcription attempt and records a maybe-billed one as unknown, streamed" do
+      done = sse({ type: "transcript.text.done", text: "hi", usage: { type: "duration", seconds: 60 } })
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
+        reply({ error: { message: "slow down" } }, status: 429), reply({ error: { message: "boom" } }, status: 500), done
+      )
+
+      capture_sdk_events do |events|
+        RubyLLM.transcribe(audio.path, model: "gpt-transcribe", provider: :openai, assume_model_exists: true,
+                                       context: no_retry_delay) { nil }
+        expect(events.map { |event| event.values_at(:stream, :usage_source) })
+          .to eq([[true, "unknown"], [true, "sdk_response"]])
+      end
+    end
+
     it "prices a transcription streamed through a context's regional host at data residency" do
       WebMock.stub_request(:post, "https://eu.api.openai.com/v1/audio/transcriptions")
              .to_return(sse({ type: "transcript.text.done", text: "hi", usage: { type: "duration", seconds: 60 } }))
@@ -965,17 +1035,19 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "records the storage of a Gemini context cache created with RubyLLM.cache, once, not on find or renew" do
+    it "records the storage of a Gemini context cache created with RubyLLM.cache once, not on find, renew, or " \
+       "a create without usage" do
       url = "https://generativelanguage.googleapis.com/v1beta/cachedContents"
       cache = { name: "cachedContents/abc123", model: "models/gemini-2.5-flash", createTime: "2026-09-27T10:00:00.123456Z",
                 expireTime: "2026-09-27T11:00:00.123456Z", usageMetadata: { totalTokenCount: 250_000 } }
-      WebMock.stub_request(:post, url).to_return(reply(cache))
+      WebMock.stub_request(:post, url).to_return(reply(cache), reply(cache.except(:usageMetadata)))
       WebMock.stub_request(:get, "#{url}/abc123").to_return(reply(cache))
       WebMock.stub_request(:patch, "#{url}/abc123").to_return(reply(cache))
 
       capture_sdk_events do |events|
         created = RubyLLM.cache("document", model: "gemini-2.5-flash", provider: :gemini, ttl: 3600)
         RubyLLM::CachedContent.find(created.name, provider: :gemini).renew(ttl: 3600)
+        RubyLLM.cache("document", model: "gemini-2.5-flash", provider: :gemini, ttl: 3600)
         expect(events.sole).to include(model: "gemini-2.5-flash", provider_response_id: "cachedContents/abc123")
         expect(events.sole.dig(:cost, :total)).to eq("0.25")
       end
@@ -989,6 +1061,16 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
 
       expect(RubyLLM.config.instrumenter).to eq(ActiveSupport::Notifications)
       expect(described_class.status).to have_attributes(status: :ok, message: "ruby_llm integration installed")
+    end
+
+    it "warns that the integration is not installed before it subscribes" do
+      subscriptions = described_class.instance_variable_get(:@subscriptions)
+      described_class.instance_variable_set(:@subscriptions, nil)
+
+      expect(described_class.status)
+        .to have_attributes(status: :warn, message: "ruby_llm integration is enabled but not installed")
+    ensure
+      described_class.instance_variable_set(:@subscriptions, subscriptions)
     end
 
     it "warns when RubyLLM instruments through something else" do
@@ -1023,9 +1105,10 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       )
     end
 
-    it "keeps a RubyLLM call running when reading its seam fails, and prices it from RubyLLM's token counts" do
+    it "keeps a RubyLLM call running when reading its seam fails, and prices it from RubyLLM's token and tool counts" do
       WebMock.stub_request(:post, messages_url).to_return(anthropic_stream(
-        usage: { input_tokens: 40, output_tokens: 1 }, delta_usage: { output_tokens: 9 }
+        usage: { input_tokens: 40, output_tokens: 1 },
+        delta_usage: { output_tokens: 9, server_tool_use: { web_search_requests: 1 } }
       ))
       allow(described_class::Attempt).to receive(:stream_window).and_raise(StandardError, "window broke")
       allow(LlmCostTracker::Logging).to receive(:warn)
@@ -1033,6 +1116,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       capture_sdk_events do |events|
         expect(chat("claude-sonnet-4-6", :anthropic).ask("hi") { |_chunk| }.content).to eq("hi")
         expect(events.sole).to include(input_tokens: 40, output_tokens: 9, provider_response_id: nil)
+        expect(fees(events.sole)).to eq(%w[web_search_request])
       end
       expect(LlmCostTracker::Logging).to have_received(:warn).with(/window broke/).at_least(:once)
     end

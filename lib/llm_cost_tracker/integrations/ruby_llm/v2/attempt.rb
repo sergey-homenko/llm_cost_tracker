@@ -46,8 +46,6 @@ module LlmCostTracker
             def faraday_response(*candidates) = candidates.find { |candidate| candidate.is_a?(Faraday::Response) }
 
             def raw_context(raw)
-              return {} unless raw
-
               { request_url: raw.env.url.to_s, request_body: raw.env.request_body, response_headers: raw.headers }
             end
 

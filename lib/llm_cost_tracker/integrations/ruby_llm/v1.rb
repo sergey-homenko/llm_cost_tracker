@@ -18,18 +18,8 @@ module LlmCostTracker
             [
               patch_target("RubyLLM::Provider", with: ProviderPatch),
               patch_target("RubyLLM::Providers::Gemini::Transcription", with: GeminiTranscriptionPatch, optional: true),
-              patch_target("RubyLLM::Protocols::Gemini",
-                           with: GeminiImagesPatch,
-                           optional: true,
-                           skip_when_methods_missing: true),
-              patch_target("RubyLLM::Protocols::Gemini",
-                           with: GeminiCachePatch,
-                           optional: true,
-                           skip_when_methods_missing: true),
               patch_target("RubyLLM::Streaming", with: StreamPatch, optional: true),
-              patch_target("RubyLLM::Protocol::Streaming", with: StreamPatch, optional: true),
-              *%w[RubyLLM::Providers::OpenAI RubyLLM::Providers::Gemini
-                  RubyLLM::Protocols::ChatCompletions RubyLLM::Protocols::Gemini].map do |name|
+              *%w[RubyLLM::Providers::OpenAI RubyLLM::Providers::Gemini].map do |name|
                 patch_target(name, with: ResponseBodyPatch, optional: true, skip_when_methods_missing: true)
               end
             ]
@@ -43,7 +33,6 @@ module LlmCostTracker
               response: response,
               latency_ms: latency_ms,
               stream: has_block || request[:stream] == true,
-              cache_ttl: request[:caching].try(:[], :ttl),
               service_line_items: service_line_items(provider.slug.to_s, response, model)
             )
           end
@@ -52,10 +41,10 @@ module LlmCostTracker
             body = raw_body(response)
             case provider
             when "anthropic"
-              counts = response.try(:tokens).try(:server_tool_use) || body.dig("usage", "server_tool_use")
+              counts = body.dig("usage", "server_tool_use")
               Providers::Anthropic::UsageExtractor.service_line_items(server_tool_use: counts&.symbolize_keys)
             when "openai" then Providers::Openai::ServiceCharges.service_line_items_for(body, model: model)
-            when "gemini" then Providers::Gemini::Parser.new.service_line_items_for(gemini_body(response), model: model)
+            when "gemini" then Providers::Gemini::Parser.new.service_line_items_for(body, model: model)
             when "openrouter" then Providers::Openai::ServiceCharges.billed_line_items(usage_hash(body))
             else []
             end
@@ -68,18 +57,11 @@ module LlmCostTracker
               response: response,
               latency_ms: latency_ms,
               stream: false,
-              output_tokens: 0,
-              service_line_items: gemini_video_line_items(provider, response)
+              output_tokens: 0
             )
           end
 
-          def gemini_video_line_items(provider, response)
-            details = raw_body(response).dig("usageMetadata", "promptTokenDetails") if provider.slug.to_s == "gemini"
-            video = Providers::Gemini::UsageExtractor.modality_tokens(details, "VIDEO")
-            video.positive? ? [Charges::LineItem.build(dimension_key: "video_input", quantity: video)] : []
-          end
-
-          def record_transcription(provider, response, request:, latency_ms:, stream: false)
+          def record_transcription(provider, response, request:, latency_ms:)
             model = response_model_id(response) || model_id_from_request(request[:model])
             match = LlmCostTracker::Pricing::Matcher.lookup(provider: provider.slug.to_s, model: model)
             counts = token_counts(response)
@@ -94,7 +76,7 @@ module LlmCostTracker
               model: model,
               response: response,
               latency_ms: latency_ms,
-              stream: stream,
+              stream: false,
               audio_input_tokens: audio_input,
               service_line_items: line_items,
               usage_source: (Usage::Source::UNKNOWN if no_tokens && line_items.empty?)
@@ -108,14 +90,13 @@ module LlmCostTracker
           end
 
           def record_image(provider, response, request:, latency_ms:)
-            image = response.is_a?(Array) ? response.first : response
-            model = response_model_id(image) || model_id_from_request(request[:model])
-            usage = image_usage(image)
+            model = response_model_id(response) || model_id_from_request(request[:model])
+            usage = image_usage(response)
             extractor = Providers::Openai::UsageExtractor
             image_input = extractor.image_input_tokens(usage)
             image_output, text_output = extractor.split_output(
               output_tokens: usage[:output_tokens].to_i,
-              image_output_details: gemini_image_output_tokens(image) || extractor.image_output_tokens(usage),
+              image_output_details: extractor.image_output_tokens(usage),
               text_output_details: extractor.text_output_tokens(usage),
               audio_output: 0,
               default_to_image: model.to_s.match?(/\A(gpt-image-|gemini-.*-image)/)
@@ -123,7 +104,7 @@ module LlmCostTracker
             record_passthrough(
               provider: provider.slug.to_s,
               model: model,
-              response: image,
+              response: response,
               latency_ms: latency_ms,
               input_tokens: [usage[:input_tokens].to_i - image_input, 0].max,
               image_input_tokens: image_input,
@@ -143,24 +124,9 @@ module LlmCostTracker
             )
           end
 
-          def record_cache_storage(cache)
-            return unless active? && cache.provider.to_s == "gemini"
-
-            record_safely do
-              event = Providers::Gemini::Parser.new.cache_storage_event(cache.metadata)
-              LlmCostTracker::Tracker.record(event: event) if event
-            end
-          end
-
           def image_usage(image)
             usage = image.try(:usage)
-            usage = image.send(:raw_usage) if !usage.is_a?(Hash) && image.respond_to?(:raw_usage, true)
             (usage.is_a?(Hash) ? usage : {}).with_indifferent_access
-          end
-
-          def gemini_image_output_tokens(image)
-            metadata = image.instance_variable_get(:@llm_cost_tracker_usage_metadata)
-            Providers::Gemini::UsageExtractor.modality_tokens(metadata["candidatesTokensDetails"], "IMAGE") if metadata
           end
 
           def record_usage(provider:,
@@ -170,7 +136,6 @@ module LlmCostTracker
                            stream:,
                            output_tokens: nil,
                            audio_input_tokens: 0,
-                           cache_ttl: nil,
                            service_line_items: [],
                            usage_source: nil)
             return unless active?
@@ -180,7 +145,7 @@ module LlmCostTracker
               output_tokens = counts[:output] if output_tokens.nil?
               next if counts[:input].nil? && output_tokens.nil? && service_line_items.empty? && usage_source.nil?
 
-              cache_write_5m, cache_write_1h = cache_write_split(provider, response, counts[:cache_write], cache_ttl)
+              cache_write_5m, cache_write_1h = cache_write_split(provider, response, counts[:cache_write])
               LlmCostTracker::Tracker.record(
                 event: Event.build(
                   provider: provider.slug.to_s,
@@ -209,9 +174,6 @@ module LlmCostTracker
             usage = gemini_usage_metadata(response) if provider.slug.to_s == "gemini"
             return unless usage.is_a?(Hash)
 
-            if usage.key?("promptTokenDetails")
-              usage = usage.merge("promptTokensDetails" => usage["promptTokenDetails"])
-            end
             Providers::Gemini::UsageExtractor.token_usage(usage)
           end
 
@@ -220,18 +182,7 @@ module LlmCostTracker
             usage.is_a?(Hash) ? Providers::Gemini::UsageExtractor.cache_read_line_items(usage) : []
           end
 
-          def gemini_body(response)
-            content = response.try(:raw_content)
-            interaction = content["response"] if content.is_a?(Hash)
-            interaction.is_a?(Hash) && interaction["usage"].is_a?(Hash) ? interaction : raw_body(response)
-          end
-
-          def gemini_usage_metadata(response)
-            body = gemini_body(response)
-            return body["usageMetadata"] unless body["usage"].is_a?(Hash)
-
-            Providers::Gemini::Parser.new.interaction_usage_metadata(body["usage"], body["service_tier"])
-          end
+          def gemini_usage_metadata(response) = raw_body(response)["usageMetadata"]
 
           def token_counts(response, provider = nil)
             tokens = response.try(:tokens)
@@ -253,7 +204,7 @@ module LlmCostTracker
             }
           end
 
-          def cache_write_split(provider, response, cache_write, cache_ttl)
+          def cache_write_split(provider, response, cache_write)
             usage = raw_body(response)["usage"] || {}
             cache = case provider.slug.to_s
                     when "anthropic" then usage["cache_creation"]
@@ -264,20 +215,17 @@ module LlmCostTracker
 
             five_minute = cache["ephemeral_5m_input_tokens"].to_i
             one_hour = cache["ephemeral_1h_input_tokens"].to_i
-            # RubyLLM sums the writes of every pause_turn segment, but the raw body is only the last segment's.
-            earlier = [cache_write.to_i - five_minute - one_hour, 0].max
-            cache_ttl.to_s == "1h" ? [five_minute, one_hour + earlier] : [five_minute + earlier, one_hour]
+            [five_minute + [cache_write.to_i - five_minute - one_hour, 0].max, one_hour]
           end
 
           def model_id_from_request(value)
-            return nil if value.nil?
             return value.to_s if value.is_a?(String) || value.is_a?(Symbol)
 
             (value.try(:id) || value.try(:model_id) || value.try(:model))&.to_s
           end
 
           def provider_response_id_for(response)
-            body = gemini_body(response)
+            body = raw_body(response)
             body["id"] || body["responseId"]
           end
 
@@ -349,10 +297,8 @@ module LlmCostTracker
             LlmCostTracker::Integrations::RubyLlm::V1.wrap_blocking(args, kwargs, **seam) { super }
           end
 
-          def transcribe(*args, **kwargs, &)
-            seam = LlmCostTracker::Integrations::RubyLlm::V1.blocking_seam(
-              self, :record_transcription, stream: block_given?
-            )
+          def transcribe(*args, **kwargs)
+            seam = LlmCostTracker::Integrations::RubyLlm::V1.blocking_seam(self, :record_transcription)
             LlmCostTracker::Integrations::RubyLlm::V1.wrap_blocking(args, kwargs, **seam) { super }
           end
 
@@ -364,21 +310,6 @@ module LlmCostTracker
           def moderate(*args, **kwargs)
             seam = LlmCostTracker::Integrations::RubyLlm::V1.blocking_seam(self, :record_moderation)
             LlmCostTracker::Integrations::RubyLlm::V1.wrap_blocking(args, kwargs, **seam) { super }
-          end
-        end
-
-        module GeminiImagesPatch
-          def parse_image_responses(response, *, **)
-            images = super
-            metadata = response.body["usageMetadata"]
-            Array(images).each { |image| image.instance_variable_set(:@llm_cost_tracker_usage_metadata, metadata) }
-            images
-          end
-        end
-
-        module GeminiCachePatch
-          def cache_content(*, **)
-            super.tap { |cache| LlmCostTracker::Integrations::RubyLlm::V1.record_cache_storage(cache) }
           end
         end
 
@@ -397,10 +328,6 @@ module LlmCostTracker
           def parse_embedding_response(response, **)
             LlmCostTracker::Integrations::RubyLlm::V1.keep_usage(super, response.body)
           end
-
-          def build_streamed_transcription(chunks, **)
-            LlmCostTracker::Integrations::RubyLlm::V1.keep_usage(super, chunks.reverse.find(&:done?)&.raw)
-          end
         end
 
         module StreamPatch
@@ -408,12 +335,7 @@ module LlmCostTracker
 
           def stream_response(...)
             body = @llm_cost_tracker_stream_body = {}
-            super.tap do |message|
-              message.raw.instance_variable_set(:@llm_cost_tracker_body, body)
-              input = body.dig("usage", "input_tokens")
-              input = body["usage"]["input_tokens"] = input + @llm_cost_tracker_paused_input.to_i if input
-              @llm_cost_tracker_paused_input = (input if message.try(:finish_reason) == :pause_turn)
-            end
+            super.tap { |message| message.raw.instance_variable_set(:@llm_cost_tracker_body, body) }
           end
 
           def build_on_data_handler(*, &handler)
