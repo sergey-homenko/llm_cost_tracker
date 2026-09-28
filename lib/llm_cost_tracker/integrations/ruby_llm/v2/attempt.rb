@@ -98,7 +98,8 @@ module LlmCostTracker
 
             def gemini_event(response)
               event = Providers::Gemini::Parser.new.parse(**response)
-              details = response[:response_body].dig("usageMetadata", "promptTokenDetails")
+              body = response[:response_body]
+              details = body.dig("usageMetadata", body.key?("embedding") ? "promptTokensDetails" : "promptTokenDetails")
               video = Providers::Gemini::UsageExtractor.modality_tokens(details, "VIDEO")
               return event unless event && video.positive?
 

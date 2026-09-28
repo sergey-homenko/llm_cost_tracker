@@ -763,20 +763,23 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "prices a streamed transcription from its final event, and records one cut off before it as streamed" do
+    it "prices a streamed transcription from its final event, even when the block raises on it, and one cut off " \
+       "before it as streamed" do
       usage = { input_tokens: 1014, output_tokens: 150, total_tokens: 1164,
                 input_token_details: { text_tokens: 14, audio_tokens: 1000 } }
       options = { model: "gpt-4o-transcribe", provider: :openai, assume_model_exists: true }
-      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
-        sse({ type: "transcript.text.delta", delta: "hi" }, { type: "transcript.text.done", text: "hi", usage: usage }),
-        sse({ type: "transcript.text.delta", delta: "hi" })
-      )
+      done = sse({ type: "transcript.text.delta", delta: "hi" },
+                 { type: "transcript.text.done", text: "hi", usage: usage })
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions")
+             .to_return(done, sse({ type: "transcript.text.delta", delta: "hi" }), done)
 
       capture_sdk_events do |events|
         2.times { RubyLLM.transcribe(audio.path, **options) { nil } }
+        expect { RubyLLM.transcribe(audio.path, **options) { |chunk| raise "stop" if chunk.done? } }
+          .to raise_error("stop")
         expect(events.map { |event| event.values_at(:stream, :input_tokens, :audio_input_tokens, :usage_source) })
-          .to eq([[true, 14, 1000, "sdk_response"], [true, 0, 0, "unknown"]])
-        expect(costs(events)).to eq(["0.007535", nil])
+          .to eq([[true, 14, 1000, "sdk_response"], [true, 0, 0, "unknown"], [true, 14, 1000, "sdk_response"]])
+        expect(costs(events)).to eq(["0.007535", nil, "0.007535"])
       end
     end
 
@@ -811,6 +814,58 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         expect(events.first[:provider_response_id]).to eq("modr_x")
         expect(events[1][:line_items].sole).to include(kind: "text_to_speech_character", quantity: "11.0")
         expect(costs(events)[1]).to eq("0.000165")
+      end
+    end
+
+    it "prices Gemini speech from its usageMetadata, and a body RubyLLM rejects for missing audio from its usage" do
+      model = "gemini-2.5-flash-preview-tts"
+      usage = { promptTokenCount: 11, candidatesTokenCount: 107,
+                promptTokensDetails: [{ modality: "TEXT", tokenCount: 11 }],
+                candidatesTokensDetails: [{ modality: "AUDIO", tokenCount: 107 }] }
+      audio = { content: { role: "model", parts: [{ inlineData: { mimeType: "audio/pcm", data: "AAAA" } }] } }
+      WebMock.stub_request(:post, gemini_url(model)).to_return(
+        reply(candidates: [audio], usageMetadata: usage, modelVersion: model, responseId: "tts_1"),
+        reply(candidates: [{ finishReason: "OTHER" }], usageMetadata: usage.slice(:promptTokenCount))
+      )
+      options = { model: model, provider: :gemini, assume_model_exists: true }
+
+      capture_sdk_events do |events|
+        RubyLLM.speak("Say hi", **options)
+        expect { RubyLLM.speak("Say hi", **options) }.to raise_error(RubyLLM::Error, /Unexpected response format/)
+        expect(events.map { |event| event.values_at(:input_tokens, :audio_output_tokens, :usage_source) })
+          .to eq([[11, 107, "sdk_response"], [11, 0, "sdk_response"]])
+        expect(events.first[:provider_response_id]).to eq("tts_1")
+        expect(costs(events)).to eq(%w[0.0010755 0.0000055])
+      end
+    end
+
+    it "reads Vertex AI usageMetadata for Gemini speech and gemini-embedding-2 image and video tokens" do
+      allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:headers).and_return({})
+      vertex = RubyLLM.context do |config|
+        config.vertexai_project_id = "proj"
+        config.vertexai_location = "us-central1"
+      end
+      models = %r{aiplatform\.googleapis\.com/v1beta1/projects/proj/locations/us-central1/publishers/google/models}
+      WebMock.stub_request(:post, /#{models}\/gemini-2.5-flash-preview-tts:generateContent\z/).to_return(reply(
+        candidates: [{ content: { role: "model", parts: [{ inlineData: { mimeType: "audio/pcm", data: "AAAA" } }] } }],
+        usageMetadata: { promptTokenCount: 11, candidatesTokenCount: 107,
+                         candidatesTokensDetails: [{ modality: "AUDIO", tokenCount: 107 }] }
+      ))
+      WebMock.stub_request(:post, /#{models}\/gemini-embedding-2:embedContent\z/).to_return(reply(
+        embedding: { values: [0.1] },
+        usageMetadata: { promptTokenCount: 1261, promptTokensDetails: [{ modality: "IMAGE", tokenCount: 258 },
+                                                                       { modality: "VIDEO", tokenCount: 1000 },
+                                                                       { modality: "TEXT", tokenCount: 3 }] }
+      ))
+      options = { provider: :vertexai, assume_model_exists: true, context: vertex }
+
+      capture_sdk_events do |events|
+        RubyLLM.speak("Say hi", model: "gemini-2.5-flash-preview-tts", **options)
+        RubyLLM.embed("a cat", model: "gemini-embedding-2", **options)
+        expect(events.map { |event| event.values_at(:model, :input_tokens, :image_input_tokens, :audio_output_tokens) })
+          .to eq([["gemini-2.5-flash-preview-tts", 11, 0, 107], ["gemini-embedding-2", 1003, 258, 0]])
+        expect(events.map { |event| event[:provider] }).to eq(%w[vertexai vertexai])
+        expect(costs(events)).to eq(%w[0.0010755 0.0121167])
       end
     end
 
@@ -857,6 +912,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       expect(RubyLLM::Protocols::Anthropic.ancestors.count(bridge)).to eq(1)
       expect(RubyLLM::Protocols::Anthropic.instance_method(:build_chunk).owner).to eq(bridge)
       expect(RubyLLM::Batch.ancestors.count(described_class::BatchBridge)).to eq(1)
+      expect(RubyLLM::Providers::VertexAI::EmbedContent.instance_method(:parse_embedding_response).owner)
+        .to eq(described_class::ParseEmbeddingResponseBridge)
     end
 
     it "skips a RubyLLM seam that is missing and names it in doctor" do

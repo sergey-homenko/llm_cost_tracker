@@ -75,6 +75,15 @@ module AccountingCases
       modelVersion: model }
   end
 
+  def gemini_speech_response(model, id, text, audio, tier)
+    usage = { promptTokenCount: text, candidatesTokenCount: audio, totalTokenCount: text + audio,
+              promptTokensDetails: modalities(TEXT: text), candidatesTokensDetails: modalities(AUDIO: audio),
+              serviceTier: tier }
+    part = { inlineData: { mimeType: "audio/L16;codec=pcm;rate=24000", data: "AAAA" } }
+    { candidates: [{ content: { role: "model", parts: [part] }, finishReason: "STOP" }], usageMetadata: usage,
+      modelVersion: model, responseId: id }
+  end
+
   define_case "ruby_llm openai chat: cached and reasoning tokens", instrument: :ruby_llm do
     stub_ruby_llm_openai(host: "api.openai.com", id: "chatcmpl_rl1", model: "gpt-4o",
                          usage: chat_usage(100, 30, cached: 25, reasoning: 8))
@@ -688,6 +697,31 @@ module AccountingCases
     WebMock.stub_request(:post, "#{OPENAI_API}/audio/speech")
            .to_return(status: 200, body: "ID3".b, headers: { "Content-Type" => "audio/mpeg" })
     RubyLLM.speak("Hello, welcome to RubyLLM!", model: "gpt-4o-mini-tts", provider: :openai, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm gemini speak: 2.5-flash-preview-tts text in and audio out from usageMetadata",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    model = "gemini-2.5-flash-preview-tts"
+    stub_json(:post, gemini_url(model), gemini_speech_response(model, "rl_tts1", 1000, 25_000, "standard"))
+    RubyLLM.speak("Read the chapter aloud.", model: model, provider: :gemini, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm gemini speak: 3.8-flash-tts on the priority tier",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    model = "gemini-3.8-flash-tts"
+    stub_json(:post, gemini_url(model), gemini_speech_response(model, "rl_tts2", 400, 5000, "priority"),
+              headers: { "x-gemini-service-tier" => "priority" })
+    RubyLLM.speak("Say it urgently.", model: model, provider: :gemini, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm gemini speak: a response RubyLLM rejects for missing audio is priced from its usage",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    model = "gemini-2.5-flash-preview-tts"
+    body = gemini_speech_response(model, "rl_tts3", 1000, 0, "standard")
+    stub_json(:post, gemini_url(model), body.merge(candidates: [{ finishReason: "OTHER" }]))
+    RubyLLM.speak("Read the chapter aloud.", model: model, provider: :gemini, assume_model_exists: true)
+  rescue RubyLLM::Error
+    nil
   end
 
   define_case "ruby_llm mistral ocr: mistral-ocr-latest without a price",

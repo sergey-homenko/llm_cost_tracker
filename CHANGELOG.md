@@ -6,14 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
-- RubyLLM 2.x speech, OCR, rerank and operations added in later RubyLLM releases are recorded, with unknown cost when unpriced; `tts-1` speech is priced by input characters.
+- RubyLLM 2.x speech, OCR, rerank and operations added in later RubyLLM releases are recorded, with unknown cost when unpriced; `tts-1` speech is priced by input characters and Gemini speech by its text and audio tokens.
 - `RubyLLM.workflow` names and steps become `workflow_name` and `workflow_step_name` tags.
 - RubyLLM 2.x `RubyLLM.batch` results are recorded at batch rates when `Batch#messages` or `#results` returns them, in any process, once each across polls and `Batch.find`, and a chat result also across the OpenAI and Anthropic SDK batch capture.
 
 ### Changed
 
 - RubyLLM 2.x is captured from its instrumentation events and documented protocol methods instead of patches to its internals; RubyLLM 1.x keeps the previous integration.
-- RubyLLM 2.x records one row per provider attempt: retries, fallbacks and `pause_turn` segments each get a row, refused or unsent attempts are skipped, and failures that may have been billed are recorded with unknown cost.
+- RubyLLM 2.x records one row per provider attempt: retries, fallbacks and `pause_turn` segments each get a row, refused or unsent attempts are skipped, and failures that may have been billed are recorded with unknown cost, unless the response or final stream event was already read, which prices them.
 - RubyLLM 2.x responses in OpenAI, Anthropic or Gemini format are priced by the Faraday middleware's parsers on any host, Vertex AI included, with a billed `usage.cost` whenever present.
 - RubyLLM 2.x images returned without usage are recorded with unknown cost instead of $0.
 - Under `:block_requests`, a RubyLLM 2.x call is blocked from the start of its RubyLLM event, whose other subscribers then see no finish.
@@ -22,6 +22,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Fixed
 
 - Anthropic compaction, advisor, fallback and refusal pricing applies to RubyLLM 2.x chats, and each blocking `pause_turn` segment is priced from its own response, with its 1-hour cache writes, speed and US inference.
+- RubyLLM 2.x Vertex AI `gemini-embedding-2` embeddings price image, audio and video tokens at their own rates instead of as text.
 - RubyLLM 2.x Bedrock Converse streams split cache writes into 5-minute and 1-hour writes by their final event's `cacheDetails` instead of `with_caching`'s TTL.
 
 ## [0.14.2] - 2026-09-28

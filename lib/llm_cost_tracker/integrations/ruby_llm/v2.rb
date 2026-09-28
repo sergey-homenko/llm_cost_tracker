@@ -23,8 +23,9 @@ module LlmCostTracker
           parse_completion_body: %w[Protocols::Anthropic Protocols::ChatCompletions Protocols::Responses
                                     Protocols::Gemini Protocols::Interactions Protocols::Converse
                                     Protocols::Mistral::Conversations Providers::Mistral::ChatCompletions],
-          parse_embedding_response: %w[Protocols::ChatCompletions Protocols::Gemini],
+          parse_embedding_response: %w[Protocols::ChatCompletions Protocols::Gemini Providers::VertexAI::EmbedContent],
           parse_transcription_response: %w[Protocols::ChatCompletions Protocols::Gemini],
+          parse_speech_response: %w[Protocols::Gemini],
           stream_transcription: %w[Protocols::ChatCompletions],
           parse_image_responses: %w[Protocols::ChatCompletions Protocols::Gemini],
           parse_cache_response: %w[Protocols::Gemini],
@@ -63,7 +64,7 @@ module LlmCostTracker
             RubyLLM.config.instrumenter ||= ActiveSupport::Notifications
             SEAMS.each do |seam, targets|
               targets.filter_map { |target| seam_owner(target, seam) }.each do |owner|
-                owner.prepend(BRIDGES[seam]) unless owner.ancestors.include?(BRIDGES[seam])
+                owner.prepend(BRIDGES[seam]) unless owner == BRIDGES[seam]
               end
             end
           end
@@ -206,6 +207,7 @@ module LlmCostTracker
 
           def flush(frame)
             final = frame.attempts.rindex { |usage, *| usage[:status] == :succeeded }
+            final ||= frame.attempts.size - 1 if frame.response
             frame.attempts.each_with_index.filter_map do |(usage, latency_ms, events, raw), index|
               attempt = { final: index == final, events: events, response: frame.response, raw: raw }
               record_safely { record_attempt(usage, frame.payload, latency_ms, **attempt) }
