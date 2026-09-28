@@ -429,9 +429,10 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "records usage outside any operation at once, and flushes an inner operation whose finish never came" do
+    it "records an operation it has no event for at once, skips chat usage outside a chat, and flushes a leaked one" do
       tokens = RubyLLM::Tokens.new(input: 10, output: 5, reported_cost: 0.0042)
       usage = { operation: :chat, provider: "anthropic", model: "claude-sonnet-4-6", status: :succeeded, tokens: tokens }
+      judgment = usage.merge(operation: :judgment, tokens: RubyLLM::Tokens.new(input: 30, output: 2))
       outer = { provider: "anthropic", model: "claude-sonnet-4-6" }
       leaked = outer.dup
 
@@ -440,11 +441,12 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         described_class.start("chat.ruby_llm", "2", outer)
         described_class.start("chat.ruby_llm", "3", leaked)
         described_class.finish("usage.ruby_llm", "4", usage)
-        expect(events.size).to eq(1)
+        described_class.finish("usage.ruby_llm", "5", judgment)
+        expect(events.map { |event| event.values_at(:input_tokens, :usage_source) }).to eq([[30, "sdk_response"]])
 
         described_class.finish("chat.ruby_llm", "2", outer)
-        expect(events.map { |event| event[:input_tokens] }).to eq([10, 10])
-        expect(costs(events)).to eq(%w[0.0042 0.0042])
+        expect(events.map { |event| event[:input_tokens] }).to eq([30, 10])
+        expect(costs(events).last).to eq("0.0042")
         described_class.finish("chat.ruby_llm", "3", leaked)
         expect(events.size).to eq(2)
       end
@@ -470,7 +472,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         RubyLLM.workflow("Write article", id: "article-42") do |workflow|
           workflow.step("Draft") { chat("claude-sonnet-4-6", :anthropic).ask("hi") }
         end
-        expect(events.sole[:tags]).to include(workflow: "Write article", workflow_step: "Draft")
+        expect(events.sole[:tags]).to include(workflow_name: "Write article", workflow_step_name: "Draft")
       end
     end
 
@@ -621,7 +623,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "records moderation at no cost and a speech call RubyLLM reports no usage for as unknown" do
+    it "records moderation at no cost, tts-1 speech by its characters, and speech without usage as unknown" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/moderations").to_return(reply(
         id: "modr_x", model: "omni-moderation-latest", results: [{ flagged: false, categories: {}, category_scores: {} }]
       ))
@@ -630,10 +632,15 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
 
       capture_sdk_events do |events|
         RubyLLM.moderate("hi", model: "omni-moderation-latest")
-        RubyLLM.speak("hi", model: "gpt-4o-mini-tts", provider: :openai, assume_model_exists: true)
-        expect(events.map { |event| event.values_at(:model, :usage_source, :provider_response_id) })
-          .to eq([%w[omni-moderation-latest sdk_response modr_x], ["gpt-4o-mini-tts", "unknown", nil]])
-        expect(events.first[:cost_status]).to eq("free")
+        %w[tts-1 gpt-4o-mini-tts].each do |model|
+          RubyLLM.speak("Hello there", model: model, provider: :openai, assume_model_exists: true)
+        end
+        expect(events.map { |event| event.values_at(:model, :usage_source, :cost_status) })
+          .to eq([%w[omni-moderation-latest sdk_response free], %w[tts-1 sdk_response complete],
+                  %w[gpt-4o-mini-tts unknown unknown]])
+        expect(events.first[:provider_response_id]).to eq("modr_x")
+        expect(events[1][:line_items].sole).to include(kind: "text_to_speech_character", quantity: "11.0")
+        expect(costs(events)[1]).to eq("0.000165")
       end
     end
 

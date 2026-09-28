@@ -91,7 +91,7 @@ module LlmCostTracker
               line_items = if known
                              service_line_items(model, tokens, result, request)
                            else
-                             duration_line_items(usage, result)
+                             result_line_items(usage[:operation], payload[:input], model, result)
                            end
               source = usage_source(usage, known || line_items.any?, result)
               return unless source
@@ -162,11 +162,18 @@ module LlmCostTracker
                 Providers::Gemini::Parser.new.service_line_items_for(grounding, model: model)
             end
 
-            def duration_line_items(usage, result)
-              seconds = result.try(:duration) if usage[:operation] == :transcription
-              return [] unless seconds
+            def result_line_items(operation, input, model, result)
+              return [] unless result
 
-              Providers::Openai::ServiceCharges.transcription_line_items(type: "duration", seconds: seconds.to_f.ceil)
+              case operation
+              when :speech then Providers::Openai::ServiceCharges.speech_line_items("input" => input, "model" => model)
+              when :transcription
+                seconds = result.try(:duration)
+                return [] unless seconds
+
+                Providers::Openai::ServiceCharges.transcription_line_items(type: "duration", seconds: seconds.to_f.ceil)
+              else []
+              end
             end
 
             def pricing_mode(provider, model, request, raw)

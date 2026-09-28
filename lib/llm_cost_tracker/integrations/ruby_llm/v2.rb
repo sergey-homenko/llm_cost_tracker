@@ -13,8 +13,8 @@ module LlmCostTracker
         minimum_version "2.0.0"
         maximum_version "3.0.0"
 
-        OPERATIONS = %w[chat compaction embedding image transcription moderation speech ocr rerank].freeze
-        EVENTS = [*OPERATIONS, "request", "usage"].map { |name| "#{name}.ruby_llm" }.freeze
+        OPERATIONS = %i[chat embedding image transcription moderation speech ocr rerank].freeze
+        EVENTS = [*OPERATIONS, :compaction, :request, :usage].map { |name| "#{name}.ruby_llm" }.freeze
         FRAMES = :llm_cost_tracker_ruby_llm_frames
         CACHE_CREATED = :llm_cost_tracker_ruby_llm_cache_created
         SEAMS = {
@@ -157,11 +157,11 @@ module LlmCostTracker
 
           def add_attempt(usage)
             frame = frames.last
-            if frame
+            if OPERATIONS.exclude?(usage[:operation])
+              record_safely { record_attempt(usage, {}, nil, final: false) } if active?
+            elsif frame
               frame.attempts << [usage, frame.latency_ms, frame.window&.events]
               frame.window = nil
-            elsif active?
-              record_safely { record_attempt(usage, {}, nil, final: false) }
             end
           end
 
@@ -180,7 +180,7 @@ module LlmCostTracker
             event = Attempt.event(usage, payload, **attempt)
             return unless event
 
-            workflow = { workflow: usage[:workflow_name], workflow_step: usage[:workflow_step_name] }.compact
+            workflow = usage.slice(:workflow_name, :workflow_step_name).compact
             LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms, metadata: workflow)
           end
 

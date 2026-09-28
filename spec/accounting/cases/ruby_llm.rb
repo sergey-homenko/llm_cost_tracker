@@ -5,6 +5,7 @@ require "tempfile"
 module AccountingCases
   GEMINI_PAINT_ON_RUBY_LLM_1 = "Gemini image models paint through generateContent only on RubyLLM 2.x"
   CONTEXT_TRANSCRIBE_ON_RUBY_LLM_1 = "RubyLLM::Context#transcribe exists only on RubyLLM 2.x"
+  RUBY_LLM_2_ONLY = "RubyLLM 1.x has no per-attempt usage events, workflows, batches, speech, OCR or rerank"
   PNG_PART = { inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }.freeze
 
   def ruby_llm_chat(model, provider, context: RubyLLM)
@@ -469,5 +470,80 @@ module AccountingCases
     stub_json(:post, "#{OPENAI_API}/audio/transcriptions",
               { text: "hi", duration: 8.470000267028809, language: "en", segments: [] })
     ruby_llm_transcribe("whisper-1", :openai)
+  end
+
+  define_case "ruby_llm openai chat: refused and maybe-billed attempts before a success",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    WebMock.stub_request(:post, "#{OPENAI_API}/responses").to_return(
+      { status: 429, body: JSON.generate(error: { message: "Rate limit reached" }), headers: JSON_HEADERS },
+      { status: 500, body: JSON.generate(error: { message: "Internal error" }), headers: JSON_HEADERS },
+      { status: 200, headers: JSON_HEADERS,
+        body: JSON.generate(responses_object(id: "resp_rlretry", model: "gpt-4o", usage: responses_usage(1000, 200))) }
+    )
+    context = RubyLLM.context { |config| config.retry_interval = config.retry_interval_randomness = 0 }
+    ruby_llm_chat("gpt-4o", :openai, context: context).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat: workflow name and step tags",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json(:post, ANTHROPIC_MESSAGES,
+              anthropic_message(id: "msg_rlwf", model: "claude-sonnet-4-5", usage: anthropic_usage(2000, 500)))
+    RubyLLM.workflow("Write article", id: "article-42") do |workflow|
+      workflow.step("Draft") { ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask("hi") }
+    end
+  end
+
+  define_case "ruby_llm anthropic batch: delivered results are not recorded",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json(:post, "#{ANTHROPIC_MESSAGES}/batches",
+              { id: "msgbatch_rl", type: "message_batch", processing_status: "ended",
+                request_counts: { processing: 0, succeeded: 1, errored: 0, canceled: 0, expired: 0 } })
+    stub_anthropic_batch("msgbatch_rl", [anthropic_batch_result(
+      "0", anthropic_message(id: "msg_rlbatch", model: "claude-sonnet-4-5", usage: anthropic_usage(10_000, 1000))
+    )])
+    RubyLLM.batch([ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask_later("hi")]).messages
+  end
+
+  define_case "ruby_llm openai speak: tts-1 by input characters",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    WebMock.stub_request(:post, "#{OPENAI_API}/audio/speech")
+           .to_return(status: 200, body: "ID3".b, headers: { "Content-Type" => "audio/mpeg" })
+    RubyLLM.speak("Hello, welcome to RubyLLM!", model: "tts-1", provider: :openai, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm openai speak: gpt-4o-mini-tts without usage",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    WebMock.stub_request(:post, "#{OPENAI_API}/audio/speech")
+           .to_return(status: 200, body: "ID3".b, headers: { "Content-Type" => "audio/mpeg" })
+    RubyLLM.speak("Hello, welcome to RubyLLM!", model: "gpt-4o-mini-tts", provider: :openai, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm mistral ocr: mistral-ocr-latest without a price",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json(:post, "https://api.mistral.ai/v1/ocr",
+              { pages: [{ index: 0, markdown: "# Invoice", images: [], dimensions: { dpi: 200, height: 2200, width: 1700 } }],
+                model: "mistral-ocr-2505", usage_info: { pages_processed: 1, doc_size_bytes: 48_213 } })
+    context = RubyLLM.context { |config| config.mistral_api_key = "test-mistral" }
+    RubyLLM.ocr("https://example.com/invoice.pdf", model: "mistral-ocr-latest", provider: :mistral,
+                                                   assume_model_exists: true, context: context)
+  end
+
+  define_case "ruby_llm cohere rerank: rerank-v3.5 without a price",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json(:post, "https://api.cohere.com/v2/rerank",
+              { id: "rr_rl", results: [{ index: 1, relevance_score: 0.91 }, { index: 0, relevance_score: 0.12 }],
+                meta: { api_version: { version: "2" }, billed_units: { search_units: 1 } } })
+    context = RubyLLM.context { |config| config.cohere_api_key = "test-cohere" }
+    RubyLLM.rerank("ruby", %w[python ruby], model: "rerank-v3.5", provider: :cohere, assume_model_exists: true,
+                                            context: context)
+  end
+
+  define_case "ruby_llm openrouter rerank: billed cost",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json(:post, "#{OPENROUTER_API}/rerank",
+              { model: "cohere/rerank-v3.5", results: [{ index: 1, relevance_score: 0.91 }],
+                usage: { total_tokens: 1200, cost: 0.002 } })
+    RubyLLM.rerank("ruby", %w[python ruby], model: "cohere/rerank-v3.5", provider: :openrouter,
+                                            assume_model_exists: true)
   end
 end
