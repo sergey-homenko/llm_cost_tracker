@@ -15,7 +15,7 @@ stream_options: { include_usage: true }
 The gem auto-injects this flag for you when:
 
 - `config.capture.request_stream_usage` is `true` (the default)
-- the URL ends with `/chat/completions`
+- the URL path ends with `/chat/completions`
 - the request body is JSON with `stream: true`
 - the caller has not already set `stream_options.include_usage` (any explicit value, including `false`, is preserved)
 - the host is OpenAI, OpenRouter, DeepSeek, Groq, or Azure OpenAI on the v1 API or `api-version` 2024-06-01 and later, without On Your Data (`data_sources`) or image input
@@ -60,7 +60,7 @@ Captured SDK helpers:
 | Anthropic | `messages.stream`, `messages.stream_raw`, beta Messages stream helpers |
 | RubyLLM | `RubyLLM::Provider#complete` (captured for both blocking and streaming calls; `Chat#ask` reaches this transitively), and `#transcribe` with a block on RubyLLM 2.x |
 
-The returned stream object is preserved. Usage is recorded after the stream is consumed.
+The returned stream object is preserved. Usage is recorded after the stream is consumed. If iterating an official OpenAI or Anthropic SDK stream raises, or a `track_stream` block raises, the call is still recorded from the events received so far and tagged `stream_errored: true`.
 
 RubyLLM streaming records token usage and cost, and reads from the stream events the fields a blocking call reads from the raw response body; Bedrock streams keep only RubyLLM's token counts.
 

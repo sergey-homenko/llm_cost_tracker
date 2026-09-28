@@ -9,7 +9,7 @@ Short integration recipes for common Ruby clients. Prefer SDK integrations or mi
 | Official `anthropic` gem | `config.instrument :anthropic` | The integration records returned message usage without changing call sites. |
 | `ruby-openai` | Faraday middleware | The client is built on Faraday and accepts middleware via the constructor block. |
 | Groq | Faraday middleware or the official `openai` gem | Groq's official SDKs are Python and JavaScript/TypeScript; Ruby uses the OpenAI-compatible HTTP path. |
-| OpenAI-compatible proxy | Faraday middleware | Point a Faraday connection at the proxy host. |
+| OpenAI-compatible proxy | Faraday middleware | Register the proxy host in `capture.openai_compatible_providers`, then point a Faraday connection at it. |
 | Custom Faraday client | Faraday middleware | The middleware can parse known provider responses automatically. |
 | Other clients | Explicit tracking | Use `track` or `track_stream` when the client has no supported SDK/Faraday hook. |
 

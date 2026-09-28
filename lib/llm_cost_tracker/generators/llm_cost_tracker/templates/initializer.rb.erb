@@ -51,7 +51,8 @@ LlmCostTracker.configure do |config|
   # One budget applied to every distinct value of a tag: each tenant gets its own
   # 1000 a month, not 1000 shared between them. Declare as many tags as you need; a rule
   # can set its own behavior and callback instead of following the global ones. Installs created
-  # before v0.14 add the cost columns with `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets`.
+  # before v0.14 add the cost columns with `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets`
+  # and `bin/rails db:migrate`, then run `bin/rails llm_cost_tracker:backfill_tag_costs` so earlier calls count.
   # Budget high-cardinality tags only — a tag with a handful of values covers most of the
   # ledger, so its check cannot use an index and every call pays for a near-full scan.
   # config.budgets.per_tag = {
