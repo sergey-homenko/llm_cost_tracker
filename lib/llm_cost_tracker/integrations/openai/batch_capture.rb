@@ -74,7 +74,6 @@ module LlmCostTracker
               provider: provider,
               host: host,
               usage_source: LlmCostTracker::Usage::Source::SDK_BATCH_RESULT,
-              # /v1/batches runs regional processing only on the us and eu hosts.
               pricing_mode: parser.combined_pricing_mode(
                 host: (host if host.to_s.match?(/\A(?:us|eu)\./i)),
                 model: response["model"] || model,

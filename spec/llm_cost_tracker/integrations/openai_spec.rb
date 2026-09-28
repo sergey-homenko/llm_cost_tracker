@@ -1085,7 +1085,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       capture_sdk_events do |events|
         groq.chat.completions.create(model: "openai/gpt-oss-120b", messages: [{ role: "user", content: "hi" }])
 
-        # Groq lists gpt-oss-120b at $0.15/M input and $0.60/M output.
         expect(events.first).to include(provider: "groq", cost_status: "complete")
         expect(BigDecimal(events.first.dig(:cost, :total))).to eq(BigDecimal("0.0021"))
       end
@@ -1106,7 +1105,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           stream_options: { include_usage: true }
         ).each { |_| nil }
 
-        # Together serves llama-3.3-70b-instruct at $1.04/M input and output; the list price is $0.10/$0.32.
         expect(events.first).to include(provider: "openrouter", cost_status: "complete")
         expect(BigDecimal(events.first.dig(:cost, :total))).to eq(BigDecimal("0.00364"))
       end

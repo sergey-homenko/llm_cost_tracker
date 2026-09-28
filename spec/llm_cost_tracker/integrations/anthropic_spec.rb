@@ -184,7 +184,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         client.messages.batches.results_streaming("batch_us").each { |_| }
 
         expect(events.first[:pricing_mode]).to eq("batch_data_residency")
-        # Sonnet 4.6 batch rates x 1.1 for US-only inference: $1.65 in, $8.25 out, $0.165 cache read per MTok.
         expect(BigDecimal(events.first[:cost][:total])).to eq(BigDecimal("0.009075"))
       end
     end
@@ -296,7 +295,6 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         client.messages.stream(**request_params, model: "claude-sonnet-4-6").each { |_| nil }
 
         expect(events.first).to include(cache_write_input_tokens: 5324, cache_write_extended_input_tokens: 2600)
-        # Sonnet 4.6: $3 in, $3.75 5m write, $6 1h write, $0.30 cache read, $15 out per MTok; $10 per 1,000 searches.
         expect(BigDecimal(events.first[:cost][:total])).to eq(BigDecimal("0.054232"))
       end
     end

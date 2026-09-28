@@ -165,7 +165,6 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     LlmCostTracker::Pricing::Registry.reset!
 
     expect(described_class.call.to_h).to eq(examined: 1, recomputed: 1, still_unknown: 0)
-    # Anthropic: Opus 4.1 $15 / $75 per MTok; web search $10 per 1,000 searches.
     expect([call.reload.total_cost, call.cost_status]).to eq([0.26, "complete"])
     expect(LlmCostTracker::CallTag.where(llm_cost_tracker_call_id: call.id).pluck(:total_cost)).to eq([0.26])
     expect(LlmCostTracker::CallRollup.where(period: "month").sum(:total_cost)).to eq(0.26)

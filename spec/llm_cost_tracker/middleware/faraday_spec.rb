@@ -1110,7 +1110,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end
 
     it "records usage.cost for a call OpenRouter routed below the model's list price" do
-      # DeepInfra serves gpt-oss-120b at $0.037/M input and $0.17/M output; the list price is $0.15/$0.60.
       event = openrouter_event({
         id: "gen-1", provider: "DeepInfra", model: "openai/gpt-oss-120b",
         choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
@@ -1127,7 +1126,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end
 
     it "adds the upstream provider's charge to OpenRouter's fee on a BYOK call" do
-      # BYOK: the Anthropic key is billed 10K x $3/M + 1K x $15/M; OpenRouter's fee is 5% of that.
       event = openrouter_event({
         id: "gen-2", provider: "Anthropic", model: "anthropic/claude-sonnet-4.5",
         usage: { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000, cost: 0.00225, is_byok: true,
@@ -1138,7 +1136,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end
 
     it "records usage.cost from the final chunk of an OpenRouter stream" do
-      # Together serves llama-3.3-70b-instruct at $1.04/M input and output; the list price is $0.10/$0.32.
       chunk = { id: "gen-3", provider: "Together", model: "meta-llama/llama-3.3-70b-instruct",
                 choices: [{ index: 0, delta: { content: "hi" } }] }
       final = chunk.merge(choices: [], usage: { prompt_tokens: 3_000, completion_tokens: 500, total_tokens: 3_500,
