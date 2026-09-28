@@ -42,7 +42,7 @@ RSpec.describe LlmCostTracker::Integrations::Base do
       integration.enforce_budget!(request: { model: "gpt-4o" }, provider: "openai")
 
       expect(LlmCostTracker::Budget).to have_received(:enforce!).with(
-        provider: "openai", model: "gpt-4o", request: { model: "gpt-4o" }
+        provider: "openai", model: "gpt-4o", request: { model: "gpt-4o" }, tags: nil
       )
     end
   end

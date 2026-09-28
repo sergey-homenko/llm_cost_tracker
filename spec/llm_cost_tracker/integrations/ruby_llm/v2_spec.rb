@@ -209,6 +209,49 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
     end
   end
 
+  describe "request-derived pricing mode on attempts other than the last successful one" do
+    it "prices every blocking pause_turn segment of a US-inference chat at data residency" do
+      WebMock.stub_request(:post, messages_url).to_return(
+        reply(anthropic_message(id: "msg_g1", usage: { input_tokens: 10_000, output_tokens: 1_000 },
+                                stop_reason: "pause_turn")),
+        reply(anthropic_message(id: "msg_g2", usage: { input_tokens: 10_000, output_tokens: 1_000 }))
+      )
+
+      capture_sdk_events do |events|
+        chat("claude-sonnet-4-6", :anthropic).with_provider_options(inference_geo: "us").ask("research")
+        expect(events.map { |event| event.values_at(:provider_response_id, :pricing_mode) })
+          .to eq([[nil, "data_residency"], %w[msg_g2 data_residency]])
+      end
+    end
+
+    it "prices every blocking pause_turn segment of a fast-mode chat at the fast rate" do
+      WebMock.stub_request(:post, messages_url).to_return(
+        reply(anthropic_message(id: "msg_f1", model: "claude-opus-5-5", stop_reason: "pause_turn",
+                                usage: { input_tokens: 10_000, output_tokens: 1_000 })),
+        reply(anthropic_message(id: "msg_f2", model: "claude-opus-5-5",
+                                usage: { input_tokens: 10_000, output_tokens: 1_000 }))
+      )
+
+      capture_sdk_events do |events|
+        chat("claude-opus-5-5", :anthropic).with_provider_options(speed: "fast").ask("research")
+        expect(events.map { |event| [event[:pricing_mode], event.dig(:cost, :total)] })
+          .to eq([%w[fast 0.12], %w[fast 0.12]])
+      end
+    end
+
+    it "prices a US-inference Anthropic stream cut off before its final usage at data residency" do
+      WebMock.stub_request(:post, messages_url).to_return(anthropic_stream(
+        id: "msg_cut", usage: { input_tokens: 10_000, output_tokens: 1 }, delta_usage: { output_tokens: 9 }
+      ))
+
+      capture_sdk_events do |events|
+        cut = chat("claude-sonnet-4-6", :anthropic).with_provider_options(inference_geo: "us")
+        expect { cut.ask("hi") { |_chunk| raise ArgumentError, "stop" } }.to raise_error(ArgumentError)
+        expect(events.sole[:pricing_mode]).to eq("data_residency")
+      end
+    end
+  end
+
   describe "streams priced from their events" do
     it "reads a streamed Anthropic chat's cumulative input, 1-hour cache writes, request inference geo and id" do
       WebMock.stub_request(:post, messages_url).to_return(anthropic_stream(
@@ -474,6 +517,20 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         end
         expect(events.sole[:tags]).to include(workflow_name: "Write article", workflow_step_name: "Draft")
       end
+    end
+
+    it "lets a :block_requests rule on workflow_name see the workflow before the call is sent" do
+      seen = []
+      allow(LlmCostTracker::Budget::PerTag).to receive(:blocking?).and_return(true)
+      allow(LlmCostTracker::Budget::PerTag).to receive(:rules_for) { |tags, **| seen << tags.to_h && [] }
+      WebMock.stub_request(:post, messages_url)
+             .to_return(reply(anthropic_message(id: "msg_w", usage: { input_tokens: 1, output_tokens: 1 })))
+
+      RubyLLM.workflow("Write article") do |workflow|
+        workflow.step("Draft") { chat("claude-sonnet-4-6", :anthropic).ask("hi") }
+      end
+
+      expect(seen.first).to include(workflow_name: "Write article", workflow_step_name: "Draft")
     end
 
     it "logs and keeps the call when recording fails" do

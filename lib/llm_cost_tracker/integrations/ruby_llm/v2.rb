@@ -123,7 +123,12 @@ module LlmCostTracker
           def start_operation(payload)
             return unless active?
 
-            enforce_budget!(request: budget_request(payload), provider: payload[:provider].to_s)
+            workflow = payload.slice(:workflow_name, :workflow_step_name).compact
+            enforce_budget!(
+              request: budget_request(payload),
+              provider: payload[:provider].to_s,
+              tags: (LlmCostTracker::Tags::Context.tags.merge(workflow) if workflow.any?)
+            )
             frames << Frame.new(payload, [])
           end
 

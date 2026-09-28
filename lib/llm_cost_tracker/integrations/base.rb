@@ -48,13 +48,14 @@ module LlmCostTracker
         Check.new(:warn, name, "#{name} integration is enabled but not installed")
       end
 
-      def enforce_budget!(request:, provider: self.provider)
+      def enforce_budget!(request:, provider: self.provider, tags: nil)
         return unless active?
 
         LlmCostTracker::Budget.enforce!(
           provider: provider,
           model: request[:model],
-          request: request
+          request: request,
+          tags: tags
         )
       end
 

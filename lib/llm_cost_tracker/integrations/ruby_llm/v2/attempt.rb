@@ -11,10 +11,10 @@ module LlmCostTracker
 
           class << self
             def event(usage, payload, final:, events: nil, response: nil)
-              result = payload[:response] || payload[:result] if final
-              raw = faraday_response(response, result.try(:raw)) if final
-              (stream_event(usage, events, faraday_response(payload[:response].try(:raw))) if events) ||
-                parsed_event(usage, raw) || normalized_event(usage, payload, result, raw)
+              result = payload[:response] || payload[:result]
+              raw = faraday_response(response, result.try(:raw))
+              (stream_event(usage, events, raw) if events) || (parsed_event(usage, raw) if final) ||
+                normalized_event(usage, payload, (result if final), raw, final)
             end
 
             def stream_window = Capture::EventWindow.new(notable: method(:notable_event?))
@@ -80,13 +80,13 @@ module LlmCostTracker
                                       Charges::LineItem.build(dimension_key: "video_input", quantity: video)])
             end
 
-            def normalized_event(usage, payload, result, raw)
+            def normalized_event(usage, payload, result, raw, final)
               tokens = usage[:tokens]
               return if usage[:status] != :succeeded && tokens.to_h == REFUSED
 
               provider = usage[:provider]
               model = payload[:response_model] || usage[:model]
-              request = request_params(raw)
+              request = request_params(raw).presence || payload[:provider_options].to_h.with_indifferent_access
               known = tokens.to_h.any? || !tokens.reported_cost.nil?
               line_items = if known
                              service_line_items(model, tokens, result, request)
@@ -99,7 +99,7 @@ module LlmCostTracker
               Event.build(
                 provider: provider,
                 model: model,
-                token_usage: token_usage(usage, model, raw, payload[:caching]),
+                token_usage: token_usage(usage, model, (raw if final), payload[:caching]),
                 pricing_mode: pricing_mode(provider, model, request, raw),
                 stream: payload[:streaming],
                 usage_source: source,
