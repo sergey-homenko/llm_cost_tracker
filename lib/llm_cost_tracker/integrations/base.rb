@@ -93,8 +93,8 @@ module LlmCostTracker
         end
       end
 
-      def record_once(event)
-        LlmCostTracker::Tracker.record(event: event.keyed_by_response_id)
+      def record_once(event, **)
+        LlmCostTracker::Tracker.record(event: event.keyed_by_response_id, **)
       rescue ActiveRecord::RecordNotUnique
         nil
       end

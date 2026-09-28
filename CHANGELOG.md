@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - RubyLLM 2.x speech, OCR, rerank and operations added in later RubyLLM releases are recorded, with unknown cost when unpriced; `tts-1` speech is priced by input characters.
 - `RubyLLM.workflow` names and steps become `workflow_name` and `workflow_step_name` tags.
+- RubyLLM 2.x `RubyLLM.batch` results are recorded at batch rates when `Batch#messages` or `#results` returns them, in any process, once each across polls and `Batch.find`, and a chat result also across the OpenAI and Anthropic SDK batch capture.
 
 ### Changed
 

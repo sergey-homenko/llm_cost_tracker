@@ -589,15 +589,91 @@ module AccountingCases
     end
   end
 
-  define_case "ruby_llm anthropic batch: delivered results are not recorded",
+  define_case "ruby_llm anthropic batch: each result once at batch rates across polls, Batch.find and the Anthropic SDK",
+              instrument: :ruby_llm, configure: ->(config) { config.instrument(:anthropic) },
+              skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    batch = { id: "msgbatch_rl", type: "message_batch", processing_status: "ended",
+              request_counts: { processing: 0, succeeded: 2, errored: 1, canceled: 0, expired: 0 } }
+    stub_json(:post, "#{ANTHROPIC_MESSAGES}/batches", batch)
+    stub_json(:get, "#{ANTHROPIC_MESSAGES}/batches/msgbatch_rl", batch)
+    geo = { input_tokens: 1000, output_tokens: 500, cache_read_input_tokens: 20_000, service_tier: "batch",
+            inference_geo: "us" }
+    error = { type: "error", error: { type: "invalid_request_error", message: "bad" } }
+    stub_anthropic_batch("msgbatch_rl", [
+      anthropic_batch_result("1", anthropic_message(id: "msg_rlb2", model: "claude-sonnet-4-6", usage: geo)),
+      { custom_id: "2", result: { type: "errored", error: error } },
+      anthropic_batch_result("0", anthropic_message(id: "msg_rlb1", model: "claude-sonnet-4-5",
+                                                    usage: anthropic_usage(10_000, 1000)))
+    ])
+    chats = %w[claude-sonnet-4-5 claude-sonnet-4-6 claude-sonnet-4-5].map do |model|
+      ruby_llm_chat(model, :anthropic).ask_later("hi")
+    end
+    batch = RubyLLM.batch(chats)
+    2.times { batch.messages }
+    batch.cost
+    RubyLLM::Batch.find("msgbatch_rl", provider: :anthropic).results
+    anthropic_client.messages.batches.results_streaming("msgbatch_rl").each { nil }
+  end
+
+  define_case "ruby_llm openai batch: gpt-5.4 responses found through an eu host context, then by the OpenAI SDK",
+              instrument: :ruby_llm, configure: ->(config) { config.instrument(:openai) },
+              skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    body = responses_object(id: "resp_rlb_eu", model: "gpt-5.4", usage: responses_usage(200_000, 20_000, cached: 50_000))
+    stub_openai_batch(host: "eu.api.openai.com", batch_id: "batch_rl_eu", status: "completed", endpoint: "/v1/responses",
+                      lines: [openai_batch_line("batch_req_rl_eu", "0", body)])
+    context = RubyLLM.context { |config| config.openai_api_base = "https://eu.api.openai.com/v1" }
+    RubyLLM::Batch.find("batch_rl_eu", provider: :openai, context: context).messages
+    openai_client("https://eu.api.openai.com/v1").batches.retrieve("batch_rl_eu")
+  end
+
+  define_case "ruby_llm openai batch: embeddings keyed by batch id and position",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    embedding = lambda do |tokens|
+      { object: "list", model: "text-embedding-3-small", data: [{ object: "embedding", index: 0, embedding: [0.1] }],
+        usage: { prompt_tokens: tokens, total_tokens: tokens } }
+    end
+    stub_json(:post, "#{OPENAI_API}/files", { id: "file_in_rl_emb", object: "file", purpose: "batch", bytes: 1,
+                                              filename: "ruby_llm_batch.jsonl", created_at: 1_758_000_000 })
+    stub_json(:post, "#{OPENAI_API}/batches", { id: "batch_rl_emb", object: "batch", endpoint: "/v1/embeddings",
+                                                status: "validating", input_file_id: "file_in_rl_emb",
+                                                completion_window: "24h", created_at: 1_758_000_000 })
+    stub_openai_batch(host: "api.openai.com", batch_id: "batch_rl_emb", status: "completed", endpoint: "/v1/embeddings",
+                      lines: [openai_batch_line("batch_req_rle2", "1", embedding.call(10_000)),
+                              openai_batch_line("batch_req_rle1", "0", embedding.call(40_000))])
+    requests = %w[first second].map { |text| RubyLLM.embed_later(text, model: "text-embedding-3-small", provider: :openai) }
+    RubyLLM.batch(requests).refresh.results
+  end
+
+  define_case "ruby_llm gemini batch: inline responses collected in a workflow step",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    response = gemini_response(model: "gemini-2.5-flash", id: "gem_rlb1",
+                               usage: gemini_usage(prompt: 20_000, candidates: 2000))
+    stub_json(:get, "https://generativelanguage.googleapis.com/v1beta/batches/rl_gem",
+              { name: "batches/rl_gem", state: "BATCH_STATE_SUCCEEDED",
+                batchStats: { requestCount: "1", successfulRequestCount: "1" },
+                output: { inlinedResponses: { inlinedResponses: [{ response: response, metadata: { custom_id: "0" } }] } } })
+    RubyLLM.workflow("Nightly summaries") do |workflow|
+      workflow.step("Collect results") { RubyLLM::Batch.find("batches/rl_gem", provider: :gemini).messages }
+    end
+  end
+
+  define_case "ruby_llm anthropic batch: collected inside a streamed chat, apart from the chat's own attempt",
               instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
     stub_json(:post, "#{ANTHROPIC_MESSAGES}/batches",
-              { id: "msgbatch_rl", type: "message_batch", processing_status: "ended",
+              { id: "msgbatch_rlin", type: "message_batch", processing_status: "ended",
                 request_counts: { processing: 0, succeeded: 1, errored: 0, canceled: 0, expired: 0 } })
-    stub_anthropic_batch("msgbatch_rl", [anthropic_batch_result(
-      "0", anthropic_message(id: "msg_rlbatch", model: "claude-sonnet-4-5", usage: anthropic_usage(10_000, 1000))
+    stub_anthropic_batch("msgbatch_rlin", [anthropic_batch_result(
+      "0", anthropic_message(id: "msg_rlin1", model: "claude-sonnet-4-5", usage: anthropic_usage(10_000, 1000))
     )])
-    RubyLLM.batch([ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask_later("hi")]).messages
+    stub_sse(:post, ANTHROPIC_MESSAGES,
+             anthropic_stream_body(id: "msg_rlin_chat", model: "claude-sonnet-4-5",
+                                   start_usage: { input_tokens: 100, output_tokens: 1 }, delta_usage: { output_tokens: 20 }))
+    batch = RubyLLM.batch([ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask_later("hi")])
+    collected = false
+    ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask("hi") do |_chunk|
+      batch.messages unless collected
+      collected = true
+    end
   end
 
   define_case "ruby_llm openai speak: tts-1 by input characters",

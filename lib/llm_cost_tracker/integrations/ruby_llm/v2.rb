@@ -27,7 +27,9 @@ module LlmCostTracker
           parse_transcription_response: %w[Protocols::ChatCompletions Protocols::Gemini],
           stream_transcription: %w[Protocols::ChatCompletions],
           parse_image_responses: %w[Protocols::ChatCompletions Protocols::Gemini],
-          parse_cache_response: %w[Protocols::Gemini]
+          parse_cache_response: %w[Protocols::Gemini],
+          messages: %w[Batch],
+          results: %w[Batch]
         }.freeze
         StreamTranscriptionBridge = Module.new do
           def stream_transcription(*, **, &block)
@@ -37,16 +39,19 @@ module LlmCostTracker
             end
           end
         end
-        BRIDGES = SEAMS.except(:stream_transcription).keys.to_h do |seam|
+        BatchBridge = Module.new do
+          %i[messages results].each { |name| define_method(name) { V2.collect(self) { super() } } }
+        end
+        BRIDGES = SEAMS.except(:stream_transcription, :messages, :results).keys.to_h do |seam|
           bridge = Module.new do
             define_method(seam) do |value, *args, **options, &block|
-              V2.observe(seam, options.fetch(:raw, value))
+              V2.observe(seam, options.fetch(:raw, value), self)
               super(value, *args, **options, &block)
             end
           end
           [seam, const_set("#{seam.to_s.camelize}Bridge", bridge)]
-        end.merge(stream_transcription: StreamTranscriptionBridge).freeze
-        Frame = Struct.new(:payload, :attempts, :request_started_at, :latency_ms, :window, :response, :raw)
+        end.merge(stream_transcription: StreamTranscriptionBridge, messages: BatchBridge, results: BatchBridge).freeze
+        Frame = Struct.new(*%i[payload attempts request_started_at latency_ms window response raw provider workflow])
 
         class << self
           def integration_name = :ruby_llm
@@ -102,17 +107,28 @@ module LlmCostTracker
             end
           end
 
-          def observe(seam, value)
+          def observe(seam, value, protocol = nil)
             record_safely do
               next record_cache_storage(value) if seam == :parse_cache_response
 
               frame = frames.last
               next unless frame
+              next frame.provider = protocol.provider if seam == :parse_completion_body && value.is_a?(Hash)
               next frame.raw = value if seam == :parse_completion_body
               next frame.response = value unless seam == :build_chunk
 
               (frame.window ||= Attempt.stream_window).push(value)
             end
+          end
+
+          def collect(batch)
+            frame = Frame.new(batch, [])
+            frames << frame
+            results = yield
+            record_batch(batch, results, frame) if active?
+            results
+          ensure
+            frames.delete_if { |open| open.equal?(frame) }
           end
 
           private
@@ -163,7 +179,10 @@ module LlmCostTracker
             Thread.current[CACHE_CREATED] = payload[:provider].to_s == "gemini" && payload[:method] == :post &&
                                             payload[:url].to_s.end_with?("cachedContents")
             frame = frames.last
-            frame.latency_ms = Timing.elapsed_ms(frame.request_started_at) if frame&.request_started_at
+            return unless frame
+
+            frame.latency_ms = Timing.elapsed_ms(frame.request_started_at) if frame.request_started_at
+            frame.workflow = payload.slice(:workflow_name, :workflow_step_name).compact
           end
 
           def record_cache_storage(data)
@@ -202,6 +221,30 @@ module LlmCostTracker
 
             workflow = usage.slice(:workflow_name, :workflow_step_name).compact
             LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms, metadata: workflow)
+          end
+
+          def record_batch(batch, results, frame)
+            errors = Array(results).each_with_index.filter_map do |result, index|
+              record_safely { record_batch_result(batch, result, index, frame) } if result
+              nil
+            rescue *CALLER_ERRORS => e
+              e
+            end
+            raise errors.first if errors.any?
+          end
+
+          def record_batch_result(batch, result, index, frame)
+            usage = { operation: result.is_a?(RubyLLM::Embedding) ? :embedding : :chat, provider: batch.provider,
+                      model: result.model || batch.chats.to_a[index]&.model&.id, status: :succeeded,
+                      tokens: result.tokens }
+            base = frame.provider&.api_base || RubyLLM.config.try("#{batch.provider}_api_base")
+            event = Attempt.batch_event(usage, result, base)
+            return unless event
+
+            id = event.provider_response_id || "#{batch.id}/#{index}"
+            return if Call.already_recorded?(provider: event.provider, provider_response_id: id)
+
+            record_once(event.with(provider_response_id: id), metadata: frame.workflow.to_h)
           end
 
           def budget_request(payload)

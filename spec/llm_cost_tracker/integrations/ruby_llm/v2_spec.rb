@@ -444,6 +444,32 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         expect(events.map { |event| event[:pricing_mode] }).to all(eq("data_residency"))
       end
     end
+
+    it "prices a batch result at its profile's batch rate by the submitted chat's model, apart from an outer chat" do
+      body = { "output" => { "message" => { "role" => "assistant", "content" => [{ "text" => "hi" }] } },
+               "stopReason" => "end_turn", "usage" => { "inputTokens" => 10_000, "outputTokens" => 1000 } }
+      outer = { provider: "bedrock", model: "us.anthropic.claude-sonnet-4-5-20250929-v1:0" }
+
+      { "us" => %w[us-east-1 batch_data_residency 0.02475], "global" => %w[sa-east-1 batch 0.0225] }
+        .each do |geo, (region, mode, total)|
+        context = RubyLLM.context { |config| config.bedrock_region = region }
+        staged = chat("#{geo}.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock, context: context).ask_later("hi")
+        message = RubyLLM::Message.new(role: :assistant, content: "hi", raw: body, input_tokens: 10_000,
+                                       output_tokens: 1000)
+        allow(staged.provider).to receive(:batch_results).and_return([[0, message]])
+        batch = RubyLLM::Batch.new(provider: staged.provider, chats: [staged], id: "job-#{geo}", raw_status: "Completed",
+                                   completed: true)
+
+        capture_sdk_events do |events|
+          described_class.start("chat.ruby_llm", "1", outer)
+          batch.messages
+          described_class.finish("chat.ruby_llm", "1", outer)
+          expect(events.sole).to include(model: staged.model.id, pricing_mode: mode, usage_source: "sdk_batch_result",
+                                         provider_response_id: "job-#{geo}/0")
+          expect(events.sole.dig(:cost, :total)).to eq(total)
+        end
+      end
+    end
   end
 
   describe "attempts" do
@@ -830,6 +856,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         .not_to(change { ActiveSupport::Notifications.notifier.listeners_for("usage.ruby_llm").size })
       expect(RubyLLM::Protocols::Anthropic.ancestors.count(bridge)).to eq(1)
       expect(RubyLLM::Protocols::Anthropic.instance_method(:build_chunk).owner).to eq(bridge)
+      expect(RubyLLM::Batch.ancestors.count(described_class::BatchBridge)).to eq(1)
     end
 
     it "skips a RubyLLM seam that is missing and names it in doctor" do
