@@ -52,7 +52,7 @@ Primary files:
 Responsibilities:
 
 - Add optional instrumentation for Ruby SDKs without provider SDK dependencies.
-- Install narrow, idempotent `Module#prepend` wrappers.
+- Install narrow, idempotent `Module#prepend` wrappers, or subscribe to the SDK's own instrumentation events (RubyLLM 2.x).
 - Extract SDK response objects into canonical usage fields.
 - Keep SDK-specific object handling out of `Tracker`, storage, and pricing.
 

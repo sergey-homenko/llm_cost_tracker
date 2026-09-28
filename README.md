@@ -81,7 +81,7 @@ Captured does not always mean priced:
 
 | Cost comes from | Calls |
 | --- | --- |
-| The billed `usage.cost` in the response or final stream chunk | OpenRouter and other OpenAI-compatible gateways that return it, and calls RubyLLM 2.x reports a cost for (through RubyLLM 1.x, OpenRouter chats only) |
+| The billed `usage.cost` in the response or final stream chunk | OpenRouter and other OpenAI-compatible gateways that return it (through RubyLLM 1.x, OpenRouter chats only) |
 | Bundled [`prices.json`](lib/llm_cost_tracker/prices.json) | The OpenAI, Anthropic, Gemini, Groq, OpenRouter, xAI, and Mistral models it lists, and the same Claude models on Bedrock through RubyLLM |
 | The OpenAI, Anthropic, or Gemini price for the same model name | Azure OpenAI (by the model in the response, not the deployment name), Vertex AI through RubyLLM, gateways that pass a listed model name through |
 | Nothing: recorded with `cost_status: unknown` | DeepSeek, and through RubyLLM also Perplexity, Ollama, other Bedrock models, and Claude on GovCloud (`us-gov.` profiles) |
