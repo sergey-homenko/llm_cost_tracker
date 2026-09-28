@@ -1,14 +1,12 @@
 # LLM Cost Tracker
 
-Per-tenant LLM spend attribution and budgets for Rails — in your database, no proxy.
+LLM spend tracking and budgets for Rails — by user, feature, or any tag, in your own database, no proxy.
 
 [![Gem Version](https://img.shields.io/gem/v/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker) [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions) [![codecov](https://codecov.io/gh/sergey-homenko/llm_cost_tracker/branch/main/graph/badge.svg)](https://codecov.io/gh/sergey-homenko/llm_cost_tracker)
 
-Every call through RubyLLM, the official OpenAI and Anthropic SDKs, Gemini, or any OpenAI-compatible API is logged with tokens, cost, and your tags. Budgets can block a tenant's next call before it is sent.
-
 Not Langfuse, Helicone, or LiteLLM. No prompts, no traces, no replay. Spend attribution only.
 
-Requires Ruby 3.3+, Rails 8.0+, PostgreSQL or MySQL.
+Requires Ruby 3.3+, Rails 8.0+, PostgreSQL or MySQL. Built for a Rails monolith, not multiple services.
 
 <picture> <source media="(prefers-color-scheme: dark)" srcset="docs/dashboard-overview-dark.png"> <img alt="LLM Cost Tracker dashboard" src="docs/dashboard-overview-light.png"> </picture>
 
@@ -35,8 +33,6 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-Edit it in place to add tags, switch on async ingestion, etc.
-
 Your RubyLLM calls stay unchanged — every chat, embedding, transcription, image, and moderation call now lands in the ledger. Tag them to attribute spend:
 
 ```ruby
@@ -45,7 +41,7 @@ LlmCostTracker.with_tags(user_id: Current.user&.id, feature: "chat") do
 end
 ```
 
-Mount the dashboard in `config/routes.rb`, behind your auth:
+Mount the dashboard in `config/routes.rb`. The engine ships without authentication, so put it behind yours:
 
 ```ruby
 authenticate :admin do
@@ -53,9 +49,7 @@ authenticate :admin do
 end
 ```
 
-The engine ships without authentication on purpose.
-
-## What lands in the ledger
+## What it records
 
 - **Calls.** Provider, model, total tokens, total cost, latency, status.
 - **Line items.** Per-component breakdown — text/audio/cached tokens, tool charges (web search, grounding, container sessions).
@@ -63,42 +57,40 @@ The engine ships without authentication on purpose.
 - **Provider IDs.** Response, project, API key, workspace — for downstream audits.
 - **Pricing snapshot.** So historical numbers don't drift when prices change.
 
-## Capture surfaces
+## Budgets
 
-| Surface | Path |
+Daily, monthly, and per-call limits, plus per-tag limits such as one monthly budget per `tenant_id`. A crossed limit calls your `on_exceeded` hook, raises, or blocks the next call before it is sent. See [Budgets](docs/budgets.md).
+
+## Supported clients
+
+| Client | Captured through |
 | --- | --- |
 | RubyLLM | Provider layer |
-| OpenAI | Official SDK or Faraday |
-| Anthropic | Official SDK or Faraday |
-| Azure OpenAI | Faraday or official SDK (auto-detected on `*.openai.azure.com` and Foundry `*.services.ai.azure.com`, both deployments and `/openai/v1/...`) |
-| Google Gemini | Faraday |
-| `ruby-openai` | Faraday |
-| OpenRouter, DeepSeek, Groq; xAI, Mistral, and other gateways (LiteLLM etc.) once their host is added to `config.capture.openai_compatible_providers` | OpenAI-compatible Faraday, or the official OpenAI SDK with `base_url` on that host |
-| Anything else | `LlmCostTracker.track` |
+| OpenAI, Anthropic | Official SDK or Faraday |
+| Azure OpenAI | Official SDK or Faraday, on `*.openai.azure.com` and Foundry `*.services.ai.azure.com` |
+| Google Gemini, `ruby-openai` | Faraday |
+| OpenRouter, DeepSeek, Groq | Faraday, or the official OpenAI SDK with `base_url` on that host |
+| xAI, Mistral, other OpenAI-compatible gateways | The same, once the host is added to `config.capture.openai_compatible_providers` |
+| Anything else | [`LlmCostTracker.track`](#manual-tracking) |
 
-Streams capture when the provider emits final usage. OpenAI Faraday streams to `/chat/completions` get `stream_options: { include_usage: true }` auto-injected so the final usage chunk lands in the ledger (opt out via `config.capture.request_stream_usage = false`).
+Streams are recorded from the provider's final usage; see [Streaming](docs/streaming.md).
+
+## Pricing
 
 Captured does not always mean priced:
 
 | Cost comes from | Calls |
 | --- | --- |
-| The amount billed, from `usage.cost` in the response or final stream chunk | OpenRouter through Faraday, the official OpenAI SDK, or `track_stream`, and any OpenAI-compatible gateway that returns `usage.cost`; bundled prices apply when it is missing or the call comes through RubyLLM, other than an OpenRouter chat |
+| The billed `usage.cost` in the response or final stream chunk | OpenRouter and other OpenAI-compatible gateways that return it (through RubyLLM, OpenRouter chats only) |
 | Bundled [`prices.json`](lib/llm_cost_tracker/prices.json) | The OpenAI, Anthropic, Gemini, Groq, OpenRouter, xAI, and Mistral models it lists, and the same Claude models on Bedrock through RubyLLM |
 | The OpenAI, Anthropic, or Gemini price for the same model name | Azure OpenAI (by the model in the response, not the deployment name), Vertex AI through RubyLLM, gateways that pass a listed model name through |
 | Nothing: recorded with `cost_status: unknown` | DeepSeek, and through RubyLLM also Perplexity, Ollama, other Bedrock models, and Claude on GovCloud (`us-gov.` profiles) |
 
 Add missing prices to `config.pricing.file` or `config.pricing.overrides` ([Pricing](docs/pricing.md)), then run `bin/rails llm_cost_tracker:backfill_unknown_pricing` to price the calls already recorded.
 
-## What it isn't
-
-- No proxy. Direct calls only.
-- No prompts. Token counts and metadata only.
-- No traces, evals, or prompt management. Different product, different gem.
-- Not multi-service. Built for a Rails monolith.
-
 ## Manual tracking
 
-For batch jobs, internal gateways, or anything without an SDK/Faraday hook:
+For batch jobs, internal gateways, or anything without an SDK or Faraday hook:
 
 ```ruby
 LlmCostTracker.track(

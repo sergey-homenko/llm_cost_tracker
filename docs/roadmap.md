@@ -1,6 +1,6 @@
 # Roadmap
 
-The gem does **per-tenant LLM spend attribution and budgets** for a Rails app. Capture, price, attribute, budget. No proxy, no prompt storage, no traces, no evals, no warehouse. The 0.8 line-item rebuild is the foundation; everything below keeps that boundary.
+The gem does **LLM spend tracking and budgets** for a Rails app, by user, feature, or any tag. Capture, price, attribute, budget. No proxy, no prompt storage, no traces, no evals, no warehouse. The 0.8 line-item rebuild is the foundation; everything below keeps that boundary.
 
 Architecture: [Architecture](architecture.md). Data model: [Data model](data-model.md).
 
