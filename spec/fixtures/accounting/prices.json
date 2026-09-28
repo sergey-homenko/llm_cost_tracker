@@ -602,6 +602,13 @@
       "priority_output": 16.2,
       "priority_output_from_2027-01-01": 32.4
     },
+    "gemini/gemini-omni-1.1-flash": {
+      "audio_input": 1.5,
+      "image_input": 1.5,
+      "input": 1.5,
+      "output": 9.0,
+      "video_output": 17.5
+    },
     "groq/openai/gpt-oss-120b": {
       "batch_cache_read_input": 0.075,
       "batch_input": 0.075,

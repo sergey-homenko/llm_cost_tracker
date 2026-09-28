@@ -24,6 +24,13 @@ RSpec.describe LlmCostTracker::Pricing::Sync::RegistryWriter do
     expect(JSON.parse(File.read(path))).to eq("models" => { "openai/gpt-x" => { "input" => 1.0 } })
   end
 
+  it "writes JSON floats in their shortest form" do
+    path = path_for("prices.json")
+    writer.call(path: path, registry: { "models" => { "openrouter/x" => { "input" => 0.951432, "output" => 1.902864 } } })
+
+    expect(File.read(path)).to include('"input": 0.951432,', '"output": 1.902864')
+  end
+
   it "preserves manually curated entries when the remote refresh runs" do
     path = path_for("prices.json")
     File.write(path, JSON.pretty_generate(

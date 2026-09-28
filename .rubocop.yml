@@ -46,6 +46,7 @@ Metrics/ClassLength:
     - heredoc
     - method_call
   Exclude:
+    - "scripts/price_scrape/providers/gemini.rb"
     - "scripts/price_scrape/providers/openai.rb"
     - "lib/llm_cost_tracker/pricing/registry.rb"
 

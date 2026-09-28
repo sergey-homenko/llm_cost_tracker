@@ -204,7 +204,7 @@ module LlmCostTracker
             stream: stream,
             usage_source: usage_source,
             provider_response_id: provider_response_id,
-            service_line_items: service_line_items + UsageExtractor.cache_read_line_items(usage)
+            service_line_items: service_line_items + UsageExtractor.line_items(usage)
           )
         end
 

@@ -299,7 +299,20 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     expect(models.fetch("gemini-3.8-flash-tts")).to include("input" => 0.5, "audio_output" => 9.0,
                                                             "batch_input" => 0.25, "batch_audio_output" => 4.5)
     expect(models.fetch("gemini-2.5-flash-preview-tts")).to include("input" => 0.5, "audio_output" => 10.0)
-    expect(models.keys.grep(/-live|computer-use|streaming/)).to be_empty
+    expect(models.keys.grep(/-live|streaming|native-audio/)).to eq(["gemini-3.5-transcribe-live"])
+  end
+
+  it "prices models published without a Batch tier or pricing tabs" do
+    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+
+    expect(models.fetch("gemini-omni-1.1-flash")).to eq(
+      "input" => 1.5, "image_input" => 1.5, "audio_input" => 1.5, "output" => 9.0, "video_output" => 17.5
+    )
+    expect(models.fetch("gemini-3.5-transcribe")).to include("audio_input" => 2.0, "output" => 12.0)
+    expect(models.fetch("gemini-3.5-transcribe-live")).to include("audio_input" => 3.5, "output" => 21.0)
+    expect(models.fetch("gemini-2.5-computer-use-preview-10-2025")).to include(
+      "input" => 1.25, "output" => 10.0, "above_context_input" => 2.5, "above_context_output" => 15.0
+    )
   end
 
   it "prices newly scraped models at their published rates" do

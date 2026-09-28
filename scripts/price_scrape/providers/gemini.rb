@@ -56,7 +56,9 @@ module LlmCostTracker
           text_priced_as = {}
           models = pair_sections(article).each_with_object({}) do |(model_ids, tabs, same_as), collected|
             next if model_ids.empty? || !find_table(tabs, "Standard")
-            raise Error, "Gemini batch pricing table not found for #{model_ids.first}" unless find_table(tabs, "Batch")
+            if tabs.css("section").size > 1 && !find_table(tabs, "Batch")
+              raise Error, "Gemini batch pricing table not found for #{model_ids.first}"
+            end
 
             prices = dated_prices(tabs, footnotes(tabs), today)
             model_ids.each do |model_id|
@@ -135,12 +137,15 @@ module LlmCostTracker
         end
 
         def pricing_tabs_container?(child)
-          child["class"]&.include?("ds-selector-tabs") ||
+          child.name == "table" ||
+            child["class"]&.include?("ds-selector-tabs") ||
             child.at_css("devsite-selector[data-ds-scope='code-sample']") ||
             (child["data-ds-scope"] == "code-sample")
         end
 
         def find_table(tabs, heading)
+          return (tabs if heading == "Standard") if tabs.name == "table"
+
           tabs.css("section").find { |sec| sec.at_css("h3")&.text&.strip == heading }&.at_css("table")
         end
 
@@ -203,6 +208,8 @@ module LlmCostTracker
           prices[audio_price_key(output)] = audio_output if audio_output
           image_output = parse_modality_price(rows[output_key], "images") || per_image_rate(rows[output_key], notes)
           prices[output.sub("output", "image_output")] = image_output if image_output
+          video_output = parse_modality_price(rows[output_key], "video")
+          prices[output.sub("output", "video_output")] = video_output if video_output
           prices
         end
 
@@ -239,9 +246,7 @@ module LlmCostTracker
         end
 
         def normalize_model_id(id)
-          return nil if id.match?(/-(?:live|streaming)\b/)
-
-          id if id.match?(/\Agemini-(?:\d+(?:\.\d+)?-(?:pro|flash)|embedding-2|robotics-er-\d)/)
+          id if id.start_with?("gemini-") && !id.match?(/(?<!transcribe)-live\b|-(?:streaming|native-audio)\b/)
         end
 
         def audio_price_key(field)

@@ -31,9 +31,13 @@ module LlmCostTracker
           )
         end
 
-        def self.cache_read_line_items(usage)
-          audio = modality_tokens(usage["cacheTokensDetails"], "AUDIO")
-          audio.positive? ? [Charges::LineItem.build(dimension_key: "audio_cache_read_input", quantity: audio)] : []
+        def self.line_items(usage)
+          {
+            "audio_cache_read_input" => modality_tokens(usage["cacheTokensDetails"], "AUDIO"),
+            "video_output" => modality_tokens(usage["candidatesTokensDetails"], "VIDEO")
+          }.filter_map do |dimension_key, quantity|
+            Charges::LineItem.build(dimension_key: dimension_key, quantity: quantity) if quantity.positive?
+          end
         end
 
         def self.gross_output_tokens(usage)
