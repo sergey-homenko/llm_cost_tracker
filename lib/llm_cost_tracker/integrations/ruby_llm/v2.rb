@@ -22,10 +22,19 @@ module LlmCostTracker
                           Protocols::Interactions Providers::OpenRouter::ChatCompletions],
           parse_embedding_response: %w[Protocols::ChatCompletions Protocols::Gemini],
           parse_transcription_response: %w[Protocols::ChatCompletions Protocols::Gemini],
+          stream_transcription: %w[Protocols::ChatCompletions],
           parse_image_responses: %w[Protocols::ChatCompletions Protocols::Gemini],
           parse_cache_response: %w[Protocols::Gemini]
         }.freeze
-        BRIDGES = SEAMS.keys.to_h do |seam|
+        StreamTranscriptionBridge = Module.new do
+          def stream_transcription(*, **, &block)
+            super do |chunk|
+              V2.observe(:stream_transcription, chunk.raw)
+              block.call(chunk)
+            end
+          end
+        end
+        BRIDGES = SEAMS.except(:stream_transcription).keys.to_h do |seam|
           bridge = Module.new do
             define_method(seam) do |value, *args, **options, &block|
               V2.observe(seam, value)
@@ -33,7 +42,7 @@ module LlmCostTracker
             end
           end
           [seam, const_set("#{seam.to_s.camelize}Bridge", bridge)]
-        end.freeze
+        end.merge(stream_transcription: StreamTranscriptionBridge).freeze
         Frame = Struct.new(:payload, :attempts, :request_started_at, :latency_ms, :window, :response)
 
         class << self

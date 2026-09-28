@@ -5,6 +5,7 @@ require "tempfile"
 module AccountingCases
   GEMINI_PAINT_ON_RUBY_LLM_1 = "Gemini image models paint through generateContent only on RubyLLM 2.x"
   CONTEXT_TRANSCRIBE_ON_RUBY_LLM_1 = "RubyLLM::Context#transcribe exists only on RubyLLM 2.x"
+  STREAMED_TRANSCRIBE_ON_RUBY_LLM_1 = "RubyLLM 1.x does not stream transcriptions"
   RUBY_LLM_2_ONLY = "RubyLLM 1.x has no per-attempt usage events, workflows, batches, speech, OCR or rerank"
   PNG_PART = { inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }.freeze
 
@@ -24,12 +25,12 @@ module AccountingCases
               responses_object(id: id, model: model, usage: responses, service_tier: service_tier))
   end
 
-  def ruby_llm_transcribe(model, provider, context: RubyLLM)
+  def ruby_llm_transcribe(model, provider, context: RubyLLM, &)
     Tempfile.create(["clip", ".wav"]) do |file|
       file.binmode
       file.write("RIFF....WAVEfmt ")
       file.flush
-      context.transcribe(file.path, model: model, provider: provider, assume_model_exists: true)
+      context.transcribe(file.path, model: model, provider: provider, assume_model_exists: true, &)
     end
   end
 
@@ -470,6 +471,16 @@ module AccountingCases
     stub_json(:post, "#{OPENAI_API}/audio/transcriptions",
               { text: "hi", duration: 8.470000267028809, language: "en", segments: [] })
     ruby_llm_transcribe("whisper-1", :openai)
+  end
+
+  define_case "ruby_llm openai transcribe stream: gpt-4o-transcribe text and audio split",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: STREAMED_TRANSCRIBE_ON_RUBY_LLM_1 do
+    usage = { input_tokens: 2400, input_token_details: { text_tokens: 120, audio_tokens: 2280 }, output_tokens: 450,
+              total_tokens: 2850 }
+    stub_sse(:post, "#{OPENAI_API}/audio/transcriptions",
+             sse({ type: "transcript.text.delta", delta: "hi" },
+                 { type: "transcript.text.done", text: "hi", usage: usage }))
+    ruby_llm_transcribe("gpt-4o-transcribe", :openai) { nil }
   end
 
   define_case "ruby_llm openai chat: refused and maybe-billed attempts before a success",

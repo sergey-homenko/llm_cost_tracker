@@ -15,7 +15,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - RubyLLM 2.x records one row per provider attempt: retries, fallbacks and `pause_turn` segments each get a row, refused or unsent attempts are skipped, and failures that may have been billed are recorded with unknown cost.
 - RubyLLM 2.x responses in OpenAI, Anthropic or Gemini format are priced by the Faraday middleware's parsers on any host, Vertex AI included, with a billed `usage.cost` whenever present.
 - RubyLLM 2.x images returned without usage are recorded with unknown cost instead of $0.
-- RubyLLM 2.x streamed transcriptions are priced from RubyLLM's token counts, without the text and audio split.
 - Under `:block_requests`, a RubyLLM 2.x call is blocked from the start of its RubyLLM event, whose other subscribers then see no finish.
 - On RubyLLM 2.x, `RubyLLM.config.instrumenter` is set to `ActiveSupport::Notifications` when unset; `doctor` warns when it is anything else or a protocol method the integration reads is missing.
 

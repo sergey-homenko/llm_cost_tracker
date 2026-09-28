@@ -667,6 +667,23 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "prices a streamed transcription from its final event, and records one cut off before it as streamed" do
+      usage = { input_tokens: 1014, output_tokens: 150, total_tokens: 1164,
+                input_token_details: { text_tokens: 14, audio_tokens: 1000 } }
+      options = { model: "gpt-4o-transcribe", provider: :openai, assume_model_exists: true }
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
+        sse({ type: "transcript.text.delta", delta: "hi" }, { type: "transcript.text.done", text: "hi", usage: usage }),
+        sse({ type: "transcript.text.delta", delta: "hi" })
+      )
+
+      capture_sdk_events do |events|
+        2.times { RubyLLM.transcribe(audio.path, **options) { nil } }
+        expect(events.map { |event| event.values_at(:stream, :input_tokens, :audio_input_tokens, :usage_source) })
+          .to eq([[true, 14, 1000, "sdk_response"], [true, 0, 0, "unknown"]])
+        expect(costs(events)).to eq(["0.007535", nil])
+      end
+    end
+
     it "records a plain-text transcription retried after a rate limit once, as unknown" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
         reply({ error: { message: "Rate limit reached" } }, status: 429),

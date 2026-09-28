@@ -11,6 +11,8 @@ module LlmCostTracker
 
           class << self
             def event(usage, payload, final:, events: nil, response: nil)
+              return transcript_event(usage, payload, response, final) if response.is_a?(Hash)
+
               result = payload[:response] || payload[:result]
               raw = faraday_response(response, result.try(:raw))
               (stream_event(usage, events, raw) if events) || (parsed_event(usage, raw) if final) ||
@@ -51,18 +53,28 @@ module LlmCostTracker
               event =
                 if body["type"] == "message" then Providers::Anthropic::Parser.new.parse(**response)
                 elsif body.key?("usageMetadata") || body["object"] == "interaction" then gemini_event(response)
-                elsif openai_usage?(body["usage"])
-                  request = request_params(raw)
-                  request[:model] ||= usage[:model]
-                  Providers::Openai::ResponseParser.event_from_response(
-                    response: body,
-                    request: request,
-                    provider: usage[:provider],
-                    host: raw.env.url.host,
-                    usage_source: Usage::Source::SDK_RESPONSE
-                  )
+                elsif openai_usage?(body["usage"]) then openai_event(usage, body, request_params(raw), raw.env.url.host)
                 end
               event&.with(provider: usage[:provider], usage_source: Usage::Source::SDK_RESPONSE)
+            end
+
+            def transcript_event(usage, payload, body, final)
+              if final && openai_usage?(body["usage"])
+                request = payload[:provider_options].to_h.with_indifferent_access
+                event = openai_event(usage, body, request, host(usage[:provider], nil))
+              end
+              (event || normalized_event(usage, payload, (payload[:result] if final), nil, final))&.with(stream: true)
+            end
+
+            def openai_event(usage, body, request, host)
+              request[:model] ||= usage[:model]
+              Providers::Openai::ResponseParser.event_from_response(
+                response: body,
+                request: request,
+                provider: usage[:provider],
+                host: host,
+                usage_source: Usage::Source::SDK_RESPONSE
+              )
             end
 
             def openai_usage?(usage)
