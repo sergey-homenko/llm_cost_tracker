@@ -80,6 +80,7 @@ module LlmCostTracker
       end
 
       def safe_json_parse(body)
+        return body if body.is_a?(Hash)
         return {} if body.blank?
 
         parsed = JSON.parse(body)

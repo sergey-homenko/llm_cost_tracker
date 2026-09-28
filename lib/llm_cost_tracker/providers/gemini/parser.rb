@@ -176,6 +176,17 @@ module LlmCostTracker
           )
         end
 
+        def pricing_mode(request:, usage:, response_headers:)
+          body_mode = Pricing::Mode.normalize(usage && usage["serviceTier"])
+          return body_mode if body_mode
+
+          header_mode = Pricing::Mode.normalize(response_header(response_headers, "x-gemini-service-tier"))
+          return header_mode if header_mode
+
+          request_mode = Pricing::Mode.normalize(request["service_tier"] || request["serviceTier"])
+          request_mode == "flex" ? request_mode : nil
+        end
+
         private
 
         def build_event(model:,
@@ -214,17 +225,6 @@ module LlmCostTracker
 
           match = uri.path.match(%r{/models/([^/:]+)})
           match && match[1]
-        end
-
-        def pricing_mode(request:, usage:, response_headers:)
-          body_mode = Pricing::Mode.normalize(usage && usage["serviceTier"])
-          return body_mode if body_mode
-
-          header_mode = Pricing::Mode.normalize(response_header(response_headers, "x-gemini-service-tier"))
-          return header_mode if header_mode
-
-          request_mode = Pricing::Mode.normalize(request["service_tier"] || request["serviceTier"])
-          request_mode == "flex" ? request_mode : nil
         end
 
         def response_header(headers, name)

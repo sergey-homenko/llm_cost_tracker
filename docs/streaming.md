@@ -58,11 +58,11 @@ Captured SDK helpers:
 | --- | --- |
 | OpenAI | `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, `chat.completions.stream`, `chat.completions.stream_raw`, `images.generate_stream_raw`, `images.edit_stream_raw`, `audio.transcriptions.create_streaming` |
 | Anthropic | `messages.stream`, `messages.stream_raw`, beta Messages stream helpers |
-| RubyLLM | `RubyLLM::Provider#complete` (captured for both blocking and streaming calls; `Chat#ask` reaches this transitively), and `#transcribe` with a block on RubyLLM 2.x |
+| RubyLLM | On 1.x, `RubyLLM::Provider#complete` (captured for both blocking and streaming calls; `Chat#ask` reaches this transitively). On 2.x, the `usage.ruby_llm` event of every streamed call |
 
 The returned stream object is preserved. Usage is recorded after the stream is consumed. If iterating an official OpenAI or Anthropic SDK stream raises, or a `track_stream` block raises, the call is still recorded from the events received so far and tagged `stream_errored: true`.
 
-RubyLLM streaming records token usage and cost, and reads from the stream events the fields a blocking call reads from the raw response body; Bedrock streams keep only RubyLLM's token counts.
+RubyLLM 1.x streaming records token usage and cost, and reads from the stream events the fields a blocking call reads from the raw response body; Bedrock streams keep only RubyLLM's token counts. A RubyLLM 2.x stream is priced from RubyLLM's token counts and the request, with no response id (see [Pricing](pricing.md)).
 
 Tags are snapshotted when the stream starts, so delayed or cross-thread consumption keeps the original request/user attribution.
 

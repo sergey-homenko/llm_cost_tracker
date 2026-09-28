@@ -9,7 +9,7 @@ module LlmCostTracker
         extend Base
 
         minimum_version "1.15.0"
-        maximum_version "3.0.0"
+        maximum_version "2.0.0"
 
         class << self
           def integration_name = :ruby_llm

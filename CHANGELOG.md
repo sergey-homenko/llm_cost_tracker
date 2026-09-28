@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- RubyLLM 2.x is captured from RubyLLM's instrumentation events instead of patches to its internals, one row per provider attempt: retries, fallbacks and `pause_turn` segments each get a row, attempts the provider refused or never received are skipped, and attempts that failed after they may have been billed are recorded with unknown cost. Blocking chats are priced from RubyLLM's raw response on any host, Vertex AI and Bedrock included, with Anthropic compaction, advisor, fallback and refusal pricing. Speech, OCR and rerank calls are recorded, and `RubyLLM.workflow` names and steps become `workflow` and `workflow_step` tags. The integration sets `RubyLLM.config.instrumenter` to `ActiveSupport::Notifications` when it is unset, and `doctor` warns when it is set to anything else.
+
 ## [0.14.2] - 2026-09-28
 
 ### Added

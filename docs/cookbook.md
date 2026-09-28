@@ -4,7 +4,7 @@ Short integration recipes for common Ruby clients. Prefer SDK integrations or mi
 
 | Client | Best path | Why |
 |---|---|---|
-| RubyLLM | `config.instrument :ruby_llm` | The integration wraps RubyLLM's provider layer without adding a third-party instrumentation gem. |
+| RubyLLM | `config.instrument :ruby_llm` | The integration listens to RubyLLM 2.x's instrumentation events, or wraps RubyLLM 1.x's provider layer, without adding a third-party instrumentation gem. |
 | Official `openai` gem | `config.instrument :openai` | The integration wraps SDK resource methods without changing call sites. |
 | Official `anthropic` gem | `config.instrument :anthropic` | The integration records returned message usage without changing call sites. |
 | `ruby-openai` | Faraday middleware | The client is built on Faraday and accepts middleware via the constructor block. |
@@ -28,7 +28,11 @@ LlmCostTracker.with_tags(feature: "support_chat") do
 end
 ```
 
-The RubyLLM integration supports `ruby_llm` 1.15 through 2.x and checks RubyLLM's provider contract at boot; 3.0 and later still installs, but `doctor` and the boot log warn that its calls may not be recorded. Chat, embedding, transcription, image generation, and moderation calls are captured. Tool execution that runs through chat completions is captured as additional chat rows, not as a separate tool ledger row. Use RubyLLM 2.0 or later for streamed Bedrock prompt caching: RubyLLM 1.x subtracts cache reads and writes from Bedrock's already uncached `inputTokens`, so streamed input tokens are recorded too low.
+The RubyLLM integration supports `ruby_llm` 1.15 through 2.x; 3.0 and later still installs, but `doctor` and the boot log warn that its calls may not be recorded. Tool execution that runs through chat completions is captured as additional chat rows, not as a separate tool ledger row.
+
+On RubyLLM 2.x it records each provider attempt RubyLLM reports in its `usage.ruby_llm` event, so a retried, fallback, or `pause_turn` call has one row per attempt. An attempt the provider refused or never received is skipped; one that failed after it may have been billed is recorded with `usage_source: unknown`. Chat, embedding, image, transcription, moderation, speech, OCR, and rerank calls are recorded, with unknown cost when the model has no price. `RubyLLM.workflow` names and steps become `workflow` and `workflow_step` tags. With `budgets.exceeded_behavior = :block_requests`, a call over budget raises from the start of its RubyLLM event (`chat.ruby_llm`, `embedding.ruby_llm`, and so on) before it is sent, so other subscribers to that event see its start but not its finish. `RubyLLM.batch` results are recorded when RubyLLM delivers them, at standard rates, since RubyLLM does not mark them as batch.
+
+On RubyLLM 1.x it wraps the provider layer and checks its contract at boot, and records chat, embedding, transcription, image generation, and moderation calls. Use RubyLLM 2.0 or later for streamed Bedrock prompt caching: RubyLLM 1.x subtracts cache reads and writes from Bedrock's already uncached `inputTokens`, so streamed input tokens are recorded too low.
 
 ## Official OpenAI SDK
 

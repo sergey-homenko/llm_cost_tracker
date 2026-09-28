@@ -20,7 +20,7 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   it "raises when minimum_version exceeds the actually installed gem version" do
-    ruby_llm = LlmCostTracker::Integrations::RubyLlm::V1
+    ruby_llm = LlmCostTracker::Integrations::RubyLlm.implementation
     installed = Gem.loaded_specs["ruby_llm"].version
     too_high = "#{installed.segments[0] + 1}.0.0"
     original = ruby_llm.minimum_version
@@ -37,7 +37,7 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   it "installs but warns in doctor and at boot when the SDK is at or above the tested maximum_version" do
-    ruby_llm = LlmCostTracker::Integrations::RubyLlm::V1
+    ruby_llm = LlmCostTracker::Integrations::RubyLlm.implementation
     installed = Gem.loaded_specs["ruby_llm"].version
     original = ruby_llm.maximum_version
     ruby_llm.instance_variable_set(:@maximum_version, installed.to_s)
@@ -50,7 +50,11 @@ RSpec.describe LlmCostTracker::Integrations do
     expect(check.status).to eq(:warn)
     expect(check.message).to eq(message)
     expect(LlmCostTracker::Logging).to have_received(:warn).with(message).once
-    expect(RubyLLM::Provider.ancestors).to include(ruby_llm::ProviderPatch)
+    if ruby_llm == LlmCostTracker::Integrations::RubyLlm::V1
+      expect(RubyLLM::Provider.ancestors).to include(ruby_llm::ProviderPatch)
+    else
+      expect(ActiveSupport::Notifications.notifier).to be_listening("usage.ruby_llm")
+    end
   ensure
     ruby_llm.instance_variable_set(:@maximum_version, original)
   end
