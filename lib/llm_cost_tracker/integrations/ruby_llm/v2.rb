@@ -20,6 +20,9 @@ module LlmCostTracker
         SEAMS = {
           build_chunk: %w[Protocols::Anthropic Protocols::ChatCompletions Protocols::Responses Protocols::Gemini
                           Protocols::Interactions Providers::OpenRouter::ChatCompletions],
+          parse_completion_body: %w[Protocols::Anthropic Protocols::ChatCompletions Protocols::Responses
+                                    Protocols::Gemini Protocols::Interactions Protocols::Converse
+                                    Protocols::Mistral::Conversations Providers::Mistral::ChatCompletions],
           parse_embedding_response: %w[Protocols::ChatCompletions Protocols::Gemini],
           parse_transcription_response: %w[Protocols::ChatCompletions Protocols::Gemini],
           stream_transcription: %w[Protocols::ChatCompletions],
@@ -37,13 +40,13 @@ module LlmCostTracker
         BRIDGES = SEAMS.except(:stream_transcription).keys.to_h do |seam|
           bridge = Module.new do
             define_method(seam) do |value, *args, **options, &block|
-              V2.observe(seam, value)
+              V2.observe(seam, options.fetch(:raw, value))
               super(value, *args, **options, &block)
             end
           end
           [seam, const_set("#{seam.to_s.camelize}Bridge", bridge)]
         end.merge(stream_transcription: StreamTranscriptionBridge).freeze
-        Frame = Struct.new(:payload, :attempts, :request_started_at, :latency_ms, :window, :response)
+        Frame = Struct.new(:payload, :attempts, :request_started_at, :latency_ms, :window, :response, :raw)
 
         class << self
           def integration_name = :ruby_llm
@@ -105,6 +108,7 @@ module LlmCostTracker
 
               frame = frames.last
               next unless frame
+              next frame.raw = value if seam == :parse_completion_body
               next frame.response = value unless seam == :build_chunk
 
               (frame.window ||= Attempt.stream_window).push(value)
@@ -174,15 +178,17 @@ module LlmCostTracker
             if OPERATIONS.exclude?(usage[:operation])
               record_safely { record_attempt(usage, {}, nil, final: false) } if active?
             elsif frame
-              frame.attempts << [usage, frame.latency_ms, frame.window&.events]
+              raw = frame.raw unless usage[:status] == :succeeded && usage[:tokens].to_h.empty?
+              frame.attempts << [usage, frame.latency_ms, frame.window&.events, raw]
               frame.window = nil
+              frame.raw = nil if raw
             end
           end
 
           def flush(frame)
             final = frame.attempts.rindex { |usage, *| usage[:status] == :succeeded }
-            frame.attempts.each_with_index.filter_map do |(usage, latency_ms, events), index|
-              attempt = { final: index == final, events: events, response: frame.response }
+            frame.attempts.each_with_index.filter_map do |(usage, latency_ms, events, raw), index|
+              attempt = { final: index == final, events: events, response: frame.response, raw: raw }
               record_safely { record_attempt(usage, frame.payload, latency_ms, **attempt) }
               nil
             rescue *CALLER_ERRORS => e

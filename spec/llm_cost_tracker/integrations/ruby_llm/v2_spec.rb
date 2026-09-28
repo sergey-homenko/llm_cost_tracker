@@ -186,7 +186,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "records each pause_turn segment as its own row, earlier ones from RubyLLM's tokens at the chat's cache TTL" do
+    it "records each pause_turn segment as its own row, priced from its own response body" do
       segment = lambda do |id, usage, stop_reason = "end_turn"|
         reply(anthropic_message(id: id, usage: usage, stop_reason: stop_reason))
       end
@@ -200,10 +200,10 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       )
 
       capture_sdk_events do |events|
-        chat("claude-sonnet-4-6", :anthropic).with_caching(ttl: "1h").ask("research")
+        chat("claude-sonnet-4-6", :anthropic).ask("research")
         expect(events.map { |event| event.values_at(:input_tokens, :cache_write_extended_input_tokens) })
           .to eq([[20, 8000], [30, 1500]])
-        expect(events.map { |event| event[:provider_response_id] }).to eq([nil, "msg_p2"])
+        expect(events.map { |event| event[:provider_response_id] }).to eq(%w[msg_p1 msg_p2])
         expect(costs(events).sum { |total| BigDecimal(total) }).to eq(BigDecimal("0.06855"))
       end
     end
@@ -220,7 +220,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       capture_sdk_events do |events|
         chat("claude-sonnet-4-6", :anthropic).with_provider_options(inference_geo: "us").ask("research")
         expect(events.map { |event| event.values_at(:provider_response_id, :pricing_mode) })
-          .to eq([[nil, "data_residency"], %w[msg_g2 data_residency]])
+          .to eq([%w[msg_g1 data_residency], %w[msg_g2 data_residency]])
       end
     end
 
@@ -428,6 +428,23 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "prices a response RubyLLM rejects after the provider billed it from that response" do
+      WebMock.stub_request(:post, "https://api.mistral.ai/v1/conversations").to_return(reply(
+        conversation_id: "conv_1", object: "conversation.response",
+        outputs: [{ type: "function.call", tool_call_id: "call_1", name: "lookup", arguments: "{}",
+                    confirmation_status: "pending" }],
+        usage: { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000 }
+      ))
+      mistral = RubyLLM.context { |config| config.mistral_api_key = "test-mistral" }
+      pending = mistral.chat(model: "mistral-medium-latest", provider: :mistral, protocol: :conversations,
+                             assume_model_exists: true)
+
+      capture_sdk_events do |events|
+        expect { pending.ask("hi") }.to raise_error(RubyLLM::Error, /confirmation/)
+        expect(events.sole).to include(input_tokens: 10_000, output_tokens: 1_000, usage_source: "sdk_response")
+      end
+    end
+
     it "records nothing for a request the provider refused, and lets its error through" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/responses")
              .to_return(reply({ error: { message: "bad" } }, status: 400))
@@ -492,6 +509,25 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         expect(costs(events).last).to eq("0.0042")
         described_class.finish("chat.ruby_llm", "3", leaked)
         expect(events.size).to eq(2)
+      end
+    end
+
+    it "prices a response body once, on the attempt RubyLLM bills rather than one it finishes empty before it" do
+      body = anthropic_message(id: "msg_once", usage: { input_tokens: 10, output_tokens: 5 }).deep_stringify_keys
+      raw = Faraday::Response.new(Faraday::Env.from(method: :post, url: URI(messages_url), request_body: "{}",
+                                                    status: 200, body: body, response_headers: {}))
+      usage = { operation: :chat, provider: "anthropic", model: "claude-sonnet-4-6", status: :succeeded,
+                tokens: RubyLLM::Tokens.new(input: 10, output: 5) }
+      payload = { provider: "anthropic", model: "claude-sonnet-4-6" }
+
+      capture_sdk_events do |events|
+        described_class.start("chat.ruby_llm", "1", payload)
+        described_class.observe(:parse_completion_body, raw)
+        described_class.finish("usage.ruby_llm", "2", usage.merge(tokens: RubyLLM::Tokens.new))
+        described_class.finish("usage.ruby_llm", "3", usage)
+        payload[:response] = RubyLLM::Message.new(role: :assistant, content: "hi", raw: raw)
+        described_class.finish("chat.ruby_llm", "1", payload)
+        expect(events.map { |event| event.values_at(:provider_response_id, :input_tokens) }).to eq([["msg_once", 10]])
       end
     end
 

@@ -10,13 +10,15 @@ module LlmCostTracker
           REFUSED = { input_tokens: 0, output_tokens: 0 }.freeze
 
           class << self
-            def event(usage, payload, final:, events: nil, response: nil)
+            def event(usage, payload, final:, events: nil, response: nil, raw: nil)
               return transcript_event(usage, payload, response, final) if response.is_a?(Hash)
 
               result = payload[:response] || payload[:result]
-              raw = faraday_response(response, result.try(:raw))
-              (stream_event(usage, events, raw) if events) || (parsed_event(usage, raw) if final) ||
-                normalized_event(usage, payload, (result if final), raw, final)
+              shared = faraday_response(response, result.try(:raw))
+              own = faraday_response(raw) || (shared if final)
+              raw = own || shared
+              (stream_event(usage, events, raw) if events) || (parsed_event(usage, own) if own) ||
+                normalized_event(usage, payload, (result if final), raw, own)
             end
 
             def stream_window = Capture::EventWindow.new(notable: method(:notable_event?))
@@ -63,7 +65,7 @@ module LlmCostTracker
                 request = payload[:provider_options].to_h.with_indifferent_access
                 event = openai_event(usage, body, request, host(usage[:provider], nil))
               end
-              (event || normalized_event(usage, payload, (payload[:result] if final), nil, final))&.with(stream: true)
+              (event || normalized_event(usage, payload, (payload[:result] if final), nil, nil))&.with(stream: true)
             end
 
             def openai_event(usage, body, request, host)
@@ -92,7 +94,7 @@ module LlmCostTracker
                                       Charges::LineItem.build(dimension_key: "video_input", quantity: video)])
             end
 
-            def normalized_event(usage, payload, result, raw, final)
+            def normalized_event(usage, payload, result, raw, own)
               tokens = usage[:tokens]
               return if usage[:status] != :succeeded && tokens.to_h == REFUSED
 
@@ -111,7 +113,7 @@ module LlmCostTracker
               Event.build(
                 provider: provider,
                 model: model,
-                token_usage: token_usage(usage, model, (raw if final), payload[:caching]),
+                token_usage: token_usage(usage, model, own, payload[:caching]),
                 pricing_mode: pricing_mode(provider, model, request, raw),
                 stream: payload[:streaming],
                 usage_source: source,

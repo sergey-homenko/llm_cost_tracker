@@ -20,7 +20,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
-- Anthropic compaction, advisor, fallback and refusal pricing applies to RubyLLM 2.x chats.
+- Anthropic compaction, advisor, fallback and refusal pricing applies to RubyLLM 2.x chats, and each blocking `pause_turn` segment is priced from its own response, with its 1-hour cache writes, speed and US inference.
 
 ## [0.14.2] - 2026-09-28
 

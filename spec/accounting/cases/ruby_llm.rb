@@ -331,6 +331,55 @@ module AccountingCases
     ruby_llm_chat("claude-sonnet-4-6", :anthropic).ask("research")
   end
 
+  define_case "ruby_llm anthropic chat: pause_turn segment with an opus-5 advisor before the last",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json_sequence(
+      :post, ANTHROPIC_MESSAGES,
+      anthropic_message(id: "msg_pa1", model: "claude-sonnet-5", usage: advisor_usage, stop_reason: "pause_turn"),
+      anthropic_message(id: "msg_pa2", model: "claude-sonnet-5", usage: anthropic_usage(2000, 500))
+    )
+    ruby_llm_chat("claude-sonnet-5", :anthropic).ask("research")
+  end
+
+  define_case "ruby_llm anthropic chat: pause_turn segment answered by a server-side fallback before the last",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json_sequence(
+      :post, ANTHROPIC_MESSAGES,
+      anthropic_message(id: "msg_pf1", model: "claude-opus-4-8", usage: FALLBACK_AFTER_OUTPUT_USAGE,
+                        stop_reason: "pause_turn"),
+      anthropic_message(id: "msg_pf2", model: "claude-fable-5-1", usage: anthropic_usage(1000, 100))
+    )
+    ruby_llm_chat("claude-fable-5-1", :anthropic).ask("research")
+  end
+
+  define_case "ruby_llm anthropic chat: pause_turn segments on standard speed and us geo that only the body reports",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    usage = anthropic_usage(10_000, 1000, extra: { speed: "standard", inference_geo: "us" })
+    stub_json_sequence(
+      :post, ANTHROPIC_MESSAGES,
+      anthropic_message(id: "msg_ps1", model: "claude-opus-5-5", usage: usage, stop_reason: "pause_turn"),
+      anthropic_message(id: "msg_ps2", model: "claude-opus-5-5", usage: usage)
+    )
+    ruby_llm_chat("claude-opus-5-5", :anthropic).with_provider_options(speed: "fast").ask("research")
+  end
+
+  define_case "ruby_llm anthropic chat: us geo and 1h cache writes when an after_message callback raises",
+              instrument: :ruby_llm do
+    usage = anthropic_usage(10_000, 1000, cache_1h: 2000, extra: { inference_geo: "us" })
+    stub_json(:post, ANTHROPIC_MESSAGES, anthropic_message(id: "msg_rlam", model: "claude-sonnet-4-6", usage: usage))
+    chat = ruby_llm_chat("claude-sonnet-4-6", :anthropic).after_message { raise ArgumentError, "save failed" }
+    expect { chat.ask("hi") }.to raise_error(ArgumentError, "save failed")
+  end
+
+  define_case "ruby_llm gemini chat: grounding and priority tier when an after_message callback raises",
+              instrument: :ruby_llm do
+    stub_json(:post, gemini_url("gemini-3-flash-preview"),
+              gemini_response(model: "gemini-3-flash-preview", id: "rlgam", grounding: %w[a b c],
+                              usage: gemini_usage(prompt: 1000, candidates: 300, service_tier: "priority")))
+    chat = ruby_llm_chat("gemini-3-flash-preview", :gemini).after_message { raise ArgumentError, "save failed" }
+    expect { chat.ask("hi") }.to raise_error(ArgumentError, "save failed")
+  end
+
   define_case "ruby_llm openai chat: gpt-4o on the us host", instrument: :ruby_llm do
     stub_ruby_llm_openai(host: "us.api.openai.com", id: "chatcmpl_rlus", model: "gpt-4o",
                          usage: chat_usage(10_000, 1000))
