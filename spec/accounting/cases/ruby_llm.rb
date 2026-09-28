@@ -425,6 +425,17 @@ module AccountingCases
     expect { chat.ask("hi") }.to raise_error(ArgumentError, "save failed")
   end
 
+  define_case "ruby_llm openai chat stream: gpt-5.4 on the eu host when an after_message callback raises",
+              instrument: :ruby_llm do
+    stub_sse(:post, "https://eu.api.openai.com/v1/chat/completions",
+             chat_stream_body(id: "chatcmpl_rleam", model: "gpt-5.4", usage: chat_usage(10_000, 1000)))
+    stub_sse(:post, "https://eu.api.openai.com/v1/responses",
+             responses_stream_body(id: "chatcmpl_rleam", model: "gpt-5.4", usage: responses_usage(10_000, 1000)))
+    context = RubyLLM.context { |config| config.openai_api_base = "https://eu.api.openai.com/v1" }
+    chat = ruby_llm_chat("gpt-5.4", :openai, context: context).after_message { raise ArgumentError, "save failed" }
+    expect { chat.ask("hi") { nil } }.to raise_error(ArgumentError, "save failed")
+  end
+
   define_case "ruby_llm openai chat: gpt-4o on the us host", instrument: :ruby_llm do
     stub_ruby_llm_openai(host: "us.api.openai.com", id: "chatcmpl_rlus", model: "gpt-4o",
                          usage: chat_usage(10_000, 1000))
@@ -575,6 +586,15 @@ module AccountingCases
              sse({ type: "transcript.text.delta", delta: "hi" },
                  { type: "transcript.text.done", text: "hi", usage: usage }))
     ruby_llm_transcribe("gpt-4o-transcribe", :openai) { nil }
+  end
+
+  define_case "ruby_llm openai transcribe stream: gpt-transcribe duration usage on the eu host",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: STREAMED_TRANSCRIBE_ON_RUBY_LLM_1 do
+    stub_sse(:post, "https://eu.api.openai.com/v1/audio/transcriptions",
+             sse({ type: "transcript.text.delta", delta: "hi" },
+                 { type: "transcript.text.done", text: "hi", usage: { type: "duration", seconds: 60 } }))
+    context = RubyLLM.context { |config| config.openai_api_base = "https://eu.api.openai.com/v1" }
+    ruby_llm_transcribe("gpt-transcribe", :openai, context: context) { nil }
   end
 
   define_case "ruby_llm openai chat: refused and maybe-billed attempts before a success",

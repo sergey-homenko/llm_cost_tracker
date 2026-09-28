@@ -10,13 +10,14 @@ module LlmCostTracker
           REFUSED = { input_tokens: 0, output_tokens: 0 }.freeze
 
           class << self
-            def event(usage, payload, final:, events: nil, response: nil, raw: nil)
-              return transcript_event(usage, payload, response, final) if response.is_a?(Hash)
+            def event(usage, payload, final:, events: nil, response: nil, raw: nil, provider: nil)
+              base = Faraday::Response.new(url: URI(provider.api_base.to_s)) if provider
+              return transcript_event(usage, payload, response, final, base) if response.is_a?(Hash)
 
               result = payload[:response] || payload[:result]
               shared = faraday_response(response, result.try(:raw))
               own = faraday_response(raw) || (shared if final)
-              raw = own || shared
+              raw = own || shared || base
               converse_event(usage, payload, own, events) || stream_event(usage, events, raw) ||
                 parsed_event(usage, own) || normalized_event(usage, payload, (result if final), raw)
             end
@@ -72,12 +73,12 @@ module LlmCostTracker
               event&.with(provider: usage[:provider], usage_source: Usage::Source::SDK_RESPONSE)
             end
 
-            def transcript_event(usage, payload, body, final)
+            def transcript_event(usage, payload, body, final, base)
               if final && openai_usage?(body["usage"])
                 request = payload[:provider_options].to_h.with_indifferent_access
-                event = openai_event(usage, body, request, host(usage[:provider], nil))
+                event = openai_event(usage, body, request, host(usage[:provider], base))
               end
-              (event || normalized_event(usage, payload, (payload[:result] if final), nil))&.with(stream: true)
+              (event || normalized_event(usage, payload, (payload[:result] if final), base))&.with(stream: true)
             end
 
             def openai_event(usage, body, request, host)

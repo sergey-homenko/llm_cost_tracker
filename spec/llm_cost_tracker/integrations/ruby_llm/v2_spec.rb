@@ -381,6 +381,26 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
                                        provider_response_id: nil)
       end
     end
+
+    it "prices a stream on a context's regional host from its events when the call raises after them" do
+      response = response_object(id: "resp_eu", model: "gpt-5.4", usage: { input_tokens: 10_000, output_tokens: 1_000 })
+      stream = sse({ type: "response.created", response: response.merge(status: "in_progress", usage: nil, output: []) },
+                   { type: "response.output_text.delta", item_id: "msg_resp_eu", output_index: 0, content_index: 0,
+                     delta: "hi" },
+                   { type: "response.completed", response: response })
+      WebMock.stub_request(:post, "https://eu.api.openai.com/v1/responses").to_return(stream, stream)
+      eu = RubyLLM.context { |config| config.openai_api_base = "https://eu.api.openai.com/v1" }
+
+      capture_sdk_events do |events|
+        failing = chat("gpt-5.4", :openai, context: eu).after_message { raise ArgumentError, "save failed" }
+        expect { failing.ask("hi") { |_chunk| } }.to raise_error(ArgumentError, "save failed")
+        expect { chat("gpt-5.4", :openai, context: eu).ask("hi") { |chunk| raise "stop" if chunk.tokens&.input } }
+          .to raise_error("stop")
+        expect(events.map { |event| event.values_at(:stream, :pricing_mode, :provider_response_id) })
+          .to eq([[true, "data_residency", "resp_eu"]] * 2)
+        expect(costs(events)).to eq(%w[0.044 0.044])
+      end
+    end
   end
 
   describe "Bedrock Converse chats priced from their raw usage" do
@@ -591,6 +611,27 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "parses and looks up each batch result once per process however often the batch is read" do
+      staged = chat("claude-sonnet-4-5", :anthropic).ask_later("hi")
+      body = anthropic_message(id: "msg_b1", model: "claude-sonnet-4-5", usage: { input_tokens: 1000, output_tokens: 100 })
+      message = RubyLLM::Message.new(role: :assistant, content: "hi", raw: body.deep_stringify_keys, input_tokens: 1000,
+                                     output_tokens: 100)
+      allow(staged.provider).to receive(:batch_results).and_return([[0, message]])
+      allow(described_class::Attempt).to receive(:batch_event).and_call_original
+      batch = RubyLLM::Batch.new(provider: staged.provider, chats: [staged], id: "msgbatch_once", raw_status: "ended",
+                                 completed: true)
+
+      capture_sdk_events do |events|
+        3.times { batch.messages }
+        batch.results
+        batch.tokens
+        batch.cost
+        expect(events.sole).to include(provider_response_id: "msg_b1", usage_source: "sdk_batch_result")
+      end
+      expect(LlmCostTracker::Call).to have_received(:already_recorded?).once
+      expect(described_class::Attempt).to have_received(:batch_event).once
+    end
+
     it "records nothing while the integration is not enabled" do
       LlmCostTrackerReset.call
       LlmCostTracker.configure { |config| config.pricing.unknown_model_behavior = :ignore }
@@ -780,6 +821,61 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         expect(events.map { |event| event.values_at(:stream, :input_tokens, :audio_input_tokens, :usage_source) })
           .to eq([[true, 14, 1000, "sdk_response"], [true, 0, 0, "unknown"], [true, 14, 1000, "sdk_response"]])
         expect(costs(events)).to eq(["0.007535", nil, "0.007535"])
+      end
+    end
+
+    it "prices a transcription streamed through a context's regional host at data residency" do
+      WebMock.stub_request(:post, "https://eu.api.openai.com/v1/audio/transcriptions")
+             .to_return(sse({ type: "transcript.text.done", text: "hi", usage: { type: "duration", seconds: 60 } }))
+      eu = RubyLLM.context { |config| config.openai_api_base = "https://eu.api.openai.com/v1" }
+
+      capture_sdk_events do |events|
+        eu.transcribe(audio.path, model: "gpt-transcribe", provider: :openai, assume_model_exists: true) { nil }
+        expect(events.sole).to include(stream: true, pricing_mode: "data_residency")
+        expect(costs(events)).to eq(%w[0.00495])
+      end
+    end
+
+    it "records a transcription streamed over a WebSocket as streamed" do
+      pcm = "\0\0" * 1600
+      audio.binmode
+      audio.write(["RIFF", 36 + pcm.bytesize, "WAVE", "fmt ", 16, 1, 1, 16_000, 32_000, 2, 16, "data", pcm.bytesize]
+                    .pack("a4Va4a4VvvVVvva4V"), pcm)
+      audio.flush
+      replies = {
+        "api.x.ai" => [{ type: "transcript.created" }, { type: "transcript.done", text: "hi", duration: 0.1 }],
+        "api.elevenlabs.io" => [{ message_type: "committed_transcript_with_timestamps", text: "hi", words: [] }],
+        "api.deepgram.com" => [{ type: "Results", is_final: true, channel: { alternatives: [{ transcript: "hi" }] } },
+                               { type: "Metadata", duration: 0.1 }],
+        "generativelanguage.googleapis.com" => [{ setupComplete: {} },
+                                                { serverContent: { inputTranscription: { text: "hi" } } },
+                                                { serverContent: { generationComplete: true },
+                                                  usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 2 } }]
+      }
+      socket = Struct.new(:replies) do
+        def each_message(write:)
+          writer = Thread.new { write.call(self) }
+          replies.each { |reply| yield reply.to_json }
+          writer.join(5)
+        end
+
+        def send_text(*) = nil
+        def send_binary(*) = nil
+        def close = nil
+      end
+      allow(RubyLLM::Transport::WebsocketConnection).to receive(:open) do |url, **, &block|
+        block.call(socket.new(replies.fetch(URI(url).host)))
+      end
+      keys = RubyLLM.context { |config| config.xai_api_key = config.elevenlabs_api_key = config.deepgram_api_key = "test" }
+      models = { xai: "grok-stt", elevenlabs: "scribe_v2_realtime", deepgram: "nova-3",
+                 gemini: "gemini-3.5-transcribe-live" }
+
+      capture_sdk_events do |events|
+        models.each do |provider, model|
+          keys.transcribe(audio.path, model: model, provider: provider, assume_model_exists: true) { nil }
+        end
+        expect(events.map { |event| event.values_at(:provider, :stream) })
+          .to eq(models.keys.map { |provider| [provider.to_s, true] })
       end
     end
 

@@ -27,6 +27,7 @@ module LlmCostTracker
           parse_transcription_response: %w[Protocols::ChatCompletions Protocols::Gemini],
           parse_speech_response: %w[Protocols::Gemini],
           stream_transcription: %w[Protocols::ChatCompletions],
+          transcribe: %w[Protocol Protocols::Deepgram Protocols::Gemini::LiveTranscription],
           parse_image_responses: %w[Protocols::ChatCompletions Protocols::Gemini],
           parse_cache_response: %w[Protocols::Gemini],
           messages: %w[Batch],
@@ -35,15 +36,21 @@ module LlmCostTracker
         StreamTranscriptionBridge = Module.new do
           def stream_transcription(*, **, &block)
             super do |chunk|
-              V2.observe(:stream_transcription, chunk.raw)
+              V2.observe(:stream_transcription, chunk.raw, self)
               block.call(chunk)
             end
+          end
+        end
+        TranscribeBridge = Module.new do
+          def transcribe(*, **, &block)
+            V2.observe(:transcribe, {}, self) if block
+            super
           end
         end
         BatchBridge = Module.new do
           %i[messages results].each { |name| define_method(name) { V2.collect(self) { super() } } }
         end
-        BRIDGES = SEAMS.except(:stream_transcription, :messages, :results).keys.to_h do |seam|
+        BRIDGES = SEAMS.except(:stream_transcription, :transcribe, :messages, :results).keys.to_h do |seam|
           bridge = Module.new do
             define_method(seam) do |value, *args, **options, &block|
               V2.observe(seam, options.fetch(:raw, value), self)
@@ -51,7 +58,13 @@ module LlmCostTracker
             end
           end
           [seam, const_set("#{seam.to_s.camelize}Bridge", bridge)]
-        end.merge(stream_transcription: StreamTranscriptionBridge, messages: BatchBridge, results: BatchBridge).freeze
+        end.merge(
+          stream_transcription: StreamTranscriptionBridge,
+          transcribe: TranscribeBridge,
+          messages: BatchBridge,
+          results: BatchBridge
+        ).freeze
+        RECORDED = ObjectSpace::WeakKeyMap.new
         Frame = Struct.new(*%i[payload attempts request_started_at latency_ms window response raw provider workflow])
 
         class << self
@@ -114,7 +127,9 @@ module LlmCostTracker
 
               frame = frames.last
               next unless frame
-              next frame.provider = protocol.provider if seam == :parse_completion_body && value.is_a?(Hash)
+
+              frame.provider = protocol&.provider
+              next if seam == :parse_completion_body && value.is_a?(Hash)
               next frame.raw = value if seam == :parse_completion_body
               next frame.response = value unless seam == :build_chunk
 
@@ -209,7 +224,8 @@ module LlmCostTracker
             final = frame.attempts.rindex { |usage, *| usage[:status] == :succeeded }
             final ||= frame.attempts.size - 1 if frame.response
             frame.attempts.each_with_index.filter_map do |(usage, latency_ms, events, raw), index|
-              attempt = { final: index == final, events: events, response: frame.response, raw: raw }
+              attempt = { final: index == final, events: events, response: frame.response, raw: raw,
+                          provider: frame.provider }
               record_safely { record_attempt(usage, frame.payload, latency_ms, **attempt) }
               nil
             rescue *CALLER_ERRORS => e
@@ -227,7 +243,12 @@ module LlmCostTracker
 
           def record_batch(batch, results, frame)
             errors = Array(results).each_with_index.filter_map do |result, index|
-              record_safely { record_batch_result(batch, result, index, frame) } if result
+              next if result.nil? || RECORDED.key?(result)
+
+              record_safely do
+                record_batch_result(batch, result, index, frame)
+                RECORDED[result] = true
+              end
               nil
             rescue *CALLER_ERRORS => e
               e
