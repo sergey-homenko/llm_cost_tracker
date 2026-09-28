@@ -38,12 +38,12 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       stop_reason: stop_reason, usage: usage }
   end
 
-  def anthropic_stream(usage:, delta_usage:)
-    sse({ type: "message_start", message: anthropic_message(id: "msg_s", usage: usage).merge(content: []) },
+  def anthropic_stream(usage:, delta_usage:, id: "msg_s", stop_reason: "end_turn")
+    sse({ type: "message_start", message: anthropic_message(id: id, usage: usage).merge(content: [], stop_reason: nil) },
         { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
         { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "hi" } },
         { type: "content_block_stop", index: 0 },
-        { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: delta_usage },
+        { type: "message_delta", delta: { stop_reason: stop_reason }, usage: delta_usage },
         { type: "message_stop" })
   end
 
@@ -181,6 +181,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         chat("deepseek/deepseek-v3.2", :openrouter).ask("hi")
         chat("deepseek/deepseek-v3.2", :openrouter).ask("hi") { |_chunk| }
         expect(events.map { |event| fees(event) }).to eq([%w[billed_request], %w[billed_request]])
+        expect(events.map { |event| event[:provider_response_id] }).to eq(%w[gen-1 gen-2])
         expect(costs(events)).to eq(%w[0.0063 0.0056])
       end
     end
@@ -204,6 +205,136 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
           .to eq([[20, 8000], [30, 1500]])
         expect(events.map { |event| event[:provider_response_id] }).to eq([nil, "msg_p2"])
         expect(costs(events).sum { |total| BigDecimal(total) }).to eq(BigDecimal("0.06855"))
+      end
+    end
+  end
+
+  describe "streams priced from their events" do
+    it "reads a streamed Anthropic chat's cumulative input, 1-hour cache writes, request inference geo and id" do
+      WebMock.stub_request(:post, messages_url).to_return(anthropic_stream(
+        usage: { input_tokens: 50, cache_creation_input_tokens: 2000, output_tokens: 1,
+                 cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 2000 } },
+        delta_usage: { input_tokens: 900, output_tokens: 300, server_tool_use: { web_search_requests: 1 } }
+      ))
+
+      capture_sdk_events do |events|
+        chat("claude-sonnet-4-6", :anthropic).with_provider_options(inference_geo: "us").ask("news?") { |_chunk| }
+        expect(events.sole).to include(stream: true, input_tokens: 900, cache_write_extended_input_tokens: 2000,
+                                       output_tokens: 300, pricing_mode: "data_residency",
+                                       usage_source: "sdk_response", provider_response_id: "msg_s")
+        expect(fees(events.sole)).to eq(%w[web_search_request])
+      end
+    end
+
+    it "records each streamed pause_turn segment from its own events" do
+      search = { server_tool_use: { web_search_requests: 1 } }
+      WebMock.stub_request(:post, messages_url).to_return(
+        anthropic_stream(id: "msg_p1", usage: { input_tokens: 2679, output_tokens: 3 }, stop_reason: "pause_turn",
+                         delta_usage: { input_tokens: 10_682, output_tokens: 510, **search }),
+        anthropic_stream(id: "msg_p2", usage: { input_tokens: 11_200, output_tokens: 3 },
+                         delta_usage: { input_tokens: 18_000, output_tokens: 700, **search })
+      )
+
+      capture_sdk_events do |events|
+        chat("claude-sonnet-4-6", :anthropic).ask("research") { |_chunk| }
+        expect(events.map { |event| event.values_at(:input_tokens, :output_tokens, :provider_response_id) })
+          .to eq([[10_682, 510, "msg_p1"], [18_000, 700, "msg_p2"]])
+        expect(costs(events)).to eq(%w[0.049696 0.0745])
+      end
+    end
+
+    it "prices a streamed OpenAI chat at the tier its final event reports, with its tool calls and id" do
+      response = response_object(id: "resp_s", model: "gpt-5-mini", usage: { input_tokens: 2000, output_tokens: 500 },
+                                 service_tier: "flex",
+                                 output: [{ type: "web_search_call", id: "ws_1", status: "completed",
+                                            action: { type: "search", query: "q" } }])
+      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(sse(
+        { type: "response.created",
+          response: response.merge(status: "in_progress", service_tier: "auto", usage: nil, output: []) },
+        { type: "response.output_item.done", output_index: 0, item: response[:output].first },
+        { type: "response.completed", response: response }
+      ))
+
+      capture_sdk_events do |events|
+        chat("gpt-5-mini", :openai).ask("news?") { |_chunk| }
+        expect(events.sole).to include(stream: true, input_tokens: 2000, output_tokens: 500, pricing_mode: "flex",
+                                       provider_response_id: "resp_s")
+        expect(fees(events.sole)).to eq(%w[web_search_request])
+      end
+    end
+
+    it "reads a streamed Gemini chat's audio and tool-use prompt tokens, grounding, tier header and id" do
+      usage = { promptTokenCount: 19_210, candidatesTokenCount: 500, toolUsePromptTokenCount: 8000,
+                promptTokensDetails: [{ modality: "TEXT", tokenCount: 10 }, { modality: "AUDIO", tokenCount: 19_200 }] }
+      WebMock.stub_request(:post, gemini_url("gemini-2.5-flash", stream: true)).to_return(
+        sse(gemini_body(usage, groundingMetadata: { webSearchQueries: %w[q1 q2] }))
+          .merge(headers: { "Content-Type" => "text/event-stream", "x-gemini-service-tier" => "priority" })
+      )
+
+      capture_sdk_events do |events|
+        chat("gemini-2.5-flash", :gemini).ask("news?") { |_chunk| }
+        expect(events.sole).to include(stream: true, input_tokens: 8010, audio_input_tokens: 19_200,
+                                       output_tokens: 500, pricing_mode: "priority", provider_response_id: "gem_1")
+        expect(fees(events.sole)).to eq(%w[grounding_request])
+      end
+    end
+
+    it "prices a Gemini chat on the Interactions protocol from the interaction's usage, blocking and streamed" do
+      completed = { id: "v1_int", object: "interaction", model: "gemini-3.8-flash", status: "completed",
+                    service_tier: "standard", steps: [{ type: "model_output", content: [{ type: "text", text: "hi" }] }],
+                    usage: { total_input_tokens: 1000, total_output_tokens: 500, total_tokens: 1500,
+                             grounding_tool_count: [{ type: "google_search", count: 2 }] } }
+      WebMock.stub_request(:post, "https://generativelanguage.googleapis.com/v1beta/interactions").to_return(
+        reply(completed),
+        sse({ event_type: "interaction.created", interaction: completed.except(:usage, :steps).merge(status: "in_progress") },
+            { event_type: "step.start", index: 0, step: { type: "model_output" } },
+            { event_type: "step.delta", index: 0, delta: { type: "text", text: "hi" } },
+            { event_type: "step.stop", index: 0 },
+            { event_type: "interaction.completed", interaction: completed.except(:steps) })
+      )
+
+      capture_sdk_events do |events|
+        travel_to(Time.utc(2026, 9, 27)) do
+          2.times do |index|
+            interactions = RubyLLM.chat(model: "gemini-3.8-flash", provider: :gemini, protocol: :interactions,
+                                        assume_model_exists: true)
+            index.zero? ? interactions.ask("hi") : interactions.ask("hi") { |_chunk| }
+          end
+        end
+        expect(events.map { |event| event.values_at(:stream, :input_tokens, :output_tokens, :provider_response_id) })
+          .to eq([[false, 1000, 500, "v1_int"], [true, 1000, 500, "v1_int"]])
+        expect(costs(events)).to eq(%w[0.030625 0.030625])
+      end
+    end
+
+    it "prices a streamed Chat Completions call on a regional Mistral host at the data-residency rate" do
+      chunk = { id: "cmpl_ms", object: "chat.completion.chunk", model: "mistral-medium-latest" }
+      WebMock.stub_request(:post, "https://api.eu.mistral.ai/v1/chat/completions").to_return(sse(
+        chunk.merge(choices: [{ index: 0, delta: { role: "assistant", content: "hi" }, finish_reason: "stop" }]),
+        chunk.merge(choices: [], usage: { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000 })
+      ))
+      eu = RubyLLM.context do |config|
+        config.mistral_api_key = "test-mistral"
+        config.mistral_api_base = "https://api.eu.mistral.ai/v1"
+      end
+
+      capture_sdk_events do |events|
+        chat("mistral-medium-latest", :mistral, context: eu).ask("hi") { |_chunk| }
+        expect(events.sole).to include(stream: true, pricing_mode: "data_residency", provider_response_id: "cmpl_ms")
+        expect(costs(events)).to eq(%w[0.02475])
+      end
+    end
+
+    it "prices a stream cut off before its final usage event from RubyLLM's token counts" do
+      WebMock.stub_request(:post, messages_url).to_return(anthropic_stream(
+        usage: { input_tokens: 40, output_tokens: 1 }, delta_usage: { output_tokens: 9 }
+      ))
+
+      capture_sdk_events do |events|
+        expect { chat("claude-sonnet-4-6", :anthropic).ask("hi") { |_chunk| raise ArgumentError, "stop" } }
+          .to raise_error(ArgumentError, "stop")
+        expect(events.sole).to include(stream: true, input_tokens: 40, usage_source: "sdk_response",
+                                       provider_response_id: nil)
       end
     end
   end
@@ -234,53 +365,6 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
           .to eq([[3000, 1000], [3000, 0]])
         expect(events.map { |event| event[:cache_write_extended_input_tokens] }).to eq([3000, 4000])
         expect(events.map { |event| event[:pricing_mode] }).to all(eq("data_residency"))
-      end
-    end
-
-    it "prices a streamed Anthropic chat's server tools, request inference geo and cache TTL" do
-      WebMock.stub_request(:post, messages_url).to_return(anthropic_stream(
-        usage: { input_tokens: 50, cache_creation_input_tokens: 2000, output_tokens: 1 },
-        delta_usage: { output_tokens: 300, server_tool_use: { web_search_requests: 1 } }
-      ))
-
-      capture_sdk_events do |events|
-        chat("claude-sonnet-4-6", :anthropic).with_caching(ttl: "1h").with_provider_options(inference_geo: "us")
-                                            .ask("news?") { |_chunk| }
-        expect(events.sole).to include(stream: true, input_tokens: 50, cache_write_extended_input_tokens: 2000,
-                                       output_tokens: 300, pricing_mode: "data_residency",
-                                       usage_source: "sdk_response")
-        expect(fees(events.sole)).to eq(%w[web_search_request])
-      end
-    end
-
-    it "prices a streamed OpenAI chat's tool calls and requested service tier" do
-      response = response_object(id: "resp_s", model: "gpt-5-mini", usage: { input_tokens: 2000, output_tokens: 500 },
-                                 output: [{ type: "web_search_call", id: "ws_1", status: "completed",
-                                            action: { type: "search", query: "q" } }])
-      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(sse(
-        { type: "response.created", response: response.merge(status: "in_progress", usage: nil, output: []) },
-        { type: "response.output_item.done", output_index: 0, item: response[:output].first },
-        { type: "response.completed", response: response }
-      ))
-
-      capture_sdk_events do |events|
-        chat("gpt-5-mini", :openai).with_provider_options(service_tier: "flex").ask("news?") { |_chunk| }
-        expect(events.sole).to include(stream: true, input_tokens: 2000, output_tokens: 500, pricing_mode: "flex")
-        expect(fees(events.sole)).to eq(%w[web_search_request])
-      end
-    end
-
-    it "prices a streamed Gemini chat's grounding and its service-tier header" do
-      usage = { promptTokenCount: 1000, candidatesTokenCount: 500 }
-      WebMock.stub_request(:post, gemini_url("gemini-2.5-flash", stream: true)).to_return(
-        sse(gemini_body(usage, groundingMetadata: { webSearchQueries: %w[q1 q2] }))
-          .merge(headers: { "Content-Type" => "text/event-stream", "x-gemini-service-tier" => "priority" })
-      )
-
-      capture_sdk_events do |events|
-        chat("gemini-2.5-flash", :gemini).ask("news?") { |_chunk| }
-        expect(events.sole).to include(stream: true, input_tokens: 1000, output_tokens: 500, pricing_mode: "priority")
-        expect(fees(events.sole)).to eq(%w[grounding_request])
       end
     end
   end
@@ -346,7 +430,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
     end
 
     it "records usage outside any operation at once, and flushes an inner operation whose finish never came" do
-      tokens = RubyLLM::Tokens.new(input: 10, output: 5)
+      tokens = RubyLLM::Tokens.new(input: 10, output: 5, reported_cost: 0.0042)
       usage = { operation: :chat, provider: "anthropic", model: "claude-sonnet-4-6", status: :succeeded, tokens: tokens }
       outer = { provider: "anthropic", model: "claude-sonnet-4-6" }
       leaked = outer.dup
@@ -360,6 +444,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
 
         described_class.finish("chat.ruby_llm", "2", outer)
         expect(events.map { |event| event[:input_tokens] }).to eq([10, 10])
+        expect(costs(events)).to eq(%w[0.0042 0.0042])
         described_class.finish("chat.ruby_llm", "3", leaked)
         expect(events.size).to eq(2)
       end
@@ -443,32 +528,83 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "prices image output as image tokens, and an image without usage as unknown" do
+    it "prices a Gemini embedding's text, PDF and video tokens from the raw usageMetadata RubyLLM does not report" do
+      details = [{ modality: "TEXT", tokenCount: 5 }, { modality: "DOCUMENT", tokenCount: 258 },
+                 { modality: "VIDEO", tokenCount: 2112 }]
+      WebMock.stub_request(:post, %r{gemini-embedding-2:batchEmbedContents}).to_return(
+        reply(embeddings: [{ values: [0.123456] }], usageMetadata: { promptTokenCount: 500 }),
+        reply(embeddings: [{ values: [0.1] }], usageMetadata: { promptTokenCount: 2375, promptTokenDetails: details })
+      )
+
+      capture_sdk_events do |events|
+        embedding = RubyLLM.embed("hi", model: "gemini-embedding-2", provider: :gemini, assume_model_exists: true)
+        RubyLLM.embed("a talk", model: "gemini-embedding-2", provider: :gemini, assume_model_exists: true)
+        expect(events.map { |event| event.values_at(:input_tokens, :image_input_tokens) }).to eq([[500, 0], [2117, 258]])
+        expect(costs(events)).to eq(%w[0.0001 0.0254611])
+        expect(embedding.to_json.scan("0.123456").size).to eq(1)
+      end
+    end
+
+    it "splits gpt-image tokens, records a multi-image call once, and an image without usage as unknown" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/images/generations").to_return(
+        reply(created: 1, data: [{ url: "https://example.com/a.png" }, { url: "https://example.com/b.png" }],
+              usage: { input_tokens: 50, output_tokens: 200, input_tokens_details: { image_tokens: 30 },
+                       output_tokens_details: { image_tokens: 160 } }),
         reply(created: 1, data: [{ b64_json: "iVBORw0KGgo=" }], usage: { input_tokens: 50, output_tokens: 4160 }),
         reply(created: 1, data: [{ b64_json: "iVBORw0KGgo=" }])
       )
 
       capture_sdk_events do |events|
+        RubyLLM.paint("a cat", model: "gpt-image-1", count: 2)
         2.times { RubyLLM.paint("a fox", model: "gpt-image-1") }
-        expect(events.first).to include(input_tokens: 50, output_tokens: 0, image_output_tokens: 4160)
-        expect(events.first.dig(:cost, :total)).to eq("0.16665")
+        expect(events.map do |event|
+          event.values_at(:input_tokens, :image_input_tokens, :output_tokens, :image_output_tokens)
+        end).to eq([[20, 30, 40, 160], [50, 0, 0, 4160], [0, 0, 0, 0]])
+        expect(events[1].dig(:cost, :total)).to eq("0.16665")
         expect(events.last).to include(usage_source: "unknown", cost_status: "unknown")
       end
     end
 
-    it "prices transcription tokens at the audio rate, and a duration by the billed minute" do
-      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
-        reply(text: "hi", usage: { type: "tokens", input_tokens: 1000, output_tokens: 150, total_tokens: 1150 }),
-        reply(text: "hi", duration: 89.6, usage: { type: "duration", seconds: 90 })
-      )
+    it "prices Gemini native image output at the image rate and its text and thinking at the text rate" do
+      model = "gemini-3.1-flash-image-preview"
+      parts = [{ text: "Here is your fox." }, { inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }]
+      WebMock.stub_request(:post, gemini_url(model)).to_return(reply(
+        candidates: [{ content: { role: "model", parts: parts }, finishReason: "STOP" }],
+        usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 1145, thoughtsTokenCount: 180,
+                         candidatesTokensDetails: [{ modality: "TEXT", tokenCount: 25 },
+                                                   { modality: "IMAGE", tokenCount: 1120 }] },
+        modelVersion: model
+      ))
 
       capture_sdk_events do |events|
-        RubyLLM.transcribe(audio.path, model: "gpt-4o-transcribe", provider: :openai, assume_model_exists: true)
-        RubyLLM.transcribe(audio.path, model: "gpt-transcribe", provider: :openai, assume_model_exists: true)
-        expect(events.first).to include(input_tokens: 0, audio_input_tokens: 1000, output_tokens: 150)
-        expect(events.last[:line_items].find { |item| item[:kind] == "transcription_minute" }[:quantity]).to eq("1.5")
-        expect(costs(events)).to eq(%w[0.0075 0.00675])
+        RubyLLM.paint("a watercolor fox", model: model, provider: :gemini, assume_model_exists: true)
+        expect(events.sole).to include(input_tokens: 12, output_tokens: 205, image_output_tokens: 1120,
+                                       hidden_output_tokens: 180)
+        expect(events.sole.dig(:cost, :total)).to eq("0.067821")
+      end
+    end
+
+    it "prices transcription audio and prompt tokens apart, and a duration by the billed minute" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
+        reply(text: "hi", usage: { type: "tokens", input_tokens: 1014, output_tokens: 150, total_tokens: 1164,
+                                   input_token_details: { text_tokens: 14, audio_tokens: 1000 } }),
+        reply(text: "hi", duration: 89.6, usage: { type: "duration", seconds: 90 })
+      )
+      WebMock.stub_request(:post, gemini_url("gemini-2.5-flash")).to_return(reply(
+        candidates: [{ content: { role: "model", parts: [{ text: "hi" }] }, finishReason: "STOP" }],
+        usageMetadata: { promptTokenCount: 40, candidatesTokenCount: 5, thoughtsTokenCount: 2,
+                         promptTokensDetails: [{ modality: "TEXT", tokenCount: 10 }, { modality: "AUDIO", tokenCount: 30 }] }
+      ))
+
+      capture_sdk_events do |events|
+        %w[openai/gpt-4o-transcribe openai/gpt-transcribe gemini/gemini-2.5-flash].each do |name|
+          provider, model = name.split("/")
+          RubyLLM.transcribe(audio.path, model: model, provider: provider.to_sym, assume_model_exists: true)
+        end
+        expect(events.map { |event| event.values_at(:input_tokens, :audio_input_tokens, :output_tokens) })
+          .to eq([[14, 1000, 150], [0, 0, 0], [10, 30, 7]])
+        expect(events[1][:line_items].find { |item| item[:kind] == "transcription_minute" }[:quantity]).to eq("1.5")
+        expect(costs(events)).to eq(%w[0.007535 0.00675 0.0000505])
       end
     end
 
@@ -500,6 +636,22 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         expect(events.first[:cost_status]).to eq("free")
       end
     end
+
+    it "records the storage of a Gemini context cache created with RubyLLM.cache, once, not on find or renew" do
+      url = "https://generativelanguage.googleapis.com/v1beta/cachedContents"
+      cache = { name: "cachedContents/abc123", model: "models/gemini-2.5-flash", createTime: "2026-09-27T10:00:00.123456Z",
+                expireTime: "2026-09-27T11:00:00.123456Z", usageMetadata: { totalTokenCount: 250_000 } }
+      WebMock.stub_request(:post, url).to_return(reply(cache))
+      WebMock.stub_request(:get, "#{url}/abc123").to_return(reply(cache))
+      WebMock.stub_request(:patch, "#{url}/abc123").to_return(reply(cache))
+
+      capture_sdk_events do |events|
+        created = RubyLLM.cache("document", model: "gemini-2.5-flash", provider: :gemini, ttl: 3600)
+        RubyLLM::CachedContent.find(created.name, provider: :gemini).renew(ttl: 3600)
+        expect(events.sole).to include(model: "gemini-2.5-flash", provider_response_id: "cachedContents/abc123")
+        expect(events.sole.dig(:cost, :total)).to eq("0.25")
+      end
+    end
   end
 
   describe "install and status" do
@@ -520,9 +672,38 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       RubyLLM.config.instrumenter = ActiveSupport::Notifications
     end
 
-    it "subscribes once however often it is installed" do
+    it "subscribes and bridges each RubyLLM seam once however often it is installed" do
+      bridge = described_class::BuildChunkBridge
+
       expect { described_class.install }
         .not_to(change { ActiveSupport::Notifications.notifier.listeners_for("usage.ruby_llm").size })
+      expect(RubyLLM::Protocols::Anthropic.ancestors.count(bridge)).to eq(1)
+      expect(RubyLLM::Protocols::Anthropic.instance_method(:build_chunk).owner).to eq(bridge)
+    end
+
+    it "skips a RubyLLM seam that is missing and names it in doctor" do
+      seams = described_class::SEAMS.merge(build_chunk: %w[Protocols::Anthropic Protocols::Deepgram Protocols::Gone])
+      stub_const("#{described_class}::SEAMS", seams)
+
+      expect { described_class.install }.not_to raise_error
+      expect(RubyLLM::Protocols::Deepgram.private_method_defined?(:build_chunk)).to be(false)
+      expect(described_class.status).to have_attributes(
+        status: :warn, message: /not read: RubyLLM::Protocols::Deepgram#build_chunk, RubyLLM::Protocols::Gone#build_chunk\z/
+      )
+    end
+
+    it "keeps a RubyLLM call running when reading its seam fails, and prices it from RubyLLM's token counts" do
+      WebMock.stub_request(:post, messages_url).to_return(anthropic_stream(
+        usage: { input_tokens: 40, output_tokens: 1 }, delta_usage: { output_tokens: 9 }
+      ))
+      allow(described_class::Attempt).to receive(:stream_window).and_raise(StandardError, "window broke")
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      capture_sdk_events do |events|
+        expect(chat("claude-sonnet-4-6", :anthropic).ask("hi") { |_chunk| }.content).to eq("hi")
+        expect(events.sole).to include(input_tokens: 40, output_tokens: 9, provider_response_id: nil)
+      end
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(/window broke/).at_least(:once)
     end
 
     it "cannot be installed when RubyLLM is not loaded" do

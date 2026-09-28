@@ -49,7 +49,7 @@ module LlmCostTracker
         end
 
         def self.uncached_prompt_tokens(usage, modality)
-          prompt = modality_tokens(usage["promptTokensDetails"], modality)
+          prompt = modality_tokens(usage["promptTokensDetails"] || usage["promptTokenDetails"], modality)
           cached = modality_tokens(usage["cacheTokensDetails"], modality)
           [prompt - cached, 0].max
         end

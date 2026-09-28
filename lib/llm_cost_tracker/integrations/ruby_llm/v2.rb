@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require "json"
 require "active_support/notifications"
 require_relative "../base"
+require_relative "v2/attempt"
 
 module LlmCostTracker
   module Integrations
@@ -16,8 +16,25 @@ module LlmCostTracker
         OPERATIONS = %w[chat compaction embedding image transcription moderation speech ocr rerank].freeze
         EVENTS = [*OPERATIONS, "request", "usage"].map { |name| "#{name}.ruby_llm" }.freeze
         FRAMES = :llm_cost_tracker_ruby_llm_frames
-        REFUSED = { input_tokens: 0, output_tokens: 0 }.freeze
-        Frame = Struct.new(:payload, :attempts, :request_started_at, :latency_ms)
+        CACHE_CREATED = :llm_cost_tracker_ruby_llm_cache_created
+        SEAMS = {
+          build_chunk: %w[Protocols::Anthropic Protocols::ChatCompletions Protocols::Responses Protocols::Gemini
+                          Protocols::Interactions Providers::OpenRouter::ChatCompletions],
+          parse_embedding_response: %w[Protocols::ChatCompletions Protocols::Gemini],
+          parse_transcription_response: %w[Protocols::ChatCompletions Protocols::Gemini],
+          parse_image_responses: %w[Protocols::ChatCompletions Protocols::Gemini],
+          parse_cache_response: %w[Protocols::Gemini]
+        }.freeze
+        BRIDGES = SEAMS.keys.to_h do |seam|
+          bridge = Module.new do
+            define_method(seam) do |value, *args, **options, &block|
+              V2.observe(seam, value)
+              super(value, *args, **options, &block)
+            end
+          end
+          [seam, const_set("#{seam.to_s.camelize}Bridge", bridge)]
+        end.freeze
+        Frame = Struct.new(:payload, :attempts, :request_started_at, :latency_ms, :window, :response)
 
         class << self
           def integration_name = :ruby_llm
@@ -27,6 +44,11 @@ module LlmCostTracker
             Logging.warn(untested_version_message) if untested_version?
             @subscriptions ||= EVENTS.map { |name| ActiveSupport::Notifications.subscribe(name, self) }
             RubyLLM.config.instrumenter ||= ActiveSupport::Notifications
+            SEAMS.each do |seam, targets|
+              targets.filter_map { |target| seam_owner(target, seam) }.each do |owner|
+                owner.prepend(BRIDGES[seam]) unless owner.ancestors.include?(BRIDGES[seam])
+              end
+            end
           end
 
           def status
@@ -39,10 +61,16 @@ module LlmCostTracker
             return Check.new(:warn, name, "#{name} integration is enabled but not installed") unless @subscriptions
 
             instrumenter = RubyLLM.config.instrumenter
-            return Check.new(:ok, name, "#{name} integration installed") if instrumenter == ActiveSupport::Notifications
+            unless instrumenter == ActiveSupport::Notifications
+              message = "RubyLLM.config.instrumenter is #{instrumenter.inspect}, not ActiveSupport::Notifications, " \
+                        "so RubyLLM calls are not recorded"
+              return Check.new(:warn, name, message)
+            end
+            missing = missing_seams
+            return Check.new(:ok, name, "#{name} integration installed") if missing.empty?
 
-            message = "RubyLLM.config.instrumenter is #{instrumenter.inspect}, not ActiveSupport::Notifications, " \
-                      "so RubyLLM calls are not recorded"
+            message = "#{name} integration installed, but these RubyLLM methods are missing, so the provider usage " \
+                      "they carry is not read: #{missing.join(', ')}"
             Check.new(:warn, name, message)
           end
 
@@ -57,14 +85,38 @@ module LlmCostTracker
           def finish(name, _id, payload)
             case name
             when "usage.ruby_llm" then add_attempt(payload)
-            when "request.ruby_llm" then finish_request
+            when "request.ruby_llm" then finish_request(payload)
             else finish_operation(payload)
+            end
+          end
+
+          def observe(seam, value)
+            record_safely do
+              next record_cache_storage(value) if seam == :parse_cache_response
+
+              frame = frames.last
+              next unless frame
+              next frame.response = value unless seam == :build_chunk
+
+              (frame.window ||= Attempt.stream_window).push(value)
             end
           end
 
           private
 
           def target_problems = defined?(RubyLLM.config) ? [] : ["RubyLLM is not loaded"]
+
+          def missing_seams
+            SEAMS.flat_map do |seam, targets|
+              targets.reject { |target| seam_owner(target, seam) }.map { |target| "RubyLLM::#{target}##{seam}" }
+            end
+          end
+
+          def seam_owner(target, seam)
+            "RubyLLM::#{target}".safe_constantize&.instance_method(seam)&.owner
+          rescue NameError
+            nil
+          end
 
           def frames = Thread.current[FRAMES] ||= []
 
@@ -89,175 +141,47 @@ module LlmCostTracker
             frame&.latency_ms = nil
           end
 
-          def finish_request
+          def finish_request(payload)
+            Thread.current[CACHE_CREATED] = payload[:provider].to_s == "gemini" && payload[:method] == :post &&
+                                            payload[:url].to_s.end_with?("cachedContents")
             frame = frames.last
             frame.latency_ms = Timing.elapsed_ms(frame.request_started_at) if frame&.request_started_at
           end
 
+          def record_cache_storage(data)
+            return unless Thread.current[CACHE_CREATED] && active?
+
+            event = Providers::Gemini::Parser.new.cache_storage_event(data)
+            LlmCostTracker::Tracker.record(event: event) if event
+          end
+
           def add_attempt(usage)
             frame = frames.last
-            return frame.attempts << [usage, frame.latency_ms] if frame
-            return unless active?
-
-            record_safely { record_attempt(usage, {}, nil, final: false) }
+            if frame
+              frame.attempts << [usage, frame.latency_ms, frame.window&.events]
+              frame.window = nil
+            elsif active?
+              record_safely { record_attempt(usage, {}, nil, final: false) }
+            end
           end
 
           def flush(frame)
-            final = frame.attempts.rindex { |usage, _| usage[:status] == :succeeded }
-            frame.attempts.each_with_index.filter_map do |(usage, latency_ms), index|
-              record_safely { record_attempt(usage, frame.payload, latency_ms, final: index == final) }
+            final = frame.attempts.rindex { |usage, *| usage[:status] == :succeeded }
+            frame.attempts.each_with_index.filter_map do |(usage, latency_ms, events), index|
+              attempt = { final: index == final, events: events, response: frame.response }
+              record_safely { record_attempt(usage, frame.payload, latency_ms, **attempt) }
               nil
             rescue *CALLER_ERRORS => e
               e
             end
           end
 
-          def record_attempt(usage, payload, latency_ms, final:)
-            result = payload[:response] || payload[:result] if final
-            raw = result.try(:raw)
-            raw = nil unless raw.is_a?(Faraday::Response)
-            event = parsed_event(usage[:provider], raw) || normalized_event(usage, payload, result, raw)
+          def record_attempt(usage, payload, latency_ms, **attempt)
+            event = Attempt.event(usage, payload, **attempt)
             return unless event
 
             workflow = { workflow: usage[:workflow_name], workflow_step: usage[:workflow_step_name] }.compact
             LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms, metadata: workflow)
-          end
-
-          def parsed_event(provider, raw)
-            body = raw&.body
-            return unless body.is_a?(Hash)
-
-            response = { request_url: raw.env.url.to_s, request_body: raw.env.request_body,
-                         response_status: raw.status, response_body: body, response_headers: raw.headers }
-            event =
-              if body["type"] == "message" then Providers::Anthropic::Parser.new.parse(**response)
-              elsif body.key?("usageMetadata") || body["object"] == "interaction"
-                Providers::Gemini::Parser.new.parse(**response)
-              elsif %w[response chat.completion].include?(body["object"])
-                Providers::Openai::ResponseParser.event_from_response(
-                  response: body,
-                  request: request_params(raw),
-                  provider: provider,
-                  host: raw.env.url.host,
-                  usage_source: Usage::Source::SDK_RESPONSE
-                )
-              end
-            event&.with(provider: provider, usage_source: Usage::Source::SDK_RESPONSE)
-          end
-
-          def normalized_event(usage, payload, result, raw)
-            tokens = usage[:tokens]
-            return if usage[:status] != :succeeded && tokens.to_h == REFUSED
-
-            provider = usage[:provider]
-            model = payload[:response_model] || usage[:model]
-            request = request_params(raw)
-            known = tokens.to_h.any? || !tokens.reported_cost.nil?
-            line_items = if known
-                           service_line_items(model, tokens, result, request)
-                         else
-                           duration_line_items(usage, result)
-                         end
-            source = usage_source(usage, known || line_items.any?, result)
-            return unless source
-
-            Event.build(
-              provider: provider,
-              model: model,
-              token_usage: token_usage(usage, model, raw, payload[:caching]),
-              pricing_mode: pricing_mode(provider, model, request, raw),
-              stream: payload[:streaming],
-              usage_source: source,
-              provider_response_id: result.try(:id),
-              service_line_items: line_items
-            )
-          end
-
-          def usage_source(usage, known, result)
-            return Usage::Source::SDK_RESPONSE if known
-            return Usage::Source::UNKNOWN unless usage[:status] == :succeeded
-            return if result.nil? || usage[:operation] == :chat
-
-            usage[:operation] == :moderation ? Usage::Source::SDK_RESPONSE : Usage::Source::UNKNOWN
-          end
-
-          def token_usage(usage, model, raw, caching)
-            tokens = usage[:tokens]
-            input = tokens.input.to_i
-            output = tokens.output.to_i
-            audio = usage[:operation] == :transcription && audio_priced?(usage[:provider], model) ? input : 0
-            image = usage[:operation] == :image ? output : 0
-            five_minute, one_hour = cache_writes(tokens.cache_write.to_i, raw, caching.try(:[], :ttl))
-            Usage::TokenUsage.build(
-              input_tokens: input - audio,
-              audio_input_tokens: audio,
-              output_tokens: output - image,
-              image_output_tokens: image,
-              cache_read_input_tokens: tokens.cache_read.to_i,
-              cache_write_input_tokens: five_minute,
-              cache_write_extended_input_tokens: one_hour,
-              hidden_output_tokens: tokens.thinking.to_i
-            )
-          end
-
-          def audio_priced?(provider, model)
-            LlmCostTracker::Pricing::Matcher.lookup(provider: provider, model: model)&.prices&.key?("audio_input")
-          end
-
-          def cache_writes(total, raw, ttl)
-            details = raw.body.dig("usage", "cacheDetails") if raw&.body.is_a?(Hash)
-            one_hour = if details.is_a?(Array)
-                         details.grep(Hash).sum { |detail| detail["ttl"] == "1h" ? detail["inputTokens"].to_i : 0 }
-                       else
-                         ttl.to_s == "1h" ? total : 0
-                       end
-            [[total - one_hour, 0].max, one_hour]
-          end
-
-          def service_line_items(model, tokens, result, request)
-            if tokens.reported_cost
-              return Providers::Openai::ServiceCharges.billed_line_items(cost: tokens.reported_cost)
-            end
-
-            calls = Array(result.try(:server_tool_calls)).map(&:raw).grep(Hash)
-            grounding = { "candidates" => calls.map { |call| { "groundingMetadata" => call } } }
-            server_tool_use = tokens.server_tool_use&.symbolize_keys
-            Providers::Anthropic::UsageExtractor.service_line_items(server_tool_use: server_tool_use) +
-              Providers::Openai::ServiceCharges.line_items_from_output(calls, request: request, model: model) +
-              Providers::Gemini::Parser.new.service_line_items_for(grounding, model: model)
-          end
-
-          def duration_line_items(usage, result)
-            seconds = result.try(:duration) if usage[:operation] == :transcription
-            return [] unless seconds
-
-            Providers::Openai::ServiceCharges.transcription_line_items(type: "duration", seconds: seconds.to_f.ceil)
-          end
-
-          def pricing_mode(provider, model, request, raw)
-            case provider
-            when "anthropic", "bedrock"
-              Providers::Anthropic::UsageExtractor.pricing_mode(request: request.merge(model: model), usage: nil)
-            when "gemini"
-              Providers::Gemini::Parser.new.pricing_mode(request: request, usage: nil, response_headers: raw&.headers)
-            else
-              Providers::Openai::ResponseParser.combined_pricing_mode(
-                provider: provider, host: host(provider, raw), model: model, service_tier: request[:service_tier]
-              )
-            end
-          end
-
-          def host(provider, raw)
-            base = raw ? raw.env.url : RubyLLM.config.try("#{provider}_api_base")
-            URI(base.to_s).host if base
-          end
-
-          def request_params(raw)
-            body = raw&.env&.request_body
-            params = body.is_a?(String) ? JSON.parse(body) : body
-            (params.is_a?(Hash) ? params : {}).with_indifferent_access
-          rescue JSON::ParserError
-            {}.with_indifferent_access
           end
 
           def budget_request(payload)

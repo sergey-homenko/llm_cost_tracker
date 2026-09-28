@@ -62,7 +62,7 @@ Captured SDK helpers:
 
 The returned stream object is preserved. Usage is recorded after the stream is consumed. If iterating an official OpenAI or Anthropic SDK stream raises, or a `track_stream` block raises, the call is still recorded from the events received so far and tagged `stream_errored: true`.
 
-RubyLLM 1.x streaming records token usage and cost, and reads from the stream events the fields a blocking call reads from the raw response body; Bedrock streams keep only RubyLLM's token counts. A RubyLLM 2.x stream is priced from RubyLLM's token counts and the request, with no response id (see [Pricing](pricing.md)).
+RubyLLM streaming records token usage and cost, and reads from the stream events the fields a blocking call reads from the raw response body; Bedrock Converse streams keep only RubyLLM's token counts, and so, on RubyLLM 2.x, does a stream cut off before its final usage event (see [Pricing](pricing.md)).
 
 Tags are snapshotted when the stream starts, so delayed or cross-thread consumption keeps the original request/user attribution.
 
