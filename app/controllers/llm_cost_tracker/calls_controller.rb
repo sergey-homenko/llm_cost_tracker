@@ -7,6 +7,7 @@ module LlmCostTracker
   class CallsController < ApplicationController
     CSV_EXPORT_LIMIT = 10_000
     CSV_EXPORT_BATCH_SIZE = 500
+    CSV_EXPORT_MYSQL_HINT = "NO_SKIP_SCAN(llm_cost_tracker_calls)"
     CSV_FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"].freeze
     DEFAULT_TIEBREAKER = { tracked_at: :desc, id: :desc }.freeze
     SORT_OPTIONS = %w[tracked_at provider model input output cost latency].freeze
@@ -68,14 +69,11 @@ module LlmCostTracker
     end
 
     def each_export_batch(relation, &)
-      offset = 0
-      while offset < CSV_EXPORT_LIMIT
-        batch_size = [CSV_EXPORT_BATCH_SIZE, CSV_EXPORT_LIMIT - offset].min
-        batch = relation.limit(batch_size).offset(offset).preload(:tag_records).to_a
-        break if batch.empty?
-
-        batch.each(&)
-        offset += batch.size
+      scope = relation.limit(CSV_EXPORT_LIMIT)
+      scope = scope.optimizer_hints(CSV_EXPORT_MYSQL_HINT) if Ledger::Schema::Adapter.mysql?(scope.connection)
+      scope.pluck(:id).each_slice(CSV_EXPORT_BATCH_SIZE) do |ids|
+        calls = LlmCostTracker::Call.where(id: ids).preload(:tag_records).index_by(&:id)
+        calls.values_at(*ids).compact.each(&)
       end
     end
 

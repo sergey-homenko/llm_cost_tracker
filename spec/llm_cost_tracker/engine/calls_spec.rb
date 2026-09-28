@@ -383,6 +383,35 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).not_to include("claude-haiku-4-5")
   end
 
+  it "exports every sort in the page's order across batch boundaries, up to the export limit" do
+    stub_const("LlmCostTracker::CallsController::CSV_EXPORT_BATCH_SIZE", 2)
+    stub_const("LlmCostTracker::CallsController::CSV_EXPORT_LIMIT", 7)
+    create_tied_export_calls
+    sorts = %w[tracked_at provider model input output cost latency].product(%w[asc desc])
+
+    csv_orders = sorts.to_h { |sort, dir| [[sort, dir], csv_labels("sort=#{sort}&dir=#{dir}")] }
+    page_orders = sorts.to_h { |sort, dir| [[sort, dir], page_labels("sort=#{sort}&dir=#{dir}").first(7)] }
+
+    expect(csv_orders).to eq(page_orders)
+  end
+
+  it "exports only filtered calls in batches without OFFSET, keeping MySQL off index skip scans" do
+    stub_const("LlmCostTracker::CallsController::CSV_EXPORT_BATCH_SIZE", 2)
+    create_tied_export_calls
+    sql = []
+    record_sql = ->(*, payload) { sql << payload[:sql] }
+    mysql_hints = LlmCostTracker::Ledger::Schema::Adapter.mysql?(ActiveRecord::Base.connection) ? 1 : 0
+
+    labels = ActiveSupport::Notifications.subscribed(record_sql, "sql.active_record") do
+      csv_labels("provider=openai&tag%5Bfeature%5D=chat&sort=cost&dir=asc")
+    end
+
+    expect(labels).to eq(%w[row-3 row-0 row-5 row-1])
+    expect(sql.grep(/OFFSET/i)).to be_empty
+    expect(sql.grep(/llm_cost_tracker_calls\W?\.\*/).size).to eq(2)
+    expect(sql.grep(/NO_SKIP_SCAN/).size).to eq(mysql_hints)
+  end
+
   it "prefixes CSV values that look like spreadsheet formulas" do
     create_call(
       provider: "openai",
@@ -461,5 +490,33 @@ RSpec.describe "LlmCostTracker::Engine calls" do
 
     expect(response.status).to eq(200)
     expect(response.body).to include("{}")
+  end
+
+  def create_tied_export_calls
+    late = Time.utc(2026, 4, 18, 12)
+    early = Time.utc(2026, 4, 18, 11)
+    [
+      ["openai", "gpt-4o", 10, 5, 2.0, 100, late, { feature: "chat" }],
+      ["openai", "gpt-4o", 10, 5, nil, nil, late, { feature: "chat" }],
+      ["anthropic", "claude-haiku-4-5", 20, 5, 2.0, 100, late, {}],
+      ["openai", "gpt-4o-mini", 10, 7, 1.0, nil, early, { feature: "chat" }],
+      ["anthropic", "claude-haiku-4-5", 20, 7, nil, 300, late, {}],
+      ["openai", "gpt-4o", 10, 5, 2.0, 100, early, { feature: "chat" }],
+      ["openai", "gpt-4o-mini", 20, 5, 1.0, 300, late, {}],
+      ["anthropic", "claude-haiku-4-5", 10, 7, nil, nil, early, { feature: "chat" }],
+      ["openai", "gpt-4o", 20, 7, 2.0, 100, late, {}]
+    ].each_with_index do |(provider, model, input, output, cost, latency, tracked_at, tags), index|
+      create_call(provider: provider, model: model, input_tokens: input, output_tokens: output, total_cost: cost,
+                  latency_ms: latency, tracked_at: tracked_at, tags: tags, provider_response_id: "row-#{index}")
+    end
+  end
+
+  def csv_labels(query)
+    get("/llm-costs/calls.csv?#{query}").body.scan(/row-\d+/)
+  end
+
+  def page_labels(query)
+    labels = LlmCostTracker::Call.pluck(:id, :provider_response_id).to_h
+    get("/llm-costs/calls?#{query}&per=200").body.scan(%r{/llm-costs/calls/(\d+)"}).map { |(id)| labels.fetch(id.to_i) }
   end
 end
