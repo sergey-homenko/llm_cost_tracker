@@ -1,0 +1,473 @@
+# frozen_string_literal: true
+
+require "tempfile"
+
+module AccountingCases
+  GEMINI_PAINT_ON_RUBY_LLM_1 = "Gemini image models paint through generateContent only on RubyLLM 2.x"
+  CONTEXT_TRANSCRIBE_ON_RUBY_LLM_1 = "RubyLLM::Context#transcribe exists only on RubyLLM 2.x"
+  PNG_PART = { inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }.freeze
+
+  def ruby_llm_chat(model, provider, context: RubyLLM)
+    context.chat(model: model, provider: provider, assume_model_exists: true)
+  end
+
+  def stub_ruby_llm_openai(host:, id:, model:, usage:, service_tier: nil)
+    stub_json(:post, "https://#{host}/v1/chat/completions",
+              chat_completion(id: id, model: model, usage: usage, service_tier: service_tier))
+    responses = usage && {
+      input_tokens: usage[:prompt_tokens], output_tokens: usage[:completion_tokens], total_tokens: usage[:total_tokens],
+      input_tokens_details: { cached_tokens: usage.dig(:prompt_tokens_details, :cached_tokens).to_i },
+      output_tokens_details: { reasoning_tokens: usage.dig(:completion_tokens_details, :reasoning_tokens).to_i }
+    }
+    stub_json(:post, "https://#{host}/v1/responses",
+              responses_object(id: id, model: model, usage: responses, service_tier: service_tier))
+  end
+
+  def ruby_llm_transcribe(model, provider, context: RubyLLM)
+    Tempfile.create(["clip", ".wav"]) do |file|
+      file.binmode
+      file.write("RIFF....WAVEfmt ")
+      file.flush
+      context.transcribe(file.path, model: model, provider: provider, assume_model_exists: true)
+    end
+  end
+
+  def gemini_paint_response(model, usage, parts: [PNG_PART])
+    { candidates: [{ content: { role: "model", parts: parts }, finishReason: "STOP" }], usageMetadata: usage,
+      modelVersion: model }
+  end
+
+  define_case "ruby_llm openai chat: cached and reasoning tokens", instrument: :ruby_llm do
+    stub_ruby_llm_openai(host: "api.openai.com", id: "chatcmpl_rl1", model: "gpt-4o",
+                         usage: chat_usage(100, 30, cached: 25, reasoning: 8))
+    ruby_llm_chat("gpt-4o", :openai).ask("hi")
+  end
+
+  define_case "ruby_llm openai chat: response without usage records nothing", instrument: :ruby_llm do
+    stub_ruby_llm_openai(host: "api.openai.com", id: "chatcmpl_rl2", model: "gpt-4o", usage: nil)
+    ruby_llm_chat("gpt-4o", :openai).ask("hi")
+  end
+
+  define_case "ruby_llm openai chat: gpt-5.4 on the eu host", instrument: :ruby_llm do
+    stub_ruby_llm_openai(host: "eu.api.openai.com", id: "chatcmpl_rl3", model: "gpt-5.4",
+                         usage: chat_usage(10_000, 1000))
+    context = RubyLLM.context { |config| config.openai_api_base = "https://eu.api.openai.com/v1" }
+    ruby_llm_chat("gpt-5.4", :openai, context: context).ask("hi")
+  end
+
+  define_case "ruby_llm openai chat: o3 served on flex", instrument: :ruby_llm do
+    stub_ruby_llm_openai(host: "api.openai.com", id: "chatcmpl_rl4", model: "o3",
+                         usage: chat_usage(20_000, 3000, reasoning: 2000), service_tier: "flex")
+    ruby_llm_chat("o3", :openai).ask("hi")
+  end
+
+  define_case "ruby_llm openai chat: default service tier", instrument: :ruby_llm do
+    stub_ruby_llm_openai(host: "api.openai.com", id: "chatcmpl_rl5", model: "gpt-4o", usage: chat_usage(1000, 100),
+                         service_tier: "default")
+    ruby_llm_chat("gpt-4o", :openai).ask("hi")
+  end
+
+  define_case "ruby_llm openai chat: gpt-5.4 long context with cached tokens", instrument: :ruby_llm do
+    stub_ruby_llm_openai(host: "api.openai.com", id: "chatcmpl_rl6", model: "gpt-5.4",
+                         usage: chat_usage(300_000, 2000, cached: 100_000))
+    ruby_llm_chat("gpt-5.4", :openai).ask("hi")
+  end
+
+  define_case "ruby_llm openai chat stream: cached tokens", instrument: :ruby_llm do
+    stub_sse(:post, "#{OPENAI_API}/chat/completions",
+             chat_stream_body(id: "chatcmpl_rl7", model: "gpt-4o", usage: chat_usage(1000, 200, cached: 100)))
+    stub_sse(:post, "#{OPENAI_API}/responses",
+             responses_stream_body(id: "chatcmpl_rl7", model: "gpt-4o", usage: responses_usage(1000, 200, cached: 100)))
+    ruby_llm_chat("gpt-4o", :openai).ask("hi") { nil }
+  end
+
+  define_case "ruby_llm anthropic chat: sonnet-4-5", instrument: :ruby_llm do
+    stub_json(:post, ANTHROPIC_MESSAGES,
+              anthropic_message(id: "msg_rl1", model: "claude-sonnet-4-5", usage: anthropic_usage(2000, 500)))
+    ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat: 5m and 1h cache writes", instrument: :ruby_llm do
+    stub_json(:post, ANTHROPIC_MESSAGES,
+              anthropic_message(id: "msg_rl2", model: "claude-sonnet-4-5",
+                                usage: anthropic_usage(10, 5, cache_5m: 100, cache_1h: 200)))
+    ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat: us inference geo", instrument: :ruby_llm do
+    stub_json(:post, ANTHROPIC_MESSAGES,
+              anthropic_message(id: "msg_rl3", model: "claude-sonnet-4-6",
+                                usage: { input_tokens: 10_000, output_tokens: 1000, inference_geo: "us" }))
+    ruby_llm_chat("claude-sonnet-4-6", :anthropic).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat: fast speed on opus-5-5", instrument: :ruby_llm do
+    stub_json(:post, ANTHROPIC_MESSAGES,
+              anthropic_message(id: "msg_rl4", model: "claude-opus-5-5",
+                                usage: { input_tokens: 10_000, output_tokens: 1000, speed: "fast" }))
+    ruby_llm_chat("claude-opus-5-5", :anthropic).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat: served on priority", instrument: :ruby_llm do
+    stub_json(:post, ANTHROPIC_MESSAGES,
+              anthropic_message(id: "msg_rl5", model: "claude-sonnet-4-5",
+                                usage: { input_tokens: 10, output_tokens: 5, service_tier: "priority" }))
+    ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat: served on the batch tier", instrument: :ruby_llm do
+    stub_json(:post, ANTHROPIC_MESSAGES,
+              anthropic_message(id: "msg_rl6", model: "claude-sonnet-4-5",
+                                usage: { input_tokens: 10, output_tokens: 5, service_tier: "batch" }))
+    ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat: served on the standard tier", instrument: :ruby_llm do
+    stub_json(:post, ANTHROPIC_MESSAGES,
+              anthropic_message(id: "msg_rl6b", model: "claude-sonnet-4-5",
+                                usage: { input_tokens: 10_000, output_tokens: 500, service_tier: "standard" }))
+    ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat: pause_turn continuation with 5m cache writes", instrument: :ruby_llm do
+    stub_json_sequence(
+      :post, ANTHROPIC_MESSAGES,
+      anthropic_message(id: "msg_seg1", model: "claude-sonnet-4-6", stop_reason: "pause_turn",
+                        usage: { input_tokens: 20, output_tokens: 200, cache_creation_input_tokens: 8000,
+                                 cache_creation: { ephemeral_5m_input_tokens: 8000, ephemeral_1h_input_tokens: 0 } }),
+      anthropic_message(id: "msg_seg2", model: "claude-sonnet-4-6",
+                        usage: { input_tokens: 30, output_tokens: 400, cache_read_input_tokens: 8000,
+                                 cache_creation_input_tokens: 1500,
+                                 cache_creation: { ephemeral_5m_input_tokens: 1500, ephemeral_1h_input_tokens: 0 } })
+    )
+    ruby_llm_chat("claude-sonnet-4-6", :anthropic).ask("research")
+  end
+
+  define_case "ruby_llm anthropic chat stream: 5m cache writes", instrument: :ruby_llm do
+    stub_sse(:post, ANTHROPIC_MESSAGES,
+             anthropic_stream_body(id: "msg_rl7", model: "claude-haiku-4-5",
+                                   start_usage: anthropic_usage(11, 1, cache_5m: 500),
+                                   delta_usage: { output_tokens: 9 }))
+    ruby_llm_chat("claude-haiku-4-5", :anthropic).ask("hi") { nil }
+  end
+
+  define_case "ruby_llm anthropic chat stream: cache writes grow after message_start", instrument: :ruby_llm do
+    start = { input_tokens: 79, cache_creation_input_tokens: 2600, cache_read_input_tokens: 0,
+              cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 2600 }, output_tokens: 3 }
+    delta = { input_tokens: 79, cache_creation_input_tokens: 7924, cache_read_input_tokens: 2600, output_tokens: 510 }
+    stub_sse(:post, ANTHROPIC_MESSAGES,
+             anthropic_stream_body(id: "msg_rl8", model: "claude-sonnet-4-6", start_usage: start, delta_usage: delta))
+    ruby_llm_chat("claude-sonnet-4-6", :anthropic).ask("hi") { nil }
+  end
+
+  define_case "ruby_llm gemini chat: thoughts tokens", instrument: :ruby_llm do
+    stub_json(:post, gemini_url("gemini-2.5-flash"),
+              gemini_response(model: "gemini-2.5-flash", id: "rlg1",
+                              usage: gemini_usage(prompt: 1000, candidates: 300, thoughts: 200)))
+    ruby_llm_chat("gemini-2.5-flash", :gemini).ask("hi")
+  end
+
+  define_case "ruby_llm gemini chat: image prompt", instrument: :ruby_llm do
+    stub_json(:post, gemini_url("gemini-2.5-flash"),
+              gemini_response(model: "gemini-2.5-flash", id: "rlg2",
+                              usage: gemini_usage(prompt: 1300, candidates: 200,
+                                                  prompt_details: modalities(TEXT: 10, IMAGE: 1290))))
+    ruby_llm_chat("gemini-2.5-flash", :gemini).ask("hi")
+  end
+
+  define_case "ruby_llm gemini chat: cached tokens", instrument: :ruby_llm do
+    stub_json(:post, gemini_url("gemini-2.5-flash"),
+              gemini_response(model: "gemini-2.5-flash", id: "rlg3",
+                              usage: gemini_usage(prompt: 10_000, candidates: 300, cached: 6000)))
+    ruby_llm_chat("gemini-2.5-flash", :gemini).ask("hi")
+  end
+
+  define_case "ruby_llm gemini chat: priority service tier", instrument: :ruby_llm do
+    stub_json(:post, gemini_url("gemini-2.5-flash"),
+              gemini_response(model: "gemini-2.5-flash", id: "rlg4",
+                              usage: gemini_usage(prompt: 10_000, candidates: 300, service_tier: "priority")))
+    ruby_llm_chat("gemini-2.5-flash", :gemini).ask("hi")
+  end
+
+  define_case "ruby_llm gemini chat stream: thoughts on the standard tier", instrument: :ruby_llm do
+    usage = gemini_usage(prompt: 5, candidates: 1, thoughts: 18, service_tier: "standard")
+    stub_sse(:post, gemini_url("gemini-2.5-flash", stream: true),
+             sse(gemini_response(model: "gemini-2.5-flash", id: "rlg5", usage: usage)))
+    ruby_llm_chat("gemini-2.5-flash", :gemini).ask("hi") { nil }
+  end
+
+  define_case "ruby_llm gemini chat: 2.5-pro long context with thoughts", instrument: :ruby_llm do
+    stub_json(:post, gemini_url("gemini-2.5-pro"),
+              gemini_response(model: "gemini-2.5-pro", id: "rlg6",
+                              usage: gemini_usage(prompt: 250_000, candidates: 3000, thoughts: 1000)))
+    ruby_llm_chat("gemini-2.5-pro", :gemini).ask("hi")
+  end
+
+  define_case "ruby_llm openai embed: text-embedding-3-small", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/embeddings",
+              { object: "list", model: "text-embedding-3-small", data: [{ embedding: [0.1] }],
+                usage: { prompt_tokens: 7000, total_tokens: 7000 } })
+    RubyLLM.embed("hi", model: "text-embedding-3-small", provider: :openai, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm gemini embed: response without usage", instrument: :ruby_llm do
+    url = %r{generativelanguage\.googleapis\.com/v1beta/models/gemini-embedding-001:(batchEmbedContents|embedContent)}
+    stub_json(:post, url, { embeddings: [{ values: [0.1] }], embedding: { values: [0.1] } })
+    RubyLLM.embed("hi", model: "gemini-embedding-001", provider: :gemini, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm openai paint: gpt-image-1", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/images/generations",
+              { created: 1, data: [{ url: "https://example.com/a.png" }],
+                usage: { input_tokens: 50, output_tokens: 100, input_tokens_details: { image_tokens: 30 },
+                         output_tokens_details: { image_tokens: 80 } } })
+    RubyLLM.paint("a cat", model: "gpt-image-1", provider: :openai, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm openai paint: response without usage", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/images/generations", { created: 1, data: [{ url: "https://example.com/a.png" }] })
+    RubyLLM.paint("a cat", model: "gpt-image-1", provider: :openai, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm gemini paint: 3.1-flash-image-preview",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: GEMINI_PAINT_ON_RUBY_LLM_1 do
+    model = "gemini-3.1-flash-image-preview"
+    usage = { promptTokenCount: 12, candidatesTokenCount: 1120, totalTokenCount: 1132,
+              candidatesTokensDetails: modalities(IMAGE: 1120) }
+    stub_json(:post, gemini_url(model), gemini_paint_response(model, usage))
+    RubyLLM.paint("a watercolor fox", model: model, provider: :gemini, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm gemini paint: 2.5-flash-image",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: GEMINI_PAINT_ON_RUBY_LLM_1 do
+    model = "gemini-2.5-flash-image"
+    usage = { promptTokenCount: 12, candidatesTokenCount: 1290, totalTokenCount: 1302,
+              candidatesTokensDetails: modalities(IMAGE: 1290) }
+    stub_json(:post, gemini_url(model), gemini_paint_response(model, usage))
+    RubyLLM.paint("a watercolor fox", model: model, provider: :gemini, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm openai transcribe: gpt-4o-transcribe token usage", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/audio/transcriptions",
+              { text: "hi", usage: { type: "tokens", input_tokens: 1200, output_tokens: 300, total_tokens: 1500,
+                                     input_token_details: { audio_tokens: 1150, text_tokens: 50 } } })
+    ruby_llm_transcribe("gpt-4o-transcribe", :openai)
+  end
+
+  define_case "ruby_llm openai transcribe: gpt-transcribe duration usage", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/audio/transcriptions", { text: "hi", usage: { type: "duration", seconds: 600 } })
+    ruby_llm_transcribe("gpt-transcribe", :openai)
+  end
+
+  define_case "ruby_llm openai transcribe: whisper-1 duration usage", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/audio/transcriptions",
+              { text: "hi", duration: 125.5, usage: { type: "duration", seconds: 125.5 } })
+    ruby_llm_transcribe("whisper-1", :openai)
+  end
+
+  define_case "ruby_llm gemini transcribe: 2.5-flash", instrument: :ruby_llm do
+    stub_json(:post, gemini_url("gemini-2.5-flash"),
+              { candidates: [{ content: { role: "model", parts: [{ text: "hi" }] }, finishReason: "STOP" }],
+                usageMetadata: { promptTokenCount: 40, candidatesTokenCount: 5, thoughtsTokenCount: 2 } })
+    ruby_llm_transcribe("gemini-2.5-flash", :gemini)
+  end
+
+  define_case "ruby_llm openai moderate: omni-moderation-latest", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/moderations",
+              { id: "modr_x", model: "omni-moderation-latest",
+                results: [{ flagged: false, categories: {}, category_scores: {} }] })
+    RubyLLM.moderate("hi", model: "omni-moderation-latest", provider: :openai, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm openrouter chat: billed cost", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENROUTER_API}/chat/completions",
+              chat_completion(id: "gen-rl1", model: "openai/gpt-4o", usage: openrouter_usage(3000, 500, cost: 0.0123)))
+    stub_json(:post, "#{OPENROUTER_API}/responses",
+              responses_object(id: "gen-rl1", model: "openai/gpt-4o",
+                               usage: responses_usage(3000, 500).merge(cost: 0.0123)))
+    ruby_llm_chat("openai/gpt-4o", :openrouter).ask("hi")
+  end
+
+  define_case "ruby_llm deepseek chat: cache hit and miss fields", instrument: :ruby_llm do
+    usage = chat_usage(1000, 200, cached: 600).merge(prompt_cache_hit_tokens: 600, prompt_cache_miss_tokens: 400)
+    stub_json(:post, %r{api\.deepseek\.com/(v1/)?chat/completions},
+              chat_completion(id: "rlds1", model: "deepseek-chat", usage: usage))
+    ruby_llm_chat("deepseek-chat", :deepseek).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat stream: 1h cache writes", instrument: :ruby_llm do
+    stub_sse(:post, ANTHROPIC_MESSAGES,
+             anthropic_stream_body(id: "msg_rl1h", model: "claude-sonnet-4-5",
+                                   start_usage: anthropic_usage(100, 1, cache_1h: 5000),
+                                   delta_usage: { output_tokens: 200 }))
+    ruby_llm_chat("claude-sonnet-4-5", :anthropic).ask("hi") { nil }
+  end
+
+  define_case "ruby_llm anthropic chat: batch tier with us inference geo", instrument: :ruby_llm do
+    usage = { input_tokens: 10_000, output_tokens: 1000, service_tier: "batch", inference_geo: "us" }
+    stub_json(:post, ANTHROPIC_MESSAGES, anthropic_message(id: "msg_rlgb", model: "claude-sonnet-4-6", usage: usage))
+    ruby_llm_chat("claude-sonnet-4-6", :anthropic).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat: cache write total above its breakdown", instrument: :ruby_llm do
+    usage = anthropic_usage(200, 500, cache_5m: 1000, cache_1h: 2000).merge(cache_creation_input_tokens: 4500)
+    stub_json(:post, ANTHROPIC_MESSAGES, anthropic_message(id: "msg_rlcb", model: "claude-sonnet-4-6", usage: usage))
+    ruby_llm_chat("claude-sonnet-4-6", :anthropic).ask("hi")
+  end
+
+  define_case "ruby_llm anthropic chat: pause_turn continuation with 1h cache writes first", instrument: :ruby_llm do
+    stub_json_sequence(
+      :post, ANTHROPIC_MESSAGES,
+      anthropic_message(id: "msg_p1", model: "claude-sonnet-4-6", stop_reason: "pause_turn",
+                        usage: { input_tokens: 20, output_tokens: 200, cache_creation_input_tokens: 8000,
+                                 cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 8000 } }),
+      anthropic_message(id: "msg_p2", model: "claude-sonnet-4-6",
+                        usage: { input_tokens: 30, output_tokens: 400, cache_read_input_tokens: 8000,
+                                 cache_creation_input_tokens: 1500,
+                                 cache_creation: { ephemeral_5m_input_tokens: 1500, ephemeral_1h_input_tokens: 0 } })
+    )
+    ruby_llm_chat("claude-sonnet-4-6", :anthropic).ask("research")
+  end
+
+  define_case "ruby_llm openai chat: gpt-4o on the us host", instrument: :ruby_llm do
+    stub_ruby_llm_openai(host: "us.api.openai.com", id: "chatcmpl_rlus", model: "gpt-4o",
+                         usage: chat_usage(10_000, 1000))
+    context = RubyLLM.context { |config| config.openai_api_base = "https://us.api.openai.com/v1" }
+    ruby_llm_chat("gpt-4o", :openai, context: context).ask("hi")
+  end
+
+  define_case "ruby_llm openai chat: gpt-5.5 priority on the eu host", instrument: :ruby_llm do
+    stub_ruby_llm_openai(host: "eu.api.openai.com", id: "chatcmpl_rlep", model: "gpt-5.5",
+                         usage: chat_usage(10_000, 1000), service_tier: "priority")
+    context = RubyLLM.context { |config| config.openai_api_base = "https://eu.api.openai.com/v1" }
+    ruby_llm_chat("gpt-5.5", :openai, context: context).ask("hi")
+  end
+
+  define_case "ruby_llm openai chat: api base pointed at openrouter with billed cost", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENROUTER_API}/chat/completions",
+              chat_completion(id: "gen-rlob", model: "openai/gpt-4o", usage: openrouter_usage(3000, 500, cost: 0.0123)))
+    stub_json(:post, "#{OPENROUTER_API}/responses",
+              responses_object(id: "gen-rlob", model: "openai/gpt-4o",
+                               usage: responses_usage(3000, 500).merge(cost: 0.0123)))
+    context = RubyLLM.context { |config| config.openai_api_base = OPENROUTER_API }
+    ruby_llm_chat("openai/gpt-4o", :openai, context: context).ask("hi")
+  end
+
+  define_case "ruby_llm openrouter chat stream: billed cost", instrument: :ruby_llm do
+    stub_sse(:post, "#{OPENROUTER_API}/chat/completions",
+             chat_stream_body(id: "gen-rls", model: "openai/gpt-4o", usage: openrouter_usage(3000, 500, cost: 0.0123)))
+    stub_sse(:post, "#{OPENROUTER_API}/responses",
+             responses_stream_body(id: "gen-rls", model: "openai/gpt-4o",
+                                   usage: responses_usage(3000, 500).merge(cost: 0.0123)))
+    ruby_llm_chat("openai/gpt-4o", :openrouter).ask("hi") { nil }
+  end
+
+  define_case "ruby_llm gemini paint: 3-pro-image text and image output with thoughts",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: GEMINI_PAINT_ON_RUBY_LLM_1 do
+    model = "gemini-3-pro-image"
+    usage = { promptTokenCount: 20, candidatesTokenCount: 1170, thoughtsTokenCount: 300, totalTokenCount: 1490,
+              candidatesTokensDetails: modalities(IMAGE: 1120, TEXT: 50) }
+    stub_json(:post, gemini_url(model), gemini_paint_response(model, usage, parts: [{ text: "Here you go" }, PNG_PART]))
+    RubyLLM.paint("a fox", model: model, provider: :gemini, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm gemini paint: 2.5-flash-image with image prompt tokens",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: GEMINI_PAINT_ON_RUBY_LLM_1 do
+    model = "gemini-2.5-flash-image"
+    usage = { promptTokenCount: 1300, candidatesTokenCount: 1290, totalTokenCount: 2590,
+              promptTokensDetails: modalities(TEXT: 10, IMAGE: 1290), candidatesTokensDetails: modalities(IMAGE: 1290) }
+    stub_json(:post, gemini_url(model), gemini_paint_response(model, usage))
+    RubyLLM.paint("edit this", model: model, provider: :gemini, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm openai transcribe: response without usage", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/audio/transcriptions", { text: "hi" })
+    ruby_llm_transcribe("whisper-1", :openai)
+  end
+
+  define_case "ruby_llm openai transcribe: duration field without usage", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/audio/transcriptions",
+              { text: "hi", duration: 125.5, language: "en", segments: [] })
+    ruby_llm_transcribe("whisper-1", :openai)
+  end
+
+  define_case "ruby_llm gemini transcribe: 2.5-flash text and audio prompt details", instrument: :ruby_llm do
+    stub_json(:post, gemini_url("gemini-2.5-flash"),
+              { candidates: [{ content: { role: "model", parts: [{ text: "hi" }] }, finishReason: "STOP" }],
+                usageMetadata: { promptTokenCount: 812, candidatesTokenCount: 50, totalTokenCount: 862,
+                                 promptTokensDetails: modalities(TEXT: 12, AUDIO: 800) },
+                modelVersion: "gemini-2.5-flash" })
+    ruby_llm_transcribe("gemini-2.5-flash", :gemini)
+  end
+
+  define_case "ruby_llm gemini chat: cached audio", instrument: :ruby_llm do
+    stub_json(:post, gemini_url("gemini-2.5-flash"),
+              gemini_response(model: "gemini-2.5-flash", id: "rlgca", usage: gemini_cached_audio_usage(100)))
+    ruby_llm_chat("gemini-2.5-flash", :gemini).ask("hi")
+  end
+
+  define_case "ruby_llm xai chat: grok-4.7 reasoning tokens with cached tokens", instrument: :ruby_llm do
+    stub_json(:post, "#{XAI_API}/chat/completions",
+              chat_completion(id: "xai_r8", model: "grok-4.7",
+                              usage: xai_chat_usage(12_000, 500, reasoning: 2500, cached: 8000)))
+    stub_json(:post, "#{XAI_API}/responses",
+              responses_object(id: "xai_r8", model: "grok-4.7",
+                               usage: xai_responses_usage(12_000, 500, reasoning: 2500, cached: 8000)))
+    ruby_llm_chat("grok-4.7", :xai).ask("hi")
+  end
+
+  define_case "ruby_llm xai chat stream: grok-4.7 reasoning tokens", instrument: :ruby_llm do
+    stub_sse(:post, "#{XAI_API}/chat/completions",
+             chat_stream_body(id: "xai_r9", model: "grok-4.7",
+                              usage: xai_chat_usage(12_000, 500, reasoning: 2500, cached: 8000)))
+    stub_sse(:post, "#{XAI_API}/responses",
+             responses_stream_body(id: "xai_r9", model: "grok-4.7",
+                                   usage: xai_responses_usage(12_000, 500, reasoning: 2500, cached: 8000)))
+    ruby_llm_chat("grok-4.7", :xai).ask("hi") { nil }
+  end
+
+  define_case "ruby_llm xai chat: grok-4.7 priority on the us host", instrument: :ruby_llm do
+    stub_json(:post, "#{XAI_US_API}/chat/completions",
+              chat_completion(id: "xai_r10", model: "grok-4.7", usage: xai_chat_usage(10_000, 10_000, reasoning: 0),
+                              service_tier: "priority"))
+    stub_json(:post, "#{XAI_US_API}/responses",
+              responses_object(id: "xai_r10", model: "grok-4.7",
+                               usage: xai_responses_usage(10_000, 10_000, reasoning: 0), service_tier: "priority"))
+    context = RubyLLM.context { |config| config.xai_api_base = XAI_US_API }
+    ruby_llm_chat("grok-4.7", :xai, context: context).ask("hi")
+  end
+
+  define_case "ruby_llm openai transcribe: gpt-transcribe on the eu host",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: CONTEXT_TRANSCRIBE_ON_RUBY_LLM_1 do
+    stub_json(:post, "https://eu.api.openai.com/v1/audio/transcriptions",
+              { text: "hi", usage: { type: "duration", seconds: 125 } })
+    context = RubyLLM.context { |config| config.openai_api_base = "https://eu.api.openai.com/v1" }
+    ruby_llm_transcribe("gpt-transcribe", :openai, context: context)
+  end
+
+  define_case "ruby_llm openai transcribe: whisper-1 json usage without duration", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/audio/transcriptions", { text: "hi", usage: { type: "duration", seconds: 126 } })
+    ruby_llm_transcribe("whisper-1", :openai)
+  end
+
+  define_case "ruby_llm openai transcribe: whisper-1 verbose_json with duration usage", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/audio/transcriptions",
+              { task: "transcribe", language: "english", duration: 95.2, text: "hi", segments: [],
+                usage: { type: "duration", seconds: 96 } })
+    ruby_llm_transcribe("whisper-1", :openai)
+  end
+
+  define_case "ruby_llm openai transcribe: whisper-1 verbose_json with 8.47s duration and 9s usage",
+              instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/audio/transcriptions",
+              { task: "transcribe", language: "english", duration: 8.470000267028809, text: "hi", segments: [],
+                usage: { type: "duration", seconds: 9 } })
+    ruby_llm_transcribe("whisper-1", :openai)
+  end
+
+  define_case "ruby_llm openai transcribe: whisper-1 8.47s duration without usage", instrument: :ruby_llm do
+    stub_json(:post, "#{OPENAI_API}/audio/transcriptions",
+              { text: "hi", duration: 8.470000267028809, language: "en", segments: [] })
+    ruby_llm_transcribe("whisper-1", :openai)
+  end
+end

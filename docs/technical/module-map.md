@@ -198,11 +198,13 @@ Primary files:
 
 - `spec/llm_cost_tracker/*`
 - `spec/llm_cost_tracker/engine/*`
+- `spec/accounting/*`
 - `spec/scripts/*`
 - `spec/support/*`
 
 Responsibilities:
 
 - Cover canonical behavior, parser boundaries, pricing precedence, storage rollups, dashboard rendering, generators, price scrapers, and concurrency.
+- Pin the recorded ledger rows of every capture path against golden expectations priced from a frozen price snapshot.
 - Keep request specs plain and stable.
 - Run through `bin/check` before release work or commits that touch code.
