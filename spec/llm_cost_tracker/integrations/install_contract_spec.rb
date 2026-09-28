@@ -20,7 +20,7 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   it "raises when minimum_version exceeds the actually installed gem version" do
-    ruby_llm = LlmCostTracker::Integrations::RubyLlm
+    ruby_llm = LlmCostTracker::Integrations::RubyLlm::V1
     installed = Gem.loaded_specs["ruby_llm"].version
     too_high = "#{installed.segments[0] + 1}.0.0"
     original = ruby_llm.minimum_version
@@ -37,7 +37,7 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   it "installs but warns in doctor and at boot when the SDK is at or above the tested maximum_version" do
-    ruby_llm = LlmCostTracker::Integrations::RubyLlm
+    ruby_llm = LlmCostTracker::Integrations::RubyLlm::V1
     installed = Gem.loaded_specs["ruby_llm"].version
     original = ruby_llm.maximum_version
     ruby_llm.instance_variable_set(:@maximum_version, installed.to_s)
@@ -67,7 +67,7 @@ RSpec.describe LlmCostTracker::Integrations do
   end
 
   it "resolves the installed version via Gem.loaded_specs for the default gem_version" do
-    expect(LlmCostTracker::Integrations::RubyLlm.gem_version)
+    expect(LlmCostTracker::Integrations::RubyLlm::V1.gem_version)
       .to eq(Gem.loaded_specs["ruby_llm"].version)
     expect(LlmCostTracker::Integrations::Anthropic.gem_version)
       .to eq(Gem.loaded_specs["anthropic"].version)
