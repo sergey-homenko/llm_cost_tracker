@@ -1,6 +1,6 @@
 # Streaming Capture
 
-Streams record when the provider emits final usage, when the SDK wrapper collects final usage events, or when the app passes explicit totals. Missing final usage becomes an unknown-cost stream row instead of vanishing, except through RubyLLM, which records nothing when it reports no token counts.
+Streams record when the provider emits final usage, when the SDK wrapper collects final usage events, or when the app passes explicit totals. Missing final usage becomes an unknown-cost stream row instead of vanishing, except through RubyLLM, which records nothing for a stream that completes without token counts.
 
 ## Faraday Streaming
 
@@ -58,11 +58,11 @@ Captured SDK helpers:
 | --- | --- |
 | OpenAI | `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, `chat.completions.stream`, `chat.completions.stream_raw`, `images.generate_stream_raw`, `images.edit_stream_raw`, `audio.transcriptions.create_streaming` |
 | Anthropic | `messages.stream`, `messages.stream_raw`, beta Messages stream helpers |
-| RubyLLM | `RubyLLM::Provider#complete` (captured for both blocking and streaming calls; `Chat#ask` reaches this transitively), and `#transcribe` with a block on RubyLLM 2.x |
+| RubyLLM | On 1.x, `RubyLLM::Provider#complete` (captured for both blocking and streaming calls; `Chat#ask` reaches this transitively). On 2.x, each streamed attempt's `usage.ruby_llm` event, with the stream events RubyLLM passes to `build_chunk` or, for a transcription, yields from `stream_transcription` |
 
 The returned stream object is preserved. Usage is recorded after the stream is consumed. If iterating an official OpenAI or Anthropic SDK stream raises, or a `track_stream` block raises, the call is still recorded from the events received so far and tagged `stream_errored: true`.
 
-RubyLLM streaming records token usage and cost, and reads from the stream events the fields a blocking call reads from the raw response body; Bedrock streams keep only RubyLLM's token counts.
+RubyLLM streaming reads from the stream events the fields a blocking call reads from the raw response body. On RubyLLM 1.x, Bedrock Converse streams keep only RubyLLM's token counts; on 2.x, so do a stream cut off before its final usage event and a transcription streamed over a WebSocket (see [Pricing](pricing.md)).
 
 Tags are snapshotted when the stream starts, so delayed or cross-thread consumption keeps the original request/user attribution.
 

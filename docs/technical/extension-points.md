@@ -11,7 +11,7 @@ Expected integration contract:
 - no hard dependency on the provider SDK
 - fail-fast boot when an explicitly enabled SDK is missing or below the minimum supported version
 - install-time checks for the target classes and methods
-- idempotent `Module#prepend` around narrow resource methods
+- idempotent `Module#prepend` around narrow resource methods, or subscriptions to the SDK's own instrumentation events
 - no tracking when the integration is not enabled in configuration
 - `Event` with `Usage::TokenUsage` passed to `Tracker.record`
 

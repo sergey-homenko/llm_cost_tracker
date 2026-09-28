@@ -32,6 +32,8 @@ Under concurrency, multiple workers can clear preflight before each other's spen
 
 If the budget read fails (database unavailable, statement timeout), `:block_requests` raises that error to your code and the request is not sent.
 
+Through RubyLLM 2.x the pre-send check runs when the call's RubyLLM event starts (`chat.ruby_llm` for each chat generation, `embedding.ruby_llm`, and so on) and raises from that start, so other subscribers to the event see its start but no finish. Operations added in later RubyLLM releases are not checked before they are sent.
+
 ## Per-Tag Budgets
 
 `budgets.per_tag` applies one budget to every distinct value of a tag, for as many tags as you declare:
