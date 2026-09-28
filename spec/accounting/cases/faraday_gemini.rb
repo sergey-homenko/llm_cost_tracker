@@ -212,6 +212,13 @@ module AccountingCases
     faraday_request(:get, "#{GEMINI_INTERACTIONS}/v1_cg7")
   end
 
+  define_case "faraday gemini interactions: omni video output" do
+    usage = interaction_usage(input: 20, output: 28_960, thought: 500)
+            .merge(output_tokens_by_modality: [{ modality: "video", tokens: 28_960 }])
+    faraday_json(GEMINI_INTERACTIONS, { model: "gemini-omni-1.1-flash", input: "a marble run" },
+                 interaction("v1_omni", "completed", usage: usage, model: "gemini-omni-1.1-flash"))
+  end
+
   define_case "faraday gemini interactions: delete records nothing" do
     stub_json(:delete, "#{GEMINI_INTERACTIONS}/v1_del", {})
     faraday_request(:delete, "#{GEMINI_INTERACTIONS}/v1_del")

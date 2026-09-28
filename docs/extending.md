@@ -62,6 +62,7 @@ Canonical token price keys are owned by `Usage::Catalog`:
 | Image output tokens | `image_output` |
 | Cached audio / image tokens (fall back to `cache_read_input`) | `audio_cache_read_input` / `image_cache_read_input` |
 | Video input tokens (fall back to `input`) | `video_input` |
+| Video output tokens (fall back to `output`) | `video_output` |
 
 Mode-prefixed forms use the same base terms: `batch_input`, `priority_output`, `flex_audio_input`, `data_residency_cache_read_input`, and similar keys.
 

@@ -23,20 +23,21 @@ module LlmCostTracker
         end
 
         def render(path:, registry:)
-          merged = canonicalize(merge_with_existing(path: path, registry: registry))
-          yaml_file?(path) ? YAML.dump(merged) : "#{JSON.pretty_generate(merged)}\n"
+          json = !yaml_file?(path)
+          merged = canonicalize(merge_with_existing(path: path, registry: registry), json: json)
+          json ? "#{JSON.pretty_generate(merged)}\n" : YAML.dump(merged)
         end
 
         private
 
-        def canonicalize(value)
+        def canonicalize(value, json:)
           case value
           when Hash
-            value.sort_by { |key, _| key.to_s }.to_h { |key, nested| [key, canonicalize(nested)] }
+            value.sort_by { |key, _| key.to_s }.to_h { |key, nested| [key, canonicalize(nested, json: json)] }
           when Array
-            value.map { |element| canonicalize(element) }
-          when BigDecimal
-            value.to_f
+            value.map { |element| canonicalize(element, json: json) }
+          when BigDecimal, Float
+            json && defined?(JSON::Fragment) ? JSON::Fragment.new(value.to_f.to_s) : value.to_f
           else
             value
           end

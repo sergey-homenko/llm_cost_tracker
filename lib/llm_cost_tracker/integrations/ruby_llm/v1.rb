@@ -160,7 +160,7 @@ module LlmCostTracker
                     cache_write_extended_input_tokens: cache_write_1h,
                     hidden_output_tokens: counts[:thinking].to_i
                   ),
-                  service_line_items: service_line_items + gemini_cache_read_line_items(provider, response),
+                  service_line_items: service_line_items + gemini_line_items(provider, response),
                   stream: stream,
                   usage_source: usage_source || LlmCostTracker::Usage::Source::SDK_RESPONSE,
                   provider_response_id: provider_response_id_for(response)
@@ -177,9 +177,9 @@ module LlmCostTracker
             Providers::Gemini::UsageExtractor.token_usage(usage)
           end
 
-          def gemini_cache_read_line_items(provider, response)
+          def gemini_line_items(provider, response)
             usage = gemini_usage_metadata(response) if provider.slug.to_s == "gemini"
-            usage.is_a?(Hash) ? Providers::Gemini::UsageExtractor.cache_read_line_items(usage) : []
+            usage.is_a?(Hash) ? Providers::Gemini::UsageExtractor.line_items(usage) : []
           end
 
           def gemini_usage_metadata(response) = raw_body(response)["usageMetadata"]

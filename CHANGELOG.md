@@ -24,6 +24,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Anthropic compaction, advisor, fallback and refusal pricing applies to RubyLLM 2.x chats, and each blocking `pause_turn` segment is priced from its own response, with its 1-hour cache writes, speed and US inference.
 - RubyLLM 2.x Vertex AI `gemini-embedding-2` embeddings price image, audio and video tokens at their own rates instead of as text.
 - RubyLLM 2.x Bedrock Converse streams split cache writes into 5-minute and 1-hour writes by their final event's `cacheDetails` instead of `with_caching`'s TTL.
+- Gemini Omni Flash, 3.5 Transcribe (including Live) and 2.5 Computer Use calls are priced instead of recorded with unknown cost; Omni video output tokens use the new `video_output` rate.
+- JSON price files keep floats in their shortest form on json 2.11 and later (`0.951432`, not `0.9514320000000001`).
 
 ## [0.14.2] - 2026-09-28
 

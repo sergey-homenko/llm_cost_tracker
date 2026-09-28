@@ -44,6 +44,7 @@ Supported token price keys are owned by `Usage::Catalog`:
 - `image_output`
 - `audio_cache_read_input` and `image_cache_read_input` (fall back to `cache_read_input`)
 - `video_input` (falls back to `input`)
+- `video_output` (falls back to `output`)
 - `batch_input`
 - `batch_output`
 - mode-prefixed keys such as `priority_input` or `batch_cache_read_input`

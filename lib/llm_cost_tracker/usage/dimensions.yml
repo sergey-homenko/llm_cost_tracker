@@ -85,6 +85,14 @@
   unit: token
   parent: input
 
+- key: video_output
+  kind: video_token
+  direction: output
+  modality: video
+  cache_state: none
+  unit: token
+  parent: output
+
 - key: web_search_request
   kind: web_search_request
   direction: neither
