@@ -66,6 +66,8 @@ BUNDLE_GEMFILE=gemfiles/rails_8_0.gemfile bundle exec rspec
 
 The CI matrix covers Ruby 3.3 and 3.4 across Rails 8.0 / 8.1, plus RubyLLM 1.x on Ruby 3.4 (`gemfiles/ruby_llm_1.gemfile`); every other job runs RubyLLM 2.x.
 
+`spec/accounting` runs a corpus of provider responses through every capture path and compares the recorded ledger rows with `spec/fixtures/accounting/expected.jsonl`, priced from the frozen `spec/fixtures/accounting/prices.json`. A new case prices only models listed in `spec/fixtures/accounting/prices.json`; copy any entry it needs from `lib/llm_cost_tracker/prices.json` first. After an intended accounting change, regenerate the expectations with `LCT_ACCOUNTING_UPDATE=1 bundle exec rspec spec/accounting` (again with `BUNDLE_GEMFILE=gemfiles/ruby_llm_1.gemfile` for the RubyLLM 1.x variants in `expected_ruby_llm_1.jsonl`) and review the diff.
+
 ### Running the linter
 
 ```bash

@@ -1,0 +1,213 @@
+# frozen_string_literal: true
+
+module AccountingCases
+  define_case "faraday openrouter chat: billed cost" do
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "openai/gpt-4o", messages: [] },
+                 chat_completion(id: "gen-or1", model: "openai/gpt-4o",
+                                 usage: openrouter_usage(3000, 500, cost: 0.0123),
+                                 extra: { provider: "OpenAI" }))
+  end
+
+  define_case "faraday openrouter chat: billed cost for a llama model" do
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "meta-llama/llama-3.3-70b-instruct", messages: [] },
+                 chat_completion(id: "gen-or2", model: "meta-llama/llama-3.3-70b-instruct",
+                                 usage: openrouter_usage(3000, 500, cost: 0.00364)))
+  end
+
+  define_case "faraday openrouter chat: byok fee with upstream cost" do
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "anthropic/claude-sonnet-4.5", messages: [] },
+                 chat_completion(id: "gen-or3", model: "anthropic/claude-sonnet-4.5",
+                                 usage: openrouter_usage(3000, 500, cost: 0.000825, byok: true, upstream: 0.0165)))
+  end
+
+  define_case "faraday openrouter chat: byok fee without upstream cost" do
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "anthropic/claude-sonnet-4.5", messages: [] },
+                 chat_completion(id: "gen-or4", model: "anthropic/claude-sonnet-4.5",
+                                 usage: openrouter_usage(3000, 500, cost: 0.000825, byok: true, upstream: nil)))
+  end
+
+  define_case "faraday openrouter chat: no billed cost" do
+    usage = chat_usage(3000, 500)
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "openai/gpt-4o", messages: [] },
+                 chat_completion(id: "gen-or5", model: "openai/gpt-4o", usage: usage))
+  end
+
+  define_case "faraday openrouter chat: free model with zero cost" do
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "openai/gpt-oss-20b:free", messages: [] },
+                 chat_completion(id: "gen-or6", model: "openai/gpt-oss-20b:free",
+                                 usage: openrouter_usage(3000, 500, cost: 0)))
+  end
+
+  define_case "faraday openrouter chat: billed cost with cached tokens" do
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "openai/gpt-4o", messages: [] },
+                 chat_completion(id: "gen-or7", model: "openai/gpt-4o",
+                                 usage: openrouter_usage(10_000, 500, cost: 0.01875, cached: 5000)))
+  end
+
+  define_case "faraday openrouter chat: billed cost for an unlisted model" do
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "acme/unlisted-9b", messages: [] },
+                 chat_completion(id: "gen-or8", model: "acme/unlisted-9b",
+                                 usage: openrouter_usage(3000, 500, cost: 0.0042)))
+  end
+
+  define_case "faraday openrouter chat stream: billed cost in the final chunk" do
+    faraday_sse("#{OPENROUTER_API}/chat/completions",
+                { model: "meta-llama/llama-3.3-70b-instruct", stream: true, messages: [] },
+                chat_stream_body(id: "gen-or9", model: "meta-llama/llama-3.3-70b-instruct",
+                                 usage: openrouter_usage(3000, 500, cost: 0.00364)))
+  end
+
+  define_case "faraday openrouter responses: billed cost" do
+    usage = responses_usage(4000, 600).merge(cost: 0.0156, is_byok: false)
+    faraday_json("#{OPENROUTER_API}/responses", { model: "openai/gpt-4o", input: "x" },
+                 responses_object(id: "gen-or10", model: "openai/gpt-4o", usage: usage))
+  end
+
+  define_case "faraday openrouter embeddings: billed cost" do
+    faraday_json("#{OPENROUTER_API}/embeddings", { model: "openai/text-embedding-3-small", input: "x" },
+                 { object: "list", data: [], model: "openai/text-embedding-3-small",
+                   usage: { prompt_tokens: 1000, total_tokens: 1000, cost: 0.00002 } })
+  end
+
+  define_case "faraday openrouter chat: billed cost given as a string" do
+    usage = openrouter_usage(3000, 500, cost: 0).merge(cost: "0.0123")
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "openai/gpt-4o", messages: [] },
+                 chat_completion(id: "gen-or11", model: "openai/gpt-4o", usage: usage))
+  end
+
+  define_case "faraday deepseek chat: cache hit and miss fields" do
+    usage = chat_usage(1000, 200, cached: 600, reasoning: 50)
+            .merge(prompt_cache_hit_tokens: 600, prompt_cache_miss_tokens: 400)
+    faraday_json("https://api.deepseek.com/chat/completions", { model: "deepseek-chat", messages: [] },
+                 chat_completion(id: "ds1", model: "deepseek-chat", usage: usage))
+  end
+
+  define_case "faraday deepseek chat stream: usage in the last choice chunk" do
+    usage = chat_usage(1000, 200, cached: 600).merge(prompt_cache_hit_tokens: 600, prompt_cache_miss_tokens: 400)
+    faraday_sse("https://api.deepseek.com/chat/completions", { model: "deepseek-reasoner", stream: true, messages: [] },
+                chat_stream_body(id: "ds2", model: "deepseek-reasoner", usage: usage, usage_in_last_choice: true))
+  end
+
+  define_case "faraday groq chat: on_demand tier" do
+    faraday_json("#{GROQ_API}/chat/completions", { model: "openai/gpt-oss-120b", messages: [] },
+                 chat_completion(id: "chatcmpl-gq1", model: "openai/gpt-oss-120b", usage: groq_usage(10_000, 1000),
+                                 service_tier: "on_demand", extra: { x_groq: { id: "req_1" } }))
+  end
+
+  define_case "faraday groq chat: cached tokens" do
+    faraday_json("#{GROQ_API}/chat/completions", { model: "openai/gpt-oss-120b", messages: [] },
+                 chat_completion(id: "chatcmpl-gq2", model: "openai/gpt-oss-120b",
+                                 usage: groq_usage(10_000, 1000, cached: 4000)))
+  end
+
+  define_case "faraday groq chat: flex tier" do
+    faraday_json("#{GROQ_API}/chat/completions", { model: "openai/gpt-oss-120b", messages: [], service_tier: "flex" },
+                 chat_completion(id: "chatcmpl-gq3", model: "openai/gpt-oss-120b", usage: groq_usage(10_000, 1000),
+                                 service_tier: "flex"))
+  end
+
+  define_case "faraday groq chat stream: usage only in x_groq" do
+    items = [
+      chat_chunk(id: "chatcmpl-gq4", model: "openai/gpt-oss-20b",
+                 choices: [{ index: 0, delta: { content: "hi" }, finish_reason: nil }]),
+      chat_chunk(id: "chatcmpl-gq4", model: "openai/gpt-oss-20b",
+                 choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+                 extra: { x_groq: { id: "req_4", usage: groq_usage(5000, 300) } })
+    ]
+    faraday_sse("#{GROQ_API}/chat/completions", { model: "openai/gpt-oss-20b", stream: true, messages: [] },
+                sse(*items, done: true))
+  end
+
+  define_case "faraday groq chat stream: usage and x_groq usage" do
+    items = [
+      chat_chunk(id: "chatcmpl-gq5", model: "openai/gpt-oss-20b",
+                 choices: [{ index: 0, delta: { content: "hi" }, finish_reason: nil }]),
+      chat_chunk(id: "chatcmpl-gq5", model: "openai/gpt-oss-20b", choices: [], usage: groq_usage(5000, 300),
+                 extra: { x_groq: { id: "req_5", usage: groq_usage(5000, 300) } })
+    ]
+    faraday_sse("#{GROQ_API}/chat/completions", { model: "openai/gpt-oss-20b", stream: true, messages: [] },
+                sse(*items, done: true))
+  end
+
+  define_case "faraday groq chat: usage.cost" do
+    usage = groq_usage(10_000, 1000).merge(cost: 0.5)
+    faraday_json("#{GROQ_API}/chat/completions", { model: "openai/gpt-oss-120b", messages: [] },
+                 chat_completion(id: "chatcmpl-gquc", model: "openai/gpt-oss-120b", usage: usage))
+  end
+
+  define_case "faraday openrouter chat: byok with zero fee and upstream cost" do
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "anthropic/claude-sonnet-4.5", messages: [] },
+                 chat_completion(id: "gen-bz", model: "anthropic/claude-sonnet-4.5",
+                                 usage: openrouter_usage(3000, 500, cost: 0, byok: true, upstream: 0.0165)))
+  end
+
+  define_case "faraday openrouter chat: online model with url citations and billed cost" do
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "openai/gpt-4o:online", messages: [] },
+                 chat_completion(id: "gen-web", model: "openai/gpt-4o:online",
+                                 usage: openrouter_usage(3000, 500, cost: 0.0323),
+                                 annotations: [{ type: "url_citation",
+                                                 url_citation: { url: "https://x", title: "x" } }]))
+  end
+
+  define_case "faraday openrouter chat: usage.cost given as an object" do
+    usage = chat_usage(3000, 500).merge(cost: { total_cost: 0.02, request_cost: 0.005 })
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "perplexity/sonar", messages: [] },
+                 chat_completion(id: "gen-pp", model: "perplexity/sonar", usage: usage))
+  end
+
+  define_case "faraday xai chat: grok-4.7 reasoning tokens with cached tokens", configure: XAI_AND_MISTRAL_HOSTS do
+    faraday_json("#{XAI_API}/chat/completions", { model: "grok-4.7", messages: USER_MESSAGES },
+                 chat_completion(id: "xai_c1", model: "grok-4.7",
+                                 usage: xai_chat_usage(12_000, 500, reasoning: 2500, cached: 8000)))
+  end
+
+  define_case "faraday xai chat stream: grok-4.7 reasoning tokens in the usage chunk",
+              configure: XAI_AND_MISTRAL_HOSTS do
+    faraday_sse("#{XAI_API}/chat/completions",
+                { model: "grok-4.7", stream: true, stream_options: { include_usage: true }, messages: [] },
+                chat_stream_body(id: "xai_c2", model: "grok-4.7",
+                                 usage: xai_chat_usage(12_000, 500, reasoning: 2500, cached: 8000)))
+  end
+
+  define_case "faraday xai responses stream: grok-4.7 reasoning tokens", configure: XAI_AND_MISTRAL_HOSTS do
+    faraday_sse("#{XAI_API}/responses", { model: "grok-4.7", stream: true, input: "hi" },
+                responses_stream_body(id: "resp_xai6", model: "grok-4.7",
+                                      usage: xai_responses_usage(32, 9, reasoning: 110, cached: 8)))
+  end
+
+  define_case "faraday xai chat: grok-4.7 image prompt tokens", configure: XAI_AND_MISTRAL_HOSTS do
+    faraday_json("#{XAI_API}/chat/completions", { model: "grok-4.7", messages: [] },
+                 chat_completion(id: "xai_c11", model: "grok-4.7",
+                                 usage: xai_chat_usage(1000, 100, reasoning: 0, image: 800)))
+  end
+
+  define_case "faraday xai chat: grok-4.7 priority on the us host", configure: XAI_AND_MISTRAL_HOSTS do
+    faraday_json("#{XAI_US_API}/chat/completions", { model: "grok-4.7", service_tier: "priority", messages: [] },
+                 chat_completion(id: "xai_c12", model: "grok-4.7", usage: xai_chat_usage(10_000, 10_000, reasoning: 0),
+                                 service_tier: "priority"))
+  end
+
+  define_case "faraday xai chat: grok-4.7 priority on the us host with image, cached and reasoning tokens",
+              configure: XAI_AND_MISTRAL_HOSTS do
+    usage = xai_chat_usage(10_000, 1000, reasoning: 3000, cached: 2000, image: 4000)
+    faraday_json("#{XAI_US_API}/chat/completions", { model: "grok-4.7", service_tier: "priority", messages: [] },
+                 chat_completion(id: "xai_c13", model: "grok-4.7", usage: usage, service_tier: "priority"))
+  end
+
+  define_case "faraday xai chat: grok-4.7 long context with reasoning tokens", configure: XAI_AND_MISTRAL_HOSTS do
+    faraday_json("#{XAI_API}/chat/completions", { model: "grok-4.7", messages: [] },
+                 chat_completion(id: "xai_c14", model: "grok-4.7",
+                                 usage: xai_chat_usage(250_000, 1000, reasoning: 4000)))
+  end
+
+  define_case "faraday mistral chat: medium-latest priority on the eu host", configure: XAI_AND_MISTRAL_HOSTS do
+    usage = { prompt_tokens: 10_000, completion_tokens: 10_000, total_tokens: 20_000, service_tier: "priority" }
+    faraday_json("https://api.eu.mistral.ai/v1/chat/completions", { model: "mistral-medium-latest", messages: [] },
+                 chat_completion(id: "mis_c15", model: "mistral-medium-latest", usage: usage))
+  end
+
+  define_case "faraday openrouter chat: gpt-5-search-api without billed cost" do
+    faraday_json("#{OPENROUTER_API}/chat/completions", { model: "openai/gpt-5-search-api", messages: [] },
+                 chat_completion(id: "gen-rv2", model: "openai/gpt-5-search-api", usage: chat_usage(1000, 500)))
+  end
+end
