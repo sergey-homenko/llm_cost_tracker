@@ -129,7 +129,7 @@ module LlmCostTracker
         metadata: tags
       )
       yield collector
-    rescue Exception # rubocop:disable Lint/RescueException -- record the spend and keep the caller's exception
+    rescue Exception # rubocop:disable Lint/RescueException
       collector&.finish!(errored: true)
       raise
     else

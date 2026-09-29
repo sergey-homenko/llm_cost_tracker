@@ -1085,7 +1085,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       capture_sdk_events do |events|
         groq.chat.completions.create(model: "openai/gpt-oss-120b", messages: [{ role: "user", content: "hi" }])
 
-        # Groq lists gpt-oss-120b at $0.15/M input and $0.60/M output.
         expect(events.first).to include(provider: "groq", cost_status: "complete")
         expect(BigDecimal(events.first.dig(:cost, :total))).to eq(BigDecimal("0.0021"))
       end
@@ -1106,7 +1105,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           stream_options: { include_usage: true }
         ).each { |_| nil }
 
-        # Together serves llama-3.3-70b-instruct at $1.04/M input and output; the list price is $0.10/$0.32.
         expect(events.first).to include(provider: "openrouter", cost_status: "complete")
         expect(BigDecimal(events.first.dig(:cost, :total))).to eq(BigDecimal("0.00364"))
       end
@@ -1115,8 +1113,6 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     it "prices xAI's US host at regional rates and a Mistral Priority Tier stream at priority rates" do
       LlmCostTrackerReset.call
       LlmCostTracker.configure do |config|
-        config.capture.openai_compatible_providers["us.api.x.ai"] = "xai"
-        config.capture.openai_compatible_providers["api.mistral.ai"] = "mistral"
         config.pricing.overrides = {
           "xai/grok-4.7" => { input: 2.0, output: 6.0, data_residency_input: 2.2, data_residency_output: 6.6 },
           "mistral/mistral-medium-latest" => { input: 1.5, output: 7.5, priority_input: 2.625, priority_output: 13.125 }

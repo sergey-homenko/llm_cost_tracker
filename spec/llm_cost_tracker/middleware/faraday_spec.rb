@@ -921,25 +921,27 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(parsed.dig("stream_options", "include_usage")).to be true
   end
 
-  it "leaves streams to hosts the app added to openai_compatible_providers untouched" do
+  it "asks Mistral for stream usage and leaves xAI and hosts the app added to openai_compatible_providers untouched" do
     LlmCostTracker.configure do |config|
       config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
     end
-    captured_body = nil
 
-    conn = Faraday.new(url: "https://llm.example.com") do |f|
-      f.use :llm_cost_tracker
-      f.adapter :test do |stub|
-        stub.post("/v1/chat/completions") do |env|
-          captured_body = env.body
-          [200, { "Content-Type" => "text/event-stream" }, ""]
+    bodies = %w[api.x.ai api.mistral.ai llm.example.com].map do |host|
+      captured_body = nil
+      conn = Faraday.new(url: "https://#{host}") do |f|
+        f.use :llm_cost_tracker
+        f.adapter :test do |stub|
+          stub.post("/v1/chat/completions") do |env|
+            captured_body = env.body
+            [200, { "Content-Type" => "text/event-stream" }, ""]
+          end
         end
       end
+      conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json)
+      JSON.parse(captured_body)
     end
 
-    conn.post("/v1/chat/completions", { model: "gpt-4o", stream: true }.to_json)
-
-    expect(JSON.parse(captured_body)).not_to have_key("stream_options")
+    expect(bodies.map { |body| body.key?("stream_options") }).to eq([false, true, false])
   end
 
   it "auto-injects when the caller hands Faraday a Hash body" do
@@ -1108,7 +1110,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end
 
     it "records usage.cost for a call OpenRouter routed below the model's list price" do
-      # DeepInfra serves gpt-oss-120b at $0.037/M input and $0.17/M output; the list price is $0.15/$0.60.
       event = openrouter_event({
         id: "gen-1", provider: "DeepInfra", model: "openai/gpt-oss-120b",
         choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
@@ -1125,7 +1126,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end
 
     it "adds the upstream provider's charge to OpenRouter's fee on a BYOK call" do
-      # BYOK: the Anthropic key is billed 10K x $3/M + 1K x $15/M; OpenRouter's fee is 5% of that.
       event = openrouter_event({
         id: "gen-2", provider: "Anthropic", model: "anthropic/claude-sonnet-4.5",
         usage: { prompt_tokens: 10_000, completion_tokens: 1_000, total_tokens: 11_000, cost: 0.00225, is_byok: true,
@@ -1136,7 +1136,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end
 
     it "records usage.cost from the final chunk of an OpenRouter stream" do
-      # Together serves llama-3.3-70b-instruct at $1.04/M input and output; the list price is $0.10/$0.32.
       chunk = { id: "gen-3", provider: "Together", model: "meta-llama/llama-3.3-70b-instruct",
                 choices: [{ index: 0, delta: { content: "hi" } }] }
       final = chunk.merge(choices: [], usage: { prompt_tokens: 3_000, completion_tokens: 500, total_tokens: 3_500,

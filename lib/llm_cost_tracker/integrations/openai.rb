@@ -22,7 +22,6 @@ module LlmCostTracker
           LlmCostTracker::Capture::StreamCollector.new(
             provider: provider_for_host(host),
             model: request[:model],
-            # Host part only: the parser prefers the served tier over the requested one, e.g. after a downgrade.
             pricing_mode: host_pricing_mode(host, request),
             request: request
           )

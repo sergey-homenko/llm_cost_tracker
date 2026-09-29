@@ -201,7 +201,6 @@ module LlmCostTracker
           prices[output] = parse_price(rows[output_key]) unless rows[output_key].start_with?(PER_IMAGE_PRICE)
           prices[input.sub("input", "image_input")] = prices[input]
           audio_input = parse_modality_price(rows[input_key], "audio")
-          # An input price without a modality label covers audio too.
           audio_input ||= prices[input] unless rows[input_key].include?("(")
           prices[audio_price_key(input)] = audio_input if audio_input
           audio_output = parse_modality_price(rows[output_key], "audio")
@@ -277,13 +276,12 @@ module LlmCostTracker
           image_price = text[PER_IMAGE_PRICE, 1]
           return unless image_price
 
-          rate, note_price = notes.match(
+          standard_rate, standard_image_price = notes.match(
             /Image output is priced at \$([\d.]+) per 1,000,000 tokens.*?\$([\d.]+) per\s+image/m
           )&.captures
-          raise Error, "Gemini image output rate not found" unless rate
+          raise Error, "Gemini image output rate not found" unless standard_rate
 
-          # The footnote gives the Standard rate; Batch, Flex and Priority cells differ only in per-image price.
-          (Float(rate) * Float(image_price) / Float(note_price)).round(4)
+          (Float(standard_rate) * Float(image_price) / Float(standard_image_price)).round(4)
         end
 
         def parse_prompt_tier_prices(text)

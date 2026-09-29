@@ -38,7 +38,7 @@ RSpec.describe "generator templates" do
   def migration_from_template(template_name, class_name)
     body = ERB.new(template(template_name), trim_mode: "-").result(binding)
     Object.send(:remove_const, class_name) if Object.const_defined?(class_name, false)
-    eval(body) # rubocop:disable Security/Eval
+    eval(body)
     Object.const_get(class_name).new
   end
 

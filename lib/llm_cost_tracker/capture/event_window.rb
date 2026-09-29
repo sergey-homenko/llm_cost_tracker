@@ -20,7 +20,6 @@ module LlmCostTracker
       end
 
       def push(data, type: nil)
-        # The openai gem's chat stream helper resends all logprobs so far in logprobs.* events; none carry usage.
         return if @overflowed || type&.start_with?("logprobs.")
 
         event = { event: type, data: strip_heavy_payload(data) }

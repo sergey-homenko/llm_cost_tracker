@@ -18,6 +18,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - RubyLLM 2.x images returned without usage are recorded with unknown cost instead of $0.
 - Under `:block_requests`, a RubyLLM 2.x call is blocked from the start of its RubyLLM event, whose other subscribers then see no finish.
 - On RubyLLM 2.x, `RubyLLM.config.instrumenter` is set to `ActiveSupport::Notifications` when unset; `doctor` warns when it is anything else or a protocol method the integration reads is missing.
+- xAI and Mistral hosts, regional ones included, are built into `capture.openai_compatible_providers`, so Faraday, the official openai gem and `track_stream` capture them without registration; Faraday adds `stream_options.include_usage` to Mistral streams, which report usage only when asked.
 
 ### Fixed
 
@@ -26,6 +27,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - RubyLLM 2.x Bedrock Converse streams split cache writes into 5-minute and 1-hour writes by their final event's `cacheDetails` instead of `with_caching`'s TTL.
 - Gemini Omni Flash, 3.5 Transcribe (including Live) and 2.5 Computer Use calls are priced instead of recorded with unknown cost; Omni video output tokens use the new `video_output` rate.
 - JSON price files keep floats in their shortest form on json 2.11 and later (`0.951432`, not `0.9514320000000001`).
+- The Calls CSV export sorts the matching calls once instead of re-querying each 500-row batch with `OFFSET`, which was slow on large ledgers.
 
 ## [0.14.2] - 2026-09-28
 

@@ -64,7 +64,7 @@ module LlmCostTracker
             yield event
           end
         end
-      rescue Exception # rubocop:disable Lint/RescueException -- mark Interrupt/shutdown too, so it is not masked
+      rescue Exception # rubocop:disable Lint/RescueException
         errored = true
         raise
       ensure
