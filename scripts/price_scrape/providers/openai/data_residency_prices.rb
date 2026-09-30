@@ -9,7 +9,7 @@ module LlmCostTracker
         module DataResidencyPrices
           MODELS = %w[
             gpt-5.4 gpt-5.4-mini gpt-5.4-nano gpt-5.4-pro gpt-5.5 gpt-5.5-pro
-            gpt-5.6-luna gpt-5.6-sol gpt-5.6-terra gpt-6-astra gpt-6-sol gpt-6-luna
+            gpt-5.6-luna gpt-5.6-sol gpt-5.6-terra gpt-6-astra gpt-6-sol gpt-6.1-sol gpt-6-luna
             gpt-image-2 gpt-image-2.5-sunburst gpt-image-2.5-flare gpt-transcribe
             gpt-live-transcribe gpt-realtime-whisper gpt-realtime-translate
           ].freeze

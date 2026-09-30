@@ -14,6 +14,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
   let(:markdown) do
     File.read(File.expand_path("../../../fixtures/scrape/openai_pricing.md", __dir__), encoding: "utf-8")
   end
+  let(:catalogue) do
+    File.read(File.expand_path("../../../fixtures/scrape/openai_models_all.md", __dir__), encoding: "utf-8")
+  end
   let(:without_markdown) { { described_class::RenderedLongContextPrices::SOURCE_URL => "" } }
   let(:long_context_sentence) do
     "Prompts with >272K input tokens are priced at 2x input and 1.5x output " \
@@ -65,7 +68,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     pages = {
       described_class.source_url => html,
       described_class::RenderedLongContextPrices::SOURCE_URL => markdown,
-      described_class::DeprecatedModels::SOURCE_URL => deprecations_html
+      described_class::DeprecatedModels::SOURCE_URL => deprecations_html,
+      described_class::MODEL_CATALOGUE_URL => catalogue
     }
     documented.source_urls.each do |url|
       pages[url] = model_doc_html(url.end_with?("gpt-5.5-pro") ? "1,050,000 context window" : long_context_sentence)
@@ -450,6 +454,23 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
       expect(result.models.fetch("omni-moderation-latest")).to eq("input" => 0.0)
       expect(result.models.fetch("omni-moderation-2024-09-26")).to eq("input" => 0.0)
+    end
+
+    it "prices a new row under its own name when OpenAI's model catalogue lists it" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-09-30T00:00:00Z")
+
+      expect(described_class::MODEL_ID_BY_DISPLAY_NAME).not_to have_key("gpt-6.1-sol")
+      expect(result.models.fetch("gpt-6.1-sol")).to include(
+        "input" => 2.0, "cache_read_input" => 0.1, "cache_write_input" => 2.5, "output" => 10.0,
+        "above_context_input" => 4.0, "above_context_output" => 15.0,
+        "batch_input" => 1.0, "flex_output" => 5.0, "fast_input" => 4.0, "data_residency_input" => 2.2
+      )
+    end
+
+    it "raises on a new row that the model catalogue does not list" do
+      expect do
+        described_class.new.call(html: html_pages(described_class::MODEL_CATALOGUE_URL => ""))
+      end.to raise_error(described_class::Error, /no model ID for OpenAI price row "gpt-6.1-sol"/)
     end
 
     it "raises on a price row whose model name has no ID mapping instead of dropping it" do

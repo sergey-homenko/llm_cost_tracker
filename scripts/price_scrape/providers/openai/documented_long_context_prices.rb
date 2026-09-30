@@ -14,7 +14,7 @@ module LlmCostTracker
           MODEL_DOC_URL_PREFIX = "https://developers.openai.com/api/docs/models/"
           CONTEXT_QUALIFIER = /\(<\d+K context length\)/
           LONG_CONTEXT_COLUMN_MODEL_IDS = %w[
-            gpt-5.6-luna gpt-5.6-sol gpt-5.6-terra gpt-6-astra gpt-6-sol gpt-6-luna
+            gpt-5.6-luna gpt-5.6-sol gpt-5.6-terra gpt-6-astra gpt-6-sol gpt-6.1-sol gpt-6-luna
           ].freeze
           PREMIUM_SENTENCE = /
             prompts\swith\s(?:>|more\sthan\s)([\d,]+)K\sinput\stokens\sare\spriced\sat\s
