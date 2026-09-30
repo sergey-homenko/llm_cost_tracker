@@ -21,10 +21,12 @@ module LlmCostTracker
         min_models 25
         max_price 1000.0
         anchors "gpt-5.5", "gpt-5.4-mini"
+        MODEL_CATALOGUE_URL = "https://developers.openai.com/api/docs/models/all.md"
         SOURCE_URLS = [
           source_url,
           RenderedLongContextPrices::SOURCE_URL,
           DeprecatedModels::SOURCE_URL,
+          MODEL_CATALOGUE_URL,
           *DocumentedLongContextPrices.source_urls
         ].freeze
 
@@ -68,6 +70,7 @@ module LlmCostTracker
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           pages = pages_from(html)
+          @catalogued_model_ids = pages[MODEL_CATALOGUE_URL].to_s.scan(%r{\(/api/docs/models/([^()/]+)\.md\)}).flatten
           doc = Nokogiri::HTML(pages.fetch(self.class.source_url))
           models = TIER_FIELDS.each_with_object({}) do |(tier, fields), collected|
             tier_models = extract_tier_models(doc, tier: tier, fields: fields)
@@ -166,7 +169,7 @@ module LlmCostTracker
 
         def rendered_long_context_prices(pages, tier:, fields:)
           page = pages.fetch(RenderedLongContextPrices::SOURCE_URL)
-          RenderedLongContextPrices.new(page, tier: tier, fields: fields, model_ids: MODEL_ID_BY_DISPLAY_NAME).models
+          RenderedLongContextPrices.new(page, tier: tier, fields: fields, model_ids: method(:known_model_id)).models
         end
 
         def add_priority_aliases(models)
@@ -347,9 +350,16 @@ module LlmCostTracker
 
         def normalize_model_id(display_name)
           name = display_name.to_s.strip
-          MODEL_ID_BY_DISPLAY_NAME.fetch(name) do
-            raise Error, "no model ID for OpenAI price row #{name.inspect}" if name.match?(DeprecatedModels::MODEL_ID)
+          model_id = known_model_id(name)
+          if model_id.nil? && !MODEL_ID_BY_DISPLAY_NAME.key?(name) && name.match?(DeprecatedModels::MODEL_ID)
+            raise Error, "no model ID for OpenAI price row #{name.inspect}"
           end
+
+          model_id
+        end
+
+        def known_model_id(name)
+          MODEL_ID_BY_DISPLAY_NAME.fetch(name) { name if @catalogued_model_ids.include?(name) }
         end
 
         def parse_price(value)
