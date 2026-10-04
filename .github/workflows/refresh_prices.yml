@@ -126,7 +126,7 @@ jobs:
         run: gh workflow run ruby.yml --ref prices/auto-refresh
 
       - name: Update the price sources issue
-        if: steps.cross_check.outcome == 'success' && github.event.inputs.dry_run != 'true'
+        if: ${{ !cancelled() && steps.cross_check.outcome == 'success' && github.event.inputs.dry_run != 'true' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
