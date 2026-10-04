@@ -2829,5 +2829,27 @@
     "supports_tool_choice": true,
     "supports_vision": false,
     "supports_web_search": false
+  },
+  "gemini/gemini-3.8-live": {
+    "input_cost_per_audio_token": 3e-06,
+    "input_cost_per_image_token": 1e-06,
+    "input_cost_per_token": 7.5e-07,
+    "input_cost_per_video_token": 1e-06,
+    "litellm_provider": "gemini",
+    "max_input_tokens": 131072,
+    "max_output_tokens": 65536,
+    "max_tokens": 65536,
+    "mode": "realtime",
+    "output_cost_per_audio_token": 1.2e-05,
+    "output_cost_per_token": 4.5e-06,
+    "source": "https://ai.google.dev/gemini-api/docs/pricing",
+    "supports_audio_input": true,
+    "tpm": 250000,
+    "rpm": 10,
+    "supports_function_calling": true,
+    "supports_response_schema": false,
+    "supports_vision": true,
+    "supports_web_search": true,
+    "supports_reasoning": true
   }
 }
