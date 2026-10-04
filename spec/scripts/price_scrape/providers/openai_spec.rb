@@ -512,6 +512,21 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         .to all(satisfy { |fields| fields.keys.grep(/data_residency/).empty? })
     end
 
+    it "keeps a model off the uplift when the changelog mentions it before the cutoff, whatever later entries say" do
+      url = described_class::DataResidencyPrices::CHANGELOG_URL
+      relabelled = changelog.sub("Update · Model: whisper-1", "Feature · Model: whisper-1")
+      later = changelog.sub("## September, 2026", "## October, 2026\n\n### Oct 3\n\n" \
+                                                    "Feature · Model: whisper-1 · Model: gpt-4o-transcribe\n\n" \
+                                                    "Added a feature.\n\n## September, 2026")
+
+      [relabelled, later].each do |page|
+        models = described_class.new.call(html: html_pages(url => page), scraped_at: "2026-10-04T00:00:00Z").models
+        expect(models.values_at("whisper-1", "gpt-4o-transcribe"))
+          .to all(satisfy { |fields| fields.keys.grep(/data_residency/).empty? })
+        expect(models.fetch("gpt-realtime-2.1")).to include("data_residency_input" => 4.4)
+      end
+    end
+
     it "raises when the data controls guide or the changelog no longer give the uplift terms" do
       urls = described_class::DataResidencyPrices
       without_terms = data_controls.gsub("10% uplift", "uplift")

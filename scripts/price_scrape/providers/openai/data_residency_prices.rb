@@ -24,8 +24,7 @@ module LlmCostTracker
             def call(models, pages)
               page = pages.fetch(ELIGIBILITY_URL)
               factor, cutoff = uplift(page)
-              released = release_dates(page, pages.fetch(CHANGELOG_URL))
-              eligible = released.select { |_, date| date >= cutoff }.keys
+              eligible = eligible_models(page, pages.fetch(CHANGELOG_URL), cutoff)
               raise Error, "no OpenAI model found eligible for data residency pricing" if eligible.empty?
 
               models.to_h do |model_id, fields|
@@ -43,15 +42,14 @@ module LlmCostTracker
               [1 + (Float(percent) / 100), Date.parse(date)]
             end
 
-            def release_dates(page, changelog)
-              dated = changelog_dates(changelog)
-              raise Error, "OpenAI model release dates not found in its changelog" if dated.empty?
+            def eligible_models(page, changelog, cutoff)
+              released, mentioned = changelog_dates(changelog)
+              raise Error, "OpenAI model release dates not found in its changelog" if released.empty?
 
-              processing_model_ids(page).each_with_object({}) do |id, released|
-                model_id = id.sub(SNAPSHOT_DATE, "")
-                snapshot = id[SNAPSHOT_DATE, 1]&.then { |date| Date.parse(date) }
-                date = [released[model_id], dated[model_id], snapshot].compact.min
-                released[model_id] = date if date
+              processing_model_ids(page).group_by { |id| id.sub(SNAPSHOT_DATE, "") }.filter_map do |model_id, ids|
+                snapshots = ids.filter_map { |id| id[SNAPSHOT_DATE, 1]&.then { |date| Date.parse(date) } }
+                dates = [released[model_id], *snapshots].compact
+                model_id if dates.any? && [*dates, mentioned[model_id]].compact.min >= cutoff
               end
             end
 
@@ -71,13 +69,17 @@ module LlmCostTracker
             def changelog_dates(changelog)
               year = nil
               day = nil
-              changelog.each_line.with_object({}) do |line, dates|
+              changelog.each_line.with_object([{}, {}]) do |line, (released, mentioned)|
                 year = line[/\A## \w+, (\d{4})\s*\z/, 1] || year
                 heading = line[DAY_HEADING, 1]
                 day = Date.parse("#{heading} #{year}") if heading && year
-                next unless day && line.match?(/\AFeature\b/)
+                next unless day
 
-                line.scan(/Model: ([\w.-]+)/).flatten.each { |id| dates[id] = [dates[id], day].compact.min }
+                tagged = line.scan(/Model: ([\w.-]+)/).flatten.map { |id| id.sub(SNAPSHOT_DATE, "") }
+                tagged.each { |id| released[id] = [released[id], day].compact.min } if line.match?(/\AFeature\b/)
+                (tagged + line.scan(/`([\w.-]+)`/).flatten.map { |id| id.sub(SNAPSHOT_DATE, "") }).each do |id|
+                  mentioned[id] = [mentioned[id], day].compact.min
+                end
               end
             end
 
