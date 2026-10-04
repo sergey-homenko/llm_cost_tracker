@@ -86,35 +86,35 @@ module LlmCostTracker
           end
 
           def entry_fields(entry, provider = nil)
-            thresholds = []
+            thresholds = Hash.new { |hash, field| hash[field] = [] }
             fields = entry.each_with_object({}) do |(name, value), converted|
               if (match = FIELD.match(name))
                 next unless value.is_a?(Numeric) && value.positive?
 
                 field = [TIERS[match[:tier]], TOKEN_FIELDS.fetch(match[:field])].compact.join("_")
                 if match[:thousands]
-                  thresholds << (Integer(match[:thousands]) * 1000)
                   field = "above_context_#{field}"
+                  thresholds[field] << (Integer(match[:thousands]) * 1000)
                 end
                 converted[field] ||= (value * 1_000_000).round(6)
               elsif (unit = unit_price(name, value, entry, provider))
                 converted[unit.first] = unit.last
               end
             end
-            [fields, thresholds.uniq]
+            [fields, thresholds]
           end
 
           private
 
           def model_fields(entry, provider, &)
             fields, thresholds = entry_fields(entry, provider)
-            tiered(entry, fields, thresholds, &)
-            if thresholds.size > 1
+            boundaries = [*thresholds.values.flatten, tiered(entry, fields, &)].compact.uniq
+            if boundaries.size > 1
               yield "several long-context thresholds"
               fields = fields.reject { |field, _| field.start_with?("above_context_") }
-            elsif thresholds.one?
+            elsif boundaries.one?
               inclusive = INCLUSIVE_THRESHOLD_PROVIDERS.include?(provider) ? 1 : 0
-              fields["_context_price_threshold_tokens"] = thresholds.first - inclusive
+              fields["_context_price_threshold_tokens"] = boundaries.first - inclusive
             end
             yield "time-of-day prices (off_peak_pricing)" if entry["off_peak_pricing"]
             output = entry["output_cost_per_token"]
@@ -123,7 +123,7 @@ module LlmCostTracker
             provider == "openai" ? with_fast_aliases(fields) : fields
           end
 
-          def tiered(entry, fields, thresholds)
+          def tiered(entry, fields)
             low, high, *rest = entry["tiered_pricing"]
             return unless low
 
@@ -131,9 +131,9 @@ module LlmCostTracker
               yield "price tiers other than two contiguous ones (tiered_pricing)"
               return
             end
-            thresholds << Integer(low.dig("range", 1))
             fields.merge!(entry_fields(low).first) { |_field, top, _tier| top }
             entry_fields(high).first.each { |field, value| fields["above_context_#{field}"] = value }
+            Integer(low.dig("range", 1))
           end
 
           def with_fast_aliases(fields)
@@ -206,10 +206,11 @@ module LlmCostTracker
 
         def extract_fields(key, entry)
           fields, thresholds = self.class.entry_fields(entry)
-          raise Error, "LiteLLM #{key} mixes long-context thresholds" if thresholds.size > 1
+          fields = fields.select { |field, _| PROVIDER_FIELD.match?(field) }
+          boundaries = thresholds.slice(*fields.keys).values.flatten.uniq
+          raise Error, "LiteLLM #{key} mixes long-context thresholds" if boundaries.size > 1
 
-          fields["_context_price_threshold_tokens"] = thresholds.first if thresholds.one?
-          fields.select { |field, _| PROVIDER_FIELD.match?(field) || field == "_context_price_threshold_tokens" }
+          boundaries.empty? ? fields : fields.merge("_context_price_threshold_tokens" => boundaries.first)
         end
       end
     end

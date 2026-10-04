@@ -35,6 +35,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     )
   end
 
+  it "takes xAI's long-context threshold only from the rates it keeps" do
+    catalogue = JSON.parse(body)
+    catalogue["xai/grok-4.7"]["input_cost_per_image_token_above_128k_tokens"] = 3e-06
+    catalogue["xai/grok-4.6"] = catalogue["xai/grok-4.6"].reject { |name, _| name.include?("_above_") }
+                                                         .merge("input_cost_per_image_token_above_128k_tokens" => 3e-06)
+    models = xai_class.new.call(html: xai_pages.merge(described_class::SOURCE_URL => JSON.generate(catalogue))).models
+
+    expect(models.fetch("grok-4.7")).to include("_context_price_threshold_tokens" => 199_999,
+                                                "above_context_input" => 4.0)
+    expect(models.fetch("grok-4.6").keys.grep(/context/)).to be_empty
+  end
+
   it "gives the aliases xAI's model pages list for a batch model that model's batch rates" do
     batch = { "batch_input" => 1.0, "batch_cache_read_input" => 0.16, "batch_output" => 2.0,
               "above_context_batch_input" => 2.0, "above_context_batch_cache_read_input" => 0.32,
