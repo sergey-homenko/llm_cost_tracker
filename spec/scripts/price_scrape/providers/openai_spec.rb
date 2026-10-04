@@ -17,6 +17,12 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
   let(:catalogue) do
     File.read(File.expand_path("../../../fixtures/scrape/openai_models_all.md", __dir__), encoding: "utf-8")
   end
+  let(:data_controls) do
+    File.read(File.expand_path("../../../fixtures/scrape/openai_your_data.md", __dir__), encoding: "utf-8")
+  end
+  let(:changelog) do
+    File.read(File.expand_path("../../../fixtures/scrape/openai_changelog.md", __dir__), encoding: "utf-8")
+  end
   let(:without_markdown) { { described_class::RenderedLongContextPrices::SOURCE_URL => "" } }
   let(:long_context_sentence) do
     "Prompts with >272K input tokens are priced at 2x input and 1.5x output " \
@@ -39,6 +45,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       {
         "tier" => [0, "fast"],
         "rows" => [1, [[1, [[0, "gpt-5"], [0, 2.5], [0, 0.25], [0, 20]]]]]
+      },
+      {
+        "tier" => [0, "ultrafast"],
+        "rows" => [1, [[1, [[0, "gpt-5"], [0, 7.5], [0, 0.75], [0, 60]]]]]
       }
     )
   end
@@ -69,7 +79,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       described_class.source_url => html,
       described_class::RenderedLongContextPrices::SOURCE_URL => markdown,
       described_class::DeprecatedModels::SOURCE_URL => deprecations_html,
-      described_class::MODEL_CATALOGUE_URL => catalogue
+      described_class::MODEL_CATALOGUE_URL => catalogue,
+      described_class::DataResidencyPrices::ELIGIBILITY_URL => data_controls,
+      described_class::DataResidencyPrices::CHANGELOG_URL => changelog
     }
     documented.source_urls.each do |url|
       pages[url] = model_doc_html(url.end_with?("gpt-5.5-pro") ? "1,050,000 context window" : long_context_sentence)
@@ -465,6 +477,54 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "above_context_input" => 4.0, "above_context_output" => 15.0,
         "batch_input" => 1.0, "flex_output" => 5.0, "fast_input" => 4.0, "data_residency_input" => 2.2
       )
+    end
+
+    it "prices GPT-6 Astra Ultrafast at short and long context, and on US data residency" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-10-04T00:00:00Z")
+      fields = result.models.fetch("gpt-6-astra")
+
+      expect(fields).to include(
+        "ultrafast_input" => 60.0, "ultrafast_cache_read_input" => 6.0, "ultrafast_cache_write_input" => 75.0,
+        "ultrafast_output" => 300.0, "above_context_ultrafast_input" => 120.0,
+        "above_context_ultrafast_cache_read_input" => 12.0, "above_context_ultrafast_cache_write_input" => 150.0,
+        "above_context_ultrafast_output" => 450.0, "ultrafast_data_residency_input" => 66.0,
+        "ultrafast_data_residency_output" => 330.0, "above_context_ultrafast_data_residency_output" => 495.0,
+        "fast_input" => 20.0, "priority_input" => 20.0
+      )
+      expect(fields.keys.grep(/ultrapriority|priority_.*ultrafast/)).to be_empty
+      expect(result.models.except("gpt-6-astra").values.flat_map(&:keys).grep(/ultrafast/)).to be_empty
+    end
+
+    it "uplifts the models OpenAI processes regionally that were released on or after the cutoff it states" do
+      models = described_class.new.call(html: html_pages, scraped_at: "2026-10-04T00:00:00Z").models
+
+      %w[gpt-realtime-2 gpt-realtime-2.1 gpt-realtime-2.1-mini].each do |model_id|
+        fields = models.fetch(model_id)
+        expect(fields).to include(
+          "data_residency_input" => (fields.fetch("input") * 1.1).round(6),
+          "data_residency_cache_read_input" => (fields.fetch("cache_read_input") * 1.1).round(6),
+          "data_residency_output" => (fields.fetch("output") * 1.1).round(6)
+        )
+      end
+      expect(models.fetch("gpt-realtime-2.1"))
+        .to include("data_residency_input" => 4.4, "data_residency_output" => 26.4)
+      expect(models.values_at("gpt-realtime-1.5", "whisper-1", "gpt-4o-transcribe", "gpt-4.1", "gpt-5.2"))
+        .to all(satisfy { |fields| fields.keys.grep(/data_residency/).empty? })
+    end
+
+    it "raises when the data controls guide or the changelog no longer give the uplift terms" do
+      urls = described_class::DataResidencyPrices
+      without_terms = data_controls.gsub("10% uplift", "uplift")
+      without_table = data_controls.sub("#### API Endpoint, tool and model support", "#### Support")
+
+      expect { described_class.new.call(html: html_pages(urls::ELIGIBILITY_URL => without_terms)) }
+        .to raise_error(described_class::Error, /data residency uplift not found/)
+      expect { described_class.new.call(html: html_pages(urls::ELIGIBILITY_URL => without_table)) }
+        .to raise_error(described_class::Error, /data residency model table not found/)
+      expect { described_class.new.call(html: html_pages(urls::CHANGELOG_URL => "# Changelog")) }
+        .to raise_error(described_class::Error, /release dates not found in its changelog/)
+      expect { described_class.new.call(html: html_pages(urls::ELIGIBILITY_URL => data_controls.tr("`", "'"))) }
+        .to raise_error(described_class::Error, /no OpenAI model found eligible/)
     end
 
     it "raises on a new row that the model catalogue does not list" do

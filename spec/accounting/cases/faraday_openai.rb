@@ -128,6 +128,13 @@ module AccountingCases
                                   usage: responses_usage(300_000, 2000, cached: 200_000), service_tier: "flex"))
   end
 
+  define_case "faraday openai responses: gpt-6-astra on ultrafast with cached and cache-write tokens" do
+    usage = responses_usage(20_000, 1000, cached: 5000)
+    usage[:input_tokens_details][:cache_write_tokens] = 2000
+    faraday_json("#{OPENAI_API}/responses", { model: "gpt-6-astra", input: "hi", service_tier: "ultrafast" },
+                 responses_object(id: "resp_fa15", model: "gpt-6-astra", usage: usage, service_tier: "ultrafast"))
+  end
+
   define_case "faraday openai responses: web search, file search and code interpreter calls" do
     output = [
       { type: "web_search_call", id: "ws_1", status: "completed", action: { type: "search", query: "q" } },

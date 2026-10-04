@@ -90,6 +90,14 @@ module AccountingCases
     openai_client.responses.create(model: "gpt-5.5-pro", input: "hi")
   end
 
+  define_case "openai sdk responses: gpt-6-astra on ultrafast, long context on the us host", instrument: :openai do
+    stub_json(:post, "https://us.api.openai.com/v1/responses",
+              responses_object(id: "resp_sdk7", model: "gpt-6-astra",
+                               usage: responses_usage(300_000, 2000, cached: 100_000), service_tier: "ultrafast"))
+    openai_client("https://us.api.openai.com/v1").responses.create(model: "gpt-6-astra", input: "hi",
+                                                                   service_tier: :ultrafast)
+  end
+
   define_case "openai sdk responses: queued background response records nothing", instrument: :openai do
     stub_json(:post, "#{OPENAI_API}/responses",
               { id: "resp_bg", object: "response", model: "o3-pro", status: "queued", background: true,

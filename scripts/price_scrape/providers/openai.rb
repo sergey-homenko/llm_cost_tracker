@@ -27,6 +27,7 @@ module LlmCostTracker
           RenderedLongContextPrices::SOURCE_URL,
           DeprecatedModels::SOURCE_URL,
           MODEL_CATALOGUE_URL,
+          *DataResidencyPrices::SOURCE_URLS,
           *DocumentedLongContextPrices.source_urls
         ].freeze
 
@@ -46,6 +47,10 @@ module LlmCostTracker
           input: "fast_input", cache_read_input: "fast_cache_read_input",
           cache_write_input: "fast_cache_write_input", output: "fast_output"
         }.freeze
+        ULTRAFAST_FIELDS = {
+          input: "ultrafast_input", cache_read_input: "ultrafast_cache_read_input",
+          cache_write_input: "ultrafast_cache_write_input", output: "ultrafast_output"
+        }.freeze
         AUDIO_FIELDS = {
           input: "audio_input", cache_read_input: "audio_cache_read_input", output: "audio_output"
         }.freeze
@@ -59,8 +64,10 @@ module LlmCostTracker
           "standard" => STANDARD_FIELDS,
           "batch" => BATCH_FIELDS,
           "flex" => FLEX_FIELDS,
-          "fast" => FAST_FIELDS
+          "fast" => FAST_FIELDS,
+          "ultrafast" => ULTRAFAST_FIELDS
         }.freeze
+        FAST_FIELD = /(?<![a-z])fast_/
         TIER_IMAGE_FIELDS = { STANDARD_FIELDS => IMAGE_FIELDS, BATCH_FIELDS => BATCH_IMAGE_FIELDS }.freeze
         TRANSCRIPTION_AUDIO_INPUT = {
           "gpt-4o-transcribe" => { rate: 6.0, per_minute: "0.006" },
@@ -80,7 +87,7 @@ module LlmCostTracker
             collected.replace(merge_model_fields(collected, tier_models))
           end
           models = merge_model_fields(models, DocumentedLongContextPrices.call(models, pages))
-          models = add_model_id_aliases(add_priority_aliases(DataResidencyPrices.call(models)))
+          models = add_model_id_aliases(add_priority_aliases(DataResidencyPrices.call(models, pages)))
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -186,7 +193,7 @@ module LlmCostTracker
 
         def priority_alias_fields(fields)
           fields.each_with_object({}) do |(field, value), aliases|
-            aliases[field.sub("fast_", "priority_")] = value if field.include?("fast_")
+            aliases[field.sub(FAST_FIELD, "priority_")] = value if field.match?(FAST_FIELD)
           end
         end
 

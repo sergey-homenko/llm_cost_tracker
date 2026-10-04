@@ -88,6 +88,15 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
       expect(LlmCostTracker::Logging).not_to have_received(:warn)
     end
 
+    it "recognizes OpenAI's `ultrafast` tier as its own token, apart from `fast`" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      described_class.instance_variable_set(:@warned_tokens, nil)
+
+      expect(described_class.normalize("ultrafast")).to eq("ultrafast")
+      expect(described_class.tokenize("ultrafast_data_residency")).to eq(%w[ultrafast data_residency])
+      expect(LlmCostTracker::Logging).not_to have_received(:warn)
+    end
+
     it "treats Gemini's default `unspecified` service tier as standard (returns nil)" do
       allow(LlmCostTracker::Logging).to receive(:warn)
       described_class.instance_variable_set(:@warned_tokens, nil)
