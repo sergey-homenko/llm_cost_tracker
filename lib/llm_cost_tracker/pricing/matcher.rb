@@ -48,7 +48,7 @@ module LlmCostTracker
           prices = lookup(provider: provider, model: model)&.prices
           return false unless prices
 
-          prices.any? { |key, _| key.to_s.include?(modifier) }
+          prices.any? { |key, _| key.to_s.match?(/(?:\A|_)#{modifier}_/) }
         end
 
         private
