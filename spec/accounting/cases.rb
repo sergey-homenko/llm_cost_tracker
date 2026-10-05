@@ -19,6 +19,9 @@ module AccountingCases
   XAI_API = "https://api.x.ai/v1"
   XAI_US_API = "https://us.api.x.ai/v1"
   PERPLEXITY_API = "https://api.perplexity.ai"
+  MISTRAL_API = "https://api.mistral.ai/v1"
+  COHERE_CHAT = "https://api.cohere.com/v2/chat"
+  SPEECH_INPUT = "Hello, welcome to RubyLLM!"
   USER_MESSAGES = [{ role: "user", content: "hi" }].freeze
   XAI_AND_MISTRAL_HOSTS = lambda do |config|
     config.capture.openai_compatible_providers.merge!("api.x.ai" => "xai", "us.api.x.ai" => "xai",
@@ -231,6 +234,20 @@ module AccountingCases
   def speech_sse(input, output)
     sse({ type: "speech.audio.delta", audio: "SUQzBAAAAAAA" }, { type: "speech.audio.delta", audio: "AAAAAAAA" },
         { type: "speech.audio.done", usage: { input_tokens: input, output_tokens: output, total_tokens: input + output } })
+  end
+
+  def mistral_transcription(**extra)
+    { model: "voxtral-mini-latest", text: "hi", language: "en", segments: [],
+      usage: { prompt_audio_seconds: 203, prompt_tokens: 4, total_tokens: 3264, completion_tokens: 635 } }.merge(extra)
+  end
+
+  def groq_transcription(duration)
+    { task: "transcribe", language: "English", duration: duration, text: "hi", segments: [], x_groq: { id: "req_gw" } }
+  end
+
+  def cohere_usage(billed_input, billed_output, input)
+    { billed_units: { input_tokens: billed_input, output_tokens: billed_output },
+      tokens: { input_tokens: input, output_tokens: billed_output } }
   end
 
   def perplexity_usage(prompt, completion, cost)

@@ -105,6 +105,47 @@ module AccountingCases
                    document_annotation: nil, usage_info: { pages_processed: 3, doc_size_bytes: 48_213 } })
   end
 
+  define_case "faraday mistral transcription: voxtral-mini-latest by its audio seconds, its tokens kept unbilled" do
+    faraday_json("#{MISTRAL_API}/audio/transcriptions", { model: "voxtral-mini-latest" }, mistral_transcription)
+  end
+
+  define_case "faraday mistral speech: voxtral-mini-tts-2603 by its input characters" do
+    faraday_json("#{MISTRAL_API}/audio/speech", { model: "voxtral-mini-tts-2603", input: SPEECH_INPUT, voice_id: "paul" },
+                 { audio_data: "SUQz" })
+  end
+
+  define_case "faraday mistral speech stream: voxtral-mini-tts-2603 by its input characters, its tokens kept unbilled" do
+    done = { type: "speech.audio.done", usage: { prompt_tokens: 8, completion_tokens: 120, total_tokens: 128 } }
+    faraday_sse("#{MISTRAL_API}/audio/speech",
+                { model: "voxtral-mini-tts-2603", input: SPEECH_INPUT, voice_id: "paul", stream: true },
+                sse(["speech.audio.delta", { type: "speech.audio.delta", audio_data: "SUQz" }], ["speech.audio.done", done]))
+  end
+
+  define_case "faraday mistral moderation: mistral-moderation-2603 free" do
+    faraday_json("#{MISTRAL_API}/moderations", { model: "mistral-moderation-2603", input: "hi" },
+                 { id: "mod-fa", model: "mistral-moderation-2603", results: [{ categories: {}, category_scores: {} }] })
+  end
+
+  define_case "faraday groq transcription: whisper-large-v3 verbose_json 3.2s billed as the 10s minimum" do
+    faraday_json("#{GROQ_API}/audio/transcriptions", { model: "whisper-large-v3", response_format: "verbose_json" },
+                 groq_transcription(3.2))
+  end
+
+  define_case "faraday groq transcription: whisper-large-v3-turbo verbose_json 125.5s rounded up to whole seconds" do
+    faraday_json("#{GROQ_API}/audio/transcriptions",
+                 { model: "whisper-large-v3-turbo", response_format: "verbose_json" }, groq_transcription(125.5))
+  end
+
+  define_case "faraday groq transcription: whisper-large-v3 json without a duration" do
+    faraday_json("#{GROQ_API}/audio/transcriptions", { model: "whisper-large-v3" }, { text: "hi", x_groq: { id: "req_g" } })
+  end
+
+  define_case "faraday groq speech: orpheus-v1-english by its input characters" do
+    WebMock.stub_request(:post, "#{GROQ_API}/audio/speech")
+           .to_return(status: 200, body: "RIFF".b, headers: { "Content-Type" => "audio/wav" })
+    faraday_post("#{GROQ_API}/audio/speech", { model: "canopylabs/orpheus-v1-english", input: SPEECH_INPUT, voice: "troy" })
+  end
+
   define_case "faraday groq chat: on_demand tier" do
     faraday_json("#{GROQ_API}/chat/completions", { model: "openai/gpt-oss-120b", messages: [] },
                  chat_completion(id: "chatcmpl-gq1", model: "openai/gpt-oss-120b", usage: groq_usage(10_000, 1000),

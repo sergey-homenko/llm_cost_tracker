@@ -8,6 +8,7 @@ module AccountingCases
   CONTEXT_TRANSCRIBE_ON_RUBY_LLM_1 = "RubyLLM::Context#transcribe exists only on RubyLLM 2.x"
   STREAMED_TRANSCRIBE_ON_RUBY_LLM_1 = "RubyLLM 1.x does not stream transcriptions"
   RUBY_LLM_2_ONLY = "RubyLLM 1.x has no per-attempt usage events, workflows, batches, speech, OCR or rerank"
+  COHERE_ON_RUBY_LLM_1 = "RubyLLM 1.x has no Cohere provider"
   PERPLEXITY_EMBED_ON_RUBY_LLM_1 = "RubyLLM 1.x has no Perplexity embeddings"
   CONVERSE_STREAM_ON_RUBY_LLM_1 = "RubyLLM 1.x Converse streams are frozen at their 0.14.2 accounting"
   CONVERSE_STREAM_URL = %r{\Ahttps://bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com/model/[^/]+/converse-stream\z}
@@ -29,13 +30,22 @@ module AccountingCases
               responses_object(id: id, model: model, usage: responses, service_tier: service_tier))
   end
 
-  def ruby_llm_transcribe(model, provider, context: RubyLLM, &)
+  def ruby_llm_transcribe(model, provider, context: RubyLLM, **options, &)
     Tempfile.create(["clip", ".wav"]) do |file|
       file.binmode
       file.write("RIFF....WAVEfmt ")
       file.flush
-      context.transcribe(file.path, model: model, provider: provider, assume_model_exists: true, &)
+      context.transcribe(file.path, model: model, provider: provider, assume_model_exists: true, **options, &)
     end
+  end
+
+  def mistral_context = RubyLLM.context { |config| config.mistral_api_key = "test-mistral" }
+
+  def cohere_context = RubyLLM.context { |config| config.cohere_api_key = "test-cohere" }
+
+  def cohere_message(id, usage)
+    { id: id, finish_reason: "COMPLETE", message: { role: "assistant", content: [{ type: "text", text: "hi" }] },
+      usage: usage }
   end
 
   def bedrock_context(region)
@@ -860,6 +870,67 @@ module AccountingCases
                 usage: { total_tokens: 1200, cost: 0.002 } })
     RubyLLM.rerank("ruby", %w[python ruby], model: "cohere/rerank-v3.5", provider: :openrouter,
                                             assume_model_exists: true)
+  end
+
+  define_case "ruby_llm mistral transcribe: voxtral-mini-latest by its audio seconds, its tokens kept unbilled",
+              instrument: :ruby_llm do
+    RubyLLM.configure { |config| config.mistral_api_key = "test-mistral" }
+    stub_json(:post, "#{MISTRAL_API}/audio/transcriptions", mistral_transcription)
+    ruby_llm_transcribe("voxtral-mini-latest", :mistral)
+  end
+
+  define_case "ruby_llm mistral transcribe stream: voxtral-mini-latest by its final event's audio seconds",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: STREAMED_TRANSCRIBE_ON_RUBY_LLM_1 do
+    stub_sse(:post, "#{MISTRAL_API}/audio/transcriptions",
+             sse(["transcription.text.delta", { type: "transcription.text.delta", text: "hi" }],
+                 ["transcription.done", mistral_transcription(type: "transcription.done")]))
+    ruby_llm_transcribe("voxtral-mini-latest", :mistral, context: mistral_context) { |_chunk| nil }
+  end
+
+  define_case "ruby_llm mistral speak: voxtral-mini-tts-2603 by its input characters",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json(:post, "#{MISTRAL_API}/audio/speech", { audio_data: "SUQz" })
+    RubyLLM.speak(SPEECH_INPUT, model: "voxtral-mini-tts-2603", provider: :mistral, voice: "paul",
+                                assume_model_exists: true, context: mistral_context)
+  end
+
+  define_case "ruby_llm mistral speak stream: voxtral-mini-tts-2603 by its input characters, its tokens kept unbilled",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    done = { type: "speech.audio.done", usage: { prompt_tokens: 8, completion_tokens: 120, total_tokens: 128 } }
+    stub_sse(:post, "#{MISTRAL_API}/audio/speech",
+             sse(["speech.audio.delta", { type: "speech.audio.delta", audio_data: "SUQz" }], ["speech.audio.done", done]))
+    RubyLLM.speak(SPEECH_INPUT, model: "voxtral-mini-tts-2603", provider: :mistral, voice: "paul",
+                                assume_model_exists: true, context: mistral_context) { |_chunk| nil }
+  end
+
+  define_case "ruby_llm mistral moderate: mistral-moderation-2603 free", instrument: :ruby_llm do
+    RubyLLM.configure { |config| config.mistral_api_key = "test-mistral" }
+    stub_json(:post, "#{MISTRAL_API}/moderations",
+              { id: "mod-rl", model: "mistral-moderation-2603", results: [{ categories: {}, category_scores: {} }] })
+    RubyLLM.moderate("hi", model: "mistral-moderation-2603", provider: :mistral, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm openai transcribe: whisper-large-v3 on a groq api_base, verbose_json 3.2s billed as the 10s minimum",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: CONTEXT_TRANSCRIBE_ON_RUBY_LLM_1 do
+    stub_json(:post, "#{GROQ_API}/audio/transcriptions", groq_transcription(3.2))
+    context = RubyLLM.context { |config| config.openai_api_base = GROQ_API }
+    ruby_llm_transcribe("whisper-large-v3", :openai, context: context, format: "verbose_json")
+  end
+
+  define_case "ruby_llm cohere chat: command-a-03-2025 at its billed units, not its preamble-inflated tokens",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
+    stub_json(:post, COHERE_CHAT, cohere_message("co_rl1", cohere_usage(5, 418, 71)))
+    ruby_llm_chat("command-a-03-2025", :cohere, context: cohere_context).ask("hi")
+  end
+
+  define_case "ruby_llm cohere chat stream: command-a-03-2025 at the message-end billed units",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
+    stub_sse(:post, COHERE_CHAT,
+             sse(["message-start", { type: "message-start", id: "co_rl2", delta: { message: { role: "assistant" } } }],
+                 ["content-delta", { type: "content-delta", index: 0, delta: { message: { content: { text: "hi" } } } }],
+                 ["message-end", { type: "message-end",
+                                   delta: { finish_reason: "COMPLETE", usage: cohere_usage(5, 26, 71) } }]))
+    ruby_llm_chat("command-a-03-2025", :cohere, context: cohere_context).ask("hi") { nil }
   end
 
   define_case "ruby_llm bedrock chat stream: 1h and 5m cache writes from cacheDetails on a us profile",
