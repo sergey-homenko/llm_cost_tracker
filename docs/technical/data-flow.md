@@ -84,4 +84,4 @@ Dashboard reads do not mutate ledger state. They can be heavier than request-tim
 
 The gem never fetches pricing from the network during normal request tracking.
 
-The daily price bot (`scripts/price_scrape/runner.rb`) fetches each source page once per run, LiteLLM at one pinned commit, adds LiteLLM-only Mistral rows only when models.dev lists the same price, records keys a provider stopped listing in `metadata.absent_since` and drops them after 90 days; `cross_check.rb` then reports where LiteLLM, models.dev and the bundled prices disagree.
+The daily price bot (`scripts/price_scrape/runner.rb`) fetches each source page once per run, LiteLLM at one pinned commit, adds LiteLLM-only Mistral rows only when models.dev lists their price within 1%, records keys a provider stopped listing in `metadata.absent_since` and drops them after 90 days; `cross_check.rb` then reports where LiteLLM, models.dev and the bundled prices disagree.
