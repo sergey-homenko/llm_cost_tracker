@@ -114,7 +114,9 @@ module LlmCostTracker
               end.last
               return usage unless units
 
-              usage.merge(tokens: RubyLLM::Tokens.new(input: units["input_tokens"], output: units["output_tokens"]))
+              tokens = usage[:tokens]
+              usage.merge(tokens: RubyLLM::Tokens.new(input: units["input_tokens"] || tokens.input,
+                                                      output: units["output_tokens"] || tokens.output))
             end
 
             def converse_event(usage, payload, raw, events)

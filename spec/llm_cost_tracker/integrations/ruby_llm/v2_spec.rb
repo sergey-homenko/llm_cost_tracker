@@ -233,6 +233,20 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "keeps RubyLLM's count for a Cohere token field billed_units leaves out, and the row when it bills no tokens" do
+      message = { id: "co_3", finish_reason: "COMPLETE", message: { role: "assistant", content: [{ type: "text", text: "hi" }] } }
+      WebMock.stub_request(:post, "https://api.cohere.com/v2/chat").to_return(
+        reply(message.merge(usage: { billed_units: { input_tokens: 5 }, tokens: { input_tokens: 71, output_tokens: 26 } })),
+        reply(message.merge(usage: { billed_units: { search_units: 1 }, tokens: { input_tokens: 71, output_tokens: 26 } }))
+      )
+      keys = RubyLLM.context { |config| config.cohere_api_key = "test-cohere" }
+
+      capture_sdk_events do |events|
+        2.times { chat("command-a-03-2025", :cohere, context: keys).ask("hi") }
+        expect(events.map { |event| event.values_at(:input_tokens, :output_tokens) }).to eq([[5, 26], [71, 26]])
+      end
+    end
+
     it "records each pause_turn segment as its own row, priced from its own response body" do
       segment = lambda do |id, usage, stop_reason = "end_turn"|
         reply(anthropic_message(id: id, usage: usage, stop_reason: stop_reason))
