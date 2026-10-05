@@ -43,6 +43,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A model with no token rate is billed by its `transcription_minute`, `text_to_speech_character`, `ocr_page` or `rerank_search_unit` rate alone when the call reports that unit, and the token counts its response also reports stay unbilled.
 - Faraday captures transcriptions, translations, speech and moderations on OpenAI-compatible hosts, and records moderations, OpenAI's included, as `free` on a $0-priced model.
 - A transcription or translation without `usage` is priced by its `verbose_json` `duration`, rounded up to whole seconds, through Faraday and the official openai gem, Azure OpenAI Whisper included.
+- `bin/rails llm_cost_tracker:prices:refresh` runs `backfill_unknown_pricing` after writing a new `config.pricing.file`, or prints that command when the calls ledger is not reachable.
 
 ### Fixed
 
@@ -58,6 +59,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - OpenAI speech returned as binary audio by a model not billed per character, such as `gpt-4o-mini-tts`, is recorded with `usage_source: unknown` instead of as a zero-token response.
 - OpenAI `text-embedding-ada-002` embeddings, reported as `text-embedding-ada-002-v2`, are priced instead of recorded with unknown cost.
 - Mistral Embed called as `mistral-embed-2312`, another name its model card gives, is priced instead of recorded with unknown cost.
+- `backfill_unknown_pricing` or `reprice` runs at the same time no longer add a call's cost to the `:cache` rollups twice.
+- An empty, `0` or non-numeric `BATCH_SIZE` stops `backfill_unknown_pricing`, `reprice` and `backfill_tag_costs` with an error instead of doing nothing.
 
 ## [0.14.2] - 2026-09-28
 

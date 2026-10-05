@@ -15,6 +15,8 @@ RSpec.describe "llm_cost_tracker rake tasks" do
     Rake.application = previous_application
   end
 
+  after { disconnect_database! }
+
   it "sets up a fresh install with dashboard, prices, migrations, and doctor" do
     migrate = instance_double(Rake::Task, invoke: true)
     doctor = instance_double(Rake::Task, invoke: true)
@@ -60,6 +62,76 @@ RSpec.describe "llm_cost_tracker rake tasks" do
       expect { refresh.call("FORCE" => "1") }.to output(/refreshed pricing file/).to_stdout
       expect(YAML.safe_load_file(path).dig("models", "openai/gpt-4o", "input")).to eq(0.0)
     end
+  end
+
+  it "backfills the calls a new config.pricing.file prices, not when the file is kept or written elsewhere" do
+    establish_database_connection!
+    create_lct_tables!
+    [LlmCostTracker::Call, LlmCostTracker::CallLineItem, LlmCostTracker::CallTag, LlmCostTracker::CallRollup]
+      .each(&:reset_column_information)
+    Rake::Task.define_task(:environment)
+    url = "https://prices.example.com/prices.json"
+    stub_request(:get, url).to_return(
+      body: JSON.generate("models" => { "openai/acme-late-model" => { "input" => 1.0, "output" => 2.0 } }),
+      headers: { "ETag" => '"v1"' }
+    )
+    stub_request(:get, url).with(headers: { "If-None-Match" => '"v1"' }).to_return(status: 304)
+    allow(LlmCostTracker::Pricing::Backfill).to receive(:call).and_call_original
+
+    Dir.mktmpdir do |dir|
+      LlmCostTracker.configure { |config| config.pricing.file = File.join(dir, "llm_cost_tracker_prices.yml") }
+      LlmCostTracker.track(provider: "openai", model: "acme-late-model",
+                           tokens: { input_tokens: 1000, output_tokens: 100 })
+      refresh = lambda do |output|
+        stub_const("ENV", ENV.to_h.merge("OUTPUT" => File.join(dir, output), "URL" => url))
+        Rake::Task["llm_cost_tracker:prices:refresh"].execute
+      end
+
+      expect { refresh.call("staged.yml") }
+        .to output(/\Allm_cost_tracker: refreshed pricing file [^\n]*staged.yml\n(?!.*llm_cost_tracker:)/m).to_stdout
+      expect(LlmCostTracker::Call.sole.cost_status).to eq("unknown")
+      expect { refresh.call("./llm_cost_tracker_prices.yml") }.to output(
+        /refreshed pricing file.*\nllm_cost_tracker: examined 1 calls, recomputed 1, still unknown 0\n\z/m
+      ).to_stdout
+      expect(LlmCostTracker::Call.sole).to have_attributes(total_cost: BigDecimal("0.0012"), cost_status: "complete")
+      expect { refresh.call("llm_cost_tracker_prices.yml") }.to output(/kept pricing file/).to_stdout
+      expect(LlmCostTracker::Pricing::Backfill).to have_received(:call).once
+    end
+  end
+
+  it "keeps a new config.pricing.file and prints the backfill command when the calls ledger is not reachable" do
+    url = "https://prices.example.com/prices.json"
+    stub_request(:get, url).to_return(body: JSON.generate("models" => {}))
+    hinted = %r{refreshed pricing file.*\nllm_cost_tracker: calls ledger not reachable; run bin/rails llm_cost_tracker:backfill_unknown_pricing where it is\n\z}m
+
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "prices.yml")
+      LlmCostTracker.configure { |config| config.pricing.file = path }
+      stub_const("ENV", ENV.to_h.merge("OUTPUT" => path, "URL" => url))
+      refresh = -> { Rake::Task["llm_cost_tracker:prices:refresh"].execute }
+      establish_database_connection!
+      create_lct_tables!
+
+      expect { refresh.call }.to output(hinted).to_stdout
+      Rake::Task.define_task(:environment)
+      drop_lct_tables!
+      expect { refresh.call }.to output(hinted).to_stdout
+      LlmCostTracker::Call.establish_connection(LlmCostTrackerDatabase.config.merge(port: 1))
+      expect { refresh.call }.to output(hinted).to_stdout
+    ensure
+      LlmCostTracker::Call.remove_connection
+    end
+  end
+
+  it "refuses a BATCH_SIZE that is not a positive integer" do
+    allow(LlmCostTracker::Pricing::Backfill).to receive(:call)
+
+    ["0", "-1", "abc", ""].each do |size|
+      stub_const("ENV", ENV.to_h.merge("BATCH_SIZE" => size))
+      expect { Rake::Task["llm_cost_tracker:backfill_unknown_pricing"].execute }
+        .to raise_error(SystemExit).and output(/BATCH_SIZE=#{size} is not a positive integer/).to_stderr
+    end
+    expect(LlmCostTracker::Pricing::Backfill).not_to have_received(:call)
   end
 
   it "reprices calls from FROM up to TO and refuses to run without FROM or with an unreadable TO" do

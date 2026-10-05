@@ -26,8 +26,10 @@ module LlmCostTracker
             rollup_events = []
             LlmCostTracker::Call.transaction do
               batch.each do |call|
-                examined += 1
                 calculation = recompute_for(call, reprice: reprice)
+                next if calculation && changed_since_read?(call)
+
+                examined += 1
                 next unless calculation
 
                 rollup_events << rollup_event_for(call, calculation)
@@ -72,6 +74,11 @@ module LlmCostTracker
           rates = calculation.priced_line_items.to_h { |item| [dimension_key(item), item.rate_amount] }
           recorded = call.line_items.select { |record| record.unit == "token" && record.rate_amount }
           calculation if recorded.all? { |record| record.rate_amount == rates[dimension_key(record)] }
+        end
+
+        def changed_since_read?(call)
+          stored = LlmCostTracker::Call.lock.where(id: call.id).pick(:total_cost, :cost_status)
+          stored != [call.total_cost, call.cost_status]
         end
 
         def provider_billed?(calculation)

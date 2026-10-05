@@ -21,6 +21,7 @@ Before building or releasing production images:
 - Run `llm_cost_tracker:verify_capture` in a release job or smoke job that can write to the production database safely.
 - Keep the dashboard mount behind your app's authentication.
 - Treat price files as immutable release config; refresh before image build or through an automation that opens a PR.
+- Run `llm_cost_tracker:backfill_unknown_pricing` in a release job of every deploy that ships a new price file.
 
 When `ingestion = :async` is on, a single app process can need more than its request/job connection: the local ingestor thread checks out one of its own, and every inbox write borrows from the gem's own pool (`config.ingestion.pool_size`, default 2) so staged entries survive caller rollbacks. Size the app pool for your concurrency plus the ingestor thread, and `ingestion.pool_size` for concurrent captures.
 
