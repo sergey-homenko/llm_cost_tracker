@@ -133,6 +133,7 @@
       "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "https://models.dev/api.json",
       "https://docs.mistral.ai/inference/pricing",
+      "https://docs.mistral.ai/models",
       "https://docs.mistral.ai/studio/batch-processing.md",
       "https://docs.mistral.ai/inference/priority-tier.md",
       "https://docs.mistral.ai/inference/regional-inference.md",
@@ -1295,6 +1296,22 @@
       "priority_input": 0.525,
       "priority_output": 1.575
     },
+    "mistral/codestral-embed": {
+      "batch_cache_read_input": 0.0075,
+      "batch_input": 0.075,
+      "cache_read_input": 0.015,
+      "data_residency_cache_read_input": 0.0165,
+      "data_residency_input": 0.165,
+      "input": 0.15
+    },
+    "mistral/codestral-embed-2505": {
+      "batch_cache_read_input": 0.0075,
+      "batch_input": 0.075,
+      "cache_read_input": 0.015,
+      "data_residency_cache_read_input": 0.0165,
+      "data_residency_input": 0.165,
+      "input": 0.15
+    },
     "mistral/codestral-latest": {
       "batch_cache_read_input": 0.015,
       "batch_input": 0.15,
@@ -1312,42 +1329,6 @@
       "priority_input": 0.525,
       "priority_output": 1.575
     },
-    "mistral/devstral-latest": {
-      "_source": "litellm",
-      "batch_cache_read_input": 0.02,
-      "batch_input": 0.2,
-      "batch_output": 1.0,
-      "cache_read_input": 0.04,
-      "data_residency_cache_read_input": 0.044,
-      "data_residency_input": 0.44,
-      "data_residency_output": 2.2,
-      "input": 0.4,
-      "output": 2.0,
-      "priority_cache_read_input": 0.07,
-      "priority_data_residency_cache_read_input": 0.077,
-      "priority_data_residency_input": 0.77,
-      "priority_data_residency_output": 3.85,
-      "priority_input": 0.7,
-      "priority_output": 3.5
-    },
-    "mistral/devstral-medium-latest": {
-      "_source": "litellm",
-      "batch_cache_read_input": 0.02,
-      "batch_input": 0.2,
-      "batch_output": 1.0,
-      "cache_read_input": 0.04,
-      "data_residency_cache_read_input": 0.044,
-      "data_residency_input": 0.44,
-      "data_residency_output": 2.2,
-      "input": 0.4,
-      "output": 2.0,
-      "priority_cache_read_input": 0.07,
-      "priority_data_residency_cache_read_input": 0.077,
-      "priority_data_residency_input": 0.77,
-      "priority_data_residency_output": 3.85,
-      "priority_input": 0.7,
-      "priority_output": 3.5
-    },
     "mistral/glm-5-2": {
       "batch_cache_read_input": 0.07,
       "batch_input": 0.7,
@@ -1364,40 +1345,6 @@
       "priority_data_residency_output": 8.47,
       "priority_input": 2.45,
       "priority_output": 7.7
-    },
-    "mistral/magistral-medium-latest": {
-      "batch_cache_read_input": 0.075,
-      "batch_input": 0.75,
-      "batch_output": 3.75,
-      "cache_read_input": 0.15,
-      "data_residency_cache_read_input": 0.165,
-      "data_residency_input": 1.65,
-      "data_residency_output": 8.25,
-      "input": 1.5,
-      "output": 7.5,
-      "priority_cache_read_input": 0.2625,
-      "priority_data_residency_cache_read_input": 0.28875,
-      "priority_data_residency_input": 2.8875,
-      "priority_data_residency_output": 14.4375,
-      "priority_input": 2.625,
-      "priority_output": 13.125
-    },
-    "mistral/magistral-small-latest": {
-      "batch_cache_read_input": 0.0075,
-      "batch_input": 0.075,
-      "batch_output": 0.3,
-      "cache_read_input": 0.015,
-      "data_residency_cache_read_input": 0.0165,
-      "data_residency_input": 0.165,
-      "data_residency_output": 0.66,
-      "input": 0.15,
-      "output": 0.6,
-      "priority_cache_read_input": 0.02625,
-      "priority_data_residency_cache_read_input": 0.028875,
-      "priority_data_residency_input": 0.28875,
-      "priority_data_residency_output": 1.155,
-      "priority_input": 0.2625,
-      "priority_output": 1.05
     },
     "mistral/ministral-14b-2512": {
       "batch_cache_read_input": 0.01,
@@ -1539,9 +1486,7 @@
       "_source": "litellm",
       "batch_input": 0.05,
       "data_residency_input": 0.11,
-      "input": 0.1,
-      "priority_data_residency_input": 0.1925,
-      "priority_input": 0.175
+      "input": 0.1
     },
     "mistral/mistral-large-2512": {
       "batch_cache_read_input": 0.025,
@@ -1780,24 +1725,6 @@
       "priority_data_residency_output": 14.4375,
       "priority_input": 2.625,
       "priority_output": 13.125
-    },
-    "mistral/pixtral-large-latest": {
-      "_source": "litellm",
-      "batch_cache_read_input": 0.1,
-      "batch_input": 1.0,
-      "batch_output": 3.0,
-      "cache_read_input": 0.2,
-      "data_residency_cache_read_input": 0.22,
-      "data_residency_input": 2.2,
-      "data_residency_output": 6.6,
-      "input": 2.0,
-      "output": 6.0,
-      "priority_cache_read_input": 0.35,
-      "priority_data_residency_cache_read_input": 0.385,
-      "priority_data_residency_input": 3.85,
-      "priority_data_residency_output": 11.55,
-      "priority_input": 3.5,
-      "priority_output": 10.5
     },
     "mistral/zai-glm-5": {
       "batch_cache_read_input": 0.07,
