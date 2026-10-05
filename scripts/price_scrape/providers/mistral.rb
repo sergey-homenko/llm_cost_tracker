@@ -55,6 +55,7 @@ module LlmCostTracker
           retired, ambiguous = retirement(html.fetch(MODELS_SOURCE_URL), names, Date.parse(scraped_at))
           models = official_models(self.class.parse_json(html.fetch(SOURCE_URL)))
           rows = self.class.confirmed_rows("mistral", html, models, scraped_at)
+          rows &&= with_card_names(rows, names, models)
           models = with_tiers(models.merge(rows.to_h.except(*retired, *ambiguous)), html)
           validate!(models.except(*retired))
           notes = (rows.to_h.keys & ambiguous).map do |id|
@@ -65,6 +66,13 @@ module LlmCostTracker
         end
 
         private
+
+        def with_card_names(rows, names, models)
+          names.values.each_with_object(rows.dup) do |ids, named|
+            row = rows.values_at(*ids).compact.first
+            (ids - models.keys).each { |id| named[id] ||= row } if row
+          end
+        end
 
         def official_models(catalogue)
           catalogue.each_with_object({}) do |(key, entry), collected|
