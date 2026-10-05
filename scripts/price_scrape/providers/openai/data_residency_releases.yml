@@ -1,10 +1,13 @@
 released_on_or_after_cutoff:
+  - chat-latest
   - gpt-5.4
   - gpt-5.4-mini
   - gpt-5.4-nano
   - gpt-5.4-pro
   - gpt-5.5
+  - gpt-5.5-cyber
   - gpt-5.5-pro
+  - gpt-5.6-cyber
   - gpt-5.6-luna
   - gpt-5.6-sol
   - gpt-5.6-terra
@@ -12,6 +15,8 @@ released_on_or_after_cutoff:
   - gpt-6-luna
   - gpt-6-sol
   - gpt-6.1-sol
+  - gpt-daybreak-blue-latest
+  - gpt-daybreak-red-latest
   - gpt-image-2
   - gpt-image-2.5-flare
   - gpt-image-2.5-sunburst
@@ -22,10 +27,10 @@ released_on_or_after_cutoff:
   - gpt-realtime-2.1-mini
   - gpt-realtime-translate
   - gpt-realtime-whisper
+  - gpt-rosalind-research
   - gpt-transcribe
 released_before_cutoff:
   - babbage-002
-  - chat-latest
   - chatgpt-4o-latest
   - chatgpt-image-latest
   - codex-mini-latest
@@ -74,13 +79,9 @@ released_before_cutoff:
   - gpt-5.2-pro
   - gpt-5.3-chat-latest
   - gpt-5.3-codex
-  - gpt-5.5-cyber
-  - gpt-5.6-cyber
   - gpt-audio
   - gpt-audio-1.5
   - gpt-audio-mini
-  - gpt-daybreak-blue-latest
-  - gpt-daybreak-red-latest
   - gpt-image-1
   - gpt-image-1-mini
   - gpt-image-1.5
@@ -89,7 +90,6 @@ released_before_cutoff:
   - gpt-realtime
   - gpt-realtime-1.5
   - gpt-realtime-mini
-  - gpt-rosalind-research
   - o1
   - o1-mini
   - o1-preview
