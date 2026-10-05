@@ -7,14 +7,31 @@ require "price_scrape/providers/mistral"
 RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   let(:body) { fixture("litellm_prices.json") }
   let(:mistral_class) { LlmCostTracker::Pricing::Scrape::Providers::Mistral }
-  let(:mistral_pages) do
-    { described_class::SOURCE_URL => body, described_class::MODELS_DEV_URL => fixture("models_dev.json"),
-      mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html") }
-      .merge(mistral_class::TIER_SOURCES.to_h { |tier, (url, _)| [url, fixture("mistral_#{tier}.md")] })
+  let(:card_names) do
+    {
+      "mistral-medium-3-5-26-04" => %w[mistral-medium-3 mistral-medium-3-5 mistral-medium-latest],
+      "codestral-embed-25-05" => %w[codestral-embed codestral-embed-2505],
+      "voxtral-mini-transcribe-26-02" => %w[voxtral-mini-2602 voxtral-mini-latest],
+      "zai-glm-5-2" => %w[zai-glm-5-2], "zai-glm-5-3" => %w[zai-glm-5 zai-glm-5-3 zai-glm-latest],
+      "devstral-2-25-12" => %w[devstral-2512 devstral-latest devstral-medium-latest],
+      "magistral-medium-1-2-25-09" => %w[magistral-medium-2509 magistral-medium-latest],
+      "voxtral-mini-25-07" => %w[voxtral-mini-2507 voxtral-mini-latest],
+      "mistral-nemo-12b-24-07" => %w[open-mistral-nemo open-mistral-nemo-2407], "mathstral-7b-0-1" => []
+    }
   end
-  let(:mistral) { mistral_class.new.call(html: mistral_pages, scraped_at: "2026-10-05T06:00:00Z").models }
+  let(:mistral_pages) do
+    pages = { described_class::SOURCE_URL => body, described_class::MODELS_DEV_URL => fixture("models_dev.json"),
+              mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html"),
+              mistral_class::MODELS_SOURCE_URL => fixture("mistral_models.html") }
+            .merge(mistral_class::TIER_SOURCES.to_h { |tier, (url, _)| [url, fixture("mistral_#{tier}.md")] })
+    pages.merge(mistral_class.followup_urls(pages).to_h { |url| [url, card(card_names.fetch(url.split("/").last))] })
+  end
+  let(:mistral_result) { mistral_class.new.call(html: mistral_pages, scraped_at: "2026-10-05T06:00:00Z") }
+  let(:mistral) { mistral_result.models }
 
   def fixture(name) = File.read("spec/fixtures/scrape/#{name}", encoding: "utf-8")
+
+  def card(names) = %(<script>self.__next_f.push([1,"{\\"names\\":#{names.to_json.gsub('"', '\"')}}"])</script>)
 
   it "prices only the Mistral models its pricing page lists, at the page's rates, under the names the API accepts" do
     catalogue = JSON.parse(body)
@@ -80,8 +97,36 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       "_source" => "litellm", "input" => 0.1, "batch_input" => 0.05, "priority_input" => 0.175,
       "data_residency_input" => 0.11, "priority_data_residency_input" => 0.1925
     )
-    expect(mistral.keys).not_to include("open-mistral-nemo", "voxtral-small-latest", "devstral-medium-latest")
+    expect(mistral.keys).not_to include("open-mistral-nemo", "voxtral-small-latest")
     expect(mistral.fetch("mistral-large-latest")).not_to have_key("_source")
+  end
+
+  it "deprecates the ids Mistral's retired models table and the retired models' cards name, and writes none of them" do
+    expect(mistral_result.deprecated_models).to contain_exactly(
+      "devstral-2512", "devstral-latest", "devstral-medium-latest", "magistral-medium-2509", "magistral-medium-latest",
+      "voxtral-mini-2507", "open-mistral-nemo", "open-mistral-nemo-2407"
+    )
+    expect(mistral.keys).not_to include("devstral-latest", "devstral-medium-latest")
+    expect(mistral.keys).to include("zai-glm-5-2")
+  end
+
+  it "writes no LiteLLM row for an id both a retired and a current card name, and reports it" do
+    card_names.merge!("mistral-nemo-12b-24-07" => %w[open-mistral-nemo mistral-embed],
+                      "mathstral-7b-0-1" => %w[mistral-embed])
+
+    expect(mistral.keys).not_to include("mistral-embed")
+    expect(mistral_result.deprecated_models).not_to include("mistral-embed", "voxtral-mini-latest")
+    expect(mistral_result.notes)
+      .to eq(["- `mistral/mistral-embed`: named on both a retired and a current Mistral model card; not written"])
+  end
+
+  it "raises when Mistral's retired models table or a model card's API names go missing" do
+    card_url = "#{mistral_class::MODELS_SOURCE_URL}/devstral-2-25-12"
+
+    expect { mistral_class.new.call(html: mistral_pages.merge(mistral_class::MODELS_SOURCE_URL => "<html></html>")) }
+      .to raise_error(described_class::Error, /retired models table not found/)
+    expect { mistral_class.new.call(html: mistral_pages.merge(card_url => "<html></html>")) }
+      .to raise_error(described_class::Error, %r{card #{card_url} lists no API names})
   end
 
   describe ".convert" do

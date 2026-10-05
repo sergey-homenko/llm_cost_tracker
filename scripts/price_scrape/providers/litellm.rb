@@ -2,7 +2,6 @@
 
 require "date"
 require "json"
-require "time"
 
 require_relative "base"
 
@@ -62,11 +61,6 @@ module LlmCostTracker
         Gate = Data.define(:confirmed, :held, :unconfirmed)
 
         class << self
-          def litellm_provider(value = nil)
-            @litellm_provider = value if value
-            @litellm_provider
-          end
-
           def convert(catalogue)
             conversion = Conversion.new(
               models: {},
@@ -246,27 +240,6 @@ module LlmCostTracker
               name if !known && name.match?(PRICE_FIELD) && value != 0
             end
           end
-        end
-
-        def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
-          prefix = "#{self.class.litellm_provider}/"
-          models = self.class.parse_json(html.fetch(SOURCE_URL)).each_with_object({}) do |(key, entry), collected|
-            next unless key.start_with?(prefix) && entry.is_a?(Hash) && [*TOKEN_MODES, "ocr"].include?(entry["mode"])
-
-            fields = extract_fields(key, entry)
-            required = entry["mode"] == "ocr" ? %w[ocr_page] : %w[input output]
-            collected[key.delete_prefix(prefix)] = fields if required.all? { |field| fields.key?(field) }
-          end
-          rows = self.class.confirmed_rows(self.class.litellm_provider, html, models, scraped_at)
-          models = with_tiers(models.merge(rows))
-          validate!(models)
-          Result.new(
-            source_url: source_url,
-            scraped_at: scraped_at,
-            models: models,
-            deprecated_models: [],
-            service_charges: {}
-          )
         end
       end
     end
