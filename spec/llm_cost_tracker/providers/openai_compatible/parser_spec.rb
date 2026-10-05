@@ -35,13 +35,22 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
       expect(described_class.match?(groq_responses_url)).to be true
     end
 
-    it "matches xAI and Mistral hosts, regional ones included" do
-      urls = %w[api.x.ai us.api.x.ai api.mistral.ai api.eu.mistral.ai api.us.mistral.ai].map do |host|
-        URI::HTTPS.build(host: host, path: "/v1/chat/completions").to_s
-      end
+    it "matches xAI, Mistral and Perplexity hosts, regional ones included" do
+      hosts = %w[api.x.ai us.api.x.ai api.mistral.ai api.eu.mistral.ai api.us.mistral.ai api.perplexity.ai]
+      urls = hosts.map { |host| URI::HTTPS.build(host: host, path: "/v1/chat/completions").to_s }
 
       expect(urls.map { |url| [described_class.match?(url), parser.provider_for(url)] })
-        .to eq([[true, "xai"]] * 2 + [[true, "mistral"]] * 3)
+        .to eq([[true, "xai"]] * 2 + [[true, "mistral"]] * 3 + [[true, "perplexity"]])
+    end
+
+    it "matches image generation and edits and Perplexity's own Sonar and Agent API paths and polls on listed hosts" do
+      urls = [%w[api.x.ai /v1/images/generations], %w[api.x.ai /v1/images/edits], %w[api.perplexity.ai /v1/sonar],
+              %w[api.perplexity.ai /v1/agent], %w[api.perplexity.ai /v1/agent/resp_1],
+              %w[api.perplexity.ai /v1/responses/resp_1], %w[api.perplexity.ai /v1/async/sonar],
+              %w[llm.example.com /v1/sonar], %w[llm.example.com /v1/agent/resp_1]]
+             .map { |host, path| URI::HTTPS.build(host: host, path: path).to_s }
+
+      expect(urls.map { |url| described_class.match?(url) }).to eq([true] * 6 + [false] * 3)
     end
 
     it "lets a configured mapping replace a built-in one" do
@@ -91,6 +100,18 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
                     request_body: { model: "openai/gpt-4o-mini" }.to_json,
                     response_body: { error: "rate limited" }.to_json,
                     missing_usage_body: { model: "openai/gpt-4o-mini" }.to_json
+
+    it "records nothing for a queued or in-progress Perplexity Agent API run, whatever usage it carries" do
+      usage = { input_tokens: 0, output_tokens: 0, total_tokens: 0, cost: { currency: "USD", total_cost: 0 } }
+      results = %w[queued in_progress completed].map do |status|
+        parser.parse(request_url: "https://api.perplexity.ai/v1/agent", request_body: { background: true }.to_json,
+                     response_status: 200,
+                     response_body: { id: "resp_1", object: "response", model: "openai/gpt-5.6-terra", status: status,
+                                      background: true, output: [], usage: usage }.to_json)
+      end
+
+      expect(results.map { |result| result&.provider_response_id }).to eq([nil, nil, "resp_1"])
+    end
 
     it "extracts OpenRouter usage and provider name" do
       result = parser.parse(

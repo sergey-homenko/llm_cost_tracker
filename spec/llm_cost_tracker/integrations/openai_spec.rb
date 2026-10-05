@@ -63,6 +63,26 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
       expect(LlmCostTracker::Logging).to have_received(:warn).with("OpenAI response resp_bg has no usage; not recorded")
     end
+
+    it "records nothing for a queued or in-progress response, whatever usage it carries" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      capture_sdk_events do |events|
+        { "queued" => 0, "in_progress" => 40 }.each do |status, tokens|
+          WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(
+            status: 200,
+            body: { id: "resp_bg", object: "response", model: "o3-pro", status: status, background: true,
+                    created_at: 1, output: [],
+                    usage: { input_tokens: tokens, output_tokens: tokens, total_tokens: tokens * 2 } }.to_json,
+            headers: { "Content-Type" => "application/json" }
+          )
+          client.responses.create(model: "o3-pro", input: "hi", background: true)
+        end
+
+        expect(events).to be_empty
+      end
+      expect(LlmCostTracker::Logging).not_to have_received(:warn)
+    end
   end
 
   describe "responses.retrieve" do
@@ -575,7 +595,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
-    it "warns when a chat.completions stream ends without usage because include_usage was not requested" do
+    it "warns when an OpenAI or xAI chat stream ends without usage because include_usage was not requested" do
       sse = <<~SSE
         data: {"id":"chatcmpl_s","object":"chat.completion.chunk","model":"gpt-4o","choices":[{"index":0,"delta":{"content":"hi"}}]}
 
@@ -583,14 +603,19 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
 
       SSE
       stub_sdk_sse(:post, "https://api.openai.com/v1/chat/completions", body: sse)
+      stub_sdk_sse(:post, "https://api.x.ai/v1/chat/completions", body: sse)
       allow(LlmCostTracker::Logging).to receive(:warn)
+      xai = OpenAI::Client.new(api_key: "test-key", base_url: "https://api.x.ai/v1")
 
       capture_sdk_events do |events|
-        client.chat.completions.stream(model: "gpt-4o", messages: [{ role: "user", content: "hi" }]).each { |_| nil }
+        [client, xai].each do |sdk|
+          sdk.chat.completions.stream(model: "gpt-4o", messages: [{ role: "user", content: "hi" }]).each { |_| nil }
+        end
 
-        expect(events.first).to include(usage_source: "unknown")
+        expect(events.map { |event| event.values_at(:provider, :usage_source) })
+          .to eq([%w[openai unknown], %w[xai unknown]])
       end
-      expect(LlmCostTracker::Logging).to have_received(:warn).with(/stream_options.*include_usage/)
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(/stream_options.*include_usage/).twice
     end
 
     it "records the per-call web search fee on streamed search-model completions, as create does" do

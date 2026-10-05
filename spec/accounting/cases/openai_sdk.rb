@@ -758,4 +758,18 @@ module AccountingCases
     stub_json(:post, "#{OPENAI_API}/audio/translations", { text: "hi", usage: { type: "duration", seconds: 30 } })
     openai_client.audio.translations.create(file: audio_io, model: "whisper-1")
   end
+
+  define_case "openai sdk xai responses: grok-4.7 web search billed in cost_in_usd_ticks", instrument: :openai do
+    usage = xai_responses_usage(5000, 400, reasoning: 600)
+            .merge(num_server_side_tools_used: 1, cost_in_usd_ticks: 210_000_000)
+    stub_json(:post, "#{XAI_API}/responses", responses_object(id: "resp_xai_b3", model: "grok-4.7", usage: usage))
+    openai_client(XAI_API).responses.create(model: "grok-4.7", input: "hi", tools: [{ type: "web_search" }])
+  end
+
+  define_case "openai sdk xai images: grok-imagine-image billed in cost_in_usd_ticks", instrument: :openai do
+    stub_json(:post, "#{XAI_API}/images/generations",
+              { data: [{ url: "https://imgen.x.ai/xai-imgen/xai-tmp-imgen-b4.jpeg", mime_type: "image/jpeg" }],
+                usage: { cost_in_usd_ticks: 200_000_000 } })
+    openai_client(XAI_API).images.generate(prompt: "a cat", model: "grok-imagine-image")
+  end
 end

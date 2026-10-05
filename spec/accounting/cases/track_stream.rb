@@ -221,4 +221,12 @@ module AccountingCases
       stream.event(JSON.parse(JSON.generate({ type: "message_delta", usage: advisor_usage })))
     end
   end
+
+  define_case "track_stream xai: billed cost_in_usd_ticks in the final chunk" do
+    usage = xai_chat_usage(3000, 200, reasoning: 800, cached: 2000).merge(cost_in_usd_ticks: 90_000_000)
+    LlmCostTracker.track_stream(provider: :xai, model: "grok-4.7") do |stream|
+      stream.event(chat_chunk(id: "xai_b5", model: "grok-4.7", choices: [{ index: 0, delta: { content: "hi" } }]))
+      stream.event(chat_chunk(id: "xai_b5", model: "grok-4.7", choices: [], usage: usage))
+    end
+  end
 end

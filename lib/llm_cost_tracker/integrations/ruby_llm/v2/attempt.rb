@@ -92,7 +92,8 @@ module LlmCostTracker
 
             def openai_usage?(usage)
               usage.is_a?(Hash) &&
-                (usage.key?("input_tokens") || usage.key?("prompt_tokens") || usage["type"] == "duration")
+                (usage.key?("input_tokens") || usage.key?("prompt_tokens") || usage.key?("cost_in_usd_ticks") ||
+                 usage["type"] == "duration")
             end
 
             def gemini_event(response)

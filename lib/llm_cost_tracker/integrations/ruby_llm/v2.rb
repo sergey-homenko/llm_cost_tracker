@@ -23,12 +23,13 @@ module LlmCostTracker
           parse_completion_body: %w[Protocols::Anthropic Protocols::ChatCompletions Protocols::Responses
                                     Protocols::Gemini Protocols::Interactions Protocols::Converse
                                     Protocols::Mistral::Conversations Providers::Mistral::ChatCompletions],
-          parse_embedding_response: %w[Protocols::ChatCompletions Protocols::Gemini Providers::VertexAI::EmbedContent],
+          parse_embedding_response: %w[Protocols::ChatCompletions Protocols::Gemini Providers::VertexAI::EmbedContent
+                                       Providers::Perplexity::Embeddings],
           parse_transcription_response: %w[Protocols::ChatCompletions Protocols::Gemini],
           parse_speech_response: %w[Protocols::Gemini],
           stream_transcription: %w[Protocols::ChatCompletions],
           transcribe: %w[Protocol Protocols::Deepgram Protocols::Gemini::LiveTranscription],
-          parse_image_responses: %w[Protocols::ChatCompletions Protocols::Gemini],
+          parse_image_responses: %w[Protocols::ChatCompletions Protocols::Gemini Providers::XAI::Images],
           parse_cache_response: %w[Protocols::Gemini],
           messages: %w[Batch],
           results: %w[Batch]

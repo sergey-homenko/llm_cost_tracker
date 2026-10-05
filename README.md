@@ -69,7 +69,7 @@ Daily, monthly, and per-call limits, plus per-tag limits such as one monthly bud
 | OpenAI, Anthropic | Official SDK or Faraday |
 | Azure OpenAI | Official SDK or Faraday, on `*.openai.azure.com` and Foundry `*.services.ai.azure.com` |
 | Google Gemini, `ruby-openai` | Faraday |
-| OpenRouter, DeepSeek, Groq, xAI, Mistral | Faraday, or the official OpenAI SDK with `base_url` on that host |
+| OpenRouter, DeepSeek, Groq, xAI, Mistral, Perplexity | Faraday, or the official OpenAI SDK with `base_url` on that host |
 | Other OpenAI-compatible gateways | The same, once the host is added to `config.capture.openai_compatible_providers` |
 | Anything else | [`LlmCostTracker.track`](#manual-tracking) |
 
@@ -81,10 +81,10 @@ Captured does not always mean priced:
 
 | Cost comes from | Calls |
 | --- | --- |
-| The billed `usage.cost` in the response or final stream chunk | OpenRouter and other OpenAI-compatible gateways that return it (through RubyLLM 1.x, OpenRouter chats only) |
+| The billed amount in the response or final stream chunk: `usage.cost`, xAI's `usage.cost_in_usd_ticks`, or Perplexity's `usage.cost.total_cost` | OpenRouter, xAI, Perplexity, and other OpenAI-compatible gateways that return one (through RubyLLM 1.x, OpenRouter chats only) |
 | Bundled [`prices.json`](lib/llm_cost_tracker/prices.json) | The OpenAI, Anthropic, Gemini, Groq, OpenRouter, xAI, and Mistral models it lists, and the same Claude models on Bedrock through RubyLLM |
 | The OpenAI, Anthropic, or Gemini price for the same model name | Azure OpenAI (by the model in the response, not the deployment name), Vertex AI through RubyLLM, gateways that pass a listed model name through |
-| Nothing: recorded with `cost_status: unknown` | DeepSeek, and through RubyLLM also Perplexity, Ollama, other Bedrock models, and Claude on GovCloud (`us-gov.` profiles) |
+| Nothing: recorded with `cost_status: unknown` | DeepSeek, Perplexity without a billed amount (its Router, and anything through RubyLLM 1.x), and through RubyLLM also Ollama, other Bedrock models, and Claude on GovCloud (`us-gov.` profiles) |
 
 Add missing prices to `config.pricing.file` or `config.pricing.overrides` ([Pricing](docs/pricing.md)), then run `bin/rails llm_cost_tracker:backfill_unknown_pricing` to price the calls already recorded.
 

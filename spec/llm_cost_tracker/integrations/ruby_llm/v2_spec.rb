@@ -187,6 +187,33 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "records xAI's billed ticks once and exactly, not from RubyLLM's float, and Perplexity's total_cost" do
+      WebMock.stub_request(:post, "https://api.x.ai/v1/responses").to_return(reply(response_object(
+        id: "resp_x", model: "grok-4.3",
+        usage: { input_tokens: 204, input_tokens_details: { cached_tokens: 192 }, output_tokens: 122,
+                 output_tokens_details: { reasoning_tokens: 115 }, total_tokens: 326, cost_in_usd_ticks: 3_584_000 }
+      )))
+      WebMock.stub_request(:post, "https://api.perplexity.ai/chat/completions").to_return(
+        reply(id: "pplx-1", object: "chat.completion", model: "sonar",
+              choices: [{ index: 0, message: { role: "assistant", content: "hi" }, finish_reason: "stop" }],
+              usage: { prompt_tokens: 12, completion_tokens: 7, total_tokens: 19, search_context_size: "low",
+                       cost: { input_tokens_cost: 0.00001, output_tokens_cost: 0.00001, request_cost: 0.005,
+                               total_cost: 0.00502 } })
+      )
+      keys = RubyLLM.context do |config|
+        config.xai_api_key = "test-xai"
+        config.perplexity_api_key = "test-perplexity"
+      end
+
+      capture_sdk_events do |events|
+        chat("grok-4.3", :xai, context: keys).ask("hi")
+        chat("sonar", :perplexity, context: keys).ask("hi")
+        billed = events.map { |event| event[:line_items].select { |item| item[:kind] == "billed_request" } }
+        expect(billed.map { |items| items.map { |item| item.values_at(:cost, :provider_field) } })
+          .to eq([[%w[0.0003584 usage.cost_in_usd_ticks]], [%w[0.00502 usage.cost.total_cost]]])
+      end
+    end
+
     it "records each pause_turn segment as its own row, priced from its own response body" do
       segment = lambda do |id, usage, stop_reason = "end_turn"|
         reply(anthropic_message(id: id, usage: usage, stop_reason: stop_reason))
@@ -1091,6 +1118,10 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       expect(RubyLLM::Protocols::Anthropic.instance_method(:build_chunk).owner).to eq(bridge)
       expect(RubyLLM::Batch.ancestors.count(described_class::BatchBridge)).to eq(1)
       expect(RubyLLM::Providers::VertexAI::EmbedContent.instance_method(:parse_embedding_response).owner)
+        .to eq(described_class::ParseEmbeddingResponseBridge)
+      expect(RubyLLM::Providers::XAI::Responses.instance_method(:parse_image_responses).owner)
+        .to eq(described_class::ParseImageResponsesBridge)
+      expect(RubyLLM::Providers::Perplexity::ChatCompletions.instance_method(:parse_embedding_response).owner)
         .to eq(described_class::ParseEmbeddingResponseBridge)
     end
 
