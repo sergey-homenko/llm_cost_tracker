@@ -123,6 +123,8 @@
     "schema_version": 1,
     "source_urls": [
       "https://platform.claude.com/docs/en/about-claude/pricing",
+      "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
+      "https://models.dev/api.json",
       "https://api-docs.deepseek.com/quick_start/pricing",
       "https://ai.google.dev/gemini-api/docs/pricing",
       "https://console.groq.com/docs/models",
@@ -130,8 +132,7 @@
       "https://console.groq.com/docs/flex-processing",
       "https://console.groq.com/docs/deprecations",
       "https://console.groq.com/docs/batch",
-      "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-      "https://models.dev/api.json",
+      "https://console.groq.com/docs/speech-to-text",
       "https://docs.mistral.ai/inference/pricing",
       "https://docs.mistral.ai/models",
       "https://docs.mistral.ai/studio/batch-processing.md",
@@ -1641,6 +1642,23 @@
       "priority_input": 2.625,
       "priority_output": 13.125
     },
+    "mistral/mistral-moderation-2603": {
+      "batch_cache_read_input": 0.0,
+      "batch_input": 0.0,
+      "batch_output": 0.0,
+      "cache_read_input": 0.0,
+      "data_residency_cache_read_input": 0.0,
+      "data_residency_input": 0.0,
+      "data_residency_output": 0.0,
+      "input": 0.0,
+      "output": 0.0,
+      "priority_cache_read_input": 0.0,
+      "priority_data_residency_cache_read_input": 0.0,
+      "priority_data_residency_input": 0.0,
+      "priority_data_residency_output": 0.0,
+      "priority_input": 0.0,
+      "priority_output": 0.0
+    },
     "mistral/mistral-small-2603": {
       "batch_cache_read_input": 0.0075,
       "batch_input": 0.075,
@@ -1725,6 +1743,12 @@
       "priority_data_residency_output": 14.4375,
       "priority_input": 2.625,
       "priority_output": 13.125
+    },
+    "mistral/voxtral-mini-2602": {
+      "transcription_minute": 0.003
+    },
+    "mistral/voxtral-mini-latest": {
+      "transcription_minute": 0.003
     },
     "mistral/zai-glm-5": {
       "batch_cache_read_input": 0.07,
