@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../../lib/llm_cost_tracker/pricing/registry"
+
 module LlmCostTracker
   module Pricing::Scrape
     module PriceFieldsValidator
@@ -24,7 +26,12 @@ module LlmCostTracker
         private
 
         def metadata_price_key?(field, value)
-          field == "_context_price_threshold_tokens" && value.is_a?(Integer) && value.positive?
+          case field
+          when Pricing::Registry::CONTEXT_THRESHOLD_KEY then value.is_a?(Integer) && value.positive?
+          when Pricing::Registry::OFF_PEAK_WINDOWS_KEY then Pricing::OffPeak.windows(value, label: field) == value
+          end
+        rescue ArgumentError
+          false
         end
       end
     end

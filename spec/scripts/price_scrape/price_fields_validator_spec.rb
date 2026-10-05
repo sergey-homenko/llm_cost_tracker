@@ -39,6 +39,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::PriceFieldsValidator do
     end.to raise_error(error_class, /invalid price for claude-haiku-4-5.input: 0.0/)
   end
 
+  it "accepts well-formed off-peak windows and rejects malformed ones" do
+    windows = [{ "weekdays" => [6, 7], "hours_utc" => ["00:00-24:00"] }]
+    check = lambda do |value|
+      models = base_models.merge("deepseek-flash" => { "input" => 0.3, "_off_peak_windows" => value })
+      described_class.call(models, minimum: 2, maximum: 1000.0, error_class: error_class)
+    end
+
+    expect { check.call(windows) }.not_to raise_error
+    expect { check.call([{ "weekdays" => [6, 7], "hours_utc" => ["10:00-00:00"] }]) }
+      .to raise_error(error_class, /invalid price for deepseek-flash._off_peak_windows/)
+  end
+
   it "does not check anchors when none are configured" do
     expect do
       described_class.call(base_models, minimum: 2, maximum: 1000.0, error_class: error_class)

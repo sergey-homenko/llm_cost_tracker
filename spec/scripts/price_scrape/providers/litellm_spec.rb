@@ -198,10 +198,25 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       )
       expect(conversion.unrepresentable).to include(
         "several long-context thresholds" => ["openrouter/qwen/qwen3-max"],
-        "time-of-day prices (off_peak_pricing)" => ["deepseek/deepseek-flash"],
         "reasoning tokens priced apart from output" => ["perplexity/sonar-deep-research"]
       )
       expect(models.fetch("openrouter/qwen/qwen3-max").keys.grep(/above_context/)).to be_empty
+    end
+
+    it "converts off-peak prices to off_peak_ rates and their windows, ending a window at 24:00" do
+      expect(models.fetch("deepseek/deepseek-flash")).to include(
+        "input" => 0.3, "off_peak_input" => 0.15, "off_peak_cache_read_input" => 0.003, "off_peak_output" => 0.6,
+        "_off_peak_windows" => [
+          { "weekdays" => [1, 2, 3, 4, 5], "hours_utc" => ["00:00-01:00", "04:00-06:00", "10:00-24:00"] },
+          { "weekdays" => [6, 7], "hours_utc" => ["00:00-24:00"] }
+        ]
+      )
+
+      entry = JSON.parse(body).fetch("deepseek/deepseek-flash")
+      named = entry.merge("off_peak_pricing" => entry["off_peak_pricing"].merge("windows" => [{ "weekdays" => ["sat"] }]))
+      odd = described_class.convert("deepseek/deepseek-odd" => named)
+      expect(odd.unrepresentable).to eq("time-of-day prices outside weekday windows (off_peak_pricing)" => ["deepseek/deepseek-odd"])
+      expect(odd.models.fetch("deepseek/deepseek-odd").keys.grep(/off_peak/)).to be_empty
     end
 
     it "converts two contiguous price tiers into long-context rates and reports any other tiering" do

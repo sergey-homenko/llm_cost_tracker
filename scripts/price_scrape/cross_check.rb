@@ -16,7 +16,7 @@ module LlmCostTracker
       PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/%s/model_prices_and_context_window.json"
       REGISTRY_PATH = File.expand_path("../../lib/llm_cost_tracker/prices.json", __dir__)
       ACKNOWLEDGED_PATH = File.expand_path("cross_check_acknowledged.yml", __dir__)
-      FULLY_SCRAPED = %w[anthropic gemini openai openrouter xai].freeze
+      FULLY_SCRAPED = %w[anthropic deepseek gemini openai openrouter xai].freeze
       COUNTS_ONLY = %w[openrouter].freeze
       UNCAPTURED = { "gemini" => Providers::Gemini::UNCAPTURED_MODEL }.freeze
       UNCOMPARED = { "openai" => %w[web_search_request] }.freeze
@@ -170,6 +170,7 @@ module LlmCostTracker
       end
 
       def differ?(ours, theirs)
+        return ours != theirs unless ours.is_a?(Numeric) && theirs.is_a?(Numeric)
         return ours != theirs if ours.zero? || theirs.zero?
 
         (ours - theirs).abs / [ours.abs, theirs.abs].max > TOLERANCE
@@ -217,8 +218,8 @@ module LlmCostTracker
 
         rows = found.sort_by { |finding| [finding.model, finding.field] }.map do |finding|
           ours, theirs = finding.detail
-          change = ours.zero? ? "" : format("%+.0f%%", (theirs - ours) * 100.0 / ours)
-          "| #{finding.model} | `#{finding.field}` | #{ours} | #{theirs} | #{change} |"
+          change = ours.is_a?(Numeric) && !ours.zero? ? format("%+.0f%%", (theirs - ours) * 100.0 / ours) : ""
+          "| #{finding.model} | `#{finding.field}` | #{ours.to_json} | #{theirs.to_json} | #{change} |"
         end
         ["| model | field | ours | LiteLLM | change |", "|---|---|---|---|---|", *rows]
       end

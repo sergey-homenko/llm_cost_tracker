@@ -259,6 +259,27 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     end
   end
 
+  it "writes off-peak windows as scraped fields, so an unchanged scrape leaves the registry as it was" do
+    windows = [{ "weekdays" => [6, 7], "hours_utc" => ["00:00-24:00"] }]
+    fields = { "input" => 0.3, "output" => 1.2, "off_peak_input" => 0.15, "_off_peak_windows" => windows }
+    scrape = lambda do |scraped, path|
+      described_class.new.call(provider: "deepseek", provider_result: build_result(models: { "deepseek-flash" => scraped }),
+                               registry_path: path)
+    end
+
+    with_registry(build_registry(models: {})) do |path|
+      expect(scrape.call(fields, path).added).to eq(["deepseek/deepseek-flash"])
+      written = File.read(path)
+      expect(JSON.parse(written).dig("models", "deepseek/deepseek-flash", "_off_peak_windows")).to eq(windows)
+
+      expect(scrape.call(fields, path).changed?).to be(false)
+      expect(File.read(path)).to eq(written)
+      sunday = [{ "weekdays" => [7], "hours_utc" => ["00:00-24:00"] }]
+      expect(scrape.call(fields.merge("_off_peak_windows" => sunday), path).updated)
+        .to eq("deepseek/deepseek-flash" => { "_off_peak_windows" => { "from" => windows, "to" => sunday } })
+    end
+  end
+
   it "leaves models from other providers in the registry untouched" do
     registry = build_registry(models: {
                                 "anthropic/claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 },

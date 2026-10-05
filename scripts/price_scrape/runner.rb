@@ -3,6 +3,7 @@
 require_relative "../../lib/llm_cost_tracker"
 require_relative "fetcher"
 require_relative "providers/anthropic"
+require_relative "providers/deepseek"
 require_relative "providers/gemini"
 require_relative "providers/groq"
 require_relative "providers/mistral"
@@ -16,6 +17,7 @@ module LlmCostTracker
     class Runner
       PROVIDERS = {
         "anthropic" => Providers::Anthropic,
+        "deepseek" => Providers::Deepseek,
         "gemini" => Providers::Gemini,
         "groq" => Providers::Groq,
         "mistral" => Providers::Mistral,

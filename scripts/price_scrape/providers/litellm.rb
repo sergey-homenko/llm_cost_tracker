@@ -116,11 +116,30 @@ module LlmCostTracker
               inclusive = INCLUSIVE_THRESHOLD_PROVIDERS.include?(provider) ? 1 : 0
               fields["_context_price_threshold_tokens"] = boundaries.first - inclusive
             end
-            yield "time-of-day prices (off_peak_pricing)" if entry["off_peak_pricing"]
+            if entry.key?("off_peak_pricing")
+              off_peak = off_peak_fields(entry["off_peak_pricing"])
+              yield "time-of-day prices outside weekday windows (off_peak_pricing)" unless off_peak
+              fields.merge!(off_peak.to_h)
+            end
             output = entry["output_cost_per_token"]
             reasoning = entry.fetch("output_cost_per_reasoning_token", output)
             yield "reasoning tokens priced apart from output" if reasoning != output
             provider == "openai" ? with_fast_aliases(fields) : fields
+          end
+
+          def off_peak_fields(pricing)
+            return unless pricing.is_a?(Hash)
+
+            windows = Array(pricing["windows"]).map do |window|
+              window = {} unless window.is_a?(Hash)
+              hours = Array(window["hours_utc"]).map { |range| range.to_s.sub(/-00:00\z/, "-24:00") }
+              { "weekdays" => window["weekdays"], "hours_utc" => hours }
+            end
+            rates = entry_fields(pricing).first
+            rates.transform_keys { |field| field.sub(/\A(above_context_)?/, "\\1off_peak_") }
+                 .merge(Pricing::Registry::OFF_PEAK_WINDOWS_KEY => Pricing::OffPeak.windows(windows, label: "windows"))
+          rescue ArgumentError
+            nil
           end
 
           def tiered(entry, fields)
