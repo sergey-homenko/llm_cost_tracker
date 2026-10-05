@@ -114,16 +114,20 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
     stub_request(:get, format(described_class::PRICES_URL, sha))
       .to_return(status: 200, body: JSON.generate(catalogue.slice("gpt-4o", "gpt-6-astra")))
     Dir.mktmpdir do |dir|
-      prices, acks, report, issue = %w[prices.json acks.yml report.md issue.md].map { |name| File.join(dir, name) }
+      prices, acks, notes, report, issue = %w[prices.json acks.yml notes.md report.md issue.md].map do |name|
+        File.join(dir, name)
+      end
       File.write(prices, JSON.generate(registry))
       File.write(acks, "openai/gpt-4o.input: Known.\n")
+      File.write(notes, "- `openai/gpt-7`: undecided\n")
 
       described_class.run(report_path: report, issue_path: issue, registry_path: prices, acknowledged_path: acks,
-                          sha: sha)
+                          notes_path: notes, sha: sha)
 
       expect(File.read(report)).to start_with("## Cross-source check (LiteLLM aaaaaaaa)\n\n| provider |")
       expect(File.read(report)).to include("- `openai/gpt-4o.input`: Known.")
-      expect(File.read(issue)).to start_with("### LiteLLM-only fields on covered models")
+      expect(File.read(issue)).to start_with("### Scraper notes\n\n- `openai/gpt-7`: undecided\n\n" \
+                                             "### LiteLLM-only fields on covered models")
       expect(File.read(prices)).to eq(JSON.generate(registry))
     end
   end

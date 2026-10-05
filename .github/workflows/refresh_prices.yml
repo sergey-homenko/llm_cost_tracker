@@ -38,6 +38,7 @@ jobs:
         env:
           PROVIDERS: ${{ github.event.inputs.providers || 'anthropic,gemini,groq,mistral,openai,openrouter,xai' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+          NOTES_PATH: price_notes.md
         run: |
           set -o pipefail
           bundle exec ruby scripts/price_scrape/runner.rb 2>&1 | tee refresh.log
@@ -46,7 +47,7 @@ jobs:
         id: cross_check
         continue-on-error: true
         run: |
-          bundle exec ruby scripts/price_scrape/cross_check.rb cross_check.md cross_check_issue.md
+          bundle exec ruby scripts/price_scrape/cross_check.rb cross_check.md cross_check_issue.md price_notes.md
           cat cross_check.md
 
       - name: Detect price changes

@@ -25,6 +25,7 @@ module LlmCostTracker
       TIERS = [*Providers::Litellm::TIERS.values, "fast"].freeze
       TIERED_FIELD = /\A(?<context>above_context_)?(?:(?<tier>#{TIERS.join('|')})_)?(?<dimension>.+)\z/
       SECTIONS = {
+        notes: "Scraper notes",
         difference: "Values that differ by more than 1% (official kept)",
         model: "LiteLLM-only models of fully scraped providers",
         field: "LiteLLM-only fields on covered models",
@@ -41,6 +42,7 @@ module LlmCostTracker
         issue_path:,
         registry_path: REGISTRY_PATH,
         acknowledged_path: ACKNOWLEDGED_PATH,
+        notes_path: nil,
         fetcher: Fetcher.new,
         sha: nil
       )
@@ -49,13 +51,15 @@ module LlmCostTracker
 
         check = new(registry: JSON.parse(File.read(registry_path)),
                     catalogue: JSON.parse(fetcher.get(format(PRICES_URL, sha)).body),
-                    acknowledged: YAML.safe_load_file(acknowledged_path) || {})
+                    acknowledged: YAML.safe_load_file(acknowledged_path) || {},
+                    notes: notes_path && File.exist?(notes_path) ? File.readlines(notes_path, chomp: true) : [])
         File.write(report_path, check.report(sha))
         File.write(issue_path, check.findings)
       end
 
-      def initialize(registry:, catalogue:, acknowledged: {}, today: Date.today)
+      def initialize(registry:, catalogue:, acknowledged: {}, notes: [], today: Date.today)
         @ours = registry.fetch("models", {})
+        @notes = notes
         @charges = registry.fetch("service_charges", {})
         @conversion = Providers::Litellm.convert(catalogue)
         @acknowledged = acknowledged
@@ -198,6 +202,7 @@ module LlmCostTracker
       def lines(section, open)
         found = open.fetch(section, [])
         case section
+        when :notes then @notes
         when :stale then stale.map { |key| "- `#{key}` no longer matches a finding" }
         when :difference then difference_lines(found)
         when :model then grouped(found) { |finding| finding.model.split("/").first }
@@ -241,5 +246,9 @@ module LlmCostTracker
 end
 
 if $PROGRAM_NAME == __FILE__
-  LlmCostTracker::Pricing::Scrape::CrossCheck.run(report_path: ARGV.fetch(0), issue_path: ARGV.fetch(1))
+  LlmCostTracker::Pricing::Scrape::CrossCheck.run(
+    report_path: ARGV.fetch(0),
+    issue_path: ARGV.fetch(1),
+    notes_path: ARGV[2]
+  )
 end

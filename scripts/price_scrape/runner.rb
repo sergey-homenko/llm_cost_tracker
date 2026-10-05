@@ -38,7 +38,7 @@ module LlmCostTracker
         @io = io
       end
 
-      def call(providers:, registry_path: DEFAULT_REGISTRY_PATH, dry_run: false)
+      def call(providers:, registry_path: DEFAULT_REGISTRY_PATH, dry_run: false, notes_path: nil)
         unknown = providers - PROVIDERS.keys
         raise Error, "unknown providers: #{unknown.inspect}" if unknown.any?
 
@@ -46,6 +46,7 @@ module LlmCostTracker
           run_provider(name: name, registry_path: registry_path, dry_run: dry_run)
         end
         log_summary(runs, dry_run: dry_run)
+        write_notes(runs, notes_path) if notes_path
         failures = runs.select(&:error)
         raise Error, "provider scrape failures: #{failures.map(&:name).join(', ')}" if failures.any?
 
@@ -66,6 +67,7 @@ module LlmCostTracker
           scraped_at: primary_response.fetched_at
         )
         @io.puts "[#{name}] parsed #{scraped.models.size} models (deprecated: #{scraped.deprecated_models.size})"
+        scraped.notes.each { |note| @io.puts "[#{name}] #{note}" }
 
         orchestrator_result = @orchestrator_factory.call(dry_run: dry_run).call(
           provider: name,
@@ -80,6 +82,10 @@ module LlmCostTracker
         @io.puts "[#{name}] FAILED: #{e.class}: #{e.message}"
         e.backtrace.first(5).each { |line| @io.puts "[#{name}]   #{line}" }
         ProviderRun.new(name: name, scraped: nil, orchestrator: nil, error: e)
+      end
+
+      def write_notes(runs, path)
+        File.write(path, runs.flat_map { |run| run.scraped&.notes.to_a }.map { |note| "#{note}\n" }.join)
       end
 
       def fetch_provider_responses(name, provider_class)
@@ -147,5 +153,9 @@ if $PROGRAM_NAME == __FILE__
               .map(&:strip)
               .select(&:present?)
   dry_run = ENV["DRY_RUN"] == "1"
-  LlmCostTracker::Pricing::Scrape::Runner.new.call(providers: providers, dry_run: dry_run)
+  LlmCostTracker::Pricing::Scrape::Runner.new.call(
+    providers: providers,
+    dry_run: dry_run,
+    notes_path: ENV["NOTES_PATH"].presence
+  )
 end
