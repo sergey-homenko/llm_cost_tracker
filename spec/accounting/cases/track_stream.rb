@@ -229,4 +229,12 @@ module AccountingCases
       stream.event(chat_chunk(id: "xai_b5", model: "grok-4.7", choices: [], usage: usage))
     end
   end
+
+  define_case "track_stream deepseek: deepseek-flash cache hits at the off-peak rates" do
+    LlmCostTracker.track_stream(provider: :deepseek, model: "deepseek-flash") do |stream|
+      stream.event(chat_chunk(id: "ds4", model: "deepseek-flash", choices: [{ index: 0, delta: { content: "hi" } }]))
+      stream.event(chat_chunk(id: "ds4", model: "deepseek-flash", choices: [],
+                              usage: deepseek_usage(10_000, 1_000, hit: 8_000)))
+    end
+  end
 end

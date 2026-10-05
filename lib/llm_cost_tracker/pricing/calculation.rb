@@ -29,12 +29,18 @@ module LlmCostTracker
         @model = model
         @token_usage = token_usage
         @line_items = line_items
-        @mode = mode
+        @requested_mode = mode
         @usage_source = usage_source
         @at = at
       end
 
-      attr_reader :mode
+      def mode
+        return @mode if defined?(@mode)
+
+        windows = match&.prices&.[](Registry::OFF_PEAK_WINDOWS_KEY)
+        off_peak = windows && OffPeak.cover?(windows, @at) ? ["off_peak"] : []
+        @mode = Mode.compose(Mode.tokenize(@requested_mode) - ["off_peak"] + off_peak)
+      end
 
       def match
         return @match if defined?(@match)
@@ -49,7 +55,7 @@ module LlmCostTracker
           usage: @token_usage,
           quantities: quantities,
           prices: match.prices,
-          pricing_mode: @mode,
+          pricing_mode: mode,
           cache_at_input_rate: cache_keys_at_input_rate
         )
       end
@@ -230,7 +236,7 @@ module LlmCostTracker
         return line_item if line_item.priced? || !line_item.billable? || billed_line
 
         rate = model_rate(line_item) ||
-               ServiceRates.charge_rate(provider: @provider, dimension: line_item.kind, pricing_mode: @mode)
+               ServiceRates.charge_rate(provider: @provider, dimension: line_item.kind, pricing_mode: mode)
         return line_item unless rate
 
         line_item.with_rate(rate)
@@ -255,15 +261,15 @@ module LlmCostTracker
       end
 
       def iteration_mode(model)
-        return @mode if Matcher.modifier_priced?(provider: @provider, model: model, modifier: "fast")
+        return @requested_mode if Matcher.modifier_priced?(provider: @provider, model: model, modifier: "fast")
 
-        Mode.compose(Mode.tokenize(@mode) - ["fast"])
+        Mode.compose(Mode.tokenize(@requested_mode) - ["fast"])
       end
 
       def model_rate(line_item)
         return nil unless priceable?
 
-        modes = @mode ? Mode.permutations_for(@mode) : []
+        modes = mode ? Mode.permutations_for(mode) : []
         key = [*modes.map { |mode| PriceKey.build(line_item.kind, mode: mode) }, line_item.kind]
               .find { |candidate| match.prices[candidate].is_a?(Numeric) }
         return nil unless key

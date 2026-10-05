@@ -26,6 +26,7 @@ module LlmCostTracker
         PRICE_COLUMNS = { "Input" => "input", "Cached input" => "cache_read_input", "Output" => "output" }.freeze
         MODEL_CARD = %r{\Ahttps://docs\.mistral\.ai/models/(?:model-cards/)?(?<card>[a-z0-9-]+)\z}
         TOKEN_PRICE = /\A\$(?<amount>\d+(?:\.\d+)?)\z/
+        PAGE_PRICE = %r{\A\$(?<amount>\d+(?:\.\d+)?) /1000 Pages\z}
 
         def call(html:, **)
           @listed = listed_prices(Nokogiri::HTML(html.fetch(PRICING_SOURCE_URL)))
@@ -49,8 +50,10 @@ module LlmCostTracker
         end
 
         def extract_fields(key, entry)
-          card = MODEL_CARD.match(entry["source"].to_s)&.[](:card) ||
-                 @cards_by_stem[key.delete_prefix("mistral/")[/\A(.+)-(?:latest|\d{4})\z/, 1]]
+          stem = key.delete_prefix("mistral/")[/\A(.+)-(?:latest|\d{4})\z/, 1]
+          latest_stem = stem.delete_prefix("mistral-") if key.end_with?("-latest")
+          card = MODEL_CARD.match(entry["source"].to_s)&.[](:card) || @cards_by_stem[stem]
+          card ||= @cards_by_stem[latest_stem]
           @listed.fetch(card, {})
         end
 
@@ -65,8 +68,10 @@ module LlmCostTracker
             table.css("tr").each do |row|
               link = row.at_css("a[href^='/models/']")
               prices = fields.zip(row.css("td")).filter_map do |field, cell|
-                amount = field && cell && TOKEN_PRICE.match(cell.text.strip)
-                [field, Float(amount[:amount])] if amount
+                text = cell&.text.to_s.strip
+                if field && (amount = TOKEN_PRICE.match(text)) then [field, Float(amount[:amount])]
+                elsif field == "input" && (amount = PAGE_PRICE.match(text)) then ["ocr_page", Float(amount[:amount])]
+                end
               end.to_h
               listed[link["href"].delete_prefix("/models/")] = prices if link
             end

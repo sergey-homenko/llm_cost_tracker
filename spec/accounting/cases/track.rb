@@ -163,6 +163,12 @@ module AccountingCases
                                                 price_source: "provider_response" }])
   end
 
+  define_case "track deepseek: legacy deepseek-v4-flash name at the Flash peak rates" do
+    travel_to(Time.utc(2026, 9, 30, 7))
+    LlmCostTracker.track(provider: "deepseek", model: "deepseek-v4-flash",
+                         tokens: { input_tokens: 1_000_000, output_tokens: 1_000_000 })
+  end
+
   define_case "track openai: zero tokens on a listed model" do
     LlmCostTracker.track(provider: "openai", model: "gpt-4o", tokens: { input_tokens: 0, output_tokens: 0 })
   end

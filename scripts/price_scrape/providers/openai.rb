@@ -332,7 +332,8 @@ module LlmCostTracker
 
         def extract_price_fields(cells, fields:)
           cache_write_column = cells.size >= 5
-          prices = { fields.fetch(:input) => parse_price(unwrap(cells[1])) }
+          input = unwrap(cells[1])
+          prices = fields == AUDIO_FIELDS && input == "-" ? {} : { fields.fetch(:input) => parse_price(input) }
           cache_read_input = parse_optional_price(unwrap(cells[2]))
           prices[fields.fetch(:cache_read_input)] = cache_read_input if cache_read_input && fields[:cache_read_input]
           if cache_write_column

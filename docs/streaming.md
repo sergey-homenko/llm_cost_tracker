@@ -35,7 +35,7 @@ usage_source=unknown.
 
 The Responses API does not need the flag — usage is emitted automatically. The official OpenAI SDK's `chat.completions.stream` and `chat.completions.stream_raw` send your params unchanged, so pass `stream_options: { include_usage: true }` yourself; without it the call is stored with `usage_source: unknown` and the same warning is logged. Groq also reports usage in `x_groq.usage` on the final chunk, which the gem reads when the top-level usage is missing.
 
-Gemini `streamGenerateContent`, Gemini Interactions API (`stream: true`), and Anthropic streaming responses are parsed from their provider event shapes when usage metadata is present.
+Gemini `streamGenerateContent`, Gemini Interactions API (`stream: true`), and Anthropic streaming responses are parsed from their provider event shapes when usage metadata is present, and OpenAI speech requested with `stream_format: "sse"` from its final `speech.audio.done` event.
 
 A stream cut short by a failed connection, or by a middleware listed after `f.use :llm_cost_tracker` such as `f.response :raise_error`, is recorded with unknown usage and the tags `stream_interrupted: true`, `stream_interrupted_error` (the error class), and `stream_interrupted_status` (the HTTP status, when there is one).
 

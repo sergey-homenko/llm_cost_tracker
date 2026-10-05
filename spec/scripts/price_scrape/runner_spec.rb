@@ -202,4 +202,29 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
       expect(io.string).to include("[example] - `openai/gpt-7`: undecided")
     end
   end
+
+  it "logs the entries the orchestrator holds and writes them with the scraper notes" do
+    provider = Class.new(LlmCostTracker::Pricing::Scrape::Providers::Base) do
+      source_url "https://prices.example.test/"
+      define_method(:call) do |source_url:, scraped_at:, **|
+        LlmCostTracker::Pricing::Scrape::Providers::Base::Result.new(
+          source_url:, scraped_at:, deprecated_models: [], service_charges: {},
+          models: { "gpt-4o-mini-tts" => { "input" => 0.6, "audio_output" => 12.0 } }
+        )
+      end
+    end
+    stub_const("#{described_class}::PROVIDERS", "openai" => provider)
+    stub_request(:get, "https://prices.example.test/").to_return(status: 200, body: "{}")
+
+    Dir.mktmpdir do |dir|
+      registry, notes = %w[prices.json notes.md].map { |name| File.join(dir, name) }
+      File.write(registry, JSON.generate(build_registry(haiku_entry: { "input" => 1.0, "output" => 5.0 })))
+
+      described_class.new(io: io).call(providers: %w[openai], registry_path: registry, dry_run: true, notes_path: notes)
+
+      held = "- `openai`: gpt-4o-mini-tts held until metadata.min_gem_version is 0.15.0"
+      expect(File.read(notes)).to eq("#{held}\n")
+      expect(io.string).to include("[openai] #{held}")
+    end
+  end
 end

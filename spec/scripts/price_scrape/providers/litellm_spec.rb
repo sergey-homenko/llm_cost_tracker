@@ -146,9 +146,21 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       .to raise_error(described_class::Error, /mistral priority rate not found/)
   end
 
-  it "keeps only priced token models of its own provider" do
+  it "prices Mistral OCR per 1,000 pages from the Input column, under the card's API names and its -latest alias" do
+    one_card = mistral_pages.merge(mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html")
+                                     .sub(%r{<tr><td><a href="/models/ocr-4-0">.*?</tr>}, ""))
+    models = mistral_class.new.call(html: one_card).models
+
+    expect(models.slice("mistral-ocr-4-1", "mistral-ocr-4", "mistral-ocr-latest").values)
+      .to eq([{ "ocr_page" => 4.0 }] * 3)
+    expect(models.keys).not_to include("mistral-ocr-2512", "mistral-ocr-4-0", "voxtral-mini-latest")
+    expect(mistral.keys).to include("mistral-ocr-4-1")
+    expect(mistral.keys).not_to include("mistral-ocr-latest")
+  end
+
+  it "keeps only priced token and OCR models of its own provider" do
     expect(xai.keys).not_to include("grok-imagine-image", "grok-voice-transcribe-1.0")
-    expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-embed", "mistral-ocr-latest")
+    expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-embed", "mistral-moderation-2603")
     expect(xai.keys + mistral.keys).not_to include("deepseek-flash", "gpt-4o")
   end
 
@@ -198,10 +210,25 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       )
       expect(conversion.unrepresentable).to include(
         "several long-context thresholds" => ["openrouter/qwen/qwen3-max"],
-        "time-of-day prices (off_peak_pricing)" => ["deepseek/deepseek-flash"],
         "reasoning tokens priced apart from output" => ["perplexity/sonar-deep-research"]
       )
       expect(models.fetch("openrouter/qwen/qwen3-max").keys.grep(/above_context/)).to be_empty
+    end
+
+    it "converts off-peak prices to off_peak_ rates and their windows, ending a window at 24:00" do
+      expect(models.fetch("deepseek/deepseek-flash")).to include(
+        "input" => 0.3, "off_peak_input" => 0.15, "off_peak_cache_read_input" => 0.003, "off_peak_output" => 0.6,
+        "_off_peak_windows" => [
+          { "weekdays" => [1, 2, 3, 4, 5], "hours_utc" => ["00:00-01:00", "04:00-06:00", "10:00-24:00"] },
+          { "weekdays" => [6, 7], "hours_utc" => ["00:00-24:00"] }
+        ]
+      )
+
+      entry = JSON.parse(body).fetch("deepseek/deepseek-flash")
+      named = entry.merge("off_peak_pricing" => entry["off_peak_pricing"].merge("windows" => [{ "weekdays" => ["sat"] }]))
+      odd = described_class.convert("deepseek/deepseek-odd" => named)
+      expect(odd.unrepresentable).to eq("time-of-day prices outside weekday windows (off_peak_pricing)" => ["deepseek/deepseek-odd"])
+      expect(odd.models.fetch("deepseek/deepseek-odd").keys.grep(/off_peak/)).to be_empty
     end
 
     it "converts two contiguous price tiers into long-context rates and reports any other tiering" do

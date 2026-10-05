@@ -8,6 +8,7 @@ module LlmCostTracker
 
         TRACKED_PATH_SUFFIXES = %w[
           /chat/completions /completions /embeddings /responses /images/generations /images/edits /v1/sonar /v1/agent
+          /v1/ocr
         ].freeze
         RETRIEVE_PATH = %r{/(?:responses|agent)/resp_[^/]+\z}
         STREAM_USAGE_HOSTS = %w[

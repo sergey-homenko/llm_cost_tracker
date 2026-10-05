@@ -410,6 +410,12 @@ module AccountingCases
                  { created: 1, data: [{ url: "https://x/a.png" }] })
   end
 
+  define_case "faraday openai speech: gpt-4o-mini-tts SSE usage at the text input and audio output rates" do
+    faraday_sse("#{OPENAI_API}/audio/speech",
+                { model: "gpt-4o-mini-tts", voice: "alloy", input: "hello world", stream_format: "sse" },
+                speech_sse(1000, 50_000))
+  end
+
   define_case "faraday openai speech: binary audio body" do
     WebMock.stub_request(:post, "#{OPENAI_API}/audio/speech")
            .to_return(status: 200, body: "ID3\x00\x01".b, headers: { "Content-Type" => "audio/mpeg" })

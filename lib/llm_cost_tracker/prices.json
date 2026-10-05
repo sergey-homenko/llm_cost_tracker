@@ -5,6 +5,7 @@
     "schema_version": 1,
     "source_urls": [
       "https://platform.claude.com/docs/en/about-claude/pricing",
+      "https://api-docs.deepseek.com/quick_start/pricing",
       "https://ai.google.dev/gemini-api/docs/pricing",
       "https://console.groq.com/docs/models",
       "https://console.groq.com/docs/prompt-caching",
@@ -41,7 +42,7 @@
       "https://docs.x.ai/developers/models/grok-4.20-multi-agent-0309.md"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-10-04"
+    "updated_at": "2026-10-05"
   },
   "models": {
     "anthropic/claude-fable-5": {

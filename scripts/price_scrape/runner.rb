@@ -3,6 +3,7 @@
 require_relative "../../lib/llm_cost_tracker"
 require_relative "fetcher"
 require_relative "providers/anthropic"
+require_relative "providers/deepseek"
 require_relative "providers/gemini"
 require_relative "providers/groq"
 require_relative "providers/mistral"
@@ -16,6 +17,7 @@ module LlmCostTracker
     class Runner
       PROVIDERS = {
         "anthropic" => Providers::Anthropic,
+        "deepseek" => Providers::Deepseek,
         "gemini" => Providers::Gemini,
         "groq" => Providers::Groq,
         "mistral" => Providers::Mistral,
@@ -75,6 +77,7 @@ module LlmCostTracker
           registry_path: registry_path,
           source_urls: canonical_source_urls
         )
+        orchestrator_result.notes.each { |note| @io.puts "[#{name}] #{note}" }
         log_provider_result(name, orchestrator_result, dry_run: dry_run)
 
         ProviderRun.new(name: name, scraped: scraped, orchestrator: orchestrator_result, error: nil)
@@ -85,7 +88,8 @@ module LlmCostTracker
       end
 
       def write_notes(runs, path)
-        File.write(path, runs.filter_map(&:scraped).flat_map(&:notes).map { |note| "#{note}\n" }.join)
+        notes = runs.reject(&:error).flat_map { |run| run.scraped.notes + run.orchestrator.notes }
+        File.write(path, notes.map { |note| "#{note}\n" }.join)
       end
 
       def fetch_provider_responses(name, provider_class)

@@ -16,18 +16,20 @@ module LlmCostTracker
       def record(event:, latency_ms: nil, metadata: {}, context_tags: nil, enforce_budget: false)
         return unless LlmCostTracker.configuration.enabled
 
+        tracked_at = Time.now.utc
         calculation = Pricing::Calculation.for(
           provider: event.provider,
           model: event.model,
           tokens: event.token_usage,
           line_items: event.line_items,
           pricing_mode: event.pricing_mode,
-          usage_source: event.usage_source
+          usage_source: event.usage_source,
+          at: tracked_at
         )
 
         tags = build_tags(context_tags: context_tags, metadata: metadata)
 
-        event = build_event(event: event, calculation: calculation, tags: tags, latency_ms: latency_ms)
+        event = build_event(event:, calculation:, tags:, latency_ms:, tracked_at:)
 
         if Ingestion.async?
           Ingestion::Inbox.save(event)
@@ -73,14 +75,14 @@ module LlmCostTracker
         Logging.warn("Subscriber raised on #{EVENT_NAME}: #{e.class}: #{e.message}")
       end
 
-      def build_event(event:, calculation:, tags:, latency_ms:)
+      def build_event(event:, calculation:, tags:, latency_ms:, tracked_at:)
         event.with(
           event_id: event.event_id || SecureRandom.uuid,
           pricing_mode: calculation.mode,
           cost: calculation.cost,
           tags: tags,
           latency_ms: finite_latency_ms(latency_ms),
-          tracked_at: Time.now.utc,
+          tracked_at: tracked_at,
           cost_status: calculation.cost_status,
           pricing_snapshot: calculation.snapshot,
           line_items: calculation.priced_line_items

@@ -52,7 +52,7 @@ Header row. One per tracked call (or completed stream).
 | `provider_api_key_id` | string | Provider API key dimension |
 | `provider_workspace_id` | string | Provider workspace/org dimension |
 | `batch` | boolean, default `false` | Provider batch path |
-| `pricing_mode` | string | `batch`, `flex`, `priority`, etc. |
+| `pricing_mode` | string | The tier the call was priced at: `batch`, `flex`, `priority`, `off_peak`, etc. |
 | `cost_status` | string, default `unknown` | `free`, `complete`, `partial`, `unknown` |
 | `pricing_snapshot` | jsonb / json | Applied rate audit snapshot |
 | `tracked_at` | datetime, not null | Event timestamp |
@@ -79,19 +79,19 @@ One row per priced component on a call. Tokens and tool charges live here in the
 | --- | --- | --- |
 | `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
 | `position` | smallint, default `0` | Stable order within a call |
-| `kind` | string, not null | `text_token`, `audio_token`, `image_token`, `video_token` (counted in `input_tokens` or `output_tokens`), `web_search_request`, `web_search_preview_request_reasoning`, `web_search_preview_request_non_reasoning`, `web_fetch_request`, `grounding_request`, `maps_grounding_request`, `cache_storage_token_hour`, `image_generation_call`, `container_session`, `file_search_call`, `transcription_minute`, `text_to_speech_character`, `code_execution_hour`, `billed_request` (the provider's billed total for the call, e.g. OpenRouter's `usage.cost`, or `$0` for an unbilled Anthropic refusal), `model_iteration` (an Anthropic advisor or fallback attempt; `details` holds its model and token counts) |
+| `kind` | string, not null | `text_token`, `audio_token`, `image_token`, `video_token` (counted in `input_tokens` or `output_tokens`), `web_search_request`, `web_search_preview_request_reasoning`, `web_search_preview_request_non_reasoning`, `web_fetch_request`, `grounding_request`, `maps_grounding_request`, `cache_storage_token_hour`, `image_generation_call`, `container_session`, `file_search_call`, `transcription_minute`, `text_to_speech_character`, `code_execution_hour`, `ocr_page`, `rerank_search_unit`, `billed_request` (the provider's billed total for the call, e.g. OpenRouter's `usage.cost`, or `$0` for an unbilled Anthropic refusal), `model_iteration` (an Anthropic advisor or fallback attempt; `details` holds its model and token counts) |
 | `direction` | string, not null | `input`, `output`, `neither` |
 | `modality` | string, not null | `text`, `audio`, `image`, `video`, `none` |
 | `cache_state` | string, default `none` | `none`, `read`, `write_default`, `write_extended` |
 | `quantity` | decimal(30,10) | Token count or charge count |
-| `unit` | string, not null | `token`, `character`, `request`, `session`, `minute`, `hour`, `token_hour` |
+| `unit` | string, not null | `token`, `character`, `request`, `session`, `minute`, `hour`, `token_hour`, `page` |
 | `rate_amount` | decimal(20,8) | Applied rate when priced |
 | `rate_quantity` | decimal(30,10), default `1` | Rate denominator (e.g. 1_000_000 for tokens) |
 | `cost` | decimal(20,8) | `quantity / rate_quantity * rate_amount` |
 | `currency` | string, default `USD` | Currency for `cost` |
 | `cost_status` | string, default `unknown` | `complete`, `free`, `unknown` |
 | `pricing_basis` | string | `provider_usage` when the provider reported the quantity itself. Where the *rate* came from is `price_source`, not this column |
-| `price_key` | string | The registry key whose value was applied, mode prefix included (`batch_input`, `above_context_cache_read_input`). Null when the rate was derived from another key's ratio |
+| `price_key` | string | The registry key whose value was applied, mode prefix included (`batch_input`, `off_peak_input`, `above_context_cache_read_input`). Null when the rate was derived from another key's ratio |
 | `price_source` / `price_source_version` | string | Where the rate came from |
 | `provider_field` | string | Path in the provider response (audit) |
 | `provider_item_id` | string | Provider item id (audit) |

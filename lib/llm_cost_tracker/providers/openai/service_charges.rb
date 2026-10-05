@@ -176,6 +176,27 @@ module LlmCostTracker
           )]
         end
 
+        def ocr_line_items(response)
+          unit_line_items("ocr_page", response.dig("usage_info", "pages_processed"), "usage_info.pages_processed")
+        end
+
+        def rerank_line_items(response)
+          units = response.dig("meta", "billed_units", "search_units")
+          unit_line_items("rerank_search_unit", units, "meta.billed_units.search_units")
+        end
+
+        def unit_line_items(dimension_key, quantity, provider_field)
+          return [] unless quantity.is_a?(Numeric) && quantity.positive?
+
+          [Charges::LineItem.build(
+            dimension_key: dimension_key,
+            quantity: quantity,
+            cost_status: Charges::CostStatus::UNKNOWN,
+            pricing_basis: "provider_usage",
+            provider_field: provider_field
+          )]
+        end
+
         def billed_line_items(usage)
           amount, field = billed_amount(usage)
           return [] unless amount

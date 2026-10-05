@@ -52,6 +52,14 @@ RSpec.describe LlmCostTracker::Pricing::Sync::SnapshotGuard do
     )
   end
 
+  it "accepts changed off-peak windows" do
+    windows = ->(hours) { { "_off_peak_windows" => [{ "weekdays" => [6, 7], "hours_utc" => [hours] }] } }
+    from = current.deep_merge("models" => { "openai/gpt-4o" => windows.call("00:00-24:00") })
+    remote = current.deep_merge("models" => { "openai/gpt-4o" => windows.call("00:00-12:00") })
+
+    expect(findings(remote, from: from)).to eq([])
+  end
+
   it "flags a currency switch, but nothing on a first refresh into an empty file" do
     remote = current.deep_merge("metadata" => { "currency" => "EUR" }, "models" => { "openai/gpt-4o" => { "input" => 0 } })
 

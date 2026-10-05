@@ -196,6 +196,22 @@
   unit: minute
   rate_basis: per_minute
 
+- key: ocr_page
+  kind: ocr_page
+  direction: input
+  modality: image
+  cache_state: none
+  unit: page
+  rate_basis: per_1k_pages
+
+- key: rerank_search_unit
+  kind: rerank_search_unit
+  direction: input
+  modality: text
+  cache_state: none
+  unit: request
+  rate_basis: per_1k_requests
+
 - key: billed_request
   kind: billed_request
   direction: neither

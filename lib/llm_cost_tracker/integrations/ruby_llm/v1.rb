@@ -45,7 +45,8 @@ module LlmCostTracker
               Providers::Anthropic::UsageExtractor.service_line_items(server_tool_use: counts&.symbolize_keys)
             when "openai" then Providers::Openai::ServiceCharges.service_line_items_for(body, model: model)
             when "gemini" then Providers::Gemini::Parser.new.service_line_items_for(body, model: model)
-            when "openrouter" then Providers::Openai::ServiceCharges.billed_line_items(usage_hash(body))
+            when "openrouter", "xai", "perplexity"
+              Providers::Openai::ServiceCharges.billed_line_items(usage_hash(body))
             else []
             end
           end

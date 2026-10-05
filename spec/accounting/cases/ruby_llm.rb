@@ -336,6 +336,12 @@ module AccountingCases
     ruby_llm_chat("openai/gpt-4o", :openrouter).ask("hi")
   end
 
+  define_case "ruby_llm deepseek chat: deepseek-flash cache hits at the off-peak rates", instrument: :ruby_llm do
+    stub_json(:post, %r{api\.deepseek\.com/(v1/)?chat/completions},
+              chat_completion(id: "rlds2", model: "deepseek-flash", usage: deepseek_usage(100_000, 5_000, hit: 60_000)))
+    ruby_llm_chat("deepseek-flash", :deepseek).ask("hi")
+  end
+
   define_case "ruby_llm deepseek chat: cache hit and miss fields", instrument: :ruby_llm do
     usage = chat_usage(1000, 200, cached: 600).merge(prompt_cache_hit_tokens: 600, prompt_cache_miss_tokens: 400)
     stub_json(:post, %r{api\.deepseek\.com/(v1/)?chat/completions},
@@ -592,6 +598,20 @@ module AccountingCases
     ruby_llm_chat("sonar", :perplexity, context: context).ask("hi")
   end
 
+  define_case "ruby_llm perplexity chat stream: sonar billed total_cost in the done chunk after zero-cost chunks",
+              instrument: :ruby_llm do
+    pending = { input_tokens_cost: 0, output_tokens_cost: 0, total_cost: 0 }
+    billed = { input_tokens_cost: 0.002, output_tokens_cost: 0.001, request_cost: 0.005, total_cost: 0.008 }
+    chunks = [[400, nil, pending, {}], [1000, "stop", billed, { object: "chat.completion.done" }]]
+    items = chunks.map do |completion, finish, cost, extra|
+      chat_chunk(id: "pplx_b5", model: "sonar", usage: perplexity_usage(2000, completion, cost), extra: extra,
+                 choices: [{ index: 0, delta: { content: "ok" }, finish_reason: finish }])
+    end
+    stub_sse(:post, "#{PERPLEXITY_API}/chat/completions", sse(*items))
+    context = RubyLLM.context { |config| config.perplexity_api_key = "test-perplexity" }
+    ruby_llm_chat("sonar", :perplexity, context: context).ask("hi") { nil }
+  end
+
   define_case "ruby_llm openai transcribe: gpt-transcribe on the eu host",
               instrument: :ruby_llm, skip_on_ruby_llm_1: CONTEXT_TRANSCRIBE_ON_RUBY_LLM_1 do
     stub_json(:post, "https://eu.api.openai.com/v1/audio/transcriptions",
@@ -792,7 +812,7 @@ module AccountingCases
     nil
   end
 
-  define_case "ruby_llm mistral ocr: mistral-ocr-latest without a price",
+  define_case "ruby_llm mistral ocr: a dated model the response names without a price",
               instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
     stub_json(:post, "https://api.mistral.ai/v1/ocr",
               { pages: [{ index: 0, markdown: "# Invoice", images: [], dimensions: { dpi: 200, height: 2200, width: 1700 } }],
@@ -800,6 +820,27 @@ module AccountingCases
     context = RubyLLM.context { |config| config.mistral_api_key = "test-mistral" }
     RubyLLM.ocr("https://example.com/invoice.pdf", model: "mistral-ocr-latest", provider: :mistral,
                                                    assume_model_exists: true, context: context)
+  end
+
+  define_case "ruby_llm mistral ocr: mistral-ocr-latest pages_processed at the per-page rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json(:post, "https://api.mistral.ai/v1/ocr",
+              { pages: [{ index: 0, markdown: "# Invoice", images: [], dimensions: { dpi: 200, height: 2200, width: 1700 } }],
+                model: "mistral-ocr-latest", usage_info: { pages_processed: 12, doc_size_bytes: 48_213 } })
+    context = RubyLLM.context { |config| config.mistral_api_key = "test-mistral" }
+    RubyLLM.ocr("https://example.com/contract.pdf", model: "mistral-ocr-latest", provider: :mistral,
+                                                    assume_model_exists: true, context: context)
+  end
+
+  define_case "ruby_llm cohere rerank: rerank-v3.5 search units at a pricing.overrides rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY,
+              configure: ->(config) { config.pricing.overrides = { "cohere/rerank-v3.5" => { "rerank_search_unit" => 2.0 } } } do
+    stub_json(:post, "https://api.cohere.com/v2/rerank",
+              { id: "rr_rl2", results: [{ index: 1, relevance_score: 0.91 }, { index: 0, relevance_score: 0.12 }],
+                meta: { api_version: { version: "2" }, billed_units: { search_units: 3 } } })
+    context = RubyLLM.context { |config| config.cohere_api_key = "test-cohere" }
+    RubyLLM.rerank("ruby", %w[python ruby], model: "rerank-v3.5", provider: :cohere, assume_model_exists: true,
+                                            context: context)
   end
 
   define_case "ruby_llm cohere rerank: rerank-v3.5 without a price",

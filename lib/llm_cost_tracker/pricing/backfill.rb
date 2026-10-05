@@ -88,7 +88,8 @@ module LlmCostTracker
           call.update!(
             total_cost: calculation.cost.total,
             pricing_snapshot: calculation.snapshot,
-            cost_status: calculation.cost_status
+            cost_status: calculation.cost_status,
+            pricing_mode: calculation.mode
           )
           resync_tag_costs(call, calculation.cost.total)
           token_priced = calculation.priced_line_items.select(&:token?).index_by { |item| dimension_key(item) }

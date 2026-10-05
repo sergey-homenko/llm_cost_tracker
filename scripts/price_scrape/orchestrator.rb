@@ -10,11 +10,17 @@ require_relative "../../lib/llm_cost_tracker/pricing/registry"
 module LlmCostTracker
   module Pricing::Scrape
     class Orchestrator
-      Result = Data.define(:added, :removed, :updated, :service_charges_updated, :unchanged, :written) do
+      Result = Data.define(:added, :removed, :updated, :service_charges_updated, :unchanged, :written, :notes) do
+        def initialize(notes: [], **) = super
+
         def changed?
           added.any? || removed.any? || updated.any? || service_charges_updated.any?
         end
       end
+
+      MIN_GEM_VERSIONS = {
+        "_off_peak_windows" => "0.15.0", "ocr_page" => "0.15.0", "openai/gpt-4o-mini-tts" => "0.15.0"
+      }.freeze
 
       class Error < StandardError; end
 
@@ -27,10 +33,13 @@ module LlmCostTracker
       def call(provider:, provider_result:, registry_path:, source_urls: nil)
         provider = normalize_provider(provider)
         registry = read_registry(registry_path)
+        held = held_models(provider, provider_result.models, registry.dig("metadata", "min_gem_version"))
+        provider_result = provider_result.with(models: provider_result.models.except(*held.keys))
         current_models = registry.fetch("models", {})
         current_service_charges = registry.fetch("service_charges", {})
 
         plan = build_plan(provider, provider_result, current_models, current_service_charges)
+               .with(notes: held_notes(provider, held))
         source_urls_stale = source_urls && registry.dig("metadata", "source_urls") != source_urls
         return plan unless (plan.changed? || source_urls_stale) && !@dry_run
 
@@ -79,6 +88,22 @@ module LlmCostTracker
           unchanged: unchanged,
           written: false
         )
+      end
+
+      def held_models(provider, models, min_gem_version)
+        floor = Gem::Version.new(min_gem_version || "0")
+        models.each_with_object({}) do |(id, fields), held|
+          required = MIN_GEM_VERSIONS.values_at(registry_key(provider, id), *fields.keys).compact
+                                     .max_by { |version| Gem::Version.new(version) }
+          held[id] = required if required && Gem::Version.new(required) > floor
+        end
+      end
+
+      def held_notes(provider, held)
+        return [] if held.empty?
+
+        version = held.values.max_by { |required| Gem::Version.new(required) }
+        ["- `#{provider}`: #{held.keys.sort.join(', ')} held until metadata.min_gem_version is #{version}"]
       end
 
       def ensure_long_context_pricing_kept!(provider, active, current_models)
@@ -153,7 +178,8 @@ module LlmCostTracker
       end
 
       def preserved_model_field?(field)
-        field.start_with?("_") && field != LlmCostTracker::Pricing::Registry::CONTEXT_THRESHOLD_KEY
+        registry = LlmCostTracker::Pricing::Registry
+        field.start_with?("_") && ![registry::CONTEXT_THRESHOLD_KEY, registry::OFF_PEAK_WINDOWS_KEY].include?(field)
       end
 
       def registry_key(provider, model_id)

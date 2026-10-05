@@ -52,8 +52,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
 
     expect(openai).to include("openai/gpt-4o-transcribe", "openai/tts-1", "openai/whisper-1")
     expect(openai).not_to include("openai/gpt-4o-2024-08-06", "openai/computer-use-preview", "openai/gpt-realtime-2.1")
-    expect(check.findings).to include("- gemini: gemini/gemini-3.8-flash\n")
-    expect(check.findings).not_to match(/^- (?:groq|mistral|deepseek):/)
+    expect(check.findings).to include("- gemini: gemini/gemini-3.8-flash\n", "- deepseek: deepseek/deepseek-flash\n")
+    expect(check.findings).not_to match(/^- (?:groq|mistral):/)
   end
 
   it "lists tiers and data residency LiteLLM prices on models the registry covers without them" do
@@ -66,7 +66,22 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
 
   it "lists unknown LiteLLM fields and prices the registry cannot represent" do
     expect(check.findings).to include("- `citation_cost_per_token` (1): perplexity/sonar-deep-research")
-    expect(check.findings).to include("- time-of-day prices (off_peak_pricing): deepseek/deepseek-flash")
+    expect(check.findings).to include("- reasoning tokens priced apart from output: perplexity/sonar-deep-research")
+  end
+
+  it "compares off-peak windows like rates, and lists windows that differ as a difference" do
+    flash = converted.fetch("deepseek/deepseek-flash")
+    weekend = [{ "weekdays" => [6, 7], "hours_utc" => ["00:00-24:00"] }]
+    models = { "deepseek/deepseek-flash" => flash.merge("_off_peak_windows" => weekend) }
+    check = described_class.new(registry: registry.merge("models" => models), catalogue: catalogue)
+
+    expect(check.summary).to include("| deepseek | #{flash.size} | #{flash.size - 1} | 1 | 0 | 0 |")
+    expect(check.findings).to include(
+      "| deepseek/deepseek-flash | `_off_peak_windows` | #{weekend.to_json} | " \
+      "#{flash['_off_peak_windows'].to_json} |  |"
+    )
+    expect(described_class.new(registry: registry.merge("models" => models.merge("deepseek/deepseek-flash" => flash)),
+                               catalogue: catalogue).findings).not_to include("deepseek")
   end
 
   it "keeps OpenRouter, priced from its own live API and billed amounts, out of the findings" do

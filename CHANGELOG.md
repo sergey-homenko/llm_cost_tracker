@@ -10,6 +10,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `RubyLLM.workflow` names and steps become `workflow_name` and `workflow_step_name` tags.
 - RubyLLM 2.x `RubyLLM.batch` results are recorded at batch rates when `Batch#messages` or `#results` returns them, in any process, once each across polls and `Batch.find`, and a chat result also across the OpenAI and Anthropic SDK batch capture.
 - `LICENSE.txt` carries the MIT notice of LiteLLM's price data, the source of the bundled xAI rates and Mistral model ids.
+- `off_peak` pricing mode: a call made inside a price entry's `_off_peak_windows` (ISO weekdays, UTC hours) takes its `off_peak_*` rates, when recorded, backfilled or repriced; a requested `off_peak` is ignored.
+- DeepSeek prices are bundled from DeepSeek's pricing page, off-peak rates and legacy model names included; Chinese public holidays are priced at peak.
+- `ocr_page` dimension, per 1,000 pages: Mistral OCR through RubyLLM 2.x and Faraday's `/v1/ocr` is priced from `usage_info.pages_processed`, with bundled Mistral OCR rates.
+- `rerank_search_unit` dimension, per 1,000 search units: RubyLLM 2.x Cohere rerank records `meta.billed_units.search_units`, priced by a `pricing.overrides` rate.
+- `gpt-4o-mini-tts` speech requested with `stream_format: "sse"` is priced from its `speech.audio.done` usage through Faraday and the official openai gem, text input at `input` and audio output at `audio_output`.
 
 ### Changed
 
@@ -20,8 +25,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Under `:block_requests`, a RubyLLM 2.x call is blocked from the start of its RubyLLM event, whose other subscribers then see no finish.
 - On RubyLLM 2.x, `RubyLLM.config.instrumenter` is set to `ActiveSupport::Notifications` when unset; `doctor` warns when it is anything else or a protocol method the integration reads is missing.
 - xAI and Mistral hosts, regional ones included, are built into `capture.openai_compatible_providers`, so Faraday, the official openai gem and `track_stream` capture them without registration; Faraday adds `stream_options.include_usage` to xAI and Mistral streams, which report usage only when asked.
-- xAI calls are recorded at their billed `usage.cost_in_usd_ticks`, tool calls included, instead of a list-price estimate, except through RubyLLM 1.x; Faraday also captures image generation and edits on OpenAI-compatible hosts such as xAI.
-- Perplexity's `api.perplexity.ai` is built into `capture.openai_compatible_providers`, Faraday captures its own `/v1/sonar` and `/v1/agent` paths and background Agent API polls too, and its calls are recorded at their billed `usage.cost.total_cost` instead of unknown cost, except through RubyLLM 1.x.
+- xAI calls are recorded at their billed `usage.cost_in_usd_ticks`, tool calls included, instead of a list-price estimate; Faraday also captures image generation and edits on OpenAI-compatible hosts such as xAI.
+- `backfill_unknown_pricing` and `reprice` store the pricing mode they apply, so a Bedrock regional-profile call recorded before 0.14.2 gets `data_residency`.
+- Perplexity's `api.perplexity.ai` is built into `capture.openai_compatible_providers`, Faraday captures its own `/v1/sonar` and `/v1/agent` paths and background Agent API polls too, and its calls are recorded at their billed `usage.cost.total_cost` instead of unknown cost.
 
 ### Fixed
 
@@ -34,6 +40,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - OpenAI Ultrafast calls (`service_tier: "ultrafast"`) are priced at GPT-6 Astra's Ultrafast rates, US data residency included, instead of recorded with unknown cost.
 - GPT-Realtime-2, 2.1 and 2.1 mini get `data_residency` rates, OpenAI's 10% regional processing uplift.
 - A Chat Completions or Responses stream is recorded under the model its last event names, so a Perplexity Agent API preset such as `fast` is recorded as the model that served it.
+- OpenAI speech returned as binary audio by a model not billed per character, such as `gpt-4o-mini-tts`, is recorded with `usage_source: unknown` instead of as a zero-token response.
 
 ## [0.14.2] - 2026-09-28
 
