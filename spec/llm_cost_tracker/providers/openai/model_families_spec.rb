@@ -18,9 +18,11 @@ RSpec.describe LlmCostTracker::Providers::Openai::ModelFamilies do
   end
 
   describe ".character_billed_tts?" do
-    it "matches only tts-1 and tts-1-hd" do
-      expect(described_class.character_billed_tts?("tts-1")).to be true
-      expect(described_class.character_billed_tts?("tts-1-hd")).to be true
+    it "matches tts-1, tts-1-hd, Mistral's Voxtral TTS and Groq's Orpheus" do
+      %w[tts-1 tts-1-hd voxtral-mini-tts-2603 voxtral-mini-tts-latest canopylabs/orpheus-v1-english
+         canopylabs/orpheus-arabic-saudi].each do |model|
+        expect(described_class.character_billed_tts?(model)).to be(true), model
+      end
     end
 
     it "does not match the gpt-4o-mini-tts SDK-only model" do

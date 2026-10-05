@@ -12,7 +12,8 @@ module LlmCostTracker
       RATE_DENOMINATOR_TOKENS = Pricing::RATE_BASIS_QUANTITIES.fetch("per_million_tokens")
       SNAPSHOT_SCHEMA_VERSION = 1
       CACHE_INPUT_KEYS = %w[cache_read_input cache_write_input].freeze
-      private_constant :RATE_DENOMINATOR_TOKENS, :SNAPSHOT_SCHEMA_VERSION, :CACHE_INPUT_KEYS
+      UNIT_BILLED_KINDS = %w[transcription_minute text_to_speech_character ocr_page rerank_search_unit].freeze
+      private_constant :RATE_DENOMINATOR_TOKENS, :SNAPSHOT_SCHEMA_VERSION, :CACHE_INPUT_KEYS, :UNIT_BILLED_KINDS
 
       def self.for(provider:, model:, tokens:, pricing_mode:, line_items: [], usage_source: nil, at: Time.now)
         new(provider: provider,
@@ -119,7 +120,7 @@ module LlmCostTracker
       end
 
       def quantities
-        @quantities ||= @line_items.each_with_object(@token_usage.priced_quantities) do |line_item, result|
+        @quantities ||= @line_items.each_with_object(token_quantities) do |line_item, result|
           dimension = line_item.dimension
           next unless dimension&.parent
 
@@ -127,6 +128,14 @@ module LlmCostTracker
           result[dimension.parent] -= quantity
           result[dimension.key] = result.fetch(dimension.key, 0) + quantity
         end
+      end
+
+      def token_quantities
+        keys = (match&.prices || {}).keys
+        return @token_usage.priced_quantities if keys.intersect?(Registry::PRICE_KEYS)
+        return @token_usage.priced_quantities unless (keys & UNIT_BILLED_KINDS).intersect?(@line_items.map(&:kind))
+
+        @token_usage.priced_quantities.transform_values { 0 }
       end
 
       def unpriced_line_items
@@ -239,7 +248,12 @@ module LlmCostTracker
                ServiceRates.charge_rate(provider: @provider, dimension: line_item.kind, pricing_mode: mode)
         return line_item unless rate
 
-        line_item.with_rate(rate)
+        billed_minimum(line_item).with_rate(rate)
+      end
+
+      def billed_minimum(line_item)
+        seconds = match&.prices&.[](Registry::MINIMUM_BILLED_SECONDS_KEY) if line_item.kind == "transcription_minute"
+        seconds ? line_item.with(quantity: [line_item.quantity, BigDecimal(seconds) / 60].max) : line_item
       end
 
       def price_iteration(line_item)

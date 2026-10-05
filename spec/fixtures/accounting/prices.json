@@ -195,6 +195,11 @@
       "input": 2.0,
       "output": 10.0
     },
+    "cohere/command-a-03-2025": {
+      "_source": "litellm",
+      "input": 2.5,
+      "output": 10.0
+    },
     "deepseek/deepseek-flash": {
       "_off_peak_windows": [
         {
@@ -708,6 +713,12 @@
       "output": 9.0,
       "video_output": 17.5
     },
+    "groq/canopylabs/orpheus-arabic-saudi": {
+      "text_to_speech_character": 40.0
+    },
+    "groq/canopylabs/orpheus-v1-english": {
+      "text_to_speech_character": 22.0
+    },
     "groq/openai/gpt-oss-120b": {
       "batch_cache_read_input": 0.075,
       "batch_input": 0.075,
@@ -736,6 +747,14 @@
       "on_demand_output": 0.3,
       "output": 0.3
     },
+    "groq/whisper-large-v3": {
+      "_minimum_billed_seconds": 10,
+      "transcription_minute": 0.00185
+    },
+    "groq/whisper-large-v3-turbo": {
+      "_minimum_billed_seconds": 10,
+      "transcription_minute": 0.0006666666666666666
+    },
     "mistral/mistral-medium-latest": {
       "batch_cache_read_input": 0.075,
       "batch_input": 0.75,
@@ -753,8 +772,31 @@
       "priority_input": 2.625,
       "priority_output": 13.125
     },
+    "mistral/mistral-moderation-2603": {
+      "batch_cache_read_input": 0.0,
+      "batch_input": 0.0,
+      "batch_output": 0.0,
+      "cache_read_input": 0.0,
+      "data_residency_cache_read_input": 0.0,
+      "data_residency_input": 0.0,
+      "data_residency_output": 0.0,
+      "input": 0.0,
+      "output": 0.0,
+      "priority_cache_read_input": 0.0,
+      "priority_data_residency_cache_read_input": 0.0,
+      "priority_data_residency_input": 0.0,
+      "priority_data_residency_output": 0.0,
+      "priority_input": 0.0,
+      "priority_output": 0.0
+    },
     "mistral/mistral-ocr-latest": {
       "ocr_page": 4.0
+    },
+    "mistral/voxtral-mini-latest": {
+      "transcription_minute": 0.003
+    },
+    "mistral/voxtral-mini-tts-2603": {
+      "text_to_speech_character": 16.0
     },
     "openai/chat-latest": {
       "cache_read_input": 0.5,

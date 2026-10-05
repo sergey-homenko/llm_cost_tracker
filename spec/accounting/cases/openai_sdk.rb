@@ -401,6 +401,24 @@ module AccountingCases
     openai_client("#{AZURE_OPENAI}/v1/").embeddings.create(model: "text-embedding-3-large", input: "hi")
   end
 
+  define_case "openai sdk mistral transcription: voxtral-mini-latest by its audio seconds", instrument: :openai do
+    stub_json(:post, "#{MISTRAL_API}/audio/transcriptions", mistral_transcription)
+    openai_client(MISTRAL_API).audio.transcriptions.create(file: audio_io, model: "voxtral-mini-latest")
+  end
+
+  define_case "openai sdk groq transcription: whisper-large-v3 verbose_json 3.2s billed as the 10s minimum",
+              instrument: :openai do
+    stub_json(:post, "#{GROQ_API}/audio/transcriptions", groq_transcription(3.2))
+    openai_client(GROQ_API).audio.transcriptions.create(file: audio_io, model: "whisper-large-v3",
+                                                        response_format: "verbose_json")
+  end
+
+  define_case "openai sdk groq speech: orpheus-arabic-saudi by its input characters", instrument: :openai do
+    WebMock.stub_request(:post, "#{GROQ_API}/audio/speech")
+           .to_return(status: 200, body: "RIFF".b, headers: { "Content-Type" => "audio/wav" })
+    openai_client(GROQ_API).audio.speech.create(model: "canopylabs/orpheus-arabic-saudi", input: "مرحبا بكم", voice: "fahad")
+  end
+
   define_case "openai sdk groq chat: listed model", instrument: :openai do
     stub_json(:post, "#{GROQ_API}/chat/completions",
               chat_completion(id: "chatcmpl-sgq1", model: "openai/gpt-oss-120b", usage: groq_usage(10_000, 1000)))

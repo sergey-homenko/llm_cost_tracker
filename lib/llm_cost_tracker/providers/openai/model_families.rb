@@ -6,7 +6,7 @@ module LlmCostTracker
       module ModelFamilies
         IMAGE_OUTPUT_MODEL_PATTERN = /\Agpt-image-/i
 
-        CHARACTER_BILLED_TTS_MODEL_PATTERN = /\Atts-1(-hd)?\z/
+        CHARACTER_BILLED_TTS_MODEL_PATTERN = %r{\A(?:tts-1(?:-hd)?|voxtral-mini-tts-[\w-]+|canopylabs/orpheus-[\w-]+)\z}
 
         REASONING_MODEL_PATTERNS = [
           /\Agpt-5(\b|[\d.-])/i,

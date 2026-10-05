@@ -64,7 +64,7 @@ OpenAI Responses and Perplexity Agent API runs created with `background: true` a
 
 ## OpenAI-Compatible Hosts
 
-OpenAI-compatible capture covers listed hosts only, on paths ending in `/chat/completions`, `/completions`, `/embeddings`, `/responses`, `/images/generations`, `/images/edits`, `/v1/sonar`, `/v1/agent`, or `/v1/ocr`, and on `/responses/{id}` and `/agent/{id}` polls. Built-in mappings cover OpenRouter, DeepSeek, Groq, xAI, Mistral, and Perplexity, regional endpoints included:
+OpenAI-compatible capture covers listed hosts only, on paths ending in `/chat/completions`, `/completions`, `/embeddings`, `/responses`, `/images/generations`, `/images/edits`, `/v1/sonar`, `/v1/agent`, `/v1/ocr`, `/audio/transcriptions`, `/audio/translations`, `/audio/speech`, or `/moderations`, and on `/responses/{id}` and `/agent/{id}` polls. Built-in mappings cover OpenRouter, DeepSeek, Groq, xAI, Mistral, and Perplexity, regional endpoints included:
 
 ```ruby
 config.capture.openai_compatible_providers["openrouter.ai"] = "openrouter"

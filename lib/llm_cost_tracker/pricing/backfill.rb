@@ -112,6 +112,7 @@ module LlmCostTracker
           return unless priced
 
           record.update!(
+            quantity: priced.quantity,
             rate_amount: priced.rate_amount,
             rate_quantity: priced.rate_quantity,
             cost: priced.cost,

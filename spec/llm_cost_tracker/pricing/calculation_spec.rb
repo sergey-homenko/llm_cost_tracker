@@ -71,6 +71,62 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
     end
   end
 
+  describe "models priced only per unit" do
+    before do
+      LlmCostTracker.configure do |c|
+        c.pricing.overrides = {
+          "mistral/voxtral-mini-latest" => { "transcription_minute" => 0.003 },
+          "groq/whisper-large-v3" => { "transcription_minute" => 0.00185, "_minimum_billed_seconds" => 10 }
+        }
+      end
+    end
+
+    def minutes(seconds) = LlmCostTracker::Charges::LineItem.build(dimension_key: "transcription_minute",
+                                                                    quantity: BigDecimal(seconds) / 60)
+
+    def calculation(model, tokens, line_items)
+      described_class.for(provider: model.split("/").first, model: model.split("/").last, pricing_mode: nil,
+                          tokens: tokens, line_items: line_items)
+    end
+
+    it "bills the minutes and keeps the tokens the response also reports unbilled" do
+      priced = calculation("mistral/voxtral-mini-latest", { input_tokens: 4, output_tokens: 635 }, [minutes(203)])
+
+      expect(priced).to have_attributes(cost_status: "complete")
+      expect(priced.cost.total.round(8)).to eq(BigDecimal("0.01015"))
+      expect(priced.priced_line_items.map(&:kind)).to eq(["transcription_minute"])
+    end
+
+    it "leaves tokens unknown when the call carries no unit the model is priced by" do
+      expect(calculation("mistral/voxtral-mini-latest", { input_tokens: 4, output_tokens: 635 }, []).cost_status)
+        .to eq("unknown")
+    end
+
+    it "bills a transcription for no less than the entry's minimum billed seconds" do
+      short = calculation("groq/whisper-large-v3", {}, [minutes(4)])
+      long = calculation("groq/whisper-large-v3", {}, [minutes(30)])
+
+      expect(short.priced_line_items.sole.quantity).to eq(BigDecimal(10) / 60)
+      expect([short, long].map { |priced| priced.cost.total.round(8) })
+        .to eq([BigDecimal("0.00030833"), BigDecimal("0.000925")])
+    end
+  end
+
+  it "keeps a call's tokens billable when its entry prices only a per-request tool fee" do
+    LlmCostTracker.configure do |c|
+      c.pricing.overrides = { "openai/gpt-5" => { "web_search_request" => 10.0 },
+                              "gemini/gemini-2.5-flash" => { "grounding_request" => 35.0 } }
+    end
+    calculation = lambda do |provider, model, fee|
+      described_class.for(provider: provider, model: model, pricing_mode: nil,
+                          tokens: { input_tokens: 5000, output_tokens: 800 },
+                          line_items: [LlmCostTracker::Charges::LineItem.build(dimension_key: fee, quantity: 1)])
+    end
+
+    expect([calculation.call("openai", "gpt-5", "web_search_request").cost_status,
+            calculation.call("gemini", "gemini-2.5-flash", "grounding_request").cost_status]).to eq(%w[partial unknown])
+  end
+
   it "ignores a token-unit line item passed as a service line so token cost is not double-counted" do
     LlmCostTracker.configure { |c| c.pricing.overrides = { "dup-model" => { "input" => 2.0 } } }
     token_line = LlmCostTracker::Charges::LineItem.build(

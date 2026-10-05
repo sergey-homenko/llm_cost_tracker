@@ -66,7 +66,7 @@ Canonical token price keys are owned by `Usage::Catalog`:
 
 Mode-prefixed forms use the same base terms: `batch_input`, `priority_output`, `flex_audio_input`, `data_residency_cache_read_input`, and similar keys.
 
-Long-context tiers use `_context_price_threshold_tokens` and `above_context_*` fields; time-of-day prices use `_off_peak_windows` and `off_peak_*` fields.
+Long-context tiers use `_context_price_threshold_tokens` and `above_context_*` fields; time-of-day prices use `_off_peak_windows` and `off_peak_*` fields; a per-request transcription minimum uses `_minimum_billed_seconds`.
 
 Provider-wide tool and runtime rates (web search, web fetch, file search, code execution, container sessions) live under `service_charges`:
 

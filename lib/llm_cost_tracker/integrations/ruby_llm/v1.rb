@@ -85,7 +85,7 @@ module LlmCostTracker
           end
 
           def billed_duration(usage, response, no_tokens)
-            return usage if usage[:type].to_s == "duration"
+            return usage if usage[:type].to_s == "duration" || usage[:prompt_audio_seconds]
 
             { type: "duration", seconds: response.duration&.ceil } if no_tokens
           end

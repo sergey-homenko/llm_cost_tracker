@@ -28,7 +28,8 @@ module LlmCostTracker
         def metadata_price_key?(field, value)
           case field
           when "_source" then value == "litellm"
-          when Pricing::Registry::CONTEXT_THRESHOLD_KEY then value.is_a?(Integer) && value.positive?
+          when Pricing::Registry::CONTEXT_THRESHOLD_KEY, Pricing::Registry::MINIMUM_BILLED_SECONDS_KEY
+            value.is_a?(Integer) && value.positive?
           when Pricing::Registry::OFF_PEAK_WINDOWS_KEY then Pricing::OffPeak.windows(value, label: field) == value
           end
         rescue ArgumentError

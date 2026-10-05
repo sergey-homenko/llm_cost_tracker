@@ -78,14 +78,22 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
 
     expect(models.slice("mistral-ocr-4-1", "mistral-ocr-4", "mistral-ocr-latest").values)
       .to eq([{ "ocr_page" => 4.0 }] * 3)
-    expect(models.keys).not_to include("mistral-ocr-2512", "mistral-ocr-4-0", "voxtral-mini-latest")
+    expect(models.keys).not_to include("mistral-ocr-2512", "mistral-ocr-4-0")
     expect(mistral.keys).to include("mistral-ocr-4-1")
     expect(mistral.keys).not_to include("mistral-ocr-latest")
   end
 
-  it "keeps only priced token, embedding and OCR models of its own provider" do
-    expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-moderation-2603", "voxtral-mini-2602",
-                                        "deepseek-flash", "gpt-4o")
+  it "keeps only the models of its own provider its pricing page prices, free ones included" do
+    expect(mistral.keys).to include("labs-leanstral-1-5", "mistral-moderation-2603", "voxtral-mini-2602")
+    expect(mistral.keys).not_to include("voxtral-mini-transcribe-realtime-2602", "deepseek-flash", "gpt-4o")
+  end
+
+  it "prices Mistral transcription per minute, speech per 1M output characters, and a free model at $0" do
+    expect(mistral.values_at("voxtral-mini-2602", "voxtral-mini-latest")).to all(eq("transcription_minute" => 0.003))
+    expect(mistral.values_at("voxtral-mini-tts-2603", "voxtral-mini-tts-latest"))
+      .to all(eq("text_to_speech_character" => 16.0))
+    expect(mistral.fetch("mistral-moderation-2603")).to include("input" => 0.0, "cache_read_input" => 0.0, "output" => 0.0)
+    expect(mistral.fetch("mistral-moderation-2603").values).to all(eq(0.0))
   end
 
   it "adds the Mistral models only LiteLLM prices when models.dev lists the same price, at Mistral's tier rates" do
@@ -282,13 +290,15 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
         "mistral/retiring" => entry(1.0, 2.0, deprecation_date: "2026-10-05"),
         "mistral/no-output" => entry(1.0, 0.0),
         "mistral/transcriber" => entry(0.0, 0.0, mode: "audio_transcription", input_cost_per_second: 0.0001),
+        "mistral/reranker" => entry(0.0, 0.0, mode: "rerank", input_cost_per_query: 0.002),
         "groq/elsewhere" => entry(1.0, 2.0, litellm_provider: "groq")
       }
     end
     let(:models_dev) do
       { "mistral" => { "models" => {
         "official" => cost(9, 9), "confirmed" => cost(1.005, 2), "held" => cost(1, 2.5), "embedder" => cost(0.1, 0),
-        "retired" => cost(1, 2), "retiring" => cost(1, 2), "no-output" => cost(1, 0), "transcriber" => cost(0, 0)
+        "retired" => cost(1, 2), "retiring" => cost(1, 2), "no-output" => cost(1, 0), "transcriber" => cost(0, 0),
+        "reranker" => cost(0, 0)
       } } }
     end
     let(:gate) do
@@ -303,9 +313,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       )
     end
 
-    it "holds back rows models.dev prices otherwise and lists rows it does not list as unconfirmed" do
+    it "holds back rows models.dev prices otherwise and lists rows it does not list, or cannot price, as unconfirmed" do
       expect(gate.held).to eq("held" => [[1.0, 2.0], [1.0, 2.5]])
-      expect(gate.unconfirmed).to contain_exactly("unlisted", "unlisted-20260101")
+      expect(gate.unconfirmed).to contain_exactly("unlisted", "unlisted-20260101", "reranker")
     end
 
     it "leaves out officially priced models, dated twins at the same prices, other providers and other modes" do

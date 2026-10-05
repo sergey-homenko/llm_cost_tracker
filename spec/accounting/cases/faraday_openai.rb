@@ -231,7 +231,7 @@ module AccountingCases
                  { text: "hi", usage: { type: "duration", seconds: 600 } })
   end
 
-  define_case "faraday openai moderation: response without usage records nothing" do
+  define_case "faraday openai moderation: omni-moderation-latest free" do
     faraday_json("#{OPENAI_API}/moderations", { model: "omni-moderation-latest", input: "x" },
                  { id: "modr_fa", model: "omni-moderation-latest", results: [] })
   end

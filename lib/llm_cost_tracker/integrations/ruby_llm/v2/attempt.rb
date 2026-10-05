@@ -18,6 +18,7 @@ module LlmCostTracker
               shared = faraday_response(response, result.try(:raw))
               own = faraday_response(raw) || (shared if final)
               raw = own || shared || base
+              usage = billed_units(usage, own, events)
               converse_event(usage, payload, own, events) || stream_event(usage, events, raw) ||
                 parsed_event(usage, own) || normalized_event(usage, payload, (result if final), raw)
             end
@@ -107,6 +108,17 @@ module LlmCostTracker
                                       Charges::LineItem.build(dimension_key: "video_input", quantity: video)])
             end
 
+            def billed_units(usage, raw, events)
+              units = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash).filter_map do |data|
+                (data["type"] == "message-end" ? data.dig("delta", "usage") : data["usage"]).try(:[], "billed_units")
+              end.last
+              return usage unless units
+
+              tokens = usage[:tokens]
+              usage.merge(tokens: RubyLLM::Tokens.new(input: units["input_tokens"] || tokens.input,
+                                                      output: units["output_tokens"] || tokens.output))
+            end
+
             def converse_event(usage, payload, raw, events)
               usages = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash).map { |data| data["usage"] }
               counts = usages.reverse.find { |found| found.try(:key?, "inputTokens") }
@@ -139,7 +151,7 @@ module LlmCostTracker
               model = payload[:response_model] || usage[:model]
               request = request_params(raw).presence || payload[:provider_options].to_h.with_indifferent_access
               known = tokens.to_h.any? || !tokens.reported_cost.nil?
-              line_items = if known
+              line_items = if known && usage[:operation] != :speech
                              service_line_items(model, tokens, result, request)
                            else
                              result_line_items(usage[:operation], payload[:input], model, result)

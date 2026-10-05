@@ -214,6 +214,39 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "records Cohere's billed units, not the token counts that include its unbilled preamble, blocking and streamed" do
+      usage = { billed_units: { input_tokens: 5, output_tokens: 26 }, tokens: { input_tokens: 71, output_tokens: 26 } }
+      message = { id: "co_1", finish_reason: "COMPLETE", message: { role: "assistant", content: [{ type: "text", text: "hi" }] } }
+      WebMock.stub_request(:post, "https://api.cohere.com/v2/chat").to_return(
+        reply(message.merge(usage: usage)),
+        sse({ type: "message-start", id: "co_2", delta: { message: { role: "assistant", content: [] } } },
+            { type: "content-delta", index: 0, delta: { message: { content: { text: "hi" } } } },
+            { type: "message-end", delta: { finish_reason: "COMPLETE", usage: usage } })
+      )
+      keys = RubyLLM.context { |config| config.cohere_api_key = "test-cohere" }
+
+      capture_sdk_events do |events|
+        chat("command-a-03-2025", :cohere, context: keys).ask("hi")
+        chat("command-a-03-2025", :cohere, context: keys).ask("hi") { |_chunk| }
+        expect(events.map { |event| event.values_at(:input_tokens, :output_tokens, :stream) })
+          .to eq([[5, 26, false], [5, 26, true]])
+      end
+    end
+
+    it "keeps RubyLLM's count for a Cohere token field billed_units leaves out, and the row when it bills no tokens" do
+      message = { id: "co_3", finish_reason: "COMPLETE", message: { role: "assistant", content: [{ type: "text", text: "hi" }] } }
+      WebMock.stub_request(:post, "https://api.cohere.com/v2/chat").to_return(
+        reply(message.merge(usage: { billed_units: { input_tokens: 5 }, tokens: { input_tokens: 71, output_tokens: 26 } })),
+        reply(message.merge(usage: { billed_units: { search_units: 1 }, tokens: { input_tokens: 71, output_tokens: 26 } }))
+      )
+      keys = RubyLLM.context { |config| config.cohere_api_key = "test-cohere" }
+
+      capture_sdk_events do |events|
+        2.times { chat("command-a-03-2025", :cohere, context: keys).ask("hi") }
+        expect(events.map { |event| event.values_at(:input_tokens, :output_tokens) }).to eq([[5, 26], [71, 26]])
+      end
+    end
+
     it "records each pause_turn segment as its own row, priced from its own response body" do
       segment = lambda do |id, usage, stop_reason = "end_turn"|
         reply(anthropic_message(id: id, usage: usage, stop_reason: stop_reason))
@@ -1123,6 +1156,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         .to eq(described_class::ParseImageResponsesBridge)
       expect(RubyLLM::Providers::Perplexity::ChatCompletions.instance_method(:parse_embedding_response).owner)
         .to eq(described_class::ParseEmbeddingResponseBridge)
+      expect(RubyLLM::Protocols::Cohere.instance_method(:build_chunk).owner).to eq(bridge)
     end
 
     it "skips a RubyLLM seam that is missing and names it in doctor" do

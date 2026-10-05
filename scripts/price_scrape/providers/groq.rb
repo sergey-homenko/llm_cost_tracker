@@ -19,13 +19,19 @@ module LlmCostTracker
         FLEX_PROCESSING_SOURCE_URL = "https://console.groq.com/docs/flex-processing"
         DEPRECATIONS_SOURCE_URL = "https://console.groq.com/docs/deprecations"
         BATCH_SOURCE_URL = "https://console.groq.com/docs/batch"
+        SPEECH_TO_TEXT_SOURCE_URL = "https://console.groq.com/docs/speech-to-text"
         SOURCE_URLS = [
           source_url,
           PROMPT_CACHING_SOURCE_URL,
           FLEX_PROCESSING_SOURCE_URL,
           DEPRECATIONS_SOURCE_URL,
-          BATCH_SOURCE_URL
+          BATCH_SOURCE_URL,
+          SPEECH_TO_TEXT_SOURCE_URL
         ].freeze
+        MINIMUM_BILLED = /Minimum Billed Length(?:<[^>]*>|\s)*(\d+) seconds/
+        UNIT_PRICES = {
+          "per hour" => ["transcription_minute", 60], "per 1M characters" => ["text_to_speech_character", 1]
+        }.freeze
 
         MODEL_CARD_PATH = "/docs/model/"
         SHUTDOWN_DATE_FORMAT = "%m/%d/%y"
@@ -37,6 +43,7 @@ module LlmCostTracker
           flex_doc = Nokogiri::HTML(pages.fetch(FLEX_PROCESSING_SOURCE_URL))
           deprecations_doc = Nokogiri::HTML(pages.fetch(DEPRECATIONS_SOURCE_URL))
           batch_doc = Nokogiri::HTML(pages.fetch(BATCH_SOURCE_URL))
+          seconds = documented_factor(pages.fetch(SPEECH_TO_TEXT_SOURCE_URL), MINIMUM_BILLED, "minimum billed length")
 
           verify_prompt_cache_discount!(prompt_caching_doc)
           verify_flex_pricing!(flex_doc)
@@ -44,7 +51,8 @@ module LlmCostTracker
 
           models = extract_models(pricing_doc,
                                   cache_models: extract_prompt_cache_models(prompt_caching_doc),
-                                  batch_models: extract_batch_models(batch_doc))
+                                  batch_models: extract_batch_models(batch_doc),
+                                  minimum: { Pricing::Registry::MINIMUM_BILLED_SECONDS_KEY => seconds.to_i })
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -63,13 +71,15 @@ module LlmCostTracker
           self.class::SOURCE_URLS.to_h { |url| [url, html.to_s] }
         end
 
-        def extract_models(doc, cache_models:, batch_models:)
+        def extract_models(doc, cache_models:, batch_models:, minimum:)
           tables = find_text_models_tables(doc)
           raise Error, "Groq token models pricing table not found" if tables.empty?
 
           rows = tables.flat_map { |table| token_rows(table) }
 
           resolve_rows(rows).transform_values do |row|
+            next row[:units].merge(row[:units].key?("transcription_minute") ? minimum : {}) unless row[:input]
+
             fields = add_mode_prices("input" => row[:input], "output" => row[:output])
             fields = add_cache_read_prices(fields) if cache_models.include?(row[:id])
             batch_models.include?(row[:id]) ? fields : fields.reject { |field, _| field.start_with?("batch_") }
@@ -90,9 +100,10 @@ module LlmCostTracker
             next unless model_id
 
             input, output = token_prices(cells[price_index])
-            next unless input && output
+            units = unit_prices(cells[price_index])
+            next unless (input && output) || units.any?
 
-            { id: model_id, name: normalize_text(cells[model_index].text), input: input, output: output }
+            { id: model_id, name: normalize_text(cells[model_index].text), input: input, output: output, units: units }
           end
         end
 
@@ -132,6 +143,14 @@ module LlmCostTracker
         def token_prices(cell)
           text = normalize_text(cell.text)
           [labeled_price(text, "input"), labeled_price(text, "output")]
+        end
+
+        def unit_prices(cell)
+          text = normalize_text(cell.text)
+          UNIT_PRICES.filter_map do |unit, (field, divisor)|
+            price = labeled_price(text, unit)
+            [field, price / divisor] if price
+          end.to_h
         end
 
         def labeled_price(text, label)
