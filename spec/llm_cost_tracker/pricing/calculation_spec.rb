@@ -112,6 +112,21 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
     end
   end
 
+  it "keeps a call's tokens billable when its entry prices only a per-request tool fee" do
+    LlmCostTracker.configure do |c|
+      c.pricing.overrides = { "openai/gpt-5" => { "web_search_request" => 10.0 },
+                              "gemini/gemini-2.5-flash" => { "grounding_request" => 35.0 } }
+    end
+    calculation = lambda do |provider, model, fee|
+      described_class.for(provider: provider, model: model, pricing_mode: nil,
+                          tokens: { input_tokens: 5000, output_tokens: 800 },
+                          line_items: [LlmCostTracker::Charges::LineItem.build(dimension_key: fee, quantity: 1)])
+    end
+
+    expect([calculation.call("openai", "gpt-5", "web_search_request").cost_status,
+            calculation.call("gemini", "gemini-2.5-flash", "grounding_request").cost_status]).to eq(%w[partial unknown])
+  end
+
   it "ignores a token-unit line item passed as a service line so token cost is not double-counted" do
     LlmCostTracker.configure { |c| c.pricing.overrides = { "dup-model" => { "input" => 2.0 } } }
     token_line = LlmCostTracker::Charges::LineItem.build(

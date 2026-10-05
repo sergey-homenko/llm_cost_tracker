@@ -12,7 +12,8 @@ module LlmCostTracker
       RATE_DENOMINATOR_TOKENS = Pricing::RATE_BASIS_QUANTITIES.fetch("per_million_tokens")
       SNAPSHOT_SCHEMA_VERSION = 1
       CACHE_INPUT_KEYS = %w[cache_read_input cache_write_input].freeze
-      private_constant :RATE_DENOMINATOR_TOKENS, :SNAPSHOT_SCHEMA_VERSION, :CACHE_INPUT_KEYS
+      UNIT_BILLED_KINDS = %w[transcription_minute text_to_speech_character ocr_page rerank_search_unit].freeze
+      private_constant :RATE_DENOMINATOR_TOKENS, :SNAPSHOT_SCHEMA_VERSION, :CACHE_INPUT_KEYS, :UNIT_BILLED_KINDS
 
       def self.for(provider:, model:, tokens:, pricing_mode:, line_items: [], usage_source: nil, at: Time.now)
         new(provider: provider,
@@ -130,12 +131,11 @@ module LlmCostTracker
       end
 
       def token_quantities
-        unit_billed? ? @token_usage.priced_quantities.transform_values { 0 } : @token_usage.priced_quantities
-      end
+        keys = (match&.prices || {}).keys
+        return @token_usage.priced_quantities if keys.intersect?(Registry::PRICE_KEYS)
+        return @token_usage.priced_quantities unless (keys & UNIT_BILLED_KINDS).intersect?(@line_items.map(&:kind))
 
-      def unit_billed?
-        prices = match&.prices || {}
-        !prices.keys.intersect?(Registry::PRICE_KEYS) && @line_items.any? { |line_item| prices.key?(line_item.kind) }
+        @token_usage.priced_quantities.transform_values { 0 }
       end
 
       def unpriced_line_items

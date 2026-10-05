@@ -38,7 +38,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A bundled model its provider stops listing is removed after 90 days.
 - Bundled Mistral prices drop the models Mistral lists as retired, with the aliases their model cards name, such as `magistral-medium-latest`.
 - RubyLLM 2.x Cohere chats record `usage.billed_units`, streamed ones from the final `message-end` event, instead of token counts that include Cohere's unbilled preamble.
-- A model priced only per minute, character, page or search unit is billed by that unit alone, and the token counts its response also reports stay unbilled.
+- A model with no token rate is billed by its `transcription_minute`, `text_to_speech_character`, `ocr_page` or `rerank_search_unit` rate alone when the call reports that unit, and the token counts its response also reports stay unbilled.
 - Faraday captures transcriptions, translations, speech and moderations on OpenAI-compatible hosts, and records moderations, OpenAI's included, as `free` on a $0-priced model.
 - A transcription or translation without `usage` is priced by its `verbose_json` `duration`, rounded up to whole seconds, through Faraday and the official openai gem, Azure OpenAI Whisper included.
 

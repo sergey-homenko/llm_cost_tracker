@@ -47,7 +47,7 @@ Base fields:
 - `video_input` (falls back to `input`)
 - `video_output` (falls back to `output`)
 
-These keys are derived from `Usage::Catalog`, the master dimension registry, which also owns the non-token model keys `text_to_speech_character`, `transcription_minute`, `grounding_request`, `maps_grounding_request`, `cache_storage_token_hour`, `ocr_page`, and `rerank_search_unit`. A model whose entry has none of the token keys above is billed by the non-token units it prices alone: when a call reports one of them, the token counts its response also reports stay on the call unbilled.
+These keys are derived from `Usage::Catalog`, the master dimension registry, which also owns the non-token model keys `text_to_speech_character`, `transcription_minute`, `grounding_request`, `maps_grounding_request`, `cache_storage_token_hour`, `ocr_page`, and `rerank_search_unit`. A model whose entry has none of the token keys above is billed by its `transcription_minute`, `text_to_speech_character`, `ocr_page`, or `rerank_search_unit` rate alone: when a call reports one of those units, the token counts its response also reports stay on the call unbilled.
 
 `cache_write_input` is the standard cache-write bucket. `cache_write_extended_input` is priced separately when provider usage exposes a longer retention bucket, such as Anthropic's 1-hour prompt cache writes. An Anthropic stream's final `message_delta` reports the cache-write total but not its 5-minute/1-hour split, so writes beyond the `message_start` split (the automatic breakpoints on server-tool results) are priced as 5-minute writes, the TTL Anthropic always gives them.
 
