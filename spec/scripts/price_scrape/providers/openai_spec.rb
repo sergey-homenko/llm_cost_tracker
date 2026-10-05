@@ -23,11 +23,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
   let(:changelog) do
     File.read(File.expand_path("../../../fixtures/scrape/openai_changelog.md", __dir__), encoding: "utf-8")
   end
-  let(:without_markdown) { { described_class::RenderedLongContextPrices::SOURCE_URL => "" } }
-  let(:long_context_sentence) do
-    "Prompts with >272K input tokens are priced at 2x input and 1.5x output " \
-      "for the full session for standard, batch, and flex."
-  end
   let(:sparse_html) do
     pricing_html(
       {
@@ -69,24 +64,15 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     "<html><body>#{islands.join}</body></html>"
   end
 
-  def model_doc_html(body)
-    "<html><body><p>#{body}</p></body></html>"
-  end
-
   def html_pages(overrides = {})
-    documented = described_class::DocumentedLongContextPrices
-    pages = {
+    {
       described_class.source_url => html,
       described_class::RenderedLongContextPrices::SOURCE_URL => markdown,
       described_class::DeprecatedModels::SOURCE_URL => deprecations_html,
       described_class::MODEL_CATALOGUE_URL => catalogue,
       described_class::DataResidencyPrices::ELIGIBILITY_URL => data_controls,
       described_class::DataResidencyPrices::CHANGELOG_URL => changelog
-    }
-    documented.source_urls.each do |url|
-      pages[url] = model_doc_html(url.end_with?("gpt-5.5-pro") ? "1,050,000 context window" : long_context_sentence)
-    end
-    pages.merge(overrides)
+    }.merge(overrides)
   end
 
   describe "#call" do
@@ -335,47 +321,15 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       )
     end
 
-    it "prices documented long context on the tiers the model page names" do
-      result = described_class.new.call(html: html_pages(without_markdown), scraped_at: "2026-08-23T00:00:00Z")
-      fields = result.models.fetch("gpt-5.5")
+    it "reads the long-context threshold from the pricing page and fails when it is gone" do
+      url = described_class::RenderedLongContextPrices::SOURCE_URL
+      moved = markdown.sub("Long context: >272K input tokens", "Long context: >256K input tokens")
+      result = described_class.new.call(html: html_pages(url => moved), scraped_at: "2026-10-05T00:00:00Z")
 
-      expect(fields).to include(
-        "_context_price_threshold_tokens" => 272_000,
-        "above_context_input" => fields.fetch("input") * 2,
-        "above_context_output" => fields.fetch("output") * 1.5,
-        "above_context_cache_read_input" => fields.fetch("cache_read_input") * 2,
-        "above_context_batch_input" => fields.fetch("batch_input") * 2,
-        "above_context_flex_output" => fields.fetch("flex_output") * 1.5
-      )
-      expect(fields.keys).not_to include("above_context_fast_input", "above_context_priority_input")
-    end
-
-    it "warns instead of guessing when a model page documents no long-context premium" do
+      expect(result.models.fetch("gpt-5.5")).to include("_context_price_threshold_tokens" => 256_000)
       expect do
-        described_class.new.call(html: html_pages(without_markdown), scraped_at: "2026-08-23T00:00:00Z")
-      end.to output(/no documented long-context premium for gpt-5.5-pro/).to_stderr
-
-      result = described_class.new.call(html: html_pages(without_markdown), scraped_at: "2026-08-23T00:00:00Z")
-      expect(result.models.fetch("gpt-5.5-pro")).not_to include("_context_price_threshold_tokens")
-    end
-
-    it "reads the GPT-6 long-context wording from the model docs" do
-      pages = html_pages(
-        **without_markdown,
-        "#{described_class::DocumentedLongContextPrices::MODEL_DOC_URL_PREFIX}gpt-5.6-sol" => model_doc_html(
-          "Prompts with more than 272K input tokens are priced at 2x input and cache rates and 1.5x output " \
-          "for the full request."
-        )
-      )
-      result = described_class.new.call(html: pages, scraped_at: "2026-09-24T00:00:00Z")
-
-      expect(result.models.fetch("gpt-5.6-sol")).to include(
-        "_context_price_threshold_tokens" => 272_000,
-        "above_context_input" => 8.0,
-        "above_context_cache_read_input" => 0.8,
-        "above_context_output" => 30.0,
-        "above_context_fast_input" => 16.0
-      )
+        described_class.new.call(html: html_pages(url => markdown.sub("Long context: >272K input tokens", "")))
+      end.to raise_error(described_class::Error, /long-context threshold not found/)
     end
 
     it "prices duration-billed audio models from the per-minute column" do

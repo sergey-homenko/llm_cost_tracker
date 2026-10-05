@@ -11,6 +11,7 @@ module LlmCostTracker
       class Openai < Base
         class RenderedLongContextPrices
           SOURCE_URL = "https://developers.openai.com/api/docs/pricing.md"
+          THRESHOLD = /Long context: >(\d+)K input tokens/
 
           def initialize(markdown, tier:, fields:, model_ids:)
             @markdown = markdown
@@ -44,13 +45,20 @@ module LlmCostTracker
             return nil unless long_input && long_output
 
             prices = {
-              Pricing::Registry::CONTEXT_THRESHOLD_KEY => 272_000,
+              Pricing::Registry::CONTEXT_THRESHOLD_KEY => threshold,
               "above_context_#{@fields.fetch(:input)}" => long_input,
               "above_context_#{@fields.fetch(:output)}" => long_output
             }
             prices["above_context_#{@fields.fetch(:cache_read_input)}"] = long_cache_read if long_cache_read
             prices["above_context_#{@fields.fetch(:cache_write_input)}"] = long_cache_write if long_cache_write
             prices
+          end
+
+          def threshold
+            tokens = @markdown[THRESHOLD, 1]
+            raise Error, "OpenAI long-context threshold not found in its pricing page" unless tokens
+
+            Integer(tokens) * 1_000
           end
 
           def parse_optional_price(value)

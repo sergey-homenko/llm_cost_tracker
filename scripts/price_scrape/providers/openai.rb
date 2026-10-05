@@ -9,7 +9,6 @@ require "time"
 require_relative "base"
 require_relative "openai/data_residency_prices"
 require_relative "openai/deprecated_models"
-require_relative "openai/documented_long_context_prices"
 require_relative "openai/model_ids"
 require_relative "openai/rendered_long_context_prices"
 
@@ -27,8 +26,7 @@ module LlmCostTracker
           RenderedLongContextPrices::SOURCE_URL,
           DeprecatedModels::SOURCE_URL,
           MODEL_CATALOGUE_URL,
-          *DataResidencyPrices::SOURCE_URLS,
-          *DocumentedLongContextPrices.source_urls
+          *DataResidencyPrices::SOURCE_URLS
         ].freeze
 
         STANDARD_FIELDS = {
@@ -86,7 +84,6 @@ module LlmCostTracker
             tier_models = merge_model_fields(tier_models, extract_specialized_models(doc, tier: tier))
             collected.replace(merge_model_fields(collected, tier_models))
           end
-          models = merge_model_fields(models, DocumentedLongContextPrices.call(models, pages))
           models, notes = DataResidencyPrices.call(models, pages)
           models = add_model_id_aliases(add_priority_aliases(models))
           validate!(models)
