@@ -280,8 +280,6 @@ module LlmCostTracker
             next unless cells.is_a?(Array) && cells.size >= 4
 
             model_id = normalize_model_id(unwrap(cells[0]))
-            next unless model_id
-
             price_fields = extract_price_fields(cells, fields: fields)
             existing = models[model_id]
             if existing && existing != price_fields
