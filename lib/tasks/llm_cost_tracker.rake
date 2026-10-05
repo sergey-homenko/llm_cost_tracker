@@ -13,15 +13,21 @@ module LlmCostTrackerTasks
     path
   end
 
-  def self.backfill_after_refresh
+  def self.backfill_after_refresh(path)
+    file = LlmCostTracker.configuration.pricing.file
+    return unless file && File.expand_path(file) == File.expand_path(path)
+
     if ledger_reachable?
       Rake::Task["llm_cost_tracker:backfill_unknown_pricing"].execute
     else
-      puts "llm_cost_tracker: run bin/rails llm_cost_tracker:backfill_unknown_pricing once the database is reachable"
+      puts "llm_cost_tracker: calls ledger not reachable; " \
+           "run bin/rails llm_cost_tracker:backfill_unknown_pricing where it is"
     end
   end
 
   def self.ledger_reachable?
+    return false unless Rake::Task.task_defined?("environment")
+
     LlmCostTracker::Call.with_connection { |connection| connection.table_exists?(LlmCostTracker::Call.table_name) }
   rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
     false
@@ -126,8 +132,8 @@ namespace :llm_cost_tracker do
 
   namespace :prices do
     desc(
-      "Refresh the configured pricing file from the maintained LLM Cost Tracker price snapshot, then run " \
-      "llm_cost_tracker:backfill_unknown_pricing if the database is reachable. " \
+      "Refresh the configured pricing file from the maintained LLM Cost Tracker price snapshot; after writing a new " \
+      "config.pricing.file, run llm_cost_tracker:backfill_unknown_pricing if the calls ledger is reachable. " \
       "Review changes first with llm_cost_tracker:prices:check. Use FORCE=1 to accept suspicious price changes, " \
       "URL=... to override the source, or OUTPUT=path/to/file.json."
     )
@@ -145,7 +151,7 @@ namespace :llm_cost_tracker do
       puts "  source: #{result.source_url}"
       puts "  version: #{result.source_version.inspect}" if result.source_version
       LlmCostTracker::Pricing::Sync::ChangePrinter.call(result.changes, suspicious: result.suspicious)
-      LlmCostTrackerTasks.backfill_after_refresh if result.written
+      LlmCostTrackerTasks.backfill_after_refresh(result.path) if result.written
     end
 
     desc "Compare the current pricing file with the maintained LLM Cost Tracker price snapshot."

@@ -36,7 +36,6 @@ RSpec.describe "llm_cost_tracker rake tasks" do
   end
 
   it "lists suspicious price changes in prices:check and writes them only with FORCE=1" do
-    establish_database_connection!
     url = "https://prices.example.com/prices.json"
     stub_request(:get, url).to_return(body: JSON.generate("models" => { "openai/gpt-4o" => { "input" => 0.0 } }))
 
@@ -65,11 +64,12 @@ RSpec.describe "llm_cost_tracker rake tasks" do
     end
   end
 
-  it "backfills the calls a written pricing file prices, and not when the file is kept" do
+  it "backfills the calls a new config.pricing.file prices, not when the file is kept or written elsewhere" do
     establish_database_connection!
     create_lct_tables!
     [LlmCostTracker::Call, LlmCostTracker::CallLineItem, LlmCostTracker::CallTag, LlmCostTracker::CallRollup]
       .each(&:reset_column_information)
+    Rake::Task.define_task(:environment)
     url = "https://prices.example.com/prices.json"
     stub_request(:get, url).to_return(
       body: JSON.generate("models" => { "openai/acme-late-model" => { "input" => 1.0, "output" => 2.0 } }),
@@ -79,33 +79,42 @@ RSpec.describe "llm_cost_tracker rake tasks" do
     allow(LlmCostTracker::Pricing::Backfill).to receive(:call).and_call_original
 
     Dir.mktmpdir do |dir|
-      path = File.join(dir, "llm_cost_tracker_prices.yml")
-      LlmCostTracker.configure { |config| config.pricing.file = path }
+      LlmCostTracker.configure { |config| config.pricing.file = File.join(dir, "llm_cost_tracker_prices.yml") }
       LlmCostTracker.track(provider: "openai", model: "acme-late-model",
                            tokens: { input_tokens: 1000, output_tokens: 100 })
-      expect(LlmCostTracker::Call.sole.cost_status).to eq("unknown")
-      stub_const("ENV", ENV.to_h.merge("OUTPUT" => path, "URL" => url))
-      refresh = -> { Rake::Task["llm_cost_tracker:prices:refresh"].execute }
+      refresh = lambda do |output|
+        stub_const("ENV", ENV.to_h.merge("OUTPUT" => File.join(dir, output), "URL" => url))
+        Rake::Task["llm_cost_tracker:prices:refresh"].execute
+      end
 
-      expect { refresh.call }.to output(
+      expect { refresh.call("staged.yml") }
+        .to output(/\Allm_cost_tracker: refreshed pricing file [^\n]*staged.yml\n(?!.*llm_cost_tracker:)/m).to_stdout
+      expect(LlmCostTracker::Call.sole.cost_status).to eq("unknown")
+      expect { refresh.call("./llm_cost_tracker_prices.yml") }.to output(
         /refreshed pricing file.*\nllm_cost_tracker: examined 1 calls, recomputed 1, still unknown 0\n\z/m
       ).to_stdout
       expect(LlmCostTracker::Call.sole).to have_attributes(total_cost: BigDecimal("0.0012"), cost_status: "complete")
-      expect { refresh.call }.to output(/kept pricing file/).to_stdout
+      expect { refresh.call("llm_cost_tracker_prices.yml") }.to output(/kept pricing file/).to_stdout
       expect(LlmCostTracker::Pricing::Backfill).to have_received(:call).once
     end
   end
 
-  it "keeps a written pricing file and prints the backfill command when the ledger is not reachable" do
+  it "keeps a new config.pricing.file and prints the backfill command when the calls ledger is not reachable" do
     url = "https://prices.example.com/prices.json"
     stub_request(:get, url).to_return(body: JSON.generate("models" => {}))
-    hinted = %r{refreshed pricing file.*\nllm_cost_tracker: run bin/rails llm_cost_tracker:backfill_unknown_pricing once the database is reachable\n\z}m
+    hinted = %r{refreshed pricing file.*\nllm_cost_tracker: calls ledger not reachable; run bin/rails llm_cost_tracker:backfill_unknown_pricing where it is\n\z}m
 
     Dir.mktmpdir do |dir|
-      stub_const("ENV", ENV.to_h.merge("OUTPUT" => File.join(dir, "prices.yml"), "URL" => url))
+      path = File.join(dir, "prices.yml")
+      LlmCostTracker.configure { |config| config.pricing.file = path }
+      stub_const("ENV", ENV.to_h.merge("OUTPUT" => path, "URL" => url))
       refresh = -> { Rake::Task["llm_cost_tracker:prices:refresh"].execute }
-
       establish_database_connection!
+      create_lct_tables!
+
+      expect { refresh.call }.to output(hinted).to_stdout
+      Rake::Task.define_task(:environment)
+      drop_lct_tables!
       expect { refresh.call }.to output(hinted).to_stdout
       LlmCostTracker::Call.establish_connection(LlmCostTrackerDatabase.config.merge(port: 1))
       expect { refresh.call }.to output(hinted).to_stdout

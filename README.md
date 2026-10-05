@@ -86,7 +86,7 @@ Captured does not always mean priced:
 | The OpenAI, Anthropic, or Gemini price for the same model name | Azure OpenAI (by the model in the response, not the deployment name), Vertex AI through RubyLLM, gateways that pass a listed model name through |
 | Nothing: recorded with `cost_status: unknown` | Perplexity without a billed amount (its Router), and through RubyLLM also Ollama, Cohere embeddings and rerank, other Bedrock models, and Claude on GovCloud (`us-gov.` profiles) |
 
-Add missing prices to `config.pricing.file` or `config.pricing.overrides` ([Pricing](docs/pricing.md)), then run `bin/rails llm_cost_tracker:backfill_unknown_pricing` to price the calls already recorded. `bin/rails llm_cost_tracker:prices:refresh` runs it after writing a new file if the database is reachable.
+Add missing prices to `config.pricing.file` or `config.pricing.overrides` ([Pricing](docs/pricing.md)), then run `bin/rails llm_cost_tracker:backfill_unknown_pricing` to price the calls already recorded. `bin/rails llm_cost_tracker:prices:refresh` runs it after writing a new `config.pricing.file` if the database is reachable.
 
 ## Manual tracking
 
