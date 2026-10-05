@@ -6,61 +6,55 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
-- RubyLLM 2.x speech, OCR, rerank and operations added in later RubyLLM releases are recorded, with unknown cost when unpriced; `tts-1` speech is priced by input characters and Gemini speech by its text and audio tokens.
+- RubyLLM 2.x speech, OCR, rerank and operations added in later RubyLLM releases are recorded, with unknown cost where no rate applies.
+- RubyLLM 2.x `RubyLLM.batch` results are recorded once each at batch rates when `Batch#messages` or `#results` returns them.
 - `RubyLLM.workflow` names and steps become `workflow_name` and `workflow_step_name` tags.
-- RubyLLM 2.x `RubyLLM.batch` results are recorded at batch rates when `Batch#messages` or `#results` returns them, in any process, once each across polls and `Batch.find`, and a chat result also across the OpenAI and Anthropic SDK batch capture.
-- `LICENSE.txt` carries the MIT notice of LiteLLM's price data, the source of the bundled Mistral model ids and `"_source": "litellm"` rows.
-- `off_peak` pricing mode: a call made inside a price entry's `_off_peak_windows` (ISO weekdays, UTC hours) takes its `off_peak_*` rates, when recorded, backfilled or repriced; a requested `off_peak` is ignored.
-- DeepSeek prices are bundled from DeepSeek's pricing page, off-peak rates and legacy model names included; Chinese public holidays are priced at peak.
-- `ocr_page` dimension, per 1,000 pages: Mistral OCR through RubyLLM 2.x and Faraday's `/v1/ocr` is priced from `usage_info.pages_processed`, with bundled Mistral OCR rates.
-- `rerank_search_unit` dimension, per 1,000 search units: RubyLLM 2.x Cohere rerank records `meta.billed_units.search_units`, priced by a `pricing.overrides` rate.
-- `gpt-4o-mini-tts` speech requested with `stream_format: "sse"` is priced from its `speech.audio.done` usage through Faraday and the official openai gem, text input at `input` and audio output at `audio_output`.
-- Bundled Mistral prices add models its pricing page omits when LiteLLM and models.dev agree on the price within 1%, marked `"_source": "litellm"`; Mistral Embed is priced this way.
-- Codestral Embed is priced from Mistral's pricing page under every name its model card gives, with batch and regional rates.
-- Voxtral transcription is priced per minute of `usage.prompt_audio_seconds`, which also gives a Mistral chat with audio input a `transcription_minute` line item, Voxtral TTS per input character and Mistral Moderation 2 at $0, from Mistral's pricing page, through Faraday, the official openai gem and RubyLLM.
-- Groq Whisper is priced per minute of a `verbose_json` response's `duration`, for at least Groq's 10 seconds, and Orpheus per input character, from Groq's own pages.
-- Cohere chat models are priced from the LiteLLM rows models.dev confirms within 1%.
-- `_minimum_billed_seconds` price entry field: a shorter transcription is billed for that many seconds.
+- Perplexity, xAI and Mistral hosts, regional ones included, are built into `capture.openai_compatible_providers`, so Faraday, the official openai gem and `track_stream` capture them without registration.
+- Perplexity Sonar and Agent API calls, background polls included, are recorded at their billed `usage.cost.total_cost`.
+- Faraday captures image generation and edits, transcriptions, translations, speech and Mistral OCR on OpenAI-compatible hosts, and moderations on OpenAI and OpenAI-compatible hosts, `free` on a $0-priced model.
+- `off_peak` pricing mode: a call made inside a price entry's `_off_peak_windows` (ISO weekdays, UTC hours) is priced at its `off_peak_*` rates, also when backfilled or repriced.
+- `ocr_page` and `rerank_search_unit` dimensions, per 1,000 pages and search units, recorded for Mistral OCR and RubyLLM 2.x Cohere rerank.
+- `_minimum_billed_seconds` price-entry field: a shorter transcription is billed for that many seconds.
+- `gpt-4o-mini-tts` speech requested with `stream_format: "sse"` is priced from its usage, text input at `input` and audio at `audio_output`; binary responses carry no usage and stay unknown.
+- Bundled DeepSeek prices, peak and off-peak, under its current and legacy model names; Chinese public holidays are priced at peak.
+- Bundled Mistral prices for Voxtral transcription (per minute), Voxtral TTS (per character), OCR (per 1,000 pages), Codestral Embed and Mistral Moderation 2 ($0).
+- Bundled Groq prices for Whisper, per minute of a `verbose_json` response's `duration` with Groq's 10-second minimum, and Orpheus, per character.
+- Bundled Mistral and Cohere prices for models their providers' pages omit, when LiteLLM and models.dev agree within 1%, marked `"_source": "litellm"`: Mistral Embed and Cohere's chat models. Cohere embeddings and rerank stay unpriced.
+- `LICENSE.txt` carries LiteLLM's MIT notice for the bundled prices taken from its data.
 
 ### Changed
 
 - RubyLLM 2.x is captured from its instrumentation events and documented protocol methods instead of patches to its internals; RubyLLM 1.x keeps the previous integration.
-- RubyLLM 2.x records one row per provider attempt: retries, fallbacks and `pause_turn` segments each get a row, refused or unsent attempts are skipped, and failures that may have been billed are recorded with unknown cost, unless the response or final stream event was already read, which prices them.
-- RubyLLM 2.x responses in OpenAI, Anthropic or Gemini format are priced by the Faraday middleware's parsers on any host, Vertex AI included, with a billed `usage.cost` whenever present.
-- RubyLLM 2.x images returned without usage are recorded with unknown cost instead of $0.
-- Under `:block_requests`, a RubyLLM 2.x call is blocked from the start of its RubyLLM event, whose other subscribers then see no finish.
-- On RubyLLM 2.x, `RubyLLM.config.instrumenter` is set to `ActiveSupport::Notifications` when unset; `doctor` warns when it is anything else or a protocol method the integration reads is missing.
-- xAI and Mistral hosts, regional ones included, are built into `capture.openai_compatible_providers`, so Faraday, the official openai gem and `track_stream` capture them without registration; Faraday adds `stream_options.include_usage` to xAI and Mistral streams, which report usage only when asked.
-- xAI calls are recorded at their billed `usage.cost_in_usd_ticks`, tool calls included, instead of a list-price estimate; Faraday also captures image generation and edits on OpenAI-compatible hosts such as xAI.
-- `backfill_unknown_pricing` and `reprice` store the pricing mode they apply, so a Bedrock regional-profile call recorded before 0.14.2 gets `data_residency`.
-- Perplexity's `api.perplexity.ai` is built into `capture.openai_compatible_providers`, Faraday captures its own `/v1/sonar` and `/v1/agent` paths and background Agent API polls too, and its calls are recorded at their billed `usage.cost.total_cost` instead of unknown cost.
-- Bundled xAI prices are read from xAI's pricing and model pages instead of LiteLLM.
-- Bundled OpenAI and Anthropic model ids, and OpenAI and Gemini long-context thresholds, come from the providers' own pages instead of hand-kept lists.
-- Bundled OpenAI embedding prices are read from OpenAI's pricing page and Batch API guide instead of kept by hand.
-- A bundled model its provider stops listing is removed after 90 days.
-- Bundled Mistral prices drop the models Mistral lists as retired, with the aliases their model cards name, such as `magistral-medium-latest`.
-- RubyLLM 2.x Cohere chats record `usage.billed_units`, streamed ones from the final `message-end` event, instead of token counts that include Cohere's unbilled preamble; rows recorded earlier keep those counts, so backfilled costs overstate them.
-- A model with no token rate is billed by its `transcription_minute`, `text_to_speech_character`, `ocr_page` or `rerank_search_unit` rate alone when the call reports that unit, and the token counts its response also reports stay unbilled.
-- Faraday captures transcriptions, translations, speech and moderations on OpenAI-compatible hosts, and records moderations, OpenAI's included, as `free` on a $0-priced model.
+- RubyLLM 2.x records one row per provider attempt: retries, fallbacks and `pause_turn` segments each get a row, refused or unsent attempts are skipped, and a failed attempt that may have been billed is recorded with unknown cost unless its usage was read.
+- RubyLLM 2.x responses in OpenAI, Anthropic or Gemini format are priced by the Faraday middleware's parsers on any host, Vertex AI included.
+- Under `:block_requests`, a RubyLLM 2.x call is blocked when its RubyLLM event starts; the event's other subscribers then see no finish.
+- On RubyLLM 2.x, an unset `RubyLLM.config.instrumenter` is set to `ActiveSupport::Notifications`; `doctor` warns when it is anything else or a protocol method the integration reads is missing.
+- RubyLLM 2.x Cohere chats record Cohere's billed units instead of token counts that include its unbilled preamble; rows recorded earlier keep the larger counts, so backfilling them overstates their cost.
+- xAI calls are recorded at their billed `usage.cost_in_usd_ticks`, tool calls included, instead of a list-price estimate.
+- Faraday asks xAI and Mistral streams for their usage with `stream_options.include_usage`; they report it only when asked.
+- A model priced only per minute, character, page or search unit is billed by that unit when the call reports it; the token counts its response also reports stay unbilled.
+- A Mistral chat with audio input gets a `transcription_minute` line item for its audio, so a model priced only per token is recorded `partial`.
 - A transcription or translation without `usage` is priced by its `verbose_json` `duration`, rounded up to whole seconds, through Faraday and the official openai gem, Azure OpenAI Whisper included.
 - `bin/rails llm_cost_tracker:prices:refresh` runs `backfill_unknown_pricing` after writing a new `config.pricing.file`, or prints that command when the calls ledger is not reachable.
+- `backfill_unknown_pricing` and `reprice` store the pricing mode they apply, so a Bedrock regional-profile call recorded before 0.14.2 gets `data_residency`.
+- Bundled xAI prices, OpenAI and Anthropic model ids, OpenAI and Gemini long-context thresholds and OpenAI embedding prices are read from the providers' own pages instead of LiteLLM or hand-kept lists.
+- Bundled prices drop the models Mistral lists as retired, with their aliases such as `magistral-medium-latest`, and any model its provider has stopped listing for 90 days.
 
 ### Fixed
 
-- Anthropic compaction, advisor, fallback and refusal pricing applies to RubyLLM 2.x chats, and each blocking `pause_turn` segment is priced from its own response, with its 1-hour cache writes, speed and US inference.
+- Anthropic compaction, advisor, fallback and refusal pricing applies to RubyLLM 2.x chats, and each blocking `pause_turn` segment is priced from its own response.
 - RubyLLM 2.x Vertex AI `gemini-embedding-2` embeddings price image, audio and video tokens at their own rates instead of as text.
-- RubyLLM 2.x Bedrock Converse streams split cache writes into 5-minute and 1-hour writes by their final event's `cacheDetails` instead of `with_caching`'s TTL.
-- Gemini Omni Flash, 3.5 Transcribe (including Live) and 2.5 Computer Use calls are priced instead of recorded with unknown cost; Omni video output tokens use the new `video_output` rate.
+- RubyLLM 2.x Bedrock Converse streams split cache writes by their final event's `cacheDetails` instead of `with_caching`'s TTL.
+- RubyLLM 2.x images returned without usage are recorded with unknown cost instead of $0.
+- Gemini Omni Flash, 3.5 Transcribe (Live included) and 2.5 Computer Use calls are priced instead of recorded with unknown cost; Omni video output uses the new `video_output` rate.
+- OpenAI Ultrafast calls (`service_tier: "ultrafast"`) are priced at GPT-6 Astra's Ultrafast rates, US data residency included, instead of recorded with unknown cost.
+- GPT-Realtime-2, 2.1 and 2.1 mini get `data_residency` rates.
+- OpenAI `text-embedding-ada-002` embeddings, reported as `text-embedding-ada-002-v2`, and Mistral Embed called as `mistral-embed-2312` are priced instead of recorded with unknown cost.
+- A Chat Completions or Responses stream is recorded under the model its last event names, so a Perplexity Agent API preset such as `fast` is recorded as the model that served it.
+- Concurrent `backfill_unknown_pricing` or `reprice` runs no longer add a call's cost to the `:cache` rollups twice.
+- An empty, `0` or non-numeric `BATCH_SIZE` stops `backfill_unknown_pricing`, `reprice`, `prune` and `backfill_tag_costs` with an error.
 - JSON price files keep floats in their shortest form on json 2.11 and later (`0.951432`, not `0.9514320000000001`).
 - The Calls CSV export sorts the matching calls once instead of re-querying each 500-row batch with `OFFSET`, which was slow on large ledgers.
-- OpenAI Ultrafast calls (`service_tier: "ultrafast"`) are priced at GPT-6 Astra's Ultrafast rates, US data residency included, instead of recorded with unknown cost.
-- GPT-Realtime-2, 2.1 and 2.1 mini get `data_residency` rates, OpenAI's 10% regional processing uplift.
-- A Chat Completions or Responses stream is recorded under the model its last event names, so a Perplexity Agent API preset such as `fast` is recorded as the model that served it.
-- OpenAI speech returned as binary audio by a model not billed per character, such as `gpt-4o-mini-tts`, is recorded with `usage_source: unknown` instead of as a zero-token response.
-- OpenAI `text-embedding-ada-002` embeddings, reported as `text-embedding-ada-002-v2`, are priced instead of recorded with unknown cost.
-- Mistral Embed called as `mistral-embed-2312`, another name its model card gives, is priced instead of recorded with unknown cost.
-- `backfill_unknown_pricing` or `reprice` runs at the same time no longer add a call's cost to the `:cache` rollups twice.
-- An empty, `0` or non-numeric `BATCH_SIZE` stops `backfill_unknown_pricing`, `reprice` and `backfill_tag_costs` with an error instead of doing nothing.
 
 ## [0.14.2] - 2026-09-28
 
