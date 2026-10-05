@@ -201,7 +201,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
                                   "input" => 5.0,
                                   "output" => 25.0,
                                   "batch_cache_read_input" => 0.5,
-                                  "_source" => "manual"
+                                  "_note" => "kept"
                                 }
                               })
     provider_result = build_result(
@@ -229,10 +229,25 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
       expect(written.dig("models", "anthropic/claude-opus-4-7")).to eq(
         "input" => 5.0,
         "output" => 25.0,
-        "_source" => "manual",
+        "_note" => "kept",
         "batch_input" => 2.5,
         "batch_output" => 12.5
       )
+    end
+  end
+
+  it "treats a row's _source as scraped, so a LiteLLM row the official table takes over loses it" do
+    litellm = { "input" => 0.1, "_source" => "litellm" }
+    scrape = lambda do |fields, path|
+      described_class.new.call(provider: "mistral", provider_result: build_result(models: { "mistral-embed" => fields }),
+                               registry_path: path)
+    end
+
+    with_registry(build_registry(models: { "mistral/mistral-embed" => litellm })) do |path|
+      expect(scrape.call(litellm, path).changed?).to be(false)
+      expect(scrape.call({ "input" => 0.1 }, path).updated)
+        .to eq("mistral/mistral-embed" => { "_source" => { "from" => "litellm", "to" => nil } })
+      expect(JSON.parse(File.read(path)).dig("models", "mistral/mistral-embed")).to eq("input" => 0.1)
     end
   end
 

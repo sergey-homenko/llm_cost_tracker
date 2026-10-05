@@ -178,8 +178,7 @@ module LlmCostTracker
       end
 
       def preserved_model_field?(field)
-        registry = LlmCostTracker::Pricing::Registry
-        field.start_with?("_") && ![registry::CONTEXT_THRESHOLD_KEY, registry::OFF_PEAK_WINDOWS_KEY].include?(field)
+        field.start_with?("_") && !LlmCostTracker::Pricing::Registry::METADATA_KEYS.include?(field)
       end
 
       def registry_key(provider, model_id)

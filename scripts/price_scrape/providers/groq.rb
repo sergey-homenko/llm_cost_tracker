@@ -4,7 +4,7 @@ require "date"
 require "nokogiri"
 require "time"
 
-require_relative "base"
+require_relative "litellm"
 
 module LlmCostTracker
   module Pricing::Scrape
@@ -24,27 +24,30 @@ module LlmCostTracker
           PROMPT_CACHING_SOURCE_URL,
           FLEX_PROCESSING_SOURCE_URL,
           DEPRECATIONS_SOURCE_URL,
-          BATCH_SOURCE_URL
+          BATCH_SOURCE_URL,
+          Litellm::SOURCE_URL,
+          Litellm::MODELS_DEV_URL
         ].freeze
 
         MODEL_CARD_PATH = "/docs/model/"
         SHUTDOWN_DATE_FORMAT = "%m/%d/%y"
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
-          pages = pages_from(html)
-          pricing_doc = Nokogiri::HTML(pages.fetch(self.class.source_url))
-          prompt_caching_doc = Nokogiri::HTML(pages.fetch(PROMPT_CACHING_SOURCE_URL))
-          flex_doc = Nokogiri::HTML(pages.fetch(FLEX_PROCESSING_SOURCE_URL))
-          deprecations_doc = Nokogiri::HTML(pages.fetch(DEPRECATIONS_SOURCE_URL))
-          batch_doc = Nokogiri::HTML(pages.fetch(BATCH_SOURCE_URL))
+          pricing_doc = Nokogiri::HTML(html.fetch(self.class.source_url))
+          prompt_caching_doc = Nokogiri::HTML(html.fetch(PROMPT_CACHING_SOURCE_URL))
+          flex_doc = Nokogiri::HTML(html.fetch(FLEX_PROCESSING_SOURCE_URL))
+          deprecations_doc = Nokogiri::HTML(html.fetch(DEPRECATIONS_SOURCE_URL))
+          batch_doc = Nokogiri::HTML(html.fetch(BATCH_SOURCE_URL))
 
           verify_prompt_cache_discount!(prompt_caching_doc)
           verify_flex_pricing!(flex_doc)
           verify_batch_pricing!(batch_doc)
 
-          models = extract_models(pricing_doc,
-                                  cache_models: extract_prompt_cache_models(prompt_caching_doc),
-                                  batch_models: extract_batch_models(batch_doc))
+          listed = extract_prices(pricing_doc)
+          listed = listed.merge(Litellm.confirmed_rows("groq", html, listed, scraped_at))
+          models = with_tiers(listed,
+                              cache_models: extract_prompt_cache_models(prompt_caching_doc),
+                              batch_models: extract_batch_models(batch_doc))
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -57,22 +60,19 @@ module LlmCostTracker
 
         private
 
-        def pages_from(html)
-          return html.transform_keys(&:to_s) if html.is_a?(Hash)
-
-          self.class::SOURCE_URLS.to_h { |url| [url, html.to_s] }
-        end
-
-        def extract_models(doc, cache_models:, batch_models:)
+        def extract_prices(doc)
           tables = find_text_models_tables(doc)
           raise Error, "Groq token models pricing table not found" if tables.empty?
 
           rows = tables.flat_map { |table| token_rows(table) }
+          resolve_rows(rows).transform_values { |row| { "input" => row[:input], "output" => row[:output] } }
+        end
 
-          resolve_rows(rows).transform_values do |row|
-            fields = add_mode_prices("input" => row[:input], "output" => row[:output])
-            fields = add_cache_read_prices(fields) if cache_models.include?(row[:id])
-            batch_models.include?(row[:id]) ? fields : fields.reject { |field, _| field.start_with?("batch_") }
+        def with_tiers(listed, cache_models:, batch_models:)
+          listed.to_h do |id, prices|
+            fields = add_mode_prices(prices.except("cache_read_input"))
+            fields = add_cache_read_prices(fields) if cache_models.include?(id)
+            [id, batch_models.include?(id) ? fields : fields.reject { |field, _| field.start_with?("batch_") }]
           end
         end
 

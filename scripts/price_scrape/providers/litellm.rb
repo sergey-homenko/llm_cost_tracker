@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "date"
 require "json"
 require "time"
 
@@ -11,7 +12,9 @@ module LlmCostTracker
       class Litellm < Base
         PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/%s/model_prices_and_context_window.json"
         SOURCE_URL = format(PRICES_URL, "main")
+        MODELS_DEV_URL = "https://models.dev/api.json"
         TOKEN_MODES = %w[chat responses].freeze
+        ROW_MODES = [*TOKEN_MODES, "embedding"].freeze
         PROVIDERS = {
           "openai" => "openai", "anthropic" => "anthropic", "gemini" => "gemini", "xai" => "xai",
           "mistral" => "mistral", "groq" => "groq", "openrouter" => "openrouter", "deepseek" => "deepseek",
@@ -53,7 +56,10 @@ module LlmCostTracker
           (?:_above_(?<thousands>\d+)k_tokens)?
           (?:_(?<tier>#{TIERS.keys.join('|')}))?\z
         /x
+        DATED_SUFFIX = /-(?:\d{4}-\d{2}-\d{2}|\d{8})\z/
+        TOLERANCE = 0.01
         Conversion = Data.define(:models, :entries, :unknown, :unrepresentable)
+        Gate = Data.define(:confirmed, :held, :unconfirmed)
 
         class << self
           def litellm_provider(value = nil)
@@ -87,6 +93,51 @@ module LlmCostTracker
             entry.values_at(*UPLIFT_FIELDS).compact.first || entry.dig("provider_specific_entry", "us")
           end
 
+          def confirmed_rows(provider, pages, official, scraped_at)
+            conversion = convert(parse_json(pages.fetch(SOURCE_URL)))
+            models_dev = JSON.parse(pages.fetch(MODELS_DEV_URL))
+            today = Date.parse(scraped_at).iso8601
+            gate(provider, conversion, models_dev, official, today).confirmed.transform_values do |fields|
+              fields.slice("input", "cache_read_input", "output").merge("_source" => "litellm")
+            end
+          end
+
+          def gate(provider, conversion, models_dev, written, today)
+            listed = models_dev.dig(provider, "models") || {}
+            result = Gate.new(confirmed: {}, held: {}, unconfirmed: [])
+            candidates(provider, conversion, written, today).each do |model, fields|
+              ours = fields.values_at("input", "output").map(&:to_f)
+              theirs = listed.dig(model, "cost")&.values_at("input", "output")&.map(&:to_f)
+              if theirs.nil? then result.unconfirmed << model
+              elsif ours.zip(theirs).none? { |pair| differ?(*pair) } then result.confirmed[model] = fields
+              else result.held[model] = [ours, theirs]
+              end
+            end
+            result
+          end
+
+          def current?(entry, fields, today)
+            retired = entry["deprecation_date"].to_s
+            (retired.empty? || retired >= today) &&
+              (!TOKEN_MODES.include?(entry["mode"]) || (fields.key?("input") && fields.key?("output")))
+          end
+
+          def differ?(ours, theirs)
+            return ours != theirs unless ours.is_a?(Numeric) && theirs.is_a?(Numeric)
+            return ours != theirs if ours.zero? || theirs.zero?
+
+            (ours - theirs).abs / [ours.abs, theirs.abs].max > TOLERANCE
+          end
+
+          def parse_json(body)
+            catalogue = JSON.parse(body.to_s)
+            raise Error, "LiteLLM price list is not a JSON object" unless catalogue.is_a?(Hash)
+
+            catalogue
+          rescue JSON::ParserError => e
+            raise Error, "LiteLLM price list is invalid JSON: #{e.message}"
+          end
+
           def entry_fields(entry, provider = nil)
             thresholds = Hash.new { |hash, field| hash[field] = [] }
             fields = entry.each_with_object({}) do |(name, value), converted|
@@ -107,6 +158,21 @@ module LlmCostTracker
           end
 
           private
+
+          def candidates(provider, conversion, written, today)
+            conversion.models.filter_map do |key, fields|
+              model = key.delete_prefix("#{provider}/")
+              entry = conversion.entries.fetch(key)
+              next if model == key || written.key?(model) || !ROW_MODES.include?(entry["mode"])
+
+              base = model.sub(DATED_SUFFIX, "")
+              twins = [conversion.models["#{provider}/#{base}"], written[base]].compact
+              prices = fields.values_at("input", "output")
+              next if base != model && twins.any? { |twin| twin.values_at("input", "output") == prices }
+
+              [model, fields] if current?(entry, fields, today)
+            end
+          end
 
           def model_fields(entry, provider, &)
             fields, thresholds = entry_fields(entry, provider)
@@ -184,14 +250,15 @@ module LlmCostTracker
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           prefix = "#{self.class.litellm_provider}/"
-          models = parse_json(html).each_with_object({}) do |(key, entry), collected|
+          models = self.class.parse_json(html.fetch(SOURCE_URL)).each_with_object({}) do |(key, entry), collected|
             next unless key.start_with?(prefix) && entry.is_a?(Hash) && [*TOKEN_MODES, "ocr"].include?(entry["mode"])
 
             fields = extract_fields(key, entry)
             required = entry["mode"] == "ocr" ? %w[ocr_page] : %w[input output]
             collected[key.delete_prefix(prefix)] = fields if required.all? { |field| fields.key?(field) }
           end
-          models = with_tiers(models)
+          rows = self.class.confirmed_rows(self.class.litellm_provider, html, models, scraped_at)
+          models = with_tiers(models.merge(rows))
           validate!(models)
           Result.new(
             source_url: source_url,
@@ -200,17 +267,6 @@ module LlmCostTracker
             deprecated_models: [],
             service_charges: {}
           )
-        end
-
-        private
-
-        def parse_json(body)
-          catalogue = JSON.parse(body.to_s)
-          raise Error, "LiteLLM price list is not a JSON object" unless catalogue.is_a?(Hash)
-
-          catalogue
-        rescue JSON::ParserError => e
-          raise Error, "LiteLLM price list is invalid JSON: #{e.message}"
         end
       end
     end

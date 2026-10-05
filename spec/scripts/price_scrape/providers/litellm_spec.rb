@@ -8,18 +8,19 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   let(:body) { fixture("litellm_prices.json") }
   let(:mistral_class) { LlmCostTracker::Pricing::Scrape::Providers::Mistral }
   let(:mistral_pages) do
-    { described_class::SOURCE_URL => body, mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html") }
+    { described_class::SOURCE_URL => body, described_class::MODELS_DEV_URL => fixture("models_dev.json"),
+      mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html") }
       .merge(mistral_class::TIER_SOURCES.to_h { |tier, (url, _)| [url, fixture("mistral_#{tier}.md")] })
   end
-  let(:mistral) { mistral_class.new.call(html: mistral_pages).models }
+  let(:mistral) { mistral_class.new.call(html: mistral_pages, scraped_at: "2026-10-05T06:00:00Z").models }
 
   def fixture(name) = File.read("spec/fixtures/scrape/#{name}", encoding: "utf-8")
 
   it "prices only the Mistral models its pricing page lists, at the page's rates, under the names the API accepts" do
     catalogue = JSON.parse(body)
     catalogue["mistral/mistral-large-latest"]["input_cost_per_token"] = 0.000009
-    models = mistral_class.new.call(html: mistral_pages.merge(described_class::SOURCE_URL => JSON.generate(catalogue)))
-                          .models
+    models = mistral_class.new.call(html: mistral_pages.merge(described_class::SOURCE_URL => JSON.generate(catalogue)),
+                                    scraped_at: "2026-10-05T06:00:00Z").models
 
     expect(models.transform_values { |fields| fields.slice("input", "cache_read_input", "output") }).to include(
       "mistral-large-latest" => { "input" => 0.5, "cache_read_input" => 0.05, "output" => 1.5 },
@@ -27,8 +28,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       "mistral-medium-3-5" => { "input" => 1.5, "cache_read_input" => 0.15, "output" => 7.5 },
       "codestral-latest" => { "input" => 0.3, "cache_read_input" => 0.03, "output" => 0.9 }
     )
-    expect(models.keys).not_to include("mistral-small", "mistral-tiny", "pixtral-large-latest", "open-mistral-nemo",
-                                       "codestral-mamba-latest", "devstral-small-latest", "voxtral-small-latest")
+    expect(models.keys).not_to include("mistral-small", "mistral-tiny", "open-mistral-nemo", "codestral-mamba-latest",
+                                       "devstral-small-latest", "voxtral-small-latest")
   end
 
   it "matches Mistral API names LiteLLM links to the pricing page to the one card named like them" do
@@ -56,7 +57,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   it "prices Mistral OCR per 1,000 pages from the Input column, under the card's API names and its -latest alias" do
     one_card = mistral_pages.merge(mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html")
                                      .sub(%r{<tr><td><a href="/models/ocr-4-0">.*?</tr>}, ""))
-    models = mistral_class.new.call(html: one_card).models
+    models = mistral_class.new.call(html: one_card, scraped_at: "2026-10-05T06:00:00Z").models
 
     expect(models.slice("mistral-ocr-4-1", "mistral-ocr-4", "mistral-ocr-latest").values)
       .to eq([{ "ocr_page" => 4.0 }] * 3)
@@ -65,9 +66,22 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     expect(mistral.keys).not_to include("mistral-ocr-latest")
   end
 
-  it "keeps only priced token and OCR models of its own provider" do
-    expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-embed", "mistral-moderation-2603",
+  it "keeps only priced token, embedding and OCR models of its own provider" do
+    expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-moderation-2603", "voxtral-mini-2602",
                                         "deepseek-flash", "gpt-4o")
+  end
+
+  it "adds the Mistral models only LiteLLM prices when models.dev lists the same price, at Mistral's tier rates" do
+    expect(mistral.fetch("pixtral-large-latest")).to include(
+      "_source" => "litellm", "input" => 2.0, "cache_read_input" => 0.2, "output" => 6.0, "batch_input" => 1.0,
+      "priority_output" => 10.5, "data_residency_input" => 2.2, "priority_data_residency_input" => 3.85
+    )
+    expect(mistral.fetch("mistral-embed")).to eq(
+      "_source" => "litellm", "input" => 0.1, "batch_input" => 0.05, "priority_input" => 0.175,
+      "data_residency_input" => 0.11, "priority_data_residency_input" => 0.1925
+    )
+    expect(mistral.keys).not_to include("open-mistral-nemo", "voxtral-small-latest", "devstral-medium-latest")
+    expect(mistral.fetch("mistral-large-latest")).not_to have_key("_source")
   end
 
   describe ".convert" do
@@ -168,6 +182,66 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       expect(described_class.uplift(entries.fetch("openai/gpt-6-astra"))).to eq(1.1)
       expect(described_class.uplift(entries.fetch("anthropic/claude-opus-4-8"))).to eq(1.1)
       expect(described_class.uplift(entries.fetch("openai/gpt-4o"))).to be_nil
+    end
+  end
+
+  describe ".gate" do
+    def entry(input, output, **extra)
+      { "litellm_provider" => "mistral", "mode" => "chat", "input_cost_per_token" => input / 1e6,
+        "output_cost_per_token" => output / 1e6 }.merge(extra.transform_keys(&:to_s))
+    end
+
+    def cost(input, output) = { "cost" => { "input" => input, "output" => output } }
+
+    let(:catalogue) do
+      {
+        "mistral/official" => entry(1.0, 2.0), "mistral/official-2026-01-01" => entry(5.0, 6.0),
+        "mistral/confirmed" => entry(1.0, 2.0), "mistral/confirmed-2026-01-01" => entry(1.0, 2.0),
+        "mistral/held" => entry(1.0, 2.0), "mistral/unlisted" => entry(1.0, 2.0),
+        "mistral/unlisted-20260101" => entry(3.0, 4.0), "mistral/embedder" => entry(0.1, 0.0, mode: "embedding"),
+        "mistral/retired" => entry(1.0, 2.0, deprecation_date: "2026-10-04"),
+        "mistral/retiring" => entry(1.0, 2.0, deprecation_date: "2026-10-05"),
+        "mistral/no-output" => entry(1.0, 0.0),
+        "mistral/transcriber" => entry(0.0, 0.0, mode: "audio_transcription", input_cost_per_second: 0.0001),
+        "groq/elsewhere" => entry(1.0, 2.0, litellm_provider: "groq")
+      }
+    end
+    let(:models_dev) do
+      { "mistral" => { "models" => {
+        "official" => cost(9, 9), "confirmed" => cost(1.005, 2), "held" => cost(1, 2.5), "embedder" => cost(0.1, 0),
+        "retired" => cost(1, 2), "retiring" => cost(1, 2), "no-output" => cost(1, 0), "transcriber" => cost(0, 0)
+      } } }
+    end
+    let(:gate) do
+      described_class.gate("mistral", described_class.convert(catalogue), models_dev,
+                           { "official" => { "input" => 5.0, "output" => 6.0 } }, "2026-10-05")
+    end
+
+    it "confirms LiteLLM-only chat and embedding rows models.dev prices within 1%, while not retired" do
+      expect(gate.confirmed).to eq(
+        "confirmed" => { "input" => 1.0, "output" => 2.0 }, "retiring" => { "input" => 1.0, "output" => 2.0 },
+        "embedder" => { "input" => 0.1 }
+      )
+    end
+
+    it "holds back rows models.dev prices otherwise and lists rows it does not list as unconfirmed" do
+      expect(gate.held).to eq("held" => [[1.0, 2.0], [1.0, 2.5]])
+      expect(gate.unconfirmed).to contain_exactly("unlisted", "unlisted-20260101")
+    end
+
+    it "leaves out officially priced models, dated twins at the same prices, other providers and other modes" do
+      seen = gate.confirmed.keys + gate.held.keys + gate.unconfirmed
+
+      expect(seen).not_to include("official", "official-2026-01-01", "confirmed-2026-01-01", "retired", "no-output",
+                                  "transcriber", "elsewhere")
+    end
+
+    it "marks the confirmed rows a scraper writes as LiteLLM's" do
+      pages = { described_class::SOURCE_URL => JSON.generate(catalogue),
+                described_class::MODELS_DEV_URL => JSON.generate(models_dev) }
+
+      expect(described_class.confirmed_rows("mistral", pages, {}, "2026-10-05T06:00:00Z").fetch("confirmed"))
+        .to eq("input" => 1.0, "output" => 2.0, "_source" => "litellm")
     end
   end
 

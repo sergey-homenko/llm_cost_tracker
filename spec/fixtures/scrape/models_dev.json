@@ -1,0 +1,88 @@
+{
+  "mistral": {
+    "id": "mistral",
+    "name": "Mistral",
+    "models": {
+      "mistral-embed": {
+        "id": "mistral-embed",
+        "name": "Mistral Embed",
+        "cost": {
+          "input": 0.1,
+          "output": 0
+        }
+      },
+      "pixtral-large-latest": {
+        "id": "pixtral-large-latest",
+        "name": "Pixtral Large (latest)",
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
+      },
+      "open-mistral-nemo": {
+        "id": "open-mistral-nemo",
+        "name": "Open Mistral Nemo",
+        "cost": {
+          "input": 0.15,
+          "output": 0.15
+        }
+      },
+      "voxtral-small-latest": {
+        "id": "voxtral-small-latest",
+        "name": "Voxtral Small (latest)",
+        "cost": {
+          "input": 0.1,
+          "output": 0.3
+        }
+      },
+      "mistral-large-latest": {
+        "id": "mistral-large-latest",
+        "name": "Mistral Large (latest)",
+        "cost": {
+          "input": 0.5,
+          "output": 1.5,
+          "cache_read": 0.05
+        }
+      },
+      "devstral-latest": {
+        "id": "devstral-latest",
+        "name": "Devstral 2",
+        "cost": {
+          "input": 0.4,
+          "output": 2
+        }
+      }
+    }
+  },
+  "groq": {
+    "id": "groq",
+    "name": "Groq",
+    "models": {
+      "qwen/qwen3.8-27b": {
+        "id": "qwen/qwen3.8-27b",
+        "name": "Qwen3.8 27B",
+        "cost": {
+          "input": 0.8,
+          "output": 4
+        }
+      },
+      "openai/gpt-oss-20b": {
+        "id": "openai/gpt-oss-20b",
+        "name": "GPT OSS 20B",
+        "cost": {
+          "input": 0.075,
+          "output": 0.3,
+          "cache_read": 0.0375
+        }
+      },
+      "llama-3.3-70b-versatile": {
+        "id": "llama-3.3-70b-versatile",
+        "name": "Llama 3.3 70B",
+        "cost": {
+          "input": 0.59,
+          "output": 0.79
+        }
+      }
+    }
+  }
+}

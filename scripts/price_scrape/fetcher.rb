@@ -14,7 +14,7 @@ module LlmCostTracker
       READ_TIMEOUT = 10
       MAX_REDIRECTS = 5
       MAX_ATTEMPTS = 3
-      MAX_BODY_BYTES = 5_242_880
+      MAX_BODY_BYTES = 16_777_216
       RETRY_BASE_DELAY = 1.0
 
       Response = Data.define(:url, :body, :status, :fetched_at, :elapsed_ms)

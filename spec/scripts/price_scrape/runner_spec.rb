@@ -85,6 +85,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
                  headers: { "Content-Type" => "text/html; charset=utf-8" })
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Groq::BATCH_SOURCE_URL)
       .to_return(status: 200, body: groq_batch_html, headers: { "Content-Type" => "text/html; charset=utf-8" })
+    stub_request(:get, litellm::SOURCE_URL).to_return(status: 200, body: fixture("litellm_prices.json"))
+    stub_request(:get, litellm::MODELS_DEV_URL).to_return(status: 200, body: fixture("models_dev.json"))
 
     Tempfile.create(["registry", ".json"]) do |file|
       file.write(JSON.pretty_generate("metadata" => { "schema_version" => 1, "updated_at" => "2026-04-01" },

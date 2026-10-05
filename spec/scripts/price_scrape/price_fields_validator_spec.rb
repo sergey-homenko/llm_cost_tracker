@@ -51,6 +51,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::PriceFieldsValidator do
       .to raise_error(error_class, /invalid price for deepseek-flash._off_peak_windows/)
   end
 
+  it "accepts the LiteLLM source marker and no other source" do
+    check = lambda do |value|
+      models = base_models.merge("mistral-embed" => { "input" => 0.1, "_source" => value })
+      described_class.call(models, minimum: 2, maximum: 1000.0, error_class: error_class)
+    end
+
+    expect { check.call("litellm") }.not_to raise_error
+    expect { check.call("manual") }.to raise_error(error_class, /invalid price for mistral-embed._source/)
+  end
+
   it "does not check anchors when none are configured" do
     expect do
       described_class.call(base_models, minimum: 2, maximum: 1000.0, error_class: error_class)

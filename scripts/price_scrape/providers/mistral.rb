@@ -22,7 +22,7 @@ module LlmCostTracker
           "data_residency" => ["https://docs.mistral.ai/inference/regional-inference.md",
                                /billed at \*\*([\d.]+)[x×] standard list pricing/]
         }.freeze
-        SOURCE_URLS = [source_url, PRICING_SOURCE_URL, *TIER_SOURCES.values.map(&:first)].freeze
+        SOURCE_URLS = [source_url, MODELS_DEV_URL, PRICING_SOURCE_URL, *TIER_SOURCES.values.map(&:first)].freeze
         PRICE_COLUMNS = { "Input" => "input", "Cached input" => "cache_read_input", "Output" => "output" }.freeze
         MODEL_CARD = %r{\Ahttps://docs\.mistral\.ai/models/(?:model-cards/)?(?<card>[a-z0-9-]+)\z}
         TOKEN_PRICE = /\A\$(?<amount>\d+(?:\.\d+)?)\z/
@@ -35,7 +35,7 @@ module LlmCostTracker
             factor = documented_factor(html.fetch(url), pattern, tier)
             [tier, tier == "batch" ? 1 - (factor / 100) : factor]
           end
-          super(html: html.fetch(self.class.source_url), **)
+          super
         end
 
         private
