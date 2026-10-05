@@ -33,6 +33,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The Calls CSV export sorts the matching calls once instead of re-querying each 500-row batch with `OFFSET`, which was slow on large ledgers.
 - OpenAI Ultrafast calls (`service_tier: "ultrafast"`) are priced at GPT-6 Astra's Ultrafast rates, US data residency included, instead of recorded with unknown cost.
 - GPT-Realtime-2, 2.1 and 2.1 mini get `data_residency` rates, OpenAI's 10% regional processing uplift.
+- A Chat Completions or Responses stream is recorded under the model its last event names, so a Perplexity Agent API preset such as `fast` is recorded as the model that served it.
 
 ## [0.14.2] - 2026-09-28
 

@@ -139,7 +139,7 @@ module LlmCostTracker
         end
 
         def stream_capture_context(events:, request:, request_url:, usage:)
-          model = find_event_value(events) do |data|
+          model = find_event_value(events, reverse: true) do |data|
             data["model"] || data.dig("response", "model") || data.dig("chunk", "model")
           end || request["model"]
           provider = provider_for(request_url)

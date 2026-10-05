@@ -300,4 +300,15 @@ module AccountingCases
     3.times { faraday_request(:get, "#{PERPLEXITY_API}/v1/agent/resp_pplx_bg") }
     faraday_request(:get, "#{PERPLEXITY_API}/v1/responses/resp_pplx_bg")
   end
+
+  define_case "faraday perplexity agent stream: the fast preset recorded as the model that served it" do
+    usage = perplexity_agent_usage(11_000, 1000, cached: 10_000, input_cost: 0.0001, cache_read_cost: 0.0001,
+                                                 output_cost: 0.0005, tool_calls_cost: 0.0025, total_cost: 0.0032)
+    created = { id: "resp_pplx_b6", object: "response", model: "fast", status: "in_progress", output: [] }
+    done = created.merge(model: "openai/gpt-6-luna", status: "completed", output: [output_message("pplx_b6")],
+                         usage: usage)
+    faraday_sse("#{PERPLEXITY_API}/v1/agent", { preset: "fast", stream: true, input: "What is Ruby?" },
+                sse(["response.created", { type: "response.created", sequence_number: 0, response: created }],
+                    ["response.completed", { type: "response.completed", sequence_number: 1, response: done }]))
+  end
 end
