@@ -118,7 +118,8 @@ module LlmCostTracker
       end
 
       def acknowledgement(finding)
-        ["#{finding.model}.#{finding.field}", finding.model].find { |key| @acknowledged.key?(key) }
+        key = finding.field ? "#{finding.model}.#{finding.field}" : finding.model
+        key if @acknowledged.key?(key)
       end
 
       def stale

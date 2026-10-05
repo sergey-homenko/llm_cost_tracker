@@ -138,20 +138,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
 
   context "with acknowledged findings" do
     let(:acknowledged) do
-      { "openai/gpt-4o.input" => "Known.", "openai/gpt-realtime-2.1" => "Whole model.", "openai/gone.input" => "Old.",
-        "mistral/open-mistral-nemo" => "Retired.", "mistral/codestral-mamba-latest" => "Retired." }
+      { "openai/gpt-4o.input" => "Known.", "openai/gpt-realtime-2.1.data_residency_*" => "Known field.",
+        "openai/gone.input" => "Old.", "openai/gpt-6-astra" => "Model.", "mistral/open-mistral-nemo" => "Retired.",
+        "mistral/codestral-mamba-latest" => "Retired." }
     end
 
     it "moves them to a collapsed section of the report and flags acknowledgements that match nothing" do
-      expect(check.findings).not_to include("openai/gpt-4o |", "openai/gpt-realtime-2.1\n", "mistral/open-mistral-nemo",
-                                            "mistral/codestral-mamba-latest")
+      expect(check.findings).not_to include("openai/gpt-4o |", "(x1.1): openai/gpt-realtime-2.1",
+                                            "mistral/open-mistral-nemo", "mistral/codestral-mamba-latest")
       expect(check.findings)
         .to include("### Stale acknowledgements\n\n- `openai/gone.input` no longer matches a finding")
       expect(check.report("a" * 40)).to include(
         "<details>\n<summary>Acknowledged (4)</summary>\n\n- `mistral/codestral-mamba-latest`: Retired.\n" \
         "- `mistral/open-mistral-nemo`: Retired.\n- `openai/gpt-4o.input`: Known.\n" \
-        "- `openai/gpt-realtime-2.1`: Whole model.\n\n</details>"
+        "- `openai/gpt-realtime-2.1.data_residency_*`: Known field.\n\n</details>"
       )
+    end
+
+    it "lets a bare model key cover only the findings without a field" do
+      expect(check.findings).to include(": openai/gpt-6-astra\n", "- `openai/gpt-6-astra` no longer matches a finding",
+                                        "- `cache_creation_input_audio_token_cost` (1): openai/gpt-realtime-2.1")
     end
   end
 
