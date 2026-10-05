@@ -71,6 +71,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
                                        "mistral/mistral-ocr-latest")
   end
 
+  it "lists the Cohere rows only LiteLLM prices that models.dev does not confirm" do
+    expect(check.findings).to include("- cohere: cohere/rerank-v3.5\n")
+  end
+
   it "gates the LiteLLM rows and absent keys the registry holds again, as the runner does" do
     prices = { "input" => 0.1, "_source" => "litellm" }
     rows = { "mistral/mistral-embed" => prices, "mistral/mistral-tiny" => prices.except("_source") }

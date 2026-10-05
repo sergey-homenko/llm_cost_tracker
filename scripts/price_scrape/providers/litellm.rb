@@ -13,7 +13,7 @@ module LlmCostTracker
         SOURCE_URL = format(PRICES_URL, "main")
         MODELS_DEV_URL = "https://models.dev/api.json"
         TOKEN_MODES = %w[chat responses].freeze
-        ROW_MODES = [*TOKEN_MODES, "embedding"].freeze
+        ROW_MODES = [*TOKEN_MODES, "embedding", "rerank"].freeze
         PROVIDERS = {
           "openai" => "openai", "anthropic" => "anthropic", "gemini" => "gemini", "xai" => "xai",
           "mistral" => "mistral", "groq" => "groq", "openrouter" => "openrouter", "deepseek" => "deepseek",
@@ -105,7 +105,7 @@ module LlmCostTracker
             result = Gate.new(confirmed: {}, held: {}, unconfirmed: [])
             candidates(provider, conversion, written, today).each do |model, fields|
               ours = fields.values_at("input", "output").map(&:to_f)
-              theirs = listed.dig(model, "cost")&.values_at("input", "output")&.map(&:to_f)
+              theirs = listed.dig(model, "cost")&.values_at("input", "output")&.map(&:to_f) if fields.key?("input")
               if theirs.nil? then result.unconfirmed << model
               elsif ours.zip(theirs).none? { |pair| differ?(*pair) } then result.confirmed[model] = fields
               else result.held[model] = [ours, theirs]

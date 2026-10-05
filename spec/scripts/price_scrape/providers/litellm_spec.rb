@@ -290,13 +290,15 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
         "mistral/retiring" => entry(1.0, 2.0, deprecation_date: "2026-10-05"),
         "mistral/no-output" => entry(1.0, 0.0),
         "mistral/transcriber" => entry(0.0, 0.0, mode: "audio_transcription", input_cost_per_second: 0.0001),
+        "mistral/reranker" => entry(0.0, 0.0, mode: "rerank", input_cost_per_query: 0.002),
         "groq/elsewhere" => entry(1.0, 2.0, litellm_provider: "groq")
       }
     end
     let(:models_dev) do
       { "mistral" => { "models" => {
         "official" => cost(9, 9), "confirmed" => cost(1.005, 2), "held" => cost(1, 2.5), "embedder" => cost(0.1, 0),
-        "retired" => cost(1, 2), "retiring" => cost(1, 2), "no-output" => cost(1, 0), "transcriber" => cost(0, 0)
+        "retired" => cost(1, 2), "retiring" => cost(1, 2), "no-output" => cost(1, 0), "transcriber" => cost(0, 0),
+        "reranker" => cost(0, 0)
       } } }
     end
     let(:gate) do
@@ -311,9 +313,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       )
     end
 
-    it "holds back rows models.dev prices otherwise and lists rows it does not list as unconfirmed" do
+    it "holds back rows models.dev prices otherwise and lists rows it does not list, or cannot price, as unconfirmed" do
       expect(gate.held).to eq("held" => [[1.0, 2.0], [1.0, 2.5]])
-      expect(gate.unconfirmed).to contain_exactly("unlisted", "unlisted-20260101")
+      expect(gate.unconfirmed).to contain_exactly("unlisted", "unlisted-20260101", "reranker")
     end
 
     it "leaves out officially priced models, dated twins at the same prices, other providers and other modes" do
