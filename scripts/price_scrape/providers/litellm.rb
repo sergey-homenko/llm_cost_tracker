@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
+require "date"
 require "json"
-require "time"
 
 require_relative "base"
 
@@ -9,14 +9,17 @@ module LlmCostTracker
   module Pricing::Scrape
     module Providers
       class Litellm < Base
-        SOURCE_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+        PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/%s/model_prices_and_context_window.json"
+        SOURCE_URL = format(PRICES_URL, "main")
+        MODELS_DEV_URL = "https://models.dev/api.json"
         TOKEN_MODES = %w[chat responses].freeze
+        ROW_MODES = [*TOKEN_MODES, "embedding"].freeze
         PROVIDERS = {
           "openai" => "openai", "anthropic" => "anthropic", "gemini" => "gemini", "xai" => "xai",
           "mistral" => "mistral", "groq" => "groq", "openrouter" => "openrouter", "deepseek" => "deepseek",
           "perplexity" => "perplexity", "cohere" => "cohere", "cohere_chat" => "cohere"
         }.freeze
-        MODES = %w[chat responses embedding audio_transcription audio_speech realtime].freeze
+        MODES = %w[chat responses embedding audio_transcription audio_speech realtime ocr rerank].freeze
         INCLUSIVE_THRESHOLD_PROVIDERS = %w[xai].freeze
         TOKEN_FIELDS = {
           "input_cost_per_token" => "input",
@@ -39,26 +42,25 @@ module LlmCostTracker
           "search_context_cost_per_query" => ["web_search_request", 1000, nil],
           "google_maps_grounding_cost_per_query" => ["maps_grounding_request", 1000, nil],
           "input_cost_per_second" => ["transcription_minute", 60, "audio_transcription"],
-          "input_cost_per_character" => ["text_to_speech_character", 1_000_000, "audio_speech"]
+          "input_cost_per_character" => ["text_to_speech_character", 1_000_000, "audio_speech"],
+          "ocr_cost_per_page" => ["ocr_page", 1000, "ocr"],
+          "input_cost_per_query" => ["rerank_search_unit", 1000, "rerank"]
         }.freeze
         UPLIFT_FIELDS = %w[regional_processing_uplift_multiplier_us regional_processing_uplift_multiplier_eu].freeze
-        STRUCTURE_FIELDS = %w[tiered_pricing off_peak_pricing output_cost_per_reasoning_token].freeze
+        PAGE_FIELDS = %w[annotation_cost_per_page annotation_cost_per_page_batches ocr_cost_per_page_batches].freeze
+        STRUCTURE_FIELDS = (%w[tiered_pricing off_peak_pricing output_cost_per_reasoning_token] + PAGE_FIELDS).freeze
         PRICE_FIELD = /cost|pricing|multiplier/
         FIELD = /
           \A(?<field>#{TOKEN_FIELDS.keys.join('|')})
           (?:_above_(?<thousands>\d+)k_tokens)?
           (?:_(?<tier>#{TIERS.keys.join('|')}))?\z
         /x
-        STANDARD_FIELD = /\A(?<context>above_context_)?(?<field>input|output|cache_read_input)\z/
-        PROVIDER_FIELD = /\A(?:above_context_)?(?:batch_)?(?:input|output|cache_read_input)\z/
+        DATED_SUFFIX = /-(?:\d{4}-\d{2}-\d{2}|\d{8})\z/
+        TOLERANCE = 0.01
         Conversion = Data.define(:models, :entries, :unknown, :unrepresentable)
+        Gate = Data.define(:confirmed, :held, :unconfirmed)
 
         class << self
-          def litellm_provider(value = nil)
-            @litellm_provider = value if value
-            @litellm_provider
-          end
-
           def convert(catalogue)
             conversion = Conversion.new(
               models: {},
@@ -85,6 +87,55 @@ module LlmCostTracker
             entry.values_at(*UPLIFT_FIELDS).compact.first || entry.dig("provider_specific_entry", "us")
           end
 
+          def confirmed_rows(provider, pages, official, scraped_at)
+            models_dev = JSON.parse(pages[MODELS_DEV_URL].to_s)
+            return unless models_dev.is_a?(Hash)
+
+            conversion = convert(parse_json(pages.fetch(SOURCE_URL)))
+            today = Date.parse(scraped_at).iso8601
+            gate(provider, conversion, models_dev, official, today).confirmed.transform_values do |fields|
+              fields.slice("input", "cache_read_input", "output").merge("_source" => "litellm")
+            end
+          rescue JSON::ParserError
+            nil
+          end
+
+          def gate(provider, conversion, models_dev, written, today)
+            listed = models_dev.dig(provider, "models") || {}
+            result = Gate.new(confirmed: {}, held: {}, unconfirmed: [])
+            candidates(provider, conversion, written, today).each do |model, fields|
+              ours = fields.values_at("input", "output").map(&:to_f)
+              theirs = listed.dig(model, "cost")&.values_at("input", "output")&.map(&:to_f)
+              if theirs.nil? then result.unconfirmed << model
+              elsif ours.zip(theirs).none? { |pair| differ?(*pair) } then result.confirmed[model] = fields
+              else result.held[model] = [ours, theirs]
+              end
+            end
+            result
+          end
+
+          def current?(entry, fields, today)
+            retired = entry["deprecation_date"].to_s
+            (retired.empty? || retired >= today) &&
+              (!TOKEN_MODES.include?(entry["mode"]) || (fields.key?("input") && fields.key?("output")))
+          end
+
+          def differ?(ours, theirs)
+            return ours != theirs unless ours.is_a?(Numeric) && theirs.is_a?(Numeric)
+            return ours != theirs if ours.zero? || theirs.zero?
+
+            (ours - theirs).abs / [ours.abs, theirs.abs].max > TOLERANCE
+          end
+
+          def parse_json(body)
+            catalogue = JSON.parse(body.to_s)
+            raise Error, "LiteLLM price list is not a JSON object" unless catalogue.is_a?(Hash)
+
+            catalogue
+          rescue JSON::ParserError => e
+            raise Error, "LiteLLM price list is invalid JSON: #{e.message}"
+          end
+
           def entry_fields(entry, provider = nil)
             thresholds = Hash.new { |hash, field| hash[field] = [] }
             fields = entry.each_with_object({}) do |(name, value), converted|
@@ -106,6 +157,21 @@ module LlmCostTracker
 
           private
 
+          def candidates(provider, conversion, written, today)
+            conversion.models.filter_map do |key, fields|
+              model = key.delete_prefix("#{provider}/")
+              entry = conversion.entries.fetch(key)
+              next if model == key || written.key?(model) || !ROW_MODES.include?(entry["mode"])
+
+              base = model.sub(DATED_SUFFIX, "")
+              twins = [conversion.models["#{provider}/#{base}"], written[base]].compact
+              prices = fields.values_at("input", "output")
+              next if base != model && twins.any? { |twin| twin.values_at("input", "output") == prices }
+
+              [model, fields] if current?(entry, fields, today)
+            end
+          end
+
           def model_fields(entry, provider, &)
             fields, thresholds = entry_fields(entry, provider)
             boundaries = [*thresholds.values.flatten, tiered(entry, fields, &)].compact.uniq
@@ -124,6 +190,7 @@ module LlmCostTracker
             output = entry["output_cost_per_token"]
             reasoning = entry.fetch("output_cost_per_reasoning_token", output)
             yield "reasoning tokens priced apart from output" if reasoning != output
+            yield "OCR annotation and batch OCR pages" if entry.keys.intersect?(PAGE_FIELDS)
             provider == "openai" ? with_fast_aliases(fields) : fields
           end
 
@@ -164,7 +231,7 @@ module LlmCostTracker
             dimension, scale, mode = UNIT_FIELDS[name]
             value = value["search_context_size_medium"] if value.is_a?(Hash)
             return unless dimension && value.is_a?(Numeric) && value.positive?
-            return unless mode.nil? || (mode == entry["mode"] && !entry.key?("input_cost_per_token"))
+            return unless mode.nil? || (mode == entry["mode"] && !entry["input_cost_per_token"].to_f.positive?)
 
             dimension = "grounding_request" if dimension == "web_search_request" && provider == "gemini"
             [dimension, (value * scale).round(6)]
@@ -177,60 +244,6 @@ module LlmCostTracker
               name if !known && name.match?(PRICE_FIELD) && value != 0
             end
           end
-        end
-
-        def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
-          prefix = "#{self.class.litellm_provider}/"
-          models = parse_json(html).each_with_object({}) do |(key, entry), collected|
-            next unless key.start_with?(prefix) && entry.is_a?(Hash) && [*TOKEN_MODES, "ocr"].include?(entry["mode"])
-
-            fields = extract_fields(key, entry)
-            required = entry["mode"] == "ocr" ? %w[ocr_page] : %w[input output]
-            collected[key.delete_prefix(prefix)] = fields if required.all? { |field| fields.key?(field) }
-          end
-          models = with_tiers(models)
-          validate!(models)
-          Result.new(
-            source_url: source_url,
-            scraped_at: scraped_at,
-            models: models,
-            deprecated_models: [],
-            service_charges: {}
-          )
-        end
-
-        private
-
-        def tier_prices(fields, tier, factor)
-          fields.each_with_object({}) do |(field, value), prices|
-            match = STANDARD_FIELD.match(field)
-            prices["#{match[:context]}#{tier}_#{match[:field]}"] = (value * factor).round(6) if match
-          end
-        end
-
-        def documented_factor(page, pattern, name)
-          factor = page.to_s[pattern, 1]
-          raise Error, "#{self.class.litellm_provider} #{name} rate not found in its docs" unless factor
-
-          Float(factor)
-        end
-
-        def parse_json(body)
-          catalogue = JSON.parse(body.to_s)
-          raise Error, "LiteLLM price list is not a JSON object" unless catalogue.is_a?(Hash)
-
-          catalogue
-        rescue JSON::ParserError => e
-          raise Error, "LiteLLM price list is invalid JSON: #{e.message}"
-        end
-
-        def extract_fields(key, entry)
-          fields, thresholds = self.class.entry_fields(entry)
-          fields = fields.select { |field, _| PROVIDER_FIELD.match?(field) }
-          boundaries = thresholds.slice(*fields.keys).values.flatten.uniq
-          raise Error, "LiteLLM #{key} mixes long-context thresholds" if boundaries.size > 1
-
-          boundaries.empty? ? fields : fields.merge("_context_price_threshold_tokens" => boundaries.first)
         end
       end
     end

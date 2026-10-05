@@ -26,8 +26,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
     }
   end
   let(:acknowledged) { {} }
+  let(:models_dev) { JSON.parse(File.read("spec/fixtures/scrape/models_dev.json")) }
   let(:check) do
-    described_class.new(registry: registry, catalogue: catalogue, acknowledged: acknowledged,
+    described_class.new(registry: registry, catalogue: catalogue, models_dev: models_dev, acknowledged: acknowledged,
                         today: Date.new(2026, 10, 4))
   end
 
@@ -53,7 +54,33 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
     expect(openai).to include("openai/gpt-4o-transcribe", "openai/tts-1", "openai/whisper-1")
     expect(openai).not_to include("openai/gpt-4o-2024-08-06", "openai/computer-use-preview", "openai/gpt-realtime-2.1")
     expect(check.findings).to include("- gemini: gemini/gemini-3.8-flash\n", "- deepseek: deepseek/deepseek-flash\n")
-    expect(check.findings).not_to match(/^- (?:groq|mistral):/)
+    expect(check.findings[/^### LiteLLM-only models of fully scraped providers\n\n(.*?)\n\n/m, 1])
+      .not_to match(/^- (?:groq|mistral):/)
+  end
+
+  it "lists the Mistral models only LiteLLM prices that models.dev does not confirm, which go unwritten" do
+    unconfirmed = check.findings[/^- mistral: (.*)$/, 1].split(", ")
+
+    expect(check.findings).to include(
+      "### LiteLLM-only models models.dev prices differently (not written)\n\n" \
+      "- LiteLLM 0.1/0.4, models.dev 0.1/0.3: mistral/voxtral-small-latest\n" \
+      "- LiteLLM 0.3/0.3, models.dev 0.15/0.15: mistral/open-mistral-nemo\n"
+    )
+    expect(unconfirmed).to include("mistral/codestral-mamba-latest", "mistral/mistral-embed-2312")
+    expect(unconfirmed).not_to include("mistral/pixtral-large-latest", "mistral/labs-leanstral-1-5",
+                                       "mistral/mistral-ocr-latest")
+  end
+
+  it "gates the LiteLLM rows and absent keys the registry holds again, as the runner does" do
+    prices = { "input" => 0.1, "_source" => "litellm" }
+    rows = { "mistral/mistral-embed" => prices, "mistral/mistral-tiny" => prices.except("_source") }
+    gated = registry.merge("metadata" => { "absent_since" => { "mistral/mistral-tiny" => "2026-10-01" } },
+                           "models" => registry["models"].merge(rows))
+    models_dev["mistral"]["models"]["mistral-embed"]["cost"]["input"] = 0.12
+    check = described_class.new(registry: gated, catalogue: catalogue, models_dev: models_dev)
+
+    expect(check.findings).to include("- LiteLLM 0.1/0.0, models.dev 0.12/0.0: mistral/mistral-embed\n")
+    expect(check.findings[/^- mistral: (.*)$/, 1].split(", ")).to include("mistral/mistral-tiny")
   end
 
   it "lists tiers and data residency LiteLLM prices on models the registry covers without them" do
@@ -96,15 +123,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
 
   context "with acknowledged findings" do
     let(:acknowledged) do
-      { "openai/gpt-4o.input" => "Known.", "openai/gpt-realtime-2.1" => "Whole model.", "openai/gone.input" => "Old." }
+      { "openai/gpt-4o.input" => "Known.", "openai/gpt-realtime-2.1" => "Whole model.", "openai/gone.input" => "Old.",
+        "mistral/open-mistral-nemo" => "Retired.", "mistral/codestral-mamba-latest" => "Retired." }
     end
 
     it "moves them to a collapsed section of the report and flags acknowledgements that match nothing" do
-      expect(check.findings).not_to include("openai/gpt-4o |", "openai/gpt-realtime-2.1\n")
+      expect(check.findings).not_to include("openai/gpt-4o |", "openai/gpt-realtime-2.1\n", "mistral/open-mistral-nemo",
+                                            "mistral/codestral-mamba-latest")
       expect(check.findings)
         .to include("### Stale acknowledgements\n\n- `openai/gone.input` no longer matches a finding")
       expect(check.report("a" * 40)).to include(
-        "<details>\n<summary>Acknowledged (2)</summary>\n\n- `openai/gpt-4o.input`: Known.\n" \
+        "<details>\n<summary>Acknowledged (4)</summary>\n\n- `mistral/codestral-mamba-latest`: Retired.\n" \
+        "- `mistral/open-mistral-nemo`: Retired.\n- `openai/gpt-4o.input`: Known.\n" \
         "- `openai/gpt-realtime-2.1`: Whole model.\n\n</details>"
       )
     end
@@ -126,8 +156,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
 
   it "writes the report pinned to a LiteLLM commit and the issue body, and never writes the registry" do
     sha = "a" * 40
-    stub_request(:get, format(described_class::PRICES_URL, sha))
-      .to_return(status: 200, body: JSON.generate(catalogue.slice("gpt-4o", "gpt-6-astra")))
+    litellm = LlmCostTracker::Pricing::Scrape::Providers::Litellm
+    stub_request(:get, format(litellm::PRICES_URL, sha))
+      .to_return(status: 200, body: JSON.generate(catalogue.slice("gpt-4o", "gpt-6-astra", "mistral/mistral-tiny")))
+    stub_request(:get, litellm::MODELS_DEV_URL).to_return(status: 200, body: JSON.generate(models_dev))
     Dir.mktmpdir do |dir|
       prices, acks, notes, report, issue = %w[prices.json acks.yml notes.md report.md issue.md].map do |name|
         File.join(dir, name)
@@ -142,6 +174,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
       expect(File.read(report)).to start_with("## Cross-source check (LiteLLM aaaaaaaa)\n\n| provider |")
       expect(File.read(report)).to include("- `openai/gpt-4o.input`: Known.")
       expect(File.read(issue)).to start_with("### Scraper notes\n\n- `openai/gpt-7`: undecided\n\n" \
+                                             "### LiteLLM-only models models.dev does not list (not written)\n\n" \
+                                             "- mistral: mistral/mistral-tiny\n\n" \
                                              "### LiteLLM-only fields on covered models")
       expect(File.read(prices)).to eq(JSON.generate(registry))
     end

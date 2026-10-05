@@ -2851,5 +2851,15 @@
     "supports_vision": true,
     "supports_web_search": true,
     "supports_reasoning": true
+  },
+  "rerank-v3.5": {
+    "input_cost_per_query": 0.002,
+    "input_cost_per_token": 0.0,
+    "litellm_provider": "cohere",
+    "max_input_tokens": 4096,
+    "max_output_tokens": 4096,
+    "max_tokens": 4096,
+    "mode": "rerank",
+    "output_cost_per_token": 0.0
   }
 }

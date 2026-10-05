@@ -3,116 +3,41 @@
 require "spec_helper"
 require "json"
 require "price_scrape/providers/mistral"
-require "price_scrape/providers/xai"
 
 RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   let(:body) { fixture("litellm_prices.json") }
-  let(:xai_class) { LlmCostTracker::Pricing::Scrape::Providers::Xai }
-  let(:xai_pages) do
-    { described_class::SOURCE_URL => body, xai_class::PRICING_SOURCE_URL => fixture("xai_pricing.md") }
-      .merge(xai_class::BATCH_MODEL_URLS.to_h { |model, url| [url, fixture("xai_model_#{model}.md")] })
-  end
-  let(:xai) { xai_class.new.call(html: xai_pages).models }
   let(:mistral_class) { LlmCostTracker::Pricing::Scrape::Providers::Mistral }
-  let(:mistral_pages) do
-    { described_class::SOURCE_URL => body, mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html") }
-      .merge(mistral_class::TIER_SOURCES.to_h { |tier, (url, _)| [url, fixture("mistral_#{tier}.md")] })
+  let(:card_names) do
+    {
+      "mistral-medium-3-5-26-04" => %w[mistral-medium-3 mistral-medium-3-5 mistral-medium-latest],
+      "codestral-embed-25-05" => %w[codestral-embed codestral-embed-2505],
+      "voxtral-mini-transcribe-26-02" => %w[voxtral-mini-2602 voxtral-mini-latest],
+      "zai-glm-5-2" => %w[zai-glm-5-2], "zai-glm-5-3" => %w[zai-glm-5 zai-glm-5-3 zai-glm-latest],
+      "devstral-2-25-12" => %w[devstral-2512 devstral-latest devstral-medium-latest],
+      "magistral-medium-1-2-25-09" => %w[magistral-medium-2509 magistral-medium-latest],
+      "voxtral-mini-25-07" => %w[voxtral-mini-2507 voxtral-mini-latest],
+      "mistral-nemo-12b-24-07" => %w[open-mistral-nemo open-mistral-nemo-2407], "mathstral-7b-0-1" => []
+    }
   end
-  let(:mistral) { mistral_class.new.call(html: mistral_pages).models }
+  let(:mistral_pages) do
+    pages = { described_class::SOURCE_URL => body, described_class::MODELS_DEV_URL => fixture("models_dev.json"),
+              mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html"),
+              mistral_class::MODELS_SOURCE_URL => fixture("mistral_models.html") }
+            .merge(mistral_class::TIER_SOURCES.to_h { |tier, (url, _)| [url, fixture("mistral_#{tier}.md")] })
+    pages.merge(mistral_class.followup_urls(pages).to_h { |url| [url, card(card_names.fetch(url.split("/").last))] })
+  end
+  let(:mistral_result) { mistral_class.new.call(html: mistral_pages, scraped_at: "2026-10-05T06:00:00Z") }
+  let(:mistral) { mistral_result.models }
 
   def fixture(name) = File.read("spec/fixtures/scrape/#{name}", encoding: "utf-8")
 
-  it "reads xAI token, cached, long-context and batch rates per 1M tokens" do
-    expect(xai.fetch("grok-4.7")).to include(
-      "input" => 2.0, "cache_read_input" => 0.5, "output" => 6.0, "image_input" => 2.0,
-      "above_context_input" => 4.0, "above_context_cache_read_input" => 1.0, "above_context_output" => 12.0,
-      "above_context_image_input" => 4.0
-    )
-    expect(xai.fetch("grok-4.7").keys.grep(/batch/)).to be_empty
-    expect(xai.fetch("grok-4.3")).to include(
-      "input" => 1.25, "cache_read_input" => 0.2, "output" => 2.5,
-      "batch_input" => 1.0, "batch_cache_read_input" => 0.16, "batch_output" => 2.0, "above_context_batch_input" => 2.0
-    )
-  end
-
-  it "takes xAI's long-context threshold only from the rates it keeps" do
-    catalogue = JSON.parse(body)
-    catalogue["xai/grok-4.7"]["input_cost_per_image_token_above_128k_tokens"] = 3e-06
-    catalogue["xai/grok-4.6"] = catalogue["xai/grok-4.6"].reject { |name, _| name.include?("_above_") }
-                                                         .merge("input_cost_per_image_token_above_128k_tokens" => 3e-06)
-    models = xai_class.new.call(html: xai_pages.merge(described_class::SOURCE_URL => JSON.generate(catalogue))).models
-
-    expect(models.fetch("grok-4.7")).to include("_context_price_threshold_tokens" => 199_999,
-                                                "above_context_input" => 4.0)
-    expect(models.fetch("grok-4.6").keys.grep(/context/)).to be_empty
-  end
-
-  it "gives the aliases xAI's model pages list for a batch model that model's batch rates" do
-    batch = { "batch_input" => 1.0, "batch_cache_read_input" => 0.16, "batch_output" => 2.0,
-              "above_context_batch_input" => 2.0, "above_context_batch_cache_read_input" => 0.32,
-              "above_context_batch_output" => 4.0 }
-
-    expect(xai.values_at("grok-4.20-beta", "grok-4.20-reasoning-gv2", "grok-4.20-multi-agent-beta-0309"))
-      .to all(include(batch))
-  end
-
-  it "prices xAI priority at 2x every model's rates and the US regional endpoint at 1.1x, both there together" do
-    expect(xai.fetch("grok-4.7")).to include(
-      "priority_input" => 4.0, "priority_cache_read_input" => 1.0, "priority_output" => 12.0,
-      "above_context_priority_input" => 8.0, "above_context_priority_output" => 24.0,
-      "data_residency_input" => 2.2, "data_residency_cache_read_input" => 0.55, "data_residency_output" => 6.6,
-      "above_context_data_residency_input" => 4.4, "above_context_data_residency_cache_read_input" => 1.1,
-      "above_context_data_residency_output" => 13.2,
-      "priority_data_residency_input" => 4.4, "priority_data_residency_cache_read_input" => 1.1,
-      "priority_data_residency_output" => 13.2, "above_context_priority_data_residency_input" => 8.8,
-      "above_context_priority_data_residency_cache_read_input" => 2.2,
-      "above_context_priority_data_residency_output" => 26.4
-    )
-    expect(xai.fetch("grok-4.3")).to include("priority_input" => 2.5, "priority_output" => 5.0)
-    expect(xai.fetch("grok-4.3").keys.grep(/data_residency/)).to be_empty
-  end
-
-  it "prices an xAI call from exactly 200K prompt tokens at the long-context rates, as xAI bills it" do
-    LlmCostTracker.configure { |c| c.pricing.overrides = { "xai/grok-4.7" => xai.fetch("grok-4.7") } }
-    cost = lambda do |input, mode = nil|
-      LlmCostTracker::Pricing.cost_for(
-        provider: "xai", model: "grok-4.7", pricing_mode: mode,
-        tokens: LlmCostTracker::Usage::TokenUsage.build(input_tokens: input, output_tokens: 1000)
-      ).total
-    end
-
-    expect([cost.call(1000), cost.call(199_999), cost.call(200_000), cost.call(1000, "priority")])
-      .to eq(%w[0.008 0.405998 0.812 0.016].map { |total| BigDecimal(total) })
-  end
-
-  it "prices xAI image prompt tokens at the input rate, and priority on the US endpoint at 2.2x" do
-    LlmCostTracker.configure { |c| c.pricing.overrides = { "xai/grok-4.7" => xai.fetch("grok-4.7") } }
-    tokens = LlmCostTracker::Usage::TokenUsage.build(input_tokens: 200, image_input_tokens: 800, output_tokens: 100)
-    cost = lambda do |mode|
-      LlmCostTracker::Pricing.cost_for(provider: "xai", model: "grok-4.7", pricing_mode: mode, tokens: tokens).total
-    end
-
-    expect([cost.call(nil), cost.call("priority_data_residency")])
-      .to eq(%w[0.0026 0.00572].map { |total| BigDecimal(total) })
-  end
-
-  it "raises when xAI's docs no longer state a tier's terms or list a batch model it has no page for" do
-    pricing = xai_pages.fetch(xai_class::PRICING_SOURCE_URL)
-    scrape = ->(page) { xai_class.new.call(html: xai_pages.merge(xai_class::PRICING_SOURCE_URL => page)) }
-
-    expect { scrape.call(pricing.sub("- grok-4.3\n", "- grok-4.3\n- grok-4.7\n")) }
-      .to raise_error(described_class::Error, /batch discount for grok-4.7; add its model page/)
-    expect { scrape.call(pricing.sub("billed at a **2x** premium", "billed at a premium")) }
-      .to raise_error(described_class::Error, /xai priority rate not found/)
-    expect { scrape.call(pricing.sub("Currently `grok-4.7` and `grok-4.6` only", "None")) }
-      .to raise_error(described_class::Error, /US regional models not found/)
-  end
+  def card(names) = %(<script>self.__next_f.push([1,#{{ "names" => names }.to_json.to_json}])</script>)
 
   it "prices only the Mistral models its pricing page lists, at the page's rates, under the names the API accepts" do
     catalogue = JSON.parse(body)
     catalogue["mistral/mistral-large-latest"]["input_cost_per_token"] = 0.000009
-    models = mistral_class.new.call(html: mistral_pages.merge(described_class::SOURCE_URL => JSON.generate(catalogue)))
-                          .models
+    models = mistral_class.new.call(html: mistral_pages.merge(described_class::SOURCE_URL => JSON.generate(catalogue)),
+                                    scraped_at: "2026-10-05T06:00:00Z").models
 
     expect(models.transform_values { |fields| fields.slice("input", "cache_read_input", "output") }).to include(
       "mistral-large-latest" => { "input" => 0.5, "cache_read_input" => 0.05, "output" => 1.5 },
@@ -120,8 +45,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       "mistral-medium-3-5" => { "input" => 1.5, "cache_read_input" => 0.15, "output" => 7.5 },
       "codestral-latest" => { "input" => 0.3, "cache_read_input" => 0.03, "output" => 0.9 }
     )
-    expect(models.keys).not_to include("mistral-small", "mistral-tiny", "pixtral-large-latest", "open-mistral-nemo",
-                                       "codestral-mamba-latest", "devstral-small-latest", "voxtral-small-latest")
+    expect(models.keys).not_to include("mistral-small", "mistral-tiny", "open-mistral-nemo", "codestral-mamba-latest",
+                                       "devstral-small-latest", "voxtral-small-latest")
   end
 
   it "matches Mistral API names LiteLLM links to the pricing page to the one card named like them" do
@@ -149,7 +74,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   it "prices Mistral OCR per 1,000 pages from the Input column, under the card's API names and its -latest alias" do
     one_card = mistral_pages.merge(mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html")
                                      .sub(%r{<tr><td><a href="/models/ocr-4-0">.*?</tr>}, ""))
-    models = mistral_class.new.call(html: one_card).models
+    models = mistral_class.new.call(html: one_card, scraped_at: "2026-10-05T06:00:00Z").models
 
     expect(models.slice("mistral-ocr-4-1", "mistral-ocr-4", "mistral-ocr-latest").values)
       .to eq([{ "ocr_page" => 4.0 }] * 3)
@@ -158,10 +83,84 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     expect(mistral.keys).not_to include("mistral-ocr-latest")
   end
 
-  it "keeps only priced token and OCR models of its own provider" do
-    expect(xai.keys).not_to include("grok-imagine-image", "grok-voice-transcribe-1.0")
-    expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-embed", "mistral-moderation-2603")
-    expect(xai.keys + mistral.keys).not_to include("deepseek-flash", "gpt-4o")
+  it "keeps only priced token, embedding and OCR models of its own provider" do
+    expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-moderation-2603", "voxtral-mini-2602",
+                                        "deepseek-flash", "gpt-4o")
+  end
+
+  it "adds the Mistral models only LiteLLM prices when models.dev lists the same price, at Mistral's tier rates" do
+    expect(mistral.fetch("pixtral-large-latest")).to include(
+      "_source" => "litellm", "input" => 2.0, "cache_read_input" => 0.2, "output" => 6.0, "batch_input" => 1.0,
+      "priority_output" => 10.5, "data_residency_input" => 2.2, "priority_data_residency_input" => 3.85
+    )
+    expect(mistral.fetch("mistral-embed"))
+      .to eq("_source" => "litellm", "input" => 0.1, "batch_input" => 0.05, "data_residency_input" => 0.11)
+    expect(mistral.keys).not_to include("open-mistral-nemo", "voxtral-small-latest")
+    expect(mistral.fetch("mistral-large-latest")).not_to have_key("_source")
+  end
+
+  it "writes no LiteLLM-only row, and notes it, when models.dev is unreachable or invalid" do
+    note = "- `mistral`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"
+
+    [mistral_pages.except(described_class::MODELS_DEV_URL),
+     mistral_pages.merge(described_class::MODELS_DEV_URL => "<html>")].each do |pages|
+      result = mistral_class.new.call(html: pages, scraped_at: "2026-10-05T06:00:00Z")
+
+      expect(result.models.values.filter_map { |fields| fields["_source"] }).to be_empty
+      expect(result.models).to include("mistral-large-latest", "codestral-embed")
+      expect(result.notes).to eq([note])
+    end
+  end
+
+  it "prices the embeddings Mistral's pricing page lists under every name their card gives, without Priority Tier" do
+    embed = { "input" => 0.15, "cache_read_input" => 0.015, "batch_input" => 0.075, "batch_cache_read_input" => 0.0075,
+              "data_residency_input" => 0.165, "data_residency_cache_read_input" => 0.0165 }
+
+    expect(mistral.values_at("codestral-embed", "codestral-embed-2505")).to eq([embed, embed])
+  end
+
+  it "deprecates the ids Mistral's retired models table and the retired models' cards name, and writes none of them" do
+    expect(mistral_result.deprecated_models).to contain_exactly(
+      "devstral-2512", "devstral-latest", "devstral-medium-latest", "magistral-medium-2509", "magistral-medium-latest",
+      "voxtral-mini-2507", "open-mistral-nemo", "open-mistral-nemo-2407"
+    )
+    expect(mistral.keys).not_to include("devstral-latest", "devstral-medium-latest")
+    expect(mistral.keys).to include("zai-glm-5-2")
+  end
+
+  it "writes no LiteLLM row for an id both a retired and a current card name, and reports it" do
+    card_names.merge!("mistral-nemo-12b-24-07" => %w[open-mistral-nemo mistral-embed],
+                      "mathstral-7b-0-1" => %w[mistral-embed])
+
+    expect(mistral.keys).not_to include("mistral-embed")
+    expect(mistral_result.deprecated_models).not_to include("mistral-embed", "voxtral-mini-latest")
+    expect(mistral_result.notes)
+      .to eq(["- `mistral/mistral-embed`: named on both a retired and a current Mistral model card; not written"])
+  end
+
+  it "raises rather than read retirement dates from a reordered column or a row's alternative model" do
+    models_page = fixture("mistral_models.html")
+    swapped = models_page.sub("Deprecation<svg></svg>Retirement", "Retirement<svg></svg>Deprecation")
+    unlinked = models_page.sub(%r{<a href="/models/devstral-2-25-12">(.*?)</a>}, "\\1")
+    scrape = ->(page) { mistral_class.new.call(html: mistral_pages.merge(mistral_class::MODELS_SOURCE_URL => page)) }
+
+    expect { scrape.call(swapped) }.to raise_error(described_class::Error, /retired models table not found or changed/)
+    expect { scrape.call(unlinked) }.to raise_error(described_class::Error, /retired row without a model card/)
+  end
+
+  it "raises rather than drop an anchor model that a retired card names" do
+    card_names["devstral-2-25-12"] += ["mistral-large-latest"]
+
+    expect { mistral }.to raise_error(described_class::Error, /anchor models missing from scrape: mistral-large-latest/)
+  end
+
+  it "raises when Mistral's retired models table or a model card's API names go missing" do
+    card_url = "#{mistral_class::MODELS_SOURCE_URL}/devstral-2-25-12"
+
+    expect { mistral_class.new.call(html: mistral_pages.merge(mistral_class::MODELS_SOURCE_URL => "<html></html>")) }
+      .to raise_error(described_class::Error, /retired models table not found/)
+    expect { mistral_class.new.call(html: mistral_pages.merge(card_url => "<html></html>")) }
+      .to raise_error(described_class::Error, %r{card #{card_url} lists no API names})
   end
 
   describe ".convert" do
@@ -198,8 +197,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     end
 
     it "skips fine-tunes and modes the registry does not price" do
-      expect(models.keys).not_to include("openai/ft:gpt-4o-mini-2024-07-18", "mistral/mistral-ocr-latest",
-                                         "xai/grok-imagine-image")
+      expect(models.keys).not_to include("openai/ft:gpt-4o-mini-2024-07-18", "xai/grok-imagine-image",
+                                         "mistral/mistral-moderation-2603")
+    end
+
+    it "converts OCR pages and rerank search units per 1,000, and reports OCR annotation and batch pages" do
+      expect(models.fetch("mistral/mistral-ocr-latest")).to eq("ocr_page" => 4.0)
+      expect(models.fetch("cohere/rerank-v3.5")).to eq("rerank_search_unit" => 2.0)
+      expect(conversion.unrepresentable.fetch("OCR annotation and batch OCR pages"))
+        .to include("mistral/mistral-ocr-latest", "mistral/mistral-ocr-2512")
+      expect(conversion.unknown.keys).not_to include("annotation_cost_per_page", "ocr_cost_per_page_batches")
     end
 
     it "lists price fields it does not know and prices it cannot represent" do
@@ -257,10 +264,70 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     end
   end
 
-  it "raises when an anchor model disappears or the list is not JSON" do
-    catalogue = JSON.parse(body).reject { |key, _| key == "xai/grok-4.7" }
+  describe ".gate" do
+    def entry(input, output, **extra)
+      { "litellm_provider" => "mistral", "mode" => "chat", "input_cost_per_token" => input / 1e6,
+        "output_cost_per_token" => output / 1e6 }.merge(extra.transform_keys(&:to_s))
+    end
 
-    expect { xai_class.new.call(html: xai_pages.merge(described_class::SOURCE_URL => JSON.generate(catalogue))) }
+    def cost(input, output) = { "cost" => { "input" => input, "output" => output } }
+
+    let(:catalogue) do
+      {
+        "mistral/official" => entry(1.0, 2.0), "mistral/official-2026-01-01" => entry(5.0, 6.0),
+        "mistral/confirmed" => entry(1.0, 2.0), "mistral/confirmed-2026-01-01" => entry(1.0, 2.0),
+        "mistral/held" => entry(1.0, 2.0), "mistral/unlisted" => entry(1.0, 2.0),
+        "mistral/unlisted-20260101" => entry(3.0, 4.0), "mistral/embedder" => entry(0.1, 0.0, mode: "embedding"),
+        "mistral/retired" => entry(1.0, 2.0, deprecation_date: "2026-10-04"),
+        "mistral/retiring" => entry(1.0, 2.0, deprecation_date: "2026-10-05"),
+        "mistral/no-output" => entry(1.0, 0.0),
+        "mistral/transcriber" => entry(0.0, 0.0, mode: "audio_transcription", input_cost_per_second: 0.0001),
+        "groq/elsewhere" => entry(1.0, 2.0, litellm_provider: "groq")
+      }
+    end
+    let(:models_dev) do
+      { "mistral" => { "models" => {
+        "official" => cost(9, 9), "confirmed" => cost(1.005, 2), "held" => cost(1, 2.5), "embedder" => cost(0.1, 0),
+        "retired" => cost(1, 2), "retiring" => cost(1, 2), "no-output" => cost(1, 0), "transcriber" => cost(0, 0)
+      } } }
+    end
+    let(:gate) do
+      described_class.gate("mistral", described_class.convert(catalogue), models_dev,
+                           { "official" => { "input" => 5.0, "output" => 6.0 } }, "2026-10-05")
+    end
+
+    it "confirms LiteLLM-only chat and embedding rows models.dev prices within 1%, while not retired" do
+      expect(gate.confirmed).to eq(
+        "confirmed" => { "input" => 1.0, "output" => 2.0 }, "retiring" => { "input" => 1.0, "output" => 2.0 },
+        "embedder" => { "input" => 0.1 }
+      )
+    end
+
+    it "holds back rows models.dev prices otherwise and lists rows it does not list as unconfirmed" do
+      expect(gate.held).to eq("held" => [[1.0, 2.0], [1.0, 2.5]])
+      expect(gate.unconfirmed).to contain_exactly("unlisted", "unlisted-20260101")
+    end
+
+    it "leaves out officially priced models, dated twins at the same prices, other providers and other modes" do
+      seen = gate.confirmed.keys + gate.held.keys + gate.unconfirmed
+
+      expect(seen).not_to include("official", "official-2026-01-01", "confirmed-2026-01-01", "retired", "no-output",
+                                  "transcriber", "elsewhere")
+    end
+
+    it "marks the confirmed rows a scraper writes as LiteLLM's" do
+      pages = { described_class::SOURCE_URL => JSON.generate(catalogue),
+                described_class::MODELS_DEV_URL => JSON.generate(models_dev) }
+
+      expect(described_class.confirmed_rows("mistral", pages, {}, "2026-10-05T06:00:00Z").fetch("confirmed"))
+        .to eq("input" => 1.0, "output" => 2.0, "_source" => "litellm")
+    end
+  end
+
+  it "raises when an anchor model disappears or the list is not JSON" do
+    catalogue = JSON.parse(body).reject { |key, _| key == "mistral/mistral-large-latest" }
+
+    expect { mistral_class.new.call(html: mistral_pages.merge(described_class::SOURCE_URL => JSON.generate(catalogue))) }
       .to raise_error(described_class::Error, /anchor models missing/)
     expect { mistral_class.new.call(html: mistral_pages.merge(described_class::SOURCE_URL => "[]")) }
       .to raise_error(described_class::Error, /not a JSON object/)

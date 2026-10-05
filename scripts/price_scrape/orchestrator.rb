@@ -10,17 +10,24 @@ require_relative "../../lib/llm_cost_tracker/pricing/registry"
 module LlmCostTracker
   module Pricing::Scrape
     class Orchestrator
-      Result = Data.define(:added, :removed, :updated, :service_charges_updated, :unchanged, :written, :notes) do
-        def initialize(notes: [], **) = super
+      Result = Data.define(
+        :added, :removed, :updated, :service_charges_updated, :unchanged, :written, :notes, :absent
+      ) do
+        def initialize(notes: [], absent: {}, **) = super
 
         def changed?
-          added.any? || removed.any? || updated.any? || service_charges_updated.any?
+          added.any? || removed.any? || updated.any? || service_charges_updated.any? || absent.any?
         end
       end
 
       MIN_GEM_VERSIONS = {
         "_off_peak_windows" => "0.15.0", "ocr_page" => "0.15.0", "openai/gpt-4o-mini-tts" => "0.15.0"
       }.freeze
+      PRUNE_AFTER_DAYS = 90
+      HAND_MAINTAINED = %w[
+        openai/text-embedding-3-large openai/text-embedding-3-small openai/text-embedding-ada-002 openai/tts-1
+        openai/tts-1-hd
+      ].freeze
 
       class Error < StandardError; end
 
@@ -40,13 +47,12 @@ module LlmCostTracker
 
         plan = build_plan(provider, provider_result, current_models, current_service_charges)
                .with(notes: held_notes(provider, held))
+        plan = with_absences(plan, provider, current_models, held, registry.dig("metadata", "absent_since") || {})
         source_urls_stale = source_urls && registry.dig("metadata", "source_urls") != source_urls
         return plan unless (plan.changed? || source_urls_stale) && !@dry_run
 
-        metadata = registry.fetch("metadata", {}).merge("updated_at" => @today.iso8601)
-        metadata["source_urls"] = source_urls if source_urls
         new_registry = registry.merge(
-          "metadata" => metadata,
+          "metadata" => written_metadata(registry, plan, source_urls),
           "models" => apply_changes(provider, current_models, provider_result, plan.removed)
         )
         service_charges = apply_service_charges(provider, current_service_charges, provider_result)
@@ -96,6 +102,30 @@ module LlmCostTracker
           required = MIN_GEM_VERSIONS.values_at(registry_key(provider, id), *fields.keys).compact
                                      .max_by { |version| Gem::Version.new(version) }
           held[id] = required if required && Gem::Version.new(required) > floor
+        end
+      end
+
+      def with_absences(plan, provider, current_models, held, absent_since)
+        held_keys = held.keys.map { |id| registry_key(provider, id) }
+        seen = plan.added + plan.updated.keys + plan.unchanged + plan.removed + held_keys + HAND_MAINTAINED
+        missing = current_models.keys.select { |key| key.start_with?("#{provider}/") } - seen
+        dates = missing.to_h { |key| [key, absent_since.fetch(key, @today.iso8601)] }
+        expired = dates.select { |_key, date| @today - Date.iso8601(date) >= PRUNE_AFTER_DAYS }.keys
+        absent = absence_changes(provider, absent_since, dates.except(*expired))
+        plan.with(removed: plan.removed + expired, absent: absent)
+      end
+
+      def written_metadata(registry, plan, source_urls)
+        metadata = registry.fetch("metadata", {}).merge("updated_at" => @today.iso8601)
+        metadata["source_urls"] = source_urls if source_urls
+        absent = metadata.fetch("absent_since", {}).merge(plan.absent.transform_values { |dates| dates["to"] }).compact
+        absent.empty? ? metadata.except("absent_since") : metadata.merge("absent_since" => absent)
+      end
+
+      def absence_changes(provider, absent_since, dates)
+        before = absent_since.select { |key, _| key.start_with?("#{provider}/") }
+        (before.keys | dates.keys).sort.each_with_object({}) do |key, changes|
+          changes[key] = { "from" => before[key], "to" => dates[key] } if before[key] != dates[key]
         end
       end
 
@@ -178,8 +208,7 @@ module LlmCostTracker
       end
 
       def preserved_model_field?(field)
-        registry = LlmCostTracker::Pricing::Registry
-        field.start_with?("_") && ![registry::CONTEXT_THRESHOLD_KEY, registry::OFF_PEAK_WINDOWS_KEY].include?(field)
+        field.start_with?("_") && !LlmCostTracker::Pricing::Registry::METADATA_KEYS.include?(field)
       end
 
       def registry_key(provider, model_id)

@@ -9,12 +9,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - RubyLLM 2.x speech, OCR, rerank and operations added in later RubyLLM releases are recorded, with unknown cost when unpriced; `tts-1` speech is priced by input characters and Gemini speech by its text and audio tokens.
 - `RubyLLM.workflow` names and steps become `workflow_name` and `workflow_step_name` tags.
 - RubyLLM 2.x `RubyLLM.batch` results are recorded at batch rates when `Batch#messages` or `#results` returns them, in any process, once each across polls and `Batch.find`, and a chat result also across the OpenAI and Anthropic SDK batch capture.
-- `LICENSE.txt` carries the MIT notice of LiteLLM's price data, the source of the bundled xAI rates and Mistral model ids.
+- `LICENSE.txt` carries the MIT notice of LiteLLM's price data, the source of the bundled Mistral model ids and `"_source": "litellm"` rows.
 - `off_peak` pricing mode: a call made inside a price entry's `_off_peak_windows` (ISO weekdays, UTC hours) takes its `off_peak_*` rates, when recorded, backfilled or repriced; a requested `off_peak` is ignored.
 - DeepSeek prices are bundled from DeepSeek's pricing page, off-peak rates and legacy model names included; Chinese public holidays are priced at peak.
 - `ocr_page` dimension, per 1,000 pages: Mistral OCR through RubyLLM 2.x and Faraday's `/v1/ocr` is priced from `usage_info.pages_processed`, with bundled Mistral OCR rates.
 - `rerank_search_unit` dimension, per 1,000 search units: RubyLLM 2.x Cohere rerank records `meta.billed_units.search_units`, priced by a `pricing.overrides` rate.
 - `gpt-4o-mini-tts` speech requested with `stream_format: "sse"` is priced from its `speech.audio.done` usage through Faraday and the official openai gem, text input at `input` and audio output at `audio_output`.
+- Bundled Mistral prices add models its pricing page omits when LiteLLM and models.dev agree on the price within 1%, marked `"_source": "litellm"`; Mistral Embed is priced this way.
+- Codestral Embed is priced from Mistral's pricing page under every name its model card gives, with batch and regional rates.
 
 ### Changed
 
@@ -28,6 +30,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - xAI calls are recorded at their billed `usage.cost_in_usd_ticks`, tool calls included, instead of a list-price estimate; Faraday also captures image generation and edits on OpenAI-compatible hosts such as xAI.
 - `backfill_unknown_pricing` and `reprice` store the pricing mode they apply, so a Bedrock regional-profile call recorded before 0.14.2 gets `data_residency`.
 - Perplexity's `api.perplexity.ai` is built into `capture.openai_compatible_providers`, Faraday captures its own `/v1/sonar` and `/v1/agent` paths and background Agent API polls too, and its calls are recorded at their billed `usage.cost.total_cost` instead of unknown cost.
+- Bundled xAI prices are read from xAI's pricing and model pages instead of LiteLLM.
+- A bundled model its provider stops listing is removed after 90 days.
+- Bundled Mistral prices drop the models Mistral lists as retired, with the aliases their model cards name, such as `magistral-medium-latest`.
 
 ### Fixed
 

@@ -34,16 +34,23 @@ module LlmCostTracker
 
       DEFAULT_ORCHESTRATOR_FACTORY = ->(dry_run:) { Orchestrator.new(dry_run: dry_run) }
 
-      def initialize(fetcher: Fetcher.new, orchestrator_factory: DEFAULT_ORCHESTRATOR_FACTORY, io: $stdout)
+      def initialize(
+        fetcher: Fetcher.new,
+        orchestrator_factory: DEFAULT_ORCHESTRATOR_FACTORY,
+        io: $stdout,
+        litellm_sha: nil
+      )
         @fetcher = fetcher
         @orchestrator_factory = orchestrator_factory
         @io = io
+        @litellm_sha = litellm_sha
       end
 
       def call(providers:, registry_path: DEFAULT_REGISTRY_PATH, dry_run: false, notes_path: nil)
         unknown = providers - PROVIDERS.keys
         raise Error, "unknown providers: #{unknown.inspect}" if unknown.any?
 
+        @responses = {}
         runs = providers.map do |name|
           run_provider(name: name, registry_path: registry_path, dry_run: dry_run)
         end
@@ -93,13 +100,26 @@ module LlmCostTracker
       end
 
       def fetch_provider_responses(name, provider_class)
-        source_urls(provider_class).each_with_object({}) do |url, responses|
-          @io.puts "[#{name}] fetching #{url}"
-          response = @fetcher.get(url)
-          @io.puts "[#{name}] redirected to #{response.url}" if response.url != url
+        responses = source_urls(provider_class).to_h { |url| [url, fetch(name, url)] }.compact
+        followups = provider_class.followup_urls(responses.transform_values(&:body))
+        responses.merge(followups.to_h { |url| [url, fetch(name, url)] })
+      end
+
+      def fetch(name, url)
+        @responses[url] ||= begin
+          pinned = url == Providers::Litellm::SOURCE_URL && @litellm_sha
+          target = pinned ? format(Providers::Litellm::PRICES_URL, @litellm_sha) : url
+          @io.puts "[#{name}] fetching #{target}"
+          response = @fetcher.get(target)
+          @io.puts "[#{name}] redirected to #{response.url}" if response.url != target
           @io.puts "[#{name}] HTTP #{response.status} (#{response.body.bytesize} bytes, #{response.elapsed_ms}ms)"
-          responses[url] = response
+          response
         end
+      rescue Fetcher::Error => e
+        raise unless url == Providers::Litellm::MODELS_DEV_URL
+
+        @io.puts "[#{name}] skipped #{url}: #{e.message}"
+        nil
       end
 
       def provider_html(responses)
@@ -126,8 +146,8 @@ module LlmCostTracker
         end
 
         @io.puts "#{prefix} added=#{result.added.size} removed=#{result.removed.size} updated=#{result.updated.size} " \
-                 "service_charges_updated=#{result.service_charges_updated.size} written=#{result.written} " \
-                 "dry_run=#{dry_run}"
+                 "service_charges_updated=#{result.service_charges_updated.size} absent=#{result.absent.size} " \
+                 "written=#{result.written} dry_run=#{dry_run}"
       end
 
       def log_summary(runs, dry_run:)
@@ -157,7 +177,7 @@ if $PROGRAM_NAME == __FILE__
               .map(&:strip)
               .select(&:present?)
   dry_run = ENV["DRY_RUN"] == "1"
-  LlmCostTracker::Pricing::Scrape::Runner.new.call(
+  LlmCostTracker::Pricing::Scrape::Runner.new(litellm_sha: ENV["LITELLM_SHA"].presence).call(
     providers: providers,
     dry_run: dry_run,
     notes_path: ENV["NOTES_PATH"].presence

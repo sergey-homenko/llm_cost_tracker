@@ -1127,7 +1127,7 @@ RSpec.describe LlmCostTracker::Pricing do
         next unless %w[xai mistral].include?(provider)
 
         expect(fields["image_input"]).to eq(fields["input"]), model_id if provider == "xai"
-        next unless fields["data_residency_input"]
+        next unless fields["data_residency_input"] && fields["priority_input"]
 
         combined = fields["priority_input"] * fields["data_residency_input"] / fields["input"]
         expect(fields["priority_data_residency_input"]).to be_within(0.0001).of(combined), model_id

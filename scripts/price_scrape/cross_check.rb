@@ -13,21 +13,22 @@ module LlmCostTracker
   module Pricing::Scrape
     class CrossCheck
       REPOSITORY = "https://github.com/BerriAI/litellm.git"
-      PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/%s/model_prices_and_context_window.json"
       REGISTRY_PATH = File.expand_path("../../lib/llm_cost_tracker/prices.json", __dir__)
       ACKNOWLEDGED_PATH = File.expand_path("cross_check_acknowledged.yml", __dir__)
       FULLY_SCRAPED = %w[anthropic deepseek gemini openai openrouter xai].freeze
+      GATED = %w[mistral].freeze
       COUNTS_ONLY = %w[openrouter].freeze
       UNCAPTURED = { "gemini" => Providers::Gemini::UNCAPTURED_MODEL }.freeze
       UNCOMPARED = { "openai" => %w[web_search_request] }.freeze
-      TOLERANCE = 0.01
-      DATED_SUFFIX = /-(?:\d{4}-\d{2}-\d{2}|\d{8})\z/
+      DATED_SUFFIX = Providers::Litellm::DATED_SUFFIX
       TIERS = [*Providers::Litellm::TIERS.values, "fast"].freeze
       TIERED_FIELD = /\A(?<context>above_context_)?(?:(?<tier>#{TIERS.join('|')})_)?(?<dimension>.+)\z/
       SECTIONS = {
         notes: "Scraper notes",
         difference: "Values that differ by more than 1% (official kept)",
         model: "LiteLLM-only models of fully scraped providers",
+        held: "LiteLLM-only models models.dev prices differently (not written)",
+        unconfirmed: "LiteLLM-only models models.dev does not list (not written)",
         field: "LiteLLM-only fields on covered models",
         unknown: "Unknown LiteLLM fields",
         unrepresentable: "Not representable",
@@ -50,15 +51,17 @@ module LlmCostTracker
         raise Error, "LiteLLM main commit not found" unless sha
 
         check = new(registry: JSON.parse(File.read(registry_path)),
-                    catalogue: JSON.parse(fetcher.get(format(PRICES_URL, sha)).body),
+                    catalogue: JSON.parse(fetcher.get(format(Providers::Litellm::PRICES_URL, sha)).body),
+                    models_dev: JSON.parse(fetcher.get(Providers::Litellm::MODELS_DEV_URL).body),
                     acknowledged: YAML.safe_load_file(acknowledged_path) || {},
                     notes: notes_path && File.exist?(notes_path) ? File.readlines(notes_path, chomp: true) : [])
         File.write(report_path, check.report(sha))
         File.write(issue_path, check.findings)
       end
 
-      def initialize(registry:, catalogue:, acknowledged: {}, notes: [], today: Date.today)
+      def initialize(registry:, catalogue:, models_dev: {}, acknowledged: {}, notes: [], today: Date.today)
         @ours = registry.fetch("models", {})
+        @absent = registry.dig("metadata", "absent_since") || {}
         @notes = notes
         @charges = registry.fetch("service_charges", {})
         @conversion = Providers::Litellm.convert(catalogue)
@@ -67,6 +70,7 @@ module LlmCostTracker
         @counts = Hash.new { |counts, provider| counts[provider] = Hash.new(0) }
         @findings = []
         compare
+        confirm(models_dev)
         @conversion.unknown.each { |name, models| models.each { |model| add(:unknown, model, name) } }
         @conversion.unrepresentable.each do |reason, models|
           models.each { |model| add(:unrepresentable, model, nil, reason) }
@@ -132,6 +136,18 @@ module LlmCostTracker
         end
       end
 
+      def confirm(models_dev)
+        GATED.each do |provider|
+          official = models_of(@ours, provider).reject { |key| @ours[key]["_source"] || @absent.key?(key) }
+          written = official.to_h { |key| [key.delete_prefix("#{provider}/"), @ours[key]] }
+          gate = Providers::Litellm.gate(provider, @conversion, models_dev, written, @today)
+          gate.held.each do |model, (ours, theirs)|
+            add(:held, "#{provider}/#{model}", nil, "LiteLLM #{ours.join('/')}, models.dev #{theirs.join('/')}")
+          end
+          gate.unconfirmed.each { |model| add(:unconfirmed, "#{provider}/#{model}") }
+        end
+      end
+
       def compare_model(provider, model)
         prices = @ours.fetch(model)
         @conversion.models.fetch(model).each do |field, value|
@@ -140,7 +156,7 @@ module LlmCostTracker
           mine = our_value(provider, prices, field)
           next add(:field, model, field) if mine.nil?
 
-          different = differ?(mine, value)
+          different = Providers::Litellm.differ?(mine, value)
           @counts[provider][different ? :differ : :equal] += 1
           add(:difference, model, field, [mine, value]) if different
         end
@@ -169,23 +185,10 @@ module LlmCostTracker
         standard * tier_input / input if standard && tier_input && input.to_f.positive?
       end
 
-      def differ?(ours, theirs)
-        return ours != theirs unless ours.is_a?(Numeric) && theirs.is_a?(Numeric)
-        return ours != theirs if ours.zero? || theirs.zero?
-
-        (ours - theirs).abs / [ours.abs, theirs.abs].max > TOLERANCE
-      end
-
       def gap?(provider, model)
-        entry = @conversion.entries.fetch(model)
         fields = @conversion.models.fetch(model)
-        retired = entry["deprecation_date"].to_s
-        return false if !retired.empty? && retired < @today
-
-        token_mode = Providers::Litellm::TOKEN_MODES.include?(entry["mode"])
-        return false if token_mode && !(fields["input"] && fields["output"])
-
-        !dated_twin?(provider, model, fields)
+        Providers::Litellm.current?(@conversion.entries.fetch(model), fields, @today) &&
+          !dated_twin?(provider, model, fields)
       end
 
       def dated_twin?(provider, model, fields)
@@ -197,7 +200,9 @@ module LlmCostTracker
         ours = @ours[base]
         return false unless ours
 
-        fields.none? { |field, value| compared?(provider, field) && ours.key?(field) && differ?(ours[field], value) }
+        fields.none? do |field, value|
+          compared?(provider, field) && ours.key?(field) && Providers::Litellm.differ?(ours[field], value)
+        end
       end
 
       def lines(section, open)
@@ -206,7 +211,7 @@ module LlmCostTracker
         when :notes then @notes
         when :stale then stale.map { |key| "- `#{key}` no longer matches a finding" }
         when :difference then difference_lines(found)
-        when :model then grouped(found) { |finding| finding.model.split("/").first }
+        when :model, :unconfirmed then grouped(found) { |finding| finding.model.split("/").first }
         when :field then field_gap_lines(found)
         when :unknown then found.group_by(&:field).sort.map { |name, list| unknown_line(name, list) }
         else grouped(found, &:detail)
@@ -250,6 +255,7 @@ if $PROGRAM_NAME == __FILE__
   LlmCostTracker::Pricing::Scrape::CrossCheck.run(
     report_path: ARGV.fetch(0),
     issue_path: ARGV.fetch(1),
-    notes_path: ARGV[2]
+    notes_path: ARGV[2],
+    sha: ENV["LITELLM_SHA"].presence
   )
 end

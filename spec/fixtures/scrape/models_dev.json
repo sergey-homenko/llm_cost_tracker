@@ -1,0 +1,57 @@
+{
+  "mistral": {
+    "id": "mistral",
+    "name": "Mistral",
+    "models": {
+      "mistral-embed": {
+        "id": "mistral-embed",
+        "name": "Mistral Embed",
+        "cost": {
+          "input": 0.1,
+          "output": 0
+        }
+      },
+      "pixtral-large-latest": {
+        "id": "pixtral-large-latest",
+        "name": "Pixtral Large (latest)",
+        "cost": {
+          "input": 2,
+          "output": 6
+        }
+      },
+      "open-mistral-nemo": {
+        "id": "open-mistral-nemo",
+        "name": "Open Mistral Nemo",
+        "cost": {
+          "input": 0.15,
+          "output": 0.15
+        }
+      },
+      "voxtral-small-latest": {
+        "id": "voxtral-small-latest",
+        "name": "Voxtral Small (latest)",
+        "cost": {
+          "input": 0.1,
+          "output": 0.3
+        }
+      },
+      "mistral-large-latest": {
+        "id": "mistral-large-latest",
+        "name": "Mistral Large (latest)",
+        "cost": {
+          "input": 0.5,
+          "output": 1.5,
+          "cache_read": 0.05
+        }
+      },
+      "devstral-latest": {
+        "id": "devstral-latest",
+        "name": "Devstral 2",
+        "cost": {
+          "input": 0.4,
+          "output": 2
+        }
+      }
+    }
+  }
+}

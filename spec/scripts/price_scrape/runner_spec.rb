@@ -16,6 +16,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   let(:groq_deprecations_html) { File.read("spec/fixtures/scrape/groq_deprecations.html", encoding: "utf-8") }
   let(:groq_batch_html) { File.read("spec/fixtures/scrape/groq_batch.html", encoding: "utf-8") }
 
+  let(:litellm) { LlmCostTracker::Pricing::Scrape::Providers::Litellm }
+
+  def fixture(name) = File.read("spec/fixtures/scrape/#{name}", encoding: "utf-8")
+
   def build_registry(haiku_entry:)
     {
       "metadata" => { "schema_version" => 1, "updated_at" => "2026-04-01" },
@@ -104,6 +108,101 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
     end
   end
 
+  it "fetches the pages a provider asks for after reading its sources, and keeps them out of source_urls" do
+    provider = Class.new(LlmCostTracker::Pricing::Scrape::Providers::Base) do
+      source_url "https://prices.example.test/"
+      define_singleton_method(:followup_urls) { |pages| [pages.fetch(source_url).strip] }
+      define_method(:call) do |html:, source_url:, scraped_at:|
+        LlmCostTracker::Pricing::Scrape::Providers::Base::Result.new(
+          source_url:, scraped_at:, deprecated_models: [], service_charges: {},
+          models: { "model-a" => { "input" => Float(html.fetch("https://prices.example.test/a")) } }
+        )
+      end
+    end
+    stub_const("#{described_class}::PROVIDERS", "example" => provider)
+    stub_request(:get, "https://prices.example.test/").to_return(status: 200, body: "https://prices.example.test/a\n")
+    stub_request(:get, "https://prices.example.test/a").to_return(status: 200, body: "1.5")
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.generate("metadata" => {}, "models" => {}))
+      file.close
+
+      runs = described_class.new(io: io).call(providers: %w[example], registry_path: file.path)
+
+      expect(runs.first.scraped.models).to eq("model-a" => { "input" => 1.5 })
+      expect(JSON.parse(File.read(file.path)).dig("metadata", "source_urls")).to eq(["https://prices.example.test/"])
+    end
+  end
+
+  def litellm_provider(url, *more)
+    Class.new(LlmCostTracker::Pricing::Scrape::Providers::Base) do
+      const_set(:SOURCE_URLS, [url, LlmCostTracker::Pricing::Scrape::Providers::Litellm::SOURCE_URL, *more])
+      source_url url
+      define_method(:call) do |html:, source_url:, scraped_at:|
+        input = Float(html.fetch(LlmCostTracker::Pricing::Scrape::Providers::Litellm::SOURCE_URL))
+        LlmCostTracker::Pricing::Scrape::Providers::Base::Result.new(
+          source_url:, scraped_at:, deprecated_models: [], service_charges: {}, models: { "model-a" => { "input" => input } }
+        )
+      end
+    end
+  end
+
+  it "fetches each page once per run, and LiteLLM at the pinned commit under its canonical URL" do
+    sha = "b" * 40
+    stub_const("#{described_class}::PROVIDERS", "one" => litellm_provider("https://one.example.test/"),
+                                                  "two" => litellm_provider("https://two.example.test/"))
+    pinned = stub_request(:get, format(litellm::PRICES_URL, sha)).to_return(status: 200, body: "2.5")
+    %w[one two].each { |name| stub_request(:get, "https://#{name}.example.test/").to_return(status: 200, body: "{}") }
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.generate("metadata" => {}, "models" => {}))
+      file.close
+
+      runs = described_class.new(io: io, litellm_sha: sha).call(providers: %w[one two], registry_path: file.path)
+
+      expect(runs.map { |run| run.scraped.models }).to all(eq("model-a" => { "input" => 2.5 }))
+      expect(pinned).to have_been_requested.once
+      expect(io.string).to include("[one] fetching #{format(litellm::PRICES_URL, sha)}")
+      expect(JSON.parse(File.read(file.path)).dig("metadata", "source_urls"))
+        .to eq(["https://one.example.test/", litellm::SOURCE_URL, "https://two.example.test/"])
+    end
+  end
+
+  it "runs a provider without models.dev when it cannot be fetched, and fails on any other page" do
+    stub_const("#{described_class}::PROVIDERS", "one" => litellm_provider("https://one.example.test/", litellm::MODELS_DEV_URL))
+    stub_request(:get, litellm::SOURCE_URL).to_return(status: 200, body: "2.5")
+    stub_request(:get, "https://one.example.test/").to_return(status: 200, body: "{}")
+    stub_request(:get, litellm::MODELS_DEV_URL).to_return(status: 503)
+    runner = described_class.new(io: io, fetcher: LlmCostTracker::Pricing::Scrape::Fetcher.new(sleep: ->(_) {}))
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.generate("metadata" => {}, "models" => {}))
+      file.close
+
+      expect(runner.call(providers: %w[one], registry_path: file.path, dry_run: true).first.scraped.models)
+        .to eq("model-a" => { "input" => 2.5 })
+      expect(io.string).to include("[one] skipped #{litellm::MODELS_DEV_URL}")
+      stub_request(:get, "https://one.example.test/").to_return(status: 503)
+      expect { runner.call(providers: %w[one], registry_path: file.path, dry_run: true) }
+        .to raise_error(described_class::Error, /failures: one/)
+    end
+  end
+
+  it "fetches LiteLLM at main when no commit is pinned" do
+    stub_const("#{described_class}::PROVIDERS", "one" => litellm_provider("https://one.example.test/"))
+    main = stub_request(:get, litellm::SOURCE_URL).to_return(status: 200, body: "2.5")
+    stub_request(:get, "https://one.example.test/").to_return(status: 200, body: "{}")
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.generate("metadata" => {}, "models" => {}))
+      file.close
+
+      described_class.new(io: io).call(providers: %w[one], registry_path: file.path, dry_run: true)
+
+      expect(main).to have_been_requested.once
+    end
+  end
+
   it "logs the final URL when a source page redirects elsewhere" do
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic.source_url)
       .to_return(status: 301, headers: { "Location" => "https://example.test/moved" })
@@ -152,6 +251,21 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
 
       expect(io.string).to include("[anthropic] FAILED:")
       expect(io.string).to include("[summary] providers=1 ok=0 failed=1")
+    end
+  end
+
+  it "dates nothing for a provider whose scrape failed" do
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic.source_url)
+      .to_return(status: 200, body: "<html><body></body></html>")
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      original = JSON.generate(build_registry(haiku_entry: { "input" => 1.0, "output" => 5.0 }))
+      file.write(original)
+      file.close
+
+      expect { described_class.new(io: io).call(providers: ["anthropic"], registry_path: file.path) }
+        .to raise_error(described_class::Error)
+      expect(File.read(file.path)).to eq(original)
     end
   end
 
