@@ -327,6 +327,29 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     expect(written).to include("deepseek/deepseek-flash", "openai/gpt-4o-mini-tts", "mistral/mistral-ocr-latest")
   end
 
+  it "holds per-character speech, transcription minimums and every Cohere row, but writes transcription minutes" do
+    scraped = {
+      "mistral" => { "voxtral-mini-2602" => { "transcription_minute" => 0.003 },
+                     "voxtral-mini-tts-2603" => { "text_to_speech_character" => 16.0 } },
+      "groq" => { "whisper-large-v3" => { "transcription_minute" => 0.00185, "_minimum_billed_seconds" => 10 },
+                  "canopylabs/orpheus-v1-english" => { "text_to_speech_character" => 22.0 } },
+      "cohere" => { "command-a-03-2025" => { "input" => 2.5, "output" => 10.0, "_source" => "litellm" } }
+    }
+
+    with_registry(build_registry(models: {}, metadata: { "min_gem_version" => "0.4.0" })) do |path|
+      results = scraped.map do |provider, models|
+        described_class.new.call(provider: provider, provider_result: build_result(models: models), registry_path: path)
+      end
+
+      expect(results.flat_map(&:added)).to eq(["mistral/voxtral-mini-2602"])
+      expect(results.flat_map(&:notes)).to eq(
+        ["- `mistral`: voxtral-mini-tts-2603 held until metadata.min_gem_version is 0.15.0",
+         "- `groq`: canopylabs/orpheus-v1-english, whisper-large-v3 held until metadata.min_gem_version is 0.15.0",
+         "- `cohere`: command-a-03-2025 held until metadata.min_gem_version is 0.15.0"]
+      )
+    end
+  end
+
   describe "pruning" do
     let(:prices) { { "input" => 1.0, "output" => 2.0 } }
     let(:only_opus) { build_result(models: { "claude-opus-4-7" => prices }) }

@@ -21,7 +21,8 @@ module LlmCostTracker
       end
 
       MIN_GEM_VERSIONS = {
-        "_off_peak_windows" => "0.15.0", "ocr_page" => "0.15.0", "openai/gpt-4o-mini-tts" => "0.15.0"
+        "_off_peak_windows" => "0.15.0", "ocr_page" => "0.15.0", "openai/gpt-4o-mini-tts" => "0.15.0",
+        "text_to_speech_character" => "0.15.0", "_minimum_billed_seconds" => "0.15.0", "cohere" => "0.15.0"
       }.freeze
       PRUNE_AFTER_DAYS = 90
       HAND_MAINTAINED = %w[
@@ -99,7 +100,7 @@ module LlmCostTracker
       def held_models(provider, models, min_gem_version)
         floor = Gem::Version.new(min_gem_version || "0")
         models.each_with_object({}) do |(id, fields), held|
-          required = MIN_GEM_VERSIONS.values_at(registry_key(provider, id), *fields.keys).compact
+          required = MIN_GEM_VERSIONS.values_at(provider, registry_key(provider, id), *fields.keys).compact
                                      .max_by { |version| Gem::Version.new(version) }
           held[id] = required if required && Gem::Version.new(required) > floor
         end
