@@ -35,6 +35,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `backfill_unknown_pricing` and `reprice` store the pricing mode they apply, so a Bedrock regional-profile call recorded before 0.14.2 gets `data_residency`.
 - Perplexity's `api.perplexity.ai` is built into `capture.openai_compatible_providers`, Faraday captures its own `/v1/sonar` and `/v1/agent` paths and background Agent API polls too, and its calls are recorded at their billed `usage.cost.total_cost` instead of unknown cost.
 - Bundled xAI prices are read from xAI's pricing and model pages instead of LiteLLM.
+- Bundled OpenAI and Anthropic model ids, and OpenAI and Gemini long-context thresholds, come from the providers' own pages instead of hand-kept lists.
+- Bundled OpenAI embedding, `tts-1` and `tts-1-hd` prices are read from OpenAI's pricing page and Batch API guide instead of kept by hand.
 - A bundled model its provider stops listing is removed after 90 days.
 - Bundled Mistral prices drop the models Mistral lists as retired, with the aliases their model cards name, such as `magistral-medium-latest`.
 - RubyLLM 2.x Cohere chats record `usage.billed_units`, streamed ones from the final `message-end` event, instead of token counts that include Cohere's unbilled preamble; rows recorded earlier keep those counts, so backfilled costs overstate them.
@@ -54,6 +56,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - GPT-Realtime-2, 2.1 and 2.1 mini get `data_residency` rates, OpenAI's 10% regional processing uplift.
 - A Chat Completions or Responses stream is recorded under the model its last event names, so a Perplexity Agent API preset such as `fast` is recorded as the model that served it.
 - OpenAI speech returned as binary audio by a model not billed per character, such as `gpt-4o-mini-tts`, is recorded with `usage_source: unknown` instead of as a zero-token response.
+- OpenAI `text-embedding-ada-002` embeddings, reported as `text-embedding-ada-002-v2`, are priced instead of recorded with unknown cost.
 
 ## [0.14.2] - 2026-09-28
 
