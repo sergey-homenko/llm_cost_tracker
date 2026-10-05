@@ -182,10 +182,11 @@ module LlmCostTracker
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           prefix = "#{self.class.litellm_provider}/"
           models = parse_json(html).each_with_object({}) do |(key, entry), collected|
-            next unless key.start_with?(prefix) && entry.is_a?(Hash) && TOKEN_MODES.include?(entry["mode"])
+            next unless key.start_with?(prefix) && entry.is_a?(Hash) && [*TOKEN_MODES, "ocr"].include?(entry["mode"])
 
             fields = extract_fields(key, entry)
-            collected[key.delete_prefix(prefix)] = fields if fields.key?("input") && fields.key?("output")
+            required = entry["mode"] == "ocr" ? %w[ocr_page] : %w[input output]
+            collected[key.delete_prefix(prefix)] = fields if required.all? { |field| fields.key?(field) }
           end
           models = with_tiers(models)
           validate!(models)

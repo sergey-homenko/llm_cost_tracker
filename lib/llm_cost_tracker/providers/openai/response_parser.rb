@@ -85,7 +85,8 @@ module LlmCostTracker
             provider: provider_for(request_url),
             host: host,
             usage_source: Usage::Source::RESPONSE
-          ) || speech_event(request_url, request) || transcription_without_usage_event(request_url, request)
+          ) || speech_event(request_url, request) || transcription_without_usage_event(request_url, request) ||
+            ocr_event(request_url, request, response)
         end
 
         def parse_stream(response_status:, request_url: nil, request_body: nil, events: [], **)
@@ -137,6 +138,24 @@ module LlmCostTracker
             model: model_for(request_url, request) || Event::UNKNOWN_MODEL,
             token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
             usage_source: Usage::Source::UNKNOWN
+          )
+        end
+
+        def ocr_event(request_url, request, response)
+          line_items = ServiceCharges.ocr_line_items(response)
+          return nil if line_items.empty?
+
+          provider = provider_for(request_url)
+          model = response["model"] || model_for(request_url, request)
+          Event.build(
+            provider: provider,
+            model: model,
+            token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
+            pricing_mode: ResponseParser.combined_pricing_mode(
+              provider: provider, host: parsed_uri(request_url)&.host, model: model, service_tier: nil
+            ),
+            usage_source: Usage::Source::RESPONSE,
+            service_line_items: line_items
           )
         end
 

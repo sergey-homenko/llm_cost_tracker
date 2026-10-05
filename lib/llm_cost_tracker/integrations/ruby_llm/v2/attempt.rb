@@ -222,6 +222,8 @@ module LlmCostTracker
                 return [] unless seconds
 
                 Providers::Openai::ServiceCharges.transcription_line_items(type: "duration", seconds: seconds.to_f.ceil)
+              when :ocr then Providers::Openai::ServiceCharges.ocr_line_items(result.try(:raw).to_h)
+              when :rerank then Providers::Openai::ServiceCharges.rerank_line_items(result.try(:raw).to_h)
               else []
               end
             end

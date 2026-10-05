@@ -146,9 +146,21 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       .to raise_error(described_class::Error, /mistral priority rate not found/)
   end
 
-  it "keeps only priced token models of its own provider" do
+  it "prices Mistral OCR per 1,000 pages from the Input column, under the card's API names and its -latest alias" do
+    one_card = mistral_pages.merge(mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html")
+                                     .sub(%r{<tr><td><a href="/models/ocr-4-0">.*?</tr>}, ""))
+    models = mistral_class.new.call(html: one_card).models
+
+    expect(models.slice("mistral-ocr-4-1", "mistral-ocr-4", "mistral-ocr-latest").values)
+      .to eq([{ "ocr_page" => 4.0 }] * 3)
+    expect(models.keys).not_to include("mistral-ocr-2512", "mistral-ocr-4-0", "voxtral-mini-latest")
+    expect(mistral.keys).to include("mistral-ocr-4-1")
+    expect(mistral.keys).not_to include("mistral-ocr-latest")
+  end
+
+  it "keeps only priced token and OCR models of its own provider" do
     expect(xai.keys).not_to include("grok-imagine-image", "grok-voice-transcribe-1.0")
-    expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-embed", "mistral-ocr-latest")
+    expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-embed", "mistral-moderation-2603")
     expect(xai.keys + mistral.keys).not_to include("deepseek-flash", "gpt-4o")
   end
 
