@@ -85,7 +85,7 @@ module LlmCostTracker
       end
 
       def write_notes(runs, path)
-        File.write(path, runs.flat_map { |run| run.scraped&.notes.to_a }.map { |note| "#{note}\n" }.join)
+        File.write(path, runs.filter_map(&:scraped).flat_map(&:notes).map { |note| "#{note}\n" }.join)
       end
 
       def fetch_provider_responses(name, provider_class)
