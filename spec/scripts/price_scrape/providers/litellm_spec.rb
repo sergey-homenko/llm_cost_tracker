@@ -35,6 +35,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     )
   end
 
+  it "takes xAI's long-context threshold only from the rates it keeps" do
+    catalogue = JSON.parse(body)
+    catalogue["xai/grok-4.7"]["input_cost_per_image_token_above_128k_tokens"] = 3e-06
+    catalogue["xai/grok-4.6"] = catalogue["xai/grok-4.6"].reject { |name, _| name.include?("_above_") }
+                                                         .merge("input_cost_per_image_token_above_128k_tokens" => 3e-06)
+    models = xai_class.new.call(html: xai_pages.merge(described_class::SOURCE_URL => JSON.generate(catalogue))).models
+
+    expect(models.fetch("grok-4.7")).to include("_context_price_threshold_tokens" => 199_999,
+                                                "above_context_input" => 4.0)
+    expect(models.fetch("grok-4.6").keys.grep(/context/)).to be_empty
+  end
+
   it "gives the aliases xAI's model pages list for a batch model that model's batch rates" do
     batch = { "batch_input" => 1.0, "batch_cache_read_input" => 0.16, "batch_output" => 2.0,
               "above_context_batch_input" => 2.0, "above_context_batch_cache_read_input" => 0.32,
@@ -138,6 +150,84 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     expect(xai.keys).not_to include("grok-imagine-image", "grok-voice-transcribe-1.0")
     expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-embed", "mistral-ocr-latest")
     expect(xai.keys + mistral.keys).not_to include("deepseek-flash", "gpt-4o")
+  end
+
+  describe ".convert" do
+    let(:conversion) { described_class.convert(JSON.parse(body)) }
+    let(:models) { conversion.models }
+
+    it "converts token rates per 1M tokens with their tier and long-context prefixes" do
+      expect(models.fetch("openai/gpt-6-astra")).to include(
+        "input" => 10.0, "cache_read_input" => 1.0, "cache_write_input" => 12.5, "output" => 50.0,
+        "batch_input" => 5.0, "flex_output" => 25.0, "priority_input" => 20.0, "fast_input" => 20.0,
+        "ultrafast_input" => 60.0, "ultrafast_cache_write_input" => 75.0, "ultrafast_output" => 300.0,
+        "_context_price_threshold_tokens" => 272_000, "above_context_input" => 20.0,
+        "above_context_ultrafast_output" => 450.0, "above_context_fast_cache_write_input" => 50.0,
+        "web_search_request" => 10.0
+      )
+      expect(models.fetch("openai/gpt-6-astra").keys.grep(/data_residency/)).to be_empty
+      expect(models.fetch("xai/grok-4.7")).to include("_context_price_threshold_tokens" => 199_999,
+                                                       "above_context_input" => 4.0, "image_input" => 2.0)
+    end
+
+    it "maps cache writes, modality tokens and non-token units to the registry's dimensions" do
+      expect(models.fetch("anthropic/claude-opus-4-8")).to include(
+        "cache_write_input" => 6.25, "cache_write_extended_input" => 10.0, "batch_cache_write_input" => 3.125
+      )
+      expect(models.fetch("openai/gpt-realtime-2.1")).to include(
+        "audio_input" => 32.0, "audio_cache_read_input" => 0.4, "image_cache_read_input" => 0.5, "audio_output" => 64.0
+      )
+      expect(models.fetch("gemini/gemini-3.8-flash")).to include("grounding_request" => 14.0,
+                                                                  "maps_grounding_request" => 14.0)
+      expect(models.fetch("deepseek/deepseek-flash")).to include("cache_read_input" => 0.006)
+      expect(models.fetch("openai/whisper-1")).to eq("transcription_minute" => 0.006)
+      expect(models.fetch("openai/tts-1")).to eq("text_to_speech_character" => 15.0)
+      expect(models.fetch("openai/gpt-4o-transcribe")).not_to include("transcription_minute")
+    end
+
+    it "skips fine-tunes and modes the registry does not price" do
+      expect(models.keys).not_to include("openai/ft:gpt-4o-mini-2024-07-18", "mistral/mistral-ocr-latest",
+                                         "xai/grok-imagine-image")
+    end
+
+    it "lists price fields it does not know and prices it cannot represent" do
+      expect(conversion.unknown).to include(
+        "cache_creation_input_audio_token_cost" => ["openai/gpt-realtime-2.1"],
+        "citation_cost_per_token" => ["perplexity/sonar-deep-research"],
+        "output_cost_per_second" => ["openai/whisper-1"]
+      )
+      expect(conversion.unrepresentable).to include(
+        "several long-context thresholds" => ["openrouter/qwen/qwen3-max"],
+        "time-of-day prices (off_peak_pricing)" => ["deepseek/deepseek-flash"],
+        "reasoning tokens priced apart from output" => ["perplexity/sonar-deep-research"]
+      )
+      expect(models.fetch("openrouter/qwen/qwen3-max").keys.grep(/above_context/)).to be_empty
+    end
+
+    it "converts two contiguous price tiers into long-context rates and reports any other tiering" do
+      tier = lambda do |range, rate|
+        { "range" => range, "input_cost_per_token" => rate, "output_cost_per_token" => rate }
+      end
+      entry = { "litellm_provider" => "openrouter", "mode" => "chat",
+                "tiered_pricing" => [tier.call([0, 256_000], 1e-07), tier.call([256_000, 1_000_000], 2e-07)] }
+      four = entry.merge("tiered_pricing" => entry["tiered_pricing"] * 2)
+      tiers = described_class.convert("openrouter/a/two" => entry, "openrouter/a/four" => four)
+
+      expect(tiers.models.fetch("openrouter/a/two")).to eq(
+        "input" => 0.1, "output" => 0.1, "above_context_input" => 0.2, "above_context_output" => 0.2,
+        "_context_price_threshold_tokens" => 256_000
+      )
+      expect(tiers.unrepresentable)
+        .to eq("price tiers other than two contiguous ones (tiered_pricing)" => ["openrouter/a/four"])
+    end
+
+    it "reads the regional uplift LiteLLM records without turning it into rates" do
+      entries = conversion.entries
+
+      expect(described_class.uplift(entries.fetch("openai/gpt-6-astra"))).to eq(1.1)
+      expect(described_class.uplift(entries.fetch("anthropic/claude-opus-4-8"))).to eq(1.1)
+      expect(described_class.uplift(entries.fetch("openai/gpt-4o"))).to be_nil
+    end
   end
 
   it "raises when an anchor model disappears or the list is not JSON" do

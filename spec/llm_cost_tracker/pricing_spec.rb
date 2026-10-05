@@ -36,6 +36,21 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(match.matched_by).to eq(:unique_providerless_dated_snapshot)
     end
 
+    it "finds a priced modifier only as a whole token of a rate key" do
+      LlmCostTracker.configure do |c|
+        c.pricing.overrides = {
+          "openai/ultrafast-only" => { input: 1, ultrafast_input: 6 },
+          "openai/long-fast" => { input: 1, above_context_fast_input: 4 }
+        }
+      end
+      priced = lambda do |model, modifier|
+        LlmCostTracker::Pricing::Matcher.modifier_priced?(provider: "openai", model: model, modifier: modifier)
+      end
+
+      expect([priced.call("ultrafast-only", "fast"), priced.call("ultrafast-only", "ultrafast"),
+              priced.call("long-fast", "fast")]).to eq([false, true, true])
+    end
+
     it "keeps an azure_openai/<model> override off direct OpenAI, dated OpenAI and OpenRouter calls" do
       LlmCostTracker.configure do |c|
         c.pricing.overrides = {

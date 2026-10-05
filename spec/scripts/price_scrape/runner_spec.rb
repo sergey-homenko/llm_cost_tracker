@@ -4,6 +4,7 @@ require "spec_helper"
 require "json"
 require "stringio"
 require "tempfile"
+require "tmpdir"
 require "price_scrape/runner"
 
 RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
@@ -170,6 +171,35 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
       expect(io.string).to include("[anthropic] parsed")
       expect(io.string).to include("[gemini] FAILED:")
       expect(io.string).to include("[summary] providers=2 ok=1 failed=1")
+    end
+  end
+
+  it "logs the notes a scraper returns and writes them for the cross-check" do
+    result = LlmCostTracker::Pricing::Scrape::Providers::Base::Result
+    provider = Class.new(LlmCostTracker::Pricing::Scrape::Providers::Base) do
+      source_url "https://prices.example.test/"
+      define_method(:call) do |source_url:, scraped_at:, **|
+        result.new(source_url:, scraped_at:, models: {}, deprecated_models: [], service_charges: {},
+                   notes: ["- `openai/gpt-7`: undecided"])
+      end
+    end
+    stub_const("#{described_class}::PROVIDERS", "example" => provider,
+               "gemini" => LlmCostTracker::Pricing::Scrape::Providers::Gemini)
+    stub_request(:get, "https://prices.example.test/").to_return(status: 200, body: "{}")
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini.source_url)
+      .to_return(status: 200, body: "<html><body></body></html>")
+
+    Dir.mktmpdir do |dir|
+      registry, notes = %w[prices.json notes.md].map { |name| File.join(dir, name) }
+      File.write(registry, JSON.generate(build_registry(haiku_entry: { "input" => 1.0, "output" => 5.0 })))
+
+      expect do
+        described_class.new(io: io).call(providers: %w[example gemini], registry_path: registry, dry_run: true,
+                                         notes_path: notes)
+      end.to raise_error(described_class::Error, /failures: gemini/)
+
+      expect(File.read(notes)).to eq("- `openai/gpt-7`: undecided\n")
+      expect(io.string).to include("[example] - `openai/gpt-7`: undecided")
     end
   end
 end

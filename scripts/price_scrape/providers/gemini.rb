@@ -33,6 +33,7 @@ module LlmCostTracker
         SCHEDULED_LINE = /#{SCHEDULED_FROM}\.?\z/
         CURRENT_LINE = /through \w+ \d{1,2}, \d{4}\.?\z/
         TEXT_PRICED_AS = /Text input and output\s+is priced the same as/
+        UNCAPTURED_MODEL = /(?<!transcribe)-live\b|-(?:streaming|native-audio)\b/
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           doc = Nokogiri::HTML(html.to_s)
@@ -245,7 +246,7 @@ module LlmCostTracker
         end
 
         def normalize_model_id(id)
-          id if id.start_with?("gemini-") && !id.match?(/(?<!transcribe)-live\b|-(?:streaming|native-audio)\b/)
+          id if id.start_with?("gemini-") && !id.match?(UNCAPTURED_MODEL)
         end
 
         def audio_price_key(field)

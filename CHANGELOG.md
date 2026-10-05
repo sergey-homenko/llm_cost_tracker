@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - RubyLLM 2.x speech, OCR, rerank and operations added in later RubyLLM releases are recorded, with unknown cost when unpriced; `tts-1` speech is priced by input characters and Gemini speech by its text and audio tokens.
 - `RubyLLM.workflow` names and steps become `workflow_name` and `workflow_step_name` tags.
 - RubyLLM 2.x `RubyLLM.batch` results are recorded at batch rates when `Batch#messages` or `#results` returns them, in any process, once each across polls and `Batch.find`, and a chat result also across the OpenAI and Anthropic SDK batch capture.
+- `LICENSE.txt` carries the MIT notice of LiteLLM's price data, the source of the bundled xAI rates and Mistral model ids.
 
 ### Changed
 
@@ -28,6 +29,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Gemini Omni Flash, 3.5 Transcribe (including Live) and 2.5 Computer Use calls are priced instead of recorded with unknown cost; Omni video output tokens use the new `video_output` rate.
 - JSON price files keep floats in their shortest form on json 2.11 and later (`0.951432`, not `0.9514320000000001`).
 - The Calls CSV export sorts the matching calls once instead of re-querying each 500-row batch with `OFFSET`, which was slow on large ledgers.
+- OpenAI Ultrafast calls (`service_tier: "ultrafast"`) are priced at GPT-6 Astra's Ultrafast rates, US data residency included, instead of recorded with unknown cost.
+- GPT-Realtime-2, 2.1 and 2.1 mini get `data_residency` rates, OpenAI's 10% regional processing uplift.
 
 ## [0.14.2] - 2026-09-28
 

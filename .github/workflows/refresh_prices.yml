@@ -38,9 +38,17 @@ jobs:
         env:
           PROVIDERS: ${{ github.event.inputs.providers || 'anthropic,gemini,groq,mistral,openai,openrouter,xai' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+          NOTES_PATH: price_notes.md
         run: |
           set -o pipefail
           bundle exec ruby scripts/price_scrape/runner.rb 2>&1 | tee refresh.log
+
+      - name: Cross-check prices with LiteLLM
+        id: cross_check
+        continue-on-error: true
+        run: |
+          bundle exec ruby scripts/price_scrape/cross_check.rb cross_check.md cross_check_issue.md price_notes.md
+          cat cross_check.md
 
       - name: Detect price changes
         id: changes
@@ -94,6 +102,10 @@ jobs:
             echo '```'
             echo
             echo "Review the diff to confirm new models, deprecated removals, and price field changes."
+            if [ -s cross_check.md ]; then
+              echo
+              cat cross_check.md
+            fi
           } > pr_body.md
 
       - name: Create Pull Request
@@ -113,6 +125,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run ruby.yml --ref prices/auto-refresh
+
+      - name: Update the price sources issue
+        if: ${{ !cancelled() && steps.cross_check.outcome == 'success' && github.event.inputs.dry_run != 'true' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: Price sources disagree
+        run: |
+          issue=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title \
+            --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n 1)
+          if [ -s cross_check_issue.md ]; then
+            if [ -z "$issue" ]; then
+              gh issue create --title "$TITLE" --body-file cross_check_issue.md
+            elif [ "$(gh issue view "$issue" --json body --jq .body)" != "$(cat cross_check_issue.md)" ]; then
+              gh issue edit "$issue" --body-file cross_check_issue.md
+            fi
+          elif [ -n "$issue" ]; then
+            gh issue close "$issue" --comment "The price sources agree again."
+          fi
 
       - name: Open issue on provider failure
         if: failure() && github.event.inputs.dry_run != 'true'
