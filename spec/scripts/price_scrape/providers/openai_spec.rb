@@ -382,10 +382,11 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       models = described_class.new.call(html: html_pages, scraped_at: "2026-10-05T00:00:00Z").models
 
       expect(models.slice("text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002",
-                          "tts-1", "tts-1-hd")).to eq(
+                          "text-embedding-ada-002-v2", "tts-1", "tts-1-hd")).to eq(
                             "text-embedding-3-small" => { "input" => 0.02, "batch_input" => 0.01 },
                             "text-embedding-3-large" => { "input" => 0.13, "batch_input" => 0.065 },
                             "text-embedding-ada-002" => { "input" => 0.1, "batch_input" => 0.05 },
+                            "text-embedding-ada-002-v2" => { "input" => 0.1, "batch_input" => 0.05 },
                             "tts-1" => { "text_to_speech_character" => 15.0 },
                             "tts-1-hd" => { "text_to_speech_character" => 30.0 }
                           )

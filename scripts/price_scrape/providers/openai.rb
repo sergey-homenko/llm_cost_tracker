@@ -31,7 +31,8 @@ module LlmCostTracker
         ].freeze
         MODEL_ID_ALIASES = {
           "gpt-4" => "gpt-4-0613", "gpt-4-turbo" => "gpt-4-turbo-2024-04-09",
-          "omni-moderation-2024-09-26" => "omni-moderation-latest"
+          "omni-moderation-2024-09-26" => "omni-moderation-latest",
+          "text-embedding-ada-002-v2" => "text-embedding-ada-002"
         }.freeze
         QUALIFIER = /\s*\([^()]*\)\z/
         BATCH_DISCOUNT = /(\d+)% cost discount compared to synchronous APIs/
