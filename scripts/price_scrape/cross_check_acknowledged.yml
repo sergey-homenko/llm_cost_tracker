@@ -13,7 +13,6 @@ deepseek/deepseek-v3: "Retired; DeepSeek serves deepseek-flash and deepseek-v4-p
 deepseek/deepseek-v3.2: "Retired; DeepSeek serves deepseek-flash and deepseek-v4-pro."
 groq/openai/gpt-oss-safeguard-20b.cache_read_input: "LiteLLM rounds the 50% cache discount on $0.075 input."
 openai/gpt-4o-mini-transcribe.audio_input: "Kept at $3 pending an invoice check."
-openai/gpt-4o-mini-tts.output: "Its output is audio, priced at audio_output; OpenAI lists no text output rate."
 openai/gpt-4o-transcribe-diarize.audio_input: "Kept at $6 pending an invoice check."
 openai/gpt-4o-transcribe.audio_input: "Kept at $6 pending an invoice check."
 openai/gpt-5-nano.fast_input: "OpenAI's pricing page lists no Fast tier for gpt-5-nano."

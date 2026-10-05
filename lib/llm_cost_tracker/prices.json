@@ -324,138 +324,6 @@
       "input": 2.0,
       "output": 10.0
     },
-    "deepseek/deepseek-flash": {
-      "_off_peak_windows": [
-        {
-          "hours_utc": [
-            "00:00-01:00",
-            "04:00-06:00",
-            "10:00-24:00"
-          ],
-          "weekdays": [
-            1,
-            2,
-            3,
-            4,
-            5
-          ]
-        },
-        {
-          "hours_utc": [
-            "00:00-24:00"
-          ],
-          "weekdays": [
-            6,
-            7
-          ]
-        }
-      ],
-      "cache_read_input": 0.006,
-      "input": 0.3,
-      "off_peak_cache_read_input": 0.003,
-      "off_peak_input": 0.15,
-      "off_peak_output": 0.6,
-      "output": 1.2
-    },
-    "deepseek/deepseek-v4-flash": {
-      "_off_peak_windows": [
-        {
-          "hours_utc": [
-            "00:00-01:00",
-            "04:00-06:00",
-            "10:00-24:00"
-          ],
-          "weekdays": [
-            1,
-            2,
-            3,
-            4,
-            5
-          ]
-        },
-        {
-          "hours_utc": [
-            "00:00-24:00"
-          ],
-          "weekdays": [
-            6,
-            7
-          ]
-        }
-      ],
-      "cache_read_input": 0.006,
-      "input": 0.3,
-      "off_peak_cache_read_input": 0.003,
-      "off_peak_input": 0.15,
-      "off_peak_output": 0.6,
-      "output": 1.2
-    },
-    "deepseek/deepseek-v4-flash-vision-exp": {
-      "_off_peak_windows": [
-        {
-          "hours_utc": [
-            "00:00-01:00",
-            "04:00-06:00",
-            "10:00-24:00"
-          ],
-          "weekdays": [
-            1,
-            2,
-            3,
-            4,
-            5
-          ]
-        },
-        {
-          "hours_utc": [
-            "00:00-24:00"
-          ],
-          "weekdays": [
-            6,
-            7
-          ]
-        }
-      ],
-      "cache_read_input": 0.006,
-      "input": 0.3,
-      "off_peak_cache_read_input": 0.003,
-      "off_peak_input": 0.15,
-      "off_peak_output": 0.6,
-      "output": 1.2
-    },
-    "deepseek/deepseek-v4-pro": {
-      "_off_peak_windows": [
-        {
-          "hours_utc": [
-            "00:00-01:00",
-            "04:00-06:00",
-            "10:00-24:00"
-          ],
-          "weekdays": [
-            1,
-            2,
-            3,
-            4,
-            5
-          ]
-        },
-        {
-          "hours_utc": [
-            "00:00-24:00"
-          ],
-          "weekdays": [
-            6,
-            7
-          ]
-        }
-      ],
-      "cache_read_input": 0.044,
-      "input": 1.32,
-      "off_peak_cache_read_input": 0.022,
-      "off_peak_input": 0.66,
-      "off_peak_output": 1.98,
-      "output": 3.96
-    },
     "gemini/gemini-2.0-flash": {
       "audio_input": 0.7,
       "batch_audio_input": 0.35,
@@ -1669,15 +1537,6 @@
       "priority_input": 2.625,
       "priority_output": 13.125
     },
-    "mistral/mistral-ocr-4": {
-      "ocr_page": 4.0
-    },
-    "mistral/mistral-ocr-4-1": {
-      "ocr_page": 4.0
-    },
-    "mistral/mistral-ocr-latest": {
-      "ocr_page": 4.0
-    },
     "mistral/mistral-small-2603": {
       "batch_cache_read_input": 0.0075,
       "batch_input": 0.075,
@@ -1957,10 +1816,6 @@
       "audio_input": 3.0,
       "input": 1.25,
       "output": 5.0
-    },
-    "openai/gpt-4o-mini-tts": {
-      "audio_output": 12.0,
-      "input": 0.6
     },
     "openai/gpt-4o-transcribe": {
       "audio_input": 6.0,

@@ -267,7 +267,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
                                registry_path: path)
     end
 
-    with_registry(build_registry(models: {})) do |path|
+    with_registry(build_registry(models: {}, metadata: { "min_gem_version" => "0.15.0" })) do |path|
       expect(scrape.call(fields, path).added).to eq(["deepseek/deepseek-flash"])
       written = File.read(path)
       expect(JSON.parse(written).dig("models", "deepseek/deepseek-flash", "_off_peak_windows")).to eq(windows)
@@ -278,6 +278,38 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
       expect(scrape.call(fields.merge("_off_peak_windows" => sunday), path).updated)
         .to eq("deepseek/deepseek-flash" => { "_off_peak_windows" => { "from" => windows, "to" => sunday } })
     end
+  end
+
+  it "holds entries released gems would misprice until metadata.min_gem_version covers the gem that prices them" do
+    windows = [{ "weekdays" => [6, 7], "hours_utc" => ["00:00-24:00"] }]
+    models = { "deepseek-flash" => { "input" => 0.3, "off_peak_input" => 0.15, "_off_peak_windows" => windows },
+               "deepseek-v4-pro" => { "input" => 1.32, "output" => 3.96 } }
+    scrape = lambda do |min_gem_version|
+      registry = build_registry(models: { "openai/gpt-4o" => { "input" => 2.5 } },
+                                metadata: { "min_gem_version" => min_gem_version })
+      with_registry(registry) do |path|
+        results = [["deepseek", models], ["openai", { "gpt-4o-mini-tts" => { "input" => 0.6, "audio_output" => 12.0 } }],
+                   ["mistral", { "mistral-ocr-latest" => { "ocr_page" => 4.0 } }]].map do |provider, scraped|
+          described_class.new.call(provider: provider, provider_result: build_result(models: scraped), registry_path: path)
+        end
+        [results, JSON.parse(File.read(path)).fetch("models").keys]
+      end
+    end
+
+    held, written = scrape.call("0.4.0")
+    expect(held.map(&:added)).to eq([["deepseek/deepseek-v4-pro"], [], []])
+    expect(held.flat_map(&:notes)).to eq(
+      ["- `deepseek`: deepseek-flash held until metadata.min_gem_version is 0.15.0",
+       "- `openai`: gpt-4o-mini-tts held until metadata.min_gem_version is 0.15.0",
+       "- `mistral`: mistral-ocr-latest held until metadata.min_gem_version is 0.15.0"]
+    )
+    expect(written).not_to include("deepseek/deepseek-flash", "openai/gpt-4o-mini-tts", "mistral/mistral-ocr-latest")
+
+    released, written = scrape.call("0.15.0")
+    expect(released.flat_map(&:added)).to include("deepseek/deepseek-flash", "openai/gpt-4o-mini-tts",
+                                                  "mistral/mistral-ocr-latest")
+    expect(released.flat_map(&:notes)).to be_empty
+    expect(written).to include("deepseek/deepseek-flash", "openai/gpt-4o-mini-tts", "mistral/mistral-ocr-latest")
   end
 
   it "leaves models from other providers in the registry untouched" do
