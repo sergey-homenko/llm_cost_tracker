@@ -14,6 +14,7 @@ deepseek/deepseek-v3.2: "Retired; DeepSeek serves deepseek-flash and deepseek-v4
 groq/openai/gpt-oss-safeguard-20b.cache_read_input: "LiteLLM rounds the 50% cache discount on $0.075 input."
 mistral/codestral-mamba-latest: "Not named on any Mistral model card; Codestral Mamba was retired on 2025-06-06."
 mistral/devstral-small-latest: "Retired on 2026-03-31 with Devstral Small 2, whose card names it."
+mistral/glm-5-2: "Not a Mistral API id; no Mistral model card names it, and GLM 5.2 is zai-glm-5-2."
 mistral/magistral-medium-latest: "Retired on 2026-07-31 with Magistral Medium 1.2, whose card names it."
 mistral/magistral-small-latest: "Retired on 2026-07-31 with Magistral Small 1.2, whose card names it."
 mistral/ministral-3-14b-2512: "Not a Mistral API id; Ministral 3 14B is ministral-14b-2512."
