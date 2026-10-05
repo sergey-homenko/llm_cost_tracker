@@ -48,7 +48,7 @@ Alternate provider modes use mode-prefixed keys such as `batch_input`, `priority
 
 Long-context price tiers use `_context_price_threshold_tokens` and `above_context_*` keys. Parsers emit token buckets; pricing chooses the tier.
 
-When a positive-token bucket has no exact price, that bucket's line item stays unknown instead of guessing from a nearby bucket, with four exceptions. `audio_cache_read_input` and `image_cache_read_input` fall back to `cache_read_input`, `video_input` to `input`, and `video_output` to `output`. A bundled or `pricing.file` OpenAI entry with no `cache_read_input` or `cache_write_input` rate prices those tokens at `input` (details in [Pricing](pricing.md)). Under a pricing mode, a bucket other than `input`/`output` with no mode-prefixed rate uses its standard rate scaled by that mode's input discount (for example `cache_read_input` × `batch_input` / `input`).
+When a positive-token bucket has no exact price, that bucket's line item stays unknown instead of guessing from a nearby bucket, with four exceptions. `audio_cache_read_input` and `image_cache_read_input` fall back to `cache_read_input`, `video_input` to `input`, and `video_output` to `output`. A bundled or `pricing.file` OpenAI entry with no `cache_read_input` or `cache_write_input` rate prices those tokens at `input` (details in [Pricing](pricing.md)). Under a pricing mode, a bucket other than `input`/`output` with no mode-prefixed rate uses its standard rate scaled by that mode's input discount (for example `cache_read_input` × `batch_input` / `input`). A model whose entry has no token rate at all is billed by the non-token units it prices when the call reports one, and its token counts stay unbilled.
 
 ## Line Items
 
