@@ -18,8 +18,9 @@ module LlmCostTracker
       DEFAULT_PRICES_PATH = File.expand_path("../prices.json", __dir__)
       CONTEXT_THRESHOLD_KEY = "_context_price_threshold_tokens"
       OFF_PEAK_WINDOWS_KEY = "_off_peak_windows"
+      MINIMUM_BILLED_SECONDS_KEY = "_minimum_billed_seconds"
       PRICE_KEYS = Usage::Catalog.all.select(&:token?).map(&:key).freeze
-      METADATA_KEYS = ["_source", CONTEXT_THRESHOLD_KEY, OFF_PEAK_WINDOWS_KEY].freeze
+      METADATA_KEYS = ["_source", CONTEXT_THRESHOLD_KEY, OFF_PEAK_WINDOWS_KEY, MINIMUM_BILLED_SECONDS_KEY].freeze
 
       class << self
         def reset!
@@ -187,8 +188,8 @@ module LlmCostTracker
         def normalize_price_entry(model, price, context)
           unknown = []
           normalized = price.each_with_object({}) do |(key, value), acc|
-            if key.to_s == CONTEXT_THRESHOLD_KEY
-              acc[CONTEXT_THRESHOLD_KEY] = Integer(value)
+            if [CONTEXT_THRESHOLD_KEY, MINIMUM_BILLED_SECONDS_KEY].include?(key.to_s)
+              acc[key.to_s] = Integer(value)
             elsif key.to_s == OFF_PEAK_WINDOWS_KEY
               acc[OFF_PEAK_WINDOWS_KEY] = OffPeak.windows(value, label: "#{OFF_PEAK_WINDOWS_KEY} for #{model.inspect}")
             elsif (registry_key = PriceKey.price_key_for(key))

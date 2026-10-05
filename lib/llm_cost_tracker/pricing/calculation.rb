@@ -248,7 +248,12 @@ module LlmCostTracker
                ServiceRates.charge_rate(provider: @provider, dimension: line_item.kind, pricing_mode: mode)
         return line_item unless rate
 
-        line_item.with_rate(rate)
+        billed_minimum(line_item).with_rate(rate)
+      end
+
+      def billed_minimum(line_item)
+        seconds = match&.prices&.[](Registry::MINIMUM_BILLED_SECONDS_KEY) if line_item.kind == "transcription_minute"
+        seconds ? line_item.with(quantity: [line_item.quantity, BigDecimal(seconds) / 60].max) : line_item
       end
 
       def price_iteration(line_item)
