@@ -327,6 +327,77 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
     expect(written).to include("deepseek/deepseek-flash", "openai/gpt-4o-mini-tts", "mistral/mistral-ocr-latest")
   end
 
+  describe "pruning" do
+    let(:prices) { { "input" => 1.0, "output" => 2.0 } }
+    let(:only_opus) { build_result(models: { "claude-opus-4-7" => prices }) }
+
+    def scrape(path, provider_result, today: Date.new(2026, 10, 5))
+      described_class.new(today: today).call(provider: "anthropic", provider_result: provider_result,
+                                             registry_path: path)
+    end
+
+    it "dates the keys a provider stopped listing, clears reappearing ones and deletes those absent for 90 days" do
+      keys = %w[claude-opus-4-7 claude-gone claude-back claude-old claude-older claude-sonnet-3-7]
+      absent_since = { "anthropic/claude-back" => "2026-09-01", "anthropic/claude-old" => "2026-07-08",
+                       "anthropic/claude-older" => "2026-07-07", "openai/gpt-gone" => "2026-01-01" }
+      registry = build_registry(models: keys.to_h { |key| ["anthropic/#{key}", prices] }.merge("openai/gpt-gone" => prices),
+                                metadata: { "absent_since" => absent_since })
+      result = build_result(models: { "claude-opus-4-7" => prices, "claude-back" => prices },
+                            deprecated_models: ["claude-sonnet-3-7"])
+
+      with_registry(registry) do |path|
+        plan = scrape(path, result)
+
+        expect(plan.absent).to eq(
+          "anthropic/claude-back" => { "from" => "2026-09-01", "to" => nil },
+          "anthropic/claude-gone" => { "from" => nil, "to" => "2026-10-05" },
+          "anthropic/claude-older" => { "from" => "2026-07-07", "to" => nil }
+        )
+        expect(plan.removed).to contain_exactly("anthropic/claude-sonnet-3-7", "anthropic/claude-older")
+        written = JSON.parse(File.read(path))
+        expect(written.dig("metadata", "absent_since")).to eq(
+          "anthropic/claude-gone" => "2026-10-05", "anthropic/claude-old" => "2026-07-08",
+          "openai/gpt-gone" => "2026-01-01"
+        )
+        expect(written["models"].keys).to contain_exactly(
+          "anthropic/claude-opus-4-7", "anthropic/claude-gone", "anthropic/claude-back", "anthropic/claude-old",
+          "openai/gpt-gone"
+        )
+      end
+    end
+
+    it "keeps the first absence date, writes nothing while the key stays absent, and drops it after 90 days" do
+      registry = build_registry(models: { "anthropic/claude-opus-4-7" => prices, "anthropic/claude-gone" => prices })
+
+      with_registry(registry) do |path|
+        expect(scrape(path, only_opus).absent)
+          .to eq("anthropic/claude-gone" => { "from" => nil, "to" => "2026-10-05" })
+        written = File.read(path)
+        expect(scrape(path, only_opus, today: Date.new(2027, 1, 2)).written).to be(false)
+        expect(File.read(path)).to eq(written)
+        expect(scrape(path, only_opus, today: Date.new(2027, 1, 3)).removed).to eq(["anthropic/claude-gone"])
+        expect(JSON.parse(File.read(path))).to include("models" => { "anthropic/claude-opus-4-7" => prices })
+        expect(JSON.parse(File.read(path))["metadata"]).not_to have_key("absent_since")
+      end
+    end
+
+    it "counts entries held for a newer gem as listed and never dates hand-maintained rows" do
+      windows = [{ "weekdays" => [6, 7], "hours_utc" => ["00:00-24:00"] }]
+      models = { "deepseek/deepseek-flash" => prices, "openai/tts-1" => { "text_to_speech_character" => 15.0 } }
+
+      with_registry(build_registry(models: models)) do |path|
+        held = described_class.new.call(
+          provider: "deepseek", registry_path: path,
+          provider_result: build_result(models: { "deepseek-flash" => prices.merge("_off_peak_windows" => windows) })
+        )
+        listed = described_class.new.call(provider: "openai", provider_result: build_result(models: {}),
+                                          registry_path: path)
+
+        expect([held.absent, listed.absent]).to eq([{}, {}])
+      end
+    end
+  end
+
   it "leaves models from other providers in the registry untouched" do
     registry = build_registry(models: {
                                 "anthropic/claude-opus-4-7" => { "input" => 5.0, "output" => 25.0 },

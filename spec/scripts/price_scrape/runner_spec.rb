@@ -236,6 +236,21 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
     end
   end
 
+  it "dates nothing for a provider whose scrape failed" do
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic.source_url)
+      .to_return(status: 200, body: "<html><body></body></html>")
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      original = JSON.generate(build_registry(haiku_entry: { "input" => 1.0, "output" => 5.0 }))
+      file.write(original)
+      file.close
+
+      expect { described_class.new(io: io).call(providers: ["anthropic"], registry_path: file.path) }
+        .to raise_error(described_class::Error)
+      expect(File.read(file.path)).to eq(original)
+    end
+  end
+
   it "continues running remaining providers when one fails" do
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini.source_url)
       .to_return(status: 200, body: "<html><body></body></html>",

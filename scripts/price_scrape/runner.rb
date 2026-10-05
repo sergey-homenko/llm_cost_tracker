@@ -141,8 +141,8 @@ module LlmCostTracker
         end
 
         @io.puts "#{prefix} added=#{result.added.size} removed=#{result.removed.size} updated=#{result.updated.size} " \
-                 "service_charges_updated=#{result.service_charges_updated.size} written=#{result.written} " \
-                 "dry_run=#{dry_run}"
+                 "service_charges_updated=#{result.service_charges_updated.size} absent=#{result.absent.size} " \
+                 "written=#{result.written} dry_run=#{dry_run}"
       end
 
       def log_summary(runs, dry_run:)
