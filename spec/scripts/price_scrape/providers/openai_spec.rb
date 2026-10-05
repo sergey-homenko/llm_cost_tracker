@@ -420,7 +420,13 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     it "skips rows mapped to no model ID" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
 
-      expect(result.models).not_to include("text-embedding-3-small", "tts-1")
+      expect(result.models).not_to include("text-embedding-3-small", "tts-1", "tts-1-hd")
+    end
+
+    it "prices gpt-4o-mini-tts text input and audio output from its Text and Audio rows" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-09-26T00:00:00Z")
+
+      expect(result.models.fetch("gpt-4o-mini-tts")).to eq("input" => 0.6, "audio_output" => 12.0)
     end
 
     it "prices the legacy snapshots and the token-billed transcription models under the ids the API reports" do

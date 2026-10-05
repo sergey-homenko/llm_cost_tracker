@@ -106,6 +106,10 @@ module LlmCostTracker
           build_unknown_stream_usage(**context, service_line_items: background ? [] : context[:service_line_items])
         end
 
+        def streaming_request?(request_url, request_parsed)
+          super || request_parsed["stream_format"] == "sse"
+        end
+
         def auto_enable_stream_usage?(request_url, _request_parsed)
           openai_chat_completions_url?(request_url)
         end
@@ -120,12 +124,13 @@ module LlmCostTracker
           uri = parsed_uri(request_url)
           return nil unless uri && uri.path.to_s.end_with?("/audio/speech")
 
+          line_items = ServiceCharges.speech_line_items(request)
           Event.build(
             provider: provider_for(request_url),
             model: model_for(request_url, request),
             token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
-            usage_source: Usage::Source::RESPONSE,
-            service_line_items: ServiceCharges.speech_line_items(request)
+            usage_source: line_items.empty? ? Usage::Source::UNKNOWN : Usage::Source::RESPONSE,
+            service_line_items: line_items
           )
         end
 
@@ -220,7 +225,10 @@ module LlmCostTracker
           usage = find_event_value(events, reverse: true) do |data|
             candidate = data["usage"] || data.dig("response", "usage") || data.dig("chunk", "usage") ||
                         data.dig("x_groq", "usage") || data.dig("chunk", "x_groq", "usage")
-            candidate if candidate.is_a?(Hash)
+            next unless candidate.is_a?(Hash)
+
+            audio = { "output_tokens_details" => { "audio_tokens" => candidate["output_tokens"] } }
+            data["type"] == "speech.audio.done" ? candidate.merge(audio) : candidate
           end
           usage&.deep_symbolize_keys
         end

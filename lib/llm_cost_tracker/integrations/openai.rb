@@ -165,7 +165,23 @@ module LlmCostTracker
           }
         end
 
-        def record_speech(_response, request:, latency_ms:, host: nil)
+        def record_speech(response, request:, latency_ms:, host: nil)
+          if request[:stream_format].to_s == "sse" && response.respond_to?(:string)
+            return unless active?
+
+            collector = LlmCostTracker::Capture::StreamCollector.new(
+              provider: provider_for_host(host),
+              model: request[:model],
+              latency_ms: latency_ms,
+              pricing_mode: host_pricing_mode(host, request),
+              request: request
+            )
+            LlmCostTracker::Capture::SSE.parse(response.string).each { |event| collector.event(event[:data]) }
+            return collector.finish!
+          end
+
+          line_items = LlmCostTracker::Providers::Openai::ServiceCharges.speech_line_items(request)
+          source = LlmCostTracker::Usage::Source
           record_passthrough(
             model: request[:model],
             response: nil,
@@ -173,7 +189,8 @@ module LlmCostTracker
             provider: provider_for_host(host),
             input_tokens: 0,
             output_tokens: 0,
-            service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.speech_line_items(request)
+            service_line_items: line_items,
+            usage_source: line_items.empty? ? source::UNKNOWN : source::SDK_RESPONSE
           )
         end
 

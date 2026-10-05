@@ -56,7 +56,7 @@ module LlmCostTracker
           "gpt-3.5-turbo-instruct" => "gpt-3.5-turbo-instruct", "davinci-002" => "davinci-002",
           "babbage-002" => "babbage-002", "omni-moderation-latest" => "omni-moderation-latest",
           "text-embedding-3-small" => nil, "text-embedding-3-large" => nil, "text-embedding-ada-002" => nil,
-          "gpt-4o-mini-tts" => nil, "tts-1" => nil, "tts-1-hd" => nil,
+          "gpt-4o-mini-tts" => "gpt-4o-mini-tts", "tts-1" => nil, "tts-1-hd" => nil,
           "gpt-4o-transcribe" => "gpt-4o-transcribe", "gpt-4o-mini-transcribe" => "gpt-4o-mini-transcribe",
           "gpt-4o-transcribe-diarize" => "gpt-4o-transcribe-diarize"
         }.freeze
