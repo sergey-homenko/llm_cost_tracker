@@ -218,7 +218,10 @@ module LlmCostTracker
           output_tiers = parse_prompt_tier_prices(rows[output_key])
           return unless input_tiers && output_tiers
 
-          prices["_context_price_threshold_tokens"] = 200_000
+          thresholds = rows.values_at(input_key, output_key).map { |text| prompt_threshold(text) }.uniq
+          raise Error, "Gemini input and output prompt tiers split at different sizes" if thresholds.size > 1
+
+          prices["_context_price_threshold_tokens"] = thresholds.first
           prices["above_context_#{input}"] = input_tiers.fetch(1)
           prices["above_context_#{input.sub('input', 'image_input')}"] = input_tiers.fetch(1)
           prices["above_context_#{audio_price_key(input)}"] = input_tiers.fetch(1)
@@ -233,7 +236,12 @@ module LlmCostTracker
           audio = parse_modality_price(rows[context_cache_key], "audio")
           prices[cache_read_input.sub("cache_read", "audio_cache_read")] = audio if audio
           context_cache_tiers = parse_prompt_tier_prices(rows[context_cache_key])
-          prices["above_context_#{cache_read_input}"] = context_cache_tiers.fetch(1) if context_cache_tiers
+          return unless context_cache_tiers
+          unless prompt_threshold(rows[context_cache_key]) == prices["_context_price_threshold_tokens"]
+            raise Error, "Gemini context caching prompt tier splits at a different size"
+          end
+
+          prices["above_context_#{cache_read_input}"] = context_cache_tiers.fetch(1)
         end
 
         def parse_table(table)
@@ -290,6 +298,13 @@ module LlmCostTracker
 
           prices = text.to_s.scan(/\$\s*(\d+(?:\.\d+)?)/).flatten.map { |price| Float(price) }
           prices.size >= 2 ? prices.first(2) : nil
+        end
+
+        def prompt_threshold(text)
+          size = text[/prompts?\s*>\s*(\d+)k\b/i, 1]
+          raise Error, "Gemini prompt tier size not found in #{text.inspect}" unless size
+
+          Integer(size) * 1_000
         end
       end
     end
