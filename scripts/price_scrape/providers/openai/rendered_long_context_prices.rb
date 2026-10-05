@@ -11,7 +11,7 @@ module LlmCostTracker
       class Openai < Base
         class RenderedLongContextPrices
           SOURCE_URL = "https://developers.openai.com/api/docs/pricing.md"
-          THRESHOLD = /Long context: >(\d+)K input tokens/
+          THRESHOLD = /Long context: >(\d+)K input tokens|\(<(\d+)K context length\)/
 
           def initialize(markdown, tier:, fields:, model_ids:)
             @markdown = markdown
@@ -55,10 +55,10 @@ module LlmCostTracker
           end
 
           def threshold
-            tokens = @markdown[THRESHOLD, 1]
-            raise Error, "OpenAI long-context threshold not found in its pricing page" unless tokens
+            sizes = @markdown.scan(THRESHOLD).flatten.compact.uniq
+            raise Error, "OpenAI long-context threshold is not one size on its pricing page: #{sizes}" unless sizes.one?
 
-            Integer(tokens) * 1_000
+            Integer(sizes.first) * 1_000
           end
 
           def parse_optional_price(value)

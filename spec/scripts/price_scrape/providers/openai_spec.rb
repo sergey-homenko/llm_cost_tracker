@@ -325,15 +325,28 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       )
     end
 
-    it "reads the long-context threshold from the pricing page and fails when it is gone" do
+    it "reads the long-context threshold from the one size the pricing page's footnote and row names state" do
       url = described_class::RenderedLongContextPrices::SOURCE_URL
-      moved = markdown.sub("Long context: >272K input tokens", "Long context: >256K input tokens")
-      result = described_class.new.call(html: html_pages(url => moved), scraped_at: "2026-10-05T00:00:00Z")
+      result = described_class.new.call(html: html_pages(url => markdown.gsub("272K", "256K")),
+                                        scraped_at: "2026-10-05T00:00:00Z")
 
       expect(result.models.fetch("gpt-5.5")).to include("_context_price_threshold_tokens" => 256_000)
-      expect do
-        described_class.new.call(html: html_pages(url => markdown.sub("Long context: >272K input tokens", "")))
-      end.to raise_error(described_class::Error, /long-context threshold not found/)
+    end
+
+    it "raises when the pricing page states no long-context size or more than one" do
+      url = described_class::RenderedLongContextPrices::SOURCE_URL
+      footnote = "Short context: ≤272K input tokens. Long context: >272K input tokens."
+      pages = [
+        markdown.sub("gpt-5.4 (<272K context length)", "gpt-5.4 (<400K context length)"),
+        markdown.sub(footnote, "Short context: ≤128K input tokens. Long context: >128K input tokens. #{footnote}"),
+        markdown.sub("Long context: >272K input tokens", "Long context: >256K input tokens"),
+        markdown.sub(footnote, "").gsub(" (<272K context length)", "")
+      ]
+
+      pages.each do |page|
+        expect { described_class.new.call(html: html_pages(url => page)) }
+          .to raise_error(described_class::Error, /long-context threshold is not one size/)
+      end
     end
 
     it "prices duration-billed audio models from the per-minute column" do
