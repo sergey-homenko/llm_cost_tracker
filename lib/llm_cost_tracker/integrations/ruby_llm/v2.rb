@@ -28,7 +28,7 @@ module LlmCostTracker
           parse_speech_response: %w[Protocols::Gemini],
           stream_transcription: %w[Protocols::ChatCompletions],
           transcribe: %w[Protocol Protocols::Deepgram Protocols::Gemini::LiveTranscription],
-          parse_image_responses: %w[Protocols::ChatCompletions Protocols::Gemini],
+          parse_image_responses: %w[Protocols::ChatCompletions Protocols::Gemini Providers::XAI::Images],
           parse_cache_response: %w[Protocols::Gemini],
           messages: %w[Batch],
           results: %w[Batch]

@@ -1119,6 +1119,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       expect(RubyLLM::Batch.ancestors.count(described_class::BatchBridge)).to eq(1)
       expect(RubyLLM::Providers::VertexAI::EmbedContent.instance_method(:parse_embedding_response).owner)
         .to eq(described_class::ParseEmbeddingResponseBridge)
+      expect(RubyLLM::Providers::XAI::Responses.instance_method(:parse_image_responses).owner)
+        .to eq(described_class::ParseImageResponsesBridge)
     end
 
     it "skips a RubyLLM seam that is missing and names it in doctor" do

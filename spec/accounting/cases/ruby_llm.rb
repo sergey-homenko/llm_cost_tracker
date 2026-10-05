@@ -566,6 +566,13 @@ module AccountingCases
     ruby_llm_chat("grok-4.7", :xai).ask("hi") { nil }
   end
 
+  define_case "ruby_llm xai paint: grok-imagine-image billed cost_in_usd_ticks", instrument: :ruby_llm do
+    stub_json(:post, "#{XAI_API}/images/generations",
+              { data: [{ url: "https://imgen.x.ai/xai-imgen/xai-tmp-imgen-b9.jpeg", mime_type: "image/jpeg" }],
+                usage: { cost_in_usd_ticks: 200_000_000 } })
+    RubyLLM.paint("a siamese cat", model: "grok-imagine-image", provider: :xai, assume_model_exists: true)
+  end
+
   define_case "ruby_llm perplexity chat: sonar billed total_cost", instrument: :ruby_llm do
     cost = { input_tokens_cost: 0.002, output_tokens_cost: 0.001, request_cost: 0.005, total_cost: 0.008 }
     stub_json(:post, PERPLEXITY_CHAT,
