@@ -67,7 +67,7 @@ module LlmCostTracker
 
           response = safe_json_parse(response_body)
           host = parsed_uri(request_url)&.host
-          if parsed_uri(request_url)&.path.to_s.include?("/responses/resp_")
+          if parsed_uri(request_url)&.path.to_s.match?(%r{/(?:responses|agent)/resp_})
             return ResponseParser.retrieved_event(
               response: response,
               provider: provider_for(request_url),

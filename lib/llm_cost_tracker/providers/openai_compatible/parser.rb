@@ -9,6 +9,7 @@ module LlmCostTracker
         TRACKED_PATH_SUFFIXES = %w[
           /chat/completions /completions /embeddings /responses /images/generations /v1/sonar /v1/agent
         ].freeze
+        RETRIEVE_PATH = %r{/(?:responses|agent)/resp_[^/]+\z}
         STREAM_USAGE_HOSTS = %w[
           openrouter.ai api.deepseek.com api.groq.com api.x.ai us.api.x.ai
           api.mistral.ai api.eu.mistral.ai api.us.mistral.ai
@@ -17,7 +18,9 @@ module LlmCostTracker
         class << self
           def match?(url)
             uri_matches?(url) do |uri|
-              TRACKED_PATH_SUFFIXES.any? { |suffix| uri.path.to_s.end_with?(suffix) } && !provider_for_uri(uri).nil?
+              path = uri.path.to_s
+              (TRACKED_PATH_SUFFIXES.any? { |suffix| path.end_with?(suffix) } || path.match?(RETRIEVE_PATH)) &&
+                !provider_for_uri(uri).nil?
             end
           end
 

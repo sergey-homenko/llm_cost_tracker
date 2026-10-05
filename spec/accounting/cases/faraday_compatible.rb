@@ -277,16 +277,27 @@ module AccountingCases
   end
 
   define_case "faraday perplexity agent: gpt-5.6-terra web search billed total_cost on /v1/agent" do
-    usage = { input_tokens: 500, output_tokens: 200, total_tokens: 700,
-              input_tokens_details: { cache_creation_input_tokens: 0, cache_read_input_tokens: 0, cached_tokens: 0 },
-              output_tokens_details: { reasoning_tokens: 0 }, tool_calls_details: { search_web: { invocation: 1 } },
-              cost: { currency: "USD", input_cost: 0.001, output_cost: 0.0024, total_cost: 0.0059,
-                      cache_creation_cost: nil, cache_read_cost: 0, tool_calls_cost: 0.0025 } }
+    usage = perplexity_agent_usage(500, 200, input_cost: 0.001, output_cost: 0.0024, tool_calls_cost: 0.0025,
+                                             total_cost: 0.0059)
     search = { type: "search_results", queries: ["hi"],
                results: [{ id: 1, title: "x", url: "https://x", snippet: "x", source: "web" }] }
     faraday_json("#{PERPLEXITY_API}/v1/agent",
                  { model: "openai/gpt-5.6-terra", input: "hi", tools: [{ type: "web_search" }] },
                  responses_object(id: "resp_pplx_b5", model: "openai/gpt-5.6-terra", usage: usage,
                                   output: [search, output_message("pplx_b5")]))
+  end
+
+  define_case "faraday perplexity agent background: one row at the billed total_cost across polls" do
+    run = { id: "resp_pplx_bg", object: "response", created_at: 1_758_000_000, model: "openai/gpt-5.6-terra",
+            background: true, output: [] }
+    usage = perplexity_agent_usage(500, 200, input_cost: 0.001, output_cost: 0.0024, tool_calls_cost: 0.0025,
+                                             total_cost: 0.0059)
+    done = run.merge(status: "completed", output: [output_message("pplx_bg")], usage: usage)
+    faraday_json("#{PERPLEXITY_API}/v1/agent", { model: "openai/gpt-5.6-terra", input: "hi", background: true },
+                 run.merge(status: "queued"))
+    stub_json_sequence(:get, "#{PERPLEXITY_API}/v1/agent/resp_pplx_bg", run.merge(status: "in_progress"), done)
+    stub_json(:get, "#{PERPLEXITY_API}/v1/responses/resp_pplx_bg", done)
+    3.times { faraday_request(:get, "#{PERPLEXITY_API}/v1/agent/resp_pplx_bg") }
+    faraday_request(:get, "#{PERPLEXITY_API}/v1/responses/resp_pplx_bg")
   end
 end

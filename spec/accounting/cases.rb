@@ -218,6 +218,12 @@ module AccountingCases
       num_sources_used: 0, num_server_side_tools_used: 0 }
   end
 
+  def perplexity_agent_usage(input, output, cached: 0, **cost)
+    { input_tokens: input, output_tokens: output, total_tokens: input + output,
+      input_tokens_details: { cache_creation_input_tokens: 0, cache_read_input_tokens: cached, cached_tokens: cached },
+      output_tokens_details: { reasoning_tokens: 0 }, cost: { currency: "USD" }.merge(cost) }
+  end
+
   def perplexity_usage(prompt, completion, cost)
     { prompt_tokens: prompt, completion_tokens: completion, total_tokens: prompt + completion,
       search_context_size: "low", citation_tokens: nil, num_search_queries: nil, reasoning_tokens: nil,
