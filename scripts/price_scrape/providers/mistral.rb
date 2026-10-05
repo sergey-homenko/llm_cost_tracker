@@ -33,7 +33,7 @@ module LlmCostTracker
         MODEL_CARD = %r{\Ahttps://docs\.mistral\.ai/models/(?:model-cards/)?(?<card>[a-z0-9-]+)\z}
         TOKEN_PRICE = /\A\$(?<amount>\d+(?:\.\d+)?)\z/
         PAGE_PRICE = %r{\A\$(?<amount>\d+(?:\.\d+)?) /1000 Pages\z}
-        RETIRED_ROWS = "//h3[normalize-space()='Deprecated & retired models']/following::tbody[1]/tr"
+        RETIRED_TABLE = "//h3[normalize-space()='Deprecated & retired models']/following::"
         CARD_NAMES = /\\"names\\":\[([^\]]*)\]/
         DATE = %r{\d{1,2}/\d{1,2}/\d{4}}
 
@@ -51,7 +51,7 @@ module LlmCostTracker
           models = official_models(self.class.parse_json(html.fetch(SOURCE_URL)))
           rows = self.class.confirmed_rows("mistral", html, models, scraped_at)
           models = with_tiers(models.merge(rows.except(*retired, *ambiguous)), html)
-          validate!(models)
+          validate!(models.except(*retired))
           notes = (rows.keys & ambiguous).map do |id|
             "- `mistral/#{id}`: named on both a retired and a current Mistral model card; not written"
           end
@@ -72,19 +72,30 @@ module LlmCostTracker
         end
 
         def retirement(page, names, today)
-          rows = Nokogiri::HTML(page).xpath(RETIRED_ROWS)
-          raise Error, "Mistral retired models table not found" if rows.empty?
-
-          retired = rows.filter_map do |row|
-            cells = row.css("td")
-            retires = cells[3]&.text.to_s.scan(DATE)[1]
-            next unless retires && Date.strptime(retires, "%m/%d/%Y") <= today
-
-            [row.at_css("a")["href"].split("/").last, cells[2].text.strip]
-          end
+          retired = retired_cards(page, today)
           ids = retired.flat_map { |card, api| [api, *names.fetch(card)] }.reject(&:empty?).uniq
           live = names.except(*retired.map(&:first)).values.flatten
           [ids - live, ids & live]
+        end
+
+        def retired_cards(page, today)
+          doc = Nokogiri::HTML(page)
+          headers = doc.xpath("#{RETIRED_TABLE}thead[1]/tr/th").map { |header| header.text.strip }
+          api = headers.index("API")
+          dates = headers.index("DeprecationRetirement")
+          rows = doc.xpath("#{RETIRED_TABLE}tbody[1]/tr")
+          unless headers.first == "Model" && api && dates && rows.any?
+            raise Error, "Mistral retired models table not found or changed"
+          end
+
+          rows.filter_map do |row|
+            cells = row.css("td")
+            card = cells.first&.at_css("a[href^='/models/']") or raise Error, "Mistral retired row without a model card"
+            retires = cells[dates]&.text.to_s.scan(DATE)[1]
+            next unless retires && Date.strptime(retires, "%m/%d/%Y") <= today
+
+            [card["href"].split("/").last, cells[api].text.strip]
+          end
         end
 
         def card_names(page, url)

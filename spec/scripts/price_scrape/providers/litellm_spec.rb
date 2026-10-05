@@ -125,6 +125,22 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       .to eq(["- `mistral/mistral-embed`: named on both a retired and a current Mistral model card; not written"])
   end
 
+  it "raises rather than read retirement dates from a reordered column or a row's alternative model" do
+    models_page = fixture("mistral_models.html")
+    swapped = models_page.sub("Deprecation<svg></svg>Retirement", "Retirement<svg></svg>Deprecation")
+    unlinked = models_page.sub(%r{<a href="/models/devstral-2-25-12">(.*?)</a>}, "\\1")
+    scrape = ->(page) { mistral_class.new.call(html: mistral_pages.merge(mistral_class::MODELS_SOURCE_URL => page)) }
+
+    expect { scrape.call(swapped) }.to raise_error(described_class::Error, /retired models table not found or changed/)
+    expect { scrape.call(unlinked) }.to raise_error(described_class::Error, /retired row without a model card/)
+  end
+
+  it "raises rather than drop an anchor model that a retired card names" do
+    card_names["devstral-2-25-12"] += ["mistral-large-latest"]
+
+    expect { mistral }.to raise_error(described_class::Error, /anchor models missing from scrape: mistral-large-latest/)
+  end
+
   it "raises when Mistral's retired models table or a model card's API names go missing" do
     card_url = "#{mistral_class::MODELS_SOURCE_URL}/devstral-2-25-12"
 
