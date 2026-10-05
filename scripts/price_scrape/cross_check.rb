@@ -139,13 +139,14 @@ module LlmCostTracker
 
       def confirm(models_dev)
         GATED.each do |provider|
-          official = models_of(@ours, provider).reject { |key| @ours[key]["_source"] || @absent.key?(key) }
+          listed = models_of(@ours, provider).reject { |key| @absent.key?(key) }
+          official = listed.reject { |key| @ours[key]["_source"] }
           written = official.to_h { |key| [key.delete_prefix("#{provider}/"), @ours[key]] }
           gate = Providers::Litellm.gate(provider, @conversion, models_dev, written, @today)
           gate.held.each do |model, (ours, theirs)|
             add(:held, "#{provider}/#{model}", nil, "LiteLLM #{ours.join('/')}, models.dev #{theirs.join('/')}")
           end
-          gate.unconfirmed.each { |model| add(:unconfirmed, "#{provider}/#{model}") }
+          (gate.unconfirmed.map { |model| "#{provider}/#{model}" } - listed).each { |model| add(:unconfirmed, model) }
         end
       end
 

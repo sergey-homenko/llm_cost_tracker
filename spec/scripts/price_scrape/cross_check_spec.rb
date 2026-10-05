@@ -71,6 +71,15 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
                                        "mistral/mistral-ocr-latest")
   end
 
+  it "lists no row the runner wrote among the unwritten ones" do
+    written = registry.merge("models" => registry["models"].merge(
+      "mistral/mistral-embed-2312" => { "input" => 0.1, "_source" => "litellm" }
+    ))
+    check = described_class.new(registry: written, catalogue: catalogue, models_dev: models_dev)
+
+    expect(check.findings[/^- mistral: (.*)$/, 1].split(", ")).not_to include("mistral/mistral-embed-2312")
+  end
+
   it "lists the Cohere rows only LiteLLM prices that models.dev does not confirm" do
     expect(check.findings).to include("- cohere: cohere/rerank-v3.5\n")
   end
