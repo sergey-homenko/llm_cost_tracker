@@ -18,6 +18,7 @@ module LlmCostTracker
               shared = faraday_response(response, result.try(:raw))
               own = faraday_response(raw) || (shared if final)
               raw = own || shared || base
+              usage = billed_units(usage, own, events)
               converse_event(usage, payload, own, events) || stream_event(usage, events, raw) ||
                 parsed_event(usage, own) || normalized_event(usage, payload, (result if final), raw)
             end
@@ -105,6 +106,15 @@ module LlmCostTracker
 
               event.with(line_items: [*event.line_items,
                                       Charges::LineItem.build(dimension_key: "video_input", quantity: video)])
+            end
+
+            def billed_units(usage, raw, events)
+              units = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash).filter_map do |data|
+                (data["type"] == "message-end" ? data.dig("delta", "usage") : data["usage"]).try(:[], "billed_units")
+              end.last
+              return usage unless units
+
+              usage.merge(tokens: RubyLLM::Tokens.new(input: units["input_tokens"], output: units["output_tokens"]))
             end
 
             def converse_event(usage, payload, raw, events)
