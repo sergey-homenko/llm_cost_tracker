@@ -104,8 +104,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     end
 
     it "skips fine-tunes and modes the registry does not price" do
-      expect(models.keys).not_to include("openai/ft:gpt-4o-mini-2024-07-18", "mistral/mistral-ocr-latest",
-                                         "xai/grok-imagine-image")
+      expect(models.keys).not_to include("openai/ft:gpt-4o-mini-2024-07-18", "xai/grok-imagine-image",
+                                         "mistral/mistral-moderation-2603")
+    end
+
+    it "converts OCR pages and rerank search units per 1,000, and reports OCR annotation and batch pages" do
+      expect(models.fetch("mistral/mistral-ocr-latest")).to eq("ocr_page" => 4.0)
+      expect(models.fetch("cohere/rerank-v3.5")).to eq("rerank_search_unit" => 2.0)
+      expect(conversion.unrepresentable.fetch("OCR annotation and batch OCR pages"))
+        .to include("mistral/mistral-ocr-latest", "mistral/mistral-ocr-2512")
+      expect(conversion.unknown.keys).not_to include("annotation_cost_per_page", "ocr_cost_per_page_batches")
     end
 
     it "lists price fields it does not know and prices it cannot represent" do

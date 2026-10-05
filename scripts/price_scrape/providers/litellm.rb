@@ -17,7 +17,7 @@ module LlmCostTracker
           "mistral" => "mistral", "groq" => "groq", "openrouter" => "openrouter", "deepseek" => "deepseek",
           "perplexity" => "perplexity", "cohere" => "cohere", "cohere_chat" => "cohere"
         }.freeze
-        MODES = %w[chat responses embedding audio_transcription audio_speech realtime].freeze
+        MODES = %w[chat responses embedding audio_transcription audio_speech realtime ocr rerank].freeze
         INCLUSIVE_THRESHOLD_PROVIDERS = %w[xai].freeze
         TOKEN_FIELDS = {
           "input_cost_per_token" => "input",
@@ -40,10 +40,13 @@ module LlmCostTracker
           "search_context_cost_per_query" => ["web_search_request", 1000, nil],
           "google_maps_grounding_cost_per_query" => ["maps_grounding_request", 1000, nil],
           "input_cost_per_second" => ["transcription_minute", 60, "audio_transcription"],
-          "input_cost_per_character" => ["text_to_speech_character", 1_000_000, "audio_speech"]
+          "input_cost_per_character" => ["text_to_speech_character", 1_000_000, "audio_speech"],
+          "ocr_cost_per_page" => ["ocr_page", 1000, "ocr"],
+          "input_cost_per_query" => ["rerank_search_unit", 1000, "rerank"]
         }.freeze
         UPLIFT_FIELDS = %w[regional_processing_uplift_multiplier_us regional_processing_uplift_multiplier_eu].freeze
-        STRUCTURE_FIELDS = %w[tiered_pricing off_peak_pricing output_cost_per_reasoning_token].freeze
+        PAGE_FIELDS = %w[annotation_cost_per_page annotation_cost_per_page_batches ocr_cost_per_page_batches].freeze
+        STRUCTURE_FIELDS = (%w[tiered_pricing off_peak_pricing output_cost_per_reasoning_token] + PAGE_FIELDS).freeze
         PRICE_FIELD = /cost|pricing|multiplier/
         FIELD = /
           \A(?<field>#{TOKEN_FIELDS.keys.join('|')})
@@ -123,6 +126,7 @@ module LlmCostTracker
             output = entry["output_cost_per_token"]
             reasoning = entry.fetch("output_cost_per_reasoning_token", output)
             yield "reasoning tokens priced apart from output" if reasoning != output
+            yield "OCR annotation and batch OCR pages" if entry.keys.intersect?(PAGE_FIELDS)
             provider == "openai" ? with_fast_aliases(fields) : fields
           end
 
@@ -163,7 +167,7 @@ module LlmCostTracker
             dimension, scale, mode = UNIT_FIELDS[name]
             value = value["search_context_size_medium"] if value.is_a?(Hash)
             return unless dimension && value.is_a?(Numeric) && value.positive?
-            return unless mode.nil? || (mode == entry["mode"] && !entry.key?("input_cost_per_token"))
+            return unless mode.nil? || (mode == entry["mode"] && !entry["input_cost_per_token"].to_f.positive?)
 
             dimension = "grounding_request" if dimension == "web_search_request" && provider == "gemini"
             [dimension, (value * scale).round(6)]
