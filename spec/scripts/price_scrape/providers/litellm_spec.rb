@@ -78,14 +78,22 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
 
     expect(models.slice("mistral-ocr-4-1", "mistral-ocr-4", "mistral-ocr-latest").values)
       .to eq([{ "ocr_page" => 4.0 }] * 3)
-    expect(models.keys).not_to include("mistral-ocr-2512", "mistral-ocr-4-0", "voxtral-mini-latest")
+    expect(models.keys).not_to include("mistral-ocr-2512", "mistral-ocr-4-0")
     expect(mistral.keys).to include("mistral-ocr-4-1")
     expect(mistral.keys).not_to include("mistral-ocr-latest")
   end
 
-  it "keeps only priced token, embedding and OCR models of its own provider" do
-    expect(mistral.keys).not_to include("labs-leanstral-1-5", "mistral-moderation-2603", "voxtral-mini-2602",
-                                        "deepseek-flash", "gpt-4o")
+  it "keeps only the models of its own provider its pricing page prices, free ones included" do
+    expect(mistral.keys).to include("labs-leanstral-1-5", "mistral-moderation-2603", "voxtral-mini-2602")
+    expect(mistral.keys).not_to include("voxtral-mini-transcribe-realtime-2602", "deepseek-flash", "gpt-4o")
+  end
+
+  it "prices Mistral transcription per minute, speech per 1M output characters, and a free model at $0" do
+    expect(mistral.values_at("voxtral-mini-2602", "voxtral-mini-latest")).to all(eq("transcription_minute" => 0.003))
+    expect(mistral.values_at("voxtral-mini-tts-2603", "voxtral-mini-tts-latest"))
+      .to all(eq("text_to_speech_character" => 16.0))
+    expect(mistral.fetch("mistral-moderation-2603")).to include("input" => 0.0, "cache_read_input" => 0.0, "output" => 0.0)
+    expect(mistral.fetch("mistral-moderation-2603").values).to all(eq(0.0))
   end
 
   it "adds the Mistral models only LiteLLM prices when models.dev lists the same price, at Mistral's tier rates" do

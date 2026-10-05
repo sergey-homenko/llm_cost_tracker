@@ -28,11 +28,16 @@ module LlmCostTracker
                        *TIER_SOURCES.values.map(&:first)].freeze
         PRICE_COLUMNS = { "Input" => "input", "Cached input" => "cache_read_input", "Output" => "output" }.freeze
         REQUIRED = {
-          "chat" => %w[input output], "responses" => %w[input output], "embedding" => %w[input], "ocr" => %w[ocr_page]
+          "chat" => %w[input output], "responses" => %w[input output], "embedding" => %w[input], "ocr" => %w[ocr_page],
+          "audio_transcription" => %w[transcription_minute], "audio_speech" => %w[text_to_speech_character],
+          "moderation" => %w[input]
         }.freeze
         MODEL_CARD = %r{\Ahttps://docs\.mistral\.ai/models/(?:model-cards/)?(?<card>[a-z0-9-]+)\z}
-        TOKEN_PRICE = /\A\$(?<amount>\d+(?:\.\d+)?)\z/
-        PAGE_PRICE = %r{\A\$(?<amount>\d+(?:\.\d+)?) /1000 Pages\z}
+        PRICE = %r{\A(?:\$(?<amount>\d+(?:\.\d+)?)(?: (?<unit>/1000 Pages|/Min|/M Chars))?|(?<free>Free))\z}
+        UNIT_COLUMNS = {
+          "/1000 Pages" => %w[input ocr_page], "/Min" => %w[input transcription_minute],
+          "/M Chars" => %w[output text_to_speech_character]
+        }.freeze
         RETIRED_TABLE = "//h3[normalize-space()='Deprecated & retired models']/following::"
         CARD_NAMES = /\\"names\\":\[([^\]]*)\]/
         DATE = %r{\d{1,2}/\d{1,2}/\d{4}}
@@ -135,10 +140,9 @@ module LlmCostTracker
             table.css("tr").each do |row|
               link = row.at_css("a[href^='/models/']")
               prices = fields.zip(row.css("td")).filter_map do |field, cell|
-                text = cell&.text.to_s.strip
-                if field && (amount = TOKEN_PRICE.match(text)) then [field, Float(amount[:amount])]
-                elsif field == "input" && (amount = PAGE_PRICE.match(text)) then ["ocr_page", Float(amount[:amount])]
-                end
+                price = PRICE.match(cell&.text.to_s.strip)
+                column, dimension = UNIT_COLUMNS.fetch(price[:unit], [field, field]) if price
+                [dimension, price[:free] ? 0.0 : Float(price[:amount])] if field && column == field
               end.to_h
               listed[link["href"].delete_prefix("/models/")] = prices if link
             end
