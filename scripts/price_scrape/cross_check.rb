@@ -61,6 +61,7 @@ module LlmCostTracker
 
       def initialize(registry:, catalogue:, models_dev: {}, acknowledged: {}, notes: [], today: Date.today)
         @ours = registry.fetch("models", {})
+        @absent = registry.dig("metadata", "absent_since") || {}
         @notes = notes
         @charges = registry.fetch("service_charges", {})
         @conversion = Providers::Litellm.convert(catalogue)
@@ -137,7 +138,8 @@ module LlmCostTracker
 
       def confirm(models_dev)
         GATED.each do |provider|
-          written = models_of(@ours, provider).to_h { |key| [key.delete_prefix("#{provider}/"), @ours[key]] }
+          official = models_of(@ours, provider).reject { |key| @ours[key]["_source"] || @absent.key?(key) }
+          written = official.to_h { |key| [key.delete_prefix("#{provider}/"), @ours[key]] }
           gate = Providers::Litellm.gate(provider, @conversion, models_dev, written, @today)
           gate.held.each do |model, (ours, theirs)|
             add(:held, "#{provider}/#{model}", nil, "LiteLLM #{ours.join('/')}, models.dev #{theirs.join('/')}")

@@ -73,6 +73,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
     expect(check.findings).not_to include("groq/qwen/qwen3.8-27b", "groq/llama-guard-3-8b")
   end
 
+  it "gates the LiteLLM rows and absent keys the registry holds again, as the runner does" do
+    prices = { "input" => 0.1, "_source" => "litellm" }
+    rows = { "mistral/mistral-embed" => prices, "mistral/mistral-tiny" => prices.except("_source") }
+    gated = registry.merge("metadata" => { "absent_since" => { "mistral/mistral-tiny" => "2026-10-01" } },
+                           "models" => registry["models"].merge(rows))
+    models_dev["mistral"]["models"]["mistral-embed"]["cost"]["input"] = 0.12
+    check = described_class.new(registry: gated, catalogue: catalogue, models_dev: models_dev)
+
+    expect(check.findings).to include("- LiteLLM 0.1/0.0, models.dev 0.12/0.0: mistral/mistral-embed\n")
+    expect(check.findings[/^- mistral: (.*)$/, 1].split(", ")).to include("mistral/mistral-tiny")
+  end
+
   it "lists tiers and data residency LiteLLM prices on models the registry covers without them" do
     ultrafast = converted.fetch("openai/gpt-6-astra").keys.grep(/ultrafast/).sort.map { |field| "`#{field}`" }
 
