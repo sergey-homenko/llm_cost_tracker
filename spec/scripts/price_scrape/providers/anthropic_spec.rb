@@ -89,6 +89,23 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
         .to include("claude-sonnet-5" => hash_including("input" => 2.0, "output" => 10.0))
     end
 
+    it "names a Claude model of any family from its display name" do
+      renamed = html.gsub(">Claude Mythos 5.1</a>", ">Claude Lyra 6</a>")
+      models = described_class.new.call(html: renamed, scraped_at: "2026-10-05T00:00:00Z").models
+
+      expect(models.fetch("claude-lyra-6")).to include(
+        "input" => 10.0, "cache_read_input" => 0.25, "output" => 50.0, "batch_input" => 5.0, "data_residency_input" => 11.0
+      )
+      expect(models).not_to include("claude-mythos-5-1")
+    end
+
+    it "raises on a priced row whose name is not a Claude model name" do
+      renamed = html.sub(">Claude Sonnet 5</a>", ">Claude 5 Sonnet</a>")
+
+      expect { described_class.new.call(html: renamed, scraped_at: "2026-10-05T00:00:00Z") }
+        .to raise_error(described_class::Error, /no model ID for Anthropic price row "Claude 5 Sonnet"/)
+    end
+
     it "scrapes fast mode pricing per model and stacks the data residency multiplier" do
       six_x_row = "<tr><td>Claude Opus 4.7</td><td>$30 / MTok</td><td>$150 / MTok</td></tr>"
       with_six_x = html.sub(%r{<tr>\s*<td[^>]*>Claude Opus 5 / Claude Opus 4\.8<}, "#{six_x_row}\\0")
