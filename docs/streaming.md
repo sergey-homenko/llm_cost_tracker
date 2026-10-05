@@ -22,7 +22,7 @@ The gem auto-injects this flag for you when:
 
 Other entries inside `stream_options` are merged, not replaced. Bodies that aren't JSON, requests for the Responses API, and non-streaming requests are left untouched.
 
-xAI, which reports usage in every stream chunk, and hosts you add to `config.capture.openai_compatible_providers` are left untouched; set the flag in your own request if they accept it.
+xAI, which reports usage in every stream chunk, Perplexity, whose Sonar streams do too, and hosts you add to `config.capture.openai_compatible_providers` are left untouched; set the flag in your own request if they accept it, as Perplexity's Router does.
 
 Set `config.capture.request_stream_usage = false` if you want to manage the flag yourself. When the final usage chunk is missing, the gem still records the call with `usage_source: "unknown"` and emits a warning rather than failing silently:
 
