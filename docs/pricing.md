@@ -6,7 +6,7 @@ Pricing covers registry shape, refresh tasks, precedence, provider-qualified key
 
 ## Registry Rules
 
-- Built-in prices live in `lib/llm_cost_tracker/prices.json`, read from each provider's own pricing pages or API. Mistral model ids, and Mistral and Groq models those pages do not price, come from LiteLLM's `model_prices_and_context_window.json` (MIT; notice in `LICENSE.txt`); such a model is added only when models.dev lists the same price, and is marked `"_source": "litellm"`. A model its provider stops listing is removed after 90 days.
+- Built-in prices live in `lib/llm_cost_tracker/prices.json`, read from each provider's own pricing pages or API. Mistral model ids, and Mistral and Groq models those pages do not price, come from LiteLLM's `model_prices_and_context_window.json` (MIT; notice in `LICENSE.txt`); such a model is added only when models.dev lists the same price, and is marked `"_source": "litellm"`. A model its provider has retired is removed, and one it stops listing is removed after 90 days.
 - Local snapshots live wherever `config.pricing.file` points.
 - Precedence is `pricing.overrides`, then `pricing.file`, then bundled prices. The first matching entry is used whole; rates are not merged across sources, so an override must list every rate its calls use.
 - Within one source, provider-qualified keys like `openai/gpt-4o-mini` win over model-only keys; a model-only key in an earlier source still beats a provider-qualified key in a later one.
