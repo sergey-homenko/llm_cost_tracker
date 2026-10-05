@@ -63,6 +63,26 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
       expect(LlmCostTracker::Logging).to have_received(:warn).with("OpenAI response resp_bg has no usage; not recorded")
     end
+
+    it "records nothing for a queued or in-progress response, whatever usage it carries" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      capture_sdk_events do |events|
+        { "queued" => 0, "in_progress" => 40 }.each do |status, tokens|
+          WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(
+            status: 200,
+            body: { id: "resp_bg", object: "response", model: "o3-pro", status: status, background: true,
+                    created_at: 1, output: [],
+                    usage: { input_tokens: tokens, output_tokens: tokens, total_tokens: tokens * 2 } }.to_json,
+            headers: { "Content-Type" => "application/json" }
+          )
+          client.responses.create(model: "o3-pro", input: "hi", background: true)
+        end
+
+        expect(events).to be_empty
+      end
+      expect(LlmCostTracker::Logging).not_to have_received(:warn)
+    end
   end
 
   describe "responses.retrieve" do

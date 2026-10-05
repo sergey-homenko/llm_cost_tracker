@@ -101,6 +101,18 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
                     response_body: { error: "rate limited" }.to_json,
                     missing_usage_body: { model: "openai/gpt-4o-mini" }.to_json
 
+    it "records nothing for a queued or in-progress Perplexity Agent API run, whatever usage it carries" do
+      usage = { input_tokens: 0, output_tokens: 0, total_tokens: 0, cost: { currency: "USD", total_cost: 0 } }
+      results = %w[queued in_progress completed].map do |status|
+        parser.parse(request_url: "https://api.perplexity.ai/v1/agent", request_body: { background: true }.to_json,
+                     response_status: 200,
+                     response_body: { id: "resp_1", object: "response", model: "openai/gpt-5.6-terra", status: status,
+                                      background: true, output: [], usage: usage }.to_json)
+      end
+
+      expect(results.map { |result| result&.provider_response_id }).to eq([nil, nil, "resp_1"])
+    end
+
     it "extracts OpenRouter usage and provider name" do
       result = parser.parse(
         request_url: openrouter_chat_url,

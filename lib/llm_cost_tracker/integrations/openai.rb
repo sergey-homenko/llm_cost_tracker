@@ -94,7 +94,7 @@ module LlmCostTracker
               host: host,
               usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE
             )
-            LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms)
+            LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms) if event
           end
         end
 

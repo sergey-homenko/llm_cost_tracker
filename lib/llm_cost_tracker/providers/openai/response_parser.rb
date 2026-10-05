@@ -11,6 +11,8 @@ module LlmCostTracker
   module Providers
     module Openai
       module ResponseParser
+        PENDING_STATUSES = %w[queued in_progress].freeze
+
         class << self
           def combined_pricing_mode(host:, model:, service_tier:, provider: "openai")
             modes = [Pricing::Mode.normalize(service_tier)]
@@ -23,7 +25,7 @@ module LlmCostTracker
 
           def event_from_response(response:, request:, provider:, host:, usage_source:, pricing_mode: nil)
             usage = response["usage"]&.deep_symbolize_keys
-            return nil unless usage
+            return nil if usage.nil? || PENDING_STATUSES.include?(response["status"].to_s)
 
             model = response["model"] || request["model"]
             service_line_items =
@@ -48,7 +50,7 @@ module LlmCostTracker
           end
 
           def retrieved_event(response:, provider:, host:, usage_source:)
-            finished = !%w[queued in_progress].include?(response["status"].to_s)
+            finished = !PENDING_STATUSES.include?(response["status"].to_s)
             return nil unless finished && response["background"] && response["usage"]
             return nil if Call.already_recorded?(provider: provider, provider_response_id: response["id"])
 
