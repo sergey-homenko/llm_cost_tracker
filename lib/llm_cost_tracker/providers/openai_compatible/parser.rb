@@ -8,7 +8,8 @@ module LlmCostTracker
 
         TRACKED_PATH_SUFFIXES = %w[/chat/completions /completions /embeddings /responses].freeze
         STREAM_USAGE_HOSTS = %w[
-          openrouter.ai api.deepseek.com api.groq.com api.mistral.ai api.eu.mistral.ai api.us.mistral.ai
+          openrouter.ai api.deepseek.com api.groq.com api.x.ai us.api.x.ai
+          api.mistral.ai api.eu.mistral.ai api.us.mistral.ai
         ].freeze
 
         class << self

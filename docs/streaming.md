@@ -18,11 +18,11 @@ The gem auto-injects this flag for you when:
 - the URL path ends with `/chat/completions`
 - the request body is JSON with `stream: true`
 - the caller has not already set `stream_options.include_usage` (any explicit value, including `false`, is preserved)
-- the host is OpenAI, OpenRouter, DeepSeek, Groq, Mistral, or Azure OpenAI on the v1 API or `api-version` 2024-06-01 and later, without On Your Data (`data_sources`) or image input
+- the host is OpenAI, OpenRouter, DeepSeek, Groq, xAI, Mistral, or Azure OpenAI on the v1 API or `api-version` 2024-06-01 and later, without On Your Data (`data_sources`) or image input
 
 Other entries inside `stream_options` are merged, not replaced. Bodies that aren't JSON, requests for the Responses API, and non-streaming requests are left untouched.
 
-xAI, which reports usage in every stream chunk, Perplexity, whose Sonar streams do too, and hosts you add to `config.capture.openai_compatible_providers` are left untouched; set the flag in your own request if they accept it, as Perplexity's Router does.
+Perplexity, whose Sonar streams report usage in every chunk, and hosts you add to `config.capture.openai_compatible_providers` are left untouched; set the flag in your own request if they accept it, as Perplexity's Router does.
 
 Set `config.capture.request_stream_usage = false` if you want to manage the flag yourself. When the final usage chunk is missing, the gem still records the call with `usage_source: "unknown"` and emits a warning rather than failing silently:
 

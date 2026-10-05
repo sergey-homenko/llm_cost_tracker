@@ -237,11 +237,13 @@ module AccountingCases
                  chat_completion(id: "xai_b1", model: "grok-4.7", usage: usage))
   end
 
-  define_case "faraday xai chat stream: grok-4.7 billed cost_in_usd_ticks in the usage chunk" do
+  define_case "faraday xai chat stream: grok-4.7 billed cost_in_usd_ticks with the injected include_usage" do
     usage = xai_chat_usage(2000, 300, reasoning: 700, cached: 1000).merge(cost_in_usd_ticks: 85_000_000)
-    faraday_sse("#{XAI_API}/chat/completions",
-                { model: "grok-4.7", stream: true, stream_options: { include_usage: true }, messages: USER_MESSAGES },
-                chat_stream_body(id: "xai_b2", model: "grok-4.7", usage: usage))
+    WebMock.stub_request(:post, "#{XAI_API}/chat/completions")
+           .with { |request| JSON.parse(request.body).dig("stream_options", "include_usage") }
+           .to_return(status: 200, body: chat_stream_body(id: "xai_b2", model: "grok-4.7", usage: usage),
+                      headers: { "Content-Type" => "text/event-stream" })
+    faraday_post("#{XAI_API}/chat/completions", { model: "grok-4.7", stream: true, messages: USER_MESSAGES })
   end
 
   define_case "faraday perplexity chat: sonar-pro billed total_cost on the unregistered host" do
