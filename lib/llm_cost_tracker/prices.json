@@ -1479,6 +1479,12 @@
       "data_residency_input": 0.11,
       "input": 0.1
     },
+    "mistral/mistral-embed-2312": {
+      "_source": "litellm",
+      "batch_input": 0.05,
+      "data_residency_input": 0.11,
+      "input": 0.1
+    },
     "mistral/mistral-large-2512": {
       "batch_cache_read_input": 0.025,
       "batch_input": 0.25,
