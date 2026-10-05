@@ -93,13 +93,17 @@ module LlmCostTracker
       end
 
       def fetch_provider_responses(name, provider_class)
-        source_urls(provider_class).each_with_object({}) do |url, responses|
-          @io.puts "[#{name}] fetching #{url}"
-          response = @fetcher.get(url)
-          @io.puts "[#{name}] redirected to #{response.url}" if response.url != url
-          @io.puts "[#{name}] HTTP #{response.status} (#{response.body.bytesize} bytes, #{response.elapsed_ms}ms)"
-          responses[url] = response
-        end
+        responses = source_urls(provider_class).to_h { |url| [url, fetch(name, url)] }
+        followups = provider_class.followup_urls(responses.transform_values(&:body))
+        responses.merge(followups.to_h { |url| [url, fetch(name, url)] })
+      end
+
+      def fetch(name, url)
+        @io.puts "[#{name}] fetching #{url}"
+        response = @fetcher.get(url)
+        @io.puts "[#{name}] redirected to #{response.url}" if response.url != url
+        @io.puts "[#{name}] HTTP #{response.status} (#{response.body.bytesize} bytes, #{response.elapsed_ms}ms)"
+        response
       end
 
       def provider_html(responses)

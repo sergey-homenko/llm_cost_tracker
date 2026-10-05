@@ -49,8 +49,6 @@ module LlmCostTracker
           (?:_above_(?<thousands>\d+)k_tokens)?
           (?:_(?<tier>#{TIERS.keys.join('|')}))?\z
         /x
-        STANDARD_FIELD = /\A(?<context>above_context_)?(?<field>input|output|cache_read_input)\z/
-        PROVIDER_FIELD = /\A(?:above_context_)?(?:batch_)?(?:input|output|cache_read_input)\z/
         Conversion = Data.define(:models, :entries, :unknown, :unrepresentable)
 
         class << self
@@ -201,20 +199,6 @@ module LlmCostTracker
 
         private
 
-        def tier_prices(fields, tier, factor)
-          fields.each_with_object({}) do |(field, value), prices|
-            match = STANDARD_FIELD.match(field)
-            prices["#{match[:context]}#{tier}_#{match[:field]}"] = (value * factor).round(6) if match
-          end
-        end
-
-        def documented_factor(page, pattern, name)
-          factor = page.to_s[pattern, 1]
-          raise Error, "#{self.class.litellm_provider} #{name} rate not found in its docs" unless factor
-
-          Float(factor)
-        end
-
         def parse_json(body)
           catalogue = JSON.parse(body.to_s)
           raise Error, "LiteLLM price list is not a JSON object" unless catalogue.is_a?(Hash)
@@ -222,15 +206,6 @@ module LlmCostTracker
           catalogue
         rescue JSON::ParserError => e
           raise Error, "LiteLLM price list is invalid JSON: #{e.message}"
-        end
-
-        def extract_fields(key, entry)
-          fields, thresholds = self.class.entry_fields(entry)
-          fields = fields.select { |field, _| PROVIDER_FIELD.match?(field) }
-          boundaries = thresholds.slice(*fields.keys).values.flatten.uniq
-          raise Error, "LiteLLM #{key} mixes long-context thresholds" if boundaries.size > 1
-
-          boundaries.empty? ? fields : fields.merge("_context_price_threshold_tokens" => boundaries.first)
         end
       end
     end
