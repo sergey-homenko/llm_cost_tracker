@@ -54,12 +54,19 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
       expect([batch.mode, batch.cost.total]).to eq(["batch_off_peak", BigDecimal("0.502")])
     end
 
+    it "ignores off_peak passed as a pricing mode, so only the windows apply it" do
+      peak = calculation(Time.utc(2026, 9, 28, 1), "off_peak")
+      batch = calculation(Time.utc(2026, 9, 28, 1), "batch_off_peak")
+
+      expect([peak.mode, peak.cost.total, batch.mode]).to eq([nil, BigDecimal("1.506"), "batch"])
+    end
+
     context "when the matched entry has no windows" do
       let(:off_peak_entry) { super().except("_off_peak_windows") }
 
-      it "prices every call at the standard rates" do
-        expect([calculation(Time.utc(2026, 9, 28, 12)).mode, calculation(Time.utc(2026, 9, 28, 12)).cost.total])
-          .to eq([nil, BigDecimal("1.506")])
+      it "prices every call at the standard rates, off_peak requested or not" do
+        expect([nil, "off_peak"].map { |mode| calculation(Time.utc(2026, 9, 28, 12), mode).then { [_1.mode, _1.cost.total] } })
+          .to eq([[nil, BigDecimal("1.506")]] * 2)
       end
     end
   end

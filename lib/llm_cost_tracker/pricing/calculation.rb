@@ -38,8 +38,8 @@ module LlmCostTracker
         return @mode if defined?(@mode)
 
         windows = match&.prices&.[](Registry::OFF_PEAK_WINDOWS_KEY)
-        off_peak = windows && OffPeak.cover?(windows, @at)
-        @mode = off_peak ? Mode.compose([*Mode.tokenize(@requested_mode), "off_peak"]) : @requested_mode
+        off_peak = windows && OffPeak.cover?(windows, @at) ? ["off_peak"] : []
+        @mode = Mode.compose(Mode.tokenize(@requested_mode) - ["off_peak"] + off_peak)
       end
 
       def match

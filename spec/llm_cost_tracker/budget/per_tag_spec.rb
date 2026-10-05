@@ -13,7 +13,8 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       cost: LlmCostTracker::Charges::Cost.new(components: {}, total: total, currency: "USD"),
       snapshot: { "currency" => "USD" },
       cost_status: LlmCostTracker::Charges::CostStatus::COMPLETE,
-      priced_line_items: []
+      priced_line_items: [],
+      mode: nil
     )
   end
 

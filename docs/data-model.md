@@ -52,7 +52,7 @@ Header row. One per tracked call (or completed stream).
 | `provider_api_key_id` | string | Provider API key dimension |
 | `provider_workspace_id` | string | Provider workspace/org dimension |
 | `batch` | boolean, default `false` | Provider batch path |
-| `pricing_mode` | string | `batch`, `flex`, `priority`, etc. |
+| `pricing_mode` | string | The tier the call was priced at: `batch`, `flex`, `priority`, `off_peak`, etc. |
 | `cost_status` | string, default `unknown` | `free`, `complete`, `partial`, `unknown` |
 | `pricing_snapshot` | jsonb / json | Applied rate audit snapshot |
 | `tracked_at` | datetime, not null | Event timestamp |

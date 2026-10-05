@@ -227,25 +227,70 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     expect(repriced.line_items.order(:position).pluck(:rate_amount)).to eq([0.15, 0.6])
   end
 
-  it "prices each call by its own time against the off-peak windows of the entry in effect" do
-    LlmCostTracker.configuration.ingestion.mode = :inline
-    [Time.utc(2026, 9, 28, 0, 30), Time.utc(2026, 9, 28, 2)].each do |time|
-      travel_to(time) do
-        LlmCostTracker.track(provider: "deepseek", model: "deepseek-x", tokens: { input_tokens: 1_000_000, output_tokens: 0 })
+  describe "off-peak windows" do
+    def price(entry)
+      LlmCostTracker.configuration.pricing.overrides = { "deepseek/deepseek-x" => entry }
+      LlmCostTracker::Pricing::Registry.reset!
+    end
+
+    def windowed(hours, rates = { off_peak_input: 0.15 })
+      { input: 0.3, **rates, _off_peak_windows: [{ weekdays: [1], hours_utc: [hours] }] }
+    end
+
+    def track_at(*times)
+      LlmCostTracker.configuration.ingestion.mode = :inline
+      times.each do |time|
+        travel_to(time) do
+          LlmCostTracker.track(provider: "deepseek", model: "deepseek-x", tokens: { input_tokens: 1_000_000, output_tokens: 0 })
+        end
       end
     end
-    entry = ->(hours) { { input: 0.3, off_peak_input: 0.15, _off_peak_windows: [{ weekdays: [1], hours_utc: [hours] }] } }
-    LlmCostTracker.configuration.pricing.overrides = { "deepseek/deepseek-x" => entry.call("00:00-01:00") }
-    LlmCostTracker::Pricing::Registry.reset!
-    calls = -> { LlmCostTracker::Call.order(:tracked_at).map { |call| [call.total_cost, call.line_items.sole.price_key] } }
 
-    expect(described_class.call.recomputed).to eq(2)
-    expect(calls.call).to eq([[0.15, "off_peak_input"], [0.3, "input"]])
+    def reprice! = described_class.call(scope: described_class.reprice_scope(Time.utc(2026, 9, 28)..), reprice: true)
 
-    LlmCostTracker.configuration.pricing.overrides = { "deepseek/deepseek-x" => entry.call("00:00-03:00") }
-    LlmCostTracker::Pricing::Registry.reset!
-    described_class.call(scope: described_class.reprice_scope(Time.utc(2026, 9, 28)..), reprice: true)
-    expect(calls.call).to eq([[0.15, "off_peak_input"], [0.15, "off_peak_input"]])
+    def calls
+      LlmCostTracker::Call.order(:tracked_at).map do |call|
+        [call.total_cost, call.cost_status, call.pricing_mode, call.line_items.sole.price_key]
+      end
+    end
+
+    it "prices each call by its own time against the windows of the entry in effect, and stores the mode applied" do
+      track_at(Time.utc(2026, 9, 28, 0, 30), Time.utc(2026, 9, 28, 2))
+      price(windowed("00:00-01:00"))
+
+      expect(described_class.call.recomputed).to eq(2)
+      expect(calls).to eq([[0.15, "complete", "off_peak", "off_peak_input"], [0.3, "complete", nil, "input"]])
+
+      price(windowed("00:00-03:00"))
+      reprice!
+      expect(calls).to eq([[0.15, "complete", "off_peak", "off_peak_input"]] * 2)
+    end
+
+    it "re-judges a call recorded off-peak when its window narrows or a flat override replaces the entry" do
+      price(windowed("00:00-01:00"))
+      track_at(Time.utc(2026, 9, 28, 0, 30))
+      expect(calls).to eq([[0.15, "complete", "off_peak", "off_peak_input"]])
+
+      price(windowed("02:00-03:00"))
+      reprice!
+      expect(calls).to eq([[0.3, "complete", nil, "input"]])
+
+      price(windowed("00:00-01:00"))
+      reprice!
+      price({ input: 0.2 })
+      reprice!
+      expect(calls).to eq([[0.2, "complete", nil, "input"]])
+    end
+
+    it "backfills a call left unknown by windows without off_peak rates once the windows are gone" do
+      price(windowed("00:00-01:00", {}))
+      track_at(Time.utc(2026, 9, 28, 0, 30))
+      expect(calls).to eq([[nil, "unknown", "off_peak", nil]])
+
+      price({ input: 0.3 })
+      expect(described_class.call.recomputed).to eq(1)
+      expect(calls).to eq([[0.3, "complete", nil, "input"]])
+    end
   end
 
   it "reprices tool charges priced from the registry and keeps the ones the caller priced" do
@@ -302,6 +347,7 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     described_class.call
 
     expect([regional.reload.total_cost, global.reload.total_cost]).to eq([4.95, 4.5])
+    expect([regional.pricing_mode, global.pricing_mode]).to eq(["data_residency", nil])
   end
 
   def record_anthropic(model:, usage:, **response)
