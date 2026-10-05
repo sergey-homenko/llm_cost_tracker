@@ -119,7 +119,7 @@ module LlmCostTracker
       end
 
       def quantities
-        @quantities ||= @line_items.each_with_object(@token_usage.priced_quantities) do |line_item, result|
+        @quantities ||= @line_items.each_with_object(token_quantities) do |line_item, result|
           dimension = line_item.dimension
           next unless dimension&.parent
 
@@ -127,6 +127,15 @@ module LlmCostTracker
           result[dimension.parent] -= quantity
           result[dimension.key] = result.fetch(dimension.key, 0) + quantity
         end
+      end
+
+      def token_quantities
+        unit_billed? ? @token_usage.priced_quantities.transform_values { 0 } : @token_usage.priced_quantities
+      end
+
+      def unit_billed?
+        prices = match&.prices || {}
+        !prices.keys.intersect?(Registry::PRICE_KEYS) && @line_items.any? { |line_item| prices.key?(line_item.kind) }
       end
 
       def unpriced_line_items
