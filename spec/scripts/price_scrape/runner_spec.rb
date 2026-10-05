@@ -320,7 +320,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
     end
   end
 
-  it "logs the entries the orchestrator holds and writes them with the scraper notes" do
+  it "logs the entries the orchestrator holds but leaves them out of the notes for the cross-check" do
     provider = Class.new(LlmCostTracker::Pricing::Scrape::Providers::Base) do
       source_url "https://prices.example.test/"
       define_method(:call) do |source_url:, scraped_at:, **|
@@ -340,7 +340,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
       described_class.new(io: io).call(providers: %w[openai], registry_path: registry, dry_run: true, notes_path: notes)
 
       held = "- `openai`: gpt-4o-mini-tts held until metadata.min_gem_version is 0.15.0"
-      expect(File.read(notes)).to eq("#{held}\n")
+      expect(File.read(notes)).to eq("")
       expect(io.string).to include("[openai] #{held}")
     end
   end
