@@ -36,7 +36,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Perplexity's `api.perplexity.ai` is built into `capture.openai_compatible_providers`, Faraday captures its own `/v1/sonar` and `/v1/agent` paths and background Agent API polls too, and its calls are recorded at their billed `usage.cost.total_cost` instead of unknown cost.
 - Bundled xAI prices are read from xAI's pricing and model pages instead of LiteLLM.
 - Bundled OpenAI and Anthropic model ids, and OpenAI and Gemini long-context thresholds, come from the providers' own pages instead of hand-kept lists.
-- Bundled OpenAI embedding, `tts-1` and `tts-1-hd` prices are read from OpenAI's pricing page and Batch API guide instead of kept by hand.
+- Bundled OpenAI embedding prices are read from OpenAI's pricing page and Batch API guide instead of kept by hand.
 - A bundled model its provider stops listing is removed after 90 days.
 - Bundled Mistral prices drop the models Mistral lists as retired, with the aliases their model cards name, such as `magistral-medium-latest`.
 - RubyLLM 2.x Cohere chats record `usage.billed_units`, streamed ones from the final `message-end` event, instead of token counts that include Cohere's unbilled preamble; rows recorded earlier keep those counts, so backfilled costs overstate them.
