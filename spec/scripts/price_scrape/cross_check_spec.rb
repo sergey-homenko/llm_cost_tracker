@@ -58,19 +58,17 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
       .not_to match(/^- (?:groq|mistral):/)
   end
 
-  it "lists the Mistral and Groq models only LiteLLM prices that models.dev does not confirm, which go unwritten" do
+  it "lists the Mistral models only LiteLLM prices that models.dev does not confirm, which go unwritten" do
     unconfirmed = check.findings[/^- mistral: (.*)$/, 1].split(", ")
 
     expect(check.findings).to include(
       "### LiteLLM-only models models.dev prices differently (not written)\n\n" \
       "- LiteLLM 0.1/0.4, models.dev 0.1/0.3: mistral/voxtral-small-latest\n" \
-      "- LiteLLM 0.3/0.3, models.dev 0.15/0.15: mistral/open-mistral-nemo\n" \
-      "- LiteLLM 0.6/0.8, models.dev 0.59/0.79: groq/llama-3.3-70b-versatile\n"
+      "- LiteLLM 0.3/0.3, models.dev 0.15/0.15: mistral/open-mistral-nemo\n"
     )
     expect(unconfirmed).to include("mistral/codestral-mamba-latest", "mistral/mistral-embed-2312")
     expect(unconfirmed).not_to include("mistral/pixtral-large-latest", "mistral/labs-leanstral-1-5",
                                        "mistral/mistral-ocr-latest")
-    expect(check.findings).not_to include("groq/qwen/qwen3.8-27b", "groq/llama-guard-3-8b")
   end
 
   it "gates the LiteLLM rows and absent keys the registry holds again, as the runner does" do

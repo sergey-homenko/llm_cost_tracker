@@ -53,36 +53,5 @@
         }
       }
     }
-  },
-  "groq": {
-    "id": "groq",
-    "name": "Groq",
-    "models": {
-      "qwen/qwen3.8-27b": {
-        "id": "qwen/qwen3.8-27b",
-        "name": "Qwen3.8 27B",
-        "cost": {
-          "input": 0.8,
-          "output": 4
-        }
-      },
-      "openai/gpt-oss-20b": {
-        "id": "openai/gpt-oss-20b",
-        "name": "GPT OSS 20B",
-        "cost": {
-          "input": 0.075,
-          "output": 0.3,
-          "cache_read": 0.0375
-        }
-      },
-      "llama-3.3-70b-versatile": {
-        "id": "llama-3.3-70b-versatile",
-        "name": "Llama 3.3 70B",
-        "cost": {
-          "input": 0.59,
-          "output": 0.79
-        }
-      }
-    }
   }
 }

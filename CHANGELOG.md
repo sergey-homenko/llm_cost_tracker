@@ -15,7 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `ocr_page` dimension, per 1,000 pages: Mistral OCR through RubyLLM 2.x and Faraday's `/v1/ocr` is priced from `usage_info.pages_processed`, with bundled Mistral OCR rates.
 - `rerank_search_unit` dimension, per 1,000 search units: RubyLLM 2.x Cohere rerank records `meta.billed_units.search_units`, priced by a `pricing.overrides` rate.
 - `gpt-4o-mini-tts` speech requested with `stream_format: "sse"` is priced from its `speech.audio.done` usage through Faraday and the official openai gem, text input at `input` and audio output at `audio_output`.
-- Bundled Mistral and Groq prices add models their pricing pages omit when LiteLLM and models.dev list the same price, marked `"_source": "litellm"`; Mistral Embed is priced this way.
+- Bundled Mistral prices add models its pricing page omits when LiteLLM and models.dev list the same price, marked `"_source": "litellm"`; Mistral Embed is priced this way.
 - Codestral Embed is priced from Mistral's pricing page under every name its model card gives, with batch and regional rates.
 
 ### Changed

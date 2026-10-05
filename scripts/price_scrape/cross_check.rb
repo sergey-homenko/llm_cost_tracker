@@ -16,7 +16,7 @@ module LlmCostTracker
       REGISTRY_PATH = File.expand_path("../../lib/llm_cost_tracker/prices.json", __dir__)
       ACKNOWLEDGED_PATH = File.expand_path("cross_check_acknowledged.yml", __dir__)
       FULLY_SCRAPED = %w[anthropic deepseek gemini openai openrouter xai].freeze
-      GATED = %w[groq mistral].freeze
+      GATED = %w[mistral].freeze
       COUNTS_ONLY = %w[openrouter].freeze
       UNCAPTURED = { "gemini" => Providers::Gemini::UNCAPTURED_MODEL }.freeze
       UNCOMPARED = { "openai" => %w[web_search_request] }.freeze

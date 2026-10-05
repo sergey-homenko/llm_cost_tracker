@@ -11,15 +11,12 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
   let(:batch_html) { File.read("spec/fixtures/scrape/groq_batch.html", encoding: "utf-8") }
 
   def html_pages(overrides = {})
-    litellm = LlmCostTracker::Pricing::Scrape::Providers::Litellm
     {
       described_class.source_url => models_html,
       described_class::PROMPT_CACHING_SOURCE_URL => prompt_caching_html,
       described_class::FLEX_PROCESSING_SOURCE_URL => flex_processing_html,
       described_class::DEPRECATIONS_SOURCE_URL => deprecations_html,
-      described_class::BATCH_SOURCE_URL => batch_html,
-      litellm::SOURCE_URL => File.read("spec/fixtures/scrape/litellm_prices.json"),
-      litellm::MODELS_DEV_URL => File.read("spec/fixtures/scrape/models_dev.json")
+      described_class::BATCH_SOURCE_URL => batch_html
     }.merge(overrides)
   end
 
@@ -89,18 +86,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       )
     end
 
-    it "adds the models only LiteLLM prices when models.dev lists the same price, at Groq's own tier rates" do
-      models = described_class.new.call(html: html_pages, scraped_at: "2026-10-05T06:00:00Z").models
-
-      expect(models.fetch("qwen/qwen3.8-27b")).to eq(
-        "_source" => "litellm", "input" => 0.8, "output" => 4.0, "on_demand_input" => 0.8, "on_demand_output" => 4.0,
-        "flex_input" => 0.8, "flex_output" => 4.0
-      )
-      expect(models.fetch("llama-3.3-70b-versatile")).to include("input" => 0.59, "output" => 0.79)
-      expect(models.fetch("llama-3.3-70b-versatile")).not_to have_key("_source")
-      expect(models.keys).not_to include("llama-guard-3-8b", "whisper-large-v3")
-    end
-
     it "reads the model id from the model card link rather than the display name" do
       result = described_class.new.call(html: html_pages)
 
@@ -151,7 +136,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       result = described_class.new.call(html: html_pages(described_class.source_url => page))
 
       expect(result.models.fetch("openai/gpt-oss-120b")).to include("input" => 0.15, "output" => 0.6)
-      expect(result.models.reject { |_, fields| fields["_source"] }.size).to eq(4)
+      expect(result.models.size).to eq(4)
     end
 
     it "finds the token model table by headers when it is not the first table on the page" do
