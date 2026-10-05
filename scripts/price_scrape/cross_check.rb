@@ -34,6 +34,7 @@ module LlmCostTracker
         unrepresentable: "Not representable",
         stale: "Stale acknowledgements"
       }.freeze
+      ISSUE_SECTIONS = SECTIONS.keys - %i[unknown unrepresentable]
       Finding = Data.define(:section, :model, :field, :detail)
 
       class Error < StandardError; end
@@ -56,7 +57,7 @@ module LlmCostTracker
                     acknowledged: YAML.safe_load_file(acknowledged_path) || {},
                     notes: notes_path && File.exist?(notes_path) ? File.readlines(notes_path, chomp: true) : [])
         File.write(report_path, check.report(sha))
-        File.write(issue_path, check.findings)
+        File.write(issue_path, check.findings(ISSUE_SECTIONS))
       end
 
       def initialize(registry:, catalogue:, models_dev: {}, acknowledged: {}, notes: [], today: Date.today)
@@ -87,9 +88,9 @@ module LlmCostTracker
          "|---|---|---|---|---|---|", *rows].join("\n") << "\n"
       end
 
-      def findings
+      def findings(sections = SECTIONS.keys)
         open = reported.reject { |finding| acknowledgement(finding) }.group_by(&:section)
-        SECTIONS.filter_map do |section, title|
+        SECTIONS.slice(*sections).filter_map do |section, title|
           lines = lines(section, open)
           "### #{title}\n\n#{lines.join("\n")}\n" if lines.any?
         end.join("\n")

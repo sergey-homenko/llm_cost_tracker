@@ -95,9 +95,11 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
     expect(check.findings).not_to include("anthropic/claude-opus-4-8")
   end
 
-  it "lists unknown LiteLLM fields and prices the registry cannot represent" do
+  it "lists unknown LiteLLM fields and prices the registry cannot represent in the report, not the issue" do
     expect(check.findings).to include("- `citation_cost_per_token` (1): perplexity/sonar-deep-research")
     expect(check.findings).to include("- reasoning tokens priced apart from output: perplexity/sonar-deep-research")
+    expect(check.findings(described_class::ISSUE_SECTIONS))
+      .not_to include("### Unknown LiteLLM fields", "### Not representable")
   end
 
   it "compares off-peak windows like rates, and lists windows that differ as a difference" do
