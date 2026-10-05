@@ -147,10 +147,8 @@ module LlmCostTracker
         def transcription_line_items(usage)
           return [] unless usage
 
-          type = (usage[:type] || usage["type"]).to_s
-          return [] unless type == "duration"
-
-          seconds = (usage[:seconds] || usage["seconds"]).to_f
+          field = (usage[:type] || usage["type"]).to_s == "duration" ? "seconds" : "prompt_audio_seconds"
+          seconds = (usage[field.to_sym] || usage[field]).to_f
           return [] unless seconds.positive?
 
           [Charges::LineItem.build(
@@ -158,7 +156,7 @@ module LlmCostTracker
             quantity: BigDecimal(seconds.to_s) / 60,
             cost_status: Charges::CostStatus::UNKNOWN,
             pricing_basis: "provider_usage",
-            provider_field: "usage.seconds",
+            provider_field: "usage.#{field}",
             details: { seconds: seconds }
           )]
         end

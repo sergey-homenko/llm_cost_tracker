@@ -53,6 +53,15 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
       expect(urls.map { |url| described_class.match?(url) }).to eq([true] * 6 + [false] * 3)
     end
 
+    it "matches audio and moderation paths on listed hosts" do
+      urls = [%w[api.groq.com /openai/v1/audio/transcriptions], %w[api.groq.com /openai/v1/audio/translations],
+              %w[api.groq.com /openai/v1/audio/speech], %w[api.mistral.ai /v1/moderations],
+              %w[api.mistral.ai /v1/chat/moderations], %w[llm.example.com /v1/audio/speech]]
+             .map { |host, path| URI::HTTPS.build(host: host, path: path).to_s }
+
+      expect(urls.map { |url| described_class.match?(url) }).to eq([true] * 5 + [false])
+    end
+
     it "lets a configured mapping replace a built-in one" do
       LlmCostTracker.configure { |config| config.capture.openai_compatible_providers["API.X.AI"] = "grok_gateway" }
 
@@ -213,6 +222,65 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
       expect(result.model).to eq("custom-chat")
       expect(result.token_usage.input_tokens).to eq(150)
       expect(result.token_usage.output_tokens).to eq(42)
+    end
+  end
+
+  describe "audio and moderation" do
+    def parse(host, path, request, response)
+      parser.parse(request_url: URI::HTTPS.build(host: host, path: path).to_s, request_body: request.to_json,
+                   response_status: 200, response_body: response.is_a?(String) ? response : response.to_json)
+    end
+
+    def line_items(event) = event.line_items.map { |item| [item.kind, item.quantity, item.provider_field] }
+
+    it "reads a Mistral transcription's audio seconds next to its tokens" do
+      event = parse("api.mistral.ai", "/v1/audio/transcriptions", { model: "voxtral-mini-latest" },
+                    { model: "voxtral-mini-latest", text: "hi", language: "en", segments: [],
+                      usage: { prompt_audio_seconds: 203, prompt_tokens: 4, total_tokens: 3264, completion_tokens: 635 } })
+
+      expect(event.token_usage).to have_attributes(input_tokens: 4, output_tokens: 635)
+      expect(line_items(event)).to eq([["transcription_minute", BigDecimal(203) / 60, "usage.prompt_audio_seconds"]])
+    end
+
+    it "reads a Groq transcription's verbose_json duration rounded up to whole seconds, and nothing from json" do
+      verbose = parse("api.groq.com", "/openai/v1/audio/transcriptions", { model: "whisper-large-v3" },
+                      { task: "transcribe", language: "English", duration: 3.2, text: "hi", segments: [] })
+      json = parse("api.groq.com", "/openai/v1/audio/translations", { model: "whisper-large-v3" }, { text: "hi" })
+
+      expect(verbose).to have_attributes(provider: "groq", model: "whisper-large-v3", usage_source: "response")
+      expect(line_items(verbose)).to eq([["transcription_minute", BigDecimal(4) / 60, "usage.seconds"]])
+      expect(json).to have_attributes(usage_source: "unknown", line_items: [])
+    end
+
+    it "counts the input characters of Voxtral and Orpheus speech, binary or JSON audio alike" do
+      voxtral = parse("api.mistral.ai", "/v1/audio/speech", { model: "voxtral-mini-tts-2603", input: "Hello there" },
+                      { audio_data: "SUQz" })
+      orpheus = parse("api.groq.com", "/openai/v1/audio/speech",
+                      { model: "canopylabs/orpheus-v1-english", input: "Hello there" }, "RIFF")
+
+      expect([voxtral, orpheus].map { |event| line_items(event) })
+        .to all(eq([["text_to_speech_character", BigDecimal(11), "request.input"]]))
+    end
+
+    it "counts the characters of a streamed Voxtral speech next to its tokens" do
+      events = [{ event: "speech.audio.delta", data: { "type" => "speech.audio.delta", "audio_data" => "SUQz" } },
+                { event: "speech.audio.done", data: { "type" => "speech.audio.done",
+                                                      "usage" => { "prompt_tokens" => 3, "completion_tokens" => 40,
+                                                                   "total_tokens" => 43 } } }]
+      event = parser.parse_stream(request_url: "https://api.mistral.ai/v1/audio/speech", response_status: 200,
+                                  request_body: { model: "voxtral-mini-tts-2603", input: "Hello there", stream: true }.to_json,
+                                  events: events)
+
+      expect(event.token_usage).to have_attributes(input_tokens: 3)
+      expect(line_items(event)).to eq([["text_to_speech_character", BigDecimal(11), "request.input"]])
+    end
+
+    it "records a moderation with no usage, under the model and id its response names" do
+      event = parse("api.mistral.ai", "/v1/moderations", { model: "mistral-moderation-latest", input: "x" },
+                    { id: "mod-1", model: "mistral-moderation-2603", results: [] })
+
+      expect(event).to have_attributes(provider: "mistral", model: "mistral-moderation-2603", provider_response_id: "mod-1",
+                                       usage_source: "response", line_items: [])
     end
   end
 

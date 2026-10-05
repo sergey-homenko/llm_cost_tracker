@@ -85,8 +85,9 @@ module LlmCostTracker
             provider: provider_for(request_url),
             host: host,
             usage_source: Usage::Source::RESPONSE
-          ) || speech_event(request_url, request) || transcription_without_usage_event(request_url, request) ||
-            ocr_event(request_url, request, response)
+          ) || speech_event(request_url, request) ||
+            transcription_without_usage_event(request_url, request, response) ||
+            ocr_event(request_url, request, response) || moderation_event(request_url, request, response)
         end
 
         def parse_stream(response_status:, request_url: nil, request_body: nil, events: [], **)
@@ -134,15 +135,30 @@ module LlmCostTracker
           )
         end
 
-        def transcription_without_usage_event(request_url, request)
+        def transcription_without_usage_event(request_url, request, response)
           uri = parsed_uri(request_url)
           return nil unless uri && uri.path.to_s.match?(%r{/audio/(?:transcriptions|translations)\z})
 
+          seconds = response["duration"].to_f.ceil
+          line_items = ServiceCharges.transcription_line_items(type: "duration", seconds: seconds)
           Event.build(
             provider: provider_for(request_url),
             model: model_for(request_url, request) || Event::UNKNOWN_MODEL,
             token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
-            usage_source: Usage::Source::UNKNOWN
+            usage_source: line_items.empty? ? Usage::Source::UNKNOWN : Usage::Source::RESPONSE,
+            service_line_items: line_items
+          )
+        end
+
+        def moderation_event(request_url, request, response)
+          return nil unless parsed_uri(request_url)&.path.to_s.end_with?("/moderations")
+
+          Event.build(
+            provider: provider_for(request_url),
+            model: response["model"] || model_for(request_url, request),
+            provider_response_id: response["id"],
+            token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
+            usage_source: Usage::Source::RESPONSE
           )
         end
 
@@ -181,7 +197,8 @@ module LlmCostTracker
               model: model,
               service_tier: stream_pricing_mode(events) || usage&.dig(:service_tier) || request["service_tier"]
             ),
-            service_line_items: openai_stream_service_line_items(events, request: request, model: model)
+            service_line_items: openai_stream_service_line_items(events, request: request, model: model) +
+              ServiceCharges.speech_line_items(request)
           }
         end
 

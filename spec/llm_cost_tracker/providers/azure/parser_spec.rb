@@ -136,16 +136,17 @@ RSpec.describe LlmCostTracker::Providers::Azure::Parser do
       expect(result.provider_response_id).to eq("chatcmpl_az_123")
     end
 
-    it "records an Azure Whisper transcription, which carries no usage, under its deployment with an unknown usage source" do
-      result = parser.parse(
-        request_url: audio_translations_url.sub("translations", "transcriptions"),
-        request_body: nil,
-        response_status: 200,
-        response_body: { task: "transcribe", language: "english", duration: 30.0, text: "hi", segments: [] }.to_json
-      )
+    it "records an Azure Whisper transcription, which carries no usage, under its deployment by its duration if any" do
+      parse = lambda do |body|
+        parser.parse(request_url: audio_translations_url.sub("translations", "transcriptions"), request_body: nil,
+                     response_status: 200, response_body: body.to_json)
+      end
+      verbose = parse.call(task: "transcribe", language: "english", duration: 30.0, text: "hi", segments: [])
+      plain = parse.call(text: "hi")
 
-      expect(result).to have_attributes(provider: "azure_openai", model: "whisper-1", usage_source: "unknown")
-      expect(result.line_items).to eq([])
+      expect(verbose).to have_attributes(provider: "azure_openai", model: "whisper-1", usage_source: "response")
+      expect(verbose.line_items.map { |item| [item.kind, item.quantity] }).to eq([["transcription_minute", 0.5]])
+      expect(plain).to have_attributes(provider: "azure_openai", model: "whisper-1", usage_source: "unknown", line_items: [])
     end
 
     it "returns nil on non-200" do
