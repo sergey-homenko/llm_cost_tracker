@@ -55,4 +55,36 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Deepseek do
     expect { scrape.call(html.sub("The legacy names", "The names")) }
       .to raise_error(described_class::Error, /footnote \(1\) names no legacy models/)
   end
+
+  it "raises on a price row it does not know, wherever it appears, and on a peak range that wraps midnight" do
+    rows = lambda do |label, off_peak, peak|
+      %(<tr><td rowspan="2">#{label}</td><td>OFF-PEAK</td>#{off_peak}</tr><tr><td>PEAK</td>#{peak}</tr>)
+    end
+    cache_write = rows.call("1M INPUT TOKENS<br>(CACHE WRITE)", "<td>$9.5</td><td>$9.6</td>", "<td>$19</td><td>$19.2</td>")
+    long_context = rows.call("1M INPUT TOKENS (&gt;256K CONTEXT)", "<td>$0.3</td><td>$1.32</td>",
+                             "<td>$0.6</td><td>$2.64</td>")
+    concurrency = '<tr><td colspan="3">Concurrency Limit'
+    miss = '<tr><td rowspan="2">1M INPUT TOKENS<br>(CACHE MISS)'
+    scrape = ->(page) { described_class.new.call(html: page) }
+
+    expect { scrape.call(html.sub(concurrency, cache_write + concurrency)) }
+      .to raise_error(described_class::Error, /price row "1M INPUT TOKENS\(CACHE WRITE\)" not understood/)
+    expect { scrape.call(html.sub(miss, cache_write + miss)) }
+      .to raise_error(described_class::Error, /CACHE WRITE\)" not understood/)
+    expect { scrape.call(html.sub(concurrency, long_context + concurrency)) }
+      .to raise_error(described_class::Error, />256K CONTEXT\)" not understood/)
+    expect { scrape.call(html.sub("01:00 - 04:00 and 06:00 - 10:00 UTC", "22:00 - 02:00 UTC")) }
+      .to raise_error(described_class::Error, /peak hours "22:00 - 02:00" not understood/)
+  end
+
+  it "raises when a price row repeats or peak ranges overlap" do
+    hit = '<tr><td rowspan="2">1M INPUT TOKENS<br>(CACHE HIT)</td><td>OFF-PEAK</td><td>$0.003</td><td>$0.022</td></tr>' \
+          "<tr><td>PEAK</td><td>$0.006</td><td>$0.044</td></tr>"
+    concurrency = '<tr><td colspan="3">Concurrency Limit'
+
+    expect { described_class.new.call(html: html.sub(concurrency, hit + concurrency)) }
+      .to raise_error(described_class::Error, /off_peak_cache_read_input prices listed twice/)
+    expect { described_class.new.call(html: html.sub("06:00 - 10:00", "03:00 - 10:00")) }
+      .to raise_error(described_class::Error, /overlap/)
+  end
 end

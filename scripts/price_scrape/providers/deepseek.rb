@@ -56,18 +56,26 @@ module LlmCostTracker
 
         def column_prices(table, count)
           label = nil
-          prices = table.css("tr").each_with_object(Array.new(count) { {} }) do |row, columns|
-            cells = row.css("td").map { |cell| cell.text.strip }
-            label = PRICE_ROWS.find { |suffix, _| cells.any? { |cell| cell.end_with?(suffix) } }&.last || label
-            tier = cells.find { |cell| TIERS.key?(cell) }
-            next unless tier
-
-            field = "#{TIERS.fetch(tier)}#{label}"
-            cells.last(count).each_with_index { |cell, index| columns[index][field] = price(cell) }
+          prices = Array.new(count) { {} }
+          table.css("tr").map { |row| row.css("td").map { |cell| cell.text.strip } }.each do |cells|
+            tier = cells.index { |cell| TIERS.key?(cell) } or next
+            label = cells[tier - 1] unless tier.zero?
+            store(prices, "#{TIERS.fetch(cells[tier])}#{row_field(label.to_s)}", cells.last(count))
           end
           return prices if prices.all? { |fields| fields.size == PRICE_ROWS.size * TIERS.size }
 
           raise Error, "DeepSeek peak and off-peak input, cache hit and output prices not found"
+        end
+
+        def row_field(label)
+          PRICE_ROWS.find { |suffix, _| label.end_with?(suffix) }&.last or
+            raise Error, "DeepSeek price row #{label.inspect} not understood"
+        end
+
+        def store(prices, field, cells)
+          raise Error, "DeepSeek #{field} prices listed twice" if prices.first.key?(field)
+
+          prices.zip(cells) { |fields, cell| fields[field] = price(cell) }
         end
 
         def price(cell)
@@ -98,15 +106,21 @@ module LlmCostTracker
         end
 
         def off_peak_hours(ranges)
-          peak = ranges.map do |range|
-            parts = range.match(HOURS)&.captures or raise Error, "DeepSeek peak hours #{range.inspect} not understood"
-            [(parts[0].to_i * 60) + parts[1].to_i, (parts[2].to_i * 60) + parts[3].to_i]
-          end
-          gaps = [[0, 0], *peak.sort, [1440, 1440]].each_cons(2).map { |(_, from), (to, _)| [from, to] }
-          gaps.select { |from, to| from < to }.map do |range|
-            range.map { |minute| format("%<hour>02d:%<minute>02d", hour: minute / 60, minute: minute % 60) }.join("-")
-          end
+          peak = ranges.map { |range| peak_minutes(range) }.sort
+          gaps = [[0, 0], *peak, [1440, 1440]].each_cons(2).map { |(_, from), (to, _)| [from, to] }
+          raise Error, "DeepSeek peak hours #{ranges.join(' and ')} overlap" if gaps.any? { |from, to| from > to }
+
+          gaps.reject { |from, to| from == to }.map { |range| range.map { |minute| clock(minute) }.join("-") }
         end
+
+        def peak_minutes(range)
+          clocks = Array(range.match(HOURS)&.captures).each_slice(2).map { |hour, min| (hour.to_i * 60) + min.to_i }
+          return clocks if clocks.size == 2 && clocks.first < clocks.last
+
+          raise Error, "DeepSeek peak hours #{range.inspect} not understood"
+        end
+
+        def clock(minute) = format("%<hour>02d:%<minute>02d", hour: minute / 60, minute: minute % 60)
       end
     end
   end
