@@ -337,6 +337,26 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     expect([call.reload.total_cost, call.cost_status]).to eq([0.0533274, "complete"])
   end
 
+  it "stores the minimum billed transcription length on a backfilled row as live capture does" do
+    LlmCostTracker.configuration.ingestion.mode = :inline
+    track = lambda do
+      LlmCostTracker.track(provider: "groq", model: "whisper-large-v3", tokens: { input_tokens: 0, output_tokens: 0 },
+                           service_line_items: [{ dimension_key: "transcription_minute", quantity: BigDecimal(4) / 60 }])
+    end
+    track.call
+    LlmCostTracker.configuration.pricing.overrides = {
+      "groq/whisper-large-v3" => { transcription_minute: 0.00185, _minimum_billed_seconds: 10 }
+    }
+    LlmCostTracker::Pricing::Registry.reset!
+
+    expect(described_class.call.recomputed).to eq(1)
+    track.call
+    rows = LlmCostTracker::Call.order(:id).map do |call|
+      call.line_items.pluck(:quantity, :rate_amount, :cost) + [call.total_cost]
+    end
+    expect(rows.uniq).to eq([[[BigDecimal("0.1666666667"), 0.00185, 0.00030833], 0.00030833]])
+  end
+
   it "prices Bedrock regional-profile calls recorded before 0.14.2 with the regional premium" do
     regional, global = %w[us global].map do |geo|
       create_call(provider: "bedrock", model: "#{geo}.anthropic.claude-sonnet-4-5-20250929-v1:0",
