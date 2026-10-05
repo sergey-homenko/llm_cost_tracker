@@ -71,29 +71,28 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
                                        "mistral/mistral-ocr-latest")
   end
 
-  it "lists no row the runner wrote among the unwritten ones" do
-    written = registry.merge("models" => registry["models"].merge(
-      "mistral/mistral-embed-2312" => { "input" => 0.1, "_source" => "litellm" }
-    ))
-    check = described_class.new(registry: written, catalogue: catalogue, models_dev: models_dev)
-
-    expect(check.findings[/^- mistral: (.*)$/, 1].split(", ")).not_to include("mistral/mistral-embed-2312")
-  end
-
   it "lists the Cohere rows only LiteLLM prices that models.dev does not confirm" do
     expect(check.findings).to include("- cohere: cohere/rerank-v3.5\n")
   end
 
-  it "gates the LiteLLM rows and absent keys the registry holds again, as the runner does" do
+  it "gates the keys the registry marks absent again, as the runner does, and lists no row the runner wrote" do
     prices = { "input" => 0.1, "_source" => "litellm" }
-    rows = { "mistral/mistral-embed" => prices, "mistral/mistral-tiny" => prices.except("_source") }
-    gated = registry.merge("metadata" => { "absent_since" => { "mistral/mistral-tiny" => "2026-10-01" } },
-                           "models" => registry["models"].merge(rows))
+    rows = { "mistral/mistral-embed" => prices, "mistral/mistral-tiny" => prices.except("_source"),
+             "mistral/mistral-embed-2312" => prices }
+    absent = { "mistral/mistral-embed" => "2026-10-01", "mistral/mistral-tiny" => "2026-10-01" }
     models_dev["mistral"]["models"]["mistral-embed"]["cost"]["input"] = 0.12
-    check = described_class.new(registry: gated, catalogue: catalogue, models_dev: models_dev)
+    findings = lambda do |absent_since|
+      gated = registry.merge("metadata" => { "absent_since" => absent_since },
+                             "models" => registry["models"].merge(rows))
+      described_class.new(registry: gated, catalogue: catalogue, models_dev: models_dev).findings
+    end
+    unwritten = ->(found) { found[/^- mistral: (.*)$/, 1].to_s.split(", ") }
 
-    expect(check.findings).to include("- LiteLLM 0.1/0.0, models.dev 0.12/0.0: mistral/mistral-embed\n")
-    expect(check.findings[/^- mistral: (.*)$/, 1].split(", ")).to include("mistral/mistral-tiny")
+    expect(findings.call(absent)).to include("- LiteLLM 0.1/0.0, models.dev 0.12/0.0: mistral/mistral-embed\n")
+    expect(unwritten.call(findings.call(absent))).to include("mistral/mistral-tiny")
+    expect(unwritten.call(findings.call(absent))).not_to include("mistral/mistral-embed-2312")
+    expect(findings.call({})).not_to include("models.dev 0.12/0.0: mistral/mistral-embed")
+    expect(unwritten.call(findings.call({}))).not_to include("mistral/mistral-tiny", "mistral/mistral-embed-2312")
   end
 
   it "lists tiers and data residency LiteLLM prices on models the registry covers without them" do

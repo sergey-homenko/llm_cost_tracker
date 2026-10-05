@@ -144,7 +144,7 @@ module LlmCostTracker
           official = listed.reject { |key| @ours[key]["_source"] }
           written = official.to_h { |key| [key.delete_prefix("#{provider}/"), @ours[key]] }
           gate = Providers::Litellm.gate(provider, @conversion, models_dev, written, @today)
-          gate.held.each do |model, (ours, theirs)|
+          gate.held.reject { |model, _| listed.include?("#{provider}/#{model}") }.each do |model, (ours, theirs)|
             add(:held, "#{provider}/#{model}", nil, "LiteLLM #{ours.join('/')}, models.dev #{theirs.join('/')}")
           end
           (gate.unconfirmed.map { |model| "#{provider}/#{model}" } - listed).each { |model| add(:unconfirmed, model) }
