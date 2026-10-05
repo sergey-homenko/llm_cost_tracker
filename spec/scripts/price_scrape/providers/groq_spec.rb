@@ -9,6 +9,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
   let(:flex_processing_html) { File.read("spec/fixtures/scrape/groq_flex_processing.html", encoding: "utf-8") }
   let(:deprecations_html) { File.read("spec/fixtures/scrape/groq_deprecations.html", encoding: "utf-8") }
   let(:batch_html) { File.read("spec/fixtures/scrape/groq_batch.html", encoding: "utf-8") }
+  let(:speech_to_text_html) { File.read("spec/fixtures/scrape/groq_speech_to_text.html", encoding: "utf-8") }
 
   def html_pages(overrides = {})
     {
@@ -16,7 +17,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       described_class::PROMPT_CACHING_SOURCE_URL => prompt_caching_html,
       described_class::FLEX_PROCESSING_SOURCE_URL => flex_processing_html,
       described_class::DEPRECATIONS_SOURCE_URL => deprecations_html,
-      described_class::BATCH_SOURCE_URL => batch_html
+      described_class::BATCH_SOURCE_URL => batch_html,
+      described_class::SPEECH_TO_TEXT_SOURCE_URL => speech_to_text_html
     }.merge(overrides)
   end
 
@@ -98,14 +100,25 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       expect(result.models.keys).to include("llama-3.1-8b-instant", "qwen/qwen3.6-27b")
     end
 
-    it "skips rows priced per hour, per character, or on request" do
-      result = described_class.new.call(html: html_pages)
+    it "prices hours per minute at full precision with the billed minimum, characters per 1M, and skips on request" do
+      models = described_class.new.call(html: html_pages).models
 
-      expect(result.models.keys).not_to include(
-        "whisper-large-v3",
-        "canopylabs/orpheus-v1-english",
-        "minimaxai/minimax-m2.7"
-      )
+      expect(models.slice("whisper-large-v3", "whisper-large-v3-turbo", "canopylabs/orpheus-v1-english",
+                          "canopylabs/orpheus-arabic-saudi")).to eq(
+                            "whisper-large-v3" => { "transcription_minute" => 0.111 / 60, "_minimum_billed_seconds" => 10 },
+                            "whisper-large-v3-turbo" => { "transcription_minute" => 0.04 / 60, "_minimum_billed_seconds" => 10 },
+                            "canopylabs/orpheus-v1-english" => { "text_to_speech_character" => 22.0 },
+                            "canopylabs/orpheus-arabic-saudi" => { "text_to_speech_character" => 40.0 }
+                          )
+      expect(models.fetch("whisper-large-v3-turbo")["transcription_minute"]).to eq(0.0006666666666666666)
+      expect(models.keys).not_to include("minimaxai/minimax-m2.7")
+    end
+
+    it "raises when the minimum billed transcription length is no longer documented" do
+      page = speech_to_text_html.sub("Minimum Billed Length", "Billed Length")
+
+      expect { described_class.new.call(html: html_pages(described_class::SPEECH_TO_TEXT_SOURCE_URL => page)) }
+        .to raise_error(described_class::Error, /groq minimum billed length rate not found/)
     end
 
     it "skips rows that link to a system rather than a model card" do
