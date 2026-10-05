@@ -126,6 +126,23 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
       end
     end
 
+    it "loads off-peak windows and refuses a file whose windows are malformed" do
+      Tempfile.create(["llm-prices", ".json"]) do |file|
+        windows = [{ "weekdays" => [6, 7], "hours_utc" => ["00:00-24:00"] }]
+        file.write({ models: { "deepseek/deepseek-flash" => { "input" => 0.3, "_off_peak_windows" => windows } } }.to_json)
+        file.close
+
+        expect(described_class.file_prices(file.path).dig("deepseek/deepseek-flash", "_off_peak_windows")).to eq(windows)
+
+        described_class.reset!
+        File.write(file.path, { models: { "deepseek/deepseek-flash" => { "_off_peak_windows" => [{ "weekdays" => [6] }] } } }.to_json)
+        expect { described_class.file_prices(file.path) }
+          .to raise_error(LlmCostTracker::Error, /_off_peak_windows for "deepseek\/deepseek-flash" must be a list of windows/)
+      end
+      expect { LlmCostTracker.configure { |c| c.pricing.overrides = { "m" => { _off_peak_windows: "nights" } } } }
+        .to raise_error(LlmCostTracker::Error, /invalid pricing.overrides: _off_peak_windows for "m"/)
+    end
+
     it "raises a readable error for invalid price entry shapes" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write({ models: { "custom-model" => 1.0 } }.to_json)

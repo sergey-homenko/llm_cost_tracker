@@ -8,6 +8,7 @@ require_relative "../usage/catalog"
 require_relative "../pricing/rate"
 require_relative "../logging"
 require_relative "mode"
+require_relative "off_peak"
 require_relative "price_key"
 require_relative "source"
 
@@ -16,8 +17,9 @@ module LlmCostTracker
     module Registry
       DEFAULT_PRICES_PATH = File.expand_path("../prices.json", __dir__)
       CONTEXT_THRESHOLD_KEY = "_context_price_threshold_tokens"
+      OFF_PEAK_WINDOWS_KEY = "_off_peak_windows"
       PRICE_KEYS = Usage::Catalog.all.select(&:token?).map(&:key).freeze
-      METADATA_KEYS = ["_source", CONTEXT_THRESHOLD_KEY].freeze
+      METADATA_KEYS = ["_source", CONTEXT_THRESHOLD_KEY, OFF_PEAK_WINDOWS_KEY].freeze
 
       class << self
         def reset!
@@ -187,6 +189,8 @@ module LlmCostTracker
           normalized = price.each_with_object({}) do |(key, value), acc|
             if key.to_s == CONTEXT_THRESHOLD_KEY
               acc[CONTEXT_THRESHOLD_KEY] = Integer(value)
+            elsif key.to_s == OFF_PEAK_WINDOWS_KEY
+              acc[OFF_PEAK_WINDOWS_KEY] = OffPeak.windows(value, label: "#{OFF_PEAK_WINDOWS_KEY} for #{model.inspect}")
             elsif (registry_key = PriceKey.price_key_for(key))
               acc[registry_key] = non_negative_decimal(value, label: "price for #{registry_key.inspect}")
             elsif !METADATA_KEYS.include?(key)

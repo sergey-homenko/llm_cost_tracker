@@ -227,6 +227,27 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     expect(repriced.line_items.order(:position).pluck(:rate_amount)).to eq([0.15, 0.6])
   end
 
+  it "prices each call by its own time against the off-peak windows of the entry in effect" do
+    LlmCostTracker.configuration.ingestion.mode = :inline
+    [Time.utc(2026, 9, 28, 0, 30), Time.utc(2026, 9, 28, 2)].each do |time|
+      travel_to(time) do
+        LlmCostTracker.track(provider: "deepseek", model: "deepseek-x", tokens: { input_tokens: 1_000_000, output_tokens: 0 })
+      end
+    end
+    entry = ->(hours) { { input: 0.3, off_peak_input: 0.15, _off_peak_windows: [{ weekdays: [1], hours_utc: [hours] }] } }
+    LlmCostTracker.configuration.pricing.overrides = { "deepseek/deepseek-x" => entry.call("00:00-01:00") }
+    LlmCostTracker::Pricing::Registry.reset!
+    calls = -> { LlmCostTracker::Call.order(:tracked_at).map { |call| [call.total_cost, call.line_items.sole.price_key] } }
+
+    expect(described_class.call.recomputed).to eq(2)
+    expect(calls.call).to eq([[0.15, "off_peak_input"], [0.3, "input"]])
+
+    LlmCostTracker.configuration.pricing.overrides = { "deepseek/deepseek-x" => entry.call("00:00-03:00") }
+    LlmCostTracker::Pricing::Registry.reset!
+    described_class.call(scope: described_class.reprice_scope(Time.utc(2026, 9, 28)..), reprice: true)
+    expect(calls.call).to eq([[0.15, "off_peak_input"], [0.15, "off_peak_input"]])
+  end
+
   it "reprices tool charges priced from the registry and keeps the ones the caller priced" do
     LlmCostTracker.configuration.ingestion.mode = :inline
     LlmCostTracker.configuration.pricing.overrides = {

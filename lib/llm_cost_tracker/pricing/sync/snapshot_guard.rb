@@ -22,6 +22,8 @@ module LlmCostTracker
           private
 
           def finding(label, field, values)
+            return if field == Registry::OFF_PEAK_WINDOWS_KEY
+
             from, to = values.values_at("from", "to").map { |value| value&.to_f }
             "#{label}: #{from.inspect} -> #{to.inspect}" if suspicious?(field, from, to)
           end
