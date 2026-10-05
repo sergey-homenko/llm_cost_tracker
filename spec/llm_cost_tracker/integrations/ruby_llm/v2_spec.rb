@@ -1121,6 +1121,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         .to eq(described_class::ParseEmbeddingResponseBridge)
       expect(RubyLLM::Providers::XAI::Responses.instance_method(:parse_image_responses).owner)
         .to eq(described_class::ParseImageResponsesBridge)
+      expect(RubyLLM::Providers::Perplexity::ChatCompletions.instance_method(:parse_embedding_response).owner)
+        .to eq(described_class::ParseEmbeddingResponseBridge)
     end
 
     it "skips a RubyLLM seam that is missing and names it in doctor" do

@@ -8,6 +8,7 @@ module AccountingCases
   CONTEXT_TRANSCRIBE_ON_RUBY_LLM_1 = "RubyLLM::Context#transcribe exists only on RubyLLM 2.x"
   STREAMED_TRANSCRIBE_ON_RUBY_LLM_1 = "RubyLLM 1.x does not stream transcriptions"
   RUBY_LLM_2_ONLY = "RubyLLM 1.x has no per-attempt usage events, workflows, batches, speech, OCR or rerank"
+  PERPLEXITY_EMBED_ON_RUBY_LLM_1 = "RubyLLM 1.x has no Perplexity embeddings"
   CONVERSE_STREAM_ON_RUBY_LLM_1 = "RubyLLM 1.x Converse streams are frozen at their 0.14.2 accounting"
   CONVERSE_STREAM_URL = %r{\Ahttps://bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com/model/[^/]+/converse-stream\z}
   PNG_PART = { inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }.freeze
@@ -571,6 +572,16 @@ module AccountingCases
               { data: [{ url: "https://imgen.x.ai/xai-imgen/xai-tmp-imgen-b9.jpeg", mime_type: "image/jpeg" }],
                 usage: { cost_in_usd_ticks: 200_000_000 } })
     RubyLLM.paint("a siamese cat", model: "grok-imagine-image", provider: :xai, assume_model_exists: true)
+  end
+
+  define_case "ruby_llm perplexity embed: pplx-embed-v1-0.6b billed total_cost",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: PERPLEXITY_EMBED_ON_RUBY_LLM_1 do
+    stub_json(:post, "#{PERPLEXITY_API}/v1/embeddings",
+              { object: "list", model: "pplx-embed-v1-0.6b", data: [{ object: "embedding", embedding: "AQID" }],
+                usage: { prompt_tokens: 1000, total_tokens: 1000,
+                         cost: { input_cost: 0.000004, total_cost: 0.000004, currency: "USD" } } })
+    context = RubyLLM.context { |config| config.perplexity_api_key = "test-perplexity" }
+    context.embed("hi", model: "pplx-embed-v1-0.6b", provider: :perplexity, assume_model_exists: true)
   end
 
   define_case "ruby_llm perplexity chat: sonar billed total_cost", instrument: :ruby_llm do
