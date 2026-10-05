@@ -6,7 +6,9 @@ module LlmCostTracker
       class Parser < LlmCostTracker::Parsers::Base
         include Openai::ResponseParser
 
-        TRACKED_PATH_SUFFIXES = %w[/chat/completions /completions /embeddings /responses].freeze
+        TRACKED_PATH_SUFFIXES = %w[
+          /chat/completions /completions /embeddings /responses /images/generations /v1/sonar /v1/agent
+        ].freeze
         STREAM_USAGE_HOSTS = %w[
           openrouter.ai api.deepseek.com api.groq.com api.x.ai us.api.x.ai
           api.mistral.ai api.eu.mistral.ai api.us.mistral.ai

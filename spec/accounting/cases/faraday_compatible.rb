@@ -248,7 +248,7 @@ module AccountingCases
 
   define_case "faraday perplexity chat: sonar-pro billed total_cost on the unregistered host" do
     cost = { input_tokens_cost: 0.0036, output_tokens_cost: 0.012, request_cost: 0.006, total_cost: 0.0216 }
-    faraday_json(PERPLEXITY_CHAT, { model: "sonar-pro", messages: USER_MESSAGES },
+    faraday_json("#{PERPLEXITY_API}/chat/completions", { model: "sonar-pro", messages: USER_MESSAGES },
                  chat_completion(id: "pplx_b1", model: "sonar-pro", usage: perplexity_usage(1200, 800, cost)))
   end
 
@@ -260,6 +260,33 @@ module AccountingCases
       chat_chunk(id: "pplx_b2", model: "sonar", usage: perplexity_usage(2000, completion, cost), extra: extra,
                  choices: [{ index: 0, delta: { content: "ok" }, finish_reason: finish }])
     end
-    faraday_sse(PERPLEXITY_CHAT, { model: "sonar", stream: true, messages: USER_MESSAGES }, sse(*items))
+    faraday_sse("#{PERPLEXITY_API}/chat/completions", { model: "sonar", stream: true, messages: USER_MESSAGES },
+                sse(*items))
+  end
+
+  define_case "faraday xai images: grok-imagine-image-2.0 billed cost_in_usd_ticks" do
+    faraday_json("#{XAI_API}/images/generations", { model: "grok-imagine-image-2.0", prompt: "a cat on a rocket" },
+                 { data: [{ url: "https://imgen.x.ai/xai-imgen/xai-tmp-imgen-b8.jpeg", mime_type: "image/jpeg" }],
+                   usage: { cost_in_usd_ticks: 400_000_000 } })
+  end
+
+  define_case "faraday perplexity sonar: sonar-pro billed total_cost on /v1/sonar" do
+    cost = { input_tokens_cost: 0.0045, output_tokens_cost: 0.009, request_cost: 0.006, total_cost: 0.0195 }
+    faraday_json("#{PERPLEXITY_API}/v1/sonar", { model: "sonar-pro", messages: USER_MESSAGES },
+                 chat_completion(id: "pplx_b4", model: "sonar-pro", usage: perplexity_usage(1500, 600, cost)))
+  end
+
+  define_case "faraday perplexity agent: gpt-5.6-terra web search billed total_cost on /v1/agent" do
+    usage = { input_tokens: 500, output_tokens: 200, total_tokens: 700,
+              input_tokens_details: { cache_creation_input_tokens: 0, cache_read_input_tokens: 0, cached_tokens: 0 },
+              output_tokens_details: { reasoning_tokens: 0 }, tool_calls_details: { search_web: { invocation: 1 } },
+              cost: { currency: "USD", input_cost: 0.001, output_cost: 0.0024, total_cost: 0.0059,
+                      cache_creation_cost: nil, cache_read_cost: 0, tool_calls_cost: 0.0025 } }
+    search = { type: "search_results", queries: ["hi"],
+               results: [{ id: 1, title: "x", url: "https://x", snippet: "x", source: "web" }] }
+    faraday_json("#{PERPLEXITY_API}/v1/agent",
+                 { model: "openai/gpt-5.6-terra", input: "hi", tools: [{ type: "web_search" }] },
+                 responses_object(id: "resp_pplx_b5", model: "openai/gpt-5.6-terra", usage: usage,
+                                  output: [search, output_message("pplx_b5")]))
   end
 end

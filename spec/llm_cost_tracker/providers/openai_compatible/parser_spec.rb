@@ -43,6 +43,14 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
         .to eq([[true, "xai"]] * 2 + [[true, "mistral"]] * 3 + [[true, "perplexity"]])
     end
 
+    it "matches image generation and Perplexity's own Sonar and Agent API paths on listed hosts only" do
+      urls = [%w[api.x.ai /v1/images/generations], %w[api.perplexity.ai /v1/sonar], %w[api.perplexity.ai /v1/agent],
+              %w[api.perplexity.ai /v1/async/sonar], %w[llm.example.com /v1/sonar]]
+             .map { |host, path| URI::HTTPS.build(host: host, path: path).to_s }
+
+      expect(urls.map { |url| described_class.match?(url) }).to eq([true, true, true, false, false])
+    end
+
     it "lets a configured mapping replace a built-in one" do
       LlmCostTracker.configure { |config| config.capture.openai_compatible_providers["API.X.AI"] = "grok_gateway" }
 

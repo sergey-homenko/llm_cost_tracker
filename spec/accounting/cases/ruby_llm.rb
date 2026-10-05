@@ -575,7 +575,7 @@ module AccountingCases
 
   define_case "ruby_llm perplexity chat: sonar billed total_cost", instrument: :ruby_llm do
     cost = { input_tokens_cost: 0.002, output_tokens_cost: 0.001, request_cost: 0.005, total_cost: 0.008 }
-    stub_json(:post, PERPLEXITY_CHAT,
+    stub_json(:post, "#{PERPLEXITY_API}/chat/completions",
               chat_completion(id: "pplx_b3", model: "sonar", usage: perplexity_usage(2000, 1000, cost)))
     context = RubyLLM.context { |config| config.perplexity_api_key = "test-perplexity" }
     ruby_llm_chat("sonar", :perplexity, context: context).ask("hi")

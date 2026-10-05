@@ -64,7 +64,7 @@ OpenAI Responses created with `background: true` are recorded by the first poll 
 
 ## OpenAI-Compatible Hosts
 
-OpenAI-compatible capture covers listed hosts only, on paths ending in `/chat/completions`, `/completions`, `/embeddings`, or `/responses`. Built-in mappings cover OpenRouter, DeepSeek, Groq, xAI, Mistral, and Perplexity, regional endpoints included:
+OpenAI-compatible capture covers listed hosts only, on paths ending in `/chat/completions`, `/completions`, `/embeddings`, `/responses`, `/images/generations`, `/v1/sonar`, or `/v1/agent`. Built-in mappings cover OpenRouter, DeepSeek, Groq, xAI, Mistral, and Perplexity, regional endpoints included:
 
 ```ruby
 config.capture.openai_compatible_providers["openrouter.ai"] = "openrouter"
@@ -77,8 +77,6 @@ config.capture.openai_compatible_providers["api.eu.mistral.ai"] = "mistral"
 config.capture.openai_compatible_providers["api.us.mistral.ai"] = "mistral"
 config.capture.openai_compatible_providers["api.perplexity.ai"] = "perplexity"
 ```
-
-Faraday captures Perplexity's Sonar and Agent API on their OpenAI SDK paths, `/chat/completions` and `/v1/responses`, not on `/v1/sonar` or `/v1/agent`.
 
 Register custom gateway hosts when they speak OpenAI-compatible request and response shapes:
 

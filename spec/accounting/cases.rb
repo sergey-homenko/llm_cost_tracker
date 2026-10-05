@@ -18,7 +18,7 @@ module AccountingCases
   GEMINI_INTERACTIONS = "https://generativelanguage.googleapis.com/v1beta/interactions"
   XAI_API = "https://api.x.ai/v1"
   XAI_US_API = "https://us.api.x.ai/v1"
-  PERPLEXITY_CHAT = "https://api.perplexity.ai/chat/completions"
+  PERPLEXITY_API = "https://api.perplexity.ai"
   USER_MESSAGES = [{ role: "user", content: "hi" }].freeze
   XAI_AND_MISTRAL_HOSTS = lambda do |config|
     config.capture.openai_compatible_providers.merge!("api.x.ai" => "xai", "us.api.x.ai" => "xai",
