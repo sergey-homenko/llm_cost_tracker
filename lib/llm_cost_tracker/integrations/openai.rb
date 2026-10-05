@@ -142,7 +142,7 @@ module LlmCostTracker
         def record_transcription(response, request:, latency_ms:, host: nil)
           body = Hash.try_convert(LlmCostTracker::Capture::SdkPayload.normalize(response)) || {}
           usage = body["usage"]&.deep_symbolize_keys
-          usage ||= { type: "duration", seconds: body["duration"].ceil } if body["duration"].is_a?(Numeric)
+          usage ||= { type: "duration", seconds: body["duration"].ceil } if body["duration"].to_f.positive?
           record_passthrough(
             model: request[:model],
             response: response,

@@ -336,6 +336,23 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
+    it "reads a Groq verbose_json transcription's duration, and records one reporting no duration as unknown, not free" do
+      groq = OpenAI::Client.new(api_key: "sk-test", base_url: "https://api.groq.com/openai/v1")
+      reply = ->(duration) { { status: 200, headers: { "Content-Type" => "application/json" },
+                              body: { task: "transcribe", duration: duration, text: "hi", segments: [] }.to_json } }
+      WebMock.stub_request(:post, "https://api.groq.com/openai/v1/audio/transcriptions")
+             .to_return(reply.call(3.2), reply.call(0.0))
+
+      capture_sdk_events do |events|
+        2.times do
+          groq.audio.transcriptions.create(file: audio_io, model: "whisper-large-v3", response_format: :verbose_json)
+        end
+
+        expect(events.map { |event| [event[:usage_source], event[:line_items].map { |item| BigDecimal(item[:quantity]) }] })
+          .to eq([["sdk_response", [BigDecimal(4) / 60]], ["unknown", []]])
+      end
+    end
+
     it "stores no cost for a diarized transcription billed by duration, since the model has only token rates" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions").to_return(
         status: 200,
