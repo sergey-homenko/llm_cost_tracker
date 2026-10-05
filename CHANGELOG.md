@@ -59,6 +59,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - OpenAI speech returned as binary audio by a model not billed per character, such as `gpt-4o-mini-tts`, is recorded with `usage_source: unknown` instead of as a zero-token response.
 - OpenAI `text-embedding-ada-002` embeddings, reported as `text-embedding-ada-002-v2`, are priced instead of recorded with unknown cost.
 - Mistral Embed called as `mistral-embed-2312`, another name its model card gives, is priced instead of recorded with unknown cost.
+- `backfill_unknown_pricing` or `reprice` runs at the same time no longer add a call's cost to the `:cache` rollups twice.
 
 ## [0.14.2] - 2026-09-28
 

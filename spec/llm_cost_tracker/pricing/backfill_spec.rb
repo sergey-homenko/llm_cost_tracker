@@ -132,6 +132,26 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     expect(second.recomputed).to eq(0)
   end
 
+  it "skips a call another run priced after this one read it, so rollups count its cost once" do
+    call = create_call(
+      provider: "openai", model: "gpt-4o",
+      input_tokens: 1_000, output_tokens: 500,
+      total_cost: nil, pricing_snapshot: nil, cost_status: "unknown"
+    )
+    add_line_items(call, [
+                     { direction: "input", quantity: 1_000, price_key: "input" },
+                     { direction: "output", quantity: 500, price_key: "output" }
+                   ])
+    stale = described_class.default_scope.includes(:line_items).to_a
+    described_class.call
+    scope = described_class.default_scope
+    allow(scope).to receive(:includes).and_return(scope)
+    allow(scope).to receive(:find_in_batches).and_yield(stale)
+
+    expect(described_class.call(scope: scope).to_h).to eq(examined: 0, recomputed: 0, still_unknown: 0)
+    expect(LlmCostTracker::CallRollup.where(period: "month").sum(:total_cost)).to eq(call.reload.total_cost)
+  end
+
   it "increments the call_rollups bucket for the recomputed call" do
     create_call(
       provider: "openai", model: "gpt-4o",
