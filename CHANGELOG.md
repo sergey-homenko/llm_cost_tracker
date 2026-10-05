@@ -43,6 +43,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A model with no token rate is billed by its `transcription_minute`, `text_to_speech_character`, `ocr_page` or `rerank_search_unit` rate alone when the call reports that unit, and the token counts its response also reports stay unbilled.
 - Faraday captures transcriptions, translations, speech and moderations on OpenAI-compatible hosts, and records moderations, OpenAI's included, as `free` on a $0-priced model.
 - A transcription or translation without `usage` is priced by its `verbose_json` `duration`, rounded up to whole seconds, through Faraday and the official openai gem, Azure OpenAI Whisper included.
+- `bin/rails llm_cost_tracker:prices:refresh` runs `backfill_unknown_pricing` after writing a new pricing file, or prints that command when the database is not reachable.
 
 ### Fixed
 

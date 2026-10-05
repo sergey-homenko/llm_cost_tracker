@@ -23,11 +23,11 @@ bin/rails llm_cost_tracker:prices:refresh
 bin/rails llm_cost_tracker:prices:check
 ```
 
-The refresh task reads the maintained LLM Cost Tracker snapshot and writes to `ENV["OUTPUT"]`, then `config.pricing.file`, then `config/llm_cost_tracker_prices.yml`.
+The refresh task reads the maintained LLM Cost Tracker snapshot and writes to `ENV["OUTPUT"]`, then `config.pricing.file`, then `config/llm_cost_tracker_prices.yml`. After writing a new file it runs `backfill_unknown_pricing`, or prints that command when the database is not reachable or has no `llm_cost_tracker_calls` table.
 
 Refresh refuses a snapshot that zeroes an existing price or charges for a free one, removes a model's `input` or `output` rate, moves a price 100-fold or more either way, or switches currency, and leaves the local file as it was. `prices:check` lists those changes; once confirmed, re-run refresh with `FORCE=1` or pass `force: true` to `LlmCostTracker::Pricing::Sync.refresh`. New models, models the snapshot drops entirely, removed rates other than `input` and `output`, and smaller moves are not checked, so keep reviewing the refreshed file.
 
-For production containers, refresh the file before deploy and ship it with the release. Do not rely on a price refresh that mutates one running container.
+For production containers, refresh the file at build time and ship it with the release; if the build cannot reach the production database, run `bin/rails llm_cost_tracker:backfill_unknown_pricing` as a release-phase task. Do not rely on a price refresh that mutates one running container.
 
 ## Price Fields
 
