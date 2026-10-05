@@ -27,7 +27,9 @@ module LlmCostTracker
         SOURCE_URLS = [source_url, MODELS_DEV_URL, PRICING_SOURCE_URL, MODELS_SOURCE_URL,
                        *TIER_SOURCES.values.map(&:first)].freeze
         PRICE_COLUMNS = { "Input" => "input", "Cached input" => "cache_read_input", "Output" => "output" }.freeze
-        REQUIRED = { "chat" => %w[input output], "responses" => %w[input output], "ocr" => %w[ocr_page] }.freeze
+        REQUIRED = {
+          "chat" => %w[input output], "responses" => %w[input output], "embedding" => %w[input], "ocr" => %w[ocr_page]
+        }.freeze
         MODEL_CARD = %r{\Ahttps://docs\.mistral\.ai/models/(?:model-cards/)?(?<card>[a-z0-9-]+)\z}
         TOKEN_PRICE = /\A\$(?<amount>\d+(?:\.\d+)?)\z/
         PAGE_PRICE = %r{\A\$(?<amount>\d+(?:\.\d+)?) /1000 Pages\z}
@@ -44,6 +46,7 @@ module LlmCostTracker
           @listed = listed_prices(Nokogiri::HTML(html.fetch(PRICING_SOURCE_URL)))
           @cards_by_stem = cards_by_stem(@listed.keys)
           names = self.class.followup_urls(html).to_h { |url| [url.split("/").last, card_names(html.fetch(url), url)] }
+          @cards_by_name = names.slice(*@listed.keys).flat_map { |card, ids| ids.product([card]) }.to_h
           retired, ambiguous = retirement(html.fetch(MODELS_SOURCE_URL), names, Date.parse(scraped_at))
           models = official_models(self.class.parse_json(html.fetch(SOURCE_URL)))
           rows = self.class.confirmed_rows("mistral", html, models, scraped_at)
@@ -96,14 +99,15 @@ module LlmCostTracker
           end
           tiers["priority_data_residency"] = tiers.fetch("priority") * tiers.fetch("data_residency")
           models.transform_values do |fields|
-            tiers.reduce(fields) { |priced, (tier, factor)| priced.merge(tier_prices(fields, tier, factor)) }
+            applied = fields.key?("output") ? tiers : tiers.except("priority", "priority_data_residency")
+            applied.reduce(fields) { |priced, (tier, factor)| priced.merge(tier_prices(fields, tier, factor)) }
           end
         end
 
         def extract_fields(id, entry)
           stem = id[/\A(.+)-(?:latest|\d{4})\z/, 1]
           latest_stem = stem.delete_prefix("mistral-") if id.end_with?("-latest")
-          card = MODEL_CARD.match(entry["source"].to_s)&.[](:card) || @cards_by_stem[stem]
+          card = @cards_by_name[id] || MODEL_CARD.match(entry["source"].to_s)&.[](:card) || @cards_by_stem[stem]
           card ||= @cards_by_stem[latest_stem]
           @listed.fetch(card, {})
         end

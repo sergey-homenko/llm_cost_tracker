@@ -93,12 +93,17 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       "_source" => "litellm", "input" => 2.0, "cache_read_input" => 0.2, "output" => 6.0, "batch_input" => 1.0,
       "priority_output" => 10.5, "data_residency_input" => 2.2, "priority_data_residency_input" => 3.85
     )
-    expect(mistral.fetch("mistral-embed")).to eq(
-      "_source" => "litellm", "input" => 0.1, "batch_input" => 0.05, "priority_input" => 0.175,
-      "data_residency_input" => 0.11, "priority_data_residency_input" => 0.1925
-    )
+    expect(mistral.fetch("mistral-embed"))
+      .to eq("_source" => "litellm", "input" => 0.1, "batch_input" => 0.05, "data_residency_input" => 0.11)
     expect(mistral.keys).not_to include("open-mistral-nemo", "voxtral-small-latest")
     expect(mistral.fetch("mistral-large-latest")).not_to have_key("_source")
+  end
+
+  it "prices the embeddings Mistral's pricing page lists under every name their card gives, without Priority Tier" do
+    embed = { "input" => 0.15, "cache_read_input" => 0.015, "batch_input" => 0.075, "batch_cache_read_input" => 0.0075,
+              "data_residency_input" => 0.165, "data_residency_cache_read_input" => 0.0165 }
+
+    expect(mistral.values_at("codestral-embed", "codestral-embed-2505")).to eq([embed, embed])
   end
 
   it "deprecates the ids Mistral's retired models table and the retired models' cards name, and writes none of them" do
