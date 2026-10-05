@@ -139,7 +139,7 @@ module LlmCostTracker
               model = payload[:response_model] || usage[:model]
               request = request_params(raw).presence || payload[:provider_options].to_h.with_indifferent_access
               known = tokens.to_h.any? || !tokens.reported_cost.nil?
-              line_items = if known
+              line_items = if known && usage[:operation] != :speech
                              service_line_items(model, tokens, result, request)
                            else
                              result_line_items(usage[:operation], payload[:input], model, result)
