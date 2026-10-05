@@ -13,6 +13,14 @@ module LlmCostTrackerTasks
     path
   end
 
+  def self.batch_size(default)
+    text = ENV.fetch("BATCH_SIZE", default.to_s)
+    size = Integer(text, 10, exception: false)
+    return size if size&.positive?
+
+    abort("llm_cost_tracker: BATCH_SIZE=#{text} is not a positive integer, e.g. BATCH_SIZE=#{default}")
+  end
+
   def self.backfill_after_refresh(path)
     file = LlmCostTracker.configuration.pricing.file
     return unless file && File.expand_path(file) == File.expand_path(path)
@@ -78,7 +86,7 @@ namespace :llm_cost_tracker do
        "Use BATCH_SIZE=N to tune."
   task backfill_unknown_pricing: :environment do
     require_relative "../llm_cost_tracker/pricing/backfill"
-    batch_size = (ENV["BATCH_SIZE"] || LlmCostTracker::Pricing::Backfill::DEFAULT_BATCH_SIZE).to_i
+    batch_size = LlmCostTrackerTasks.batch_size(LlmCostTracker::Pricing::Backfill::DEFAULT_BATCH_SIZE)
     result = LlmCostTracker::Pricing::Backfill.call(batch_size: batch_size)
     puts "llm_cost_tracker: examined #{result.examined} calls, recomputed #{result.recomputed}, " \
          "still unknown #{result.still_unknown}"
@@ -93,7 +101,7 @@ namespace :llm_cost_tracker do
     to_text = ENV["TO"].presence
     to = to_text && Time.zone.parse(to_text)
     abort("llm_cost_tracker: TO=#{to_text} is not a date, e.g. TO=2026-10-01") if to_text && !to
-    batch_size = (ENV["BATCH_SIZE"] || LlmCostTracker::Pricing::Backfill::DEFAULT_BATCH_SIZE).to_i
+    batch_size = LlmCostTrackerTasks.batch_size(LlmCostTracker::Pricing::Backfill::DEFAULT_BATCH_SIZE)
     scope = LlmCostTracker::Pricing::Backfill.reprice_scope(from...to)
     result = LlmCostTracker::Pricing::Backfill.call(scope: scope, batch_size: batch_size, reprice: true)
     puts "llm_cost_tracker: examined #{result.examined} calls, repriced #{result.recomputed}"
@@ -102,7 +110,7 @@ namespace :llm_cost_tracker do
   desc "Delete llm_cost_tracker_calls and ingestion inbox rows older than DAYS (default: 90). Use BATCH_SIZE=N to tune."
   task prune: :environment do
     days = (ENV["DAYS"] || 90).to_i
-    batch_size = (ENV["BATCH_SIZE"] || LlmCostTracker::Retention::DEFAULT_BATCH_SIZE).to_i
+    batch_size = LlmCostTrackerTasks.batch_size(LlmCostTracker::Retention::DEFAULT_BATCH_SIZE)
     deleted = LlmCostTracker::Retention.prune(older_than: days, batch_size: batch_size)
     puts "llm_cost_tracker: pruned #{deleted} calls older than #{days} days"
     inbox_pruned = LlmCostTracker::Retention.prune_inbox(older_than: days)
@@ -125,7 +133,7 @@ namespace :llm_cost_tracker do
       abort("llm_cost_tracker: llm_cost_tracker_call_tags is missing the cost columns; " \
             "run the upgrade_per_tag_budgets generator and migrate first")
     end
-    batch_size = (ENV["BATCH_SIZE"] || LlmCostTracker::Budget::PerTag::DEFAULT_BACKFILL_BATCH).to_i
+    batch_size = LlmCostTrackerTasks.batch_size(LlmCostTracker::Budget::PerTag::DEFAULT_BACKFILL_BATCH)
     filled = LlmCostTracker::Budget::PerTag.backfill(batch_size: batch_size)
     puts "llm_cost_tracker: filled cost and time on #{filled} tag rows"
   end

@@ -123,6 +123,17 @@ RSpec.describe "llm_cost_tracker rake tasks" do
     end
   end
 
+  it "refuses a BATCH_SIZE that is not a positive integer" do
+    allow(LlmCostTracker::Pricing::Backfill).to receive(:call)
+
+    ["0", "-1", "abc", ""].each do |size|
+      stub_const("ENV", ENV.to_h.merge("BATCH_SIZE" => size))
+      expect { Rake::Task["llm_cost_tracker:backfill_unknown_pricing"].execute }
+        .to raise_error(SystemExit).and output(/BATCH_SIZE=#{size} is not a positive integer/).to_stderr
+    end
+    expect(LlmCostTracker::Pricing::Backfill).not_to have_received(:call)
+  end
+
   it "reprices calls from FROM up to TO and refuses to run without FROM or with an unreadable TO" do
     backfill = LlmCostTracker::Pricing::Backfill
     allow(backfill).to receive(:reprice_scope).and_return(:scope)
