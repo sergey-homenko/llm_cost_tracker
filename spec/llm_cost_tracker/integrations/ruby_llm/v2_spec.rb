@@ -845,7 +845,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
     end
 
     it "prices Gemini native image output at the image rate and its text and thinking at the text rate" do
-      model = "gemini-3.1-flash-image-preview"
+      model = "gemini-3.1-flash-image"
       parts = [{ text: "Here is your fox." }, { inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }]
       WebMock.stub_request(:post, gemini_url(model)).to_return(reply(
         candidates: [{ content: { role: "model", parts: parts }, finishReason: "STOP" }],
