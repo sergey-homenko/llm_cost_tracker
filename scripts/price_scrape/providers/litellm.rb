@@ -88,12 +88,16 @@ module LlmCostTracker
           end
 
           def confirmed_rows(provider, pages, official, scraped_at)
+            models_dev = JSON.parse(pages[MODELS_DEV_URL].to_s)
+            return unless models_dev.is_a?(Hash)
+
             conversion = convert(parse_json(pages.fetch(SOURCE_URL)))
-            models_dev = JSON.parse(pages.fetch(MODELS_DEV_URL))
             today = Date.parse(scraped_at).iso8601
             gate(provider, conversion, models_dev, official, today).confirmed.transform_values do |fields|
               fields.slice("input", "cache_read_input", "output").merge("_source" => "litellm")
             end
+          rescue JSON::ParserError
+            nil
           end
 
           def gate(provider, conversion, models_dev, written, today)

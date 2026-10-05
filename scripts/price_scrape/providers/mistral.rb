@@ -50,11 +50,12 @@ module LlmCostTracker
           retired, ambiguous = retirement(html.fetch(MODELS_SOURCE_URL), names, Date.parse(scraped_at))
           models = official_models(self.class.parse_json(html.fetch(SOURCE_URL)))
           rows = self.class.confirmed_rows("mistral", html, models, scraped_at)
-          models = with_tiers(models.merge(rows.except(*retired, *ambiguous)), html)
+          models = with_tiers(models.merge(rows.to_h.except(*retired, *ambiguous)), html)
           validate!(models.except(*retired))
-          notes = (rows.keys & ambiguous).map do |id|
+          notes = (rows.to_h.keys & ambiguous).map do |id|
             "- `mistral/#{id}`: named on both a retired and a current Mistral model card; not written"
           end
+          notes << "- `mistral`: models.dev was unreachable or invalid, so no LiteLLM-only row was written" unless rows
           Result.new(source_url:, scraped_at:, models:, deprecated_models: retired, service_charges: {}, notes:)
         end
 

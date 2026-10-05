@@ -134,9 +134,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
     end
   end
 
-  def litellm_provider(url)
+  def litellm_provider(url, *more)
     Class.new(LlmCostTracker::Pricing::Scrape::Providers::Base) do
-      const_set(:SOURCE_URLS, [url, LlmCostTracker::Pricing::Scrape::Providers::Litellm::SOURCE_URL])
+      const_set(:SOURCE_URLS, [url, LlmCostTracker::Pricing::Scrape::Providers::Litellm::SOURCE_URL, *more])
       source_url url
       define_method(:call) do |html:, source_url:, scraped_at:|
         input = Float(html.fetch(LlmCostTracker::Pricing::Scrape::Providers::Litellm::SOURCE_URL))
@@ -165,6 +165,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
       expect(io.string).to include("[one] fetching #{format(litellm::PRICES_URL, sha)}")
       expect(JSON.parse(File.read(file.path)).dig("metadata", "source_urls"))
         .to eq(["https://one.example.test/", litellm::SOURCE_URL, "https://two.example.test/"])
+    end
+  end
+
+  it "runs a provider without models.dev when it cannot be fetched, and fails on any other page" do
+    stub_const("#{described_class}::PROVIDERS", "one" => litellm_provider("https://one.example.test/", litellm::MODELS_DEV_URL))
+    stub_request(:get, litellm::SOURCE_URL).to_return(status: 200, body: "2.5")
+    stub_request(:get, "https://one.example.test/").to_return(status: 200, body: "{}")
+    stub_request(:get, litellm::MODELS_DEV_URL).to_return(status: 503)
+    runner = described_class.new(io: io, fetcher: LlmCostTracker::Pricing::Scrape::Fetcher.new(sleep: ->(_) {}))
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.generate("metadata" => {}, "models" => {}))
+      file.close
+
+      expect(runner.call(providers: %w[one], registry_path: file.path, dry_run: true).first.scraped.models)
+        .to eq("model-a" => { "input" => 2.5 })
+      expect(io.string).to include("[one] skipped #{litellm::MODELS_DEV_URL}")
+      stub_request(:get, "https://one.example.test/").to_return(status: 503)
+      expect { runner.call(providers: %w[one], registry_path: file.path, dry_run: true) }
+        .to raise_error(described_class::Error, /failures: one/)
     end
   end
 

@@ -99,6 +99,19 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     expect(mistral.fetch("mistral-large-latest")).not_to have_key("_source")
   end
 
+  it "writes no LiteLLM-only row, and notes it, when models.dev is unreachable or invalid" do
+    note = "- `mistral`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"
+
+    [mistral_pages.except(described_class::MODELS_DEV_URL),
+     mistral_pages.merge(described_class::MODELS_DEV_URL => "<html>")].each do |pages|
+      result = mistral_class.new.call(html: pages, scraped_at: "2026-10-05T06:00:00Z")
+
+      expect(result.models.values.filter_map { |fields| fields["_source"] }).to be_empty
+      expect(result.models).to include("mistral-large-latest", "codestral-embed")
+      expect(result.notes).to eq([note])
+    end
+  end
+
   it "prices the embeddings Mistral's pricing page lists under every name their card gives, without Priority Tier" do
     embed = { "input" => 0.15, "cache_read_input" => 0.015, "batch_input" => 0.075, "batch_cache_read_input" => 0.0075,
               "data_residency_input" => 0.165, "data_residency_cache_read_input" => 0.0165 }

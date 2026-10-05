@@ -100,7 +100,7 @@ module LlmCostTracker
       end
 
       def fetch_provider_responses(name, provider_class)
-        responses = source_urls(provider_class).to_h { |url| [url, fetch(name, url)] }
+        responses = source_urls(provider_class).to_h { |url| [url, fetch(name, url)] }.compact
         followups = provider_class.followup_urls(responses.transform_values(&:body))
         responses.merge(followups.to_h { |url| [url, fetch(name, url)] })
       end
@@ -115,6 +115,11 @@ module LlmCostTracker
           @io.puts "[#{name}] HTTP #{response.status} (#{response.body.bytesize} bytes, #{response.elapsed_ms}ms)"
           response
         end
+      rescue Fetcher::Error => e
+        raise unless url == Providers::Litellm::MODELS_DEV_URL
+
+        @io.puts "[#{name}] skipped #{url}: #{e.message}"
+        nil
       end
 
       def provider_html(responses)
