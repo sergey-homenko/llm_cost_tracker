@@ -15,6 +15,8 @@ RSpec.describe "llm_cost_tracker rake tasks" do
     Rake.application = previous_application
   end
 
+  after { disconnect_database! }
+
   it "sets up a fresh install with dashboard, prices, migrations, and doctor" do
     migrate = instance_double(Rake::Task, invoke: true)
     doctor = instance_double(Rake::Task, invoke: true)
@@ -34,6 +36,7 @@ RSpec.describe "llm_cost_tracker rake tasks" do
   end
 
   it "lists suspicious price changes in prices:check and writes them only with FORCE=1" do
+    establish_database_connection!
     url = "https://prices.example.com/prices.json"
     stub_request(:get, url).to_return(body: JSON.generate("models" => { "openai/gpt-4o" => { "input" => 0.0 } }))
 
@@ -59,6 +62,55 @@ RSpec.describe "llm_cost_tracker rake tasks" do
       expect { refresh.call({}) }.to raise_error(LlmCostTracker::Error, /Refusing to write pricing file/)
       expect { refresh.call("FORCE" => "1") }.to output(/refreshed pricing file/).to_stdout
       expect(YAML.safe_load_file(path).dig("models", "openai/gpt-4o", "input")).to eq(0.0)
+    end
+  end
+
+  it "backfills the calls a written pricing file prices, and not when the file is kept" do
+    establish_database_connection!
+    create_lct_tables!
+    [LlmCostTracker::Call, LlmCostTracker::CallLineItem, LlmCostTracker::CallTag, LlmCostTracker::CallRollup]
+      .each(&:reset_column_information)
+    url = "https://prices.example.com/prices.json"
+    stub_request(:get, url).to_return(
+      body: JSON.generate("models" => { "openai/acme-late-model" => { "input" => 1.0, "output" => 2.0 } }),
+      headers: { "ETag" => '"v1"' }
+    )
+    stub_request(:get, url).with(headers: { "If-None-Match" => '"v1"' }).to_return(status: 304)
+    allow(LlmCostTracker::Pricing::Backfill).to receive(:call).and_call_original
+
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "llm_cost_tracker_prices.yml")
+      LlmCostTracker.configure { |config| config.pricing.file = path }
+      LlmCostTracker.track(provider: "openai", model: "acme-late-model",
+                           tokens: { input_tokens: 1000, output_tokens: 100 })
+      expect(LlmCostTracker::Call.sole.cost_status).to eq("unknown")
+      stub_const("ENV", ENV.to_h.merge("OUTPUT" => path, "URL" => url))
+      refresh = -> { Rake::Task["llm_cost_tracker:prices:refresh"].execute }
+
+      expect { refresh.call }.to output(
+        /refreshed pricing file.*\nllm_cost_tracker: examined 1 calls, recomputed 1, still unknown 0\n\z/m
+      ).to_stdout
+      expect(LlmCostTracker::Call.sole).to have_attributes(total_cost: BigDecimal("0.0012"), cost_status: "complete")
+      expect { refresh.call }.to output(/kept pricing file/).to_stdout
+      expect(LlmCostTracker::Pricing::Backfill).to have_received(:call).once
+    end
+  end
+
+  it "keeps a written pricing file and prints the backfill command when the ledger is not reachable" do
+    url = "https://prices.example.com/prices.json"
+    stub_request(:get, url).to_return(body: JSON.generate("models" => {}))
+    hinted = %r{refreshed pricing file.*\nllm_cost_tracker: run bin/rails llm_cost_tracker:backfill_unknown_pricing once the database is reachable\n\z}m
+
+    Dir.mktmpdir do |dir|
+      stub_const("ENV", ENV.to_h.merge("OUTPUT" => File.join(dir, "prices.yml"), "URL" => url))
+      refresh = -> { Rake::Task["llm_cost_tracker:prices:refresh"].execute }
+
+      establish_database_connection!
+      expect { refresh.call }.to output(hinted).to_stdout
+      LlmCostTracker::Call.establish_connection(LlmCostTrackerDatabase.config.merge(port: 1))
+      expect { refresh.call }.to output(hinted).to_stdout
+    ensure
+      LlmCostTracker::Call.remove_connection
     end
   end
 

@@ -12,6 +12,20 @@ module LlmCostTrackerTasks
     FileUtils.mkdir_p(File.dirname(path))
     path
   end
+
+  def self.backfill_after_refresh
+    if ledger_reachable?
+      Rake::Task["llm_cost_tracker:backfill_unknown_pricing"].execute
+    else
+      puts "llm_cost_tracker: run bin/rails llm_cost_tracker:backfill_unknown_pricing once the database is reachable"
+    end
+  end
+
+  def self.ledger_reachable?
+    LlmCostTracker::Call.with_connection { |connection| connection.table_exists?(LlmCostTracker::Call.table_name) }
+  rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
+    false
+  end
 end
 
 # rubocop:disable-next Metrics/BlockLength
@@ -112,7 +126,8 @@ namespace :llm_cost_tracker do
 
   namespace :prices do
     desc(
-      "Refresh the configured pricing file from the maintained LLM Cost Tracker price snapshot. " \
+      "Refresh the configured pricing file from the maintained LLM Cost Tracker price snapshot, then run " \
+      "llm_cost_tracker:backfill_unknown_pricing if the database is reachable. " \
       "Review changes first with llm_cost_tracker:prices:check. Use FORCE=1 to accept suspicious price changes, " \
       "URL=... to override the source, or OUTPUT=path/to/file.json."
     )
@@ -130,6 +145,7 @@ namespace :llm_cost_tracker do
       puts "  source: #{result.source_url}"
       puts "  version: #{result.source_version.inspect}" if result.source_version
       LlmCostTracker::Pricing::Sync::ChangePrinter.call(result.changes, suspicious: result.suspicious)
+      LlmCostTrackerTasks.backfill_after_refresh if result.written
     end
 
     desc "Compare the current pricing file with the maintained LLM Cost Tracker price snapshot."
