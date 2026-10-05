@@ -34,7 +34,7 @@ module LlmCostTracker
           "omni-moderation-2024-09-26" => "omni-moderation-latest",
           "text-embedding-ada-002-v2" => "text-embedding-ada-002"
         }.freeze
-        QUALIFIER = /\s*\([^()]*\)\z/
+        QUALIFIER = /\s*\(<\d+K context length\)\z/
         BATCH_DISCOUNT = /(\d+)% cost discount compared to synchronous APIs/
         UNIT_PRICE = %r{\A\$([\d.]+)\s*/\s*(minute|1M characters)\z}i
         UNIT_FIELDS = { "minute" => "transcription_minute", "1m characters" => "text_to_speech_character" }.freeze
@@ -395,7 +395,8 @@ module LlmCostTracker
         def known_model_id(display_name)
           name = display_name.to_s.strip.sub(QUALIFIER, "")
           model_ids = @catalogue.values
-          @catalogue[name] || (name if model_ids.include?(name) || model_ids.any? { |id| name.start_with?("#{id}-") })
+          extends = name.match?(DeprecatedModels::MODEL_ID) && model_ids.any? { |id| name.start_with?("#{id}-") }
+          @catalogue[name] || (name if model_ids.include?(name) || extends)
         end
 
         def parse_price(value)

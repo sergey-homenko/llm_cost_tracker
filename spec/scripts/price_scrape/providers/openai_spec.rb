@@ -574,10 +574,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       end.to raise_error(described_class::Error, /no model ID for OpenAI price row "gpt-6.1-sol"/)
     end
 
-    it "names rows by the catalogue's link text and IDs, without a trailing qualifier, and their snapshots" do
+    it "names rows by the catalogue's link text and IDs, without a context-length qualifier, and their snapshots" do
       renamed = html.sub("&quot;model&quot;:[0,&quot;gpt-realtime-whisper&quot;]",
                          "&quot;model&quot;:[0,&quot;GPT-Realtime-Whisper&quot;]")
-                    .sub("[0,&quot;gpt-5.4-mini&quot;]", "[0,&quot;gpt-5.4-mini (text)&quot;]")
+                    .sub("[0,&quot;gpt-5.4-mini&quot;]", "[0,&quot;gpt-5.4-mini (&lt;272K context length)&quot;]")
       models = described_class.new.call(html: html_pages(described_class.source_url => renamed),
                                         scraped_at: "2026-10-05T00:00:00Z").models
 
@@ -587,6 +587,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       expect(models.fetch("gpt-5.5-cyber")).to include("input" => 12.5, "output" => 75.0)
       expect(models.fetch("gpt-4o-2024-05-13")).to include("input" => 5.0, "output" => 15.0)
       expect(models.keys.grep(/[A-Z (]/)).to be_empty
+    end
+
+    it "raises on a priced row with a qualifier other than a context length" do
+      %w[gpt-6-luna gpt-5.4-mini].product(%w[audio text]).each do |model_id, qualifier|
+        renamed = html.sub("[0,&quot;#{model_id}&quot;]", "[0,&quot;#{model_id} (#{qualifier})&quot;]")
+
+        expect do
+          described_class.new.call(html: html_pages(described_class.source_url => renamed))
+        end.to raise_error(described_class::Error, /no model ID for OpenAI price row "#{model_id} \(#{qualifier}\)"/)
+      end
     end
 
     it "raises on a priced row named by neither a model ID nor the catalogue" do
