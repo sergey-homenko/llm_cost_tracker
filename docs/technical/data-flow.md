@@ -83,3 +83,5 @@ Dashboard reads do not mutate ledger state. They can be heavier than request-tim
 6. Runtime pricing loads the local file once and memoizes it. The file's mtime is recorded as the source version; changing the file in a running process has no effect until the process restarts or Rails reloads the app.
 
 The gem never fetches pricing from the network during normal request tracking.
+
+The daily price bot (`scripts/price_scrape/runner.rb`) fetches each source page once per run, LiteLLM at one pinned commit, adds LiteLLM-only Mistral and Groq rows only when models.dev lists the same price, records keys a provider stopped listing in `metadata.absent_since` and drops them after 90 days; `cross_check.rb` then reports where LiteLLM, models.dev and the bundled prices disagree.
