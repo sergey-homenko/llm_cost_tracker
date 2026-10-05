@@ -9,7 +9,8 @@ module LlmCostTracker
   module Pricing::Scrape
     module Providers
       class Litellm < Base
-        SOURCE_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+        PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/%s/model_prices_and_context_window.json"
+        SOURCE_URL = format(PRICES_URL, "main")
         TOKEN_MODES = %w[chat responses].freeze
         PROVIDERS = {
           "openai" => "openai", "anthropic" => "anthropic", "gemini" => "gemini", "xai" => "xai",

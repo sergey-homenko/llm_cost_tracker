@@ -126,7 +126,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
 
   it "writes the report pinned to a LiteLLM commit and the issue body, and never writes the registry" do
     sha = "a" * 40
-    stub_request(:get, format(described_class::PRICES_URL, sha))
+    stub_request(:get, format(LlmCostTracker::Pricing::Scrape::Providers::Litellm::PRICES_URL, sha))
       .to_return(status: 200, body: JSON.generate(catalogue.slice("gpt-4o", "gpt-6-astra")))
     Dir.mktmpdir do |dir|
       prices, acks, notes, report, issue = %w[prices.json acks.yml notes.md report.md issue.md].map do |name|

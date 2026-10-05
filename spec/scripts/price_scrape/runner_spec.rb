@@ -16,6 +16,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   let(:groq_deprecations_html) { File.read("spec/fixtures/scrape/groq_deprecations.html", encoding: "utf-8") }
   let(:groq_batch_html) { File.read("spec/fixtures/scrape/groq_batch.html", encoding: "utf-8") }
 
+  let(:litellm) { LlmCostTracker::Pricing::Scrape::Providers::Litellm }
+
+  def fixture(name) = File.read("spec/fixtures/scrape/#{name}", encoding: "utf-8")
+
   def build_registry(haiku_entry:)
     {
       "metadata" => { "schema_version" => 1, "updated_at" => "2026-04-01" },
@@ -127,6 +131,55 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
 
       expect(runs.first.scraped.models).to eq("model-a" => { "input" => 1.5 })
       expect(JSON.parse(File.read(file.path)).dig("metadata", "source_urls")).to eq(["https://prices.example.test/"])
+    end
+  end
+
+  def litellm_provider(url)
+    Class.new(LlmCostTracker::Pricing::Scrape::Providers::Base) do
+      const_set(:SOURCE_URLS, [url, LlmCostTracker::Pricing::Scrape::Providers::Litellm::SOURCE_URL])
+      source_url url
+      define_method(:call) do |html:, source_url:, scraped_at:|
+        input = Float(html.fetch(LlmCostTracker::Pricing::Scrape::Providers::Litellm::SOURCE_URL))
+        LlmCostTracker::Pricing::Scrape::Providers::Base::Result.new(
+          source_url:, scraped_at:, deprecated_models: [], service_charges: {}, models: { "model-a" => { "input" => input } }
+        )
+      end
+    end
+  end
+
+  it "fetches each page once per run, and LiteLLM at the pinned commit under its canonical URL" do
+    sha = "b" * 40
+    stub_const("#{described_class}::PROVIDERS", "one" => litellm_provider("https://one.example.test/"),
+                                                  "two" => litellm_provider("https://two.example.test/"))
+    pinned = stub_request(:get, format(litellm::PRICES_URL, sha)).to_return(status: 200, body: "2.5")
+    %w[one two].each { |name| stub_request(:get, "https://#{name}.example.test/").to_return(status: 200, body: "{}") }
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.generate("metadata" => {}, "models" => {}))
+      file.close
+
+      runs = described_class.new(io: io, litellm_sha: sha).call(providers: %w[one two], registry_path: file.path)
+
+      expect(runs.map { |run| run.scraped.models }).to all(eq("model-a" => { "input" => 2.5 }))
+      expect(pinned).to have_been_requested.once
+      expect(io.string).to include("[one] fetching #{format(litellm::PRICES_URL, sha)}")
+      expect(JSON.parse(File.read(file.path)).dig("metadata", "source_urls"))
+        .to eq(["https://one.example.test/", litellm::SOURCE_URL, "https://two.example.test/"])
+    end
+  end
+
+  it "fetches LiteLLM at main when no commit is pinned" do
+    stub_const("#{described_class}::PROVIDERS", "one" => litellm_provider("https://one.example.test/"))
+    main = stub_request(:get, litellm::SOURCE_URL).to_return(status: 200, body: "2.5")
+    stub_request(:get, "https://one.example.test/").to_return(status: 200, body: "{}")
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.generate("metadata" => {}, "models" => {}))
+      file.close
+
+      described_class.new(io: io).call(providers: %w[one], registry_path: file.path, dry_run: true)
+
+      expect(main).to have_been_requested.once
     end
   end
 

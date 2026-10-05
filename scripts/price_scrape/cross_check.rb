@@ -13,7 +13,6 @@ module LlmCostTracker
   module Pricing::Scrape
     class CrossCheck
       REPOSITORY = "https://github.com/BerriAI/litellm.git"
-      PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/%s/model_prices_and_context_window.json"
       REGISTRY_PATH = File.expand_path("../../lib/llm_cost_tracker/prices.json", __dir__)
       ACKNOWLEDGED_PATH = File.expand_path("cross_check_acknowledged.yml", __dir__)
       FULLY_SCRAPED = %w[anthropic deepseek gemini openai openrouter xai].freeze
@@ -50,7 +49,7 @@ module LlmCostTracker
         raise Error, "LiteLLM main commit not found" unless sha
 
         check = new(registry: JSON.parse(File.read(registry_path)),
-                    catalogue: JSON.parse(fetcher.get(format(PRICES_URL, sha)).body),
+                    catalogue: JSON.parse(fetcher.get(format(Providers::Litellm::PRICES_URL, sha)).body),
                     acknowledged: YAML.safe_load_file(acknowledged_path) || {},
                     notes: notes_path && File.exist?(notes_path) ? File.readlines(notes_path, chomp: true) : [])
         File.write(report_path, check.report(sha))
@@ -250,6 +249,7 @@ if $PROGRAM_NAME == __FILE__
   LlmCostTracker::Pricing::Scrape::CrossCheck.run(
     report_path: ARGV.fetch(0),
     issue_path: ARGV.fetch(1),
-    notes_path: ARGV[2]
+    notes_path: ARGV[2],
+    sha: ENV["LITELLM_SHA"].presence
   )
 end
