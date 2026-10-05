@@ -9,7 +9,6 @@ require "time"
 require_relative "base"
 require_relative "openai/data_residency_prices"
 require_relative "openai/deprecated_models"
-require_relative "openai/model_ids"
 require_relative "openai/rendered_long_context_prices"
 
 module LlmCostTracker
@@ -21,13 +20,23 @@ module LlmCostTracker
         max_price 1000.0
         anchors "gpt-5.5", "gpt-5.4-mini"
         MODEL_CATALOGUE_URL = "https://developers.openai.com/api/docs/models/all.md"
+        BATCH_GUIDE_URL = "https://developers.openai.com/api/docs/guides/batch.md"
         SOURCE_URLS = [
           source_url,
           RenderedLongContextPrices::SOURCE_URL,
           DeprecatedModels::SOURCE_URL,
           MODEL_CATALOGUE_URL,
+          BATCH_GUIDE_URL,
           *DataResidencyPrices::SOURCE_URLS
         ].freeze
+        MODEL_ID_ALIASES = {
+          "gpt-4" => "gpt-4-0613", "gpt-4-turbo" => "gpt-4-turbo-2024-04-09",
+          "omni-moderation-2024-09-26" => "omni-moderation-latest"
+        }.freeze
+        QUALIFIER = /\s*\([^()]*\)\z/
+        BATCH_DISCOUNT = /(\d+)% cost discount compared to synchronous APIs/
+        UNIT_PRICE = %r{\A\$([\d.]+)\s*/\s*(minute|1M characters)\z}i
+        UNIT_FIELDS = { "minute" => "transcription_minute", "1m characters" => "text_to_speech_character" }.freeze
 
         STANDARD_FIELDS = {
           input: "input", cache_read_input: "cache_read_input",
@@ -75,7 +84,7 @@ module LlmCostTracker
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           pages = pages_from(html)
-          @catalogued_model_ids = pages[MODEL_CATALOGUE_URL].to_s.scan(%r{\(/api/docs/models/([^()/]+)\.md\)}).flatten
+          @catalogue = catalogue(pages[MODEL_CATALOGUE_URL])
           doc = Nokogiri::HTML(pages.fetch(self.class.source_url))
           models = TIER_FIELDS.each_with_object({}) do |(tier, fields), collected|
             tier_models = extract_tier_models(doc, tier: tier, fields: fields)
@@ -84,6 +93,7 @@ module LlmCostTracker
             tier_models = merge_model_fields(tier_models, extract_specialized_models(doc, tier: tier))
             collected.replace(merge_model_fields(collected, tier_models))
           end
+          models = merge_model_fields(models, batch_embedding_prices(models, pages))
           models, notes = DataResidencyPrices.call(models, pages)
           models = add_model_id_aliases(add_priority_aliases(models))
           validate!(models)
@@ -108,6 +118,20 @@ module LlmCostTracker
         def deprecated_models(pages, scraped_at:)
           doc = Nokogiri::HTML(pages.fetch(DeprecatedModels::SOURCE_URL))
           DeprecatedModels.call(doc, scraped_on: Date.parse(scraped_at))
+        end
+
+        def catalogue(markdown)
+          markdown.to_s.each_line.with_object({}) do |line, entries|
+            name = line[/\A- \[([^\]]+)\]/, 1]
+            model_id = line[%r{\A- \[[^\]]+\]\(/api/docs/models/([^()/]+)\.md\)}, 1] || line[/Model ID: `([^`]+)`/, 1]
+            entries[name] = model_id if name && model_id
+          end
+        end
+
+        def batch_embedding_prices(models, pages)
+          discount = documented_factor(pages.fetch(BATCH_GUIDE_URL), BATCH_DISCOUNT, "Batch API discount")
+          models.select { |model_id, _| model_id.start_with?("text-embedding-") }
+                .transform_values { |fields| tier_prices(fields, "batch", 1 - (discount / 100)) }
         end
 
         def extract_service_charges(doc)
@@ -273,9 +297,9 @@ module LlmCostTracker
             next unless group.is_a?(Hash)
 
             name = unwrap(group["model"]).to_s.strip
-            model_id = normalize_model_id(name)
+            model_id = known_model_id(name)
             rows = unwrap(group["rows"])
-            next unless rows.is_a?(Array) && (model_id || !MODEL_ID_BY_DISPLAY_NAME.key?(name))
+            next unless rows.is_a?(Array)
 
             price_fields = group_price_fields(rows, fields: fields, model_id: model_id)
             next if price_fields.empty?
@@ -294,8 +318,8 @@ module LlmCostTracker
             minute_price = unwrap(cells[3]).to_s[%r{\A\$([\d.]+)\s*/\s*minute\z}i, 1]
             if label.is_a?(Numeric)
               values.merge!(extract_price_fields([nil, *cells], fields: fields))
-            elsif minute_price && unwrap(cells[1]) == "-" && unwrap(cells[2]) == "-"
-              values["transcription_minute"] = Float(minute_price)
+            elsif (per_unit = unit_prices(cells))
+              values.merge!(per_unit)
             elsif minute_price && label.to_s.start_with?("Transcription")
               values.merge!(
                 fields.fetch(:input) => parse_price(unwrap(cells[1])),
@@ -306,6 +330,12 @@ module LlmCostTracker
               values.merge!(extract_price_fields(cells, fields: modality_fields))
             end
           end
+        end
+
+        def unit_prices(cells)
+          priced = cells.drop(1).map { |cell| unwrap(cell) } - ["-"]
+          unit_price = priced.size == 1 && priced.first.to_s.match(UNIT_PRICE)
+          { UNIT_FIELDS.fetch(unit_price[2].downcase) => Float(unit_price[1]) } if unit_price
         end
 
         def transcription_audio_input(model_id, minute_price)
@@ -358,15 +388,15 @@ module LlmCostTracker
         def normalize_model_id(display_name)
           name = display_name.to_s.strip
           model_id = known_model_id(name)
-          if model_id.nil? && !MODEL_ID_BY_DISPLAY_NAME.key?(name) && name.match?(DeprecatedModels::MODEL_ID)
-            raise Error, "no model ID for OpenAI price row #{name.inspect}"
-          end
+          raise Error, "no model ID for OpenAI price row #{name.inspect}" unless model_id
 
           model_id
         end
 
-        def known_model_id(name)
-          MODEL_ID_BY_DISPLAY_NAME.fetch(name) { name if @catalogued_model_ids.include?(name) }
+        def known_model_id(display_name)
+          name = display_name.to_s.strip.sub(QUALIFIER, "")
+          model_ids = @catalogue.values
+          @catalogue[name] || (name if model_ids.include?(name) || model_ids.any? { |id| name.start_with?("#{id}-") })
         end
 
         def parse_price(value)

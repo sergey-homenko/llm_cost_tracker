@@ -23,6 +23,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
   let(:changelog) do
     File.read(File.expand_path("../../../fixtures/scrape/openai_changelog.md", __dir__), encoding: "utf-8")
   end
+  let(:batch_guide) do
+    File.read(File.expand_path("../../../fixtures/scrape/openai_batch.md", __dir__), encoding: "utf-8")
+  end
   let(:sparse_html) do
     pricing_html(
       {
@@ -70,6 +73,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       described_class::RenderedLongContextPrices::SOURCE_URL => markdown,
       described_class::DeprecatedModels::SOURCE_URL => deprecations_html,
       described_class::MODEL_CATALOGUE_URL => catalogue,
+      described_class::BATCH_GUIDE_URL => batch_guide,
       described_class::DataResidencyPrices::ELIGIBILITY_URL => data_controls,
       described_class::DataResidencyPrices::CHANGELOG_URL => changelog
     }.merge(overrides)
@@ -363,7 +367,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       expect(result.models.fetch("gpt-image-2.5-sunburst")).to eq(
         "image_input" => 8.0, "image_cache_read_input" => 2.0, "image_output" => 30.0,
         "input" => 5.0, "cache_read_input" => 1.25,
-        "data_residency_input" => 5.5, "data_residency_cache_read_input" => 1.375
+        "batch_image_input" => 4.0, "batch_image_cache_read_input" => 1.0, "batch_image_output" => 15.0,
+        "batch_input" => 2.5, "batch_cache_read_input" => 0.625,
+        "data_residency_input" => 5.5, "data_residency_cache_read_input" => 1.375,
+        "batch_data_residency_input" => 2.75, "batch_data_residency_cache_read_input" => 0.6875
       )
       expect(result.models.fetch("gpt-image-2.5-flare")).to eq(result.models.fetch("gpt-image-2.5-sunburst"))
       expect(result.models.fetch("gpt-5.6-cyber")).to eq(
@@ -371,10 +378,34 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       )
     end
 
-    it "skips rows mapped to no model ID" do
-      result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
+    it "prices embeddings at the Batch guide's discount and the legacy speech models per character" do
+      models = described_class.new.call(html: html_pages, scraped_at: "2026-10-05T00:00:00Z").models
 
-      expect(result.models).not_to include("text-embedding-3-small", "tts-1", "tts-1-hd")
+      expect(models.slice("text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002",
+                          "tts-1", "tts-1-hd")).to eq(
+                            "text-embedding-3-small" => { "input" => 0.02, "batch_input" => 0.01 },
+                            "text-embedding-3-large" => { "input" => 0.13, "batch_input" => 0.065 },
+                            "text-embedding-ada-002" => { "input" => 0.1, "batch_input" => 0.05 },
+                            "tts-1" => { "text_to_speech_character" => 15.0 },
+                            "tts-1-hd" => { "text_to_speech_character" => 30.0 }
+                          )
+    end
+
+    it "raises when a per-character speech row gains another price" do
+      per_character = "[0,&quot;$15.00 / 1M characters&quot;],[0,&quot;-&quot;],[0,&quot;-&quot;]"
+      priced_twice = html.sub(per_character, per_character.sub(/\[0,&quot;-&quot;\]\z/, "[0,12]"))
+
+      expect do
+        described_class.new.call(html: html_pages(described_class.source_url => priced_twice))
+      end.to raise_error(described_class::Error, %r{unable to parse price "\$15.00 / 1M characters"})
+    end
+
+    it "raises when the Batch guide no longer states its discount" do
+      expect do
+        described_class.new.call(
+          html: html_pages(described_class::BATCH_GUIDE_URL => batch_guide.gsub("50% cost discount", "lower costs"))
+        )
+      end.to raise_error(described_class::Error, /Batch API discount rate not found/)
     end
 
     it "prices gpt-4o-mini-tts text input and audio output from its Text and Audio rows" do
@@ -389,6 +420,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       gpt4 = { "input" => 30.0, "output" => 60.0, "batch_input" => 15.0, "batch_output" => 30.0 }
       expect(result.models.fetch("gpt-4-0613")).to eq(gpt4)
       expect(result.models.fetch("gpt-4")).to eq(gpt4)
+      turbo = { "input" => 10.0, "output" => 30.0, "batch_input" => 5.0, "batch_output" => 15.0 }
+      expect(result.models.values_at("gpt-4-turbo", "gpt-4-turbo-2024-04-09")).to eq([turbo, turbo])
       expect(result.models.fetch("gpt-3.5-turbo-0125")).to eq(
         "input" => 0.5, "output" => 1.5, "batch_input" => 0.25, "batch_output" => 0.75
       )
@@ -432,7 +465,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     it "prices a new row under its own name when OpenAI's model catalogue lists it" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-09-30T00:00:00Z")
 
-      expect(described_class::MODEL_ID_BY_DISPLAY_NAME).not_to have_key("gpt-6.1-sol")
       expect(result.models.fetch("gpt-6.1-sol")).to include(
         "input" => 2.0, "cache_read_input" => 0.1, "cache_write_input" => 2.5, "output" => 10.0,
         "above_context_input" => 4.0, "above_context_output" => 15.0,
@@ -534,9 +566,34 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     end
 
     it "raises on a new row that the model catalogue does not list" do
+      without_sol = catalogue.sub(/^- \[GPT-6\.1 Sol\].*\n/, "")
+
       expect do
-        described_class.new.call(html: html_pages(described_class::MODEL_CATALOGUE_URL => ""))
+        described_class.new.call(html: html_pages(described_class::MODEL_CATALOGUE_URL => without_sol))
       end.to raise_error(described_class::Error, /no model ID for OpenAI price row "gpt-6.1-sol"/)
+    end
+
+    it "names rows by the catalogue's link text and IDs, without a trailing qualifier, and their snapshots" do
+      renamed = html.sub("&quot;model&quot;:[0,&quot;gpt-realtime-whisper&quot;]",
+                         "&quot;model&quot;:[0,&quot;GPT-Realtime-Whisper&quot;]")
+                    .sub("[0,&quot;gpt-5.4-mini&quot;]", "[0,&quot;gpt-5.4-mini (text)&quot;]")
+      models = described_class.new.call(html: html_pages(described_class.source_url => renamed),
+                                        scraped_at: "2026-10-05T00:00:00Z").models
+
+      expect(models.fetch("gpt-realtime-whisper")).to include("transcription_minute" => 0.017)
+      expect(models.fetch("gpt-5.4-mini")).to include("input" => 0.75, "batch_input" => 0.375)
+      expect(models.fetch("gpt-rosalind-research")).to include("input" => 5.0, "output" => 25.0)
+      expect(models.fetch("gpt-5.5-cyber")).to include("input" => 12.5, "output" => 75.0)
+      expect(models.fetch("gpt-4o-2024-05-13")).to include("input" => 5.0, "output" => 15.0)
+      expect(models.keys.grep(/[A-Z (]/)).to be_empty
+    end
+
+    it "raises on a priced row named by neither a model ID nor the catalogue" do
+      renamed = html.sub("[0,&quot;gpt-5.2&quot;]", "[0,&quot;GPT-5.2 Preview&quot;]")
+
+      expect do
+        described_class.new.call(html: html_pages(described_class.source_url => renamed))
+      end.to raise_error(described_class::Error, /no model ID for OpenAI price row "GPT-5.2 Preview"/)
     end
 
     it "raises on a price row whose model name has no ID mapping instead of dropping it" do
