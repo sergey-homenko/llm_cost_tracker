@@ -20,7 +20,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Under `:block_requests`, a RubyLLM 2.x call is blocked from the start of its RubyLLM event, whose other subscribers then see no finish.
 - On RubyLLM 2.x, `RubyLLM.config.instrumenter` is set to `ActiveSupport::Notifications` when unset; `doctor` warns when it is anything else or a protocol method the integration reads is missing.
 - xAI and Mistral hosts, regional ones included, are built into `capture.openai_compatible_providers`, so Faraday, the official openai gem and `track_stream` capture them without registration; Faraday adds `stream_options.include_usage` to xAI and Mistral streams, which report usage only when asked.
-- xAI calls are recorded at their billed `usage.cost_in_usd_ticks`, tool calls included, instead of a list-price estimate, except through RubyLLM 1.x; Faraday also captures image generation on OpenAI-compatible hosts such as xAI.
+- xAI calls are recorded at their billed `usage.cost_in_usd_ticks`, tool calls included, instead of a list-price estimate, except through RubyLLM 1.x; Faraday also captures image generation and edits on OpenAI-compatible hosts such as xAI.
 - Perplexity's `api.perplexity.ai` is built into `capture.openai_compatible_providers`, Faraday captures its own `/v1/sonar` and `/v1/agent` paths and background Agent API polls too, and its calls are recorded at their billed `usage.cost.total_cost` instead of unknown cost, except through RubyLLM 1.x.
 
 ### Fixed

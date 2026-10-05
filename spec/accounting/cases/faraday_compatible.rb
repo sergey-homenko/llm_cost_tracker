@@ -270,6 +270,14 @@ module AccountingCases
                    usage: { cost_in_usd_ticks: 400_000_000 } })
   end
 
+  define_case "faraday xai image edits: grok-imagine-image billed cost_in_usd_ticks" do
+    faraday_json("#{XAI_API}/images/edits",
+                 { model: "grok-imagine-image", prompt: "make it blue",
+                   images: [{ type: "image_url", url: "https://example.com/cat.png" }] },
+                 { data: [{ url: "https://imgen.x.ai/xai-imgen/xai-tmp-imgen-b10.jpeg", mime_type: "image/jpeg" }],
+                   usage: { cost_in_usd_ticks: 200_000_000 } })
+  end
+
   define_case "faraday perplexity sonar: sonar-pro billed total_cost on /v1/sonar" do
     cost = { input_tokens_cost: 0.0045, output_tokens_cost: 0.009, request_cost: 0.006, total_cost: 0.0195 }
     faraday_json("#{PERPLEXITY_API}/v1/sonar", { model: "sonar-pro", messages: USER_MESSAGES },
