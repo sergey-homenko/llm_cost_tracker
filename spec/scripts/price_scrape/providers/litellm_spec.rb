@@ -107,6 +107,22 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     expect(mistral.fetch("mistral-large-latest")).not_to have_key("_source")
   end
 
+  it "writes a row models.dev confirms under the other names only its model card gives, and no official one" do
+    card_names["mistral-embed-23-12"] = %w[mistral-embed-2312 mistral-embed codestral-embed mistral-embed-latest]
+    card_names["voxtral-mini-transcribe-26-02"] += %w[mistral-embed-latest]
+    models_page = fixture("mistral_models.html")
+                  .sub("</body>", %(<a href="/models/mistral-embed-23-12">Mistral Embed</a></body>))
+    pages = mistral_pages.merge(mistral_class::MODELS_SOURCE_URL => models_page,
+                                "#{mistral_class::MODELS_SOURCE_URL}/mistral-embed-23-12" =>
+                                  card(card_names.fetch("mistral-embed-23-12")))
+    models = mistral_class.new.call(html: pages, scraped_at: "2026-10-05T06:00:00Z").models
+
+    expect(models.fetch("mistral-embed-2312")).to eq(models.fetch("mistral-embed"))
+    expect(models.fetch("mistral-embed-2312")).to include("_source" => "litellm", "input" => 0.1)
+    expect(models.fetch("codestral-embed")).to eq(mistral.fetch("codestral-embed"))
+    expect(models).not_to include("mistral-embed-latest")
+  end
+
   it "writes no LiteLLM-only row, and notes it, when models.dev is unreachable or invalid" do
     note = "- `mistral`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"
 

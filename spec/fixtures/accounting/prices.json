@@ -1262,6 +1262,10 @@
       "batch_input": 0.01,
       "input": 0.02
     },
+    "openai/text-embedding-ada-002-v2": {
+      "batch_input": 0.05,
+      "input": 0.1
+    },
     "openai/tts-1": {
       "text_to_speech_character": 15.0
     },

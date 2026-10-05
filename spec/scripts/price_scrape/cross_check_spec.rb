@@ -75,16 +75,24 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
     expect(check.findings).to include("- cohere: cohere/rerank-v3.5\n")
   end
 
-  it "gates the LiteLLM rows and absent keys the registry holds again, as the runner does" do
+  it "gates the keys the registry marks absent again, as the runner does, and lists no row the runner wrote" do
     prices = { "input" => 0.1, "_source" => "litellm" }
-    rows = { "mistral/mistral-embed" => prices, "mistral/mistral-tiny" => prices.except("_source") }
-    gated = registry.merge("metadata" => { "absent_since" => { "mistral/mistral-tiny" => "2026-10-01" } },
-                           "models" => registry["models"].merge(rows))
+    rows = { "mistral/mistral-embed" => prices, "mistral/mistral-tiny" => prices.except("_source"),
+             "mistral/mistral-embed-2312" => prices }
+    absent = { "mistral/mistral-embed" => "2026-10-01", "mistral/mistral-tiny" => "2026-10-01" }
     models_dev["mistral"]["models"]["mistral-embed"]["cost"]["input"] = 0.12
-    check = described_class.new(registry: gated, catalogue: catalogue, models_dev: models_dev)
+    findings = lambda do |absent_since|
+      gated = registry.merge("metadata" => { "absent_since" => absent_since },
+                             "models" => registry["models"].merge(rows))
+      described_class.new(registry: gated, catalogue: catalogue, models_dev: models_dev).findings
+    end
+    unwritten = ->(found) { found[/^- mistral: (.*)$/, 1].to_s.split(", ") }
 
-    expect(check.findings).to include("- LiteLLM 0.1/0.0, models.dev 0.12/0.0: mistral/mistral-embed\n")
-    expect(check.findings[/^- mistral: (.*)$/, 1].split(", ")).to include("mistral/mistral-tiny")
+    expect(findings.call(absent)).to include("- LiteLLM 0.1/0.0, models.dev 0.12/0.0: mistral/mistral-embed\n")
+    expect(unwritten.call(findings.call(absent))).to include("mistral/mistral-tiny")
+    expect(unwritten.call(findings.call(absent))).not_to include("mistral/mistral-embed-2312")
+    expect(findings.call({})).not_to include("models.dev 0.12/0.0: mistral/mistral-embed")
+    expect(unwritten.call(findings.call({}))).not_to include("mistral/mistral-tiny", "mistral/mistral-embed-2312")
   end
 
   it "lists tiers and data residency LiteLLM prices on models the registry covers without them" do
@@ -95,9 +103,11 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
     expect(check.findings).not_to include("anthropic/claude-opus-4-8")
   end
 
-  it "lists unknown LiteLLM fields and prices the registry cannot represent" do
+  it "lists unknown LiteLLM fields and prices the registry cannot represent in the report, not the issue" do
     expect(check.findings).to include("- `citation_cost_per_token` (1): perplexity/sonar-deep-research")
     expect(check.findings).to include("- reasoning tokens priced apart from output: perplexity/sonar-deep-research")
+    expect(check.findings(described_class::ISSUE_SECTIONS))
+      .not_to include("### Unknown LiteLLM fields", "### Not representable")
   end
 
   it "compares off-peak windows like rates, and lists windows that differ as a difference" do
@@ -127,20 +137,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
 
   context "with acknowledged findings" do
     let(:acknowledged) do
-      { "openai/gpt-4o.input" => "Known.", "openai/gpt-realtime-2.1" => "Whole model.", "openai/gone.input" => "Old.",
-        "mistral/open-mistral-nemo" => "Retired.", "mistral/codestral-mamba-latest" => "Retired." }
+      { "openai/gpt-4o.input" => "Known.", "openai/gpt-realtime-2.1.data_residency_*" => "Known field.",
+        "openai/gone.input" => "Old.", "openai/gpt-6-astra" => "Model.", "mistral/open-mistral-nemo" => "Retired.",
+        "mistral/codestral-mamba-latest" => "Retired." }
     end
 
     it "moves them to a collapsed section of the report and flags acknowledgements that match nothing" do
-      expect(check.findings).not_to include("openai/gpt-4o |", "openai/gpt-realtime-2.1\n", "mistral/open-mistral-nemo",
-                                            "mistral/codestral-mamba-latest")
+      expect(check.findings).not_to include("openai/gpt-4o |", "(x1.1): openai/gpt-realtime-2.1",
+                                            "mistral/open-mistral-nemo", "mistral/codestral-mamba-latest")
       expect(check.findings)
         .to include("### Stale acknowledgements\n\n- `openai/gone.input` no longer matches a finding")
       expect(check.report("a" * 40)).to include(
         "<details>\n<summary>Acknowledged (4)</summary>\n\n- `mistral/codestral-mamba-latest`: Retired.\n" \
         "- `mistral/open-mistral-nemo`: Retired.\n- `openai/gpt-4o.input`: Known.\n" \
-        "- `openai/gpt-realtime-2.1`: Whole model.\n\n</details>"
+        "- `openai/gpt-realtime-2.1.data_residency_*`: Known field.\n\n</details>"
       )
+    end
+
+    it "lets a bare model key cover only the findings without a field" do
+      expect(check.findings).to include(": openai/gpt-6-astra\n", "- `openai/gpt-6-astra` no longer matches a finding",
+                                        "- `cache_creation_input_audio_token_cost` (1): openai/gpt-realtime-2.1")
     end
   end
 

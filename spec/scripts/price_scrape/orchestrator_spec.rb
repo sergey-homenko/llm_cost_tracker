@@ -404,19 +404,21 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
       end
     end
 
-    it "counts entries held for a newer gem as listed and never dates hand-maintained rows" do
+    it "counts entries held for a newer gem as listed, and dates a row its scraper stops emitting" do
       windows = [{ "weekdays" => [6, 7], "hours_utc" => ["00:00-24:00"] }]
-      models = { "deepseek/deepseek-flash" => prices, "openai/tts-1" => { "text_to_speech_character" => 15.0 } }
+      speech = { "text_to_speech_character" => 15.0 }
+      models = { "deepseek/deepseek-flash" => prices, "openai/tts-1" => speech, "openai/tts-1-hd" => speech }
 
       with_registry(build_registry(models: models)) do |path|
         held = described_class.new.call(
           provider: "deepseek", registry_path: path,
           provider_result: build_result(models: { "deepseek-flash" => prices.merge("_off_peak_windows" => windows) })
         )
-        listed = described_class.new.call(provider: "openai", provider_result: build_result(models: {}),
-                                          registry_path: path)
+        listed = described_class.new(today: Date.new(2026, 10, 5))
+                                .call(provider: "openai", provider_result: build_result(models: { "tts-1" => speech }),
+                                      registry_path: path)
 
-        expect([held.absent, listed.absent]).to eq([{}, {}])
+        expect([held.absent, listed.absent]).to eq([{}, { "openai/tts-1-hd" => { "from" => nil, "to" => "2026-10-05" } }])
       end
     end
   end

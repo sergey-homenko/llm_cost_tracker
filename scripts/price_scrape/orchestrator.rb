@@ -25,10 +25,6 @@ module LlmCostTracker
         "text_to_speech_character" => "0.15.0", "_minimum_billed_seconds" => "0.15.0", "cohere" => "0.15.0"
       }.freeze
       PRUNE_AFTER_DAYS = 90
-      HAND_MAINTAINED = %w[
-        openai/text-embedding-3-large openai/text-embedding-3-small openai/text-embedding-ada-002 openai/tts-1
-        openai/tts-1-hd
-      ].freeze
 
       class Error < StandardError; end
 
@@ -108,7 +104,7 @@ module LlmCostTracker
 
       def with_absences(plan, provider, current_models, held, absent_since)
         held_keys = held.keys.map { |id| registry_key(provider, id) }
-        seen = plan.added + plan.updated.keys + plan.unchanged + plan.removed + held_keys + HAND_MAINTAINED
+        seen = plan.added + plan.updated.keys + plan.unchanged + plan.removed + held_keys
         missing = current_models.keys.select { |key| key.start_with?("#{provider}/") } - seen
         dates = missing.to_h { |key| [key, absent_since.fetch(key, @today.iso8601)] }
         expired = dates.select { |_key, date| @today - Date.iso8601(date) >= PRUNE_AFTER_DAYS }.keys

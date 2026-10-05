@@ -34,6 +34,7 @@ module LlmCostTracker
         unrepresentable: "Not representable",
         stale: "Stale acknowledgements"
       }.freeze
+      ISSUE_SECTIONS = SECTIONS.keys - %i[unknown unrepresentable]
       Finding = Data.define(:section, :model, :field, :detail)
 
       class Error < StandardError; end
@@ -56,7 +57,7 @@ module LlmCostTracker
                     acknowledged: YAML.safe_load_file(acknowledged_path) || {},
                     notes: notes_path && File.exist?(notes_path) ? File.readlines(notes_path, chomp: true) : [])
         File.write(report_path, check.report(sha))
-        File.write(issue_path, check.findings)
+        File.write(issue_path, check.findings(ISSUE_SECTIONS))
       end
 
       def initialize(registry:, catalogue:, models_dev: {}, acknowledged: {}, notes: [], today: Date.today)
@@ -87,9 +88,9 @@ module LlmCostTracker
          "|---|---|---|---|---|---|", *rows].join("\n") << "\n"
       end
 
-      def findings
+      def findings(sections = SECTIONS.keys)
         open = reported.reject { |finding| acknowledgement(finding) }.group_by(&:section)
-        SECTIONS.filter_map do |section, title|
+        SECTIONS.slice(*sections).filter_map do |section, title|
           lines = lines(section, open)
           "### #{title}\n\n#{lines.join("\n")}\n" if lines.any?
         end.join("\n")
@@ -117,7 +118,8 @@ module LlmCostTracker
       end
 
       def acknowledgement(finding)
-        ["#{finding.model}.#{finding.field}", finding.model].find { |key| @acknowledged.key?(key) }
+        key = finding.field ? "#{finding.model}.#{finding.field}" : finding.model
+        key if @acknowledged.key?(key)
       end
 
       def stale
@@ -138,13 +140,14 @@ module LlmCostTracker
 
       def confirm(models_dev)
         GATED.each do |provider|
-          official = models_of(@ours, provider).reject { |key| @ours[key]["_source"] || @absent.key?(key) }
+          listed = models_of(@ours, provider).reject { |key| @absent.key?(key) }
+          official = listed.reject { |key| @ours[key]["_source"] }
           written = official.to_h { |key| [key.delete_prefix("#{provider}/"), @ours[key]] }
           gate = Providers::Litellm.gate(provider, @conversion, models_dev, written, @today)
-          gate.held.each do |model, (ours, theirs)|
+          gate.held.reject { |model, _| listed.include?("#{provider}/#{model}") }.each do |model, (ours, theirs)|
             add(:held, "#{provider}/#{model}", nil, "LiteLLM #{ours.join('/')}, models.dev #{theirs.join('/')}")
           end
-          gate.unconfirmed.each { |model| add(:unconfirmed, "#{provider}/#{model}") }
+          (gate.unconfirmed.map { |model| "#{provider}/#{model}" } - listed).each { |model| add(:unconfirmed, model) }
         end
       end
 

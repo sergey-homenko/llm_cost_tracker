@@ -271,12 +271,10 @@ module LlmCostTracker
 
             cleaned = scoped[:name]
           end
-          match = cleaned.match(/\AClaude (Opus|Sonnet|Haiku|Fable|Mythos) (\d+(?:\.\d+)?)\z/)
-          return nil unless match
+          match = cleaned.match(/\AClaude ([A-Z][a-z]+) (\d+(?:\.\d+)?)\z/)
+          raise Error, "no model ID for Anthropic price row #{display_name.inspect}" unless match
 
-          family = match[1].downcase
-          version = match[2].tr(".", "-")
-          "claude-#{family}-#{version}"
+          "claude-#{match[1].downcase}-#{match[2].tr('.', '-')}"
         end
 
         def effective?(boundary, date)

@@ -97,7 +97,7 @@ module LlmCostTracker
       end
 
       def write_notes(runs, path)
-        notes = runs.reject(&:error).flat_map { |run| run.scraped.notes + run.orchestrator.notes }
+        notes = runs.reject(&:error).flat_map { |run| run.scraped.notes }
         File.write(path, notes.map { |note| "#{note}\n" }.join)
       end
 

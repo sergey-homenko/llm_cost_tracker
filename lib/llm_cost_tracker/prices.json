@@ -142,19 +142,9 @@
       "https://developers.openai.com/api/docs/pricing.md",
       "https://developers.openai.com/api/docs/deprecations",
       "https://developers.openai.com/api/docs/models/all.md",
+      "https://developers.openai.com/api/docs/guides/batch.md",
       "https://developers.openai.com/api/docs/guides/your-data.md",
       "https://developers.openai.com/api/docs/changelog.md",
-      "https://developers.openai.com/api/docs/models/gpt-5.4",
-      "https://developers.openai.com/api/docs/models/gpt-5.4-pro",
-      "https://developers.openai.com/api/docs/models/gpt-5.5",
-      "https://developers.openai.com/api/docs/models/gpt-5.5-pro",
-      "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
-      "https://developers.openai.com/api/docs/models/gpt-5.6-sol",
-      "https://developers.openai.com/api/docs/models/gpt-5.6-terra",
-      "https://developers.openai.com/api/docs/models/gpt-6-astra",
-      "https://developers.openai.com/api/docs/models/gpt-6-sol",
-      "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
-      "https://developers.openai.com/api/docs/models/gpt-6-luna",
       "https://openrouter.ai/api/v1/models",
       "https://docs.x.ai/developers/pricing.md"
     ],
@@ -1489,6 +1479,12 @@
       "data_residency_input": 0.11,
       "input": 0.1
     },
+    "mistral/mistral-embed-2312": {
+      "_source": "litellm",
+      "batch_input": 0.05,
+      "data_residency_input": 0.11,
+      "input": 0.1
+    },
     "mistral/mistral-large-2512": {
       "batch_cache_read_input": 0.025,
       "batch_input": 0.25,
@@ -1861,6 +1857,12 @@
       "output": 60.0
     },
     "openai/gpt-4-turbo": {
+      "batch_input": 5.0,
+      "batch_output": 15.0,
+      "input": 10.0,
+      "output": 30.0
+    },
+    "openai/gpt-4-turbo-2024-04-09": {
       "batch_input": 5.0,
       "batch_output": 15.0,
       "input": 10.0,
@@ -3138,6 +3140,10 @@
       "input": 0.02
     },
     "openai/text-embedding-ada-002": {
+      "batch_input": 0.05,
+      "input": 0.1
+    },
+    "openai/text-embedding-ada-002-v2": {
       "batch_input": 0.05,
       "input": 0.1
     },

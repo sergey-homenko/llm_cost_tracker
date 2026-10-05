@@ -310,9 +310,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     )
     expect(models.fetch("gemini-3.5-transcribe")).to include("audio_input" => 2.0, "output" => 12.0)
     expect(models.fetch("gemini-3.5-transcribe-live")).to include("audio_input" => 3.5, "output" => 21.0)
-    expect(models.fetch("gemini-2.5-computer-use-preview-10-2025")).to include(
-      "input" => 1.25, "output" => 10.0, "above_context_input" => 2.5, "above_context_output" => 15.0
+  end
+
+  it "reads the long-context threshold from the prompt tier rows" do
+    models = described_class.new.call(html: html.gsub("200k", "128k"), scraped_at: "2026-09-26T00:00:00Z").models
+
+    expect(models.fetch("gemini-2.5-pro")).to include(
+      "_context_price_threshold_tokens" => 128_000, "above_context_input" => 2.5, "above_context_cache_read_input" => 0.25
     )
+  end
+
+  it "raises when a prompt tier row names no size or another size than the model's other tiers" do
+    input_row = "$1.25, prompts <= 200k tokens<br>$2.50, prompts > 200k tokens"
+    cache_row = "$0.125, prompts <= 200k tokens<br>$0.25, prompts > 200k<br>"
+
+    expect { described_class.new.call(html: html.sub(input_row, input_row.sub("> 200k", "> 200,000"))) }
+      .to raise_error(described_class::Error, /prompt tier size not found/)
+    expect { described_class.new.call(html: html.sub(input_row, input_row.sub("> 200k", "> 128k"))) }
+      .to raise_error(described_class::Error, /input and output prompt tiers split at different sizes/)
+    expect { described_class.new.call(html: html.sub(cache_row, cache_row.sub("> 200k", "> 128k"))) }
+      .to raise_error(described_class::Error, /context caching prompt tier splits at a different size/)
   end
 
   it "prices newly scraped models at their published rates" do

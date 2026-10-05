@@ -193,6 +193,12 @@ module AccountingCases
                    model: "text-embedding-3-small", usage: { prompt_tokens: 12_000, total_tokens: 12_000 } })
   end
 
+  define_case "faraday openai embeddings: text-embedding-ada-002 reported as text-embedding-ada-002-v2" do
+    faraday_json("#{OPENAI_API}/embeddings", { model: "text-embedding-ada-002", input: "a" },
+                 { object: "list", data: [{ object: "embedding", index: 0, embedding: [0.1] }],
+                   model: "text-embedding-ada-002-v2", usage: { prompt_tokens: 12_000, total_tokens: 12_000 } })
+  end
+
   define_case "faraday openai images: gpt-image-1 generation with text and image input" do
     faraday_json("#{OPENAI_API}/images/generations", { model: "gpt-image-1", prompt: "a cat" },
                  { created: 1, data: [{ b64_json: "iVBORw0KGgo=" }],
