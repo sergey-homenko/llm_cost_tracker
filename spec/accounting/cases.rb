@@ -224,6 +224,15 @@ module AccountingCases
       output_tokens_details: { reasoning_tokens: 0 }, cost: { currency: "USD" }.merge(cost) }
   end
 
+  def deepseek_usage(prompt, completion, hit:)
+    chat_usage(prompt, completion, cached: hit).merge(prompt_cache_hit_tokens: hit, prompt_cache_miss_tokens: prompt - hit)
+  end
+
+  def speech_sse(input, output)
+    sse({ type: "speech.audio.delta", audio: "SUQzBAAAAAAA" }, { type: "speech.audio.delta", audio: "AAAAAAAA" },
+        { type: "speech.audio.done", usage: { input_tokens: input, output_tokens: output, total_tokens: input + output } })
+  end
+
   def perplexity_usage(prompt, completion, cost)
     { prompt_tokens: prompt, completion_tokens: completion, total_tokens: prompt + completion,
       search_context_size: "low", citation_tokens: nil, num_search_queries: nil, reasoning_tokens: nil,

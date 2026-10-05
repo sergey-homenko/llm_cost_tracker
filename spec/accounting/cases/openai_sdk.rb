@@ -179,6 +179,12 @@ module AccountingCases
     openai_client.audio.speech.create(model: "tts-1", voice: "alloy", input: "hello world")
   end
 
+  define_case "openai sdk speech: gpt-4o-mini-tts SSE usage at the text input and audio output rates",
+              instrument: :openai do
+    stub_sse(:post, "#{OPENAI_API}/audio/speech", speech_sse(14, 101))
+    openai_client.audio.speech.create(model: "gpt-4o-mini-tts", voice: "alloy", input: "hello world", stream_format: :sse)
+  end
+
   define_case "openai sdk speech: gpt-4o-mini-tts", instrument: :openai do
     WebMock.stub_request(:post, "#{OPENAI_API}/audio/speech")
            .to_return(status: 200, body: "mp3", headers: { "Content-Type" => "audio/mpeg" })
@@ -442,6 +448,13 @@ module AccountingCases
               responses_object(id: "gen-sor4", model: "openai/gpt-4o",
                                usage: responses_usage(4000, 600).merge(cost: 0.0156, is_byok: false)))
     openai_client(OPENROUTER_API).responses.create(model: "openai/gpt-4o", input: "hi")
+  end
+
+  define_case "openai sdk deepseek chat: deepseek-v4-pro cache hits at the peak rates", instrument: :openai do
+    travel_to(Time.utc(2026, 9, 29, 8, 30))
+    stub_json(:post, "https://api.deepseek.com/chat/completions",
+              chat_completion(id: "sds2", model: "deepseek-v4-pro", usage: deepseek_usage(200_000, 20_000, hit: 150_000)))
+    openai_client("https://api.deepseek.com").chat.completions.create(model: "deepseek-v4-pro", messages: USER_MESSAGES)
   end
 
   define_case "openai sdk deepseek chat: cache hit and miss fields", instrument: :openai do

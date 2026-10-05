@@ -88,6 +88,23 @@ module AccountingCases
                 chat_stream_body(id: "ds2", model: "deepseek-reasoner", usage: usage, usage_in_last_choice: true))
   end
 
+  define_case "faraday deepseek chat: deepseek-flash off-peak to Monday 01:00 UTC, peak to 04:00, off-peak on Saturday" do
+    times = [[2026, 9, 28, 0, 59], [2026, 9, 28, 1, 0], [2026, 9, 28, 3, 59], [2026, 9, 28, 4, 0], [2026, 10, 3, 2, 0]]
+    stub_json(:post, "https://api.deepseek.com/chat/completions",
+              chat_completion(id: "ds3", model: "deepseek-flash", usage: deepseek_usage(1_000_000, 100_000, hit: 400_000)))
+    times.each do |time|
+      travel_to(Time.utc(*time))
+      faraday_post("https://api.deepseek.com/chat/completions", { model: "deepseek-flash", messages: USER_MESSAGES })
+    end
+  end
+
+  define_case "faraday mistral ocr: mistral-ocr-latest pages_processed at the per-page rate" do
+    faraday_json("https://api.mistral.ai/v1/ocr",
+                 { model: "mistral-ocr-latest", document: { type: "document_url", document_url: "https://example.com/a.pdf" } },
+                 { pages: [{ index: 0, markdown: "# Invoice", images: [] }], model: "mistral-ocr-latest",
+                   document_annotation: nil, usage_info: { pages_processed: 3, doc_size_bytes: 48_213 } })
+  end
+
   define_case "faraday groq chat: on_demand tier" do
     faraday_json("#{GROQ_API}/chat/completions", { model: "openai/gpt-oss-120b", messages: [] },
                  chat_completion(id: "chatcmpl-gq1", model: "openai/gpt-oss-120b", usage: groq_usage(10_000, 1000),
