@@ -1,5 +1,9 @@
 # Upgrading
 
+## v0.14.2 → v0.15.0
+
+- **Cohere chats recorded before 0.15.0** through RubyLLM 2.x count Cohere's unbilled preamble as input, so `backfill_unknown_pricing` and `reprice` overstate their cost.
+
 ## v0.14.1 → v0.14.2
 
 - **Rails 8.0+ is required.** On Rails 7.1 or 7.2, `bundle update llm_cost_tracker` stays on 0.14.1 without an error and gets no further fixes, so upgrade Rails first. There are no migrations.
