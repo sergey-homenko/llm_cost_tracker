@@ -31,7 +31,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
 
   def fixture(name) = File.read("spec/fixtures/scrape/#{name}", encoding: "utf-8")
 
-  def card(names) = %(<script>self.__next_f.push([1,"{\\"names\\":#{names.to_json.gsub('"', '\"')}}"])</script>)
+  def card(names) = %(<script>self.__next_f.push([1,#{{ "names" => names }.to_json.to_json}])</script>)
 
   it "prices only the Mistral models its pricing page lists, at the page's rates, under the names the API accepts" do
     catalogue = JSON.parse(body)
