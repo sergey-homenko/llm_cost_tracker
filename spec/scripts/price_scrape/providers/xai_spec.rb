@@ -82,6 +82,12 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Xai do
       .to eq(%w[0.0026 0.00572].map { |total| BigDecimal(total) })
   end
 
+  it "reads a fractional batch discount" do
+    models = scrape(pricing.sub("**20% off standard rates**", "**12.5% off standard rates**")).models
+
+    expect(models.fetch("grok-4.3")).to include("batch_input" => 1.09375, "batch_output" => 2.1875)
+  end
+
   it "takes a model priced without long-context rows at one rate" do
     page = pricing.sub("| grok-4.6 (< 200k prompt tokens) | 500k |", "| grok-4.6 | 500k |")
                   .sub(/^\| grok-4\.6 \(≥ 200k prompt tokens\).*\n/, "")
@@ -95,6 +101,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Xai do
       .to raise_error(error, /text price table not found/)
     expect { scrape(pricing.sub("| Input / 1M tokens | Cached input", "| Cached input / 1M tokens | Input")) }
       .to raise_error(error, /text price table not found/)
+    expect { scrape(pricing.gsub("/ 1M tokens |", "/ 1K tokens |")) }.to raise_error(error, /text price table not found/)
     expect { scrape(pricing.sub("| $2.00 | $0.50 | $6.00 |", "| $2.00 | — | $6.00 |")) }
       .to raise_error(error, /price row not understood: \| grok-4\.7/)
     expect { scrape(pricing.sub(/^\| grok-4\.6 \(< 200k prompt tokens\).*\n/, "")) }
@@ -103,6 +110,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Xai do
       .to raise_error(error, /xai priority rate not found/)
     expect { scrape(pricing.sub("Currently `grok-4.7` and `grok-4.6` only", "None")) }
       .to raise_error(error, /US regional models not found/)
+    expect { scrape(pricing.sub("Currently `grok-4.7` and", "Currently `grok-4.7-latest` and")) }
+      .to raise_error(error, /US regional models grok-4\.7-latest are missing from its price table/)
     expect { scrape(pricing.sub("**20% off standard rates**", "**Discounted**")) }
       .to raise_error(error, /batch discounts not found/)
     expect { scrape(pricing.sub("- grok-4.3\n", "- grok-4.3\n- grok-4.8\n")) }

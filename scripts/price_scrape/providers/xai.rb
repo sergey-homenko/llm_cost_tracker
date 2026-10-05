@@ -15,12 +15,12 @@ module LlmCostTracker
 
         MODEL_PAGE = "https://docs.x.ai/developers/models/%s.md"
         TEXT_TABLE = /^### Text API Pricing$(.+?)(?=^#)/m
-        HEADER = /\A\| Model \| Context \| Input [^|]*\| Cached input [^|]*\| Output [^|]*\|\z/
+        HEADER = %r{\A\| Model \| Context \| Input / 1M tokens \| Cached input / 1M tokens \| Output / 1M tokens \|\z}
         PRICE_ROW = /
           \A\|\s(?<model>[a-z0-9][a-z0-9.-]*)(?:\s\((?<bound><|≥)\s(?<thousands>\d+)k\sprompt\stokens\))?\s\|[^|]+\|
           \s\$(?<input>\d+(?:\.\d+)?)\s\|\s\$(?<cached>\d+(?:\.\d+)?)\s\|\s\$(?<output>\d+(?:\.\d+)?)\s\|\z
         /x
-        BATCH_DISCOUNT = /\*\*(\d+)% off standard rates\*\*\s+((?:- \S+\s+)+)/
+        BATCH_DISCOUNT = /\*\*(\d+(?:\.\d+)?)% off standard rates\*\*\s+((?:- \S+\s+)+)/
         REGIONAL_SECTION = /^## US Regional Endpoint Pricing$(.+?)(?=^## |\z)/m
         ALIASES = /^- \*\*Aliases:\*\*(.*)$/
 
@@ -75,6 +75,9 @@ module LlmCostTracker
           uplift = documented_factor(regional, /billed at \*\*([\d.]+)x\*\*/, "US regional")
           regional_models = regional[/^\| Models \|.*\|(.*)\|$/, 1].to_s.scan(/`([^`]+)`/).flatten
           raise Error, "xai US regional models not found in its docs" if regional_models.empty?
+
+          unpriced = regional_models - models.keys
+          raise Error, "xai US regional models #{unpriced.join(', ')} are missing from its price table" if unpriced.any?
 
           batch = batch_factors(pricing, models)
           models.to_h do |id, fields|
