@@ -13,7 +13,8 @@ module LlmCostTracker
         "us.api.x.ai" => "xai",
         "api.mistral.ai" => "mistral",
         "api.eu.mistral.ai" => "mistral",
-        "api.us.mistral.ai" => "mistral"
+        "api.us.mistral.ai" => "mistral",
+        "api.perplexity.ai" => "perplexity"
       }.freeze
 
       attributes :request_stream_usage

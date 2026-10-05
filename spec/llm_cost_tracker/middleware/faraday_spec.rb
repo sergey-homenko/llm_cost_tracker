@@ -921,12 +921,12 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(parsed.dig("stream_options", "include_usage")).to be true
   end
 
-  it "asks Mistral for stream usage and leaves xAI and hosts the app added to openai_compatible_providers untouched" do
+  it "asks Mistral for stream usage and leaves xAI, Perplexity and hosts the app added untouched" do
     LlmCostTracker.configure do |config|
       config.capture.openai_compatible_providers["llm.example.com"] = "internal_gateway"
     end
 
-    bodies = %w[api.x.ai api.mistral.ai llm.example.com].map do |host|
+    bodies = %w[api.x.ai api.mistral.ai api.perplexity.ai llm.example.com].map do |host|
       captured_body = nil
       conn = Faraday.new(url: "https://#{host}") do |f|
         f.use :llm_cost_tracker
@@ -941,7 +941,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       JSON.parse(captured_body)
     end
 
-    expect(bodies.map { |body| body.key?("stream_options") }).to eq([false, true, false])
+    expect(bodies.map { |body| body.key?("stream_options") }).to eq([false, true, false, false])
   end
 
   it "auto-injects when the caller hands Faraday a Hash body" do

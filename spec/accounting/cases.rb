@@ -18,6 +18,7 @@ module AccountingCases
   GEMINI_INTERACTIONS = "https://generativelanguage.googleapis.com/v1beta/interactions"
   XAI_API = "https://api.x.ai/v1"
   XAI_US_API = "https://us.api.x.ai/v1"
+  PERPLEXITY_CHAT = "https://api.perplexity.ai/chat/completions"
   USER_MESSAGES = [{ role: "user", content: "hi" }].freeze
   XAI_AND_MISTRAL_HOSTS = lambda do |config|
     config.capture.openai_compatible_providers.merge!("api.x.ai" => "xai", "us.api.x.ai" => "xai",
@@ -215,6 +216,12 @@ module AccountingCases
     { input_tokens: input, input_tokens_details: { cached_tokens: cached }, output_tokens: output,
       output_tokens_details: { reasoning_tokens: reasoning }, total_tokens: input + output + reasoning,
       num_sources_used: 0, num_server_side_tools_used: 0 }
+  end
+
+  def perplexity_usage(prompt, completion, cost)
+    { prompt_tokens: prompt, completion_tokens: completion, total_tokens: prompt + completion,
+      search_context_size: "low", citation_tokens: nil, num_search_queries: nil, reasoning_tokens: nil,
+      cost: { citation_tokens_cost: nil, reasoning_tokens_cost: nil, search_queries_cost: nil }.merge(cost) }
   end
 
   def stub_openai_batch(host:, batch_id:, status:, endpoint:, lines:, model: nil)

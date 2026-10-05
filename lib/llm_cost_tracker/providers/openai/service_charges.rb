@@ -10,6 +10,7 @@ module LlmCostTracker
           "web_search_call" => "web_search_request",
           "code_interpreter_call" => "container_session"
         }.freeze
+        TICKS_PER_USD = 10_000_000_000
 
         module_function
 
@@ -176,11 +177,9 @@ module LlmCostTracker
         end
 
         def billed_line_items(usage)
-          amounts = [usage[:cost]]
-          amounts << usage.dig(:cost_details, :upstream_inference_cost) if usage[:is_byok]
-          return [] unless amounts.all?(Numeric)
+          amount, field = billed_amount(usage)
+          return [] unless amount
 
-          amount = amounts.sum { |value| BigDecimal(value.to_s) }
           [Charges::LineItem.build(
             dimension_key: "billed_request",
             quantity: 1,
@@ -188,8 +187,23 @@ module LlmCostTracker
             cost: amount,
             pricing_basis: "provider_usage",
             price_source: "provider_response",
-            provider_field: "usage.cost"
+            provider_field: field
           )]
+        end
+
+        def billed_amount(usage)
+          cost = usage[:cost]
+          ticks = usage[:cost_in_usd_ticks]
+          total = cost[:total_cost] if cost.is_a?(Hash)
+          if cost.is_a?(Numeric)
+            amounts = [cost]
+            amounts << usage.dig(:cost_details, :upstream_inference_cost) if usage[:is_byok]
+            [amounts.sum { |value| BigDecimal(value.to_s) }, "usage.cost"] if amounts.all?(Numeric)
+          elsif ticks.is_a?(Numeric)
+            [BigDecimal(ticks.to_s) / TICKS_PER_USD, "usage.cost_in_usd_ticks"]
+          elsif total.is_a?(Numeric) && total.positive?
+            [BigDecimal(total.to_s), "usage.cost.total_cost"]
+          end
         end
       end
     end

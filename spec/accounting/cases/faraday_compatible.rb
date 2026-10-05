@@ -230,4 +230,34 @@ module AccountingCases
     faraday_json("#{OPENROUTER_API}/chat/completions", { model: "openai/gpt-5-search-api", messages: [] },
                  chat_completion(id: "gen-rv2", model: "openai/gpt-5-search-api", usage: chat_usage(1000, 500)))
   end
+
+  define_case "faraday xai chat: grok-4.7 billed cost_in_usd_ticks" do
+    usage = xai_chat_usage(12_000, 500, reasoning: 2500, cached: 8000).merge(cost_in_usd_ticks: 300_000_000)
+    faraday_json("#{XAI_API}/chat/completions", { model: "grok-4.7", messages: USER_MESSAGES },
+                 chat_completion(id: "xai_b1", model: "grok-4.7", usage: usage))
+  end
+
+  define_case "faraday xai chat stream: grok-4.7 billed cost_in_usd_ticks in the usage chunk" do
+    usage = xai_chat_usage(2000, 300, reasoning: 700, cached: 1000).merge(cost_in_usd_ticks: 85_000_000)
+    faraday_sse("#{XAI_API}/chat/completions",
+                { model: "grok-4.7", stream: true, stream_options: { include_usage: true }, messages: USER_MESSAGES },
+                chat_stream_body(id: "xai_b2", model: "grok-4.7", usage: usage))
+  end
+
+  define_case "faraday perplexity chat: sonar-pro billed total_cost on the unregistered host" do
+    cost = { input_tokens_cost: 0.0036, output_tokens_cost: 0.012, request_cost: 0.006, total_cost: 0.0216 }
+    faraday_json(PERPLEXITY_CHAT, { model: "sonar-pro", messages: USER_MESSAGES },
+                 chat_completion(id: "pplx_b1", model: "sonar-pro", usage: perplexity_usage(1200, 800, cost)))
+  end
+
+  define_case "faraday perplexity chat stream: sonar billed total_cost in the done chunk after zero-cost chunks" do
+    pending = { input_tokens_cost: 0, output_tokens_cost: 0, total_cost: 0 }
+    billed = { input_tokens_cost: 0.002, output_tokens_cost: 0.001, request_cost: 0.005, total_cost: 0.008 }
+    chunks = [[400, nil, pending, {}], [1000, "stop", billed, { object: "chat.completion.done" }]]
+    items = chunks.map do |completion, finish, cost, extra|
+      chat_chunk(id: "pplx_b2", model: "sonar", usage: perplexity_usage(2000, completion, cost), extra: extra,
+                 choices: [{ index: 0, delta: { content: "ok" }, finish_reason: finish }])
+    end
+    faraday_sse(PERPLEXITY_CHAT, { model: "sonar", stream: true, messages: USER_MESSAGES }, sse(*items))
+  end
 end

@@ -134,7 +134,8 @@ module LlmCostTracker
             image_input_tokens: image_input,
             output_tokens: text_output,
             image_output_tokens: image_output,
-            cache_read_input_tokens: cache_read
+            cache_read_input_tokens: cache_read,
+            service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.billed_line_items(usage)
           )
         end
 

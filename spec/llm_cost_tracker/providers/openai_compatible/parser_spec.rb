@@ -35,13 +35,12 @@ RSpec.describe LlmCostTracker::Providers::OpenaiCompatible::Parser do
       expect(described_class.match?(groq_responses_url)).to be true
     end
 
-    it "matches xAI and Mistral hosts, regional ones included" do
-      urls = %w[api.x.ai us.api.x.ai api.mistral.ai api.eu.mistral.ai api.us.mistral.ai].map do |host|
-        URI::HTTPS.build(host: host, path: "/v1/chat/completions").to_s
-      end
+    it "matches xAI, Mistral and Perplexity hosts, regional ones included" do
+      hosts = %w[api.x.ai us.api.x.ai api.mistral.ai api.eu.mistral.ai api.us.mistral.ai api.perplexity.ai]
+      urls = hosts.map { |host| URI::HTTPS.build(host: host, path: "/v1/chat/completions").to_s }
 
       expect(urls.map { |url| [described_class.match?(url), parser.provider_for(url)] })
-        .to eq([[true, "xai"]] * 2 + [[true, "mistral"]] * 3)
+        .to eq([[true, "xai"]] * 2 + [[true, "mistral"]] * 3 + [[true, "perplexity"]])
     end
 
     it "lets a configured mapping replace a built-in one" do

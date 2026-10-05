@@ -187,6 +187,38 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
     end
   end
 
+  describe ".billed_line_items" do
+    def billed(usage)
+      described_class.billed_line_items(usage).map { |item| [item.cost.to_s("F"), item.provider_field] }
+    end
+
+    it "reads xAI's cost_in_usd_ticks exactly, at 10^10 ticks to the dollar" do
+      expect(billed(cost_in_usd_ticks: 37_756_000)).to eq([["0.0037756", "usage.cost_in_usd_ticks"]])
+      expect(billed(cost_in_usd_ticks: 1)).to eq([["0.0000000001", "usage.cost_in_usd_ticks"]])
+    end
+
+    it "reads Perplexity's usage.cost.total_cost" do
+      cost = { input_tokens_cost: 0.00001, output_tokens_cost: 0.00001, request_cost: 0.005, total_cost: 0.00502 }
+
+      expect(billed(cost: cost)).to eq([["0.00502", "usage.cost.total_cost"]])
+    end
+
+    it "skips the zero total_cost Perplexity stream chunks carry before the last one" do
+      expect(billed(cost: { input_tokens_cost: 0, output_tokens_cost: 0, total_cost: 0 })).to eq([])
+    end
+
+    it "keeps a numeric usage.cost ahead of the other fields" do
+      expect(billed(cost: 0.0123, cost_in_usd_ticks: 1)).to eq([["0.0123", "usage.cost"]])
+    end
+
+    it "ignores billed amounts that are not numbers instead of raising" do
+      malformed = [{ cost_in_usd_ticks: "37756000" }, { cost_in_usd_ticks: { value: 1 } }, { cost: [0.02] },
+                   { cost: { total_cost: "0.02" } }, { cost: { input_tokens_cost: 0.01 } }, { cost: "0.02" }, {}]
+
+      expect(malformed.map { |usage| billed(usage) }).to all(eq([]))
+    end
+  end
+
   describe "annotation type discrimination" do
     it "does not capture a service line item when the only annotation type is file_citation" do
       response = {

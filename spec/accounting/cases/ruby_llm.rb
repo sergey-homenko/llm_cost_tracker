@@ -544,6 +544,36 @@ module AccountingCases
     ruby_llm_chat("grok-4.7", :xai, context: context).ask("hi")
   end
 
+  define_case "ruby_llm xai chat: grok-4.7 billed cost_in_usd_ticks", instrument: :ruby_llm do
+    ticks = { cost_in_usd_ticks: 120_000_000 }
+    stub_json(:post, "#{XAI_API}/chat/completions",
+              chat_completion(id: "xai_b6", model: "grok-4.7",
+                              usage: xai_chat_usage(6000, 250, reasoning: 750, cached: 4000).merge(ticks)))
+    stub_json(:post, "#{XAI_API}/responses",
+              responses_object(id: "xai_b6", model: "grok-4.7",
+                               usage: xai_responses_usage(6000, 250, reasoning: 750, cached: 4000).merge(ticks)))
+    ruby_llm_chat("grok-4.7", :xai).ask("hi")
+  end
+
+  define_case "ruby_llm xai chat stream: grok-4.7 billed cost_in_usd_ticks", instrument: :ruby_llm do
+    ticks = { cost_in_usd_ticks: 120_000_000 }
+    stub_sse(:post, "#{XAI_API}/chat/completions",
+             chat_stream_body(id: "xai_b7", model: "grok-4.7",
+                              usage: xai_chat_usage(6000, 250, reasoning: 750, cached: 4000).merge(ticks)))
+    stub_sse(:post, "#{XAI_API}/responses",
+             responses_stream_body(id: "xai_b7", model: "grok-4.7",
+                                   usage: xai_responses_usage(6000, 250, reasoning: 750, cached: 4000).merge(ticks)))
+    ruby_llm_chat("grok-4.7", :xai).ask("hi") { nil }
+  end
+
+  define_case "ruby_llm perplexity chat: sonar billed total_cost", instrument: :ruby_llm do
+    cost = { input_tokens_cost: 0.002, output_tokens_cost: 0.001, request_cost: 0.005, total_cost: 0.008 }
+    stub_json(:post, PERPLEXITY_CHAT,
+              chat_completion(id: "pplx_b3", model: "sonar", usage: perplexity_usage(2000, 1000, cost)))
+    context = RubyLLM.context { |config| config.perplexity_api_key = "test-perplexity" }
+    ruby_llm_chat("sonar", :perplexity, context: context).ask("hi")
+  end
+
   define_case "ruby_llm openai transcribe: gpt-transcribe on the eu host",
               instrument: :ruby_llm, skip_on_ruby_llm_1: CONTEXT_TRANSCRIBE_ON_RUBY_LLM_1 do
     stub_json(:post, "https://eu.api.openai.com/v1/audio/transcriptions",
