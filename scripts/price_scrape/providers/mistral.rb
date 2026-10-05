@@ -68,9 +68,11 @@ module LlmCostTracker
         private
 
         def with_card_names(rows, names, models)
+          shared = names.values.flatten.tally.select { |_id, cards| cards > 1 }.keys
           names.values.each_with_object(rows.dup) do |ids, named|
-            row = rows.values_at(*ids).compact.first
-            (ids - models.keys).each { |id| named[id] ||= row } if row
+            own = ids - shared
+            row = rows.values_at(*own).compact.first
+            (own - models.keys).each { |id| named[id] ||= row } if row
           end
         end
 
