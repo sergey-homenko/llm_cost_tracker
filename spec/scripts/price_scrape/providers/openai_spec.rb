@@ -95,6 +95,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
       expect(result.source_url).to eq(described_class.source_url)
       expect(result.scraped_at).to eq("2026-08-23T00:00:00Z")
+      expect(result.notes).to be_empty
       expect(result.service_charges).to eq(
         "web_search_request" => 10.0,
         "web_search_preview_request_reasoning" => 10.0,
@@ -512,33 +513,63 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         .to all(satisfy { |fields| fields.keys.grep(/data_residency/).empty? })
     end
 
-    it "keeps a model off the uplift when the changelog mentions it before the cutoff, whatever later entries say" do
+    it "keeps a model the frozen list records as released before the cutoff off the uplift, whatever the docs add" do
       url = described_class::DataResidencyPrices::CHANGELOG_URL
-      relabelled = changelog.sub("Update · Model: whisper-1", "Feature · Model: whisper-1")
-      later = changelog.sub("## September, 2026", "## October, 2026\n\n### Oct 3\n\n" \
-                                                    "Feature · Model: whisper-1 · Model: gpt-4o-transcribe\n\n" \
-                                                    "Added a feature.\n\n## September, 2026")
+      entry = "## October, 2026\n\n### Oct 3\n\nFeature · Model: gpt-realtime\n\nReleased a new GPT-Realtime.\n\n"
+      later = changelog.sub("## September, 2026", "#{entry}## September, 2026")
+      result = described_class.new.call(html: html_pages(url => later), scraped_at: "2026-10-04T00:00:00Z")
 
-      [relabelled, later].each do |page|
-        models = described_class.new.call(html: html_pages(url => page), scraped_at: "2026-10-04T00:00:00Z").models
-        expect(models.values_at("whisper-1", "gpt-4o-transcribe"))
-          .to all(satisfy { |fields| fields.keys.grep(/data_residency/).empty? })
-        expect(models.fetch("gpt-realtime-2.1")).to include("data_residency_input" => 4.4)
+      expect(data_controls).to include("`gpt-realtime`")
+      expect(result.models.fetch("gpt-realtime").keys.grep(/data_residency/)).to be_empty
+      expect(result.models.fetch("gpt-realtime-2.1")).to include("data_residency_input" => 4.4)
+      expect(result.notes).to be_empty
+    end
+
+    context "with a model the frozen lists do not record" do
+      let(:residency) { described_class::DataResidencyPrices }
+      let(:listed) { data_controls.sub("`gpt-6.1-sol`, ", "`gpt-6.1-sol`, `gpt-7`, ") }
+      let(:released) do
+        changelog.sub("## September, 2026", "## October, 2026\n\n### Oct 3\n\nFeature · Model: gpt-7\n\n" \
+                                            "Released GPT-7.\n\n## September, 2026")
+      end
+
+      def price(eligibility, log)
+        residency.call({ "gpt-7" => { "input" => 1.0, "output" => 8.0 } },
+                       residency::ELIGIBILITY_URL => eligibility, residency::CHANGELOG_URL => log)
+      end
+
+      it "uplifts it when OpenAI lists it for regional processing and first mentions it after the cutoff" do
+        models, notes = price(listed, released)
+
+        expect(models.fetch("gpt-7")).to include("data_residency_input" => 1.1, "data_residency_output" => 8.8)
+        expect(notes).to be_empty
+      end
+
+      it "prices it without the uplift and notes it when no dated source places it on or after the cutoff" do
+        dated = listed.sub("`gpt-7`", "`gpt-7-2026-01-15`")
+        early = changelog.sub("## January, 2026\n", "## January, 2026\n\n### Jan 30\n\nAnnounced `gpt-7`.\n")
+        resolution = "add it to released_on_or_after_cutoff or released_before_cutoff in #{residency::RELEASES_FILE}"
+
+        expect([price(listed, changelog), price(dated, released), price(listed, early)]).to eq(
+          [["none", "none"], ["2026-01-15", "2026-10-03"], ["none", "2026-01-30"]].map do |snapshot, mention|
+            [{ "gpt-7" => { "input" => 1.0, "output" => 8.0 } },
+             ["- `openai/gpt-7`: eligible yes, earliest snapshot #{snapshot}, first changelog mention #{mention}; " \
+              "#{resolution}"]]
+          end
+        )
       end
     end
 
-    it "raises when the data controls guide or the changelog no longer give the uplift terms" do
-      urls = described_class::DataResidencyPrices
+    it "raises when the data controls guide no longer gives the uplift terms or lists eligible models" do
+      url = described_class::DataResidencyPrices::ELIGIBILITY_URL
       without_terms = data_controls.gsub("10% uplift", "uplift")
       without_table = data_controls.sub("#### API Endpoint, tool and model support", "#### Support")
 
-      expect { described_class.new.call(html: html_pages(urls::ELIGIBILITY_URL => without_terms)) }
+      expect { described_class.new.call(html: html_pages(url => without_terms)) }
         .to raise_error(described_class::Error, /data residency uplift not found/)
-      expect { described_class.new.call(html: html_pages(urls::ELIGIBILITY_URL => without_table)) }
+      expect { described_class.new.call(html: html_pages(url => without_table)) }
         .to raise_error(described_class::Error, /data residency model table not found/)
-      expect { described_class.new.call(html: html_pages(urls::CHANGELOG_URL => "# Changelog")) }
-        .to raise_error(described_class::Error, /release dates not found in its changelog/)
-      expect { described_class.new.call(html: html_pages(urls::ELIGIBILITY_URL => data_controls.tr("`", "'"))) }
+      expect { described_class.new.call(html: html_pages(url => data_controls.tr("`", "'"))) }
         .to raise_error(described_class::Error, /no OpenAI model found eligible/)
     end
 

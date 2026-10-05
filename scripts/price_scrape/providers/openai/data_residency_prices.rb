@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "date"
+require "yaml"
 
 require_relative "../base"
 
@@ -12,6 +13,8 @@ module LlmCostTracker
           ELIGIBILITY_URL = "https://developers.openai.com/api/docs/guides/your-data.md"
           CHANGELOG_URL = "https://developers.openai.com/api/docs/changelog.md"
           SOURCE_URLS = [ELIGIBILITY_URL, CHANGELOG_URL].freeze
+          RELEASES_FILE = "scripts/price_scrape/providers/openai/data_residency_releases.yml"
+          RELEASES = YAML.safe_load_file(File.expand_path("../../../../#{RELEASES_FILE}", __dir__)).freeze
           UPLIFT = /charged a (\d+)% uplift for models released on or after (\w+ \d{1,2}, \d{4})/
           SUPPORT_TABLE = /^#### API Endpoint, tool and model support$(.*?)(?=^#|\z)/m
           DAY_HEADING = /\A### ((?:#{Date::ABBR_MONTHNAMES.compact.join('|')})\w* \d{1,2})\s*\z/
@@ -24,12 +27,19 @@ module LlmCostTracker
             def call(models, pages)
               page = pages.fetch(ELIGIBILITY_URL)
               factor, cutoff = uplift(page)
-              eligible = eligible_models(page, pages.fetch(CHANGELOG_URL), cutoff)
-              raise Error, "no OpenAI model found eligible for data residency pricing" if eligible.empty?
-
-              models.to_h do |model_id, fields|
-                [model_id, eligible.include?(model_id) ? fields.merge(data_residency_prices(fields, factor)) : fields]
+              listed = processing_model_ids(page).group_by { |id| id.sub(SNAPSHOT_DATE, "") }
+              unless listed.keys.intersect?(RELEASES.fetch("released_on_or_after_cutoff"))
+                raise Error, "no OpenAI model found eligible for data residency pricing"
               end
+
+              mentioned = first_mentions(pages.fetch(CHANGELOG_URL))
+              notes = []
+              priced = models.to_h do |model_id, fields|
+                base = model_id.sub(SNAPSHOT_DATE, "")
+                residency = uplifted?(base, listed, mentioned, cutoff) { |note| notes << note }
+                [model_id, residency ? fields.merge(data_residency_prices(fields, factor)) : fields]
+              end
+              [priced, notes.uniq]
             end
 
             private
@@ -42,15 +52,21 @@ module LlmCostTracker
               [1 + (Float(percent) / 100), Date.parse(date)]
             end
 
-            def eligible_models(page, changelog, cutoff)
-              released, mentioned = changelog_dates(changelog)
-              raise Error, "OpenAI model release dates not found in its changelog" if released.empty?
+            def uplifted?(model_id, listed, mentioned, cutoff)
+              eligible = listed.key?(model_id)
+              return eligible if RELEASES.fetch("released_on_or_after_cutoff").include?(model_id)
+              return false if RELEASES.fetch("released_before_cutoff").include?(model_id)
 
-              processing_model_ids(page).group_by { |id| id.sub(SNAPSHOT_DATE, "") }.filter_map do |model_id, ids|
-                snapshots = ids.filter_map { |id| id[SNAPSHOT_DATE, 1]&.then { |date| Date.parse(date) } }
-                dates = [released[model_id], *snapshots].compact
-                model_id if dates.any? && [*dates, mentioned[model_id]].compact.min >= cutoff
-              end
+              snapshot = listed.fetch(model_id, []).filter_map { |id| id[SNAPSHOT_DATE, 1] }.min
+              snapshot &&= Date.parse(snapshot)
+              mention = mentioned[model_id]
+              dates = [snapshot, mention].compact
+              return eligible if dates.any? && dates.min >= cutoff
+
+              yield "- `openai/#{model_id}`: eligible #{eligible ? 'yes' : 'no'}, " \
+                    "earliest snapshot #{snapshot || 'none'}, first changelog mention #{mention || 'none'}; " \
+                    "add it to released_on_or_after_cutoff or released_before_cutoff in #{RELEASES_FILE}"
+              false
             end
 
             def processing_model_ids(page)
@@ -66,19 +82,18 @@ module LlmCostTracker
                   .flat_map { |cells| cells[models].to_s.scan(/`([^`]+)`/).flatten }
             end
 
-            def changelog_dates(changelog)
+            def first_mentions(changelog)
               year = nil
               day = nil
-              changelog.each_line.with_object([{}, {}]) do |line, (released, mentioned)|
+              changelog.each_line.with_object({}) do |line, mentioned|
                 year = line[/\A## \w+, (\d{4})\s*\z/, 1] || year
                 heading = line[DAY_HEADING, 1]
                 day = Date.parse("#{heading} #{year}") if heading && year
                 next unless day
 
-                tagged = line.scan(/Model: ([\w.-]+)/).flatten.map { |id| id.sub(SNAPSHOT_DATE, "") }
-                tagged.each { |id| released[id] = [released[id], day].compact.min } if line.match?(/\AFeature\b/)
-                (tagged + line.scan(/`([\w.-]+)`/).flatten.map { |id| id.sub(SNAPSHOT_DATE, "") }).each do |id|
-                  mentioned[id] = [mentioned[id], day].compact.min
+                line.scan(/Model: ([\w.-]+)|`([\w.-]+)`/).flatten.compact.each do |id|
+                  model_id = id.sub(SNAPSHOT_DATE, "")
+                  mentioned[model_id] = [mentioned[model_id], day].compact.min
                 end
               end
             end

@@ -7,7 +7,9 @@ module LlmCostTracker
   module Pricing::Scrape
     module Providers
       class Base
-        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
+        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges, :notes) do
+          def initialize(notes: [], **) = super
+        end
         Error = LlmCostTracker::Error
 
         class << self

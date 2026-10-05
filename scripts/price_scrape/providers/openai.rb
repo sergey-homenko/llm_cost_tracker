@@ -87,14 +87,16 @@ module LlmCostTracker
             collected.replace(merge_model_fields(collected, tier_models))
           end
           models = merge_model_fields(models, DocumentedLongContextPrices.call(models, pages))
-          models = add_model_id_aliases(add_priority_aliases(DataResidencyPrices.call(models, pages)))
+          models, notes = DataResidencyPrices.call(models, pages)
+          models = add_model_id_aliases(add_priority_aliases(models))
           validate!(models)
           Result.new(
             source_url: source_url,
             scraped_at: scraped_at,
             models: models,
             deprecated_models: deprecated_models(pages, scraped_at: scraped_at),
-            service_charges: extract_service_charges(doc)
+            service_charges: extract_service_charges(doc),
+            notes: notes
           )
         end
 
