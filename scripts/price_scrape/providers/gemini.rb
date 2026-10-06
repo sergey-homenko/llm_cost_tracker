@@ -46,13 +46,14 @@ module LlmCostTracker
           doc = Nokogiri::HTML(html.fetch(self.class.source_url))
           models = extract_models(doc, Date.parse(scraped_at.to_s))
           validate!(models)
-          add_non_global_prices(models, Nokogiri::HTML(html.fetch(VERTEX_URL)))
+          notes = add_non_global_prices(models, Nokogiri::HTML(html.fetch(VERTEX_URL)))
           Result.new(
             source_url: source_url,
             scraped_at: scraped_at,
             models: models,
             deprecated_models: [],
-            service_charges: {}
+            service_charges: {},
+            notes: notes
           )
         end
 
@@ -63,11 +64,15 @@ module LlmCostTracker
           raise Error, "Vertex AI non-global pricing note not found" unless from
 
           factor, names = non_global_factor(vertex)
-          eligible = names.map { |name| vertex_model_id(name) } & models.keys
+          ids = names.uniq.to_h { |name| [name, vertex_model_id(name)] }
+          eligible = ids.values & models.keys
           raise Error, "Vertex AI non-global prices name no Gemini API model" if eligible.empty?
 
           eligible.each do |model_id|
             models[model_id] = models[model_id].merge(non_global_prices(models[model_id], factor, Date.parse(from)))
+          end
+          ids.reject { |_name, id| models.key?(id) }.keys.map do |name|
+            "- `gemini`: Vertex AI has a non-global price for #{name}, which the Gemini API page does not price"
           end
         end
 
@@ -84,7 +89,7 @@ module LlmCostTracker
         def non_global_pairs(vertex)
           model = global = nil
           vertex.css("tr").each_with_object([]) do |tr, pairs|
-            cells = tr.css("td").map { |td| td.text.gsub(/\s+/, " ").strip }
+            cells = tr.css("td").map { |td| joined_text(td) }
             region = cells[2].to_s[/\A(?:Non-)?global/i]
             next unless region
 
@@ -98,6 +103,8 @@ module LlmCostTracker
             end
           end
         end
+
+        def joined_text(node) = node.xpath(".//text()").map(&:text).join(" ").gsub(/\s+/, " ").strip
 
         def vertex_model_id(name)
           name.split(/\s*(?:[*(]|\b(?:through|starting)\b)/i).first.to_s.strip.downcase.tr(" ", "-")

@@ -400,6 +400,15 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     expect(models.fetch("gemini-3.5-flash").keys.grep(/data_residency/).grep(/grounding|storage/)).to be_empty
   end
 
+  it "notes the Vertex AI non-global prices of models the Gemini API page does not price, a renamed one included" do
+    note = ->(name) { "- `gemini`: Vertex AI has a non-global price for #{name}, which the Gemini API page does not price" }
+    expect(scrape(html).notes).to eq([note.call("Gemini 3.8 Flash Cyber")])
+
+    renamed = scrape(html, vertex: vertex_html.gsub(">Gemini 3.5 Flash<", ">Gemini 3.5 Flash GA<"))
+    expect(renamed.notes).to include(note.call("Gemini 3.5 Flash GA"))
+    expect(renamed.models.fetch("gemini-3.5-flash").keys.grep(/data_residency/)).to be_empty
+  end
+
   it "raises when the Vertex AI non-global pricing note, its single uplift, or its Gemini models are gone" do
     note = "Before July 1, 2026, Global endpoint pricing applies to Non-global endpoints."
 
