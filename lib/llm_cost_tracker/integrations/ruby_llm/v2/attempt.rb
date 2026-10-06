@@ -122,9 +122,12 @@ module LlmCostTracker
             end
 
             def converse_event(usage, payload, raw, events)
-              usages = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash).map { |data| data["usage"] }
-              counts = usages.reverse.find { |found| found.try(:key?, "inputTokens") }
-              return unless counts
+              bodies = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash)
+              data = bodies.reverse.find { |body| body["usage"].try(:key?, "inputTokens") }
+              return unless data
+
+              counts = data["usage"]
+              tier = data["serviceTier"].try(:[], "type")
 
               ttl = payload[:caching].try(:[], :ttl)
               five_minute, one_hour = cache_writes(counts["cacheWriteInputTokens"].to_i, counts["cacheDetails"], ttl)
@@ -139,7 +142,7 @@ module LlmCostTracker
                   cache_write_extended_input_tokens: one_hour,
                   hidden_output_tokens: usage[:tokens].thinking
                 ),
-                pricing_mode: pricing_mode(usage[:provider], usage[:model], {}, nil),
+                pricing_mode: pricing_mode(usage[:provider], usage[:model], { service_tier: tier }, nil),
                 stream: payload[:streaming],
                 usage_source: Usage::Source::SDK_RESPONSE
               )

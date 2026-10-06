@@ -22,6 +22,12 @@ module LlmCostTracker
           "google_search" => "grounding_request",
           "google_maps" => "maps_grounding_request"
         }.freeze
+        TRAFFIC_TYPE_MODES = {
+          "ON_DEMAND" => nil,
+          "TRAFFIC_TYPE_UNSPECIFIED" => nil,
+          "ON_DEMAND_PRIORITY" => "priority",
+          "ON_DEMAND_FLEX" => "flex"
+        }.freeze
 
         class << self
           def match?(url)
@@ -197,7 +203,9 @@ module LlmCostTracker
         private
 
         def service_tier(request, usage, response_headers)
-          body_mode = Pricing::Mode.normalize(usage && usage["serviceTier"])
+          traffic = usage && usage["trafficType"]
+          body_mode = Pricing::Mode.normalize(usage && usage["serviceTier"]) ||
+                      TRAFFIC_TYPE_MODES.fetch(traffic.to_s) { Pricing::Mode.normalize(traffic) }
           return body_mode if body_mode
 
           header_mode = Pricing::Mode.normalize(response_header(response_headers, "x-gemini-service-tier"))

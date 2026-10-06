@@ -253,8 +253,10 @@ module LlmCostTracker
             body = raw_body(response)
             case provider.slug.to_s
             when "anthropic", "bedrock"
-              Providers::Anthropic::UsageExtractor.pricing_mode(request: { model: model },
-                                                                usage: body["usage"]&.deep_symbolize_keys)
+              Providers::Anthropic::UsageExtractor.pricing_mode(
+                request: { model: model, service_tier: body["serviceTier"].try(:[], "type") },
+                usage: body["usage"]&.deep_symbolize_keys
+              )
             when "gemini", "vertexai"
               Providers::Gemini::Parser.new.pricing_mode(
                 request: {},

@@ -1046,4 +1046,22 @@ module AccountingCases
                 body: anthropic_message(id: "msg_vtx_rl", model: "claude-sonnet-4-5-20250929",
                                         usage: anthropic_usage(30_000, 2_000, cache_read: 10_000)))
   end
+
+  %w[ON_DEMAND_PRIORITY global ON_DEMAND_FLEX europe-west4 PROVISIONED_THROUGHPUT us-central1].each_slice(2) do |traffic, location|
+    define_case "ruby_llm vertex chat: gemini-3.8-flash on #{traffic} traffic at #{location}", instrument: :ruby_llm do
+      usage = gemini_usage(prompt: 120_000, candidates: 8_000).merge(trafficType: traffic)
+      vertex_chat("gemini-3.8-flash", location, publisher: "google",
+                  body: gemini_response(model: "gemini-3.8-flash", id: "vtx_#{traffic.downcase}", usage: usage))
+    end
+  end
+
+  %w[flex reserved default].each do |tier|
+    define_case "ruby_llm bedrock chat: haiku-4-5 served on the #{tier} tier of an eu profile", instrument: :ruby_llm do
+      stub_json(:post, %r{\Ahttps://bedrock-runtime\.eu-central-1\.amazonaws\.com/model/[^/]+/converse\z},
+                { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
+                  usage: converse_usage(2000, 400), metrics: { latencyMs: 640 }, serviceTier: { type: tier } })
+      ruby_llm_chat("eu.anthropic.claude-haiku-4-5-20251001-v1:0", :bedrock, context: bedrock_context("eu-central-1"))
+        .ask("hi")
+    end
+  end
 end

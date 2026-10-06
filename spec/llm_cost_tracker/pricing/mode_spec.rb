@@ -88,6 +88,15 @@ RSpec.describe LlmCostTracker::Pricing::Mode do
       expect(LlmCostTracker::Logging).not_to have_received(:warn)
     end
 
+    it "recognizes Bedrock's `reserved` tier and Vertex AI's `provisioned_throughput` traffic without warning" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      described_class.instance_variable_set(:@warned_tokens, nil)
+
+      expect(described_class.tokenize("reserved_data_residency")).to eq(%w[reserved data_residency])
+      expect(described_class.normalize("PROVISIONED_THROUGHPUT")).to eq("provisioned_throughput")
+      expect(LlmCostTracker::Logging).not_to have_received(:warn)
+    end
+
     it "recognizes OpenAI's `ultrafast` tier as its own token, apart from `fast`" do
       allow(LlmCostTracker::Logging).to receive(:warn)
       described_class.instance_variable_set(:@warned_tokens, nil)

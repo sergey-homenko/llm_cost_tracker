@@ -4,7 +4,9 @@ module LlmCostTracker
   module Pricing
     module Mode
       STANDARD_MODE_VALUES = %w[auto default standard standard_only unspecified].freeze
-      KNOWN_MODIFIERS = %w[batch flex priority scale fast ultrafast on_demand data_residency off_peak].freeze
+      KNOWN_MODIFIERS = %w[
+        batch flex priority scale fast ultrafast on_demand data_residency off_peak reserved provisioned_throughput
+      ].freeze
       HOST_DERIVED_MODIFIERS = %w[data_residency].freeze
       MAX_PERMUTED_MODIFIERS = 6
 

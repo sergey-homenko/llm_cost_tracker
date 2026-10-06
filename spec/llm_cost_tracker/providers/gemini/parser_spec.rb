@@ -257,6 +257,15 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(result.pricing_mode).to be_nil
     end
 
+    it "prices Vertex AI traffic types as their tiers, keeping unknown ones off standard rates" do
+      modes = %w[ON_DEMAND ON_DEMAND_PRIORITY ON_DEMAND_FLEX PROVISIONED_THROUGHPUT ON_DEMAND_TURBO].map do |traffic|
+        parser.parse(request_url: generate_content_url, request_body: "{}", response_status: 200,
+                     response_body: { usageMetadata: { promptTokenCount: 1, trafficType: traffic } }.to_json).pricing_mode
+      end
+
+      expect(modes).to eq([nil, "priority", "flex", "provisioned_throughput", "on_demand_turbo"])
+    end
+
     it "adds data_residency on a Vertex AI non-global host for a model with non-global rates" do
       modes = {
         "us-central1-aiplatform.googleapis.com" => "gemini-3.5-flash",
