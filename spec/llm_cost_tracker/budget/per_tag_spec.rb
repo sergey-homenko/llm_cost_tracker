@@ -386,6 +386,177 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
     end
   end
 
+  describe "per-run limits" do
+    before { LlmCostTracker.configuration.ingestion.mode = :inline }
+
+    def configure_run(limits, behavior: nil, on_exceeded: nil, mode: :inline, prices: {})
+      LlmCostTracker.configure do |config|
+        config.ingestion.mode = mode
+        config.pricing.unknown_model_behavior = :ignore
+        config.pricing.overrides = { "run-model" => { input: 1.0 } }.merge(prices)
+        config.budgets.per_tag = { run_id: limits.merge({ behavior: behavior, on_exceeded: on_exceeded }.compact) }
+      end
+    end
+
+    def track_run(run, model: "run-model", enforce_budget: false)
+      LlmCostTracker.track(provider: "openai", model: model, tokens: { input_tokens: 1_000_000 },
+                           tags: { run_id: run }, enforce_budget: enforce_budget)
+    end
+
+    def enforce_run(run, input: "")
+      LlmCostTracker::Budget.enforce!(provider: "openai", model: "run-model", request: { input: input },
+                                      tags: { run_id: run })
+    end
+
+    it "reads a run's total and calls over its whole lifetime, apart from other runs" do
+      spend(3.0, tags: { run_id: "r1" }, tracked_at: Time.now.utc - (40 * 86_400))
+      spend(1.5, tags: { run_id: "r1" })
+      spend(nil, tags: { run_id: "r1" })
+      spend(9.0, tags: { run_id: "r2" })
+
+      expect(described_class.spend("run_id", "r1", :total, time: Time.now.utc)).to eq(BigDecimal("4.5"))
+      expect(described_class.spend("run_id", "r1", :calls, time: Time.now.utc)).to eq(3)
+    end
+
+    it "counts a row only once it carries the call's time, as backfill_tag_costs leaves it" do
+      spend(2.0, tags: { run_id: "r1" })
+      LlmCostTracker::CallTag.update_all(total_cost: nil, tracked_at: nil)
+
+      expect(described_class.spend("run_id", "r1", :calls, time: Time.now.utc)).to eq(0)
+      described_class.backfill
+      expect(described_class.spend("run_id", "r1", :total, time: Time.now.utc)).to eq(2)
+      expect(described_class.spend("run_id", "r1", :calls, time: Time.now.utc)).to eq(1)
+    end
+
+    it "notifies once when a run's total crosses its limit" do
+      notified = []
+      configure_run({ total: 2.5 }, on_exceeded: ->(payload) { notified << payload })
+
+      4.times { track_run("r1") }
+
+      expect(notified.size).to eq(1)
+      expect(notified.first).to include(budget_type: :total, total: 3, budget: 2.5, stage: :post_spend,
+                                        scope: { key: "run_id", value: "r1" })
+    end
+
+    it "notifies once on the call after the last one a calls limit allows, counting unpriced calls" do
+      notified = []
+      configure_run({ calls: 2 }, on_exceeded: ->(payload) { notified << payload })
+
+      2.times { track_run("r1", model: "unpriced-model") }
+      expect(notified).to be_empty
+      2.times { track_run("r1", model: "unpriced-model") }
+
+      expect(notified.size).to eq(1)
+      expect(notified.first).to include(budget_type: :calls, total: 3, budget: 2, stage: :post_spend)
+    end
+
+    it "raises after recording the call that crosses a run's total or calls limit under :raise" do
+      configure_run({ total: 2.5, calls: 3 }, behavior: :raise)
+      2.times { track_run("r1") }
+
+      expect { track_run("r1") }.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error).to have_attributes(budget_type: :total, total: 3, stage: :post_spend)
+      }
+      expect { track_run("r1", model: "unpriced-model") }.to raise_error(
+        LlmCostTracker::BudgetExceededError, "LLM calls budget exceeded for run_id=r1: 4 / 3"
+      )
+      expect(LlmCostTracker::Call.count).to eq(4)
+    end
+
+    it "blocks pre-send when a run's total plus the call's estimate would reach the limit" do
+      configure_run({ total: 2.5 }, behavior: :block_requests)
+      2.times { track_run("r1") }
+
+      expect { enforce_run("r1") }.not_to raise_error
+      expect { enforce_run("r1", input: "x" * 2_400_000) }.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error).to have_attributes(budget_type: :total, total: BigDecimal("2.6"), stage: :pre_send)
+      }
+      expect { track_run("r1") }.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error.stage).to eq(:post_spend)
+      }
+      expect { enforce_run("r1") }.to raise_error(LlmCostTracker::BudgetExceededError, /total budget/)
+      expect { enforce_run("r2") }.not_to raise_error
+    end
+
+    it "lets a run make as many calls as its calls limit allows and blocks the next one pre-send" do
+      configure_run({ calls: 2 }, behavior: :block_requests)
+
+      2.times do
+        enforce_run("r1")
+        track_run("r1", model: "unpriced-model")
+      end
+
+      expect { enforce_run("r1") }.to raise_error(
+        LlmCostTracker::BudgetExceededError, "LLM calls budget exceeded for run_id=r1: 3 / 2"
+      ) { |error| expect(error).to have_attributes(total: 3, budget: 2, stage: :pre_send) }
+    end
+
+    it "raises on a run's limits for track with enforce_budget even when the rule only notifies" do
+      configure_run({ total: 1.5, calls: 2 }, behavior: :notify)
+      track_run("r1", enforce_budget: true)
+
+      expect { track_run("r1", enforce_budget: true) }.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error).to have_attributes(budget_type: :total, stage: :post_spend)
+      }
+      expect { track_run("r1", model: "unpriced-model", enforce_budget: true) }
+        .to raise_error(LlmCostTracker::BudgetExceededError, /calls budget exceeded for run_id=r1: 3 \/ 2/)
+    end
+
+    it "checks a run's total and calls before track_stream with enforce_budget runs its block" do
+      configure_run({ total: 1.5, calls: 1 }, behavior: :notify)
+      ran = false
+      stream = lambda do |run|
+        LlmCostTracker.track_stream(provider: "openai", model: "run-model", tags: { run_id: run },
+                                    enforce_budget: true) { ran = true }
+      end
+      track_run("r1", model: "unpriced-model")
+      2.times { track_run("r2") }
+
+      expect { stream.call("r1") }.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error).to have_attributes(budget_type: :calls, total: 2, stage: :pre_send)
+      }
+      expect { stream.call("r2") }.to raise_error(LlmCostTracker::BudgetExceededError, /total budget/)
+      expect(ran).to be(false)
+    end
+
+    it "counts a run under async ingestion only once drained, and notifies once from the drain" do
+      allow(LlmCostTracker::Ingestion::Worker).to receive(:ensure_started)
+      notified = []
+      configure_run({ total: 1.5, calls: 2 }, behavior: :block_requests,
+                                              on_exceeded: ->(payload) { notified << payload }, mode: :async)
+
+      2.times { track_run("r1", model: "unpriced-model") }
+      2.times { track_run("r1") }
+      expect { enforce_run("r1") }.not_to raise_error
+
+      LlmCostTracker::Ingestion::Worker.flush!
+
+      expect(notified.map { |payload| payload.values_at(:budget_type, :total) }).to contain_exactly([:total, 2], [:calls, 4])
+      expect { enforce_run("r1") }.to raise_error(LlmCostTracker::BudgetExceededError, /total budget/)
+    end
+
+    it "follows a run's total when its calls are priced, and repriced, after they were recorded" do
+      configure_run({ total: 1.5 }, behavior: :block_requests)
+      2.times { track_run("r1", model: "late-model") }
+      expect { enforce_run("r1") }.not_to raise_error
+
+      LlmCostTrackerReset.call
+      configure_run({ total: 1.5 }, behavior: :block_requests, prices: { "late-model" => { input: 1.0 } })
+      LlmCostTracker::Pricing::Backfill.call
+      expect { enforce_run("r1") }.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error.total).to eq(2)
+      }
+
+      LlmCostTrackerReset.call
+      configure_run({ total: 1.5 }, behavior: :block_requests, prices: { "late-model" => { input: 0.5 } })
+      LlmCostTracker::Pricing::Backfill.call(scope: LlmCostTracker::Pricing::Backfill.reprice_scope(1.day.ago..),
+                                             reprice: true)
+      expect { enforce_run("r1") }.not_to raise_error
+      expect(described_class.spend("run_id", "r1", :total, time: Time.now.utc)).to eq(1)
+    end
+  end
+
   describe "async ingestion" do
     def track_tagged(tenant)
       LlmCostTracker.track(provider: "openai", model: "async-model",

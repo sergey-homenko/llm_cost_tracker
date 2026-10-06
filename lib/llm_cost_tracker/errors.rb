@@ -27,10 +27,8 @@ module LlmCostTracker
       @stage = stage
       @scope = scope
 
-      super(
-        "LLM #{@budget_type.to_s.tr('_', '-')} budget exceeded#{scope_suffix}: " \
-        "$#{format('%.6f', @total)} / $#{format('%.6f', budget)}"
-      )
+      amounts = budget_type == :calls ? "#{total} / #{budget}" : format("$%<total>.6f / $%<budget>.6f", total:, budget:)
+      super("LLM #{@budget_type.to_s.tr('_', '-')} budget exceeded#{scope_suffix}: #{amounts}")
     end
 
     private

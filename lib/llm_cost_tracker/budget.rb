@@ -35,17 +35,18 @@ module LlmCostTracker
 
       def check!(event, behavior_override: nil)
         config = LlmCostTracker.configuration
-        return unless event.total_cost
-
-        errors = [check_per_call_budget(event, config, behavior_override)]
-        check_windowed({ daily: config.budgets.daily, monthly: config.budgets.monthly }.compact,
-                       time: event.tracked_at) do |budget_type, total, budget|
-          errors << handle_exceeded(budget_type: budget_type,
-                                    total: total,
-                                    budget: budget,
-                                    previous_total: total - event.total_cost,
-                                    last_event: event,
-                                    behavior: behavior_override)
+        errors = []
+        if event.total_cost
+          errors << check_per_call_budget(event, config, behavior_override)
+          check_windowed({ daily: config.budgets.daily, monthly: config.budgets.monthly }.compact,
+                         time: event.tracked_at) do |budget_type, total, budget|
+            errors << handle_exceeded(budget_type: budget_type,
+                                      total: total,
+                                      budget: budget,
+                                      previous_total: total - event.total_cost,
+                                      last_event: event,
+                                      behavior: behavior_override)
+          end
         end
         errors.concat(persisted_errors([event], behavior_override)) unless Ingestion.async?
         raise_first(errors)
@@ -72,13 +73,14 @@ module LlmCostTracker
           scored.filter_map do |rule, recorded|
             total, upto_total = totals.fetch(rule.value, [0, 0])
             limit = rule.windows.fetch(window)
-            next if total < limit
+            next unless over?(window, total, limit)
 
             handle_exceeded(
               budget_type: window,
               total: total,
               budget: limit,
-              previous_total: (upto_total >= limit ? upto_total : total) - recorded.sum(&:total_cost),
+              previous_total: (over?(window, upto_total, limit) ? upto_total : total) -
+                              recorded.sum { |event| amount(window, event) },
               last_event: recorded.last,
               scope: scope_for(rule),
               behavior: behavior_override || rule.behavior,
@@ -96,12 +98,21 @@ module LlmCostTracker
       def window_buckets(by_rule)
         by_rule.each_with_object({}) do |(rule, events), grouped|
           rule.windows.each_key do |window|
-            events.group_by { |event| PerTag.window_start(window, event.tracked_at) }
+            events.select { |event| amount(window, event) }
+                  .group_by { |event| PerTag.window_start(window, event.tracked_at) }
                   .each do |bucket, bucket_events|
               (grouped[[rule.key, window, bucket]] ||= {})[rule] = bucket_events
             end
           end
         end
+      end
+
+      def amount(window, event)
+        window == :calls ? 1 : event.total_cost
+      end
+
+      def over?(budget_type, total, budget)
+        budget_type == :calls ? total > budget : total >= budget
       end
 
       def estimate_cost(provider:, model:, request:)
@@ -147,8 +158,8 @@ module LlmCostTracker
       def check_per_tag(tags, time:, estimate: BigDecimal("0"), blocking_only: false)
         PerTag.rules_for(tags, blocking_only: blocking_only).each do |rule|
           rule.windows.each do |window, limit|
-            total = PerTag.spend(rule.key, rule.value, window, time: time) + estimate
-            yield(rule, window, total, limit) if total >= limit
+            total = PerTag.spend(rule.key, rule.value, window, time: time) + (window == :calls ? 1 : estimate)
+            yield(rule, window, total, limit) if over?(window, total, limit)
           end
         end
       end
@@ -188,7 +199,7 @@ module LlmCostTracker
           scope: scope
         }
 
-        on_exceeded.call(payload) if on_exceeded && (previous_total.nil? || previous_total < budget)
+        on_exceeded.call(payload) if on_exceeded && (previous_total.nil? || !over?(budget_type, previous_total, budget))
         BudgetExceededError.new(**payload) if %i[raise block_requests].include?(behavior)
       end
     end
