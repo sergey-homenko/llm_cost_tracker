@@ -20,6 +20,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Bundled Mistral prices for Voxtral transcription (per minute), Voxtral TTS (per character), OCR (per 1,000 pages), Codestral Embed and Mistral Moderation 2 ($0).
 - Bundled Groq prices for Whisper, per minute of a `verbose_json` response's `duration` with Groq's 10-second minimum, and Orpheus, per character.
 - Bundled Cohere prices from its pricing page: Command R and R7B, legacy Command models, Aya Expanse, Embed 5, Rerank 4 per 1,000 search units and Parse per 1,000 pages.
+- RubyLLM 2.x Cohere chats and embeddings record billed image tokens at `image_input`, so a call with images is `partial` or `unknown` until a price has that rate.
 - Bundled Mistral and Cohere prices for models their providers' pages omit, when LiteLLM and models.dev agree within 1%, marked `"_source": "litellm"`: Mistral Embed and Cohere Command A.
 - `LICENSE.txt` carries LiteLLM's MIT notice for the bundled prices taken from its data.
 
