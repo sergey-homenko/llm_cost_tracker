@@ -17,10 +17,13 @@ module LlmCostTracker
 
       minimum_version "0.59.0"
 
+      WEBSOCKET_RESULTS = %w[response.completed response.incomplete response.failed].freeze
+
       class << self
         def stream_collector(request, host: nil)
           LlmCostTracker::Capture::StreamCollector.new(
             provider: provider_for_host(host),
+            parsed_as: "openai",
             model: request[:model],
             pricing_mode: host_pricing_mode(host, request),
             request: request
@@ -35,24 +38,17 @@ module LlmCostTracker
           }
         end
 
-        def client_host_for(resource)
-          client = resource.instance_variable_get(:@client)
-          return nil unless client
-
-          URI.parse(client.base_url.to_s).host
-        rescue URI::InvalidURIError
-          nil
-        end
-
         def provider_for_host(host)
           return "azure_openai" if LlmCostTracker::Providers::Azure::Hosts.openai?(host)
 
-          LlmCostTracker.configuration.capture.openai_compatible_providers[host.to_s.downcase] || "openai"
+          LlmCostTracker.configuration.capture.openai_compatible_providers[host.to_s.downcase] ||
+            (LlmCostTracker::Providers::Openai::Hosts.bedrock?(host) ? "bedrock" : "openai")
         end
 
         def patch_targets
           [
             patch_target("OpenAI::Resources::Responses", with: ResponsesPatch),
+            patch_target("OpenAI::Responses::Connection", with: ResponsesConnectionPatch, optional: true),
             patch_target("OpenAI::Resources::Chat::Completions", with: ChatCompletionsPatch),
             patch_target("OpenAI::Resources::Embeddings", with: EmbeddingsPatch, optional: true),
             patch_target("OpenAI::Resources::Images", with: ImagesPatch, optional: true),
@@ -95,6 +91,36 @@ module LlmCostTracker
               usage_source: LlmCostTracker::Usage::Source::SDK_RESPONSE
             )
             LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms) if event
+          end
+        end
+
+        def websocket_create(event, url)
+          return unless active?
+
+          request = LlmCostTracker::Capture::SdkPayload.normalize(event)
+          return unless request.is_a?(Hash) && request["type"] == "response.create"
+
+          enforce_budget!(request: request.with_indifferent_access, provider: provider_for_host(URI(url.to_s).host))
+          request
+        end
+
+        def record_websocket_event(event, url, tags)
+          return unless active? && WEBSOCKET_RESULTS.include?(event.try(:type).to_s)
+
+          record_safely do
+            data = LlmCostTracker::Capture::SdkPayload.normalize(event)
+            response = data["response"].to_h
+            host = URI(url.to_s).host
+            parsed = LlmCostTracker::Providers::Openai::ResponseParser.event_from_response(
+              response: response,
+              request: { "tools" => response["tools"] },
+              provider: provider_for_host(host),
+              host: host,
+              usage_source: LlmCostTracker::Usage::Source::STREAM_FINAL
+            )
+            next unless parsed
+
+            LlmCostTracker::Tracker.record(event: parsed.with(stream: true), context_tags: tags&.[](data["stream_id"]))
           end
         end
 

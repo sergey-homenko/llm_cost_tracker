@@ -21,7 +21,7 @@ module LlmCostTracker
           ]
         end
 
-        def record_message(message, request:, latency_ms:)
+        def record_message(message, request:, latency_ms:, host: nil)
           return unless active?
 
           record_safely do
@@ -38,6 +38,7 @@ module LlmCostTracker
                 provider_response_id: message.id,
                 usage_source: Usage::Source::SDK_RESPONSE,
                 request: request,
+                host: host,
                 **response_fields(message)
               ),
               latency_ms: latency_ms
@@ -105,6 +106,11 @@ module LlmCostTracker
           nil
         end
 
+        def stream_collector(request, host: nil)
+          regional = Providers::Anthropic::UsageExtractor.regional_host?(host, request[:model])
+          super(request, pricing_mode: ("data_residency" if regional))
+        end
+
         def response_fields(message)
           { stop_reason: message.stop_reason, refusal_category: message.stop_details&.category,
             content: message.deep_to_h[:content] }
@@ -113,30 +119,33 @@ module LlmCostTracker
 
       module MessagesPatch
         def create(*args, **kwargs)
+          host = LlmCostTracker::Integrations::Anthropic.client_host_for(self)
           LlmCostTracker::Integrations::Anthropic.wrap_blocking(
             args,
             kwargs,
             record: lambda do |message, request, latency_ms|
               LlmCostTracker::Integrations::Anthropic.record_message(
-                message, request: request, latency_ms: latency_ms
+                message, request: request, latency_ms: latency_ms, host: host
               )
             end
           ) { super }
         end
 
         def stream(*args, **kwargs)
+          host = LlmCostTracker::Integrations::Anthropic.client_host_for(self)
           LlmCostTracker::Integrations::Anthropic.wrap_stream(
             args,
             kwargs,
-            collector: ->(request) { LlmCostTracker::Integrations::Anthropic.stream_collector(request) }
+            collector: ->(request) { LlmCostTracker::Integrations::Anthropic.stream_collector(request, host: host) }
           ) { super }
         end
 
         def stream_raw(*args, **kwargs)
+          host = LlmCostTracker::Integrations::Anthropic.client_host_for(self)
           LlmCostTracker::Integrations::Anthropic.wrap_stream(
             args,
             kwargs,
-            collector: ->(request) { LlmCostTracker::Integrations::Anthropic.stream_collector(request) }
+            collector: ->(request) { LlmCostTracker::Integrations::Anthropic.stream_collector(request, host: host) }
           ) { super }
         end
       end

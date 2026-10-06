@@ -63,6 +63,17 @@ module AccountingCases
     end
   end
 
+  def vertex_chat(model, location, publisher:, body:)
+    allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:headers).and_return({})
+    host = location == "global" ? "aiplatform.googleapis.com" : "#{location}-aiplatform.googleapis.com"
+    stub_json(:post, %r{\Ahttps://#{host}/v1beta1/projects/proj/locations/#{location}/publishers/#{publisher}/models/}, body)
+    context = RubyLLM.context do |config|
+      config.vertexai_project_id = "proj"
+      config.vertexai_location = location
+    end
+    ruby_llm_chat(model, :vertexai, context: context).ask("hi")
+  end
+
   def converse_frame(type, data)
     headers = { ":message-type" => "event", ":event-type" => type, ":content-type" => "application/json" }
               .transform_values { |value| Aws::EventStream::HeaderValue.new(value: value, type: "string") }
@@ -1013,5 +1024,86 @@ module AccountingCases
                 metrics: { latencyMs: 640 } })
     ruby_llm_chat("eu.anthropic.claude-haiku-4-5-20251001-v1:0", :bedrock, context: bedrock_context("eu-central-1"))
       .ask("hi")
+  end
+
+  define_case "ruby_llm vertex chat: gemini-3.8-flash on a regional endpoint at its non-global rates",
+              instrument: :ruby_llm do
+    vertex_chat("gemini-3.8-flash", "europe-west4", publisher: "google",
+                body: gemini_response(model: "gemini-3.8-flash", id: "vtx_eu",
+                                      usage: gemini_usage(prompt: 120_000, candidates: 8_000)))
+  end
+
+  define_case "ruby_llm vertex chat: gemini-2.5-flash on a regional endpoint at its global rates",
+              instrument: :ruby_llm do
+    vertex_chat("gemini-2.5-flash", "us-central1", publisher: "google",
+                body: gemini_response(model: "gemini-2.5-flash", id: "vtx_us",
+                                      usage: gemini_usage(prompt: 120_000, candidates: 8_000)))
+  end
+
+  define_case "ruby_llm vertex chat: claude-sonnet-4-5 on a regional endpoint at its regional rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: "RubyLLM 1.x has no Claude on Vertex AI" do
+    vertex_chat("claude-sonnet-4-5", "us-east5", publisher: "anthropic",
+                body: anthropic_message(id: "msg_vtx_rl", model: "claude-sonnet-4-5-20250929",
+                                        usage: anthropic_usage(30_000, 2_000, cache_read: 10_000)))
+  end
+
+  %w[ON_DEMAND_PRIORITY global ON_DEMAND_FLEX europe-west4 PROVISIONED_THROUGHPUT us-central1].each_slice(2) do |traffic, location|
+    define_case "ruby_llm vertex chat: gemini-3.8-flash on #{traffic} traffic at #{location}", instrument: :ruby_llm do
+      usage = gemini_usage(prompt: 120_000, candidates: 8_000).merge(trafficType: traffic)
+      vertex_chat("gemini-3.8-flash", location, publisher: "google",
+                  body: gemini_response(model: "gemini-3.8-flash", id: "vtx_#{traffic.downcase}", usage: usage))
+    end
+  end
+
+  %w[flex reserved default].each do |tier|
+    define_case "ruby_llm bedrock chat: haiku-4-5 served on the #{tier} tier of an eu profile", instrument: :ruby_llm do
+      stub_json(:post, %r{\Ahttps://bedrock-runtime\.eu-central-1\.amazonaws\.com/model/[^/]+/converse\z},
+                { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
+                  usage: converse_usage(2000, 400), metrics: { latencyMs: 640 }, serviceTier: { type: tier } })
+      ruby_llm_chat("eu.anthropic.claude-haiku-4-5-20251001-v1:0", :bedrock, context: bedrock_context("eu-central-1"))
+        .ask("hi")
+    end
+  end
+
+  %w[us.anthropic.claude-sonnet-4-20250514-v1:0 us.anthropic.claude-3-5-haiku-20241022-v1:0].each do |model|
+    define_case "ruby_llm bedrock chat: #{model}, retired on Anthropic's API, at its last Anthropic price",
+                instrument: :ruby_llm do
+      stub_json(:post, %r{\Ahttps://bedrock-runtime\.us-east-1\.amazonaws\.com/model/[^/]+/converse\z},
+                { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
+                  usage: converse_usage(10_000, 1_000, cache_read: 2_000), metrics: { latencyMs: 640 } })
+      ruby_llm_chat(model, :bedrock, context: bedrock_context("us-east-1")).ask("hi")
+    end
+  end
+
+  define_case "ruby_llm vertex chat: opus-4-1, retired on Anthropic's API, on a regional endpoint at its global rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: "RubyLLM 1.x has no Claude on Vertex AI" do
+    vertex_chat("claude-opus-4-1", "us-east5", publisher: "anthropic",
+                body: anthropic_message(id: "msg_vtx_41", model: "claude-opus-4-1-20250805",
+                                        usage: anthropic_usage(10_000, 1_000)))
+  end
+
+  define_case "ruby_llm vertex batch: gemini-3.8-flash results of a regional job at its non-global batch rates",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:headers).and_return({})
+    job = "projects/proj/locations/europe-west4/batchPredictionJobs/42"
+    stub_json(:get, "https://europe-west4-aiplatform.googleapis.com/v1beta1/#{job}",
+              { name: job, state: "JOB_STATE_SUCCEEDED", outputInfo: { gcsOutputDirectory: "gs://bucket/out" },
+                model: "projects/proj/locations/europe-west4/publishers/google/models/gemini-3.8-flash" })
+    response = gemini_response(model: "gemini-3.8-flash", id: "vtx_b1",
+                               usage: gemini_usage(prompt: 120_000, candidates: 8_000))
+    allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:list_file_uris).and_return(["gs://bucket/out/p.jsonl"])
+    allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:download_file)
+      .and_return(JSON.generate({ status: "", response: response }))
+    context = RubyLLM.context do |config|
+      config.vertexai_project_id = "proj"
+      config.vertexai_location = "europe-west4"
+    end
+    RubyLLM::Batch.find(job, provider: :vertexai, context: context).messages
+  end
+
+  define_case "ruby_llm vertex chat: mistral-medium-latest on a regional endpoint at its Mistral rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: "RubyLLM 1.x has no Mistral on Vertex AI" do
+    vertex_chat("mistral-medium-latest", "us-central1", publisher: "mistralai",
+                body: chat_completion(id: "cmpl_vtx_m", model: "mistral-medium-latest", usage: chat_usage(100_000, 10_000)))
   end
 end

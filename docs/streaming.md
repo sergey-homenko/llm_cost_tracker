@@ -56,7 +56,7 @@ Captured SDK helpers:
 
 | Provider | Helpers |
 | --- | --- |
-| OpenAI | `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, `chat.completions.stream`, `chat.completions.stream_raw`, `images.generate_stream_raw`, `images.edit_stream_raw`, `audio.transcriptions.create_streaming` |
+| OpenAI | `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, `responses.connect` (WebSocket mode, `OpenAI::Responses::Session` included), `chat.completions.stream`, `chat.completions.stream_raw`, `images.generate_stream_raw`, `images.edit_stream_raw`, `audio.transcriptions.create_streaming` |
 | Anthropic | `messages.stream`, `messages.stream_raw`, beta Messages stream helpers |
 | RubyLLM | On 1.x, `RubyLLM::Provider#complete` (captured for both blocking and streaming calls; `Chat#ask` reaches this transitively). On 2.x, each streamed attempt's `usage.ruby_llm` event, with the stream events RubyLLM passes to `build_chunk` or, for a transcription, yields from `stream_transcription` |
 
@@ -65,6 +65,8 @@ The returned stream object is preserved. Usage is recorded after the stream is c
 RubyLLM streaming reads from the stream events the fields a blocking call reads from the raw response body. On RubyLLM 1.x, Bedrock Converse streams keep only RubyLLM's token counts; on 2.x, so do a stream cut off before its final usage event and a transcription streamed over a WebSocket (see [Pricing](pricing.md)).
 
 Tags are snapshotted when the stream starts, so delayed or cross-thread consumption keeps the original request/user attribution.
+
+A Responses WebSocket connection records each `response.completed`, `response.incomplete`, or `response.failed` event that carries usage when it is read, with the tags active when the latest `response.create` was sent on its lane (`stream_id`); `:block_requests` checks each `response.create` before it is sent. A budget or unknown-pricing error a recorded response raises comes after the caller has that event: from `each` when it ends or the caller leaves it, from the next `receive`, and not at all from an `OpenAI::Responses::Session` that closes first. An `OpenAI::Responses::Session` lane whose `response.create` a `BudgetExceededError` blocked still waits for that response, so close the lane or the session.
 
 ## Explicit Streaming
 

@@ -35,6 +35,20 @@ module SdkIntegrationHelpers
     )
   end
 
+  def responses_websocket(events)
+    messages = events.map { |event| JSON.generate(event) }
+    socket = Struct.new(:messages, :written, :closed) do
+      def read = messages.shift
+      def write(text) = written << text
+      def closed? = closed
+      def close(**) = self.closed = true
+      def abort = self.closed = true
+    end.new(messages, [], false)
+    transport = Object.new
+    transport.define_singleton_method(:open) { |**, &block| block.call(socket) }
+    [transport, socket]
+  end
+
   def stub_sdk_sse(method, url, body:)
     WebMock.stub_request(method, url).to_return(
       status: 200,

@@ -22,6 +22,12 @@ module LlmCostTracker
           "google_search" => "grounding_request",
           "google_maps" => "maps_grounding_request"
         }.freeze
+        TRAFFIC_TYPE_MODES = {
+          "ON_DEMAND" => nil,
+          "TRAFFIC_TYPE_UNSPECIFIED" => nil,
+          "ON_DEMAND_PRIORITY" => "priority",
+          "ON_DEMAND_FLEX" => "flex"
+        }.freeze
 
         class << self
           def match?(url)
@@ -64,7 +70,13 @@ module LlmCostTracker
             usage: usage,
             usage_source: Usage::Source::RESPONSE,
             provider_response_id: response["responseId"],
-            pricing_mode: pricing_mode(request: request, usage: usage, response_headers: response_headers),
+            pricing_mode: pricing_mode(
+              request: request,
+              usage: usage,
+              response_headers: response_headers,
+              host: parsed_uri(request_url)&.host,
+              model: model
+            ),
             service_line_items: service_line_items_for(response, model: model)
           )
         end
@@ -87,7 +99,13 @@ module LlmCostTracker
           model = find_event_value(events, reverse: true) { |data| data["modelVersion"] } ||
                   extract_model_from_url(request_url) || model || request["model"]
           response_id = find_event_value(events) { |data| data["responseId"] }
-          mode = pricing_mode(request: request, usage: usage, response_headers: response_headers)
+          mode = pricing_mode(
+            request: request,
+            usage: usage,
+            response_headers: response_headers,
+            host: parsed_uri(request_url)&.host,
+            model: model
+          )
           service_line_items = grounding_line_items_for_stream(events, model: model)
 
           if usage
@@ -176,8 +194,18 @@ module LlmCostTracker
           )
         end
 
-        def pricing_mode(request:, usage:, response_headers:)
-          body_mode = Pricing::Mode.normalize(usage && usage["serviceTier"])
+        def pricing_mode(request:, usage:, response_headers:, host: nil, model: nil)
+          regional = Openai::Hosts.vertex_non_global?(host) &&
+                     Pricing::Matcher.modifier_priced?(provider: "gemini", model: model, modifier: "data_residency")
+          Pricing::Mode.compose([service_tier(request, usage, response_headers), ("data_residency" if regional)])
+        end
+
+        private
+
+        def service_tier(request, usage, response_headers)
+          traffic = usage && usage["trafficType"]
+          body_mode = Pricing::Mode.normalize(usage && usage["serviceTier"]) ||
+                      TRAFFIC_TYPE_MODES.fetch(traffic.to_s) { Pricing::Mode.normalize(traffic) }
           return body_mode if body_mode
 
           header_mode = Pricing::Mode.normalize(response_header(response_headers, "x-gemini-service-tier"))
@@ -186,8 +214,6 @@ module LlmCostTracker
           request_mode = Pricing::Mode.normalize(request["service_tier"] || request["serviceTier"])
           request_mode == "flex" ? request_mode : nil
         end
-
-        private
 
         def build_event(model:,
                         usage:,

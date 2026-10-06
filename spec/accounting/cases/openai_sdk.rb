@@ -803,4 +803,65 @@ module AccountingCases
                 usage: { cost_in_usd_ticks: 200_000_000 } })
     openai_client(XAI_API).images.generate(prompt: "a cat", model: "grok-imagine-image")
   end
+
+  def bedrock_openai_client(endpoint, region)
+    OpenAI::Client.new(provider: OpenAI::Providers.bedrock(endpoint: endpoint, region: region, api_key: "bedrock-test"))
+  end
+
+  define_case "openai sdk bedrock runtime chat: recorded under bedrock", instrument: :openai do
+    stub_json(:post, "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/chat/completions",
+              chat_completion(id: "chatcmpl_br1", model: "us.openai.gpt-5.6-sol", usage: chat_usage(1000, 200)))
+    bedrock_openai_client(:runtime, "us-east-1").chat.completions.create(model: "us.openai.gpt-5.6-sol",
+                                                                         messages: USER_MESSAGES)
+  end
+
+  define_case "openai sdk bedrock runtime chat stream helper: recorded under bedrock with its usage",
+              instrument: :openai do
+    stub_sse(:post, "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/chat/completions",
+             chat_stream_body(id: "chatcmpl_br2", model: "us.openai.gpt-5.6-sol", usage: chat_usage(1000, 200)))
+    bedrock_openai_client(:runtime, "us-east-1").chat.completions
+                                                .stream(model: "us.openai.gpt-5.6-sol", messages: USER_MESSAGES,
+                                                        stream_options: { include_usage: true }).each { nil }
+  end
+
+  define_case "openai sdk bedrock mantle responses: recorded under bedrock", instrument: :openai do
+    stub_json(:post, "https://bedrock-mantle.us-west-2.api.aws/v1/responses",
+              responses_object(id: "resp_br3", model: "openai.gpt-oss-120b", usage: responses_usage(1000, 200)))
+    bedrock_openai_client(:mantle, "us-west-2").responses.create(model: "openai.gpt-oss-120b", input: "hi")
+  end
+
+  def websocket_turn(id, model, usage, status: "completed")
+    response = { id: id, object: "response", created_at: 1_758_000_000, status: "in_progress", model: model,
+                 output: [], usage: nil, tools: [] }
+    [{ type: "response.created", sequence_number: 0, response: response },
+     { type: "response.#{status}", sequence_number: 1,
+       response: response.merge(status: status, output: [output_message(id)], usage: usage) }]
+  end
+
+  define_case "openai sdk responses websocket: each response at the tags it was created under", instrument: :openai do
+    transport, = responses_websocket(websocket_turn("resp_ws1", "gpt-4o", responses_usage(1000, 300, cached: 200)) +
+                                     websocket_turn("resp_ws2", "gpt-4o", responses_usage(500, 100), status: "incomplete"))
+    openai_client.responses.connect(transport: transport) do |connection|
+      LlmCostTracker.with_tags(turn: "first") { connection.response.create(model: "gpt-4o", input: "hi") }
+      connection.each { |event| break if event.type.to_s == "response.completed" }
+      LlmCostTracker.with_tags(turn: "second") { connection.response.create(model: "gpt-4o", input: "more") }
+      connection.each { nil }
+    end
+  end
+
+  define_case "openai sdk responses websocket: gpt-5.4 read with receive on the eu host", instrument: :openai do
+    transport, = responses_websocket(websocket_turn("resp_ws3", "gpt-5.4", responses_usage(2000, 500)))
+    openai_client("https://eu.api.openai.com/v1").responses.connect(transport: transport) do |connection|
+      connection.response.create(model: "gpt-5.4", input: "hi")
+      while connection.receive; end
+    end
+  end
+
+  define_case "openai sdk vertex openai-compatible chat: gemini-3.8-flash on a regional endpoint at its non-global rate",
+              instrument: :openai do
+    base = "https://us-central1-aiplatform.googleapis.com/v1/projects/proj/locations/us-central1/endpoints/openapi"
+    stub_json(:post, "#{base}/chat/completions",
+              chat_completion(id: "cmpl_vtx_g", model: "google/gemini-3.8-flash", usage: chat_usage(120_000, 8_000)))
+    openai_client(base).chat.completions.create(model: "google/gemini-3.8-flash", messages: USER_MESSAGES)
+  end
 end

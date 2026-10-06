@@ -85,6 +85,55 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "responses.connect" do
+    it "blocks a response.create over budget before it is sent and sends one within budget" do
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.instrument(:openai)
+        config.budgets.daily = 1.0
+        config.budgets.exceeded_behavior = :block_requests
+      end
+      transport, socket = responses_websocket([])
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 2.0)
+
+      client.responses.connect(transport: transport) do |connection|
+        expect { connection.response.create(model: "gpt-4o", input: "hi") }
+          .to raise_error(LlmCostTracker::BudgetExceededError)
+        expect(socket.written).to be_empty
+        allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 0.0)
+        connection.response.create(model: "gpt-4o", input: "hi")
+      end
+
+      expect(socket.written.size).to eq(1)
+    end
+
+    it "hands every event to the caller before raising the error a recorded response raised" do
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.instrument(:openai)
+        config.pricing.unknown_model_behavior = :raise
+      end
+      allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_return(true)
+      response = { id: "resp_x", object: "response", created_at: 1, status: "in_progress", model: "gpt-unpriced-zz",
+                   output: [], usage: nil, tools: [] }
+      turn = [{ type: "response.created", sequence_number: 0, response: response },
+              { type: "response.completed", sequence_number: 1,
+                response: response.merge(status: "completed", usage: { input_tokens: 10, output_tokens: 5 }) }]
+      seen = []
+
+      [->(connection) { connection.each { |event| seen << event.type.to_s } },
+       ->(connection) { connection.each { |event| (seen << event.type.to_s).last == "response.completed" and break } },
+       ->(connection) { 3.times { seen << connection.receive.type.to_s } }].each do |read|
+        transport, = responses_websocket(turn)
+        expect do
+          client.responses.connect(transport: transport) { |connection| read.call(connection) }
+        end.to raise_error(LlmCostTracker::UnknownPricingError)
+      end
+
+      expect(seen).to eq(%w[response.created response.completed] * 3)
+    end
+  end
+
   describe "responses.retrieve" do
     def stub_retrieve(status:, background: true, usage: nil)
       WebMock.stub_request(:get, "https://api.openai.com/v1/responses/resp_bg").to_return(

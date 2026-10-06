@@ -20,7 +20,7 @@ Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `p
 | --- | --- | --- |
 | `enabled` | `true` | Turns capture on or off without removing middleware or integrations |
 | `capture.request_stream_usage` | `true` | Streaming endpoints only report token usage when the request asks for it. The Faraday middleware adds `stream_options: { include_usage: true }` to chat-completions streaming request bodies that don't already set it, on hosts known to accept it; hosts you register are left alone. Set to `false` to leave request bodies untouched. See [Streaming](streaming.md). |
-| `capture.openai_compatible_providers` | OpenRouter, DeepSeek, Groq, xAI, Mistral, Perplexity | Maps each gateway host to the provider name recorded for its calls, through the Faraday middleware or an official OpenAI SDK client whose `base_url` is on that host; Faraday does not capture unlisted hosts |
+| `capture.openai_compatible_providers` | OpenRouter, DeepSeek, Groq, xAI, Mistral, Perplexity | Maps each gateway host to the provider name recorded for its calls, through the Faraday middleware or an official OpenAI SDK client whose `base_url` is on that host; Faraday does not capture unlisted hosts. An official OpenAI SDK client on Amazon Bedrock's `bedrock-mantle` or `bedrock-runtime` hosts records `bedrock` unless the host is listed |
 
 ## Tag Options
 

@@ -88,14 +88,21 @@ module LlmCostTracker
           Array(usage[:iterations]).select { |entry| entry.is_a?(Hash) && entry[:type].to_s == type }
         end
 
-        def self.pricing_mode(request:, usage:)
+        def self.pricing_mode(request:, usage:, host: nil, model: request&.dig(:model))
           speed = usage&.dig(:speed) || request&.dig(:speed)
           service_tier = usage&.dig(:service_tier) || request&.dig(:service_tier)
           geo = (usage&.dig(:inference_geo) || request&.dig(:inference_geo)).to_s.downcase
 
           modes = [Pricing::Mode.normalize(speed), Pricing::Mode.normalize(service_tier)]
-          modes << "data_residency" if DATA_RESIDENCY_GEOS.include?(geo) || bedrock_regional?(request&.dig(:model))
+          if DATA_RESIDENCY_GEOS.include?(geo) || bedrock_regional?(request&.dig(:model)) || regional_host?(host, model)
+            modes << "data_residency"
+          end
           Pricing::Mode.compose(modes)
+        end
+
+        def self.regional_host?(host, model)
+          Openai::Hosts.vertex_non_global?(host) &&
+            Pricing::Matcher.modifier_priced?(provider: "anthropic", model: model, modifier: "data_residency")
         end
 
         def self.bedrock_regional?(model)

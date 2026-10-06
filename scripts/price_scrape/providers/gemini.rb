@@ -34,21 +34,92 @@ module LlmCostTracker
         CURRENT_LINE = /through \w+ \d{1,2}, \d{4}\.?\z/
         TEXT_PRICED_AS = /Text input and output\s+is priced the same as/
         UNCAPTURED_MODEL = /(?<!transcribe)-live\b|-(?:streaming|native-audio)\b/
+        VERTEX_URL = "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
+        SOURCE_URLS = [source_url, VERTEX_URL].freeze
+        NON_GLOBAL_FROM = /
+          For\snon-global\sendpoints,\spricing\swill\sgo\sinto\seffect\sfor\sthe\sGenerally\savailable\sGemini\s3\sand
+          \slater\sfamilies\sof\sall\sGoogle\smodels\sstarting\son\s(\w+\s\d{1,2},\s\d{4})\.\sBefore\s\1,\sGlobal
+          \sendpoint\spricing\sapplies\sto\sNon-global\sendpoints\.
+        /x
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
-          doc = Nokogiri::HTML(html.to_s)
+          doc = Nokogiri::HTML(html.fetch(self.class.source_url))
           models = extract_models(doc, Date.parse(scraped_at.to_s))
           validate!(models)
+          notes = add_non_global_prices(models, Nokogiri::HTML(html.fetch(VERTEX_URL)))
           Result.new(
             source_url: source_url,
             scraped_at: scraped_at,
             models: models,
             deprecated_models: [],
-            service_charges: {}
+            service_charges: {},
+            notes: notes
           )
         end
 
         private
+
+        def add_non_global_prices(models, vertex)
+          from = vertex.text.gsub(/\s+/, " ")[NON_GLOBAL_FROM, 1]
+          raise Error, "Vertex AI non-global pricing note not found" unless from
+
+          factor, names = non_global_factor(vertex)
+          ids = names.uniq.to_h { |name| [name, vertex_model_id(name)] }
+          eligible = ids.values & models.keys
+          raise Error, "Vertex AI non-global prices name no Gemini API model" if eligible.empty?
+
+          eligible.each do |model_id|
+            models[model_id] = models[model_id].merge(non_global_prices(models[model_id], factor, Date.parse(from)))
+          end
+          ids.reject { |_name, id| models.key?(id) }.keys.map do |name|
+            "- `gemini`: Vertex AI has a non-global price for #{name}, which the Gemini API page does not price"
+          end
+        end
+
+        def non_global_factor(vertex)
+          pairs = non_global_pairs(vertex)
+          ratios = pairs.flat_map do |_model, global, prices|
+            global.zip(prices).filter_map { |base, price| (price / base).round(6) if base&.positive? && price }
+          end.uniq
+          raise Error, "Vertex AI non-global prices are not one uplift: #{ratios.inspect}" unless ratios.one?
+
+          [ratios.first, pairs.map(&:first)]
+        end
+
+        def non_global_pairs(vertex)
+          model = global = nil
+          vertex.css("tr").each_with_object([]) do |tr, pairs|
+            cells = tr.css("td").map { |td| joined_text(td) }
+            region = cells[2].to_s[/\A(?:Non-)?global/i]
+            next unless region
+
+            global = nil unless cells[0].empty? && cells[1].empty?
+            model = cells[0] unless cells[0].empty?
+            prices = cells.drop(3).map { |cell| cell[/\$([\d.]+)/, 1]&.to_f }
+            if region.casecmp?("global")
+              global = prices
+            elsif global
+              pairs << [model, global, prices]
+            end
+          end
+        end
+
+        def joined_text(node) = node.xpath(".//text()").map(&:text).join(" ").gsub(/\s+/, " ").strip
+
+        def vertex_model_id(name)
+          name.split(/\s*(?:[*(]|\b(?:through|starting)\b)/i).first.to_s.strip.downcase.tr(" ", "-")
+        end
+
+        def non_global_prices(fields, factor, from)
+          fields.each_with_object({}) do |(field, value), prices|
+            base, date = field.split(/_from_(?=\d{4}-\d{2}-\d{2}\z)/)
+            context, tier, dimension = base.match(/\A(above_context_)?(batch_|flex_|priority_)?(.+)\z/).captures
+            next unless Pricing::Registry::PRICE_KEYS.include?(dimension)
+
+            key = "#{context}#{tier}data_residency_#{dimension}_from_#{date || from.iso8601}"
+            prices[key] = (value * factor).round(6)
+          end
+        end
 
         def extract_models(doc, today)
           article = doc.at_css("div.devsite-article-body")

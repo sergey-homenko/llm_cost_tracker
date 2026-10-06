@@ -28,6 +28,8 @@ module LlmCostTracker
         REGIONAL_PREMIUM_NOTE = /10% premium over global endpoints.*?Haiku 4\.5, Opus 4\.5, and all future models/i
         EFFECTIVE_DATE_QUALIFIER =
           /\A(?<name>.+?)\s*(?<boundary>through|starting)\s+(?<date>[A-Z][a-z]+ \d{1,2}, \d{4})\z/
+        RETIRED_NOTE = /"name":"([^"]+)","note":\{"kind":"lifecycle","label":"Retired","explanation":"([^"]*)"/
+        PARTNER_SERVED = /\Aretired(, except on [A-Z][\w ]+)?\.\z/
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           @effective_on = Date.parse(scraped_at)
@@ -37,7 +39,7 @@ module LlmCostTracker
 
           base = extract_base_pricing(base_table)
           verify_batch_discount!(doc, base)
-          deprecated = extract_deprecated_models(base_table)
+          deprecated = extract_deprecated_models(base_table, doc.text.delete("\\").scan(RETIRED_NOTE).to_h)
           models = add_fast_mode_pricing(add_data_residency_pricing(add_batch_pricing(base)), doc)
           validate!(models)
           text = doc.text.gsub(/\s+/, " ")
@@ -82,14 +84,16 @@ module LlmCostTracker
           end
         end
 
-        def extract_deprecated_models(table)
-          table.css("tbody tr").each_with_object([]) do |tr, acc|
-            first_cell = tr.css("td").first
-            next unless first_cell
-            next if first_cell.css("[aria-label*='(Retired)']").empty?
+        def extract_deprecated_models(table, notes)
+          table.css("tbody tr").filter_map do |tr|
+            name = model_name(tr.at_css("td")) if tr.at_css("td [aria-label*='(Retired)']")
+            next unless name
 
-            model_id = normalize_model_id(model_name(first_cell))
-            acc << model_id if model_id
+            note = notes.fetch(name) { raise Error, "Anthropic retired row #{name.inspect} has no lifecycle note" }
+            match = note.match(PARTNER_SERVED)
+            raise Error, "Anthropic lifecycle note for #{name} not understood: #{note.inspect}" unless match
+
+            normalize_model_id(name) unless match[1]
           end
         end
 
@@ -274,7 +278,9 @@ module LlmCostTracker
           match = cleaned.match(/\AClaude ([A-Z][a-z]+) (\d+(?:\.\d+)?)\z/)
           raise Error, "no model ID for Anthropic price row #{display_name.inspect}" unless match
 
-          "claude-#{match[1].downcase}-#{match[2].tr('.', '-')}"
+          family = match[1].downcase
+          version = match[2].tr(".", "-")
+          match[2].to_i < 4 ? "claude-#{version}-#{family}" : "claude-#{family}-#{version}"
         end
 
         def effective?(boundary, date)

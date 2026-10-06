@@ -20,7 +20,7 @@ module LlmCostTracker
           end
         end
 
-        def parse(request_body:, response_status:, response_body:, **)
+        def parse(request_body:, response_status:, response_body:, request_url: nil, **)
           return nil unless response_status == 200
 
           response = safe_json_parse(response_body)
@@ -36,11 +36,12 @@ module LlmCostTracker
             usage_source: Usage::Source::RESPONSE,
             request: request,
             content: Array(response["content"]).grep(Hash).map(&:deep_symbolize_keys),
+            host: parsed_uri(request_url)&.host,
             **stop_fields(response)
           )
         end
 
-        def parse_stream(response_status:, request_body: nil, events: [], **)
+        def parse_stream(response_status:, request_body: nil, request_url: nil, events: [], **)
           return nil unless response_status == 200
 
           request = symbolize_request(request_body)
@@ -57,6 +58,7 @@ module LlmCostTracker
               request: request,
               stream: true,
               content: content_blocks(events),
+              host: parsed_uri(request_url)&.host,
               **stop_fields(final_delta(events))
             )
           else
@@ -64,7 +66,12 @@ module LlmCostTracker
               provider: "anthropic",
               model: model,
               provider_response_id: response_id,
-              pricing_mode: UsageExtractor.pricing_mode(request: request, usage: usage)
+              pricing_mode: UsageExtractor.pricing_mode(
+                request: request,
+                usage: usage,
+                host: parsed_uri(request_url)&.host,
+                model: model
+              )
             )
           end
         end

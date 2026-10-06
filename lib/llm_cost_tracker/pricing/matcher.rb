@@ -12,7 +12,8 @@ module LlmCostTracker
 
       CACHE_LIMIT = 2048
       BEDROCK_ANTHROPIC_ID = /\A(?:[a-z]+\.)?anthropic\.(claude-.+?)(?:-v\d+(?::\d+)?)?\z/
-      private_constant :CACHE_LIMIT, :BEDROCK_ANTHROPIC_ID
+      VERTEX_VERSION = /@(?=\d{8}\z)/
+      private_constant :CACHE_LIMIT, :BEDROCK_ANTHROPIC_ID, :VERTEX_VERSION
 
       class << self
         def lookup(provider:, model:, at: Time.now)
@@ -44,11 +45,11 @@ module LlmCostTracker
           current.freeze
         end
 
-        def modifier_priced?(provider:, model:, modifier:)
-          prices = lookup(provider: provider, model: model)&.prices
-          return false unless prices
+        def modifier_priced?(provider:, model:, modifier:, owners: nil)
+          match = lookup(provider: provider, model: model)
+          return false unless match && (owners.nil? || match.key.start_with?(*owners))
 
-          prices.any? { |key, _| key.to_s.match?(/(?:\A|_)#{modifier}_/) }
+          match.prices.any? { |key, _| key.to_s.match?(/(?:\A|_)#{modifier}_/) }
         end
 
         private
@@ -95,7 +96,7 @@ module LlmCostTracker
         end
 
         def normalize_model_name(model)
-          name = model.to_s.split("/").last
+          name = model.to_s.split("/").last.sub(VERTEX_VERSION, "-")
           name.match(BEDROCK_ANTHROPIC_ID)&.[](1) || name
         end
 

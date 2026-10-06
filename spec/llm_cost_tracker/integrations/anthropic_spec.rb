@@ -11,6 +11,30 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
     { model: "claude-sonnet-4-5-20250929", max_tokens: 100, messages: [{ role: "user", content: "hi" }] }
   end
 
+  describe "Vertex AI client" do
+    def vertex_client(region)
+      allow_any_instance_of(Anthropic::Helpers::Vertex::Client).to receive(:require).with("googleauth").and_return(true)
+      Anthropic::Helpers::Vertex::Client.new(region: region, project_id: "proj")
+    end
+
+    it "prices Claude 4.5 and later on a regional or multi-region endpoint at its data residency rates" do
+      WebMock.stub_request(:post, /aiplatform/).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: sdk_fixture(:anthropic, "messages_with_cache.json")
+      )
+      auth = { extra_headers: { "authorization" => "Bearer test" } }
+
+      capture_sdk_events do |events|
+        %w[us-east5 eu global].each do |region|
+          vertex_client(region).messages.create(**request_params, model: "claude-sonnet-4-5@20250929",
+                                                                  request_options: auth)
+        end
+
+        expect(events.map { |event| event[:pricing_mode] }).to eq(["data_residency", "data_residency", nil])
+      end
+    end
+  end
+
   describe "messages.create" do
     it "records token usage with cache TTL split from a real SDK response" do
       stub_sdk_json(:post, "https://api.anthropic.com/v1/messages",

@@ -44,6 +44,16 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
   describe "#parse" do
     let(:request_body) { { model: "claude-sonnet-4-6", messages: [] }.to_json }
 
+    it "adds data_residency on a Vertex AI regional host for a model with data residency rates" do
+      vertex = "https://us-east5-aiplatform.googleapis.com/v1/projects/p/locations/us-east5/publishers/anthropic/models/m:rawPredict"
+      modes = %w[claude-sonnet-4-5-20250929 claude-haiku-3].map do |model|
+        parser.parse(request_url: vertex, request_body: "{}", response_status: 200,
+                     response_body: { model: model, usage: { input_tokens: 10, output_tokens: 5 } }.to_json).pricing_mode
+      end
+
+      expect(modes).to eq(["data_residency", nil])
+    end
+
     let(:response_body) do
       {
         model: "claude-sonnet-4-6",

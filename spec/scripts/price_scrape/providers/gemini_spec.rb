@@ -6,10 +6,15 @@ require "price_scrape/providers/gemini"
 RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
   let(:fixture_path) { File.expand_path("../../../fixtures/scrape/gemini_pricing.html", __dir__) }
   let(:html) { File.read(fixture_path, encoding: "utf-8") }
+  let(:vertex_html) { File.read(File.expand_path("../../../fixtures/scrape/vertex_pricing.html", __dir__), encoding: "utf-8") }
+
+  def scrape(gemini_html, vertex: vertex_html, **)
+    described_class.new.call(html: { described_class.source_url => gemini_html, described_class::VERTEX_URL => vertex }, **)
+  end
 
   describe "#call" do
     it "extracts standard and batch text input/output rates for current models" do
-      result = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z")
+      result = scrape(html, scraped_at: "2026-09-26T00:00:00Z")
 
       expect(result.source_url).to eq(described_class.source_url)
       expect(result.scraped_at).to eq("2026-09-26T00:00:00Z")
@@ -94,7 +99,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "flex_audio_input" => 0.15,
         "priority_audio_input" => 0.54
       )
-      expect(result.models.fetch("gemini-3.1-flash-lite")).to eq(
+      expect(result.models.fetch("gemini-3.1-flash-lite")).to include(
         "grounding_request" => 14.0,
         "maps_grounding_request" => 14.0,
         "cache_storage_token_hour" => 1.0,
@@ -126,24 +131,24 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     end
 
     it "returns at least the minimum expected number of models" do
-      result = described_class.new.call(html: html)
+      result = scrape(html)
       expect(result.models.size).to be >= described_class.min_models
     end
 
     it "sets deprecated_models to empty" do
-      result = described_class.new.call(html: html)
+      result = scrape(html)
       expect(result.deprecated_models).to eq([])
     end
 
     it "includes preview models alongside stable text models so dated/preview snapshots get priced" do
-      result = described_class.new.call(html: html)
+      result = scrape(html)
 
       preview_ids = result.models.keys.select { |id| id.include?("-preview") }
       expect(preview_ids).not_to be_empty
     end
 
     it "prices image models' text and image tokens separately, per 1M tokens" do
-      models = described_class.new.call(html: html).models
+      models = scrape(html).models
 
       expect(models.fetch("gemini-3-pro-image")).to eq(
         "grounding_request" => 14.0,
@@ -190,20 +195,20 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
 <a href="#gemini-2.4-flash">')
 
       expect do
-        described_class.new.call(html: broken_html)
+        scrape(broken_html)
       end.to raise_error(described_class::Error, /gemini-2.5-flash-image text is priced as "gemini-2.4-flash"/)
     end
 
     it "raises when a per-image output price has no per-token rate footnote" do
       broken_html = html.sub("[*] Image output is priced at $30", "[*] Image output is priced at thirty dollars")
       expect do
-        described_class.new.call(html: broken_html)
+        scrape(broken_html)
       end.to raise_error(described_class::Error, /image output rate not found/)
     end
 
     it "raises when the pricing article body is missing" do
       expect do
-        described_class.new.call(html: "<html><body></body></html>")
+        scrape("<html><body></body></html>")
       end.to raise_error(described_class::Error, /article body not found/)
     end
 
@@ -211,7 +216,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
       tableless_html = html.gsub(%r{<table\b.*?</table>}m, "")
 
       expect do
-        described_class.new.call(html: tableless_html)
+        scrape(tableless_html)
       end.to raise_error(described_class::Error, /at least \d+ models/)
     end
 
@@ -256,26 +261,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
       HTML
 
       expect do
-        described_class.new.call(html: sparse_html)
+        scrape(sparse_html)
       end.to raise_error(described_class::Error, /at least \d+ models/)
     end
 
     it "raises when a price cell does not match the expected format" do
       broken_html = html.sub("<td>$0.10 (text / image / video)<br>$0.30 (audio)</td>", "<td>TBD</td>")
       expect do
-        described_class.new.call(html: broken_html)
+        scrape(broken_html)
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
 
     it "raises when a batch price cell does not match the expected format" do
       broken_html = html.sub("<td>$0.05 (text / image / video)<br>$0.15 (audio)</td>", "<td>TBD</td>")
       expect do
-        described_class.new.call(html: broken_html)
+        scrape(broken_html)
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
   end
   it "prices Google Search grounding per model family, including web and image search on image models" do
-    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+    models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
 
     expect(models.fetch("gemini-2.5-pro")["grounding_request"]).to eq(35.0)
     expect(models.fetch("gemini-3-flash-preview")["grounding_request"]).to eq(14.0)
@@ -283,7 +288,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
   end
 
   it "prices Google Maps grounding and explicit cache storage from the Standard table" do
-    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+    models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
 
     expect(models.fetch("gemini-2.5-flash-lite")).to include("maps_grounding_request" => 25.0,
                                                              "cache_storage_token_hour" => 1.0)
@@ -293,7 +298,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
   end
 
   it "prices every model id in a section heading, including text-to-speech models" do
-    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+    models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
 
     expect(models.fetch("gemini-3.1-pro-preview-customtools")).to eq(models.fetch("gemini-3.1-pro-preview"))
     expect(models.fetch("gemini-3.8-flash-tts")).to include("input" => 0.5, "audio_output" => 9.0,
@@ -303,7 +308,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
   end
 
   it "prices models published without a Batch tier or pricing tabs" do
-    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+    models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
 
     expect(models.fetch("gemini-omni-1.1-flash")).to eq(
       "input" => 1.5, "image_input" => 1.5, "audio_input" => 1.5, "output" => 9.0, "video_output" => 17.5
@@ -313,7 +318,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
   end
 
   it "reads the long-context threshold from the prompt tier rows" do
-    models = described_class.new.call(html: html.gsub("200k", "128k"), scraped_at: "2026-09-26T00:00:00Z").models
+    models = scrape(html.gsub("200k", "128k"), scraped_at: "2026-09-26T00:00:00Z").models
 
     expect(models.fetch("gemini-2.5-pro")).to include(
       "_context_price_threshold_tokens" => 128_000, "above_context_input" => 2.5, "above_context_cache_read_input" => 0.25
@@ -324,16 +329,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     input_row = "$1.25, prompts <= 200k tokens<br>$2.50, prompts > 200k tokens"
     cache_row = "$0.125, prompts <= 200k tokens<br>$0.25, prompts > 200k<br>"
 
-    expect { described_class.new.call(html: html.sub(input_row, input_row.sub("> 200k", "> 200,000"))) }
+    expect { scrape(html.sub(input_row, input_row.sub("> 200k", "> 200,000"))) }
       .to raise_error(described_class::Error, /prompt tier size not found/)
-    expect { described_class.new.call(html: html.sub(input_row, input_row.sub("> 200k", "> 128k"))) }
+    expect { scrape(html.sub(input_row, input_row.sub("> 200k", "> 128k"))) }
       .to raise_error(described_class::Error, /input and output prompt tiers split at different sizes/)
-    expect { described_class.new.call(html: html.sub(cache_row, cache_row.sub("> 200k", "> 128k"))) }
+    expect { scrape(html.sub(cache_row, cache_row.sub("> 200k", "> 128k"))) }
       .to raise_error(described_class::Error, /context caching prompt tier splits at a different size/)
   end
 
   it "prices newly scraped models at their published rates" do
-    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+    models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
     scraped = %w[gemini-3.1-pro-preview-customtools gemini-3.8-flash-tts gemini-2.5-flash-preview-tts gemini-embedding-2]
     LlmCostTracker.configure do |config|
       config.pricing.overrides = models.slice(*scraped).transform_keys { |id| "gemini/#{id}" }
@@ -347,7 +352,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
   end
 
   it "prices Gemini Embedding 2 input by modality" do
-    models = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
+    models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
 
     expect(models.fetch("gemini-embedding-2")).to eq(
       "input" => 0.2, "image_input" => 0.45, "audio_input" => 6.5, "video_input" => 12.0,
@@ -356,8 +361,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
   end
 
   it "keeps an announced price change under a dated key until the date, then as the price itself" do
-    before_change = described_class.new.call(html: html, scraped_at: "2026-09-26T00:00:00Z").models
-    after_change = described_class.new.call(html: html, scraped_at: "2027-01-01T08:00:00Z").models
+    before_change = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
+    after_change = scrape(html, scraped_at: "2027-01-01T08:00:00Z").models
 
     expect(before_change.fetch("gemini-3.8-flash")).to include(
       "input" => 0.75, "input_from_2027-01-01" => 1.5,
@@ -371,7 +376,49 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     expect(before_change.fetch("gemini-3.8-flash-tts")).to include("audio_output_from_2027-01-01" => 18.0)
     expect(after_change.fetch("gemini-3.8-flash")).to include("input" => 1.5, "output" => 7.5,
                                                               "cache_storage_token_hour" => 1.0)
-    expect(after_change.fetch("gemini-3.8-flash").keys.grep(/_from_/)).to be_empty
+    expect(after_change.fetch("gemini-3.8-flash").keys.grep(/_from_2027/)).to be_empty
     expect(after_change.fetch("gemini-2.5-flash")).to eq(before_change.fetch("gemini-2.5-flash"))
+  end
+
+  it "adds Vertex AI non-global rates from July 1, 2026 to the models its pricing page prices for non-global endpoints" do
+    models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
+
+    expect(models.fetch("gemini-3.5-flash")).to include(
+      "data_residency_input_from_2026-07-01" => 1.65, "data_residency_output_from_2026-07-01" => 9.9,
+      "data_residency_cache_read_input_from_2026-07-01" => 0.165, "data_residency_audio_input_from_2026-07-01" => 1.65,
+      "batch_data_residency_input_from_2026-07-01" => 0.825, "flex_data_residency_output_from_2026-07-01" => 4.95,
+      "priority_data_residency_input_from_2026-07-01" => 2.97, "priority_data_residency_output_from_2026-07-01" => 17.82
+    )
+    expect(models.fetch("gemini-3.8-flash")).to include(
+      "data_residency_input_from_2026-07-01" => 0.825, "data_residency_input_from_2027-01-01" => 1.65,
+      "data_residency_output_from_2026-07-01" => 4.125, "data_residency_output_from_2027-01-01" => 8.25
+    )
+    expect(models.fetch("gemini-3.1-flash-image")).to include("data_residency_image_output_from_2026-07-01" => 66.0)
+    expect(models.select { |_id, fields| fields.keys.any? { |key| key.include?("data_residency") } }.keys)
+      .to contain_exactly("gemini-3.1-flash-image", "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.5-flash-lite",
+                          "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash")
+    expect(models.fetch("gemini-3.5-flash").keys.grep(/data_residency/).grep(/grounding|storage/)).to be_empty
+  end
+
+  it "notes the Vertex AI non-global prices of models the Gemini API page does not price, a renamed one included" do
+    note = ->(name) { "- `gemini`: Vertex AI has a non-global price for #{name}, which the Gemini API page does not price" }
+    expect(scrape(html).notes).to eq([note.call("Gemini 3.8 Flash Cyber")])
+
+    renamed = scrape(html, vertex: vertex_html.gsub(">Gemini 3.5 Flash<", ">Gemini 3.5 Flash GA<"))
+    expect(renamed.notes).to include(note.call("Gemini 3.5 Flash GA"))
+    expect(renamed.models.fetch("gemini-3.5-flash").keys.grep(/data_residency/)).to be_empty
+  end
+
+  it "raises when the Vertex AI non-global pricing note, its single uplift, or its Gemini models are gone" do
+    note = "Before July 1, 2026, Global endpoint pricing applies to Non-global endpoints."
+
+    expect { scrape(html, vertex: vertex_html.gsub(note, "")) }
+      .to raise_error(described_class::Error, /non-global pricing note not found/)
+    expect { scrape(html, vertex: vertex_html.sub("$1.65", "$1.80")) }
+      .to raise_error(described_class::Error, /not one uplift/)
+    expect { scrape(html, vertex: vertex_html.gsub(">Non-global", ">Regional")) }
+      .to raise_error(described_class::Error, /not one uplift/)
+    expect { scrape(html, vertex: vertex_html.gsub(">Gemini 3", ">Gemini Three")) }
+      .to raise_error(described_class::Error, /name no Gemini API model/)
   end
 end

@@ -15,6 +15,7 @@ module LlmCostTracker
 
       def initialize(provider:,
                      model:,
+                     parsed_as: provider,
                      latency_ms: nil,
                      provider_response_id: nil,
                      provider_project_id: nil,
@@ -24,6 +25,7 @@ module LlmCostTracker
                      metadata: {},
                      request: nil)
         @provider = provider.to_s
+        @parsed_as = parsed_as.to_s
         @model = model
         @latency_ms = latency_ms
         @provider_response_id = provider_response_id
@@ -34,7 +36,7 @@ module LlmCostTracker
         @metadata = (metadata || {}).deep_dup
         @context_tags = LlmCostTracker::Tags::Context.tags.deep_dup
         @request = request
-        @window = EventWindow.new(notable: Parsers.find_for_provider(@provider)&.method(:retain_stream_event?))
+        @window = EventWindow.new(notable: Parsers.find_for_provider(@parsed_as)&.method(:retain_stream_event?))
         @explicit_usage = nil
         @started_at = LlmCostTracker::Timing.now_monotonic
         @finished = false
@@ -177,7 +179,7 @@ module LlmCostTracker
         end
 
         request_body = request_body_for(snapshot[:request])
-        events = Parsers.all_for_provider(@provider).filter_map do |parser|
+        events = Parsers.all_for_provider(@parsed_as).filter_map do |parser|
           parser.parse_stream(
             response_status: 200, events: snapshot[:events], request_body: request_body, model: snapshot[:model]
           )

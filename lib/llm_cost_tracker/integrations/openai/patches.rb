@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "English"
+
 module LlmCostTracker
   module Integrations
     module Openai
@@ -60,6 +62,47 @@ module LlmCostTracker
             collector.provider_response_id = response_id
             super(response_id, *args, **kwargs)
           end
+        end
+      end
+
+      module ResponsesConnectionPatch
+        def send_event(event)
+          created = LlmCostTracker::Integrations::Openai.websocket_create(event, url)
+          super.tap do
+            (@llm_cost_tracker_tags ||= {})[created["stream_id"]] = LlmCostTracker::Tags::Context.tags if created
+          end
+        end
+
+        def each(&block)
+          return super unless block
+
+          begin
+            super do |event|
+              llm_cost_tracker_record(event)
+              block.call(event)
+            end
+          ensure
+            llm_cost_tracker_raise_deferred unless $ERROR_INFO
+          end
+        end
+
+        def receive
+          llm_cost_tracker_raise_deferred
+          super.tap { |event| llm_cost_tracker_record(event) }
+        end
+
+        private
+
+        def llm_cost_tracker_record(event)
+          LlmCostTracker::Integrations::Openai.record_websocket_event(event, url, @llm_cost_tracker_tags)
+        rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
+          @llm_cost_tracker_deferred ||= e
+        end
+
+        def llm_cost_tracker_raise_deferred
+          error = @llm_cost_tracker_deferred
+          @llm_cost_tracker_deferred = nil
+          raise error if error
         end
       end
 

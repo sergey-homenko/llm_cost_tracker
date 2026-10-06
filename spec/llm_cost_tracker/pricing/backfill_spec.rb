@@ -173,7 +173,7 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
   it "reprices a partial call and adds only the missing difference to the rollups" do
     LlmCostTracker.configuration.ingestion.mode = :inline
     LlmCostTracker.track(
-      provider: "anthropic", model: "claude-opus-4-1-20250805",
+      provider: "anthropic", model: "claude-3-opus-20240229",
       tokens: { input_tokens: 12_000, output_tokens: 800 }, tags: { feature: "research" },
       service_line_items: [{ dimension_key: "web_search_request", quantity: 2 }]
     )
@@ -181,7 +181,7 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     call = LlmCostTracker::Call.first
     expect([call.total_cost, call.cost_status]).to eq([0.02, "partial"])
 
-    LlmCostTracker.configuration.pricing.overrides = { "anthropic/claude-opus-4-1" => { input: 15.0, output: 75.0 } }
+    LlmCostTracker.configuration.pricing.overrides = { "anthropic/claude-3-opus" => { input: 15.0, output: 75.0 } }
     LlmCostTracker::Pricing::Registry.reset!
 
     expect(described_class.call.to_h).to eq(examined: 1, recomputed: 1, still_unknown: 0)
@@ -388,6 +388,24 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
     expect([regional.reload.total_cost, global.reload.total_cost]).to eq([4.95, 4.5])
     expect([regional.pricing_mode, global.pricing_mode]).to eq(["data_residency", nil])
+  end
+
+  it "finds no rate for a Vertex AI non-global call before July 1, 2026, so reprice keeps its stored cost" do
+    calls = [Time.utc(2026, 6, 30, 12), Time.utc(2026, 7, 1, 12)].map do |time|
+      create_call(provider: "vertexai", model: "gemini-3.5-flash", pricing_mode: "data_residency",
+                  input_tokens: 1_000_000, output_tokens: 0, total_cost: 1.5, tracked_at: time)
+    end
+    before_uplift = LlmCostTracker::Pricing::Calculation.for(
+      provider: "vertexai", model: "gemini-3.5-flash", tokens: { input_tokens: 1_000_000 },
+      pricing_mode: "data_residency", at: calls.first.tracked_at
+    )
+
+    result = described_class.call(scope: described_class.reprice_scope(Time.utc(2026, 6, 1)..), reprice: true)
+
+    expect(before_uplift.cost_status).to eq("unknown")
+    expect(result.to_h).to eq(examined: 2, recomputed: 1, still_unknown: 1)
+    expect(calls.map { |call| call.reload.slice(:total_cost, :cost_status).values })
+      .to eq([[1.5, "complete"], [1.65, "complete"]])
   end
 
   def record_anthropic(model:, usage:, **response)
