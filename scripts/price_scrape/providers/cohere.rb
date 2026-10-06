@@ -26,7 +26,7 @@ module LlmCostTracker
           \s\$(?<input>\d+(?:\.\d+)?)/1M\stokens\sfor\sinput\sand\s\$(?<output>\d+(?:\.\d+)?)/1M\stokens\sfor\soutput\b
         }x
         RELEASE_SUFFIX = /-\d+-\d+\z/
-        STATUS = /\A(?:Live\z|Deprecated\b|Retired\b)/
+        STATUS = /\A(?:Live\z|Legacy\b|Deprecated\b|Retired\b)/
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           @listed = listed_ids(html.fetch(MODELS_SOURCE_URL))

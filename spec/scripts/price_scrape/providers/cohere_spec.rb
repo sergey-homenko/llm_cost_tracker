@@ -73,6 +73,13 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Cohere do
     expect(result.notes).to eq(["- `cohere`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"])
   end
 
+  it "keeps pricing a model its overview lists as Legacy" do
+    legacy = overview.sub("| `command-r-plus-08-2024`      | Live                     |",
+                          "| `command-r-plus-08-2024`      | Legacy                   |")
+
+    expect(scrape(pricing, legacy).models.fetch("command-r-plus-08-2024")).to eq("input" => 2.5, "output" => 10.0)
+  end
+
   it "reads the pricing sections past a text row with multibyte characters" do
     page = pricing.sub('\n38:[', '\n9:T6,héllo38:[')
 
