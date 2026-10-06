@@ -44,9 +44,8 @@ module LlmCostTracker
         def official_models(page)
           rows = flight_rows(page)
           cards = section(rows, "web3PricingSection").fetch("pricingGroups").flat_map { |group| group["models"].to_a }
-          prices = cards.filter_map { |card| (fields = card_prices(card)) && [card.fetch("modelName"), fields] }
-          (prices + faq_prices(section(rows, "web3AccordionSection"))).each_with_object({}) do |(name, fields), models|
-            id = api_id(name)
+          prices = cards.filter_map { |card| (fields = card_prices(card)) && [api_id(card.fetch("modelName")), fields] }
+          (prices + faq_prices(section(rows, "web3AccordionSection"))).each_with_object({}) do |(id, fields), models|
             raise Error, "Cohere prices #{id} twice" if models.key?(id)
 
             models[id] = fields
@@ -104,8 +103,8 @@ module LlmCostTracker
                 .select { |text| text.include?("/1M tokens") }.flat_map do |text|
             match = FAQ_PRICE.match(text) or raise Error, "Cohere FAQ price not understood: #{text}"
             fields = { "input" => Float(match[:input]), "output" => Float(match[:output]) }
-            sizes = match[:sizes]&.split(/,\s*|\s+and\s+/)
-            (sizes&.map { |size| "#{match[:name]} #{size}" } || [match[:name]]).map { |name| [name, fields] }
+            names = match[:sizes]&.split(/,\s*|\s+and\s+/)&.map { |size| "#{match[:name]} #{size}" } || [match[:name]]
+            names.map { |name| [api_id(name, live: false), fields] }
           end
         end
 
@@ -126,12 +125,12 @@ module LlmCostTracker
           ids.any? ? ids : raise(Error, "Cohere models overview lists no API ids")
         end
 
-        def api_id(name)
+        def api_id(name, live: true)
           key = name_key(name)
           found = @listed.select do |id, _status|
             [id, id.sub(RELEASE_SUFFIX, "")].any? { |listed| name_key(listed).last(key.size) == key }
           end
-          ids = found.size > 1 ? found.select { |_id, status| status == "Live" }.keys : found.keys
+          ids = live && found.size > 1 ? found.select { |_id, status| status == "Live" }.keys : found.keys
           return ids.first if ids.one?
 
           raise Error, "no single API id on Cohere's models overview for #{name.inspect}: #{found.keys.inspect}"

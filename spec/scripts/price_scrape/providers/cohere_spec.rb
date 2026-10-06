@@ -101,13 +101,17 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Cohere do
       .to raise_error(described_class::Error, /status "Sunset Apr 4, 2026" not understood/)
   end
 
-  it "raises when a priced name matches no API id or several without one live, or two names match one id" do
+  it "raises when a card matches no API id or several without one live, a FAQ name several, or two names one id" do
     expect { scrape(pricing.sub("Embed 5 Pro", "Embed 6 Pro")) }
       .to raise_error(described_class::Error, /for "Embed 6 Pro": \[\]/)
     deprecated = overview.sub("| `command-r-08-2024`           | Live                     |",
                               "| `command-r-08-2024`           | Deprecated Sept 15, 2025 |")
     expect { scrape(pricing, deprecated) }
       .to raise_error(described_class::Error, /for "Command R": \["command-r-08-2024", "command-r-03-2024", "command-r"\]/)
+    undated = pricing.sub("Command R+ 04-2024 pricing is", "Command R+ pricing is")
+                     .sub("Command R+ 08-2024 pricing is $2.50/1M tokens for input and $10.00/1M tokens for output", "")
+    expect { scrape(undated) }
+      .to raise_error(described_class::Error, /for "Command R\+": \["command-r-plus-08-2024", "command-r-plus-04-2024", "command-r-plus"\]/)
     expect { scrape(pricing.sub("Command R7B", "Command R+")) }
       .to raise_error(described_class::Error, /prices command-r-plus-08-2024 twice/)
   end
