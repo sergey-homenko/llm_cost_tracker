@@ -141,6 +141,20 @@ RSpec.describe LlmCostTracker::Configuration do
         .to raise_error(LlmCostTracker::Error, /must be a positive number/)
     end
 
+    it "takes a total limit as an amount and a calls limit as a count" do
+      config.budgets.per_tag = { run_id: { total: "5.50", calls: "200" } }
+
+      expect(config.budgets.per_tag.fetch("run_id")[:windows]).to eq(total: BigDecimal("5.50"), calls: 200)
+      expect(config.budgets.per_tag.fetch("run_id")[:windows][:calls]).to be_an(Integer)
+    end
+
+    it "rejects a calls limit that is not a positive integer" do
+      [0, 2.5, "ten", nil].each do |limit|
+        expect { config.budgets.per_tag = { run_id: { calls: limit } } }
+          .to raise_error(LlmCostTracker::Error, /\[:calls\] must be a positive integer/)
+      end
+    end
+
     it "rejects a tag key the ledger would refuse to store" do
       expect { config.budgets.per_tag = { "not a key!" => { monthly: 1 } } }
         .to raise_error(LlmCostTracker::Error)

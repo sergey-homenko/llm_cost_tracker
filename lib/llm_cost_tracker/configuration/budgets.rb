@@ -9,7 +9,7 @@ module LlmCostTracker
     class Budgets < Section
       EXCEEDED_BEHAVIORS = %i[notify raise block_requests].freeze
       TOTALS_SOURCES = %i[ledger cache].freeze
-      PER_TAG_WINDOWS = %i[daily weekly monthly].freeze
+      PER_TAG_WINDOWS = %i[daily weekly monthly total calls].freeze
       PER_TAG_OPTIONS = %i[behavior on_exceeded].freeze
 
       attributes :monthly, :daily, :per_call, :on_exceeded
@@ -81,12 +81,21 @@ module LlmCostTracker
       end
 
       def validated_limit(key, window, limit)
+        return validated_calls(key, limit) if window == :calls
+
         numeric = Float(limit, exception: false)
         return BigDecimal(limit.to_s) if numeric&.positive?
 
         raise Error,
               "budgets.per_tag[#{key.inspect}][#{window.inspect}] must be a positive number, " \
               "got #{limit.inspect}"
+      end
+
+      def validated_calls(key, limit)
+        count = Integer(limit.to_s, exception: false)
+        return count if count&.positive?
+
+        raise Error, "budgets.per_tag[#{key.inspect}][:calls] must be a positive integer, got #{limit.inspect}"
       end
     end
   end

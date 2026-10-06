@@ -38,7 +38,7 @@ module LlmCostTracker
           subject += " at pricing_mode #{pricing_mode.inspect}" if pricing_mode
           Logging.warn(
             "No pricing configured for #{subject}. " \
-            "Cost and budget guardrails will be skipped for this event. " \
+            "Cost and spend budgets will be skipped for this event. " \
             "Add a pricing.overrides entry or set pricing.unknown_model_behavior."
           )
         end

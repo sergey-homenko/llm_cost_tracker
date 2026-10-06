@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- `budgets.per_tag` `total` window: a lifetime limit per tag value, such as one agent run's `run_id`.
+- `budgets.per_tag` `calls` limit: the number of recorded calls per tag value, unpriced calls included.
+- RubyLLM calls inside `RubyLLM.workflow` are tagged `run_id` with the workflow's id, also from tools RubyLLM runs concurrently, unless the app sets `run_id`.
 - RubyLLM 2.x speech, OCR, rerank and operations added in later RubyLLM releases are recorded, with unknown cost where no rate applies.
 - RubyLLM 2.x `RubyLLM.batch` results are recorded once each at batch rates when `Batch#messages` or `#results` returns them.
 - `RubyLLM.workflow` names and steps become `workflow_name` and `workflow_step_name` tags.

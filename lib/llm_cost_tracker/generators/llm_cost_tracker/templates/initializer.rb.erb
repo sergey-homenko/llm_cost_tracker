@@ -60,7 +60,8 @@ LlmCostTracker.configure do |config|
   #   user_id: { daily: 25.00, behavior: :notify }
   # }
   # config.budgets.on_exceeded = ->(data) {
-  #   Rails.logger.warn("LLM #{data[:budget_type]} budget exceeded: $#{data[:total]} / $#{data[:budget]}")
+  #   unit = data[:budget_type] == :calls ? "" : "$"
+  #   Rails.logger.warn("LLM #{data[:budget_type]} budget exceeded: #{unit}#{data[:total]} / #{unit}#{data[:budget]}")
   # }
 
   # Where budget checks read period spend from. :ledger sums llm_cost_tracker_calls on

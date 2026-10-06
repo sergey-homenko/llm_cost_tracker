@@ -14,14 +14,14 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-Budgets evaluate only when an event has a known cost. Unknown-cost events are stored and surfaced on the Data Quality page, but they don't draw down a numeric budget until pricing lands.
+Spend budgets evaluate only when an event has a known cost. Unknown-cost events are stored and surfaced on the Data Quality page, but they don't draw down a spend budget until pricing lands; a per-tag `calls` limit counts them.
 
 ## Behaviors
 
 | Behavior | Timing | Result |
 | --- | --- | --- |
-| `:notify` | After a priced event is recorded | Calls `budgets.on_exceeded` once per budget type the event crossed (an event that pushes both daily and monthly over fires the callback twice — once per limit) |
-| `:raise` | After a priced event is recorded | Raises `LlmCostTracker::BudgetExceededError` |
+| `:notify` | After a priced event is recorded; for a `calls` limit, after any event | Calls `budgets.on_exceeded` once per budget type the event crossed (an event that pushes both daily and monthly over fires the callback twice — once per limit) |
+| `:raise` | After a priced event is recorded; for a `calls` limit, after any event | Raises `LlmCostTracker::BudgetExceededError` |
 | `:block_requests` | Before supported requests (for Faraday, `POST` only) and again after recording | Blocks the request when prior spend plus a character-count estimate of this call would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Preflight blocks do not fire `budgets.on_exceeded`; the callback only fires post-record on the event that first crossed the limit |
 
 `:raise` records first, then raises. The call that crossed the budget remains visible in the ledger. Every limit the call crossed, per-tag rules included, gets its `on_exceeded` call before the error for the first one is raised.
@@ -103,6 +103,38 @@ A tag with few values covers most of the ledger, so no index helps and every cal
 
 Two more limits. The weekly window follows the host app's `Date.beginning_of_week`. And with `ingestion.mode = :async`, a scoped total counts only what the worker has already drained: `on_exceeded` fires from the drain rather than from the request, pre-send blocking sees spend late by the drain interval, and a rule set to `:block_requests` can only notify from the drain, since the request it would have blocked is long gone — and if no `on_exceeded` is set for it, that rule produces no post-spend signal at all under `:async`. A batch is scored per window it touches, so a drain that runs after midnight still scores the previous day against that day.
 
+## Per-Run Budgets
+
+A `total` window has no time bound: it caps the lifetime spend of each value of a tag. On a tag that names one agent run, it stops a runaway run. `calls` caps the number of recorded calls carrying the value, priced or not:
+
+```ruby
+config.budgets.per_tag = {
+  run_id: { total: 5.00, calls: 200, behavior: :block_requests }
+}
+
+LlmCostTracker.with_tags(run_id: run.id) { agent.run }
+```
+
+`total` behaves like the other windows. With `calls: 200` the run makes 200 calls and the 201st exceeds the limit: `:block_requests` blocks it before it is sent, `:notify` and `:raise` act once it is recorded. Under `:block_requests` the call is never recorded, so the `calls` limit's `on_exceeded` does not fire; rescue `BudgetExceededError` with `budget_type: :calls` to react. The payload's `budget_type` is `:total` or `:calls`.
+
+On RubyLLM 2.x, RubyLLM calls inside `RubyLLM.workflow` are tagged `run_id` with the workflow's id, including calls from tools RubyLLM runs concurrently:
+
+```ruby
+RubyLLM.workflow("Research", id: "research-#{run.id}") { chat.ask(question) }
+```
+
+Without `id:`, RubyLLM generates one per workflow. A non-blank `run_id` from `with_tags` or `tags.default` wins over the workflow's id; since `with_tags` does not reach RubyLLM's tool threads, prefer passing the id to the workflow. A nested workflow has its own id, so it is a run of its own. Only RubyLLM's own calls get the id: calls in the block through the openai or anthropic SDKs, Faraday or `LlmCostTracker.track`, and the storage row of a Gemini cache created with `RubyLLM.cache`, are not tagged; wrap them in `with_tags(run_id:)` with the same id.
+
+Bounds:
+
+- Calls already in flight when a run crosses its limit still complete, so the run can overspend by them. RubyLLM 2.x checks once per operation but records a row per attempt, so one call's retries, fallbacks and `pause_turn` segments can push a run past `calls`; under `:block_requests` that call then raises once recorded.
+- A running stream is not cut; the next call is blocked.
+- Under `ingestion.mode = :async`, a run counts only the calls the worker has drained.
+- An unpriced call adds nothing to `total` until it is priced; `calls` counts it.
+- `with_tags` does not cross threads: code that makes a run's calls in its own threads must set `run_id` there.
+- `total` and `calls` have no window, so a reused run id keeps counting its earlier calls until `llm_cost_tracker:prune` deletes them.
+- A check reads every call the run has recorded, so it slows as the run grows: measured on 3M tag rows, a 5,000-call run reads in about 1–15 ms on PostgreSQL and 5–140 ms on MySQL, warm to cold cache. With both limits, a `:block_requests` rule makes up to four reads per call: two before it is sent and two after it is recorded.
+
 ## Budget Reads
 
 Where the monthly/daily totals come from depends on `config.budgets.totals_source` and `config.ingestion.mode`:
@@ -125,8 +157,8 @@ Budget aggregation assumes a single-currency ledger. The rollups table partition
 
 | Key | Meaning |
 | --- | --- |
-| `budget_type` | `:monthly`, `:daily`, `:per_call`, or — for a per-tag rule — `:weekly` |
-| `total` | Observed total for the budget type. For `stage == :pre_send`: prior spend plus the call's estimate for daily / monthly, and the estimate alone for `per_call`. |
+| `budget_type` | `:monthly`, `:daily`, `:per_call`, or — for a per-tag rule — `:weekly`, `:total` or `:calls` |
+| `total` | Observed total for the budget type. For `stage == :pre_send`: prior spend plus the call's estimate for daily / monthly, and the estimate alone for `per_call`. For `:calls`, `total` and `budget` are call counts, and pre-send `total` includes the call being checked. |
 | `budget` | Configured threshold |
 | `last_event` | Event that triggered the check when available (`nil` for `stage == :pre_send` because the call has not yet been made) |
 | `stage` | `:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks |

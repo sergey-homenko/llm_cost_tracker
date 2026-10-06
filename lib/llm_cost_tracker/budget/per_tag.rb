@@ -53,34 +53,34 @@ module LlmCostTracker
         end
 
         def rules_for_events(events)
-          events.select(&:total_cost).each_with_object({}) do |event, grouped|
+          events.each_with_object({}) do |event, grouped|
             rules_for(event.tags).each { |rule| (grouped[rule] ||= []) << event }
           end
         end
 
         def spend(key, value, window, time:)
-          spend_by_value(key, [value], window, window_start(window, time)).fetch(value, [0]).first.to_d
+          spend_by_value(key, [value], window, window_start(window, time)).fetch(value, [0]).first
         end
 
         def spend_by_value(key, values, window, bucket, upto = nil)
           started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          range = window_range(window, bucket)
-          upto_sum = LlmCostTracker::CallTag.sanitize_sql_array(
-            ["SUM(CASE WHEN #{TIME_COLUMN} <= ? THEN #{COST_COLUMN} ELSE 0 END)", upto || range.end]
-          )
+          measure = window == :calls ? "1" : COST_COLUMN
+          total = "SUM(#{measure})"
+          upto_sum = "SUM(CASE WHEN #{TIME_COLUMN} <= ? THEN #{measure} ELSE 0 END)"
+          upto_total = upto ? LlmCostTracker::CallTag.sanitize_sql_array([upto_sum, upto]) : total
           totals = Ledger::Isolation.guard(LlmCostTracker::CallTag) do
-            LlmCostTracker::CallTag
-              .where(key: key, value: values, TIME_COLUMN => range)
-              .group(:value)
-              .pluck(:value, Arel.sql("SUM(#{COST_COLUMN})"), Arel.sql(upto_sum))
-              .to_h { |value, *sums| [value, sums.map(&:to_d)] }
+            rows = LlmCostTracker::CallTag.where(key: key, value: values)
+            rows = bucket ? rows.where(TIME_COLUMN => window_range(window, bucket)) : rows.where.not(TIME_COLUMN => nil)
+            rows.group(:value)
+                .pluck(:value, Arel.sql(total), Arel.sql(upto_total))
+                .to_h { |value, *sums| [value, sums.map { |sum| window == :calls ? sum.to_i : sum.to_d }] }
           end
           warn_slow_read(key, window, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at)
           totals
         end
 
         def window_start(window, time)
-          time.to_time.utc.public_send(WINDOW_STARTS.fetch(window))
+          WINDOW_STARTS[window]&.then { |start| time.to_time.utc.public_send(start) }
         end
 
         def backfill(batch_size: DEFAULT_BACKFILL_BATCH)
@@ -146,10 +146,15 @@ module LlmCostTracker
           @slow_keys ||= Set.new
           return unless @slow_keys.add?(key)
 
+          reason = if WINDOW_STARTS.key?(window)
+                     "A tag with few distinct values covers most of the ledger, so its budget check cannot use " \
+                       "an index effectively. Budget high-cardinality tags such as a tenant or user id."
+                   else
+                     "A #{window} limit sums every call the value has recorded, so it suits short-lived values " \
+                       "such as a run."
+                   end
           Logging.warn(
-            "config.budgets.per_tag[#{key.inspect}] #{window} read took #{(seconds * 1000).round} ms. " \
-            "A tag with few distinct values covers most of the ledger, so its budget check cannot use " \
-            "an index effectively. Budget high-cardinality tags such as a tenant or user id."
+            "config.budgets.per_tag[#{key.inspect}] #{window} read took #{(seconds * 1000).round} ms. #{reason}"
           )
         end
 
