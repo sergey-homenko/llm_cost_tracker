@@ -26,7 +26,7 @@ module LlmCostTracker
             def stream_window = Capture::EventWindow.new(notable: method(:notable_event?))
 
             def batch_event(usage, result, base)
-              base = nil unless URI(base.to_s).host.to_s.match?(/\A(?:us|eu)\./i)
+              base = nil unless URI(base.to_s).host.to_s.match?(/\A(?:us|eu)\.|aiplatform\./i)
               raw = Faraday::Response.new(status: 200, response_body: result.try(:raw), url: URI(base.to_s))
               parsed = event(usage, { response: result }, final: true, raw: raw)
               return unless parsed

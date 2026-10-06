@@ -1081,4 +1081,23 @@ module AccountingCases
                 body: anthropic_message(id: "msg_vtx_41", model: "claude-opus-4-1-20250805",
                                         usage: anthropic_usage(10_000, 1_000)))
   end
+
+  define_case "ruby_llm vertex batch: gemini-3.8-flash results of a regional job at its non-global batch rates",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:headers).and_return({})
+    job = "projects/proj/locations/europe-west4/batchPredictionJobs/42"
+    stub_json(:get, "https://europe-west4-aiplatform.googleapis.com/v1beta1/#{job}",
+              { name: job, state: "JOB_STATE_SUCCEEDED", outputInfo: { gcsOutputDirectory: "gs://bucket/out" },
+                model: "projects/proj/locations/europe-west4/publishers/google/models/gemini-3.8-flash" })
+    response = gemini_response(model: "gemini-3.8-flash", id: "vtx_b1",
+                               usage: gemini_usage(prompt: 120_000, candidates: 8_000))
+    allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:list_file_uris).and_return(["gs://bucket/out/p.jsonl"])
+    allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:download_file)
+      .and_return(JSON.generate({ status: "", response: response }))
+    context = RubyLLM.context do |config|
+      config.vertexai_project_id = "proj"
+      config.vertexai_location = "europe-west4"
+    end
+    RubyLLM::Batch.find(job, provider: :vertexai, context: context).messages
+  end
 end
