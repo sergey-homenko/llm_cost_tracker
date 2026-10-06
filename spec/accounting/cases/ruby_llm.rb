@@ -853,6 +853,24 @@ module AccountingCases
                                             context: context)
   end
 
+  define_case "ruby_llm cohere rerank: rerank-v4.0-pro search units at the bundled rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json(:post, "https://api.cohere.com/v2/rerank",
+              { id: "rr_v4", results: [{ index: 1, relevance_score: 0.91 }, { index: 0, relevance_score: 0.12 }],
+                meta: { api_version: { version: "2" }, billed_units: { search_units: 3 } } })
+    RubyLLM.rerank("ruby", %w[python ruby], model: "rerank-v4.0-pro", provider: :cohere, assume_model_exists: true,
+                                            context: cohere_context)
+  end
+
+  define_case "ruby_llm cohere embed: embed-v5.0-pro billed input tokens at the bundled rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
+    stub_json(:post, "https://api.cohere.com/v2/embed",
+              { id: "emb_v5", embeddings: { float: [[0.12, -0.03]] }, texts: ["ruby"],
+                meta: { api_version: { version: "2" }, billed_units: { input_tokens: 2400 } },
+                response_type: "embeddings_by_type" })
+    RubyLLM.embed("ruby", model: "embed-v5.0-pro", provider: :cohere, assume_model_exists: true, context: cohere_context)
+  end
+
   define_case "ruby_llm cohere ocr: parse-v5.0 billed pages at the per-page rate",
               instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
     stub_json(:post, "https://api.cohere.com/v2/parse",
@@ -930,6 +948,12 @@ module AccountingCases
               instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
     stub_json(:post, COHERE_CHAT, cohere_message("co_rl1", cohere_usage(5, 418, 71)))
     ruby_llm_chat("command-a-03-2025", :cohere, context: cohere_context).ask("hi")
+  end
+
+  define_case "ruby_llm cohere chat: c4ai-aya-expanse-32b at its billed units",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
+    stub_json(:post, COHERE_CHAT, cohere_message("co_aya", cohere_usage(12, 300, 80)))
+    ruby_llm_chat("c4ai-aya-expanse-32b", :cohere, context: cohere_context).ask("hola")
   end
 
   define_case "ruby_llm cohere chat stream: command-a-03-2025 at the message-end billed units",
