@@ -200,6 +200,9 @@
       "input": 2.5,
       "output": 10.0
     },
+    "cohere/parse-v5.0": {
+      "ocr_page": 1.5
+    },
     "deepseek/deepseek-flash": {
       "_off_peak_windows": [
         {

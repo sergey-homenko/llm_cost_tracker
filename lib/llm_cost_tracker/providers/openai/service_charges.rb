@@ -175,7 +175,10 @@ module LlmCostTracker
         end
 
         def ocr_line_items(response)
-          unit_line_items("ocr_page", response.dig("usage_info", "pages_processed"), "usage_info.pages_processed")
+          pages = response.dig("usage_info", "pages_processed")
+          return unit_line_items("ocr_page", pages, "usage_info.pages_processed") if pages
+
+          unit_line_items("ocr_page", response.dig("meta", "billed_units", "pages"), "meta.billed_units.pages")
         end
 
         def rerank_line_items(response)

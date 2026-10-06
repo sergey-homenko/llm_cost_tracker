@@ -853,6 +853,15 @@ module AccountingCases
                                             context: context)
   end
 
+  define_case "ruby_llm cohere ocr: parse-v5.0 billed pages at the per-page rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json(:post, "https://api.cohere.com/v2/parse",
+              { id: "parse_v5", pages: [{ type: "markdown", index: 0, markdown: { content: "# Invoice", images: [] } }],
+                meta: { api_version: { version: "2" }, billed_units: { pages: 1 } } })
+    RubyLLM.ocr("https://example.com/invoice.png", model: "parse-v5.0", provider: :cohere, assume_model_exists: true,
+                                                   context: cohere_context)
+  end
+
   define_case "ruby_llm cohere rerank: rerank-v3.5 without a price",
               instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
     stub_json(:post, "https://api.cohere.com/v2/rerank",
