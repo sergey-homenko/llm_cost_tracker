@@ -33,7 +33,7 @@ module LlmCostTracker
           retired = @listed.select { |_id, status| status == "Retired" }.keys
           official = official_models(html.fetch(self.class.source_url)).except(*retired)
           rows = self.class.confirmed_rows("cohere", html, official, scraped_at)
-          models = official.merge(rows.to_h.except(*retired))
+          models = official.reject { |_id, fields| fields.empty? }.merge(rows.to_h.except(*retired))
           validate!(models)
           notes = rows ? [] : ["- `cohere`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"]
           Result.new(source_url:, scraped_at:, models:, deprecated_models: retired, service_charges: {}, notes:)
@@ -44,10 +44,8 @@ module LlmCostTracker
         def official_models(page)
           rows = flight_rows(page)
           cards = section(rows, "web3PricingSection").fetch("pricingGroups").flat_map { |group| group["models"].to_a }
-          prices = cards.map { |card| [card.fetch("modelName"), card_prices(card)] }
+          prices = cards.filter_map { |card| (fields = card_prices(card)) && [card.fetch("modelName"), fields] }
           (prices + faq_prices(section(rows, "web3AccordionSection"))).each_with_object({}) do |(name, fields), models|
-            next if fields.empty?
-
             id = api_id(name)
             raise Error, "Cohere prices #{id} twice" if models.key?(id)
 
@@ -86,7 +84,7 @@ module LlmCostTracker
           pricing, *more = card["pricings"]
           name = card.fetch("modelName")
           raise Error, "Cohere lists several prices for #{name}" if more.any?
-          return {} unless pricing
+          return unless pricing
           return {} if card["per"] == "Free" && pricing.values_at("inputPrice", "outputPrice") == [0, 0]
 
           unit = pricing["overridePer"] || card["per"]

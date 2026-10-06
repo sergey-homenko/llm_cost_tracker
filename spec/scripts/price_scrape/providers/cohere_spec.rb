@@ -14,7 +14,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Cohere do
     embedding = { "litellm_provider" => "cohere", "mode" => "embedding", "input_cost_per_token" => 1.2e-07 }
     {
       "command-a-03-2025" => chat.call(2.5e-06, 1e-05), "command-r-08-2024" => chat.call(2e-07, 6e-07),
-      "command-a-plus-05-2026" => chat.call(0.0, 0.0), "cohere/embed-v5.0-pro" => embedding,
+      "command-a-plus-05-2026" => chat.call(2.5e-06, 1e-05), "cohere/embed-v5.0-pro" => embedding,
       "embed-v4.0" => embedding,
       "rerank-v3.5" => { "litellm_provider" => "cohere", "mode" => "rerank", "input_cost_per_query" => 0.002 }
     }
