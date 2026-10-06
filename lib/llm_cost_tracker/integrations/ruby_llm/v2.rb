@@ -170,11 +170,10 @@ module LlmCostTracker
           def start_operation(payload)
             return unless active?
 
-            workflow = workflow_tags(payload)
             enforce_budget!(
               request: budget_request(payload),
               provider: payload[:provider].to_s,
-              tags: (LlmCostTracker::Tags::Context.tags.merge(workflow) if workflow.any?)
+              tags: (LlmCostTracker::Tracker.build_tags(**tags_for(payload)) if payload[:workflow_id])
             )
             frames << Frame.new(payload, [])
           end
@@ -237,9 +236,7 @@ module LlmCostTracker
 
           def record_attempt(usage, payload, latency_ms, **attempt)
             event = Attempt.event(usage, payload, **attempt)
-            return unless event
-
-            LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms, metadata: workflow_tags(usage))
+            LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms, **tags_for(usage)) if event
           end
 
           def record_batch(batch, results, frame)
@@ -268,12 +265,14 @@ module LlmCostTracker
             id = event.provider_response_id || "#{batch.id}/#{index}"
             return if Call.already_recorded?(provider: event.provider, provider_response_id: id)
 
-            record_once(event.with(provider_response_id: id), metadata: workflow_tags(frame.workflow.to_h))
+            record_once(event.with(provider_response_id: id), **tags_for(frame.workflow.to_h))
           end
 
-          def workflow_tags(payload)
-            LlmCostTracker::Tags::Context.fallback(run_id: payload[:workflow_id])
-                                         .merge(payload.slice(:workflow_name, :workflow_step_name).compact)
+          def tags_for(payload)
+            context = LlmCostTracker::Tags::Context.tags
+            run_id = payload[:workflow_id] if context.none? { |key, value| key.to_s == "run_id" && !value.to_s.empty? }
+            { context_tags: context,
+              metadata: { run_id: run_id }.compact.merge(payload.slice(:workflow_name, :workflow_step_name).compact) }
           end
 
           def budget_request(payload)

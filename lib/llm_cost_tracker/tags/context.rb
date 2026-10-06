@@ -23,14 +23,6 @@ module LlmCostTracker
           base.merge(*Array(ActiveSupport::IsolatedExecutionState[KEY]))
         end
 
-        def fallback(tags)
-          tags = tags.compact
-          return tags if tags.empty?
-
-          current = self.tags.transform_keys(&:to_s)
-          tags.select { |key, _| current[key.to_s].to_s.empty? }
-        end
-
         def call_default_tags(proc_or_lambda)
           proc_or_lambda.call
         rescue StandardError => e

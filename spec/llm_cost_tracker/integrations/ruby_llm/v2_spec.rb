@@ -840,6 +840,27 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "evaluates tags.default once when a workflow call starts and once when it is recorded" do
+      evaluated = 0
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.pricing.unknown_model_behavior = :ignore
+        config.tags.default = lambda do
+          evaluated += 1
+          { tenant_id: 1 }
+        end
+        config.instrument(:ruby_llm)
+      end
+      WebMock.stub_request(:post, messages_url)
+             .to_return(reply(anthropic_message(id: "msg_d", usage: { input_tokens: 10, output_tokens: 5 })))
+
+      capture_sdk_events do |events|
+        RubyLLM.workflow("Research", id: "run-42") { chat("claude-sonnet-4-6", :anthropic).ask("hi") }
+        expect(events.sole[:tags]).to include(tenant_id: 1, run_id: "run-42")
+      end
+      expect(evaluated).to eq(2)
+    end
+
     it "lets a :block_requests rule see the workflow's run_id, name and step before the call is sent" do
       seen = []
       allow(LlmCostTracker::Budget::PerTag).to receive(:blocking?).and_return(true)
