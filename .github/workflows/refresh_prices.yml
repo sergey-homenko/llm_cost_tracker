@@ -94,29 +94,38 @@ jobs:
           fi
 
       - name: Build PR body
+        id: body
         if: ${{ !cancelled() && steps.changes.outputs.changed == 'true' }}
         run: |
+          git show HEAD:lib/llm_cost_tracker/prices.json > prices_before.json
+          bundle exec ruby scripts/price_scrape/pr_summary.rb \
+            prices_before.json lib/llm_cost_tracker/prices.json refresh.log pr_summary.md pr_title.txt
+          echo "title=$(cat pr_title.txt)" >> "$GITHUB_OUTPUT"
           {
-            echo "Automated price refresh from upstream provider pricing pages."
+            cat pr_summary.md
             echo
-            echo "Triggered by \`${{ github.event_name }}\` on $(date -u +"%Y-%m-%d %H:%M UTC")."
-            echo
-            echo "## Runner output"
+            echo "<details><summary>Runner output</summary>"
             echo
             echo '```'
             cat refresh.log
             echo '```'
             echo
-            echo "## Price snapshot diff"
+            echo "</details>"
+            echo
+            echo "<details><summary>prices.json diff</summary>"
             echo
             echo '```diff'
             git diff -- lib/llm_cost_tracker/prices.json
             echo '```'
             echo
-            echo "Review the diff to confirm new models, deprecated removals, and price field changes."
+            echo "</details>"
             if [ -s cross_check.md ]; then
               echo
+              echo "<details><summary>Cross-check with LiteLLM</summary>"
+              echo
               cat cross_check.md
+              echo
+              echo "</details>"
             fi
           } > pr_body.md
 
@@ -125,7 +134,7 @@ jobs:
         uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
         with:
           branch: prices/auto-refresh
-          title: "chore(prices): refresh provider snapshots"
+          title: ${{ steps.body.outputs.title }}
           commit-message: "Refresh provider price snapshots"
           body-path: pr_body.md
           delete-branch: true
