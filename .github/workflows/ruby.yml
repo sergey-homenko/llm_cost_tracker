@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     services:
       postgres:
         image: postgres:17.3
@@ -69,7 +69,7 @@ jobs:
         verbose: true
 
   test-mysql:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     services:
       mysql:
         image: mysql:8.4
@@ -103,7 +103,7 @@ jobs:
       run: bundle exec rspec
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/checkout@v4
       with:
@@ -117,7 +117,7 @@ jobs:
       run: bundle exec rubocop
 
   database-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     services:
       postgres:
         image: postgres:17.3
