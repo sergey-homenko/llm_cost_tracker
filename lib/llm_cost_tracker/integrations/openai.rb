@@ -35,15 +35,6 @@ module LlmCostTracker
           }
         end
 
-        def client_host_for(resource)
-          client = resource.instance_variable_get(:@client)
-          return nil unless client
-
-          URI.parse(client.base_url.to_s).host
-        rescue URI::InvalidURIError
-          nil
-        end
-
         def provider_for_host(host)
           return "azure_openai" if LlmCostTracker::Providers::Azure::Hosts.openai?(host)
 

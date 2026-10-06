@@ -290,4 +290,36 @@ module AccountingCases
     client = refusal_fallback_client
     2.times { client.beta.messages.stream(**refusal_fallback_request).each { nil } }
   end
+
+  def vertex_client(region)
+    allow_any_instance_of(Anthropic::Helpers::Vertex::Client).to receive(:require).with("googleauth").and_return(true)
+    Anthropic::Helpers::Vertex::Client.new(region: region, project_id: "proj")
+  end
+
+  def vertex_request(model)
+    anthropic_request(model, request_options: { extra_headers: { "authorization" => "Bearer test" } })
+  end
+
+  define_case "anthropic sdk vertex messages: haiku-4-5 on the us multi-region endpoint at its regional rate",
+              instrument: :anthropic do
+    stub_json(:post, %r{\Ahttps://aiplatform\.us\.rep\.googleapis\.com/v1/projects/proj/locations/us/publishers/anthropic/},
+              anthropic_message(id: "msg_vtx1", model: "claude-haiku-4-5-20251001", usage: anthropic_usage(40_000, 3_000)))
+    vertex_client("us").messages.create(**vertex_request("claude-haiku-4-5@20251001"))
+  end
+
+  define_case "anthropic sdk vertex messages: sonnet-4-5 on the global endpoint at its global rate",
+              instrument: :anthropic do
+    stub_json(:post, %r{\Ahttps://aiplatform\.googleapis\.com/v1/projects/proj/locations/global/publishers/anthropic/},
+              anthropic_message(id: "msg_vtx2", model: "claude-sonnet-4-5-20250929", usage: anthropic_usage(30_000, 2_000)))
+    vertex_client("global").messages.create(**vertex_request("claude-sonnet-4-5@20250929"))
+  end
+
+  define_case "anthropic sdk vertex stream helper: sonnet-4-5 on a regional endpoint at its regional rate",
+              instrument: :anthropic do
+    stub_sse(:post, %r{\Ahttps://us-east5-aiplatform\.googleapis\.com/v1/projects/proj/locations/us-east5/publishers/},
+             anthropic_stream_body(id: "msg_vtx3", model: "claude-sonnet-4-5-20250929",
+                                   start_usage: { input_tokens: 30_000, output_tokens: 1 },
+                                   delta_usage: { output_tokens: 2_000 }))
+    vertex_client("us-east5").messages.stream(**vertex_request("claude-sonnet-4-5@20250929")).each { nil }
+  end
 end

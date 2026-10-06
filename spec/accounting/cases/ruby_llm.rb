@@ -1039,4 +1039,11 @@ module AccountingCases
                 body: gemini_response(model: "gemini-2.5-flash", id: "vtx_us",
                                       usage: gemini_usage(prompt: 120_000, candidates: 8_000)))
   end
+
+  define_case "ruby_llm vertex chat: claude-sonnet-4-5 on a regional endpoint at its regional rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: "RubyLLM 1.x has no Claude on Vertex AI" do
+    vertex_chat("claude-sonnet-4-5", "us-east5", publisher: "anthropic",
+                body: anthropic_message(id: "msg_vtx_rl", model: "claude-sonnet-4-5-20250929",
+                                        usage: anthropic_usage(30_000, 2_000, cache_read: 10_000)))
+  end
 end

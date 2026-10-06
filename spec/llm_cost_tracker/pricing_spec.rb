@@ -85,6 +85,12 @@ RSpec.describe LlmCostTracker::Pricing do
                       input_tokens: 1000, output_tokens: 500).total).to eq(BigDecimal("0.0105"))
     end
 
+    it "prices a Vertex AI Claude model id pinned with @version as the Anthropic model" do
+      match = LlmCostTracker::Pricing::Matcher.lookup(provider: "anthropic", model: "claude-sonnet-4-5@20250929")
+
+      expect(match&.key).to eq("anthropic/claude-sonnet-4-5")
+    end
+
     it "resolves Gemini preview-dated snapshots (preview-MM-DD) to the stable model entry" do
       match = LlmCostTracker::Pricing::Matcher.lookup(provider: "gemini", model: "gemini-2.5-flash-preview-04-17")
 

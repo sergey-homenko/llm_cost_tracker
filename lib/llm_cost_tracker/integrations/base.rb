@@ -101,6 +101,15 @@ module LlmCostTracker
 
       def provider_response_id_for(response) = response&.try(:id)
 
+      def client_host_for(resource)
+        client = resource.instance_variable_get(:@client)
+        return nil unless client
+
+        URI.parse(client.base_url.to_s).host
+      rescue URI::InvalidURIError
+        nil
+      end
+
       def request_params(args, kwargs)
         params =
           case args.first
@@ -141,10 +150,11 @@ module LlmCostTracker
         ).wrap
       end
 
-      def stream_collector(request)
+      def stream_collector(request, pricing_mode: nil)
         LlmCostTracker::Capture::StreamCollector.new(
           provider: provider,
           model: request[:model],
+          pricing_mode: pricing_mode,
           request: request
         )
       end
