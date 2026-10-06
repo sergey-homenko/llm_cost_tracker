@@ -26,6 +26,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - RubyLLM 2.x Cohere chats and embeddings record billed image tokens at `image_input`, so a call with images is `partial` or `unknown` until a price has that rate.
 - Bundled Mistral and Cohere prices for models their providers' pages omit, when LiteLLM and models.dev agree within 1%, marked `"_source": "litellm"`: Mistral Embed and Cohere Command A.
 - `LICENSE.txt` carries LiteLLM's MIT notice for the bundled prices taken from its data.
+- OpenAI Responses WebSocket mode (`responses.connect`, `OpenAI::Responses::Session` included) is recorded, one call per response that reports usage, and `:block_requests` checks each `response.create` before it is sent.
 
 ### Changed
 
@@ -44,6 +45,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `backfill_unknown_pricing` and `reprice` store the pricing mode they apply, so a Bedrock regional-profile call recorded before 0.14.2 gets `data_residency`.
 - Bundled xAI prices, OpenAI and Anthropic model ids, OpenAI and Gemini long-context thresholds and OpenAI embedding prices are read from the providers' own pages instead of LiteLLM or hand-kept lists.
 - Bundled prices drop the models Mistral lists as retired, with their aliases such as `magistral-medium-latest`, and any model its provider has stopped listing for 90 days.
+- Vertex AI calls through RubyLLM are priced at the tier their `usageMetadata.trafficType` reports, and Bedrock Converse calls at their `serviceTier`, instead of at standard rates; Provisioned Throughput, Bedrock `reserved` and tiers no bundled price lists become `unknown`, so they no longer count toward money budgets but still count toward `calls` limits, and `provisioned_throughput_*` or `reserved_*` rates in `pricing.overrides` price them.
+- Calls through the official OpenAI SDK's Bedrock provider (`OpenAI::Providers.bedrock`) are recorded as `bedrock` instead of `openai`.
 
 ### Fixed
 
@@ -62,10 +65,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The Calls CSV export sorts the matching calls once instead of re-querying each 500-row batch with `OFFSET`, which was slow on large ledgers.
 - Gemini calls on a Vertex AI regional or multi-region endpoint through RubyLLM are priced at the non-global rates Google's Vertex AI pricing page lists from July 1, 2026, instead of its global rates.
 - Claude 4.5 and later calls on a Vertex AI regional or multi-region endpoint through RubyLLM 2.x or the Anthropic SDK's Vertex client are priced at their `data_residency` rates, Anthropic's 10% premium, instead of their global rates.
-- Vertex AI calls through RubyLLM are priced at the tier their `usageMetadata.trafficType` reports, and Bedrock Converse calls at their `serviceTier`, instead of at standard rates; Provisioned Throughput, Bedrock `reserved` and tiers no bundled price lists stay `unknown` until `pricing.overrides` prices them.
-- Claude Opus 4.1, Opus 4, Sonnet 4 and Haiku 3.5, retired on Anthropic's API but still served on Bedrock or Google Cloud, keep their Anthropic prices instead of being recorded with unknown cost; Haiku 3.5 is priced under its API id `claude-3-5-haiku`.
-- Calls through the official OpenAI SDK's Bedrock provider (`OpenAI::Providers.bedrock`) are recorded as `bedrock` instead of `openai`.
-- OpenAI Responses WebSocket mode (`responses.connect` and `OpenAI::Responses::Session`) records each response that reports usage, and `:block_requests` checks each `response.create` before it is sent, instead of recording nothing.
+- Claude Opus 4.1, Opus 4, Sonnet 4 and Haiku 3.5, retired on Anthropic's API but still served on Bedrock or Google Cloud, are priced at Anthropic's list prices instead of being recorded with unknown cost; Haiku 3.5 is priced under its API id `claude-3-5-haiku`.
 - RubyLLM 2.x Vertex AI batch results from a regional or multi-region job are priced at their non-global batch rates instead of their global ones.
 
 ## [0.14.2] - 2026-09-28
