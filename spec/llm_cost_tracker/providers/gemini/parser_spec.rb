@@ -257,6 +257,25 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(result.pricing_mode).to be_nil
     end
 
+    it "adds data_residency on a Vertex AI non-global host for a model with non-global rates" do
+      modes = {
+        "us-central1-aiplatform.googleapis.com" => "gemini-3.5-flash",
+        "aiplatform.eu.rep.googleapis.com" => "gemini-3.5-flash",
+        "aiplatform.googleapis.com" => "gemini-3.5-flash",
+        "europe-west4-aiplatform.googleapis.com" => "gemini-2.5-flash"
+      }.map do |host, model|
+        parser.parse(
+          request_url: "https://#{host}/v1/projects/p/locations/l/publishers/google/models/#{model}:generateContent",
+          request_body: "{}",
+          response_status: 200,
+          response_body: { modelVersion: model,
+                           usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 20 } }.to_json
+        ).pricing_mode
+      end
+
+      expect(modes).to eq(["data_residency", "data_residency", nil, nil])
+    end
+
     it "bills grounding per prompt for Gemini 2.5 even when multiple webSearchQueries are returned" do
       result = parser.parse(
         request_url: generate_content_url,

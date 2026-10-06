@@ -18,7 +18,10 @@ module LlmCostTracker
           ae.api.openai.com
         ].freeze
 
-        DATA_RESIDENCY_HOST_PATTERN = /\A(?:[a-z]{2,3}\.api\.openai\.com|us\.api\.x\.ai|api\.(?:eu|us)\.mistral\.ai)\z/
+        DATA_RESIDENCY_HOST_PATTERN = /
+          \A(?:[a-z]{2,3}\.api\.openai\.com|us\.api\.x\.ai|api\.(?:eu|us)\.mistral\.ai|
+          [a-z0-9-]+-aiplatform\.googleapis\.com|aiplatform\.[a-z0-9-]+\.rep\.googleapis\.com)\z
+        /x
 
         def self.data_residency?(host)
           host.to_s.downcase.match?(DATA_RESIDENCY_HOST_PATTERN)

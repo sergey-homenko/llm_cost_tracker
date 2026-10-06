@@ -276,6 +276,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini.source_url)
       .to_return(status: 200, body: "<html><body></body></html>",
                  headers: { "Content-Type" => "text/html; charset=utf-8" })
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini::VERTEX_URL)
+      .to_return(status: 200, body: "<html><body></body></html>")
 
     Tempfile.create(["registry", ".json"]) do |file|
       file.write(JSON.pretty_generate(build_registry(haiku_entry: { "input" => 1.0, "output" => 5.0 })))
@@ -304,6 +306,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
                "gemini" => LlmCostTracker::Pricing::Scrape::Providers::Gemini)
     stub_request(:get, "https://prices.example.test/").to_return(status: 200, body: "{}")
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini.source_url)
+      .to_return(status: 200, body: "<html><body></body></html>")
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini::VERTEX_URL)
       .to_return(status: 200, body: "<html><body></body></html>")
 
     Dir.mktmpdir do |dir|

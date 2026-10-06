@@ -21,6 +21,14 @@ RSpec.describe LlmCostTracker::Providers::Openai::Hosts do
       expect(%w[api.x.ai api.mistral.ai].map { |host| described_class.data_residency?(host) }).to all(be false)
     end
 
+    it "matches Vertex AI regional and multi-region hosts but not its global host or the Gemini API" do
+      regional = %w[us-central1-aiplatform.googleapis.com europe-west4-aiplatform.googleapis.com
+                    aiplatform.us.rep.googleapis.com aiplatform.eu.rep.googleapis.com]
+      expect(regional.map { |host| described_class.data_residency?(host) }).to all(be true)
+      expect(%w[aiplatform.googleapis.com generativelanguage.googleapis.com].map { |host| described_class.data_residency?(host) })
+        .to all(be false)
+    end
+
     it "does not match Azure or non-OpenAI hosts" do
       expect(described_class.data_residency?("tenant.openai.azure.com")).to be false
       expect(described_class.data_residency?("api.anthropic.com")).to be false

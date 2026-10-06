@@ -60,6 +60,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - An empty, `0` or non-numeric `BATCH_SIZE` stops `backfill_unknown_pricing`, `reprice`, `prune` and `backfill_tag_costs` with an error.
 - JSON price files keep floats in their shortest form on json 2.11 and later (`0.951432`, not `0.9514320000000001`).
 - The Calls CSV export sorts the matching calls once instead of re-querying each 500-row batch with `OFFSET`, which was slow on large ledgers.
+- Gemini calls on a Vertex AI regional or multi-region endpoint through RubyLLM are priced at the non-global rates Google's Vertex AI pricing page lists from July 1, 2026, instead of its global rates.
 
 ## [0.14.2] - 2026-09-28
 

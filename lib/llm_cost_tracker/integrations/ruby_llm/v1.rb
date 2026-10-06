@@ -255,7 +255,14 @@ module LlmCostTracker
             when "anthropic", "bedrock"
               Providers::Anthropic::UsageExtractor.pricing_mode(request: { model: model },
                                                                 usage: body["usage"]&.deep_symbolize_keys)
-            when "gemini" then gemini_usage_metadata(response).try(:[], "serviceTier")
+            when "gemini", "vertexai"
+              Providers::Gemini::Parser.new.pricing_mode(
+                request: {},
+                usage: gemini_usage_metadata(response),
+                response_headers: nil,
+                host: URI(provider.api_base).host,
+                model: model
+              )
             when "openai", "xai", "mistral"
               Providers::Openai::ResponseParser.combined_pricing_mode(
                 provider: provider.slug.to_s,

@@ -63,6 +63,17 @@ module AccountingCases
     end
   end
 
+  def vertex_chat(model, location, publisher:, body:)
+    allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:headers).and_return({})
+    host = location == "global" ? "aiplatform.googleapis.com" : "#{location}-aiplatform.googleapis.com"
+    stub_json(:post, %r{\Ahttps://#{host}/v1beta1/projects/proj/locations/#{location}/publishers/#{publisher}/models/}, body)
+    context = RubyLLM.context do |config|
+      config.vertexai_project_id = "proj"
+      config.vertexai_location = location
+    end
+    ruby_llm_chat(model, :vertexai, context: context).ask("hi")
+  end
+
   def converse_frame(type, data)
     headers = { ":message-type" => "event", ":event-type" => type, ":content-type" => "application/json" }
               .transform_values { |value| Aws::EventStream::HeaderValue.new(value: value, type: "string") }
@@ -1013,5 +1024,19 @@ module AccountingCases
                 metrics: { latencyMs: 640 } })
     ruby_llm_chat("eu.anthropic.claude-haiku-4-5-20251001-v1:0", :bedrock, context: bedrock_context("eu-central-1"))
       .ask("hi")
+  end
+
+  define_case "ruby_llm vertex chat: gemini-3.8-flash on a regional endpoint at its non-global rates",
+              instrument: :ruby_llm do
+    vertex_chat("gemini-3.8-flash", "europe-west4", publisher: "google",
+                body: gemini_response(model: "gemini-3.8-flash", id: "vtx_eu",
+                                      usage: gemini_usage(prompt: 120_000, candidates: 8_000)))
+  end
+
+  define_case "ruby_llm vertex chat: gemini-2.5-flash on a regional endpoint at its global rates",
+              instrument: :ruby_llm do
+    vertex_chat("gemini-2.5-flash", "us-central1", publisher: "google",
+                body: gemini_response(model: "gemini-2.5-flash", id: "vtx_us",
+                                      usage: gemini_usage(prompt: 120_000, candidates: 8_000)))
   end
 end

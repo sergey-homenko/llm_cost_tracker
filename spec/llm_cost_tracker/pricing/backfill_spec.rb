@@ -390,6 +390,17 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     expect([regional.pricing_mode, global.pricing_mode]).to eq(["data_residency", nil])
   end
 
+  it "reprices a Vertex AI non-global call at its uplift only from the date the uplift took effect" do
+    calls = [Time.utc(2026, 6, 30, 12), Time.utc(2026, 7, 1, 12)].map do |time|
+      create_call(provider: "vertexai", model: "gemini-3.5-flash", pricing_mode: "data_residency",
+                  input_tokens: 1_000_000, output_tokens: 0, total_cost: 1.5, tracked_at: time)
+    end
+
+    described_class.call(scope: described_class.reprice_scope(Time.utc(2026, 6, 1)..), reprice: true)
+
+    expect(calls.map { |call| call.reload.total_cost }).to eq([1.5, 1.65])
+  end
+
   def record_anthropic(model:, usage:, **response)
     LlmCostTracker.configuration.ingestion.mode = :inline
     LlmCostTracker::Tracker.record(
