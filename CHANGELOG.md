@@ -13,13 +13,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Perplexity Sonar and Agent API calls, background polls included, are recorded at their billed `usage.cost.total_cost`.
 - Faraday captures image generation and edits, transcriptions, translations, speech and Mistral OCR on OpenAI-compatible hosts, and moderations on OpenAI and OpenAI-compatible hosts, `free` on a $0-priced model.
 - `off_peak` pricing mode: a call made inside a price entry's `_off_peak_windows` (ISO weekdays, UTC hours) is priced at its `off_peak_*` rates, also when backfilled or repriced.
-- `ocr_page` and `rerank_search_unit` dimensions, per 1,000 pages and search units, recorded for Mistral OCR and RubyLLM 2.x Cohere rerank.
+- `ocr_page` and `rerank_search_unit` dimensions, per 1,000 pages and search units, recorded for Mistral OCR and RubyLLM 2.x Cohere Parse and rerank.
 - `_minimum_billed_seconds` price-entry field: a shorter transcription is billed for that many seconds.
 - `gpt-4o-mini-tts` speech requested with `stream_format: "sse"` is priced from its usage, text input at `input` and audio at `audio_output`; binary responses carry no usage and stay unknown.
 - Bundled DeepSeek prices, peak and off-peak, under its current and legacy model names; Chinese public holidays are priced at peak.
 - Bundled Mistral prices for Voxtral transcription (per minute), Voxtral TTS (per character), OCR (per 1,000 pages), Codestral Embed and Mistral Moderation 2 ($0).
 - Bundled Groq prices for Whisper, per minute of a `verbose_json` response's `duration` with Groq's 10-second minimum, and Orpheus, per character.
-- Bundled Mistral and Cohere prices for models their providers' pages omit, when LiteLLM and models.dev agree within 1%, marked `"_source": "litellm"`: Mistral Embed and Cohere's chat models. Cohere embeddings and rerank stay unpriced.
+- Bundled Cohere prices from its pricing page: Command R and R7B, legacy Command models, Aya Expanse, Embed 5, Rerank 4 per 1,000 search units and Parse per 1,000 pages.
+- Bundled Mistral and Cohere prices for models their providers' pages omit, when LiteLLM and models.dev agree within 1%, marked `"_source": "litellm"`: Mistral Embed and Cohere Command A.
 - `LICENSE.txt` carries LiteLLM's MIT notice for the bundled prices taken from its data.
 
 ### Changed
