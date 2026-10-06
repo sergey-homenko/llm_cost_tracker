@@ -173,7 +173,7 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
   it "reprices a partial call and adds only the missing difference to the rollups" do
     LlmCostTracker.configuration.ingestion.mode = :inline
     LlmCostTracker.track(
-      provider: "anthropic", model: "claude-opus-4-1-20250805",
+      provider: "anthropic", model: "claude-3-opus-20240229",
       tokens: { input_tokens: 12_000, output_tokens: 800 }, tags: { feature: "research" },
       service_line_items: [{ dimension_key: "web_search_request", quantity: 2 }]
     )
@@ -181,7 +181,7 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     call = LlmCostTracker::Call.first
     expect([call.total_cost, call.cost_status]).to eq([0.02, "partial"])
 
-    LlmCostTracker.configuration.pricing.overrides = { "anthropic/claude-opus-4-1" => { input: 15.0, output: 75.0 } }
+    LlmCostTracker.configuration.pricing.overrides = { "anthropic/claude-3-opus" => { input: 15.0, output: 75.0 } }
     LlmCostTracker::Pricing::Registry.reset!
 
     expect(described_class.call.to_h).to eq(examined: 1, recomputed: 1, still_unknown: 0)

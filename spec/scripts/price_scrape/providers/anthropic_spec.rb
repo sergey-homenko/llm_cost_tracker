@@ -129,17 +129,31 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
       expect(result.models.fetch("claude-sonnet-4-6")).not_to include("fast_input")
     end
 
-    it "extracts deprecated models that still match the canonical naming pattern" do
+    it "keeps retired models Anthropic still serves on Bedrock or Google Cloud, Claude 3 ones under their API id" do
       result = described_class.new.call(html: html)
-      expect(result.models).to include("claude-opus-4", "claude-sonnet-4", "claude-haiku-3-5")
+
+      expect(result.deprecated_models).to eq([])
+      expect(result.models).to include(
+        "claude-opus-4-1" => { "input" => 15.0, "cache_write_input" => 18.75, "cache_write_extended_input" => 30.0,
+                               "cache_read_input" => 1.5, "output" => 75.0, "batch_input" => 7.5, "batch_output" => 37.5 },
+        "claude-opus-4" => hash_including("input" => 15.0, "output" => 75.0),
+        "claude-sonnet-4" => hash_including("input" => 3.0, "output" => 15.0, "batch_input" => 1.5),
+        "claude-3-5-haiku" => { "input" => 0.8, "cache_write_input" => 1.0, "cache_write_extended_input" => 1.6,
+                                "cache_read_input" => 0.08, "output" => 4.0, "batch_input" => 0.4, "batch_output" => 2.0 }
+      )
     end
 
-    it "flags deprecated models separately from the price table" do
-      result = described_class.new.call(html: html)
+    it "flags a model retired everywhere as deprecated" do
+      result = described_class.new.call(html: html.gsub("retired, except on Google Cloud.", "retired."))
 
-      expect(result.deprecated_models)
-        .to contain_exactly("claude-opus-4", "claude-opus-4-1", "claude-sonnet-4", "claude-haiku-3-5")
-      expect(result.models).to include("claude-opus-4", "claude-sonnet-4")
+      expect(result.deprecated_models).to eq(["claude-opus-4"])
+    end
+
+    it "raises when a retired row loses its lifecycle note or the note's wording changes" do
+      expect { described_class.new.call(html: html.gsub("lifecycle", "status")) }
+        .to raise_error(described_class::Error, /retired row "Claude Opus 4.1" has no lifecycle note/)
+      expect { described_class.new.call(html: html.gsub("retired, except on Google Cloud.", "still on Google Cloud.")) }
+        .to raise_error(described_class::Error, /lifecycle note for Claude Opus 4 not understood/)
     end
 
     it "leaves deprecated_models empty when the page marks no model as retired" do

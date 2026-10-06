@@ -1064,4 +1064,21 @@ module AccountingCases
         .ask("hi")
     end
   end
+
+  %w[us.anthropic.claude-sonnet-4-20250514-v1:0 us.anthropic.claude-3-5-haiku-20241022-v1:0].each do |model|
+    define_case "ruby_llm bedrock chat: #{model}, retired on Anthropic's API, at its last Anthropic price",
+                instrument: :ruby_llm do
+      stub_json(:post, %r{\Ahttps://bedrock-runtime\.us-east-1\.amazonaws\.com/model/[^/]+/converse\z},
+                { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
+                  usage: converse_usage(10_000, 1_000, cache_read: 2_000), metrics: { latencyMs: 640 } })
+      ruby_llm_chat(model, :bedrock, context: bedrock_context("us-east-1")).ask("hi")
+    end
+  end
+
+  define_case "ruby_llm vertex chat: opus-4-1, retired on Anthropic's API, on a regional endpoint at its global rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: "RubyLLM 1.x has no Claude on Vertex AI" do
+    vertex_chat("claude-opus-4-1", "us-east5", publisher: "anthropic",
+                body: anthropic_message(id: "msg_vtx_41", model: "claude-opus-4-1-20250805",
+                                        usage: anthropic_usage(10_000, 1_000)))
+  end
 end
