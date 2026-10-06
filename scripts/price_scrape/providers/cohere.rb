@@ -21,19 +21,16 @@ module LlmCostTracker
           "1M tokens Input" => "input", "1M tokens Output" => "output", "1M tokens Cost" => "input",
           "1K searches Cost" => "rerank_search_unit", "1K pages Cost" => "ocr_page"
         }.freeze
-        FREE = {
-          "per" => "Free", "inputLabel" => "API key", "inputPrice" => 0, "outputLabel" => "Model download",
-          "outputPrice" => 0
-        }.freeze
         FAQ_PRICE = %r{
           \A(?<name>.+?)\s(?:pricing\sis|models\s\((?<sizes>[^)]+)\)\son\sthe\sAPI\sare\scharged\sat)
           \s\$(?<input>\d+(?:\.\d+)?)/1M\stokens\sfor\sinput\sand\s\$(?<output>\d+(?:\.\d+)?)/1M\stokens\sfor\soutput\b
         }x
         RELEASE_SUFFIX = /-\d+-\d+\z/
+        STATUS = /\A(?:Live\z|Deprecated\b|Retired\b)/
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           @listed = listed_ids(html.fetch(MODELS_SOURCE_URL))
-          retired = @listed.select { |_id, status| status == :retired }.keys
+          retired = @listed.select { |_id, status| status == "Retired" }.keys
           official = official_models(html.fetch(self.class.source_url)).except(*retired)
           rows = self.class.confirmed_rows("cohere", html, official, scraped_at)
           models = official.merge(rows.to_h.except(*retired))
@@ -74,13 +71,14 @@ module LlmCostTracker
         def section(rows, type)
           row = rows.find { |candidate| candidate.include?(%("_type":"#{type}")) } or
             raise Error, "Cohere #{type} not found"
-          typed(JSON.parse(row), type)
+          hashes(JSON.parse(row)).find { |node| node["_type"] == type }
         end
 
-        def typed(node, type)
+        def hashes(node)
           case node
-          when Hash then node["_type"] == type ? node : typed(node.values, type)
-          when Array then node.lazy.filter_map { |child| typed(child, type) }.first
+          when Hash then [node, *hashes(node.values)]
+          when Array then node.flat_map { |child| hashes(child) }
+          else []
           end
         end
 
@@ -88,7 +86,8 @@ module LlmCostTracker
           pricing, *more = card["pricings"]
           name = card.fetch("modelName")
           raise Error, "Cohere lists several prices for #{name}" if more.any?
-          return {} if pricing.nil? || pricing.except("_key", "_type").merge("per" => card["per"]) == FREE
+          return {} unless pricing
+          return {} if card["per"] == "Free" && pricing.values_at("inputPrice", "outputPrice") == [0, 0]
 
           unit = pricing["overridePer"] || card["per"]
           %w[input output].each_with_object({}) do |side, fields|
@@ -102,20 +101,13 @@ module LlmCostTracker
         end
 
         def faq_prices(faq)
-          blocks(faq).select { |text| text.include?("/1M tokens") }.flat_map do |text|
+          blocks = hashes(faq).select { |node| node["_type"] == "block" }
+          blocks.map { |block| block["children"].to_a.map { |child| child["text"] }.join }
+                .select { |text| text.include?("/1M tokens") }.flat_map do |text|
             match = FAQ_PRICE.match(text) or raise Error, "Cohere FAQ price not understood: #{text}"
             fields = { "input" => Float(match[:input]), "output" => Float(match[:output]) }
             sizes = match[:sizes]&.split(/,\s*|\s+and\s+/)
             (sizes&.map { |size| "#{match[:name]} #{size}" } || [match[:name]]).map { |name| [name, fields] }
-          end
-        end
-
-        def blocks(node)
-          case node
-          when Hash
-            node["_type"] == "block" ? [node["children"].to_a.map { |child| child["text"] }.join] : blocks(node.values)
-          when Array then node.flat_map { |child| blocks(child) }
-          else []
           end
         end
 
@@ -126,22 +118,14 @@ module LlmCostTracker
             next unless header.include?("Description")
 
             column = header.index("Status")
-            rows.each { |cells| listed[listed_id(cells.first)] = status(column && cells[column]) }
+            rows.each do |cells|
+              id = cells.first[/\A`([^`]+)`\z/, 1] or
+                raise Error, "Cohere models overview row #{cells.first.inspect} names no API id"
+              listed[id] = ((column && cells[column]) || "Live")[STATUS] or
+                raise Error, "Cohere model status #{cells[column].inspect} not understood"
+            end
           end
           ids.any? ? ids : raise(Error, "Cohere models overview lists no API ids")
-        end
-
-        def listed_id(cell)
-          cell[/\A`([^`]+)`\z/, 1] or raise Error, "Cohere models overview row #{cell.inspect} names no API id"
-        end
-
-        def status(text)
-          case text
-          when nil, "Live" then :live
-          when /\ADeprecated\b/ then :deprecated
-          when /\ARetired\b/ then :retired
-          else raise Error, "Cohere model status #{text.inspect} not understood"
-          end
         end
 
         def api_id(name)
@@ -149,7 +133,7 @@ module LlmCostTracker
           found = @listed.select do |id, _status|
             [id, id.sub(RELEASE_SUFFIX, "")].any? { |listed| name_key(listed).last(key.size) == key }
           end
-          ids = found.size > 1 ? found.select { |_id, status| status == :live }.keys : found.keys
+          ids = found.size > 1 ? found.select { |_id, status| status == "Live" }.keys : found.keys
           return ids.first if ids.one?
 
           raise Error, "no single API id on Cohere's models overview for #{name.inspect}: #{found.keys.inspect}"
