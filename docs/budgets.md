@@ -117,23 +117,23 @@ LlmCostTracker.with_tags(run_id: run.id) { agent.run }
 
 `total` behaves like the other windows. With `calls: 200` the run makes 200 calls and the 201st exceeds the limit: `:block_requests` blocks it before it is sent, `:notify` and `:raise` act once it is recorded. Under `:block_requests` the call is never recorded, so the `calls` limit's `on_exceeded` does not fire; rescue `BudgetExceededError` with `budget_type: :calls` to react. The payload's `budget_type` is `:total` or `:calls`.
 
-On RubyLLM 2.x, calls inside `RubyLLM.workflow` are tagged `run_id` with the workflow's id, including calls from tools RubyLLM runs concurrently:
+On RubyLLM 2.x, RubyLLM calls inside `RubyLLM.workflow` are tagged `run_id` with the workflow's id, including calls from tools RubyLLM runs concurrently:
 
 ```ruby
 RubyLLM.workflow("Research", id: "research-#{run.id}") { chat.ask(question) }
 ```
 
-Without `id:`, RubyLLM generates one per workflow. A non-blank `run_id` from `with_tags` or `tags.default` wins over the workflow's id; since `with_tags` does not reach RubyLLM's tool threads, prefer passing the id to the workflow. A nested workflow has its own id, so it is a run of its own.
+Without `id:`, RubyLLM generates one per workflow. A non-blank `run_id` from `with_tags` or `tags.default` wins over the workflow's id; since `with_tags` does not reach RubyLLM's tool threads, prefer passing the id to the workflow. A nested workflow has its own id, so it is a run of its own. Only RubyLLM's own calls get the id: calls in the block through the openai or anthropic SDKs, Faraday or `LlmCostTracker.track`, and the storage row of a Gemini cache created with `RubyLLM.cache`, are not tagged; wrap them in `with_tags(run_id:)` with the same id.
 
 Bounds:
 
-- Calls already in flight when a run crosses its limit still complete, so the run can overspend by them.
+- Calls already in flight when a run crosses its limit still complete, so the run can overspend by them. RubyLLM 2.x checks once per operation but records a row per attempt, so one call's retries, fallbacks and `pause_turn` segments can push a run past `calls`; under `:block_requests` that call then raises once recorded.
 - A running stream is not cut; the next call is blocked.
 - Under `ingestion.mode = :async`, a run counts only the calls the worker has drained.
 - An unpriced call adds nothing to `total` until it is priced; `calls` counts it.
 - `with_tags` does not cross threads: code that makes a run's calls in its own threads must set `run_id` there.
-- `total` and `calls` have no window, so a reused run id keeps counting its earlier calls.
-- A check reads every call the run has recorded, so it slows as the run grows: measured on 3M tag rows, a 5,000-call run reads in about 1 ms on PostgreSQL and 30 ms on MySQL.
+- `total` and `calls` have no window, so a reused run id keeps counting its earlier calls until `llm_cost_tracker:prune` deletes them.
+- A check reads every call the run has recorded, so it slows as the run grows: measured on 3M tag rows, a 5,000-call run reads in about 1–15 ms on PostgreSQL and 5–140 ms on MySQL, warm to cold cache. With both limits, a `:block_requests` rule makes up to four reads per call: two before it is sent and two after it is recorded.
 
 ## Budget Reads
 
