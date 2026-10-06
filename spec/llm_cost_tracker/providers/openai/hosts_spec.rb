@@ -4,6 +4,16 @@ require "spec_helper"
 require "llm_cost_tracker/providers/openai/hosts"
 
 RSpec.describe LlmCostTracker::Providers::Openai::Hosts do
+  describe ".bedrock?" do
+    it "matches the Bedrock Mantle and Runtime hosts the openai gem's Bedrock provider calls" do
+      expect(%w[bedrock-mantle.us-west-2.api.aws bedrock-runtime.us-east-1.amazonaws.com
+                bedrock-runtime-fips.us-east-1.amazonaws.com bedrock-runtime.cn-north-1.amazonaws.com.cn]
+               .map { |host| described_class.bedrock?(host) }).to all(be true)
+      expect(%w[api.openai.com bedrock.us-east-1.amazonaws.com].map { |host| described_class.bedrock?(host) })
+        .to all(be false)
+    end
+  end
+
   describe ".data_residency?" do
     it "matches regional subdomains under api.openai.com" do
       %w[us.api.openai.com gb.api.openai.com sg.api.openai.com].each do |host|

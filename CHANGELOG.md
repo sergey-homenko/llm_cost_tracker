@@ -64,6 +64,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Claude 4.5 and later calls on a Vertex AI regional or multi-region endpoint through RubyLLM 2.x or the Anthropic SDK's Vertex client are priced at their `data_residency` rates, Anthropic's 10% premium, instead of their global rates.
 - Vertex AI calls through RubyLLM are priced at the tier their `usageMetadata.trafficType` reports, and Bedrock Converse calls at their `serviceTier`, instead of at standard rates; Provisioned Throughput, Bedrock `reserved` and tiers no bundled price lists stay `unknown` until `pricing.overrides` prices them.
 - Claude Opus 4.1, Opus 4, Sonnet 4 and Haiku 3.5, retired on Anthropic's API but still served on Bedrock or Google Cloud, keep their Anthropic prices instead of being recorded with unknown cost; Haiku 3.5 is priced under its API id `claude-3-5-haiku`.
+- Calls through the official OpenAI SDK's Bedrock provider (`OpenAI::Providers.bedrock`) are recorded as `bedrock` instead of `openai`.
 
 ## [0.14.2] - 2026-09-28
 

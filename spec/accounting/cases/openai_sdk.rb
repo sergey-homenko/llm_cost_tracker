@@ -803,4 +803,30 @@ module AccountingCases
                 usage: { cost_in_usd_ticks: 200_000_000 } })
     openai_client(XAI_API).images.generate(prompt: "a cat", model: "grok-imagine-image")
   end
+
+  def bedrock_openai_client(endpoint, region)
+    OpenAI::Client.new(provider: OpenAI::Providers.bedrock(endpoint: endpoint, region: region, api_key: "bedrock-test"))
+  end
+
+  define_case "openai sdk bedrock runtime chat: recorded under bedrock", instrument: :openai do
+    stub_json(:post, "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/chat/completions",
+              chat_completion(id: "chatcmpl_br1", model: "us.openai.gpt-5.6-sol", usage: chat_usage(1000, 200)))
+    bedrock_openai_client(:runtime, "us-east-1").chat.completions.create(model: "us.openai.gpt-5.6-sol",
+                                                                         messages: USER_MESSAGES)
+  end
+
+  define_case "openai sdk bedrock runtime chat stream helper: recorded under bedrock with its usage",
+              instrument: :openai do
+    stub_sse(:post, "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/chat/completions",
+             chat_stream_body(id: "chatcmpl_br2", model: "us.openai.gpt-5.6-sol", usage: chat_usage(1000, 200)))
+    bedrock_openai_client(:runtime, "us-east-1").chat.completions
+                                                .stream(model: "us.openai.gpt-5.6-sol", messages: USER_MESSAGES,
+                                                        stream_options: { include_usage: true }).each { nil }
+  end
+
+  define_case "openai sdk bedrock mantle responses: recorded under bedrock", instrument: :openai do
+    stub_json(:post, "https://bedrock-mantle.us-west-2.api.aws/v1/responses",
+              responses_object(id: "resp_br3", model: "openai.gpt-oss-120b", usage: responses_usage(1000, 200)))
+    bedrock_openai_client(:mantle, "us-west-2").responses.create(model: "openai.gpt-oss-120b", input: "hi")
+  end
 end

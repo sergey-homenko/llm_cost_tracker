@@ -21,6 +21,7 @@ module LlmCostTracker
         def stream_collector(request, host: nil)
           LlmCostTracker::Capture::StreamCollector.new(
             provider: provider_for_host(host),
+            parsed_as: "openai",
             model: request[:model],
             pricing_mode: host_pricing_mode(host, request),
             request: request
@@ -38,7 +39,8 @@ module LlmCostTracker
         def provider_for_host(host)
           return "azure_openai" if LlmCostTracker::Providers::Azure::Hosts.openai?(host)
 
-          LlmCostTracker.configuration.capture.openai_compatible_providers[host.to_s.downcase] || "openai"
+          LlmCostTracker.configuration.capture.openai_compatible_providers[host.to_s.downcase] ||
+            (LlmCostTracker::Providers::Openai::Hosts.bedrock?(host) ? "bedrock" : "openai")
         end
 
         def patch_targets

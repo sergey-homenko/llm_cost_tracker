@@ -23,8 +23,14 @@ module LlmCostTracker
           [a-z0-9-]+-aiplatform\.googleapis\.com|aiplatform\.[a-z0-9-]+\.rep\.googleapis\.com)\z
         /x
 
+        BEDROCK_HOST_PATTERN = /\Abedrock-(?:mantle|runtime(?:-fips)?)\./
+
         def self.data_residency?(host)
           host.to_s.downcase.match?(DATA_RESIDENCY_HOST_PATTERN)
+        end
+
+        def self.bedrock?(host)
+          host.to_s.downcase.match?(BEDROCK_HOST_PATTERN)
         end
       end
     end
