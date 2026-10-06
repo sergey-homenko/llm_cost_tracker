@@ -2,6 +2,7 @@
 
 require "spec_helper"
 require "faraday"
+require "ruby_llm"
 require "llm_cost_tracker/pricing/backfill"
 
 RSpec.describe LlmCostTracker::Budget::PerTag do
@@ -670,6 +671,55 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       expect(LlmCostTracker::Call.count).to eq(3)
       expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(0)
       expect(LlmCostTracker::Logging).to have_received(:warn).with(/budget check failed after ingest/)
+    end
+  end
+
+  describe "a RubyLLM workflow run", unless: RubyLLM::VERSION.start_with?("1.") do
+    def reply(body) = { status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" } }
+
+    def message(id, stop_reason, content)
+      { id: id, type: "message", role: "assistant", model: "claude-sonnet-4-6", content: content,
+        stop_reason: stop_reason, usage: { input_tokens: 10, output_tokens: 5 } }
+    end
+
+    before do
+      LlmCostTracker.configuration.ingestion.mode = :inline
+      RubyLLM.configure do |config|
+        config.anthropic_api_key = "test-anthropic"
+        config.openai_api_key = "test-openai"
+      end
+    end
+
+    it "stops the run pre-send once its calls limit is used, counting calls made in RubyLLM's tool threads" do
+      LlmCostTracker.configure do |config|
+        config.pricing.unknown_model_behavior = :ignore
+        config.budgets.per_tag = { run_id: { calls: 3, behavior: :block_requests } }
+        config.instrument(:ruby_llm)
+      end
+      stub_const("LookupTool", Class.new(RubyLLM::Tool) do
+        description "Looks a query up"
+        def execute(query:) = RubyLLM.embed(query, model: "text-embedding-3-small").model
+      end)
+      tool_calls = %w[a b].each_with_index.map do |query, index|
+        { type: "tool_use", id: "toolu_#{index}", name: "lookup", input: { query: query } }
+      end
+      messages = WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages")
+                        .to_return(reply(message("msg_t", "tool_use", tool_calls)),
+                                   reply(message("msg_d", "end_turn", [{ type: "text", text: "done" }])))
+      WebMock.stub_request(:post, "https://api.openai.com/v1/embeddings").to_return(reply(
+        object: "list", model: "text-embedding-3-small", data: [{ embedding: [0.1] }],
+        usage: { prompt_tokens: 1, total_tokens: 1 }
+      ))
+      chat = RubyLLM.chat(model: "claude-sonnet-4-6", provider: :anthropic, assume_model_exists: true)
+                    .with_tools(LookupTool).with_tool_options(concurrency: :threads)
+
+      expect { RubyLLM.workflow("Research", id: "run-42") { chat.ask("hi") } }
+        .to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+          expect(error).to have_attributes(budget_type: :calls, total: 4, budget: 3, stage: :pre_send,
+                                           scope: { key: "run_id", value: "run-42" })
+        }
+      expect(messages).to have_been_requested.once
+      expect(tag_rows(:run_id).pluck(:value)).to eq(%w[run-42] * 3)
     end
   end
 end

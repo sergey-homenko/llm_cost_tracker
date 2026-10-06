@@ -766,7 +766,7 @@ module AccountingCases
               { name: "batches/rl_gem", state: "BATCH_STATE_SUCCEEDED",
                 batchStats: { requestCount: "1", successfulRequestCount: "1" },
                 output: { inlinedResponses: { inlinedResponses: [{ response: response, metadata: { custom_id: "0" } }] } } })
-    RubyLLM.workflow("Nightly summaries") do |workflow|
+    RubyLLM.workflow("Nightly summaries", id: "nightly-1") do |workflow|
       workflow.step("Collect results") { RubyLLM::Batch.find("batches/rl_gem", provider: :gemini).messages }
     end
   end

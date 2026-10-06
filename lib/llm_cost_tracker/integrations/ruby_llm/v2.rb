@@ -170,7 +170,7 @@ module LlmCostTracker
           def start_operation(payload)
             return unless active?
 
-            workflow = payload.slice(:workflow_name, :workflow_step_name).compact
+            workflow = workflow_tags(payload)
             enforce_budget!(
               request: budget_request(payload),
               provider: payload[:provider].to_s,
@@ -200,7 +200,7 @@ module LlmCostTracker
             return unless frame
 
             frame.latency_ms = Timing.elapsed_ms(frame.request_started_at) if frame.request_started_at
-            frame.workflow = payload.slice(:workflow_name, :workflow_step_name).compact
+            frame.workflow = payload.slice(:workflow_id, :workflow_name, :workflow_step_name)
           end
 
           def record_cache_storage(data)
@@ -239,8 +239,7 @@ module LlmCostTracker
             event = Attempt.event(usage, payload, **attempt)
             return unless event
 
-            workflow = usage.slice(:workflow_name, :workflow_step_name).compact
-            LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms, metadata: workflow)
+            LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms, metadata: workflow_tags(usage))
           end
 
           def record_batch(batch, results, frame)
@@ -269,7 +268,12 @@ module LlmCostTracker
             id = event.provider_response_id || "#{batch.id}/#{index}"
             return if Call.already_recorded?(provider: event.provider, provider_response_id: id)
 
-            record_once(event.with(provider_response_id: id), metadata: frame.workflow.to_h)
+            record_once(event.with(provider_response_id: id), metadata: workflow_tags(frame.workflow.to_h))
+          end
+
+          def workflow_tags(payload)
+            LlmCostTracker::Tags::Context.fallback(run_id: payload[:workflow_id])
+                                         .merge(payload.slice(:workflow_name, :workflow_step_name).compact)
           end
 
           def budget_request(payload)

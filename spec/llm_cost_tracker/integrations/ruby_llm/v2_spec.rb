@@ -761,7 +761,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "tags calls with the RubyLLM workflow and step" do
+    it "tags calls with the RubyLLM workflow, its step, and its id as run_id" do
       WebMock.stub_request(:post, messages_url)
              .to_return(reply(anthropic_message(id: "msg_w", usage: { input_tokens: 10, output_tokens: 5 })))
 
@@ -769,22 +769,91 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         RubyLLM.workflow("Write article", id: "article-42") do |workflow|
           workflow.step("Draft") { chat("claude-sonnet-4-6", :anthropic).ask("hi") }
         end
-        expect(events.sole[:tags]).to include(workflow_name: "Write article", workflow_step_name: "Draft")
+        expect(events.sole[:tags])
+          .to include(run_id: "article-42", workflow_name: "Write article", workflow_step_name: "Draft")
       end
     end
 
-    it "lets a :block_requests rule on workflow_name see the workflow before the call is sent" do
+    it "tags the calls RubyLLM makes in parallel tool threads with the run_id, which with_tags does not reach" do
+      stub_const("LookupTool", Class.new(RubyLLM::Tool) do
+        description "Looks a query up"
+        def execute(query:) = RubyLLM.embed(query, model: "text-embedding-3-small").model
+      end)
+      tool_calls = %w[a b].each_with_index.map do |query, index|
+        { type: "tool_use", id: "toolu_#{index}", name: "lookup", input: { query: query } }
+      end
+      usage = { input_tokens: 10, output_tokens: 5 }
+      WebMock.stub_request(:post, messages_url).to_return(
+        reply(anthropic_message(id: "msg_t", usage: usage, stop_reason: "tool_use").merge(content: tool_calls)),
+        reply(anthropic_message(id: "msg_d", usage: usage))
+      )
+      WebMock.stub_request(:post, "https://api.openai.com/v1/embeddings").to_return(reply(
+        object: "list", model: "text-embedding-3-small", data: [{ embedding: [0.1] }],
+        usage: { prompt_tokens: 1, total_tokens: 1 }
+      ))
+
+      capture_sdk_events do |events|
+        LlmCostTracker.with_tags(feature: "research") do
+          RubyLLM.workflow("Research", id: "run-42") do
+            chat("claude-sonnet-4-6", :anthropic).with_tools(LookupTool).with_tool_options(concurrency: :threads)
+                                                 .ask("hi")
+          end
+        end
+        expect(events.map { |event| event[:tags].values_at(:run_id, :feature) })
+          .to contain_exactly(%w[run-42 research], %w[run-42 research], ["run-42", nil], ["run-42", nil])
+      end
+    end
+
+    it "tags a batch result collected inside a workflow with its run_id" do
+      staged = chat("claude-sonnet-4-5", :anthropic).ask_later("hi")
+      body = anthropic_message(id: "msg_wb", model: "claude-sonnet-4-5", usage: { input_tokens: 10, output_tokens: 5 })
+      message = RubyLLM::Message.new(role: :assistant, content: "hi", raw: body.deep_stringify_keys, input_tokens: 10,
+                                     output_tokens: 5)
+      allow(staged.provider).to receive(:batch_results) do
+        RubyLLM.instrument("request.ruby_llm", { provider: "anthropic", method: :get }) { [[0, message]] }
+      end
+      batch = RubyLLM::Batch.new(provider: staged.provider, chats: [staged], id: "msgbatch_wf", raw_status: "ended",
+                                 completed: true)
+
+      capture_sdk_events do |events|
+        RubyLLM.workflow("Nightly", id: "run-42") { batch.messages }
+        expect(events.sole[:tags]).to include(run_id: "run-42", workflow_name: "Nightly")
+      end
+    end
+
+    it "keeps a run_id the app sets with with_tags or tags.default, but not a blank one" do
+      WebMock.stub_request(:post, messages_url)
+             .to_return(reply(anthropic_message(id: "msg_r", usage: { input_tokens: 10, output_tokens: 5 })))
+      ask = -> { RubyLLM.workflow("Research", id: "run-42") { chat("claude-sonnet-4-6", :anthropic).ask("hi") } }
+
+      capture_sdk_events do |events|
+        LlmCostTracker.with_tags(run_id: "job-7") { ask.call }
+        LlmCostTracker.with_tags(run_id: "") { ask.call }
+        LlmCostTrackerReset.call
+        LlmCostTracker.configure do |config|
+          config.pricing.unknown_model_behavior = :ignore
+          config.tags.default = -> { { run_id: "job-8" } }
+          config.instrument(:ruby_llm)
+        end
+        ask.call
+        expect(events.map { |event| event[:tags][:run_id] }).to eq(%w[job-7 run-42 job-8])
+      end
+    end
+
+    it "lets a :block_requests rule see the workflow's run_id, name and step before the call is sent" do
       seen = []
       allow(LlmCostTracker::Budget::PerTag).to receive(:blocking?).and_return(true)
       allow(LlmCostTracker::Budget::PerTag).to receive(:rules_for) { |tags, **| seen << tags.to_h && [] }
       WebMock.stub_request(:post, messages_url)
              .to_return(reply(anthropic_message(id: "msg_w", usage: { input_tokens: 1, output_tokens: 1 })))
+      run_id = nil
 
       RubyLLM.workflow("Write article") do |workflow|
+        run_id = workflow.id
         workflow.step("Draft") { chat("claude-sonnet-4-6", :anthropic).ask("hi") }
       end
 
-      expect(seen.first).to include(workflow_name: "Write article", workflow_step_name: "Draft")
+      expect(seen.first).to include(run_id: run_id, workflow_name: "Write article", workflow_step_name: "Draft")
     end
 
     it "logs and keeps the call when recording fails" do
