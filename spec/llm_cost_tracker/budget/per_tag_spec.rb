@@ -281,7 +281,17 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       2.times { described_class.spend("tenant_id", "42", :monthly, time: Time.now.utc) }
 
       expect(LlmCostTracker::Logging)
-        .to have_received(:warn).with(/per_tag\["tenant_id"\] monthly read took/).once
+        .to have_received(:warn).with(/per_tag\["tenant_id"\] monthly read took.*high-cardinality tags/).once
+    end
+
+    it "names the run's length, not the tag's cardinality, when a total or calls read is slow" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      stub_const("LlmCostTracker::Budget::PerTag::SLOW_READ_SECONDS", 0)
+
+      described_class.spend("run_id", "r1", :calls, time: Time.now.utc)
+
+      expect(LlmCostTracker::Logging).to have_received(:warn)
+        .with(/per_tag\["run_id"\] calls read took .* sums every call the value has recorded, so it suits short-lived/)
     end
   end
 

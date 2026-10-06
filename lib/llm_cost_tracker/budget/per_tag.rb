@@ -146,10 +146,15 @@ module LlmCostTracker
           @slow_keys ||= Set.new
           return unless @slow_keys.add?(key)
 
+          reason = if WINDOW_STARTS.key?(window)
+                     "A tag with few distinct values covers most of the ledger, so its budget check cannot use " \
+                       "an index effectively. Budget high-cardinality tags such as a tenant or user id."
+                   else
+                     "A #{window} limit sums every call the value has recorded, so it suits short-lived values " \
+                       "such as a run."
+                   end
           Logging.warn(
-            "config.budgets.per_tag[#{key.inspect}] #{window} read took #{(seconds * 1000).round} ms. " \
-            "A tag with few distinct values covers most of the ledger, so its budget check cannot use " \
-            "an index effectively. Budget high-cardinality tags such as a tenant or user id."
+            "config.budgets.per_tag[#{key.inspect}] #{window} read took #{(seconds * 1000).round} ms. #{reason}"
           )
         end
 
