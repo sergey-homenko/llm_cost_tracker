@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "English"
+
 module LlmCostTracker
   module Integrations
     module Openai
@@ -74,14 +76,33 @@ module LlmCostTracker
         def each(&block)
           return super unless block
 
-          super do |event|
-            LlmCostTracker::Integrations::Openai.record_websocket_event(event, url, @llm_cost_tracker_tags)
-            block.call(event)
+          begin
+            super do |event|
+              llm_cost_tracker_record(event)
+              block.call(event)
+            end
+          ensure
+            llm_cost_tracker_raise_deferred unless $ERROR_INFO
           end
         end
 
         def receive
-          super.tap { |event| LlmCostTracker::Integrations::Openai.record_websocket_event(event, url, @llm_cost_tracker_tags) }
+          llm_cost_tracker_raise_deferred
+          super.tap { |event| llm_cost_tracker_record(event) }
+        end
+
+        private
+
+        def llm_cost_tracker_record(event)
+          LlmCostTracker::Integrations::Openai.record_websocket_event(event, url, @llm_cost_tracker_tags)
+        rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
+          @llm_cost_tracker_deferred ||= e
+        end
+
+        def llm_cost_tracker_raise_deferred
+          error = @llm_cost_tracker_deferred
+          @llm_cost_tracker_deferred = nil
+          raise error if error
         end
       end
 
