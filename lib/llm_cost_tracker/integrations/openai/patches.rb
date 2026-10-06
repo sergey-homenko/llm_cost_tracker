@@ -63,6 +63,28 @@ module LlmCostTracker
         end
       end
 
+      module ResponsesConnectionPatch
+        def send_event(event)
+          created = LlmCostTracker::Integrations::Openai.websocket_create(event, url)
+          super.tap do
+            (@llm_cost_tracker_tags ||= {})[created["stream_id"]] = LlmCostTracker::Tags::Context.tags if created
+          end
+        end
+
+        def each(&block)
+          return super unless block
+
+          super do |event|
+            LlmCostTracker::Integrations::Openai.record_websocket_event(event, url, @llm_cost_tracker_tags)
+            block.call(event)
+          end
+        end
+
+        def receive
+          super.tap { |event| LlmCostTracker::Integrations::Openai.record_websocket_event(event, url, @llm_cost_tracker_tags) }
+        end
+      end
+
       module ChatCompletionsPatch
         include PatchBuilder.build(record_method: :record_response, methods: %i[create])
         include PatchBuilder.build_stream(methods: %i[stream stream_raw])

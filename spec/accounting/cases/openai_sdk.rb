@@ -829,4 +829,31 @@ module AccountingCases
               responses_object(id: "resp_br3", model: "openai.gpt-oss-120b", usage: responses_usage(1000, 200)))
     bedrock_openai_client(:mantle, "us-west-2").responses.create(model: "openai.gpt-oss-120b", input: "hi")
   end
+
+  def websocket_turn(id, model, usage, status: "completed")
+    response = { id: id, object: "response", created_at: 1_758_000_000, status: "in_progress", model: model,
+                 output: [], usage: nil, tools: [] }
+    [{ type: "response.created", sequence_number: 0, response: response },
+     { type: "response.#{status}", sequence_number: 1,
+       response: response.merge(status: status, output: [output_message(id)], usage: usage) }]
+  end
+
+  define_case "openai sdk responses websocket: each response at the tags it was created under", instrument: :openai do
+    transport, = responses_websocket(websocket_turn("resp_ws1", "gpt-4o", responses_usage(1000, 300, cached: 200)) +
+                                     websocket_turn("resp_ws2", "gpt-4o", responses_usage(500, 100), status: "incomplete"))
+    openai_client.responses.connect(transport: transport) do |connection|
+      LlmCostTracker.with_tags(turn: "first") { connection.response.create(model: "gpt-4o", input: "hi") }
+      connection.each { |event| break if event.type.to_s == "response.completed" }
+      LlmCostTracker.with_tags(turn: "second") { connection.response.create(model: "gpt-4o", input: "more") }
+      connection.each { nil }
+    end
+  end
+
+  define_case "openai sdk responses websocket: gpt-5.4 read with receive on the eu host", instrument: :openai do
+    transport, = responses_websocket(websocket_turn("resp_ws3", "gpt-5.4", responses_usage(2000, 500)))
+    openai_client("https://eu.api.openai.com/v1").responses.connect(transport: transport) do |connection|
+      connection.response.create(model: "gpt-5.4", input: "hi")
+      while connection.receive; end
+    end
+  end
 end

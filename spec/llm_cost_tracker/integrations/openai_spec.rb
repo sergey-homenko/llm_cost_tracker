@@ -85,6 +85,29 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "responses.connect" do
+    it "blocks a response.create over budget before it is sent and sends one within budget" do
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.instrument(:openai)
+        config.budgets.daily = 1.0
+        config.budgets.exceeded_behavior = :block_requests
+      end
+      transport, socket = responses_websocket([])
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 2.0)
+
+      client.responses.connect(transport: transport) do |connection|
+        expect { connection.response.create(model: "gpt-4o", input: "hi") }
+          .to raise_error(LlmCostTracker::BudgetExceededError)
+        expect(socket.written).to be_empty
+        allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(day: 0.0)
+        connection.response.create(model: "gpt-4o", input: "hi")
+      end
+
+      expect(socket.written.size).to eq(1)
+    end
+  end
+
   describe "responses.retrieve" do
     def stub_retrieve(status:, background: true, usage: nil)
       WebMock.stub_request(:get, "https://api.openai.com/v1/responses/resp_bg").to_return(
