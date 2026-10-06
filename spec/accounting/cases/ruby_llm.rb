@@ -48,6 +48,13 @@ module AccountingCases
       usage: usage }
   end
 
+  def cohere_embed(billed_units)
+    stub_json(:post, "https://api.cohere.com/v2/embed",
+              { id: "emb_v5", embeddings: { float: [[0.12, -0.03]] }, texts: ["ruby"],
+                meta: { api_version: { version: "2" }, billed_units: billed_units }, response_type: "embeddings_by_type" })
+    RubyLLM.embed("ruby", model: "embed-v5.0-pro", provider: :cohere, assume_model_exists: true, context: cohere_context)
+  end
+
   def bedrock_context(region)
     RubyLLM.context do |config|
       config.bedrock_api_key = "AKIATEST"
@@ -864,11 +871,22 @@ module AccountingCases
 
   define_case "ruby_llm cohere embed: embed-v5.0-pro billed input tokens at the bundled rate",
               instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
-    stub_json(:post, "https://api.cohere.com/v2/embed",
-              { id: "emb_v5", embeddings: { float: [[0.12, -0.03]] }, texts: ["ruby"],
-                meta: { api_version: { version: "2" }, billed_units: { input_tokens: 2400 } },
-                response_type: "embeddings_by_type" })
-    RubyLLM.embed("ruby", model: "embed-v5.0-pro", provider: :cohere, assume_model_exists: true, context: cohere_context)
+    cohere_embed(input_tokens: 2400)
+  end
+
+  define_case "ruby_llm cohere embed: embed-v5.0-pro billed image tokens unpriced next to its text, so partial",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
+    cohere_embed(input_tokens: 7, image_tokens: 1000)
+  end
+
+  define_case "ruby_llm cohere embed: embed-v5.0-pro billed image tokens alone unknown, not free",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
+    cohere_embed(input_tokens: 0, image_tokens: 1000)
+  end
+
+  define_case "ruby_llm cohere embed: embed-v5.0-pro billed images without token counts unknown",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
+    cohere_embed(images: 1)
   end
 
   define_case "ruby_llm cohere ocr: parse-v5.0 billed pages at the per-page rate",

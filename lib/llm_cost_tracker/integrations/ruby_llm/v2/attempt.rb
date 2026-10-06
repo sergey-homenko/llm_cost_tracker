@@ -110,13 +110,15 @@ module LlmCostTracker
 
             def billed_units(usage, raw, events)
               units = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash).filter_map do |data|
-                (data["type"] == "message-end" ? data.dig("delta", "usage") : data["usage"]).try(:[], "billed_units")
+                (data["type"] == "message-end" ? data.dig("delta", "usage") : data["usage"] || data["meta"])
+                  .try(:[], "billed_units")
               end.last
               return usage unless units
 
               tokens = usage[:tokens]
               usage.merge(tokens: RubyLLM::Tokens.new(input: units["input_tokens"] || tokens.input,
-                                                      output: units["output_tokens"] || tokens.output))
+                                                      output: units["output_tokens"] || tokens.output),
+                          image_tokens: units["image_tokens"])
             end
 
             def converse_event(usage, payload, raw, events)
@@ -189,6 +191,7 @@ module LlmCostTracker
               Usage::TokenUsage.build(
                 input_tokens: input - audio,
                 audio_input_tokens: audio,
+                image_input_tokens: usage[:image_tokens],
                 output_tokens: output - image,
                 image_output_tokens: image,
                 cache_read_input_tokens: tokens.cache_read.to_i,
