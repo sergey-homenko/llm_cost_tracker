@@ -59,7 +59,7 @@ Process shutdown should stop the local ingestor thread without forcing every exi
 
 ## Per-Tag Budget Reads
 
-`config.budgets.per_tag` reads from the `total_cost` and `tracked_at` columns on `llm_cost_tracker_call_tags`, not from the calls ledger, so it never joins. Windows are `daily`, `weekly` and `monthly`, one indexed query per window of every declared tag on the call. The post-spend check runs from `Tracker.record` on the inline path and from `Ingestion::Batch#persist_batch` on the drain, which is why a scoped total counts only what has been drained.
+`config.budgets.per_tag` reads from the `total_cost` and `tracked_at` columns on `llm_cost_tracker_call_tags`, not from the calls ledger, so it never joins. Windows are `daily`, `weekly`, `monthly` and the unbounded `total`, plus the `calls` count, one indexed query per window of every declared tag on the call. The post-spend check runs from `Tracker.record` on the inline path and from `Ingestion::Batch#persist_batch` on the drain, which is why a scoped total counts only what has been drained.
 
 ## Retention
 

@@ -59,7 +59,7 @@ end
 
 ## Budgets
 
-Daily, monthly, and per-call limits, plus per-tag limits such as one monthly budget per `tenant_id`. A crossed limit calls your `on_exceeded` hook, raises, or blocks the next call before it is sent. See [Budgets](docs/budgets.md).
+Daily, monthly, and per-call limits, plus per-tag limits such as one monthly budget per `tenant_id`, or a lifetime cap in dollars or calls per agent run (`run_id`, which `RubyLLM.workflow` sets). A crossed limit calls your `on_exceeded` hook, raises, or blocks the next call before it is sent. See [Budgets](docs/budgets.md).
 
 ## Supported clients
 
