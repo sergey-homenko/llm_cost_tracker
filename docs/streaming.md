@@ -66,7 +66,7 @@ RubyLLM streaming reads from the stream events the fields a blocking call reads 
 
 Tags are snapshotted when the stream starts, so delayed or cross-thread consumption keeps the original request/user attribution.
 
-A Responses WebSocket connection records each `response.completed`, `response.incomplete`, or `response.failed` event that carries usage when it is read, with the tags active when the latest `response.create` was sent on its lane (`stream_id`); `:block_requests` checks each `response.create` before it is sent. A budget or unknown-pricing error a recorded response raises comes after the caller has that event: from `each` when it ends, from the next `receive`.
+A Responses WebSocket connection records each `response.completed`, `response.incomplete`, or `response.failed` event that carries usage when it is read, with the tags active when the latest `response.create` was sent on its lane (`stream_id`); `:block_requests` checks each `response.create` before it is sent. A budget or unknown-pricing error a recorded response raises comes after the caller has that event: from `each` when it ends, from the next `receive`. An `OpenAI::Responses::Session` lane whose `response.create` a `BudgetExceededError` blocked still waits for that response, so close the lane or the session.
 
 ## Explicit Streaming
 
