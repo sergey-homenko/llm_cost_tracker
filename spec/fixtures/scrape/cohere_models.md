@@ -1,0 +1,218 @@
+> For clean Markdown of any page, append .md to the page URL.
+> For a complete documentation index, see https://docs.cohere.com/llms.txt.
+> For AI client integration (Claude Code, Cursor, etc.), connect to the MCP server at https://docs.cohere.com/_mcp/server.
+
+# An Overview of Cohere's Models
+
+> Cohere has a variety of models that cover many different use cases. If you need more customization, you can train a model to tune it to your specific use case.
+
+Cohere has a variety of models that cover many different use cases. If you need more customization, you
+can [tune your prompts](crafting-effective-prompts) to adjust its behavior to your specific
+use case.
+
+Cohere models are currently available on the following platforms:
+
+* [Cohere’s proprietary platform](https://dashboard.cohere.com/playground/chat)
+* [Amazon SageMaker](https://aws.amazon.com/marketplace/seller-profile?id=87af0c85-6cf9-4ed8-bee0-b40ce65167e0)
+* [Amazon Bedrock](https://us-west-2.console.aws.amazon.com/bedrock/home?region=us-west-2#/providers?model=cohere.command-r-plus-v1:0)
+* [Microsoft Azure](https://ai.azure.com/explore/models/?tid=694fed05-7f6d-4ab2-8c38-9afb438eab6f\&selectedCollection=cohere)
+* [Oracle GenAI Service](https://www.oracle.com/artificial-intelligence/generative-ai/generative-ai-service/)
+
+At the end of each major section below, you'll find technical details about how to call a given model on a
+particular platform.
+
+## What can These Models Be Used For?
+
+In this section, we'll provide some high-level context on Cohere's offerings, and what the strengths of each
+are.
+
+* The Command family of models includes [Command A+](command-a-plus), [Command A](command-a),
+  [Command R7B](command-r7b), [Command A Translate](command-a-translate),
+  [Command A Reasoning](command-a-reasoning), [Command A Vision](command-a-vision),
+  [Command R+](command-r-plus), [Command R](command-r), and [Command](https://cohere.com/models/command?_gl=1*15hfaqm*_ga*MTAxNTg1NTM1MS4xNjk1MjMwODQw*_ga_CRGS116RZS*MTcxNzYwMzYxMy4zNTEuMS4xNzE3NjAzNjUxLjIyLjAuMA..).
+  Together, they are the text-generation LLMs powering tool-using agents,
+  [retrieval augmented generation](retrieval-augmented-generation-rag) (RAG), translation, copywriting, and
+  similar use cases. They work through the [Chat](../reference/chat) endpoint, which can be used with or without
+  RAG.
+* [Rerank](../../docs/rerank) is the fastest way to inject the intelligence of a language model into an existing search system. It can be accessed via the [Rerank](../reference/rerank-1) endpoint.
+* [Embed](../../docs/cohere-embed) improves the accuracy of search, classification, clustering, and RAG results. It powers the [Embed](../reference/embed) endpoint.
+* [Parse](../../docs/parse) extracts structured, machine-readable data from unstructured enterprise documents, like forms and PDFs. It powers the [Parse](../../v2/reference/parse) endpoint.
+* [Cohere Transcribe](../../v2/docs/transcribe) is Cohere's dedicated audio transcription model for automatic speech
+  recognition (ASR). It powers the [Audio Transcriptions](../../v2/reference/create-audio-transcription) endpoint.
+  [Cohere Transcribe Arabic](../../v2/docs/transcribe-arabic) is a version of the model optimized for Arabic-language
+  audio.
+* The [Aya](aya) family of models are aimed at expanding the number of languages covered by
+  generative AI. Aya Expanse covers 23 languages, and Aya Vision is fully multimodal, allowing you to pass
+  in images and text and get a single coherent response. Both are available on the [Chat](../reference/chat)
+  endpoint.
+* The North family includes purpose-built models such as
+  [North Small Translate](north-small-translate-1.0) for machine translation and
+  [North Mini Code](north-mini-code-1.0) for agentic coding. Both are available through the
+  [Chat](../reference/chat) endpoint. North Mini Code also supports production deployment through
+  [Model Vault](../../v2/docs/model-vault).
+
+## Command
+
+Command is Cohere's default generation model that takes a user instruction (or command) and generates text
+following the instruction. Our Command models also have conversational capabilities, meaning they are
+well-suited for chat applications, and Command A Vision can interact with [image inputs](../../v2/docs/image-inputs).
+
+| Model Name                    | Status                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Modality     | Context Length | Maximum Output Tokens | Endpoints                 |
+| ----------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | -------------- | --------------------- | ------------------------- |
+| `command-a-plus-05-2026`      | Live                     | Command A+ offers the last model in the Command A family, while being Cohere's first Mixture of Experts model,  simultaneously combining vision input support, agentic, reasoning, and world-class translation capabilities into single model weights. It also can fit on 1 x B200 or 2 x H100 GPUs, while providing significant latency and throughput improvements over Command A Reasoning, making it an ideal model for any enterprise to deploy at scale. | Text, Images | 128k           | 64k                   | [Chat](../reference/chat) |
+| `command-a-03-2025`           | Live                     | Command A is our most performant model to date, excelling at tool use, agents, retrieval augmented generation (RAG), and multilingual use cases. Command A has a context length of 256K, only requires two GPUs to run, and has 150% higher throughput compared to Command R+ 08-2024.                                                                                                                                                                         | Text         | 256k           | 8k                    | [Chat](../reference/chat) |
+| `command-r7b-12-2024`         | Live                     | `command-r7b-12-2024` is a small, fast update delivered in December 2024. It excels at RAG, tool use, agents, and similar tasks requiring complex reasoning and multiple steps.                                                                                                                                                                                                                                                                                | Text         | 128k           | 4k                    | [Chat](../reference/chat) |
+| `command-a-translate-08-2025` | Live                     | Command A Translate is Cohere’s state of the art machine translation model, excelling at a variety of translation tasks on 23 languages: English, French, Spanish, Italian, German, Portuguese, Japanese, Korean, Chinese, Arabic, Russian, Polish, Turkish, Vietnamese, Dutch, Czech, Indonesian, Ukrainian, Romanian, Greek, Hindi, Hebrew, Persian.                                                                                                         | Text         | 8K             | 8k                    | [Chat](../reference/chat) |
+| `command-a-reasoning-08-2025` | Live                     | Command A Reasoning is Cohere's first reasoning model, able to 'think' before generating an output in a way that allows it to perform well in certain kinds of nuanced problem-solving and agent-based tasks in 23 languages.                                                                                                                                                                                                                                  | Text         | 256k           | 32k                   | [Chat](../reference/chat) |
+| `command-a-vision-07-2025`    | Live                     | Command A Vision is our first model capable of processing images, excelling in enterprise use cases such as analyzing charts, graphs, and diagrams, table understanding, OCR, document Q\&A, and object detection. It officially supports English, Portuguese, Italian, French, German, and Spanish.                                                                                                                                                           | Text, Images | 128K           | 8K                    | [Chat](../reference/chat) |
+| `command-r-08-2024`           | Live                     | `command-r-08-2024` is an update of the Command R model, delivered in August 2024. Find more information in the [changelog](https://docs.cohere.com/changelog/command-gets-refreshed)                                                                                                                                                                                                                                                                          | Text         | 128k           | 4k                    | [Chat](../reference/chat) |
+| `command-r-plus-08-2024`      | Live                     | `command-r-plus-08-2024` is an update of the Command R+ model, delivered in August 2024. Find more information in the [changelog](https://docs.cohere.com/changelog/command-gets-refreshed)                                                                                                                                                                                                                                                                    | Text         | 128k           | 4k                    | [Chat](../reference/chat) |
+| `command-r-03-2024`           | Deprecated Sept 15, 2025 | Command R is an instruction-following conversational model that performs language tasks at a higher quality, more reliably, and with a longer context than previous models. It can be used for complex workflows like code generation, retrieval augmented generation (RAG), tool use, and agents.                                                                                                                                                             | Text         | 128k           | 4k                    | [Chat](../reference/chat) |
+| `command-r-plus-04-2024`      | Deprecated Sept 15, 2025 | Command R+ is an instruction-following conversational model that performs language tasks at a higher quality, more reliably, and with a longer context than previous models. It is best suited for complex RAG workflows and multi-step tool use.                                                                                                                                                                                                              | Text         | 128k           | 4k                    | [Chat](../reference/chat) |
+| `command-r-plus`              | Deprecated Sept 15, 2025 | Alias for `command-r-plus-04-2024`                                                                                                                                                                                                                                                                                                                                                                                                                             | Text         | 128k           | 4k                    | [Chat](../reference/chat) |
+| `command-r`                   | Deprecated Sept 15, 2025 | Alias for `command-r-03-2024`                                                                                                                                                                                                                                                                                                                                                                                                                                  | Text         | 128k           | 4k                    | [Chat](../reference/chat) |
+| `command-light`               | Deprecated Sept 15, 2025 | A smaller, faster version of `command`. Almost as capable, but a lot faster.                                                                                                                                                                                                                                                                                                                                                                                   | Text         | 4k             | 4k                    | [Chat](../reference/chat) |
+| `command`                     | Deprecated Sept 15, 2025 | An instruction-following conversational model that performs language tasks with high quality, more reliably and with a longer context than our base generative models.                                                                                                                                                                                                                                                                                         | Text         | 4k             | 4k                    | [Chat](../reference/chat) |
+
+### Using Command Models on Different Platforms
+
+In this table, we provide some important context for using Cohere Command models on Amazon Bedrock, Amazon SageMaker, and more.
+
+| Model Name               | Amazon Bedrock Model ID         | Amazon SageMaker      | Azure AI Foundry                         | Oracle OCI Generative AI Service |
+| :----------------------- | :------------------------------ | :-------------------- | :--------------------------------------- | :------------------------------- |
+| `command-a-plus-05-2026` | N/A                             | N/A                   | 'coherelabs-command-a-plus-05-2026-w4a4' | N/A                              |
+| `command-a-03-2025`      | (Coming Soon)                   | Unique per deployment | Unique per deployment                    | `cohere.command-a-03-2025`       |
+| `command-r7b-12-2024`    | N/A                             | N/A                   | N/A                                      | N/A                              |
+| `command-r-plus`         | `cohere.command-r-plus-v1:0`    | Unique per deployment | Unique per deployment                    | `cohere.command-r-plus v1.2`     |
+| `command-r`              | `cohere.command-r-v1:0`         | Unique per deployment | Unique per deployment                    | `cohere.command-r-16k v1.2`      |
+| `command`                | `cohere.command-text-v14`       | N/A                   | N/A                                      | `cohere.command v15.6`           |
+| `command-nightly`        | N/A                             | N/A                   | N/A                                      | N/A                              |
+| `command-light`          | `cohere.command-light-text-v14` | N/A                   | N/A                                      | `cohere.command-light v15.6`     |
+| `command-light-nightly`  | N/A                             | N/A                   | N/A                                      | N/A                              |
+
+## North
+
+North is Cohere's family of purpose-built generative models. North models are available on the Cohere API for
+evaluation. [North Mini Code](north-mini-code-1.0) also supports production deployment through
+[Model Vault](../../v2/docs/model-vault).
+
+| Model Name                  | Status | Description                                                                                                                                                              | Modality | Context Length | Maximum Output Tokens | Endpoints                 |
+| --------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | -------------- | --------------------- | ------------------------- |
+| `north-small-translate-1-0` | Live   | [North Small Translate](north-small-translate-1.0) is a 218B total / 25B active parameter MoE model purpose-built for machine translation across more than 50 languages. | Text     | 16k            | 16k                   | [Chat](../reference/chat) |
+| `north-mini-code-1-0`       | Live   | [North Mini Code](north-mini-code-1.0) is a 30B total / 3B active parameter MoE model trained for agentic coding.                                                        | Text     | 256k           | 64k                   | [Chat](../reference/chat) |
+
+## Embed
+
+These models can be used to generate embeddings from text or classify it based on various parameters. Embeddings can be used for estimating semantic similarity between two sentences, choosing a sentence which is most likely to follow another sentence, or categorizing user feedback. The Representation model comes with a variety of helper functions, such as for detecting the language of an input.
+
+| Model Name                      | Description                                                                                                               | Modalities                                   | Dimensions                                            | Context Length | Similarity Metric                                             | Endpoints                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------- | -------------- | ------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `embed-v5.0-pro`                | Our most capable embedding model, for text and images. Higher quality than `embed-v5.0-fast`, at higher latency.          | Text, Images, Mixed texts/images (i.e. PDFs) | One of '\[256, 512, 768, 1024, 1536, 2048 (default)]' | 128k           | Cosine Similarity, Dot Product Similarity, Euclidean Distance | [Embed](../reference/embed)                                         |
+| `embed-v5.0-fast`               | A faster, lighter version of `embed-v5.0-pro`. Allows for text and images to be classified or turned into embeddings      | Text, Images, Mixed texts/images (i.e. PDFs) | One of '\[256, 512, 768, 1024, 1536, 2048 (default)]' | 128k           | Cosine Similarity, Dot Product Similarity, Euclidean Distance | [Embed](../reference/embed)                                         |
+| `embed-v4.0`                    | A model that allows for text and images to be classified or turned into embeddings                                        | Text, Images, Mixed texts/images (i.e. PDFs) | One of '\[256, 512, 1024, 1536 (default)]'            | 128k           | Cosine Similarity, Dot Product Similarity, Euclidean Distance | [Embed](../reference/embed),  [Embed Jobs](../reference/embed-jobs) |
+| `embed-english-v3.0`            | A model that allows for text to be classified or turned into embeddings. English only.                                    | Text, Images                                 | 1024                                                  | 512            | Cosine Similarity                                             | [Embed](../reference/embed),  [Embed Jobs](../reference/embed-jobs) |
+| `embed-english-light-v3.0`      | A smaller, faster version of `embed-english-v3.0`. Almost as capable, but a lot faster. English only.                     | Text, Images                                 | 384                                                   | 512            | Cosine Similarity                                             | [Embed](../reference/embed),  [Embed Jobs](../reference/embed-jobs) |
+| `embed-multilingual-v3.0`       | Provides multilingual classification and embedding support. [See supported languages here.](/docs/supported-languages)    | Text, Images                                 | 1024                                                  | 512            | Cosine Similarity                                             | [Embed](../reference/embed), [Embed Jobs](../reference/embed-jobs)  |
+| `embed-multilingual-light-v3.0` | A smaller, faster version of `embed-multilingual-v3.0`. Almost as capable, but a lot faster. Supports multiple languages. | Text, Images                                 | 384                                                   | 512            | Cosine Similarity                                             | [Embed](../reference/embed),  [Embed Jobs](../reference/embed-jobs) |
+
+### Using Embed Models on Different Platforms
+
+In this table, we provide some important context for using Cohere Embed models on Amazon Bedrock, Amazon SageMaker, and more.
+
+| Model Name                      | Amazon Bedrock Model ID        | Amazon SageMaker      | Azure AI Foundry                                                                   | Oracle OCI Generative AI Service                                                                             |
+| :------------------------------ | :----------------------------- | :-------------------- | :--------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------- |
+| `embed-v5.0-pro`                | N/A                            | Unique per deployment | [`Cohere-Embed-V5-Pro`](https://ai.azure.com/catalog/models/Cohere-Embed-V5-Pro)   | N/A                                                                                                          |
+| `embed-v5.0-fast`               | N/A                            | Unique per deployment | [`Cohere-Embed-V5-Fast`](https://ai.azure.com/catalog/models/Cohere-Embed-V5-Fast) | N/A                                                                                                          |
+| `embed-v4.0`                    | (Coming Soon)                  | Unique per deployment | `cohere-embed-v-4-plan`                                                            | (Coming Soon)                                                                                                |
+| `embed-english-v3.0`            | `cohere.embed-english-v3`      | Unique per deployment | Unique per deployment                                                              | `cohere.embed-english-image-v3.0` (for images), `cohere.embed-english-v3.0` (for text)                       |
+| `embed-english-light-v3.0`      | N/A                            | Unique per deployment | N/A                                                                                | `cohere.embed-english-light-image-v3.0` (for images), `cohere.embed-english-light-v3.0` (for text)           |
+| `embed-multilingual-v3.0`       | `cohere.embed-multilingual-v3` | Unique per deployment | Unique per deployment                                                              | `cohere.embed-multilingual-image-v3.0` (for images), `cohere.embed-multilingual-v3.0` (for text)             |
+| `embed-multilingual-light-v3.0` | N/A                            | Unique per deployment | N/A                                                                                | `cohere.embed-multilingual-light-image-v3.0` (for images), `cohere.embed-multilingual-light-v3.0` (for text) |
+| `embed-english-v2.0`            | N/A                            | Unique per deployment | N/A                                                                                | N/A                                                                                                          |
+| `embed-english-light-v2.0`      | N/A                            | Unique per deployment | N/A                                                                                | `cohere.embed-english-light-v2.0`                                                                            |
+| `embed-multilingual-v2.0`       | N/A                            | Unique per deployment | N/A                                                                                | N/A                                                                                                          |
+
+## Rerank
+
+The Rerank model can improve created models by re-organizing their results based on certain parameters. This can be used to improve search algorithms.
+
+| Model Name                 | Description                                                                                                                                                                                                                                                        | Modalities | Context Length | Endpoints                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | -------------- | ----------------------------- |
+| `rerank-v4.0-pro`          | A multilingual model that allows for re-ranking English and non-english documents and semi-structured data (JSON). This model is better suited for state-of-the-art quality and complex use-cases than its `fast` variant.                                         | Text       | 32k            | [Rerank](../reference/rerank) |
+| `rerank-v4.0-fast`         | A light version of `rerank-v4.0-pro`, this is a multilingual model that allows for re-ranking English and non-english documents and semi-structured data (JSON). This model is better suited for low latency and high throughput use-cases than its `pro` variant. | Text       | 32k            | [Rerank](../reference/rerank) |
+| `rerank-v3.5`              | A model that allows for re-ranking English Language documents and semi-structured data (JSON). This model has a context length of 4096 tokens.                                                                                                                     | Text       | 4k             | [Rerank](../reference/rerank) |
+| `rerank-english-v3.0`      | A model that allows for re-ranking English Language documents and semi-structured data (JSON). This model has a context length of 4096 tokens.                                                                                                                     | Text       | 4k             | [Rerank](../reference/rerank) |
+| `rerank-multilingual-v3.0` | A model for documents and semi-structure data (JSON) that are not in English. Supports the same languages as `embed-multilingual-v3.0`. This model has a context length of 4096 tokens.                                                                            | Text       | 4k             | [Rerank](../reference/rerank) |
+
+### Using Rerank Models on Different Platforms
+
+In this table, we provide some important context for using Cohere Rerank models on Amazon Bedrock, SageMaker, and more.
+
+| Model Name                 | Amazon Bedrock Model ID | Amazon SageMaker      | Azure AI Foundry                | Oracle OCI Generative AI Service |
+| :------------------------- | :---------------------- | :-------------------- | :------------------------------ | :------------------------------- |
+| `rerank-v4.0-pro`          | N/A                     | Unique per deployment | `cohere-rerank-v4-pro`          | N/A                              |
+| `rerank-v4.0-fast`         | N/A                     | Unique per deployment | `cohere-rerank-v4-fast`         | N/A                              |
+| `rerank-v3.5`              | `cohere.rerank-v3-5:0`  | Unique per deployment | `Cohere-rerank-v3.5`            | `cohere.rerank.3-5`              |
+| `rerank-english-v3.0`      | N/A                     | Unique per deployment | `Cohere-rerank-v3-english`      | N/A                              |
+| `rerank-multilingual-v3.0` | N/A                     | Unique per deployment | `Cohere-rerank-v3-multilingual` | N/A                              |
+
+\
+
+
+> **Note**
+>
+> Rerank accepts full strings rather than tokens, so the token limit works a little differently. Rerank will automatically chunk documents longer than 510 tokens, and there is therefore no explicit limit to how long a document can be when using rerank. See our [best practice guide](/docs/reranking-best-practices) for more info about formatting documents for the Rerank endpoint.
+
+## Parse
+
+Parse is our vision parsing model for extracting structured data from enterprise documents that can be used in AI search and agentic applications.
+
+| Model Name   | Status | Description                                                                   | Endpoints                         |
+| ------------ | ------ | ----------------------------------------------------------------------------- | --------------------------------- |
+| `parse-v5.0` | Live   | For document intelligence workloads that demand accurate, high-volume parsing | [Parse](../../v2/reference/parse) |
+
+### Using Parse Models on Different Platforms
+
+In this table, we provide some important context for using Cohere Parse on Amazon SageMaker and Azure Foundry.
+
+| Model Name   | Amazon SageMaker      | Azure AI Foundry    |
+| :----------- | :-------------------- | :------------------ |
+| `parse-v5.0` | Unique per deployment | `cohere-parse-v5.0` |
+
+## Audio
+
+Cohere Transcribe is our dedicated model for audio-in, text-out automatic speech recognition (ASR) workloads. For Arabic-language transcription, use Cohere Transcribe Arabic for best-in-class performance.
+
+| Model Name                         | Status | Description                                                                    | Maximum file size | Endpoints                                                             |
+| ---------------------------------- | ------ | ------------------------------------------------------------------------------ | ----------------- | --------------------------------------------------------------------- |
+| `cohere-transcribe-03-2026`        | Live   | Open source model focused on high-accuracy, multilingual speech transcription. | 25MB              | [Audio Transcriptions](../../v2/reference/create-audio-transcription) |
+| `cohere-transcribe-arabic-07-2026` | Live   | Finetune optimized for Arabic audio inputs                                     | 25MB              | [Audio Transcriptions](../../v2/reference/create-audio-transcription) |
+
+### Using Audio Models on Different Platforms
+
+Cohere Transcribe is available on Microsoft Foundry under 'coherelabs-cohere-transcribe-03-2026'. Cohere Transcribe Arabic is not yet available on other platforms.
+
+## Aya
+
+[Aya](https://cohere.com/research/aya) is a family of multilingual large language models designed to expand the number of languages covered by generative AI for purposes of research and to better-serve minority linguistic communities.
+
+The 32-billion parameter Aya Expanse offering is optimized to perform well in these 23 languages: Arabic,
+Chinese (simplified & traditional), Czech, Dutch, English, French, German, Greek, Hebrew, Hebrew, Hindi, Indonesian,
+Italian, Japanese, Korean, Persian, Polish, Portuguese, Romanian, Russian, Spanish, Turkish, Ukrainian, and
+Vietnamese.
+
+The 32-billion parameter Aya Vision model is a state-of-the-art multimodal model excelling at a variety of
+critical benchmarks for language, text, and image capabilities.
+
+Tiny Aya is a compact 3.35B-parameter multilingual model supporting 70 languages. Its instruction-tuned variants are available on the Cohere API via the [Chat](../reference/chat) endpoint and as open-weight models on [Hugging Face](https://huggingface.co/collections/CohereLabs/tiny-aya).
+
+| Model Name             | Status              | Description                                                                                                                                                                                                                                             | Modality     | Context Length | Maximum Output Tokens | Endpoints                 |
+| ---------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | -------------- | --------------------- | ------------------------- |
+| `tiny-aya-global`      | Live                | Tiny Aya Global is a 3.35B instruction-tuned multilingual model with the best balance across languages and regions. Supports 70 languages.                                                                                                              | Text         | 8k             | 8k                    | [Chat](../reference/chat) |
+| `tiny-aya-earth`       | Live                | Tiny Aya Earth is a 3.35B region-specialized multilingual model, best for West Asian and African languages. Supports 70 languages.                                                                                                                      | Text         | 8k             | 8k                    | [Chat](../reference/chat) |
+| `tiny-aya-fire`        | Live                | Tiny Aya Fire is a 3.35B region-specialized multilingual model, best for South Asian languages. Supports 70 languages.                                                                                                                                  | Text         | 8k             | 8k                    | [Chat](../reference/chat) |
+| `tiny-aya-water`       | Live                | Tiny Aya Water is a 3.35B region-specialized multilingual model, best for European and Asia-Pacific languages. Supports 70 languages.                                                                                                                   | Text         | 8k             | 8k                    | [Chat](../reference/chat) |
+| `c4ai-aya-expanse-32b` | Live                | Aya Expanse is a highly performant 32B multilingual model, designed to rival monolingual performance through innovations in instruction tuning with data arbitrage, preference training, and model merging. Serves 23 languages.                        | Text         | 128k           | 4k                    | [Chat](../reference/chat) |
+| `c4ai-aya-vision-32b`  | Live                | Aya Vision is a state-of-the-art multimodal model excelling at a variety of critical benchmarks for language, text, and image capabilities. Serves 23 languages. This 32 billion parameter variant is focused on state-of-art multilingual performance. | Text, Images | 16k            | 4k                    | [Chat](../reference/chat) |
+| `c4ai-aya-expanse-8b`  | Retired Apr 4, 2026 | Aya Expanse is a highly performant 8B multilingual model, designed to rival monolingual performance through innovations in instruction tuning with data arbitrage, preference training, and model merging. Serves 23 languages.                         | Text         | 8k             | 4k                    | [Chat](../reference/chat) |
+| `c4ai-aya-vision-8b`   | Retired Apr 4, 2026 | Aya Vision is a state-of-the-art multimodal model excelling at a variety of critical benchmarks for language, text, and image capabilities. This 8 billion parameter variant is focused on low latency and best-in-class performance.                   | Text, Images | 16k            | 4k                    | [Chat](../reference/chat) |

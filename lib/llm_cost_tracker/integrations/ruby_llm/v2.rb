@@ -25,7 +25,7 @@ module LlmCostTracker
                                     Protocols::Gemini Protocols::Interactions Protocols::Converse
                                     Protocols::Mistral::Conversations Providers::Mistral::ChatCompletions],
           parse_embedding_response: %w[Protocols::ChatCompletions Protocols::Gemini Providers::VertexAI::EmbedContent
-                                       Providers::Perplexity::Embeddings],
+                                       Providers::Perplexity::Embeddings Protocols::Cohere],
           parse_transcription_response: %w[Protocols::ChatCompletions Protocols::Gemini],
           parse_speech_response: %w[Protocols::Gemini],
           stream_transcription: %w[Protocols::ChatCompletions],

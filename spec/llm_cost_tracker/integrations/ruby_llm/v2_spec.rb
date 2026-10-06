@@ -214,8 +214,9 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "records Cohere's billed units, not the token counts that include its unbilled preamble, blocking and streamed" do
-      usage = { billed_units: { input_tokens: 5, output_tokens: 26 }, tokens: { input_tokens: 71, output_tokens: 26 } }
+    it "records Cohere's billed units, image tokens included, not its preamble-inflated counts, blocking and streamed" do
+      usage = { billed_units: { input_tokens: 5, output_tokens: 26, image_tokens: 300 },
+                tokens: { input_tokens: 71, output_tokens: 26 } }
       message = { id: "co_1", finish_reason: "COMPLETE", message: { role: "assistant", content: [{ type: "text", text: "hi" }] } }
       WebMock.stub_request(:post, "https://api.cohere.com/v2/chat").to_return(
         reply(message.merge(usage: usage)),
@@ -228,8 +229,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       capture_sdk_events do |events|
         chat("command-a-03-2025", :cohere, context: keys).ask("hi")
         chat("command-a-03-2025", :cohere, context: keys).ask("hi") { |_chunk| }
-        expect(events.map { |event| event.values_at(:input_tokens, :output_tokens, :stream) })
-          .to eq([[5, 26, false], [5, 26, true]])
+        expect(events.map { |event| event.values_at(:input_tokens, :output_tokens, :image_input_tokens, :stream) })
+          .to eq([[5, 26, 300, false], [5, 26, 300, true]])
       end
     end
 

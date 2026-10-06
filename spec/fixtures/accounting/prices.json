@@ -195,10 +195,23 @@
       "input": 2.0,
       "output": 10.0
     },
+    "cohere/c4ai-aya-expanse-32b": {
+      "input": 0.5,
+      "output": 1.5
+    },
     "cohere/command-a-03-2025": {
       "_source": "litellm",
       "input": 2.5,
       "output": 10.0
+    },
+    "cohere/embed-v5.0-pro": {
+      "input": 0.12
+    },
+    "cohere/parse-v5.0": {
+      "ocr_page": 1.5
+    },
+    "cohere/rerank-v4.0-pro": {
+      "rerank_search_unit": 2.5
     },
     "deepseek/deepseek-flash": {
       "_off_peak_windows": [

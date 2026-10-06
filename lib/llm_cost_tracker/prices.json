@@ -123,6 +123,8 @@
     "schema_version": 1,
     "source_urls": [
       "https://platform.claude.com/docs/en/about-claude/pricing",
+      "https://cohere.com/pricing",
+      "https://docs.cohere.com/docs/models.md",
       "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "https://models.dev/api.json",
       "https://api-docs.deepseek.com/quick_start/pricing",
@@ -149,7 +151,7 @@
       "https://docs.x.ai/developers/pricing.md"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-10-05"
+    "updated_at": "2026-10-06"
   },
   "models": {
     "anthropic/claude-fable-5": {
