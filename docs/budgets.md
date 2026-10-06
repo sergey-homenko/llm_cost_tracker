@@ -20,8 +20,8 @@ Spend budgets evaluate only when an event has a known cost. Unknown-cost events 
 
 | Behavior | Timing | Result |
 | --- | --- | --- |
-| `:notify` | After a priced event is recorded | Calls `budgets.on_exceeded` once per budget type the event crossed (an event that pushes both daily and monthly over fires the callback twice — once per limit) |
-| `:raise` | After a priced event is recorded | Raises `LlmCostTracker::BudgetExceededError` |
+| `:notify` | After a priced event is recorded; for a `calls` limit, after any event | Calls `budgets.on_exceeded` once per budget type the event crossed (an event that pushes both daily and monthly over fires the callback twice — once per limit) |
+| `:raise` | After a priced event is recorded; for a `calls` limit, after any event | Raises `LlmCostTracker::BudgetExceededError` |
 | `:block_requests` | Before supported requests (for Faraday, `POST` only) and again after recording | Blocks the request when prior spend plus a character-count estimate of this call would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Preflight blocks do not fire `budgets.on_exceeded`; the callback only fires post-record on the event that first crossed the limit |
 
 `:raise` records first, then raises. The call that crossed the budget remains visible in the ledger. Every limit the call crossed, per-tag rules included, gets its `on_exceeded` call before the error for the first one is raised.
@@ -115,7 +115,7 @@ config.budgets.per_tag = {
 LlmCostTracker.with_tags(run_id: run.id) { agent.run }
 ```
 
-`total` behaves like the other windows. With `calls: 200` the run makes 200 calls and the 201st exceeds the limit: `:block_requests` blocks it before it is sent, `:notify` and `:raise` act once it is recorded. The payload's `budget_type` is `:total` or `:calls`.
+`total` behaves like the other windows. With `calls: 200` the run makes 200 calls and the 201st exceeds the limit: `:block_requests` blocks it before it is sent, `:notify` and `:raise` act once it is recorded. Under `:block_requests` the call is never recorded, so the `calls` limit's `on_exceeded` does not fire; rescue `BudgetExceededError` with `budget_type: :calls` to react. The payload's `budget_type` is `:total` or `:calls`.
 
 On RubyLLM 2.x, calls inside `RubyLLM.workflow` are tagged `run_id` with the workflow's id, including calls from tools RubyLLM runs concurrently:
 
