@@ -1100,4 +1100,10 @@ module AccountingCases
     end
     RubyLLM::Batch.find(job, provider: :vertexai, context: context).messages
   end
+
+  define_case "ruby_llm vertex chat: mistral-medium-latest on a regional endpoint at its Mistral rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: "RubyLLM 1.x has no Mistral on Vertex AI" do
+    vertex_chat("mistral-medium-latest", "us-central1", publisher: "mistralai",
+                body: chat_completion(id: "cmpl_vtx_m", model: "mistral-medium-latest", usage: chat_usage(100_000, 10_000)))
+  end
 end

@@ -101,7 +101,7 @@ module LlmCostTracker
         end
 
         def self.regional_host?(host, model)
-          Openai::Hosts.data_residency?(host) &&
+          Openai::Hosts.vertex_non_global?(host) &&
             Pricing::Matcher.modifier_priced?(provider: "anthropic", model: model, modifier: "data_residency")
         end
 

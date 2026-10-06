@@ -45,11 +45,11 @@ module LlmCostTracker
           current.freeze
         end
 
-        def modifier_priced?(provider:, model:, modifier:)
-          prices = lookup(provider: provider, model: model)&.prices
-          return false unless prices
+        def modifier_priced?(provider:, model:, modifier:, owners: nil)
+          match = lookup(provider: provider, model: model)
+          return false unless match && (owners.nil? || match.key.start_with?(*owners))
 
-          prices.any? { |key, _| key.to_s.match?(/(?:\A|_)#{modifier}_/) }
+          match.prices.any? { |key, _| key.to_s.match?(/(?:\A|_)#{modifier}_/) }
         end
 
         private

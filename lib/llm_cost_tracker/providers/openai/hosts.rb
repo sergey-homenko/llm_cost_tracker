@@ -18,15 +18,17 @@ module LlmCostTracker
           ae.api.openai.com
         ].freeze
 
-        DATA_RESIDENCY_HOST_PATTERN = /
-          \A(?:[a-z]{2,3}\.api\.openai\.com|us\.api\.x\.ai|api\.(?:eu|us)\.mistral\.ai|
-          [a-z0-9-]+-aiplatform\.googleapis\.com|aiplatform\.[a-z0-9-]+\.rep\.googleapis\.com)\z
-        /x
+        DATA_RESIDENCY_HOST_PATTERN = /\A(?:[a-z]{2,3}\.api\.openai\.com|us\.api\.x\.ai|api\.(?:eu|us)\.mistral\.ai)\z/
+        VERTEX_NON_GLOBAL_HOST_PATTERN = /\A(?:[a-z0-9-]+-aiplatform|aiplatform\.[a-z0-9-]+\.rep)\.googleapis\.com\z/
 
         BEDROCK_HOST_PATTERN = /\Abedrock-(?:mantle|runtime(?:-fips)?)\./
 
         def self.data_residency?(host)
           host.to_s.downcase.match?(DATA_RESIDENCY_HOST_PATTERN)
+        end
+
+        def self.vertex_non_global?(host)
+          host.to_s.downcase.match?(VERTEX_NON_GLOBAL_HOST_PATTERN)
         end
 
         def self.bedrock?(host)

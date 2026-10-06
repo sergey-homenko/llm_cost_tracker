@@ -856,4 +856,12 @@ module AccountingCases
       while connection.receive; end
     end
   end
+
+  define_case "openai sdk vertex openai-compatible chat: gemini-3.8-flash on a regional endpoint at its non-global rate",
+              instrument: :openai do
+    base = "https://us-central1-aiplatform.googleapis.com/v1/projects/proj/locations/us-central1/endpoints/openapi"
+    stub_json(:post, "#{base}/chat/completions",
+              chat_completion(id: "cmpl_vtx_g", model: "google/gemini-3.8-flash", usage: chat_usage(120_000, 8_000)))
+    openai_client(base).chat.completions.create(model: "google/gemini-3.8-flash", messages: USER_MESSAGES)
+  end
 end

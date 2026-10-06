@@ -16,8 +16,9 @@ module LlmCostTracker
         class << self
           def combined_pricing_mode(host:, model:, service_tier:, provider: "openai")
             modes = [Pricing::Mode.normalize(service_tier)]
-            if Hosts.data_residency?(host) &&
-               Pricing::Matcher.modifier_priced?(provider: provider, model: model, modifier: "data_residency")
+            owners = %w[gemini/ anthropic/] if Hosts.vertex_non_global?(host)
+            if (owners || Hosts.data_residency?(host)) &&
+               Pricing::Matcher.modifier_priced?(provider:, model:, modifier: "data_residency", owners:)
               modes << "data_residency"
             end
             Pricing::Mode.compose(modes)

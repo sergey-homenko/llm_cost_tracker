@@ -195,7 +195,7 @@ module LlmCostTracker
         end
 
         def pricing_mode(request:, usage:, response_headers:, host: nil, model: nil)
-          regional = Openai::Hosts.data_residency?(host) &&
+          regional = Openai::Hosts.vertex_non_global?(host) &&
                      Pricing::Matcher.modifier_priced?(provider: "gemini", model: model, modifier: "data_residency")
           Pricing::Mode.compose([service_tier(request, usage, response_headers), ("data_residency" if regional)])
         end
