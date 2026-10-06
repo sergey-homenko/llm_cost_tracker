@@ -11,7 +11,7 @@ module LlmCostTracker
     module Providers
       class Cohere < Litellm
         source_url "https://cohere.com/pricing"
-        min_models 10
+        min_models 7
         max_price 100.0
 
         MODELS_SOURCE_URL = "https://docs.cohere.com/docs/models.md"
