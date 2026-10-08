@@ -23,25 +23,11 @@ module LlmCostTracker
         @peak_index ||= points.each_with_index.max_by { |point, _| point[:cost].to_f }&.last
       end
 
-      def left
-        PADDING[:left]
-      end
-
-      def right
-        left + plot_width
-      end
-
-      def baseline
-        PADDING[:top] + plot_height
-      end
-
-      def tick_y(index)
-        PADDING[:top] + (plot_height * index.to_f / y_ticks)
-      end
-
-      def tick_value(index)
-        max_cost * (y_ticks - index).to_f / y_ticks
-      end
+      def left = PADDING[:left]
+      def right = left + plot_width
+      def baseline = PADDING[:top] + plot_height
+      def tick_y(index) = PADDING[:top] + (plot_height * index.to_f / y_ticks)
+      def tick_value(index) = max_cost * (y_ticks - index).to_f / y_ticks
 
       def label_indexes
         count = points.size
@@ -50,13 +36,8 @@ module LlmCostTracker
 
       private
 
-      def plot_width
-        WIDTH - PADDING[:left] - PADDING[:right]
-      end
-
-      def plot_height
-        height - PADDING[:top] - PADDING[:bottom]
-      end
+      def plot_width = WIDTH - PADDING[:left] - PADDING[:right]
+      def plot_height = height - PADDING[:top] - PADDING[:bottom]
 
       def coords_for(series)
         step = series.size > 1 ? plot_width.to_f / (series.size - 1) : 0.0

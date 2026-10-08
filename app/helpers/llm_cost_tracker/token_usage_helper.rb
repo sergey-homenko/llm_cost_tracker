@@ -49,5 +49,35 @@ module LlmCostTracker
         call.line_items.map { |item| [item.kind, item.direction, item.cache_state, item.cost] }
       )
     end
+
+    def call_token_segments(call)
+      token_usage_stack_components.map do |component|
+        value = call[component.fetch(:token_key)]
+        token_stack_segment(component, value, number_with_delimiter(value))
+      end
+    end
+
+    def call_cost_segments(call)
+      costs = call_line_item_costs_by_component(call)
+      token_usage_stack_components.map do |component|
+        value = costs[component.fetch(:price_key)]
+        token_stack_segment(component, value, optional_money(value))
+      end
+    end
+
+    def call_service_line_items(call)
+      call.line_items.reject { |item| item.unit == "token" }.sort_by(&:position)
+    end
+
+    private
+
+    def token_stack_segment(component, value, formatted_value)
+      {
+        label: component.fetch(:label),
+        value: value,
+        formatted_value: formatted_value,
+        css_class: component.fetch(:css_class)
+      }
+    end
   end
 end

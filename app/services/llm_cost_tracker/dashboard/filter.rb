@@ -11,6 +11,7 @@ module LlmCostTracker
         ["Streaming only", "yes"],
         ["Non-streaming only", "no"]
       ].freeze
+      STREAM_FILTER_LABELS = { "yes" => "Streaming", "no" => "Non-streaming" }.freeze
 
       class << self
         def call(scope: LlmCostTracker::Call.all, params: {}, tags: {})

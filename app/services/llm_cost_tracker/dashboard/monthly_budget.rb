@@ -45,21 +45,10 @@ module LlmCostTracker
         amount * ((now.end_of_month - month_start) / elapsed_seconds)
       end
 
-      def percent_used
-        share_of_budget(spent)
-      end
-
-      def projected_percent_used
-        share_of_budget(projected_spent)
-      end
-
-      def share_of_budget(amount)
-        budget.positive? ? (amount / budget) * 100.0 : 0.0
-      end
-
-      def projected_delta
-        projected_spent - budget
-      end
+      def percent_used = share_of_budget(spent)
+      def projected_percent_used = share_of_budget(projected_spent)
+      def share_of_budget(amount) = budget.positive? ? (amount / budget) * 100.0 : 0.0
+      def projected_delta = projected_spent - budget
 
       def fill_modifier
         return "lct-budget-fill--over" if percent_used >= 100.0

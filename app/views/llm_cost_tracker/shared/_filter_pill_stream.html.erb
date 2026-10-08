@@ -1,5 +1,5 @@
 <% active = params[:stream].presence %>
-<% display_value = case active when "yes" then "Streaming" when "no" then "Non-streaming" else "All" end %>
+<% display_value = LlmCostTracker::Dashboard::Filter::STREAM_FILTER_LABELS.fetch(active, "All") %>
 <details class="lct-filter-pop" name="lct-filter">
   <summary class="lct-filter-pill <%= 'lct-active' if active %>">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
