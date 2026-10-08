@@ -83,6 +83,15 @@ RSpec.describe "LlmCostTracker::Engine tags" do
     expect(response.body).not_to include("Spend over time")
   end
 
+  it "renders the timeseries of a whitespace-only tag value" do
+    create_call(total_cost: 2.0, tags: { feature: " " })
+
+    response = get("/llm-costs/tags/feature", params: { tag_value: " " })
+
+    expect(response.status).to eq(200)
+    expect(response.body).to include("Spend over time").and include("$2.00")
+  end
+
   it "exposes a Trend link from the breakdown row to the value timeseries" do
     create_call(total_cost: 2.0, tags: { feature: "chat" })
 
