@@ -77,4 +77,45 @@ RSpec.describe LlmCostTracker::Integrations::Base do
       expect(params["temperature"]).to eq(0.2)
     end
   end
+
+  describe "patch targets" do
+    def integration_patching(&targets)
+      Module.new do
+        extend LlmCostTracker::Integrations::Base
+
+        def self.integration_name = :spec_sdk
+
+        define_singleton_method(:patch_targets) { instance_exec(&targets) }
+      end
+    end
+
+    before { stub_const("LlmCostTrackerSpecResource", Class.new { def create = :original }) }
+
+    it "prepends each patch once and reports the integration installed only after install" do
+      patch = Module.new { def create = [:patched, super] }
+      integration = integration_patching { [patch_target("LlmCostTrackerSpecResource", with: patch)] }
+
+      expect(integration.status.message).to eq("spec_sdk integration is enabled but not installed")
+      2.times { integration.install }
+
+      expect(LlmCostTrackerSpecResource.ancestors.count(patch)).to eq(1)
+      expect(LlmCostTrackerSpecResource.new.create).to eq(%i[patched original])
+      expect(integration.status).to have_attributes(status: :ok, message: "spec_sdk integration installed")
+    end
+
+    it "lists missing classes and methods, except optional classes and targets that may lack the methods" do
+      patch = Module.new { def stream = super }
+      integration = integration_patching do
+        [patch_target("LlmCostTrackerSpecResource", with: patch),
+         patch_target("LlmCostTrackerSpecResource", with: patch, skip_when_methods_missing: true),
+         patch_target("LlmCostTrackerSpecMissing", with: patch),
+         patch_target("LlmCostTrackerSpecMissing", with: patch, optional: true)]
+      end
+      message = "spec_sdk integration cannot be installed: LlmCostTrackerSpecResource#stream is not available; " \
+                "LlmCostTrackerSpecMissing is not loaded"
+
+      expect(integration.status).to have_attributes(status: :warn, message: message)
+      expect { integration.install }.to raise_error(LlmCostTracker::Error, message)
+    end
+  end
 end

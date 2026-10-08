@@ -8,6 +8,7 @@ require_relative "../logging"
 require_relative "../timing"
 require_relative "../capture/stream_collector"
 require_relative "../capture/stream_tracker"
+require_relative "base/patch_target"
 
 module LlmCostTracker
   module Integrations
@@ -22,28 +23,38 @@ module LlmCostTracker
         LlmCostTracker.configuration.enabled && LlmCostTracker.configuration.instrumented?(integration_name)
       end
 
+      def minimum_version(value = nil)
+        @minimum_version = value if value
+        @minimum_version
+      end
+
+      def maximum_version(value = nil)
+        @maximum_version = value if value
+        @maximum_version
+      end
+
+      def gem_version
+        Gem.loaded_specs[integration_name.to_s]&.version
+      end
+
+      def patch_targets = []
+
+      def patch_target(constant_name, with:, optional: false, skip_when_methods_missing: false)
+        PatchTarget.new(constant_name:, patch: with, optional:, skip_when_methods_missing:)
+      end
+
       def install
         validate_contract!
         Logging.warn(untested_version_message) if untested_version?
-        patch_targets.each do |target|
-          target_class = target.fetch(:constant_name).to_s.safe_constantize
-          patch = target.fetch(:patch)
-          target_class.prepend(patch) if target_class && !target_class.ancestors.include?(patch)
-        end
+        patch_targets.each(&:install)
       end
 
       def status
         name = integration_name.to_s
-        problems = version_problems + target_problems
-        if problems.any?
-          return Check.new(:warn, name, "#{name} integration cannot be installed: #{problems.join('; ')}")
-        end
+        violation = contract_violation
+        return Check.new(:warn, name, violation) if violation
         return Check.new(:warn, name, untested_version_message) if untested_version?
-
-        installed = patch_targets.reject { |target| target.fetch(:optional) }.all? do |target|
-          target.fetch(:constant_name).to_s.safe_constantize&.ancestors&.include?(target.fetch(:patch))
-        end
-        return Check.new(:ok, name, "#{name} integration installed") if installed
+        return Check.new(:ok, name, "#{name} integration installed") if installed?
 
         Check.new(:warn, name, "#{name} integration is enabled but not installed")
       end
@@ -99,24 +110,17 @@ module LlmCostTracker
         nil
       end
 
-      def provider_response_id_for(response) = response&.try(:id)
+      def provider_response_id_for(response) = (response.id if response.respond_to?(:id))
 
-      def client_host_for(resource)
-        client = resource.instance_variable_get(:@client)
-        return nil unless client
-
-        URI.parse(client.base_url.to_s).host
+      def client_host(client)
+        URI.parse(client.base_url.to_s).host if client
       rescue URI::InvalidURIError
         nil
       end
 
       def request_params(args, kwargs)
-        params =
-          case args.first
-          when Hash then args.first
-          when nil then {}
-          else args.first.to_h
-          end
+        params = args.first
+        params = params.to_h unless params.is_a?(Hash)
         params.merge(kwargs).with_indifferent_access
       rescue StandardError
         kwargs.to_h.with_indifferent_access
@@ -139,6 +143,17 @@ module LlmCostTracker
         track_stream(stream, collector: built)
       end
 
+      def stream_collector(request, pricing_mode: nil)
+        LlmCostTracker::Capture::StreamCollector.new(
+          provider: provider,
+          model: request[:model],
+          pricing_mode: pricing_mode,
+          request: request
+        )
+      end
+
+      private
+
       def track_stream(stream, collector:)
         return stream unless active?
 
@@ -150,48 +165,14 @@ module LlmCostTracker
         ).wrap
       end
 
-      def stream_collector(request, pricing_mode: nil)
-        LlmCostTracker::Capture::StreamCollector.new(
-          provider: provider,
-          model: request[:model],
-          pricing_mode: pricing_mode,
-          request: request
-        )
-      end
-
-      def minimum_version(value = nil)
-        @minimum_version = value if value
-        @minimum_version
-      end
-
-      def maximum_version(value = nil)
-        @maximum_version = value if value
-        @maximum_version
-      end
-
-      def gem_version
-        Gem.loaded_specs[integration_name.to_s]&.version
-      end
-
-      def patch_targets = []
-
-      def patch_target(constant_name, with:, optional: false, skip_when_methods_missing: false)
-        {
-          constant_name: constant_name,
-          patch: with,
-          method_names: with.instance_methods,
-          optional: optional,
-          skip_when_methods_missing: skip_when_methods_missing
-        }
-      end
-
-      private
-
       def validate_contract!
-        problems = version_problems + target_problems
-        return if problems.empty?
+        violation = contract_violation
+        raise Error, violation if violation
+      end
 
-        raise Error, "#{integration_name} integration cannot be installed: #{problems.join('; ')}"
+      def contract_violation
+        problems = version_problems + target_problems
+        "#{integration_name} integration cannot be installed: #{problems.join('; ')}" if problems.any?
       end
 
       def version_problems
@@ -214,26 +195,9 @@ module LlmCostTracker
           "its calls may not be recorded"
       end
 
-      def target_problems
-        patch_targets.flat_map do |target|
-          constant_name = target.fetch(:constant_name)
-          target_class = constant_name.to_s.safe_constantize
-          next [] if target_class.nil? && target.fetch(:optional)
-          next ["#{constant_name} is not loaded"] unless target_class
+      def target_problems = patch_targets.flat_map(&:problems)
 
-          missing_methods(target_class, target)
-        end
-      end
-
-      def missing_methods(target_class, target)
-        return [] if target[:skip_when_methods_missing]
-
-        target.fetch(:method_names).filter_map do |method_name|
-          next if target_class.method_defined?(method_name) || target_class.private_method_defined?(method_name)
-
-          "#{target.fetch(:constant_name)}##{method_name} is not available"
-        end
-      end
+      def installed? = patch_targets.reject(&:optional).all?(&:installed?)
     end
   end
 end

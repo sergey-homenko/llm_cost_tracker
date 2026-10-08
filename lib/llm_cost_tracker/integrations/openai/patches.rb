@@ -1,44 +1,27 @@
 # frozen_string_literal: true
 
-require "English"
-
 module LlmCostTracker
   module Integrations
     module Openai
       module PatchBuilder
         def self.build(record_method:, methods:)
-          Module.new.tap do |mod|
-            methods.each { |method_name| define_blocking_method(mod, method_name, record_method) }
+          Module.new.tap do |patch|
+            methods.each do |method_name|
+              patch.define_method(method_name) do |*args, **kwargs, &block|
+                seam = Openai.blocking_seam(@client, record_method)
+                Openai.wrap_blocking(args, kwargs, **seam) { super(*args, **kwargs, &block) }
+              end
+            end
           end
         end
 
         def self.build_stream(methods:)
-          Module.new.tap do |mod|
-            methods.each { |method_name| define_stream_method(mod, method_name) }
-          end
-        end
-
-        def self.define_blocking_method(mod, method_name, record_method)
-          mod.define_method(method_name) do |*args, **kwargs, &block|
-            host = LlmCostTracker::Integrations::Openai.client_host_for(self)
-            LlmCostTracker::Integrations::Openai.wrap_blocking(
-              args,
-              kwargs,
-              provider: LlmCostTracker::Integrations::Openai.provider_for_host(host),
-              record: lambda do |response, request, latency_ms|
-                LlmCostTracker::Integrations::Openai.public_send(
-                  record_method, response, request: request, latency_ms: latency_ms, host: host
-                )
+          Module.new.tap do |patch|
+            methods.each do |method_name|
+              patch.define_method(method_name) do |*args, **kwargs|
+                Openai.wrap_stream(args, kwargs, **Openai.stream_seam(@client)) { super(*args, **kwargs) }
               end
-            ) { super(*args, **kwargs, &block) }
-          end
-        end
-
-        def self.define_stream_method(mod, method_name)
-          mod.define_method(method_name) do |*args, **kwargs|
-            LlmCostTracker::Integrations::Openai.wrap_stream(
-              args, kwargs, **LlmCostTracker::Integrations::Openai.stream_seam(self)
-            ) { super(*args, **kwargs) }
+            end
           end
         end
       end
@@ -48,17 +31,11 @@ module LlmCostTracker
         include PatchBuilder.build_stream(methods: %i[stream stream_raw])
 
         def retrieve(response_id, *args, **kwargs)
-          response = super
-          LlmCostTracker::Integrations::Openai.record_retrieved_response(
-            response, host: LlmCostTracker::Integrations::Openai.client_host_for(self)
-          )
-          response
+          super.tap { |response| Openai.record_retrieved_response(response, host: Openai.client_host(@client)) }
         end
 
         def retrieve_streaming(response_id, *args, **kwargs)
-          LlmCostTracker::Integrations::Openai.wrap_stream(
-            args, kwargs, **LlmCostTracker::Integrations::Openai.stream_seam(self)
-          ) do |collector|
+          Openai.wrap_stream(args, kwargs, **Openai.stream_seam(@client)) do |collector|
             collector.provider_response_id = response_id
             super(response_id, *args, **kwargs)
           end
@@ -67,46 +44,30 @@ module LlmCostTracker
 
       module ResponsesConnectionPatch
         def send_event(event)
-          created = LlmCostTracker::Integrations::Openai.websocket_create(event, url)
-          super.tap do
-            next unless created
-
-            ((@llm_cost_tracker_lanes ||= {})[created["stream_id"]] ||= [nil]) << LlmCostTracker::Tags::Context.tags
-          end
+          llm_cost_tracker_capture.sending(event) { super }
         end
 
         def each(&block)
           return super unless block
 
-          begin
+          capture = llm_cost_tracker_capture
+          capture.reading do
             super do |event|
-              llm_cost_tracker_record(event)
+              capture.track(event)
               block.call(event)
             end
-          ensure
-            llm_cost_tracker_raise_deferred unless $ERROR_INFO
           end
         end
 
         def receive
-          llm_cost_tracker_raise_deferred
-          super.tap { |event| llm_cost_tracker_record(event) }
+          llm_cost_tracker_capture.raise_deferred
+          super.tap { |event| llm_cost_tracker_capture.track(event) }
         end
 
         private
 
-        def llm_cost_tracker_record(event)
-          LlmCostTracker::Integrations::Openai.record_websocket_event(
-            event, url, @llm_cost_tracker_lanes ||= {}, @llm_cost_tracker_responses ||= {}
-          )
-        rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
-          @llm_cost_tracker_deferred ||= e
-        end
-
-        def llm_cost_tracker_raise_deferred
-          error = @llm_cost_tracker_deferred
-          @llm_cost_tracker_deferred = nil
-          raise error if error
+        def llm_cost_tracker_capture
+          @llm_cost_tracker_capture ||= WebsocketCapture.new(url)
         end
       end
 
@@ -126,15 +87,12 @@ module LlmCostTracker
 
       module BatchesPatch
         def create(*args, **kwargs)
-          openai = LlmCostTracker::Integrations::Openai
-          openai.enforce_budget!(request: openai.request_params(args, kwargs))
+          Openai.enforce_budget!(request: Openai.request_params(args, kwargs))
           super
         end
 
         def retrieve(batch_id, *args, **kwargs)
-          batch = super
-          LlmCostTracker::Integrations::Openai::BatchCapture.maybe_capture(batch, resource: self)
-          batch
+          super.tap { |batch| BatchCapture.capture(batch, client: @client) }
         end
       end
     end
