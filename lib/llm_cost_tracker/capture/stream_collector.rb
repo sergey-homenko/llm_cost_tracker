@@ -11,6 +11,11 @@ require_relative "../timing"
 module LlmCostTracker
   module Capture
     class StreamCollector
+      DIMENSIONS = %i[provider_project_id provider_api_key_id provider_workspace_id].freeze
+      Snapshot = Data.define(*%i[events overflowed explicit_usage model latency_ms provider_response_id
+                                 capture_dimensions pricing_mode metadata context_tags request])
+      private_constant :DIMENSIONS, :Snapshot
+
       attr_reader :provider
 
       def initialize(provider:,
@@ -29,43 +34,29 @@ module LlmCostTracker
         @model = model
         @latency_ms = latency_ms
         @provider_response_id = provider_response_id
-        @provider_project_id = provider_project_id
-        @provider_api_key_id = provider_api_key_id
-        @provider_workspace_id = provider_workspace_id
+        @dimensions = { provider_project_id:, provider_api_key_id:, provider_workspace_id: }
         @pricing_mode = pricing_mode
         @metadata = (metadata || {}).deep_dup
         @context_tags = LlmCostTracker::Tags::Context.tags.deep_dup
         @request = request
-        parser = Parsers.find_for_provider(@parsed_as)
-        @window = EventWindow.new(notable: parser&.method(:retain_stream_event?),
-                                  trim: parser&.method(:trim_stream_event))
+        @window = parser_window
         @explicit_usage = nil
         @started_at = LlmCostTracker::Timing.now_monotonic
-        @finished = false
-        @recording = false
+        @state = :open
         @mutex = Mutex.new
       end
 
       def model=(value)
-        @mutex.synchronize do
-          ensure_open!
-          @model = value
-        end
+        modify { @model = value }
       end
 
       def provider_response_id=(value)
-        @mutex.synchronize do
-          ensure_open!
-          @provider_response_id = value
-        end
+        modify { @provider_response_id = value }
       end
 
       def event(data, type: nil)
         data = SdkPayload.normalize(data) if data.is_a?(Hash)
-        @mutex.synchronize do
-          ensure_open!
-          @window.push(data, type: type&.to_s) unless data.nil?
-        end
+        modify { @window.push(data, type: type&.to_s) unless data.nil? }
       end
 
       def usage(input_tokens:, output_tokens:, **extra)
@@ -75,17 +66,10 @@ module LlmCostTracker
                 "pass `pricing_mode: :batch` to track_stream"
         end
 
-        @mutex.synchronize do
-          ensure_open!
+        modify do
           @provider_response_id = extra.delete(:provider_response_id) || @provider_response_id
-          @provider_project_id = extra.delete(:provider_project_id) || @provider_project_id
-          @provider_api_key_id = extra.delete(:provider_api_key_id) || @provider_api_key_id
-          @provider_workspace_id = extra.delete(:provider_workspace_id) || @provider_workspace_id
-          @explicit_usage = Usage::TokenUsage.build(
-            **extra,
-            input_tokens: input_tokens,
-            output_tokens: output_tokens
-          )
+          DIMENSIONS.each { |key| @dimensions[key] = extra.delete(key) || @dimensions[key] }
+          @explicit_usage = Usage::TokenUsage.build(**extra, input_tokens: input_tokens, output_tokens: output_tokens)
         end
       end
 
@@ -106,49 +90,57 @@ module LlmCostTracker
 
       private
 
-      def claim_recording_slot
+      def modify
         @mutex.synchronize do
-          return nil if @finished || @recording
+          raise FrozenError, "can't modify finished LlmCostTracker::Capture::StreamCollector" if @state == :finished
 
-          @recording = true
-          pricing_mode = Pricing::Mode.normalize(@pricing_mode)
-          {
-            events: @window.events,
-            overflowed: @window.overflowed?,
-            explicit_usage: @explicit_usage,
-            model: @model,
-            latency_ms: @latency_ms,
-            provider_response_id: @provider_response_id,
-            capture_dimensions: capture_dimensions,
-            pricing_mode: pricing_mode,
-            metadata: @metadata.deep_dup,
-            context_tags: @context_tags.deep_dup,
-            request: @request
-          }
+          yield
         end
       end
 
-      def record_snapshot(snapshot, errored:)
-        save_succeeded = false
-        begin
-          event = build_event(snapshot)
-          event = event.with(
-            provider_response_id: event.provider_response_id || snapshot[:provider_response_id],
-            pricing_mode: Pricing::Mode.merge(event.pricing_mode, snapshot[:pricing_mode])
-          )
+      def parser_window
+        parser = Parsers.find_for_provider(@parsed_as)
+        EventWindow.new(notable: parser&.method(:retain_stream_event?), trim: parser&.method(:trim_stream_event))
+      end
 
-          Tracker.record(
-            event: event,
-            latency_ms: snapshot[:latency_ms] || LlmCostTracker::Timing.elapsed_ms(@started_at),
-            metadata: (errored ? { stream_errored: true } : {}).merge(snapshot[:metadata]),
-            context_tags: snapshot[:context_tags]
-          ) { save_succeeded = true }
-        ensure
-          @mutex.synchronize do
-            @finished = save_succeeded
-            @recording = false
-            release_buffers if save_succeeded
-          end
+      def claim_recording_slot
+        @mutex.synchronize do
+          return nil unless @state == :open
+
+          @state = :recording
+          snapshot
+        end
+      end
+
+      def snapshot
+        pricing_mode = Pricing::Mode.normalize(@pricing_mode)
+        Snapshot.new(
+          events: @window.events,
+          overflowed: @window.overflowed?,
+          explicit_usage: @explicit_usage,
+          model: @model,
+          latency_ms: @latency_ms,
+          provider_response_id: @provider_response_id,
+          capture_dimensions: @dimensions.transform_values { |value| value.to_s.strip.presence }.compact,
+          pricing_mode: pricing_mode,
+          metadata: @metadata.deep_dup,
+          context_tags: @context_tags.deep_dup,
+          request: @request
+        )
+      end
+
+      def record_snapshot(snapshot, errored:)
+        saved = false
+        Tracker.record(
+          event: event_for(snapshot),
+          latency_ms: snapshot.latency_ms || LlmCostTracker::Timing.elapsed_ms(@started_at),
+          metadata: (errored ? { stream_errored: true } : {}).merge(snapshot.metadata),
+          context_tags: snapshot.context_tags
+        ) { saved = true }
+      ensure
+        @mutex.synchronize do
+          @state = saved ? :finished : :open
+          release_buffers if saved
         end
       end
 
@@ -157,42 +149,39 @@ module LlmCostTracker
         @request = nil
       end
 
-      def capture_dimensions
-        {
-          provider_project_id: @provider_project_id.to_s.strip.presence,
-          provider_api_key_id: @provider_api_key_id.to_s.strip.presence,
-          provider_workspace_id: @provider_workspace_id.to_s.strip.presence
-        }.compact
-      end
-
-      def ensure_open!
-        return unless @finished
-
-        raise FrozenError, "can't modify finished LlmCostTracker::Capture::StreamCollector"
+      def event_for(snapshot)
+        event = build_event(snapshot)
+        event.with(
+          provider_response_id: event.provider_response_id || snapshot.provider_response_id,
+          pricing_mode: Pricing::Mode.merge(event.pricing_mode, snapshot.pricing_mode)
+        )
       end
 
       def build_event(snapshot)
-        return build_unparsed_event(snapshot) if snapshot[:explicit_usage]
+        return build_unparsed_event(snapshot) if snapshot.explicit_usage
+        return overflowed_event(snapshot) if snapshot.overflowed
 
-        if snapshot[:overflowed]
-          Logging.warn("#{@provider} stream events exceeded #{SSE::LIMIT_BYTES} bytes; " \
-                       "recording usage_source=#{Usage::Source::UNKNOWN}.")
-          return build_unparsed_event(snapshot)
-        end
+        parsed = parse_events(snapshot)
+        return build_unparsed_event(snapshot) unless parsed
 
-        request_body = request_body_for(snapshot[:request])
+        model = present_model(parsed.model) || present_model(snapshot.model) || Event::UNKNOWN_MODEL
+        parsed.with(provider: @provider, model: model, **snapshot.capture_dimensions)
+      end
+
+      def overflowed_event(snapshot)
+        Logging.warn("#{@provider} stream events exceeded #{SSE::LIMIT_BYTES} bytes; " \
+                     "recording usage_source=#{Usage::Source::UNKNOWN}.")
+        build_unparsed_event(snapshot)
+      end
+
+      def parse_events(snapshot)
+        request_body = request_body_for(snapshot.request)
         events = Parsers.all_for_provider(@parsed_as).filter_map do |parser|
           parser.parse_stream(
-            response_status: 200, events: snapshot[:events], request_body: request_body, model: snapshot[:model]
+            response_status: 200, events: snapshot.events, request_body: request_body, model: snapshot.model
           )
         end
-        event = events.find { |parsed| parsed.usage_source != Usage::Source::UNKNOWN } || events.first
-        if event
-          model = present_model(event.model) || present_model(snapshot[:model]) || Event::UNKNOWN_MODEL
-          return event.with(provider: @provider, model: model, **snapshot.fetch(:capture_dimensions))
-        end
-
-        build_unparsed_event(snapshot)
+        events.find { |parsed| parsed.usage_source != Usage::Source::UNKNOWN } || events.first
       end
 
       def request_body_for(request)
@@ -209,15 +198,15 @@ module LlmCostTracker
       end
 
       def build_unparsed_event(snapshot)
-        explicit_usage = snapshot[:explicit_usage]
+        explicit_usage = snapshot.explicit_usage
         Event.build(
           provider: @provider,
-          model: snapshot[:model] || Event::UNKNOWN_MODEL,
+          model: snapshot.model || Event::UNKNOWN_MODEL,
           token_usage: explicit_usage || Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
           stream: true,
           usage_source: explicit_usage ? Usage::Source::MANUAL : Usage::Source::UNKNOWN,
-          pricing_mode: snapshot[:pricing_mode],
-          **snapshot.fetch(:capture_dimensions)
+          pricing_mode: snapshot.pricing_mode,
+          **snapshot.capture_dimensions
         )
       end
     end

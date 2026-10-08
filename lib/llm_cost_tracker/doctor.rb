@@ -37,19 +37,12 @@ module LlmCostTracker
       end
 
       def report(checks = call, color: $stdout.tty?)
-        name_width = checks.map { |c| c.name.length }.max.to_i
-
-        lines = [bold("LLM Cost Tracker doctor", color), ""]
-        each_section(checks) do |section, members|
-          lines << bold(section, color)
-          members.each do |check|
-            status = paint_status("[#{STATUS_GLYPHS.fetch(check.status, check.status)}]", check.status, color)
-            lines << "  #{status} #{"#{check.name}:".ljust(name_width + 1)} #{check.message}"
-          end
-          lines << ""
+        name_width = checks.map { |check| check.name.length }.max.to_i
+        sections = checks.group_by { |check| SECTION_FOR_CHECK.fetch(check.name, "Setup") }.slice(*SECTIONS)
+        blocks = sections.map do |section, members|
+          [bold(section, color), *members.map { |check| check_line(check, name_width, color) }].join("\n")
         end
-        lines.pop if lines.last == ""
-        lines.join("\n")
+        [bold("LLM Cost Tracker doctor", color), *blocks].join("\n\n")
       end
 
       def healthy?(checks = call)
@@ -58,13 +51,9 @@ module LlmCostTracker
 
       private
 
-      def each_section(checks)
-        SECTIONS.each do |section|
-          members = checks.select { |c| (SECTION_FOR_CHECK[c.name] || "Setup") == section }
-          next if members.empty?
-
-          yield section, members
-        end
+      def check_line(check, name_width, color)
+        status = paint_status("[#{STATUS_GLYPHS.fetch(check.status, check.status)}]", check.status, color)
+        "  #{status} #{"#{check.name}:".ljust(name_width + 1)} #{check.message}"
       end
 
       def paint_status(text, status, color)
