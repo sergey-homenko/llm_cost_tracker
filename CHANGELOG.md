@@ -53,7 +53,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Anthropic compaction, advisor, fallback and refusal pricing applies to RubyLLM 2.x chats, and each blocking `pause_turn` segment is priced from its own response.
 - RubyLLM 2.x Vertex AI `gemini-embedding-2` embeddings price image, audio and video tokens at their own rates instead of as text.
 - RubyLLM 2.x Bedrock Converse streams split cache writes by their final event's `cacheDetails` instead of `with_caching`'s TTL.
-- RubyLLM 2.x images returned without usage are recorded with unknown cost instead of $0.
+- RubyLLM 1.x and 2.x images returned without usage are recorded with unknown cost instead of $0.
 - Gemini Omni Flash, 3.5 Transcribe (Live included) and 2.5 Computer Use calls are priced instead of recorded with unknown cost; Omni video output uses the new `video_output` rate.
 - OpenAI Ultrafast calls (`service_tier: "ultrafast"`) are priced at GPT-6 Astra's Ultrafast rates, US data residency included, instead of recorded with unknown cost.
 - GPT-Realtime-2, 2.1 and 2.1 mini get `data_residency` rates.
@@ -72,6 +72,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Claude Sonnet 4.5 prompts over 200K tokens, which Bedrock and Vertex AI still serve, are priced at the long-context rates on Google's Vertex AI pricing page instead of standard rates.
 - Mistral models on sale, such as Mistral Large 4, are priced at the sale price on Mistral's pricing page instead of recorded with unknown cost.
 - Mistral Voxtral Small (`voxtral-small-2507`) chats are priced, audio input per minute at its model card's rate, instead of recorded with unknown cost.
+- OpenAI Responses streams whose hosted-tool items, such as file search results, outgrow the 1 MB capture limit are recorded with their usage and tool fees instead of with unknown cost.
+- OpenAI `responses.compact` calls are recorded, through the official openai gem and Faraday.
+- The official openai gem's `client.beta.responses` and legacy `client.completions.create` calls are recorded.
+- Azure OpenAI calls on a `*.cognitiveservices.azure.com` host are recorded as `azure_openai` instead of missed by Faraday and recorded as `openai` by the official openai gem.
+- An image edit with cached input through the official openai gem counts the cached tokens once, as Faraday does, instead of billing them again as image input.
 
 ## [0.14.2] - 2026-09-28
 

@@ -7,7 +7,7 @@ module LlmCostTracker
         include ResponseParser
 
         TRACKED_ENDPOINTS = %w[
-          chat/completions completions embeddings moderations responses
+          chat/completions completions embeddings moderations responses responses/compact
           audio/transcriptions audio/translations audio/speech
           images/generations images/edits images/variations
         ].freeze

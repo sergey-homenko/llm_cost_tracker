@@ -10,8 +10,9 @@ module LlmCostTracker
       HEAVY_STRING_BYTES = 8 * 1024
       IGNORED_PAYLOAD_KEYS = %w[b64_json partial_image_b64 snapshot logprobs].freeze
 
-      def initialize(notable: nil)
+      def initialize(notable: nil, trim: nil)
         @notable = notable
+        @trim = trim
         @head = []
         @kept = []
         @tail = []
@@ -22,7 +23,7 @@ module LlmCostTracker
       def push(data, type: nil)
         return if @overflowed || type&.start_with?("logprobs.")
 
-        event = { event: type, data: strip_heavy_payload(data) }
+        event = { event: type, data: strip_heavy_payload(@trim ? @trim.call(data) : data) }
         size = approximate_bytesize(event)
         if @head.size < HEAD_EVENTS
           @head << [event, size]

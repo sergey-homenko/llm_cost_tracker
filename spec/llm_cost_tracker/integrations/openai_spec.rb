@@ -85,7 +85,101 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "responses.compact" do
+    it "records the compacted response at the request's model, budget-checked before it is sent like create" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/responses/compact").to_return(
+        status: 200,
+        body: { id: "cmp_1", object: "response.compaction", created_at: 1,
+                output: [{ type: "compaction", id: "cmp_item_1", encrypted_content: "gAAAA" }],
+                usage: { input_tokens: 120_000, input_tokens_details: { cached_tokens: 0 }, output_tokens: 4_000,
+                         output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 124_000 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+      allow(LlmCostTracker::Budget).to receive(:enforce!)
+
+      capture_sdk_events do |events|
+        client.responses.compact(model: "gpt-5.4", input: "long history")
+
+        expect(events.sole).to include(provider: "openai", model: "gpt-5.4", input_tokens: 120_000,
+                                       output_tokens: 4_000, provider_response_id: "cmp_1")
+      end
+      expect(LlmCostTracker::Budget).to have_received(:enforce!)
+        .with(hash_including(provider: "openai", model: "gpt-5.4"))
+    end
+  end
+
+  describe "beta.responses and legacy completions" do
+    it "records beta.responses.create and completions.create like the stable resources" do
+      stub_sdk_json(:post, "https://api.openai.com/v1/responses?beta=true",
+                    provider: :openai, fixture: "responses_create.json")
+      WebMock.stub_request(:post, "https://api.openai.com/v1/completions").to_return(
+        status: 200,
+        body: { id: "cmpl_1", object: "text_completion", created: 1, model: "gpt-3.5-turbo-instruct",
+                choices: [{ text: "ok", index: 0, logprobs: nil, finish_reason: "stop" }],
+                usage: { prompt_tokens: 1000, completion_tokens: 100, total_tokens: 1100 } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        client.beta.responses.create(model: "gpt-4o", input: "hi")
+        client.completions.create(model: "gpt-3.5-turbo-instruct", prompt: "hi")
+
+        expect(events.map { |event| event.values_at(:model, :input_tokens, :output_tokens, :provider_response_id) })
+          .to eq([["gpt-4o", 40, 25, "resp_abc"], ["gpt-3.5-turbo-instruct", 1000, 100, "cmpl_1"]])
+      end
+    end
+  end
+
   describe "responses.connect" do
+    it "records creates sent back to back on a lane at the tags each was sent under, apart from other lanes" do
+      turn = lambda do |id, lane = nil|
+        response = { id: id, object: "response", created_at: 1, status: "in_progress", model: "gpt-4o", output: [],
+                     usage: nil, tools: [] }
+        usage = { input_tokens: 10, output_tokens: 5, total_tokens: 15 }
+        [{ type: "response.created", sequence_number: 0, response: response },
+         { type: "response.completed", sequence_number: 1, response: response.merge(status: "completed", usage: usage) }]
+          .map { |event| lane ? event.merge(stream_id: lane) : event }
+      end
+      first, second, other = turn.call("resp_a"), turn.call("resp_b"), turn.call("resp_x", "lane_x")
+      transport, = responses_websocket([first[0], other[0], other[1], first[1], second[0], second[1]])
+
+      capture_sdk_events do |events|
+        client.responses.connect(transport: transport) do |connection|
+          LlmCostTracker.with_tags(tenant: "alpha") { connection.response.create(model: "gpt-4o", input: "a") }
+          LlmCostTracker.with_tags(tenant: "beta") { connection.response.create(model: "gpt-4o", input: "b") }
+          LlmCostTracker.with_tags(tenant: "x") do
+            connection.response.create(model: "gpt-4o", input: "x", stream_id: "lane_x")
+          end
+          connection.each { nil }
+        end
+
+        expect(events.to_h { |event| [event[:provider_response_id], event[:tags][:tenant]] })
+          .to eq("resp_x" => "x", "resp_a" => "alpha", "resp_b" => "beta")
+      end
+    end
+
+    it "lets a create the server rejects with an error take its own tags off its lane" do
+      response = { id: "resp_b", object: "response", created_at: 1, status: "in_progress", model: "gpt-4o", output: [],
+                   usage: nil, tools: [] }
+      usage = { input_tokens: 10, output_tokens: 5, total_tokens: 15 }
+      transport, = responses_websocket(
+        [{ type: "error", status: 400, error: { code: "previous_response_not_found", message: "gone", param: nil } },
+         { type: "response.created", sequence_number: 0, response: response },
+         { type: "response.completed", sequence_number: 1, response: response.merge(status: "completed", usage: usage) }]
+      )
+
+      capture_sdk_events do |events|
+        client.responses.connect(transport: transport) do |connection|
+          LlmCostTracker.with_tags(tenant: "alpha") { connection.response.create(model: "gpt-4o", input: "a") }
+          connection.each { |event| break if event.type.to_s == "error" }
+          LlmCostTracker.with_tags(tenant: "beta") { connection.response.create(model: "gpt-4o", input: "b") }
+          connection.each { nil }
+        end
+
+        expect(events.map { |event| [event[:provider_response_id], event[:tags][:tenant]] }).to eq([%w[resp_b beta]])
+      end
+    end
+
     it "blocks a response.create over budget before it is sent and sends one within budget" do
       LlmCostTrackerReset.call
       LlmCostTracker.configure do |config|
@@ -325,6 +419,24 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
           output_tokens: 0,
           usage_source: "sdk_response"
         )
+      end
+    end
+
+    it "counts cached input once, taking it off the image input as the Faraday path does" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/images/edits").to_return(
+        status: 200,
+        body: { created: 1, data: [],
+                usage: { input_tokens: 1000, output_tokens: 1056, total_tokens: 2056,
+                         input_tokens_details: { text_tokens: 40, image_tokens: 960, cached_tokens: 500 },
+                         output_tokens_details: { image_tokens: 1000, text_tokens: 56 } } }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      capture_sdk_events do |events|
+        client.images.edit(image: image_io, prompt: "make it blue", model: "gpt-image-1")
+
+        expect(events.sole).to include(input_tokens: 0, image_input_tokens: 500, cache_read_input_tokens: 500,
+                                       output_tokens: 56, image_output_tokens: 1000, total_tokens: 2056)
       end
     end
   end

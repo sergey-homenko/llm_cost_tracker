@@ -238,7 +238,8 @@ module LlmCostTracker
         original = request.on_data
         return nil unless original
 
-        tap = Capture::StreamTap.new(notable: parser.method(:retain_stream_event?))
+        tap = Capture::StreamTap.new(notable: parser.method(:retain_stream_event?),
+                                     trim: parser.method(:trim_stream_event))
         request.on_data = proc do |chunk, size, env|
           tap << chunk
           forward_on_data_chunk(original, chunk, size, env)

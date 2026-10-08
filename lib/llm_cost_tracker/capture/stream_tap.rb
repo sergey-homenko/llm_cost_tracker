@@ -8,8 +8,8 @@ module LlmCostTracker
     class StreamTap
       MAX_PENDING_BYTES = 16 * 1_048_576
 
-      def initialize(notable: nil)
-        @window = EventWindow.new(notable: notable)
+      def initialize(notable: nil, trim: nil)
+        @window = EventWindow.new(notable: notable, trim: trim)
         @reader = SSE::Reader.new { |event| @window.push(event[:data], type: event[:event]) }
         @received = false
         @failed = false

@@ -75,6 +75,10 @@ module LlmCostTracker
         false
       end
 
+      def trim_stream_event(data)
+        data
+      end
+
       def auto_enable_stream_usage?(_request_url, _request_parsed)
         false
       end

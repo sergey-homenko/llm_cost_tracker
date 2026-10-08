@@ -214,7 +214,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "records Cohere's billed units, image tokens included, not its preamble-inflated counts, blocking and streamed" do
+    it "records Cohere's billed units and response id, image tokens included, not its preamble-inflated counts, blocking and streamed" do
       usage = { billed_units: { input_tokens: 5, output_tokens: 26, image_tokens: 300 },
                 tokens: { input_tokens: 71, output_tokens: 26 } }
       message = { id: "co_1", finish_reason: "COMPLETE", message: { role: "assistant", content: [{ type: "text", text: "hi" }] } }
@@ -231,6 +231,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         chat("command-a-03-2025", :cohere, context: keys).ask("hi") { |_chunk| }
         expect(events.map { |event| event.values_at(:input_tokens, :output_tokens, :image_input_tokens, :stream) })
           .to eq([[5, 26, 300, false], [5, 26, 300, true]])
+        expect(events.map { |event| event[:provider_response_id] }).to eq(%w[co_1 co_2])
       end
     end
 

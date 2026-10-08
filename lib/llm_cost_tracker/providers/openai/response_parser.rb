@@ -120,6 +120,18 @@ module LlmCostTracker
           data.is_a?(Hash) && (data["item"].is_a?(Hash) || data["response"].is_a?(Hash))
         end
 
+        def trim_stream_event(data)
+          return data unless data.is_a?(Hash)
+
+          item, response = data.values_at("item", "response")
+          data = data.merge("item" => ServiceCharges.billing_fields(item)) if item
+          return data unless response.is_a?(Hash)
+
+          output = Array(response["output"]).filter_map { |output_item| ServiceCharges.billing_fields(output_item) }
+          data.merge("response" => response.slice("id", "model", "service_tier", "background", "usage")
+                                           .merge("output" => output))
+        end
+
         private
 
         def speech_event(request_url, request)

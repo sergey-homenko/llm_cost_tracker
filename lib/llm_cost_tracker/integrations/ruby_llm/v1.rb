@@ -110,7 +110,8 @@ module LlmCostTracker
               input_tokens: [usage[:input_tokens].to_i - image_input, 0].max,
               image_input_tokens: image_input,
               output_tokens: text_output,
-              image_output_tokens: image_output
+              image_output_tokens: image_output,
+              usage_source: usage.empty? ? Usage::Source::UNKNOWN : Usage::Source::SDK_RESPONSE
             )
           end
 

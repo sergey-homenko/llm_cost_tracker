@@ -20,7 +20,8 @@ module LlmCostTracker
               raw = own || shared || base
               usage = billed_units(usage, own, events)
               converse_event(usage, payload, own, events) || stream_event(usage, events, raw) ||
-                parsed_event(usage, own) || normalized_event(usage, payload, (result if final), raw)
+                parsed_event(usage, own) ||
+                normalized_event(usage, payload, (result if final), raw, response_id(own, events))
             end
 
             def stream_window = Capture::EventWindow.new(notable: method(:notable_event?))
@@ -108,8 +109,14 @@ module LlmCostTracker
                                       Charges::LineItem.build(dimension_key: "video_input", quantity: video)])
             end
 
+            def bodies(raw, events) = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash)
+
+            def response_id(raw, events)
+              bodies(raw, events).filter_map { |body| body["id"] || body["responseId"] }.first
+            end
+
             def billed_units(usage, raw, events)
-              units = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash).filter_map do |data|
+              units = bodies(raw, events).filter_map do |data|
                 (data["type"] == "message-end" ? data.dig("delta", "usage") : data["usage"] || data["meta"])
                   .try(:[], "billed_units")
               end.last
@@ -122,8 +129,7 @@ module LlmCostTracker
             end
 
             def converse_event(usage, payload, raw, events)
-              bodies = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash)
-              data = bodies.reverse.find { |body| body["usage"].try(:key?, "inputTokens") }
+              data = bodies(raw, events).reverse.find { |body| body["usage"].try(:key?, "inputTokens") }
               return unless data
 
               counts = data["usage"]
@@ -148,7 +154,7 @@ module LlmCostTracker
               )
             end
 
-            def normalized_event(usage, payload, result, raw)
+            def normalized_event(usage, payload, result, raw, body_id = nil)
               tokens = usage[:tokens]
               return if usage[:status] != :succeeded && tokens.to_h == REFUSED
 
@@ -171,7 +177,7 @@ module LlmCostTracker
                 pricing_mode: pricing_mode(provider, model, request, raw),
                 stream: payload[:streaming],
                 usage_source: source,
-                provider_response_id: result.try(:id),
+                provider_response_id: result.try(:id) || body_id,
                 service_line_items: line_items
               )
             end

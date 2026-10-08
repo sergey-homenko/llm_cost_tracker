@@ -712,6 +712,32 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       expect(recorded.first[:line_items].map { |item| item[:kind] }).to include("web_search_request")
     end
 
+    it "keeps the usage and file search fees of a Responses stream whose search results outgrow the capture limit" do
+      results = Array.new(50) { |rank| { file_id: "file_#{rank}", score: 0.5, text: "lorem ipsum " * 300 } }
+      searches = Array.new(4) do |index|
+        { type: "file_search_call", id: "fs_#{index}", status: "completed", queries: ["refunds"], results: results }
+      end
+      body = sse({ type: "response.created", response: { id: "resp_fs", model: "gpt-5.4", output: [] } },
+                 event: "response.created")
+      searches.each_with_index do |item, index|
+        body << sse({ type: "response.output_item.done", output_index: index, item: item },
+                    event: "response.output_item.done")
+      end
+      body << sse({ type: "response.completed",
+                    response: { id: "resp_fs", model: "gpt-5.4", status: "completed", output: searches,
+                                usage: { input_tokens: 60_000, output_tokens: 1_200, total_tokens: 61_200 } } },
+                  event: "response.completed")
+      expect(body.bytesize).to be > LlmCostTracker::Capture::SSE::LIMIT_BYTES
+
+      recorded = stream_through("https://api.openai.com", "/v1/responses", body,
+                                request: { model: "gpt-5.4", stream: true, input: "refunds?",
+                                            tools: [{ type: "file_search", vector_store_ids: ["vs_1"] }] })
+
+      expect(recorded.sole).to include(usage_source: "stream_final", provider_response_id: "resp_fs")
+      expect(recorded.sole[:token_usage]).to include(input_tokens: 60_000, output_tokens: 1_200)
+      expect(recorded.sole[:line_items].pluck(:kind).tally).to include("file_search_call" => 4)
+    end
+
     it "keeps Gemini grounding from the middle of a long SSE stream and usage from its last chunk" do
       body = Array.new(8_000) do |index|
         candidate = { content: { parts: [{ text: " token" }], role: "model" }, index: 0 }

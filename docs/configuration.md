@@ -52,7 +52,7 @@ Built-in integration names:
 
 | Name | Minimum SDK | Captured calls |
 | --- | --- | --- |
-| `:openai` | `openai >= 0.59.0` | Responses, Chat Completions, Embeddings, Images, Audio (speech, transcriptions, translations), Moderations, Batches, and the streaming helpers for each |
+| `:openai` | `openai >= 0.59.0` | Responses (`responses.compact` and `client.beta.responses` included), Chat Completions, Embeddings, Images, Audio (speech, transcriptions, translations), Moderations, Batches, and the streaming helpers for each, plus legacy Completions `create` |
 | `:anthropic` | `anthropic >= 1.36.0` | Messages and Message Batches, plus their beta helpers |
 | `:ruby_llm` | `ruby_llm >= 1.15.0` | On 1.x, provider chat, embedding, transcription, image, and moderation calls. On 2.x, every provider attempt in RubyLLM's `usage.ruby_llm` event (chat, embedding, image, transcription, moderation, speech, OCR, rerank, and later operations), and each result `RubyLLM::Batch#messages` or `#results` returns |
 
@@ -88,7 +88,7 @@ This turns on Faraday capture for the host and sets its provider name, nothing e
 
 ## Azure OpenAI Service
 
-Azure OpenAI capture is built in — no configuration required. The Faraday middleware matches URLs on `{resource}.openai.azure.com` and Foundry's `{resource}.services.ai.azure.com`, both on the classic `/openai/deployments/{deployment-id}/{operation}` path and the v1 `/openai/v1/{operation}` path, across chat/completions, completions, embeddings, responses, moderations, audio/transcriptions, audio/translations, audio/speech, images/generations, images/edits, and images/variations. Responses parse with the same shape as OpenAI direct and tag calls with `provider: "azure_openai"`. The OpenAI Ruby SDK is also covered: if `OpenAI::Client.new` is initialized with an Azure `base_url`, SDK-side capture in `record_response` detects the Azure host and tags the same way.
+Azure OpenAI capture is built in — no configuration required. The Faraday middleware matches URLs on `{resource}.openai.azure.com`, and Foundry's `{resource}.services.ai.azure.com` or `{resource}.cognitiveservices.azure.com`, both on the classic `/openai/deployments/{deployment-id}/{operation}` path and the v1 `/openai/v1/{operation}` path, across chat/completions, completions, embeddings, responses, moderations, audio/transcriptions, audio/translations, audio/speech, images/generations, images/edits, and images/variations. Responses parse with the same shape as OpenAI direct and tag calls with `provider: "azure_openai"`. The OpenAI Ruby SDK is also covered: if `OpenAI::Client.new` is initialized with an Azure `base_url`, SDK-side capture in `record_response` detects the Azure host and tags the same way.
 
 Pricing for `azure_openai/<model>` resolves through the `unique_providerless_model` match strategy in `Pricing::Matcher` to the matching `openai/<model>` entry in the bundled price snapshot. That's correct for Global-tier deployments in primary regions where Azure prices match OpenAI direct. Requests and responses do not say which deployment type served them, so Data Zone and regional deployments, which Azure bills above Global, are priced at the Global rate too. To price them at your deployment's Azure rates, override the model in `config.pricing.overrides` with the `azure_openai/<model>` prefix. An override replaces the whole bundled entry, so list every rate your calls use: `cache_read_input` (Azure caches prompts by default), and `batch_input` / `batch_output` if you use the Batch API. A rate left out prices as unknown.
 
