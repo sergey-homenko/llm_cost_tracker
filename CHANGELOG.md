@@ -86,6 +86,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Faraday no longer checks the budget before Anthropic token counting or batch cancellation, which are free.
 - On MySQL, per-tag budgets read each tag value's own spend instead of merging values that differ only by case, accents or trailing spaces.
 - A budget pushed over its limit by `backfill_unknown_pricing` or `reprice`, the backfill after `prices:refresh` included, fires `on_exceeded` once.
+- A host app whose inflections define an `LLM` acronym boots and serves the dashboard instead of failing to load the engine.
+- A tag value page for a whitespace-only value, linked from the tag breakdown, renders instead of returning a 500.
 
 ## [0.14.2] - 2026-09-28
 
