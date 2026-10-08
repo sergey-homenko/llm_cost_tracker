@@ -48,19 +48,19 @@ module LlmCostTracker
         raise Error, "budgets.per_tag[#{key.inspect}] must be a hash" unless entry.is_a?(Hash)
 
         normalized = entry.to_h.transform_keys(&:to_sym)
-        windows, options = normalized.partition { |name, _| !PER_TAG_OPTIONS.include?(name) }.map(&:to_h)
+        {
+          windows: validated_windows(key, normalized.except(*PER_TAG_OPTIONS)),
+          behavior: validated_behavior(key, normalized[:behavior]),
+          on_exceeded: normalized[:on_exceeded]
+        }
+      end
+
+      def validated_windows(key, windows)
         if windows.empty?
-          raise Error,
-                "budgets.per_tag[#{key.inspect}] needs at least one of: #{PER_TAG_WINDOWS.join(', ')}"
+          raise Error, "budgets.per_tag[#{key.inspect}] needs at least one of: #{PER_TAG_WINDOWS.join(', ')}"
         end
 
-        {
-          windows: windows.to_h do |window, limit|
-                     [validated_window(key, window), validated_limit(key, window, limit)]
-                   end,
-          behavior: validated_behavior(key, options[:behavior]),
-          on_exceeded: options[:on_exceeded]
-        }
+        windows.to_h { |window, limit| [validated_window(key, window), validated_limit(key, window, limit)] }
       end
 
       def validated_behavior(key, behavior)

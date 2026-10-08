@@ -29,11 +29,7 @@ module LlmCostTracker
         persist_batch(valid_rows, events) if events.any?
         rows.size
       rescue StandardError => e
-        rows_to_mark = valid_rows&.any? ? valid_rows : rows
-        if rows_to_mark&.any?
-          transient = valid_rows&.any? && TRANSIENT_PERSIST_ERRORS.any? { |klass| e.is_a?(klass) }
-          mark_failed_with_message(rows_to_mark, error_message_for(e), decrement_attempts: transient)
-        end
+        release_after_failure(rows, valid_rows, e)
         raise
       end
 
@@ -67,6 +63,10 @@ module LlmCostTracker
         nil
       end
 
+      private
+
+      attr_reader :identity
+
       def error_message_for(error)
         "#{error.class}: #{Redaction.text(error.message)}".byteslice(0, 1_000).scrub("")
       end
@@ -82,10 +82,6 @@ module LlmCostTracker
           "on the next claim cycle (ids: #{id_sample(quarantined)})"
         )
       end
-
-      private
-
-      attr_reader :identity
 
       def id_sample(rows)
         sample = rows.first(10).map(&:id).join(", ")
@@ -121,6 +117,18 @@ module LlmCostTracker
         [valid_rows, events]
       end
 
+      def release_after_failure(rows, valid_rows, error)
+        if valid_rows&.any?
+          mark_failed_with_message(valid_rows, error_message_for(error), decrement_attempts: transient?(error))
+        elsif rows&.any?
+          mark_failed_with_message(rows, error_message_for(error))
+        end
+      end
+
+      def transient?(error)
+        TRANSIENT_PERSIST_ERRORS.any? { |klass| error.is_a?(klass) }
+      end
+
       def persist_batch(rows, events)
         landed = []
         failed = Hash.new { |hash, message| hash[message] = [] }
@@ -128,14 +136,20 @@ module LlmCostTracker
       rescue *TRANSIENT_PERSIST_ERRORS
         raise
       rescue StandardError
-        rows.zip(events) do |row, event|
-          landed.concat(persist([row], [event]))
-        rescue *TRANSIENT_PERSIST_ERRORS
-          raise
-        rescue StandardError => e
-          failed[error_message_for(e)] << row
-        end
+        rows.zip(events) { |row, event| persist_alone(row, event, landed, failed) }
       ensure
+        settle(landed, failed)
+      end
+
+      def persist_alone(row, event, landed, failed)
+        landed.concat(persist([row], [event]))
+      rescue *TRANSIENT_PERSIST_ERRORS
+        raise
+      rescue StandardError => e
+        failed[error_message_for(e)] << row
+      end
+
+      def settle(landed, failed)
         failed.each do |message, failed_rows|
           LlmCostTracker::Logging.warn(
             "Ingestion::Batch: #{failed_rows.size} inbox row(s) could not be stored " \

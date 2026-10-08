@@ -11,6 +11,9 @@ module LlmCostTracker
   module Ingestion
     module Inbox
       PAYLOAD_SCHEMA_VERSION = 2
+      OPTIONAL_FIELDS = %i[
+        latency_ms usage_source provider_response_id provider_project_id provider_api_key_id provider_workspace_id
+      ].freeze
 
       class << self
         def save(event)
@@ -30,9 +33,8 @@ module LlmCostTracker
         private
 
         def event_attributes_from(payload)
-          cost = payload[:cost] && Charges::Cost.from_h(payload[:cost])
-          token_usage = Usage::TokenUsage.build(**payload.fetch(:token_usage).slice(*Usage::TokenUsage.members))
-
+          cost = cost_from(payload)
+          token_usage = token_usage_from(payload)
           {
             event_id: payload.fetch(:event_id),
             provider: payload.fetch(:provider),
@@ -41,18 +43,25 @@ module LlmCostTracker
             pricing_mode: Pricing::Mode.normalize(payload[:pricing_mode]),
             cost: cost,
             tags: payload.fetch(:tags),
-            latency_ms: payload[:latency_ms],
             stream: payload.fetch(:stream),
-            usage_source: payload[:usage_source],
-            provider_response_id: payload[:provider_response_id],
-            provider_project_id: payload[:provider_project_id],
-            provider_api_key_id: payload[:provider_api_key_id],
-            provider_workspace_id: payload[:provider_workspace_id],
+            **OPTIONAL_FIELDS.to_h { |field| [field, payload[field]] },
             tracked_at: Time.iso8601(payload.fetch(:tracked_at)),
             cost_status: payload.fetch(:cost_status),
             pricing_snapshot: payload[:pricing_snapshot]&.deep_stringify_keys,
-            line_items: (payload[:line_items] || []).map { |attrs| Charges::LineItem.build(attrs) }
+            line_items: line_items_from(payload)
           }
+        end
+
+        def cost_from(payload)
+          payload[:cost] && Charges::Cost.from_h(payload[:cost])
+        end
+
+        def token_usage_from(payload)
+          Usage::TokenUsage.build(**payload.fetch(:token_usage).slice(*Usage::TokenUsage.members))
+        end
+
+        def line_items_from(payload)
+          (payload[:line_items] || []).map { |attrs| Charges::LineItem.build(attrs) }
         end
 
         def row_for(event)

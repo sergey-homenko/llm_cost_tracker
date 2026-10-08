@@ -38,13 +38,9 @@ module LlmCostTracker
             period = period.to_sym
             zone = time_zone&.tzinfo&.name
             if postgresql?(connection)
-              if zone && postgresql_zone?(connection, zone)
-                column = "(#{column}::timestamp AT TIME ZONE 'UTC') AT TIME ZONE '#{zone}'"
-              end
-              "TO_CHAR(DATE_TRUNC('#{period}', #{column}), '#{PG_PERIOD_FORMATS.fetch(period)}')"
+              postgresql_period_sql(connection, period, column, zone)
             elsif mysql?(connection)
-              column = "COALESCE(CONVERT_TZ(#{column}, '+00:00', '#{zone}'), #{column})" if zone
-              "DATE_FORMAT(#{column}, '#{MYSQL_PERIOD_FORMATS.fetch(period)}')"
+              mysql_period_sql(period, column, zone)
             else
               ensure_supported!(connection)
             end
@@ -53,6 +49,18 @@ module LlmCostTracker
           end
 
           private
+
+          def postgresql_period_sql(connection, period, column, zone)
+            if zone && postgresql_zone?(connection, zone)
+              column = "(#{column}::timestamp AT TIME ZONE 'UTC') AT TIME ZONE '#{zone}'"
+            end
+            "TO_CHAR(DATE_TRUNC('#{period}', #{column}), '#{PG_PERIOD_FORMATS.fetch(period)}')"
+          end
+
+          def mysql_period_sql(period, column, zone)
+            column = "COALESCE(CONVERT_TZ(#{column}, '+00:00', '#{zone}'), #{column})" if zone
+            "DATE_FORMAT(#{column}, '#{MYSQL_PERIOD_FORMATS.fetch(period)}')"
+          end
 
           def postgresql_zone?(connection, zone)
             @postgresql_zones ||= {}

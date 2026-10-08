@@ -11,6 +11,15 @@ require_relative "storable"
 module LlmCostTracker
   module Ledger
     module Store
+      CALL_FIELDS = %i[
+        event_id provider model tracked_at pricing_mode latency_ms stream usage_source
+        provider_response_id provider_project_id provider_api_key_id provider_workspace_id
+      ].freeze
+      LINE_ITEM_FIELDS = %i[
+        kind direction modality cache_state quantity unit rate_amount rate_quantity cost currency cost_status
+        pricing_basis price_key price_source price_source_version provider_field provider_item_id
+      ].freeze
+
       class << self
         def insert(events)
           events = Array(events)
@@ -47,25 +56,14 @@ module LlmCostTracker
         end
 
         def attributes_for(event)
-          attributes = {
-            event_id: event.event_id,
-            provider: event.provider,
-            model: event.model,
-            tracked_at: event.tracked_at,
-            pricing_mode: event.pricing_mode,
-            latency_ms: event.latency_ms,
-            stream: event.stream,
-            usage_source: event.usage_source,
-            provider_response_id: event.provider_response_id,
-            provider_project_id: event.provider_project_id,
-            provider_api_key_id: event.provider_api_key_id,
-            provider_workspace_id: event.provider_workspace_id,
+          Storable.clean(
+            **CALL_FIELDS.to_h { |field| [field, event.public_send(field)] },
             batch: event.batch?,
             cost_status: event.cost_status,
-            pricing_snapshot: event.pricing_snapshot
-          }
-
-          Storable.clean(attributes.merge(event.token_usage.to_h).merge(total_cost: event.cost&.total))
+            pricing_snapshot: event.pricing_snapshot,
+            **event.token_usage.to_h,
+            total_cost: event.cost&.total
+          )
         end
 
         def call_ids_for(events)
@@ -94,23 +92,7 @@ module LlmCostTracker
           Storable.clean(
             llm_cost_tracker_call_id: call_id,
             position: position,
-            kind: line_item.kind,
-            direction: line_item.direction,
-            modality: line_item.modality,
-            cache_state: line_item.cache_state,
-            quantity: line_item.quantity,
-            unit: line_item.unit,
-            rate_amount: line_item.rate_amount,
-            rate_quantity: line_item.rate_quantity,
-            cost: line_item.cost,
-            currency: line_item.currency,
-            cost_status: line_item.cost_status,
-            pricing_basis: line_item.pricing_basis,
-            price_key: line_item.price_key,
-            price_source: line_item.price_source,
-            price_source_version: line_item.price_source_version,
-            provider_field: line_item.provider_field,
-            provider_item_id: line_item.provider_item_id,
+            **LINE_ITEM_FIELDS.to_h { |field| [field, line_item.public_send(field)] },
             details: stored_details(line_item.details),
             created_at: Time.now.utc
           )
