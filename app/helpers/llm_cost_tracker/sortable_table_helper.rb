@@ -2,40 +2,33 @@
 
 module LlmCostTracker
   module SortableTableHelper
-    def sortable_header(label, column, num: false, default: false)
-      state = sortable_state(column, num: num, default: default)
-      classes = ["lct-sortable"]
-      classes << "lct-num" if num
-      classes << "lct-sorted" if state[:active]
+    SORT_ARROWS = { "asc" => "▲", "desc" => "▼" }.freeze
+    ARIA_SORT = { "asc" => "ascending", "desc" => "descending" }.freeze
 
-      href = dashboard_filter_path(current_query(sort: column, dir: state[:next_dir], page: nil))
-      tag.th(class: classes.join(" "), "aria-sort": state[:aria_sort]) do
-        link_to(href) { safe_join([label, " ", tag.span(state[:arrow], class: "lct-sort-ind")]) }
+    def sortable_header(label, column, num: false, default: false)
+      natural = num ? "desc" : "asc"
+      direction = sorted_direction(column, natural, default)
+      classes = ["lct-sortable", ("lct-num" if num), ("lct-sorted" if direction)].compact
+
+      href = dashboard_filter_path(current_query(sort: column, dir: next_sort_direction(direction, natural), page: nil))
+      tag.th(class: classes.join(" "), "aria-sort": ARIA_SORT.fetch(direction, "none")) do
+        link_to(href) { safe_join([label, " ", tag.span(SORT_ARROWS.fetch(direction, "▼"), class: "lct-sort-ind")]) }
       end
     end
 
     private
 
-    def sortable_state(column, num:, default: false)
-      current_sort = params[:sort].presence || (default ? column : nil)
-      current_dir = Dashboard::Sort::DIRECTIONS.include?(params[:dir].to_s) ? params[:dir].to_s : nil
-      natural_dir = num ? "desc" : "asc"
-      active = current_sort == column
-      effective_dir = active ? (current_dir || natural_dir) : natural_dir
-      flipped = effective_dir == "asc" ? "desc" : "asc"
+    def sorted_direction(column, natural, default)
+      return unless (params[:sort].presence || (column if default)) == column
 
-      {
-        active: active,
-        next_dir: active ? flipped : natural_dir,
-        arrow: active && effective_dir == "asc" ? "▲" : "▼",
-        aria_sort: sortable_aria(active, effective_dir)
-      }
+      requested = params[:dir].to_s
+      Dashboard::Sort::DIRECTIONS.include?(requested) ? requested : natural
     end
 
-    def sortable_aria(active, effective_dir)
-      return "none" unless active
+    def next_sort_direction(direction, natural)
+      return natural unless direction
 
-      effective_dir == "asc" ? "ascending" : "descending"
+      direction == "asc" ? "desc" : "asc"
     end
   end
 end

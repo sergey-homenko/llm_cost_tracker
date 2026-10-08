@@ -3,19 +3,14 @@
 module LlmCostTracker
   class DashboardController < ApplicationController
     def index
-      prev_from, prev_to = previous_range
-      filter_params = LlmCostTracker::Dashboard::Params.to_hash(params)
-      scope = Dashboard::Filter.call(
-        params: filter_params.merge("from" => @from_date.iso8601, "to" => @to_date.iso8601)
-      )
-      previous_scope = Dashboard::Filter.call(
-        params: filter_params.merge("from" => prev_from.iso8601, "to" => prev_to.iso8601)
-      )
+      previous_from, previous_to = previous_range
+      scope = scope_between(@from_date, @to_date)
+      previous_scope = scope_between(previous_from, previous_to)
 
       @stats = Dashboard::OverviewStats.call(scope: scope, previous_scope: previous_scope)
       @monthly_budget_status = Dashboard::MonthlyBudget.status
       @time_series = Dashboard::TimeSeries.call(scope: scope, from: @from_date, to: @to_date)
-      @comparison_series = Dashboard::TimeSeries.call(scope: previous_scope, from: prev_from, to: prev_to)
+      @comparison_series = Dashboard::TimeSeries.call(scope: previous_scope, from: previous_from, to: previous_to)
       @spend_anomaly = Dashboard::SpendAnomaly.call(from: @from_date, to: @to_date, scope: scope)
       @top_models = Dashboard::TopModels.call(scope: scope)
       @providers = Dashboard::ProviderBreakdown.call(scope: scope)
@@ -23,11 +18,15 @@ module LlmCostTracker
 
     private
 
+    def scope_between(from, to)
+      filter_params = Dashboard::Params.to_hash(params).merge("from" => from.iso8601, "to" => to.iso8601)
+      Dashboard::Filter.call(params: filter_params)
+    end
+
     def previous_range
       span_days = (@to_date - @from_date).to_i + 1
-      prev_to = @from_date - 1
-      prev_from = prev_to - (span_days - 1)
-      [prev_from, prev_to]
+      previous_to = @from_date - 1
+      [previous_to - (span_days - 1), previous_to]
     end
   end
 end
