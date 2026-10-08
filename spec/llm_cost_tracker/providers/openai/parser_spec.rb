@@ -519,6 +519,20 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
   describe "#parse_stream" do
     let(:request_body) { { model: "gpt-4o", stream: true }.to_json }
 
+    it "parses streams for custom parsers that include only ResponseParser" do
+      custom = Class.new(LlmCostTracker::Parsers::Base) do
+        include LlmCostTracker::Providers::Openai::ResponseParser
+
+        def provider_for(_request_url) = "custom"
+      end.new
+      events = [{ event: nil, data: { "model" => "gpt-4o", "usage" => { "prompt_tokens" => 12, "completion_tokens" => 3 } } }]
+
+      result = custom.parse_stream(request_url: chat_completions_url, request_body:, response_status: 200, events:)
+
+      expect(result.provider).to eq("custom")
+      expect(result.token_usage).to have_attributes(input_tokens: 12, output_tokens: 3)
+    end
+
     it "extracts usage from a final chunk carrying the usage hash" do
       events = [
         { event: nil, data: { "model" => "gpt-4o", "choices" => [{ "delta" => { "content" => "hi" } }] } },

@@ -20,8 +20,7 @@ module LlmCostTracker
         @key = LlmCostTracker::Tags::Key.validate!(key, error_class: LlmCostTracker::InvalidFilterError)
         limit = limit.to_i
         @limit = limit.positive? ? [limit, DEFAULT_LIMIT].min : DEFAULT_LIMIT
-        @sort = DEFAULT_DIRECTIONS.key?(sort.to_s) ? sort.to_s : "cost"
-        @direction = Sort::DIRECTIONS.include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTIONS[@sort]
+        @order = Sort.resolve(sort, direction, natural_directions: DEFAULT_DIRECTIONS, fallback: "cost")
       end
 
       def rows
@@ -34,7 +33,7 @@ module LlmCostTracker
               calls: calls,
               total_cost: row.total_cost,
               average_cost_per_call: row.average_cost_per_call,
-              share_percent: total.positive? ? (calls.to_f / total) * 100.0 : 0.0
+              share_percent: Percent.of(calls, total)
             )
           end
         end
@@ -54,7 +53,7 @@ module LlmCostTracker
 
       private
 
-      attr_reader :scope, :key, :sort, :direction
+      attr_reader :scope, :key, :order
 
       def summary_counts
         @summary_counts ||= scope.klass.find_by_sql(summary_sql).first
@@ -76,8 +75,8 @@ module LlmCostTracker
       end
 
       def order_clause
-        dir = direction.upcase
-        case sort
+        dir = order.direction.upcase
+        case order.column
         when "value"    then "#{tag_value_column} #{dir}"
         when "calls"    then "COUNT(*) #{dir}, total_cost DESC"
         when "avg_cost" then "average_cost_per_call #{dir}, total_cost DESC"

@@ -30,33 +30,32 @@ module LlmCostTracker
           safe_url = scrub_url(url)
           raise Error, "Too many redirects while fetching #{safe_url}" if redirects > MAX_REDIRECTS
 
-          uri = URI.parse(url)
-          raise Error, "Pricing snapshot URL must use https" unless uri.scheme == "https"
-
-          request = Net::HTTP::Get.new(uri)
-          request["User-Agent"] = USER_AGENT
-          request["If-None-Match"] = etag if etag
-
-          response, body = fetch_response(uri, request)
-
+          response, body = fetch_response(https_uri(url), etag)
           case response
-          when Net::HTTPSuccess
-            build_response(response, body: body, not_modified: false)
-          when Net::HTTPNotModified
-            build_response(response, body: nil, not_modified: true)
-          when Net::HTTPRedirection
-            location = response["location"]
-            raise Error, "Redirect without location while fetching #{safe_url}" if location.blank?
-
-            get(URI.join(url, location).to_s, etag: etag, redirects: redirects + 1)
-          else
-            raise Error, "Unable to fetch #{safe_url}: HTTP #{response.code}"
+          when Net::HTTPSuccess then build_response(response, body: body, not_modified: false)
+          when Net::HTTPNotModified then build_response(response, body: nil, not_modified: true)
+          when Net::HTTPRedirection then get(redirect_url(url, response), etag: etag, redirects: redirects + 1)
+          else raise Error, "Unable to fetch #{safe_url}: HTTP #{response.code}"
           end
         rescue OpenSSL::SSL::SSLError, SocketError, SystemCallError, Timeout::Error => e
           raise Error, "Unable to fetch #{scrub_url(url)}: #{e.class}: #{e.message}"
         end
 
         private
+
+        def https_uri(url)
+          uri = URI.parse(url)
+          raise Error, "Pricing snapshot URL must use https" unless uri.scheme == "https"
+
+          uri
+        end
+
+        def redirect_url(url, response)
+          location = response["location"]
+          raise Error, "Redirect without location while fetching #{scrub_url(url)}" if location.blank?
+
+          URI.join(url, location).to_s
+        end
 
         def scrub_url(url)
           uri = URI.parse(url.to_s)
@@ -69,12 +68,15 @@ module LlmCostTracker
           "[invalid url]"
         end
 
-        def fetch_response(uri, request)
+        def fetch_response(uri, etag)
+          request = Net::HTTP::Get.new(uri)
+          request["User-Agent"] = USER_AGENT
+          request["If-None-Match"] = etag if etag
           body = nil
           response = Net::HTTP.start(
             uri.host,
             uri.port,
-            use_ssl: uri.scheme == "https",
+            use_ssl: true,
             open_timeout: OPEN_TIMEOUT,
             read_timeout: READ_TIMEOUT,
             write_timeout: WRITE_TIMEOUT
@@ -83,7 +85,6 @@ module LlmCostTracker
               body = limited_body(streamed_response) if streamed_response.is_a?(Net::HTTPSuccess)
             end
           end
-
           [response, body]
         end
 

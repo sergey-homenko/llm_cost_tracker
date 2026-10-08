@@ -86,6 +86,33 @@ RSpec.describe LlmCostTracker::Doctor do
     end
   end
 
+  it "warns when the configured prices file has an unparseable updated_at" do
+    Tempfile.create(["llm-prices", ".json"]) do |file|
+      file.write({ metadata: { updated_at: "not-a-date" }, models: { "custom-model" => { input: 1.0 } } }.to_json)
+      file.close
+
+      LlmCostTracker.configure { |config| config.pricing.file = file.path }
+
+      check = described_class::PriceCheck.new.call
+
+      expect(check.status).to eq(:warn)
+      expect(check.message).to include('metadata.updated_at="not-a-date" is invalid')
+    end
+  end
+
+  it "reports a configured prices file that cannot be loaded as an error" do
+    Tempfile.create(["llm-prices", ".json"]) do |file|
+      file.write({ metadata: { updated_at: Date.today.iso8601 }, models: { "custom-model" => { input: 1.0 } } }.to_json)
+      file.close
+
+      LlmCostTracker.configure { |config| config.pricing.file = file.path }
+      allow(LlmCostTracker::Pricing::Registry).to receive(:file_prices)
+        .and_raise(LlmCostTracker::Error, "Unable to load prices_file")
+
+      expect(described_class::PriceCheck.new.call).to have_attributes(status: :error, message: "Unable to load prices_file")
+    end
+  end
+
   it "treats a missing AR connection as absent tables so Doctor stays usable before db:migrate" do
     allow(LlmCostTracker::Call).to receive(:connection).and_raise(ActiveRecord::ConnectionNotEstablished)
 

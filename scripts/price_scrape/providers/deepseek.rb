@@ -31,18 +31,22 @@ module LlmCostTracker
           table = doc.css("table").find { |candidate| candidate.text.include?("PRICING") }
           raise Error, "DeepSeek pricing table not found" unless table
 
+          models = priced_models(doc, table)
+          validate!(models)
+          Result.new(source_url:, scraped_at:, models:, deprecated_models: [], service_charges: {})
+        end
+
+        private
+
+        def priced_models(doc, table)
           columns = model_columns(table)
           windows = off_peak_windows(footnote(doc) { |text| text.include?("Peak hours are") })
           models = columns.keys.zip(column_prices(table, columns.size)).to_h do |model, fields|
             [model, fields.merge(Pricing::Registry::OFF_PEAK_WINDOWS_KEY => windows)]
           end
           legacy = columns.filter_map { |model, marker| legacy_models(doc, marker, models.fetch(model)) if marker }
-          models = models.merge(*legacy)
-          validate!(models)
-          Result.new(source_url:, scraped_at:, models:, deprecated_models: [], service_charges: {})
+          models.merge(*legacy)
         end
-
-        private
 
         def model_columns(table)
           row = table.css("tr").find { |candidate| candidate.at_css("td")&.text&.strip == "MODEL" }
@@ -55,16 +59,21 @@ module LlmCostTracker
         end
 
         def column_prices(table, count)
-          label = nil
           prices = Array.new(count) { {} }
-          table.css("tr").map { |row| row.css("td").map { |cell| cell.text.strip } }.each do |cells|
-            tier = cells.index { |cell| TIERS.key?(cell) } or next
-            label = cells[tier - 1] unless tier.zero?
-            store(prices, "#{TIERS.fetch(cells[tier])}#{row_field(label.to_s)}", cells.last(count))
-          end
+          each_price_row(table) { |field, cells| store(prices, field, cells.last(count)) }
           return prices if prices.all? { |fields| fields.size == PRICE_ROWS.size * TIERS.size }
 
           raise Error, "DeepSeek peak and off-peak input, cache hit and output prices not found"
+        end
+
+        def each_price_row(table)
+          label = nil
+          table.css("tr").each do |row|
+            cells = row.css("td").map { |cell| cell.text.strip }
+            tier = cells.index { |cell| TIERS.key?(cell) } or next
+            label = cells[tier - 1] unless tier.zero?
+            yield "#{TIERS.fetch(cells[tier])}#{row_field(label.to_s)}", cells
+          end
         end
 
         def row_field(label)
@@ -95,14 +104,18 @@ module LlmCostTracker
         end
 
         def off_peak_windows(text)
+          hours, peak_days = peak_schedule(text)
+          windows = [{ "weekdays" => peak_days, "hours_utc" => off_peak_hours(hours.split(" and ")) }]
+          other_days = (1..7).to_a - peak_days
+          other_days.empty? ? windows : windows << { "weekdays" => other_days, "hours_utc" => ["00:00-24:00"] }
+        end
+
+        def peak_schedule(text)
           hours, from, to = text.match(PEAK)&.captures
           days = [from, to].map { |day| Date::DAYNAMES.index(day) }
           raise Error, "DeepSeek peak hours not understood: #{text}" unless hours && days.all? && days[0] <= days[1]
 
-          peak_days = (days[0]..days[1]).map { |day| day.zero? ? 7 : day }
-          windows = [{ "weekdays" => peak_days, "hours_utc" => off_peak_hours(hours.split(" and ")) }]
-          other_days = (1..7).to_a - peak_days
-          other_days.empty? ? windows : windows << { "weekdays" => other_days, "hours_utc" => ["00:00-24:00"] }
+          [hours, (days[0]..days[1]).map { |day| day.zero? ? 7 : day }]
         end
 
         def off_peak_hours(ranges)

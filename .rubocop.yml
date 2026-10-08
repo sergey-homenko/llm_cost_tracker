@@ -28,7 +28,7 @@ Metrics/BlockLength:
     - "*.gemspec"
 
 Metrics/MethodLength:
-  Max: 32
+  Max: 15
   CountAsOne:
     - array
     - hash
@@ -36,44 +36,33 @@ Metrics/MethodLength:
     - method_call
 
 Metrics/AbcSize:
-  Max: 45
+  Max: 20
 
 Metrics/ClassLength:
-  Max: 200
+  Max: 150
   CountAsOne:
     - array
     - hash
     - heredoc
     - method_call
-  Exclude:
-    - "scripts/price_scrape/providers/anthropic.rb"
-    - "scripts/price_scrape/providers/gemini.rb"
-    - "scripts/price_scrape/providers/openai.rb"
-    - "lib/llm_cost_tracker/pricing/registry.rb"
 
 Metrics/ModuleLength:
-  Max: 200
+  Max: 150
   CountAsOne:
     - array
     - hash
     - heredoc
     - method_call
-  Exclude:
-    - "lib/llm_cost_tracker/pricing/registry.rb"
 
 Metrics/CyclomaticComplexity:
-  Max: 12
-  Exclude:
-    - "lib/llm_cost_tracker/charges/line_item.rb"
+  Max: 8
 
 Metrics/ParameterLists:
   Max: 8
   CountKeywordArgs: false
 
 Metrics/PerceivedComplexity:
-  Max: 12
-  Exclude:
-    - "lib/llm_cost_tracker/charges/line_item.rb"
+  Max: 9
 
 Gemspec/DevelopmentDependencies:
   Enabled: false

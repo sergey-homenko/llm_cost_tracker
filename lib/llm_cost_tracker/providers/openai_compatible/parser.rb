@@ -5,6 +5,7 @@ module LlmCostTracker
     module OpenaiCompatible
       class Parser < LlmCostTracker::Parsers::Base
         include Openai::ResponseParser
+        include Openai::StreamParser
 
         TRACKED_PATH_SUFFIXES = %w[
           /chat/completions /completions /embeddings /responses /images/generations /images/edits /v1/sonar /v1/agent
@@ -20,7 +21,7 @@ module LlmCostTracker
           def match?(url)
             uri_matches?(url) do |uri|
               path = uri.path.to_s
-              (TRACKED_PATH_SUFFIXES.any? { |suffix| path.end_with?(suffix) } || path.match?(RETRIEVE_PATH)) &&
+              (path.end_with?(*TRACKED_PATH_SUFFIXES) || path.match?(RETRIEVE_PATH)) &&
                 !provider_for_uri(uri).nil?
             end
           end

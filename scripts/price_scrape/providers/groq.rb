@@ -5,6 +5,8 @@ require "nokogiri"
 require "time"
 
 require_relative "base"
+require_relative "groq/models_page"
+require_relative "groq/table"
 
 module LlmCostTracker
   module Pricing::Scrape
@@ -29,38 +31,30 @@ module LlmCostTracker
           SPEECH_TO_TEXT_SOURCE_URL
         ].freeze
         MINIMUM_BILLED = /Minimum Billed Length(?:<[^>]*>|\s)*(\d+) seconds/
-        UNIT_PRICES = {
-          "per hour" => ["transcription_minute", 60], "per 1M characters" => ["text_to_speech_character", 1]
+        PRICING_TERMS = {
+          PROMPT_CACHING_SOURCE_URL => ["prompt caching discount", [/50% discount for cached input tokens/i]],
+          FLEX_PROCESSING_SOURCE_URL => [
+            "flex on-demand pricing", [/same pricing as on-demand|Pricing matches the on-demand tier/i]
+          ],
+          BATCH_SOURCE_URL => [
+            "batch pricing", [
+              /50% cost discount compared to synchronous API/i,
+              /billed at the 50% batch rate regardless of cache status/i
+            ]
+          ]
         }.freeze
-
-        MODEL_CARD_PATH = "/docs/model/"
+        MODEL_ID = %r{\A[a-z0-9][a-z0-9_.-]*(?:/[a-z0-9][a-z0-9_.-]*)*\z}
         SHUTDOWN_DATE_FORMAT = "%m/%d/%y"
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           pages = pages_from(html)
-          pricing_doc = Nokogiri::HTML(pages.fetch(self.class.source_url))
-          prompt_caching_doc = Nokogiri::HTML(pages.fetch(PROMPT_CACHING_SOURCE_URL))
-          flex_doc = Nokogiri::HTML(pages.fetch(FLEX_PROCESSING_SOURCE_URL))
-          deprecations_doc = Nokogiri::HTML(pages.fetch(DEPRECATIONS_SOURCE_URL))
-          batch_doc = Nokogiri::HTML(pages.fetch(BATCH_SOURCE_URL))
+          docs = (SOURCE_URLS - [SPEECH_TO_TEXT_SOURCE_URL]).to_h { |url| [url, Nokogiri::HTML(pages.fetch(url))] }
           seconds = documented_factor(pages.fetch(SPEECH_TO_TEXT_SOURCE_URL), MINIMUM_BILLED, "minimum billed length")
-
-          verify_prompt_cache_discount!(prompt_caching_doc)
-          verify_flex_pricing!(flex_doc)
-          verify_batch_pricing!(batch_doc)
-
-          models = extract_models(pricing_doc,
-                                  cache_models: extract_prompt_cache_models(prompt_caching_doc),
-                                  batch_models: extract_batch_models(batch_doc),
-                                  minimum: { Pricing::Registry::MINIMUM_BILLED_SECONDS_KEY => seconds.to_i })
+          verify_pricing_terms!(docs)
+          models = extract_models(docs, Pricing::Registry::MINIMUM_BILLED_SECONDS_KEY => seconds.to_i)
           validate!(models)
-          Result.new(
-            source_url: source_url,
-            scraped_at: scraped_at,
-            models: models,
-            deprecated_models: extract_shutdown_models(deprecations_doc, scraped_at: scraped_at),
-            service_charges: {}
-          )
+          deprecated = shutdown_models(docs.fetch(DEPRECATIONS_SOURCE_URL), scraped_at)
+          Result.new(source_url:, scraped_at:, models:, deprecated_models: deprecated, service_charges: {})
         end
 
         private
@@ -71,114 +65,29 @@ module LlmCostTracker
           self.class::SOURCE_URLS.to_h { |url| [url, html.to_s] }
         end
 
-        def extract_models(doc, cache_models:, batch_models:, minimum:)
-          tables = find_text_models_tables(doc)
-          raise Error, "Groq token models pricing table not found" if tables.empty?
-
-          rows = tables.flat_map { |table| token_rows(table) }
-
-          resolve_rows(rows).transform_values do |row|
-            next row[:units].merge(row[:units].key?("transcription_minute") ? minimum : {}) unless row[:input]
-
-            fields = add_mode_prices("input" => row[:input], "output" => row[:output])
-            fields = add_cache_read_prices(fields) if cache_models.include?(row[:id])
-            batch_models.include?(row[:id]) ? fields : fields.reject { |field, _| field.start_with?("batch_") }
+        def verify_pricing_terms!(docs)
+          PRICING_TERMS.each do |url, (name, terms)|
+            text = Table.text(docs.fetch(url).text)
+            raise Error, "Groq #{name} text not found" unless terms.all? { |term| text.match?(term) }
           end
         end
 
-        def token_rows(table)
-          headers = header_texts(table)
-          model_index = column_index(headers, "MODEL ID")
-          price_index = column_index(headers, "PRICE PER")
-          last_index = [model_index, price_index].max
+        def extract_models(docs, minimum)
+          cached = prompt_cache_models(docs.fetch(PROMPT_CACHING_SOURCE_URL))
+          batched = batch_models(docs.fetch(BATCH_SOURCE_URL))
+          ModelsPage.new(docs.fetch(self.class.source_url)).rows.transform_values do |row|
+            next unit_prices(row[:units], minimum) unless row[:input]
 
-          table.css("tbody tr").filter_map do |row|
-            cells = row.css("td")
-            next if cells.size <= last_index
-
-            model_id = model_card_id(row)
-            next unless model_id
-
-            input, output = token_prices(cells[price_index])
-            units = unit_prices(cells[price_index])
-            next unless (input && output) || units.any?
-
-            { id: model_id, name: normalize_text(cells[model_index].text), input: input, output: output, units: units }
+            token_prices(row, cached: cached.include?(row[:id]), batched: batched.include?(row[:id]))
           end
         end
 
-        def find_text_models_tables(doc)
-          doc.css("table").select do |table|
-            headers = header_texts(table)
-            header?(headers, "MODEL ID") && header?(headers, "PRICE PER")
-          end
-        end
+        def unit_prices(units, minimum) = units.merge(units.key?("transcription_minute") ? minimum : {})
 
-        def header_texts(table)
-          table.css("thead th").map { |th| normalize_text(th.text) }
-        end
-
-        def header?(headers, needle)
-          headers.any? { |header| header.upcase.include?(needle) }
-        end
-
-        def column_index(headers, needle, excluding: nil)
-          index = headers.find_index do |header|
-            upcased = header.upcase
-            upcased.include?(needle) && !(excluding && upcased.include?(excluding))
-          end
-          raise Error, "Groq pricing column #{needle.inspect} not found in #{headers.inspect}" unless index
-
-          index
-        end
-
-        def model_card_id(row)
-          href = row.css("a").filter_map { |node| node["href"] }.find { |link| link.include?(MODEL_CARD_PATH) }
-          return nil unless href
-
-          id = href.split(MODEL_CARD_PATH, 2).last.to_s.split(/[?#]/).first
-          id if model_id?(id)
-        end
-
-        def token_prices(cell)
-          text = normalize_text(cell.text)
-          [labeled_price(text, "input"), labeled_price(text, "output")]
-        end
-
-        def unit_prices(cell)
-          text = normalize_text(cell.text)
-          UNIT_PRICES.filter_map do |unit, (field, divisor)|
-            price = labeled_price(text, unit)
-            [field, price / divisor] if price
-          end.to_h
-        end
-
-        def labeled_price(text, label)
-          match = text.match(/\$\s*(\d+(?:\.\d+)?)\s*#{label}\b/i)
-          return nil unless match
-
-          Float(match[1])
-        end
-
-        def resolve_rows(rows)
-          rows.group_by { |row| row[:id] }.each_with_object({}) do |(id, group), resolved|
-            resolved[id] = group.size == 1 ? group.first : disambiguate(id, group)
-          end
-        end
-
-        def disambiguate(id, group)
-          signature = squash(id.split("/").last)
-          consistent = group.select { |row| squash(row[:name]).include?(signature) }
-          unless consistent.size == 1
-            names = group.map { |row| row[:name] }
-            raise Error, "Groq pricing ambiguous model id #{id.inspect} across #{names.inspect}"
-          end
-
-          consistent.first
-        end
-
-        def squash(value)
-          value.to_s.downcase.gsub(/[^a-z0-9]/, "")
+        def token_prices(row, cached:, batched:)
+          fields = add_mode_prices("input" => row[:input], "output" => row[:output])
+          fields = add_cache_read_prices(fields) if cached
+          batched ? fields : fields.reject { |field, _| field.start_with?("batch_") }
         end
 
         def add_mode_prices(fields)
@@ -202,99 +111,60 @@ module LlmCostTracker
           )
         end
 
-        def extract_prompt_cache_models(doc)
-          heading = doc.css("h2, h3").find { |node| normalize_text(node.text) == "Supported Models" }
+        def prompt_cache_models(doc)
+          heading = doc.css("h2, h3").find { |node| Table.text(node.text) == "Supported Models" }
           raise Error, "Groq prompt caching supported models section not found" unless heading
 
-          html = []
-          node = heading
-          while (node = node.next_element)
-            break if node.name.match?(/\Ah[23]\z/)
-
-            html << node.to_html
-          end
-
-          models = Nokogiri::HTML.fragment(html.join).css("code").map { |code| code.text.strip }.select do |id|
-            model_id?(id)
-          end
+          models = section_after(heading).css("code").map { |code| code.text.strip }.select { |id| model_id?(id) }
           raise Error, "expected at least 2 prompt caching models, parsed #{models.size}" if models.size < 2
 
           models
         end
 
-        def extract_batch_models(doc)
-          models = doc.css("table").flat_map do |table|
-            headers = header_texts(table)
-            next [] unless header?(headers, "MODEL ID")
+        def section_after(heading)
+          html = []
+          node = heading
+          html << node.to_html while (node = node.next_element) && !node.name.match?(/\Ah[23]\z/)
+          Nokogiri::HTML.fragment(html.join)
+        end
 
-            index = column_index(headers, "MODEL ID")
-            table.css("tbody tr").filter_map { |row| row.css("td")[index]&.then { |cell| normalize_text(cell.text) } }
+        def batch_models(doc)
+          models = Table.all(doc).select { |table| table.header?("MODEL ID") }.flat_map do |table|
+            index = table.column("MODEL ID")
+            table.rows(index).map { |_row, cells| Table.text(cells[index].text) }
           end
           raise Error, "Groq batch model list not found" if models.none? { |id| model_id?(id) }
 
           models
         end
 
-        def extract_shutdown_models(doc, scraped_at:)
-          tables = doc.css("table").select { |table| header?(header_texts(table), "SHUTDOWN DATE") }
+        def shutdown_models(doc, scraped_at)
+          tables = Table.all(doc).select { |table| table.header?("SHUTDOWN DATE") }
           raise Error, "Groq deprecations table not found" if tables.empty?
 
           scraped_on = Date.parse(scraped_at)
-          tables.flat_map { |table| shutdown_rows(table, scraped_on: scraped_on) }.uniq
+          tables.flat_map { |table| shutdown_rows(table, scraped_on) }.uniq
         end
 
-        def shutdown_rows(table, scraped_on:)
-          headers = header_texts(table)
-          model_index = column_index(headers, "MODEL", excluding: "REPLACEMENT")
-          shutdown_index = column_index(headers, "SHUTDOWN DATE")
-          last_index = [model_index, shutdown_index].max
-
-          table.css("tbody tr").filter_map do |row|
-            cells = row.css("td")
-            next if cells.size <= last_index
-
-            model_id = normalize_text(cells[model_index].text)
+        def shutdown_rows(table, scraped_on)
+          model = table.column("MODEL", excluding: "REPLACEMENT")
+          shutdown = table.column("SHUTDOWN DATE")
+          table.rows(model, shutdown).filter_map do |_row, cells|
+            model_id = Table.text(cells[model].text)
             next unless model_id?(model_id)
 
-            shutdown_on = shutdown_date(cells[shutdown_index])
+            shutdown_on = shutdown_date(cells[shutdown])
             model_id if shutdown_on && shutdown_on <= scraped_on
           end
         end
 
         def shutdown_date(cell)
-          Date.strptime(normalize_text(cell.text), SHUTDOWN_DATE_FORMAT)
+          Date.strptime(Table.text(cell.text), SHUTDOWN_DATE_FORMAT)
         rescue Date::Error
           nil
         end
 
-        def verify_prompt_cache_discount!(doc)
-          return if normalize_text(doc.text).match?(/50% discount for cached input tokens/i)
-
-          raise Error, "Groq prompt caching discount text not found"
-        end
-
-        def verify_flex_pricing!(doc)
-          text = normalize_text(doc.text)
-          return if text.match?(/same pricing as on-demand/i) || text.match?(/Pricing matches the on-demand tier/i)
-
-          raise Error, "Groq flex on-demand pricing text not found"
-        end
-
-        def verify_batch_pricing!(doc)
-          text = normalize_text(doc.text)
-          return if text.match?(/50% cost discount compared to synchronous API/i) &&
-                    text.match?(/billed at the 50% batch rate regardless of cache status/i)
-
-          raise Error, "Groq batch pricing text not found"
-        end
-
-        def normalize_text(text)
-          text.to_s.gsub(/\s+/, " ").strip
-        end
-
-        def model_id?(value)
-          value.to_s.match?(%r{\A[a-z0-9][a-z0-9_.-]*(?:/[a-z0-9][a-z0-9_.-]*)*\z})
-        end
+        def model_id?(value) = value.to_s.match?(MODEL_ID)
       end
     end
   end

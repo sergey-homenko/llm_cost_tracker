@@ -45,6 +45,26 @@ RSpec.describe LlmCostTracker::Capture::StreamTracker do
     expect(attempts).to eq(2)
   end
 
+  it "keeps relaying events and warns once when the collector cannot capture them" do
+    collector = instance_double(LlmCostTracker::Capture::StreamCollector, finish!: nil)
+    allow(collector).to receive(:event).and_raise(StandardError, "collector is broken")
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    two_events = Class.new do
+      def each
+        yield({ "type" => "chunk" })
+        yield({ "type" => "done" })
+      end
+    end
+    stream = described_class.new(stream: two_events.new, collector: collector, active: -> { true }).wrap
+
+    relayed = []
+    stream.each { |event| relayed << event }
+
+    expect(relayed).to eq([{ "type" => "chunk" }, { "type" => "done" }])
+    expect(LlmCostTracker::Logging).to have_received(:warn)
+      .with("stream integration failed to capture event: StandardError: collector is broken").once
+  end
+
   it "finishes the collector once even when the stream is iterated twice" do
     collector = instance_double(LlmCostTracker::Capture::StreamCollector, event: nil, finish!: nil)
     stream = described_class.new(stream: stream_class.new, collector: collector, active: -> { true }).wrap

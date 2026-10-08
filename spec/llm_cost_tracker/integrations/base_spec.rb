@@ -76,5 +76,62 @@ RSpec.describe LlmCostTracker::Integrations::Base do
       params = integration.request_params([Object.new], { temperature: 0.2 })
       expect(params["temperature"]).to eq(0.2)
     end
+
+    it "reads the SDK client's host, or none without a client or from an unparsable base_url" do
+      client = Struct.new(:base_url)
+
+      expect(integration.client_host(client.new("https://api.example.com/v1"))).to eq("api.example.com")
+      expect(integration.client_host(client.new("https://exa mple.com"))).to be_nil
+      expect(integration.client_host(nil)).to be_nil
+    end
+
+    it "hands back the SDK stream untouched while the integration is not instrumented" do
+      stream = Object.new
+
+      expect(integration.wrap_stream([{ model: "gpt-4o" }], {}, collector: ->(request) { request }) { stream })
+        .to be(stream)
+    end
+  end
+
+  describe "patch targets" do
+    def integration_patching(&targets)
+      Module.new do
+        extend LlmCostTracker::Integrations::Base
+
+        def self.integration_name = :spec_sdk
+
+        define_singleton_method(:patch_targets) { instance_exec(&targets) }
+      end
+    end
+
+    before { stub_const("LlmCostTrackerSpecResource", Class.new { def create = :original }) }
+
+    it "prepends each patch once and reports the integration installed only after install" do
+      patch = Module.new { def create = [:patched, super] }
+      integration = integration_patching { [patch_target("LlmCostTrackerSpecResource", with: patch)] }
+
+      expect(integration.status.message).to eq("spec_sdk integration is enabled but not installed")
+      2.times { integration.install }
+
+      expect(LlmCostTrackerSpecResource.ancestors.count(patch)).to eq(1)
+      expect(LlmCostTrackerSpecResource.new.create).to eq(%i[patched original])
+      expect(integration.status).to have_attributes(status: :ok, message: "spec_sdk integration installed")
+    end
+
+    it "lists missing classes and methods, except optional classes and targets that may lack the methods" do
+      patch = Module.new { def stream = super }
+      integration = integration_patching do
+        [patch_target("LlmCostTrackerSpecResource", with: patch),
+         patch_target("LlmCostTrackerSpecResource", with: patch, skip_when_methods_missing: true),
+         patch_target("LlmCostTrackerSpecMissing", with: patch),
+         patch_target("LlmCostTrackerSpecMissing", with: patch, optional: true)]
+      end
+      message = "spec_sdk integration cannot be installed: LlmCostTrackerSpecResource#stream is not available; " \
+                "LlmCostTrackerSpecMissing is not loaded"
+
+      expect(integration.status).to have_attributes(status: :warn, message: message)
+      expect { integration.install }.to raise_error(LlmCostTracker::Error, message)
+      expect(integration.patch_target("LlmCostTrackerSpecMissing", with: patch)).not_to be_installed
+    end
   end
 end

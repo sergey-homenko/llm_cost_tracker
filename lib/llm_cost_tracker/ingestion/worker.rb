@@ -38,18 +38,14 @@ module LlmCostTracker
         def flush!(timeout: nil, require_lease: false)
           return true unless Ingestion.async?
 
-          Ingestion.ensure_current_schema!
-          MUTEX.synchronize { reset_after_fork! }
-
+          prepare!
           deadline = Time.now.utc + flush_timeout_seconds(timeout)
           loop do
             return true unless Ingestion::Batch.new(identity: identity).pending?
-            return false if Time.now.utc >= deadline
+            return false unless time_left(deadline).positive?
+            next unless ingest_once(require_lease: require_lease).zero?
 
-            processed = ingest_once(require_lease: require_lease)
-            next unless processed.zero?
-
-            duration = [INTERVAL_SECONDS, deadline - Time.now.utc].min
+            duration = [INTERVAL_SECONDS, time_left(deadline)].min
             return false unless duration.positive?
 
             sleep(duration)
@@ -60,17 +56,8 @@ module LlmCostTracker
           return true unless Ingestion.async?
 
           timeout ||= FLUSH_TIMEOUT_SECONDS
-          thread = MUTEX.synchronize do
-            @stop_requested = true
-            @generation = @generation.to_i + 1
-            @thread
-          end
-          begin
-            wake_thread(thread)
-            thread&.join(timeout)
-          rescue StandardError => e
-            handle_error(e)
-          end
+          thread = request_stop
+          await_exit(thread, timeout)
           drain ? flush!(timeout: timeout, require_lease: true) : true
         rescue StandardError => e
           handle_error(e)
@@ -89,8 +76,7 @@ module LlmCostTracker
         end
 
         def ingest_once(require_lease: true)
-          Ingestion.ensure_current_schema!
-          MUTEX.synchronize { reset_after_fork! }
+          prepare!
           batch = Ingestion::Batch.new(identity: identity)
           return 0 unless batch.claimable?
           return 0 if require_lease && !Ingestion::LeaseClaim.new(identity: identity, seconds: LEASE_SECONDS).acquire
@@ -108,14 +94,7 @@ module LlmCostTracker
           loop do
             break if MUTEX.synchronize { @stop_requested || generation != @generation }
 
-            processed = Rails.application.executor.wrap { ingest_once }
-            release_connection!
-            if processed.zero?
-              sleep(idle_interval)
-              idle_interval = [idle_interval * 2, MAX_IDLE_INTERVAL_SECONDS].min
-            else
-              idle_interval = IDLE_INTERVAL_SECONDS
-            end
+            idle_interval = ingest_or_back_off(idle_interval)
           rescue StandardError => e
             handle_error(e)
             release_connection!
@@ -124,6 +103,39 @@ module LlmCostTracker
         ensure
           release_connection!
           MUTEX.synchronize { @thread = nil if @thread.equal?(Thread.current) }
+        end
+
+        def ingest_or_back_off(idle_interval)
+          processed = Rails.application.executor.wrap { ingest_once }
+          release_connection!
+          return IDLE_INTERVAL_SECONDS unless processed.zero?
+
+          sleep(idle_interval)
+          [idle_interval * 2, MAX_IDLE_INTERVAL_SECONDS].min
+        end
+
+        def prepare!
+          Ingestion.ensure_current_schema!
+          MUTEX.synchronize { reset_after_fork! }
+        end
+
+        def time_left(deadline)
+          deadline - Time.now.utc
+        end
+
+        def request_stop
+          MUTEX.synchronize do
+            @stop_requested = true
+            @generation = @generation.to_i + 1
+            @thread
+          end
+        end
+
+        def await_exit(thread, timeout)
+          wake_thread(thread)
+          thread&.join(timeout)
+        rescue StandardError => e
+          handle_error(e)
         end
 
         def reset_after_fork!

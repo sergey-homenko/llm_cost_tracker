@@ -28,11 +28,7 @@ module LlmCostTracker
             private
 
             def shutdown_models(table, scraped_on:)
-              headings = headings(table)
-              shutdown_index = headings.find_index { |heading| heading.include?(SHUTDOWN_HEADING) }
-              model_index = headings.find_index do |heading|
-                heading.include?(MODEL_HEADING) && !heading.include?(REPLACEMENT_HEADING)
-              end
+              shutdown_index, model_index = columns(headings(table))
               return [] unless model_index
 
               table.css("tbody tr").flat_map do |row|
@@ -41,6 +37,14 @@ module LlmCostTracker
 
                 retired_models(cells[model_index], shutdown_on: date(cells[shutdown_index]), scraped_on: scraped_on)
               end
+            end
+
+            def columns(headings)
+              shutdown = headings.find_index { |heading| heading.include?(SHUTDOWN_HEADING) }
+              model = headings.find_index do |heading|
+                heading.include?(MODEL_HEADING) && !heading.include?(REPLACEMENT_HEADING)
+              end
+              [shutdown, model]
             end
 
             def retired_models(cell, shutdown_on:, scraped_on:)

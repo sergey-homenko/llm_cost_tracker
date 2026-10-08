@@ -42,6 +42,7 @@ module LlmCostTracker
         CARD_NAMES = /\\"names\\":\[([^\]]*)\]/
         CARD_MINUTE_PRICE = %r{\\"price\\":(\d+(?:\.\d+)?),\\"denominator\\":\\"/Min\\"}
         DATE = %r{\d{1,2}/\d{1,2}/\d{4}}
+        UNCONFIRMED_NOTE = "- `mistral`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"
 
         def self.followup_urls(pages)
           cards = pages.fetch(MODELS_SOURCE_URL).scan(%r{href="/models/([a-z0-9-]+)"}).flatten.uniq
@@ -49,33 +50,51 @@ module LlmCostTracker
         end
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
-          @listed = listed_prices(Nokogiri::HTML(html.fetch(PRICING_SOURCE_URL)))
-          @cards_by_stem = cards_by_stem(@listed.keys)
-          names = self.class.followup_urls(html).to_h { |url| [url.split("/").last, card_names(html.fetch(url), url)] }
-          @cards_by_name = names.slice(*@listed.keys).flat_map { |card, ids| ids.product([card]) }.to_h
-          retired, ambiguous = retirement(html.fetch(MODELS_SOURCE_URL), names, Date.parse(scraped_at))
-          models = official_models(self.class.parse_json(html.fetch(SOURCE_URL)))
-          rows = self.class.confirmed_rows("mistral", html, models, scraped_at)
-          rows &&= with_card_minutes(with_card_names(rows, names, models, html), names, html)
-          models = with_tiers(models.merge(rows.to_h.except(*retired, *ambiguous)), html)
+          read_cards(html)
+          retired, ambiguous = retirement(html.fetch(MODELS_SOURCE_URL), Date.parse(scraped_at))
+          rows, models = priced_models(html, scraped_at, retired + ambiguous)
           validate!(models.except(*retired))
-          notes = (rows.to_h.keys & ambiguous).map do |id|
-            "- `mistral/#{id}`: named on both a retired and a current Mistral model card; not written"
-          end
-          notes << "- `mistral`: models.dev was unreachable or invalid, so no LiteLLM-only row was written" unless rows
+          notes = row_notes(rows, ambiguous)
           Result.new(source_url:, scraped_at:, models:, deprecated_models: retired, service_charges: {}, notes:)
         end
 
         private
 
-        def with_card_names(rows, names, models, html)
-          shared = names.values.flatten.tally.select { |_id, cards| cards > 1 }.keys
-          listed = JSON.parse(html.fetch(MODELS_DEV_URL)).dig("mistral", "models") || {}
-          names.values.each_with_object(rows.dup) do |ids, named|
-            own = ids - shared
-            row = rows.values_at(*own).compact.first
-            (own - models.keys).each { |id| named[id] ||= row if models_dev_agrees?(listed[id], row) } if row
+        def read_cards(html)
+          @listed = listed_prices(Nokogiri::HTML(html.fetch(PRICING_SOURCE_URL)))
+          @cards_by_stem = cards_by_stem(@listed.keys)
+          @api_names = self.class.followup_urls(html).to_h do |url|
+            [url.split("/").last, api_names(html.fetch(url), url)]
           end
+          @cards_by_name = @api_names.slice(*@listed.keys).flat_map { |card, ids| ids.product([card]) }.to_h
+        end
+
+        def priced_models(html, scraped_at, unwritten)
+          official = official_models(self.class.parse_json(html.fetch(SOURCE_URL)))
+          rows = self.class.confirmed_rows("mistral", html, official, scraped_at)
+          rows &&= with_card_minutes(with_card_names(rows, official, html), html)
+          [rows, with_tiers(official.merge(rows.to_h.except(*unwritten)), html)]
+        end
+
+        def row_notes(rows, ambiguous)
+          return [UNCONFIRMED_NOTE] unless rows
+
+          (rows.keys & ambiguous).map do |id|
+            "- `mistral/#{id}`: named on both a retired and a current Mistral model card; not written"
+          end
+        end
+
+        def with_card_names(rows, official, html)
+          listed = JSON.parse(html.fetch(MODELS_DEV_URL)).dig("mistral", "models") || {}
+          own_api_names.each_with_object(rows.dup) do |ids, named|
+            row = rows.values_at(*ids).compact.first or next
+            (ids - official.keys).each { |id| named[id] ||= row if models_dev_agrees?(listed[id], row) }
+          end
+        end
+
+        def own_api_names
+          shared = @api_names.values.flatten.tally.select { |_id, cards| cards > 1 }.keys
+          @api_names.values.map { |ids| ids - shared }
         end
 
         def models_dev_agrees?(listing, row)
@@ -83,8 +102,8 @@ module LlmCostTracker
           row.values_at("input", "output").zip(theirs).none? { |pair| self.class.differ?(*pair.map(&:to_f)) }
         end
 
-        def with_card_minutes(rows, names, html)
-          names.each_with_object(rows.dup) do |(card, ids), priced|
+        def with_card_minutes(rows, html)
+          @api_names.each_with_object(rows.dup) do |(card, ids), priced|
             minute = html.fetch("#{MODELS_SOURCE_URL}/#{card}")[CARD_MINUTE_PRICE, 1] or next
             (ids & rows.keys).each { |id| priced[id] = rows[id].merge("transcription_minute" => Float(minute)) }
           end
@@ -96,39 +115,42 @@ module LlmCostTracker
             next unless key.start_with?("mistral/") && required
 
             id = key.delete_prefix("mistral/")
-            fields = extract_fields(id, entry)
+            fields = listed_fields(id, entry)
             collected[id] = fields if required.all? { |field| fields.key?(field) }
           end
         end
 
-        def retirement(page, names, today)
+        def retirement(page, today)
           retired = retired_cards(page, today)
-          ids = retired.flat_map { |card, api| [api, *names.fetch(card)] }.reject(&:empty?).uniq
-          live = names.except(*retired.map(&:first)).values.flatten
+          ids = retired.flat_map { |card, api| [api, *@api_names.fetch(card)] }.reject(&:empty?).uniq
+          live = @api_names.except(*retired.map(&:first)).values.flatten
           [ids - live, ids & live]
         end
 
         def retired_cards(page, today)
-          doc = Nokogiri::HTML(page)
+          rows, api, dates = retired_table(Nokogiri::HTML(page))
+          rows.filter_map { |row| retired_card(row.css("td"), api, dates, today) }
+        end
+
+        def retired_card(cells, api, dates, today)
+          card = cells.first&.at_css("a[href^='/models/']") or raise Error, "Mistral retired row without a model card"
+          retires = cells[dates]&.text.to_s.scan(DATE)[1]
+          return unless retires && Date.strptime(retires, "%m/%d/%Y") <= today
+
+          [card["href"].split("/").last, cells[api].text.strip]
+        end
+
+        def retired_table(doc)
           headers = doc.xpath("#{RETIRED_TABLE}thead[1]/tr/th").map { |header| header.text.strip }
           api = headers.index("API")
           dates = headers.index("DeprecationRetirement")
           rows = doc.xpath("#{RETIRED_TABLE}tbody[1]/tr")
-          unless headers.first == "Model" && api && dates && rows.any?
-            raise Error, "Mistral retired models table not found or changed"
-          end
+          return [rows, api, dates] if headers.first == "Model" && api && dates && rows.any?
 
-          rows.filter_map do |row|
-            cells = row.css("td")
-            card = cells.first&.at_css("a[href^='/models/']") or raise Error, "Mistral retired row without a model card"
-            retires = cells[dates]&.text.to_s.scan(DATE)[1]
-            next unless retires && Date.strptime(retires, "%m/%d/%Y") <= today
-
-            [card["href"].split("/").last, cells[api].text.strip]
-          end
+          raise Error, "Mistral retired models table not found or changed"
         end
 
-        def card_names(page, url)
+        def api_names(page, url)
           list = page[CARD_NAMES, 1] or raise Error, "Mistral model card #{url} lists no API names"
           list.scan(/\\"([^\\"]+)\\"/).flatten
         end
@@ -145,7 +167,7 @@ module LlmCostTracker
           end
         end
 
-        def extract_fields(id, entry)
+        def listed_fields(id, entry)
           stem = id[/\A(.+)-(?:latest|\d{4})\z/, 1]
           latest_stem = stem.delete_prefix("mistral-") if id.end_with?("-latest")
           card = @cards_by_name[id] || MODEL_CARD.match(entry["source"].to_s)&.[](:card) || @cards_by_stem[stem]
@@ -164,14 +186,16 @@ module LlmCostTracker
             fields = table.css("th").map { |header| PRICE_COLUMNS[header.text.strip] }
             table.css("tr").each do |row|
               link = row.at_css("a[href^='/models/']") or next
-              prices = fields.zip(row.css("td")).filter_map { |field, cell| listed_price(field, cell) }.to_h
-              if prices.empty? && row.text.include?("$")
-                raise Error, "Mistral pricing row for #{link['href']} has no price the scraper reads"
-              end
-
-              listed[link["href"].delete_prefix("/models/")] = prices
+              listed[link["href"].delete_prefix("/models/")] = row_prices(row, fields, link["href"])
             end
           end
+        end
+
+        def row_prices(row, fields, href)
+          prices = fields.zip(row.css("td")).filter_map { |field, cell| listed_price(field, cell) }.to_h
+          return prices unless prices.empty? && row.text.include?("$")
+
+          raise Error, "Mistral pricing row for #{href} has no price the scraper reads"
         end
 
         def listed_price(field, cell)

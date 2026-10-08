@@ -2,6 +2,8 @@
 
 require_relative "base"
 require_relative "../providers/anthropic/response_parser"
+require_relative "anthropic/patches"
+require_relative "anthropic/batch_results_capture"
 
 module LlmCostTracker
   module Integrations
@@ -21,25 +23,40 @@ module LlmCostTracker
           ]
         end
 
+        def blocking_seam(client)
+          host = client_host(client)
+          {
+            record: lambda do |message, request, latency_ms|
+              record_message(message, request: request, latency_ms: latency_ms, host: host)
+            end
+          }
+        end
+
+        def stream_seam(client)
+          host = client_host(client)
+          { collector: ->(request) { stream_collector(request, host: host) } }
+        end
+
+        def stream_collector(request, host: nil)
+          regional = Providers::Anthropic::UsageExtractor.regional_host?(host, request[:model])
+          super(request, pricing_mode: ("data_residency" if regional))
+        end
+
         def record_message(message, request:, latency_ms:, host: nil)
           return unless active?
 
           record_safely do
             usage = message.usage
-            next unless usage
-            next if usage.input_tokens.nil? && usage.output_tokens.nil?
+            next unless tokens_reported?(usage)
 
-            usage_hash = usage.deep_to_h
-
-            LlmCostTracker::Tracker.record(
-              event: Providers::Anthropic::ResponseParser.event_from_usage(
-                usage: usage_hash,
+            Tracker.record(
+              event: message_event(
+                message,
+                usage: usage.deep_to_h,
                 model: message.model || request[:model],
-                provider_response_id: message.id,
                 usage_source: Usage::Source::SDK_RESPONSE,
                 request: request,
-                host: host,
-                **response_fields(message)
+                host: host
               ),
               latency_ms: latency_ms
             )
@@ -50,26 +67,19 @@ module LlmCostTracker
           return unless active?
 
           record_safely do
-            next unless response.respond_to?(:result) && response.result
-
-            result = response.result
-            next unless result.respond_to?(:type) && result.type.to_s == "succeeded"
-
-            message = result.respond_to?(:message) ? result.message : nil
+            message = succeeded_message(response)
             next unless message
-            next if LlmCostTracker::Call.already_recorded?(provider: "anthropic", provider_response_id: message.id)
+            next if Call.already_recorded?(provider: "anthropic", provider_response_id: message.id)
 
             usage = message.usage
-            next unless usage
-            next if usage.input_tokens.nil? && usage.output_tokens.nil?
+            next unless tokens_reported?(usage)
 
             record_once(
-              Providers::Anthropic::ResponseParser.event_from_usage(
+              message_event(
+                message,
                 usage: usage.deep_to_h.merge(service_tier: "batch"),
                 model: message.model,
-                provider_response_id: message.id,
-                usage_source: Usage::Source::SDK_BATCH_RESULT,
-                **response_fields(message)
+                usage_source: Usage::Source::SDK_BATCH_RESULT
               )
             )
           end
@@ -77,7 +87,7 @@ module LlmCostTracker
 
         def record_refused_hop(request, response)
           record_safely { record_message(response.parse, request: request.body, latency_ms: nil) }
-        rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError
+        rescue BudgetExceededError, UnknownPricingError
           nil
         end
 
@@ -85,137 +95,48 @@ module LlmCostTracker
           return unless active?
 
           usage = hop.dig(:refused, :usage).to_h.deep_symbolize_keys
-          output = usage[:output_tokens].to_i.positive?
-          usage = usage.slice(:server_tool_use) if output
-          return if output && Providers::Anthropic::UsageExtractor.service_line_items(usage).empty?
+          produced_output = usage[:output_tokens].to_i.positive?
+          usage = usage.slice(:server_tool_use) if produced_output
+          return if produced_output && Providers::Anthropic::UsageExtractor.service_line_items(usage).empty?
 
           record_safely do
-            LlmCostTracker::Tracker.record(
+            Tracker.record(
               event: Providers::Anthropic::ResponseParser.event_from_usage(
                 usage: usage,
                 model: hop[:model],
                 provider_response_id: nil,
                 usage_source: Usage::Source::STREAM_FINAL,
                 stream: true,
-                stop_reason: ("refusal" unless output),
+                stop_reason: ("refusal" unless produced_output),
                 refusal_category: hop.dig(:refused, :stop_details, "category")
               )
             )
           end
-        rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError
+        rescue BudgetExceededError, UnknownPricingError
           nil
-        end
-
-        def stream_collector(request, host: nil)
-          regional = Providers::Anthropic::UsageExtractor.regional_host?(host, request[:model])
-          super(request, pricing_mode: ("data_residency" if regional))
-        end
-
-        def response_fields(message)
-          { stop_reason: message.stop_reason, refusal_category: message.stop_details&.category,
-            content: message.deep_to_h[:content] }
-        end
-      end
-
-      module MessagesPatch
-        def create(*args, **kwargs)
-          host = LlmCostTracker::Integrations::Anthropic.client_host_for(self)
-          LlmCostTracker::Integrations::Anthropic.wrap_blocking(
-            args,
-            kwargs,
-            record: lambda do |message, request, latency_ms|
-              LlmCostTracker::Integrations::Anthropic.record_message(
-                message, request: request, latency_ms: latency_ms, host: host
-              )
-            end
-          ) { super }
-        end
-
-        def stream(*args, **kwargs)
-          host = LlmCostTracker::Integrations::Anthropic.client_host_for(self)
-          LlmCostTracker::Integrations::Anthropic.wrap_stream(
-            args,
-            kwargs,
-            collector: ->(request) { LlmCostTracker::Integrations::Anthropic.stream_collector(request, host: host) }
-          ) { super }
-        end
-
-        def stream_raw(*args, **kwargs)
-          host = LlmCostTracker::Integrations::Anthropic.client_host_for(self)
-          LlmCostTracker::Integrations::Anthropic.wrap_stream(
-            args,
-            kwargs,
-            collector: ->(request) { LlmCostTracker::Integrations::Anthropic.stream_collector(request, host: host) }
-          ) { super }
-        end
-      end
-
-      module FallbackMiddlewarePatch
-        def call(req, nxt)
-          return super if req.streaming? || !LlmCostTracker::Integrations::Anthropic.active?
-
-          hops = []
-          response = super(req, ->(hop_req) { nxt.call(hop_req).tap { |hop| hops << [hop_req, hop] } })
-          answered = hops.select { |_hop_req, hop| hop.status < 300 }
-          answered[...-1].each { |hop| LlmCostTracker::Integrations::Anthropic.record_refused_hop(*hop) }
-          response
         end
 
         private
 
-        def consume_hop(*args, **kwargs)
-          refused = Thread.current[:llm_cost_tracker_refused_hop]
-          Thread.current[:llm_cost_tracker_refused_hop] = nil
-          LlmCostTracker::Integrations::Anthropic.record_refused_stream_hop(refused) if refused && kwargs[:splice]
-          super.tap { |hop| Thread.current[:llm_cost_tracker_refused_hop] = hop if hop[:refused] }
-        end
-      end
+        def succeeded_message(response)
+          result = response.result if response.respond_to?(:result)
+          return unless result.respond_to?(:type) && result.type.to_s == "succeeded"
 
-      module BatchesPatch
-        def create(*args, **kwargs)
-          anthropic = LlmCostTracker::Integrations::Anthropic
-          anthropic.enforce_budget!(request: anthropic.request_params(args, kwargs))
-          super
+          result.message if result.respond_to?(:message)
         end
 
-        def results_streaming(*args, **kwargs)
-          raw = super
-          return raw unless LlmCostTracker::Integrations::Anthropic.active?
-
-          BatchResultsCapture.new(raw)
-        end
-      end
-
-      class BatchResultsCapture
-        include Enumerable
-
-        def initialize(raw_stream)
-          @raw_stream = raw_stream
+        def tokens_reported?(usage)
+          usage && !(usage.input_tokens.nil? && usage.output_tokens.nil?)
         end
 
-        def each(&block)
-          return enum_for(:each) unless block
-
-          deferred = nil
-          @raw_stream.each do |response|
-            begin
-              LlmCostTracker::Integrations::Anthropic.record_batch_result(response)
-            rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
-              deferred ||= e
-            end
-            block.call(response)
-          end
-          raise deferred if deferred
-        end
-
-        def respond_to_missing?(name, include_private = false)
-          @raw_stream.respond_to?(name, include_private) || super
-        end
-
-        def method_missing(name, ...)
-          return super unless @raw_stream.respond_to?(name)
-
-          @raw_stream.public_send(name, ...)
+        def message_event(message, **attributes)
+          Providers::Anthropic::ResponseParser.event_from_usage(
+            provider_response_id: message.id,
+            stop_reason: message.stop_reason,
+            refusal_category: message.stop_details&.category,
+            content: message.deep_to_h[:content],
+            **attributes
+          )
         end
       end
     end

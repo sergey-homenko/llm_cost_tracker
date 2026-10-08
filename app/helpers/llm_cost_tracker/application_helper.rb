@@ -6,6 +6,12 @@ module LlmCostTracker
   module ApplicationHelper
     TAG_VALUE_SUMMARY_BYTES = 80
     TAG_TOOLTIP_BYTES = 512
+    PRICING_STATUS_LABELS = {
+      LlmCostTracker::Charges::CostStatus::COMPLETE => "Estimated",
+      LlmCostTracker::Charges::CostStatus::FREE => "Free",
+      LlmCostTracker::Charges::CostStatus::PARTIAL => "Partial"
+    }.freeze
+    NEUTRAL_DELTA_CLASS = "lct-delta-badge lct-delta-neutral"
 
     include DashboardFilterOptionsHelper
     include DashboardQueryHelper
@@ -26,11 +32,13 @@ module LlmCostTracker
       :overview
     end
 
-    def coverage_percent(numerator, denominator)
-      denominator = denominator.to_f
-      return 0.0 unless denominator.positive?
+    def sidebar_link_options(section)
+      active = dashboard_section == section
+      { class: active ? "lct-sidebar-link lct-active" : "lct-sidebar-link", aria: active ? { current: "page" } : {} }
+    end
 
-      (numerator.to_f / denominator) * 100.0
+    def coverage_percent(numerator, denominator)
+      Dashboard::Percent.of(numerator, denominator)
     end
 
     def money(value, currency: LlmCostTracker::DEFAULT_CURRENCY)
@@ -55,11 +63,7 @@ module LlmCostTracker
     def pricing_status(call)
       return "Unknown" if call.total_cost.nil?
 
-      {
-        LlmCostTracker::Charges::CostStatus::COMPLETE => "Estimated",
-        LlmCostTracker::Charges::CostStatus::FREE => "Free",
-        LlmCostTracker::Charges::CostStatus::PARTIAL => "Partial"
-      }.fetch(call.cost_status, "Unknown")
+      PRICING_STATUS_LABELS.fetch(call.cost_status, "Unknown")
     end
 
     def percent(value)
@@ -67,22 +71,11 @@ module LlmCostTracker
     end
 
     def delta_badge(delta_percent, mode: :cost)
-      return { text: "n/a vs. prior", css_class: "lct-delta-badge lct-delta-neutral" } if delta_percent.nil?
+      rounded = delta_percent&.round(1)
+      return { text: "n/a vs. prior", css_class: NEUTRAL_DELTA_CLASS } if rounded.nil?
+      return { text: "0.0% vs. prior", css_class: NEUTRAL_DELTA_CLASS } if rounded.zero?
 
-      rounded = delta_percent.round(1)
-      return { text: "0.0% vs. prior", css_class: "lct-delta-badge lct-delta-neutral" } if rounded.zero?
-
-      sign = rounded.positive? ? "+" : ""
-      text = "#{sign}#{format('%.1f', rounded)}% vs. prior"
-      css_class = if mode == :neutral
-                    "lct-delta-badge lct-delta-neutral"
-                  elsif rounded.positive?
-                    "lct-delta-badge lct-delta-up"
-                  else
-                    "lct-delta-badge lct-delta-down"
-                  end
-
-      { text: text, css_class: css_class }
+      { text: "#{format('%+.1f', rounded)}% vs. prior", css_class: delta_badge_class(rounded, mode) }
     end
 
     def bar_width(value, max)
@@ -132,15 +125,13 @@ module LlmCostTracker
       truncate_text(safe_json(tags), TAG_TOOLTIP_BYTES)
     end
 
-    def current_query(overrides = {})
-      request.query_parameters.symbolize_keys.slice(*LlmCostTracker::Dashboard::Params::QUERY_KEYS).merge(overrides)
-    end
-
-    def calls_query_for_model(provider:, model:)
-      current_query(provider: provider, model: model, page: nil, per: nil, format: nil)
-    end
-
     private
+
+    def delta_badge_class(rounded, mode)
+      return NEUTRAL_DELTA_CLASS if mode == :neutral
+
+      rounded.positive? ? "lct-delta-badge lct-delta-up" : "lct-delta-badge lct-delta-down"
+    end
 
     def truncate_text(string, limit)
       return string if string.bytesize <= limit

@@ -11,12 +11,18 @@ module LlmCostTracker
       UNKNOWN = "unknown"
       INCOMPLETE = [UNKNOWN, PARTIAL].freeze
 
+      TokenCharge = Data.define(:cost, :partial) do
+        def priced? = !cost.nil?
+
+        def unpriced? = cost.nil? || partial
+      end
+      private_constant :TokenCharge
+
       def self.unknown_pricing_sql(total_cost: "total_cost", cost_status: "cost_status")
         statuses = INCOMPLETE.map { |status| ActiveRecord::Base.connection.quote(status) }.join(", ")
         "#{total_cost} IS NULL OR #{cost_status} IN (#{statuses})"
       end
 
-      # rubocop:disable-next Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def self.call(token_usage:,
                     usage_source:,
                     token_cost:,
@@ -25,28 +31,25 @@ module LlmCostTracker
                     token_pricing_partial: false)
         return UNKNOWN if usage_source == Usage::Source::UNKNOWN
 
-        token_billable = token_usage.priced_quantities.any? { |_key, quantity| quantity.positive? }
-        service_billable = false
-        service_priced = false
-        service_unpriced = false
-        service_line_items.each do |line_item|
-          next unless line_item.billable?
+        charges = billable_charges(token_usage, token_cost, token_pricing_partial, service_line_items)
+        return for_cost(total_cost) if charges.none?(&:unpriced?)
 
-          service_billable = true
-          service_priced ||= line_item.priced?
-          service_unpriced ||= line_item.unpriced?
-          break if service_priced && service_unpriced
-        end
-
-        priced = (token_billable && !token_cost.nil?) || service_priced || (!token_billable && !service_billable)
-        unpriced = (token_billable && (token_cost.nil? || token_pricing_partial)) || service_unpriced
-        return UNKNOWN if unpriced && !priced
-        return PARTIAL if unpriced
-
-        return UNKNOWN if total_cost.nil?
-
-        total_cost.zero? ? FREE : COMPLETE
+        charges.any?(&:priced?) ? PARTIAL : UNKNOWN
       end
+
+      def self.for_cost(cost)
+        return UNKNOWN if cost.nil?
+
+        cost.zero? ? FREE : COMPLETE
+      end
+
+      def self.billable_charges(token_usage, token_cost, token_pricing_partial, service_line_items)
+        charges = service_line_items.select(&:billable?)
+        return charges unless token_usage.priced_quantities.any? { |_key, quantity| quantity.positive? }
+
+        charges + [TokenCharge.new(cost: token_cost, partial: token_pricing_partial)]
+      end
+      private_class_method :billable_charges
     end
   end
 end

@@ -28,18 +28,14 @@ module LlmCostTracker
       attr_reader :scope, :from, :to
 
       def alerts
-        window_days = WINDOW_DAYS.to_f
-        daily_spend_by_model.each_with_object([]) do |((provider, model), daily_costs), rows|
+        daily_spend_by_model.filter_map do |(provider, model), daily_costs|
           latest_spend = daily_costs.fetch(to, 0.0)
           next unless latest_spend.positive?
 
-          baseline_days = ((to - WINDOW_DAYS)...to).map { |day| daily_costs.fetch(day, 0.0) }
-          mean = baseline_days.sum / window_days
-          variance = baseline_days.sum { |value| (value - mean)**2 } / window_days
-          threshold = mean + (2 * Math.sqrt(variance))
-          next unless latest_spend > threshold
+          mean, deviation = baseline(daily_costs)
+          next unless latest_spend > mean + (2 * deviation)
 
-          rows << {
+          {
             provider: provider,
             model: model,
             day: to,
@@ -50,22 +46,28 @@ module LlmCostTracker
         end
       end
 
+      def baseline(daily_costs)
+        days = ((to - WINDOW_DAYS)...to).map { |day| daily_costs.fetch(day, 0.0) }
+        mean = days.sum / WINDOW_DAYS.to_f
+        variance = days.sum { |value| (value - mean)**2 } / WINDOW_DAYS.to_f
+        [mean, Math.sqrt(variance)]
+      end
+
       def daily_spend_by_model
-        window = (to - WINDOW_DAYS).beginning_of_day..to.end_of_day
+        daily_costs = Hash.new { |hash, key| hash[key] = Hash.new(0.0) }
+        daily_totals.each do |(provider, model, day), total_cost|
+          daily_costs[[provider, model]][Date.iso8601(day.to_s)] += total_cost.to_f
+        end
+        daily_costs
+      end
 
-        grouped = Hash.new { |hash, key| hash[key] = Hash.new(0.0) }
-
+      def daily_totals
         scope
-          .where(tracked_at: window)
+          .where(tracked_at: (to - WINDOW_DAYS).beginning_of_day..to.end_of_day)
           .where.not(total_cost: nil)
           .group(:provider, :model)
           .group_by_period(:day, time_zone: Time.zone)
           .sum(:total_cost)
-          .each do |(provider, model, day), total_cost|
-            grouped[[provider, model]][Date.iso8601(day.to_s)] += total_cost.to_f
-          end
-
-        grouped
       end
     end
   end

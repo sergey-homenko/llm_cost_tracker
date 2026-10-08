@@ -38,59 +38,24 @@ module LlmCostTracker
         provider = normalize_provider(provider)
         registry = read_registry(registry_path)
         held = held_models(provider, provider_result.models, registry.dig("metadata", "min_gem_version"))
-        provider_result = provider_result.with(models: provider_result.models.except(*held.keys))
-        current_models = registry.fetch("models", {})
-        current_service_charges = registry.fetch("service_charges", {})
+        scraped = provider_result.with(models: provider_result.models.except(*held.keys))
+        plan = build_plan(provider, scraped, registry, held)
+        return plan if @dry_run || !(plan.changed? || stale_source_urls?(registry, source_urls))
 
-        plan = build_plan(provider, provider_result, current_models, current_service_charges)
-               .with(notes: held_notes(provider, held))
-        plan = with_absences(plan, provider, current_models, held, registry.dig("metadata", "absent_since") || {})
-        source_urls_stale = source_urls && registry.dig("metadata", "source_urls") != source_urls
-        return plan unless (plan.changed? || source_urls_stale) && !@dry_run
-
-        new_registry = registry.merge(
-          "metadata" => written_metadata(registry, plan, source_urls),
-          "models" => apply_changes(provider, current_models, provider_result, plan.removed)
-        )
-        service_charges = apply_service_charges(provider, current_service_charges, provider_result)
-        new_registry["service_charges"] = service_charges if registry.key?("service_charges") || service_charges.any?
-        @writer.call(path: registry_path, registry: new_registry)
+        @writer.call(path: registry_path, registry: updated_registry(provider, scraped, registry, plan, source_urls))
         plan.with(written: true)
       end
 
       private
 
+      def normalize_provider(provider)
+        provider.to_s.strip.presence or raise Error, "provider is required"
+      end
+
       def read_registry(path)
         YAML.safe_load_file(path, aliases: false) || {}
       rescue Errno::ENOENT, Psych::Exception, ArgumentError, TypeError => e
         raise Error, "#{e.message} at #{path}"
-      end
-
-      def build_plan(provider, provider_result, current_models, current_service_charges)
-        deprecated = provider_result.deprecated_models
-        active = provider_result.models.except(*deprecated)
-        ensure_long_context_pricing_kept!(provider, active, current_models)
-        active_keys = active.keys.map { |id| registry_key(provider, id) }
-        legacy_active_keys = active.keys.select { |id| bare?(id) && current_models.key?(id) }
-        deprecated_keys = deprecated.flat_map do |id|
-          bare?(id) ? [registry_key(provider, id), id] : [registry_key(provider, id)]
-        end
-        removed = Set.new(legacy_active_keys)
-        deprecated_keys.each { |id| removed.add(id) if current_models.key?(id) }
-
-        added = active_keys.reject { |id| current_models.key?(id) }
-        updated = compute_updates(provider, active, current_models)
-        unchanged = active_keys.select { |id| current_models.key?(id) } - updated.keys
-        service_charges_updated = compute_service_charge_updates(provider, provider_result, current_service_charges)
-
-        Result.new(
-          added: added,
-          removed: removed.to_a,
-          updated: updated,
-          service_charges_updated: service_charges_updated,
-          unchanged: unchanged,
-          written: false
-        )
       end
 
       def held_models(provider, models, min_gem_version)
@@ -102,14 +67,97 @@ module LlmCostTracker
         end
       end
 
-      def with_absences(plan, provider, current_models, held, absent_since)
+      def held_notes(provider, held)
+        return [] if held.empty?
+
+        version = held.values.max_by { |required| Gem::Version.new(required) }
+        ["- `#{provider}`: #{held.keys.sort.join(', ')} held until metadata.min_gem_version is #{version}"]
+      end
+
+      def build_plan(provider, scraped, registry, held)
+        current = registry.fetch("models", {})
+        plan = model_changes(provider, scraped, current, registry.fetch("service_charges", {}))
+               .with(notes: held_notes(provider, held))
+        missing = current.keys.select { |key| key.start_with?("#{provider}/") } - listed_keys(plan, provider, held)
+        with_absences(plan, provider, missing, registry.dig("metadata", "absent_since") || {})
+      end
+
+      def model_changes(provider, scraped, current, current_charges)
+        active = scraped.models.except(*scraped.deprecated_models)
+        ensure_long_context_pricing_kept!(provider, active, current)
+        keys = active.keys.map { |id| registry_key(provider, id) }
+        updated = model_updates(provider, active, current)
+        Result.new(
+          added: keys.reject { |key| current.key?(key) },
+          removed: removed_keys(provider, active, scraped.deprecated_models, current),
+          updated:,
+          service_charges_updated: service_charge_changes(provider, scraped, current_charges),
+          unchanged: keys.select { |key| current.key?(key) } - updated.keys,
+          written: false
+        )
+      end
+
+      def ensure_long_context_pricing_kept!(provider, active, current)
+        threshold = LlmCostTracker::Pricing::Registry::CONTEXT_THRESHOLD_KEY
+        dropped = active.filter_map do |id, scraped_fields|
+          key = registry_key(provider, id)
+          key if current.dig(key, threshold) && !scraped_fields.key?(threshold)
+        end
+        raise Error, "refusing to drop long-context pricing for #{dropped.join(', ')}" if dropped.any?
+      end
+
+      def removed_keys(provider, active, deprecated, current)
+        legacy = active.keys.select { |id| bare?(id) && current.key?(id) }
+        retired = deprecated.flat_map { |id| bare?(id) ? [registry_key(provider, id), id] : registry_key(provider, id) }
+        (legacy + retired.select { |key| current.key?(key) }).uniq
+      end
+
+      def model_updates(provider, active, current)
+        active.each_with_object({}) do |(id, scraped_fields), updates|
+          key = registry_key(provider, id)
+          next unless current.key?(key)
+
+          field_changes = changes(provider_model_fields(current.fetch(key)), scraped_fields)
+          updates[key] = field_changes if field_changes.any?
+        end
+      end
+
+      def service_charge_changes(provider, scraped, current_charges)
+        existing = current_charges.fetch(provider, {})
+        scraped.service_charges.empty? ? {} : changes(existing, scraped.service_charges)
+      end
+
+      def changes(before, after)
+        (before.keys | after.keys).sort.each_with_object({}) do |key, changes|
+          changes[key] = { "from" => before[key], "to" => after[key] } if before[key] != after[key]
+        end
+      end
+
+      def listed_keys(plan, provider, held)
         held_keys = held.keys.map { |id| registry_key(provider, id) }
-        seen = plan.added + plan.updated.keys + plan.unchanged + plan.removed + held_keys
-        missing = current_models.keys.select { |key| key.start_with?("#{provider}/") } - seen
+        plan.added + plan.updated.keys + plan.unchanged + plan.removed + held_keys
+      end
+
+      def with_absences(plan, provider, missing, absent_since)
         dates = missing.to_h { |key| [key, absent_since.fetch(key, @today.iso8601)] }
         expired = dates.select { |_key, date| @today - Date.iso8601(date) >= PRUNE_AFTER_DAYS }.keys
-        absent = absence_changes(provider, absent_since, dates.except(*expired))
-        plan.with(removed: plan.removed + expired, absent: absent)
+        before = absent_since.select { |key, _| key.start_with?("#{provider}/") }
+        plan.with(removed: plan.removed + expired, absent: changes(before, dates.except(*expired)))
+      end
+
+      def stale_source_urls?(registry, source_urls)
+        source_urls && registry.dig("metadata", "source_urls") != source_urls
+      end
+
+      def updated_registry(provider, scraped, registry, plan, source_urls)
+        updated = registry.merge(
+          "metadata" => written_metadata(registry, plan, source_urls),
+          "models" => written_models(provider, registry.fetch("models", {}), scraped, plan.removed)
+        )
+        charges = registry.fetch("service_charges", {})
+        charges = charges.merge(provider => scraped.service_charges) if scraped.service_charges.any?
+        updated["service_charges"] = charges if registry.key?("service_charges") || charges.any?
+        updated
       end
 
       def written_metadata(registry, plan, source_urls)
@@ -119,81 +167,15 @@ module LlmCostTracker
         absent.empty? ? metadata.except("absent_since") : metadata.merge("absent_since" => absent)
       end
 
-      def absence_changes(provider, absent_since, dates)
-        before = absent_since.select { |key, _| key.start_with?("#{provider}/") }
-        (before.keys | dates.keys).sort.each_with_object({}) do |key, changes|
-          changes[key] = { "from" => before[key], "to" => dates[key] } if before[key] != dates[key]
-        end
-      end
-
-      def held_notes(provider, held)
-        return [] if held.empty?
-
-        version = held.values.max_by { |required| Gem::Version.new(required) }
-        ["- `#{provider}`: #{held.keys.sort.join(', ')} held until metadata.min_gem_version is #{version}"]
-      end
-
-      def ensure_long_context_pricing_kept!(provider, active, current_models)
-        threshold = LlmCostTracker::Pricing::Registry::CONTEXT_THRESHOLD_KEY
-        dropped = active.filter_map do |id, scraped_fields|
+      def written_models(provider, current, scraped, removed)
+        models = current.except(*removed)
+        scraped.models.except(*scraped.deprecated_models).each do |id, scraped_fields|
           key = registry_key(provider, id)
-          key if current_models.dig(key, threshold) && !scraped_fields.key?(threshold)
+          existing = models[key] || (current[id] if bare?(id)) || {}
+          models.delete(id) if bare?(id)
+          models[key] = preserved_model_fields(existing).merge(scraped_fields)
         end
-        raise Error, "refusing to drop long-context pricing for #{dropped.join(', ')}" if dropped.any?
-      end
-
-      def compute_updates(provider, active, current_models)
-        active.each_with_object({}) do |(id, scraped_fields), updates|
-          key = registry_key(provider, id)
-          next unless current_models.key?(key)
-
-          existing = current_models.fetch(key)
-          existing_fields = provider_model_fields(existing)
-          field_diff = (existing_fields.keys | scraped_fields.keys).sort.each_with_object({}) do |field, diff|
-            from = existing_fields[field]
-            to = scraped_fields[field]
-            diff[field] = { "from" => from, "to" => to } if from != to
-          end
-          updates[key] = field_diff if field_diff.any?
-        end
-      end
-
-      def apply_changes(provider, current_models, provider_result, removed_ids)
-        active = provider_result.models.except(*provider_result.deprecated_models)
-        next_models = current_models.dup
-        removed_ids.each { |id| next_models.delete(id) }
-        active.each do |id, scraped_fields|
-          key = registry_key(provider, id)
-          if bare?(id)
-            existing = next_models[key] || current_models[id] || {}
-            next_models.delete(id)
-          else
-            existing = next_models[key] || {}
-          end
-          next_models[key] = preserved_model_fields(existing).merge(scraped_fields)
-        end
-        next_models
-      end
-
-      def compute_service_charge_updates(provider, provider_result, current_service_charges)
-        existing = current_service_charges.fetch(provider, {})
-        scraped = provider_result.service_charges
-        return {} if scraped.empty?
-
-        (existing.keys | scraped.keys).sort.each_with_object({}) do |key, updates|
-          from = existing[key]
-          to = scraped[key]
-          updates[key] = { "from" => from, "to" => to } if from != to
-        end
-      end
-
-      def apply_service_charges(provider, current_service_charges, provider_result)
-        next_service_charges = current_service_charges.dup
-        scraped = provider_result.service_charges
-        return next_service_charges if scraped.empty?
-
-        next_service_charges[provider] = scraped
-        next_service_charges
+        models
       end
 
       def provider_model_fields(entry)
@@ -214,13 +196,6 @@ module LlmCostTracker
 
       def bare?(model_id)
         !model_id.to_s.include?("/")
-      end
-
-      def normalize_provider(provider)
-        normalized = provider.to_s.strip.presence
-        raise Error, "provider is required" unless normalized
-
-        normalized
       end
     end
   end

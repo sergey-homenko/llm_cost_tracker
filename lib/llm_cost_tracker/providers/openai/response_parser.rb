@@ -12,8 +12,12 @@ module LlmCostTracker
     module Openai
       module ResponseParser
         PENDING_STATUSES = %w[queued in_progress].freeze
+        RETRIEVE_PATH_PATTERN = %r{/(?:responses|agent)/resp_}
+        TRANSCRIPTION_PATH_PATTERN = %r{/audio/(?:transcriptions|translations)\z}
 
         class << self
+          def included(base) = base.include(StreamParser)
+
           def combined_pricing_mode(host:, model:, service_tier:, provider: "openai")
             modes = [Pricing::Mode.normalize(service_tier)]
             owners = %w[gemini/ anthropic/] if Hosts.vertex_non_global?(host)
@@ -26,33 +30,23 @@ module LlmCostTracker
 
           def event_from_response(response:, request:, provider:, host:, usage_source:, pricing_mode: nil)
             usage = response["usage"]&.deep_symbolize_keys
-            return nil if usage.nil? || PENDING_STATUSES.include?(response["status"].to_s)
+            return nil if usage.nil? || pending?(response)
 
             model = response["model"] || request["model"]
-            service_line_items =
-              ServiceCharges.service_line_items_for(response, request: request, model: model) +
-              ServiceCharges.transcription_line_items(usage) +
-              ServiceCharges.billed_line_items(usage) +
-              UsageExtractor.cache_read_line_items(usage)
-            Event.build(
+            service_tier = response["service_tier"] || usage[:service_tier] || request["service_tier"]
+            usage_event(
+              usage,
               provider: provider,
               provider_response_id: response["id"],
-              pricing_mode: pricing_mode || combined_pricing_mode(
-                provider: provider,
-                host: host,
-                model: model,
-                service_tier: response["service_tier"] || usage[:service_tier] || request["service_tier"]
-              ),
               model: model,
-              token_usage: UsageExtractor.token_usage(usage, model: model),
               usage_source: usage_source,
-              service_line_items: service_line_items
+              service_line_items: ServiceCharges.service_line_items_for(response, request: request, model: model),
+              pricing_mode: pricing_mode || combined_pricing_mode(provider:, host:, model:, service_tier:)
             )
           end
 
           def retrieved_event(response:, provider:, host:, usage_source:)
-            finished = !PENDING_STATUSES.include?(response["status"].to_s)
-            return nil unless finished && response["background"] && response["usage"]
+            return nil unless response["background"] && response["usage"] && !pending?(response)
             return nil if Call.already_recorded?(provider: provider, provider_response_id: response["id"])
 
             event_from_response(
@@ -63,115 +57,69 @@ module LlmCostTracker
               usage_source: usage_source
             )&.keyed_by_response_id
           end
+
+          def usage_event(usage, model:, service_line_items:, **attributes)
+            Event.build(
+              model: model,
+              token_usage: UsageExtractor.token_usage(usage, model: model),
+              service_line_items: service_line_items + ServiceCharges.transcription_line_items(usage) +
+                                  ServiceCharges.billed_line_items(usage) + UsageExtractor.cache_read_line_items(usage),
+              **attributes
+            )
+          end
+
+          private
+
+          def pending?(response)
+            PENDING_STATUSES.include?(response["status"].to_s)
+          end
         end
 
         def parse(request_url:, request_body:, response_status:, response_body:, **)
           return nil unless response_status == 200
 
           response = safe_json_parse(response_body)
-          host = parsed_uri(request_url)&.host
-          if parsed_uri(request_url)&.path.to_s.match?(%r{/(?:responses|agent)/resp_})
-            return ResponseParser.retrieved_event(
-              response: response,
-              provider: provider_for(request_url),
-              host: host,
-              usage_source: Usage::Source::RESPONSE
-            )
+          uri = parsed_uri(request_url)
+          source = { provider: provider_for(request_url), host: uri&.host, usage_source: Usage::Source::RESPONSE }
+          if uri&.path.to_s.match?(RETRIEVE_PATH_PATTERN)
+            return ResponseParser.retrieved_event(response: response, **source)
           end
 
           request = safe_json_parse(request_body)
-          ResponseParser.event_from_response(
-            response: response,
-            request: request,
-            provider: provider_for(request_url),
-            host: host,
-            usage_source: Usage::Source::RESPONSE
-          ) || speech_event(request_url, request) ||
-            transcription_without_usage_event(request_url, request, response) ||
-            ocr_event(request_url, request, response) || moderation_event(request_url, request, response)
-        end
-
-        def parse_stream(response_status:, request_url: nil, request_body: nil, events: [], **)
-          return nil unless response_status == 200
-
-          request = safe_json_parse(request_body)
-          usage = detect_stream_usage(events)
-          context = stream_capture_context(events: events, request: request, request_url: request_url, usage: usage)
-
-          background = find_event_value(events) { |data| data.dig("response", "background") }
-          if usage
-            event = build_known_stream_usage(usage: usage, **context)
-            return background ? event.keyed_by_response_id : event
-          end
-
-          warn_missing_stream_usage(request_url: request_url, request: request)
-          build_unknown_stream_usage(**context, service_line_items: background ? [] : context[:service_line_items])
-        end
-
-        def streaming_request?(request_url, request_parsed)
-          super || request_parsed["stream_format"] == "sse"
-        end
-
-        def auto_enable_stream_usage?(request_url, _request_parsed)
-          openai_chat_completions_url?(request_url)
-        end
-
-        def retain_stream_event?(data)
-          data.is_a?(Hash) && (data["item"].is_a?(Hash) || data["response"].is_a?(Hash))
-        end
-
-        def trim_stream_event(data)
-          return data unless data.is_a?(Hash)
-
-          item, response = data.values_at("item", "response")
-          data = data.merge("item" => ServiceCharges.billing_fields(item)) if item
-          return data unless response.is_a?(Hash)
-
-          output = Array(response["output"]).filter_map { |output_item| ServiceCharges.billing_fields(output_item) }
-          data.merge("response" => response.slice("id", "model", "service_tier", "background", "usage")
-                                           .merge("output" => output))
+          ResponseParser.event_from_response(response: response, request: request, **source) ||
+            usage_free_event(request_url, request, response)
         end
 
         private
 
-        def speech_event(request_url, request)
-          uri = parsed_uri(request_url)
-          return nil unless uri && uri.path.to_s.end_with?("/audio/speech")
-
-          line_items = ServiceCharges.speech_line_items(request)
-          Event.build(
-            provider: provider_for(request_url),
-            model: model_for(request_url, request),
-            token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
-            usage_source: line_items.empty? ? Usage::Source::UNKNOWN : Usage::Source::RESPONSE,
-            service_line_items: line_items
-          )
+        def usage_free_event(request_url, request, response)
+          path = parsed_uri(request_url)&.path.to_s
+          if path.end_with?("/audio/speech")
+            speech_event(request_url, request)
+          elsif path.match?(TRANSCRIPTION_PATH_PATTERN)
+            transcription_event(request_url, request, response)
+          else
+            ocr_event(request_url, request, response) ||
+              (moderation_event(request_url, request, response) if path.end_with?("/moderations"))
+          end
         end
 
-        def transcription_without_usage_event(request_url, request, response)
-          uri = parsed_uri(request_url)
-          return nil unless uri && uri.path.to_s.match?(%r{/audio/(?:transcriptions|translations)\z})
+        def speech_event(request_url, request)
+          line_item_event(request_url, model_for(request_url, request), ServiceCharges.speech_line_items(request))
+        end
 
+        def transcription_event(request_url, request, response)
           seconds = response["duration"].to_f.ceil
           line_items = ServiceCharges.transcription_line_items(type: "duration", seconds: seconds)
-          Event.build(
-            provider: provider_for(request_url),
-            model: model_for(request_url, request) || Event::UNKNOWN_MODEL,
-            token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
-            usage_source: line_items.empty? ? Usage::Source::UNKNOWN : Usage::Source::RESPONSE,
-            service_line_items: line_items
-          )
+          line_item_event(request_url, model_for(request_url, request) || Event::UNKNOWN_MODEL, line_items)
         end
 
-        def moderation_event(request_url, request, response)
-          return nil unless parsed_uri(request_url)&.path.to_s.end_with?("/moderations")
-
-          Event.build(
-            provider: provider_for(request_url),
-            model: response["model"] || model_for(request_url, request),
-            provider_response_id: response["id"],
-            token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
-            usage_source: Usage::Source::RESPONSE
+        def line_item_event(request_url, model, line_items)
+          zero_token_event(
+            request_url,
+            model: model,
+            usage_source: line_items.empty? ? Usage::Source::UNKNOWN : Usage::Source::RESPONSE,
+            service_line_items: line_items
           )
         end
 
@@ -179,108 +127,33 @@ module LlmCostTracker
           line_items = ServiceCharges.ocr_line_items(response)
           return nil if line_items.empty?
 
-          provider = provider_for(request_url)
           model = response["model"] || model_for(request_url, request)
-          Event.build(
-            provider: provider,
+          zero_token_event(
+            request_url,
             model: model,
-            token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
             pricing_mode: ResponseParser.combined_pricing_mode(
-              provider: provider, host: parsed_uri(request_url)&.host, model: model, service_tier: nil
+              provider: provider_for(request_url), host: parsed_uri(request_url)&.host, model: model, service_tier: nil
             ),
             usage_source: Usage::Source::RESPONSE,
             service_line_items: line_items
           )
         end
 
-        def stream_capture_context(events:, request:, request_url:, usage:)
-          model = find_event_value(events, reverse: true) do |data|
-            data["model"] || data.dig("response", "model") || data.dig("chunk", "model")
-          end || request["model"]
-          provider = provider_for(request_url)
-          {
-            provider: provider,
-            model: model,
-            provider_response_id: find_event_value(events) do |data|
-              data["id"] || data.dig("response", "id") || data.dig("chunk", "id")
-            end,
-            pricing_mode: ResponseParser.combined_pricing_mode(
-              provider: provider,
-              host: parsed_uri(request_url)&.host,
-              model: model,
-              service_tier: stream_pricing_mode(events) || usage&.dig(:service_tier) || request["service_tier"]
-            ),
-            service_line_items: openai_stream_service_line_items(events, request: request, model: model) +
-              ServiceCharges.speech_line_items(request)
-          }
+        def moderation_event(request_url, request, response)
+          zero_token_event(
+            request_url,
+            model: response["model"] || model_for(request_url, request),
+            provider_response_id: response["id"],
+            usage_source: Usage::Source::RESPONSE
+          )
         end
 
-        def build_known_stream_usage(usage:,
-                                     provider:,
-                                     model:,
-                                     provider_response_id:,
-                                     pricing_mode:,
-                                     service_line_items:)
+        def zero_token_event(request_url, **attributes)
           Event.build(
-            provider: provider,
-            provider_response_id: provider_response_id,
-            pricing_mode: pricing_mode,
-            model: model,
-            token_usage: UsageExtractor.token_usage(usage, model: model),
-            stream: true,
-            usage_source: Usage::Source::STREAM_FINAL,
-            service_line_items: service_line_items + ServiceCharges.transcription_line_items(usage) +
-                                ServiceCharges.billed_line_items(usage) + UsageExtractor.cache_read_line_items(usage)
+            provider: provider_for(request_url),
+            token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0),
+            **attributes
           )
-        end
-
-        def warn_missing_stream_usage(request_url:, request:)
-          return unless request_url.nil? || request["stream"]
-          return unless request_url ? openai_chat_completions_url?(request_url) : request["messages"]
-          return if request.dig("stream_options", "include_usage")
-
-          Logging.warn(
-            "OpenAI-compatible chat-completions stream finished without a final usage chunk. " \
-            "Set `stream_options: { include_usage: true }` in your request body so the gem can " \
-            "record token counts. This call was stored with usage_source=#{Usage::Source::UNKNOWN}."
-          )
-        end
-
-        def openai_chat_completions_url?(request_url)
-          uri = parsed_uri(request_url)
-          uri && uri.path.to_s.end_with?("/chat/completions")
-        end
-
-        def detect_stream_usage(events)
-          usage = find_event_value(events, reverse: true) do |data|
-            candidate = data["usage"] || data.dig("response", "usage") || data.dig("chunk", "usage") ||
-                        data.dig("x_groq", "usage") || data.dig("chunk", "x_groq", "usage")
-            next unless candidate.is_a?(Hash)
-
-            audio = { "output_tokens_details" => { "audio_tokens" => candidate["output_tokens"] } }
-            data["type"] == "speech.audio.done" ? candidate.merge(audio) : candidate
-          end
-          usage&.deep_symbolize_keys
-        end
-
-        def stream_pricing_mode(events)
-          find_event_value(events, reverse: true) do |data|
-            data["service_tier"] || data.dig("response", "service_tier") || data.dig("chunk", "service_tier")
-          end
-        end
-
-        def openai_stream_service_line_items(events, request: nil, model: nil)
-          response = { "output" => [] }
-          each_event_data(events) do |data|
-            response["output"].concat(Array(data.dig("response", "output")))
-            response["output"] << data["item"] if data["item"]
-            chunk = data["chunk"] || data
-            next unless chunk["choices"].is_a?(Array)
-
-            response["id"] ||= chunk["id"]
-            response["choices"] ||= chunk["choices"]
-          end
-          ServiceCharges.service_line_items_for(response, request: request, model: model)
         end
       end
     end

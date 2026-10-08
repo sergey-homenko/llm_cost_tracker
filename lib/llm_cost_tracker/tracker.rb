@@ -17,34 +17,16 @@ module LlmCostTracker
         return unless LlmCostTracker.configuration.enabled
 
         tracked_at = Time.now.utc
-        calculation = Pricing::Calculation.for(
-          provider: event.provider,
-          model: event.model,
-          tokens: event.token_usage,
-          line_items: event.line_items,
-          pricing_mode: event.pricing_mode,
-          usage_source: event.usage_source,
-          at: tracked_at
-        )
-
+        calculation = price(event, at: tracked_at)
         tags = build_tags(context_tags: context_tags, metadata: metadata)
-
         event = build_event(event:, calculation:, tags:, latency_ms:, tracked_at:)
-
-        if Ingestion.async?
-          Ingestion::Inbox.save(event)
-          Ingestion::Worker.ensure_started
-        else
-          Ledger::Store.insert(event)
-        end
-
+        persist(event)
         yield if block_given?
         notify_subscribers(event)
-        behavior_override = :raise if enforce_budget
         begin
           signal_unpriced(event, calculation)
         ensure
-          Budget.check!(event, behavior_override: behavior_override)
+          Budget.check!(event, behavior_override: enforce_budget ? :raise : nil)
         end
 
         event
@@ -58,13 +40,34 @@ module LlmCostTracker
 
       private
 
+      def price(event, at:)
+        Pricing::Calculation.for(
+          provider: event.provider,
+          model: event.model,
+          tokens: event.token_usage,
+          line_items: event.line_items,
+          pricing_mode: event.pricing_mode,
+          usage_source: event.usage_source,
+          at: at
+        )
+      end
+
+      def persist(event)
+        return Ledger::Store.insert(event) unless Ingestion.async?
+
+        Ingestion::Inbox.save(event)
+        Ingestion::Worker.ensure_started
+      end
+
       def signal_unpriced(event, calculation)
         iterations, lines = calculation.priced_line_items.partition { |line| line.kind == "model_iteration" }
         models = iterations.select(&:unpriced?).map { |line| line.details[:model] }
-        if calculation.token_cost.nil? && event.token_usage.total_tokens.positive? && lines.none?(&:priced?)
-          models.unshift(event.model)
-        end
+        models.unshift(event.model) if unpriced_tokens?(event, calculation, lines)
         models.each { |model| Pricing::Unknown.process(model, pricing_mode: calculation.mode) }
+      end
+
+      def unpriced_tokens?(event, calculation, lines)
+        calculation.token_cost.nil? && event.token_usage.total_tokens.positive? && lines.none?(&:priced?)
       end
 
       def notify_subscribers(event)

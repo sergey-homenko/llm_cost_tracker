@@ -420,8 +420,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   it "labels an invalid URI by stripping the query string before tagging it on the warning" do
-    label = LlmCostTracker::Middleware::Faraday.new(->(_env) { Faraday::Response.new })
-      .send(:request_url_label, "ht!tp://broken url[ with ]bad chars?foo=1")
+    label = LlmCostTracker::Redaction.url("ht!tp://broken url[ with ]bad chars?foo=1")
     expect(label).to eq("ht!tp://broken url[ with ]bad chars")
   end
 
@@ -452,7 +451,6 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
   end
 
   it "warns only once when the streaming tap overflowed and the response body is also blank" do
-    middleware = LlmCostTracker::Middleware::Faraday.new(->(_env) { Faraday::Response.new })
     parser = LlmCostTracker::Providers::Openai::Parser.new
     response_env = double("response_env", body: nil, status: 200, response_headers: {})
     stub_const("LlmCostTracker::Capture::SSE::LIMIT_BYTES", 8)
@@ -461,20 +459,17 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     warnings = []
     allow(LlmCostTracker::Logging).to receive(:warn) { |message| warnings << message }
 
-    middleware.send(
-      :parse_stream,
+    described_class::ResponseReader.new(
       parser: parser,
       request_url: "https://api.openai.com/v1/chat/completions",
       request_body: { model: "gpt-4o", stream: true }.to_json,
-      response_env: response_env,
-      stream_buffer: stream_buffer
-    )
+      stream_tap: stream_buffer
+    ).call(response_env, streaming: true)
 
     expect(warnings.count { |w| w.include?("exceeded") }).to eq(1)
   end
 
   it "logs and returns nil when the streaming tap cannot be installed" do
-    middleware = LlmCostTracker::Middleware::Faraday.new(->(_env) { Faraday::Response.new })
     failing_request = double("request")
     allow(failing_request).to receive(:on_data).and_return(proc { |_| })
     allow(failing_request).to receive(:on_data=).and_raise(StandardError, "cannot rewrap on_data")
@@ -482,7 +477,7 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
     expect(LlmCostTracker::Logging).to receive(:warn).with(/cannot rewrap on_data/)
     parser = LlmCostTracker::Providers::Openai::Parser.new
-    expect(middleware.send(:install_stream_tap, request_env, parser)).to be_nil
+    expect(described_class::StreamTee.install(request_env, parser)).to be_nil
   end
 
   it "re-raises non-streaming adapter errors without emitting an interrupted-stream event" do
