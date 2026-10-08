@@ -30,7 +30,7 @@ module LlmCostTracker
 
     def send_csv(relation)
       response.headers["Cache-Control"] = "no-store"
-      send_data Dashboard::CallsCsv.call(relation, limit: CSV_EXPORT_LIMIT, batch_size: CSV_EXPORT_BATCH_SIZE),
+      send_data Dashboard::CallsExport.call(relation, limit: CSV_EXPORT_LIMIT, batch_size: CSV_EXPORT_BATCH_SIZE),
                 type: "text/csv",
                 disposition: %(attachment; filename="llm_calls_#{Time.now.utc.strftime('%Y%m%d_%H%M%S')}.csv")
     end

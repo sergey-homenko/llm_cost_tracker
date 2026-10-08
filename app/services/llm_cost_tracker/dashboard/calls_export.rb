@@ -5,7 +5,7 @@ require "json"
 
 module LlmCostTracker
   module Dashboard
-    class CallsCsv
+    class CallsExport
       MYSQL_HINT = "NO_SKIP_SCAN(llm_cost_tracker_calls)"
       FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"].freeze
       MASKED_FIELDS = %i[provider_api_key_id provider_workspace_id provider_project_id].freeze

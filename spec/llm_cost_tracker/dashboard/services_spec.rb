@@ -1035,7 +1035,7 @@ RSpec.describe "LlmCostTracker dashboard services" do
     end
   end
 
-  describe LlmCostTracker::Dashboard::CallsCsv do
+  describe LlmCostTracker::Dashboard::CallsExport do
     it "exports the relation in order with formula-safe text and the MySQL skip-scan hint" do
       create_call(model: "=cmd", tracked_at: Time.utc(2026, 4, 18, 12))
       create_call(model: "plain", tracked_at: Time.utc(2026, 4, 18, 13))
