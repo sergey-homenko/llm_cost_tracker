@@ -14,6 +14,7 @@ module LlmCostTracker
     end
 
     module Gemini
+      autoload :Grounding, "llm_cost_tracker/providers/gemini/grounding"
       autoload :ModelFamilies, "llm_cost_tracker/providers/gemini/model_families"
       autoload :Parser, "llm_cost_tracker/providers/gemini/parser"
       autoload :UsageExtractor, "llm_cost_tracker/providers/gemini/usage_extractor"
@@ -22,8 +23,10 @@ module LlmCostTracker
     module Openai
       autoload :Hosts, "llm_cost_tracker/providers/openai/hosts"
       autoload :ModelFamilies, "llm_cost_tracker/providers/openai/model_families"
+      autoload :OutputItem, "llm_cost_tracker/providers/openai/output_item"
       autoload :Parser, "llm_cost_tracker/providers/openai/parser"
       autoload :ServiceCharges, "llm_cost_tracker/providers/openai/service_charges"
+      autoload :StreamParser, "llm_cost_tracker/providers/openai/stream_parser"
       autoload :UsageExtractor, "llm_cost_tracker/providers/openai/usage_extractor"
       autoload :ResponseParser, "llm_cost_tracker/providers/openai/response_parser"
     end

@@ -32,7 +32,7 @@ Primary files:
 - `lib/llm_cost_tracker/capture/stream_collector.rb`
 - `lib/llm_cost_tracker/event.rb`
 - `lib/llm_cost_tracker/parsers.rb` (registry + base parser)
-- `lib/llm_cost_tracker/providers/<vendor>/parser.rb`
+- `lib/llm_cost_tracker/providers/<vendor>/*.rb` (parser plus its usage, charge and grounding helpers)
 
 Responsibilities:
 

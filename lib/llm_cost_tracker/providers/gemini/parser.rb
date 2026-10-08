@@ -9,19 +9,14 @@ module LlmCostTracker
       class Parser < LlmCostTracker::Parsers::Base
         HOSTS = %w[generativelanguage.googleapis.com].freeze
         INTERACTIONS_PATH_PATTERN = %r{/interactions(?:/[^/]+)?\z}
+        INTERACTION_RETRIEVE_PATH_PATTERN = %r{/interactions/[^/]+\z}
         CACHE_PATH_PATTERN = %r{/cachedContents\z}
         TRACKED_PATH_PATTERN = Regexp.union(
           %r{/models/[^/:]+:(?:generateContent|streamGenerateContent)\z}, INTERACTIONS_PATH_PATTERN, CACHE_PATH_PATTERN
         )
         STREAM_PATH_PATTERN = /:streamGenerateContent\z/
-        GROUNDING_FIELDS = {
-          "grounding_request" => "response.candidates.groundingMetadata.webSearchQueries",
-          "maps_grounding_request" => "response.candidates.groundingMetadata.groundingChunks.maps"
-        }.freeze
-        INTERACTION_GROUNDING_KINDS = {
-          "google_search" => "grounding_request",
-          "google_maps" => "maps_grounding_request"
-        }.freeze
+        MODEL_PATH_PATTERN = %r{/models/([^/:]+)}
+        PENDING_STATUSES = %w[queued in_progress].freeze
         TRAFFIC_TYPE_MODES = {
           "ON_DEMAND" => nil,
           "TRAFFIC_TYPE_UNSPECIFIED" => nil,
@@ -42,9 +37,7 @@ module LlmCostTracker
         end
 
         def streaming_request?(request_url, request_parsed)
-          return true if path_matches?(request_url, STREAM_PATH_PATTERN)
-
-          super
+          path_matches?(request_url, STREAM_PATH_PATTERN) || super
         end
 
         def parse(request_url:, request_body:, response_status:, response_body:, response_headers: nil)
@@ -53,32 +46,11 @@ module LlmCostTracker
           response = safe_json_parse(response_body)
           request = safe_json_parse(request_body)
           if path_matches?(request_url, INTERACTIONS_PATH_PATTERN)
-            event = interaction_event(response, request: request, response_headers: response_headers)
-            return nil if event && path_matches?(request_url, %r{/interactions/[^/]+\z}) &&
-                          Call.already_recorded?(provider: "gemini", provider_response_id: event.provider_response_id)
-
-            return event
+            return interaction_response_event(response, request_url:, request:, response_headers:)
           end
           return cache_storage_event(response) if path_matches?(request_url, CACHE_PATH_PATTERN)
 
-          usage = response["usageMetadata"]
-          return nil unless usage
-
-          model = response["modelVersion"].presence || extract_model_from_url(request_url)
-          build_event(
-            model: model,
-            usage: usage,
-            usage_source: Usage::Source::RESPONSE,
-            provider_response_id: response["responseId"],
-            pricing_mode: pricing_mode(
-              request: request,
-              usage: usage,
-              response_headers: response_headers,
-              host: parsed_uri(request_url)&.host,
-              model: model
-            ),
-            service_line_items: service_line_items_for(response, model: model)
-          )
+          content_event(response, request_url:, request:, response_headers:)
         end
 
         def parse_stream(response_status:,
@@ -91,51 +63,18 @@ module LlmCostTracker
 
           request = safe_json_parse(request_body)
           interaction = find_event_value(events, reverse: true) { |data| completed_interaction(data) }
-          if interaction
-            return interaction_event(interaction, request: request, response_headers: response_headers, stream: true)
-          end
+          return interaction_event(interaction, request:, response_headers:, stream: true) if interaction
 
-          usage = merged_stream_usage(events)
-          model = find_event_value(events, reverse: true) { |data| data["modelVersion"] } ||
-                  extract_model_from_url(request_url) || model || request["model"]
-          response_id = find_event_value(events) { |data| data["responseId"] }
-          mode = pricing_mode(
-            request: request,
-            usage: usage,
-            response_headers: response_headers,
-            host: parsed_uri(request_url)&.host,
-            model: model
-          )
-          service_line_items = grounding_line_items_for_stream(events, model: model)
-
-          if usage
-            build_event(
-              model: model,
-              usage: usage,
-              stream: true,
-              usage_source: Usage::Source::STREAM_FINAL,
-              provider_response_id: response_id,
-              pricing_mode: mode,
-              service_line_items: service_line_items
-            )
-          else
-            build_unknown_stream_usage(
-              provider: "gemini",
-              model: model,
-              provider_response_id: response_id,
-              pricing_mode: mode,
-              service_line_items: service_line_items
-            )
-          end
+          content_stream_event(events, request:, request_url:, response_headers:, fallback_model: model)
         end
 
         def model_for(request_url, request_parsed)
-          extract_model_from_url(request_url) ||
+          model_from_url(request_url) ||
             (request_parsed["model"] if path_matches?(request_url, INTERACTIONS_PATH_PATTERN))
         end
 
         def retain_stream_event?(data)
-          data.is_a?(Hash) && grounding_counts(data["candidates"]).values.any?(&:positive?)
+          data.is_a?(Hash) && Grounding.from_candidates(data["candidates"]).any?
         end
 
         def provider_for(_request_url)
@@ -143,29 +82,7 @@ module LlmCostTracker
         end
 
         def service_line_items_for(response, model:)
-          usage = response["usage"]
-          return grounding_line_items(grounding_counts(response["candidates"]), model: model) unless usage.is_a?(Hash)
-
-          counts = Array(usage["grounding_tool_count"]).each_with_object(Hash.new(0)) do |entry, acc|
-            kind = INTERACTION_GROUNDING_KINDS[entry["type"]]
-            acc[kind] += entry["count"].to_i if kind
-          end
-          grounding_line_items(counts, model: model, provider_field: "response.usage.grounding_tool_count")
-        end
-
-        def interaction_usage_metadata(usage, service_tier)
-          {
-            "promptTokenCount" => usage["total_input_tokens"],
-            "cachedContentTokenCount" => usage["total_cached_tokens"],
-            "toolUsePromptTokenCount" => usage["total_tool_use_tokens"],
-            "candidatesTokenCount" => usage["total_output_tokens"],
-            "thoughtsTokenCount" => usage["total_thought_tokens"],
-            "totalTokenCount" => usage["total_tokens"],
-            "promptTokensDetails" => modality_details(usage["input_tokens_by_modality"]),
-            "cacheTokensDetails" => modality_details(usage["cached_tokens_by_modality"]),
-            "candidatesTokensDetails" => modality_details(usage["output_tokens_by_modality"]),
-            "serviceTier" => service_tier
-          }
+          Grounding.from_response(response).line_items(model: model)
         end
 
         def cache_storage_event(response)
@@ -174,23 +91,13 @@ module LlmCostTracker
           to = response["expireTime"]
           return nil unless tokens && from && to
 
-          seconds = Time.iso8601(to) - Time.iso8601(from)
           Event.build(
             provider: "gemini",
             model: response["model"].to_s.split("/").last,
             token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
             usage_source: Usage::Source::RESPONSE,
             provider_response_id: response["name"],
-            service_line_items: [
-              Charges::LineItem.build(
-                dimension_key: "cache_storage_token_hour",
-                quantity: BigDecimal(tokens.to_s) * BigDecimal(seconds.to_s) / 3600,
-                cost_status: Charges::CostStatus::UNKNOWN,
-                pricing_basis: "provider_usage",
-                provider_field: "response.usageMetadata.totalTokenCount",
-                details: { cached_tokens: tokens, expire_time: to }
-              )
-            ]
+            service_line_items: [cache_storage_line_item(tokens, from, to)]
           )
         end
 
@@ -202,72 +109,19 @@ module LlmCostTracker
 
         private
 
-        def service_tier(request, usage, response_headers)
-          traffic = usage && usage["trafficType"]
-          body_mode = Pricing::Mode.normalize(usage && usage["serviceTier"]) ||
-                      TRAFFIC_TYPE_MODES.fetch(traffic.to_s) { Pricing::Mode.normalize(traffic) }
-          return body_mode if body_mode
+        def interaction_response_event(response, request_url:, request:, response_headers:)
+          event = interaction_event(response, request:, response_headers:)
+          return event unless event && path_matches?(request_url, INTERACTION_RETRIEVE_PATH_PATTERN)
 
-          header_mode = Pricing::Mode.normalize(response_header(response_headers, "x-gemini-service-tier"))
-          return header_mode if header_mode
-
-          request_mode = Pricing::Mode.normalize(request["service_tier"] || request["serviceTier"])
-          request_mode == "flex" ? request_mode : nil
-        end
-
-        def build_event(model:,
-                        usage:,
-                        usage_source:,
-                        provider_response_id:,
-                        pricing_mode:,
-                        service_line_items:,
-                        stream: false)
-          Event.build(
-            provider: "gemini",
-            model: model,
-            pricing_mode: pricing_mode,
-            token_usage: UsageExtractor.token_usage(usage),
-            stream: stream,
-            usage_source: usage_source,
-            provider_response_id: provider_response_id,
-            service_line_items: service_line_items + UsageExtractor.line_items(usage)
-          )
-        end
-
-        def path_matches?(url, pattern)
-          uri_matches?(url) { |uri| uri.path.to_s.match?(pattern) }
-        end
-
-        def merged_stream_usage(events)
-          find_event_value(events, reverse: true) do |data|
-            meta = data["usageMetadata"]
-            meta if meta.is_a?(Hash)
-          end
-        end
-
-        def extract_model_from_url(url)
-          uri = parsed_uri(url)
-          return nil unless uri
-
-          match = uri.path.match(%r{/models/([^/:]+)})
-          match && match[1]
-        end
-
-        def response_header(headers, name)
-          headers.to_h.find { |key, _value| key.to_s.downcase == name }&.last
-        end
-
-        def completed_interaction(data)
-          interaction = data["interaction"]
-          interaction if interaction.is_a?(Hash) && interaction["usage"].is_a?(Hash)
+          event unless Call.already_recorded?(provider: "gemini", provider_response_id: event.provider_response_id)
         end
 
         def interaction_event(interaction, request:, response_headers:, stream: false)
           usage = interaction["usage"]
-          return nil unless usage.is_a?(Hash) && !%w[queued in_progress].include?(interaction["status"])
+          return nil unless usage.is_a?(Hash) && !PENDING_STATUSES.include?(interaction["status"])
 
           model = interaction["model"] || request["model"]
-          metadata = interaction_usage_metadata(usage, interaction["service_tier"])
+          metadata = UsageExtractor.from_interaction(usage, interaction["service_tier"])
           build_event(
             model: model,
             usage: metadata,
@@ -279,51 +133,108 @@ module LlmCostTracker
           ).keyed_by_response_id
         end
 
-        def modality_details(entries)
-          Array(entries).map do |entry|
-            { "modality" => entry["modality"].to_s.upcase, "tokenCount" => entry["tokens"] }
+        def content_event(response, request_url:, request:, response_headers:)
+          usage = response["usageMetadata"]
+          return nil unless usage
+
+          model = response["modelVersion"].presence || model_from_url(request_url)
+          host = parsed_uri(request_url)&.host
+          build_event(
+            model: model,
+            usage: usage,
+            usage_source: Usage::Source::RESPONSE,
+            provider_response_id: response["responseId"],
+            pricing_mode: pricing_mode(request:, usage:, response_headers:, host:, model:),
+            service_line_items: service_line_items_for(response, model: model)
+          )
+        end
+
+        def content_stream_event(events, request:, request_url:, response_headers:, fallback_model:)
+          usage = last_usage_metadata(events)
+          model = find_event_value(events, reverse: true) { |data| data["modelVersion"] } ||
+                  model_from_url(request_url) || fallback_model || request["model"]
+          host = parsed_uri(request_url)&.host
+          attributes = {
+            model: model,
+            provider_response_id: find_event_value(events) { |data| data["responseId"] },
+            pricing_mode: pricing_mode(request:, usage:, response_headers:, host:, model:),
+            service_line_items: stream_grounding_line_items(events, model: model)
+          }
+          return build_unknown_stream_usage(provider: "gemini", **attributes) unless usage
+
+          build_event(usage: usage, stream: true, usage_source: Usage::Source::STREAM_FINAL, **attributes)
+        end
+
+        def build_event(usage:, service_line_items:, **attributes)
+          Event.build(
+            provider: "gemini",
+            token_usage: UsageExtractor.token_usage(usage),
+            service_line_items: service_line_items + UsageExtractor.line_items(usage),
+            **attributes
+          )
+        end
+
+        def cache_storage_line_item(tokens, from, to)
+          seconds = Time.iso8601(to) - Time.iso8601(from)
+          Charges::LineItem.build(
+            dimension_key: "cache_storage_token_hour",
+            quantity: BigDecimal(tokens.to_s) * BigDecimal(seconds.to_s) / 3600,
+            cost_status: Charges::CostStatus::UNKNOWN,
+            pricing_basis: "provider_usage",
+            provider_field: "response.usageMetadata.totalTokenCount",
+            details: { cached_tokens: tokens, expire_time: to }
+          )
+        end
+
+        def service_tier(request, usage, response_headers)
+          reported_service_tier(usage) ||
+            Pricing::Mode.normalize(response_header(response_headers, "x-gemini-service-tier")) ||
+            requested_flex_tier(request)
+        end
+
+        def reported_service_tier(usage)
+          return nil unless usage
+
+          traffic = usage["trafficType"]
+          Pricing::Mode.normalize(usage["serviceTier"]) ||
+            TRAFFIC_TYPE_MODES.fetch(traffic.to_s) { Pricing::Mode.normalize(traffic) }
+        end
+
+        def requested_flex_tier(request)
+          "flex" if Pricing::Mode.normalize(request["service_tier"] || request["serviceTier"]) == "flex"
+        end
+
+        def response_header(headers, name)
+          headers.to_h.find { |key, _value| key.to_s.downcase == name }&.last
+        end
+
+        def path_matches?(url, pattern)
+          uri_matches?(url) { |uri| uri.path.to_s.match?(pattern) }
+        end
+
+        def model_from_url(url)
+          uri = parsed_uri(url)
+          uri.path[MODEL_PATH_PATTERN, 1] if uri
+        end
+
+        def last_usage_metadata(events)
+          find_event_value(events, reverse: true) do |data|
+            metadata = data["usageMetadata"]
+            metadata if metadata.is_a?(Hash)
           end
         end
 
-        def grounding_line_items_for_stream(events, model:)
-          counts = find_event_value(events, reverse: true) do |data|
-            candidate_counts = grounding_counts(data["candidates"])
-            candidate_counts if candidate_counts.values.any?(&:positive?)
-          end
-          grounding_line_items(counts || {}, model: model)
+        def completed_interaction(data)
+          interaction = data["interaction"]
+          interaction if interaction.is_a?(Hash) && interaction["usage"].is_a?(Hash)
         end
 
-        def grounding_counts(candidates)
-          Array(candidates).each_with_object(Hash.new(0)) do |candidate, counts|
-            meta = candidate["groundingMetadata"]
-            next unless meta.is_a?(Hash)
-
-            queries = unique_query_count(meta["webSearchQueries"])
-            if Array(meta["groundingChunks"]).any? { |chunk| chunk.is_a?(Hash) && chunk.key?("maps") }
-              counts["maps_grounding_request"] += [queries, 1].max
-            else
-              counts["grounding_request"] += queries + unique_query_count(meta["imageSearchQueries"])
-            end
+        def stream_grounding_line_items(events, model:)
+          grounding = find_event_value(events, reverse: true) do |data|
+            candidates = Grounding.from_candidates(data["candidates"])
+            candidates if candidates.any?
           end
-        end
-
-        def unique_query_count(queries)
-          Array(queries).map { |query| query.to_s.strip }.reject(&:empty?).uniq.size
-        end
-
-        def grounding_line_items(counts, model:, provider_field: nil)
-          counts.filter_map do |kind, count|
-            next unless count.positive?
-
-            Charges::LineItem.build(
-              dimension_key: kind,
-              quantity: ModelFamilies.per_query_grounding?(model) ? count : 1,
-              cost_status: Charges::CostStatus::UNKNOWN,
-              pricing_basis: "provider_usage",
-              provider_field: provider_field || GROUNDING_FIELDS.fetch(kind),
-              details: { web_search_queries: count }
-            )
-          end
+          grounding ? grounding.line_items(model: model) : []
         end
       end
     end
