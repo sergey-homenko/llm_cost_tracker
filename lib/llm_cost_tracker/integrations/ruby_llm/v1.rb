@@ -59,6 +59,8 @@ module LlmCostTracker
           end
 
           def record_embedding(provider, response, request:, latency_ms:)
+            return unless active?
+
             record_usage(reply_for(provider, response, request), latency_ms, stream: false, output_tokens: 0)
           end
 

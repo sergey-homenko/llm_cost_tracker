@@ -68,6 +68,17 @@ RSpec.describe LlmCostTracker::Pricing::Registry do
       end
     end
 
+    it "names YAML keys read as false or nil among the ignored price keys" do
+      Tempfile.create(["llm-prices", ".yml"]) do |file|
+        file.write("models:\n  custom-model:\n    input: 1.0\n    no: 2.0\n    ~: 3.0\n")
+        file.close
+
+        output = capture_log { described_class.file_prices(file.path) }
+
+        expect(output).to include("Unknown price keys").and include("false").and include("nil")
+      end
+    end
+
     it "allows local price metadata keys without warnings" do
       Tempfile.create(["llm-prices", ".json"]) do |file|
         file.write({

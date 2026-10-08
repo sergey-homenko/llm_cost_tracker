@@ -36,8 +36,8 @@ module LlmCostTracker
 
         def price_entry(model, entry)
           fields = hash_entry(model, entry).map { |key, value| [key, price_field(model, key, value)] }
-          unknown = fields.filter_map { |key, field| key unless field || METADATA_KEYS.include?(key) }
-          warn_unknown_keys(model, unknown) if unknown.any?
+          unknown = fields.reject { |key, field| field || METADATA_KEYS.include?(key) }.map(&:first)
+          warn_unknown_keys(model, unknown) unless unknown.empty?
           fields.filter_map(&:last).to_h
         end
 

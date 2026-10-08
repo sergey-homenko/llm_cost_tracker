@@ -16,6 +16,8 @@ module LlmCostTracker
         TRANSCRIPTION_PATH_PATTERN = %r{/audio/(?:transcriptions|translations)\z}
 
         class << self
+          def included(base) = base.include(StreamParser)
+
           def combined_pricing_mode(host:, model:, service_tier:, provider: "openai")
             modes = [Pricing::Mode.normalize(service_tier)]
             owners = %w[gemini/ anthropic/] if Hosts.vertex_non_global?(host)

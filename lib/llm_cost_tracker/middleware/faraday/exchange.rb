@@ -28,6 +28,7 @@ module LlmCostTracker
             @context_tags, @metadata = tag_snapshot
             enforce_budget if post?
           end
+          @request = nil
           perform(app, LlmCostTracker::Timing.now_monotonic)
         end
 
