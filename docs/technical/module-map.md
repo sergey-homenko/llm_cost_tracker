@@ -106,6 +106,7 @@ Primary files:
 - `lib/llm_cost_tracker/tracker.rb`
 - `lib/llm_cost_tracker/event.rb`
 - `lib/llm_cost_tracker/budget.rb`
+- `lib/llm_cost_tracker/budget/*` (pre-send estimate, limits, global and per-tag checks)
 
 Responsibilities:
 
