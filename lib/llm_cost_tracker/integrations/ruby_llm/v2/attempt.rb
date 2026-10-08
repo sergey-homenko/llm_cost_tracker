@@ -63,9 +63,9 @@ module LlmCostTracker
           private
 
           def transcript_event(base)
-            counts = TokenCounts.new(@usage, @payload, raw: base, request: request_params(base))
+            counts = TokenCounts.new(@usage, @payload, raw: base, request: Attempt.request_params(base, @payload))
             if @final && openai_usage?(@response["usage"])
-              event = openai_event(@usage, @response, request_params(base), counts.host)
+              event = openai_event(@usage, @response, Attempt.request_params(base, @payload), counts.host)
             end
             (event || counts.event(result: (@payload[:result] if @final)))&.with(stream: true)
           end
@@ -73,7 +73,7 @@ module LlmCostTracker
           def response_event(base)
             own = faraday_response(@raw, *(shared_responses if @final))
             raw = faraday_response(@raw, *shared_responses) || base
-            request = request_params(raw)
+            request = Attempt.request_params(raw, @payload)
             usage = billed_units(own)
             converse_event(usage, own) || stream_event(usage, raw, request) || parsed_event(usage, own, request) ||
               TokenCounts.new(usage, @payload, raw: raw, request: request)
@@ -85,8 +85,6 @@ module LlmCostTracker
           def shared_responses = [@response, result.try(:raw)]
 
           def faraday_response(*candidates) = candidates.find { |candidate| candidate.is_a?(Faraday::Response) }
-
-          def request_params(raw) = Attempt.request_params(raw, @payload)
 
           def converse_event(usage, own)
             data = bodies(own).reverse.find { |body| body["usage"].try(:key?, "inputTokens") }

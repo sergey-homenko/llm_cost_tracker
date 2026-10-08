@@ -31,8 +31,8 @@ module LlmCostTracker
 
             def tags_for(payload)
               context = LlmCostTracker::Tags::Context.tags
-              tagged = context.any? { |key, value| key.to_s == "run_id" && !value.to_s.empty? }
-              run_id = payload[:workflow_id] unless tagged
+              run_tagged = context.any? { |key, value| key.to_s == "run_id" && !value.to_s.empty? }
+              run_id = payload[:workflow_id] unless run_tagged
               { context_tags: context,
                 metadata: { run_id: run_id }.compact.merge(payload.slice(:workflow_name, :workflow_step_name).compact) }
             end

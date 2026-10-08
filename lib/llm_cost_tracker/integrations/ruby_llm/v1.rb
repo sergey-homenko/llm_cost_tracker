@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require_relative "../base"
+require_relative "v1/patches"
+require_relative "v1/reply"
 
 module LlmCostTracker
   module Integrations
@@ -25,256 +27,13 @@ module LlmCostTracker
             ]
           end
 
-          def record_completion(provider, response, request:, latency_ms:, has_block:)
-            model = response_model_id(response) || model_id_from_request(request[:model])
-            record_usage(
-              provider: provider,
-              model: model,
-              response: response,
-              latency_ms: latency_ms,
-              stream: has_block || request[:stream] == true,
-              service_line_items: service_line_items(provider.slug.to_s, response, model)
-            )
-          end
-
-          def service_line_items(provider, response, model)
-            body = raw_body(response)
-            case provider
-            when "anthropic"
-              counts = body.dig("usage", "server_tool_use")
-              Providers::Anthropic::UsageExtractor.service_line_items(server_tool_use: counts&.symbolize_keys)
-            when "openai" then Providers::Openai::ServiceCharges.service_line_items_for(body, model: model)
-            when "gemini" then Providers::Gemini::Parser.new.service_line_items_for(body, model: model)
-            when "openrouter", "xai", "perplexity"
-              Providers::Openai::ServiceCharges.billed_line_items(usage_hash(body))
-            else []
-            end
-          end
-
-          def record_embedding(provider, response, request:, latency_ms:)
-            record_usage(
-              provider: provider,
-              model: response_model_id(response) || model_id_from_request(request[:model]),
-              response: response,
-              latency_ms: latency_ms,
-              stream: false,
-              output_tokens: 0
-            )
-          end
-
-          def record_transcription(provider, response, request:, latency_ms:)
-            model = response_model_id(response) || model_id_from_request(request[:model])
-            match = LlmCostTracker::Pricing::Matcher.lookup(provider: provider.slug.to_s, model: model)
-            counts = token_counts(response)
-            usage = usage_hash(raw_body(response))
-            no_tokens = counts[:input].to_i.zero? && counts[:output].to_i.zero?
-            duration = billed_duration(usage, response, no_tokens)
-            line_items = Providers::Openai::ServiceCharges.transcription_line_items(duration)
-            audio_input = Providers::Openai::UsageExtractor.audio_input_tokens(usage)
-            audio_input = counts[:input].to_i if audio_input.zero? && match&.prices&.key?("audio_input")
-            record_usage(
-              provider: provider,
-              model: model,
-              response: response,
-              latency_ms: latency_ms,
-              stream: false,
-              audio_input_tokens: audio_input,
-              service_line_items: line_items,
-              usage_source: (Usage::Source::UNKNOWN if no_tokens && line_items.empty?)
-            )
-          end
-
-          def billed_duration(usage, response, no_tokens)
-            return usage if usage[:type].to_s == "duration" || usage[:prompt_audio_seconds]
-
-            { type: "duration", seconds: response.duration&.ceil } if no_tokens
-          end
-
-          def record_image(provider, response, request:, latency_ms:)
-            model = response_model_id(response) || model_id_from_request(request[:model])
-            usage = image_usage(response)
-            extractor = Providers::Openai::UsageExtractor
-            image_input = extractor.image_input_tokens(usage)
-            image_output, text_output = extractor.split_output(
-              output_tokens: usage[:output_tokens].to_i,
-              image_output_details: extractor.image_output_tokens(usage),
-              text_output_details: extractor.text_output_tokens(usage),
-              audio_output: 0,
-              default_to_image: model.to_s.match?(/\A(gpt-image-|gemini-.*-image)/)
-            )
-            record_passthrough(
-              provider: provider.slug.to_s,
-              model: model,
-              response: response,
-              latency_ms: latency_ms,
-              input_tokens: [usage[:input_tokens].to_i - image_input, 0].max,
-              image_input_tokens: image_input,
-              output_tokens: text_output,
-              image_output_tokens: image_output,
-              usage_source: usage.empty? ? Usage::Source::UNKNOWN : Usage::Source::SDK_RESPONSE
-            )
-          end
-
-          def record_moderation(provider, response, request:, latency_ms:)
-            record_passthrough(
-              provider: provider.slug.to_s,
-              model: response_model_id(response) || model_id_from_request(request[:model]),
-              response: response,
-              latency_ms: latency_ms,
-              input_tokens: 0,
-              output_tokens: 0
-            )
-          end
-
-          def image_usage(image)
-            usage = image.try(:usage)
-            (usage.is_a?(Hash) ? usage : {}).with_indifferent_access
-          end
-
-          def record_usage(provider:,
-                           model:,
-                           response:,
-                           latency_ms:,
-                           stream:,
-                           output_tokens: nil,
-                           audio_input_tokens: 0,
-                           service_line_items: [],
-                           usage_source: nil)
-            return unless active?
-
-            record_safely do
-              counts = token_counts(response, provider.slug.to_s)
-              output_tokens = counts[:output] if output_tokens.nil?
-              next if counts[:input].nil? && output_tokens.nil? && service_line_items.empty? && usage_source.nil?
-
-              cache_write_5m, cache_write_1h = cache_write_split(provider, response, counts[:cache_write])
-              LlmCostTracker::Tracker.record(
-                event: Event.build(
-                  provider: provider.slug.to_s,
-                  model: model,
-                  pricing_mode: pricing_mode_for(provider: provider, model: model, response: response),
-                  token_usage: gemini_token_usage(provider, response) || Usage::TokenUsage.build(
-                    input_tokens: counts[:input].to_i - audio_input_tokens,
-                    audio_input_tokens: audio_input_tokens,
-                    output_tokens: output_tokens.to_i,
-                    cache_read_input_tokens: counts[:cache_read].to_i,
-                    cache_write_input_tokens: cache_write_5m,
-                    cache_write_extended_input_tokens: cache_write_1h,
-                    hidden_output_tokens: counts[:thinking].to_i
-                  ),
-                  service_line_items: service_line_items + gemini_line_items(provider, response),
-                  stream: stream,
-                  usage_source: usage_source || LlmCostTracker::Usage::Source::SDK_RESPONSE,
-                  provider_response_id: provider_response_id_for(response)
-                ),
-                latency_ms: latency_ms
-              )
-            end
-          end
-
-          def gemini_token_usage(provider, response)
-            usage = gemini_usage_metadata(response) if provider.slug.to_s == "gemini"
-            return unless usage.is_a?(Hash)
-
-            Providers::Gemini::UsageExtractor.token_usage(usage)
-          end
-
-          def gemini_line_items(provider, response)
-            usage = gemini_usage_metadata(response) if provider.slug.to_s == "gemini"
-            usage.is_a?(Hash) ? Providers::Gemini::UsageExtractor.line_items(usage) : []
-          end
-
-          def gemini_usage_metadata(response) = raw_body(response)["usageMetadata"]
-
-          def token_counts(response, provider = nil)
-            tokens = response.try(:tokens)
-            return { input: response.try(:input_tokens), output: response.try(:output_tokens) } unless tokens
-
-            usage = raw_body(response)["usage"] || {}
-            input = usage["inputTokens"] || tokens.input
-            input = [input, usage["input_tokens"]].compact.max if provider == "anthropic"
-            output = tokens.output
-            thinking = tokens.thinking.to_i
-            raw_input = (usage["input_tokens"] || usage["prompt_tokens"]).to_i
-            output += thinking if output && usage["total_tokens"] == raw_input + output + thinking
+          def blocking_seam(resource, record_method, **extras)
             {
-              input: input,
-              output: output,
-              cache_read: tokens.cache_read,
-              cache_write: tokens.cache_write,
-              thinking: tokens.thinking
+              provider: resource.slug.to_s,
+              record: lambda do |response, request, latency_ms|
+                public_send(record_method, resource, response, request: request, latency_ms: latency_ms, **extras)
+              end
             }
-          end
-
-          def cache_write_split(provider, response, cache_write)
-            usage = raw_body(response)["usage"] || {}
-            cache = case provider.slug.to_s
-                    when "anthropic" then usage["cache_creation"]
-                    when "bedrock"
-                      Array(usage["cacheDetails"]).to_h { |d| ["ephemeral_#{d['ttl']}_input_tokens", d["inputTokens"]] }
-                    end
-            return [cache_write.to_i, 0] unless cache.is_a?(Hash)
-
-            five_minute = cache["ephemeral_5m_input_tokens"].to_i
-            one_hour = cache["ephemeral_1h_input_tokens"].to_i
-            [five_minute + [cache_write.to_i - five_minute - one_hour, 0].max, one_hour]
-          end
-
-          def model_id_from_request(value)
-            return value.to_s if value.is_a?(String) || value.is_a?(Symbol)
-
-            (value.try(:id) || value.try(:model_id) || value.try(:model))&.to_s
-          end
-
-          def provider_response_id_for(response)
-            body = raw_body(response)
-            body["id"] || body["responseId"]
-          end
-
-          def raw_body(response)
-            raw = response.try(:raw)
-            body = raw.respond_to?(:body) ? raw.body : raw
-            body = (raw || response).instance_variable_get(:@llm_cost_tracker_body) unless body.is_a?(Hash)
-            body.is_a?(Hash) ? body : {}
-          end
-
-          def usage_hash(body) = (body["usage"] || {}).deep_symbolize_keys
-
-          def keep_usage(result, body)
-            usage = body.slice("usage", "usageMetadata") if body.is_a?(Hash)
-            result.instance_variable_set(:@llm_cost_tracker_body, usage) if usage
-            result
-          end
-
-          def response_model_id(response)
-            (response.try(:model_id) || response.try(:model))&.to_s
-          end
-
-          def pricing_mode_for(provider:, model:, response:)
-            body = raw_body(response)
-            case provider.slug.to_s
-            when "anthropic", "bedrock"
-              Providers::Anthropic::UsageExtractor.pricing_mode(
-                request: { model: model, service_tier: body["serviceTier"].try(:[], "type") },
-                usage: body["usage"]&.deep_symbolize_keys
-              )
-            when "gemini", "vertexai"
-              Providers::Gemini::Parser.new.pricing_mode(
-                request: {},
-                usage: gemini_usage_metadata(response),
-                response_headers: nil,
-                host: URI(provider.api_base).host,
-                model: model
-              )
-            when "openai", "xai", "mistral"
-              Providers::Openai::ResponseParser.combined_pricing_mode(
-                provider: provider.slug.to_s,
-                host: URI(provider.api_base).host,
-                model: model,
-                service_tier: body["service_tier"] || body.dig("usage", "service_tier")
-              )
-            else body["service_tier"]
-            end
           end
 
           def request_params(args, kwargs)
@@ -285,78 +44,106 @@ module LlmCostTracker
             kwargs.merge(input: input, model: model_id_from_request(kwargs[:model])).with_indifferent_access
           end
 
-          def blocking_seam(resource, record_method, **extras)
-            {
-              provider: resource.slug.to_s,
-              record: lambda do |response, request, latency_ms|
-                public_send(record_method, resource, response, request: request, latency_ms: latency_ms, **extras)
-              end
-            }
-          end
-        end
+          def provider_response_id_for(response) = Reply.response_id(response)
 
-        module ProviderPatch
-          def complete(*args, **kwargs, &)
-            seam = LlmCostTracker::Integrations::RubyLlm::V1.blocking_seam(
-              self, :record_completion, has_block: block_given?
+          def keep_usage(result, body)
+            usage = body.slice("usage", "usageMetadata") if body.is_a?(Hash)
+            result.instance_variable_set(Reply::KEPT_BODY, usage) if usage
+            result
+          end
+
+          def record_completion(provider, response, request:, latency_ms:, has_block:)
+            reply = reply_for(provider, response, request)
+            stream = has_block || request[:stream] == true
+            record_usage(reply, latency_ms, stream: stream, service_line_items: reply.service_line_items)
+          end
+
+          def record_embedding(provider, response, request:, latency_ms:)
+            record_usage(reply_for(provider, response, request), latency_ms, stream: false, output_tokens: 0)
+          end
+
+          def record_transcription(provider, response, request:, latency_ms:)
+            reply = reply_for(provider, response, request)
+            counts = reply.token_counts
+            no_tokens = counts[:input].to_i.zero? && counts[:output].to_i.zero?
+            duration = billed_duration(reply.usage, response, no_tokens)
+            line_items = Providers::Openai::ServiceCharges.transcription_line_items(duration)
+            record_usage(
+              reply,
+              latency_ms,
+              stream: false,
+              audio_input_tokens: audio_input_tokens(reply, counts),
+              service_line_items: line_items,
+              usage_source: (Usage::Source::UNKNOWN if no_tokens && line_items.empty?)
             )
-            LlmCostTracker::Integrations::RubyLlm::V1.wrap_blocking(args, kwargs, **seam) { super }
           end
 
-          def embed(*args, **kwargs)
-            seam = LlmCostTracker::Integrations::RubyLlm::V1.blocking_seam(self, :record_embedding)
-            LlmCostTracker::Integrations::RubyLlm::V1.wrap_blocking(args, kwargs, **seam) { super }
+          def record_image(provider, response, request:, latency_ms:)
+            reply = reply_for(provider, response, request)
+            usage = response.try(:usage)
+            usage = (usage.is_a?(Hash) ? usage : {}).with_indifferent_access
+            record_passthrough(
+              provider: reply.slug,
+              model: reply.model,
+              response: response,
+              latency_ms: latency_ms,
+              usage_source: usage.empty? ? Usage::Source::UNKNOWN : Usage::Source::SDK_RESPONSE,
+              **image_tokens(usage, reply.model)
+            )
           end
 
-          def transcribe(*args, **kwargs)
-            seam = LlmCostTracker::Integrations::RubyLlm::V1.blocking_seam(self, :record_transcription)
-            LlmCostTracker::Integrations::RubyLlm::V1.wrap_blocking(args, kwargs, **seam) { super }
+          def record_moderation(provider, response, request:, latency_ms:)
+            reply = reply_for(provider, response, request)
+            record_passthrough(
+              provider: reply.slug, model: reply.model, response:, latency_ms:, input_tokens: 0, output_tokens: 0
+            )
           end
 
-          def paint(*args, **kwargs)
-            seam = LlmCostTracker::Integrations::RubyLlm::V1.blocking_seam(self, :record_image)
-            LlmCostTracker::Integrations::RubyLlm::V1.wrap_blocking(args, kwargs, **seam) { super }
-          end
-
-          def moderate(*args, **kwargs)
-            seam = LlmCostTracker::Integrations::RubyLlm::V1.blocking_seam(self, :record_moderation)
-            LlmCostTracker::Integrations::RubyLlm::V1.wrap_blocking(args, kwargs, **seam) { super }
-          end
-        end
-
-        module GeminiTranscriptionPatch
-          def transcribe(*args, **kwargs)
-            seam = LlmCostTracker::Integrations::RubyLlm::V1.blocking_seam(self, :record_transcription)
-            LlmCostTracker::Integrations::RubyLlm::V1.wrap_blocking(args, kwargs, **seam) { super }
-          end
-        end
-
-        module ResponseBodyPatch
-          def parse_transcription_response(response, **)
-            LlmCostTracker::Integrations::RubyLlm::V1.keep_usage(super, response.body)
-          end
-
-          def parse_embedding_response(response, **)
-            LlmCostTracker::Integrations::RubyLlm::V1.keep_usage(super, response.body)
-          end
-        end
-
-        module StreamPatch
           private
 
-          def stream_response(...)
-            body = @llm_cost_tracker_stream_body = {}
-            super.tap { |message| message.raw.instance_variable_set(:@llm_cost_tracker_body, body) }
+          def reply_for(provider, response, request)
+            Reply.new(provider, response, model_id_from_request(request[:model]))
           end
 
-          def build_on_data_handler(*, &handler)
-            body = @llm_cost_tracker_stream_body
-            super do |data|
-              if body && data.is_a?(Hash)
-                body.deep_merge!(data.values_at("message", "response").find { |part| part.is_a?(Hash) } || data)
-              end
-              handler.call(data)
+          def model_id_from_request(value)
+            return value.to_s if value.is_a?(String) || value.is_a?(Symbol)
+
+            (value.try(:id) || value.try(:model_id) || value.try(:model))&.to_s
+          end
+
+          def record_usage(reply, latency_ms, **options)
+            return unless active?
+
+            record_safely do
+              event = reply.event(**options)
+              LlmCostTracker::Tracker.record(event: event, latency_ms: latency_ms) if event
             end
+          end
+
+          def billed_duration(usage, response, no_tokens)
+            return usage if usage[:type].to_s == "duration" || usage[:prompt_audio_seconds]
+
+            { type: "duration", seconds: response.duration&.ceil } if no_tokens
+          end
+
+          def audio_input_tokens(reply, counts)
+            tokens = Providers::Openai::UsageExtractor.audio_input_tokens(reply.usage)
+            match = Pricing::Matcher.lookup(provider: reply.slug, model: reply.model) if tokens.zero?
+            match&.prices&.key?("audio_input") ? counts[:input].to_i : tokens
+          end
+
+          def image_tokens(usage, model)
+            extractor = Providers::Openai::UsageExtractor
+            image_input = extractor.image_input_tokens(usage)
+            image_output, text_output = extractor.split_output(
+              output_tokens: usage[:output_tokens].to_i,
+              image_output_details: extractor.image_output_tokens(usage),
+              text_output_details: extractor.text_output_tokens(usage),
+              audio_output: 0,
+              default_to_image: model.to_s.match?(/\A(gpt-image-|gemini-.*-image)/)
+            )
+            { input_tokens: [usage[:input_tokens].to_i - image_input, 0].max, image_input_tokens: image_input,
+              output_tokens: text_output, image_output_tokens: image_output }
           end
         end
       end
