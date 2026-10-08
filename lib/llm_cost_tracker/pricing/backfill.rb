@@ -4,13 +4,13 @@ require_relative "../pricing"
 require_relative "../charges/line_item"
 require_relative "../ledger/rollups"
 require_relative "../usage/token_usage"
-require_relative "../budget/per_tag"
+require_relative "../budget"
 
 module LlmCostTracker
   module Pricing
     module Backfill
       Result = Data.define(:examined, :recomputed, :still_unknown)
-      RollupEvent = Data.define(:provider, :tracked_at, :pricing_snapshot, :total_cost)
+      RollupEvent = Data.define(:provider, :tracked_at, :pricing_snapshot, :total_cost, :tags)
 
       DEFAULT_BATCH_SIZE = 500
       REGISTRY_SOURCES = %w[pricing_overrides prices_file bundled].freeze
@@ -22,7 +22,7 @@ module LlmCostTracker
           examined = 0
           recomputed = 0
 
-          scope.includes(:line_items).find_in_batches(batch_size: batch_size) do |batch|
+          scope.includes(:line_items, :tag_records).find_in_batches(batch_size: batch_size) do |batch|
             rollup_events = []
             LlmCostTracker::Call.transaction do
               batch.each do |call|
@@ -38,6 +38,7 @@ module LlmCostTracker
               end
               Ledger::Rollups.increment!(rollup_events)
             end
+            LlmCostTracker::Budget.notify_repriced_safely!(rollup_events)
           end
 
           Result.new(examined: examined, recomputed: recomputed, still_unknown: examined - recomputed)
@@ -140,7 +141,8 @@ module LlmCostTracker
             provider: call.provider,
             tracked_at: call.tracked_at,
             pricing_snapshot: calculation.snapshot,
-            total_cost: calculation.cost.total - call.total_cost.to_d
+            total_cost: calculation.cost.total - call.total_cost.to_d,
+            tags: call.tag_pairs
           )
         end
 

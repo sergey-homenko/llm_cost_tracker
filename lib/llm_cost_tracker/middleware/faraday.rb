@@ -31,11 +31,12 @@ module LlmCostTracker
         end
         stream_buffer = install_stream_tap(request_env, parser) if streaming
 
-        context_tags, metadata = tag_snapshot(request_env) if parser
-        if parser && request_env.method == :post
+        checked = parser || (request_env.method == :post && Parsers.batch_submission?(request_env.url))
+        context_tags, metadata = tag_snapshot(request_env) if checked
+        if checked && request_env.method == :post
           Budget.enforce!(
-            provider: parser.provider_for(request_url),
-            model: parser.model_for(request_url, request_parsed),
+            provider: parser&.provider_for(request_url),
+            model: parser&.model_for(request_url, request_parsed),
             request: request_parsed,
             tags: Tracker.build_tags(context_tags: context_tags, metadata: metadata)
           )
@@ -238,7 +239,8 @@ module LlmCostTracker
         original = request.on_data
         return nil unless original
 
-        tap = Capture::StreamTap.new(notable: parser.method(:retain_stream_event?))
+        tap = Capture::StreamTap.new(notable: parser.method(:retain_stream_event?),
+                                     trim: parser.method(:trim_stream_event))
         request.on_data = proc do |chunk, size, env|
           tap << chunk
           forward_on_data_chunk(original, chunk, size, env)

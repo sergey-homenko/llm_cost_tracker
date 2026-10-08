@@ -71,9 +71,16 @@ module LlmCostTracker
           totals = Ledger::Isolation.guard(LlmCostTracker::CallTag) do
             rows = LlmCostTracker::CallTag.where(key: key, value: values)
             rows = bucket ? rows.where(TIME_COLUMN => window_range(window, bucket)) : rows.where.not(TIME_COLUMN => nil)
-            rows.group(:value)
-                .pluck(:value, Arel.sql(total), Arel.sql(upto_total))
-                .to_h { |value, *sums| [value, sums.map { |sum| window == :calls ? sum.to_i : sum.to_d }] }
+            column = :value
+            if Ledger::Schema::Adapter.mysql?(LlmCostTracker::CallTag.connection)
+              column = Arel.sql("CAST(value AS BINARY)")
+              rows = rows.where(column.in(values))
+            end
+            rows.group(column)
+                .pluck(column, Arel.sql(total), Arel.sql(upto_total))
+                .to_h do |value, *sums|
+                  [value.dup.force_encoding(Encoding::UTF_8), sums.map { |sum| window == :calls ? sum.to_i : sum.to_d }]
+                end
           end
           warn_slow_read(key, window, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at)
           totals

@@ -712,6 +712,32 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       expect(recorded.first[:line_items].map { |item| item[:kind] }).to include("web_search_request")
     end
 
+    it "keeps the usage and file search fees of a Responses stream whose search results outgrow the capture limit" do
+      results = Array.new(50) { |rank| { file_id: "file_#{rank}", score: 0.5, text: "lorem ipsum " * 300 } }
+      searches = Array.new(4) do |index|
+        { type: "file_search_call", id: "fs_#{index}", status: "completed", queries: ["refunds"], results: results }
+      end
+      body = sse({ type: "response.created", response: { id: "resp_fs", model: "gpt-5.4", output: [] } },
+                 event: "response.created")
+      searches.each_with_index do |item, index|
+        body << sse({ type: "response.output_item.done", output_index: index, item: item },
+                    event: "response.output_item.done")
+      end
+      body << sse({ type: "response.completed",
+                    response: { id: "resp_fs", model: "gpt-5.4", status: "completed", output: searches,
+                                usage: { input_tokens: 60_000, output_tokens: 1_200, total_tokens: 61_200 } } },
+                  event: "response.completed")
+      expect(body.bytesize).to be > LlmCostTracker::Capture::SSE::LIMIT_BYTES
+
+      recorded = stream_through("https://api.openai.com", "/v1/responses", body,
+                                request: { model: "gpt-5.4", stream: true, input: "refunds?",
+                                            tools: [{ type: "file_search", vector_store_ids: ["vs_1"] }] })
+
+      expect(recorded.sole).to include(usage_source: "stream_final", provider_response_id: "resp_fs")
+      expect(recorded.sole[:token_usage]).to include(input_tokens: 60_000, output_tokens: 1_200)
+      expect(recorded.sole[:line_items].pluck(:kind).tally).to include("file_search_call" => 4)
+    end
+
     it "keeps Gemini grounding from the middle of a long SSE stream and usage from its last chunk" do
       body = Array.new(8_000) do |index|
         candidate = { content: { parts: [{ text: " token" }], role: "model" }, index: 0 }
@@ -1018,6 +1044,39 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
     expect(conn.get("/v1/responses/resp_bg").status).to eq(200)
     expect(LlmCostTracker::Budget).not_to have_received(:enforce!)
+  end
+
+  it "checks OpenAI-format batch submissions before they are sent, and not free batch cancels or token counts" do
+    error = LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 1.0)
+    allow(LlmCostTracker::Budget).to receive(:enforce!).and_raise(error)
+    checked = %w[
+      https://api.openai.com/v1/batches https://api.groq.com/openai/v1/batches
+      https://my-resource.openai.azure.com/openai/batches?api-version=2024-10-21
+    ]
+    free = %w[
+      https://api.openai.com/v1/batches/batch_1/cancel https://api.anthropic.com/v1/messages/batches/msgbatch_1/cancel
+      https://api.anthropic.com/v1/messages/count_tokens
+    ]
+    sent = []
+    conn = Faraday.new do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        (checked + free).each do |url|
+          stub.post(url) do
+            sent << url
+            [200, { "Content-Type" => "application/json" }, "{}"]
+          end
+        end
+      end
+    end
+
+    checked.each do |url|
+      expect { conn.post(url, { input_file_id: "file_in" }.to_json) }
+        .to raise_error(LlmCostTracker::BudgetExceededError)
+    end
+    free.each { |url| conn.post(url, { model: "claude-sonnet-4-5", messages: [] }.to_json) }
+
+    expect(sent).to eq(free)
   end
 
   it "passes provider, model, and parsed request body to Budget.enforce! for pre-send estimation" do

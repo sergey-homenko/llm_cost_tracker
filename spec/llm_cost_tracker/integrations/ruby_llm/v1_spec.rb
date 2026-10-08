@@ -607,7 +607,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V1, if: RubyLLM::VERSION.s
       end
     end
 
-    it "records a zero-token event when the image response has no usage hash" do
+    it "records an image response without usage with unknown cost, not as free" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/images/generations").to_return(
         status: 200,
         body: { created: 1, data: [{ url: "https://example.com/a.png" }] }.to_json,
@@ -619,7 +619,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V1, if: RubyLLM::VERSION.s
         expect(events.first).to include(
           provider: "openai", model: "gpt-image-1",
           input_tokens: 0, output_tokens: 0,
-          image_input_tokens: 0, image_output_tokens: 0
+          image_input_tokens: 0, image_output_tokens: 0,
+          usage_source: "unknown", cost_status: "unknown"
         )
       end
     end

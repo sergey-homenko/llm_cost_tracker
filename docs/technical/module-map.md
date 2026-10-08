@@ -18,7 +18,7 @@ Responsibilities:
 
 - Expose `configure`, `track`, `track_stream`, and `with_tags`.
 - Keep configuration immutable after `configure`.
-- Merge scoped tags and default tags without leaking across threads or fibers.
+- Merge scoped tags and default tags per fiber, lending them to threads and fibers started inside `with_tags` until it returns, and to no others.
 - Report installation, integration, pricing, ingestion, and schema health.
 
 This module can orchestrate other modules, but should not contain provider parsing, SQL details, dashboard aggregation, or pricing-source logic.

@@ -14,7 +14,7 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-Spend budgets evaluate only when an event has a known cost. Unknown-cost events are stored and surfaced on the Data Quality page, but they don't draw down a spend budget until pricing lands; a per-tag `calls` limit counts them.
+Spend budgets evaluate only when an event has a known cost. Unknown-cost events are stored and surfaced on the Data Quality page, but they don't draw down a spend budget until pricing lands; a per-tag `calls` limit counts them. When `backfill_unknown_pricing` or `reprice` pushes today's, this week's or this month's spend, or a `total`, over its limit, `on_exceeded` fires once for that crossing, whatever the behavior; nothing raises or blocks.
 
 ## Behaviors
 
@@ -22,17 +22,17 @@ Spend budgets evaluate only when an event has a known cost. Unknown-cost events 
 | --- | --- | --- |
 | `:notify` | After a priced event is recorded; for a `calls` limit, after any event | Calls `budgets.on_exceeded` once per budget type the event crossed (an event that pushes both daily and monthly over fires the callback twice — once per limit) |
 | `:raise` | After a priced event is recorded; for a `calls` limit, after any event | Raises `LlmCostTracker::BudgetExceededError` |
-| `:block_requests` | Before supported requests (for Faraday, `POST` only) and again after recording | Blocks the request when prior spend plus a character-count estimate of this call would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Preflight blocks do not fire `budgets.on_exceeded`; the callback only fires post-record on the event that first crossed the limit |
+| `:block_requests` | Before supported requests (for Faraday, `POST` only) and again after recording | Blocks the request when prior spend plus a character-count estimate of this call would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Preflight blocks do not fire `budgets.on_exceeded`; the callback fires post-record, as under `:notify` |
 
 `:raise` records first, then raises. The call that crossed the budget remains visible in the ledger. Every limit the call crossed, per-tag rules included, gets its `on_exceeded` call before the error for the first one is raised.
 
-`:block_requests` reads accumulated spend (see Budget Reads below) and also estimates the current call's input cost via a character-count heuristic (chars / 4 ≈ tokens, provider-agnostic, no external tokenizer). Base64 image, PDF and audio data is not counted. It blocks before send when prior spend plus the estimate would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Output tokens stay unknown pre-send and are caught by the existing post-record check. Approximate by design — runway-stop, not precise prediction. Unknown models (no pricing match) skip the estimate and fall through to the prior-spend preflight.
+`:block_requests` reads accumulated spend (see Budget Reads below) and also estimates the current call's input cost via a character-count heuristic (chars / 4 ≈ tokens, provider-agnostic, no external tokenizer). Base64 image, PDF and audio data is not counted. It blocks before send when prior spend plus the estimate would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Output tokens stay unknown pre-send and are caught by the existing post-record check. Approximate by design — runway-stop, not precise prediction. Unknown models (no pricing match) skip the estimate and fall through to the prior-spend preflight. Batch submissions through the openai and anthropic gems and Faraday are checked too: an Anthropic message batch adds up its requests' estimates and checks `budgets.per_call` against each request, and an OpenAI batch, whose requests sit in an uploaded file, is checked against prior spend alone.
 
 Under concurrency, multiple workers can clear preflight before each other's spend is visible. It stops the next request once overspend lands — it doesn't make provider spend transactional. Calls that land at the same moment can also fire `on_exceeded` twice for one crossing, and a call that commits after a later-stamped call was checked, such as one inside a slow transaction of your own or on a host whose clock runs ahead, can make the daily and monthly budgets fire twice or not at all. On MySQL, a call recorded inside your own transaction is checked against the snapshot that transaction took at its first read, so any budget can miss a crossing; record outside the transaction, or open it with `isolation: :read_committed`. With `ingestion.mode = :async`, per-tag rules fire once per crossing.
 
 If the budget read fails (database unavailable, statement timeout), `:block_requests` raises that error to your code and the request is not sent.
 
-Through RubyLLM 2.x the pre-send check runs when the call's RubyLLM event starts (`chat.ruby_llm` for each chat generation, `embedding.ruby_llm`, and so on) and raises from that start, so other subscribers to the event see its start but no finish. Operations added in later RubyLLM releases are not checked before they are sent.
+Through RubyLLM 2.x the pre-send check runs when the call's RubyLLM event starts (`chat.ruby_llm` for each chat generation, `embedding.ruby_llm`, `batch.ruby_llm` for a batch submission, `video_job.ruby_llm` and `research_job.ruby_llm` for a video or research job, and so on) and raises from that start, so other subscribers to the event see its start but no finish. `RubyLLM.cache` is checked when its `request.ruby_llm` event starts; recording its storage row never raises a budget error, so the app always gets the cache it paid for. Operations added in later RubyLLM releases are not checked before they are sent.
 
 ## Per-Tag Budgets
 
@@ -123,7 +123,7 @@ On RubyLLM 2.x, RubyLLM calls inside `RubyLLM.workflow` are tagged `run_id` with
 RubyLLM.workflow("Research", id: "research-#{run.id}") { chat.ask(question) }
 ```
 
-Without `id:`, RubyLLM generates one per workflow. A non-blank `run_id` from `with_tags` or `tags.default` wins over the workflow's id; since `with_tags` does not reach RubyLLM's tool threads, prefer passing the id to the workflow. A nested workflow has its own id, so it is a run of its own. Only RubyLLM's own calls get the id: calls in the block through the openai or anthropic SDKs, Faraday or `LlmCostTracker.track`, and the storage row of a Gemini cache created with `RubyLLM.cache`, are not tagged; wrap them in `with_tags(run_id:)` with the same id.
+Without `id:`, RubyLLM generates one per workflow. A non-blank `run_id` from `with_tags` or `tags.default` wins over the workflow's id. A nested workflow has its own id, so it is a run of its own. Only RubyLLM's own calls get the id: calls in the block through the openai or anthropic SDKs, Faraday or `LlmCostTracker.track`, and the storage row of a cache created with `RubyLLM.cache`, are not tagged; wrap them in `with_tags(run_id:)` with the same id.
 
 Bounds:
 
@@ -131,7 +131,7 @@ Bounds:
 - A running stream is not cut; the next call is blocked.
 - Under `ingestion.mode = :async`, a run counts only the calls the worker has drained.
 - An unpriced call adds nothing to `total` until it is priced; `calls` counts it.
-- `with_tags` does not cross threads: code that makes a run's calls in its own threads must set `run_id` there.
+- `with_tags` reaches threads and fibers started inside its block, until the block ends, but not threads that already exist, such as a thread pool's; code that makes a run's calls on those must set `run_id` itself.
 - `total` and `calls` have no window, so a reused run id keeps counting its earlier calls until `llm_cost_tracker:prune` deletes them.
 - A check reads every call the run has recorded, so it slows as the run grows: measured on 3M tag rows, a 5,000-call run reads in about 1–15 ms on PostgreSQL and 5–140 ms on MySQL, warm to cold cache. With both limits, a `:block_requests` rule makes up to four reads per call: two before it is sent and two after it is recorded.
 
@@ -160,7 +160,7 @@ Budget aggregation assumes a single-currency ledger. The rollups table partition
 | `budget_type` | `:monthly`, `:daily`, `:per_call`, or — for a per-tag rule — `:weekly`, `:total` or `:calls` |
 | `total` | Observed total for the budget type. For `stage == :pre_send`: prior spend plus the call's estimate for daily / monthly, and the estimate alone for `per_call`. For `:calls`, `total` and `budget` are call counts, and pre-send `total` includes the call being checked. |
 | `budget` | Configured threshold |
-| `last_event` | Event that triggered the check when available (`nil` for `stage == :pre_send` because the call has not yet been made) |
+| `last_event` | Event that triggered the check when available (`nil` for `stage == :pre_send` because the call has not yet been made, and for a crossing caused by repricing) |
 | `stage` | `:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks |
 | `scope` | `{ key:, value: }` for a `budgets.per_tag` check, `nil` for the global budgets |
 

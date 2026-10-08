@@ -18,12 +18,17 @@ module LlmCostTracker
               shared = faraday_response(response, result.try(:raw))
               own = faraday_response(raw) || (shared if final)
               raw = own || shared || base
+              request = request_params(raw, payload)
               usage = billed_units(usage, own, events)
-              converse_event(usage, payload, own, events) || stream_event(usage, events, raw) ||
-                parsed_event(usage, own) || normalized_event(usage, payload, (result if final), raw)
+              converse_event(usage, payload, own, events) || stream_event(usage, events, raw, request) ||
+                parsed_event(usage, own, request) ||
+                normalized_event(usage, payload, (result if final), raw, request, response_id(own, events))
             end
 
-            def stream_window = Capture::EventWindow.new(notable: method(:notable_event?))
+            def stream_window
+              Capture::EventWindow.new(notable: method(:notable_event?),
+                                       trim: stream_parsers.last.method(:trim_stream_event))
+            end
 
             def batch_event(usage, result, base)
               base = nil unless URI(base.to_s).host.to_s.match?(/\A(?:us|eu)\.|aiplatform\./i)
@@ -46,36 +51,35 @@ module LlmCostTracker
 
             def faraday_response(*candidates) = candidates.find { |candidate| candidate.is_a?(Faraday::Response) }
 
-            def raw_context(raw)
-              { request_url: raw.env.url.to_s, request_body: raw.env.request_body, response_headers: raw.headers }
+            def raw_context(raw, request)
+              { request_url: raw.env.url.to_s, request_body: request, response_headers: raw.headers }
             end
 
-            def stream_event(usage, events, raw)
+            def stream_event(usage, events, raw, request)
               return unless events
 
-              context = raw_context(raw).merge(response_status: 200, events: events)
+              context = raw_context(raw, request).merge(response_status: 200, events: events)
               stream_parsers.lazy.filter_map { |parser| parser.parse_stream(**context) }
                             .find { |parsed| parsed.usage_source != Usage::Source::UNKNOWN }
                             &.with(provider: usage[:provider], usage_source: Usage::Source::SDK_RESPONSE)
             end
 
-            def parsed_event(usage, raw)
+            def parsed_event(usage, raw, request)
               body = raw&.body
               return unless body.is_a?(Hash)
 
-              response = raw_context(raw).merge(response_status: raw.status, response_body: body)
+              response = raw_context(raw, request).merge(response_status: raw.status, response_body: body)
               event =
                 if body["type"] == "message" then Providers::Anthropic::Parser.new.parse(**response)
                 elsif body.key?("usageMetadata") || body["object"] == "interaction" then gemini_event(response)
-                elsif openai_usage?(body["usage"]) then openai_event(usage, body, request_params(raw), raw.env.url.host)
+                elsif openai_usage?(body["usage"]) then openai_event(usage, body, request, raw.env.url.host)
                 end
               event&.with(provider: usage[:provider], usage_source: Usage::Source::SDK_RESPONSE)
             end
 
             def transcript_event(usage, payload, body, final, base)
               if final && openai_usage?(body["usage"])
-                request = payload[:provider_options].to_h.with_indifferent_access
-                event = openai_event(usage, body, request, host(usage[:provider], base))
+                event = openai_event(usage, body, request_params(base, payload), host(usage[:provider], base))
               end
               (event || normalized_event(usage, payload, (payload[:result] if final), base))&.with(stream: true)
             end
@@ -108,8 +112,14 @@ module LlmCostTracker
                                       Charges::LineItem.build(dimension_key: "video_input", quantity: video)])
             end
 
+            def bodies(raw, events) = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash)
+
+            def response_id(raw, events)
+              bodies(raw, events).filter_map { |body| body["id"] || body["responseId"] }.first
+            end
+
             def billed_units(usage, raw, events)
-              units = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash).filter_map do |data|
+              units = bodies(raw, events).filter_map do |data|
                 (data["type"] == "message-end" ? data.dig("delta", "usage") : data["usage"] || data["meta"])
                   .try(:[], "billed_units")
               end.last
@@ -122,8 +132,7 @@ module LlmCostTracker
             end
 
             def converse_event(usage, payload, raw, events)
-              bodies = [raw.try(:body), *events&.map { |event| event[:data] }].grep(Hash)
-              data = bodies.reverse.find { |body| body["usage"].try(:key?, "inputTokens") }
+              data = bodies(raw, events).reverse.find { |body| body["usage"].try(:key?, "inputTokens") }
               return unless data
 
               counts = data["usage"]
@@ -148,13 +157,12 @@ module LlmCostTracker
               )
             end
 
-            def normalized_event(usage, payload, result, raw)
+            def normalized_event(usage, payload, result, raw, request = request_params(raw, payload), body_id = nil)
               tokens = usage[:tokens]
               return if usage[:status] != :succeeded && tokens.to_h == REFUSED
 
               provider = usage[:provider]
               model = payload[:response_model] || usage[:model]
-              request = request_params(raw).presence || payload[:provider_options].to_h.with_indifferent_access
               known = tokens.to_h.any? || !tokens.reported_cost.nil?
               line_items = if known && usage[:operation] != :speech
                              service_line_items(model, tokens, result, request)
@@ -171,7 +179,7 @@ module LlmCostTracker
                 pricing_mode: pricing_mode(provider, model, request, raw),
                 stream: payload[:streaming],
                 usage_source: source,
-                provider_response_id: result.try(:id),
+                provider_response_id: result.try(:id) || body_id,
                 service_line_items: line_items
               )
             end
@@ -264,12 +272,12 @@ module LlmCostTracker
               URI(base.to_s).host if base
             end
 
-            def request_params(raw)
+            def request_params(raw, payload)
               body = raw&.env&.request_body
               params = body.is_a?(String) ? JSON.parse(body) : body
-              (params.is_a?(Hash) ? params : {}).with_indifferent_access
+              ((params.presence if params.is_a?(Hash)) || payload[:provider_options].to_h).with_indifferent_access
             rescue JSON::ParserError
-              {}.with_indifferent_access
+              payload[:provider_options].to_h.with_indifferent_access
             end
           end
         end

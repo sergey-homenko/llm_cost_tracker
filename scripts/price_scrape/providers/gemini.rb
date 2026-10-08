@@ -36,6 +36,11 @@ module LlmCostTracker
         UNCAPTURED_MODEL = /(?<!transcribe)-live\b|-(?:streaming|native-audio)\b/
         VERTEX_URL = "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
         SOURCE_URLS = [source_url, VERTEX_URL].freeze
+        VERTEX_TIER_PREFIXES = { "with Priority" => %w[priority_], "with Flex/Batch" => %w[flex_ batch_] }.freeze
+        VERTEX_ROWS = {
+          "Input (text, image, video, audio)" => %w[input image_input audio_input],
+          "Text output (response and reasoning)" => %w[output]
+        }.freeze
         NON_GLOBAL_FROM = /
           For\snon-global\sendpoints,\spricing\swill\sgo\sinto\seffect\sfor\sthe\sGenerally\savailable\sGemini\s3\sand
           \slater\sfamilies\sof\sall\sGoogle\smodels\sstarting\son\s(\w+\s\d{1,2},\s\d{4})\.\sBefore\s\1,\sGlobal
@@ -65,15 +70,48 @@ module LlmCostTracker
 
           factor, names = non_global_factor(vertex)
           ids = names.uniq.to_h { |name| [name, vertex_model_id(name)] }
-          eligible = ids.values & models.keys
-          raise Error, "Vertex AI non-global prices name no Gemini API model" if eligible.empty?
+          raise Error, "Vertex AI non-global prices name no Gemini API model" unless ids.values.intersect?(models.keys)
 
-          eligible.each do |model_id|
+          rows = vertex_global_rows(vertex)
+          (ids.values - models.keys).uniq.each do |model_id|
+            prices = vertex_only_prices(rows.select { |name, *| vertex_model_id(name) == model_id })
+            models[model_id] = prices if prices
+          end
+          (ids.values & models.keys).each do |model_id|
             models[model_id] = models[model_id].merge(non_global_prices(models[model_id], factor, Date.parse(from)))
           end
           ids.reject { |_name, id| models.key?(id) }.keys.map do |name|
-            "- `gemini`: Vertex AI has a non-global price for #{name}, which the Gemini API page does not price"
+            "- `gemini`: Vertex AI prices #{name} in rows the scraper cannot read, " \
+              "and the Gemini API page does not price it"
           end
+        end
+
+        def vertex_global_rows(vertex)
+          vertex.css("table").flat_map do |table|
+            header = joined_text(table.at_css("tr"))
+            next [] unless header.include?("> 200K input tokens")
+
+            prefixes = VERTEX_TIER_PREFIXES.find { |label, _| header.include?(label) }&.last || [""]
+            model = type = ""
+            table.css("tr").filter_map do |tr|
+              cells = tr.css("td").map { |td| joined_text(td) }
+              model = cells[0] unless cells[0].to_s.empty?
+              type = cells[1] unless cells[1].to_s.empty?
+              [model, type, prefixes, *vertex_prices(cells)] if cells[2].to_s.match?(/\Aglobal/i)
+            end
+          end
+        end
+
+        def vertex_only_prices(rows)
+          return unless rows.all? { |_, type, _, base, long| VERTEX_ROWS.key?(type) && base && long == base }
+
+          entries = rows.flat_map do |_model, type, prefixes, base, _long, cached|
+            fields = VERTEX_ROWS[type].map { |field| [field, base] }
+            fields << ["cache_read_input", cached] if cached
+            prefixes.product(fields).map { |prefix, (field, price)| ["#{prefix}#{field}", price] }
+          end.uniq
+          prices = entries.to_h
+          prices if prices.size == entries.size && prices.key?("input") && prices.key?("output")
         end
 
         def non_global_factor(vertex)
@@ -95,7 +133,7 @@ module LlmCostTracker
 
             global = nil unless cells[0].empty? && cells[1].empty?
             model = cells[0] unless cells[0].empty?
-            prices = cells.drop(3).map { |cell| cell[/\$([\d.]+)/, 1]&.to_f }
+            prices = vertex_prices(cells)
             if region.casecmp?("global")
               global = prices
             elsif global
@@ -103,6 +141,8 @@ module LlmCostTracker
             end
           end
         end
+
+        def vertex_prices(cells) = cells.drop(3).map { |cell| cell[/\$([\d.]+)/, 1]&.to_f }
 
         def joined_text(node) = node.xpath(".//text()").map(&:text).join(" ").gsub(/\s+/, " ").strip
 

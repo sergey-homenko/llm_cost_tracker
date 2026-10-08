@@ -8,8 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - `budgets.per_tag` `total` window: a lifetime limit per tag value, such as one agent run's `run_id`.
 - `budgets.per_tag` `calls` limit: the number of recorded calls per tag value, unpriced calls included.
-- RubyLLM calls inside `RubyLLM.workflow` are tagged `run_id` with the workflow's id, also from tools RubyLLM runs concurrently, unless the app sets `run_id`.
-- RubyLLM 2.x speech, OCR, rerank and operations added in later RubyLLM releases are recorded, with unknown cost where no rate applies.
+- RubyLLM calls inside `RubyLLM.workflow` are tagged `run_id` with the workflow's id, also from tools RubyLLM runs concurrently and batch results collected inside it, unless the app sets `run_id`.
+- RubyLLM 2.x speech, OCR, rerank, judgments and operations added in later RubyLLM releases are recorded, with unknown cost where no rate applies; video generation and research jobs are not.
 - RubyLLM 2.x `RubyLLM.batch` results are recorded once each at batch rates when `Batch#messages` or `#results` returns them.
 - `RubyLLM.workflow` names and steps become `workflow_name` and `workflow_step_name` tags.
 - Perplexity, xAI and Mistral hosts, regional ones included, are built into `capture.openai_compatible_providers`, so Faraday, the official openai gem and `track_stream` capture them without registration.
@@ -47,13 +47,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Bundled prices drop the models Mistral lists as retired, with their aliases such as `magistral-medium-latest`, and any model its provider has stopped listing for 90 days.
 - Vertex AI calls through RubyLLM are priced at the tier their `usageMetadata.trafficType` reports, and Bedrock Converse calls at their `serviceTier`, instead of at standard rates; Provisioned Throughput, Bedrock `reserved` and tiers no bundled price lists become `unknown`, so they no longer count toward money budgets but still count toward `calls` limits, and `provisioned_throughput_*` or `reserved_*` rates in `pricing.overrides` price them.
 - Calls through the official OpenAI SDK's Bedrock provider (`OpenAI::Providers.bedrock`) are recorded as `bedrock` instead of `openai`.
+- `with_tags` tags reach threads and fibers started inside its block, RubyLLM's tool threads included, until the block ends.
 
 ### Fixed
 
 - Anthropic compaction, advisor, fallback and refusal pricing applies to RubyLLM 2.x chats, and each blocking `pause_turn` segment is priced from its own response.
 - RubyLLM 2.x Vertex AI `gemini-embedding-2` embeddings price image, audio and video tokens at their own rates instead of as text.
 - RubyLLM 2.x Bedrock Converse streams split cache writes by their final event's `cacheDetails` instead of `with_caching`'s TTL.
-- RubyLLM 2.x images returned without usage are recorded with unknown cost instead of $0.
+- RubyLLM 1.x and 2.x images returned without usage are recorded with unknown cost instead of $0.
 - Gemini Omni Flash, 3.5 Transcribe (Live included) and 2.5 Computer Use calls are priced instead of recorded with unknown cost; Omni video output uses the new `video_output` rate.
 - OpenAI Ultrafast calls (`service_tier: "ultrafast"`) are priced at GPT-6 Astra's Ultrafast rates, US data residency included, instead of recorded with unknown cost.
 - GPT-Realtime-2, 2.1 and 2.1 mini get `data_residency` rates.
@@ -63,10 +64,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - An empty, `0` or non-numeric `BATCH_SIZE` stops `backfill_unknown_pricing`, `reprice`, `prune` and `backfill_tag_costs` with an error.
 - JSON price files keep floats in their shortest form on json 2.11 and later (`0.951432`, not `0.9514320000000001`).
 - The Calls CSV export sorts the matching calls once instead of re-querying each 500-row batch with `OFFSET`, which was slow on large ledgers.
-- Gemini calls on a Vertex AI regional or multi-region endpoint through RubyLLM are priced at the non-global rates Google's Vertex AI pricing page lists from July 1, 2026, instead of its global rates.
+- Gemini calls on a Vertex AI regional or multi-region endpoint through RubyLLM, or through the official openai gem on its OpenAI-compatible API, are priced at the non-global rates Google's Vertex AI pricing page lists from July 1, 2026, instead of its global rates.
 - Claude 4.5 and later calls on a Vertex AI regional or multi-region endpoint through RubyLLM 2.x or the Anthropic SDK's Vertex client are priced at their `data_residency` rates, Anthropic's 10% premium, instead of their global rates.
 - Claude Opus 4.1, Opus 4, Sonnet 4 and Haiku 3.5, retired on Anthropic's API but still served on Bedrock or Google Cloud, are priced at Anthropic's list prices instead of being recorded with unknown cost; Haiku 3.5 is priced under its API id `claude-3-5-haiku`.
 - RubyLLM 2.x Vertex AI batch results from a regional or multi-region job are priced at their non-global batch rates instead of their global ones.
+- Gemini models that only Google's Vertex AI pricing page prices, such as Gemini 3.8 Flash Cyber, are priced from it instead of recorded with unknown cost.
+- Claude Haiku 5.5 calls are priced instead of recorded with unknown cost, prompts over 100,000 tokens at Anthropic's higher rates for them.
+- Claude Sonnet 4.5 prompts over 200K tokens, which Bedrock and Vertex AI still serve, are priced at the long-context rates on Google's Vertex AI pricing page instead of standard rates.
+- Mistral models on sale, such as Mistral Large 4, are priced at the sale price on Mistral's pricing page instead of recorded with unknown cost.
+- Mistral Voxtral Small (`voxtral-small-2507`) chats are priced, audio input per minute at its model card's rate, instead of recorded with unknown cost.
+- OpenAI Responses streams whose hosted-tool items, such as file search results, outgrow the 1 MB capture limit are recorded with their usage and tool fees instead of with unknown cost.
+- OpenAI `responses.compact` calls are recorded, through the official openai gem and Faraday.
+- The official openai gem's `client.beta.responses` and legacy `client.completions.create` calls are recorded.
+- Azure OpenAI calls on a `*.cognitiveservices.azure.com` host are recorded as `azure_openai` instead of missed by Faraday and recorded as `openai` by the official openai gem.
+- An image edit with cached input through the official openai gem counts the cached tokens once, as Faraday does, instead of billing them again as image input.
+- RubyLLM 2.1 calls are priced at the `service_tier`, `speed` and `inference_geo` set with `with_provider_options`, which RubyLLM 2.1 no longer keeps on its raw responses.
+- `:block_requests` stops RubyLLM 2.x batch submissions, video and research jobs, RubyLLM 2.1 judgments and `RubyLLM.cache` before they are sent, and recording a cache's storage no longer raises a budget error after the cache is created.
+- `RubyLLM.cache` on Vertex AI records the cache's storage, as on the Gemini API.
+- `with_tags` in fibers sharing a thread, such as RubyLLM tools under `concurrency: :fibers`, no longer tags other fibers' calls or leaves its tags on the thread.
+- `:block_requests` checks batch submissions before they are sent: `batches.create` through the openai gem, `messages.batches.create` through the anthropic gem and `POST /v1/batches` through Faraday.
+- Faraday no longer checks the budget before Anthropic token counting or batch cancellation, which are free.
+- On MySQL, per-tag budgets read each tag value's own spend instead of merging values that differ only by case, accents or trailing spaces.
+- A budget pushed over its limit by `backfill_unknown_pricing` or `reprice`, the backfill after `prices:refresh` included, fires `on_exceeded` once.
 
 ## [0.14.2] - 2026-09-28
 

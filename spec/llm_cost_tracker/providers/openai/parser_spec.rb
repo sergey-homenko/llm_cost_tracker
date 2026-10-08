@@ -32,6 +32,11 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(described_class.match?(regional_responses_url)).to be true
     end
 
+    it "matches OpenAI Responses compaction URL" do
+      expect(described_class.match?(URI::HTTPS.build(host: "api.openai.com", path: "/v1/responses/compact").to_s))
+        .to be true
+    end
+
     it "matches a background response's poll, but not its input items, cancel, or input token count" do
       expect(described_class.match?(response_retrieval_url)).to be true
       %w[/v1/responses/resp_123/input_items /v1/responses/resp_123/cancel /v1/responses/input_tokens].each do |path|

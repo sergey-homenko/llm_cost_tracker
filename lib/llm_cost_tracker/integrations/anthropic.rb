@@ -172,6 +172,12 @@ module LlmCostTracker
       end
 
       module BatchesPatch
+        def create(*args, **kwargs)
+          anthropic = LlmCostTracker::Integrations::Anthropic
+          anthropic.enforce_budget!(request: anthropic.request_params(args, kwargs))
+          super
+        end
+
         def results_streaming(*args, **kwargs)
           raw = super
           return raw unless LlmCostTracker::Integrations::Anthropic.active?

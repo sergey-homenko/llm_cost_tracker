@@ -116,6 +116,17 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       expect(described_class.spend(rule.key, rule.value, :monthly, time: Time.now.utc)).to eq(BigDecimal("6.0"))
     end
 
+    it "reads each value's own spend apart from values that differ only by case, accents or trailing spaces" do
+      spent = { "José" => 1, "Jose" => 2, "JOSE" => 4, "Jose " => 8 }
+      spent.each { |value, cost| spend(cost, tags: { tenant_id: value }) }
+      month = described_class.window_start(:monthly, Time.now.utc)
+
+      expect(described_class.spend_by_value("tenant_id", %w[José Jose], :monthly, month))
+        .to eq("José" => [1, 1], "Jose" => [2, 2])
+      expect(spent.keys.to_h { |value| [value, described_class.spend("tenant_id", value, :monthly, time: Time.now.utc)] })
+        .to eq(spent)
+    end
+
     it "leaves a blank or nil tag value to the global budgets, as for a call without the tag" do
       configure_per_tag({ monthly: 5 })
 

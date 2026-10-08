@@ -247,6 +247,62 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
     expect(repriced.line_items.order(:position).pluck(:rate_amount)).to eq([0.15, 0.6])
   end
 
+  describe "budget crossings" do
+    let(:notified) { [] }
+
+    before do
+      config = LlmCostTracker.configuration
+      config.ingestion.mode = :inline
+      config.pricing.unknown_model_behavior = :ignore
+      config.budgets.monthly = 10
+      config.budgets.on_exceeded = ->(payload) { notified << payload.values_at(:budget_type, :scope) }
+      config.budgets.per_tag = { tenant_id: { monthly: 10 } }
+    end
+
+    def track(model)
+      LlmCostTracker.track(provider: "openai", model: model, tokens: { input_tokens: 1_000_000 },
+                           tags: { tenant_id: 7 })
+    end
+
+    def price(rates)
+      LlmCostTracker.configuration.pricing.overrides = rates.transform_values { |rate| { input: rate } }
+      LlmCostTracker::Pricing::Registry.reset!
+    end
+
+    it "notifies once, without raising, when pricing this month's calls pushes a global or per-tag budget over" do
+      LlmCostTracker.configuration.budgets.exceeded_behavior = :raise
+      3.times { track("late-model") }
+      price("late-model" => 4.0)
+
+      expect { described_class.call }.not_to raise_error
+      expect(notified).to eq([[:monthly, nil], [:monthly, { key: "tenant_id", value: "7" }]])
+      expect { track("late-model") }.to raise_error(LlmCostTracker::BudgetExceededError)
+      expect(notified.size).to eq(2)
+    end
+
+    it "does not notify for a window that was already over or for calls priced in an earlier window" do
+      price("known-model" => 11.0)
+      travel_to(Time.now.utc.beginning_of_month - 1.day) { track("late-model") }
+      track("known-model")
+      track("late-model")
+      notified.clear
+      price("known-model" => 11.0, "late-model" => 5.0)
+
+      expect(described_class.call.recomputed).to eq(2)
+      expect(notified).to be_empty
+    end
+
+    it "logs instead of raising when the budget read after repricing fails" do
+      track("late-model")
+      price("late-model" => 11.0)
+      allow(LlmCostTracker::Budget::PerTag).to receive(:rules_for_events).and_raise(ActiveRecord::StatementInvalid)
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      expect(described_class.call.recomputed).to eq(1)
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(/Budget check failed after repricing/)
+    end
+  end
+
   describe "off-peak windows" do
     def price(entry)
       LlmCostTracker.configuration.pricing.overrides = { "deepseek/deepseek-x" => entry }
@@ -386,7 +442,7 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
     described_class.call
 
-    expect([regional.reload.total_cost, global.reload.total_cost]).to eq([4.95, 4.5])
+    expect([regional.reload.total_cost, global.reload.total_cost]).to eq([9.075, 8.25])
     expect([regional.pricing_mode, global.pricing_mode]).to eq(["data_residency", nil])
   end
 

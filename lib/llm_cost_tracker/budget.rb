@@ -12,7 +12,7 @@ module LlmCostTracker
     BUDGET_TYPE_TO_PERIOD = { monthly: :month, daily: :day }.freeze
 
     class << self
-      def enforce!(provider: nil, model: nil, request: nil, estimate: nil, tags: nil, force: false)
+      def enforce!(provider: nil, model: nil, request: nil, tags: nil, force: false)
         config = LlmCostTracker.configuration
         return unless config.enabled
 
@@ -20,9 +20,10 @@ module LlmCostTracker
         per_tag = force || PerTag.blocking?
         return unless globally || per_tag
 
-        estimate ||= estimate_cost(provider: provider, model: model, request: request)
+        estimates = request_estimates(provider: provider, model: model, request: request)
+        estimate = estimates.sum(BigDecimal("0"))
         now = Time.now.utc
-        enforce_globally(config, estimate: estimate, time: now) if globally
+        enforce_globally(config, estimate: estimate, largest: estimates.max || estimate, time: now) if globally
         return unless per_tag
 
         check_per_tag(tags || Tags::Context.tags,
@@ -60,6 +61,37 @@ module LlmCostTracker
         check_persisted!(events, behavior_override: :notify)
       rescue StandardError => e
         Logging.warn("Per-tag budget check failed after ingest: #{e.class}: #{e.message}")
+      end
+
+      def notify_repriced_safely!(changes)
+        return if changes.empty?
+
+        now = Time.now.utc
+        budgets = LlmCostTracker.configuration.budgets
+        check_windowed({ daily: budgets.daily, monthly: budgets.monthly }.compact, time: now) do |type, total, budget|
+          handle_exceeded(budget_type: type,
+                          total: total,
+                          budget: budget,
+                          previous_total: total - current_amount(changes, type, now),
+                          behavior: :notify)
+        end
+        PerTag.rules_for_events(changes).each do |rule, repriced|
+          rule.windows.except(:calls).each do |window, limit|
+            amount = current_amount(repriced, window, now)
+            total = PerTag.spend(rule.key, rule.value, window, time: now) if rule.on_exceeded && amount.positive?
+            next unless total && over?(window, total, limit)
+
+            handle_exceeded(budget_type: window,
+                            total: total,
+                            budget: limit,
+                            previous_total: total - amount,
+                            scope: scope_for(rule),
+                            behavior: :notify,
+                            on_exceeded: rule.on_exceeded)
+          end
+        end
+      rescue StandardError => e
+        Logging.warn("Budget check failed after repricing: #{e.class}: #{e.message}")
       end
 
       private
@@ -115,6 +147,21 @@ module LlmCostTracker
         budget_type == :calls ? total > budget : total >= budget
       end
 
+      def current_amount(changes, window, now)
+        start = PerTag.window_start(window, now)
+        changes.sum(BigDecimal("0")) { |change| start.nil? || change.tracked_at >= start ? change.total_cost : 0 }
+      end
+
+      def request_estimates(provider:, model:, request:)
+        batch = request["requests"] if request && !model
+        return [estimate_cost(provider: provider, model: model, request: request)] unless batch.is_a?(Array)
+
+        batch.map do |entry|
+          params = entry["params"] if entry.is_a?(Hash)
+          params.is_a?(Hash) ? estimate_cost(provider: provider, model: params["model"], request: params) : 0
+        end
+      end
+
       def estimate_cost(provider:, model:, request:)
         return BigDecimal("0") unless provider && model && request
 
@@ -136,10 +183,10 @@ module LlmCostTracker
                         behavior: behavior_override)
       end
 
-      def enforce_globally(config, estimate:, time:)
+      def enforce_globally(config, estimate:, largest:, time:)
         per_call = config.budgets.per_call
-        if per_call && estimate.positive? && estimate >= per_call
-          raise_pre_send(budget_type: :per_call, total: estimate, budget: per_call)
+        if per_call && largest.positive? && largest >= per_call
+          raise_pre_send(budget_type: :per_call, total: largest, budget: per_call)
         end
 
         check_windowed({ monthly: config.budgets.monthly, daily: config.budgets.daily }.compact,

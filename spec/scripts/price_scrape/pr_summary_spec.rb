@@ -46,6 +46,20 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::PrSummary do
     )
   end
 
+  it "leads a new model with its base rates and threshold, and lists the ones LiteLLM prices apart" do
+    after = with_models(
+      "anthropic/claude-haiku-5-5" => { "_context_price_threshold_tokens" => 100_000, "batch_input" => 0.05,
+                                        "cache_read_input" => 0.01, "input" => 0.1, "output" => 0.5 },
+      "mistral/voxtral-small-2507" => { "_source" => "litellm", "batch_input" => 0.05, "input" => 0.1, "output" => 0.4 }
+    )
+
+    expect(summary(after).markdown).to include(
+      "### New official models\n\n- `anthropic/claude-haiku-5-5`: input 0.1, output 0.5, cache_read_input 0.01, " \
+      "_context_price_threshold_tokens 100000\n",
+      "### New models priced from LiteLLM\n\n- `mistral/voxtral-small-2507`: input 0.1, output 0.4\n"
+    )
+  end
+
   it "flags changes users' prices:refresh refuses" do
     result = summary(with_models({ "openai/gpt-6" => { "input" => 0.0, "output" => 8.0 } }))
 

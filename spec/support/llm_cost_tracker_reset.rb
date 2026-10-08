@@ -23,7 +23,7 @@ module LlmCostTrackerReset
     worker.instance_variable_set(:@pid, nil)
     worker.instance_variable_set(:@identity, nil)
 
-    ActiveSupport::IsolatedExecutionState[LlmCostTracker::Tags::Context::KEY] = []
+    Fiber[LlmCostTracker::Tags::Context::KEY] = nil
     LlmCostTracker::Dashboard::SetupState.reset!
   end
 end

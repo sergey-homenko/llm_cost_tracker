@@ -48,9 +48,14 @@ module LlmCostTracker
         def patch_targets
           [
             patch_target("OpenAI::Resources::Responses", with: ResponsesPatch),
+            patch_target("OpenAI::Resources::Beta::Responses",
+                         with: ResponsesPatch,
+                         optional: true,
+                         skip_when_methods_missing: true),
             patch_target("OpenAI::Responses::Connection", with: ResponsesConnectionPatch, optional: true),
             patch_target("OpenAI::Resources::Chat::Completions", with: ChatCompletionsPatch),
-            patch_target("OpenAI::Resources::Embeddings", with: EmbeddingsPatch, optional: true),
+            patch_target("OpenAI::Resources::Completions", with: CreatePatch, optional: true),
+            patch_target("OpenAI::Resources::Embeddings", with: CreatePatch, optional: true),
             patch_target("OpenAI::Resources::Images", with: ImagesPatch, optional: true),
             patch_target("OpenAI::Resources::Images",
                          with: StreamingImagesPatch,
@@ -104,12 +109,22 @@ module LlmCostTracker
           request
         end
 
-        def record_websocket_event(event, url, tags)
-          return unless active? && WEBSOCKET_RESULTS.include?(event.try(:type).to_s)
+        def record_websocket_event(event, url, lanes, responses)
+          type = event.try(:type).to_s
+          lane_event = %w[response.created error].include?(type)
+          return unless active? && (lane_event || WEBSOCKET_RESULTS.include?(type))
 
           record_safely do
             data = LlmCostTracker::Capture::SdkPayload.normalize(event)
             response = data["response"].to_h
+            if lane_event
+              lane = lanes[data["stream_id"]]
+              lane.shift if lane && lane.size > 1
+              responses[response["id"]] = lane&.first if type == "response.created"
+              next
+            end
+
+            tags = responses.delete(response["id"])
             host = URI(url.to_s).host
             parsed = LlmCostTracker::Providers::Openai::ResponseParser.event_from_response(
               response: response,
@@ -120,7 +135,7 @@ module LlmCostTracker
             )
             next unless parsed
 
-            LlmCostTracker::Tracker.record(event: parsed.with(stream: true), context_tags: tags&.[](data["stream_id"]))
+            LlmCostTracker::Tracker.record(event: parsed.with(stream: true), context_tags: tags)
           end
         end
 
@@ -140,28 +155,16 @@ module LlmCostTracker
 
         def record_image(response, request:, latency_ms:, host: nil)
           usage = usage_hash_from(response) || {}
-          raw_input = usage[:input_tokens].to_i
-          image_input = LlmCostTracker::Providers::Openai::UsageExtractor.image_input_tokens(usage)
-          cache_read = LlmCostTracker::Providers::Openai::UsageExtractor.cache_read_input_tokens(usage)
-          image_output, text_output = LlmCostTracker::Providers::Openai::UsageExtractor.split_output(
-            output_tokens: usage[:output_tokens].to_i,
-            image_output_details: LlmCostTracker::Providers::Openai::UsageExtractor.image_output_tokens(usage),
-            text_output_details: LlmCostTracker::Providers::Openai::UsageExtractor.text_output_tokens(usage),
-            audio_output: 0,
-            default_to_image: true
-          )
+          extractor = LlmCostTracker::Providers::Openai::UsageExtractor
           record_passthrough(
             model: request[:model],
             response: response,
             latency_ms: latency_ms,
             provider: provider_for_host(host),
             pricing_mode: host_pricing_mode(host, request),
-            input_tokens: [raw_input - image_input - cache_read, 0].max,
-            image_input_tokens: image_input,
-            output_tokens: text_output,
-            image_output_tokens: image_output,
-            cache_read_input_tokens: cache_read,
-            service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.billed_line_items(usage)
+            service_line_items: LlmCostTracker::Providers::Openai::ServiceCharges.billed_line_items(usage) +
+                                extractor.cache_read_line_items(usage),
+            **extractor.token_usage(usage, model: request[:model], default_to_image: true).to_h
           )
         end
 

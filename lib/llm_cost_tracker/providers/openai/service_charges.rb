@@ -97,6 +97,15 @@ module LlmCostTracker
           output_dimension(item["type"])
         end
 
+        def billing_fields(item)
+          return unless item.is_a?(Hash) && item_dimension(item)
+
+          item.slice("type", "id", "status", "container_id").merge(
+            "action" => item["action"]&.slice("type"),
+            "environment" => item["environment"]&.slice("type", "container_id")
+          ).compact
+        end
+
         def container_id(item)
           item["container_id"] || shell_container_id(item)
         end

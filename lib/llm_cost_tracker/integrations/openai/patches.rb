@@ -44,7 +44,7 @@ module LlmCostTracker
       end
 
       module ResponsesPatch
-        include PatchBuilder.build(record_method: :record_response, methods: %i[create])
+        include PatchBuilder.build(record_method: :record_response, methods: %i[create compact])
         include PatchBuilder.build_stream(methods: %i[stream stream_raw])
 
         def retrieve(response_id, *args, **kwargs)
@@ -69,7 +69,9 @@ module LlmCostTracker
         def send_event(event)
           created = LlmCostTracker::Integrations::Openai.websocket_create(event, url)
           super.tap do
-            (@llm_cost_tracker_tags ||= {})[created["stream_id"]] = LlmCostTracker::Tags::Context.tags if created
+            next unless created
+
+            ((@llm_cost_tracker_lanes ||= {})[created["stream_id"]] ||= [nil]) << LlmCostTracker::Tags::Context.tags
           end
         end
 
@@ -94,7 +96,9 @@ module LlmCostTracker
         private
 
         def llm_cost_tracker_record(event)
-          LlmCostTracker::Integrations::Openai.record_websocket_event(event, url, @llm_cost_tracker_tags)
+          LlmCostTracker::Integrations::Openai.record_websocket_event(
+            event, url, @llm_cost_tracker_lanes ||= {}, @llm_cost_tracker_responses ||= {}
+          )
         rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
           @llm_cost_tracker_deferred ||= e
         end
@@ -111,7 +115,7 @@ module LlmCostTracker
         include PatchBuilder.build_stream(methods: %i[stream stream_raw])
       end
 
-      EmbeddingsPatch = PatchBuilder.build(record_method: :record_response, methods: %i[create])
+      CreatePatch = PatchBuilder.build(record_method: :record_response, methods: %i[create])
       ImagesPatch = PatchBuilder.build(record_method: :record_image, methods: %i[generate edit create_variation])
       TranscriptionsPatch = PatchBuilder.build(record_method: :record_transcription, methods: %i[create])
       TranslationsPatch = PatchBuilder.build(record_method: :record_transcription, methods: %i[create])
@@ -121,6 +125,12 @@ module LlmCostTracker
       StreamingTranscriptionsPatch = PatchBuilder.build_stream(methods: %i[create_streaming])
 
       module BatchesPatch
+        def create(*args, **kwargs)
+          openai = LlmCostTracker::Integrations::Openai
+          openai.enforce_budget!(request: openai.request_params(args, kwargs))
+          super
+        end
+
         def retrieve(batch_id, *args, **kwargs)
           batch = super
           LlmCostTracker::Integrations::Openai::BatchCapture.maybe_capture(batch, resource: self)

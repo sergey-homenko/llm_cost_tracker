@@ -3,6 +3,10 @@
 ## v0.14.2 → v0.15.0
 
 - **Cohere chats recorded before 0.15.0** through RubyLLM 2.x count Cohere's unbilled preamble as input, so `backfill_unknown_pricing` and `reprice` overstate their cost.
+- **Unpriced tiers through RubyLLM.** Vertex AI Provisioned Throughput, Bedrock `reserved`, and tiers no bundled price lists are recorded `unknown`, so they no longer count toward money budgets, only toward `calls` limits; `provisioned_throughput_*` or `reserved_*` rates in `pricing.overrides` price them.
+- **xAI, Mistral and Perplexity are captured without registration.** Faraday now records their calls and adds `stream_options.include_usage` to xAI and Mistral streaming chat completions (`capture.request_stream_usage = false` leaves request bodies untouched), and the official openai gem records them as `xai`, `mistral` and `perplexity` instead of `openai`.
+- **Bedrock through the official openai gem.** Calls on Amazon Bedrock hosts are recorded as `bedrock` instead of `openai`.
+- **`prices:refresh` writes to the database.** After writing a new `config.pricing.file`, it runs `backfill_unknown_pricing` when the calls ledger is reachable.
 
 ## v0.14.1 → v0.14.2
 

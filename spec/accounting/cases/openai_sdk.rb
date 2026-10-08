@@ -355,6 +355,38 @@ module AccountingCases
     client.responses.stream_raw(model: "gpt-5.5", input: "hi", service_tier: :priority).each { nil }
   end
 
+  define_case "openai sdk responses stream_raw: four file search calls whose results outgrow the capture limit",
+              instrument: :openai do
+    results = Array.new(50) { |rank| { file_id: "file_#{rank}", score: 0.5, text: "lorem ipsum " * 300 } }
+    searches = Array.new(4) do |index|
+      { type: "file_search_call", id: "fs_l#{index}", status: "completed", queries: ["refunds"], results: results }
+    end
+    stub_sse(:post, "#{OPENAI_API}/responses",
+             responses_stream_body(id: "resp_ss7", model: "gpt-5.4", usage: responses_usage(60_000, 1_200),
+                                   output: searches + [output_message("ss7")]))
+    openai_client.responses.stream_raw(model: "gpt-5.4", input: "refunds?", include: ["file_search_call.results"],
+                                       tools: [{ type: :file_search, vector_store_ids: ["vs_1"] }]).each { nil }
+  end
+
+  define_case "openai sdk responses compact: gpt-5.4 at the request's model", instrument: :openai do
+    stub_json(:post, "#{OPENAI_API}/responses/compact",
+              { id: "cmp_sdk1", object: "response.compaction", created_at: 1_758_000_000,
+                output: [{ type: "compaction", id: "cmp_item1", encrypted_content: "gAAAA" }],
+                usage: responses_usage(120_000, 4_000) })
+    openai_client.responses.compact(model: "gpt-5.4", input: "long history")
+  end
+
+  define_case "openai sdk beta responses and legacy completions: recorded like the stable resources", instrument: :openai do
+    stub_json(:post, "#{OPENAI_API}/responses?beta=true",
+              responses_object(id: "resp_beta1", model: "gpt-5.4", usage: responses_usage(1000, 200)))
+    stub_json(:post, "#{OPENAI_API}/completions",
+              { id: "cmpl_sdk1", object: "text_completion", created: 1, model: "gpt-3.5-turbo-instruct",
+                choices: [{ text: "ok", index: 0, logprobs: nil, finish_reason: "stop" }],
+                usage: { prompt_tokens: 1000, completion_tokens: 100, total_tokens: 1100 } })
+    openai_client.beta.responses.create(model: "gpt-5.4", input: "hi")
+    openai_client.completions.create(model: "gpt-3.5-turbo-instruct", prompt: "hi")
+  end
+
   define_case "openai sdk responses retrieve_streaming: response without id", instrument: :openai do
     completed = { type: "response.completed", sequence_number: 1,
                   response: { model: "gpt-4o", usage: responses_usage(20, 7) } }
@@ -845,6 +877,17 @@ module AccountingCases
       LlmCostTracker.with_tags(turn: "first") { connection.response.create(model: "gpt-4o", input: "hi") }
       connection.each { |event| break if event.type.to_s == "response.completed" }
       LlmCostTracker.with_tags(turn: "second") { connection.response.create(model: "gpt-4o", input: "more") }
+      connection.each { nil }
+    end
+  end
+
+  define_case "openai sdk responses websocket: creates pipelined on one lane at the tags each was sent under",
+              instrument: :openai do
+    transport, = responses_websocket(websocket_turn("resp_ws4", "gpt-4o", responses_usage(1000, 100)) +
+                                     websocket_turn("resp_ws5", "gpt-4o", responses_usage(2000, 200)))
+    openai_client.responses.connect(transport: transport) do |connection|
+      LlmCostTracker.with_tags(tenant: "alpha") { connection.response.create(model: "gpt-4o", input: "a") }
+      LlmCostTracker.with_tags(tenant: "beta") { connection.response.create(model: "gpt-4o", input: "b") }
       connection.each { nil }
     end
   end

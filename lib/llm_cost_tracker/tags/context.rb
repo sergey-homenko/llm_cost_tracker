@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "active_support/isolated_execution_state"
-
 module LlmCostTracker
   module Tags
     module Context
@@ -9,18 +7,20 @@ module LlmCostTracker
 
       class << self
         def with(tags)
-          stack = ActiveSupport::IsolatedExecutionState[KEY] || []
-          ActiveSupport::IsolatedExecutionState[KEY] = stack + [Sanitizer.call((tags || {}).to_h)]
+          stack = Fiber[KEY] || []
+          scope = [Sanitizer.call((tags || {}).to_h)]
+          Fiber[KEY] = stack + [scope]
           yield
         ensure
-          ActiveSupport::IsolatedExecutionState[KEY] = stack
+          scope&.clear
+          Fiber[KEY] = stack
         end
 
         def tags
           config = LlmCostTracker.configuration
           base = config.tags.static_sanitized_default ||
                  Sanitizer.call(call_default_tags(config.tags.default).to_h)
-          base.merge(*Array(ActiveSupport::IsolatedExecutionState[KEY]))
+          base.merge(*Array(Fiber[KEY]).flatten)
         end
 
         def call_default_tags(proc_or_lambda)

@@ -5,7 +5,7 @@ Production use depends on ActiveRecord health, bounded hot paths, and current pr
 ## Production Defaults
 
 - Size the ActiveRecord connection pool for your app's concurrency. If `config.ingestion.mode = :async`, add headroom for the local ingestor thread, which checks out an ordinary ActiveRecord connection. Inbox writes do not: every one of them goes through a pool the gem owns, sized by `config.ingestion.pool_size` (default 2), so that a staged event survives a caller rollback. Raise that setting, not the app pool, if inbox writes start queueing. The default inline path shares the caller's connection and joins its transaction through a savepoint, so a failed ledger write rolls back only that savepoint, unless the database has already discarded the whole transaction (a deadlock on MySQL), which raises `TransactionAbortedError`.
-- Automatic capture never fails an LLM call because recording failed: only `BudgetExceededError`, `UnknownPricingError` under `:raise`, and `TransactionAbortedError` reach your code, and other recording failures are logged. `LlmCostTracker.track` and `track_stream` raise them, except that an exception from your `track_stream` block wins over any but `TransactionAbortedError`.
+- Automatic capture never fails an LLM call because recording failed: only `BudgetExceededError`, `UnknownPricingError` under `:raise`, and `TransactionAbortedError` reach your code, and other recording failures are logged. `LlmCostTracker.track` and `track_stream` raise them, except that an exception from your `track_stream` block wins over any but `TransactionAbortedError`. Under `:block_requests`, a database error during the pre-send budget read also reaches your code, and the request is not sent.
 - Keep `tags.default` callables fast and thread-safe.
 - Mount the dashboard behind existing admin authentication.
 - Run `llm_cost_tracker:doctor` after deploys that change the gem version or schema.
@@ -50,7 +50,7 @@ The default process `at_exit` hook stops the local ingestor without forcing ever
 
 ## Ruby Concurrency
 
-Threaded Rails servers and fiber schedulers are supported. Scoped tags use `ActiveSupport::IsolatedExecutionState`, so isolation follows the host Rails isolation mode. Stream collectors snapshot tag context at creation time, which keeps tags stable when a stream finishes in another thread or fiber.
+Threaded Rails servers and fiber schedulers are supported. Scoped tags live in fiber storage: each thread and fiber has its own, and one started inside `with_tags` sees its tags until the block ends. Stream collectors snapshot tag context at creation time, which keeps tags stable when a stream finishes in another thread or fiber.
 
 Ractors are not a supported runtime boundary for this gem. Rails, ActiveRecord connections, Faraday middleware registration, configuration objects, Mutex-backed caches, and the local ingestor thread all assume normal process/thread Rails execution. If an application uses Ractors for CPU-bound work, keep provider calls and tracking in the main Rails execution context, or send plain usage data back and call `LlmCostTracker.track` there.
 

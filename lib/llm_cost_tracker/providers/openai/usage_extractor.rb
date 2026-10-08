@@ -12,7 +12,7 @@ module LlmCostTracker
           audio_tokens: "audio_cache_read_input", image_tokens: "image_cache_read_input"
         }.freeze
 
-        def self.token_usage(usage, model: nil)
+        def self.token_usage(usage, model: nil, default_to_image: ModelFamilies.image_output?(model))
           input_tokens = (usage[:input_tokens] || usage[:prompt_tokens]).to_i
           output_tokens = (usage[:output_tokens] || usage[:completion_tokens]).to_i
           reasoning = hidden_output_tokens(usage)
@@ -28,7 +28,7 @@ module LlmCostTracker
             image_output_details: image_output_tokens(usage),
             text_output_details: text_output_tokens(usage),
             audio_output: audio_output,
-            default_to_image: ModelFamilies.image_output?(model)
+            default_to_image: default_to_image
           )
 
           Usage::TokenUsage.build(

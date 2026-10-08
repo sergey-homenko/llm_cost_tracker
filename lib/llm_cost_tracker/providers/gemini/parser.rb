@@ -177,7 +177,7 @@ module LlmCostTracker
           seconds = Time.iso8601(to) - Time.iso8601(from)
           Event.build(
             provider: "gemini",
-            model: response["model"].to_s.delete_prefix("models/"),
+            model: response["model"].to_s.split("/").last,
             token_usage: Usage::TokenUsage.build(input_tokens: 0, output_tokens: 0, total_tokens: 0),
             usage_source: Usage::Source::RESPONSE,
             provider_response_id: response["name"],

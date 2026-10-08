@@ -370,6 +370,12 @@ module AccountingCases
                  chat_completion(id: "chatcmpl_az6", model: "gpt-4.1-mini", usage: chat_usage(2000, 300)))
   end
 
+  define_case "faraday azure openai chat: cognitiveservices.azure.com host" do
+    faraday_json("https://contoso.cognitiveservices.azure.com/openai/deployments/gpt-4o/chat/completions" \
+                 "?api-version=2025-01-01-preview", { messages: [] },
+                 chat_completion(id: "chatcmpl_az8", model: "gpt-4o-2024-11-20", usage: chat_usage(2000, 300)))
+  end
+
   define_case "faraday azure openai chat: gpt-4.1 served on priority" do
     faraday_json("#{AZURE_OPENAI}/v1/chat/completions", { model: "gpt-4.1", messages: [], service_tier: "priority" },
                  chat_completion(id: "chatcmpl_az7", model: "gpt-4.1", usage: chat_usage(2000, 300),

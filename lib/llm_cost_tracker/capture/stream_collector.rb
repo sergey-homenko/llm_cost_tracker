@@ -36,7 +36,9 @@ module LlmCostTracker
         @metadata = (metadata || {}).deep_dup
         @context_tags = LlmCostTracker::Tags::Context.tags.deep_dup
         @request = request
-        @window = EventWindow.new(notable: Parsers.find_for_provider(@parsed_as)&.method(:retain_stream_event?))
+        parser = Parsers.find_for_provider(@parsed_as)
+        @window = EventWindow.new(notable: parser&.method(:retain_stream_event?),
+                                  trim: parser&.method(:trim_stream_event))
         @explicit_usage = nil
         @started_at = LlmCostTracker::Timing.now_monotonic
         @finished = false

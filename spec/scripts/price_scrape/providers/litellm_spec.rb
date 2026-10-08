@@ -31,7 +31,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
 
   def fixture(name) = File.read("spec/fixtures/scrape/#{name}", encoding: "utf-8")
 
-  def card(names) = %(<script>self.__next_f.push([1,#{{ "names" => names }.to_json.to_json}])</script>)
+  def card(names, **data) = %(<script>self.__next_f.push([1,#{{ "names" => names, **data }.to_json.to_json}])</script>)
 
   it "prices only the Mistral models its pricing page lists, at the page's rates, under the names the API accepts" do
     catalogue = JSON.parse(body)
@@ -121,6 +121,39 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     expect(models.fetch("mistral-embed-2312")).to include("_source" => "litellm", "input" => 0.1)
     expect(models.fetch("codestral-embed")).to eq(mistral.fetch("codestral-embed"))
     expect(models).not_to include("mistral-embed-latest")
+  end
+
+  it "prices a LiteLLM-only Voxtral row's audio per minute from its card, under no name models.dev prices otherwise" do
+    models_dev = JSON.parse(fixture("models_dev.json"))
+    models_dev["mistral"]["models"]["voxtral-small-2507"] = { "cost" => { "input" => 0.1, "output" => 0.4 } }
+    pricing = { "input" => [{ "type" => "range", "price" => 0.004, "denominator" => "/Min" }] }
+    models_page = fixture("mistral_models.html")
+                  .sub("</body>", %(<a href="/models/voxtral-small-25-07">Voxtral Small</a></body>))
+    pages = mistral_pages.merge(described_class::MODELS_DEV_URL => JSON.generate(models_dev),
+                                mistral_class::MODELS_SOURCE_URL => models_page,
+                                "#{mistral_class::MODELS_SOURCE_URL}/voxtral-small-25-07" =>
+                                  card(%w[voxtral-small-2507 voxtral-small-latest], pricing: pricing))
+    models = mistral_class.new.call(html: pages, scraped_at: "2026-10-05T06:00:00Z").models
+
+    expect(models.fetch("voxtral-small-2507"))
+      .to include("_source" => "litellm", "input" => 0.1, "output" => 0.4, "transcription_minute" => 0.004)
+    expect(models).not_to include("voxtral-small-latest")
+  end
+
+  it "reads a Mistral sale price and raises on a pricing row it reads no price from" do
+    sale = '<td><del><span class="sr-only">Original price: </span>$1.36</del>' \
+           '<ins><span class="sr-only">Sale price: </span>$0.68</ins></td><td>$0.07</td><td>$2.09</td>'
+    scrape = lambda do |cells|
+      page = fixture("mistral_pricing.html").sub(%r{<td>\$0\.5</td><td>\$0\.05</td><td>\$1\.5</td>}, cells)
+      mistral_class.new.call(html: mistral_pages.merge(mistral_class::PRICING_SOURCE_URL => page),
+                             scraped_at: "2026-10-05T06:00:00Z").models
+    end
+
+    expect(scrape.call(sale).fetch("mistral-large-latest"))
+      .to include("input" => 0.68, "cache_read_input" => 0.07, "output" => 2.09)
+    expect { scrape.call("<td>$TBD</td>" * 3) }
+      .to raise_error(described_class::Error, %r{row for /models/mistral-large-3-25-12 has no price})
+    expect { scrape.call("<td>Contact sales</td>" * 3) }.not_to raise_error
   end
 
   it "writes no LiteLLM-only row, and notes it, when models.dev is unreachable or invalid" do

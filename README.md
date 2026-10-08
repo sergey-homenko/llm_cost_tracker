@@ -54,7 +54,7 @@ end
 - **Calls.** Provider, model, total tokens, total cost, latency, status.
 - **Line items.** Per-component breakdown — text/audio/cached tokens, tool charges (web search, grounding, container sessions).
 - **Tags.** Whatever attribution you pass — user, feature, tenant, env.
-- **Provider IDs.** Response, project, API key, workspace — for downstream audits.
+- **Provider IDs.** Response, plus project, API key and workspace when you pass them to `track` or `track_stream` — for downstream audits.
 - **Pricing snapshot.** So historical numbers don't drift when prices change.
 
 ## Budgets
@@ -67,7 +67,7 @@ Daily, monthly, and per-call limits, plus per-tag limits such as one monthly bud
 | --- | --- |
 | RubyLLM | Instrumentation events (2.x) or the provider layer (1.x) |
 | OpenAI, Anthropic | Official SDK or Faraday |
-| Azure OpenAI | Official SDK or Faraday, on `*.openai.azure.com` and Foundry `*.services.ai.azure.com` |
+| Azure OpenAI | Official SDK or Faraday, on `*.openai.azure.com`, and Foundry `*.services.ai.azure.com` or `*.cognitiveservices.azure.com` |
 | Google Gemini, `ruby-openai` | Faraday |
 | OpenRouter, DeepSeek, Groq, xAI, Mistral, Perplexity | Faraday, or the official OpenAI SDK with `base_url` on that host |
 | Other OpenAI-compatible gateways | The same, once the host is added to `config.capture.openai_compatible_providers` |
@@ -84,7 +84,7 @@ Captured does not always mean priced:
 | The billed amount in the response or final stream chunk: `usage.cost`, xAI's `usage.cost_in_usd_ticks`, or Perplexity's `usage.cost.total_cost` | OpenRouter, xAI, Perplexity, and other OpenAI-compatible gateways that return one (through RubyLLM 1.x, OpenRouter, xAI, and Perplexity chats only) |
 | Bundled [`prices.json`](lib/llm_cost_tracker/prices.json) | The OpenAI, Anthropic, Gemini, Groq, OpenRouter, xAI, Mistral, DeepSeek, and Cohere models it lists, DeepSeek at its off-peak rates in its off-peak hours, and the same Claude models on Bedrock through RubyLLM |
 | The OpenAI, Anthropic, or Gemini price for the same model name | Azure OpenAI (by the model in the response, not the deployment name), Vertex AI through RubyLLM, gateways that pass a listed model name through |
-| Nothing: recorded with `cost_status: unknown` | Perplexity without a billed amount (its Router), calls through the official OpenAI SDK's Bedrock provider, and through RubyLLM also Ollama, Cohere models without a bundled price (such as Command A+, Embed 4, and Rerank 3.5), other Bedrock models, and Claude on GovCloud (`us-gov.` profiles) |
+| Nothing: recorded with `cost_status: unknown` | Perplexity without a billed amount (its Router) when no price lists its model, calls through the official OpenAI SDK's Bedrock provider, and through RubyLLM also Ollama, Cohere models without a bundled price (such as Command A+, Embed 4, and Rerank 3.5), other Bedrock models, and Claude on GovCloud (`us-gov.` profiles) |
 
 Add missing prices to `config.pricing.file` or `config.pricing.overrides` ([Pricing](docs/pricing.md)), then run `bin/rails llm_cost_tracker:backfill_unknown_pricing` to price the calls already recorded. `bin/rails llm_cost_tracker:prices:refresh` runs it after writing a new `config.pricing.file` if the database is reachable.
 

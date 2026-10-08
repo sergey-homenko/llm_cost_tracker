@@ -83,10 +83,10 @@ RSpec.describe LlmCostTracker::Providers::Azure::Parser do
 
     it "does not match Azure resource management or other Azure surfaces" do
       mgmt = URI::HTTPS.build(host: "management.azure.com", path: "/subscriptions/abc").to_s
-      cog = URI::HTTPS.build(host: "myresource.cognitiveservices.azure.com",
-                             path: "/openai/deployments/gpt4o/chat/completions").to_s
+      speech = URI::HTTPS.build(host: "myresource.cognitiveservices.azure.com",
+                                path: "/speechtotext/transcriptions:transcribe").to_s
       expect(described_class.match?(mgmt)).to be false
-      expect(described_class.match?(cog)).to be false
+      expect(described_class.match?(speech)).to be false
     end
 
     it "does not match OpenAI direct URLs (the Openai parser owns those)" do

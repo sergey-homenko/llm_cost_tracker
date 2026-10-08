@@ -396,17 +396,33 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     expect(models.fetch("gemini-3.1-flash-image")).to include("data_residency_image_output_from_2026-07-01" => 66.0)
     expect(models.select { |_id, fields| fields.keys.any? { |key| key.include?("data_residency") } }.keys)
       .to contain_exactly("gemini-3.1-flash-image", "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.5-flash-lite",
-                          "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash")
+                          "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.8-flash-cyber")
     expect(models.fetch("gemini-3.5-flash").keys.grep(/data_residency/).grep(/grounding|storage/)).to be_empty
   end
 
-  it "notes the Vertex AI non-global prices of models the Gemini API page does not price, a renamed one included" do
-    note = ->(name) { "- `gemini`: Vertex AI has a non-global price for #{name}, which the Gemini API page does not price" }
-    expect(scrape(html).notes).to eq([note.call("Gemini 3.8 Flash Cyber")])
+  it "prices a Gemini model only Vertex AI lists from its Global rows, and notes one whose rows it cannot read" do
+    result = scrape(html)
+    cyber = result.models.fetch("gemini-3.8-flash-cyber")
 
-    renamed = scrape(html, vertex: vertex_html.gsub(">Gemini 3.5 Flash<", ">Gemini 3.5 Flash GA<"))
-    expect(renamed.notes).to include(note.call("Gemini 3.5 Flash GA"))
-    expect(renamed.models.fetch("gemini-3.5-flash").keys.grep(/data_residency/)).to be_empty
+    expect(result.notes).to be_empty
+    expect(cyber.reject { |key, _| key.include?("data_residency") }).to eq(
+      "input" => 1.5, "image_input" => 1.5, "audio_input" => 1.5, "cache_read_input" => 0.15, "output" => 7.5,
+      "priority_input" => 2.7, "priority_image_input" => 2.7, "priority_audio_input" => 2.7,
+      "priority_cache_read_input" => 0.27, "priority_output" => 13.5,
+      "flex_input" => 0.75, "flex_image_input" => 0.75, "flex_audio_input" => 0.75,
+      "flex_cache_read_input" => 0.075, "flex_output" => 3.75,
+      "batch_input" => 0.75, "batch_image_input" => 0.75, "batch_audio_input" => 0.75,
+      "batch_cache_read_input" => 0.075, "batch_output" => 3.75
+    )
+    expect(cyber).to include(
+      "data_residency_input_from_2026-07-01" => 1.65, "priority_data_residency_output_from_2026-07-01" => 14.85,
+      "batch_data_residency_cache_read_input_from_2026-07-01" => 0.0825
+    )
+
+    unread = scrape(html, vertex: vertex_html.sub(/(Cyber<.*?)Input \(text, image, video, audio\)/m, '\1Input (text)'))
+    expect(unread.notes).to eq(["- `gemini`: Vertex AI prices Gemini 3.8 Flash Cyber in rows the scraper cannot read, " \
+                                "and the Gemini API page does not price it"])
+    expect(unread.models).not_to have_key("gemini-3.8-flash-cyber")
   end
 
   it "raises when the Vertex AI non-global pricing note, its single uplift, or its Gemini models are gone" do
